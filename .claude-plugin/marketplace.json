@@ -1,0 +1,26 @@
+{
+  "name": "ai-badger",
+  "owner": {
+    "name": "Rafał Araszkiewicz",
+    "url": "https://github.com/Arasz"
+  },
+  "metadata": {
+    "description": "Cross-project agent framework: a versioned catalog of reusable Claude Code skills, personas, invariants, instructions, and plugin bundles organized by {stack|common}, plus scripts to scaffold a tailored selection into any project and feed agnostic improvements back."
+  },
+  "plugins": [
+    {
+      "name": "ai-badger",
+      "source": "./",
+      "description": "Installs the ai-badger common skills (welcome-ai-badger, feed-badger, task, maintain-agent-instructions, auto-wm, prompt-markers) used to scaffold and maintain the {stack|common}/{feature} framework catalog inside any project.",
+      "version": "0.1.0",
+      "license": "MIT",
+      "keywords": [
+        "skills",
+        "agents",
+        "scaffolding",
+        "framework",
+        "task-orchestration"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+# ai-badger framework repo
+__pycache__/
+*.pyc
+.DS_Store
+# per-project tracking state (only relevant in scaffolded repos, guarded here defensively)
+task-tracking/
+.ai-badger/task-tracking/

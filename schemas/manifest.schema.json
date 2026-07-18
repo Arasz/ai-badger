@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Arasz/ai-badger/schemas/manifest.schema.json",
+  "title": "ai-badger project manifest",
+  "description": "Provenance record written by scaffold.py: exactly what the framework placed into the target repo, so feed-badger can diff project vs framework.",
+  "type": "object",
+  "required": ["frameworkVersion", "agents", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "frameworkVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "generatedAt": { "type": ["string", "null"], "description": "ISO timestamp stamped by the orchestrator after scaffold (scripts avoid nondeterministic clocks)." },
+    "agents": { "type": "array", "items": { "enum": ["claude", "copilot", "junie"] } },
+    "pluginScope": { "enum": ["default", "local"] },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["feature", "stack", "name", "source", "target", "frameworkVersion", "hash"],
+        "additionalProperties": false,
+        "properties": {
+          "feature": { "enum": ["skills", "personas", "invariants", "instructions", "plugins", "templates"] },
+          "stack": { "type": "string" },
+          "name": { "type": "string" },
+          "source": { "type": "string", "description": "Path within the framework repo." },
+          "target": { "type": "string", "description": "Path within the target repo." },
+          "frameworkVersion": { "type": "string" },
+          "hash": { "type": "string", "description": "sha256 of the source content at scaffold time." }
+        }
+      }
+    }
+  }
+}

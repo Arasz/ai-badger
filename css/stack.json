@@ -1,0 +1,7 @@
+{
+  "name": "css",
+  "description": "CSS styling conventions: layout, responsive design, and accessibility-aware styling.",
+  "detectionSignals": ["*.css", "*.scss", "*.module.css"],
+  "requires": [],
+  "commands": {}
+}

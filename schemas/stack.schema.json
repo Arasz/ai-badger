@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Arasz/ai-badger/schemas/stack.schema.json",
+  "title": "ai-badger stack metadata",
+  "description": "Optional per-stack metadata (<stack>/stack.json): detection signals and default commands used by detect.py, folded into index.json.stacks[stack].meta.",
+  "type": "object",
+  "required": ["name"],
+  "additionalProperties": false,
+  "properties": {
+    "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "description": { "type": "string" },
+    "detectionSignals": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Human/heuristic hints (e.g. 'react in package.json dependencies', '*.tsx') detect.py uses to auto-select this stack."
+    },
+    "requires": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Other stacks implied by this one (e.g. react requires ts+node)."
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Default build/test/lint/run commands this stack contributes to config.json."
+    }
+  }
+}

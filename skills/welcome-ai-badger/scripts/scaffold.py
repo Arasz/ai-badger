@@ -1,0 +1,336 @@
+#!/usr/bin/env python3
+"""Materialize a target repo's .ai-badger/ scaffold from a validated config.json.
+
+MECHANICAL ONLY — no LLM, no network (except optional plugin installs, which are
+skippable). The agent authors config.json; this script does everything else deterministically
+and idempotently (safe to re-run; it rewrites managed files and refreshes the manifest).
+
+Usage:
+  scaffold.py --config <path/to/config.json> --target <target repo dir> [--root <framework>]
+              [--skills task,prompt-markers] [--no-install] [--generated-at <iso>]
+
+Outputs under <target>/.ai-badger/ plus copied agent-discovery files (CLAUDE.md, copilot,
+junie) per config.agents, and <target>/.ai-badger/manifest.json.
+"""
+from __future__ import annotations
+
+import argparse
+import shutil
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+def _bootstrap_lib() -> None:
+    here = Path(__file__).resolve()
+    for anc in here.parents:
+        cand = anc / "scripts" / "badger_lib.py"
+        if cand.exists() and (anc / "schemas").is_dir():
+            sys.path.insert(0, str(anc / "scripts"))
+            return
+    raise RuntimeError("could not locate ai-badger scripts/badger_lib.py")
+
+
+_bootstrap_lib()
+import badger_lib as bl
+
+DEFAULT_SKILLS = ["task", "prompt-markers"]
+MANAGED_HEADER = (
+    "<!-- Managed by ai-badger. Source of truth: .ai-badger/{name}. "
+    "Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->\n\n"
+)
+
+
+# ---------------------------------------------------------------- config-path helpers
+def cfg_get(config: Dict[str, Any], dotted: str) -> Any:
+    node: Any = config
+    for part in dotted.split("."):
+        if isinstance(node, dict) and part in node:
+            node = node[part]
+        else:
+            return None
+    return node
+
+
+def requirement_met(config: Dict[str, Any], req: str) -> bool:
+    """Evaluate an extension requirement like 'sourceControl.platform==github' or
+    'sourceControl.repoUrl' (presence)."""
+    if "==" in req:
+        path, expected = (s.strip() for s in req.split("==", 1))
+        return str(cfg_get(config, path)) == expected
+    val = cfg_get(config, req)
+    return val not in (None, "", [], {})
+
+
+# ---------------------------------------------------------------------- index lookups
+def feature_items(index: Dict[str, Any], stack: str, feature: str) -> List[Dict[str, Any]]:
+    return index.get("stacks", {}).get(stack, {}).get(feature, [])
+
+
+class Scaffolder:
+    def __init__(self, root: Path, target: Path, config: Dict[str, Any],
+                 skills: List[str], install: bool):
+        self.root = root
+        self.target = target
+        self.config = config
+        self.skills = skills
+        self.install = install
+        self.index = bl.read_index(root)
+        self.aib = target / ".ai-badger"
+        self.entries: List[Dict[str, Any]] = []
+        self.stacks: List[str] = ["common"] + list(config.get("stacks", []))
+        self.notes: List[str] = []
+
+    # -- provenance -----------------------------------------------------------------
+    def record(self, feature: str, stack: str, name: str, source: Path, target: Path) -> None:
+        self.entries.append({
+            "feature": feature, "stack": stack, "name": name,
+            "source": source.relative_to(self.root).as_posix(),
+            "target": target.relative_to(self.target).as_posix(),
+            "frameworkVersion": self.index["frameworkVersion"],
+            "hash": bl.sha256_file(target),  # as-scaffolded content, so feed detects genuine edits
+        })
+
+    def copy_file(self, feature: str, stack: str, item: Dict[str, Any], dest_dir: Path) -> Path:
+        src = self.root / item["path"]
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / src.name
+        shutil.copyfile(src, dest)
+        self.record(feature, stack, item["name"], src, dest)
+        return dest
+
+    # -- features -------------------------------------------------------------------
+    def scaffold_personas(self) -> None:
+        for stack in self.stacks:
+            for item in feature_items(self.index, stack, "personas"):
+                self.copy_file("personas", stack, item, self.aib / "agents")
+
+    def scaffold_instructions(self) -> List[Path]:
+        out: List[Path] = []
+        for stack in self.stacks:
+            for item in feature_items(self.index, stack, "instructions"):
+                out.append(self.copy_file("instructions", stack, item, self.aib / "instructions"))
+        return out
+
+    def collect_invariants(self) -> List[str]:
+        """Copy invariant snippets and return their rendered markdown for CLAUDE.md."""
+        rendered: List[str] = []
+        for stack in self.stacks:
+            for item in feature_items(self.index, stack, "invariants"):
+                dest = self.copy_file("invariants", stack, item, self.aib / "invariants")
+                text = dest.read_text(encoding="utf-8").strip()
+                rendered.append(text)
+        return rendered
+
+    def scaffold_skills(self) -> None:
+        for skill_name in self.skills:
+            item = next((s for s in feature_items(self.index, "common", "skills")
+                         if s["name"] == skill_name), None)
+            if item is None:
+                self.notes.append(f"skill '{skill_name}' not in index common.skills — skipped")
+                continue
+            src = self.root / item["path"]
+            dest = self.aib / "skills" / skill_name
+            if dest.exists():
+                shutil.rmtree(dest)
+            shutil.copytree(src, dest)
+            self._embed_extensions(skill_name, item, dest)
+            self.record("skills", "common", skill_name, src, dest)  # hash includes embedded extensions
+
+    def _embed_extensions(self, skill_name: str, item: Dict[str, Any], dest: Path) -> None:
+        for ext in item.get("extensions", []):
+            # find the extension descriptor anywhere: <stack>/skills/<skill>-extensions/<ext>/
+            matches = list(self.root.glob(f"*/skills/{skill_name}-extensions/{ext}"))
+            if not matches:
+                continue
+            extdir = matches[0]
+            descriptor = extdir / "extension.json"
+            reqs = []
+            if descriptor.exists():
+                reqs = bl.load_json(descriptor).get("requires", [])
+            if all(requirement_met(self.config, r) for r in reqs):
+                ext_dest = dest / "extensions" / ext
+                if ext_dest.exists():
+                    shutil.rmtree(ext_dest)
+                shutil.copytree(extdir, ext_dest)
+                # not recorded separately — covered by the skill dir's manifest entry/hash
+                self.notes.append(f"embedded extension '{ext}' into skill '{skill_name}' (requirements met)")
+            else:
+                self.notes.append(f"extension '{ext}' for '{skill_name}' skipped (config requirements not met)")
+
+    def scaffold_agent_instructions(self) -> None:
+        tdir = self.root / "common" / "templates" / "agent-instructions"
+        if not tdir.is_dir():
+            self.notes.append("common/templates/agent-instructions missing — skipped")
+            return
+        out = self.aib / "agent-instructions"
+        out.mkdir(parents=True, exist_ok=True)
+        schema = tdir / "schema.json"
+        if schema.exists():
+            shutil.copyfile(schema, out / "schema.json")
+        model_tmpl = tdir / "model.template.json"
+        if model_tmpl.exists() and not (out / "model.json").exists():
+            shutil.copyfile(model_tmpl, out / "model.json")
+
+    def scaffold_templates(self) -> None:
+        tdir = self.root / "common" / "templates"
+        state = tdir / "state.json"
+        if state.exists():
+            shutil.copyfile(state, self.aib / "state.json")
+
+    # -- CLAUDE.md assembly ---------------------------------------------------------
+    def assemble_instructions_doc(self, invariants: List[str], instr_paths: List[Path]) -> str:
+        tmpl_path = self.root / "common" / "templates" / "CLAUDE.md.tmpl"
+        project = self.config.get("project", {})
+        commands = self.config.get("commands", {})
+        routing = self.config.get("personaRouting", [])
+
+        inv_md = "\n\n".join(invariants) if invariants else "_None yet._"
+        cmd_md = "\n".join(f"- `{k}`: `{v}`" for k, v in commands.items()) or "_None configured._"
+        route_md = "\n".join(f"- {r['work']} → `{r['agent']}`" for r in routing) or "_Default routing._"
+        instr_md = "\n".join(
+            f"- `{p.name}` → `.ai-badger/instructions/{p.name}`" for p in instr_paths
+        ) or "_None._"
+        slots = {
+            "PROJECT_NAME": project.get("name", ""),
+            "PROJECT_SUMMARY": project.get("summary", ""),
+            "PROJECT_DOMAIN": project.get("domain", ""),
+            "STACKS": ", ".join(self.config.get("stacks", [])),
+            "INVARIANTS": inv_md,
+            "COMMANDS": cmd_md,
+            "PERSONA_ROUTING": route_md,
+            "PATH_INSTRUCTIONS": instr_md,
+            "FRAMEWORK_VERSION": self.index["frameworkVersion"],
+        }
+        if tmpl_path.exists():
+            doc = tmpl_path.read_text(encoding="utf-8")
+            for k, v in slots.items():
+                doc = doc.replace("{{" + k + "}}", str(v))
+            return doc
+        # fallback minimal doc if template missing
+        return (f"# {slots['PROJECT_NAME']}\n\n{slots['PROJECT_SUMMARY']}\n\n"
+                f"## Invariants\n\n{inv_md}\n\n## Commands\n\n{cmd_md}\n")
+
+    # -- agent-discovery copies -----------------------------------------------------
+    def write_agent_files(self, instructions_doc: str, instr_paths: List[Path]) -> None:
+        agents = self.config.get("agents", [])
+        # source-of-truth files inside .ai-badger
+        (self.aib / "CLAUDE.md").write_text(instructions_doc, encoding="utf-8")
+
+        def copy_with_header(dest: Path, name: str, body: str) -> None:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(MANAGED_HEADER.format(name=name) + body, encoding="utf-8")
+
+        if "claude" in agents:
+            copy_with_header(self.target / "CLAUDE.md", "CLAUDE.md", instructions_doc)
+        if "junie" in agents:
+            (self.aib / "AGENTS.md").write_text(instructions_doc, encoding="utf-8")
+            copy_with_header(self.target / ".junie" / "AGENTS.md", "AGENTS.md", instructions_doc)
+        if "copilot" in agents:
+            (self.aib / "copilot-instructions.md").write_text(instructions_doc, encoding="utf-8")
+            copy_with_header(self.target / ".github" / "copilot-instructions.md",
+                             "copilot-instructions.md", instructions_doc)
+            # copilot discovers scoped instructions under .github/instructions/
+            for p in instr_paths:
+                copy_with_header(self.target / ".github" / "instructions" / p.name,
+                                 f"instructions/{p.name}", p.read_text(encoding="utf-8"))
+
+    # -- plugins --------------------------------------------------------------------
+    def install_plugins(self) -> List[str]:
+        cmds: List[str] = []
+        scope_choice = self.config.get("pluginScope", "default")
+        for stack in self.stacks:
+            for item in feature_items(self.index, stack, "plugins"):
+                entry_dir = self.root / item["path"]
+                pj = entry_dir / "plugins.json"
+                mj = entry_dir / "marketplaces.json"
+                if not pj.exists():
+                    continue
+                entry = bl.load_json(pj)
+                entry_scope = "local" if scope_choice == "local" else entry.get("scope", "default")
+                if mj.exists():
+                    for mk in bl.load_json(mj).get("marketplaces", []):
+                        cmds.append(f"claude plugin marketplace add {mk['source']}")
+                for plug in entry.get("plugins", []):
+                    flag = " --scope user" if entry_scope == "user" else ""
+                    cmds.append(f"claude plugin install {plug}{flag}")
+                # copy the entry into .ai-badger/plugins/<name>/ for provenance (feed uses it)
+                dest_dir = self.aib / "plugins" / item["name"]
+                dest_dir.mkdir(parents=True, exist_ok=True)
+                dest_pj = dest_dir / "plugins.json"
+                shutil.copyfile(pj, dest_pj)
+                if mj.exists():
+                    shutil.copyfile(mj, dest_dir / "marketplaces.json")
+                self.record("plugins", stack, item["name"], pj, dest_pj)
+        if self.install and cmds:
+            self.notes.append("plugin auto-install requested but deferred to report "
+                              "(run the commands below manually or via the CLI)")
+        return cmds
+
+    # -- orchestrate ----------------------------------------------------------------
+    def run(self, generated_at: Optional[str]) -> Dict[str, Any]:
+        self.aib.mkdir(parents=True, exist_ok=True)
+        self.scaffold_personas()
+        instr_paths = self.scaffold_instructions()
+        invariants = self.collect_invariants()
+        self.scaffold_skills()
+        self.scaffold_agent_instructions()
+        self.scaffold_templates()
+        doc = self.assemble_instructions_doc(invariants, instr_paths)
+        self.write_agent_files(doc, instr_paths)
+        plugin_cmds = self.install_plugins()
+
+        # copy the config into place (source of truth for the skills)
+        bl.dump_json(self.aib / "config.json", self.config)
+
+        manifest = {
+            "$schema": "../schemas/manifest.schema.json",
+            "frameworkVersion": self.index["frameworkVersion"],
+            "generatedAt": generated_at,
+            "agents": self.config.get("agents", []),
+            "pluginScope": self.config.get("pluginScope", "default"),
+            "entries": self.entries,
+        }
+        bl.dump_json(self.aib / "manifest.json", manifest)
+        return {"manifest": manifest, "pluginCommands": plugin_cmds, "notes": self.notes}
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--config", required=True)
+    ap.add_argument("--target", required=True)
+    ap.add_argument("--root")
+    ap.add_argument("--skills", default=",".join(DEFAULT_SKILLS))
+    ap.add_argument("--no-install", action="store_true")
+    ap.add_argument("--generated-at", default=None,
+                    help="ISO timestamp to stamp in manifest (orchestrator supplies; scripts avoid clocks).")
+    args = ap.parse_args(argv)
+
+    root = Path(args.root).resolve() if args.root else bl.find_root()
+    config_path = Path(args.config).resolve()
+    target = Path(args.target).resolve()
+
+    # validate config BEFORE doing anything
+    errors = bl.validate_file(config_path, root / "schemas" / "config.schema.json")
+    if errors:
+        print("config.json is INVALID — aborting scaffold:")
+        for e in errors:
+            print(f"    - {e}")
+        return 1
+
+    config = bl.load_json(config_path)
+    skills = [s for s in args.skills.split(",") if s]
+    scaf = Scaffolder(root, target, config, skills, install=not args.no_install)
+    result = scaf.run(generated_at=args.generated_at)
+
+    print(f"scaffolded {len(result['manifest']['entries'])} entries into {scaf.aib}")
+    for n in result["notes"]:
+        print(f"  note: {n}")
+    if result["pluginCommands"]:
+        print("  plugin setup commands (run per chosen scope):")
+        for c in result["pluginCommands"]:
+            print(f"    $ {c}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

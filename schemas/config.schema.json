@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Arasz/ai-badger/schemas/config.schema.json",
+  "title": "ai-badger project config",
+  "description": "Project profile authored by the agent during welcome-ai-badger and validated by scripts. The single machine-readable input the scaffolded skills read.",
+  "type": "object",
+  "required": ["frameworkVersion", "project", "stacks", "agents"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "frameworkVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "ai-badger framework version this config was generated against."
+    },
+    "project": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string" },
+        "domain": { "type": "string", "description": "One-line business/domain description; NOT a stack." }
+      }
+    },
+    "stacks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "description": "Selected technology stacks. Must exist under index.json.stacks (excluding 'common')."
+    },
+    "agents": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "enum": ["claude", "copilot", "junie"] },
+      "description": "Coding agents detected as present in the repo/user scope; only these are initialized."
+    },
+    "sourceControl": {
+      "type": "object",
+      "required": ["platform"],
+      "additionalProperties": false,
+      "properties": {
+        "platform": { "enum": ["github", "gitlab", "azure-devops", "none"] },
+        "repoUrl": { "type": ["string", "null"] },
+        "projectUrl": { "type": ["string", "null"], "description": "Board/project URL; gates project-board task features." }
+      }
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "build": { "type": "string" },
+        "test": { "type": "string" },
+        "lint": { "type": "string" },
+        "run": { "type": "string" }
+      }
+    },
+    "personaRouting": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["work", "agent"],
+        "additionalProperties": false,
+        "properties": {
+          "work": { "type": "string" },
+          "agent": { "type": "string" }
+        }
+      }
+    },
+    "pluginScope": {
+      "enum": ["default", "local"],
+      "default": "default",
+      "description": "default = honor each plugin entry's declared scope; local = force all installs to project scope."
+    },
+    "docs": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

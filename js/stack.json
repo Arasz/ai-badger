@@ -1,0 +1,7 @@
+{
+  "name": "js",
+  "description": "Plain JavaScript language conventions, used standalone or as the base for TypeScript.",
+  "detectionSignals": ["*.js", "*.mjs", "*.cjs"],
+  "requires": [],
+  "commands": {}
+}

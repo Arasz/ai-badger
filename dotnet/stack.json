@@ -1,0 +1,10 @@
+{
+  "name": "dotnet",
+  "description": ".NET / C# runtime, SDK, and idioms for backend services, domain logic, and console/worker apps.",
+  "detectionSignals": ["*.csproj", "*.sln", "Directory.Build.props", "Directory.Packages.props", "global.json"],
+  "requires": [],
+  "commands": {
+    "build": "dotnet build",
+    "test": "dotnet test"
+  }
+}

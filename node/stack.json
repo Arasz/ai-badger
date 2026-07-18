@@ -1,0 +1,11 @@
+{
+  "name": "node",
+  "description": "Node.js/Bun-compatible JavaScript runtime for backends, CLIs, and frontend tooling.",
+  "detectionSignals": ["package.json", "bun.lock", "package-lock.json", "node_modules"],
+  "requires": [],
+  "commands": {
+    "build": "bun run build",
+    "test": "bun run test",
+    "lint": "bun run lint"
+  }
+}

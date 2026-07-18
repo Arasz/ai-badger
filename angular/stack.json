@@ -1,0 +1,16 @@
+{
+  "name": "angular",
+  "description": "Angular single-page application framework (TypeScript, components, RxJS, Angular CLI).",
+  "detectionSignals": [
+    "@angular/core in package.json dependencies",
+    "angular.json present",
+    "*.component.ts files"
+  ],
+  "requires": ["ts", "node"],
+  "commands": {
+    "build": "ng build",
+    "test": "ng test --watch=false",
+    "lint": "ng lint",
+    "run": "ng serve"
+  }
+}

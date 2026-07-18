@@ -1,0 +1,10 @@
+{
+  "name": "terraform",
+  "description": "Terraform infrastructure as code: module structure, plan/apply discipline, policy and test validation.",
+  "detectionSignals": ["*.tf", "*.tfvars", "*.tftest.hcl", ".terraform.lock.hcl"],
+  "requires": [],
+  "commands": {
+    "lint": "terraform fmt -check -recursive",
+    "test": "terraform test"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "mcp",
+  "description": "Model Context Protocol server: exposes tools to LLM agents over stdio/HTTP transport.",
+  "detectionSignals": ["*.mcp/*.json", "@modelcontextprotocol/sdk in package.json", "McpServerTool usage", "ModelContextProtocol package reference"],
+  "requires": [],
+  "commands": {}
+}
