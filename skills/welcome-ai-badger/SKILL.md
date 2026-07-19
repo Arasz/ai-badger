@@ -92,3 +92,23 @@ If `index.json` is missing or stale, run `python3 "$AI_BADGER/scripts/index_buil
   copy-over behavior on every discovery file.
 - **Extensions:** config-gated skill extensions (e.g. the GitHub PR/issue extension of `task`)
   are embedded automatically iff `config.json` supplies their required data.
+
+## Upgrading a scaffolded project
+
+A project's `.ai-badger/` is a snapshot, not a live link. It only changes when re-scaffolded.
+
+1. `claude plugin marketplace update ai-badger`
+2. `claude plugin update ai-badger@ai-badger` — then restart, as the CLI instructs.
+3. Check what would change:
+   `python3 <plugin>/skills/welcome-ai-badger/scripts/drift.py --target <project>`
+4. Re-scaffold, then **read the diff before committing**.
+
+Re-scaffolding is safe for project-owned data: `state.json` and
+`skills/prompt-markers/markers-context.json` are seed-once and preserved, and the scaffolder
+prints a `preserved seed-once ...` line for each. Managed files are refreshed by design, so
+the diff is where you confirm nothing you meant to keep was framework-owned. Skill directories
+are reported as `skipped` rather than checked, since their recorded hash covers the scaffolded
+copy, not the framework's source tree.
+
+A manifest from before 0.2.0 lacks the provenance keys and fails validation with an explicit
+hint. There is no migration by design — re-scaffolding is the upgrade.
