@@ -55,6 +55,164 @@ def _write_transcript(path, records):
 
 
 # ---------------------------------------------------------------------------
+# resolve_project_root / compute_paths
+# ---------------------------------------------------------------------------
+
+def test_resolve_project_root_uses_claude_project_dir_env_when_set_and_valid(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    env_project = tmp_path / "env-project"
+    env_project.mkdir()
+
+    resolved = tl.resolve_project_root(env={"CLAUDE_PROJECT_DIR": str(env_project)})
+
+    assert resolved == env_project
+
+
+def test_resolve_project_root_env_wins_over_cwd_walk(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    env_project = tmp_path / "env-project"
+    env_project.mkdir()
+    cwd_project = tmp_path / "cwd-project"
+    (cwd_project / ".ai-badger").mkdir(parents=True)
+    (cwd_project / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+
+    resolved = tl.resolve_project_root(
+        env={"CLAUDE_PROJECT_DIR": str(env_project)}, cwd=cwd_project,
+    )
+
+    assert resolved == env_project
+
+
+def test_resolve_project_root_ignores_claude_project_dir_pointing_nowhere(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    cwd_project = tmp_path / "cwd-project"
+    (cwd_project / ".ai-badger").mkdir(parents=True)
+    (cwd_project / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+
+    resolved = tl.resolve_project_root(
+        env={"CLAUDE_PROJECT_DIR": str(tmp_path / "does-not-exist")}, cwd=cwd_project,
+    )
+
+    assert resolved == cwd_project
+
+
+def test_resolve_project_root_walks_cwd_up_to_ai_badger_config_marker(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    project_root = tmp_path / "project"
+    (project_root / ".ai-badger").mkdir(parents=True)
+    (project_root / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+    nested_cwd = project_root / "src" / "deep" / "nested"
+    nested_cwd.mkdir(parents=True)
+
+    resolved = tl.resolve_project_root(env={}, cwd=nested_cwd)
+
+    assert resolved == project_root
+
+
+def test_resolve_project_root_nearest_ancestor_wins_when_nested(load_script, tmp_path):
+    """A nested project (e.g. a vendored copy) closer to cwd must win over an outer one."""
+    tl = _load(load_script, tmp_path)
+    outer_root = tmp_path / "outer"
+    (outer_root / ".ai-badger").mkdir(parents=True)
+    (outer_root / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+    inner_root = outer_root / "vendor" / "nested-project"
+    (inner_root / ".ai-badger").mkdir(parents=True)
+    (inner_root / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+    cwd = inner_root / "src"
+    cwd.mkdir(parents=True)
+
+    resolved = tl.resolve_project_root(env={}, cwd=cwd)
+
+    assert resolved == inner_root
+
+
+def test_resolve_project_root_falls_back_to_parents_index_when_no_marker_found(load_script, tmp_path):
+    """Today's behavior, unchanged: no env var, no `.ai-badger/config.json` anywhere above cwd."""
+    tl = _load(load_script, tmp_path)
+    fake_repo_root = tmp_path / "fake-repo"
+    script_dir = fake_repo_root / ".claude" / "skills" / "task" / "scripts"
+    script_dir.mkdir(parents=True)
+    isolated_cwd = tmp_path / "isolated-cwd"
+    isolated_cwd.mkdir()
+
+    resolved = tl.resolve_project_root(env={}, cwd=isolated_cwd, script_dir=script_dir)
+
+    assert resolved == fake_repo_root
+
+
+def test_resolve_project_root_regression_plugin_cache_does_not_misroot(load_script, tmp_path):
+    """The actual bug: a script running from a plugin-cache-shaped depth, with no
+    CLAUDE_PROJECT_DIR and a cwd inside a real project tree, must resolve to the project --
+    never into the cache tree via the naive parents[3] fallback."""
+    tl = _load(load_script, tmp_path)
+    home = tmp_path / "home"
+    cache_script_dir = (
+        home / ".claude" / "plugins" / "cache" / "ai-badger" / "ai-badger"
+        / "skills" / "task" / "scripts"
+    )
+    cache_script_dir.mkdir(parents=True)
+    wrong_root = home / ".claude" / "plugins" / "cache" / "ai-badger"
+    assert cache_script_dir.parents[3] == wrong_root  # sanity: this is the bug's mis-root
+
+    real_project = tmp_path / "real-project"
+    (real_project / ".ai-badger").mkdir(parents=True)
+    (real_project / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+    cwd = real_project / "src"
+    cwd.mkdir()
+
+    resolved = tl.resolve_project_root(env={}, cwd=cwd, script_dir=cache_script_dir)
+
+    assert resolved == real_project
+    assert resolved != wrong_root
+
+
+def test_module_level_constants_fall_back_to_parents_index_by_default(load_script, tmp_path, monkeypatch):
+    """A real (non-redirected) import with no CLAUDE_PROJECT_DIR and a cwd outside any
+    `.ai-badger` project must match today's SCRIPT_DIR.parents[3] behavior exactly."""
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    isolated_cwd = tmp_path / "isolated"
+    isolated_cwd.mkdir()
+    monkeypatch.chdir(isolated_cwd)
+
+    tl = load_script("skills/task/scripts/tracker_lib.py")
+
+    assert tl.PROJECT_ROOT == tl.SCRIPT_DIR.parents[3]
+    assert tl.DATA_DIR == tl.PROJECT_ROOT / ".ai-badger" / "task-tracking"
+
+
+def test_module_level_constants_pick_up_claude_project_dir_env_at_import(
+    load_script, tmp_path, monkeypatch
+):
+    env_project = tmp_path / "env-project"
+    env_project.mkdir()
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(env_project))
+
+    tl = load_script("skills/task/scripts/tracker_lib.py")
+
+    assert tl.PROJECT_ROOT == env_project
+    assert tl.DATA_DIR == env_project / ".ai-badger" / "task-tracking"
+    assert tl.CLAUDE_MD == env_project / "CLAUDE.md"
+
+
+def test_compute_paths_derives_every_path_from_project_root(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    project_root = tmp_path / "some-project"
+
+    paths = tl.compute_paths(project_root)
+
+    data_dir = project_root / ".ai-badger" / "task-tracking"
+    assert paths["project_root"] == project_root
+    assert paths["data_dir"] == data_dir
+    assert paths["executed_tasks"] == data_dir / "executed-tasks.json"
+    assert paths["token_usage"] == data_dir / "token-usage.json"
+    assert paths["current_session"] == data_dir / "current-session.json"
+    assert paths["lock_file"] == data_dir / ".write.lock"
+    assert paths["claude_md"] == project_root / "CLAUDE.md"
+    assert paths["state_json"] == project_root / ".ai-badger" / "state.json"
+    assert paths["config_json"] == project_root / ".ai-badger" / "config.json"
+
+
+# ---------------------------------------------------------------------------
 # now_iso / parse_iso
 # ---------------------------------------------------------------------------
 
