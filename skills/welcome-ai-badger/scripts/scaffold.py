@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 def _bootstrap_lib() -> None:
     here = Path(__file__).resolve()
@@ -85,6 +86,29 @@ def feature_items(index: Dict[str, Any], stack: str, feature: str) -> List[Dict[
     return index.get("stacks", {}).get(stack, {}).get(feature, [])
 
 
+def git_provenance(root: Path) -> Tuple[Optional[str], bool]:
+    """Return (HEAD sha, working-tree-dirty) for root, or (None, False) when it is not a git repo.
+
+    A plugin cache is a plain copy with no .git, so the commit is unknowable there and the
+    version resolves to it instead (ADR-0001 decision 4). A copy cannot be dirty, so False
+    is a fact rather than a missing value.
+    """
+    if not (root / ".git").exists():
+        return None, False
+    try:
+        sha = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        status = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None, False
+    return (sha or None), bool(status)
+
+
 class Scaffolder:
     """Materializes a target repo's .ai-badger/ scaffold from a validated config.json."""
 
@@ -99,6 +123,7 @@ class Scaffolder:
         self.overwrite = overwrite
         self.reset_seed_files = reset_seed_files
         self.index = bl.read_index(root)
+        self.commit, self.dirty = git_provenance(root)
         self.aib = target / ".ai-badger"
         self.entries: List[Dict[str, Any]] = []
         self.stacks: List[str] = ["common"] + list(config.get("stacks", []))
@@ -389,6 +414,8 @@ class Scaffolder:
         manifest = {
             "$schema": "../schemas/manifest.schema.json",
             "frameworkVersion": self.index["frameworkVersion"],
+            "frameworkCommit": self.commit,
+            "frameworkDirty": self.dirty,
             "generatedAt": generated_at,
             "agents": self.config.get("agents", []),
             "pluginScope": self.config.get("pluginScope", "default"),
