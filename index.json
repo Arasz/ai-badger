@@ -346,6 +346,39 @@
         }
       }
     },
+    "python": {
+      "instructions": [
+        {
+          "name": "python.instructions",
+          "path": "features/python/instructions/python.instructions.md"
+        }
+      ],
+      "plugins": [
+        {
+          "name": "pyright-lsp",
+          "path": "features/python/plugins/plugins.json"
+        },
+        {
+          "name": "semgrep",
+          "path": "features/python/plugins/plugins.json"
+        },
+        {
+          "name": "pydantic-ai",
+          "path": "features/python/plugins/plugins.json"
+        }
+      ],
+      "meta": {
+        "description": "Modern Python language conventions and tooling (type-checking, lint/format, testing, dependency management).",
+        "detectionSignals": [
+          "*.py",
+          "pyproject.toml",
+          "requirements.txt",
+          "setup.cfg"
+        ],
+        "requires": [],
+        "commands": {}
+      }
+    },
     "react": {
       "personas": [
         {
