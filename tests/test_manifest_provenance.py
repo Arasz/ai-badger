@@ -142,3 +142,19 @@ def test_scaffolded_manifest_validates_against_schema(tmp_path, load_script, roo
     errors = bl.validate_file(target / ".ai-badger" / "manifest.json",
                               root / "schemas" / "manifest.schema.json")
     assert errors == []
+
+
+def test_provenance_hint_offered_when_keys_missing(load_script):
+    validate = load_script("scripts/validate.py")
+    errors = ["'frameworkCommit' is a required property"]
+
+    hint = validate.provenance_hint(errors)
+
+    assert hint is not None
+    assert "re-scaffold" in hint.lower()
+
+
+def test_provenance_hint_absent_for_unrelated_errors(load_script):
+    validate = load_script("scripts/validate.py")
+
+    assert validate.provenance_hint(["'agents' is a required property"]) is None

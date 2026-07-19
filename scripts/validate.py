@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import badger_lib as bl
@@ -25,12 +26,32 @@ KIND_TO_SCHEMA = {
     "marketplaces": "marketplaces.schema.json",
 }
 
+PROVENANCE_KEYS = ("frameworkCommit", "frameworkDirty")
+
+PROVENANCE_HINT = (
+    "This manifest predates ai-badger 0.2.0, which requires provenance keys "
+    "(frameworkCommit, frameworkDirty). There is no migration by design — "
+    "re-scaffold with welcome-ai-badger to upgrade it. Seed-once files "
+    "(state.json, markers-context.json) are preserved across a re-scaffold; "
+    "review the diff before committing. See docs/adr/0001-versioning-and-release-model.md."
+)
+
+
+def provenance_hint(errors: List[str]) -> Optional[str]:
+    """Return an actionable upgrade hint when errors are missing-provenance-key errors."""
+    if any(key in err for err in errors for key in PROVENANCE_KEYS):
+        return PROVENANCE_HINT
+    return None
+
 
 def _report(label: str, errors) -> bool:
     if errors:
         print(f"INVALID  {label}")
         for e in errors:
             print(f"    - {e}")
+        hint = provenance_hint(errors)
+        if hint:
+            print(f"    → {hint}")
         return False
     print(f"ok       {label}")
     return True
