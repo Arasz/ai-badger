@@ -26,10 +26,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import tracker_lib as lib
 
-# Matches `/task <id>` (optionally `/task:something <id>`) at the very start of the prompt.
-# Kept local to this hook, rather than in tracker_lib, so prompt parsing stays colocated with
-# its only caller.
-TASK_ID_RE = re.compile(r"^/task(?::\S+)?\s+([A-Za-z0-9._-]+)")
+# Matches `/task <id>` (optionally `/task:something <id>`, or namespaced as a plugin skill —
+# `/<plugin>:task <id>` — the form Claude Code uses once this skill is installed via a
+# marketplace plugin) at the very start of the prompt. Kept local to this hook, rather than in
+# tracker_lib, so prompt parsing stays colocated with its only caller.
+TASK_ID_RE = re.compile(r"^/(?:[\w-]+:)?task(?::\S+)?\s+([A-Za-z0-9._-]+)")
 
 
 def task_id_from_prompt(prompt: str) -> str | None:
