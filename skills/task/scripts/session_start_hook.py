@@ -37,9 +37,11 @@ def scaffold_drift_notice(project_root: Path, plugin_root: Optional[str]) -> Opt
         manifest = json.loads(
             (project_root / ".ai-badger" / "manifest.json").read_text(encoding="utf-8")
         )
+        if not isinstance(manifest, dict):
+            return None
         scaffold_version = manifest.get("frameworkVersion")
         plugin_version = (Path(plugin_root) / "VERSION").read_text(encoding="utf-8").strip()
-    except (OSError, ValueError):
+    except (OSError, ValueError, AttributeError):
         return None
     if not scaffold_version or not plugin_version or scaffold_version == plugin_version:
         return None
