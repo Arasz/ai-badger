@@ -478,7 +478,12 @@ def test_install_cron_writes_new_crontab_with_marker(tt, monkeypatch, capsys):
     assert "Installed 30-min resume cron job." in capsys.readouterr().out
 
 
-def test_install_cron_is_a_noop_when_marker_already_present(tt, monkeypatch, capsys):
+def test_install_cron_replaces_marker_line_with_unrecognized_stale_command(
+    tt, monkeypatch, capsys
+):
+    """A marker line is only a no-op when its command matches exactly; any other command under
+    the marker (however it went stale) gets corrected rather than left in place. This used to be
+    a marker-presence-only no-op — see the self-heal bug this guards against."""
     fake = _FakeSubprocess(existing_crontab=f"* * * * * echo hi {tt.CRON_MARKER}\n")
     monkeypatch.setattr(tt, "subprocess", fake)
 
@@ -486,8 +491,11 @@ def test_install_cron_is_a_noop_when_marker_already_present(tt, monkeypatch, cap
 
     assert code == 0
     write_calls = [c for c in fake.calls if c[0] == ["crontab", "-"]]
-    assert write_calls == []
-    assert "already installed" in capsys.readouterr().out
+    assert len(write_calls) == 1
+    written = write_calls[0][1]
+    assert "echo hi" not in written
+    assert written.count(tt.CRON_MARKER) == 1
+    assert "Updated 30-min resume cron job." in capsys.readouterr().out
 
 
 def test_uninstall_cron_removes_only_marked_lines(tt, monkeypatch):
@@ -503,6 +511,83 @@ def test_uninstall_cron_removes_only_marked_lines(tt, monkeypatch):
     written = write_calls[0][1]
     assert "keep-me" in written
     assert tt.CRON_MARKER not in written
+
+
+def _current_marker_line(tt_module):
+    """Build the exact marker line install_cron would generate right now."""
+    script = tt_module.lib.SCRIPT_DIR / "resume_cron.py"
+    log = tt_module.lib.DATA_DIR / "resume.log"
+    return f"*/30 * * * * /usr/bin/env python3 {script} run >> {log} 2>&1 {tt_module.CRON_MARKER}"
+
+
+def test_install_cron_is_a_noop_when_marker_line_already_matches(tt, monkeypatch, capsys):
+    current_line = _current_marker_line(tt)
+    fake = _FakeSubprocess(existing_crontab=f"* * * * * echo keep-me\n{current_line}\n")
+    monkeypatch.setattr(tt, "subprocess", fake)
+
+    code = _run(monkeypatch, tt, "install-cron")
+
+    assert code == 0
+    write_calls = [c for c in fake.calls if c[0] == ["crontab", "-"]]
+    assert write_calls == []
+    assert "already installed" in capsys.readouterr().out
+
+
+def test_install_cron_replaces_marker_line_with_stale_script_path(tt, monkeypatch):
+    log = tt.lib.DATA_DIR / "resume.log"
+    stale_line = (
+        f"*/30 * * * * /usr/bin/env python3 /old/relocated/skills/task/scripts/resume_cron.py "
+        f"run >> {log} 2>&1 {tt.CRON_MARKER}"
+    )
+    fake = _FakeSubprocess(existing_crontab=f"* * * * * echo keep-me\n{stale_line}\n")
+    monkeypatch.setattr(tt, "subprocess", fake)
+
+    code = _run(monkeypatch, tt, "install-cron")
+
+    assert code == 0
+    write_calls = [c for c in fake.calls if c[0] == ["crontab", "-"]]
+    assert len(write_calls) == 1
+    written = write_calls[0][1]
+    assert "/old/relocated/skills/task/scripts/resume_cron.py" not in written
+    assert str(tt.lib.SCRIPT_DIR / "resume_cron.py") in written
+    assert written.count(tt.CRON_MARKER) == 1
+    assert "keep-me" in written
+
+
+def test_install_cron_replaces_marker_line_with_stale_log_path(tt, monkeypatch):
+    script = tt.lib.SCRIPT_DIR / "resume_cron.py"
+    stale_line = (
+        f"*/30 * * * * /usr/bin/env python3 {script} "
+        f"run >> /old/relocated/.claude/task-tracking/resume.log 2>&1 {tt.CRON_MARKER}"
+    )
+    fake = _FakeSubprocess(existing_crontab=f"* * * * * echo keep-me\n{stale_line}\n")
+    monkeypatch.setattr(tt, "subprocess", fake)
+
+    code = _run(monkeypatch, tt, "install-cron")
+
+    assert code == 0
+    write_calls = [c for c in fake.calls if c[0] == ["crontab", "-"]]
+    assert len(write_calls) == 1
+    written = write_calls[0][1]
+    assert "/old/relocated/.claude/task-tracking/resume.log" not in written
+    assert str(tt.lib.DATA_DIR / "resume.log") in written
+    assert written.count(tt.CRON_MARKER) == 1
+    assert "keep-me" in written
+
+
+def test_install_cron_preserves_unrelated_lines_across_a_replacement(tt, monkeypatch):
+    stale_line = f"*/30 * * * * echo stale {tt.CRON_MARKER}"
+    existing = f"* * * * * echo before\n{stale_line}\n@daily echo after\n"
+    fake = _FakeSubprocess(existing_crontab=existing)
+    monkeypatch.setattr(tt, "subprocess", fake)
+
+    code = _run(monkeypatch, tt, "install-cron")
+
+    assert code == 0
+    write_calls = [c for c in fake.calls if c[0] == ["crontab", "-"]]
+    written = write_calls[0][1]
+    assert "echo before" in written
+    assert "echo after" in written
 
 
 # ---------------------------------------------------------------------------

@@ -292,17 +292,41 @@ def _current_crontab() -> str:
     return result.stdout if result.returncode == 0 else ""
 
 
+def _desired_cron_line() -> str:
+    script = lib.SCRIPT_DIR / "resume_cron.py"
+    log = lib.DATA_DIR / "resume.log"
+    return f"*/30 * * * * /usr/bin/env python3 {script} run >> {log} 2>&1 {CRON_MARKER}"
+
+
 def install_cron(quiet: bool = False) -> int:
+    """Install the resume cron job, correcting a stale marker line rather than skipping it.
+
+    A marker line whose generated command no longer matches the current script/log paths
+    (e.g. the skill moved on disk) is replaced in place, since the marker check alone would
+    otherwise leave a dead cron entry pointing at a script that no longer exists.
+    """
     current = _current_crontab()
-    if CRON_MARKER in current:
+    desired_line = _desired_cron_line()
+    lines = current.splitlines()
+    marker_indices = [i for i, line in enumerate(lines) if CRON_MARKER in line]
+
+    if marker_indices and all(lines[i] == desired_line for i in marker_indices):
         if not quiet:
             print("Resume cron job already installed.")
         return 0
-    script = lib.SCRIPT_DIR / "resume_cron.py"
-    log = lib.DATA_DIR / "resume.log"
+
     lib.ensure_data_dir()
-    line = f"*/30 * * * * /usr/bin/env python3 {script} run >> {log} 2>&1 {CRON_MARKER}\n"
-    new_tab = current + ("" if current.endswith("\n") or not current else "\n") + line
+    if marker_indices:
+        new_lines = list(lines)
+        first = marker_indices[0]
+        new_lines[first] = desired_line
+        for i in reversed(marker_indices[1:]):
+            del new_lines[i]
+        verb = "Updated"
+    else:
+        new_lines = lines + [desired_line]
+        verb = "Installed"
+    new_tab = "\n".join(new_lines) + "\n"
     result = subprocess.run(
         ["crontab", "-"], input=new_tab, text=True, capture_output=True, check=False
     )
@@ -310,7 +334,7 @@ def install_cron(quiet: bool = False) -> int:
         print(f"Failed to install cron job: {result.stderr}", file=sys.stderr)
         return 1
     if not quiet:
-        print("Installed 30-min resume cron job.")
+        print(f"{verb} 30-min resume cron job.")
     return 0
 
 
