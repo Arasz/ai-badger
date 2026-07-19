@@ -30,8 +30,17 @@ _bootstrap_lib()
 import badger_lib as bl
 
 
+# vendored / build directories whose contents must not trigger stack detection
+_IGNORE_DIRS = {"node_modules", ".git", ".venv", "venv", "__pycache__", ".terraform", "dist"}
+
+
 def _has(target: Path, *globs: str) -> bool:
-    return any(next(target.rglob(g), None) is not None for g in globs)
+    """True if any glob matches a path under `target`, ignoring vendored/build dirs."""
+    for g in globs:
+        for p in target.rglob(g):
+            if not any(part in _IGNORE_DIRS for part in p.relative_to(target).parts):
+                return True
+    return False
 
 
 def _read(path: Path) -> str:
@@ -41,45 +50,53 @@ def _read(path: Path) -> str:
         return ""
 
 
-def detect_stacks(target: Path) -> List[str]:
-    """Best-effort detection of tech stacks present in `target`."""
-    stacks: List[str] = []
-    pkg = target / "package.json"
-    pkg_text = _read(pkg)
+def _signal_globs(signals: List[str]) -> List[str]:
+    """Keep only machine-matchable path/glob signals; prose signals (deps, usage) contain spaces."""
+    return [s for s in signals if s and " " not in s]
+
+
+def _dependency_stacks(target: Path) -> List[str]:
+    """Stacks whose detectionSignals are dependency/content facts a file glob can't express
+    (package.json deps, `.csproj` package references)."""
+    found: List[str] = []
     pkg_json: Dict = {}
+    pkg_text = _read(target / "package.json")
     if pkg_text:
         try:
             pkg_json = json.loads(pkg_text)
         except json.JSONDecodeError:
             pkg_json = {}
-    deps = {}
+    deps: Dict = {}
     deps.update(pkg_json.get("dependencies", {}))
     deps.update(pkg_json.get("devDependencies", {}))
-
-    if pkg.exists():
-        stacks.append("node")
-    if "typescript" in deps or _has(target, "*.ts", "*.tsx") or (target / "tsconfig.json").exists():
-        stacks.append("ts")
-    if not any(s in stacks for s in ("ts",)) and _has(target, "*.js", "*.mjs"):
-        stacks.append("js")
-    if "react" in deps or _has(target, "*.tsx", "*.jsx"):
-        stacks.append("react")
+    if "typescript" in deps:
+        found.append("ts")
+    if "react" in deps:
+        found.append("react")
     if any(d.startswith("@angular/") for d in deps) or (target / "angular.json").exists():
-        stacks.append("angular")
-    if _has(target, "*.css", "*.scss"):
-        stacks.append("css")
-    if _has(target, "*.csproj", "*.sln"):
-        stacks.append("dotnet")
-    if _has(target, "*.tf"):
-        stacks.append("terraform")
-    if _has(target, "host.json", "*.bicep") or "azure" in " ".join(deps).lower():
-        stacks.append("azure")
-    # cosmos: only if referenced in a csproj
-    if any("cosmos" in _read(p).lower() for p in target.rglob("*.csproj")):
-        stacks.append("cosmos")
+        found.append("angular")
+    if "azure" in " ".join(deps).lower():
+        found.append("azure")
+    if "@azure/cosmos" in deps or any("cosmos" in _read(p).lower()
+                                      for p in target.rglob("*.csproj")):
+        found.append("cosmos")
+    return found
 
+
+def detect_stacks(target: Path, index: Dict) -> List[str]:
+    """Detect stacks from each stack's `detectionSignals` (data-driven, read from the index),
+    plus dependency/content heuristics that prose signals can't express. A new stack needs no
+    change here: give its stack.json file/glob detectionSignals and it is detected automatically."""
+    stacks: List[str] = []
+    for stack, data in index.get("stacks", {}).items():
+        if stack == "common":
+            continue
+        globs = _signal_globs(data.get("meta", {}).get("detectionSignals", []))
+        if globs and _has(target, *globs):
+            stacks.append(stack)
+    stacks.extend(_dependency_stacks(target))
     # de-dupe preserving order
-    seen = set()
+    seen: set = set()
     return [s for s in stacks if not (s in seen or seen.add(s))]
 
 
@@ -176,7 +193,7 @@ def main(argv=None) -> int:
     root = Path(args.root).resolve() if args.root else bl.find_root()
     index = bl.read_index(root)
 
-    stacks = expand_requires(detect_stacks(target), index)
+    stacks = expand_requires(detect_stacks(target, index), index)
     # keep only stacks the framework actually knows about
     known = set(index.get("stacks", {}).keys())
     stacks = [s for s in stacks if s in known] or stacks
