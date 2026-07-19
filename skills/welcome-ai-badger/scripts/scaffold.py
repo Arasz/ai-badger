@@ -34,6 +34,9 @@ _bootstrap_lib()
 import badger_lib as bl
 
 DEFAULT_SKILLS = ["task", "prompt-markers"]
+# Test files are framework-only and must never be scaffolded into a target repo. Applied to every
+# copytree so a skill's tests/ or test_*.py stay in ai-badger, out of the target's .ai-badger/.
+_test_ignore = shutil.ignore_patterns("test_*.py", "*_test.py", "tests", "__pycache__", "*.pyc")
 MANAGED_HEADER = (
     "<!-- Managed by ai-badger. Source of truth: .ai-badger/{name}. "
     "Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->\n\n"
@@ -146,7 +149,7 @@ class Scaffolder:
             dest = self.aib / "skills" / skill_name
             if dest.exists():
                 shutil.rmtree(dest)
-            shutil.copytree(src, dest)
+            shutil.copytree(src, dest, ignore=_test_ignore)
             self._embed_extensions(skill_name, item, dest)
             # hash includes embedded extensions
             self.record("skills", "common", skill_name, src, dest)
@@ -166,7 +169,7 @@ class Scaffolder:
                 ext_dest = dest / "extensions" / ext
                 if ext_dest.exists():
                     shutil.rmtree(ext_dest)
-                shutil.copytree(extdir, ext_dest)
+                shutil.copytree(extdir, ext_dest, ignore=_test_ignore)
                 # not recorded separately — covered by the skill dir's manifest entry/hash
                 self.notes.append(
                     f"embedded extension '{ext}' into skill '{skill_name}' (requirements met)"

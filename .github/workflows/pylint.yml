@@ -1,4 +1,4 @@
-name: Pylint
+name: Lint and test
 
 on: [push]
 
@@ -11,13 +11,22 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pylint
-    - name: Analysing the code with pylint
+        pip install pylint pytest jsonschema
+    - name: Analysing the code with pylint (scripts only; tests keep their own conventions)
       run: |
-        pylint $(git ls-files '*.py')
+        pylint $(git ls-files '*.py' | grep -v '^tests/')
+    - name: Run tests with pytest
+      run: |
+        pytest -q
+    - name: index.json is up to date
+      run: |
+        python3 scripts/index_build.py --check
+    - name: Framework tree validates against its schemas
+      run: |
+        python3 scripts/validate.py --all
