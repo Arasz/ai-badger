@@ -4,11 +4,20 @@
   "title": "ai-badger project manifest",
   "description": "Provenance record written by scaffold.py: exactly what the framework placed into the target repo, so feed-badger can diff project vs framework.",
   "type": "object",
-  "required": ["frameworkVersion", "agents", "entries"],
+  "required": ["frameworkVersion", "frameworkCommit", "frameworkDirty", "agents", "entries"],
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
     "frameworkVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "frameworkCommit": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Framework git HEAD at scaffold time; null when scaffolded from a plugin cache, which has no .git. The version resolves to the commit in that case (ADR-0001 decision 2)."
+    },
+    "frameworkDirty": {
+      "type": "boolean",
+      "description": "True when scaffolded from a working tree with uncommitted changes: provenance that is not reproducible. False from a plugin cache, where local edits are impossible."
+    },
     "generatedAt": { "type": ["string", "null"], "description": "ISO timestamp stamped by the orchestrator after scaffold (scripts avoid nondeterministic clocks)." },
     "agents": { "type": "array", "items": { "enum": ["claude", "copilot", "junie"] } },
     "pluginScope": { "enum": ["default", "local"] },
