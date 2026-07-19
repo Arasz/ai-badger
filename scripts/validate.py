@@ -32,7 +32,8 @@ PROVENANCE_HINT = (
     "This manifest predates ai-badger 0.2.0, which requires provenance keys "
     "(frameworkCommit, frameworkDirty). There is no migration by design — "
     "re-scaffold with welcome-ai-badger to upgrade it. Seed-once files "
-    "(state.json, markers-context.json) are preserved across a re-scaffold; "
+    "(state.json, markers-context.json, agent-instructions/model.json) are preserved "
+    "across a re-scaffold; "
     "review the diff before committing. See docs/adr/0001-versioning-and-release-model.md."
 )
 

@@ -1,0 +1,16 @@
+{
+  "description": "ai-badger plugin hooks: Tier 1 drift notice (ADR-0001 decision 5) on session start.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/task/scripts/drift_notice_hook.py\""
+          }
+        ]
+      }
+    ]
+  }
+}
