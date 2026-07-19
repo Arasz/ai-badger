@@ -34,3 +34,8 @@ disable = [
     "too-many-arguments",
     "too-many-positional-arguments",
 ]
+
+[tool.pytest.ini_options]
+# Framework tests live ONLY in the top-level tests/ dir — never under features/ or skills/ — so
+# scaffold.py never copies them into a target repo's .ai-badger/. See docs/scripts.md.
+testpaths = ["tests"]
