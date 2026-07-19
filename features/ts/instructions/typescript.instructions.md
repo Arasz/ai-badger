@@ -1,6 +1,6 @@
 ---
 description: 'TypeScript language conventions.'
-applyTo: '**/*.ts,**/*.tsx,tsconfig.json'
+applyTo: '**/*.ts,**/*.tsx,**/tsconfig.json'
 ---
 
 # TypeScript

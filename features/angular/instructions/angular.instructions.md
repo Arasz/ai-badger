@@ -1,5 +1,5 @@
 ---
-applyTo: "**/*.ts,**/*.html,**/*.component.*,angular.json"
+applyTo: "**/*.ts,**/*.html,**/*.component.*,**/angular.json"
 ---
 
 # Angular instructions
