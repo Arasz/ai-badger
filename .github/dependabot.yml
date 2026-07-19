@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # scripts/requirements.txt (jsonschema)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # actions/checkout, actions/setup-python, actions/labeler versions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
