@@ -1,0 +1,33 @@
+{
+  "skill_name": "task",
+  "evals": [
+    {
+      "id": 0,
+      "name": "full-task-flow",
+      "prompt": "Work on backlog task T99 — 'Add slugify helper' — in the sandbox project, following the task skill: implement slugify(text) in lib/text.py (lowercase, non-alphanumeric runs collapse to single hyphens, trimmed) with pytest tests. Autonomous mode, hooks inactive but current-session.json seeded, --no-cron.",
+      "expected_output": "Task registered via task_tracker.py start (executed-tasks.json T99 with session refs, timestamps), slugify implemented TDD-style with passing pytest, .claude/state.json updated, task_tracker.py finish run (state FINISHED, token usage computed in token-usage.json), grade left null because no user is available.",
+      "files": [],
+      "expectations": [
+        "executed-tasks.json records T99 as FINISHED with startedAt, finishedAt, sessionId and resumeCommand set",
+        "token-usage.json has start and finish checkpoints for T99 and a computed usage block with grandTotal",
+        ".claude/state.json was updated to mention the T99/slugify work",
+        "slugify is implemented in lib/text.py and pytest passes in the sandbox",
+        "grade in token-usage.json is null/absent — the agent did not invent a grade with no user present"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "finish-protocol",
+      "prompt": "Task T42 ('Add word_count helper') is IN_PROGRESS per .claude/task-tracking/executed-tasks.json and its implementation is already complete with passing tests. Close out the task following the skill's finish protocol. CLAUDE.md is seeded ~13KB (over the 12000-char budget) to force the compaction path.",
+      "expected_output": ".claude/state.json updated with T42 knowledge, CLAUDE.md compacted under its own size budget (unrelated to the state.json update), task_tracker.py finish run successfully (exit 0, state FINISHED, usage computed including the seeded 42000 subagent tokens), grade left null.",
+      "files": [],
+      "expectations": [
+        "executed-tasks.json records T42 as FINISHED with a finishedAt timestamp",
+        "token-usage.json T42 has a finish checkpoint and computed usage whose subagentTokens includes the seeded 42000",
+        ".claude/state.json mentions the T42/word_count work",
+        "CLAUDE.md was compacted to within budget (claude_md_compact.py exits 0: <=12000 chars and <=110 lines)",
+        "grade in token-usage.json is null/absent — the agent did not invent a grade with no user present"
+      ]
+    }
+  ]
+}

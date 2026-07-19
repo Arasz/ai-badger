@@ -34,9 +34,12 @@ _bootstrap_lib()
 import badger_lib as bl
 
 DEFAULT_SKILLS = ["task", "prompt-markers"]
-# Test files are framework-only and must never be scaffolded into a target repo. Applied to every
-# copytree so a skill's tests/ or test_*.py stay in ai-badger, out of the target's .ai-badger/.
-_test_ignore = shutil.ignore_patterns("test_*.py", "*_test.py", "tests", "__pycache__", "*.pyc")
+# Test files and eval suites are framework-only quality-regression content and must never be
+# scaffolded into a target repo. Applied to every copytree so a skill's tests/, test_*.py, or
+# evals/ stay in ai-badger, out of the target's .ai-badger/.
+_test_ignore = shutil.ignore_patterns(
+    "test_*.py", "*_test.py", "tests", "evals", "__pycache__", "*.pyc"
+)
 MANAGED_HEADER = (
     "<!-- Managed by ai-badger. Source of truth: .ai-badger/{name}. "
     "Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->\n\n"
