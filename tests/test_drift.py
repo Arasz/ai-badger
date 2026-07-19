@@ -184,3 +184,71 @@ def test_main_silent_when_versions_match_and_no_resume(tmp_path, load_script, mo
 
     assert rc == 0
     assert capsys.readouterr().out == ""
+
+
+def _manifest_with_entry(target, source_rel, target_rel, entry_hash):
+    aib = target / ".ai-badger"
+    aib.mkdir(parents=True, exist_ok=True)
+    (aib / "manifest.json").write_text(json.dumps({
+        "frameworkVersion": "0.2.0",
+        "frameworkCommit": None,
+        "frameworkDirty": False,
+        "agents": ["claude"],
+        "entries": [{
+            "feature": "invariants", "stack": "common", "name": "n",
+            "source": source_rel, "target": target_rel,
+            "frameworkVersion": "0.2.0", "hash": entry_hash,
+        }],
+    }), encoding="utf-8")
+
+
+def test_compare_reports_changed_when_framework_source_differs(tmp_path, load_script):
+    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("scripts/badger_lib.py")
+    fw = tmp_path / "fw"
+    (fw / "features" / "common" / "invariants").mkdir(parents=True)
+    src = fw / "features" / "common" / "invariants" / "x.md"
+    src.write_text("original\n", encoding="utf-8")
+    original_hash = bl.sha256_file(src)
+
+    proj = tmp_path / "proj"
+    _manifest_with_entry(proj, "features/common/invariants/x.md",
+                         ".ai-badger/invariants/x.md", original_hash)
+    src.write_text("upstream changed\n", encoding="utf-8")
+
+    result = drift.compare(fw, proj)
+
+    assert "features/common/invariants/x.md" in result["changed"]
+    assert result["removed"] == []
+
+
+def test_compare_silent_when_source_unchanged(tmp_path, load_script):
+    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("scripts/badger_lib.py")
+    fw = tmp_path / "fw"
+    (fw / "features" / "common" / "invariants").mkdir(parents=True)
+    src = fw / "features" / "common" / "invariants" / "x.md"
+    src.write_text("stable\n", encoding="utf-8")
+
+    proj = tmp_path / "proj"
+    _manifest_with_entry(proj, "features/common/invariants/x.md",
+                         ".ai-badger/invariants/x.md", bl.sha256_file(src))
+
+    result = drift.compare(fw, proj)
+
+    assert result["changed"] == []
+
+
+def test_compare_reports_removed_when_source_gone(tmp_path, load_script):
+    """A rename reads as removed — documented limitation, not a bug (ADR-0001 decision 5)."""
+    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+
+    proj = tmp_path / "proj"
+    _manifest_with_entry(proj, "features/common/invariants/gone.md",
+                         ".ai-badger/invariants/gone.md", "0" * 64)
+
+    result = drift.compare(fw, proj)
+
+    assert "features/common/invariants/gone.md" in result["removed"]
