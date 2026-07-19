@@ -1,7 +1,7 @@
 {
   "name": "react",
   "description": "React UI framework: components, hooks, Server Components/Actions where applicable.",
-  "detectionSignals": ["react in package.json dependencies", "*.tsx", "*.jsx"],
+  "detectionSignals": ["*.tsx", "*.jsx"],
   "requires": ["ts", "node"],
   "commands": {
     "test": "bun run test",

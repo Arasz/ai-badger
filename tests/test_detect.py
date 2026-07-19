@@ -224,6 +224,64 @@ def test_detect_stacks_azure_via_dependency_name_substring(tmp_path, load_script
     assert "azure" in stacks
 
 
+def test_detect_stacks_angular_via_package_json_in_subdirectory(tmp_path, load_script, root):
+    """Monorepo case (GitHub issue Arasz/ai-badger#15 follow-up): Angular living in a
+    subdirectory (e.g. frontend/) must still be detected -- dependency checks must not be
+    root-only. Verified against a real monorepo (arasz-home-page) where this was missed."""
+    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    index = detect.bl.read_index(root)
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    (frontend / "package.json").write_text(
+        json.dumps({"dependencies": {"@angular/core": "^17.0.0"}}), encoding="utf-8")
+
+    stacks = detect.detect_stacks(tmp_path, index)
+
+    assert "angular" in stacks
+
+
+def test_detect_stacks_angular_via_angular_json_in_subdirectory(tmp_path, load_script, root):
+    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    index = detect.bl.read_index(root)
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    (frontend / "angular.json").write_text("{}", encoding="utf-8")
+
+    stacks = detect.detect_stacks(tmp_path, index)
+
+    assert "angular" in stacks
+
+
+def test_detect_stacks_react_via_package_json_in_subdirectory(tmp_path, load_script, root):
+    """The monorepo-aware package.json scan is stack-agnostic: any dependency-detected stack
+    (not just angular) must be found from a nested package.json."""
+    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    index = detect.bl.read_index(root)
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    (frontend / "package.json").write_text(
+        json.dumps({"dependencies": {"react": "^18.0.0"}}), encoding="utf-8")
+
+    stacks = detect.detect_stacks(tmp_path, index)
+
+    assert "react" in stacks
+
+
+def test_detect_stacks_package_json_under_node_modules_is_ignored(tmp_path, load_script, root):
+    """A dependency's own package.json (vendored under node_modules/) must never contribute a
+    stack -- only the target project's own package.json files matter."""
+    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    index = detect.bl.read_index(root)
+    vendored = tmp_path / "node_modules" / "@angular" / "core"
+    vendored.mkdir(parents=True)
+    (vendored / "package.json").write_text(
+        json.dumps({"dependencies": {"@angular/core": "^17.0.0"}}), encoding="utf-8")
+
+    stacks = detect.detect_stacks(tmp_path, index)
+
+    assert "angular" not in stacks
+
+
 def test_detect_stacks_dedupes_when_glob_and_dependency_both_match(tmp_path, load_script, root):
     detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
@@ -234,6 +292,30 @@ def test_detect_stacks_dedupes_when_glob_and_dependency_both_match(tmp_path, loa
     stacks = detect.detect_stacks(tmp_path, index)
 
     assert stacks.count("react") == 1
+
+
+# --------------------------------------------------- catalog-wide detectionSignals glob guard
+def test_all_catalog_detection_signals_are_glob_shaped(load_script, root):
+    """Prose detectionSignals (e.g. "@angular/core in package.json dependencies") silently drop
+    out of _signal_globs() -- containing a space makes them un-matchable as a file glob -- so a
+    stack.json written with prose-only signals never gets data-driven detection at all (this is
+    exactly how angular went undetected everywhere, GitHub issue Arasz/ai-badger#15 follow-up).
+    Every features/*/stack.json must list only real, space-free glob signals; facts that can't
+    be expressed as a glob (a dependency, file content) belong in _dependency_stacks() instead,
+    not in detectionSignals."""
+    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    index = detect.bl.read_index(root)
+
+    offenders = []
+    for stack, data in index.get("stacks", {}).items():
+        for signal in data.get("meta", {}).get("detectionSignals", []):
+            if " " in signal:
+                offenders.append(f"{stack}: {signal!r}")
+
+    assert not offenders, (
+        "prose (space-containing) detectionSignals found -- these never match as globs:\n"
+        + "\n".join(offenders)
+    )
 
 
 # ------------------------------------------------------------------------- expand_requires

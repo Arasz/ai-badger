@@ -2,9 +2,8 @@
   "name": "angular",
   "description": "Angular single-page application framework (TypeScript, components, RxJS, Angular CLI).",
   "detectionSignals": [
-    "@angular/core in package.json dependencies",
-    "angular.json present",
-    "*.component.ts files"
+    "angular.json",
+    "*.component.ts"
   ],
   "requires": ["ts", "node"],
   "commands": {

@@ -24,9 +24,8 @@
       "meta": {
         "description": "Angular single-page application framework (TypeScript, components, RxJS, Angular CLI).",
         "detectionSignals": [
-          "@angular/core in package.json dependencies",
-          "angular.json present",
-          "*.component.ts files"
+          "angular.json",
+          "*.component.ts"
         ],
         "requires": [
           "ts",
@@ -69,7 +68,6 @@
           "azure.yaml",
           "host.json",
           "*.bicep",
-          "azurerm provider block in *.tf",
           "local.settings.json"
         ],
         "requires": [],
@@ -204,12 +202,7 @@
       ],
       "meta": {
         "description": "Azure Cosmos DB NoSQL data platform: partitioning, ETag concurrency, transactional batch writes.",
-        "detectionSignals": [
-          "Microsoft.Azure.Cosmos package reference",
-          "@azure/cosmos in package.json",
-          "CosmosClient usage",
-          "azurerm_cosmosdb_account in *.tf"
-        ],
+        "detectionSignals": [],
         "requires": [
           "azure"
         ],
@@ -308,10 +301,7 @@
       "meta": {
         "description": "Model Context Protocol server: exposes tools to LLM agents over stdio/HTTP transport.",
         "detectionSignals": [
-          "*.mcp/*.json",
-          "@modelcontextprotocol/sdk in package.json",
-          "McpServerTool usage",
-          "ModelContextProtocol package reference"
+          "*.mcp/*.json"
         ],
         "requires": [],
         "commands": {}
@@ -405,7 +395,6 @@
       "meta": {
         "description": "React UI framework: components, hooks, Server Components/Actions where applicable.",
         "detectionSignals": [
-          "react in package.json dependencies",
           "*.tsx",
           "*.jsx"
         ],
@@ -453,8 +442,7 @@
         "detectionSignals": [
           "tsconfig.json",
           "*.ts",
-          "*.tsx",
-          "typescript in package.json devDependencies"
+          "*.tsx"
         ],
         "requires": [
           "node"
