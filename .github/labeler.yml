@@ -1,0 +1,48 @@
+# Path-based PR labeling for actions/labeler (see .github/workflows/labeler.yml).
+# Keep labels in this file in sync with the labels that exist on the repo.
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file: "tests/**"
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "**/*.md"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ".github/**"
+
+schemas:
+  - changed-files:
+      - any-glob-to-any-file: "schemas/**"
+
+features:
+  - changed-files:
+      - any-glob-to-any-file: "features/**"
+
+scripts:
+  - changed-files:
+      - any-glob-to-any-file: "scripts/**"
+
+skill:welcome-ai-badger:
+  - changed-files:
+      - any-glob-to-any-file: "skills/welcome-ai-badger/**"
+
+skill:feed-badger:
+  - changed-files:
+      - any-glob-to-any-file: "skills/feed-badger/**"
+
+skill:task:
+  - changed-files:
+      - any-glob-to-any-file: "skills/task/**"
+
+skill:auto-wm:
+  - changed-files:
+      - any-glob-to-any-file: "skills/auto-wm/**"
+
+skill:prompt-markers:
+  - changed-files:
+      - any-glob-to-any-file: "skills/prompt-markers/**"
