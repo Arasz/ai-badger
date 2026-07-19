@@ -33,11 +33,14 @@ CLAUDE_BIN = shutil.which("claude") or next(
     (str(p) for p in _CLAUDE_FALLBACKS if p.is_file() and (p.stat().st_mode & 0o111)), "claude"
 )
 
-PROJECT_ROOT = lib.resolve_project_root()
+PROJECT_ROOT = lib.PROJECT_ROOT
 
-LOG_FILE = PROJECT_ROOT / ".claude" / "task-tracking" / "poll_limit.log"
-PID_FILE = PROJECT_ROOT / ".claude" / "task-tracking" / "poll_limit.pid"
-STATUSLINE_STATE = PROJECT_ROOT / ".claude" / "task-tracking" / "statusline-state.json"
+# Share tracker_lib's own computed data dir rather than rebuilding it with a ".claude" literal:
+# tracker_lib always writes task tracking under ".ai-badger/task-tracking/", so a hand-built
+# ".claude/task-tracking/" here would silently point at a directory nothing else ever writes to.
+LOG_FILE = lib.DATA_DIR / "poll_limit.log"
+PID_FILE = lib.DATA_DIR / "poll_limit.pid"
+STATUSLINE_STATE = lib.DATA_DIR / "statusline-state.json"
 DEFAULT_AVAILABLE_INTERVAL_SECONDS = 300
 STATUSLINE_FRESH_SECONDS = 180
 LIMIT_WAIT_SCHEDULE_SECONDS = [7200, 1800, 900, 300]
@@ -181,7 +184,7 @@ def discover_target_sessions(
 
 
 def _discover_task_sessions(project_root: Path) -> list[TargetSession]:
-    tasks_path = project_root / ".claude" / "task-tracking" / "executed-tasks.json"
+    tasks_path = lib.compute_paths(project_root)["executed_tasks"]
     doc = _read_json(tasks_path, {"tasks": []})
     found: list[TargetSession] = []
     for entry in doc.get("tasks", []):

@@ -12,7 +12,9 @@ import json
 
 def test_discovers_unfinished_task_sessions_from_tracking_store(tmp_path, load_script):
     poll_limit = load_script("skills/task/scripts/poll_limit.py")
-    data = tmp_path / ".claude" / "task-tracking"
+    # .ai-badger/task-tracking/, not .claude/ -- this must match wherever tracker_lib actually
+    # writes executed-tasks.json (see the regression test below for what happens if it doesn't).
+    data = tmp_path / ".ai-badger" / "task-tracking"
     data.mkdir(parents=True)
     transcript = data / "active.jsonl"
     transcript.write_text("{}\n", encoding="utf-8")
@@ -51,7 +53,7 @@ def test_discovers_sessions_from_user_claude_projects_jsonl_when_tracking_missin
 def test_discover_target_sessions_prefers_task_tracking_over_user_claude_fallback(tmp_path, load_script):
     poll_limit = load_script("skills/task/scripts/poll_limit.py")
     project_root = tmp_path / "repo"
-    data = project_root / ".claude" / "task-tracking"
+    data = project_root / ".ai-badger" / "task-tracking"
     data.mkdir(parents=True)
     (data / "executed-tasks.json").write_text(json.dumps({
         "tasks": [{"taskId": "T01", "state": "IN_PROGRESS", "sessionId": "sid-tracking"}]
@@ -67,6 +69,41 @@ def test_discover_target_sessions_prefers_task_tracking_over_user_claude_fallbac
     sessions = poll_limit.discover_target_sessions(project_root, user_claude)
 
     assert [s.session_id for s in sessions] == ["sid-tracking"]
+
+
+def test_discover_target_sessions_reads_tracker_libs_actual_data_dir(tmp_path, load_script):
+    """Regression: on main, poll_limit reads executed-tasks.json from
+    `<project_root>/.claude/task-tracking/`, but tracker_lib always writes it under
+    `<project_root>/.ai-badger/task-tracking/`. That mismatch means _discover_task_sessions
+    ALWAYS misses and silently falls through to the transcript-scanning fallback -- so the
+    poller can never resume a tracked task after a usage limit lifts. Write the file through
+    tracker_lib's own compute_paths() (the single source of truth for where it lives) and
+    assert discovery actually finds it -- no hardcoded directory literal in this test either.
+    """
+    poll_limit = load_script("skills/task/scripts/poll_limit.py")
+    project_root = tmp_path / "repo"
+    tasks_path = poll_limit.lib.compute_paths(project_root)["executed_tasks"]
+    tasks_path.parent.mkdir(parents=True)
+    tasks_path.write_text(json.dumps({
+        "tasks": [{"taskId": "T09", "state": "IN_PROGRESS", "sessionId": "sid-real"}]
+    }), encoding="utf-8")
+    empty_user_claude = tmp_path / "home" / ".claude"  # isolate from the fallback path
+
+    sessions = poll_limit.discover_target_sessions(project_root, empty_user_claude)
+
+    assert [s.session_id for s in sessions] == ["sid-real"]
+
+
+def test_log_pid_statusline_paths_share_tracker_libs_data_dir(load_script):
+    """LOG_FILE / PID_FILE / STATUSLINE_STATE must live under the same directory tracker_lib
+    computes for task tracking, not a separately hand-built `.claude/task-tracking/` literal --
+    otherwise a scaffolded project ends up with two tracking directories, one of which isn't in
+    the project's .gitignore."""
+    poll_limit = load_script("skills/task/scripts/poll_limit.py")
+
+    assert poll_limit.LOG_FILE.parent == poll_limit.lib.DATA_DIR
+    assert poll_limit.PID_FILE.parent == poll_limit.lib.DATA_DIR
+    assert poll_limit.STATUSLINE_STATE.parent == poll_limit.lib.DATA_DIR
 
 
 def test_poll_once_resumes_after_limit_transition(load_script):
