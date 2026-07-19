@@ -96,6 +96,11 @@ If `index.json` is missing or stale, run `python3 "$AI_BADGER/scripts/index_buil
 ## Upgrading a scaffolded project
 
 A project's `.ai-badger/` is a snapshot, not a live link. It only changes when re-scaffolded.
+The plugin itself nudges you when it's time: it ships a SessionStart hook (`hooks/hooks.json`
+→ `skills/task/scripts/drift_notice_hook.py`) that compares the scaffold's `frameworkVersion`
+against the installed plugin's own `VERSION` and prints a one-line notice on mismatch — no
+consumer configuration required, and it works even against a stale scaffold. That automatic
+check is Tier 1 (ADR-0001 decision 5); step 3 below is Tier 2, the deeper explicit walk.
 
 1. `claude plugin marketplace update ai-badger`
 2. `claude plugin update ai-badger@ai-badger` — then restart, as the CLI instructs.

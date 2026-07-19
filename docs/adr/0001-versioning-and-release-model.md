@@ -147,6 +147,30 @@ Second known limitation, documented rather than solved: an upstream rename reads
 in Tier 2, because `entry["source"]` is a path with no forwarding record. Solving it needs a
 provenance/redirect mechanism not worth building at this catalog's size.
 
+**Amendment (2026-07-19, #24): Tier 1 must ship as a plugin-provided hook.** The original text
+above assumed `$CLAUDE_PLUGIN_ROOT` was a readable environment variable at SessionStart. It is
+not: it is a command-string placeholder the CLI substitutes only into a *plugin-provided*
+`hooks.json`'s `command` field, and it architecturally cannot be a session-wide env var, since N
+plugins load per session and there is no single value to expose. A hook registered by a
+*consumer's own* `.claude/settings.json` — which is how Tier 1 was first wired, pointing at the
+scaffolded copy of `session_start_hook.py` — never has it set, so the check was a silent no-op
+in every real deployment.
+
+The fix: ai-badger now ships `hooks/hooks.json`, declaring a `SessionStart` entry that runs
+`skills/task/scripts/drift_notice_hook.py` from the plugin's own installed copy. This is a
+deliberate expansion of the framework's surface — previously ai-badger registered no hooks at
+all, so installing the plugin had no session-start side effect; now every consumer who installs
+it gets a hook that fires on every session start. The comparison logic is unchanged (two local
+file reads, no network, silent on match); only where it runs changed. `session_start_hook.py`
+no longer touches drift at all — it is scaffolded, so it cannot reach `$CLAUDE_PLUGIN_ROOT`
+either, and duplicating the check there would just recreate the same silent no-op.
+
+This also fixes the "scaffolded copy is stale" edge noted above: a plugin-provided hook reads
+the plugin's *own* `VERSION` regardless of what the target project's scaffold contains, so it
+works against a scaffold from before this fix (indeed from before Tier 1 existed at all,
+pre-0.2.0) — the scaffolded hook approach could not, since a stale scaffold has no drift code to
+run in the first place.
+
 ## Consequences
 
 **Good.** A version identifies content, so a bug report can name one. Installs become
