@@ -24,24 +24,16 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+import tracker_lib as lib
+
 _CLAUDE_FALLBACKS = (Path.home() / ".local/bin/claude", Path("/usr/local/bin/claude"))
 CLAUDE_BIN = shutil.which("claude") or next(
     (str(p) for p in _CLAUDE_FALLBACKS if p.is_file() and (p.stat().st_mode & 0o111)), "claude"
 )
 
-def _find_project_root(start: Path) -> Path:
-    """Walk up from this script to the repo root (nearest ancestor containing .claude).
-
-    Replaces a hard-coded parents[4] index, which silently broke if the script ever moved to a
-    different depth. Falls back to the current working directory when no ancestor has a .claude/.
-    """
-    for parent in start.parents:
-        if (parent / ".claude").is_dir():
-            return parent
-    return Path.cwd()
-
-
-PROJECT_ROOT = _find_project_root(Path(__file__).resolve())
+PROJECT_ROOT = lib.resolve_project_root()
 
 LOG_FILE = PROJECT_ROOT / ".claude" / "task-tracking" / "poll_limit.log"
 PID_FILE = PROJECT_ROOT / ".claude" / "task-tracking" / "poll_limit.pid"
@@ -266,7 +258,7 @@ def run_auto_wm() -> bool:
 def resume_session(target: TargetSession) -> bool:
     prompt = "Continue from where this Claude Code session left off."
     if target.task_id:
-        tracker = PROJECT_ROOT / ".claude" / "skills" / "task" / "scripts" / "task_tracker.py"
+        tracker = SCRIPT_DIR / "task_tracker.py"
         prompt = (
             f"Run `python3 {tracker} reattach {target.task_id}` first, then continue "
             "the /task workflow."

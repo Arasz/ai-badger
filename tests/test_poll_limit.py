@@ -267,3 +267,24 @@ def test_write_pid_writes_current_pid(tmp_path, load_script):
     poll_limit.write_pid(pid_file)
 
     assert pid_file.read_text(encoding="utf-8").strip() == str(os.getpid())
+
+
+def test_resume_session_reattach_prompt_references_task_tracker_under_own_script_dir(
+    load_script, monkeypatch
+):
+    """The reattach prompt must point at task_tracker.py next to poll_limit.py itself, not a
+    hardcoded `.claude/skills/task/scripts/` path -- that hardcoded path breaks whenever the
+    skill is installed somewhere else (e.g. the plugin cache)."""
+    poll_limit = load_script("skills/task/scripts/poll_limit.py")
+    target = poll_limit.TargetSession(session_id="sid-1", task_id="T01", source="task-tracking")
+    captured = {}
+
+    def fake_popen(cmd, **_kwargs):
+        captured["cmd"] = cmd
+
+    monkeypatch.setattr(poll_limit.subprocess, "Popen", fake_popen)
+
+    poll_limit.resume_session(target)
+
+    prompt = captured["cmd"][4]
+    assert str(poll_limit.SCRIPT_DIR / "task_tracker.py") in prompt
