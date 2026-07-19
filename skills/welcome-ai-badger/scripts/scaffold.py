@@ -38,6 +38,10 @@ MANAGED_HEADER = (
     "<!-- Managed by ai-badger. Source of truth: .ai-badger/{name}. "
     "Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->\n\n"
 )
+# Stable leading text every managed copy begins with (the part before the {name} slot). Used to
+# tell a framework-written discovery file apart from a hand-authored one when deciding whether to
+# overwrite, so a mature repo's curated CLAUDE.md/instructions are never clobbered.
+_MANAGED_PREFIX = MANAGED_HEADER.split("{name}", 1)[0]
 
 
 # ---------------------------------------------------------------- config-path helpers
@@ -72,12 +76,13 @@ class Scaffolder:
     """Materializes a target repo's .ai-badger/ scaffold from a validated config.json."""
 
     def __init__(self, root: Path, target: Path, config: Dict[str, Any],
-                 skills: List[str], install: bool):
+                 skills: List[str], install: bool, overwrite: bool = False):
         self.root = root
         self.target = target
         self.config = config
         self.skills = skills
         self.install = install
+        self.overwrite = overwrite
         self.index = bl.read_index(root)
         self.aib = target / ".ai-badger"
         self.entries: List[Dict[str, Any]] = []
@@ -232,12 +237,27 @@ class Scaffolder:
     # -- agent-discovery copies -----------------------------------------------------
     def write_agent_files(self, instructions_doc: str, instr_paths: List[Path]) -> None:
         """Write the assembled instructions doc into .ai-badger/ and each configured agent's
-        discovery location (CLAUDE.md, AGENTS.md, copilot-instructions.md)."""
+        discovery location (CLAUDE.md, AGENTS.md, copilot-instructions.md).
+
+        Existing hand-authored discovery files are preserved by default: a target that already
+        exists and does not carry the managed header is left untouched (its .ai-badger/ source is
+        still written), so a mature repo's curated CLAUDE.md and instructions are never clobbered.
+        Framework-written copies (which carry the header) and brand-new files are still written and
+        refreshed. Pass overwrite=True (CLI --overwrite-agent-files) to force the old copy-over.
+        """
         agents = self.config.get("agents", [])
         # source-of-truth files inside .ai-badger
         (self.aib / "CLAUDE.md").write_text(instructions_doc, encoding="utf-8")
 
         def copy_with_header(dest: Path, name: str, body: str) -> None:
+            if (not self.overwrite and dest.exists()
+                    and not dest.read_text(encoding="utf-8",
+                                           errors="ignore").lstrip().startswith(_MANAGED_PREFIX)):
+                self.notes.append(
+                    f"preserved hand-authored {dest.relative_to(self.target).as_posix()} "
+                    "(source written to .ai-badger/; pass --overwrite-agent-files to replace)"
+                )
+                return
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(MANAGED_HEADER.format(name=name) + body, encoding="utf-8")
 
@@ -330,6 +350,10 @@ def main(argv=None) -> int:
     ap.add_argument("--root")
     ap.add_argument("--skills", default=",".join(DEFAULT_SKILLS))
     ap.add_argument("--no-install", action="store_true")
+    ap.add_argument("--overwrite-agent-files", action="store_true",
+                    help="Overwrite existing hand-authored discovery files (CLAUDE.md, copilot, "
+                         "junie, .github/instructions/*). Default preserves any that lack the "
+                         "ai-badger managed header.")
     ap.add_argument("--generated-at", default=None,
                     help="ISO timestamp to stamp in manifest (orchestrator supplies; "
                          "scripts avoid clocks).")
@@ -349,7 +373,8 @@ def main(argv=None) -> int:
 
     config = bl.load_json(config_path)
     skills = [s for s in args.skills.split(",") if s]
-    scaf = Scaffolder(root, target, config, skills, install=not args.no_install)
+    scaf = Scaffolder(root, target, config, skills, install=not args.no_install,
+                      overwrite=args.overwrite_agent_files)
     result = scaf.run(generated_at=args.generated_at)
 
     print(f"scaffolded {len(result['manifest']['entries'])} entries into {scaf.aib}")
