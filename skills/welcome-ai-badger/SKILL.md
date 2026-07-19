@@ -70,6 +70,8 @@ If `index.json` is missing or stale, run `python3 "$AI_BADGER/scripts/index_buil
    invariants/, skills/, agent-instructions/, state.json) and agent-discovery copies for each
    detected agent (`CLAUDE.md`, `.github/copilot-instructions.md`, `.junie/AGENTS.md`). Note the
    printed plugin-setup commands and run them per the chosen scope (or hand them to the user).
+   **Existing hand-authored discovery files are preserved by default** — see the preserve note
+   below; on a mature repo the scaffold will report which files it left untouched.
 
 6. **Verify & report.** Confirm the scaffold matches the stacks (no leakage from unselected
    stacks). Summarize what was written, the plugin commands, and any notes the script emitted.
@@ -82,5 +84,11 @@ If `index.json` is missing or stale, run `python3 "$AI_BADGER/scripts/index_buil
   are *copied* to their conventional locations with a header pointing at `.ai-badger/` as the
   source of truth, because agent CLIs discover them by convention. See
   `docs/proxy-files-spike.md` for the planned thin-proxy alternative.
+- **Preserve-by-default (mature repos):** a discovery file that already exists and does *not* carry
+  the ai-badger managed header is treated as hand-authored and left untouched — its `.ai-badger/`
+  source copy is still written, and the scaffold emits a `preserved …` note. Framework-written
+  copies (which carry the header) and brand-new files are written/refreshed normally, so
+  idempotent re-scaffolding still works. Pass `--overwrite-agent-files` to force the old
+  copy-over behavior on every discovery file.
 - **Extensions:** config-gated skill extensions (e.g. the GitHub PR/issue extension of `task`)
   are embedded automatically iff `config.json` supplies their required data.
