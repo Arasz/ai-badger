@@ -252,3 +252,78 @@ def test_compare_reports_removed_when_source_gone(tmp_path, load_script):
     result = drift.compare(fw, proj)
 
     assert "features/common/invariants/gone.md" in result["removed"]
+
+
+def test_compare_reports_directory_entry_as_skipped_not_changed(tmp_path, load_script):
+    """Directory entries can't be compared (recorded hash covers the scaffolded copy, which
+    strips tests/evals and embeds extensions -- structurally different from the source tree).
+    They must be surfaced as skipped, not silently dropped and not flagged as changed."""
+    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    fw = tmp_path / "fw"
+    skill_dir = fw / "skills" / "task"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("content\n", encoding="utf-8")
+
+    proj = tmp_path / "proj"
+    _manifest_with_entry(proj, "skills/task", ".ai-badger/skills/task", "0" * 64)
+
+    result = drift.compare(fw, proj)
+
+    assert "skills/task" in result["skipped"]
+    assert "skills/task" not in result["changed"]
+
+
+def test_compare_reports_removed_directory_entry_as_removed_not_skipped(tmp_path, load_script):
+    """Deletion of a directory-valued entry's source is still detectable and must be
+    reported as removed, not skipped."""
+    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+
+    proj = tmp_path / "proj"
+    _manifest_with_entry(proj, "skills/gone-skill", ".ai-badger/skills/gone-skill", "0" * 64)
+
+    result = drift.compare(fw, proj)
+
+    assert "skills/gone-skill" in result["removed"]
+    assert "skills/gone-skill" not in result["skipped"]
+
+
+def test_compare_changed_file_entry_does_not_appear_in_skipped(tmp_path, load_script):
+    """File entries are unaffected by the directory-skip path."""
+    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("scripts/badger_lib.py")
+    fw = tmp_path / "fw"
+    (fw / "features" / "common" / "invariants").mkdir(parents=True)
+    src = fw / "features" / "common" / "invariants" / "x.md"
+    src.write_text("original\n", encoding="utf-8")
+    original_hash = bl.sha256_file(src)
+
+    proj = tmp_path / "proj"
+    _manifest_with_entry(proj, "features/common/invariants/x.md",
+                         ".ai-badger/invariants/x.md", original_hash)
+    src.write_text("upstream changed\n", encoding="utf-8")
+
+    result = drift.compare(fw, proj)
+
+    assert "features/common/invariants/x.md" in result["changed"]
+    assert "features/common/invariants/x.md" not in result["skipped"]
+
+
+def test_main_exits_zero_when_only_skipped_entries(tmp_path, load_script, monkeypatch, capsys):
+    """Skipped-only drift is informational, not actionable -- exit 0, not 1."""
+    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    fw = tmp_path / "fw"
+    skill_dir = fw / "skills" / "task"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("content\n", encoding="utf-8")
+    (fw / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+
+    proj = tmp_path / "proj"
+    _manifest_with_entry(proj, "skills/task", ".ai-badger/skills/task", "0" * 64)
+
+    rc = drift.main(["--root", str(fw), "--target", str(proj)])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "skills/task" in out
