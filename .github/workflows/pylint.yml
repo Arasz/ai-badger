@@ -10,6 +10,10 @@ jobs:
         python-version: ["3.8", "3.9", "3.10"]
     steps:
     - uses: actions/checkout@v7
+      with:
+        # release_guard.py needs tags to find the last ai-badger--v* release; the default
+        # fetch-depth: 1 does not fetch them, which would make the guard silently pass.
+        fetch-depth: 0
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -30,3 +34,9 @@ jobs:
     - name: Framework tree validates against its schemas
       run: |
         python3 scripts/validate.py --all
+    - name: Version literals (plugin.json, marketplace.json, index.json) agree with VERSION
+      run: |
+        python3 scripts/version_sync.py --check
+    - name: Release guard - shipped surface change requires a VERSION bump
+      run: |
+        python3 scripts/release_guard.py
