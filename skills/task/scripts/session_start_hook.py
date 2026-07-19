@@ -14,11 +14,40 @@ duration of the session.
 # broken poller can never crash SessionStart itself.
 
 import json
+import os
 import subprocess
 import sys
+from pathlib import Path
+from typing import Optional
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 import tracker_lib as lib
+
+
+def scaffold_drift_notice(project_root: Path, plugin_root: Optional[str]) -> Optional[str]:
+    """Return a one-line notice when the scaffold and the running plugin are different versions.
+
+    Two local file reads, no network (ADR-0001 decision 5). Silent on match, on an
+    unscaffolded project, and on any read error — a hook must never break session start,
+    and a noisy hook gets ignored.
+    """
+    if not plugin_root:
+        return None
+    try:
+        manifest = json.loads(
+            (project_root / ".ai-badger" / "manifest.json").read_text(encoding="utf-8")
+        )
+        scaffold_version = manifest.get("frameworkVersion")
+        plugin_version = (Path(plugin_root) / "VERSION").read_text(encoding="utf-8").strip()
+    except (OSError, ValueError):
+        return None
+    if not scaffold_version or not plugin_version or scaffold_version == plugin_version:
+        return None
+    return (
+        f"[ai-badger] .ai-badger/ was scaffolded by {scaffold_version} but the running "
+        f"plugin is {plugin_version}. Re-scaffold with welcome-ai-badger to realign, "
+        f"then review the diff."
+    )
 
 
 def start_poll_limit_background() -> None:
@@ -49,23 +78,30 @@ def main() -> int:
         lib.save_current_session(session_id, transcript, payload.get("cwd", ""))
     start_poll_limit_background()
 
+    notices = []
+    drift = scaffold_drift_notice(lib.PROJECT_ROOT, os.environ.get("CLAUDE_PLUGIN_ROOT"))
+    if drift:
+        notices.append(drift)
+
     if payload.get("source") == "resume":
         unfinished = [
             t["taskId"] for t in lib.load_tasks()["tasks"] if t.get("state") != lib.STATE_FINISHED
         ]
         if unfinished:
-            context = (
+            notices.append(
                 f"[task-skill] Unfinished tracked tasks: {', '.join(unfinished)}. "
                 f"If you are continuing one of them, run "
                 f"`python3 {lib.SCRIPT_DIR / 'task_tracker.py'} reattach <taskId>` "
                 "so tracking follows this session, then resume the /task workflow."
             )
-            print(json.dumps({
-                "hookSpecificOutput": {
-                    "hookEventName": "SessionStart",
-                    "additionalContext": context,
-                }
-            }))
+
+    if notices:
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": "\n".join(notices),
+            }
+        }))
     return 0
 
 
