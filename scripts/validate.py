@@ -39,7 +39,8 @@ PROVENANCE_HINT = (
 
 def provenance_hint(errors: List[str]) -> Optional[str]:
     """Return an actionable upgrade hint when errors are missing-provenance-key errors."""
-    if any(key in err for err in errors for key in PROVENANCE_KEYS):
+    if any(key in err and "is a required property" in err
+           for err in errors for key in PROVENANCE_KEYS):
         return PROVENANCE_HINT
     return None
 

@@ -158,3 +158,36 @@ def test_provenance_hint_absent_for_unrelated_errors(load_script):
     validate = load_script("scripts/validate.py")
 
     assert validate.provenance_hint(["'agents' is a required property"]) is None
+
+
+def test_provenance_hint_absent_for_malformed_commit_value(load_script):
+    """A present-but-invalid frameworkCommit is not a missing-key error."""
+    validate = load_script("scripts/validate.py")
+    errors = ["$.frameworkCommit: 'not-a-valid-sha' does not match '^[0-9a-f]{40}$'"]
+
+    assert validate.provenance_hint(errors) is None
+
+
+def test_provenance_hint_absent_for_malformed_dirty_value(load_script):
+    """A present-but-wrong-type frameworkDirty is not a missing-key error."""
+    validate = load_script("scripts/validate.py")
+    errors = ["$.frameworkDirty: 'yes' is not of type 'boolean'"]
+
+    assert validate.provenance_hint(errors) is None
+
+
+def test_provenance_hint_present_for_genuinely_missing_key(load_script):
+    validate = load_script("scripts/validate.py")
+    errors = ["'frameworkCommit' is a required property"]
+
+    assert validate.provenance_hint(errors) is not None
+
+
+def test_provenance_hint_present_when_missing_key_mixed_with_unrelated_error(load_script):
+    validate = load_script("scripts/validate.py")
+    errors = [
+        "'agents' is a required property",
+        "'frameworkCommit' is a required property",
+    ]
+
+    assert validate.provenance_hint(errors) is not None
