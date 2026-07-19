@@ -40,6 +40,13 @@ DEFAULT_SKILLS = ["task", "prompt-markers"]
 _test_ignore = shutil.ignore_patterns(
     "test_*.py", "*_test.py", "tests", "evals", "__pycache__", "*.pyc"
 )
+SEED_ONCE_SKILL_FILES: Dict[str, List[str]] = {
+    # Path is relative to the scaffolded skill directory. The framework seeds this file on
+    # first scaffold; the project owns it thereafter, so scaffold_skills() must stash it before
+    # the skill dir's rmtree+copytree refresh and restore it after (see #15). Any other file in
+    # the same skill dir (SKILL.md, scripts/) is MANAGED and keeps refreshing on every run.
+    "prompt-markers": ["markers-context.json"],
+}
 MANAGED_HEADER = (
     "<!-- Managed by ai-badger. Source of truth: .ai-badger/{name}. "
     "Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->\n\n"
@@ -82,13 +89,15 @@ class Scaffolder:
     """Materializes a target repo's .ai-badger/ scaffold from a validated config.json."""
 
     def __init__(self, root: Path, target: Path, config: Dict[str, Any],
-                 skills: List[str], install: bool, overwrite: bool = False):
+                 skills: List[str], install: bool, overwrite: bool = False,
+                 reset_seed_files: bool = False):
         self.root = root
         self.target = target
         self.config = config
         self.skills = skills
         self.install = install
         self.overwrite = overwrite
+        self.reset_seed_files = reset_seed_files
         self.index = bl.read_index(root)
         self.aib = target / ".ai-badger"
         self.entries: List[Dict[str, Any]] = []
@@ -114,6 +123,45 @@ class Scaffolder:
         shutil.copyfile(src, dest)
         self.record(feature, stack, item["name"], src, dest)
         return dest
+
+    # -- seed-once (framework writes once, project owns thereafter; see #15) --------
+    def _seed_once_copy(self, src: Path, dest: Path, label: str) -> None:
+        """Copy src to dest only on first scaffold. If dest already exists, it is project-owned
+        and left untouched (--reset-seed-files overrides this and reseeds from src)."""
+        if dest.exists() and not self.reset_seed_files:
+            self.notes.append(
+                f"preserved seed-once {label} (already exists; not re-seeded; "
+                "pass --reset-seed-files to reset)"
+            )
+            return
+        if src.exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dest)
+
+    def _stash_seed_once_skill_files(self, skill_name: str, dest: Path) -> Dict[str, bytes]:
+        """Read the current content of any seed-once files inside a skill dir before it is
+        rmtree'd, so they can be restored after the fresh copytree. Empty on first scaffold
+        (dest doesn't exist yet) or when --reset-seed-files is requested."""
+        if self.reset_seed_files:
+            return {}
+        stashed: Dict[str, bytes] = {}
+        for relpath in SEED_ONCE_SKILL_FILES.get(skill_name, []):
+            p = dest / relpath
+            if p.exists():
+                stashed[relpath] = p.read_bytes()
+        return stashed
+
+    def _restore_seed_once_skill_files(self, skill_name: str, dest: Path,
+                                        stashed: Dict[str, bytes]) -> None:
+        """Write back stashed seed-once file content after the skill dir's fresh copytree."""
+        for relpath, content in stashed.items():
+            p = dest / relpath
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(content)
+            self.notes.append(
+                f"preserved seed-once .ai-badger/skills/{skill_name}/{relpath} "
+                "(already existed; not re-seeded; pass --reset-seed-files to reset)"
+            )
 
     # -- features -------------------------------------------------------------------
     def scaffold_personas(self) -> None:
@@ -150,9 +198,11 @@ class Scaffolder:
                 continue
             src = self.root / item["path"]
             dest = self.aib / "skills" / skill_name
+            stashed = self._stash_seed_once_skill_files(skill_name, dest)
             if dest.exists():
                 shutil.rmtree(dest)
             shutil.copytree(src, dest, ignore=_test_ignore)
+            self._restore_seed_once_skill_files(skill_name, dest, stashed)
             self._embed_extensions(skill_name, item, dest)
             # hash includes embedded extensions
             self.record("skills", "common", skill_name, src, dest)
@@ -194,15 +244,15 @@ class Scaffolder:
         if schema.exists():
             shutil.copyfile(schema, out / "schema.json")
         model_tmpl = tdir / "model.template.json"
-        if model_tmpl.exists() and not (out / "model.json").exists():
-            shutil.copyfile(model_tmpl, out / "model.json")
+        self._seed_once_copy(model_tmpl, out / "model.json",
+                              ".ai-badger/agent-instructions/model.json")
 
     def scaffold_templates(self) -> None:
-        """Copy the shared state.json template into .ai-badger/, if present."""
+        """Seed the shared state.json template into .ai-badger/ on first scaffold only. It is a
+        live task index the project owns after that (see #15): a re-scaffold must not clobber it."""
         tdir = self.root / "features" / "common" / "templates"
         state = tdir / "state.json"
-        if state.exists():
-            shutil.copyfile(state, self.aib / "state.json")
+        self._seed_once_copy(state, self.aib / "state.json", ".ai-badger/state.json")
 
     # -- CLAUDE.md assembly ---------------------------------------------------------
     def assemble_instructions_doc(self, invariants: List[str], instr_paths: List[Path]) -> str:
@@ -360,6 +410,11 @@ def main(argv=None) -> int:
                     help="Overwrite existing hand-authored discovery files (CLAUDE.md, copilot, "
                          "junie, .github/instructions/*). Default preserves any that lack the "
                          "ai-badger managed header.")
+    ap.add_argument("--reset-seed-files", action="store_true",
+                    help="Reseed SEED-ONCE files (.ai-badger/state.json, agent-instructions/"
+                         "model.json, skills/prompt-markers/markers-context.json) from the "
+                         "framework template, discarding any project-owned edits. Default "
+                         "preserves them once they exist.")
     ap.add_argument("--generated-at", default=None,
                     help="ISO timestamp to stamp in manifest (orchestrator supplies; "
                          "scripts avoid clocks).")
@@ -380,7 +435,8 @@ def main(argv=None) -> int:
     config = bl.load_json(config_path)
     skills = [s for s in args.skills.split(",") if s]
     scaf = Scaffolder(root, target, config, skills, install=not args.no_install,
-                      overwrite=args.overwrite_agent_files)
+                      overwrite=args.overwrite_agent_files,
+                      reset_seed_files=args.reset_seed_files)
     result = scaf.run(generated_at=args.generated_at)
 
     print(f"scaffolded {len(result['manifest']['entries'])} entries into {scaf.aib}")
