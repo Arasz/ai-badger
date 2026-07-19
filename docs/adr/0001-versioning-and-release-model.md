@@ -104,6 +104,18 @@ tree with uncommitted changes: provenance that is not reproducible.
 The keys are required, with nullable values. Key *presence* is what carries meaning — a
 manifest lacking them is unambiguously pre-0.2.0.
 
+Exact semantics, so the three cases are unambiguous:
+
+| Scaffolded from | `frameworkCommit` | `frameworkDirty` |
+|---|---|---|
+| Clean git clone | `HEAD` SHA | `false` |
+| Git clone with uncommitted changes | `HEAD` SHA | `true` |
+| Plugin cache (no `.git`) | `null` | `false` |
+
+`frameworkDirty` is `false`, not `null`, from a plugin cache: a cache copy cannot have local
+edits, so "not dirty" is a fact rather than an absence. `frameworkCommit` is `null` there
+because the commit is genuinely unknown to the scaffolder — the version resolves to it instead.
+
 **No migration is provided.** Existing manifests must re-scaffold. This is a breaking change,
 which 0.2.0 permits, and it is taken now precisely because it is cheap now: two consumers,
 both the author's, no external installs yet. After the framework is publicly promoted that
