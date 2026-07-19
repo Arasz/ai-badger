@@ -22,7 +22,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 def _bootstrap_lib() -> None:
@@ -39,14 +39,18 @@ _bootstrap_lib()
 import badger_lib as bl  # pylint: disable=wrong-import-position
 
 
-def compare(root: Path, target: Path) -> Dict[str, List[str]]:
-    """Diff a target's manifest against the framework's current catalog content."""
-    manifest: Dict[str, Any] = bl.load_json(target / ".ai-badger" / "manifest.json")
+def compare(root: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
+    """Diff an already-parsed manifest against the framework's current catalog content."""
     changed: List[str] = []
     removed: List[str] = []
     skipped: List[str] = []
+    invalid = 0
     for entry in manifest.get("entries", []):
-        source_rel = entry["source"]
+        source_rel = entry.get("source")
+        entry_hash = entry.get("hash")
+        if source_rel is None or entry_hash is None:
+            invalid += 1
+            continue
         source = root / source_rel
         if not source.exists():
             removed.append(source_rel)
@@ -54,12 +58,17 @@ def compare(root: Path, target: Path) -> Dict[str, List[str]]:
         if source.is_dir():
             skipped.append(source_rel)
             continue
-        if bl.sha256_file(source) != entry["hash"]:
+        if bl.sha256_file(source) != entry_hash:
             changed.append(source_rel)
-    return {"changed": sorted(changed), "removed": sorted(removed), "skipped": sorted(skipped)}
+    return {
+        "changed": sorted(changed),
+        "removed": sorted(removed),
+        "skipped": sorted(skipped),
+        "invalid": invalid,
+    }
 
 
-def main(argv: List[str] = None) -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     """Print drift between a scaffolded target and the framework catalog; return an exit code."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", help="framework repo root (default: autodetect)")
@@ -73,20 +82,38 @@ def main(argv: List[str] = None) -> int:
         print(f"no manifest at {manifest_path} — is this a scaffolded project?")
         return 2
 
-    manifest = bl.load_json(manifest_path)
+    try:
+        manifest = bl.load_json(manifest_path)
+    except (ValueError, OSError) as exc:
+        print(f"could not read manifest at {manifest_path}: {exc}")
+        return 2
+
     scaffold_version = manifest.get("frameworkVersion", "?")
     current_version = (root / "VERSION").read_text(encoding="utf-8").strip()
     print(f"scaffolded from {scaffold_version}; framework here is {current_version}")
 
-    result = compare(root, target)
+    result = compare(root, manifest)
+    for label in ("changed", "removed"):
+        for path in result[label]:
+            print(f"  {label:8} {path}")
     if result["skipped"]:
         print("skipped entries are directory-valued: the recorded hash covers the scaffolded "
               "copy, which excludes tests/evals — not comparable to the source tree")
-    for label in ("changed", "removed", "skipped"):
-        for path in result[label]:
-            print(f"  {label:8} {path}")
+        for path in result["skipped"]:
+            print(f"  skipped  {path}")
+    if result["invalid"]:
+        n = result["invalid"]
+        print(f"  invalid  {n} manifest entr{'y' if n == 1 else 'ies'} missing source/hash "
+              "— not checked")
+
     if not result["changed"] and not result["removed"]:
-        print("no drift — every scaffolded item matches the framework's current content")
+        if result["skipped"]:
+            n = len(result["skipped"])
+            entry_word = "y was" if n == 1 else "ies were"
+            print(f"no drift among the entries that could be compared — "
+                  f"{n} skipped entr{entry_word} not checked")
+        else:
+            print("no drift — every scaffolded item matches the framework's current content")
         return 0
     print("re-scaffold with welcome-ai-badger to pick these up; review the diff before committing")
     return 1

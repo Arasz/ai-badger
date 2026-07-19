@@ -187,9 +187,11 @@ def test_main_silent_when_versions_match_and_no_resume(tmp_path, load_script, mo
 
 
 def _manifest_with_entry(target, source_rel, target_rel, entry_hash):
+    """Write a manifest with one entry to `target/.ai-badger/manifest.json` and return the
+    parsed dict, since `compare()` now takes an already-parsed manifest rather than a path."""
     aib = target / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
-    (aib / "manifest.json").write_text(json.dumps({
+    manifest = {
         "frameworkVersion": "0.2.0",
         "frameworkCommit": None,
         "frameworkDirty": False,
@@ -199,7 +201,9 @@ def _manifest_with_entry(target, source_rel, target_rel, entry_hash):
             "source": source_rel, "target": target_rel,
             "frameworkVersion": "0.2.0", "hash": entry_hash,
         }],
-    }), encoding="utf-8")
+    }
+    (aib / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    return manifest
 
 
 def test_compare_reports_changed_when_framework_source_differs(tmp_path, load_script):
@@ -212,11 +216,11 @@ def test_compare_reports_changed_when_framework_source_differs(tmp_path, load_sc
     original_hash = bl.sha256_file(src)
 
     proj = tmp_path / "proj"
-    _manifest_with_entry(proj, "features/common/invariants/x.md",
-                         ".ai-badger/invariants/x.md", original_hash)
+    manifest = _manifest_with_entry(proj, "features/common/invariants/x.md",
+                                    ".ai-badger/invariants/x.md", original_hash)
     src.write_text("upstream changed\n", encoding="utf-8")
 
-    result = drift.compare(fw, proj)
+    result = drift.compare(fw, manifest)
 
     assert "features/common/invariants/x.md" in result["changed"]
     assert result["removed"] == []
@@ -231,10 +235,10 @@ def test_compare_silent_when_source_unchanged(tmp_path, load_script):
     src.write_text("stable\n", encoding="utf-8")
 
     proj = tmp_path / "proj"
-    _manifest_with_entry(proj, "features/common/invariants/x.md",
-                         ".ai-badger/invariants/x.md", bl.sha256_file(src))
+    manifest = _manifest_with_entry(proj, "features/common/invariants/x.md",
+                                    ".ai-badger/invariants/x.md", bl.sha256_file(src))
 
-    result = drift.compare(fw, proj)
+    result = drift.compare(fw, manifest)
 
     assert result["changed"] == []
 
@@ -246,10 +250,10 @@ def test_compare_reports_removed_when_source_gone(tmp_path, load_script):
     fw.mkdir()
 
     proj = tmp_path / "proj"
-    _manifest_with_entry(proj, "features/common/invariants/gone.md",
-                         ".ai-badger/invariants/gone.md", "0" * 64)
+    manifest = _manifest_with_entry(proj, "features/common/invariants/gone.md",
+                                    ".ai-badger/invariants/gone.md", "0" * 64)
 
-    result = drift.compare(fw, proj)
+    result = drift.compare(fw, manifest)
 
     assert "features/common/invariants/gone.md" in result["removed"]
 
@@ -265,9 +269,9 @@ def test_compare_reports_directory_entry_as_skipped_not_changed(tmp_path, load_s
     (skill_dir / "SKILL.md").write_text("content\n", encoding="utf-8")
 
     proj = tmp_path / "proj"
-    _manifest_with_entry(proj, "skills/task", ".ai-badger/skills/task", "0" * 64)
+    manifest = _manifest_with_entry(proj, "skills/task", ".ai-badger/skills/task", "0" * 64)
 
-    result = drift.compare(fw, proj)
+    result = drift.compare(fw, manifest)
 
     assert "skills/task" in result["skipped"]
     assert "skills/task" not in result["changed"]
@@ -281,9 +285,10 @@ def test_compare_reports_removed_directory_entry_as_removed_not_skipped(tmp_path
     fw.mkdir()
 
     proj = tmp_path / "proj"
-    _manifest_with_entry(proj, "skills/gone-skill", ".ai-badger/skills/gone-skill", "0" * 64)
+    manifest = _manifest_with_entry(proj, "skills/gone-skill", ".ai-badger/skills/gone-skill",
+                                    "0" * 64)
 
-    result = drift.compare(fw, proj)
+    result = drift.compare(fw, manifest)
 
     assert "skills/gone-skill" in result["removed"]
     assert "skills/gone-skill" not in result["skipped"]
@@ -300,18 +305,19 @@ def test_compare_changed_file_entry_does_not_appear_in_skipped(tmp_path, load_sc
     original_hash = bl.sha256_file(src)
 
     proj = tmp_path / "proj"
-    _manifest_with_entry(proj, "features/common/invariants/x.md",
-                         ".ai-badger/invariants/x.md", original_hash)
+    manifest = _manifest_with_entry(proj, "features/common/invariants/x.md",
+                                    ".ai-badger/invariants/x.md", original_hash)
     src.write_text("upstream changed\n", encoding="utf-8")
 
-    result = drift.compare(fw, proj)
+    result = drift.compare(fw, manifest)
 
     assert "features/common/invariants/x.md" in result["changed"]
     assert "features/common/invariants/x.md" not in result["skipped"]
 
 
-def test_main_exits_zero_when_only_skipped_entries(tmp_path, load_script, monkeypatch, capsys):
-    """Skipped-only drift is informational, not actionable -- exit 0, not 1."""
+def test_main_exits_zero_when_only_skipped_entries(tmp_path, load_script, capsys):
+    """Skipped-only drift is informational, not actionable -- exit 0, not 1. The summary must
+    be honest that skipped entries were never compared, not claim a clean "no drift"."""
     drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
     skill_dir = fw / "skills" / "task"
@@ -327,3 +333,104 @@ def test_main_exits_zero_when_only_skipped_entries(tmp_path, load_script, monkey
     assert rc == 0
     out = capsys.readouterr().out
     assert "skills/task" in out
+    assert "no drift among the entries that could be compared" in out
+    assert "1 skipped entry was not checked" in out
+    assert "no drift — every scaffolded item matches" not in out
+
+
+def test_main_prints_genuinely_clean_message_when_nothing_skipped(
+        tmp_path, load_script, capsys):
+    """The original unconditional "no drift" wording is still used verbatim when there is
+    truly nothing to be dishonest about -- no changed/removed/skipped entries at all."""
+    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+    (fw / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+
+    proj = tmp_path / "proj"
+    aib = proj / ".ai-badger"
+    aib.mkdir(parents=True)
+    (aib / "manifest.json").write_text(json.dumps({
+        "frameworkVersion": "0.2.0", "frameworkCommit": None, "frameworkDirty": False,
+        "agents": ["claude"], "entries": [],
+    }), encoding="utf-8")
+
+    rc = drift.main(["--root", str(fw), "--target", str(proj)])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "no drift — every scaffolded item matches the framework's current content" in out
+
+
+def test_main_returns_usage_error_on_corrupt_manifest(tmp_path, load_script, capsys):
+    """A malformed manifest.json must produce a friendly exit-2 message, not a raw
+    JSONDecodeError traceback."""
+    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+    (fw / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+
+    proj = tmp_path / "proj"
+    aib = proj / ".ai-badger"
+    aib.mkdir(parents=True)
+    (aib / "manifest.json").write_text("{not json", encoding="utf-8")
+
+    rc = drift.main(["--root", str(fw), "--target", str(proj)])
+
+    assert rc == 2
+    out = capsys.readouterr().out
+    assert "manifest.json" in out
+    assert "Traceback" not in out
+
+
+def test_compare_skips_entry_missing_source_or_hash_without_crashing(tmp_path, load_script):
+    """A schema-invalid manifest entry (missing `source` or `hash`) must not raise KeyError.
+    It is skipped and counted, not silently swallowed."""
+    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+
+    manifest = {
+        "frameworkVersion": "0.2.0", "frameworkCommit": None, "frameworkDirty": False,
+        "agents": ["claude"],
+        "entries": [
+            {"feature": "invariants", "stack": "common", "name": "no-source",
+             "target": ".ai-badger/invariants/a.md", "frameworkVersion": "0.2.0",
+             "hash": "0" * 64},
+            {"feature": "invariants", "stack": "common", "name": "no-hash",
+             "source": "features/common/invariants/b.md",
+             "target": ".ai-badger/invariants/b.md", "frameworkVersion": "0.2.0"},
+        ],
+    }
+
+    result = drift.compare(fw, manifest)
+
+    assert result["changed"] == []
+    assert result["removed"] == []
+    assert result["skipped"] == []
+    assert result["invalid"] == 2
+
+
+def test_main_reports_invalid_entry_count_in_output(tmp_path, load_script, capsys):
+    """The invalid-entry count must be visible in main()'s output, not swallowed."""
+    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+    (fw / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+
+    proj = tmp_path / "proj"
+    aib = proj / ".ai-badger"
+    aib.mkdir(parents=True)
+    (aib / "manifest.json").write_text(json.dumps({
+        "frameworkVersion": "0.2.0", "frameworkCommit": None, "frameworkDirty": False,
+        "agents": ["claude"],
+        "entries": [{"feature": "invariants", "stack": "common", "name": "no-hash",
+                     "source": "features/common/invariants/b.md",
+                     "target": ".ai-badger/invariants/b.md", "frameworkVersion": "0.2.0"}],
+    }), encoding="utf-8")
+
+    rc = drift.main(["--root", str(fw), "--target", str(proj)])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "1" in out and "invalid" in out
