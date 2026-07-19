@@ -5,6 +5,9 @@ The user's rich status line remains the renderer. This wrapper persists the raw
 statusLine payload so poll_limit.py can use Claude Code's own rate-limit metadata
 instead of spending a probe while a reset time is known.
 """
+# pylint: disable=missing-function-docstring
+# Ported verbatim from the originating job-search-ai-assistant repo's /task skill: kept in
+# lockstep with that source rather than churned for local docstring style rules.
 
 from __future__ import annotations
 
@@ -17,7 +20,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import tracker_lib as lib
 
-USER_STATUSLINE = Path(os.environ.get("CLAUDE_USER_STATUSLINE", "/Users/arasz/.claude/statusline.sh"))
+_DEFAULT_USER_STATUSLINE = "/Users/arasz/.claude/statusline.sh"
+USER_STATUSLINE = Path(os.environ.get("CLAUDE_USER_STATUSLINE", _DEFAULT_USER_STATUSLINE))
 STATUSLINE_STATE = lib.DATA_DIR / "statusline-state.json"
 
 

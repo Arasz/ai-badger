@@ -7,6 +7,9 @@ and resumes active /task sessions discovered from task tracking data, falling ba
 to Claude's user-level transcript store (~/.claude/projects) when tracking is not
 yet populated.
 """
+# pylint: disable=missing-function-docstring,missing-class-docstring,broad-exception-caught
+# Ported verbatim from the originating job-search-ai-assistant repo's /task skill: kept in
+# lockstep with that source rather than churned for local docstring/style rules.
 
 from __future__ import annotations
 
@@ -20,12 +23,6 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-try:
-    import tracker_lib as lib
-except Exception:  # pragma: no cover - keeps importable in isolated harnesses
-    lib = None
 
 _CLAUDE_FALLBACKS = (Path.home() / ".local/bin/claude", Path("/usr/local/bin/claude"))
 CLAUDE_BIN = shutil.which("claude") or next(
@@ -76,7 +73,7 @@ def log(message: str) -> None:
     print(msg, flush=True)
     try:
         LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(LOG_FILE, "a") as fh:
+        with open(LOG_FILE, "a", encoding="utf-8") as fh:
             fh.write(msg + "\n")
     except Exception:
         pass
@@ -160,6 +157,7 @@ def check_limit_with_probe() -> tuple[bool, str]:
             text=True,
             timeout=120,
             cwd=str(PROJECT_ROOT),
+            check=False,
         )
     except (subprocess.SubprocessError, OSError) as exc:
         return False, str(exc)
@@ -170,18 +168,24 @@ def check_limit_with_probe() -> tuple[bool, str]:
 
 
 def check_limit() -> tuple[bool, str]:
-    """Return (is_limited, diagnostic_output), falling back to the Claude probe when statusLine is stale."""
+    """Return (is_limited, diagnostic_output).
+
+    Falls back to the Claude probe when statusLine is stale.
+    """
     statusline_result = check_limit_from_statusline()
     if statusline_result is not None:
         return statusline_result
     return check_limit_with_probe()
 
 
-def discover_target_sessions(project_root: Path = PROJECT_ROOT, user_claude_dir: Path | None = None) -> list[TargetSession]:
+def discover_target_sessions(
+    project_root: Path = PROJECT_ROOT, user_claude_dir: Path | None = None
+) -> list[TargetSession]:
     sessions = _discover_task_sessions(project_root)
     if sessions:
         return sessions
-    return _discover_user_claude_sessions(project_root, user_claude_dir or (Path.home() / ".claude"))
+    fallback_dir = user_claude_dir or (Path.home() / ".claude")
+    return _discover_user_claude_sessions(project_root, fallback_dir)
 
 
 def _discover_task_sessions(project_root: Path) -> list[TargetSession]:
@@ -202,7 +206,9 @@ def _discover_task_sessions(project_root: Path) -> list[TargetSession]:
     return found
 
 
-def _discover_user_claude_sessions(project_root: Path, user_claude_dir: Path) -> list[TargetSession]:
+def _discover_user_claude_sessions(
+    project_root: Path, user_claude_dir: Path
+) -> list[TargetSession]:
     projects_dir = user_claude_dir / "projects"
     if not projects_dir.exists():
         return []
@@ -246,6 +252,7 @@ def run_auto_wm() -> bool:
             text=True,
             timeout=120,
             cwd=str(PROJECT_ROOT),
+            check=False,
         )
     except (subprocess.SubprocessError, OSError) as exc:
         log(f"Failed to run auto-wm: {exc}")
@@ -260,11 +267,16 @@ def resume_session(target: TargetSession) -> bool:
     prompt = "Continue from where this Claude Code session left off."
     if target.task_id:
         tracker = PROJECT_ROOT / ".claude" / "skills" / "task" / "scripts" / "task_tracker.py"
-        prompt = f"Run `python3 {tracker} reattach {target.task_id}` first, then continue the /task workflow."
-    log(f"Resuming session {target.session_id} ({target.source}{' task ' + target.task_id if target.task_id else ''})...")
+        prompt = (
+            f"Run `python3 {tracker} reattach {target.task_id}` first, then continue "
+            "the /task workflow."
+        )
+    task_suffix = f" task {target.task_id}" if target.task_id else ""
+    log(f"Resuming session {target.session_id} ({target.source}{task_suffix})...")
     try:
-        subprocess.Popen(
-            [CLAUDE_BIN, "--resume", target.session_id, "-p", prompt, "--permission-mode", "acceptEdits"],
+        subprocess.Popen(  # pylint: disable=consider-using-with
+            [CLAUDE_BIN, "--resume", target.session_id, "-p", prompt,
+             "--permission-mode", "acceptEdits"],
             cwd=str(PROJECT_ROOT),
             start_new_session=True,
         )
@@ -308,7 +320,8 @@ def poll_once(
     if limited:
         state.limited_checks += 1
         wait_seconds = next_limit_wait_seconds(state.limited_checks)
-        log(f"Status: Limited. Next check in {wait_seconds} seconds. {(output or '').strip()[:200]}")
+        detail = (output or "").strip()[:200]
+        log(f"Status: Limited. Next check in {wait_seconds} seconds. {detail}")
         return wait_seconds
     state.limited_checks = 0
     return DEFAULT_AVAILABLE_INTERVAL_SECONDS
@@ -319,7 +332,8 @@ def run_forever(interval_seconds: int | None = None) -> int:
         log("poll_limit.py is already running; exiting")
         return 0
     write_pid()
-    log("Starting Claude limit poller (dynamic interval: 2h, 30m, 15m, then 5m while limited; 5m otherwise)...")
+    log("Starting Claude limit poller (dynamic interval: 2h, 30m, 15m, then 5m "
+        "while limited; 5m otherwise)...")
     state = PollState()
     while True:
         try:
