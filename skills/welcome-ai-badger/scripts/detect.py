@@ -30,8 +30,11 @@ _bootstrap_lib()
 import badger_lib as bl
 
 
-# vendored / build directories whose contents must not trigger stack detection
-_IGNORE_DIRS = {"node_modules", ".git", ".venv", "venv", "__pycache__", ".terraform", "dist"}
+# vendored / build / agent-tooling directories whose contents must not trigger stack detection.
+# `.claude` holds agent tooling (e.g. the task skill's Python hook scripts) — those are framework
+# machinery, not the target project's stack, so they must never propose a stack like `python`.
+_IGNORE_DIRS = {"node_modules", ".git", ".venv", "venv", "__pycache__", ".terraform", "dist",
+                ".claude"}
 
 
 def _has(target: Path, *globs: str) -> bool:
