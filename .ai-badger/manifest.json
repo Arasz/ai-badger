@@ -1,0 +1,176 @@
+{
+  "$schema": "../schemas/manifest.schema.json",
+  "frameworkVersion": "0.2.0",
+  "frameworkCommit": "810e95b9c211fc0c487b1a6064121d845f8b4d8c",
+  "frameworkDirty": true,
+  "generatedAt": null,
+  "agents": [
+    "claude",
+    "copilot"
+  ],
+  "pluginScope": "default",
+  "entries": [
+    {
+      "feature": "personas",
+      "stack": "common",
+      "name": "architect",
+      "source": "features/common/personas/architect.md",
+      "target": ".ai-badger/agents/architect.md",
+      "frameworkVersion": "0.2.0",
+      "hash": "4614d118464b9bc9db87b3a7075b7a8d71c3e3b2f09faea4bd8a630f5a8349ac"
+    },
+    {
+      "feature": "personas",
+      "stack": "common",
+      "name": "code-reviewer",
+      "source": "features/common/personas/code-reviewer.md",
+      "target": ".ai-badger/agents/code-reviewer.md",
+      "frameworkVersion": "0.2.0",
+      "hash": "e49eedc6c6cb3a14de19f86e50adc232aa008db62c2c061029fe371202f4e849"
+    },
+    {
+      "feature": "personas",
+      "stack": "common",
+      "name": "test-engineer",
+      "source": "features/common/personas/test-engineer.md",
+      "target": ".ai-badger/agents/test-engineer.md",
+      "frameworkVersion": "0.2.0",
+      "hash": "c48501ca0af5bf8a186324c17a00f73e2426095163a383086517faa9592e2057"
+    },
+    {
+      "feature": "instructions",
+      "stack": "common",
+      "name": "documentation.instructions",
+      "source": "features/common/instructions/documentation.instructions.md",
+      "target": ".ai-badger/instructions/documentation.instructions.md",
+      "frameworkVersion": "0.2.0",
+      "hash": "49d0deaa5e85453ef729cab6fbb443ad079eaf3a6bab6d82d9d735cced36c4ca"
+    },
+    {
+      "feature": "instructions",
+      "stack": "python",
+      "name": "python.instructions",
+      "source": "features/python/instructions/python.instructions.md",
+      "target": ".ai-badger/instructions/python.instructions.md",
+      "frameworkVersion": "0.2.0",
+      "hash": "a78607719b69927ece0d3ba8115037005c36ebd19aad6fefa0ce145a99c1b79d"
+    },
+    {
+      "feature": "instructions",
+      "stack": "js",
+      "name": "javascript.instructions",
+      "source": "features/js/instructions/javascript.instructions.md",
+      "target": ".ai-badger/instructions/javascript.instructions.md",
+      "frameworkVersion": "0.2.0",
+      "hash": "aee34b31f88b32868758abe80d1f4676e9cc4268b83a71eebe22dacc2ceeb59c"
+    },
+    {
+      "feature": "invariants",
+      "stack": "common",
+      "name": "guard-clauses",
+      "source": "features/common/invariants/guard-clauses.md",
+      "target": ".ai-badger/invariants/guard-clauses.md",
+      "frameworkVersion": "0.2.0",
+      "hash": "81e27d082d09fbf6d93cfac034f07eea3481d77e36a176d5170e4c55c8ead4fb"
+    },
+    {
+      "feature": "invariants",
+      "stack": "common",
+      "name": "minimal-comments",
+      "source": "features/common/invariants/minimal-comments.md",
+      "target": ".ai-badger/invariants/minimal-comments.md",
+      "frameworkVersion": "0.2.0",
+      "hash": "28c17e954bfc850a6441c2ccbc032318d60085695b1320536e2b75bd563d0079"
+    },
+    {
+      "feature": "invariants",
+      "stack": "common",
+      "name": "no-hand-rolled-crypto",
+      "source": "features/common/invariants/no-hand-rolled-crypto.md",
+      "target": ".ai-badger/invariants/no-hand-rolled-crypto.md",
+      "frameworkVersion": "0.2.0",
+      "hash": "cbf086eeac7d8f6449d58c711b39e2aecbdff6885f4ed8575d090ae6cf8c1996"
+    },
+    {
+      "feature": "invariants",
+      "stack": "common",
+      "name": "no-hardcoded-secrets",
+      "source": "features/common/invariants/no-hardcoded-secrets.md",
+      "target": ".ai-badger/invariants/no-hardcoded-secrets.md",
+      "frameworkVersion": "0.2.0",
+      "hash": "b7433087d8f1260ace6a99ca3055286b89c16934e933c5e90834310c86c05e18"
+    },
+    {
+      "feature": "invariants",
+      "stack": "common",
+      "name": "pr-per-task",
+      "source": "features/common/invariants/pr-per-task.md",
+      "target": ".ai-badger/invariants/pr-per-task.md",
+      "frameworkVersion": "0.2.0",
+      "hash": "28d40ad3ab3c5c230903f527faebf752f6587739a2e05d5d37013588486545b6"
+    },
+    {
+      "feature": "invariants",
+      "stack": "common",
+      "name": "screaming-architecture",
+      "source": "features/common/invariants/screaming-architecture.md",
+      "target": ".ai-badger/invariants/screaming-architecture.md",
+      "frameworkVersion": "0.2.0",
+      "hash": "3fea8c23b252277aa3f003ef03944c66654384ef3a49c18e8b2e0a4a87581dcc"
+    },
+    {
+      "feature": "invariants",
+      "stack": "common",
+      "name": "small-commits-early-draft-pr",
+      "source": "features/common/invariants/small-commits-early-draft-pr.md",
+      "target": ".ai-badger/invariants/small-commits-early-draft-pr.md",
+      "frameworkVersion": "0.2.0",
+      "hash": "77d2954d232a9b7c1fc0c1186681979a4215cba322421521de584d1a4b175d4f"
+    },
+    {
+      "feature": "invariants",
+      "stack": "common",
+      "name": "tdd-mandatory",
+      "source": "features/common/invariants/tdd-mandatory.md",
+      "target": ".ai-badger/invariants/tdd-mandatory.md",
+      "frameworkVersion": "0.2.0",
+      "hash": "59b4a6d1cda4e11820f79949f673c45cdaa4f69d528d5be00a7fdfef63391b2b"
+    },
+    {
+      "feature": "plugins",
+      "stack": "common",
+      "name": "common/plugins",
+      "source": "features/common/plugins/plugins.json",
+      "target": ".ai-badger/plugins/common/plugins.json",
+      "frameworkVersion": "0.2.0",
+      "hash": "535702ccdd148c90429e99f6dcbf40e7560c114255d6f57702187a9fcf859da9"
+    },
+    {
+      "feature": "plugins",
+      "stack": "common",
+      "name": "common/marketplaces",
+      "source": "features/common/plugins/marketplaces.json",
+      "target": ".ai-badger/plugins/common/marketplaces.json",
+      "frameworkVersion": "0.2.0",
+      "hash": "fdd36d7d6f87fa79b906d5c0a7d6be1de08a9120191acbe52542f5bad9823f80"
+    },
+    {
+      "feature": "plugins",
+      "stack": "python",
+      "name": "python/plugins",
+      "source": "features/python/plugins/plugins.json",
+      "target": ".ai-badger/plugins/python/plugins.json",
+      "frameworkVersion": "0.2.0",
+      "hash": "4bd46a31933022492197e77d17bf35f0c9677f1dd765d4e028694a3146bea816"
+    },
+    {
+      "feature": "plugins",
+      "stack": "python",
+      "name": "python/marketplaces",
+      "source": "features/python/plugins/marketplaces.json",
+      "target": ".ai-badger/plugins/python/marketplaces.json",
+      "frameworkVersion": "0.2.0",
+      "hash": "fdd36d7d6f87fa79b906d5c0a7d6be1de08a9120191acbe52542f5bad9823f80"
+    }
+  ]
+}
