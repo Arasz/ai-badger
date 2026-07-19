@@ -11,7 +11,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
@@ -24,3 +24,9 @@ jobs:
     - name: Run tests with pytest
       run: |
         pytest -q
+    - name: index.json is up to date
+      run: |
+        python3 scripts/index_build.py --check
+    - name: Framework tree validates against its schemas
+      run: |
+        python3 scripts/validate.py --all
