@@ -7,11 +7,15 @@ Data lives in <project-root>/.ai-badger/task-tracking/ (gitignored):
                           concurrent Claude Code sessions can share the file safely — see
                           resolve_own_session().
 
-Project-agnostic: paths are resolved relative to this file's own location
-(`.claude/skills/task/scripts/`) and to a project-root-relative `.ai-badger/` tracking
-convention, never to an absolute path baked in at authoring time. Anything project-specific
-(build/test commands, source-control platform, persona routing) lives in the project's
-`.ai-badger/config.json`, not here.
+Project-agnostic: the project root is resolved via `resolve_project_root()` (env var, then a
+cwd walk for the `.ai-badger/config.json` contract marker, then a fallback relative to this
+file's own location), and every path is then derived from that root via a project-root-relative
+`.ai-badger/` tracking convention, never an absolute path baked in at authoring time. This
+matters because ai-badger ships `task` as an installable plugin skill: when Claude Code runs it
+from its plugin cache (`~/.claude/plugins/cache/ai-badger/ai-badger/skills/task/scripts/`), the
+script's own location is nowhere near the user's project, so a naive fixed-depth-from-`__file__`
+lookup would misroot. Anything project-specific (build/test commands, source-control platform,
+persona routing) lives in the project's `.ai-badger/config.json`, not here.
 """
 # pylint: disable=missing-function-docstring,invalid-name
 # Ported verbatim from the originating job-search-ai-assistant repo's /task skill: kept in
@@ -31,23 +35,75 @@ from pathlib import Path
 CLAUDE_SESSION_ENV = "CLAUDE_CODE_SESSION_ID"
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parents[3]  # .claude/skills/task/scripts -> repo root
-DATA_DIR = PROJECT_ROOT / ".ai-badger" / "task-tracking"
 
-EXECUTED_TASKS = DATA_DIR / "executed-tasks.json"
-TOKEN_USAGE = DATA_DIR / "token-usage.json"
-CURRENT_SESSION = DATA_DIR / "current-session.json"
-LOCK_FILE = DATA_DIR / ".write.lock"
+
+def resolve_project_root(
+    env: dict | None = None, cwd: Path | None = None, script_dir: Path = SCRIPT_DIR
+) -> Path:
+    """Resolve the ai-badger project root, in precedence order:
+
+    1. `CLAUDE_PROJECT_DIR` env var, when set and pointing at an existing directory --
+       authoritative for hook/statusLine invocations (Claude Code sets it; ai-badger's own
+       scaffolded settings.json hooks already rely on it).
+    2. Walk up from `cwd` to the nearest ancestor containing `.ai-badger/config.json` (the
+       ai-badger contract marker) -- covers script invocations from anywhere in the repo.
+    3. Fallback: `script_dir.parents[3]` -- today's behavior for in-repo scaffolded copies
+       (`<repo>/.claude/skills/task/scripts` or `<repo>/.ai-badger/skills/task/scripts`)
+       invoked with no session context.
+
+    Deliberately does not walk up from `script_dir` looking for a `.claude/` directory (as
+    poll_limit's old `_find_project_root` did): from a Claude Code plugin cache
+    (`~/.claude/plugins/cache/ai-badger/ai-badger/skills/task/scripts/`), that walk finds
+    `$HOME` -- because `~/.claude` always exists there -- which is both the wrong start point
+    and the wrong marker.
+    """
+    env = os.environ if env is None else env
+    env_dir = env.get("CLAUDE_PROJECT_DIR")
+    if env_dir and Path(env_dir).is_dir():
+        return Path(env_dir)
+
+    start = Path.cwd() if cwd is None else Path(cwd)
+    for ancestor in (start, *start.parents):
+        if (ancestor / ".ai-badger" / "config.json").is_file():
+            return ancestor
+
+    return script_dir.parents[3]  # .claude/skills/task/scripts -> repo root
+
+
+def compute_paths(project_root: Path) -> dict:
+    """Derive every tracker_lib path constant from a resolved project root."""
+    data_dir = project_root / ".ai-badger" / "task-tracking"
+    return {
+        "project_root": project_root,
+        "data_dir": data_dir,
+        "executed_tasks": data_dir / "executed-tasks.json",
+        "token_usage": data_dir / "token-usage.json",
+        "current_session": data_dir / "current-session.json",
+        "lock_file": data_dir / ".write.lock",
+        "claude_md": project_root / "CLAUDE.md",
+        "state_json": project_root / ".ai-badger" / "state.json",
+        "config_json": project_root / ".ai-badger" / "config.json",
+    }
+
+
+_PATHS = compute_paths(resolve_project_root())
+PROJECT_ROOT = _PATHS["project_root"]
+DATA_DIR = _PATHS["data_dir"]
+
+EXECUTED_TASKS = _PATHS["executed_tasks"]
+TOKEN_USAGE = _PATHS["token_usage"]
+CURRENT_SESSION = _PATHS["current_session"]
+LOCK_FILE = _PATHS["lock_file"]
 
 STATE_STARTED = "STARTED"
 STATE_IN_PROGRESS = "IN_PROGRESS"
 STATE_FINISHED = "FINISHED"
 
-CLAUDE_MD = PROJECT_ROOT / "CLAUDE.md"
+CLAUDE_MD = _PATHS["claude_md"]
 CLAUDE_MD_MAX_CHARS = 12000
 CLAUDE_MD_MAX_LINES = 110
-STATE_JSON = PROJECT_ROOT / ".ai-badger" / "state.json"
-CONFIG_JSON = PROJECT_ROOT / ".ai-badger" / "config.json"
+STATE_JSON = _PATHS["state_json"]
+CONFIG_JSON = _PATHS["config_json"]
 
 
 def now_iso() -> str:

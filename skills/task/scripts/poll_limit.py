@@ -24,28 +24,23 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+import tracker_lib as lib
+
 _CLAUDE_FALLBACKS = (Path.home() / ".local/bin/claude", Path("/usr/local/bin/claude"))
 CLAUDE_BIN = shutil.which("claude") or next(
     (str(p) for p in _CLAUDE_FALLBACKS if p.is_file() and (p.stat().st_mode & 0o111)), "claude"
 )
 
-def _find_project_root(start: Path) -> Path:
-    """Walk up from this script to the repo root (nearest ancestor containing .claude).
+PROJECT_ROOT = lib.PROJECT_ROOT
 
-    Replaces a hard-coded parents[4] index, which silently broke if the script ever moved to a
-    different depth. Falls back to the current working directory when no ancestor has a .claude/.
-    """
-    for parent in start.parents:
-        if (parent / ".claude").is_dir():
-            return parent
-    return Path.cwd()
-
-
-PROJECT_ROOT = _find_project_root(Path(__file__).resolve())
-
-LOG_FILE = PROJECT_ROOT / ".claude" / "task-tracking" / "poll_limit.log"
-PID_FILE = PROJECT_ROOT / ".claude" / "task-tracking" / "poll_limit.pid"
-STATUSLINE_STATE = PROJECT_ROOT / ".claude" / "task-tracking" / "statusline-state.json"
+# Share tracker_lib's own computed data dir rather than rebuilding it with a ".claude" literal:
+# tracker_lib always writes task tracking under ".ai-badger/task-tracking/", so a hand-built
+# ".claude/task-tracking/" here would silently point at a directory nothing else ever writes to.
+LOG_FILE = lib.DATA_DIR / "poll_limit.log"
+PID_FILE = lib.DATA_DIR / "poll_limit.pid"
+STATUSLINE_STATE = lib.DATA_DIR / "statusline-state.json"
 DEFAULT_AVAILABLE_INTERVAL_SECONDS = 300
 STATUSLINE_FRESH_SECONDS = 180
 LIMIT_WAIT_SCHEDULE_SECONDS = [7200, 1800, 900, 300]
@@ -189,7 +184,7 @@ def discover_target_sessions(
 
 
 def _discover_task_sessions(project_root: Path) -> list[TargetSession]:
-    tasks_path = project_root / ".claude" / "task-tracking" / "executed-tasks.json"
+    tasks_path = lib.compute_paths(project_root)["executed_tasks"]
     doc = _read_json(tasks_path, {"tasks": []})
     found: list[TargetSession] = []
     for entry in doc.get("tasks", []):
@@ -266,7 +261,7 @@ def run_auto_wm() -> bool:
 def resume_session(target: TargetSession) -> bool:
     prompt = "Continue from where this Claude Code session left off."
     if target.task_id:
-        tracker = PROJECT_ROOT / ".claude" / "skills" / "task" / "scripts" / "task_tracker.py"
+        tracker = SCRIPT_DIR / "task_tracker.py"
         prompt = (
             f"Run `python3 {tracker} reattach {target.task_id}` first, then continue "
             "the /task workflow."

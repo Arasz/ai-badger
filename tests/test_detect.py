@@ -72,6 +72,25 @@ def test_detect_stacks_ignores_claude_dir_python_scripts(tmp_path, load_script, 
     assert "python" not in stacks
 
 
+def test_detect_stacks_ignores_ai_badger_dir_python_scripts(tmp_path, load_script, root):
+    """The framework's own scaffolded output (.ai-badger/skills/.../scripts/*.py) must never be
+    re-detected as the target project's stack -- that's a self-inflicted false positive that
+    would get worse on every re-scaffold."""
+    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    index = detect.bl.read_index(root)
+
+    scripts_dir = tmp_path / ".ai-badger" / "skills" / "task" / "scripts"
+    scripts_dir.mkdir(parents=True)
+    (scripts_dir / "tracker_lib.py").write_text("# agent tooling\n", encoding="utf-8")
+    markers_dir = tmp_path / ".ai-badger" / "skills" / "prompt-markers" / "scripts"
+    markers_dir.mkdir(parents=True)
+    (markers_dir / "markers.py").write_text("# agent tooling\n", encoding="utf-8")
+
+    stacks = detect.detect_stacks(tmp_path, index)
+
+    assert "python" not in stacks
+
+
 def test_detect_stacks_ignores_node_modules_and_venv_contents(tmp_path, load_script, root):
     detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)

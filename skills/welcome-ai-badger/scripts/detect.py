@@ -31,10 +31,14 @@ import badger_lib as bl
 
 
 # vendored / build / agent-tooling directories whose contents must not trigger stack detection.
-# `.claude` holds agent tooling (e.g. the task skill's Python hook scripts) — those are framework
-# machinery, not the target project's stack, so they must never propose a stack like `python`.
+# `.claude` holds agent tooling (e.g. the task skill's Python hook scripts), and `.ai-badger`
+# holds the framework's own scaffolded output (e.g. .ai-badger/skills/task/scripts/) written by
+# scaffold.py — both are framework machinery, not the target project's stack, so neither must
+# ever propose a stack like `python`. `.ai-badger` matters especially here: without it, detect.py
+# would re-propose `python` from ai-badger's own output after every scaffold, a self-inflicted
+# false positive that gets worse on every re-scaffold.
 _IGNORE_DIRS = {"node_modules", ".git", ".venv", "venv", "__pycache__", ".terraform", "dist",
-                ".claude"}
+                ".claude", ".ai-badger"}
 
 
 def _has(target: Path, *globs: str) -> bool:
