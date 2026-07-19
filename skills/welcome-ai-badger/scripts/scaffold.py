@@ -283,9 +283,11 @@ class Scaffolder:
             dest_dir.mkdir(parents=True, exist_ok=True)
             dest_pj = dest_dir / "plugins.json"
             shutil.copyfile(pj, dest_pj)
-            if mj.exists():
-                shutil.copyfile(mj, dest_dir / "marketplaces.json")
             self.record("plugins", stack, f"{stack}/plugins", pj, dest_pj)
+            if mj.exists():
+                dest_mj = dest_dir / "marketplaces.json"
+                shutil.copyfile(mj, dest_mj)
+                self.record("plugins", stack, f"{stack}/marketplaces", mj, dest_mj)
         if self.install and cmds:
             self.notes.append("plugin auto-install requested but deferred to report "
                               "(run the commands below manually or via the CLI)")

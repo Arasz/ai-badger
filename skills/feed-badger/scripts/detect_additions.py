@@ -37,6 +37,7 @@ MANAGED = {
     "instructions": "instructions",
     "invariants": "invariants",
     "skills": "skills",
+    "plugins": "plugins",
 }
 
 
