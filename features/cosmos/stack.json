@@ -1,7 +1,7 @@
 {
   "name": "cosmos",
   "description": "Azure Cosmos DB NoSQL data platform: partitioning, ETag concurrency, transactional batch writes.",
-  "detectionSignals": ["Microsoft.Azure.Cosmos package reference", "@azure/cosmos in package.json", "CosmosClient usage", "azurerm_cosmosdb_account in *.tf"],
+  "detectionSignals": [],
   "requires": ["azure"],
   "commands": {}
 }

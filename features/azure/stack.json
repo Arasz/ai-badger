@@ -1,7 +1,7 @@
 {
   "name": "azure",
   "description": "Microsoft Azure cloud platform: Functions, Static Web Apps, Storage, Application Insights, managed identity, Key Vault.",
-  "detectionSignals": ["azure.yaml", "host.json", "*.bicep", "azurerm provider block in *.tf", "local.settings.json"],
+  "detectionSignals": ["azure.yaml", "host.json", "*.bicep", "local.settings.json"],
   "requires": [],
   "commands": {}
 }

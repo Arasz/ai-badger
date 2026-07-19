@@ -62,25 +62,34 @@ def _signal_globs(signals: List[str]) -> List[str]:
     return [s for s in signals if s and " " not in s]
 
 
+def _own_package_jsons(target: Path) -> List[Path]:
+    """Every package.json under `target` that belongs to the project itself: recursive (so a
+    monorepo's package.json under e.g. frontend/ is found, not just the repo root), excluding
+    vendored/build dirs (_IGNORE_DIRS) so a dependency's own package.json under node_modules/
+    never contributes."""
+    return [p for p in target.rglob("package.json")
+            if not any(part in _IGNORE_DIRS for part in p.relative_to(target).parts)]
+
+
 def _dependency_stacks(target: Path) -> List[str]:
     """Stacks whose detectionSignals are dependency/content facts a file glob can't express
-    (package.json deps, `.csproj` package references)."""
+    (package.json deps, `.csproj` package references). Scans every package.json under `target`
+    (not just the root one) so a monorepo with the dependency-bearing project in a subdirectory
+    (e.g. frontend/package.json) is still detected."""
     found: List[str] = []
-    pkg_json: Dict = {}
-    pkg_text = _read(target / "package.json")
-    if pkg_text:
-        try:
-            pkg_json = json.loads(pkg_text)
-        except json.JSONDecodeError:
-            pkg_json = {}
     deps: Dict = {}
-    deps.update(pkg_json.get("dependencies", {}))
-    deps.update(pkg_json.get("devDependencies", {}))
+    for pkg in _own_package_jsons(target):
+        try:
+            pkg_json = json.loads(_read(pkg))
+        except json.JSONDecodeError:
+            continue
+        deps.update(pkg_json.get("dependencies", {}))
+        deps.update(pkg_json.get("devDependencies", {}))
     if "typescript" in deps:
         found.append("ts")
     if "react" in deps:
         found.append("react")
-    if any(d.startswith("@angular/") for d in deps) or (target / "angular.json").exists():
+    if any(d.startswith("@angular/") for d in deps):
         found.append("angular")
     if "azure" in " ".join(deps).lower():
         found.append("azure")

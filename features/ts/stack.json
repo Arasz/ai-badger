@@ -1,7 +1,7 @@
 {
   "name": "ts",
   "description": "TypeScript language and type-system conventions layered on top of JavaScript/Node.",
-  "detectionSignals": ["tsconfig.json", "*.ts", "*.tsx", "typescript in package.json devDependencies"],
+  "detectionSignals": ["tsconfig.json", "*.ts", "*.tsx"],
   "requires": ["node"],
   "commands": {
     "build": "tsc -p .",
