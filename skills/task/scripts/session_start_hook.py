@@ -3,17 +3,39 @@
 
 task_tracker.py reads current-session.json so the model never has to know its
 own session id. On resume, also surface any unfinished tracked tasks so the
-model reattaches instead of starting from scratch.
+model reattaches instead of starting from scratch. Also launches the
+background usage-limit poller (poll_limit.py) so it is running for the
+duration of the session.
 """
 # pylint: disable=missing-function-docstring
-# Ported verbatim from the originating job-search-ai-assistant repo's /task skill: kept in
-# lockstep with that source rather than churned for local docstring style rules.
+# Ported from the originating job-search-ai-assistant repo's /task skill: kept in lockstep
+# with that source rather than churned for local docstring style rules. One deliberate
+# addition over the source: start_poll_limit_background() catches launch failures so a
+# broken poller can never crash SessionStart itself.
 
 import json
+import subprocess
 import sys
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 import tracker_lib as lib
+
+
+def start_poll_limit_background() -> None:
+    script = lib.SCRIPT_DIR / "poll_limit.py"
+    log = lib.DATA_DIR / "poll_limit.log"
+    try:
+        lib.ensure_data_dir()
+        with open(log, "a", encoding="utf-8") as log_fh:
+            subprocess.Popen(  # pylint: disable=consider-using-with
+                ["python3", str(script)],
+                cwd=str(lib.PROJECT_ROOT),
+                stdout=log_fh,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+    except (OSError, subprocess.SubprocessError):
+        pass
 
 
 def main() -> int:
@@ -25,6 +47,7 @@ def main() -> int:
     transcript = payload.get("transcript_path", "")
     if session_id:
         lib.save_current_session(session_id, transcript, payload.get("cwd", ""))
+    start_poll_limit_background()
 
     if payload.get("source") == "resume":
         unfinished = [

@@ -1,21 +1,25 @@
 """Tests for skills/task/scripts/session_start_hook.py.
 
-The script (as it exists in this repo) does exactly two things and nothing more — no
-background poller is launched here (verified by reading the source: it's a plain stdin-in,
-stdout-out hook with a single `lib.save_current_session` call):
+The script does three things:
 
 1. Records the invoking session (id, transcript path, cwd) via tracker_lib.save_current_session,
    whenever session_id is present on the SessionStart payload.
-2. On `source == "resume"` with unfinished tracked tasks, prints a SessionStart
+2. Launches poll_limit.py detached in the background (start_poll_limit_background), so the
+   usage-limit poller is running for the duration of the session. poll_limit.py itself guards
+   against double-launch via a PID-file check (already_running()), so the hook does not need to;
+   it just needs to never let a launch failure propagate out of the hook.
+3. On `source == "resume"` with unfinished tracked tasks, prints a SessionStart
    hookSpecificOutput/additionalContext nudge listing them; otherwise prints nothing.
 
 save_current_session is mocked so no real .ai-badger/task-tracking file is ever touched outside
-tmp_path, and to assert the exact arguments the hook passes it.
+tmp_path, and to assert the exact arguments the hook passes it. subprocess.Popen is mocked in the
+poller tests so no real background process is ever spawned.
 """
 from __future__ import annotations
 
 import io
 import json
+import subprocess
 import sys
 
 import pytest
@@ -28,6 +32,7 @@ def session_start(tmp_path, load_script, monkeypatch):
     monkeypatch.setattr(module.lib, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(module.lib, "DATA_DIR", data_dir)
     monkeypatch.setattr(module.lib, "EXECUTED_TASKS", data_dir / "executed-tasks.json")
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: None)
     return module
 
 
@@ -116,3 +121,34 @@ def test_non_resume_source_prints_nothing_even_with_unfinished_tasks(
 
     assert rc == 0
     assert capsys.readouterr().out == ""
+
+
+def test_main_launches_poll_limit_detached_in_background(session_start, monkeypatch):
+    monkeypatch.setattr(session_start.lib, "save_current_session", lambda *a, **k: None)
+    calls = []
+    monkeypatch.setattr(
+        subprocess, "Popen",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    rc = _run(session_start, monkeypatch, {"session_id": "sid-1"})
+
+    assert rc == 0
+    assert len(calls) == 1
+    (args, kwargs) = calls[0]
+    command = args[0]
+    assert str(session_start.lib.SCRIPT_DIR / "poll_limit.py") in command
+    assert kwargs["start_new_session"] is True
+
+
+def test_poll_limit_launch_failure_does_not_propagate_out_of_hook(session_start, monkeypatch):
+    monkeypatch.setattr(session_start.lib, "save_current_session", lambda *a, **k: None)
+
+    def _raise(*_args, **_kwargs):
+        raise OSError("no such file or directory")
+
+    monkeypatch.setattr(subprocess, "Popen", _raise)
+
+    rc = _run(session_start, monkeypatch, {"session_id": "sid-1"})
+
+    assert rc == 0
