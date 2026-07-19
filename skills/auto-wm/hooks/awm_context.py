@@ -6,6 +6,10 @@ Claude which mode is on and how to register decisions. Away mode's window can
 lapse (wall-clock); this flips the state off and announces expiry once.
 Silent (exit 0, no output) when the mode is off or on any internal error.
 """
+# pylint: disable=missing-function-docstring,broad-exception-caught
+# Ported verbatim from the originating job-search-ai-assistant repo's auto-wm skill: kept in
+# lockstep with that source rather than churned for local docstring/style rules. The broad
+# except below is intentional — a broken hook must never block a prompt.
 import json
 import sys
 from datetime import datetime, timezone
@@ -52,8 +56,9 @@ def main():
               "python3 ~/.claude/skills/auto-wm/scripts/awm.py decision \"<what and why>\"")
         return
 
+    enabled_at = datetime.fromisoformat(state["enabled_at"]).astimezone()
     print(f"[auto-wm] PARTNER MODE ACTIVE since "
-          f"{datetime.fromisoformat(state['enabled_at']).astimezone().strftime('%Y-%m-%d %H:%M %Z')} "
+          f"{enabled_at.strftime('%Y-%m-%d %H:%M %Z')} "
           "(no expiry). Tool calls auto-approve; the user is available, so ask questions, "
           "brainstorm, or check in whenever it helps — don't hold back on that account. "
           "Still worth registering notable judgment calls with: "

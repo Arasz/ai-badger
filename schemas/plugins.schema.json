@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Arasz/ai-badger/schemas/plugins.schema.json",
+  "title": "ai-badger plugins list",
+  "description": "The single plugins.json for a <stack>/plugins/ directory: the full list of external Claude Code plugins that stack curates. Each references a marketplace declared in the sibling marketplaces.json by name.",
+  "type": "object",
+  "required": ["plugins"],
+  "additionalProperties": false,
+  "properties": {
+    "plugins": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "marketplace"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "description": "Plugin name to install." },
+          "marketplace": { "type": "string", "minLength": 1, "description": "Name of a marketplace in the sibling marketplaces.json." },
+          "scope": {
+            "enum": ["default", "local", "user"],
+            "default": "default",
+            "description": "default = inherit the scope chosen at init; local = project scope; user = user scope."
+          },
+          "description": { "type": "string" }
+        }
+      }
+    }
+  }
+}

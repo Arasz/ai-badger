@@ -21,12 +21,14 @@ happens to be deployed for a given project.
 
 Usage: resume_cron.py run [--dry-run]
 """
+# pylint: disable=missing-function-docstring
+# Ported verbatim from the originating job-search-ai-assistant repo's /task skill: kept in
+# lockstep with that source rather than churned for local docstring style rules.
 
 from __future__ import annotations
 
 import argparse
 import fcntl
-import json
 import shutil
 import subprocess
 import sys
@@ -87,12 +89,14 @@ def usage_limit_lifted() -> bool:
             text=True,
             timeout=PROBE_TIMEOUT_S,
             cwd=str(lib.PROJECT_ROOT),
+            check=False,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
         log(f"probe failed to run: {exc}")
         return False
     if result.returncode != 0:
-        log(f"probe exited {result.returncode}: {(result.stderr or result.stdout).strip()[:200]}")
+        tail = (result.stderr or result.stdout).strip()[:200]
+        log(f"probe exited {result.returncode}: {tail}")
         return False
     return True
 
@@ -101,10 +105,11 @@ def resume_task(entry: dict, dry_run: bool) -> None:
     task_id = entry["taskId"]
     tracker = lib.SCRIPT_DIR / "task_tracker.py"
     prompt = (
-        f"You were interrupted (likely a usage limit) while working on task {task_id} via the /task skill. "
-        f"First run `python3 {tracker} reattach {task_id}` so tracking follows this session, then review where "
-        "the transcript left off and continue the /task workflow. When the task is complete, follow the skill's "
-        f"finish protocol (update .ai-badger/state.json, then `python3 {tracker} finish {task_id}`)."
+        f"You were interrupted (likely a usage limit) while working on task {task_id} via the "
+        f"/task skill. First run `python3 {tracker} reattach {task_id}` so tracking follows this "
+        "session, then review where the transcript left off and continue the /task workflow. "
+        "When the task is complete, follow the skill's finish protocol (update "
+        f".ai-badger/state.json, then `python3 {tracker} finish {task_id}`)."
     )
     cmd = [
         CLAUDE_BIN,
@@ -120,16 +125,21 @@ def resume_task(entry: dict, dry_run: bool) -> None:
         return
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=RESUME_TIMEOUT_S, cwd=str(lib.PROJECT_ROOT)
+            cmd, capture_output=True, text=True, timeout=RESUME_TIMEOUT_S,
+            cwd=str(lib.PROJECT_ROOT), check=False,
         )
-        log(f"resume {task_id} exited {result.returncode}; tail: {(result.stdout or result.stderr).strip()[-300:]}")
+        tail = (result.stdout or result.stderr).strip()[-300:]
+        log(f"resume {task_id} exited {result.returncode}; tail: {tail}")
     except subprocess.TimeoutExpired:
-        log(f"resume {task_id} still running after {RESUME_TIMEOUT_S}s; leaving it to the next cron cycle")
+        log(f"resume {task_id} still running after {RESUME_TIMEOUT_S}s; "
+            "leaving it to the next cron cycle")
 
 
 def run(dry_run: bool) -> int:
     lib.ensure_data_dir()
-    lock_fh = open(CRON_LOCK, "w")
+    # Held open (not `with`) for the process lifetime: releasing it early via `with` would
+    # drop the exclusive lock before the run actually completes.
+    lock_fh = open(CRON_LOCK, "w", encoding="utf-8")  # pylint: disable=consider-using-with
     try:
         fcntl.flock(lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
@@ -159,7 +169,9 @@ def run(dry_run: bool) -> int:
             fresh_entry = lib.find_entry(fresh, entry["taskId"])
             if fresh_entry is None or fresh_entry.get("state") == lib.STATE_FINISHED:
                 continue
-            fresh_entry.setdefault("resumeAttempts", []).append({"at": lib.now_iso(), "dryRun": dry_run})
+            fresh_entry.setdefault("resumeAttempts", []).append(
+                {"at": lib.now_iso(), "dryRun": dry_run}
+            )
             fresh_entry["state"] = lib.STATE_IN_PROGRESS
             lib.save_json(lib.EXECUTED_TASKS, fresh)
         resume_task(entry, dry_run)

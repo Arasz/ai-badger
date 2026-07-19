@@ -58,11 +58,13 @@ def _skill_items(fdir: Path, root: Path):
 
 
 def _plugin_items(fdir: Path, root: Path):
-    items = []
-    for d in sorted(p for p in fdir.iterdir() if p.is_dir()):
-        if (d / "plugins.json").exists():
-            items.append({"name": d.name, "path": d.relative_to(root).as_posix()})
-    return items
+    """One index item per plugin listed in the single <stack>/plugins/plugins.json."""
+    pj = fdir / "plugins.json"
+    if not pj.exists():
+        return []
+    rel = pj.relative_to(root).as_posix()
+    data = bl.load_json(pj)
+    return [{"name": p["name"], "path": rel} for p in data.get("plugins", [])]
 
 
 def _template_items(fdir: Path, root: Path):
@@ -71,6 +73,7 @@ def _template_items(fdir: Path, root: Path):
 
 
 def build_index(root: Path) -> dict:
+    """Scan the framework tree under `root` and return the assembled index.json contents."""
     stacks: dict = {}
 
     def ensure(stack: str) -> dict:
@@ -96,12 +99,14 @@ def build_index(root: Path) -> dict:
         if items:
             ensure("common").setdefault("skills", []).extend(items)
 
-    # skill extensions: <stack>/skills/<base>-extensions/<ext>/
-    for stack_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+    # skill extensions: features/<stack>/skills/<base>-extensions/<ext>/
+    for stack_dir in sorted(p for p in (root / "features").iterdir() if p.is_dir()):
         sk = stack_dir / "skills"
         if not sk.is_dir():
             continue
-        for extroot in sorted(p for p in sk.iterdir() if p.is_dir() and p.name.endswith("-extensions")):
+        for extroot in sorted(
+            p for p in sk.iterdir() if p.is_dir() and p.name.endswith("-extensions")
+        ):
             base = extroot.name[: -len("-extensions")]
             exts = [d.name for d in sorted(p for p in extroot.iterdir() if p.is_dir())]
             if not exts:
@@ -111,10 +116,12 @@ def build_index(root: Path) -> dict:
                     if entry["name"] == base:
                         entry.setdefault("extensions", []).extend(exts)
 
-    # per-stack metadata from stack.json
-    for stack in list(stacks) + [d.name for d in root.iterdir()
-                                 if d.is_dir() and (d / "stack.json").exists()]:
-        sj = root / stack / "stack.json"
+    # per-stack metadata from features/<stack>/stack.json
+    feat_root = root / "features"
+    stack_names = set(stacks) | {d.name for d in feat_root.iterdir()
+                                 if d.is_dir() and (d / "stack.json").exists()}
+    for stack in stack_names:
+        sj = feat_root / stack / "stack.json"
         if sj.exists():
             meta = bl.load_json(sj)
             meta.pop("name", None)
@@ -128,6 +135,7 @@ def build_index(root: Path) -> dict:
 
 
 def main(argv=None) -> int:
+    """CLI entry point: build (or --check) index.json for the framework root."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root")
     ap.add_argument("--check", action="store_true")

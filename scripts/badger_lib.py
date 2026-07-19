@@ -19,30 +19,35 @@ FEATURES = ["skills", "personas", "invariants", "instructions", "plugins", "temp
 
 # --------------------------------------------------------------------------- roots / io
 def find_root(start: Optional[Path] = None) -> Path:
-    """Walk up from `start` (or this file) to the framework root: the dir holding schemas/."""
+    """Walk up from `start` (or this file) to the framework root: the dir holding
+    schemas/ + features/."""
     p = (start or Path(__file__)).resolve()
     for anc in [p, *p.parents]:
-        if (anc / "schemas").is_dir() and (anc / "common").is_dir():
+        if (anc / "schemas").is_dir() and (anc / "features").is_dir():
             return anc
-    raise RuntimeError("ai-badger framework root not found (no dir with schemas/ + common/)")
+    raise RuntimeError("ai-badger framework root not found (no dir with schemas/ + features/)")
 
 
 def load_json(path: Path) -> Any:
+    """Read and parse a JSON file."""
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
 
 
 def dump_json(path: Path, data: Any) -> None:
+    """Write `data` as pretty-printed, newline-terminated JSON."""
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=2, ensure_ascii=False)
         fh.write("\n")
 
 
 def sha256_text(text: str) -> str:
+    """Return the hex SHA-256 digest of `text`."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def sha256_file(path: Path) -> str:
+    """Return the hex SHA-256 digest of a file's bytes, or of a dir's tree (name + content)."""
     h = hashlib.sha256()
     if path.is_dir():
         for f in sorted(path.rglob("*")):
@@ -68,6 +73,7 @@ def validate(instance: Any, schema: Dict[str, Any]) -> List[str]:
 
 
 def validate_file(instance_path: Path, schema_path: Path) -> List[str]:
+    """Load both JSON files and validate the instance against the schema."""
     return validate(load_json(instance_path), load_json(schema_path))
 
 
@@ -84,18 +90,23 @@ def check_schemas_selfvalid(schemas_dir: Path) -> List[str]:
 
 # ------------------------------------------------------------------------ catalog access
 def read_index(root: Path) -> Dict[str, Any]:
+    """Load the framework's generated index.json."""
     return load_json(root / "index.json")
 
 
 def iter_feature_dirs(root: Path) -> List[Tuple[str, str, Path]]:
-    """Yield (stack, feature, dir) for every <stack>/<feature> directory present."""
+    """Yield (stack, feature, dir) for every features/<stack>/<feature> directory present.
+
+    The installable operational skills live at root skills/ (== common.skills) and are handled
+    separately by index_build — they are the one exception to the features/ catalog, because the
+    Claude Code plugin loader only discovers skills at the plugin root's skills/ dir.
+    """
     out: List[Tuple[str, str, Path]] = []
-    for stack_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+    features_root = root / "features"
+    if not features_root.is_dir():
+        return out
+    for stack_dir in sorted(p for p in features_root.iterdir() if p.is_dir()):
         stack = stack_dir.name
-        # root skills/ is the installable plugin skills dir (== common.skills), handled
-        # separately by index_build; never treat it as a stack.
-        if stack in {".git", "schemas", "docs", "scripts", ".claude-plugin", "skills"}:
-            continue
         for feature in FEATURES:
             fdir = stack_dir / feature
             if fdir.is_dir():

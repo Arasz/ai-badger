@@ -11,6 +11,9 @@ Two modes:
 State lives at ~/.claude/awm/state.json (user level, never inside a project).
 Every mode change and registered decision is appended to ~/.claude/awm/decisions.jsonl.
 """
+# pylint: disable=missing-function-docstring
+# Ported verbatim from the originating job-search-ai-assistant repo's auto-wm skill: kept in
+# lockstep with that source rather than churned for local docstring/style rules.
 import json
 import re
 import sys
@@ -109,11 +112,13 @@ def cmd_away(duration_text):
         "duration_seconds": seconds,
         "expires_at": expires_at.isoformat(timespec="seconds"),
     })
-    detail = f"mode=away, duration={duration_text}, expires_at={expires_at.isoformat(timespec='seconds')}"
+    expires_at_iso = expires_at.isoformat(timespec="seconds")
+    detail = f"mode=away, duration={duration_text}, expires_at={expires_at_iso}"
     if prev_mode and prev_mode != "away":
         detail += f" (switched from {prev_mode})"
     log_event("mode_enabled", detail)
-    print(f"AWM: away mode enabled for {duration_text}, expires {fmt_local(expires_at.isoformat())}.")
+    print(f"AWM: away mode enabled for {duration_text}, "
+          f"expires {fmt_local(expires_at.isoformat())}.")
     print("Tool calls auto-approve and are logged; AskUserQuestion is denied (no one to answer).")
 
 
@@ -135,7 +140,8 @@ def cmd_status():
     if not state or not state.get("enabled"):
         print("AWM: inactive.")
         if state and state.get("disabled_at"):
-            print(f"Last disabled {fmt_local(state['disabled_at'])} (reason: {state.get('disabled_reason', '?')}).")
+            reason = state.get("disabled_reason", "?")
+            print(f"Last disabled {fmt_local(state['disabled_at'])} (reason: {reason}).")
         return
     mode = state.get("mode", "away")  # older state files predate the mode field
     if mode == "away" and state.get("expires_at"):
@@ -175,8 +181,8 @@ def main(argv):
             return 1
         cmd_decision(" ".join(argv[1:]))
     else:
-        print(f"unknown command {cmd!r}; use partner | away [duration] | disable | status | decision <text>",
-              file=sys.stderr)
+        print(f"unknown command {cmd!r}; use partner | away [duration] | disable | status | "
+              "decision <text>", file=sys.stderr)
         return 1
     return 0
 

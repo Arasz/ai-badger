@@ -13,6 +13,10 @@ The two modes only differ on AskUserQuestion and on expiry:
 Outside AWM (or on any internal error) it emits nothing and exits 0, so the
 normal permission flow is untouched.
 """
+# pylint: disable=missing-function-docstring,broad-exception-caught
+# Ported verbatim from the originating job-search-ai-assistant repo's auto-wm skill: kept in
+# lockstep with that source rather than churned for local docstring/style rules. The broad
+# except below is intentional — a broken hook must never break the session's permission flow.
 import json
 import sys
 from datetime import datetime, timezone
@@ -77,21 +81,26 @@ def main():
             log_event("mode_expired", f"expired_at={expires_at}", session_id, cwd)
             return  # no output -> normal permission flow resumes
 
-        expires_local = datetime.fromisoformat(expires_at).astimezone().strftime("%H:%M") if expires_at else "?"
+        expires_local = (
+            datetime.fromisoformat(expires_at).astimezone().strftime("%H:%M") if expires_at else "?"
+        )
 
         if tool_name == "AskUserQuestion":
             log_event("question_denied", summarize_input(payload.get("tool_input")),
                       session_id, cwd, tool_name)
             emit("deny",
                  f"AWM away mode is active until {expires_local}: no user is available "
-                 "to answer. Do not ask — pick the best option yourself, then register the choice "
-                 "and reasoning with: python3 ~/.claude/skills/auto-wm/scripts/awm.py decision \"...\" "
+                 "to answer. Do not ask — pick the best option yourself, then register the "
+                 "choice and reasoning with: "
+                 "python3 ~/.claude/skills/auto-wm/scripts/awm.py decision \"...\" "
                  "and continue working.")
             return
 
         log_event("auto_approve", summarize_input(payload.get("tool_input")),
                   session_id, cwd, tool_name)
-        emit("allow", f"AWM away mode active until {expires_local}: auto-approved and registered in decisions.jsonl")
+        emit("allow",
+             f"AWM away mode active until {expires_local}: auto-approved and registered "
+             "in decisions.jsonl")
         return
 
     # partner mode: leave AskUserQuestion alone, auto-approve everything else, no expiry.

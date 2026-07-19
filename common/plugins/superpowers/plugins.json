@@ -1,7 +1,0 @@
-{
-  "name": "superpowers",
-  "description": "Skill library for brainstorming, TDD, systematic debugging, worktree-based parallel work, and disciplined plan/review workflows.",
-  "scope": "default",
-  "marketplacesRef": "marketplaces.json",
-  "plugins": ["superpowers"]
-}

@@ -5,6 +5,9 @@ task_tracker.py reads current-session.json so the model never has to know its
 own session id. On resume, also surface any unfinished tracked tasks so the
 model reattaches instead of starting from scratch.
 """
+# pylint: disable=missing-function-docstring
+# Ported verbatim from the originating job-search-ai-assistant repo's /task skill: kept in
+# lockstep with that source rather than churned for local docstring style rules.
 
 import json
 import sys
@@ -34,7 +37,12 @@ def main() -> int:
                 f"`python3 {lib.SCRIPT_DIR / 'task_tracker.py'} reattach <taskId>` "
                 "so tracking follows this session, then resume the /task workflow."
             )
-            print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": context}}))
+            print(json.dumps({
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": context,
+                }
+            }))
     return 0
 
 

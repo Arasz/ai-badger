@@ -13,6 +13,10 @@ convention, never to an absolute path baked in at authoring time. Anything proje
 (build/test commands, source-control platform, persona routing) lives in the project's
 `.ai-badger/config.json`, not here.
 """
+# pylint: disable=missing-function-docstring,invalid-name
+# Ported verbatim from the originating job-search-ai-assistant repo's /task skill: kept in
+# lockstep with that source rather than churned for local docstring/naming style rules.
+# `locked_store` (lower_snake_case class) is referenced by that name elsewhere; not renamed.
 
 from __future__ import annotations
 
@@ -64,9 +68,12 @@ def ensure_data_dir() -> None:
 class locked_store:
     """Context manager: exclusive lock over the tracking data dir for read-modify-write."""
 
+    def __init__(self):
+        self._fh = None
+
     def __enter__(self):
         ensure_data_dir()
-        self._fh = open(LOCK_FILE, "w")
+        self._fh = open(LOCK_FILE, "w", encoding="utf-8")
         fcntl.flock(self._fh, fcntl.LOCK_EX)
         return self
 
@@ -78,7 +85,7 @@ class locked_store:
 
 def load_json(path: Path, default):
     try:
-        with open(path) as fh:
+        with open(path, encoding="utf-8") as fh:
             return json.load(fh)
     except (FileNotFoundError, json.JSONDecodeError):
         return default
@@ -179,7 +186,9 @@ def _own_pid_ancestry(max_depth: int = 12) -> list[int]:
     pid = os.getpid()
     for _ in range(max_depth):
         chain.append(pid)
-        result = subprocess.run(["ps", "-o", "ppid=", "-p", str(pid)], capture_output=True, text=True)
+        result = subprocess.run(
+            ["ps", "-o", "ppid=", "-p", str(pid)], capture_output=True, text=True, check=False
+        )
         ppid_str = result.stdout.strip()
         if not ppid_str:
             break
@@ -247,9 +256,12 @@ def parse_transcript_usage(transcript_path: str) -> dict:
     messages = 0
     path = Path(transcript_path) if transcript_path else None
     if path is None or not path.exists():
-        return {"contextTokens": 0, "assistantMessages": 0, "cumulative": cumulative, "transcriptFound": False}
+        return {
+            "contextTokens": 0, "assistantMessages": 0,
+            "cumulative": cumulative, "transcriptFound": False,
+        }
 
-    with open(path) as fh:
+    with open(path, encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
             if not line:

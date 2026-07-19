@@ -2,7 +2,7 @@
   "marketplaces": [
     {
       "name": "claude-plugins-official",
-      "source": "github:anthropics/claude-plugins-official"
+      "source": "https://github.com/anthropics/claude-plugins-official"
     }
   ]
 }

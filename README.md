@@ -14,22 +14,25 @@ instructions used across projects. It is three things in one repo:
 Badger-themed name, professional-grade contents: the badger digs the framework into your repo
 and digs improvements back out.
 
-## The 3-layer model: `{stack | common}/{feature}`
+## The 3-layer model: `features/{stack | common}/{feature}`
 
 Everything in the catalog is filed under a **stack** (a technology: `dotnet`, `azure`, `cosmos`,
-`terraform`, `mcp`, `node`, `js`, `ts`, `react`, `css`, `github`, or **`common`** for
-stack-agnostic content) and a **feature** (a kind of asset: `skills`, `personas`, `invariants`,
-`instructions`, `plugins`, and `templates` for `common` only).
+`terraform`, `mcp`, `node`, `js`, `ts`, `react`, `css`, `github`, `angular`, or **`common`** for
+stack-agnostic content) and a **feature** (a kind of asset: `personas`, `invariants`,
+`instructions`, `plugins`, `templates` for `common` only, and stack-scoped skill *extensions*
+under `plugins`'s sibling `skills/`).
 
 ```
-<stack>/<feature>/<item>
+features/<stack>/<feature>/<item>
 ```
 
-- **skills** are directories containing a `SKILL.md`.
 - **personas**, **invariants**, and **instructions** are individual `*.md` files, named by
   filename stem.
-- **plugins** are directories containing `plugins.json` (which plugins to install) and a
-  sibling `marketplaces.json` (where they come from).
+- **plugins** is a single `plugins.json` (the list of plugins to install) plus a sibling
+  `marketplaces.json` (where they come from) — at most one of each per stack.
+- The **installable operational skills** (`welcome-ai-badger`, `feed-badger`, `task`, etc.) are
+  the one exception: they live at the repo-root `skills/`, not under `features/` — see
+  [`docs/framework-architecture.md`](docs/framework-architecture.md) for why.
 
 A script-generated `index.json` at the repo root scans this tree and is the single source of
 truth the scaffolder and feed tooling read — see
@@ -38,7 +41,7 @@ truth the scaffolder and feed tooling read — see
 ## Install
 
 ```
-/plugin marketplace add Arasz/ai-badger
+/plugin marketplace add https://github.com/Arasz/ai-badger
 /plugin install ai-badger
 ```
 
@@ -72,30 +75,42 @@ personas, invariants, instructions, plugin entries, or skills to the catalog you
 ```
 ai-badger/
   index.json                     # SOURCE OF TRUTH: every feature for every stack, with paths (script-generated)
-  README.md   LICENSE (MIT)
-  .claude-plugin/marketplace.json   # ai-badger is itself installable
-  .claude-plugin/plugin.json        # the installable plugin wrapping common skills
-  schemas/                       # JSON Schema for every *.json model (index, config, manifest, feature descriptors…)
+  README.md   LICENSE (MIT)   VERSION
+  .claude-plugin/marketplace.json   # ai-badger is itself installable, plugin source "./"
+  .claude-plugin/plugin.json        # the installable plugin wrapping the root skills
+  schemas/                       # JSON Schema for every *.json model (index, config, manifest, plugins, marketplaces, stack…)
+  scripts/
   docs/
     framework-architecture.md
     authoring-a-feature.md
     proxy-files-spike.md         # documented feature-plan, not built
     ai-badger-framework-design.md
-  common/
-    skills/{task, welcome-ai-badger, feed-badger, maintain-agent-instructions, auto-wm, prompt-markers}/
-    personas/{architect, test-engineer, code-reviewer}.md
-    invariants/*.md              # agnostic invariant snippets
-    instructions/*.md            # agnostic scoped instructions (e.g. documentation)
-    plugins/*/                   # curated agnostic external plugin+marketplace entries
-    templates/                   # CLAUDE.md.tmpl, state.json skeleton, agent-instructions schema+validators
-  dotnet/    {personas,invariants,instructions,plugins}/…
-  azure/     {personas,invariants,instructions,plugins}/…
-  cosmos/    {invariants,instructions,plugins}/…
-  terraform/ {instructions,plugins}/…
-  mcp/       {instructions,plugins}/…
-  github/    {skills(task extensions), plugins}/…
-  node/ js/ ts/ react/ css/  {personas,invariants,instructions,plugins}/…
+  skills/                         # INSTALLABLE operational skills (root — the one exception, see below)
+    task/ welcome-ai-badger/ feed-badger/ maintain-agent-instructions/ auto-wm/ prompt-markers/
+  features/
+    common/
+      personas/{architect, test-engineer, code-reviewer}.md
+      invariants/*.md              # agnostic invariant snippets
+      instructions/*.md            # agnostic scoped instructions (e.g. documentation)
+      plugins/plugins.json         # curated agnostic external plugins (single list)
+      plugins/marketplaces.json    # marketplaces those plugins install from
+      templates/                   # CLAUDE.md.tmpl, state.json skeleton, agent-instructions schema+validators
+    dotnet/    {personas,invariants,instructions,plugins}/… + stack.json
+    azure/     {personas,invariants,instructions,plugins}/…
+    cosmos/    {invariants,instructions,plugins}/…
+    terraform/ {instructions,plugins}/…
+    mcp/       {instructions,plugins}/…
+    github/    {plugins, skills/task-extensions/github}/…
+    angular/ node/ js/ ts/ react/ css/  {personas,invariants,instructions,plugins}/…
 ```
+
+Root `skills/` is the one exception to `features/<stack>/<feature>/`: Claude Code's plugin
+loader only discovers skills at the plugin root's `skills/` directory, and ai-badger's plugin
+`source` is `"./"` (the whole repo) — so the installable operational skills must sit at the repo
+root, not nested under `features/`. Stack-scoped skill *extensions* (e.g.
+`features/github/skills/task-extensions/github/`) still live under `features/`, since they are
+not independently installed — `index_build.py` attaches them to their base skill by directory
+convention.
 
 ### Framework overview — structure & data flow
 
@@ -104,14 +119,16 @@ flowchart TB
   subgraph FW["ai-badger repo (source of truth)"]
     IDX["index.json\n(script-generated)"]
     SCH["schemas/*.schema.json"]
-    subgraph CAT["catalog: {stack|common}/{feature}"]
-      COMMON["common/\nskills·personas·invariants·instructions·plugins·templates"]
-      STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · github"]
+    subgraph CAT["catalog: features/{stack|common}/{feature}"]
+      COMMON["common/\npersonas·invariants·instructions·plugins·templates"]
+      STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · github · angular"]
     end
+    SKILLSDIR["skills/ (root — plugin-loader exception)\nwelcome · feed · task · maintain · auto-wm · prompt-markers"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]
   end
-  IDXbuild["index_build.py"] -->|scans CAT| IDX
+  IDXbuild["index_build.py"] -->|scans CAT + skills/| IDX
   CAT --> IDXbuild
+  SKILLSDIR --> IDXbuild
   MKT -->|/plugin install| SKILLS["installed skills:\nwelcome · feed · task · maintain · auto-wm · prompt-markers"]
   IDX -. read .-> SKILLS
   CAT -. copied features .-> PROJ
@@ -144,7 +161,7 @@ flowchart TD
 
 `feed-badger` mirrors this in reverse: it diffs the project's `.ai-badger/manifest.json`
 against the current `.ai-badger/` tree to find candidate additions, has the agent classify and
-generalize them, places them into the right `{stack}/{feature}`, regenerates `index.json`, and
+generalize them, places them into the right `features/{stack}/{feature}`, regenerates `index.json`, and
 opens a draft PR — see [`docs/framework-architecture.md`](docs/framework-architecture.md) for
 the full diagram.
 

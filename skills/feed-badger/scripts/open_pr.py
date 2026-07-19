@@ -29,20 +29,21 @@ def _bootstrap_lib() -> None:
 
 
 _bootstrap_lib()
-import badger_lib as bl  # noqa: F401  (kept for parity / future validation hooks)
 
 
 def run(cmd: List[str], cwd: Path, dry: bool) -> int:
+    """Print `cmd`, then execute it in `cwd` unless `dry` is set; return its exit code."""
     printable = " ".join(cmd)
     if dry:
         print(f"    $ {printable}")
         return 0
     print(f"    $ {printable}")
-    proc = subprocess.run(cmd, cwd=str(cwd))
+    proc = subprocess.run(cmd, cwd=str(cwd), check=False)
     return proc.returncode
 
 
 def main(argv=None) -> int:
+    """CLI entry point: branch, commit, push, and open a draft PR for --checkout."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--checkout", required=True)
     ap.add_argument("--branch", required=True)

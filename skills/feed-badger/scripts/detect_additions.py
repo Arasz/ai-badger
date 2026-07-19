@@ -41,6 +41,7 @@ MANAGED = {
 
 
 def main(argv=None) -> int:
+    """CLI entry point: emit new/changed contribution candidates for --target as JSON."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--target", default=".")
     ap.add_argument("--root")
@@ -48,7 +49,9 @@ def main(argv=None) -> int:
     target = Path(args.target).resolve()
     aib = target / ".ai-badger"
     if not (aib / "manifest.json").exists():
-        print(json.dumps({"error": "no .ai-badger/manifest.json — repo not scaffolded by ai-badger"}))
+        print(json.dumps({
+            "error": "no .ai-badger/manifest.json — repo not scaffolded by ai-badger",
+        }))
         return 1
 
     manifest = bl.load_json(aib / "manifest.json")
@@ -57,7 +60,7 @@ def main(argv=None) -> int:
     file_targets: Dict[str, Dict] = {}
     dir_targets: Dict[str, Dict] = {}
     for e in entries:
-        tp = (target / e["target"])
+        tp = target / e["target"]
         (dir_targets if tp.is_dir() else file_targets)[e["target"]] = e
 
     def under_dir_target(rel: str) -> bool:
@@ -90,7 +93,9 @@ def main(argv=None) -> int:
                 candidates.append({
                     "status": "new", "feature": feature,
                     "path": rel, "name": f.stem,
-                    "suggestedGeneralization": "review for project-specific tokens before contributing",
+                    "suggestedGeneralization": (
+                        "review for project-specific tokens before contributing"
+                    ),
                 })
             elif bl.sha256_file(f) != entry.get("hash"):
                 candidates.append({

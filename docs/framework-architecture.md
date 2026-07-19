@@ -8,33 +8,48 @@ scripts do and what the agent does, how plugins and the `task` skill compose, an
 
 ## 1. The stack×feature catalog model
 
-The framework repo is organized as **stack × feature**:
+The framework repo is organized as **stack × feature**, rooted under `features/`:
 
 - **stack** — a technology: `dotnet`, `azure`, `cosmos`, `terraform`, `mcp`, `node`, `js`, `ts`,
-  `react`, `css`, `github`, … plus **`common`** for stack-agnostic content.
-- **feature** — a kind of framework asset: `skills`, `personas`, `invariants`, `instructions`,
-  `plugins`, and — `common`-only — `templates`.
+  `react`, `css`, `github`, `angular`, … plus **`common`** for stack-agnostic content.
+- **feature** — a kind of framework asset: `personas`, `invariants`, `instructions`, `plugins`,
+  and — `common`-only — `templates`. Stack-scoped skill *extensions* also live here, nested
+  under a stack's `skills/` directory (§5) — but the installable operational skills themselves
+  do not; see the root-`skills/` exception below.
 
 ```
-<stack>/<feature>/<item>
+features/<stack>/<feature>/<item>
 ```
 
 Each feature item is a small, self-describing unit:
 
 | feature | shape | discovery rule |
 |---|---|---|
-| `skills` | directory | contains a `SKILL.md` |
 | `personas` | `*.md` file | named by filename stem |
 | `invariants` | `*.md` file | named by filename stem |
 | `instructions` | `*.md` file | named by filename stem |
-| `plugins` | directory | contains `plugins.json` (+ sibling `marketplaces.json`) |
+| `plugins` | single `plugins.json` (+ sibling `marketplaces.json`) | at most one of each per stack |
 | `templates` (`common` only) | file/dir | every top-level entry |
+| `skills` (extensions only, e.g. `github`) | directory | `<base>-extensions/<ext>/` containing a manifest, attached by directory convention (§5) |
 
 This keeps every asset generalizable at the point of authorship: a persona, invariant, or
 instruction that is genuinely stack-agnostic goes in `common`; anything that only makes sense
 given a specific technology (a routing table entry, a module invariant like *Domain purity* or
 *single-writer-Cosmos*) is filed under its owning stack instead of being force-generalized or
 duplicated.
+
+### The root `skills/` exception
+
+The **installable operational skills** — `welcome-ai-badger`, `feed-badger`, `task`,
+`maintain-agent-instructions`, `auto-wm`, `prompt-markers` — live at the repo-root `skills/`
+directory, *not* under `features/common/skills/`. This is the one deliberate break from the
+`features/<stack>/<feature>/` pattern: the Claude Code plugin loader only discovers skills at
+the plugin root's `skills/` directory, and ai-badger's own plugin declares `"source": "./"` in
+`.claude-plugin/marketplace.json` — the whole repo is the plugin root. Nesting the installable
+skills under `features/` would make them invisible to the plugin loader. Stack-scoped skill
+*extensions* (e.g. `features/github/skills/task-extensions/github/`) are unaffected by this
+exception — they aren't independently installed, only attached to a base skill by
+`index_build.py` (§5), so they stay under `features/` like every other feature.
 
 ### `index.json` — the source of truth
 
@@ -49,16 +64,20 @@ where:
   "stacks": {
     "common": {
       "skills":       [ { "name": "task", "path": "skills/task", "extensions": ["github"] } ],
-      "personas":     [ { "name": "architect", "path": "common/personas/architect.md" } ],
+      "personas":     [ { "name": "architect", "path": "features/common/personas/architect.md" } ],
       "invariants":   [ /* … */ ],
       "instructions": [ /* … */ ],
-      "plugins":      [ { "name": "superpowers", "path": "common/plugins/superpowers" } ]
+      "plugins":      [ { "name": "superpowers", "path": "features/common/plugins/plugins.json" } ]
     },
     "dotnet": { "personas": [ /* … */ ], "invariants": [ /* … */ ], "instructions": [ /* … */ ], "plugins": [ /* … */ ] },
     "react":  { /* … */ }
   }
 }
 ```
+
+Note that even though `skills` entries are keyed under `stacks.common` (the `task` skill's
+declared stack), their `path` points at the root `skills/` directory, not `features/common/`
+— reflecting the root-`skills/` exception above.
 
 Because it's derived, `index.json` can never drift from the tree by construction — as long as
 you remember to regenerate it (see [`authoring-a-feature.md`](authoring-a-feature.md)).
@@ -137,9 +156,9 @@ for the genuinely creative decisions.
 **Scripts do all mechanical work, no LLM, no network (except `open_pr.py`'s `gh` call):**
 
 - `index_build.py` — scan the catalog tree → `index.json`, validated against its schema.
-- `validate.py` — validate any model (`config` / `manifest` / `index` / `plugin-entry` /
+- `validate.py` — validate any model (`config` / `manifest` / `index` / `plugins` /
   `marketplaces`) against its schema; `--all` validates the whole repo (schemas self-check +
-  `index.json` + every plugin entry).
+  `index.json` + every stack's `plugins.json`/`marketplaces.json`).
 - `detect.py` — best-effort detection: stacks from package/project files and extensions, agents
   from `CLAUDE.md` / `.github/copilot-instructions.md` / `.junie/` traces (repo *and* user
   scope: `~/.claude`, `~/.copilot`), commands from stack metadata → emits a *proposed*
@@ -157,21 +176,27 @@ for the genuinely creative decisions.
 - Authoring/refining `config.json` — project summary, domain, persona routing, resolving
   detection ambiguities via clarifying questions — then handing off to `validate.py`.
 - In `feed-badger`: classifying candidates as agnostic / generalizable / project-specific,
-  generalizing wording, and choosing the target `{stack}/{feature}` placement.
+  generalizing wording, and choosing the target `features/{stack}/{feature}` placement.
 
 If a step can be expressed as a deterministic rule, it belongs in a script, not a prompt.
 
 ## 4. Plugins as a feature, with scope
 
 `plugins` is a first-class feature, not a separate concept — Claude Code marketplaces are
-merged into it rather than tracked independently. A plugins entry is a directory at
-`<stack>/plugins/<name>/` containing:
+merged into it rather than tracked independently. Unlike the other features, `plugins` is
+**compact**: each stack has at most one `features/<stack>/plugins/plugins.json` — a single
+**list** of plugin entries — and one sibling `marketplaces.json`. There is no per-plugin
+subdirectory.
 
-- **`plugins.json`** (`schemas/plugin-entry.schema.json`) — `{ name, scope, plugins: [...] }`
-  where `scope` is `"default" | "local" | "user"` and `"default"` means *inherit the scope
-  chosen at init*.
-- **`marketplaces.json`** (`schemas/marketplaces.schema.json`) — the custom marketplaces this
-  entry needs, e.g. `{ "marketplaces": [ { "name": "…", "source": "github:Owner/repo" } ] }`.
+- **`plugins.json`** (`schemas/plugins.schema.json`) —
+  `{ "plugins": [ { "name": "...", "marketplace": "<name in marketplaces.json>", "scope":
+  "default"|"local"|"user", "description": "..." }, ... ] }`. `scope` on an entry is
+  `"default" | "local" | "user"`, and `"default"` means *inherit the scope chosen at init*.
+- **`marketplaces.json`** (`schemas/marketplaces.schema.json`) — all the marketplaces this
+  stack's plugins install from: `{ "marketplaces": [ { "name": "...", "source":
+  "https://github.com/Owner/repo" } ] }`. Each plugin entry's `marketplace` field references a
+  marketplace by `name` here. Sources are full GitHub repo URLs, not `github:Owner/repo`
+  shorthand.
 
 At `welcome-ai-badger` time, the agent asks a single **plugin scope: default | local-only**
 question. `default` honors each entry's own declared `scope`; `local-only` forces every install
@@ -189,8 +214,9 @@ The `task` skill ships in two parts:
   implements), TDD enforcement, token tracking, resume cron, finish protocol, review loop — all
   driven purely by reading `config.json`. It contains no hardcoded GitHub, no dashboard, no
   `dotnet` — nothing stack- or platform-specific.
-- **Extensions** (`<stack>/skills/task-extensions/<name>/`, e.g. under `github/`) are opt-in
-  slices embedded into the scaffolded skill only when `config.json` supplies the data they need:
+- **Extensions** (`features/<stack>/skills/task-extensions/<name>/`, e.g. under `features/github/`)
+  are opt-in slices embedded into the scaffolded skill only when `config.json` supplies the data
+  they need:
   - `github` — create/track issues + PRs, Copilot review loop; needs `sourceControl.platform ==
     "github"` and `sourceControl.repoUrl`; project-board features additionally need
     `sourceControl.projectUrl`.
@@ -198,12 +224,12 @@ The `task` skill ships in two parts:
     plus `commands.build`/`commands.test`.
 
 `index_build.py` links an extension to its base by directory convention: a directory named
-`<base>-extensions/<ext>/` under any stack's `skills/` attaches `<ext>` to the skill named
-`<base>`, wherever that base skill lives.
+`<base>-extensions/<ext>/` under any stack's `features/<stack>/skills/` attaches `<ext>` to the
+skill named `<base>`, wherever that base skill lives (in practice, always the root `skills/`).
 
-`prompt-markers` ships as its own `common` skill (hook + `markers-context.json` +
-`marker-state.json`, see ADR-0017 in the design doc) and is referenced by the base `task` skill
-rather than folded into it.
+`prompt-markers` ships as its own skill at the root `skills/prompt-markers` (hook +
+`markers-context.json` + `marker-state.json`, see ADR-0017 in the design doc) and is referenced
+by the base `task` skill rather than folded into it.
 
 **Risk to watch:** the base `task` skill must carry zero stack-specific literals — grep the
 generated skill for `dotnet`, `Cosmos`, `gh `, or a hardcoded repo name before shipping a change
@@ -272,7 +298,7 @@ flowchart LR
   AG --> CFG["config.json"]
   CFG --> VAL["validate.py"] --> CFGok["config.json (valid)"]
   IDX["index.json"] --> SCAF["scaffold.py"]
-  CATALOG["{stack|common}/{feature} content"] --> SCAF
+  CATALOG["features/{stack|common}/{feature} content"] --> SCAF
   CFGok --> SCAF
   SCAF --> AIB[".ai-badger/*"]
   SCAF --> COPIES["CLAUDE.md · copilot-instructions.md · .junie/AGENTS.md (copies)"]
@@ -287,7 +313,7 @@ flowchart TD
   B --> C["candidate additions\n(new / changed-beyond-scaffold)"]
   C --> D["AGENT: classify\nagnostic | generalizable | project-specific"]
   D -->|project-specific| X["drop (reasoned)"]
-  D -->|agnostic/generalizable| E["AGENT: generalize wording\n+ choose {stack}/{feature} placement"]
+  D -->|agnostic/generalizable| E["AGENT: generalize wording\n+ choose features/{stack}/{feature} placement"]
   E --> F["place into ai-badger checkout"]
   F --> G["index_build.py → update index.json"]
   G --> H["open_pr.py → draft PR to ai-badger"]

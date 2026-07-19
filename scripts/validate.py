@@ -21,7 +21,7 @@ KIND_TO_SCHEMA = {
     "config": "config.schema.json",
     "manifest": "manifest.schema.json",
     "index": "index.schema.json",
-    "plugin-entry": "plugin-entry.schema.json",
+    "plugins": "plugins.schema.json",
     "marketplaces": "marketplaces.schema.json",
 }
 
@@ -37,28 +37,29 @@ def _report(label: str, errors) -> bool:
 
 
 def validate_all(root: Path) -> int:
+    """Validate index.json, every stack's plugins/marketplaces JSON, and the schemas themselves."""
     ok = True
     ok &= _report("schemas self-check", bl.check_schemas_selfvalid(root / "schemas"))
     idx = root / "index.json"
     if idx.exists():
         ok &= _report("index.json", bl.validate_file(idx, root / "schemas" / "index.schema.json"))
-    # every plugin entry + its marketplaces.json
+    # each stack's single plugins.json + marketplaces.json
     for _stack, feature, fdir in bl.iter_feature_dirs(root):
         if feature != "plugins":
             continue
-        for entry in sorted(p for p in fdir.iterdir() if p.is_dir()):
-            pj = entry / "plugins.json"
-            if pj.exists():
-                ok &= _report(str(pj.relative_to(root)),
-                              bl.validate_file(pj, root / "schemas" / "plugin-entry.schema.json"))
-            mj = entry / "marketplaces.json"
-            if mj.exists():
-                ok &= _report(str(mj.relative_to(root)),
-                              bl.validate_file(mj, root / "schemas" / "marketplaces.schema.json"))
+        pj = fdir / "plugins.json"
+        if pj.exists():
+            ok &= _report(str(pj.relative_to(root)),
+                          bl.validate_file(pj, root / "schemas" / "plugins.schema.json"))
+        mj = fdir / "marketplaces.json"
+        if mj.exists():
+            ok &= _report(str(mj.relative_to(root)),
+                          bl.validate_file(mj, root / "schemas" / "marketplaces.schema.json"))
     return 0 if ok else 1
 
 
 def main(argv=None) -> int:
+    """CLI entry point: validate one instance (--schema/--kind) or the whole tree (--all)."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("instance", nargs="?", help="Path to the JSON instance to validate.")
     ap.add_argument("--schema", help="Explicit schema path.")
@@ -76,6 +77,7 @@ def main(argv=None) -> int:
         ap.error("provide an instance path or --all")
     inst = Path(args.instance).resolve()
 
+    schema_path = None
     if args.schema:
         schema_path = Path(args.schema).resolve()
     elif args.kind:

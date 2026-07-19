@@ -14,7 +14,8 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
+
 
 def _bootstrap_lib() -> None:
     here = Path(__file__).resolve()
@@ -41,6 +42,7 @@ def _read(path: Path) -> str:
 
 
 def detect_stacks(target: Path) -> List[str]:
+    """Best-effort detection of tech stacks present in `target`."""
     stacks: List[str] = []
     pkg = target / "package.json"
     pkg_text = _read(pkg)
@@ -82,6 +84,7 @@ def detect_stacks(target: Path) -> List[str]:
 
 
 def expand_requires(stacks: List[str], index: Dict) -> List[str]:
+    """Transitively add each detected stack's declared `requires` (from stack.json meta)."""
     out = list(stacks)
     changed = True
     while changed:
@@ -96,6 +99,7 @@ def expand_requires(stacks: List[str], index: Dict) -> List[str]:
 
 
 def detect_agents(target: Path) -> List[str]:
+    """Detect which coding agents (claude/copilot/junie) this repo already has traces of."""
     home = Path.home()
     agents: List[str] = []
     if (target / "CLAUDE.md").exists() or (home / ".claude").exists():
@@ -111,12 +115,13 @@ def detect_agents(target: Path) -> List[str]:
 
 
 def detect_source_control(target: Path) -> Dict:
+    """Detect the git remote's hosting platform and normalize its URL."""
     sc: Dict = {"platform": "none", "repoUrl": None, "projectUrl": None}
     if not (target / ".git").exists():
         return sc
     try:
         url = subprocess.run(["git", "-C", str(target), "remote", "get-url", "origin"],
-                             capture_output=True, text=True, timeout=10).stdout.strip()
+                             capture_output=True, text=True, timeout=10, check=False).stdout.strip()
     except (subprocess.SubprocessError, OSError):
         url = ""
     if not url:
@@ -139,6 +144,7 @@ def detect_source_control(target: Path) -> Dict:
 
 
 def detect_commands(target: Path, stacks: List[str]) -> Dict[str, str]:
+    """Detect build/test/lint/run commands from package.json scripts (or dotnet defaults)."""
     cmds: Dict[str, str] = {}
     pkg = target / "package.json"
     if pkg.exists():
@@ -146,7 +152,8 @@ def detect_commands(target: Path, stacks: List[str]) -> Dict[str, str]:
             scripts = json.loads(_read(pkg)).get("scripts", {})
         except json.JSONDecodeError:
             scripts = {}
-        runner = "bun run" if (target / "bun.lock").exists() or (target / "bun.lockb").exists() else "npm run"
+        has_bun_lock = (target / "bun.lock").exists() or (target / "bun.lockb").exists()
+        runner = "bun run" if has_bun_lock else "npm run"
         for key, names in (("build", ["build"]), ("test", ["test"]),
                            ("lint", ["lint"]), ("run", ["dev", "start"])):
             for n in names:
@@ -160,6 +167,7 @@ def detect_commands(target: Path, stacks: List[str]) -> Dict[str, str]:
 
 
 def main(argv=None) -> int:
+    """CLI entry point: emit a proposed config.json for `--target` to stdout."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--target", default=".")
     ap.add_argument("--root")

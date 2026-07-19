@@ -9,6 +9,9 @@ and is always within budget — nothing project-specific is assumed.
 
 Usage: claude_md_compact.py [--max-chars N] [--max-lines N]
 """
+# pylint: disable=missing-function-docstring
+# Ported verbatim from the originating job-search-ai-assistant repo's /task skill: kept in
+# lockstep with that source rather than churned for local docstring style rules.
 
 import argparse
 import json

@@ -1,7 +1,0 @@
-{
-  "name": "pr-review-toolkit",
-  "description": "Specialized PR-review subagents (style/guideline adherence, test coverage, silent-failure hunting, type-design analysis) for a comprehensive review pass.",
-  "scope": "default",
-  "marketplacesRef": "marketplaces.json",
-  "plugins": ["pr-review-toolkit"]
-}

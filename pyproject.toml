@@ -1,0 +1,36 @@
+[tool.pylint.main]
+# jsonschema is a real runtime dependency (see scripts/requirements.txt). Some lint
+# environments run without it installed, which would otherwise spuriously raise
+# import-error (E0401) on `import jsonschema`.
+ignored-modules = ["jsonschema"]
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint."messages control"]
+disable = [
+    # C0413 wrong-import-position: every ai-badger script does `sys.path.insert(...)` —
+    # directly, or via a local `_bootstrap_lib()` helper — BEFORE `import badger_lib` /
+    # `import tracker_lib`, so the shared lib resolves relative to the script regardless of
+    # where the plugin is installed. This intentionally violates "imports at the top of the
+    # file": for a script with no fixed install location, the path-setup IS the top.
+    "wrong-import-position",
+
+    # R0801 duplicate-code: the tiny `_bootstrap_lib()` helper and small argparse/stdin
+    # boilerplate are intentionally repeated across standalone scripts. Each script must stay
+    # self-contained (no shared import beyond badger_lib/tracker_lib) so it keeps working
+    # wherever it's copied, so this "duplication" is a deliberate deployability property, not
+    # debt to refactor away.
+    "duplicate-code",
+
+    # R09xx complexity thresholds (too-many-locals/branches/return-statements/
+    # instance-attributes/arguments/positional-arguments): style thresholds, not correctness.
+    # Refactoring working, tested pipeline/CLI/hook logic purely to satisfy an arbitrary count
+    # is out of scope for a lint cleanup pass and risks behavior changes.
+    "too-many-locals",
+    "too-many-branches",
+    "too-many-return-statements",
+    "too-many-instance-attributes",
+    "too-many-arguments",
+    "too-many-positional-arguments",
+]

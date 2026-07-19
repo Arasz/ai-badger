@@ -2,16 +2,27 @@
 """CLI for the /task skill: task lifecycle + token-usage tracking.
 
 Commands:
-  start <taskId> [--title T] [--branch B] [--no-cron]   register task, start token checkpoint
-  finish <taskId>                                        finish checkpoint + usage calc (requires .ai-badger/state.json updated)
-  grade <taskId> <0-5>                                   save the user's quality grade
-  subagent <taskId> <totalTokens> [--description D]      record a completed subagent's token cost
-  reattach <taskId>                                      point task at the current session (after resume)
-  status                                                 print all tasks (state, tokens, grade)
-  install-cron / uninstall-cron                          manage the 30-min resume cron job
+  start <taskId> [--title T] [--branch B] [--no-cron]
+      register task, start token checkpoint
+  finish <taskId>
+      finish checkpoint + usage calc (requires .ai-badger/state.json updated)
+  grade <taskId> <0-5>
+      save the user's quality grade
+  subagent <taskId> <totalTokens> [--description D]
+      record a completed subagent's token cost
+  reattach <taskId>
+      point task at the current session (after resume)
+  status
+      print all tasks (state, tokens, grade)
+  install-cron / uninstall-cron
+      manage the 30-min resume cron job
 
-Exit codes: 0 ok, 2 bad input, 3 finish blocked (.ai-badger/state.json not updated since task start).
+Exit codes: 0 ok, 2 bad input, 3 finish blocked (.ai-badger/state.json not updated since
+task start).
 """
+# pylint: disable=missing-function-docstring
+# Ported verbatim from the originating job-search-ai-assistant repo's /task skill: kept in
+# lockstep with that source rather than churned for local docstring style rules.
 
 from __future__ import annotations
 
@@ -53,11 +64,12 @@ def cmd_start(args) -> int:
         conflict = lib.find_other_entry_with_session(tasks, session["sessionId"], args.task_id)
         if conflict is not None and conflict.get("state") != lib.STATE_FINISHED:
             print(
-                f"Session {session['sessionId']} is already attached to task {conflict['taskId']!r} "
-                f"(state={conflict.get('state')}), which isn't finished yet. Refusing to also attach "
-                f"it to {args.task_id!r} — this usually means current-session.json is stale (a hook "
-                "didn't fire yet for the real new session). Pass --session-id/--transcript-path "
-                "explicitly if this attachment is genuinely intended.",
+                f"Session {session['sessionId']} is already attached to task "
+                f"{conflict['taskId']!r} (state={conflict.get('state')}), which isn't finished "
+                f"yet. Refusing to also attach it to {args.task_id!r} — this usually means "
+                "current-session.json is stale (a hook didn't fire yet for the real new "
+                "session). Pass --session-id/--transcript-path explicitly if this attachment "
+                "is genuinely intended.",
                 file=sys.stderr,
             )
             return 2
@@ -66,7 +78,10 @@ def cmd_start(args) -> int:
             entry = {"taskId": args.task_id}
             tasks["tasks"].append(entry)
         if entry.get("state") == lib.STATE_FINISHED:
-            print(f"Task {args.task_id} is already FINISHED; refusing to restart it.", file=sys.stderr)
+            print(
+                f"Task {args.task_id} is already FINISHED; refusing to restart it.",
+                file=sys.stderr,
+            )
             return 2
         entry.update(
             {
@@ -124,9 +139,10 @@ def cmd_finish(args) -> int:
             return 2
         if not args.force and not lib.state_json_updated_since(entry["startedAt"]):
             print(
-                f".ai-badger/state.json has not been modified since task start ({entry['startedAt']}). "
-                "Update it with what this task changed/learned, then re-run finish "
-                "(or pass --force if the task genuinely produced no new knowledge).",
+                ".ai-badger/state.json has not been modified since task start "
+                f"({entry['startedAt']}). Update it with what this task changed/learned, "
+                "then re-run finish (or pass --force if the task genuinely produced no new "
+                "knowledge).",
                 file=sys.stderr,
             )
             return 3
@@ -140,13 +156,17 @@ def cmd_finish(args) -> int:
         usage = lib.load_usage()
         usage_entry = lib.find_entry(usage, args.task_id)
         if usage_entry is None:
-            usage_entry = {"taskId": args.task_id, "subagents": [], "grade": None, "checkpoints": {}}
+            usage_entry = {
+                "taskId": args.task_id, "subagents": [], "grade": None, "checkpoints": {},
+            }
             usage["tasks"].append(usage_entry)
         checkpoints = usage_entry.setdefault("checkpoints", {})
         checkpoints["finish"] = checkpoint
         checkpoints["latest"] = checkpoint
         start_cp = checkpoints.get("start", checkpoint)
-        usage_entry["usage"] = lib.compute_usage(start_cp, checkpoint, usage_entry.get("subagents", []))
+        usage_entry["usage"] = lib.compute_usage(
+            start_cp, checkpoint, usage_entry.get("subagents", [])
+        )
         lib.save_json(lib.TOKEN_USAGE, usage)
 
     stats = lib.claude_md_stats()
@@ -156,7 +176,11 @@ def cmd_finish(args) -> int:
                 "taskId": args.task_id,
                 "state": lib.STATE_FINISHED,
                 "usage": usage_entry["usage"],
-                "claudeMd": {"overBudget": stats["overBudget"], "chars": stats["chars"], "lines": stats["lines"]},
+                "claudeMd": {
+                    "overBudget": stats["overBudget"],
+                    "chars": stats["chars"],
+                    "lines": stats["lines"],
+                },
             },
             indent=2,
         )
@@ -164,7 +188,8 @@ def cmd_finish(args) -> int:
     if stats["overBudget"]:
         print(
             f"CLAUDE.md is over budget ({stats['chars']} chars / {stats['lines']} lines, "
-            f"limits {stats['maxChars']}/{stats['maxLines']}). Compact it now per the skill's compaction rules.",
+            f"limits {stats['maxChars']}/{stats['maxLines']}). Compact it now per the "
+            "skill's compaction rules.",
             file=sys.stderr,
         )
     return 0
@@ -194,9 +219,11 @@ def cmd_subagent(args) -> int:
         if entry is None:
             print(f"Unknown task {args.task_id}. Run start first.", file=sys.stderr)
             return 2
-        entry.setdefault("subagents", []).append(
-            {"description": args.description or "", "totalTokens": args.total_tokens, "at": lib.now_iso()}
-        )
+        entry.setdefault("subagents", []).append({
+            "description": args.description or "",
+            "totalTokens": args.total_tokens,
+            "at": lib.now_iso(),
+        })
         # Recompute usage even if `finish` already ran — review-fix rounds and other subagent
         # work routinely land after the finish checkpoint, and usage must not go stale then.
         checkpoints = entry.get("checkpoints", {})
@@ -216,10 +243,11 @@ def cmd_reattach(args) -> int:
         conflict = lib.find_other_entry_with_session(tasks, session["sessionId"], args.task_id)
         if conflict is not None and conflict.get("state") != lib.STATE_FINISHED:
             print(
-                f"Session {session['sessionId']} is already attached to task {conflict['taskId']!r} "
-                f"(state={conflict.get('state')}), which isn't finished yet. Refusing to also reattach "
-                f"{args.task_id!r} to it — this usually means current-session.json is stale. Pass "
-                "--session-id/--transcript-path explicitly if this attachment is genuinely intended.",
+                f"Session {session['sessionId']} is already attached to task "
+                f"{conflict['taskId']!r} (state={conflict.get('state')}), which isn't finished "
+                f"yet. Refusing to also reattach {args.task_id!r} to it — this usually means "
+                "current-session.json is stale. Pass --session-id/--transcript-path explicitly "
+                "if this attachment is genuinely intended.",
                 file=sys.stderr,
             )
             return 2
@@ -260,7 +288,7 @@ def cmd_status(_args) -> int:
 
 
 def _current_crontab() -> str:
-    result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
+    result = subprocess.run(["crontab", "-l"], capture_output=True, text=True, check=False)
     return result.stdout if result.returncode == 0 else ""
 
 
@@ -275,7 +303,9 @@ def install_cron(quiet: bool = False) -> int:
     lib.ensure_data_dir()
     line = f"*/30 * * * * /usr/bin/env python3 {script} run >> {log} 2>&1 {CRON_MARKER}\n"
     new_tab = current + ("" if current.endswith("\n") or not current else "\n") + line
-    result = subprocess.run(["crontab", "-"], input=new_tab, text=True, capture_output=True)
+    result = subprocess.run(
+        ["crontab", "-"], input=new_tab, text=True, capture_output=True, check=False
+    )
     if result.returncode != 0:
         print(f"Failed to install cron job: {result.stderr}", file=sys.stderr)
         return 1
@@ -287,7 +317,9 @@ def install_cron(quiet: bool = False) -> int:
 def uninstall_cron() -> int:
     current = _current_crontab()
     kept = [line for line in current.splitlines() if CRON_MARKER not in line]
-    result = subprocess.run(["crontab", "-"], input="\n".join(kept) + "\n", text=True, capture_output=True)
+    result = subprocess.run(
+        ["crontab", "-"], input="\n".join(kept) + "\n", text=True, capture_output=True, check=False
+    )
     if result.returncode != 0:
         print(f"Failed to update crontab: {result.stderr}", file=sys.stderr)
         return 1

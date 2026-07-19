@@ -10,6 +10,9 @@ Every time the main agent stops:
    its size budget, block the stop once and tell the model what to do.
    `stop_hook_active` and a per-task reminder flag prevent infinite loops.
 """
+# pylint: disable=missing-function-docstring
+# Ported verbatim from the originating job-search-ai-assistant repo's /task skill: kept in
+# lockstep with that source rather than churned for local docstring style rules.
 
 import json
 import sys
@@ -56,8 +59,8 @@ def main() -> int:
                     else:
                         entry["stateJsonReminderSent"] = True
                         block_reasons.append(
-                            f"Task {entry['taskId']} finished but .ai-badger/state.json was not updated. Add what "
-                            "this task changed/learned to it now."
+                            f"Task {entry['taskId']} finished but .ai-badger/state.json was not "
+                            "updated. Add what this task changed/learned to it now."
                         )
                     tasks_dirty = True
                 stats = lib.claude_md_stats()
@@ -65,9 +68,10 @@ def main() -> int:
                     entry["compactionReminderSent"] = True
                     tasks_dirty = True
                     block_reasons.append(
-                        f"CLAUDE.md is over its size budget ({stats['chars']} chars / {stats['lines']} lines; "
-                        f"limits {stats['maxChars']} chars / {stats['maxLines']} lines). Compact it: drop anything "
-                        "derivable from code/git/docs — per-task state belongs in .ai-badger/state.json, not here."
+                        f"CLAUDE.md is over its size budget ({stats['chars']} chars / "
+                        f"{stats['lines']} lines; limits {stats['maxChars']} chars / "
+                        f"{stats['maxLines']} lines). Compact it: drop anything derivable from "
+                        "code/git/docs — per-task state belongs in .ai-badger/state.json, not here."
                     )
 
         if tasks_dirty:

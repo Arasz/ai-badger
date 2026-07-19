@@ -35,15 +35,18 @@ MAX_HISTORY = 100
 
 
 def now_iso() -> str:
+    """Return the current UTC time as a second-precision ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def load_markers_context() -> dict:
+    """Load markers-context.json (marker definitions + their injected instruction text)."""
     with MARKERS_CONTEXT_FILE.open() as fh:
         return json.load(fh)
 
 
 def match_marker(prompt: str, markers: list[dict]) -> tuple[dict, str] | None:
+    """Return the (marker, matched prefix) whose prefix leads `prompt`, or None."""
     prompt_trimmed = prompt.strip().lower()
     for marker in markers:
         for prefix in marker.get("prefixes", []):
@@ -61,7 +64,9 @@ def find_tracking_dir(start: Path) -> Path | None:
     return None
 
 
-def record_transformation(cwd: str, prompt: str, marker_id: str, prefix: str, injected: str) -> None:
+def record_transformation(
+    cwd: str, prompt: str, marker_id: str, prefix: str, injected: str
+) -> None:
     """Best-effort audit trail. Skips silently if the project has no tracking dir."""
     tracking_dir = find_tracking_dir(Path(cwd) if cwd else Path.cwd())
     if tracking_dir is None:
@@ -88,6 +93,7 @@ def record_transformation(cwd: str, prompt: str, marker_id: str, prefix: str, in
 
 
 def main() -> int:
+    """Read the hook payload from stdin and emit additionalContext if a marker matched."""
     payload = json.load(sys.stdin)
     prompt = payload.get("prompt", "")
     if not prompt:
@@ -115,6 +121,7 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception:
-        # A broken hook must never block the prompt.
+    except Exception:  # pylint: disable=broad-exception-caught
+        # A broken hook must never block the prompt: swallow everything, not just the
+        # exceptions we anticipated.
         sys.exit(0)

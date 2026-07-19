@@ -6,19 +6,19 @@
       "personas": [
         {
           "name": "angular-engineer",
-          "path": "angular/personas/angular-engineer.md"
+          "path": "features/angular/personas/angular-engineer.md"
         }
       ],
       "invariants": [
         {
           "name": "signal-state-discipline",
-          "path": "angular/invariants/signal-state-discipline.md"
+          "path": "features/angular/invariants/signal-state-discipline.md"
         }
       ],
       "instructions": [
         {
           "name": "angular.instructions",
-          "path": "angular/instructions/angular.instructions.md"
+          "path": "features/angular/instructions/angular.instructions.md"
         }
       ],
       "meta": {
@@ -44,23 +44,23 @@
       "personas": [
         {
           "name": "cloud-infra-engineer",
-          "path": "azure/personas/cloud-infra-engineer.md"
+          "path": "features/azure/personas/cloud-infra-engineer.md"
         }
       ],
       "invariants": [
         {
           "name": "bounded-retry-loops",
-          "path": "azure/invariants/bounded-retry-loops.md"
+          "path": "features/azure/invariants/bounded-retry-loops.md"
         },
         {
           "name": "managed-identity-over-keys",
-          "path": "azure/invariants/managed-identity-over-keys.md"
+          "path": "features/azure/invariants/managed-identity-over-keys.md"
         }
       ],
       "instructions": [
         {
           "name": "azure-functions.instructions",
-          "path": "azure/instructions/azure-functions.instructions.md"
+          "path": "features/azure/instructions/azure-functions.instructions.md"
         }
       ],
       "meta": {
@@ -80,79 +80,79 @@
       "personas": [
         {
           "name": "architect",
-          "path": "common/personas/architect.md"
+          "path": "features/common/personas/architect.md"
         },
         {
           "name": "code-reviewer",
-          "path": "common/personas/code-reviewer.md"
+          "path": "features/common/personas/code-reviewer.md"
         },
         {
           "name": "test-engineer",
-          "path": "common/personas/test-engineer.md"
+          "path": "features/common/personas/test-engineer.md"
         }
       ],
       "invariants": [
         {
           "name": "guard-clauses",
-          "path": "common/invariants/guard-clauses.md"
+          "path": "features/common/invariants/guard-clauses.md"
         },
         {
           "name": "minimal-comments",
-          "path": "common/invariants/minimal-comments.md"
+          "path": "features/common/invariants/minimal-comments.md"
         },
         {
           "name": "no-hand-rolled-crypto",
-          "path": "common/invariants/no-hand-rolled-crypto.md"
+          "path": "features/common/invariants/no-hand-rolled-crypto.md"
         },
         {
           "name": "no-hardcoded-secrets",
-          "path": "common/invariants/no-hardcoded-secrets.md"
+          "path": "features/common/invariants/no-hardcoded-secrets.md"
         },
         {
           "name": "pr-per-task",
-          "path": "common/invariants/pr-per-task.md"
+          "path": "features/common/invariants/pr-per-task.md"
         },
         {
           "name": "screaming-architecture",
-          "path": "common/invariants/screaming-architecture.md"
+          "path": "features/common/invariants/screaming-architecture.md"
         },
         {
           "name": "small-commits-early-draft-pr",
-          "path": "common/invariants/small-commits-early-draft-pr.md"
+          "path": "features/common/invariants/small-commits-early-draft-pr.md"
         },
         {
           "name": "tdd-mandatory",
-          "path": "common/invariants/tdd-mandatory.md"
+          "path": "features/common/invariants/tdd-mandatory.md"
         }
       ],
       "instructions": [
         {
           "name": "documentation.instructions",
-          "path": "common/instructions/documentation.instructions.md"
+          "path": "features/common/instructions/documentation.instructions.md"
         }
       ],
       "plugins": [
         {
-          "name": "pr-review-toolkit",
-          "path": "common/plugins/pr-review-toolkit"
+          "name": "superpowers",
+          "path": "features/common/plugins/plugins.json"
         },
         {
-          "name": "superpowers",
-          "path": "common/plugins/superpowers"
+          "name": "pr-review-toolkit",
+          "path": "features/common/plugins/plugins.json"
         }
       ],
       "templates": [
         {
           "name": "CLAUDE.md.tmpl",
-          "path": "common/templates/CLAUDE.md.tmpl"
+          "path": "features/common/templates/CLAUDE.md.tmpl"
         },
         {
           "name": "agent-instructions",
-          "path": "common/templates/agent-instructions"
+          "path": "features/common/templates/agent-instructions"
         },
         {
           "name": "state.json",
-          "path": "common/templates/state.json"
+          "path": "features/common/templates/state.json"
         }
       ],
       "skills": [
@@ -189,17 +189,17 @@
       "invariants": [
         {
           "name": "partition-by-userid",
-          "path": "cosmos/invariants/partition-by-userid.md"
+          "path": "features/cosmos/invariants/partition-by-userid.md"
         },
         {
           "name": "single-writer",
-          "path": "cosmos/invariants/single-writer.md"
+          "path": "features/cosmos/invariants/single-writer.md"
         }
       ],
       "instructions": [
         {
           "name": "cosmos.instructions",
-          "path": "cosmos/instructions/cosmos.instructions.md"
+          "path": "features/cosmos/instructions/cosmos.instructions.md"
         }
       ],
       "meta": {
@@ -220,7 +220,7 @@
       "instructions": [
         {
           "name": "css.instructions",
-          "path": "css/instructions/css.instructions.md"
+          "path": "features/css/instructions/css.instructions.md"
         }
       ],
       "meta": {
@@ -238,23 +238,23 @@
       "personas": [
         {
           "name": "dotnet-engineer",
-          "path": "dotnet/personas/dotnet-engineer.md"
+          "path": "features/dotnet/personas/dotnet-engineer.md"
         }
       ],
       "invariants": [
         {
           "name": "clean-architecture-layering",
-          "path": "dotnet/invariants/clean-architecture-layering.md"
+          "path": "features/dotnet/invariants/clean-architecture-layering.md"
         },
         {
           "name": "high-performance-logging",
-          "path": "dotnet/invariants/high-performance-logging.md"
+          "path": "features/dotnet/invariants/high-performance-logging.md"
         }
       ],
       "instructions": [
         {
           "name": "csharp.instructions",
-          "path": "dotnet/instructions/csharp.instructions.md"
+          "path": "features/dotnet/instructions/csharp.instructions.md"
         }
       ],
       "meta": {
@@ -278,7 +278,7 @@
       "instructions": [
         {
           "name": "javascript.instructions",
-          "path": "js/instructions/javascript.instructions.md"
+          "path": "features/js/instructions/javascript.instructions.md"
         }
       ],
       "meta": {
@@ -296,13 +296,13 @@
       "invariants": [
         {
           "name": "mcp-thin",
-          "path": "mcp/invariants/mcp-thin.md"
+          "path": "features/mcp/invariants/mcp-thin.md"
         }
       ],
       "instructions": [
         {
           "name": "mcp.instructions",
-          "path": "mcp/instructions/mcp.instructions.md"
+          "path": "features/mcp/instructions/mcp.instructions.md"
         }
       ],
       "meta": {
@@ -321,13 +321,13 @@
       "personas": [
         {
           "name": "api-engineer",
-          "path": "node/personas/api-engineer.md"
+          "path": "features/node/personas/api-engineer.md"
         }
       ],
       "instructions": [
         {
           "name": "node.instructions",
-          "path": "node/instructions/node.instructions.md"
+          "path": "features/node/instructions/node.instructions.md"
         }
       ],
       "meta": {
@@ -350,23 +350,23 @@
       "personas": [
         {
           "name": "frontend-engineer",
-          "path": "react/personas/frontend-engineer.md"
+          "path": "features/react/personas/frontend-engineer.md"
         }
       ],
       "invariants": [
         {
           "name": "accessibility-by-default",
-          "path": "react/invariants/accessibility-by-default.md"
+          "path": "features/react/invariants/accessibility-by-default.md"
         },
         {
           "name": "client-never-writes-directly",
-          "path": "react/invariants/client-never-writes-directly.md"
+          "path": "features/react/invariants/client-never-writes-directly.md"
         }
       ],
       "instructions": [
         {
           "name": "react.instructions",
-          "path": "react/instructions/react.instructions.md"
+          "path": "features/react/instructions/react.instructions.md"
         }
       ],
       "meta": {
@@ -390,7 +390,7 @@
       "instructions": [
         {
           "name": "terraform.instructions",
-          "path": "terraform/instructions/terraform.instructions.md"
+          "path": "features/terraform/instructions/terraform.instructions.md"
         }
       ],
       "meta": {
@@ -412,7 +412,7 @@
       "instructions": [
         {
           "name": "typescript.instructions",
-          "path": "ts/instructions/typescript.instructions.md"
+          "path": "features/ts/instructions/typescript.instructions.md"
         }
       ],
       "meta": {
