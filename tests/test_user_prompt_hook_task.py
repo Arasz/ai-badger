@@ -50,6 +50,9 @@ class TestTaskIdFromPrompt:
     def test_extracts_id_with_colon_suffix_form(self, prompt_hook):
         assert prompt_hook.task_id_from_prompt("/task:continue T17 keep going") == "T17"
 
+    def test_extracts_id_from_namespaced_plugin_invocation(self, prompt_hook):
+        assert prompt_hook.task_id_from_prompt("/ai-badger:task T17 do the thing") == "T17"
+
     def test_no_id_after_task_returns_none(self, prompt_hook):
         assert prompt_hook.task_id_from_prompt("/task") is None
 
@@ -105,6 +108,19 @@ class TestRegistration:
         assert usage[0]["taskId"] == "T17"
         assert "start" in usage[0]["checkpoints"]
         assert "latest" in usage[0]["checkpoints"]
+
+    def test_namespaced_plugin_task_invocation_registers_new_entry(self, prompt_hook, monkeypatch):
+        monkeypatch.setattr(prompt_hook.lib, "save_current_session", lambda *a, **k: None)
+
+        rc = _run(prompt_hook, monkeypatch, {
+            "session_id": "sid-1", "transcript_path": "",
+            "prompt": "/ai-badger:task T17 do the thing",
+        })
+
+        assert rc == 0
+        tasks = prompt_hook.lib.load_tasks()["tasks"]
+        assert len(tasks) == 1
+        assert tasks[0]["taskId"] == "T17"
 
     def test_prompt_with_no_task_id_is_a_noop(self, prompt_hook, monkeypatch):
         monkeypatch.setattr(prompt_hook.lib, "save_current_session", lambda *a, **k: None)
