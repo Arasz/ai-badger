@@ -76,8 +76,7 @@ def _read_scaffold_version(cwd: Optional[str]) -> Optional[str]:
         return None
 
 
-def on_session_start_drift_notice(session_id: str = "", cwd: str = "",
-                                   platform: str = "", **kwargs: Any) -> None:
+def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
     """Check for framework version drift on every session start.
 
     Silent on match, on an unscaffolded project, and on any read error.
@@ -98,7 +97,7 @@ def on_session_start_drift_notice(session_id: str = "", cwd: str = "",
 # Context enrichment — equivalent to Claude's UserPromptSubmit hook
 # ---------------------------------------------------------------------------
 
-def pre_llm_inject_context(cwd: str = "", **kwargs: Any) -> Optional[Dict[str, str]]:
+def pre_llm_inject_context(cwd: str = "", **_kwargs: Any) -> Optional[Dict[str, str]]:
     """Inject ai-badger framework context into every LLM turn.
 
     Returns a context dict that Hermes prepends to the user message,
@@ -139,7 +138,7 @@ def pre_llm_inject_context(cwd: str = "", **kwargs: Any) -> Optional[Dict[str, s
 # ---------------------------------------------------------------------------
 
 def post_tool_observer(tool_name: str = "", result: str = "",
-                        duration_ms: int = 0, **kwargs: Any) -> None:
+                        duration_ms: int = 0, **_kwargs: Any) -> None:
     """Observe tool calls for debugging and metrics.
 
     Fires after every tool execution. The `result` parameter is the tool's
