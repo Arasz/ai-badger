@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Arasz/ai-badger/features/common/mcp-tags.json",
+  "title": "MCP Tool Tag Taxonomy",
+  "description": "Closed set of tags for categorizing MCP server tools. Tags are assigned to tools in .ai-badger/mcp-tools.yaml and used by the mcp-index skill and pre_llm_call hooks for tool recommendation.",
+  "version": "0.1.0",
+  "categories": {
+    "language": {
+      "description": "Programming languages and markup that the tool operates on.",
+      "tags": ["csharp", "typescript", "javascript", "python", "sql", "css", "html"]
+    },
+    "action": {
+      "description": "What the tool does — its primary operation.",
+      "tags": ["navigation", "diagnostic", "build", "run", "refactoring", "search", "read", "write", "terminal"]
+    },
+    "domain": {
+      "description": "Technology domain or subsystem the tool interacts with.",
+      "tags": ["database", "tracing", "opentelemetry", "browser", "dotnet", "semantic", "files"]
+    },
+    "meta": {
+      "description": "Non-functional characteristics that affect tool selection strategy.",
+      "tags": ["batch", "slow", "unsafe"]
+    }
+  }
+}
