@@ -15,6 +15,7 @@ junie) per config.agents, and <target>/.ai-badger/manifest.json.
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -415,6 +416,28 @@ class Scaffolder:
                               "(run the commands below manually or via the CLI)")
         return cmds
 
+    # -- Hermes skill discovery ---------------------------------------------------
+    def symlink_hermes_skills(self) -> None:
+        """Symlink .ai-badger/skills/ → .hermes/skills/ for Hermes auto-discovery.
+
+        Hermes discovers project-local skills from .hermes/skills/ in the working
+        directory. Without these symlinks, .ai-badger/skills/ are invisible to the
+        Hermes agent CLI unless loaded manually with -s <name>.
+        """
+        if "hermes" not in self.config.get("agents", []):
+            return
+        hermes_skills = self.target / ".hermes" / "skills"
+        hermes_skills.mkdir(parents=True, exist_ok=True)
+        for skill_name in self.skills:
+            src = self.aib / "skills" / skill_name
+            dst = hermes_skills / skill_name
+            if not src.is_dir():
+                continue
+            # Remove stale symlink or directory before recreating
+            if dst.is_symlink() or dst.exists():
+                dst.unlink()
+            dst.symlink_to(os.path.relpath(src, dst.parent))
+
     # -- orchestrate ----------------------------------------------------------------
     def run(self, generated_at: Optional[str]) -> Dict[str, Any]:
         """Run every scaffold step in order and return the manifest, plugin commands, and notes."""
@@ -423,6 +446,7 @@ class Scaffolder:
         instr_paths = self.scaffold_instructions()
         invariants = self.collect_invariants()
         self.scaffold_skills()
+        self.symlink_hermes_skills()
         self.scaffold_agent_instructions()
         self.scaffold_templates()
         doc = self.assemble_instructions_doc(invariants, instr_paths)

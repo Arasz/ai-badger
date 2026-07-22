@@ -330,6 +330,78 @@ def test_scaffold_model_json_seed_once_regression_pin(tmp_path, load_script, roo
     assert json.loads(model_path.read_text(encoding="utf-8")) == mutated
 
 
+# ---------------------------------------------------------------------- hermes skill symlinks
+def test_scaffold_creates_hermes_skill_symlinks(tmp_path, load_script, root):
+    """Scaffolding with hermes agent should symlink .hermes/skills/ → .ai-badger/skills/."""
+    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(agents=["hermes"]),
+        skills=["task", "prompt-markers"], install=False,
+    )
+    scaf.run(generated_at="2026-07-22T00:00:00Z")
+
+    hermes_skills = target / ".hermes" / "skills"
+    assert hermes_skills.is_dir()
+
+    task_link = hermes_skills / "task"
+    assert task_link.is_symlink()
+    assert task_link.resolve().is_dir()
+    assert (task_link.resolve() / "SKILL.md").exists()
+
+    pm_link = hermes_skills / "prompt-markers"
+    assert pm_link.is_symlink()
+    assert (pm_link.resolve() / "SKILL.md").exists()
+
+
+def test_scaffold_no_symlinks_without_hermes_agent(tmp_path, load_script, root):
+    """Scaffolding without hermes should not create .hermes/skills/ symlinks."""
+    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(agents=["claude"]),
+        skills=["task"], install=False,
+    )
+    scaf.run(generated_at="2026-07-22T00:00:00Z")
+
+    # .hermes/skills should not exist
+    hermes_skills = target / ".hermes" / "skills"
+    assert not hermes_skills.exists() or not any(hermes_skills.iterdir())
+
+
+def test_rescaffold_recreates_hermes_symlinks(tmp_path, load_script, root):
+    """Re-scaffold should recreate symlinks even if they already exist."""
+    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    config = _config(agents=["hermes"])
+    scaf = scaffold.Scaffolder(
+        root=root, target=target, config=config,
+        skills=["task"], install=False,
+    )
+    scaf.run(generated_at="2026-07-22T00:00:00Z")
+
+    task_link = target / ".hermes" / "skills" / "task"
+    first_target = task_link.resolve()
+
+    # Re-scaffold — should recreate the symlink
+    scaf2 = scaffold.Scaffolder(
+        root=root, target=target, config=config,
+        skills=["task"], install=False,
+    )
+    scaf2.run(generated_at="2026-07-22T01:00:00Z")
+
+    assert task_link.is_symlink()
+    assert task_link.resolve() == first_target
+
+
 def test_scaffold_reset_seed_files_flag_forces_reset(tmp_path, load_script, root):
     scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
