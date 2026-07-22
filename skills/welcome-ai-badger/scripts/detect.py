@@ -144,6 +144,11 @@ def detect_agents(target: Path) -> List[str]:
         agents.append("copilot")
     if (target / ".junie").is_dir() or (target / "AGENTS.md").exists():
         agents.append("junie")
+    # Hermes detection: .hermes.md / HERMES.md in repo, or ~/.hermes/ in user scope
+    if ((target / ".hermes.md").exists()
+            or (target / "HERMES.md").exists()
+            or (home / ".hermes").is_dir()):
+        agents.append("hermes")
     return agents or ["claude"]
 
 

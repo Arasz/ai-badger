@@ -280,9 +280,8 @@ class Scaffolder:
         self._seed_once_copy(state, self.aib / "state.json", ".ai-badger/state.json")
 
     # -- CLAUDE.md assembly ---------------------------------------------------------
-    def assemble_instructions_doc(self, invariants: List[str], instr_paths: List[Path]) -> str:
-        """Render the CLAUDE.md.tmpl template with this config's project/commands/invariants."""
-        tmpl_path = self.root / "features" / "common" / "templates" / "CLAUDE.md.tmpl"
+    def _compute_doc_slots(self, invariants: List[str], instr_paths: List[Path]) -> Dict[str, str]:
+        """Compute the template slots shared by CLAUDE.md and HERMES.md assembly."""
         project = self.config.get("project", {})
         commands = self.config.get("commands", {})
         routing = self.config.get("personaRouting", [])
@@ -295,7 +294,7 @@ class Scaffolder:
         instr_md = "\n".join(
             f"- `{p.name}` → `.ai-badger/instructions/{p.name}`" for p in instr_paths
         ) or "_None._"
-        slots = {
+        return {
             "PROJECT_NAME": project.get("name", ""),
             "PROJECT_SUMMARY": project.get("summary", ""),
             "PROJECT_DOMAIN": project.get("domain", ""),
@@ -306,6 +305,10 @@ class Scaffolder:
             "PATH_INSTRUCTIONS": instr_md,
             "FRAMEWORK_VERSION": self.index["frameworkVersion"],
         }
+
+    def _render_template(self, tmpl_name: str, slots: Dict[str, str]) -> str:
+        """Render a template file from features/common/templates/ with the given slots."""
+        tmpl_path = self.root / "features" / "common" / "templates" / tmpl_name
         if tmpl_path.exists():
             doc = tmpl_path.read_text(encoding="utf-8")
             for k, v in slots.items():
@@ -313,12 +316,23 @@ class Scaffolder:
             return doc
         # fallback minimal doc if template missing
         return (f"# {slots['PROJECT_NAME']}\n\n{slots['PROJECT_SUMMARY']}\n\n"
-                f"## Invariants\n\n{inv_md}\n\n## Commands\n\n{cmd_md}\n")
+                f"## Invariants\n\n{slots['INVARIANTS']}\n\n## Commands\n\n{slots['COMMANDS']}\n")
+
+    def assemble_instructions_doc(self, invariants: List[str], instr_paths: List[Path]) -> str:
+        """Render the CLAUDE.md.tmpl template with this config's project/commands/invariants."""
+        return self._render_template("CLAUDE.md.tmpl",
+                                     self._compute_doc_slots(invariants, instr_paths))
+
+    def assemble_hermes_doc(self, invariants: List[str], instr_paths: List[Path]) -> str:
+        """Render the HERMES.md.tmpl template with this config's project/commands/invariants."""
+        return self._render_template("HERMES.md.tmpl",
+                                     self._compute_doc_slots(invariants, instr_paths))
 
     # -- agent-discovery copies -----------------------------------------------------
-    def write_agent_files(self, instructions_doc: str, instr_paths: List[Path]) -> None:
+    def write_agent_files(self, instructions_doc: str, instr_paths: List[Path],
+                           invariants: List[str]) -> None:
         """Write the assembled instructions doc into .ai-badger/ and each configured agent's
-        discovery location (CLAUDE.md, AGENTS.md, copilot-instructions.md).
+        discovery location (CLAUDE.md, AGENTS.md, copilot-instructions.md, HERMES.md).
 
         Existing hand-authored discovery files are preserved by default: a target that already
         exists and does not carry the managed header is left untouched (its .ai-badger/ source is
@@ -355,6 +369,13 @@ class Scaffolder:
             for p in instr_paths:
                 copy_with_header(self.target / ".github" / "instructions" / p.name,
                                  f"instructions/{p.name}", p.read_text(encoding="utf-8"))
+        if "hermes" in agents:
+            hermes_doc = self.assemble_hermes_doc(invariants, instr_paths)
+            (self.aib / "HERMES.md").write_text(hermes_doc, encoding="utf-8")
+            # HERMES.md at repo root — Hermes priority 1 discovery (walks parents to git root)
+            copy_with_header(self.target / "HERMES.md", "HERMES.md", hermes_doc)
+            # .hermes.md alias — cwd-only discovery fallback
+            copy_with_header(self.target / ".hermes.md", ".hermes.md", hermes_doc)
 
     # -- plugins --------------------------------------------------------------------
     def install_plugins(self) -> List[str]:
@@ -405,7 +426,7 @@ class Scaffolder:
         self.scaffold_agent_instructions()
         self.scaffold_templates()
         doc = self.assemble_instructions_doc(invariants, instr_paths)
-        self.write_agent_files(doc, instr_paths)
+        self.write_agent_files(doc, instr_paths, invariants)
         plugin_cmds = self.install_plugins()
 
         # copy the config into place (source of truth for the skills)

@@ -145,6 +145,10 @@
           "path": "features/common/templates/CLAUDE.md.tmpl"
         },
         {
+          "name": "HERMES.md.tmpl",
+          "path": "features/common/templates/HERMES.md.tmpl"
+        },
+        {
           "name": "agent-instructions",
           "path": "features/common/templates/agent-instructions"
         },
@@ -174,7 +178,8 @@
           "name": "task",
           "path": "skills/task",
           "extensions": [
-            "github"
+            "github",
+            "hermes"
           ]
         },
         {
@@ -267,6 +272,33 @@
       }
     },
     "github": {},
+    "hermes": {
+      "personas": [
+        {
+          "name": "hermes-agent-author",
+          "path": "features/hermes/personas/hermes-agent-author.md"
+        }
+      ],
+      "instructions": [
+        {
+          "name": "hermes.instructions",
+          "path": "features/hermes/instructions/hermes.instructions.md"
+        }
+      ],
+      "meta": {
+        "description": "Hermes Agent framework: multi-model AI agent with skills, persistent memory, multi-platform gateway, cron scheduling, and subagent delegation. Supports any LLM provider (OpenRouter, Anthropic, OpenAI, Google, DeepSeek, etc.).",
+        "detectionSignals": [
+          ".hermes.md",
+          "HERMES.md"
+        ],
+        "requires": [],
+        "commands": {
+          "run": "hermes",
+          "build": "hermes doctor",
+          "test": "hermes doctor"
+        }
+      }
+    },
     "js": {
       "instructions": [
         {

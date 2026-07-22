@@ -32,7 +32,7 @@
     "agents": {
       "type": "array",
       "minItems": 1,
-      "items": { "enum": ["claude", "copilot", "junie"] },
+      "items": { "enum": ["claude", "copilot", "junie", "hermes"] },
       "description": "Coding agents detected as present in the repo/user scope; only these are initialized."
     },
     "sourceControl": {
