@@ -420,9 +420,10 @@ class Scaffolder:
     def symlink_hermes_skills(self) -> None:
         """Symlink .ai-badger/skills/ → .hermes/skills/ for Hermes auto-discovery.
 
-        Hermes discovers project-local skills from .hermes/skills/ in the working
-        directory. Without these symlinks, .ai-badger/skills/ are invisible to the
-        Hermes agent CLI unless loaded manually with -s <name>.
+        Hermes discovers project-local skills from .hermes/skills/ in the
+        working directory. These symlinks make ai-badger-scaffolded skills
+        visible without any config changes — just start hermes in the project
+        root.
         """
         if "hermes" not in self.config.get("agents", []):
             return

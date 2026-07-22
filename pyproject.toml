@@ -33,6 +33,45 @@ disable = [
     "too-many-instance-attributes",
     "too-many-arguments",
     "too-many-positional-arguments",
+
+    # E0401 import-error: hook scripts in skills/task/scripts/ bootstrap a shared lib
+    # (tracker_lib / drift_notice) via sys.path in their _bootstrap_lib() helper, not
+    # via a package install. pylint running standalone can't resolve these imports.
+    "import-error",
+
+    # Test-specific conventions that don't apply to production code:
+    # C0116 missing-function-docstring — test names carry intent
+    # C0115 missing-class-docstring — test helper classes don't need docs
+    # C0301 line-too-long — parameterized test strings get long
+    # C0304 missing-final-newline — trivial formattin gnuisance
+    # C0325 superfluous-parens — fixture unpacking reads better with parens
+    # C0411 wrong-import-order — test imports with sys.path setup
+    # C0415 import-outside-toplevel — conditional test imports
+    # C1803 use-implicit-booleaness-not-comparison — explicit comparisons for clarity
+    # R0903 too-few-public-methods — test helper classes
+    # R1732 consider-using-with — subprocess mocks don't need with
+    # W0212 protected-access — test helper access
+    # W0611 unused-import — conditional test imports
+    # W0612 unused-variable — destructuring test fixtures
+    # W0613 unused-argument — fixture injection (capsys, tmp_path)
+    # W0621 redefined-outer-name — fixture reuse pattern
+    # W0622 redefined-builtin — mocking builtins
+    "missing-function-docstring",
+    "missing-class-docstring",
+    "line-too-long",
+    "missing-final-newline",
+    "superfluous-parens",
+    "wrong-import-order",
+    "import-outside-toplevel",
+    "use-implicit-booleaness-not-comparison",
+    "too-few-public-methods",
+    "consider-using-with",
+    "protected-access",
+    "unused-import",
+    "unused-variable",
+    "unused-argument",
+    "redefined-outer-name",
+    "redefined-builtin",
 ]
 
 [tool.pytest.ini_options]
