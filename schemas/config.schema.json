@@ -75,6 +75,23 @@
     "docs": {
       "type": "object",
       "additionalProperties": { "type": "string" }
+    },
+    "mcpToolIndex": {
+      "type": "object",
+      "description": "MCP tool index configuration. When enabled, the mcp-index skill and ai_badger_hooks plugin use index-based tool recommendations.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Generate and maintain .ai-badger/mcp-tools.yaml during scaffold/refresh."
+        },
+        "path": {
+          "type": "string",
+          "default": ".ai-badger/mcp-tools.yaml",
+          "description": "Relative path to the index file within the project."
+        }
+      }
     }
   }
 }
