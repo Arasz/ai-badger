@@ -1,0 +1,74 @@
+# {{PROJECT_NAME}}
+
+{{PROJECT_SUMMARY}}
+
+> Domain: {{PROJECT_DOMAIN}}
+> Stacks: {{STACKS}}
+> Scaffolded by ai-badger {{FRAMEWORK_VERSION}}. Source of truth for this file: `.ai-badger/HERMES.md`.
+
+## Non-negotiable invariants
+
+{{INVARIANTS}}
+
+## Commands
+
+{{COMMANDS}}
+
+## Path-specific instructions
+
+Before editing matching files, read the applicable scoped instruction file:
+
+{{PATH_INSTRUCTIONS}}
+
+## Agent delegation
+
+{{PERSONA_ROUTING}}
+
+## Hermes-specific guidance
+
+This project is configured for Hermes Agent. The `.ai-badger/` directory is the source of truth
+for all agent configuration.
+
+### Skills
+
+Framework skills live under `.ai-badger/skills/`. Load them in-session with `/skill <name>` or
+preload with `hermes -s <name>`. Key skills:
+
+- `task` — task orchestration: TDD, PR flow, review loop, token tracking
+- `prompt-markers` — `h:`, `f:`, `e:` prefix markers (see below)
+
+### Memory
+
+Hermes persistent memory is available. Use it to save durable facts about the project:
+user preferences, environment details, recurring conventions. Do NOT save transient
+task progress or TODOs — use `session_search` for that.
+
+### Subagent delegation
+
+Use `delegate_task` for parallel subtasks. The `task` skill adapts its orchestration
+pattern for Hermes: plan with `role='orchestrator'`, implement with leaf agents.
+Prefer `delegate_task` over spawning separate `hermes` processes for quick subtasks.
+
+### Context file discovery
+
+Hermes reads project context files in priority order (first match wins):
+1. `.hermes.md` / `HERMES.md` — walks parents to git root
+2. `AGENTS.md` — cwd only
+3. `CLAUDE.md` — cwd only
+
+This file (HERMES.md) is at priority 1 and is the authoritative project context for
+Hermes agents working in this repo.
+
+## Prompt markers
+
+This project understands prompt markers (see `.ai-badger/skills/prompt-markers`):
+
+- `h:` / `hint:` — a lead to validate before acting (research first).
+- `f:` / `feedback:` — a high-priority correction; adjust immediately.
+- `e:` / `extension:` — a request to expand the current task's scope.
+
+## Framework
+
+Skills, personas, and instructions here are managed by ai-badger. Run `welcome-ai-badger`
+to re-scaffold after changing `.ai-badger/config.json`, and `feed-badger` to contribute
+project-agnostic improvements back to the framework. Provenance: `.ai-badger/manifest.json`.

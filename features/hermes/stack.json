@@ -1,0 +1,10 @@
+{
+  "description": "Hermes Agent framework: multi-model AI agent with skills, persistent memory, multi-platform gateway, cron scheduling, and subagent delegation. Supports any LLM provider (OpenRouter, Anthropic, OpenAI, Google, DeepSeek, etc.).",
+  "detectionSignals": [".hermes.md", "HERMES.md"],
+  "requires": [],
+  "commands": {
+    "run": "hermes",
+    "build": "hermes doctor",
+    "test": "hermes doctor"
+  }
+}
