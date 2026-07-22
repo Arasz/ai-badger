@@ -19,9 +19,9 @@ import json
 import logging
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
-import yaml
+import yaml  # pylint: disable=import-error
 
 logger = logging.getLogger("ai_badger_hooks")
 
@@ -217,7 +217,9 @@ def _find_relevant_tools(
 # Context enrichment — equivalent to Claude's UserPromptSubmit hook
 # ---------------------------------------------------------------------------
 
-def pre_llm_inject_context(cwd: str = "", message: str = "", **_kwargs: Any) -> Optional[Dict[str, str]]:
+def pre_llm_inject_context(
+    cwd: str = "", message: str = "", **_kwargs: Any
+) -> Optional[Dict[str, str]]:
     """Inject ai-badger framework context into every LLM turn.
 
     Returns a context dict that Hermes prepends to the user message,
