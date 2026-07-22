@@ -389,6 +389,25 @@ def test_detect_agents_junie_via_dot_junie_dir(tmp_path, load_script, monkeypatc
     assert "junie" in detect.detect_agents(tmp_path)
 
 
+def test_detect_agents_qwen_via_qwen_md(tmp_path, load_script, monkeypatch):
+    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: tmp_path / "empty-home"))
+    (tmp_path / "QWEN.md").write_text("# guidance\n", encoding="utf-8")
+
+    assert "qwen" in detect.detect_agents(tmp_path)
+
+
+def test_detect_agents_qwen_via_user_home_dot_qwen(tmp_path, load_script, monkeypatch):
+    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    fake_home = tmp_path / "fake-home"
+    (fake_home / ".qwen").mkdir(parents=True)
+    monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: fake_home))
+    empty_target = tmp_path / "target"
+    empty_target.mkdir()
+
+    assert "qwen" in detect.detect_agents(empty_target)
+
+
 def test_detect_agents_defaults_to_claude_when_nothing_found(tmp_path, load_script, monkeypatch):
     detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
     monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: tmp_path / "empty-home"))

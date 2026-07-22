@@ -78,6 +78,57 @@ def test_scaffold_managed_file_refreshes_on_second_run_without_overwrite(tmp_pat
     assert "dotnet build -c Release" in second
 
 
+# -------------------------------------------------------------------------- qwen agent
+def test_scaffold_writes_qwen_md_source_of_truth_and_discovery_copy(tmp_path, load_script, root):
+    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(root=root, target=target,
+                                config=_config(agents=["qwen"]),
+                                skills=[], install=False)
+    scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    source = (target / ".ai-badger" / "QWEN.md").read_text(encoding="utf-8")
+    discovery = (target / "QWEN.md").read_text(encoding="utf-8")
+    assert source  # non-empty source of truth inside .ai-badger/
+    assert discovery.startswith(scaffold._MANAGED_PREFIX)
+    assert "QWEN.md" in discovery
+
+
+def test_scaffold_preserves_hand_authored_qwen_md_by_default(tmp_path, load_script, root):
+    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+    hand_authored = "# My Hand-Authored Qwen Guidance\n"
+    (target / "QWEN.md").write_text(hand_authored, encoding="utf-8")
+
+    scaf = scaffold.Scaffolder(root=root, target=target,
+                                config=_config(agents=["qwen"]),
+                                skills=[], install=False)
+    result = scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    assert (target / "QWEN.md").read_text(encoding="utf-8") == hand_authored
+    assert (target / ".ai-badger" / "QWEN.md").exists()
+    assert any("preserved hand-authored" in n and "QWEN.md" in n
+               for n in result["notes"])
+
+
+def test_scaffold_overwrite_replaces_hand_authored_qwen_md(tmp_path, load_script, root):
+    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+    (target / "QWEN.md").write_text("# My Hand-Authored Qwen Guidance\n", encoding="utf-8")
+
+    scaf = scaffold.Scaffolder(root=root, target=target,
+                                config=_config(agents=["qwen"]),
+                                skills=[], install=False, overwrite=True)
+    scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    content = (target / "QWEN.md").read_text(encoding="utf-8")
+    assert content.startswith(scaffold._MANAGED_PREFIX)
+
+
 # ------------------------------------------------------------------------- new-file creation
 def test_scaffold_creates_new_skill_dir_on_first_run(tmp_path, load_script, root):
     scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")

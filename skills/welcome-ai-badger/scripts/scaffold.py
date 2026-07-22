@@ -355,6 +355,9 @@ class Scaffolder:
             for p in instr_paths:
                 copy_with_header(self.target / ".github" / "instructions" / p.name,
                                  f"instructions/{p.name}", p.read_text(encoding="utf-8"))
+        if "qwen" in agents:
+            (self.aib / "QWEN.md").write_text(instructions_doc, encoding="utf-8")
+            copy_with_header(self.target / "QWEN.md", "QWEN.md", instructions_doc)
 
     # -- plugins --------------------------------------------------------------------
     def install_plugins(self) -> List[str]:
@@ -435,8 +438,8 @@ def main(argv=None) -> int:
     ap.add_argument("--no-install", action="store_true")
     ap.add_argument("--overwrite-agent-files", action="store_true",
                     help="Overwrite existing hand-authored discovery files (CLAUDE.md, copilot, "
-                         "junie, .github/instructions/*). Default preserves any that lack the "
-                         "ai-badger managed header.")
+                         "junie, qwen, .github/instructions/*). Default preserves any that lack "
+                         "the ai-badger managed header.")
     ap.add_argument("--reset-seed-files", action="store_true",
                     help="Reseed SEED-ONCE files (.ai-badger/state.json, agent-instructions/"
                          "model.json, skills/prompt-markers/markers-context.json) from the "

@@ -132,7 +132,7 @@ def expand_requires(stacks: List[str], index: Dict) -> List[str]:
 
 
 def detect_agents(target: Path) -> List[str]:
-    """Detect which coding agents (claude/copilot/junie) this repo already has traces of."""
+    """Detect which coding agents (claude/copilot/junie/qwen) this repo already has traces of."""
     home = Path.home()
     agents: List[str] = []
     if (target / "CLAUDE.md").exists() or (home / ".claude").exists():
@@ -144,6 +144,8 @@ def detect_agents(target: Path) -> List[str]:
         agents.append("copilot")
     if (target / ".junie").is_dir() or (target / "AGENTS.md").exists():
         agents.append("junie")
+    if (target / "QWEN.md").exists() or (home / ".qwen").is_dir():
+        agents.append("qwen")
     return agents or ["claude"]
 
 

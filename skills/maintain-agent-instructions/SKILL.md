@@ -1,7 +1,7 @@
 ---
 name: maintain-agent-instructions
 description: >-
-  Maintain a project's Claude, Copilot, Junie, hosted-review, and path-scoped agent instructions
+  Maintain a project's Claude, Copilot, Junie, Qwen Code, hosted-review, and path-scoped agent instructions
   from the machine-readable agent-instructions model. Use this when updating agent policy, adding
   instructions, reducing instruction token usage, or checking drift between agent files.
 ---
@@ -10,7 +10,7 @@ description: >-
 
 This skill keeps agent guidance consistent while minimizing always-loaded context. It follows a
 hub-and-spoke model: one compact, always-loaded entrypoint per agent (`CLAUDE.md`,
-`.github/copilot-instructions.md`, `.junie/AGENTS.md`, …) plus detailed, path-scoped or on-demand
+`.github/copilot-instructions.md`, `.junie/AGENTS.md`, `QWEN.md`, …) plus detailed, path-scoped or on-demand
 instruction files. The model is machine-readable so drift between agent files can be checked by
 script instead of by eye — if the project records this decision as an ADR, link it here.
 
