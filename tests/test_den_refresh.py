@@ -111,7 +111,6 @@ def test_refresh_reports_up_to_date_when_no_drift(tmp_path, load_script, root):
     src = _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory.\n")
     _write_fw_index(fw)
 
-    import scripts.badger_lib as bl_fw
     # We need badger_lib from the test framework, not the mock
     bl = load_script("scripts/badger_lib.py")
     entry_hash = bl.sha256_file(src)
