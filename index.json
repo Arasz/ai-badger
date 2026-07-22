@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.2.0",
+  "frameworkVersion": "0.3.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -161,6 +161,10 @@
         {
           "name": "auto-wm",
           "path": "skills/auto-wm"
+        },
+        {
+          "name": "den-refresh",
+          "path": "skills/den-refresh"
         },
         {
           "name": "feed-badger",
