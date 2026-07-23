@@ -1,4 +1,4 @@
-"""Tests for skills/welcome-ai-badger/scripts/scaffold.py: Scaffolder behavior.
+"""Tests for features/common/skills/welcome-ai-badger/scripts/scaffold.py: Scaffolder behavior.
 
 test_scaffold_no_test_leak.py already covers the test-file anti-leak guarantee; this file
 exercises preserve-vs-managed file handling, no-stack-leakage, manifest shape, and the
@@ -27,7 +27,7 @@ def _config(stacks=None, source_control=None, commands=None, agents=None) -> dic
 
 # --------------------------------------------------------- preserve-by-default / overwrite
 def test_scaffold_preserves_hand_authored_claude_md_by_default(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
     hand_authored = "# My Curated Guidance\n\nDo not touch this.\n"
@@ -43,7 +43,7 @@ def test_scaffold_preserves_hand_authored_claude_md_by_default(tmp_path, load_sc
 
 
 def test_scaffold_overwrite_replaces_hand_authored_claude_md(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
     (target / "CLAUDE.md").write_text("# My Curated Guidance\n", encoding="utf-8")
@@ -57,7 +57,7 @@ def test_scaffold_overwrite_replaces_hand_authored_claude_md(tmp_path, load_scri
 
 
 def test_scaffold_managed_file_refreshes_on_second_run_without_overwrite(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -80,7 +80,7 @@ def test_scaffold_managed_file_refreshes_on_second_run_without_overwrite(tmp_pat
 
 # ------------------------------------------------------------------------- new-file creation
 def test_scaffold_creates_new_skill_dir_on_first_run(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
     assert not (target / ".ai-badger").exists()
@@ -97,7 +97,7 @@ def test_scaffold_creates_new_skill_dir_on_first_run(tmp_path, load_script, root
 
 # ------------------------------------------------------------------------------- no leakage
 def test_scaffold_no_stack_leakage(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -118,7 +118,7 @@ def test_scaffold_no_stack_leakage(tmp_path, load_script, root):
 
 
 def test_scaffold_no_stack_leakage_react_excludes_dotnet(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -135,7 +135,7 @@ def test_scaffold_no_stack_leakage_react_excludes_dotnet(tmp_path, load_script, 
 
 # -------------------------------------------------------------------------- manifest shape
 def test_scaffold_manifest_entries_have_expected_shape(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -149,7 +149,7 @@ def test_scaffold_manifest_entries_have_expected_shape(tmp_path, load_script, ro
                       "frameworkVersion", "hash"}
     for entry in entries:
         assert set(entry.keys()) == expected_keys
-        assert entry["source"].startswith("features/") or entry["source"].startswith("skills/")
+        assert entry["source"].startswith("features/")
         assert len(entry["hash"]) == 64
         int(entry["hash"], 16)  # must be valid hex
         assert entry["frameworkVersion"] == result["manifest"]["frameworkVersion"]
@@ -160,7 +160,7 @@ def test_scaffold_manifest_entries_have_expected_shape(tmp_path, load_script, ro
 
 # ------------------------------------------------------------------- github extension gate
 def test_scaffold_github_extension_embedded_when_platform_github(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
     config = _config(source_control={
@@ -177,7 +177,7 @@ def test_scaffold_github_extension_embedded_when_platform_github(tmp_path, load_
 
 
 def test_scaffold_github_extension_not_embedded_when_platform_none(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
     config = _config(source_control={"platform": "none", "repoUrl": None, "projectUrl": None})
@@ -193,12 +193,12 @@ def test_scaffold_github_extension_not_embedded_when_platform_none(tmp_path, loa
 
 # ---------------------------------------------------------------------- seed-once vs managed
 # GitHub issue Arasz/ai-badger#15: re-scaffolding a live project must never destroy project-owned
-# data. state.json (a task index) and skills/prompt-markers/markers-context.json (a project's
+# data. state.json (a task index) and features/common/skills/prompt-markers/markers-context.json (a project's
 # customized marker config) are SEED-ONCE: the framework writes them on first scaffold, then the
 # project owns them. Managed files (SKILL.md, scripts) inside the very same skill directory must
 # still refresh normally -- only the specific seed-once sub-file is protected.
 def test_scaffold_state_json_mutation_survives_second_scaffold(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -223,7 +223,7 @@ def test_scaffold_state_json_mutation_survives_second_scaffold(tmp_path, load_sc
 def test_scaffold_prompt_markers_config_mutation_survives_second_scaffold(
     tmp_path, load_script, root
 ):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -250,7 +250,7 @@ def test_scaffold_prompt_markers_skill_md_still_refreshes_when_config_is_preserv
     """Guard against over-correction: only markers-context.json is seed-once. SKILL.md (a
     managed file living in the very same skill directory) must still be refreshed to the
     framework's current content on re-scaffold."""
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -275,7 +275,7 @@ def test_scaffold_prompt_markers_skill_md_still_refreshes_when_config_is_preserv
 
 
 def test_scaffold_seeds_state_json_on_first_run(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -291,7 +291,7 @@ def test_scaffold_seeds_state_json_on_first_run(tmp_path, load_script, root):
 
 
 def test_scaffold_seeds_prompt_markers_config_on_first_run(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -302,7 +302,7 @@ def test_scaffold_seeds_prompt_markers_config_on_first_run(tmp_path, load_script
     marker_path = (target / ".ai-badger" / "skills" / "prompt-markers"
                    / "markers-context.json")
     assert marker_path.exists()
-    template = root / "skills" / "prompt-markers" / "markers-context.json"
+    template = root / "features" / "common" / "skills" / "prompt-markers" / "markers-context.json"
     assert json.loads(marker_path.read_text(encoding="utf-8")) == json.loads(
         template.read_text(encoding="utf-8"))
 
@@ -310,7 +310,7 @@ def test_scaffold_seeds_prompt_markers_config_on_first_run(tmp_path, load_script
 def test_scaffold_model_json_seed_once_regression_pin(tmp_path, load_script, root):
     """model.json's seed-once behavior is already correct but had zero test coverage before
     this pin -- nothing stopped a refactor from silently breaking it."""
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -333,7 +333,7 @@ def test_scaffold_model_json_seed_once_regression_pin(tmp_path, load_script, roo
 # ---------------------------------------------------------------------- hermes skill symlinks
 def test_scaffold_creates_hermes_skill_symlinks(tmp_path, load_script, root):
     """Scaffolding with hermes agent should symlink .hermes/skills/ → .ai-badger/skills/."""
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -359,7 +359,7 @@ def test_scaffold_creates_hermes_skill_symlinks(tmp_path, load_script, root):
 
 def test_scaffold_no_symlinks_without_hermes_agent(tmp_path, load_script, root):
     """Scaffolding without hermes should not create .hermes/skills/ symlinks."""
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -377,7 +377,7 @@ def test_scaffold_no_symlinks_without_hermes_agent(tmp_path, load_script, root):
 
 def test_rescaffold_recreates_hermes_symlinks(tmp_path, load_script, root):
     """Re-scaffold should recreate symlinks even if they already exist."""
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -403,7 +403,7 @@ def test_rescaffold_recreates_hermes_symlinks(tmp_path, load_script, root):
 
 
 def test_scaffold_reset_seed_files_flag_forces_reset(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -426,6 +426,6 @@ def test_scaffold_reset_seed_files_flag_forces_reset(tmp_path, load_script, root
     template_state = json.loads(
         (root / "features" / "common" / "templates" / "state.json").read_text(encoding="utf-8"))
     template_marker = json.loads(
-        (root / "skills" / "prompt-markers" / "markers-context.json").read_text(encoding="utf-8"))
+        (root / "features" / "common" / "skills" / "prompt-markers" / "markers-context.json").read_text(encoding="utf-8"))
     assert json.loads(state_path.read_text(encoding="utf-8")) == template_state
     assert json.loads(marker_path.read_text(encoding="utf-8")) == template_marker

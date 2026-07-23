@@ -34,7 +34,7 @@ def _write_plugin(tmp_path, version):
 
 
 def test_notice_when_scaffold_and_plugin_versions_differ(tmp_path, load_script):
-    dn = load_script("skills/task/scripts/drift_notice.py")
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
     project = tmp_path / "proj"
     _write_manifest(project, "0.1.0")
     plugin = _write_plugin(tmp_path, "0.2.0")
@@ -47,7 +47,7 @@ def test_notice_when_scaffold_and_plugin_versions_differ(tmp_path, load_script):
 
 def test_silent_when_versions_match(tmp_path, load_script):
     """A noisy hook gets ignored; silence on match is the whole point."""
-    dn = load_script("skills/task/scripts/drift_notice.py")
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
     project = tmp_path / "proj"
     _write_manifest(project, "0.2.0")
     plugin = _write_plugin(tmp_path, "0.2.0")
@@ -56,7 +56,7 @@ def test_silent_when_versions_match(tmp_path, load_script):
 
 
 def test_silent_when_no_manifest(tmp_path, load_script):
-    dn = load_script("skills/task/scripts/drift_notice.py")
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
     project = tmp_path / "unscaffolded"
     project.mkdir()
     plugin = _write_plugin(tmp_path, "0.2.0")
@@ -66,7 +66,7 @@ def test_silent_when_no_manifest(tmp_path, load_script):
 
 def test_silent_when_plugin_root_unset(tmp_path, load_script):
     """Called with no plugin root at all is not drift."""
-    dn = load_script("skills/task/scripts/drift_notice.py")
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
     project = tmp_path / "proj"
     _write_manifest(project, "0.1.0")
 
@@ -75,7 +75,7 @@ def test_silent_when_plugin_root_unset(tmp_path, load_script):
 
 def test_silent_when_manifest_is_malformed(tmp_path, load_script):
     """A broken manifest must never crash SessionStart."""
-    dn = load_script("skills/task/scripts/drift_notice.py")
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
     project = tmp_path / "proj"
     aib = project / ".ai-badger"
     aib.mkdir(parents=True)
@@ -89,7 +89,7 @@ def test_silent_when_manifest_is_a_json_list(tmp_path, load_script):
     """A syntactically valid but non-object manifest (e.g. `[1, 2, 3]`) must never crash
     SessionStart -- `.get()` on a list raises AttributeError, which the original except
     tuple (OSError, ValueError) does not catch."""
-    dn = load_script("skills/task/scripts/drift_notice.py")
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
     project = tmp_path / "proj"
     aib = project / ".ai-badger"
     aib.mkdir(parents=True)
@@ -101,7 +101,7 @@ def test_silent_when_manifest_is_a_json_list(tmp_path, load_script):
 
 def test_silent_when_manifest_is_a_bare_scalar(tmp_path, load_script):
     """Same failure mode as the list case, for a bare JSON scalar."""
-    dn = load_script("skills/task/scripts/drift_notice.py")
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
     project = tmp_path / "proj"
     aib = project / ".ai-badger"
     aib.mkdir(parents=True)
@@ -112,7 +112,7 @@ def test_silent_when_manifest_is_a_bare_scalar(tmp_path, load_script):
 
 
 def test_silent_when_manifest_missing_framework_version(tmp_path, load_script):
-    dn = load_script("skills/task/scripts/drift_notice.py")
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
     project = tmp_path / "proj"
     aib = project / ".ai-badger"
     aib.mkdir(parents=True)
@@ -123,7 +123,7 @@ def test_silent_when_manifest_missing_framework_version(tmp_path, load_script):
 
 
 def test_silent_when_plugin_has_no_version_file(tmp_path, load_script):
-    dn = load_script("skills/task/scripts/drift_notice.py")
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
     project = tmp_path / "proj"
     _write_manifest(project, "0.2.0")
     plugin = tmp_path / "plugin"
@@ -134,7 +134,7 @@ def test_silent_when_plugin_has_no_version_file(tmp_path, load_script):
 
 def test_session_start_hook_no_longer_owns_drift(load_script):
     """Regression guard for #24: the scaffolded hook must not keep a dead drift code path."""
-    hook = load_script("skills/task/scripts/session_start_hook.py")
+    hook = load_script("features/common/skills/task/scripts/session_start_hook.py")
 
     assert not hasattr(hook, "scaffold_drift_notice")
     assert not hasattr(hook, "os")
@@ -144,7 +144,7 @@ def test_hook_main_emits_notice_when_versions_differ(tmp_path, root, load_script
                                                        capsys):
     """End-to-end through drift_notice_hook.main(): crafted stdin + CLAUDE_PROJECT_DIR, no
     plugin-root guessing needed since the script self-locates from its own real path."""
-    hook = load_script("skills/task/scripts/drift_notice_hook.py")
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
     project = tmp_path / "proj"
     _write_manifest(project, "0.1.0")
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
@@ -164,7 +164,7 @@ def test_hook_main_emits_notice_when_versions_differ(tmp_path, root, load_script
 
 
 def test_hook_main_silent_when_versions_match(tmp_path, root, load_script, monkeypatch, capsys):
-    hook = load_script("skills/task/scripts/drift_notice_hook.py")
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
     project = tmp_path / "proj"
     plugin_version = (root / "VERSION").read_text(encoding="utf-8").strip()
     _write_manifest(project, plugin_version)
@@ -180,7 +180,7 @@ def test_hook_main_silent_when_versions_match(tmp_path, root, load_script, monke
 
 
 def test_hook_main_silent_when_no_manifest(tmp_path, load_script, monkeypatch, capsys):
-    hook = load_script("skills/task/scripts/drift_notice_hook.py")
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
     project = tmp_path / "unscaffolded"
     project.mkdir()
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
@@ -196,7 +196,7 @@ def test_hook_main_silent_when_no_manifest(tmp_path, load_script, monkeypatch, c
 
 def test_hook_main_silent_and_exit_zero_for_malformed_manifests(tmp_path, load_script,
                                                                   monkeypatch, capsys):
-    hook = load_script("skills/task/scripts/drift_notice_hook.py")
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
     for label, content in (
         ("json-list", "[1, 2, 3]"),
         ("bare-scalar", "42"),
@@ -219,7 +219,7 @@ def test_hook_main_silent_and_exit_zero_for_malformed_manifests(tmp_path, load_s
 
 def test_hook_main_falls_back_to_payload_cwd_when_project_dir_env_unset(
         tmp_path, root, load_script, monkeypatch, capsys):
-    hook = load_script("skills/task/scripts/drift_notice_hook.py")
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
     project = tmp_path / "proj"
     _write_manifest(project, "0.1.0")
     monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
@@ -240,12 +240,12 @@ def test_hook_main_falls_back_to_payload_cwd_when_project_dir_env_unset(
 def test_find_plugin_root_walks_ancestors_not_a_fixed_depth(tmp_path, load_script):
     """The regression test for the original bug class: a hardcoded `parents[N]` would
     misroot the moment the script's depth under the plugin root differs from the real repo's
-    (`skills/task/scripts/`, depth 3). Build a fixture plugin tree several levels deeper and
+    (`features/common/skills/task/scripts/`, depth 5). Build a fixture plugin tree several levels deeper and
     confirm the walk still finds it."""
-    hook = load_script("skills/task/scripts/drift_notice_hook.py")
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
 
     plugin_root = tmp_path / "some" / "install" / "path" / "ai-badger"
-    (plugin_root / "skills").mkdir(parents=True)
+    (plugin_root / "features" / "common" / "skills").mkdir(parents=True)
     (plugin_root / "VERSION").write_text("9.9.9\n", encoding="utf-8")
     deep_script_dir = plugin_root / "extra" / "nesting" / "that" / "does" / "not" / "exist" \
         / "in" / "the" / "real" / "repo"
@@ -257,7 +257,7 @@ def test_find_plugin_root_walks_ancestors_not_a_fixed_depth(tmp_path, load_scrip
 
 
 def test_find_plugin_root_returns_none_when_no_ancestor_qualifies(tmp_path, load_script):
-    hook = load_script("skills/task/scripts/drift_notice_hook.py")
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
     lonely = tmp_path / "no" / "version" / "or" / "skills" / "dir" / "here"
     lonely.mkdir(parents=True)
 
@@ -306,7 +306,7 @@ def _manifest_with_entry(target, source_rel, target_rel, entry_hash):
 
 
 def test_compare_reports_changed_when_framework_source_differs(tmp_path, load_script):
-    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     bl = load_script("scripts/badger_lib.py")
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
@@ -326,7 +326,7 @@ def test_compare_reports_changed_when_framework_source_differs(tmp_path, load_sc
 
 
 def test_compare_silent_when_source_unchanged(tmp_path, load_script):
-    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     bl = load_script("scripts/badger_lib.py")
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
@@ -344,7 +344,7 @@ def test_compare_silent_when_source_unchanged(tmp_path, load_script):
 
 def test_compare_reports_removed_when_source_gone(tmp_path, load_script):
     """A rename reads as removed — documented limitation, not a bug (ADR-0001 decision 5)."""
-    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
     fw.mkdir()
 
@@ -361,25 +361,25 @@ def test_compare_reports_directory_entry_as_skipped_not_changed(tmp_path, load_s
     """Directory entries can't be compared (recorded hash covers the scaffolded copy, which
     strips tests/evals and embeds extensions -- structurally different from the source tree).
     They must be surfaced as skipped, not silently dropped and not flagged as changed."""
-    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
-    skill_dir = fw / "skills" / "task"
+    skill_dir = fw / "features" / "common" / "skills" / "task"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text("content\n", encoding="utf-8")
 
     proj = tmp_path / "proj"
-    manifest = _manifest_with_entry(proj, "skills/task", ".ai-badger/skills/task", "0" * 64)
+    manifest = _manifest_with_entry(proj, "features/common/skills/task", ".ai-badger/skills/task", "0" * 64)
 
     result = drift.compare(fw, manifest)
 
-    assert "skills/task" in result["skipped"]
-    assert "skills/task" not in result["changed"]
+    assert "features/common/skills/task" in result["skipped"]
+    assert "features/common/skills/task" not in result["changed"]
 
 
 def test_compare_reports_removed_directory_entry_as_removed_not_skipped(tmp_path, load_script):
     """Deletion of a directory-valued entry's source is still detectable and must be
     reported as removed, not skipped."""
-    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
     fw.mkdir()
 
@@ -395,7 +395,7 @@ def test_compare_reports_removed_directory_entry_as_removed_not_skipped(tmp_path
 
 def test_compare_changed_file_entry_does_not_appear_in_skipped(tmp_path, load_script):
     """File entries are unaffected by the directory-skip path."""
-    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     bl = load_script("scripts/badger_lib.py")
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
@@ -417,21 +417,21 @@ def test_compare_changed_file_entry_does_not_appear_in_skipped(tmp_path, load_sc
 def test_main_exits_zero_when_only_skipped_entries(tmp_path, load_script, capsys):
     """Skipped-only drift is informational, not actionable -- exit 0, not 1. The summary must
     be honest that skipped entries were never compared, not claim a clean "no drift"."""
-    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
-    skill_dir = fw / "skills" / "task"
+    skill_dir = fw / "features" / "common" / "skills" / "task"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text("content\n", encoding="utf-8")
     (fw / "VERSION").write_text("0.2.0\n", encoding="utf-8")
 
     proj = tmp_path / "proj"
-    _manifest_with_entry(proj, "skills/task", ".ai-badger/skills/task", "0" * 64)
+    _manifest_with_entry(proj, "features/common/skills/task", ".ai-badger/skills/task", "0" * 64)
 
     rc = drift.main(["--root", str(fw), "--target", str(proj)])
 
     assert rc == 0
     out = capsys.readouterr().out
-    assert "skills/task" in out
+    assert "features/common/skills/task" in out
     assert "no drift among the entries that could be compared" in out
     assert "1 skipped entry was not checked" in out
     assert "no drift — every scaffolded item matches" not in out
@@ -441,7 +441,7 @@ def test_main_prints_genuinely_clean_message_when_nothing_skipped(
         tmp_path, load_script, capsys):
     """The original unconditional "no drift" wording is still used verbatim when there is
     truly nothing to be dishonest about -- no changed/removed/skipped entries at all."""
-    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
     fw.mkdir()
     (fw / "VERSION").write_text("0.2.0\n", encoding="utf-8")
@@ -464,7 +464,7 @@ def test_main_prints_genuinely_clean_message_when_nothing_skipped(
 def test_main_returns_usage_error_on_corrupt_manifest(tmp_path, load_script, capsys):
     """A malformed manifest.json must produce a friendly exit-2 message, not a raw
     JSONDecodeError traceback."""
-    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
     fw.mkdir()
     (fw / "VERSION").write_text("0.2.0\n", encoding="utf-8")
@@ -485,7 +485,7 @@ def test_main_returns_usage_error_on_corrupt_manifest(tmp_path, load_script, cap
 def test_compare_skips_entry_missing_source_or_hash_without_crashing(tmp_path, load_script):
     """A schema-invalid manifest entry (missing `source` or `hash`) must not raise KeyError.
     It is skipped and counted, not silently swallowed."""
-    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
     fw.mkdir()
 
@@ -512,7 +512,7 @@ def test_compare_skips_entry_missing_source_or_hash_without_crashing(tmp_path, l
 
 def test_main_reports_invalid_entry_count_in_output(tmp_path, load_script, capsys):
     """The invalid-entry count must be visible in main()'s output, not swallowed."""
-    drift = load_script("skills/welcome-ai-badger/scripts/drift.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
     fw.mkdir()
     (fw / "VERSION").write_text("0.2.0\n", encoding="utf-8")

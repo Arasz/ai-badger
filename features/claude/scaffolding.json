@@ -1,0 +1,13 @@
+{
+  "agent": "claude",
+  "description": "Claude Code agent discovery files: CLAUDE.md at project root with managed header pointing at .ai-badger/CLAUDE.md as source of truth.",
+  "files": [
+    {
+      "source": "templates/CLAUDE.md.tmpl",
+      "target": "CLAUDE.md",
+      "managed": true,
+      "template": true,
+      "aibCopy": "CLAUDE.md"
+    }
+  ]
+}

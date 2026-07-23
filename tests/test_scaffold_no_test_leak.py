@@ -25,10 +25,10 @@ def _minimal_config() -> dict:
 
 
 def test_scaffold_excludes_test_files_from_skills(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
     # plant a stray test file inside the real task skill source, mimicking future test drift
-    skill_scripts = root / "skills" / "task" / "scripts"
+    skill_scripts = root / "features" / "common" / "skills" / "task" / "scripts"
     planted = skill_scripts / "test_should_not_scaffold.py"
     planted.write_text("def test_noop():\n    assert True\n", encoding="utf-8")
     try:
@@ -55,7 +55,7 @@ def test_scaffold_excludes_evals_from_skills(tmp_path, load_script, root):
 
     It must never land in a target repo's .ai-badger/skills/task/, the same way test files don't.
     """
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
     target = tmp_path / "proj"
     (target / "src").mkdir(parents=True)

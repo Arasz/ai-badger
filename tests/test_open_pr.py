@@ -26,7 +26,7 @@ def _argv(checkout, branch="feed/my-feature", title="Add my-feature", body_file=
 
 
 def test_dry_run_makes_zero_subprocess_calls(tmp_path, load_script, capsys):
-    open_pr = load_script("skills/feed-badger/scripts/open_pr.py")
+    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
     checkout = tmp_path / "checkout"
     checkout.mkdir()
 
@@ -46,7 +46,7 @@ def test_dry_run_makes_zero_subprocess_calls(tmp_path, load_script, capsys):
 
 
 def test_typical_flow_issues_expected_commands_in_order(tmp_path, load_script, capsys):
-    open_pr = load_script("skills/feed-badger/scripts/open_pr.py")
+    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
     checkout = tmp_path / "checkout"
     checkout.mkdir()
     body_file = tmp_path / "body.md"
@@ -90,7 +90,7 @@ def test_typical_flow_issues_expected_commands_in_order(tmp_path, load_script, c
 
 
 def test_default_repo_is_used_when_not_specified(tmp_path, load_script):
-    open_pr = load_script("skills/feed-badger/scripts/open_pr.py")
+    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
     checkout = tmp_path / "checkout"
     checkout.mkdir()
 
@@ -104,7 +104,7 @@ def test_default_repo_is_used_when_not_specified(tmp_path, load_script):
 
 
 def test_stops_and_returns_failure_code_when_a_step_fails(tmp_path, load_script, capsys):
-    open_pr = load_script("skills/feed-badger/scripts/open_pr.py")
+    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
     checkout = tmp_path / "checkout"
     checkout.mkdir()
 
@@ -123,7 +123,7 @@ def test_stops_and_returns_failure_code_when_a_step_fails(tmp_path, load_script,
 def test_no_real_subprocess_invoked_without_patch_would_be_caught(tmp_path, load_script):
     """Sanity check on the test harness itself: confirms `run()` really delegates to
     `subprocess.run` (so patching it is sufficient to guarantee no real process starts)."""
-    open_pr = load_script("skills/feed-badger/scripts/open_pr.py")
+    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
     checkout = tmp_path / "checkout"
     checkout.mkdir()
 

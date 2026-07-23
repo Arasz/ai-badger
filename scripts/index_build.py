@@ -3,7 +3,6 @@
 
 index.json is the source of truth consumed by welcome-ai-badger / feed-badger. Run this
 after ANY change to framework content. Mechanical; no LLM, no network.
-
 Feature discovery rules per <stack>/<feature>/:
   skills        -> each subdir containing SKILL.md
   personas      -> each *.md (excluding README.md), name = stem
@@ -11,6 +10,9 @@ Feature discovery rules per <stack>/<feature>/:
   instructions  -> each *.md (excluding README.md), name = stem
   plugins       -> each subdir containing plugins.json
   templates     -> each top-level file/dir (common only)
+
+Common skills live at features/common/skills/ and are discovered by iter_feature_dirs
+like any other stack feature.
 
 Skill extensions: a dir at <stack>/skills/<base>-extensions/<ext>/ attaches <ext> to the
 skill named <base> (searched across stacks). Per-stack metadata is read from
@@ -91,13 +93,6 @@ def build_index(root: Path) -> dict:
             items = _md_items(fdir, root)
         if items:
             bucket[feature] = items
-
-    # root skills/ is the installable plugin skills dir == common.skills
-    root_skills = root / "skills"
-    if root_skills.is_dir():
-        items = _skill_items(root_skills, root)
-        if items:
-            ensure("common").setdefault("skills", []).extend(items)
 
     # skill extensions: features/<stack>/skills/<base>-extensions/<ext>/
     for stack_dir in sorted(p for p in (root / "features").iterdir() if p.is_dir()):

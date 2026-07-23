@@ -34,16 +34,16 @@ import drift_notice  # pylint: disable=wrong-import-position
 
 def find_plugin_root(start: Path) -> Optional[Path]:
     """Ancestor-walk from `start` for the plugin root: the nearest ancestor (inclusive)
-    containing both a `VERSION` file and a `skills/` directory.
+    containing both a `VERSION` file and a `features/common/skills/` directory.
 
     Deliberately NOT a fixed `Path(__file__).parents[N]` -- a hardcoded `PROJECT_ROOT =
     SCRIPT_DIR.parents[3]` shipped as a real misrooting bug in this repo before, fixed by #12
     (see ADR-0001's Context section). This script's own depth under the plugin root
-    (`skills/task/scripts/drift_notice_hook.py`) is 3, but the walk does not assume that; it
-    matches the `_bootstrap_lib()` idiom used by `scaffold.py`/`drift.py`.
+    (`features/common/skills/task/scripts/drift_notice_hook.py`) is 5, but the walk does not
+    assume that; it matches the `_bootstrap_lib()` idiom used by `scaffold.py`/`drift.py`.
     """
     for anc in [start, *start.parents]:
-        if (anc / "VERSION").is_file() and (anc / "skills").is_dir():
+        if (anc / "VERSION").is_file() and (anc / "features" / "common" / "skills").is_dir():
             return anc
     return None
 

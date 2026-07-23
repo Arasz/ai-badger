@@ -30,7 +30,7 @@ def _redirect(tl, tmp_path):
 
 
 def _load(load_script, tmp_path):
-    tl = load_script("skills/task/scripts/tracker_lib.py")
+    tl = load_script("features/common/skills/task/scripts/tracker_lib.py")
     _redirect(tl, tmp_path)
     return tl
 
@@ -174,7 +174,7 @@ def test_module_level_constants_fall_back_to_parents_index_by_default(load_scrip
     isolated_cwd.mkdir()
     monkeypatch.chdir(isolated_cwd)
 
-    tl = load_script("skills/task/scripts/tracker_lib.py")
+    tl = load_script("features/common/skills/task/scripts/tracker_lib.py")
 
     assert tl.PROJECT_ROOT == tl.SCRIPT_DIR.parents[3]
     assert tl.DATA_DIR == tl.PROJECT_ROOT / ".ai-badger" / "task-tracking"
@@ -187,7 +187,7 @@ def test_module_level_constants_pick_up_claude_project_dir_env_at_import(
     env_project.mkdir()
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(env_project))
 
-    tl = load_script("skills/task/scripts/tracker_lib.py")
+    tl = load_script("features/common/skills/task/scripts/tracker_lib.py")
 
     assert tl.PROJECT_ROOT == env_project
     assert tl.DATA_DIR == env_project / ".ai-badger" / "task-tracking"

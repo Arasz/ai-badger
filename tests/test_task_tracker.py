@@ -24,7 +24,7 @@ from datetime import timedelta
 
 import pytest
 
-SCRIPT_RELPATH = "skills/task/scripts/task_tracker.py"
+SCRIPT_RELPATH = "features/common/skills/task/scripts/task_tracker.py"
 
 
 class _GuardedSubprocess:
@@ -53,7 +53,7 @@ def _redirect_lib(lib, tmp_path):
 
 @pytest.fixture
 def tt(load_script, root, monkeypatch, tmp_path):
-    scripts_dir = str(root / "skills" / "task" / "scripts")
+    scripts_dir = str(root / "features" / "common" / "skills" / "task" / "scripts")
     monkeypatch.syspath_prepend(scripts_dir)
     module = load_script(SCRIPT_RELPATH)
     _redirect_lib(module.lib, tmp_path)

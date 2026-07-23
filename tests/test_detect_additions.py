@@ -25,7 +25,7 @@ def _run(detect_additions, target, capsys):
 
 
 def test_missing_manifest_reports_error_and_nonzero_exit(tmp_path, load_script, capsys):
-    detect_additions = load_script("skills/feed-badger/scripts/detect_additions.py")
+    detect_additions = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -36,7 +36,7 @@ def test_missing_manifest_reports_error_and_nonzero_exit(tmp_path, load_script, 
 
 
 def test_new_candidate_when_managed_file_absent_from_manifest(tmp_path, load_script, capsys):
-    detect_additions = load_script("skills/feed-badger/scripts/detect_additions.py")
+    detect_additions = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
     target = tmp_path / "proj"
     aib = target / ".ai-badger"
     _write_manifest(aib, entries=[])
@@ -59,7 +59,7 @@ def test_new_candidate_when_managed_file_absent_from_manifest(tmp_path, load_scr
 def test_changed_candidate_when_on_disk_hash_differs_from_manifest(
     tmp_path, load_script, capsys
 ):
-    detect_additions = load_script("skills/feed-badger/scripts/detect_additions.py")
+    detect_additions = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
     bl = load_script("scripts/badger_lib.py")
     target = tmp_path / "proj"
     aib = target / ".ai-badger"
@@ -89,7 +89,7 @@ def test_changed_candidate_when_on_disk_hash_differs_from_manifest(
 
 
 def test_no_candidate_when_managed_file_matches_manifest_hash(tmp_path, load_script, capsys):
-    detect_additions = load_script("skills/feed-badger/scripts/detect_additions.py")
+    detect_additions = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
     bl = load_script("scripts/badger_lib.py")
     target = tmp_path / "proj"
     aib = target / ".ai-badger"
@@ -111,7 +111,7 @@ def test_no_candidate_when_managed_file_matches_manifest_hash(tmp_path, load_scr
 
 
 def test_plugins_directory_scanned_for_new_candidates(tmp_path, load_script, capsys):
-    detect_additions = load_script("skills/feed-badger/scripts/detect_additions.py")
+    detect_additions = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
     target = tmp_path / "proj"
     aib = target / ".ai-badger"
     _write_manifest(aib, entries=[])
@@ -132,7 +132,7 @@ def test_plugins_directory_scanned_for_new_candidates(tmp_path, load_script, cap
 def test_directory_level_skill_entry_reported_changed_once_when_drifted(
     tmp_path, load_script, capsys
 ):
-    detect_additions = load_script("skills/feed-badger/scripts/detect_additions.py")
+    detect_additions = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
     bl = load_script("scripts/badger_lib.py")
     target = tmp_path / "proj"
     aib = target / ".ai-badger"
@@ -144,7 +144,7 @@ def test_directory_level_skill_entry_reported_changed_once_when_drifted(
     scaffolded_hash = bl.sha256_file(skill_dir)
     _write_manifest(aib, entries=[{
         "feature": "skills", "stack": "common", "name": "task",
-        "source": "skills/task",
+        "source": "features/common/skills/task",
         "target": ".ai-badger/skills/task",
         "frameworkVersion": "0.1.0", "hash": scaffolded_hash,
     }])
@@ -165,7 +165,7 @@ def test_directory_level_skill_entry_reported_changed_once_when_drifted(
 def test_directory_level_skill_entry_unchanged_produces_zero_candidates(
     tmp_path, load_script, capsys
 ):
-    detect_additions = load_script("skills/feed-badger/scripts/detect_additions.py")
+    detect_additions = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
     bl = load_script("scripts/badger_lib.py")
     target = tmp_path / "proj"
     aib = target / ".ai-badger"
@@ -175,7 +175,7 @@ def test_directory_level_skill_entry_unchanged_produces_zero_candidates(
     scaffolded_hash = bl.sha256_file(skill_dir)
     _write_manifest(aib, entries=[{
         "feature": "skills", "stack": "common", "name": "task",
-        "source": "skills/task",
+        "source": "features/common/skills/task",
         "target": ".ai-badger/skills/task",
         "frameworkVersion": "0.1.0", "hash": scaffolded_hash,
     }])
@@ -205,8 +205,8 @@ def _minimal_config():
 def test_pristine_scaffold_produces_zero_candidates(tmp_path, load_script, root, capsys):
     """Strongest end-to-end check: a target scaffolded by the real scaffold.py, diffed
     immediately by detect_additions, must show nothing new/changed."""
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
-    detect_additions = load_script("skills/feed-badger/scripts/detect_additions.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    detect_additions = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
 
     target = tmp_path / "proj"
     target.mkdir()

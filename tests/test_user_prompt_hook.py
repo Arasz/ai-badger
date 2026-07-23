@@ -47,7 +47,7 @@ def _run_main_never_raises(module, monkeypatch, payload):
 
 def test_recognized_marker_prefix_injects_expected_context(tmp_path, load_script, monkeypatch,
                                                              capsys):
-    hook = load_script("skills/prompt-markers/scripts/user_prompt_hook.py")
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
     config_path = tmp_path / "markers-context.json"
     _write_markers_context(config_path)
     monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
@@ -65,7 +65,7 @@ def test_recognized_marker_prefix_injects_expected_context(tmp_path, load_script
 
 
 def test_marker_match_is_case_insensitive(tmp_path, load_script, monkeypatch, capsys):
-    hook = load_script("skills/prompt-markers/scripts/user_prompt_hook.py")
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
     config_path = tmp_path / "markers-context.json"
     _write_markers_context(config_path)
     monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
@@ -78,7 +78,7 @@ def test_marker_match_is_case_insensitive(tmp_path, load_script, monkeypatch, ca
 
 
 def test_no_marker_present_is_silent(tmp_path, load_script, monkeypatch, capsys):
-    hook = load_script("skills/prompt-markers/scripts/user_prompt_hook.py")
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
     config_path = tmp_path / "markers-context.json"
     _write_markers_context(config_path)
     monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
@@ -91,7 +91,7 @@ def test_no_marker_present_is_silent(tmp_path, load_script, monkeypatch, capsys)
 
 def test_marker_text_not_at_start_is_not_treated_as_marker(tmp_path, load_script, monkeypatch,
                                                              capsys):
-    hook = load_script("skills/prompt-markers/scripts/user_prompt_hook.py")
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
     config_path = tmp_path / "markers-context.json"
     _write_markers_context(config_path)
     monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
@@ -105,7 +105,7 @@ def test_marker_text_not_at_start_is_not_treated_as_marker(tmp_path, load_script
 
 def test_missing_markers_context_file_is_silent_failure(tmp_path, load_script, monkeypatch,
                                                           capsys):
-    hook = load_script("skills/prompt-markers/scripts/user_prompt_hook.py")
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
     monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", tmp_path / "does-not-exist.json")
 
     rc = _run_main_never_raises(hook, monkeypatch, {"prompt": "h: test", "cwd": str(tmp_path)})
@@ -116,7 +116,7 @@ def test_missing_markers_context_file_is_silent_failure(tmp_path, load_script, m
 
 def test_invalid_markers_context_json_is_silent_failure(tmp_path, load_script, monkeypatch,
                                                           capsys):
-    hook = load_script("skills/prompt-markers/scripts/user_prompt_hook.py")
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
     config_path = tmp_path / "markers-context.json"
     config_path.write_text("{not valid json", encoding="utf-8")
     monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
@@ -129,7 +129,7 @@ def test_invalid_markers_context_json_is_silent_failure(tmp_path, load_script, m
 
 def test_marker_usage_recorded_when_tracking_dir_exists(tmp_path, load_script, monkeypatch,
                                                           capsys):
-    hook = load_script("skills/prompt-markers/scripts/user_prompt_hook.py")
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
     config_path = tmp_path / "markers-context.json"
     _write_markers_context(config_path)
     monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
@@ -152,7 +152,7 @@ def test_marker_usage_recorded_when_tracking_dir_exists(tmp_path, load_script, m
 
 def test_marker_usage_not_recorded_when_tracking_dir_absent(tmp_path, load_script, monkeypatch,
                                                               capsys):
-    hook = load_script("skills/prompt-markers/scripts/user_prompt_hook.py")
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
     config_path = tmp_path / "markers-context.json"
     _write_markers_context(config_path)
     monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)

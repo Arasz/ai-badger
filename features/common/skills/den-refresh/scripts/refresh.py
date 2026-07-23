@@ -73,7 +73,7 @@ def check_prerequisites(target: Path) -> Optional[str]:
 
 def run_drift(root: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
     """Run drift comparison against the framework's current content."""
-    drift_mod = _load_script("skills/welcome-ai-badger/scripts/drift.py", root)
+    drift_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/drift.py", root)
     return drift_mod.compare(root, manifest)
 
 
@@ -86,7 +86,7 @@ def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
     (e.g., task with github/hermes extensions) are re-scaffolded and
     their extensions re-embedded.
     """
-    scaffold_mod = _load_script("skills/welcome-ai-badger/scripts/scaffold.py", root)
+    scaffold_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py", root)
 
     # Extract skill names from manifest entries
     skill_names = list(dict.fromkeys(

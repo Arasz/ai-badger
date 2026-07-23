@@ -1,0 +1,13 @@
+{
+  "agent": "junie",
+  "description": "JetBrains Junie agent discovery files: AGENTS.md under .junie/.",
+  "files": [
+    {
+      "source": "templates/AGENTS.md.tmpl",
+      "target": ".junie/AGENTS.md",
+      "managed": true,
+      "template": true,
+      "aibCopy": "AGENTS.md"
+    }
+  ]
+}

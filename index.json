@@ -74,7 +74,62 @@
         "commands": {}
       }
     },
+    "claude": {
+      "templates": [
+        {
+          "name": "CLAUDE.md.tmpl",
+          "path": "features/claude/templates/CLAUDE.md.tmpl"
+        }
+      ],
+      "meta": {
+        "description": "Claude Code: Anthropic's CLI-based coding agent with project-local CLAUDE.md instructions, plugin system, and hooks.",
+        "detectionSignals": [
+          "CLAUDE.md",
+          ".claude"
+        ],
+        "requires": [],
+        "commands": {}
+      }
+    },
     "common": {
+      "skills": [
+        {
+          "name": "auto-wm",
+          "path": "features/common/skills/auto-wm"
+        },
+        {
+          "name": "den-refresh",
+          "path": "features/common/skills/den-refresh"
+        },
+        {
+          "name": "feed-badger",
+          "path": "features/common/skills/feed-badger"
+        },
+        {
+          "name": "maintain-agent-instructions",
+          "path": "features/common/skills/maintain-agent-instructions"
+        },
+        {
+          "name": "mcp-index",
+          "path": "features/common/skills/mcp-index"
+        },
+        {
+          "name": "prompt-markers",
+          "path": "features/common/skills/prompt-markers"
+        },
+        {
+          "name": "task",
+          "path": "features/common/skills/task",
+          "extensions": [
+            "github",
+            "hermes"
+          ]
+        },
+        {
+          "name": "welcome-ai-badger",
+          "path": "features/common/skills/welcome-ai-badger"
+        }
+      ],
       "personas": [
         {
           "name": "architect",
@@ -160,43 +215,13 @@
           "name": "state.json",
           "path": "features/common/templates/state.json"
         }
-      ],
-      "skills": [
+      ]
+    },
+    "copilot": {
+      "templates": [
         {
-          "name": "auto-wm",
-          "path": "skills/auto-wm"
-        },
-        {
-          "name": "den-refresh",
-          "path": "skills/den-refresh"
-        },
-        {
-          "name": "feed-badger",
-          "path": "skills/feed-badger"
-        },
-        {
-          "name": "maintain-agent-instructions",
-          "path": "skills/maintain-agent-instructions"
-        },
-        {
-          "name": "mcp-index",
-          "path": "skills/mcp-index"
-        },
-        {
-          "name": "prompt-markers",
-          "path": "skills/prompt-markers"
-        },
-        {
-          "name": "task",
-          "path": "skills/task",
-          "extensions": [
-            "github",
-            "hermes"
-          ]
-        },
-        {
-          "name": "welcome-ai-badger",
-          "path": "skills/welcome-ai-badger"
+          "name": "copilot-instructions.md.tmpl",
+          "path": "features/copilot/templates/copilot-instructions.md.tmpl"
         }
       ]
     },
@@ -297,6 +322,12 @@
           "path": "features/hermes/instructions/hermes.instructions.md"
         }
       ],
+      "templates": [
+        {
+          "name": "HERMES.md.tmpl",
+          "path": "features/hermes/templates/HERMES.md.tmpl"
+        }
+      ],
       "meta": {
         "description": "Hermes Agent framework: multi-model AI agent with skills, persistent memory, multi-platform gateway, cron scheduling, and subagent delegation. Supports any LLM provider (OpenRouter, Anthropic, OpenAI, Google, DeepSeek, etc.).",
         "detectionSignals": [
@@ -328,6 +359,14 @@
         "requires": [],
         "commands": {}
       }
+    },
+    "junie": {
+      "templates": [
+        {
+          "name": "AGENTS.md.tmpl",
+          "path": "features/junie/templates/AGENTS.md.tmpl"
+        }
+      ]
     },
     "mcp": {
       "invariants": [

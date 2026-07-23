@@ -22,7 +22,7 @@ import pytest
 
 @pytest.fixture
 def resume_cron(tmp_path, load_script, monkeypatch):
-    module = load_script("skills/task/scripts/resume_cron.py")
+    module = load_script("features/common/skills/task/scripts/resume_cron.py")
     data_dir = tmp_path / "data"
     monkeypatch.setattr(module.lib, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(module.lib, "DATA_DIR", data_dir)

@@ -19,7 +19,7 @@
       "description": "True when scaffolded from a working tree with uncommitted changes: provenance that is not reproducible. False from a plugin cache, where local edits are impossible."
     },
     "generatedAt": { "type": ["string", "null"], "description": "ISO timestamp stamped by the orchestrator after scaffold (scripts avoid nondeterministic clocks)." },
-    "agents": { "type": "array", "items": { "enum": ["claude", "copilot", "junie"] } },
+    "agents": { "type": "array", "items": { "enum": ["claude", "copilot", "junie", "hermes"] } },
     "pluginScope": { "enum": ["default", "local"] },
     "entries": {
       "type": "array",
