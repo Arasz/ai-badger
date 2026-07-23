@@ -1,0 +1,6 @@
+{
+  "skill": "task",
+  "extension": "hermes",
+  "requires": [],
+  "description": "Adapts task orchestration for Hermes Agent: delegate_task for subagents, memory for context persistence, session_search for cross-session recall. Embedded unconditionally when a Hermes project is scaffolded."
+}

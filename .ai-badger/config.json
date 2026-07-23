@@ -13,7 +13,8 @@
   ],
   "agents": [
     "claude",
-    "copilot"
+    "copilot",
+    "hermes"
   ],
   "sourceControl": {
     "platform": "github",

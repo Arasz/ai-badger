@@ -1,12 +1,13 @@
 {
   "$schema": "../schemas/manifest.schema.json",
-  "frameworkVersion": "0.2.0",
-  "frameworkCommit": "810e95b9c211fc0c487b1a6064121d845f8b4d8c",
+  "frameworkVersion": "0.6.0",
+  "frameworkCommit": "5bb397828ffdfe8507936486415b1ebc5f75b3ec",
   "frameworkDirty": true,
-  "generatedAt": null,
+  "generatedAt": "2026-07-23T21:20:00Z",
   "agents": [
     "claude",
-    "copilot"
+    "copilot",
+    "hermes"
   ],
   "pluginScope": "default",
   "entries": [
@@ -16,7 +17,7 @@
       "name": "architect",
       "source": "features/common/personas/architect.md",
       "target": ".ai-badger/agents/architect.md",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "4614d118464b9bc9db87b3a7075b7a8d71c3e3b2f09faea4bd8a630f5a8349ac"
     },
     {
@@ -25,7 +26,7 @@
       "name": "code-reviewer",
       "source": "features/common/personas/code-reviewer.md",
       "target": ".ai-badger/agents/code-reviewer.md",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "e49eedc6c6cb3a14de19f86e50adc232aa008db62c2c061029fe371202f4e849"
     },
     {
@@ -34,7 +35,7 @@
       "name": "test-engineer",
       "source": "features/common/personas/test-engineer.md",
       "target": ".ai-badger/agents/test-engineer.md",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "c48501ca0af5bf8a186324c17a00f73e2426095163a383086517faa9592e2057"
     },
     {
@@ -43,7 +44,7 @@
       "name": "documentation.instructions",
       "source": "features/common/instructions/documentation.instructions.md",
       "target": ".ai-badger/instructions/documentation.instructions.md",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "49d0deaa5e85453ef729cab6fbb443ad079eaf3a6bab6d82d9d735cced36c4ca"
     },
     {
@@ -52,7 +53,7 @@
       "name": "python.instructions",
       "source": "features/python/instructions/python.instructions.md",
       "target": ".ai-badger/instructions/python.instructions.md",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "a78607719b69927ece0d3ba8115037005c36ebd19aad6fefa0ce145a99c1b79d"
     },
     {
@@ -61,7 +62,7 @@
       "name": "javascript.instructions",
       "source": "features/js/instructions/javascript.instructions.md",
       "target": ".ai-badger/instructions/javascript.instructions.md",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "aee34b31f88b32868758abe80d1f4676e9cc4268b83a71eebe22dacc2ceeb59c"
     },
     {
@@ -70,7 +71,7 @@
       "name": "guard-clauses",
       "source": "features/common/invariants/guard-clauses.md",
       "target": ".ai-badger/invariants/guard-clauses.md",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "81e27d082d09fbf6d93cfac034f07eea3481d77e36a176d5170e4c55c8ead4fb"
     },
     {
@@ -79,7 +80,7 @@
       "name": "minimal-comments",
       "source": "features/common/invariants/minimal-comments.md",
       "target": ".ai-badger/invariants/minimal-comments.md",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "28c17e954bfc850a6441c2ccbc032318d60085695b1320536e2b75bd563d0079"
     },
     {
@@ -88,7 +89,7 @@
       "name": "no-hand-rolled-crypto",
       "source": "features/common/invariants/no-hand-rolled-crypto.md",
       "target": ".ai-badger/invariants/no-hand-rolled-crypto.md",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "cbf086eeac7d8f6449d58c711b39e2aecbdff6885f4ed8575d090ae6cf8c1996"
     },
     {
@@ -97,7 +98,7 @@
       "name": "no-hardcoded-secrets",
       "source": "features/common/invariants/no-hardcoded-secrets.md",
       "target": ".ai-badger/invariants/no-hardcoded-secrets.md",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "b7433087d8f1260ace6a99ca3055286b89c16934e933c5e90834310c86c05e18"
     },
     {
@@ -106,7 +107,7 @@
       "name": "pr-per-task",
       "source": "features/common/invariants/pr-per-task.md",
       "target": ".ai-badger/invariants/pr-per-task.md",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "28d40ad3ab3c5c230903f527faebf752f6587739a2e05d5d37013588486545b6"
     },
     {
@@ -115,7 +116,7 @@
       "name": "screaming-architecture",
       "source": "features/common/invariants/screaming-architecture.md",
       "target": ".ai-badger/invariants/screaming-architecture.md",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "3fea8c23b252277aa3f003ef03944c66654384ef3a49c18e8b2e0a4a87581dcc"
     },
     {
@@ -124,7 +125,7 @@
       "name": "small-commits-early-draft-pr",
       "source": "features/common/invariants/small-commits-early-draft-pr.md",
       "target": ".ai-badger/invariants/small-commits-early-draft-pr.md",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "77d2954d232a9b7c1fc0c1186681979a4215cba322421521de584d1a4b175d4f"
     },
     {
@@ -133,8 +134,80 @@
       "name": "tdd-mandatory",
       "source": "features/common/invariants/tdd-mandatory.md",
       "target": ".ai-badger/invariants/tdd-mandatory.md",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "59b4a6d1cda4e11820f79949f673c45cdaa4f69d528d5be00a7fdfef63391b2b"
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "auto-wm",
+      "source": "skills/auto-wm",
+      "target": ".ai-badger/skills/auto-wm",
+      "frameworkVersion": "0.6.0",
+      "hash": "4945c312a8ec8ac11af5337e1d67e3510c4b268aa9b53bb0a1f9f8446dfb1b98"
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "den-refresh",
+      "source": "skills/den-refresh",
+      "target": ".ai-badger/skills/den-refresh",
+      "frameworkVersion": "0.6.0",
+      "hash": "6b9cd48c894800ce0dfe4468e936f8a6da9c67c80308cfa42352a8dc2912b0b0"
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "feed-badger",
+      "source": "skills/feed-badger",
+      "target": ".ai-badger/skills/feed-badger",
+      "frameworkVersion": "0.6.0",
+      "hash": "6df9af3f6a73446240284b2b288ec8752da4832b60a57b27f7e1ee73445688c4"
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "maintain-agent-instructions",
+      "source": "skills/maintain-agent-instructions",
+      "target": ".ai-badger/skills/maintain-agent-instructions",
+      "frameworkVersion": "0.6.0",
+      "hash": "42d1926313a3dac4321b7036006d474b0a425061acc100a14361e12ab75d5a44"
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "mcp-index",
+      "source": "skills/mcp-index",
+      "target": ".ai-badger/skills/mcp-index",
+      "frameworkVersion": "0.6.0",
+      "hash": "6ed7c9740e37aa20ef6372626e9731ab6ff15c9bab54542499a4287b9a447cde"
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "prompt-markers",
+      "source": "skills/prompt-markers",
+      "target": ".ai-badger/skills/prompt-markers",
+      "frameworkVersion": "0.6.0",
+      "hash": "975157c8abb8bedd45590fb54dca66b5c444198bb3763d6b93987e74fc48780a"
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "task",
+      "source": "skills/task",
+      "target": ".ai-badger/skills/task",
+      "frameworkVersion": "0.6.0",
+      "hash": "ae44a3eeaa6b0739ae6c10b94f34235355cbdc9bb434d2a39422189f7e7d0f50"
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "welcome-ai-badger",
+      "source": "skills/welcome-ai-badger",
+      "target": ".ai-badger/skills/welcome-ai-badger",
+      "frameworkVersion": "0.6.0",
+      "hash": "86a9b2448758a150c95ad3053c85927550443bbb2f3a71bb19b742dfc1fb13c4"
     },
     {
       "feature": "plugins",
@@ -142,7 +215,7 @@
       "name": "common/plugins",
       "source": "features/common/plugins/plugins.json",
       "target": ".ai-badger/plugins/common/plugins.json",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "535702ccdd148c90429e99f6dcbf40e7560c114255d6f57702187a9fcf859da9"
     },
     {
@@ -151,7 +224,7 @@
       "name": "common/marketplaces",
       "source": "features/common/plugins/marketplaces.json",
       "target": ".ai-badger/plugins/common/marketplaces.json",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "fdd36d7d6f87fa79b906d5c0a7d6be1de08a9120191acbe52542f5bad9823f80"
     },
     {
@@ -160,7 +233,7 @@
       "name": "python/plugins",
       "source": "features/python/plugins/plugins.json",
       "target": ".ai-badger/plugins/python/plugins.json",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "4bd46a31933022492197e77d17bf35f0c9677f1dd765d4e028694a3146bea816"
     },
     {
@@ -169,7 +242,7 @@
       "name": "python/marketplaces",
       "source": "features/python/plugins/marketplaces.json",
       "target": ".ai-badger/plugins/python/marketplaces.json",
-      "frameworkVersion": "0.2.0",
+      "frameworkVersion": "0.6.0",
       "hash": "fdd36d7d6f87fa79b906d5c0a7d6be1de08a9120191acbe52542f5bad9823f80"
     }
   ]
