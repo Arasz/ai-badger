@@ -39,3 +39,35 @@ Aligned with Angular's official AI guidance. Pull the full context when doing su
 
 ## Accessibility (non-negotiable)
 - MUST pass all AXE checks and follow WCAG AA minimums: focus management, colour contrast, ARIA.
+
+## Charts — ng-apexcharts
+
+When using ApexCharts in Angular, install both `ng-apexcharts` and `apexcharts` (peer dep).
+Check `package.json` for the pinned version pair — `ng-apexcharts` tracks specific ApexCharts
+major versions (e.g. ng-apexcharts@2.x needs apexcharts@~5.x, NOT 6.x).
+
+**Type-safe options pattern:** ng-apexcharts inputs are `InputSignal<T>` (non-optional). To
+avoid `as Required<ApexOptions>` casts, build a fully-populated `defaults: Required<ApexOptions>`
+object with all 23 fields (including `annotations`, `noData`, `responsive`, `forecastDataPoints`,
+`states`, `subtitle`, `parsing`), then spread `...defaults` in each chart-type case. This
+satisfies the strict input types without runtime casts.
+
+**Global CSS override:** `* { max-width: 100% }` breaks ApexCharts SVG rendering. The fix
+must live in global styles.css (not component CSS — Angular encapsulation prevents component
+styles from reaching ApexCharts internal SVG elements):
+```css
+.apexcharts-canvas, .apexcharts-canvas svg,
+.apexcharts-canvas foreignObject, .apexcharts-svg {
+  max-width: none !important; width: auto !important;
+}
+```
+
+**Test polyfill:** ApexCharts requires `ResizeObserver` which jsdom doesn't provide. Add a
+no-op polyfill in a test setup file and reference it via `angular.json` →
+`test.options.setupFiles`.
+
+**Series data format is chart-type-specific** (#1 source of errors):
+- Axis charts (bar, line, scatter): `[{ name, data: number[] | [{x, y}] }]`
+- Non-axis charts (donut, pie): `series: number[]` + `labels: string[]`
+
+**Accessibility:** Bind `[attr.aria-labelledby]` and `role="img"` on `<apx-chart>`.
