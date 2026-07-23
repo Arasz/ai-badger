@@ -97,9 +97,8 @@ def read_index(root: Path) -> Dict[str, Any]:
 def iter_feature_dirs(root: Path) -> List[Tuple[str, str, Path]]:
     """Yield (stack, feature, dir) for every features/<stack>/<feature> directory present.
 
-    The installable operational skills live at root skills/ (== common.skills) and are handled
-    separately by index_build — they are the one exception to the features/ catalog, because the
-    Claude Code plugin loader only discovers skills at the plugin root's skills/ dir.
+    Common skills live at features/common/skills/ and are discovered here like any other
+    stack feature — no special-casing needed.
     """
     out: List[Tuple[str, str, Path]] = []
     features_root = root / "features"

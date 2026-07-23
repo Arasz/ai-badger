@@ -57,8 +57,8 @@ def _make_fake_root(tmp_path, root):
         "description": "meta-only stack",
     }), encoding="utf-8")
 
-    # root skills/ == common.skills
-    common_skill = tmp_path / "skills" / "wave"
+    # common skills under features/common/skills/ (no longer at repo root)
+    common_skill = tmp_path / "features" / "common" / "skills" / "wave"
     common_skill.mkdir(parents=True)
     (common_skill / "SKILL.md").write_text("# wave\n", encoding="utf-8")
 
@@ -91,7 +91,7 @@ def test_build_index_assembles_expected_stacks_and_items(tmp_path, root, load_sc
     assert "name" not in dotnet["meta"]  # stripped by build_index
 
     assert index["stacks"]["metaonly"] == {"meta": {"description": "meta-only stack"}}
-    assert index["stacks"]["common"]["skills"] == [{"name": "wave", "path": "skills/wave"}]
+    assert index["stacks"]["common"]["skills"] == [{"name": "wave", "path": "features/common/skills/wave"}]
 
 
 def test_build_index_defaults_framework_version_when_version_file_missing(tmp_path, root, load_script):

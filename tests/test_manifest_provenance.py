@@ -66,7 +66,7 @@ def _init_repo(path):
 
 
 def test_git_provenance_clean_repo_returns_sha_and_not_dirty(tmp_path, load_script):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     repo = tmp_path / "clean"
     _init_repo(repo)
 
@@ -77,7 +77,7 @@ def test_git_provenance_clean_repo_returns_sha_and_not_dirty(tmp_path, load_scri
 
 
 def test_git_provenance_dirty_repo_flags_dirty(tmp_path, load_script):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     repo = tmp_path / "dirty"
     _init_repo(repo)
     (repo / "seed.txt").write_text("edited\n", encoding="utf-8")
@@ -90,7 +90,7 @@ def test_git_provenance_dirty_repo_flags_dirty(tmp_path, load_script):
 
 def test_git_provenance_non_repo_returns_null_and_not_dirty(tmp_path, load_script):
     """A plugin cache is a plain copy with no .git; a copy cannot have local edits."""
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     plain = tmp_path / "cache-copy"
     plain.mkdir()
 
@@ -102,7 +102,7 @@ def test_git_provenance_non_repo_returns_null_and_not_dirty(tmp_path, load_scrip
 
 def test_scaffold_stamps_provenance_into_manifest(tmp_path, load_script, root):
     """The scaffolder records which framework state produced the scaffold."""
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
     config = {
@@ -126,7 +126,7 @@ def test_scaffold_stamps_provenance_into_manifest(tmp_path, load_script, root):
 
 
 def test_scaffolded_manifest_validates_against_schema(tmp_path, load_script, root):
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     bl = load_script("scripts/badger_lib.py")
     target = tmp_path / "proj2"
     target.mkdir()

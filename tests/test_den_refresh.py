@@ -14,6 +14,7 @@ framework updates into an already-scaffolded project. Tests cover:
 from __future__ import annotations
 
 import json
+import shutil
 
 
 def _write_config(target, **overrides):
@@ -93,7 +94,7 @@ def _write_fw_index(fw, version="0.3.0"):
 def test_refresh_reports_up_to_date_when_no_drift(tmp_path, load_script, root):
     """When the scaffolded project matches the framework, refresh reports up-to-date and
     exits 0."""
-    refresh = load_script("skills/den-refresh/scripts/refresh.py")
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
     # Create a minimal mock framework with one invariant
     fw = tmp_path / "fw"
     fw.mkdir()
@@ -136,8 +137,8 @@ def test_refresh_reports_up_to_date_when_no_drift(tmp_path, load_script, root):
 # ------------------------------------------------------------------- drift → re-scaffold
 def test_refresh_detects_drift_and_re_scaffolds(tmp_path, load_script, root):
     """When framework content differs from scaffold, refresh re-scaffolds and reports changes."""
-    refresh = load_script("skills/den-refresh/scripts/refresh.py")
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     bl = load_script("scripts/badger_lib.py")
 
     fw = tmp_path / "fw"
@@ -190,8 +191,8 @@ def test_refresh_detects_drift_and_re_scaffolds(tmp_path, load_script, root):
 # ---------------------------------------------------------------------- seed-once preservation
 def test_refresh_preserves_seed_once_files(tmp_path, load_script, root):
     """Seed-once files (state.json) must survive a refresh re-scaffold."""
-    refresh = load_script("skills/den-refresh/scripts/refresh.py")
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
     fw = tmp_path / "fw"
     fw.mkdir()
@@ -245,7 +246,7 @@ def test_refresh_preserves_seed_once_files(tmp_path, load_script, root):
 # ------------------------------------------------------------------- prerequisite errors
 def test_refresh_errors_when_no_config(tmp_path, load_script):
     """Refresh on a non-scaffolded dir must error with a clear message."""
-    refresh = load_script("skills/den-refresh/scripts/refresh.py")
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
     proj = tmp_path / "proj"
     proj.mkdir()
 
@@ -256,7 +257,7 @@ def test_refresh_errors_when_no_config(tmp_path, load_script):
 
 def test_refresh_errors_when_no_manifest(tmp_path, load_script):
     """Config without manifest means the project was never fully scaffolded."""
-    refresh = load_script("skills/den-refresh/scripts/refresh.py")
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
     fw = tmp_path / "fw"
     fw.mkdir()
     (fw / "VERSION").write_text("0.3.0\n", encoding="utf-8")
@@ -272,8 +273,8 @@ def test_refresh_errors_when_no_manifest(tmp_path, load_script):
 # --------------------------------------------------------------------- hermes agent refresh
 def test_refresh_re_scaffolds_hermes_agent_files(tmp_path, load_script, root):
     """When a project has hermes as a detected agent, refresh must update HERMES.md."""
-    refresh = load_script("skills/den-refresh/scripts/refresh.py")
-    scaffold = load_script("skills/welcome-ai-badger/scripts/scaffold.py")
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
     fw = tmp_path / "fw"
     fw.mkdir()
@@ -293,6 +294,30 @@ def test_refresh_re_scaffolds_hermes_agent_files(tmp_path, load_script, root):
         encoding="utf-8",
     )
     _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory (v1).\n")
+
+    # hermes scaffolding.json + template symlink
+    (fw / "features" / "hermes").mkdir(parents=True)
+    (fw / "features" / "hermes" / "scaffolding.json").write_text(json.dumps({
+        "agent": "hermes",
+        "files": [{
+            "source": "templates/HERMES.md.tmpl",
+            "target": "HERMES.md",
+            "managed": True,
+            "template": True,
+            "aibCopy": "HERMES.md",
+            "alsoTarget": ".hermes.md",
+        }],
+    }), encoding="utf-8")
+    (fw / "features" / "hermes" / "templates").mkdir(parents=True)
+    # Copy the template instead of symlink (tmp_path symlinks can be tricky)
+    (fw / "features" / "hermes" / "templates" / "HERMES.md.tmpl").write_text(
+        (fw / "features" / "common" / "templates" / "HERMES.md.tmpl").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    # Also add scaffolding schema
+    shutil.copyfile(root / "schemas" / "scaffolding.schema.json",
+                    fw / "schemas" / "scaffolding.schema.json")
+
     _write_fw_index(fw)
 
     proj = tmp_path / "proj"
@@ -312,6 +337,11 @@ def test_refresh_re_scaffolds_hermes_agent_files(tmp_path, load_script, root):
 
     # Modify the HERMES.md template to simulate upstream change
     (fw / "features" / "common" / "templates" / "HERMES.md.tmpl").write_text(
+        "# {{PROJECT_NAME}} (v2)\n\n{{PROJECT_SUMMARY}}\n\n## Hermes-specific guidance\n\nSkills: {{STACKS}}\n",
+        encoding="utf-8",
+    )
+    # Also update the hermes feature's copy of the template
+    (fw / "features" / "hermes" / "templates" / "HERMES.md.tmpl").write_text(
         "# {{PROJECT_NAME}} (v2)\n\n{{PROJECT_SUMMARY}}\n\n## Hermes-specific guidance\n\nSkills: {{STACKS}}\n",
         encoding="utf-8",
     )

@@ -25,7 +25,7 @@ def _stack(detection_signals=None, requires=None) -> dict:
 
 # --------------------------------------------------------------------- detect_stacks (glob)
 def test_detect_stacks_matches_data_driven_glob_signal(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = _index({"widget": _stack(detection_signals=["*.widget"])})
     (tmp_path / "thing.widget").write_text("x", encoding="utf-8")
 
@@ -33,7 +33,7 @@ def test_detect_stacks_matches_data_driven_glob_signal(tmp_path, load_script):
 
 
 def test_detect_stacks_no_match_when_signal_absent(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = _index({"widget": _stack(detection_signals=["*.widget"])})
     (tmp_path / "unrelated.txt").write_text("x", encoding="utf-8")
 
@@ -41,7 +41,7 @@ def test_detect_stacks_no_match_when_signal_absent(tmp_path, load_script):
 
 
 def test_detect_stacks_skips_common_stack(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = _index({"common": _stack(detection_signals=["*.md"])})
     (tmp_path / "README.md").write_text("x", encoding="utf-8")
 
@@ -50,7 +50,7 @@ def test_detect_stacks_skips_common_stack(tmp_path, load_script):
 
 
 def test_detect_stacks_prose_signals_with_spaces_are_not_used_as_globs(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     # a prose-only signal (contains spaces) can never match a file glob; must not error or match
     index = _index({"widget": _stack(detection_signals=["widget usage present"])})
     (tmp_path / "widget usage present").write_text("x", encoding="utf-8")
@@ -60,7 +60,7 @@ def test_detect_stacks_prose_signals_with_spaces_are_not_used_as_globs(tmp_path,
 
 # ------------------------------------------------------------- ignore-dir exclusion (real index)
 def test_detect_stacks_ignores_claude_dir_python_scripts(tmp_path, load_script, root):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
 
     scripts_dir = tmp_path / ".claude" / "skills" / "task" / "scripts"
@@ -76,7 +76,7 @@ def test_detect_stacks_ignores_ai_badger_dir_python_scripts(tmp_path, load_scrip
     """The framework's own scaffolded output (.ai-badger/skills/.../scripts/*.py) must never be
     re-detected as the target project's stack -- that's a self-inflicted false positive that
     would get worse on every re-scaffold."""
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
 
     scripts_dir = tmp_path / ".ai-badger" / "skills" / "task" / "scripts"
@@ -92,7 +92,7 @@ def test_detect_stacks_ignores_ai_badger_dir_python_scripts(tmp_path, load_scrip
 
 
 def test_detect_stacks_ignores_node_modules_and_venv_contents(tmp_path, load_script, root):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
 
     nm = tmp_path / "node_modules" / "some-pkg"
@@ -112,7 +112,7 @@ def test_detect_stacks_bare_node_modules_dir_is_excluded_from_its_own_signal(tmp
     """node_modules is both a node detectionSignal AND an ignored dir: an empty node_modules/
     alone (no package.json) does not trigger node, since the ignore-dir check excludes the
     match itself. Documents current behavior; node is still detected normally via package.json."""
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
 
     (tmp_path / "node_modules").mkdir()
@@ -124,7 +124,7 @@ def test_detect_stacks_bare_node_modules_dir_is_excluded_from_its_own_signal(tmp
 
 # -------------------------------------------------------------- real python-project detection
 def test_detect_stacks_python_via_pyproject_toml(tmp_path, load_script, root):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
 
     (tmp_path / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
@@ -135,7 +135,7 @@ def test_detect_stacks_python_via_pyproject_toml(tmp_path, load_script, root):
 
 
 def test_detect_stacks_dotnet_via_csproj(tmp_path, load_script, root):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
 
     (tmp_path / "App.csproj").write_text("<Project />", encoding="utf-8")
@@ -148,7 +148,7 @@ def test_detect_stacks_dotnet_via_csproj(tmp_path, load_script, root):
 
 # --------------------------------------------------------------------- dependency-based stacks
 def test_detect_stacks_react_via_package_json_dependency(tmp_path, load_script, root):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
     (tmp_path / "package.json").write_text(
         json.dumps({"dependencies": {"react": "^18.0.0"}}), encoding="utf-8")
@@ -159,7 +159,7 @@ def test_detect_stacks_react_via_package_json_dependency(tmp_path, load_script, 
 
 
 def test_detect_stacks_ts_via_package_json_dev_dependency(tmp_path, load_script, root):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
     (tmp_path / "package.json").write_text(
         json.dumps({"devDependencies": {"typescript": "^5.0.0"}}), encoding="utf-8")
@@ -170,7 +170,7 @@ def test_detect_stacks_ts_via_package_json_dev_dependency(tmp_path, load_script,
 
 
 def test_detect_stacks_angular_via_scoped_dependency(tmp_path, load_script, root):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
     (tmp_path / "package.json").write_text(
         json.dumps({"dependencies": {"@angular/core": "^17.0.0"}}), encoding="utf-8")
@@ -181,7 +181,7 @@ def test_detect_stacks_angular_via_scoped_dependency(tmp_path, load_script, root
 
 
 def test_detect_stacks_angular_via_angular_json_presence(tmp_path, load_script, root):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
     (tmp_path / "angular.json").write_text("{}", encoding="utf-8")
 
@@ -191,7 +191,7 @@ def test_detect_stacks_angular_via_angular_json_presence(tmp_path, load_script, 
 
 
 def test_detect_stacks_cosmos_via_package_json_dependency(tmp_path, load_script, root):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
     (tmp_path / "package.json").write_text(
         json.dumps({"dependencies": {"@azure/cosmos": "^4.0.0"}}), encoding="utf-8")
@@ -202,7 +202,7 @@ def test_detect_stacks_cosmos_via_package_json_dependency(tmp_path, load_script,
 
 
 def test_detect_stacks_cosmos_via_csproj_content(tmp_path, load_script, root):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
     (tmp_path / "App.csproj").write_text(
         '<Project><ItemGroup><PackageReference Include="Microsoft.Azure.Cosmos" /></ItemGroup>'
@@ -214,7 +214,7 @@ def test_detect_stacks_cosmos_via_csproj_content(tmp_path, load_script, root):
 
 
 def test_detect_stacks_azure_via_dependency_name_substring(tmp_path, load_script, root):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
     (tmp_path / "package.json").write_text(
         json.dumps({"dependencies": {"@azure/functions": "^4.0.0"}}), encoding="utf-8")
@@ -228,7 +228,7 @@ def test_detect_stacks_angular_via_package_json_in_subdirectory(tmp_path, load_s
     """Monorepo case (GitHub issue Arasz/ai-badger#15 follow-up): Angular living in a
     subdirectory (e.g. frontend/) must still be detected -- dependency checks must not be
     root-only. Verified against a real monorepo (arasz-home-page) where this was missed."""
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
     frontend = tmp_path / "frontend"
     frontend.mkdir()
@@ -241,7 +241,7 @@ def test_detect_stacks_angular_via_package_json_in_subdirectory(tmp_path, load_s
 
 
 def test_detect_stacks_angular_via_angular_json_in_subdirectory(tmp_path, load_script, root):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
     frontend = tmp_path / "frontend"
     frontend.mkdir()
@@ -255,7 +255,7 @@ def test_detect_stacks_angular_via_angular_json_in_subdirectory(tmp_path, load_s
 def test_detect_stacks_react_via_package_json_in_subdirectory(tmp_path, load_script, root):
     """The monorepo-aware package.json scan is stack-agnostic: any dependency-detected stack
     (not just angular) must be found from a nested package.json."""
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
     frontend = tmp_path / "frontend"
     frontend.mkdir()
@@ -270,7 +270,7 @@ def test_detect_stacks_react_via_package_json_in_subdirectory(tmp_path, load_scr
 def test_detect_stacks_package_json_under_node_modules_is_ignored(tmp_path, load_script, root):
     """A dependency's own package.json (vendored under node_modules/) must never contribute a
     stack -- only the target project's own package.json files matter."""
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
     vendored = tmp_path / "node_modules" / "@angular" / "core"
     vendored.mkdir(parents=True)
@@ -283,7 +283,7 @@ def test_detect_stacks_package_json_under_node_modules_is_ignored(tmp_path, load
 
 
 def test_detect_stacks_dedupes_when_glob_and_dependency_both_match(tmp_path, load_script, root):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
     (tmp_path / "package.json").write_text(
         json.dumps({"dependencies": {"react": "^18.0.0"}}), encoding="utf-8")
@@ -303,7 +303,7 @@ def test_all_catalog_detection_signals_are_glob_shaped(load_script, root):
     Every features/*/stack.json must list only real, space-free glob signals; facts that can't
     be expressed as a glob (a dependency, file content) belong in _dependency_stacks() instead,
     not in detectionSignals."""
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
 
     offenders = []
@@ -320,7 +320,7 @@ def test_all_catalog_detection_signals_are_glob_shaped(load_script, root):
 
 # ------------------------------------------------------------------------- expand_requires
 def test_expand_requires_transitive_closure(load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = _index({
         "a": _stack(requires=["b"]),
         "b": _stack(requires=["c"]),
@@ -331,7 +331,7 @@ def test_expand_requires_transitive_closure(load_script):
 
 
 def test_expand_requires_does_not_duplicate_already_present_stack(load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = _index({
         "a": _stack(requires=["b"]),
         "b": _stack(requires=[]),
@@ -341,14 +341,14 @@ def test_expand_requires_does_not_duplicate_already_present_stack(load_script):
 
 
 def test_expand_requires_unknown_stack_is_left_as_is(load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = _index({})
 
     assert detect.expand_requires(["mystery"], index) == ["mystery"]
 
 
 def test_expand_requires_react_pulls_in_ts_and_node_from_real_index(load_script, root):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
 
     expanded = detect.expand_requires(["react"], index)
@@ -358,7 +358,7 @@ def test_expand_requires_react_pulls_in_ts_and_node_from_real_index(load_script,
 
 # ---------------------------------------------------------------------------- detect_agents
 def test_detect_agents_claude_via_claude_md(tmp_path, load_script, monkeypatch):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: tmp_path / "empty-home"))
     (tmp_path / "CLAUDE.md").write_text("# guidance\n", encoding="utf-8")
 
@@ -366,7 +366,7 @@ def test_detect_agents_claude_via_claude_md(tmp_path, load_script, monkeypatch):
 
 
 def test_detect_agents_copilot_via_instructions_dir(tmp_path, load_script, monkeypatch):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: tmp_path / "empty-home"))
     (tmp_path / ".github" / "instructions").mkdir(parents=True)
 
@@ -374,7 +374,7 @@ def test_detect_agents_copilot_via_instructions_dir(tmp_path, load_script, monke
 
 
 def test_detect_agents_junie_via_agents_md(tmp_path, load_script, monkeypatch):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: tmp_path / "empty-home"))
     (tmp_path / "AGENTS.md").write_text("# guidance\n", encoding="utf-8")
 
@@ -382,7 +382,7 @@ def test_detect_agents_junie_via_agents_md(tmp_path, load_script, monkeypatch):
 
 
 def test_detect_agents_junie_via_dot_junie_dir(tmp_path, load_script, monkeypatch):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: tmp_path / "empty-home"))
     (tmp_path / ".junie").mkdir()
 
@@ -390,14 +390,14 @@ def test_detect_agents_junie_via_dot_junie_dir(tmp_path, load_script, monkeypatc
 
 
 def test_detect_agents_defaults_to_claude_when_nothing_found(tmp_path, load_script, monkeypatch):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: tmp_path / "empty-home"))
 
     assert detect.detect_agents(tmp_path) == ["claude"]
 
 
 def test_detect_agents_claude_via_user_home_dot_claude(tmp_path, load_script, monkeypatch):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     fake_home = tmp_path / "fake-home"
     (fake_home / ".claude").mkdir(parents=True)
     monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: fake_home))
@@ -409,7 +409,7 @@ def test_detect_agents_claude_via_user_home_dot_claude(tmp_path, load_script, mo
 
 # ------------------------------------------------------------------- detect_source_control
 def test_detect_source_control_no_git_dir(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
 
     sc = detect.detect_source_control(tmp_path)
 
@@ -417,7 +417,7 @@ def test_detect_source_control_no_git_dir(tmp_path, load_script):
 
 
 def test_detect_source_control_git_dir_without_remote(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     (tmp_path / ".git").mkdir()
 
     sc = detect.detect_source_control(tmp_path)
@@ -427,7 +427,7 @@ def test_detect_source_control_git_dir_without_remote(tmp_path, load_script):
 
 
 def test_detect_source_control_github_ssh_remote_normalized(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     subprocess.run(["git", "remote", "add", "origin", "git@github.com:someuser/somerepo.git"],
                     cwd=tmp_path, check=True)
@@ -439,7 +439,7 @@ def test_detect_source_control_github_ssh_remote_normalized(tmp_path, load_scrip
 
 
 def test_detect_source_control_gitlab_https_remote(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     subprocess.run(["git", "remote", "add", "origin", "https://gitlab.com/someuser/somerepo.git"],
                     cwd=tmp_path, check=True)
@@ -451,7 +451,7 @@ def test_detect_source_control_gitlab_https_remote(tmp_path, load_script):
 
 
 def test_detect_source_control_azure_devops_remote(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     subprocess.run(
         ["git", "remote", "add", "origin", "https://dev.azure.com/org/proj/_git/repo"],
@@ -465,7 +465,7 @@ def test_detect_source_control_azure_devops_remote(tmp_path, load_script):
 
 # ------------------------------------------------------------------------ detect_commands
 def test_detect_commands_dotnet_defaults_without_package_json(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
 
     cmds = detect.detect_commands(tmp_path, ["dotnet"])
 
@@ -473,7 +473,7 @@ def test_detect_commands_dotnet_defaults_without_package_json(tmp_path, load_scr
 
 
 def test_detect_commands_npm_scripts_without_bun_lock(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     (tmp_path / "package.json").write_text(json.dumps({
         "scripts": {"build": "vite build", "test": "vitest", "lint": "eslint .", "dev": "vite"}
     }), encoding="utf-8")
@@ -487,7 +487,7 @@ def test_detect_commands_npm_scripts_without_bun_lock(tmp_path, load_script):
 
 
 def test_detect_commands_bun_scripts_with_bun_lock(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     (tmp_path / "package.json").write_text(json.dumps({
         "scripts": {"build": "vite build", "test": "vitest"}
     }), encoding="utf-8")
@@ -500,7 +500,7 @@ def test_detect_commands_bun_scripts_with_bun_lock(tmp_path, load_script):
 
 
 def test_detect_commands_run_prefers_dev_over_start(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     (tmp_path / "package.json").write_text(json.dumps({
         "scripts": {"dev": "vite", "start": "node server.js"}
     }), encoding="utf-8")
@@ -511,7 +511,7 @@ def test_detect_commands_run_prefers_dev_over_start(tmp_path, load_script):
 
 
 def test_detect_commands_run_falls_back_to_start(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     (tmp_path / "package.json").write_text(json.dumps({
         "scripts": {"start": "node server.js"}
     }), encoding="utf-8")
@@ -522,7 +522,7 @@ def test_detect_commands_run_falls_back_to_start(tmp_path, load_script):
 
 
 def test_detect_commands_dotnet_setdefault_does_not_override_package_json(tmp_path, load_script):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     (tmp_path / "package.json").write_text(json.dumps({
         "scripts": {"build": "vite build"}
     }), encoding="utf-8")
@@ -536,7 +536,7 @@ def test_detect_commands_dotnet_setdefault_does_not_override_package_json(tmp_pa
 
 # ------------------------------------------------------------------------------- main()
 def test_main_emits_valid_proposed_config_json(tmp_path, load_script, root, monkeypatch, capsys):
-    detect = load_script("skills/welcome-ai-badger/scripts/detect.py")
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: tmp_path / "empty-home"))
     target = tmp_path / "target-repo"
     target.mkdir()

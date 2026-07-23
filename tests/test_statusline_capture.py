@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 
 def test_capture_persists_rate_limit_metadata(tmp_path, load_script):
-    statusline_capture = load_script("skills/task/scripts/statusline_capture.py")
+    statusline_capture = load_script("features/common/skills/task/scripts/statusline_capture.py")
     state_path = tmp_path / "statusline-state.json"
     payload = {
         "session_id": "sid-1",
@@ -36,7 +36,7 @@ def test_capture_persists_rate_limit_metadata(tmp_path, load_script):
 
 
 def test_capture_falls_back_to_workspace_current_dir_for_cwd(tmp_path, load_script):
-    statusline_capture = load_script("skills/task/scripts/statusline_capture.py")
+    statusline_capture = load_script("features/common/skills/task/scripts/statusline_capture.py")
     state_path = tmp_path / "statusline-state.json"
     payload = {"workspace": {"current_dir": "/repo"}}
 
@@ -48,7 +48,7 @@ def test_capture_falls_back_to_workspace_current_dir_for_cwd(tmp_path, load_scri
 
 
 def test_capture_silently_ignores_invalid_json(tmp_path, load_script):
-    statusline_capture = load_script("skills/task/scripts/statusline_capture.py")
+    statusline_capture = load_script("features/common/skills/task/scripts/statusline_capture.py")
     state_path = tmp_path / "statusline-state.json"
 
     with patch.object(statusline_capture, "STATUSLINE_STATE", state_path):
@@ -58,7 +58,7 @@ def test_capture_silently_ignores_invalid_json(tmp_path, load_script):
 
 
 def test_render_user_statusline_returns_zero_when_no_user_script(tmp_path, load_script):
-    statusline_capture = load_script("skills/task/scripts/statusline_capture.py")
+    statusline_capture = load_script("features/common/skills/task/scripts/statusline_capture.py")
 
     with patch.object(statusline_capture, "USER_STATUSLINE", tmp_path / "missing.sh"):
         rc = statusline_capture.render_user_statusline("{}")
@@ -67,7 +67,7 @@ def test_render_user_statusline_returns_zero_when_no_user_script(tmp_path, load_
 
 
 def test_render_user_statusline_prints_user_script_stdout(tmp_path, load_script, capsys):
-    statusline_capture = load_script("skills/task/scripts/statusline_capture.py")
+    statusline_capture = load_script("features/common/skills/task/scripts/statusline_capture.py")
     script = tmp_path / "statusline.sh"
     script.write_text("#!/bin/sh\ncat\n", encoding="utf-8")
     script.chmod(0o755)
@@ -80,7 +80,7 @@ def test_render_user_statusline_prints_user_script_stdout(tmp_path, load_script,
 
 
 def test_main_reads_stdin_captures_and_renders(tmp_path, load_script, capsys, monkeypatch):
-    statusline_capture = load_script("skills/task/scripts/statusline_capture.py")
+    statusline_capture = load_script("features/common/skills/task/scripts/statusline_capture.py")
     state_path = tmp_path / "statusline-state.json"
     payload = {"session_id": "sid-1"}
 

@@ -339,53 +339,116 @@ class Scaffolder:
                                      self._compute_doc_slots(invariants, instr_paths))
 
     # -- agent-discovery copies -----------------------------------------------------
+    def _render_template_file(self, source: Path, instr_paths: List[Path],
+                               invariants: List[str]) -> str:
+        """Render a .tmpl file with the standard scaffold slots."""
+        tmpl = source.read_text(encoding="utf-8")
+        slots = self._compute_doc_slots(invariants, instr_paths)
+        for k, v in slots.items():
+            tmpl = tmpl.replace("{{" + k + "}}", str(v))
+        return tmpl
+
+    def _copy_with_header(self, dest: Path, name: str, body: str) -> None:
+        """Write body to dest with managed header, preserving hand-authored files."""
+        if (not self.overwrite and dest.exists()
+                and not dest.read_text(encoding="utf-8",
+                                       errors="ignore").lstrip().startswith(_MANAGED_PREFIX)):
+            self.notes.append(
+                f"preserved hand-authored {dest.relative_to(self.target).as_posix()} "
+                "(source written to .ai-badger/; pass --overwrite-agent-files to replace)"
+            )
+            return
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(MANAGED_HEADER.format(name=name) + body, encoding="utf-8")
+
+    def _apply_scaffolding(self, agent_name: str, instructions_doc: str,
+                            instr_paths: List[Path], invariants: List[str]) -> None:
+        """Apply features/<agent>/scaffolding.json to write agent files."""
+        scaffolding_path = self.root / "features" / agent_name / "scaffolding.json"
+        if not scaffolding_path.is_file():
+            self.notes.append(f"no scaffolding.json for agent '{agent_name}' — skipped")
+            return
+
+        scaffolding = bl.load_json(scaffolding_path)
+        schema = bl.load_json(self.root / "schemas" / "scaffolding.schema.json")
+        errors = bl.validate(scaffolding, schema)
+        if errors:
+            self.notes.append(
+                f"scaffolding.json for '{agent_name}' is invalid — skipping: {errors}"
+            )
+            return
+
+        feature_dir = self.root / "features" / agent_name
+        for file_entry in scaffolding["files"]:
+            source = feature_dir / file_entry["source"]
+            target = self.target / file_entry["target"]
+            managed = file_entry.get("managed", True)
+            seed_once = file_entry.get("seedOnce", False)
+            is_template = file_entry.get("template", False)
+            also_target = file_entry.get("alsoTarget")
+            aib_copy = file_entry.get("aibCopy")
+            instructions_scoped = file_entry.get("instructionsScoped", False)
+
+            if not source.exists():
+                self.notes.append(
+                    f"scaffolding source '{file_entry['source']}' for '{agent_name}' "
+                    f"not found at {source} — skipping"
+                )
+                continue
+
+            # Determine the body content
+            if is_template:
+                body = self._render_template_file(source, instr_paths, invariants)
+            else:
+                body = source.read_text(encoding="utf-8")
+
+            # Write source-of-truth copy under .ai-badger/
+            if aib_copy:
+                (self.aib / aib_copy).write_text(body, encoding="utf-8")
+
+            # Seed-once: skip if target already exists
+            if seed_once and target.exists():
+                self.notes.append(
+                    f"preserved seed-once {file_entry['target']} for '{agent_name}'"
+                )
+                continue
+
+            # Write the primary target
+            content = body
+            if managed:
+                self._copy_with_header(target, file_entry["target"], content)
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, target)
+
+            # Write alsoTarget (e.g. .hermes.md alias)
+            if also_target:
+                also_dest = self.target / also_target
+                if managed:
+                    self._copy_with_header(also_dest, also_target, content)
+                else:
+                    also_dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(source, also_dest)
+
+            # Write per-instruction scoped copies (copilot's .github/instructions/)
+            if instructions_scoped:
+                for p in instr_paths:
+                    self._copy_with_header(
+                        self.target / ".github" / "instructions" / p.name,
+                        f"instructions/{p.name}",
+                        p.read_text(encoding="utf-8")
+                    )
+
     def write_agent_files(self, instructions_doc: str, instr_paths: List[Path],
                            invariants: List[str]) -> None:
-        """Write the assembled instructions doc into .ai-badger/ and each configured agent's
-        discovery location (CLAUDE.md, AGENTS.md, copilot-instructions.md, HERMES.md).
+        """Write agent discovery files using scaffolding.json from each agent's feature dir.
 
-        Existing hand-authored discovery files are preserved by default: a target that already
-        exists and does not carry the managed header is left untouched (its .ai-badger/ source is
-        still written), so a mature repo's curated CLAUDE.md and instructions are never clobbered.
-        Framework-written copies (which carry the header) and brand-new files are still written and
-        refreshed. Pass overwrite=True (CLI --overwrite-agent-files) to force the old copy-over.
+        Each agent in config.agents must have a features/<agent>/scaffolding.json that
+        declares what files to write. No hardcoded fallback — all agents are data-driven.
         """
         agents = self.config.get("agents", [])
-        # source-of-truth files inside .ai-badger
-        (self.aib / "CLAUDE.md").write_text(instructions_doc, encoding="utf-8")
-
-        def copy_with_header(dest: Path, name: str, body: str) -> None:
-            if (not self.overwrite and dest.exists()
-                    and not dest.read_text(encoding="utf-8",
-                                           errors="ignore").lstrip().startswith(_MANAGED_PREFIX)):
-                self.notes.append(
-                    f"preserved hand-authored {dest.relative_to(self.target).as_posix()} "
-                    "(source written to .ai-badger/; pass --overwrite-agent-files to replace)"
-                )
-                return
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text(MANAGED_HEADER.format(name=name) + body, encoding="utf-8")
-
-        if "claude" in agents:
-            copy_with_header(self.target / "CLAUDE.md", "CLAUDE.md", instructions_doc)
-        if "junie" in agents:
-            (self.aib / "AGENTS.md").write_text(instructions_doc, encoding="utf-8")
-            copy_with_header(self.target / ".junie" / "AGENTS.md", "AGENTS.md", instructions_doc)
-        if "copilot" in agents:
-            (self.aib / "copilot-instructions.md").write_text(instructions_doc, encoding="utf-8")
-            copy_with_header(self.target / ".github" / "copilot-instructions.md",
-                             "copilot-instructions.md", instructions_doc)
-            # copilot discovers scoped instructions under .github/instructions/
-            for p in instr_paths:
-                copy_with_header(self.target / ".github" / "instructions" / p.name,
-                                 f"instructions/{p.name}", p.read_text(encoding="utf-8"))
-        if "hermes" in agents:
-            hermes_doc = self.assemble_hermes_doc(invariants, instr_paths)
-            (self.aib / "HERMES.md").write_text(hermes_doc, encoding="utf-8")
-            # HERMES.md at repo root — Hermes priority 1 discovery (walks parents to git root)
-            copy_with_header(self.target / "HERMES.md", "HERMES.md", hermes_doc)
-            # .hermes.md alias — cwd-only discovery fallback
-            copy_with_header(self.target / ".hermes.md", ".hermes.md", hermes_doc)
+        for agent_name in agents:
+            self._apply_scaffolding(agent_name, instructions_doc, instr_paths, invariants)
 
     # -- plugins --------------------------------------------------------------------
     def install_plugins(self) -> List[str]:

@@ -27,7 +27,7 @@ import pytest
 
 @pytest.fixture
 def session_start(tmp_path, load_script, monkeypatch):
-    module = load_script("skills/task/scripts/session_start_hook.py")
+    module = load_script("features/common/skills/task/scripts/session_start_hook.py")
     data_dir = tmp_path / "data"
     monkeypatch.setattr(module.lib, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(module.lib, "DATA_DIR", data_dir)

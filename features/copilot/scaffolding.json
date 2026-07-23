@@ -1,0 +1,14 @@
+{
+  "agent": "copilot",
+  "description": "GitHub Copilot agent discovery files: copilot-instructions.md and scoped instruction files.",
+  "files": [
+    {
+      "source": "templates/copilot-instructions.md.tmpl",
+      "target": ".github/copilot-instructions.md",
+      "managed": true,
+      "template": true,
+      "aibCopy": "copilot-instructions.md",
+      "instructionsScoped": true
+    }
+  ]
+}

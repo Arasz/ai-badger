@@ -21,7 +21,7 @@ import pytest
 
 @pytest.fixture
 def compact(tmp_path, load_script, monkeypatch):
-    module = load_script("skills/task/scripts/claude_md_compact.py")
+    module = load_script("features/common/skills/task/scripts/claude_md_compact.py")
     monkeypatch.setattr(module.lib, "CLAUDE_MD", tmp_path / "CLAUDE.md")
     monkeypatch.setattr(module.lib, "CLAUDE_MD_MAX_CHARS", module.lib.CLAUDE_MD_MAX_CHARS)
     monkeypatch.setattr(module.lib, "CLAUDE_MD_MAX_LINES", module.lib.CLAUDE_MD_MAX_LINES)

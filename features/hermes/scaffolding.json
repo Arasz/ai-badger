@@ -1,0 +1,14 @@
+{
+  "agent": "hermes",
+  "description": "Hermes Agent discovery files: HERMES.md and .hermes.md alias at project root.",
+  "files": [
+    {
+      "source": "templates/HERMES.md.tmpl",
+      "target": "HERMES.md",
+      "managed": true,
+      "template": true,
+      "aibCopy": "HERMES.md",
+      "alsoTarget": ".hermes.md"
+    }
+  ]
+}

@@ -37,7 +37,7 @@ def _run_main_never_raises(module):
 
 
 def test_disabled_mode_emits_nothing(tmp_path, load_script, monkeypatch, capsys):
-    context = load_script("skills/auto-wm/hooks/awm_context.py")
+    context = load_script("features/common/skills/auto-wm/hooks/awm_context.py")
     state_file, _ = _patch_state_paths(context, monkeypatch, tmp_path)
     _write_state(state_file, {"enabled": False})
 
@@ -47,7 +47,7 @@ def test_disabled_mode_emits_nothing(tmp_path, load_script, monkeypatch, capsys)
 
 
 def test_partner_mode_prints_status(tmp_path, load_script, monkeypatch, capsys):
-    context = load_script("skills/auto-wm/hooks/awm_context.py")
+    context = load_script("features/common/skills/auto-wm/hooks/awm_context.py")
     state_file, _ = _patch_state_paths(context, monkeypatch, tmp_path)
     _write_state(state_file, {"enabled": True, "mode": "partner",
                                "enabled_at": datetime.now(timezone.utc).isoformat()})
@@ -60,7 +60,7 @@ def test_partner_mode_prints_status(tmp_path, load_script, monkeypatch, capsys):
 
 
 def test_away_active_prints_remaining_time(tmp_path, load_script, monkeypatch, capsys):
-    context = load_script("skills/auto-wm/hooks/awm_context.py")
+    context = load_script("features/common/skills/auto-wm/hooks/awm_context.py")
     state_file, _ = _patch_state_paths(context, monkeypatch, tmp_path)
     expires_at = datetime.now(timezone.utc) + timedelta(hours=1, minutes=30)
     _write_state(state_file, {"enabled": True, "mode": "away",
@@ -76,7 +76,7 @@ def test_away_active_prints_remaining_time(tmp_path, load_script, monkeypatch, c
 
 def test_away_expired_prints_expired_and_flips_state_off(tmp_path, load_script, monkeypatch,
                                                            capsys):
-    context = load_script("skills/auto-wm/hooks/awm_context.py")
+    context = load_script("features/common/skills/auto-wm/hooks/awm_context.py")
     state_file, decisions_file = _patch_state_paths(context, monkeypatch, tmp_path)
     expires_at = datetime.now(timezone.utc) - timedelta(minutes=5)
     _write_state(state_file, {"enabled": True, "mode": "away",
@@ -96,7 +96,7 @@ def test_away_expired_prints_expired_and_flips_state_off(tmp_path, load_script, 
 
 def test_missing_state_file_is_silent_via_entrypoint_guard(tmp_path, load_script, monkeypatch,
                                                              capsys):
-    context = load_script("skills/auto-wm/hooks/awm_context.py")
+    context = load_script("features/common/skills/auto-wm/hooks/awm_context.py")
     _patch_state_paths(context, monkeypatch, tmp_path)  # STATE_FILE points at a nonexistent path
 
     _run_main_never_raises(context)

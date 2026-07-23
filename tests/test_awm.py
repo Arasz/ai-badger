@@ -1,4 +1,4 @@
-"""Tests for skills/auto-wm/scripts/awm.py (the `/auto-wm` CLI).
+"""Tests for features/common/skills/auto-wm/scripts/awm.py (the `/auto-wm` CLI).
 
 Covers mode transitions (partner/away/disable), `status` reporting for each mode
 including an already-expired away window, duration parsing, and the decision-logging
@@ -30,7 +30,7 @@ def _read_decisions(awm_dir):
 
 
 def test_parse_duration_hours_minutes_and_bare_number(tmp_path, load_script):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
 
     assert awm.parse_duration("4h") == 4 * 3600
     assert awm.parse_duration("90m") == 90 * 60
@@ -39,7 +39,7 @@ def test_parse_duration_hours_minutes_and_bare_number(tmp_path, load_script):
 
 
 def test_parse_duration_rejects_unparseable_or_nonpositive(tmp_path, load_script):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
 
     with pytest.raises(ValueError):
         awm.parse_duration("xyz")
@@ -48,7 +48,7 @@ def test_parse_duration_rejects_unparseable_or_nonpositive(tmp_path, load_script
 
 
 def test_main_partner_enables_indefinite_mode(tmp_path, load_script, monkeypatch, capsys):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     awm_dir = _patch_state_paths(awm, monkeypatch, tmp_path)
 
     rc = awm.main(["partner"])
@@ -64,7 +64,7 @@ def test_main_partner_enables_indefinite_mode(tmp_path, load_script, monkeypatch
 
 
 def test_main_no_args_defaults_to_partner(tmp_path, load_script, monkeypatch):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     _patch_state_paths(awm, monkeypatch, tmp_path)
 
     rc = awm.main([])
@@ -75,7 +75,7 @@ def test_main_no_args_defaults_to_partner(tmp_path, load_script, monkeypatch):
 
 def test_main_away_parses_duration_and_persists_expiry(tmp_path, load_script, monkeypatch,
                                                          capsys):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     _patch_state_paths(awm, monkeypatch, tmp_path)
 
     rc = awm.main(["away", "4h"])
@@ -93,7 +93,7 @@ def test_main_away_parses_duration_and_persists_expiry(tmp_path, load_script, mo
 
 
 def test_main_away_without_duration_uses_default(tmp_path, load_script, monkeypatch):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     _patch_state_paths(awm, monkeypatch, tmp_path)
 
     rc = awm.main(["away"])
@@ -104,7 +104,7 @@ def test_main_away_without_duration_uses_default(tmp_path, load_script, monkeypa
 
 
 def test_main_away_invalid_duration_returns_error(tmp_path, load_script, monkeypatch, capsys):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     _patch_state_paths(awm, monkeypatch, tmp_path)
 
     rc = awm.main(["away", "not-a-duration"])
@@ -115,7 +115,7 @@ def test_main_away_invalid_duration_returns_error(tmp_path, load_script, monkeyp
 
 
 def test_main_switching_from_partner_to_away_logs_the_switch(tmp_path, load_script, monkeypatch):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     awm_dir = _patch_state_paths(awm, monkeypatch, tmp_path)
     awm.main(["partner"])
 
@@ -127,7 +127,7 @@ def test_main_switching_from_partner_to_away_logs_the_switch(tmp_path, load_scri
 
 def test_main_disable_when_never_enabled_reports_inactive_and_writes_nothing(
         tmp_path, load_script, monkeypatch, capsys):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     awm_dir = _patch_state_paths(awm, monkeypatch, tmp_path)
 
     rc = awm.main(["off"])
@@ -138,7 +138,7 @@ def test_main_disable_when_never_enabled_reports_inactive_and_writes_nothing(
 
 
 def test_main_disable_after_enabled_flips_state_off(tmp_path, load_script, monkeypatch, capsys):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     _patch_state_paths(awm, monkeypatch, tmp_path)
     awm.main(["partner"])
     capsys.readouterr()
@@ -153,7 +153,7 @@ def test_main_disable_after_enabled_flips_state_off(tmp_path, load_script, monke
 
 
 def test_main_status_inactive_when_never_enabled(tmp_path, load_script, monkeypatch, capsys):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     _patch_state_paths(awm, monkeypatch, tmp_path)
 
     rc = awm.main(["status"])
@@ -163,7 +163,7 @@ def test_main_status_inactive_when_never_enabled(tmp_path, load_script, monkeypa
 
 
 def test_main_status_reports_active_partner_mode(tmp_path, load_script, monkeypatch, capsys):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     _patch_state_paths(awm, monkeypatch, tmp_path)
     awm.main(["partner"])
     capsys.readouterr()
@@ -178,7 +178,7 @@ def test_main_status_reports_active_partner_mode(tmp_path, load_script, monkeypa
 
 def test_main_status_reports_active_away_mode_with_remaining_time(tmp_path, load_script,
                                                                     monkeypatch, capsys):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     _patch_state_paths(awm, monkeypatch, tmp_path)
     awm.main(["away", "2h"])
     capsys.readouterr()
@@ -193,7 +193,7 @@ def test_main_status_reports_active_away_mode_with_remaining_time(tmp_path, load
 
 def test_main_status_reports_expired_away_window_as_no_longer_away(tmp_path, load_script,
                                                                      monkeypatch, capsys):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     _patch_state_paths(awm, monkeypatch, tmp_path)
     expired_at = datetime.now(timezone.utc) - timedelta(hours=1)
     awm.write_state({
@@ -212,7 +212,7 @@ def test_main_status_reports_expired_away_window_as_no_longer_away(tmp_path, loa
 
 
 def test_main_decision_registers_event(tmp_path, load_script, monkeypatch, capsys):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     awm_dir = _patch_state_paths(awm, monkeypatch, tmp_path)
 
     rc = awm.main(["decision", "chose", "X", "because", "Y"])
@@ -225,7 +225,7 @@ def test_main_decision_registers_event(tmp_path, load_script, monkeypatch, capsy
 
 
 def test_main_decision_without_text_is_an_error(tmp_path, load_script, monkeypatch, capsys):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     _patch_state_paths(awm, monkeypatch, tmp_path)
 
     rc = awm.main(["decision"])
@@ -235,7 +235,7 @@ def test_main_decision_without_text_is_an_error(tmp_path, load_script, monkeypat
 
 
 def test_main_unknown_command_is_an_error(tmp_path, load_script, monkeypatch, capsys):
-    awm = load_script("skills/auto-wm/scripts/awm.py")
+    awm = load_script("features/common/skills/auto-wm/scripts/awm.py")
     _patch_state_paths(awm, monkeypatch, tmp_path)
 
     rc = awm.main(["bogus"])

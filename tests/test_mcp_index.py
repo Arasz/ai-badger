@@ -79,7 +79,7 @@ def _all_valid_tags(taxonomy: dict) -> set[str]:
 
 def test_init_creates_index(tmp_path, load_script):
     """init with --from-json should create .ai-badger/mcp-tools.yaml."""
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["init", "--target", str(tmp_path), "--from-json", _mock_mcp_list_json()])
     assert rc == 0
 
@@ -93,7 +93,7 @@ def test_init_creates_index(tmp_path, load_script):
 
 def test_init_auto_tags_known_tools(tmp_path, load_script):
     """init should auto-tag tools with heuristics, not leave everything as 'general'."""
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["init", "--target", str(tmp_path), "--from-json", _mock_mcp_list_json()])
     assert rc == 0
 
@@ -123,7 +123,7 @@ def test_init_auto_tags_known_tools(tmp_path, load_script):
 
 def test_init_fallback_to_general(tmp_path, load_script):
     """Tools with no heuristic match should get [general] tag."""
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["init", "--target", str(tmp_path), "--from-json", _mock_mcp_list_json()])
     assert rc == 0
 
@@ -134,7 +134,7 @@ def test_init_fallback_to_general(tmp_path, load_script):
 
 def test_init_sets_intent_from_description(tmp_path, load_script):
     """init should use the tool's description as the intent."""
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["init", "--target", str(tmp_path), "--from-json", _mock_mcp_list_json()])
     assert rc == 0
 
@@ -146,7 +146,7 @@ def test_init_sets_intent_from_description(tmp_path, load_script):
 def test_init_overwrites_existing(tmp_path, load_script):
     """Running init again should overwrite the existing index."""
     _write_index(tmp_path, {"version": "0.0.0", "generated_at": "old", "sources": []})
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["init", "--target", str(tmp_path), "--from-json", _mock_mcp_list_json()])
     assert rc == 0
 
@@ -169,7 +169,7 @@ def test_validate_passes_on_valid_index(tmp_path, load_script):
             },
         }],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["validate", "--target", str(tmp_path)])
     assert rc == 0
 
@@ -186,14 +186,14 @@ def test_validate_fails_on_untagged_tool(tmp_path, load_script):
             },
         }],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["validate", "--target", str(tmp_path)])
     assert rc != 0
 
 
 def test_validate_fails_on_missing_index(tmp_path, load_script):
     """validate should fail when the index doesn't exist."""
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["validate", "--target", str(tmp_path)])
     assert rc != 0
 
@@ -210,7 +210,7 @@ def test_validate_fails_on_empty_tags(tmp_path, load_script):
             },
         }],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["validate", "--target", str(tmp_path)])
     assert rc != 0
 
@@ -229,7 +229,7 @@ def test_tag_sets_tags(tmp_path, load_script):
             },
         }],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["tag", "rider:tool_a", "dotnet", "build", "--target", str(tmp_path)])
     assert rc == 0
 
@@ -250,7 +250,7 @@ def test_tag_rejects_invalid_tag(tmp_path, load_script):
             },
         }],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["tag", "rider:tool_a", "not-a-real-tag", "--target", str(tmp_path)])
     assert rc != 0
 
@@ -265,7 +265,7 @@ def test_tag_fails_on_unknown_tool(tmp_path, load_script):
             "tools": {},
         }],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["tag", "rider:nonexistent", "dotnet", "--target", str(tmp_path)])
     assert rc != 0
 
@@ -284,7 +284,7 @@ def test_intent_sets_intent(tmp_path, load_script):
             },
         }],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["intent", "rider:tool_a", "New improved intent for this tool", "--target", str(tmp_path)])
     assert rc == 0
 
@@ -304,7 +304,7 @@ def test_intent_rejects_too_short(tmp_path, load_script):
             },
         }],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["intent", "rider:tool_a", "short", "--target", str(tmp_path)])
     assert rc != 0
 
@@ -323,7 +323,7 @@ def test_update_adds_new_tools(tmp_path, load_script):
             },
         }],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
 
     # Mock MCP list with additional tools
     mcp_json = json.dumps({
@@ -361,7 +361,7 @@ def test_update_marks_removed_tools(tmp_path, load_script):
             },
         }],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
 
     mcp_json = json.dumps({
         "servers": [{
@@ -393,7 +393,7 @@ def test_update_preserves_manual_tags(tmp_path, load_script):
             },
         }],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
 
     mcp_json = json.dumps({
         "servers": [{
@@ -436,7 +436,7 @@ def test_list_outputs_all_tools(tmp_path, load_script, capsys):
             },
         ],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["list", "--target", str(tmp_path)])
     assert rc == 0
 
@@ -462,7 +462,7 @@ def test_list_filters_by_tag(tmp_path, load_script, capsys):
             },
         ],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["list", "--tag", "diagnostic", "--target", str(tmp_path)])
     assert rc == 0
 
@@ -484,7 +484,7 @@ def test_list_untagged_flag(tmp_path, load_script, capsys):
             },
         }],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["list", "--untagged", "--target", str(tmp_path)])
     assert rc == 0
 
@@ -497,14 +497,14 @@ def test_list_untagged_flag(tmp_path, load_script, capsys):
 
 def test_missing_target(tmp_path, load_script):
     """All commands should fail with usage error when --target is missing."""
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["validate"])
     assert rc == 2  # usage error
 
 
 def test_unknown_command(tmp_path, load_script):
     """Unknown subcommand should exit with usage error."""
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["nonexistent", "--target", str(tmp_path)])
     assert rc == 2
 
@@ -519,6 +519,6 @@ def test_tag_without_tags(tmp_path, load_script):
             "tools": {"tool_a": {"tags": ["general"], "intent": "A"}},
         }],
     })
-    mod = load_script("skills/mcp-index/scripts/mcp_index.py")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["tag", "rider:tool_a", "--target", str(tmp_path)])
     assert rc == 2
