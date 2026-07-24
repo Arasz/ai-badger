@@ -659,6 +659,78 @@ class Scaffolder:
         bl.dump_json(settings_path, settings)
         self.notes.append(f"wired {len(settings_hooks)} hook(s) into .claude/settings.json")
 
+    # -- adjustments ----------------------------------------------------------------
+    def run_adjustments(self) -> None:
+        """Run agent-specific adjustments declared in features/<agent>/adjustments/.
+
+        Each adjustment is a Python script with an adjust(context) function that
+        receives the framework root, config, and target directory, and returns
+        {'applied': bool, 'files': list, 'notes': str}.
+        """
+        for agent_name in self.config.get("agents", []):
+            adj_path = self.root / "features" / agent_name / "adjustments" / "adjustment.json"
+            if not adj_path.exists():
+                continue
+
+            try:
+                adj_manifest = bl.load_json(adj_path)
+            except (ValueError, OSError):
+                continue
+
+            for adj in adj_manifest.get("adjustments", []):
+                script_name = adj.get("script")
+                if not script_name:
+                    continue
+
+                script_path = adj_path.parent / script_name
+                if not script_path.exists():
+                    self.notes.append(
+                        f"adjustment script '{script_name}' for '{agent_name}' not found — skipped"
+                    )
+                    continue
+
+                try:
+                    import importlib.util
+                    spec = importlib.util.spec_from_file_location(
+                        f"adj_{agent_name}_{script_name}", script_path
+                    )
+                    if spec is None or spec.loader is None:
+                        self.notes.append(
+                            f"adjustment '{script_name}' for '{agent_name}' — could not load module"
+                        )
+                        continue
+                    mod = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(mod)
+
+                    context = {
+                        "framework_root": self.root,
+                        "config": self.config,
+                        "feature_dir": self.root / "features" / agent_name / "adjustments",
+                        "target_dir": self.aib,
+                        "target": self.target,
+                        "skills": self.skills,
+                        "index": self.index,
+                    }
+                    result = mod.adjust(context)
+                    if result.get("applied"):
+                        self.notes.append(
+                            f"adjustment '{adj.get('feature', script_name)}' for "
+                            f"'{agent_name}': {result.get('notes', 'applied')}"
+                        )
+                        for f in result.get("files", []):
+                            self.record("adjustments", agent_name,
+                                        f"adjustments/{f}", script_path,
+                                        self.target / f)
+                    else:
+                        self.notes.append(
+                            f"adjustment '{adj.get('feature', script_name)}' for "
+                            f"'{agent_name}': not applied — {result.get('notes', 'no reason')}"
+                        )
+                except Exception as exc:  # pylint: disable=broad-exception-caught
+                    self.notes.append(
+                        f"adjustment '{script_name}' for '{agent_name}' failed: {exc}"
+                    )
+
     # -- orchestrate ----------------------------------------------------------------
     def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
         """Run every scaffold step in order and return the manifest, plugin commands, and notes."""
@@ -673,6 +745,7 @@ class Scaffolder:
         doc = self.assemble_instructions_doc(invariants, instr_paths)
         self.write_agent_files(doc, instr_paths, invariants)
         self.wire_hooks()
+        self.run_adjustments()
         plugin_cmds = self.install_plugins()
 
         # copy the config into place (source of truth for the skills)

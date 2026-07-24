@@ -166,20 +166,20 @@
           "mechanism": ".github/hooks/*.json — events: sessionStart, sessionEnd, preToolUse, postToolUse, userPromptSubmitted, agentStop, subagentStop, errorOccurred",
           "configPath": ".github/hooks/",
           "format": { "version": 1, "hooks": { "<event>": [{ "type": "command", "bash": "...", "powershell": "...", "cwd": ".", "timeoutSec": 10 }] } },
-          "aiBadgerSupport": false,
-          "plannedFor": "Phase 1"
+          "aiBadgerSupport": true,
+          "wiredBy": "copilot/adjustments/adjust_hooks.py"
         },
         "skills": {
           "supported": true,
           "mechanism": ".github/skills/*/SKILL.md or .claude/skills/*/SKILL.md — YAML frontmatter (name, description) + markdown body",
-          "aiBadgerSupport": false,
-          "plannedFor": "Phase 2"
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "copilot/adjustments/adjust_skills.py — symlinks into .github/skills/"
         },
         "customAgents": {
           "supported": true,
           "mechanism": ".github/agents/*.agent.md — YAML frontmatter (name, description, tools, model, mcp-servers, user-invocable)",
-          "aiBadgerSupport": false,
-          "plannedFor": "Phase 3"
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "copilot/adjustments/adjust_agents.py — maps personas to .github/agents/"
         },
         "plugins": {
           "supported": true,

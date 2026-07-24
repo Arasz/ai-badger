@@ -1,0 +1,20 @@
+{
+  "agent": "copilot",
+  "adjustments": [
+    {
+      "feature": "hooks",
+      "description": "Wire ai-badger hooks into .github/hooks/ for Copilot CLI",
+      "script": "adjust_hooks.py"
+    },
+    {
+      "feature": "skills",
+      "description": "Symlink ai-badger skills into .github/skills/ for Copilot CLI discovery",
+      "script": "adjust_skills.py"
+    },
+    {
+      "feature": "agents",
+      "description": "Map ai-badger personas to Copilot custom agents (.github/agents/*.agent.md)",
+      "script": "adjust_agents.py"
+    }
+  ]
+}

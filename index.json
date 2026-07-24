@@ -237,6 +237,24 @@
           "name": "copilot-instructions.md.tmpl",
           "path": "features/copilot/templates/copilot-instructions.md.tmpl"
         }
+      ],
+      "adjustments": [
+        {
+          "name": "adjust_agents",
+          "path": "features/copilot/adjustments/adjust_agents.py"
+        },
+        {
+          "name": "adjust_hooks",
+          "path": "features/copilot/adjustments/adjust_hooks.py"
+        },
+        {
+          "name": "adjust_skills",
+          "path": "features/copilot/adjustments/adjust_skills.py"
+        },
+        {
+          "name": "adjustment",
+          "path": "features/copilot/adjustments/adjustment.json"
+        }
       ]
     },
     "cosmos": {
