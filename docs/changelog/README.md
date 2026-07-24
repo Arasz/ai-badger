@@ -7,7 +7,9 @@ Each version gets its own file: `{version}-{slug}.md`.
 
 ```
 docs/changelog/
-  0.10.0-dir-hash-drift-detection.md   # Latest
+  0.10.2-known-gaps-cleanup.md          # Latest
+  0.10.1-config-gated-inline-extensions.md
+  0.10.0-dir-hash-drift-detection.md
   0.9.3-commit-drift-detection.md
   0.9.2-refresh-version-sync-fix.md
   0.9.1-github-fallback-framework-root.md
@@ -27,5 +29,3 @@ Every release must:
 1. Bump `VERSION` (semver patch for fixes, minor for features, major for breaking)
 2. Add a `docs/changelog/{version}-{slug}.md` entry here
 3. Run `python3 scripts/version_sync.py` to propagate version to metadata files
-
-This is enforced by the `version-changelog-required` invariant.
