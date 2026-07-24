@@ -619,3 +619,59 @@ def test_unknown_subcommand_is_a_usage_error(tt, monkeypatch):
         tt.main()
 
     assert exc.value.code == 2
+
+
+# --------------------------------------------------------------------------- full lifecycle
+def test_full_lifecycle_start_subagent_finish_grade(tt, monkeypatch, tmp_path, capsys):
+    """Integration: start → subagent → finish → grade exercises the complete task cycle."""
+    import os
+
+    transcript = tmp_path / "lifecycle.jsonl"
+    _write_transcript(transcript, [(False, 100, 20, 10, 5)])
+
+    # 1. Start
+    _start(monkeypatch, tt, "LIFECYCLE-1", transcript, session_id="sid-lc")
+    capsys.readouterr()
+
+    entry = tt.lib.find_entry(tt.lib.load_tasks(), "LIFECYCLE-1")
+    assert entry["state"] == tt.lib.STATE_STARTED
+
+    # 2. Record a subagent
+    code = _run(monkeypatch, tt, "subagent", "LIFECYCLE-1", "5000",
+                "--description", "implemented feature X")
+    assert code == 0
+    usage_entry = tt.lib.find_entry(tt.lib.load_usage(), "LIFECYCLE-1")
+    assert usage_entry["subagents"][0]["totalTokens"] == 5000
+
+    # 3. Update state.json (mimics orchestrator updating project state)
+    started_dt = tt.lib.parse_iso(entry["startedAt"])
+    tt.lib.STATE_JSON.parent.mkdir(parents=True, exist_ok=True)
+    tt.lib.STATE_JSON.write_text("{}", encoding="utf-8")
+    later = (started_dt + timedelta(seconds=5)).timestamp()
+    os.utime(tt.lib.STATE_JSON, (later, later))
+
+    # Grow transcript before finishing
+    _write_transcript(transcript, [
+        (False, 100, 20, 10, 5),
+        (False, 300, 80, 20, 10),
+    ])
+
+    # 4. Finish
+    code = _run(monkeypatch, tt, "finish", "LIFECYCLE-1")
+    assert code == 0
+    entry = tt.lib.find_entry(tt.lib.load_tasks(), "LIFECYCLE-1")
+    assert entry["state"] == tt.lib.STATE_FINISHED
+    assert entry["finishedAt"] is not None
+
+    # 5. Grade
+    code = _run(monkeypatch, tt, "grade", "LIFECYCLE-1", "4")
+    assert code == 0
+    usage_entry = tt.lib.find_entry(tt.lib.load_usage(), "LIFECYCLE-1")
+    assert usage_entry["grade"] == 4
+
+    # 6. Status reflects everything
+    code = _run(monkeypatch, tt, "status")
+    assert code == 0
+    status_out = capsys.readouterr().out
+    assert "LIFECYCLE-1" in status_out
+    assert "FINISHED" in status_out
