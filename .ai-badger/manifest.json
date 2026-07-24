@@ -1,8 +1,8 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.10.0",
-  "frameworkCommit": "ca9cf60ab8f4d394b773f8a03c4c6be1e6cefaaa",
-  "frameworkDirty": true,
+  "frameworkCommit": "7fdcb415d44a85cc1d8e98f9ba229a8f21261411",
+  "frameworkDirty": false,
   "generatedAt": null,
   "agents": [
     "claude",
@@ -219,10 +219,10 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.10.0",
-      "hash": "776359f70d73b4095dbb9af5b574a2dd9a313d4ca48da5f7ba851b043fda544c",
+      "hash": "abb37c4bd9aa1fa4cf844e1e5ee4216936dfbf0bbc6fe2c13adab73b746b236b",
       "dirMeta": {
-        "file_count": 13,
-        "dir_count": 2
+        "file_count": 15,
+        "dir_count": 4
       }
     },
     {
@@ -232,7 +232,7 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.10.0",
-      "hash": "e5ac06f1bcb328442988420c326e8235a60972cce2d192684222cd69036f81f1",
+      "hash": "38b95b19e489c996457fb4625988a8fafef966646dc602966fba79243f749cc7",
       "dirMeta": {
         "file_count": 4,
         "dir_count": 1
@@ -299,7 +299,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/task",
       "frameworkVersion": "0.10.0",
-      "hash": "7fa32fc635e70f4e791f63b3511824fbd65864cc1eae735e8fa1cccbdf1d0427"
+      "hash": "abb37c4bd9aa1fa4cf844e1e5ee4216936dfbf0bbc6fe2c13adab73b746b236b"
     },
     {
       "feature": "adjustments",
@@ -308,7 +308,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/welcome-ai-badger",
       "frameworkVersion": "0.10.0",
-      "hash": "e5ac06f1bcb328442988420c326e8235a60972cce2d192684222cd69036f81f1"
+      "hash": "38b95b19e489c996457fb4625988a8fafef966646dc602966fba79243f749cc7"
     },
     {
       "feature": "adjustments",
