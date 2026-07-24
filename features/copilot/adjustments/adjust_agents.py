@@ -81,17 +81,16 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
             "user-invocable": True,
         })
 
-        # Generate Copilot custom agent format
-        agent_md = f"""---
-name: {name}
-description: {agent_config['description']}
-tools:
-{chr(10).join(f'  - {t}' for t in agent_config['tools'])}
-user-invocable: {str(agent_config['user-invocable']).lower()}
----
-
-{persona_content}
-"""
+        # Generate Copilot custom agent format using proper YAML
+        import yaml
+        frontmatter = {
+            "name": name,
+            "description": agent_config["description"],
+            "tools": agent_config["tools"],
+            "user-invocable": agent_config["user-invocable"],
+        }
+        yaml_header = yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True).strip()
+        agent_md = f"---\n{yaml_header}\n---\n\n{persona_content}\n"
         agent_file = agents_dir / f"{name}.agent.md"
         agent_file.write_text(agent_md, encoding="utf-8")
         created.append(name)

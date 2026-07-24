@@ -158,8 +158,8 @@
         "personas": {
           "supported": true,
           "mechanism": "Custom agents (.github/agents/*.agent.md)",
-          "aiBadgerSupport": false,
-          "plannedFor": "Phase 3"
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "copilot/adjustments/adjust_agents.py — maps personas to .github/agents/"
         },
         "hooks": {
           "supported": true,
