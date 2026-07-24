@@ -152,13 +152,24 @@ class Scaffolder:
     # -- provenance -----------------------------------------------------------------
     def record(self, feature: str, stack: str, name: str, source: Path, target: Path) -> None:
         """Append a manifest entry recording where a scaffolded item came from and went."""
-        self.entries.append({
+        entry = {
             "feature": feature, "stack": stack, "name": name,
             "source": source.relative_to(self.root).as_posix(),
             "target": target.relative_to(self.target).as_posix(),
             "frameworkVersion": self.index["frameworkVersion"],
-            "hash": bl.sha256_file(target),  # as-scaffolded content, so feed detects genuine edits
-        })
+        }
+        if source.is_dir():
+            # Directory entry (skills): hash the SOURCE dir (before extension embedding)
+            # so drift detection compares like-for-like
+            fingerprint = bl.dir_content_hash(source, exclude=bl.SKILL_EXCLUDE_PATTERNS)
+            entry["hash"] = fingerprint["content_hash"]
+            entry["dirMeta"] = {
+                "file_count": fingerprint["file_count"],
+                "dir_count": fingerprint["dir_count"],
+            }
+        else:
+            entry["hash"] = bl.sha256_file(target)
+        self.entries.append(entry)
 
     def copy_file(self, feature: str, stack: str, item: Dict[str, Any], dest_dir: Path) -> Path:
         """Copy one index item's source file into dest_dir and record its provenance."""

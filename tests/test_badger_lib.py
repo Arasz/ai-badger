@@ -212,3 +212,77 @@ def test_iter_feature_dirs_yields_stack_feature_dir_tuples_in_sorted_order(tmp_p
         ("dotnet", "skills"),
         ("dotnet", "personas"),
     ]
+
+
+# ---------------------------------------------------------------- dir_content_hash
+def test_dir_content_hash_excludes_patterns(tmp_path, load_script):
+    """Files matching exclude patterns are not included in the hash."""
+    bl = load_script("scripts/badger_lib.py")
+    d = tmp_path / "skill"
+    d.mkdir()
+    (d / "SKILL.md").write_text("content\n")
+    (d / "scripts").mkdir()
+    (d / "scripts" / "main.py").write_text("print('hi')\n")
+    (d / "tests").mkdir()
+    (d / "tests" / "test_main.py").write_text("assert True\n")
+    (d / "evals").mkdir()
+    (d / "evals" / "evals.json").write_text("{}\n")
+
+    result = bl.dir_content_hash(d, exclude=["tests", "evals"])
+
+    assert result["file_count"] == 2  # SKILL.md + scripts/main.py
+    assert result["dir_count"] >= 1   # scripts/
+    assert result["content_hash"]  # non-empty
+
+
+def test_dir_content_hash_deterministic(tmp_path, load_script):
+    """Same directory content produces the same hash."""
+    bl = load_script("scripts/badger_lib.py")
+    d1 = tmp_path / "a"
+    d1.mkdir()
+    (d1 / "file.md").write_text("hello\n")
+    d2 = tmp_path / "b"
+    d2.mkdir()
+    (d2 / "file.md").write_text("hello\n")
+
+    h1 = bl.dir_content_hash(d1)
+    h2 = bl.dir_content_hash(d2)
+
+    assert h1["content_hash"] == h2["content_hash"]
+    assert h1["file_count"] == h2["file_count"]
+
+
+def test_dir_content_hash_differs_on_content_change(tmp_path, load_script):
+    """Changed file content produces a different hash."""
+    bl = load_script("scripts/badger_lib.py")
+    d1 = tmp_path / "a"
+    d1.mkdir()
+    (d1 / "file.md").write_text("v1\n")
+    d2 = tmp_path / "b"
+    d2.mkdir()
+    (d2 / "file.md").write_text("v2\n")
+
+    h1 = bl.dir_content_hash(d1)
+    h2 = bl.dir_content_hash(d2)
+
+    assert h1["content_hash"] != h2["content_hash"]
+
+
+def test_dir_content_hash_same_when_excluded_files_differ(tmp_path, load_script):
+    """Excluded files (tests, evals) don't affect the hash."""
+    bl = load_script("scripts/badger_lib.py")
+    d1 = tmp_path / "a"
+    d1.mkdir()
+    (d1 / "SKILL.md").write_text("content\n")
+    (d1 / "tests").mkdir()
+    (d1 / "tests" / "test_v1.py").write_text("v1\n")
+    d2 = tmp_path / "b"
+    d2.mkdir()
+    (d2 / "SKILL.md").write_text("content\n")
+    (d2 / "tests").mkdir()
+    (d2 / "tests" / "test_v2.py").write_text("v2\n")
+
+    h1 = bl.dir_content_hash(d1, exclude=["tests"])
+    h2 = bl.dir_content_hash(d2, exclude=["tests"])
+
+    assert h1["content_hash"] == h2["content_hash"]
