@@ -76,6 +76,13 @@ MANAGED_HEADER = (
 # overwrite, so a mature repo's curated CLAUDE.md/instructions are never clobbered.
 _MANAGED_PREFIX = MANAGED_HEADER.split("{name}", 1)[0]
 
+# Known non-standard agent file locations that may coexist with the standard ones.
+# Key: standard target path (relative to project root). Value: list of alternative paths
+# to check. If any exist, the scaffolder warns so the user can reconcile.
+_NONSTANDARD_AGENT_FILES: Dict[str, List[str]] = {
+    ".github/copilot-instructions.md": ["COPILOT_INSTRUCTIONS.md"],
+}
+
 
 # ---------------------------------------------------------------- config-path helpers
 def cfg_get(config: Dict[str, Any], dotted: str) -> Any:
@@ -498,6 +505,18 @@ class Scaffolder:
                         f"instructions/{p.name}",
                         p.read_text(encoding="utf-8")
                     )
+
+            self._detect_nonstandard_agent_files(file_entry["target"])
+
+    def _detect_nonstandard_agent_files(self, target_rel: str) -> None:
+        """Warn if non-standard equivalents of an agent file exist in the project."""
+        for alt in _NONSTANDARD_AGENT_FILES.get(target_rel, []):
+            alt_path = self.target / alt
+            if alt_path.exists():
+                self.notes.append(
+                    f"non-standard agent file '{alt}' found — '{target_rel}' was also "
+                    "written; consider removing the non-standard file to avoid confusion"
+                )
 
     def write_agent_files(self, instructions_doc: str, instr_paths: List[Path],
                            invariants: List[str]) -> None:

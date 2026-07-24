@@ -55,7 +55,7 @@ ai-badger/
     cosmos/    {invariants,instructions,plugins}/…
     terraform/ {instructions,plugins}/…
     mcp/       {instructions,plugins}/…
-    github/    {plugins, skills/task-extensions/github}/…
+    github/    {plugins}/…
     angular/ node/ js/ ts/ react/ css/  {personas,invariants,instructions,plugins}/…
 ```
 
@@ -193,11 +193,12 @@ scope; `local-only` forces every install to project/local scope. No user-only op
 - **Base `task`** (root `skills/task`): orchestration, Fable/Sonnet/Haiku delegation, TDD,
   token tracking, resume cron, finish protocol, review loop — all reading `config.json`.
   No hardcoded GitHub, no dashboard, no `dotnet`.
-- **Extensions** (`features/<stack>/skills/task-extensions/<name>`, e.g.
-  `features/github/skills/task-extensions/github/`): opt-in slices embedded into the scaffolded
-  skill when config supplies their data:
-  - `github`: create/track **issues + PRs**, Copilot review loop — needs `sourceControl.github` +
-    `repoUrl`; project-board bits need `projectUrl`.
+- **Extensions** (`features/common/skills/task/extensions/<name>/`): opt-in slices
+  shipped inline inside the base skill directory, gated by `extension.json` `requires`
+  conditions evaluated against `config.json` at scaffold time:
+  - `github`: create/track **issues + PRs**, Copilot review loop — needs `sourceControl.platform ==
+    "github"` and `repoUrl`; project-board bits need `projectUrl`.
+  - `hermes`: Hermes Agent delegation patterns — needs `hermes` in `stacks`.
   - (future) `dotnet-verify`: `dotnet build && dotnet test` gate — needs dotnet stack + commands.
 - `prompt-markers` (ADR-0017) ships as its own skill at the root `skills/prompt-markers` (hook +
   `markers-context.json` + `marker-state.json`), referenced by base task.
@@ -249,10 +250,10 @@ run `welcome-ai-badger`.
 This is why the installable skills sit at the repo-root `skills/` rather than under
 `features/common/skills/`: the Claude Code plugin loader only discovers skills at the plugin
 root's `skills/` directory, so with `source: "./"` that root is the ai-badger repo root itself.
-Stack-scoped skill *extensions* (e.g. `features/github/skills/task-extensions/github/`) stay
-under `features/` since they aren't independently installed — `index_build.py` attaches them to
-their base skill by directory convention (§7). (The plugin references the root `skills/` dirs;
-catalog stacks under `features/` are data the skills read.)
+Stack-scoped skill *extensions* now live inline inside their base skill directory (e.g.
+`features/common/skills/task/extensions/github/`). They aren't independently installed —
+`scaffold.py` embeds them into the scaffolded skill when their `extension.json` `requires`
+conditions are met, and prunes them otherwise.
 
 ## 10. welcome-ai-badger — flow
 

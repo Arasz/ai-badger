@@ -22,40 +22,37 @@ Honest list of what's not yet done, ordered by impact. None block the core loop
    Manifest directory entries now hash the TARGET dir (after extension embedding/pruning)
    so `detect_additions` sees the actual scaffolded state.
 
-5. ~~**Essential agent files are full copies, not proxies.**~~ **Droped** `CLAUDE.md`,
-      `.github/copilot-instructions.md`, and `.junie/AGENTS.md` are copied from `.ai-badger/` with a
-      managed header. The thin-proxy alternative is a documented spike — see `proxy-files-spike.md`.
-      **Deferred** — symlinks break on Windows and cross-agent incompatibility (Copilot doesn't follow
-      symlinks reliably). Full copies with managed headers are the proven approach.
+5. ~~**Stale `task-extensions/` references in docs.**~~ **Fixed in v0.10.1.** Updated
+   `ai-badger-framework-design.md`, `framework-architecture.md`, `authoring-a-feature.md`,
+   and `hermes-claude-compatibility.md` to reflect the inline extension layout. Historical
+   specs and changelogs left as-is.
 
-10. ~~**Migration of job-search-ai-assistant deferred.**~~ **Droped** That repo remains the ad-hoc source; it has
-    not yet been rewired to consume skills from this marketplace (a deliberate, separate follow-up).
+6. ~~**Essential agent files are full copies, not proxies.**~~ **Dropped.** `CLAUDE.md`,
+   `.github/copilot-instructions.md`, and `.junie/AGENTS.md` are copied from `.ai-badger/` with a
+   managed header. The thin-proxy alternative is a documented spike — see `proxy-files-spike.md`.
+   Symlinks break on Windows and cross-agent incompatibility (Copilot doesn't follow
+   symlinks reliably). Full copies with managed headers are the proven approach.
+
+7. ~~**Migration of job-search-ai-assistant deferred.**~~ **Dropped.** That repo remains the
+   ad-hoc source; it has not yet been rewired to consume skills from this marketplace (a
+   deliberate, separate follow-up).
+
+8. ~~**Non-standard existing agent files aren't merged.**~~ **Fixed in v0.10.1.** `scaffold.py`
+   now detects known non-standard agent file equivalents (e.g. root `COPILOT_INSTRUCTIONS.md`)
+   and warns the user to reconcile. Detection uses `_NONSTANDARD_AGENT_FILES` mapping —
+   extensible for future agents.
+
+9. ~~**`task` skill scripts not exercised end-to-end.**~~ **Fixed in v0.10.1.** Added
+   `test_full_lifecycle_start_subagent_finish_grade` integration test exercising the complete
+   start → subagent → finish → grade → status cycle.
+
+10. ~~**Plugin install is advisory by default.**~~ **Resolved.** The `--execute` flag runs
+    install commands automatically with 30s timeout and error handling. Advisory default is
+    intentional — `--execute` is the opt-in for automation.
 
 ## Open
 
-6. **Non-standard existing agent files aren't merged.** A repo may already ship a root
-   `COPILOT_INSTRUCTIONS.md` (the arasz-home-page dogfood does). `welcome-ai-badger` writes the
-   standard `.github/copilot-instructions.md` and leaves the old file in place; the two coexist.
-   **Deferred** — merge logic is complex edge case. Follow-up: detect and reconcile pre-existing
-   agent instruction files.
-
-7. **`task` skill scripts not exercised end-to-end in a scaffolded project.** The
-   dogfood ran `welcome`/`feed`, not a full `/task` cycle inside the scaffolded repo. The
-   tracking scripts compile and smoke-test, but a real task run in a scaffolded project is untested.
-   Follow-up: write integration test exercising `start` → `finish` → `grade` lifecycle.
-
-8. **Plugin install is advisory by default.** `scaffold.py` prints `claude plugin marketplace add` /
-   `plugin install` commands per chosen scope. The new `--execute` flag runs them automatically
-   with 30s timeout and error handling. Default behavior unchanged (advisory/prints only).
-
-9. **Catalog is MVP-sized.** Several stacks have instructions/invariants but no dedicated persona
-   (e.g. `ts`, `js`, `css`, `terraform`, `mcp`). Personas exist where clearly justified
-   (`dotnet`, `azure`, `node`, `react`, `angular`) plus the three base roles. Grow the catalog via
-   `feed-badger` over time rather than front-loading speculative content.
-
-11. **Stale `task-extensions/` references in docs.** Several docs still reference the old
-    `features/<stack>/skills/task-extensions/` path structure that was replaced by inline
-    `features/common/skills/task/extensions/` in v0.10.1. Affected files:
-    `ai-badger-framework-design.md`, `framework-architecture.md`, `authoring-a-feature.md`,
-    `hermes-claude-compatibility.md`, and spec `001-plugin-hooks-adjustments-refactor.md`.
-    Follow-up: update these docs to reflect the inline extension layout.
+11. **Catalog is MVP-sized.** Several stacks have instructions/invariants but no dedicated persona
+    (e.g. `ts`, `js`, `css`, `terraform`, `mcp`). Personas exist where clearly justified
+    (`dotnet`, `azure`, `node`, `react`, `angular`) plus the three base roles. Grow the catalog via
+    `feed-badger` over time rather than front-loading speculative content.
