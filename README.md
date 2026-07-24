@@ -1,26 +1,77 @@
 # ai-badger
 
-**ai-badger** is the source of truth for custom Claude Code skills, personas, invariants, and
+**ai-badger** is the source of truth for custom coding agent skills, personas, invariants, and
 instructions used across projects. It is three things in one repo:
 
 1. **A catalog** of reusable framework features (skills, personas, invariants, instructions,
    curated plugin bundles) organized by technology stack.
-2. **A Claude Code marketplace** — install it once, and it hands you the tooling to use the
-   catalog.
+2. **An agent plugin** — install it once for Claude Code, Copilot, Junie, or Hermes, and it
+   hands you the tooling to use the catalog.
 3. **A project scaffolder** — `welcome-ai-badger` reads a target repo, proposes a profile, and
    materializes a tailored slice of the catalog into it; `feed-badger` harvests generalizable
-   improvements a project made back into the catalog via a draft PR.
+   improvements a project made back into the catalog via a draft PR; `den-refresh` pulls
+   framework updates into an already-scaffolded project.
 
 Badger-themed name, professional-grade contents: the badger digs the framework into your repo
 and digs improvements back out.
 
+## Supported agents
+
+| Agent | Status | Notes |
+|---|---|---|
+| **Claude Code** | Full | Plugin hooks, `CLAUDE.md`, task extensions |
+| **Hermes Agent** | Full | `HERMES.md`/`.hermes.md`, `delegate_task`, skill auto-discovery |
+| **GitHub Copilot** | Scaffolded | `.github/copilot-instructions.md`, scoped instructions |
+| **JetBrains Junie** | Scaffolded | `.junie/AGENTS.md` |
+
+## Supported stacks
+
+`angular`, `azure`, `cosmos`, `css`, `dotnet`, `github`, `hermes`, `js`, `mcp`, `node`,
+`python`, `react`, `terraform`, `ts` — plus **`common`** for stack-agnostic content and
+agent-specific stacks (`claude`, `copilot`, `junie`).
+
+## Install
+
+```
+/plugin marketplace add https://github.com/Arasz/ai-badger
+/plugin install ai-badger
+```
+
+This installs the operational skills: `welcome-ai-badger`, `feed-badger`, `den-refresh`,
+`task`, `maintain-agent-instructions`, `auto-wm`, `prompt-markers`, and `mcp-index`.
+
+## Quickstart
+
+Run **`welcome-ai-badger`** inside a project you want to scaffold:
+
+1. It detects stacks, present agents (`claude`, `copilot`, `junie`, `hermes`), and commands from
+   the repo and asks you to confirm/refine a `.ai-badger/config.json` profile (project summary,
+   domain, persona routing, plugin scope).
+2. It materializes `.ai-badger/` — selected skills, personas, invariants, instructions, an
+   assembled `CLAUDE.md` (or `HERMES.md`), and plugin installs — recording exactly what it wrote
+   in `.ai-badger/manifest.json`.
+3. Essential agent-discovery files (`CLAUDE.md`, `.github/copilot-instructions.md`,
+   `.junie/AGENTS.md`, `HERMES.md`/`.hermes.md`) are copied into their conventional locations
+   with a header pointing back at `.ai-badger/` as the source of truth, since some agent CLIs
+   only look there.
+
+Once you've customized things and want to contribute agnostic improvements back, run
+**`feed-badger`**: it diffs the project's `.ai-badger/` tree against `manifest.json`, classifies
+each change as project-specific or generalizable, generalizes the generalizable ones, and opens
+a draft PR against `ai-badger` with the rationale.
+
+To pull framework updates into an already-scaffolded project, run **`den-refresh`**: it checks
+what changed upstream, re-scaffolds with your existing `config.json`, and reports the result.
+Seed-once files (`state.json`, `markers-context.json`) are preserved.
+
+See [`docs/index.md`](docs/index.md) for the full documentation map, or
+[`docs/authoring-a-feature.md`](docs/authoring-a-feature.md) for how to add new stacks,
+personas, invariants, instructions, plugin entries, or skills to the catalog.
+
 ## The 3-layer model: `features/{stack | common}/{feature}`
 
-Everything in the catalog is filed under a **stack** (a technology: `dotnet`, `azure`, `cosmos`,
-`terraform`, `mcp`, `node`, `js`, `ts`, `react`, `css`, `github`, `angular`, or **`common`** for
-stack-agnostic content) and a **feature** (a kind of asset: `personas`, `invariants`,
-`instructions`, `plugins`, `templates` for `common` only, and stack-scoped skill *extensions*
-under `plugins`'s sibling `skills/`).
+Everything in the catalog is filed under a **stack** (a technology) and a **feature** (a kind
+of asset: `personas`, `invariants`, `instructions`, `plugins`, `templates`, `skills`).
 
 ```
 features/<stack>/<feature>/<item>
@@ -30,87 +81,65 @@ features/<stack>/<feature>/<item>
   filename stem.
 - **plugins** is a single `plugins.json` (the list of plugins to install) plus a sibling
   `marketplaces.json` (where they come from) — at most one of each per stack.
-- The **installable operational skills** (`welcome-ai-badger`, `feed-badger`, `task`, etc.) are
-  the one exception: they live at the repo-root `skills/`, not under `features/` — see
-  [`docs/framework-architecture.md`](docs/framework-architecture.md) for why.
+- **skills** — the installable operational skills live at `features/common/skills/` (each
+  containing a `SKILL.md` plus scripts/references). Stack-scoped skill *extensions* live at
+  `features/<stack>/skills/<base>-extensions/<ext>/`.
 
 A script-generated `index.json` at the repo root scans this tree and is the single source of
 truth the scaffolder and feed tooling read — see
 [`docs/framework-architecture.md`](docs/framework-architecture.md) for the full model.
 
-## Install
+### Scaffolding.json — declarative agent file generation
 
-```
-/plugin marketplace add https://github.com/Arasz/ai-badger
-/plugin install ai-badger
-```
+Each agent has a `features/<agent>/scaffolding.json` that declares what files to scaffold into
+a target project. This replaces hardcoded agent-specific logic in `scaffold.py` — all agents
+are data-driven. See [`schemas/scaffolding.schema.json`](schemas/scaffolding.schema.json) for
+the schema.
 
-This installs the `skills` tooling: `welcome-ai-badger`, `feed-badger`, `task`,
-`maintain-agent-instructions`, `auto-wm`, and `prompt-markers`.
+## Skills
 
-## Quickstart
-
-Run **`welcome-ai-badger`** inside a project you want to scaffold:
-
-1. It detects stacks, present agents (`claude`, `copilot`, `junie`), and commands from the repo
-   and asks you to confirm/refine a `.ai-badger/config.json` profile (project summary, domain,
-   persona routing, plugin scope).
-2. It materializes `.ai-badger/` — selected skills, personas, invariants, instructions, an
-   assembled `CLAUDE.md`, and plugin installs — recording exactly what it wrote in
-   `.ai-badger/manifest.json`.
-3. Essential agent-discovery files (`CLAUDE.md`, `.github/copilot-instructions.md`,
-   `.junie/AGENTS.md`) are copied into their conventional locations with a header pointing back
-   at `.ai-badger/` as the source of truth, since some agent CLIs only look there.
-
-Once you've customized things and want to contribute agnostic improvements back, run
-**`feed-badger`**: it diffs the project's `.ai-badger/` tree against `manifest.json`, classifies
-each change as project-specific or generalizable, generalizes the generalizable ones, and opens
-a draft PR against `ai-badger` with the rationale.
-
-See [`docs/authoring-a-feature.md`](docs/authoring-a-feature.md) for how to add new stacks,
-personas, invariants, instructions, plugin entries, or skills to the catalog yourself.
+| Skill | What it does |
+|---|---|
+| **welcome-ai-badger** | Bootstrap a new project: detect stacks → config → scaffold |
+| **feed-badger** | Harvest project improvements back into the framework |
+| **den-refresh** | Pull framework updates into an already-scaffolded project |
+| **task** | Orchestrate backlog tasks with TDD, delegation, and PR workflow |
+| **maintain-agent-instructions** | Keep agent instruction files in sync with the catalog |
+| **auto-wm** | Autonomous working mode: partner/away/disable transitions |
+| **prompt-markers** | Structured prompt markers (`h:`, `f:`, `e:`) for agent communication |
+| **mcp-index** | MCP tool index with tag + intent semantic matching |
 
 ## Architecture overview
 
 ```
 ai-badger/
-  index.json                     # SOURCE OF TRUTH: every feature for every stack, with paths (script-generated)
+  index.json                     # SOURCE OF TRUTH: every feature for every stack (script-generated)
   README.md   LICENSE (MIT)   VERSION
   .claude-plugin/marketplace.json   # ai-badger is itself installable, plugin source "./"
   .claude-plugin/plugin.json        # the installable plugin wrapping the root skills
-  schemas/                       # JSON Schema for every *.json model (index, config, manifest, plugins, marketplaces, stack…)
-  scripts/
-  docs/
-    framework-architecture.md
-    authoring-a-feature.md
-    proxy-files-spike.md         # documented feature-plan, not built
-    ai-badger-framework-design.md
-  skills/                         # INSTALLABLE operational skills (root — the one exception, see below)
-    task/ welcome-ai-badger/ feed-badger/ maintain-agent-instructions/ auto-wm/ prompt-markers/
+  schemas/                       # JSON Schema for every *.json model
+  scripts/                       # Mechanical Python scripts (no LLM, no network)
+  docs/                          # Architecture, authoring guides, ADRs
   features/
     common/
+      skills/                    # Installable operational skills
+        task/ welcome-ai-badger/ feed-badger/ den-refresh/
+        maintain-agent-instructions/ auto-wm/ prompt-markers/ mcp-index/
       personas/{architect, test-engineer, code-reviewer}.md
-      invariants/*.md              # agnostic invariant snippets
-      instructions/*.md            # agnostic scoped instructions (e.g. documentation)
-      plugins/plugins.json         # curated agnostic external plugins (single list)
-      plugins/marketplaces.json    # marketplaces those plugins install from
-      templates/                   # CLAUDE.md.tmpl, state.json skeleton, agent-instructions schema+validators
-    dotnet/    {personas,invariants,instructions,plugins}/… + stack.json
+      invariants/*.md            # Agnostic invariant snippets
+      instructions/*.md          # Agnostic scoped instructions
+      plugins/plugins.json       # Curated agnostic external plugins
+      templates/                 # CLAUDE.md.tmpl, HERMES.md.tmpl, state.json, agent-instructions
+    dotnet/    {personas,invariants,instructions,plugins}/…
     azure/     {personas,invariants,instructions,plugins}/…
-    cosmos/    {invariants,instructions,plugins}/…
-    terraform/ {instructions,plugins}/…
-    mcp/       {instructions,plugins}/…
+    cosmos/    {invariants,instructions}/…
+    terraform/ {instructions}/…
+    mcp/       {invariants,instructions}/…
     github/    {plugins, skills/task-extensions/github}/…
-    angular/ node/ js/ ts/ react/ css/  {personas,invariants,instructions,plugins}/…
+    angular/ node/ js/ ts/ react/ css/  {personas,invariants,instructions}/…
+    hermes/    {personas,instructions,skills/task-extensions/hermes}/…
+    claude/ copilot/ junie/     Agent-specific templates
 ```
-
-Root `skills/` is the one exception to `features/<stack>/<feature>/`: Claude Code's plugin
-loader only discovers skills at the plugin root's `skills/` directory, and ai-badger's plugin
-`source` is `"./"` (the whole repo) — so the installable operational skills must sit at the repo
-root, not nested under `features/`. Stack-scoped skill *extensions* (e.g.
-`features/github/skills/task-extensions/github/`) still live under `features/`, since they are
-not independently installed — `index_build.py` attaches them to their base skill by directory
-convention.
 
 ### Framework overview — structure & data flow
 
@@ -123,47 +152,24 @@ flowchart TB
       COMMON["common/\npersonas·invariants·instructions·plugins·templates"]
       STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · github · angular"]
     end
-    SKILLSDIR["features/common/skills/\nwelcome · feed · task · maintain · auto-wm · prompt-markers"]
+    SKILLSDIR["features/common/skills/\nwelcome · feed · task · maintain · auto-wm · prompt-markers\n· den-refresh · mcp-index"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]
   end
   IDXbuild["index_build.py"] -->|scans features/| IDX
   CAT --> IDXbuild
   SKILLSDIR --> IDXbuild
-  MKT -->|/plugin install| SKILLS["installed skills:\nwelcome · feed · task · maintain · auto-wm · prompt-markers"]
+  MKT -->|/plugin install| SKILLS["installed skills"]
   IDX -. read .-> SKILLS
   CAT -. copied features .-> PROJ
   subgraph PROJ["target repo (.ai-badger/)"]
     CFG["config.json\n(agent-authored)"]
     MAN["manifest.json\n(script-written provenance)"]
-    OUT[".ai-badger/ files\n+ CLAUDE.md / copilot / junie copies"]
+    OUT[".ai-badger/ files\n+ CLAUDE.md / copilot / hermes copies"]
   end
   SKILLS -->|welcome| PROJ
   PROJ -->|feed: manifest diff| PRD["draft PR → ai-badger"]
   PRD -. merges new features .-> CAT
 ```
-
-### welcome-ai-badger — logic flow
-
-```mermaid
-flowchart TD
-  A["run welcome-ai-badger"] --> B["detect.py: scan repo + user scope"]
-  B --> C["proposed config\n(stacks, agents, commands, sourceControl)"]
-  C --> D["AGENT: refine into config.json\n(summary, domain, persona routing)"]
-  D --> E{"ambiguous?"}
-  E -->|yes| F["ask clarifying question"] --> D
-  E -->|no| G["ask plugin scope: default | local-only"]
-  G --> H["validate.py config.json vs schema"]
-  H -->|invalid| D
-  H -->|valid| I["scaffold.py"]
-  I --> J["validate outputs + agent-instruction validators"]
-  J --> K["report files written + gaps"]
-```
-
-`feed-badger` mirrors this in reverse: it diffs the project's `.ai-badger/manifest.json`
-against the current `.ai-badger/` tree to find candidate additions, has the agent classify and
-generalize them, places them into the right `features/{stack}/{feature}`, regenerates `index.json`, and
-opens a draft PR — see [`docs/framework-architecture.md`](docs/framework-architecture.md) for
-the full diagram.
 
 ## Requirements
 

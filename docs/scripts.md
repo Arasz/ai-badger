@@ -8,7 +8,7 @@ python3 -m pip install -r scripts/requirements.txt   # jsonschema
 ```
 
 `$AI_BADGER` below is this repo's root (the directory containing `index.json`, `schemas/`,
-`features/`, `skills/`).
+`features/`).
 
 ## Core scripts (`scripts/`)
 
@@ -18,17 +18,17 @@ python3 -m pip install -r scripts/requirements.txt   # jsonschema
 | `validate.py` | Validate config / catalog JSON against `schemas/`. | `python3 scripts/validate.py --all` or `--kind config <file>`. |
 | `badger_lib.py` | Shared helpers (root discovery, JSON load/dump, sha256, index read). Imported by the other scripts; not run directly. | — |
 
-## welcome-ai-badger (`skills/welcome-ai-badger/scripts/`)
+## welcome-ai-badger (`features/common/skills/welcome-ai-badger/scripts/`)
 
 Bootstraps a target repo. See that skill's `SKILL.md` for the full flow.
 
 ```bash
 # 1. propose a config for the target repo
-python3 "$AI_BADGER/skills/welcome-ai-badger/scripts/detect.py" --target . --root "$AI_BADGER" > /tmp/config.json
+python3 "$AI_BADGER/features/common/skills/welcome-ai-badger/scripts/detect.py" --target . --root "$AI_BADGER" > /tmp/config.json
 # 2. (agent authors/refines config.json, then) validate it
 python3 "$AI_BADGER/scripts/validate.py" --kind config /tmp/config.json
 # 3. scaffold .ai-badger/ into the target
-python3 "$AI_BADGER/skills/welcome-ai-badger/scripts/scaffold.py" \
+python3 "$AI_BADGER/features/common/skills/welcome-ai-badger/scripts/scaffold.py" \
     --config /tmp/config.json --target . --root "$AI_BADGER" \
     --generated-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 #    --overwrite-agent-files  # opt-in: replace hand-authored CLAUDE.md/instructions (default preserves them)
@@ -39,13 +39,13 @@ python3 "$AI_BADGER/skills/welcome-ai-badger/scripts/scaffold.py" \
 - `scaffold.py` — materializes `.ai-badger/`, records provenance in `manifest.json`, preserves
   existing hand-authored discovery files by default, and never copies test files into a target.
 
-## feed-badger (`skills/feed-badger/scripts/`)
+## feed-badger (`features/common/skills/feed-badger/scripts/`)
 
 Harvests generalizable local improvements back into the framework as draft PRs.
 
 ```bash
-python3 "$AI_BADGER/skills/feed-badger/scripts/detect_additions.py" --target . --root "$AI_BADGER"
-python3 "$AI_BADGER/skills/feed-badger/scripts/open_pr.py" --dry-run   # drop --dry-run to push + open a draft PR
+python3 "$AI_BADGER/features/common/skills/feed-badger/scripts/detect_additions.py" --target . --root "$AI_BADGER"
+python3 "$AI_BADGER/features/common/skills/feed-badger/scripts/open_pr.py" --dry-run   # drop --dry-run to push + open a draft PR
 ```
 
 ## task / auto-wm / prompt-markers skill scripts

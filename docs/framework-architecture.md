@@ -13,9 +13,8 @@ The framework repo is organized as **stack × feature**, rooted under `features/
 - **stack** — a technology: `dotnet`, `azure`, `cosmos`, `terraform`, `mcp`, `node`, `js`, `ts`,
   `react`, `css`, `github`, `angular`, … plus **`common`** for stack-agnostic content.
 - **feature** — a kind of framework asset: `personas`, `invariants`, `instructions`, `plugins`,
-  and — `common`-only — `templates`. Stack-scoped skill *extensions* also live here, nested
-  under a stack's `skills/` directory (§5) — but the installable operational skills themselves
-  do not; see the root-`skills/` exception below.
+  `skills`, and — `common`-only — `templates`. Stack-scoped skill *extensions* also live here,
+  nested under a stack's `skills/` directory (§5).
 
 ```
 features/<stack>/<feature>/<item>
@@ -38,18 +37,18 @@ given a specific technology (a routing table entry, a module invariant like *Dom
 *single-writer-Cosmos*) is filed under its owning stack instead of being force-generalized or
 duplicated.
 
-### The root `skills/` exception
+### Skills location
 
-The **installable operational skills** — `welcome-ai-badger`, `feed-badger`, `task`,
-`maintain-agent-instructions`, `auto-wm`, `prompt-markers` — live at the repo-root `skills/`
-directory, *not* under `features/common/skills/`. This is the one deliberate break from the
-`features/<stack>/<feature>/` pattern: the Claude Code plugin loader only discovers skills at
-the plugin root's `skills/` directory, and ai-badger's own plugin declares `"source": "./"` in
-`.claude-plugin/marketplace.json` — the whole repo is the plugin root. Nesting the installable
-skills under `features/` would make them invisible to the plugin loader. Stack-scoped skill
-*extensions* (e.g. `features/github/skills/task-extensions/github/`) are unaffected by this
-exception — they aren't independently installed, only attached to a base skill by
-`index_build.py` (§5), so they stay under `features/` like every other feature.
+The **installable operational skills** — `welcome-ai-badger`, `feed-badger`, `den-refresh`,
+`task`, `maintain-agent-instructions`, `auto-wm`, `prompt-markers`, `mcp-index` — live at
+`features/common/skills/`, discovered by `iter_feature_dirs` like any other stack feature.
+Stack-scoped skill *extensions* (e.g. `features/github/skills/task-extensions/github/`) are
+attached to their base skill by `index_build.py` via directory convention (§5).
+
+Historical note: skills previously lived at the repo-root `skills/` directory as a workaround
+for the Claude Code plugin loader's discovery mechanism. This was resolved by having the
+scaffolder symlink `.hermes/skills/` for Hermes auto-discovery and updating the plugin hook
+paths.
 
 ### `index.json` — the source of truth
 
@@ -63,7 +62,7 @@ where:
   "frameworkVersion": "0.1.0",
   "stacks": {
     "common": {
-      "skills":       [ { "name": "task", "path": "skills/task", "extensions": ["github"] } ],
+      "skills":       [ { "name": "task", "path": "features/common/skills/task", "extensions": ["github", "hermes"] } ],
       "personas":     [ { "name": "architect", "path": "features/common/personas/architect.md" } ],
       "invariants":   [ /* … */ ],
       "instructions": [ /* … */ ],
@@ -75,9 +74,8 @@ where:
 }
 ```
 
-Note that even though `skills` entries are keyed under `stacks.common` (the `task` skill's
-declared stack), their `path` points at the root `skills/` directory, not `features/common/`
-— reflecting the root-`skills/` exception above.
+Note that `skills` entries are keyed under `stacks.common` (the `task` skill's declared stack)
+and their `path` points at `features/common/skills/`.
 
 Because it's derived, `index.json` can never drift from the tree by construction — as long as
 you remember to regenerate it (see [`authoring-a-feature.md`](authoring-a-feature.md)).
@@ -138,7 +136,7 @@ additions.
   "agents": ["claude", "copilot"],
   "pluginScope": "default",
   "entries": [
-    { "feature": "skills",  "stack": "common", "name": "task",             "source": "skills/task",                  "target": ".ai-badger/skills/task",               "frameworkVersion": "0.1.0", "hash": "…" },
+    { "feature": "skills",  "stack": "common", "name": "task",             "source": "features/common/skills/task",       "target": ".ai-badger/skills/task",               "frameworkVersion": "0.1.0", "hash": "…" },
     { "feature": "personas","stack": "react",  "name": "frontend-engineer","source": "react/personas/frontend-engineer.md","target": ".ai-badger/agents/frontend-engineer.md","frameworkVersion": "0.1.0", "hash": "…" }
   ]
 }
@@ -210,7 +208,7 @@ when it can't shell out.
 
 The `task` skill ships in two parts:
 
-- **Base** (`skills/task`): orchestration, model delegation (Fable plans/reviews, Sonnet
+- **Base** (`features/common/skills/task`): orchestration, model delegation (architect plans/reviews,
   implements), TDD enforcement, token tracking, resume cron, finish protocol, review loop — all
   driven purely by reading `config.json`. It contains no hardcoded GitHub, no dashboard, no
   `dotnet` — nothing stack- or platform-specific.
@@ -225,9 +223,9 @@ The `task` skill ships in two parts:
 
 `index_build.py` links an extension to its base by directory convention: a directory named
 `<base>-extensions/<ext>/` under any stack's `features/<stack>/skills/` attaches `<ext>` to the
-skill named `<base>`, wherever that base skill lives (in practice, always the root `skills/`).
+skill named `<base>`, wherever that base skill lives (in practice, always `features/common/skills/`).
 
-`prompt-markers` ships as its own skill at the root `skills/prompt-markers` (hook +
+`prompt-markers` ships as its own skill at `features/common/skills/prompt-markers` (hook +
 `markers-context.json` + `marker-state.json`, see ADR-0017 in the design doc) and is referenced
 by the base `task` skill rather than folded into it.
 
@@ -250,7 +248,7 @@ target-repo/
     agents/*.md              # scaffolded personas
     instructions/*.md        # scoped instructions
     invariants/*.md
-    skills/…                 # embedded skills (task + extensions, etc.)
+    skills/…                 # embedded skills (task + extensions, etc.) — symlinked from features/common/skills/
     state.json               # empty task index
     agent-instructions/{schema.json, model.json, validators}
   CLAUDE.md                  # COPY of .ai-badger/CLAUDE.md, header: "source of truth: .ai-badger/CLAUDE.md"
