@@ -67,44 +67,48 @@ against `schemas/stack.schema.json`, and folded into `index.json.stacks[stack].m
    that only exists in this repo.
 4. Run `index_build.py` then `validate.py --all`.
 
-## Adding a new plugin entry
+## Adding external skills (skill sources)
 
-A plugin entry curates an external Claude Code plugin + the marketplace it comes from, so a
-project scaffold can install it without the agent inventing marketplace URLs at scaffold time.
-Plugins are **compact**: each stack has at most one `features/<stack>/plugins/plugins.json`
-(a single list of plugin entries) and one sibling `marketplaces.json` — there are no per-plugin
-subdirectories.
+External skills are installed from sources declared in `skills-source.json`. Each stack has at
+most one `features/<stack>/skills-source.json` and one `features/<stack>/skills.json`.
 
-1. Open (or create) `features/<stack>/plugins/plugins.json` (`schemas/plugins.schema.json`) and
-   append a new object to its `plugins` array:
+1. Open (or create) `features/<stack>/skills-source.json` (`schemas/skills-source.schema.json`)
+   and add a source:
    ```jsonc
    {
-     "plugins": [
+     "sources": [
+       // … existing sources …
+       {
+         "name": "my-source",
+         "type": "marketplace",     // "marketplace" | "hub" | "tap" | "url" | "well-known"
+         "source": "https://github.com/Owner/repo",
+         "support": "common"        // "common" = all agents, or ["claude", "hermes"]
+       }
+     ]
+   }
+   ```
+2. Open (or create) `features/<stack>/skills.json` (`schemas/skills.schema.json`) and add
+   the skill entry:
+   ```jsonc
+   {
+     "skills": [
        // … existing entries …
        {
-         "name": "plugin-name-to-install",
-         "marketplace": "<name in marketplaces.json>",
-         "scope": "default",          // "default" | "local" | "user" — default = inherit init-time scope
+         "name": "skill-name",
+         "source": "my-source",     // references name in skills-source.json
+         "scope": "default",        // "default" | "local" | "user"
          "description": "…"
        }
      ]
    }
    ```
-2. If the entry's `marketplace` isn't already declared, add it to the sibling
-   `marketplaces.json` (`schemas/marketplaces.schema.json`):
-   ```jsonc
-   { "marketplaces": [ { "name": "…", "source": "https://github.com/Owner/repo" } ] }
-   ```
-   `source` is a full GitHub repo URL, not `github:Owner/repo` shorthand.
-3. Run `index_build.py` then `validate.py --all` — this also re-validates every stack's
-   `plugins.json` + `marketplaces.json`, so a schema-breaking change anywhere under `plugins/`
-   surfaces immediately.
+3. Ensure the target agent has an instruction for this source type in its
+   `features/<agent>/plugins-instructions.json`. If missing, add it.
+4. Run `index_build.py` then `validate.py --all`.
 
-Remember the scope semantics: `"default"` on the entry means "whatever scope the project chose
-at `welcome-ai-badger` time (`default` | `local-only`)"; `"local"` and `"user"` on the entry
-force that specific scope regardless of the project's choice. `welcome-ai-badger` itself never
-offers a user-only *prompt* — only individual entries can declare `"user"` — so a project is
-never silently pointed at the user's global config unless a specific curated entry says so.
+Scope semantics: `"default"` means "whatever scope the project chose at scaffold time";
+`"local"` and `"user"` force that specific scope. Use `{"skills": []}` for extension-only
+stacks that have no external skills.
 
 ## Adding a new skill (or a `task` extension)
 
