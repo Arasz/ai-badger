@@ -638,3 +638,322 @@ def test_scaffold_no_warning_when_no_nonstandard_files(tmp_path, load_script, ro
     assert not any("non-standard" in n.lower() for n in result["notes"]), (
         f"Unexpected non-standard warning: {result['notes']}"
     )
+
+# --------------------------------------------------------- requirement_met OR syntax + list membership
+def test_requirement_met_list_membership(load_script, root):
+    """When config value is a list, equality check tests membership."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    config = {"stacks": ["dotnet", "react"]}
+    assert scaffold.requirement_met(config, "stacks=dotnet") is True
+    assert scaffold.requirement_met(config, "stacks=react") is True
+    assert scaffold.requirement_met(config, "stacks=cosmos") is False
+
+
+def test_requirement_met_or_syntax(load_script, root):
+    """|| splits a requirement into alternatives; true if any matches."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    config = {"stacks": ["dotnet", "react"]}
+    assert scaffold.requirement_met(config, "stacks=dotnet||stacks=node") is True
+    assert scaffold.requirement_met(config, "stacks=cosmos||stacks=node") is False
+
+
+def test_requirement_met_or_with_scalar(load_script, root):
+    """|| works with scalar config values too."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    config = {"sourceControl": {"platform": "github"}}
+    assert scaffold.requirement_met(config, "sourceControl.platform==github||sourceControl.platform==gitlab") is True
+    assert scaffold.requirement_met(config, "sourceControl.platform==bitbucket||sourceControl.platform==gitlab") is False
+
+
+def test_requirement_met_and_array(load_script, root):
+    """Multiple entries in requires array are AND-ed."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    config = {"stacks": ["dotnet", "react"], "sourceControl": {"platform": "github"}}
+    # Both conditions must be true
+    assert scaffold.requirement_met(config, "stacks=react") is True
+    assert scaffold.requirement_met(config, "sourceControl.platform==github") is True
+    # Simulate AND by calling requirement_met for each
+    assert all(scaffold.requirement_met(config, r) for r in ["stacks=react", "sourceControl.platform==github"]) is True
+    assert all(scaffold.requirement_met(config, r) for r in ["stacks=cosmos", "sourceControl.platform==github"]) is False
+
+
+def test_requirement_met_presence(load_script, root):
+    """Presence check still works for non-empty values."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    config = {"sourceControl": {"repoUrl": "https://github.com/foo/bar"}}
+    assert scaffold.requirement_met(config, "sourceControl.repoUrl") is True
+    assert scaffold.requirement_met(config, "sourceControl.missing") is False
+
+
+# --------------------------------------------------------- project-local.md append
+def test_scaffold_appends_project_local_md_to_skill(tmp_path, load_script, root):
+    """project-local.md content is appended to SKILL.md after scaffold."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    # First scaffold — creates the skill
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
+                                skills=["task"], install=False)
+    scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    skill_md = target / ".ai-badger" / "skills" / "task" / "SKILL.md"
+    original = skill_md.read_text()
+
+    # Write project-local additions
+    pl = target / ".ai-badger" / "skills" / "task" / "project-local.md"
+    pl.write_text("\n## Project-Specific Checks\n\n- [ ] Check X\n- [ ] Check Y\n")
+
+    # Re-scaffold — project-local.md should be preserved and appended
+    scaf2 = scaffold.Scaffolder(root=root, target=target, config=_config(),
+                                 skills=["task"], install=False)
+    result = scaf2.run(generated_at="2026-07-24T00:00:00Z")
+
+    refreshed = skill_md.read_text()
+    assert "## Project-Specific Checks" in refreshed, "project-local content not appended"
+    assert "- [ ] Check X" in refreshed, "project-local item missing"
+    assert refreshed.endswith("- [ ] Check Y\n"), "trailing newline missing"
+    assert any("appended project-local.md" in n for n in result["notes"]), (
+        f"Expected append note, got: {result['notes']}"
+    )
+
+
+def test_scaffold_preserves_project_local_md_across_rescaffold(tmp_path, load_script, root):
+    """project-local.md is seed-once: survives re-scaffold without overwriting."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
+                                skills=["task"], install=False)
+    scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    pl = target / ".ai-badger" / "skills" / "task" / "project-local.md"
+    pl.write_text("## My Project\n\n- [ ] Custom check\n")
+
+    # Re-scaffold 3 times — project-local.md must survive each
+    for _ in range(3):
+        scaf_n = scaffold.Scaffolder(root=root, target=target, config=_config(),
+                                      skills=["task"], install=False)
+        scaf_n.run(generated_at="2026-07-24T00:00:00Z")
+
+    assert pl.exists(), "project-local.md was lost during re-scaffold"
+    assert "Custom check" in pl.read_text(), "project-local.md content was reset"
+    skill_md = target / ".ai-badger" / "skills" / "task" / "SKILL.md"
+    assert "## My Project" in skill_md.read_text(), "project-local not appended after re-scaffold"
+
+
+# --------------------------------------------------------- round-trip: generic + extensions + project-local → original
+def test_code_review_checklist_roundtrip_reconstructs_original(tmp_path, load_script, root):
+    """Given a project with all stacks + project-local.md, the scaffolded SKILL.md
+    should contain every checklist item from the original project-specific skill.
+
+    This is the round-trip guarantee: the original skill was decomposed into
+    GENERIC base + stack extensions + project-local additions. After scaffold,
+    reassembling them must produce equivalent coverage.
+    """
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    # Config with every stack that has an extension
+    config = _config(stacks=["dotnet", "react", "ts", "cosmos", "azure", "mcp"])
+    skill_name = "code-review-checklist"
+
+    # First scaffold — creates the skill with all extensions
+    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
+                                skills=[skill_name], install=False)
+    scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    # Write project-local.md with the incident lessons from the original skill
+    project_local = target / ".ai-badger" / "skills" / skill_name / "project-local.md"
+    project_local.write_text("""
+## Phase 10: Incident Lessons (Project-Specific)
+
+### 10.1 DI Registration Crash (2026-07-24)
+
+`ChannelMonitoringOptions` was injected but never registered via
+`AddOptions<ChannelMonitoringOptions>().Bind(...)` in `Program.cs`.
+The API compiled fine but crashed at runtime.
+
+### 10.2 API Route Path Mismatch (2026-07-24)
+
+Frontend used `/signals`, API defined `/channel-monitoring/signals`.
+Every request hit a 404.
+
+### 10.3 Problem Type URI Drift (2026-07-24)
+
+Backend used `signal-stale`, frontend checked `stale-signal-proposal`.
+409 detection never matched.
+
+### 10.4 Optimistic Concurrency Gap (2026-07-24)
+
+`signalRepository.UpsertAsync` had no ETag parameter — last-write-wins.
+
+### 10.5 Domain Type in Wrong Project (2026-07-24)
+
+`ProfileUpdateProposal` was placed in Api project — circular dependency.
+
+### 10.6 C# String Escape in Spec (2026-07-24)
+
+Spec contained a C# record with two properties both named `Errors`.
+""")
+
+    # Re-scaffold — project-local.md should be preserved and appended
+    scaf2 = scaffold.Scaffolder(root=root, target=target, config=config,
+                                 skills=[skill_name], install=False)
+    result = scaf2.run(generated_at="2026-07-24T00:00:00Z")
+
+    skill_md = target / ".ai-badger" / "skills" / skill_name / "SKILL.md"
+    content = skill_md.read_text()
+
+    # Verify every stack's content is present (from extensions)
+    # GENERIC items
+    generic_checks = [
+        "Build passes",
+        "Tests pass",
+        "No hardcoded secrets",
+        "One PR = one task",
+        "Domain has zero infrastructure dependencies",
+        "Infrastructure implements domain interfaces",
+        "Screaming architecture",
+        "State transitions enforced by domain model",
+        "Tests exist for all new production code",
+        "Test-first order",
+        "Optimistic concurrency via ETag",
+        "Idempotent operations return 200",
+        "Client route paths match API route paths EXACTLY",
+        "Response shapes match field-for-field",
+        "Mock/test fixtures match actual API responses",
+        "Retry loops are bounded",
+        "Merge conflicts resolved with intent",
+    ]
+    # DOTNET items
+    dotnet_checks = [
+        "Every injected type is registered in DI",
+        "AddOptions<T>().Bind()",
+        "AddHttpClient<T>()",
+        "sealed record",
+        "CommunityToolkit.Diagnostics.Guard",
+        "LoggerMessage",
+        "DomainExceptionProblemMapper",
+        "ResourceNotFoundException",
+    ]
+    # REACT items
+    react_checks = [
+        "ContentSection",
+        "QueryLoading",
+        "AlertDialog",
+        "react-query",
+        "apiFetch",
+        "useMutation",
+        "onMutate",
+        "toast",
+        "renderWithProviders",
+        "userEvent",
+        "MSW handlers follow",
+        "Promise.allSettled",
+    ]
+    # TS items
+    ts_checks = [
+        "No `any` types",
+        "No `as` type assertions",
+        "Route params are type-safe",
+    ]
+    # COSMOS items
+    cosmos_checks = [
+        "partition key",
+        "Single writer invariant",
+        "ISecretCipher",
+    ]
+    # AZURE items
+    azure_checks = [
+        "Managed identity preferred",
+        "202 Accepted",
+    ]
+    # MCP items
+    mcp_checks = [
+        "WithTools<T>",
+        "MCP tools are thin HTTP clients",
+    ]
+    # PROJECT-LOCAL items
+    project_checks = [
+        "ChannelMonitoringOptions",
+        "ChannelMonitoring",
+        "signal-stale",
+        "stale-signal-proposal",
+        "signalRepository.UpsertAsync",
+        "ProfileUpdateProposal",
+        "two properties both named",
+    ]
+
+    all_checks = (
+        ("GENERIC", generic_checks),
+        ("DOTNET", dotnet_checks),
+        ("REACT", react_checks),
+        ("TS", ts_checks),
+        ("COSMOS", cosmos_checks),
+        ("AZURE", azure_checks),
+        ("MCP", mcp_checks),
+        ("PROJECT", project_checks),
+    )
+
+    missing = []
+    for group, checks in all_checks:
+        for check in checks:
+            if check not in content:
+                missing.append(f"[{group}] {check}")
+
+    assert not missing, (
+        f"Round-trip failed — {len(missing)} items missing from scaffolded SKILL.md:\n"
+        + "\n".join(f"  - {m}" for m in missing)
+    )
+
+    # Verify project-local.md was stashed and survived
+    assert project_local.exists(), "project-local.md was lost"
+    assert any("appended project-local.md" in n for n in result["notes"])
+
+
+# --------------------------------------------------------- extension marker routing
+def test_extension_marker_routing_positions_items_correctly(tmp_path, load_script, root):
+    """Extension sections with @marker headers are inserted at the matching
+    <!-- EXT:name --> position, not appended at the end."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    config = _config(stacks=["dotnet", "react", "ts", "cosmos", "azure", "mcp"])
+    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
+                                skills=["code-review-checklist"], install=False)
+    scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    content = (target / ".ai-badger" / "skills" / "code-review-checklist" / "SKILL.md").read_text()
+
+    # Verify EXT markers are consumed (not left in output)
+    # Verify actual EXT marker lines are consumed (not left in output)
+    # Note: Usage Tips may reference EXT markers in prose — that is fine
+    import re
+    ext_marker_lines = [l for l in content.split(chr(10)) if re.match(r"^\s*<!-- EXT:[a-z]", l)]
+    assert not ext_marker_lines, f"EXT marker lines should be removed: {ext_marker_lines}"
+    assert "<!-- MERGE_EXTENSIONS -->" not in content, "MERGE_EXTENSIONS sentinel should be removed"
+
+    # Verify marker routing: dotnet items land BETWEEN the right generic items
+    # Pre-takeoff phase: generic item -> dotnet item -> next phase
+    assert content.index("No hardcoded secrets") < content.index("No `#pragma warning disable`")
+    assert content.index("No `#pragma warning disable`") < content.index("Architecture & Layering")
+
+    # Architecture phase: generic item -> dotnet item -> next phase
+    assert content.index("Domain has zero infrastructure") < content.index("sealed record")
+    assert content.index("sealed record") < content.index("Cross-Cutting Concerns")
+
+    # Backend runtime phase: generic item -> dotnet/cosmos items -> next phase
+    assert content.index("Optimistic concurrency via ETag") < content.index("LoggerMessage")
+    assert content.index("partition key") < content.index("Client-Server Contract")
+
+    # Contract alignment phase: react/ts items -> next phase
+    assert content.index("react-query") < content.index("Cross-Feature Patterns")
+    assert content.index("No `any` types") < content.index("Cross-Feature Patterns")
+
+    # Post-merge: dotnet/react items present
+    assert "dotnet build" in content and "clean on main" in content
+    assert "Frontend lint + test all pass" in content

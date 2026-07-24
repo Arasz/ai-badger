@@ -67,6 +67,11 @@ SEED_ONCE_SKILL_FILES: Dict[str, List[str]] = {
     # the same skill dir (SKILL.md, scripts/) is MANAGED and keeps refreshing on every run.
     "prompt-markers": ["markers-context.json"],
 }
+# Every skill may carry a project-local.md with project-specific additions (incident lessons,
+# project-specific checks, etc.). This file is seed-once: the project writes it once, and
+# scaffold preserves it across re-scaffolds. Its content is appended to SKILL.md after the
+# framework content and extensions are applied.
+PROJECT_LOCAL_FILE = "project-local.md"
 MANAGED_HEADER = (
     "<!-- Managed by ai-badger. Source of truth: .ai-badger/{name}. "
     "Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->\n\n"
@@ -96,17 +101,39 @@ def cfg_get(config: Dict[str, Any], dotted: str) -> Any:
     return node
 
 
-def requirement_met(config: Dict[str, Any], req: str) -> bool:
-    """Evaluate an extension requirement like 'sourceControl.platform==github',
-    'stacks=hermes' (value equality), or 'sourceControl.repoUrl' (presence)."""
-    if "==" in req:
-        path, expected = (s.strip() for s in req.split("==", 1))
-        return str(cfg_get(config, path)) == expected
-    if "=" in req:
-        path, expected = (s.strip() for s in req.split("=", 1))
-        return str(cfg_get(config, path)) == expected
-    val = cfg_get(config, req)
+def _condition_met(config: Dict[str, Any], cond: str) -> bool:
+    """Evaluate a single condition (no OR). Supports ==, =, and presence checks."""
+    if "==" in cond:
+        path, expected = (s.strip() for s in cond.split("==", 1))
+        val = cfg_get(config, path)
+        if isinstance(val, list):
+            return expected in val
+        return str(val) == expected
+    if "=" in cond:
+        path, expected = (s.strip() for s in cond.split("=", 1))
+        val = cfg_get(config, path)
+        if isinstance(val, list):
+            return expected in val
+        return str(val) == expected
+    val = cfg_get(config, cond)
     return val not in (None, "", [], {})
+
+
+def requirement_met(config: Dict[str, Any], req: str) -> bool:
+    """Evaluate an extension requirement.
+
+    Syntax:
+        'sourceControl.platform==github'  — value equality
+        'stacks=dotnet'                   — value equality; list membership if config value is a list
+        'sourceControl.repoUrl'           — presence check (not null/empty/list-empty)
+        'stacks=dotnet||stacks=node'      — OR: true if any sub-condition is met
+
+    The || operator splits a single requirement string into alternatives.
+    Multiple entries in the 'requires' array are AND-ed (all must be met).
+    """
+    if "||" in req:
+        return any(_condition_met(config, c) for c in req.split("||"))
+    return _condition_met(config, req)
 
 
 # ---------------------------------------------------------------------- index lookups
@@ -215,6 +242,10 @@ class Scaffolder:
             p = dest / relpath
             if p.exists():
                 stashed[relpath] = p.read_bytes()
+        # Also stash project-local.md (generic: any skill may carry one)
+        pl = dest / PROJECT_LOCAL_FILE
+        if pl.exists():
+            stashed[PROJECT_LOCAL_FILE] = pl.read_bytes()
         return stashed
 
     def _restore_seed_once_skill_files(self, skill_name: str, dest: Path,
@@ -228,6 +259,148 @@ class Scaffolder:
                 f"preserved seed-once .ai-badger/skills/{skill_name}/{relpath} "
                 "(already existed; not re-seeded; pass --reset-seed-files to reset)"
             )
+
+    # -- extension marker routing ---------------------------------------------------
+    _SECTION_RE = __import__('re').compile(r'^##\s+(.+)$')
+    _AT_MARKER_RE = __import__('re').compile(r'^@([a-z][a-z0-9-]*):\s*(.*)$')
+    _EXT_MARKER_RE = __import__('re').compile(r'<!--\s*EXT:([a-z][a-z0-9-]*)\s*-->')
+
+    def _parse_extension_sections(self, ext_md: str):
+        """Split an extension.md into sections, each targeting a marker or the append bucket.
+
+        Returns list of {"marker": "name" | None, "header": "## Title", "body": "..."}.
+        A header like "## @pre-takeoff: Title" targets the "pre-takeoff" marker.
+        A plain "## Title" targets the append bucket.
+        """
+        sections = []
+        current = None
+        for line in ext_md.splitlines(keepends=True):
+            m = self._SECTION_RE.match(line.rstrip())
+            if m and line.startswith('## '):
+                raw_header = m.group(1)
+                at_match = self._AT_MARKER_RE.match(raw_header)
+                if at_match:
+                    marker = at_match.group(1)
+                    title = at_match.group(2).strip()
+                    header = f"## {title}"
+                else:
+                    marker = None
+                    header = line.rstrip()
+                if current is not None:
+                    sections.append(current)
+                current = {"marker": marker, "header": header, "body": ""}
+                continue
+            if current is not None:
+                current["body"] += line
+        if current is not None:
+            sections.append(current)
+        return sections
+
+    def _collect_marker_sections(self, skill_dest):
+        """Read all extension.md files and group their sections by target marker.
+
+        Returns (by_marker: dict[str, list[str]], append_sections: list[str]).
+        """
+        from collections import defaultdict
+        by_marker = defaultdict(list)
+        append_sections = []
+        ext_base = skill_dest / "extensions"
+        if not ext_base.is_dir():
+            return dict(by_marker), append_sections
+        for ext_dir in sorted(ext_base.iterdir()):
+            if not ext_dir.is_dir():
+                continue
+            ext_md_path = ext_dir / "extension.md"
+            if not ext_md_path.exists():
+                continue
+            text = ext_md_path.read_text(encoding="utf-8").strip()
+            if not text:
+                continue
+            for sec in self._parse_extension_sections(text):
+                rendered = sec["header"] + "\n" + sec["body"]
+                rendered = rendered.strip()
+                if not rendered:
+                    continue
+                if sec["marker"]:
+                    by_marker[sec["marker"]].append(rendered)
+                else:
+                    append_sections.append(rendered)
+        return dict(by_marker), append_sections
+
+    def _merge_extensions(self, skill_name: str, dest: Path) -> None:
+        """Route extension sections into SKILL.md at <!-- EXT:name --> markers.
+
+        Only activates when SKILL.md contains the MERGE_EXTENSIONS sentinel.
+        Extension sections with @marker-name headers are inserted at the matching
+        <!-- EXT:name --> position. Sections without @marker are appended at the end.
+        Extensions/ directory is removed after merge.
+        """
+        ext_base = dest / "extensions"
+        if not ext_base.is_dir():
+            return
+        skill_md = dest / "SKILL.md"
+        if not skill_md.exists():
+            return
+        content = skill_md.read_text(encoding="utf-8")
+        if "<!-- MERGE_EXTENSIONS -->" not in content:
+            return
+        content = content.replace("<!-- MERGE_EXTENSIONS -->\n", "")
+        content = content.replace("<!-- MERGE_EXTENSIONS -->", "")
+
+        by_marker, append_sections = self._collect_marker_sections(dest)
+
+        # Insert at each marker position
+        ext_count = 0
+        for marker_name, sections in by_marker.items():
+            marker_tag = f"<!-- EXT:{marker_name} -->"
+            if marker_tag not in content:
+                self.notes.append(
+                    f"extension targets marker '{marker_name}' but SKILL.md has no "
+                    f"<!-- EXT:{marker_name} --> — sections skipped"
+                )
+                continue
+            insertion = "\n\n" + "\n\n".join(sections)
+            content = content.replace(marker_tag, marker_tag + insertion)
+            ext_count += len(sections)
+
+        # Append untargeted sections at the end
+        if append_sections:
+            content = content.rstrip() + "\n\n" + "\n\n".join(append_sections) + "\n"
+            ext_count += len(append_sections)
+
+        # Remove EXT markers from output
+        import re
+        content = re.sub(r'\n?<!-- EXT:[a-z][a-z0-9-]* -->\n?', '', content)
+
+        if ext_count:
+            skill_md.write_text(content, encoding="utf-8")
+            self.notes.append(
+                f"merged {ext_count} extension section(s) into "
+                f".ai-badger/skills/{skill_name}/SKILL.md"
+            )
+        # Remove extensions/ dir — content is now in SKILL.md
+        shutil.rmtree(ext_base)
+
+    def _append_project_local(self, skill_name: str, dest: Path) -> None:
+        """If project-local.md exists in the scaffolded skill dir, append its content to SKILL.md.
+
+        This lets projects add project-specific checks (incident lessons, project conventions)
+        that survive re-scaffolds while the framework content stays fresh.
+        """
+        pl = dest / PROJECT_LOCAL_FILE
+        if not pl.exists():
+            return
+        skill_md = dest / "SKILL.md"
+        if not skill_md.exists():
+            return
+        additions = pl.read_text(encoding="utf-8").strip()
+        if not additions:
+            return
+        existing = skill_md.read_text(encoding="utf-8")
+        skill_md.write_text(existing.rstrip() + "\n\n" + additions + "\n", encoding="utf-8")
+        self.notes.append(
+            f"appended project-local.md to .ai-badger/skills/{skill_name}/SKILL.md"
+        )
 
     # -- features -------------------------------------------------------------------
     def scaffold_personas(self) -> None:
@@ -270,7 +443,9 @@ class Scaffolder:
             shutil.copytree(src, dest, ignore=_test_ignore)
             self._restore_seed_once_skill_files(skill_name, dest, stashed)
             self._prune_inline_extensions(skill_name, dest)
+            self._merge_extensions(skill_name, dest)
             self._embed_extensions(skill_name, item, dest)
+            self._append_project_local(skill_name, dest)
             # hash includes embedded extensions
             self.record("skills", "common", skill_name, src, dest)
 
