@@ -1,0 +1,269 @@
+{
+  "$schema": "./schemas/support.schema.json",
+  "description": "Agent capability matrix: what each agent supports and what ai-badger scaffolds for it.",
+  "lastUpdated": "2026-07-24",
+  "agents": {
+    "claude": {
+      "name": "Claude Code",
+      "vendor": "Anthropic",
+      "capabilities": {
+        "instructions": {
+          "supported": true,
+          "mechanism": "CLAUDE.md (always loaded), .claude/settings.json",
+          "aiBadgerSupport": true,
+          "scaffoldedFile": "CLAUDE.md"
+        },
+        "invariants": {
+          "supported": true,
+          "mechanism": "CLAUDE.md sections",
+          "aiBadgerSupport": true
+        },
+        "scopedInstructions": {
+          "supported": false,
+          "mechanism": null,
+          "aiBadgerSupport": false
+        },
+        "personas": {
+          "supported": true,
+          "mechanism": "native agent modes",
+          "aiBadgerSupport": true
+        },
+        "hooks": {
+          "supported": true,
+          "mechanism": "Plugin hooks: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Notification",
+          "configPath": ".claude/settings.json",
+          "aiBadgerSupport": true,
+          "wiredBy": "scaffold.py wire_hooks()"
+        },
+        "skills": {
+          "supported": true,
+          "mechanism": "SKILL.md with YAML frontmatter, discovered from .claude/skills/ or plugin dirs",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "scaffold.py symlink_hermes_skills() for hermes; direct copy for claude"
+        },
+        "customAgents": {
+          "supported": false,
+          "mechanism": null,
+          "aiBadgerSupport": false
+        },
+        "plugins": {
+          "supported": true,
+          "mechanism": "claude plugin marketplace/install",
+          "aiBadgerSupport": true,
+          "wiredBy": "scaffold.py install_plugins()"
+        },
+        "mcpServers": {
+          "supported": true,
+          "mechanism": ".claude/settings.json mcpServers",
+          "aiBadgerSupport": false
+        },
+        "cacheAwareDispatch": {
+          "supported": true,
+          "mechanism": "Native context caching",
+          "aiBadgerSupport": true
+        },
+        "feedbackLoop": {
+          "supported": true,
+          "mechanism": "feed-badger detects additions → PR",
+          "aiBadgerSupport": true
+        }
+      }
+    },
+    "hermes": {
+      "name": "Hermes Agent",
+      "vendor": "Nous Research",
+      "capabilities": {
+        "instructions": {
+          "supported": true,
+          "mechanism": "HERMES.md, .hermes.md (always loaded)",
+          "aiBadgerSupport": true,
+          "scaffoldedFile": "HERMES.md"
+        },
+        "invariants": {
+          "supported": true,
+          "mechanism": "HERMES.md sections, always-loaded memory",
+          "aiBadgerSupport": true
+        },
+        "scopedInstructions": {
+          "supported": false,
+          "mechanism": null,
+          "aiBadgerSupport": false
+        },
+        "personas": {
+          "supported": true,
+          "mechanism": "Native subagent roles (leaf/orchestrator)",
+          "aiBadgerSupport": true
+        },
+        "hooks": {
+          "supported": true,
+          "mechanism": "Plugin hooks: on_session_start, pre_llm_call, post_tool_call",
+          "configPath": "~/.hermes/config.yaml plugins",
+          "aiBadgerSupport": true,
+          "wiredBy": "ai_badger_hooks.py plugin"
+        },
+        "skills": {
+          "supported": true,
+          "mechanism": "SKILL.md with YAML frontmatter, discovered from ~/.hermes/skills/ and external_dirs",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "scaffold.py symlink_hermes_skills() — namespaced under ~/.hermes/skills/<project>/"
+        },
+        "customAgents": {
+          "supported": false,
+          "mechanism": null,
+          "aiBadgerSupport": false
+        },
+        "plugins": {
+          "supported": false,
+          "mechanism": null,
+          "aiBadgerSupport": false
+        },
+        "mcpServers": {
+          "supported": true,
+          "mechanism": "~/.hermes/config.yaml mcp",
+          "aiBadgerSupport": false
+        },
+        "cacheAwareDispatch": {
+          "supported": true,
+          "mechanism": "Native context caching",
+          "aiBadgerSupport": true
+        },
+        "feedbackLoop": {
+          "supported": true,
+          "mechanism": "feed-badger detects additions → PR",
+          "aiBadgerSupport": true
+        }
+      }
+    },
+    "copilot": {
+      "name": "GitHub Copilot CLI",
+      "vendor": "GitHub/Microsoft",
+      "capabilities": {
+        "instructions": {
+          "supported": true,
+          "mechanism": ".github/copilot-instructions.md, AGENTS.md, CLAUDE.md",
+          "aiBadgerSupport": true,
+          "scaffoldedFile": ".github/copilot-instructions.md"
+        },
+        "invariants": {
+          "supported": true,
+          "mechanism": "copilot-instructions.md sections",
+          "aiBadgerSupport": true
+        },
+        "scopedInstructions": {
+          "supported": true,
+          "mechanism": ".github/instructions/*.instructions.md with applyTo frontmatter",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "scaffolding.json instructionsScoped: true"
+        },
+        "personas": {
+          "supported": true,
+          "mechanism": "Custom agents (.github/agents/*.agent.md)",
+          "aiBadgerSupport": false,
+          "plannedFor": "Phase 3"
+        },
+        "hooks": {
+          "supported": true,
+          "mechanism": ".github/hooks/*.json — events: sessionStart, sessionEnd, preToolUse, postToolUse, userPromptSubmitted, agentStop, subagentStop, errorOccurred",
+          "configPath": ".github/hooks/",
+          "format": { "version": 1, "hooks": { "<event>": [{ "type": "command", "bash": "...", "powershell": "...", "cwd": ".", "timeoutSec": 10 }] } },
+          "aiBadgerSupport": false,
+          "plannedFor": "Phase 1"
+        },
+        "skills": {
+          "supported": true,
+          "mechanism": ".github/skills/*/SKILL.md or .claude/skills/*/SKILL.md — YAML frontmatter (name, description) + markdown body",
+          "aiBadgerSupport": false,
+          "plannedFor": "Phase 2"
+        },
+        "customAgents": {
+          "supported": true,
+          "mechanism": ".github/agents/*.agent.md — YAML frontmatter (name, description, tools, model, mcp-servers, user-invocable)",
+          "aiBadgerSupport": false,
+          "plannedFor": "Phase 3"
+        },
+        "plugins": {
+          "supported": true,
+          "mechanism": "copilot plugin marketplace/install — delivers skills, hooks, agents, MCP servers",
+          "aiBadgerSupport": false
+        },
+        "mcpServers": {
+          "supported": true,
+          "mechanism": ".github/copilot/mcp-config.json or custom agent mcp-servers",
+          "aiBadgerSupport": false
+        },
+        "cacheAwareDispatch": {
+          "supported": false,
+          "mechanism": null,
+          "aiBadgerSupport": false
+        },
+        "feedbackLoop": {
+          "supported": "partial",
+          "mechanism": "Copilot coding agent can create PRs, but no programmatic feed-badger integration",
+          "aiBadgerSupport": false
+        }
+      }
+    },
+    "junie": {
+      "name": "Junie (JetBrains)",
+      "vendor": "JetBrains",
+      "capabilities": {
+        "instructions": {
+          "supported": true,
+          "mechanism": ".junie/guidelines.md, AGENTS.md",
+          "aiBadgerSupport": true,
+          "scaffoldedFile": ".junie/guidelines.md"
+        },
+        "invariants": {
+          "supported": true,
+          "mechanism": "guidelines.md sections",
+          "aiBadgerSupport": true
+        },
+        "scopedInstructions": {
+          "supported": false,
+          "mechanism": null,
+          "aiBadgerSupport": false
+        },
+        "personas": {
+          "supported": true,
+          "mechanism": "Native agent profiles",
+          "aiBadgerSupport": true
+        },
+        "hooks": {
+          "supported": false,
+          "mechanism": null,
+          "aiBadgerSupport": false
+        },
+        "skills": {
+          "supported": true,
+          "mechanism": "SKILL.md format",
+          "aiBadgerSupport": true
+        },
+        "customAgents": {
+          "supported": false,
+          "mechanism": null,
+          "aiBadgerSupport": false
+        },
+        "plugins": {
+          "supported": false,
+          "mechanism": null,
+          "aiBadgerSupport": false
+        },
+        "mcpServers": {
+          "supported": true,
+          "mechanism": "JetBrains MCP config",
+          "aiBadgerSupport": false
+        },
+        "cacheAwareDispatch": {
+          "supported": false,
+          "mechanism": null,
+          "aiBadgerSupport": false
+        },
+        "feedbackLoop": {
+          "supported": false,
+          "mechanism": null,
+          "aiBadgerSupport": false
+        }
+      }
+    }
+  }
+}

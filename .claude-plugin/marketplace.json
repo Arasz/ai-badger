@@ -12,7 +12,7 @@
       "name": "ai-badger",
       "source": "./",
       "description": "Installs the ai-badger common skills (welcome-ai-badger, feed-badger, task, maintain-agent-instructions, auto-wm, prompt-markers) used to scaffold and maintain the {stack|common}/{feature} framework catalog inside any project.",
-      "version": "0.6.0",
+      "version": "0.9.0",
       "license": "MIT",
       "keywords": [
         "skills",
