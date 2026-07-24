@@ -81,7 +81,19 @@ def main(argv=None) -> int:
 
     # directory-level entries (skills): one changed candidate per whole skill
     for rel, entry in sorted(dir_targets.items()):
-        if bl.sha256_file(target / rel) != entry.get("hash"):
+        dest_dir = target / rel
+        if not dest_dir.is_dir():
+            continue
+        # Use dir_content_hash with same exclusions as drift detection
+        # Also exclude extensions/ (config-driven, not project additions)
+        try:
+            fingerprint = bl.dir_content_hash(
+                dest_dir, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
+            )
+            dest_hash = fingerprint["content_hash"]
+        except (ValueError, OSError):
+            dest_hash = bl.sha256_file(dest_dir)
+        if dest_hash != entry.get("hash"):
             candidates.append({
                 "status": "changed", "feature": entry["feature"], "path": rel,
                 "name": entry["name"], "originStack": entry["stack"],

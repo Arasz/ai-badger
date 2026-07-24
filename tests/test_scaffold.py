@@ -145,10 +145,12 @@ def test_scaffold_manifest_entries_have_expected_shape(tmp_path, load_script, ro
 
     entries = result["manifest"]["entries"]
     assert entries, "expected at least one manifest entry"
-    expected_keys = {"feature", "stack", "name", "source", "target",
-                      "frameworkVersion", "hash"}
+    base_keys = {"feature", "stack", "name", "source", "target",
+                 "frameworkVersion", "hash"}
     for entry in entries:
-        assert set(entry.keys()) == expected_keys
+        # Directory entries (skills) also have dirMeta
+        allowed_keys = base_keys | ({"dirMeta"} if "dirMeta" in entry else set())
+        assert set(entry.keys()) == allowed_keys
         assert entry["source"].startswith("features/")
         assert len(entry["hash"]) == 64
         int(entry["hash"], 16)  # must be valid hex

@@ -360,22 +360,35 @@ def test_compare_reports_removed_when_source_gone(tmp_path, load_script):
 
 
 def test_compare_reports_directory_entry_as_skipped_not_changed(tmp_path, load_script):
-    """Directory entries can't be compared (recorded hash covers the scaffolded copy, which
-    strips tests/evals and embeds extensions -- structurally different from the source tree).
-    They must be surfaced as skipped, not silently dropped and not flagged as changed."""
+    """Directory entries with matching content hash are not flagged as changed."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("scripts/badger_lib.py")
     fw = tmp_path / "fw"
     skill_dir = fw / "features" / "common" / "skills" / "task"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text("content\n", encoding="utf-8")
 
+    # Compute the correct hash
+    fingerprint = bl.dir_content_hash(skill_dir)
+
     proj = tmp_path / "proj"
-    manifest = _manifest_with_entry(proj, "features/common/skills/task", ".ai-badger/skills/task", "0" * 64)
+    manifest = {
+        "entries": [{
+            "feature": "skills", "stack": "common", "name": "task",
+            "source": "features/common/skills/task",
+            "target": ".ai-badger/skills/task",
+            "hash": fingerprint["content_hash"],
+            "dirMeta": {
+                "file_count": fingerprint["file_count"],
+                "dir_count": fingerprint["dir_count"],
+            },
+        }],
+    }
 
     result = drift.compare(fw, manifest)
 
-    assert "features/common/skills/task" in result["skipped"]
     assert "features/common/skills/task" not in result["changed"]
+    assert "features/common/skills/task" not in result.get("skipped", [])
 
 
 def test_compare_reports_removed_directory_entry_as_removed_not_skipped(tmp_path, load_script):
@@ -417,26 +430,50 @@ def test_compare_changed_file_entry_does_not_appear_in_skipped(tmp_path, load_sc
 
 
 def test_main_exits_zero_when_only_skipped_entries(tmp_path, load_script, capsys):
-    """Skipped-only drift is informational, not actionable -- exit 0, not 1. The summary must
-    be honest that skipped entries were never compared, not claim a clean "no drift"."""
+    """Skipped-only drift is informational, not actionable -- exit 0, not 1."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("scripts/badger_lib.py")
     fw = tmp_path / "fw"
     skill_dir = fw / "features" / "common" / "skills" / "task"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text("content\n", encoding="utf-8")
     (fw / "VERSION").write_text("0.2.0\n", encoding="utf-8")
 
+    # Compute correct hash
+    fingerprint = bl.dir_content_hash(skill_dir)
+
     proj = tmp_path / "proj"
-    _manifest_with_entry(proj, "features/common/skills/task", ".ai-badger/skills/task", "0" * 64)
+    manifest = {
+        "$schema": "../schemas/manifest.schema.json",
+        "frameworkVersion": "0.2.0",
+        "frameworkCommit": None,
+        "frameworkDirty": False,
+        "generatedAt": None,
+        "agents": ["claude"],
+        "skillScope": "default",
+        "entries": [{
+            "feature": "skills", "stack": "common", "name": "task",
+            "source": "features/common/skills/task",
+            "target": ".ai-badger/skills/task",
+            "frameworkVersion": "0.2.0",
+            "hash": fingerprint["content_hash"],
+            "dirMeta": {
+                "file_count": fingerprint["file_count"],
+                "dir_count": fingerprint["dir_count"],
+            },
+        }],
+    }
+    (proj / ".ai-badger").mkdir(parents=True)
+    (proj / ".ai-badger" / "manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
 
     rc = drift.main(["--root", str(fw), "--target", str(proj)])
 
     assert rc == 0
     out = capsys.readouterr().out
-    assert "features/common/skills/task" in out
-    assert "no drift among the entries that could be compared" in out
-    assert "1 skipped entry was not checked" in out
-    assert "no drift — every scaffolded item matches" not in out
+    # With matching hashes, directory entries are "no drift" — not skipped
+    assert "no drift" in out
 
 
 def test_main_prints_genuinely_clean_message_when_nothing_skipped(
@@ -670,3 +707,60 @@ def test_main_reports_invalid_entry_count_in_output(tmp_path, load_script, capsy
     assert rc == 0
     out = capsys.readouterr().out
     assert "1" in out and "invalid" in out
+
+
+# --------------------------------------------------------- directory hash comparison
+def test_compare_detects_changed_dir_by_hash(tmp_path, load_script):
+    """A directory entry with different content should be reported as changed."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("scripts/badger_lib.py")
+
+    fw = tmp_path / "fw"
+    skill_dir = fw / "features" / "common" / "skills" / "my-skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("v2 content\n")
+
+    # Manifest has a different hash
+    manifest = {
+        "entries": [{
+            "feature": "skills", "stack": "common", "name": "my-skill",
+            "source": "features/common/skills/my-skill",
+            "target": ".ai-badger/skills/my-skill",
+            "hash": "different-hash",
+            "dirMeta": {"file_count": 1, "dir_count": 0},
+        }],
+    }
+
+    result = drift.compare(fw, manifest)
+    assert "features/common/skills/my-skill" in result["changed"]
+
+
+def test_compare_passes_unchanged_dir(tmp_path, load_script):
+    """A directory entry with same content should not be reported as changed."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("scripts/badger_lib.py")
+
+    fw = tmp_path / "fw"
+    skill_dir = fw / "features" / "common" / "skills" / "my-skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("content\n")
+
+    # Compute the expected hash
+    fingerprint = bl.dir_content_hash(skill_dir)
+
+    manifest = {
+        "entries": [{
+            "feature": "skills", "stack": "common", "name": "my-skill",
+            "source": "features/common/skills/my-skill",
+            "target": ".ai-badger/skills/my-skill",
+            "hash": fingerprint["content_hash"],
+            "dirMeta": {
+                "file_count": fingerprint["file_count"],
+                "dir_count": fingerprint["dir_count"],
+            },
+        }],
+    }
+
+    result = drift.compare(fw, manifest)
+    assert "features/common/skills/my-skill" not in result["changed"]
+    assert "features/common/skills/my-skill" not in result.get("skipped", [])

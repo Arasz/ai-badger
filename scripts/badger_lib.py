@@ -165,6 +165,63 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+# Patterns matching scaffold.py's _test_ignore — files/dirs excluded from skill hashing.
+SKILL_EXCLUDE_PATTERNS = ["tests", "test_*.py", "*_test.py", "evals", "__pycache__", "*.pyc"]
+
+
+def _matches_exclude(name: str, patterns: List[str]) -> bool:
+    """Check if a name matches any of the exclude glob patterns."""
+    import fnmatch
+    return any(fnmatch.fnmatch(name, p) for p in patterns)
+
+
+def dir_content_hash(path: Path, exclude: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Compute a structural fingerprint + content hash for a directory.
+
+    Two-phase approach for efficiency:
+    1. Structural: file_count + dir_count (cheap O(n) walk)
+    2. Content: SHA-256 of sorted (relative_path + file_content) for each file
+
+    Files/dirs matching `exclude` glob patterns are skipped entirely.
+
+    Returns:
+        {"file_count": int, "dir_count": int, "content_hash": str}
+    """
+    if not path.is_dir():
+        raise ValueError(f"Not a directory: {path}")
+
+    exclude = exclude or []
+    h = hashlib.sha256()
+    file_count = 0
+    dir_count = 0
+
+    for item in sorted(path.rglob("*")):
+        rel = item.relative_to(path)
+        name = item.name
+
+        # Check if any ancestor in the relative path matches exclude
+        excluded = False
+        for part in rel.parts:
+            if _matches_exclude(part, exclude):
+                excluded = True
+                break
+        if excluded:
+            continue
+
+        if item.is_dir():
+            dir_count += 1
+        elif item.is_file():
+            file_count += 1
+            h.update(rel.as_posix().encode("utf-8"))
+            h.update(item.read_bytes())
+
+    return {
+        "file_count": file_count,
+        "dir_count": dir_count,
+        "content_hash": h.hexdigest(),
+    }
+
+
 # -------------------------------------------------------------- validation (jsonschema)
 def _loc(err: "jsonschema.exceptions.ValidationError") -> str:
     path = "$" + "".join(f"[{p!r}]" if isinstance(p, int) else f".{p}" for p in err.absolute_path)

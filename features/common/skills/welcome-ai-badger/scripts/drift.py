@@ -92,25 +92,19 @@ def detect_new_items(root: Path, manifest: Dict[str, Any],
 
 
 def compare(root: Path, manifest: Dict[str, Any],
-            stacks: Optional[List[str]] = None,
-            framework_commit: Optional[str] = None) -> Dict[str, Any]:
+            stacks: Optional[List[str]] = None) -> Dict[str, Any]:
     """Diff an already-parsed manifest against the framework's current catalog content.
 
     When `stacks` is provided, also detects new items via index.json.
 
-    When `framework_commit` is provided and differs from the manifest's
-    `frameworkCommit`, directory entries (skills) are reported as "changed"
-    rather than "skipped" — the commit difference means the framework's
-    source tree may have changed even if we can't hash-compare directories.
+    Directory entries (skills) are compared using dir_content_hash() with a
+    two-phase approach: structural pre-check (file/dir counts) then content hash.
+    Files matching SKILL_EXCLUDE_PATTERNS are excluded from the hash.
     """
     changed: List[str] = []
     removed: List[str] = []
     skipped: List[str] = []
     invalid = 0
-    manifest_commit = manifest.get("frameworkCommit")
-    commit_changed = (framework_commit is not None
-                      and manifest_commit is not None
-                      and framework_commit != manifest_commit)
     for entry in manifest.get("entries", []):
         source_rel = entry.get("source")
         entry_hash = entry.get("hash")
@@ -122,11 +116,23 @@ def compare(root: Path, manifest: Dict[str, Any],
             removed.append(source_rel)
             continue
         if source.is_dir():
-            if commit_changed:
-                # Framework commit changed — directory entries may be stale
-                changed.append(source_rel)
-            else:
+            # Directory entry — use content hash with structural pre-check
+            try:
+                fingerprint = bl.dir_content_hash(source, exclude=bl.SKILL_EXCLUDE_PATTERNS)
+            except (ValueError, OSError):
                 skipped.append(source_rel)
+                continue
+            dir_meta = entry.get("dirMeta")
+            if dir_meta:
+                # Phase 1: structural pre-check (cheap)
+                if (fingerprint["file_count"] != dir_meta.get("file_count")
+                        or fingerprint["dir_count"] != dir_meta.get("dir_count")):
+                    changed.append(source_rel)
+                    continue
+            # Phase 2: content hash comparison
+            if fingerprint["content_hash"] != entry_hash:
+                changed.append(source_rel)
+            # If hashes match, no drift — don't add to skipped
             continue
         if bl.sha256_file(source) != entry_hash:
             changed.append(source_rel)
