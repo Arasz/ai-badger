@@ -31,6 +31,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
 
     # The extension.md content is appended to the task skill during scaffold
     # by scaffold.py's extension embedding logic. This adjustment ensures
-    # the extension is recognized as active.
-    return {"applied": True, "files": [str(ext_md)],
+    # the extension is recognized as active. No files are copied here —
+    # _embed_extensions() handles the actual embedding.
+    return {"applied": True, "files": [],
             "notes": "Hermes task extension.md registered for embedding"}

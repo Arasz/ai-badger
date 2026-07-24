@@ -578,3 +578,27 @@ def test_scaffold_execute_flag_handles_failure(tmp_path, load_script, root):
     if mock_run.called:
         failure_notes = [n for n in scaf.notes if "command failed" in n or "executed:" in n]
         assert len(failure_notes) > 0 or len(mock_run.call_args_list) == 0
+
+
+# ------------------------------------------------------------------- hermes adjustment path
+def test_scaffold_hermes_adjust_task_does_not_fail_with_absolute_path(tmp_path, load_script, root):
+    """adjust_task.py must not pass absolute paths to record() — causes ValueError."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(agents=["hermes"]),
+        skills=["task"], install=False,
+    )
+    result = scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    # The adjustment should succeed without raising ValueError
+    adj_notes = [n for n in result["notes"]
+                 if "adjustment" in n.lower() and "task" in n.lower()]
+    assert adj_notes, f"Expected adjustment note for task, got: {result['notes']}"
+    # Must NOT contain a failure message
+    assert not any("failed" in n.lower() for n in adj_notes), (
+        f"adjust_task.py should not fail: {adj_notes}"
+    )

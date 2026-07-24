@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/config.schema.json",
-  "frameworkVersion": "0.9.3",
+  "frameworkVersion": "0.9.4",
   "project": {
     "name": "ai-badger",
     "summary": "Agent-instruction framework distributed as a Claude Code plugin. Pure-stdlib Python 3.8+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. Two .mjs helper scripts under skills/maintain-agent-instructions/.",
@@ -23,7 +23,7 @@
   },
   "commands": {
     "test": "python3 -m pytest -q",
-    "lint": "python3 -m pylint scripts skills tests",
+    "lint": "python3 -m pylint scripts features tests",
     "build": "python3 scripts/index_build.py --check"
   },
   "personaRouting": [],

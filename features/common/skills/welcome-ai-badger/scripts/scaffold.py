@@ -494,7 +494,7 @@ class Scaffolder:
                 try:
                     proc = subprocess.run(
                         cmd, shell=True, capture_output=True, text=True,
-                        timeout=30, cwd=str(self.target),
+                        timeout=30, cwd=str(self.target), check=False,
                     )
                     if proc.returncode == 0:
                         self.notes.append(f"executed: {cmd}")
@@ -533,7 +533,6 @@ class Scaffolder:
         namespace_dir = global_skills / project_name
         if namespace_dir.is_symlink() or namespace_dir.exists():
             if namespace_dir.is_dir() and not namespace_dir.is_symlink():
-                import shutil
                 shutil.rmtree(namespace_dir)
             else:
                 namespace_dir.unlink()

@@ -86,6 +86,7 @@ def _ensure_framework_cache() -> Path:
             subprocess.run(
                 ["git", "pull", "--ff-only"],
                 cwd=str(FRAMEWORK_CACHE), capture_output=True, text=True, timeout=30,
+                check=False,
             )
         except (subprocess.TimeoutExpired, OSError):
             pass  # non-fatal: use whatever we have
@@ -94,6 +95,7 @@ def _ensure_framework_cache() -> Path:
         result = subprocess.run(
             ["git", "clone", "--depth=1", FRAMEWORK_REPO, str(FRAMEWORK_CACHE)],
             capture_output=True, text=True, timeout=60,
+            check=False,
         )
         if result.returncode != 0:
             raise RuntimeError(
