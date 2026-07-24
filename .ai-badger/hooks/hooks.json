@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"/Users/arasz/RiderProjects/ai-badger/.ai-badger/skills/task/scripts/drift_notice_hook.py\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"/Users/arasz/RiderProjects/ai-badger/.ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

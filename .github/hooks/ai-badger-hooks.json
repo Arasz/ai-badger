@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "python3 \".ai-badger/skills/task/scripts/drift_notice_hook.py",
+        "timeoutSec": 10
+      }
+    ],
+    "userPromptSubmitted": [
+      {
+        "type": "command",
+        "bash": "python3 .ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}

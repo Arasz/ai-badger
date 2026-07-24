@@ -32,19 +32,85 @@ def _bootstrap_lib() -> None:
         if cand.exists() and (anc / "schemas").is_dir():
             sys.path.insert(0, str(anc / "scripts"))
             return
-    raise RuntimeError("could not locate ai-badger scripts/badger_lib.py")
+    # Fallback: check cached framework repo at ~/.ai-badger/framework/
+    cache = Path.home() / ".ai-badger" / "framework"
+    cache_scripts = cache / "scripts" / "badger_lib.py"
+    if cache_scripts.exists() and (cache / "schemas").is_dir():
+        sys.path.insert(0, str(cache / "scripts"))
+        return
+    raise RuntimeError(
+        "could not locate ai-badger scripts/badger_lib.py locally or at "
+        f"{cache} — run with --root <framework> or clone https://github.com/Arasz/ai-badger"
+    )
 
 
 _bootstrap_lib()
 import badger_lib as bl  # pylint: disable=wrong-import-position
 
 
-def compare(root: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
-    """Diff an already-parsed manifest against the framework's current catalog content."""
+def detect_new_items(root: Path, manifest: Dict[str, Any],
+                     stacks: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    """Find catalog items in index.json that are not in the manifest.
+
+    Only checks stacks the project actually uses (from config.stacks).
+    Returns list of {name, feature, stack, path} for items not scaffolded.
+    """
+    index_path = root / "index.json"
+    if not index_path.exists():
+        return []
+
+    try:
+        index = bl.load_json(index_path)
+    except (ValueError, OSError):
+        return []
+
+    # Build set of (stack, feature, name) from manifest
+    manifest_keys = set()
+    for entry in manifest.get("entries", []):
+        manifest_keys.add((entry.get("stack"), entry.get("feature"), entry.get("name")))
+
+    check_stacks = set(stacks) if stacks else set()
+    new_items: List[Dict[str, Any]] = []
+
+    for stack_name, stack_data in index.get("stacks", {}).items():
+        if stack_name not in check_stacks:
+            continue
+        # Features that can have new items (skip meta)
+        for feature in ("skills", "personas", "invariants", "instructions", "hooks", "adjustments"):
+            items = stack_data.get(feature, [])
+            for item in items:
+                key = (stack_name, feature, item.get("name"))
+                if key not in manifest_keys:
+                    new_items.append({
+                        "name": item["name"],
+                        "feature": feature,
+                        "stack": stack_name,
+                        "path": item.get("path", ""),
+                    })
+
+    return sorted(new_items, key=lambda x: (x["stack"], x["feature"], x["name"]))
+
+
+def compare(root: Path, manifest: Dict[str, Any],
+            stacks: Optional[List[str]] = None,
+            framework_commit: Optional[str] = None) -> Dict[str, Any]:
+    """Diff an already-parsed manifest against the framework's current catalog content.
+
+    When `stacks` is provided, also detects new items via index.json.
+
+    When `framework_commit` is provided and differs from the manifest's
+    `frameworkCommit`, directory entries (skills) are reported as "changed"
+    rather than "skipped" — the commit difference means the framework's
+    source tree may have changed even if we can't hash-compare directories.
+    """
     changed: List[str] = []
     removed: List[str] = []
     skipped: List[str] = []
     invalid = 0
+    manifest_commit = manifest.get("frameworkCommit")
+    commit_changed = (framework_commit is not None
+                      and manifest_commit is not None
+                      and framework_commit != manifest_commit)
     for entry in manifest.get("entries", []):
         source_rel = entry.get("source")
         entry_hash = entry.get("hash")
@@ -56,16 +122,23 @@ def compare(root: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
             removed.append(source_rel)
             continue
         if source.is_dir():
-            skipped.append(source_rel)
+            if commit_changed:
+                # Framework commit changed — directory entries may be stale
+                changed.append(source_rel)
+            else:
+                skipped.append(source_rel)
             continue
         if bl.sha256_file(source) != entry_hash:
             changed.append(source_rel)
-    return {
+    result = {
         "changed": sorted(changed),
         "removed": sorted(removed),
         "skipped": sorted(skipped),
         "invalid": invalid,
     }
+    if stacks is not None:
+        result["newItems"] = detect_new_items(root, manifest, stacks)
+    return result
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -92,10 +165,23 @@ def main(argv: Optional[List[str]] = None) -> int:
     current_version = (root / "VERSION").read_text(encoding="utf-8").strip()
     print(f"scaffolded from {scaffold_version}; framework here is {current_version}")
 
-    result = compare(root, manifest)
+    # Read config for stacks (needed for new items detection)
+    config_path = target / ".ai-badger" / "config.json"
+    stacks = []
+    if config_path.exists():
+        try:
+            config = bl.load_json(config_path)
+            stacks = config.get("stacks", [])
+        except (ValueError, OSError):
+            pass
+
+    result = compare(root, manifest, stacks=stacks if stacks else None)
     for label in ("changed", "removed"):
         for path in result[label]:
             print(f"  {label:8} {path}")
+    if result.get("newItems"):
+        for item in result["newItems"]:
+            print(f"  new      {item['stack']}/{item['feature']}/{item['name']}")
     if result["skipped"]:
         print("skipped entries are directory-valued: the recorded hash covers the scaffolded "
               "copy, which excludes tests/evals — not comparable to the source tree")
@@ -106,7 +192,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"  invalid  {n} manifest entr{'y' if n == 1 else 'ies'} missing source/hash "
               "— not checked")
 
-    if not result["changed"] and not result["removed"]:
+    has_drift = bool(result["changed"] or result["removed"] or result.get("newItems"))
+    if not has_drift:
         if result["skipped"]:
             n = len(result["skipped"])
             entry_word = "y was" if n == 1 else "ies were"

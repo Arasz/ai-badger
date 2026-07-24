@@ -29,7 +29,16 @@ def _bootstrap_lib() -> None:
         if cand.exists() and (anc / "schemas").is_dir():
             sys.path.insert(0, str(anc / "scripts"))
             return
-    raise RuntimeError("could not locate ai-badger scripts/badger_lib.py")
+    # Fallback: check cached framework repo at ~/.ai-badger/framework/
+    cache = Path.home() / ".ai-badger" / "framework"
+    cache_scripts = cache / "scripts" / "badger_lib.py"
+    if cache_scripts.exists() and (cache / "schemas").is_dir():
+        sys.path.insert(0, str(cache / "scripts"))
+        return
+    raise RuntimeError(
+        "could not locate ai-badger scripts/badger_lib.py locally or at "
+        f"{cache} — run with --root <framework> or clone https://github.com/Arasz/ai-badger"
+    )
 
 
 _bootstrap_lib()
@@ -124,7 +133,7 @@ class Scaffolder:
 
     def __init__(self, root: Path, target: Path, config: Dict[str, Any],
                  skills: List[str], install: bool, overwrite: bool = False,
-                 reset_seed_files: bool = False):
+                 reset_seed_files: bool = False, execute: bool = False):
         self.root = root
         self.target = target
         self.config = config
@@ -132,6 +141,7 @@ class Scaffolder:
         self.install = install
         self.overwrite = overwrite
         self.reset_seed_files = reset_seed_files
+        self.execute = execute
         self.index = bl.read_index(root)
         self.commit, self.dirty = git_provenance(root)
         self.aib = target / ".ai-badger"
@@ -479,55 +489,256 @@ class Scaffolder:
                     self.record(feature, stack, f"{stack}/{fname}", src, dest)
 
         cmds = result["commands"]
-        if self.install and cmds:
+        if self.execute and cmds:
+            for cmd in cmds:
+                try:
+                    proc = subprocess.run(
+                        cmd, shell=True, capture_output=True, text=True,
+                        timeout=30, cwd=str(self.target),
+                    )
+                    if proc.returncode == 0:
+                        self.notes.append(f"executed: {cmd}")
+                    else:
+                        self.notes.append(
+                            f"command failed (exit {proc.returncode}): {cmd}"
+                            f"{': ' + proc.stderr.strip() if proc.stderr.strip() else ''}"
+                        )
+                except subprocess.TimeoutExpired:
+                    self.notes.append(f"command timed out (30s): {cmd}")
+                except OSError as exc:
+                    self.notes.append(f"command error: {cmd} — {exc}")
+        elif self.install and cmds:
             self.notes.append("skill auto-install requested but deferred to report "
-                              "(run the commands below manually or via the CLI)")
+                              "(run the commands below manually or via --execute)")
         for w in result.get("warnings", []):
             self.notes.append(f"skill install warning: {w}")
         return cmds
 
     # -- Hermes skill discovery ---------------------------------------------------
     def symlink_hermes_skills(self) -> None:
-        """Symlink .ai-badger/skills/ → .hermes/skills/ and register in external_dirs.
+        """Symlink project skills into ~/.hermes/skills/ with project namespace.
 
-        Hermes discovers skills from ~/.hermes/skills/ (global) and directories
-        listed in skills.external_dirs in ~/.hermes/config.yaml. This method
-        creates symlinks AND registers the project path so Hermes can find them.
+        Each project's skills are namespaced under ~/.hermes/skills/<project-name>/
+        to avoid conflicts when multiple projects have skills with the same name
+        (e.g., 'task'). Hermes discovers skills from ~/.hermes/skills/ (global).
+
+        Does NOT use external_dirs — that's a shared global list that causes
+        skill name conflicts across projects.
         """
         if "hermes" not in self.config.get("agents", []):
             return
-        hermes_skills = self.target / ".hermes" / "skills"
-        hermes_skills.mkdir(parents=True, exist_ok=True)
+        project_name = self.config.get("project", {}).get("name", "unknown")
+        global_skills = Path.home() / ".hermes" / "skills"
+        global_skills.mkdir(parents=True, exist_ok=True)
+        namespace_dir = global_skills / project_name
+        if namespace_dir.is_symlink() or namespace_dir.exists():
+            if namespace_dir.is_dir() and not namespace_dir.is_symlink():
+                import shutil
+                shutil.rmtree(namespace_dir)
+            else:
+                namespace_dir.unlink()
+        # Create namespace dir and symlink each skill into it
+        namespace_dir.mkdir(parents=True, exist_ok=True)
         for skill_name in self.skills:
             src = self.aib / "skills" / skill_name
-            dst = hermes_skills / skill_name
+            dst = namespace_dir / skill_name
             if not src.is_dir():
                 continue
-            # Remove stale symlink or directory before recreating
-            if dst.is_symlink() or dst.exists():
-                dst.unlink()
             dst.symlink_to(os.path.relpath(src, dst.parent))
-        # Register in Hermes external_dirs so skills are discoverable
-        self._register_hermes_external_dir(hermes_skills)
 
-    @staticmethod
-    def _register_hermes_external_dir(skills_path: Path) -> None:
-        """Add skills_path to ~/.hermes/config.yaml skills.external_dirs if not present."""
-        import yaml  # pylint: disable=import-error
-        hermes_config = Path.home() / ".hermes" / "config.yaml"
-        if not hermes_config.exists():
+    # -- hook wiring ---------------------------------------------------------------
+    def wire_hooks(self) -> None:
+        """Wire framework hooks into .claude/settings.json for Claude Code projects.
+
+        Reads hooks-manifest.json, generates a project-specific hooks.json under
+        .ai-badger/hooks/ with paths rewritten to the scaffolded .ai-badger/skills/
+        directory, and merges hook registrations into .claude/settings.json.
+        """
+        if "claude" not in self.config.get("agents", []):
             return
+
+        manifest_path = self.root / "features" / "common" / "hooks" / "hooks-manifest.json"
+        if not manifest_path.exists():
+            return
+
         try:
-            cfg = yaml.safe_load(hermes_config.read_text(encoding="utf-8")) or {}
-            skills_cfg = cfg.setdefault("skills", {})
-            ext_dirs = skills_cfg.setdefault("external_dirs", [])
-            abs_path = str(skills_path.resolve())
-            if abs_path not in ext_dirs:
-                ext_dirs.append(abs_path)
-                hermes_config.write_text(yaml.dump(cfg, default_flow_style=False,
-                                                    allow_unicode=True), encoding="utf-8")
-        except Exception:  # pylint: disable=broad-exception-caught
-            pass  # non-fatal: user can add manually
+            manifest = bl.load_json(manifest_path)
+        except (ValueError, OSError):
+            return
+
+        # Source hooks.json (framework plugin version)
+        source_hooks_path = self.root / "features" / "common" / "hooks" / "hooks.json"
+        source_hooks = {}
+        if source_hooks_path.exists():
+            try:
+                source_hooks = bl.load_json(source_hooks_path)
+            except (ValueError, OSError):
+                pass
+
+        # Build the target hooks.json by rewriting paths
+        target_hooks: Dict[str, Any] = {"hooks": {}}
+        settings_hooks: Dict[str, Any] = {}
+
+        for hook in manifest.get("hooks", []):
+            claude_entry = hook.get("agents", {}).get("claude")
+            if not claude_entry or claude_entry.get("type") != "hooks-json":
+                continue
+
+            event = claude_entry.get("event")
+            if not event:
+                continue
+
+            # Get the hook config from source hooks.json
+            source_event_hooks = source_hooks.get("hooks", {}).get(event, [])
+            if not source_event_hooks:
+                # Generate a default hook entry for skills not in the framework hooks.json
+                # (e.g., prompt-markers which has its own hook script)
+                hook_name = hook.get("name", "")
+                skill_hook_script = self.aib / "skills" / hook_name / "scripts"
+                # Find the hook script (look for *_hook.py)
+                hook_scripts = list(skill_hook_script.glob("*_hook.py")) if skill_hook_script.exists() else []
+                if not hook_scripts:
+                    self.notes.append(f"hook '{hook_name}': no hook script found — skipped")
+                    continue
+                script_path = hook_scripts[0]
+                rel_path = script_path.relative_to(self.target)
+                rewritten = [{
+                    "hooks": [{
+                        "type": "command",
+                        "command": f'python3 "{self.target / rel_path}"'
+                    }]
+                }]
+            else:
+                # Rewrite paths from framework to scaffolded project
+                rewritten = []
+                for entry in source_event_hooks:
+                    new_entry = dict(entry)
+                    new_hooks = []
+                    for h in entry.get("hooks", []):
+                        new_h = dict(h)
+                        cmd = h.get("command", "")
+                        # Rewrite: ${CLAUDE_PLUGIN_ROOT}/features/common/skills/ → <target>/.ai-badger/skills/
+                        cmd = cmd.replace(
+                            "${CLAUDE_PLUGIN_ROOT}/features/common/skills/",
+                            str(self.aib / "skills") + "/"
+                        )
+                        new_h["command"] = cmd
+                        new_hooks.append(new_h)
+                    new_entry["hooks"] = new_hooks
+                    rewritten.append(new_entry)
+
+            target_hooks["hooks"][event] = rewritten
+            settings_hooks[event] = rewritten
+
+        if not target_hooks["hooks"]:
+            return
+
+        # Write .ai-badger/hooks/hooks.json
+        hooks_dir = self.aib / "hooks"
+        hooks_dir.mkdir(parents=True, exist_ok=True)
+        bl.dump_json(hooks_dir / "hooks.json", target_hooks)
+
+        # Merge into .claude/settings.json
+        settings_path = self.target / ".claude" / "settings.json"
+        settings: Dict[str, Any] = {}
+        if settings_path.exists():
+            try:
+                settings = bl.load_json(settings_path)
+            except (ValueError, OSError):
+                settings = {}
+
+        existing_hooks = settings.get("hooks", {})
+        for event, hook_entries in settings_hooks.items():
+            existing_event_hooks = existing_hooks.get(event, [])
+            # Idempotent: skip if hook command already registered
+            for new_entry in hook_entries:
+                for new_hook in new_entry.get("hooks", []):
+                    new_cmd = new_hook.get("command", "")
+                    already_exists = any(
+                        existing_hook.get("command") == new_cmd
+                        for existing_entry in existing_event_hooks
+                        for existing_hook in existing_entry.get("hooks", [])
+                    )
+                    if not already_exists:
+                        existing_event_hooks.append(new_entry)
+            existing_hooks[event] = existing_event_hooks
+
+        settings["hooks"] = existing_hooks
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        bl.dump_json(settings_path, settings)
+        self.notes.append(f"wired {len(settings_hooks)} hook(s) into .claude/settings.json")
+
+    # -- adjustments ----------------------------------------------------------------
+    def run_adjustments(self) -> None:
+        """Run agent-specific adjustments declared in features/<agent>/adjustments/.
+
+        Each adjustment is a Python script with an adjust(context) function that
+        receives the framework root, config, and target directory, and returns
+        {'applied': bool, 'files': list, 'notes': str}.
+        """
+        for agent_name in self.config.get("agents", []):
+            adj_path = self.root / "features" / agent_name / "adjustments" / "adjustment.json"
+            if not adj_path.exists():
+                continue
+
+            try:
+                adj_manifest = bl.load_json(adj_path)
+            except (ValueError, OSError):
+                continue
+
+            for adj in adj_manifest.get("adjustments", []):
+                script_name = adj.get("script")
+                if not script_name:
+                    continue
+
+                script_path = adj_path.parent / script_name
+                if not script_path.exists():
+                    self.notes.append(
+                        f"adjustment script '{script_name}' for '{agent_name}' not found — skipped"
+                    )
+                    continue
+
+                try:
+                    import importlib.util
+                    spec = importlib.util.spec_from_file_location(
+                        f"adj_{agent_name}_{script_name}", script_path
+                    )
+                    if spec is None or spec.loader is None:
+                        self.notes.append(
+                            f"adjustment '{script_name}' for '{agent_name}' — could not load module"
+                        )
+                        continue
+                    mod = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(mod)
+
+                    context = {
+                        "framework_root": self.root,
+                        "config": self.config,
+                        "feature_dir": self.root / "features" / agent_name / "adjustments",
+                        "target_dir": self.aib,
+                        "target": self.target,
+                        "skills": self.skills,
+                        "index": self.index,
+                    }
+                    result = mod.adjust(context)
+                    if result.get("applied"):
+                        self.notes.append(
+                            f"adjustment '{adj.get('feature', script_name)}' for "
+                            f"'{agent_name}': {result.get('notes', 'applied')}"
+                        )
+                        for f in result.get("files", []):
+                            self.record("adjustments", agent_name,
+                                        f"adjustments/{f}", script_path,
+                                        self.target / f)
+                    else:
+                        self.notes.append(
+                            f"adjustment '{adj.get('feature', script_name)}' for "
+                            f"'{agent_name}': not applied — {result.get('notes', 'no reason')}"
+                        )
+                except Exception as exc:  # pylint: disable=broad-exception-caught
+                    self.notes.append(
+                        f"adjustment '{script_name}' for '{agent_name}' failed: {exc}"
+                    )
 
     # -- orchestrate ----------------------------------------------------------------
     def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
@@ -542,6 +753,8 @@ class Scaffolder:
         self.scaffold_templates()
         doc = self.assemble_instructions_doc(invariants, instr_paths)
         self.write_agent_files(doc, instr_paths, invariants)
+        self.wire_hooks()
+        self.run_adjustments()
         plugin_cmds = self.install_plugins()
 
         # copy the config into place (source of truth for the skills)
@@ -579,6 +792,9 @@ def main(argv=None) -> int:
                          "model.json, skills/prompt-markers/markers-context.json) from the "
                          "framework template, discarding any project-owned edits. Default "
                          "preserves them once they exist.")
+    ap.add_argument("--execute", action="store_true",
+                    help="Execute skill install commands instead of just printing them. "
+                         "Commands run with 30s timeout per command. Default is advisory-only.")
     ap.add_argument("--generated-at", default=None,
                     help="ISO timestamp to stamp in manifest (orchestrator supplies; "
                          "scripts avoid clocks).")
@@ -600,7 +816,8 @@ def main(argv=None) -> int:
     skills = [s for s in args.skills.split(",") if s]
     scaf = Scaffolder(root, target, config, skills, install=not args.no_install,
                       overwrite=args.overwrite_agent_files,
-                      reset_seed_files=args.reset_seed_files)
+                      reset_seed_files=args.reset_seed_files,
+                      execute=args.execute)
     result = scaf.run(generated_at=args.generated_at)
 
     print(f"scaffolded {len(result['manifest']['entries'])} entries into {scaf.aib}")
