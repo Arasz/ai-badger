@@ -104,10 +104,12 @@ def check_prerequisites(target: Path) -> Optional[str]:
 
 
 def run_drift(root: Path, manifest: Dict[str, Any],
-              stacks: Optional[List[str]] = None) -> Dict[str, Any]:
+              stacks: Optional[List[str]] = None,
+              framework_commit: Optional[str] = None) -> Dict[str, Any]:
     """Run drift comparison against the framework's current content."""
     drift_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/drift.py", root)
-    return drift_mod.compare(root, manifest, stacks=stacks)
+    return drift_mod.compare(root, manifest, stacks=stacks,
+                             framework_commit=framework_commit)
 
 
 def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
@@ -189,7 +191,22 @@ def main(argv: Optional[List[str]] = None) -> int:
     # 6. Check drift
     scaffold_version = config.get("frameworkVersion", "?")
     current_version = (root / "VERSION").read_text(encoding="utf-8").strip()
-    drift_result = run_drift(root, manifest, stacks=config.get("stacks", []))
+
+    # Get framework commit for directory-entry drift detection
+    import subprocess
+    fw_commit = None
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(root), capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            fw_commit = result.stdout.strip()
+    except (subprocess.TimeoutExpired, OSError):
+        pass
+
+    drift_result = run_drift(root, manifest, stacks=config.get("stacks", []),
+                             framework_commit=fw_commit)
 
     has_drift = bool(drift_result.get("changed") or drift_result.get("removed")
                      or drift_result.get("newItems"))

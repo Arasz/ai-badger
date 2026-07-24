@@ -92,15 +92,25 @@ def detect_new_items(root: Path, manifest: Dict[str, Any],
 
 
 def compare(root: Path, manifest: Dict[str, Any],
-            stacks: Optional[List[str]] = None) -> Dict[str, Any]:
+            stacks: Optional[List[str]] = None,
+            framework_commit: Optional[str] = None) -> Dict[str, Any]:
     """Diff an already-parsed manifest against the framework's current catalog content.
 
     When `stacks` is provided, also detects new items via index.json.
+
+    When `framework_commit` is provided and differs from the manifest's
+    `frameworkCommit`, directory entries (skills) are reported as "changed"
+    rather than "skipped" — the commit difference means the framework's
+    source tree may have changed even if we can't hash-compare directories.
     """
     changed: List[str] = []
     removed: List[str] = []
     skipped: List[str] = []
     invalid = 0
+    manifest_commit = manifest.get("frameworkCommit")
+    commit_changed = (framework_commit is not None
+                      and manifest_commit is not None
+                      and framework_commit != manifest_commit)
     for entry in manifest.get("entries", []):
         source_rel = entry.get("source")
         entry_hash = entry.get("hash")
@@ -112,7 +122,11 @@ def compare(root: Path, manifest: Dict[str, Any],
             removed.append(source_rel)
             continue
         if source.is_dir():
-            skipped.append(source_rel)
+            if commit_changed:
+                # Framework commit changed — directory entries may be stale
+                changed.append(source_rel)
+            else:
+                skipped.append(source_rel)
             continue
         if bl.sha256_file(source) != entry_hash:
             changed.append(source_rel)
