@@ -24,7 +24,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         {'applied': bool, 'files': list[str], 'notes': str}
     """
     framework_root = context["framework_root"]
-    ext_md = framework_root / "features" / "hermes" / "skills" / "task-extensions" / "hermes" / "extension.md"
+    ext_md = framework_root / "features" / "common" / "skills" / "task" / "extensions" / "hermes" / "extension.md"
 
     if not ext_md.exists():
         return {"applied": False, "files": [], "notes": "extension.md not found"}
