@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.7.1",
+  "frameworkVersion": "0.7.2",
   "stacks": {
     "angular": {
       "personas": [
@@ -75,6 +75,12 @@
       }
     },
     "claude": {
+      "skills": [
+        {
+          "name": "auto-wm",
+          "path": "features/claude/skills/auto-wm"
+        }
+      ],
       "templates": [
         {
           "name": "CLAUDE.md.tmpl",
@@ -93,10 +99,6 @@
     },
     "common": {
       "skills": [
-        {
-          "name": "auto-wm",
-          "path": "features/common/skills/auto-wm"
-        },
         {
           "name": "den-refresh",
           "path": "features/common/skills/den-refresh"

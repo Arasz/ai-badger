@@ -61,7 +61,7 @@ def _run_main_never_raises(module, monkeypatch, payload):
 
 
 def test_disabled_mode_emits_nothing(tmp_path, load_script, monkeypatch, capsys):
-    gate = load_script("features/common/skills/auto-wm/hooks/awm_gate.py")
+    gate = load_script("features/claude/skills/auto-wm/hooks/awm_gate.py")
     state_file, decisions_file = _patch_state_paths(gate, monkeypatch, tmp_path)
     _write_state(state_file, {"enabled": False})
 
@@ -72,7 +72,7 @@ def test_disabled_mode_emits_nothing(tmp_path, load_script, monkeypatch, capsys)
 
 
 def test_partner_mode_auto_approves_normal_tool(tmp_path, load_script, monkeypatch, capsys):
-    gate = load_script("features/common/skills/auto-wm/hooks/awm_gate.py")
+    gate = load_script("features/claude/skills/auto-wm/hooks/awm_gate.py")
     state_file, decisions_file = _patch_state_paths(gate, monkeypatch, tmp_path)
     _write_state(state_file, {"enabled": True, "mode": "partner",
                                "enabled_at": datetime.now(timezone.utc).isoformat()})
@@ -90,7 +90,7 @@ def test_partner_mode_auto_approves_normal_tool(tmp_path, load_script, monkeypat
 
 def test_partner_mode_leaves_ask_user_question_untouched(tmp_path, load_script, monkeypatch,
                                                            capsys):
-    gate = load_script("features/common/skills/auto-wm/hooks/awm_gate.py")
+    gate = load_script("features/claude/skills/auto-wm/hooks/awm_gate.py")
     state_file, decisions_file = _patch_state_paths(gate, monkeypatch, tmp_path)
     _write_state(state_file, {"enabled": True, "mode": "partner",
                                "enabled_at": datetime.now(timezone.utc).isoformat()})
@@ -102,7 +102,7 @@ def test_partner_mode_leaves_ask_user_question_untouched(tmp_path, load_script, 
 
 
 def test_away_mode_active_auto_approves_normal_tool(tmp_path, load_script, monkeypatch, capsys):
-    gate = load_script("features/common/skills/auto-wm/hooks/awm_gate.py")
+    gate = load_script("features/claude/skills/auto-wm/hooks/awm_gate.py")
     state_file, decisions_file = _patch_state_paths(gate, monkeypatch, tmp_path)
     expires_at = datetime.now(timezone.utc) + timedelta(hours=2)
     _write_state(state_file, {"enabled": True, "mode": "away",
@@ -118,7 +118,7 @@ def test_away_mode_active_auto_approves_normal_tool(tmp_path, load_script, monke
 
 
 def test_away_mode_active_denies_ask_user_question(tmp_path, load_script, monkeypatch, capsys):
-    gate = load_script("features/common/skills/auto-wm/hooks/awm_gate.py")
+    gate = load_script("features/claude/skills/auto-wm/hooks/awm_gate.py")
     state_file, decisions_file = _patch_state_paths(gate, monkeypatch, tmp_path)
     expires_at = datetime.now(timezone.utc) + timedelta(hours=2)
     _write_state(state_file, {"enabled": True, "mode": "away",
@@ -136,7 +136,7 @@ def test_away_mode_active_denies_ask_user_question(tmp_path, load_script, monkey
 
 def test_away_mode_expired_falls_through_and_flips_state_off(tmp_path, load_script, monkeypatch,
                                                                capsys):
-    gate = load_script("features/common/skills/auto-wm/hooks/awm_gate.py")
+    gate = load_script("features/claude/skills/auto-wm/hooks/awm_gate.py")
     state_file, decisions_file = _patch_state_paths(gate, monkeypatch, tmp_path)
     expires_at = datetime.now(timezone.utc) - timedelta(hours=1)
     _write_state(state_file, {"enabled": True, "mode": "away",
@@ -156,7 +156,7 @@ def test_away_mode_expired_falls_through_and_flips_state_off(tmp_path, load_scri
 
 def test_missing_state_file_is_silent_via_entrypoint_guard(tmp_path, load_script, monkeypatch,
                                                              capsys):
-    gate = load_script("features/common/skills/auto-wm/hooks/awm_gate.py")
+    gate = load_script("features/claude/skills/auto-wm/hooks/awm_gate.py")
     _patch_state_paths(gate, monkeypatch, tmp_path)  # STATE_FILE points at a nonexistent path
 
     _run_main_never_raises(gate, monkeypatch, _payload())
