@@ -39,7 +39,7 @@
           "seedOnce": {
             "type": "boolean",
             "default": false,
-            "description": "True = written only on first scaffold, preserved on re-scaffold. Overrides managed when true."
+            "description": "True = written only on first scaffold, preserved on re-scaffold. Overrides managed when true. When combined with alsoTarget, both copies are skipped together."
           },
           "template": {
             "type": "boolean",
