@@ -356,3 +356,56 @@ def test_refresh_re_scaffolds_hermes_agent_files(tmp_path, load_script, root):
     # HERMES.md should be updated
     updated = hermes_path.read_text(encoding="utf-8")
     assert "(v2)" in updated
+
+
+# ------------------------------------------------- version sync without drift
+def test_refresh_updates_framework_version_when_no_drift_but_version_bumped(
+    tmp_path, load_script, root
+):
+    """When the framework VERSION is bumped but files haven't changed,
+    config.frameworkVersion must still be synced to the current version."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    bl = load_script("scripts/badger_lib.py")
+
+    # Framework at v0.4.0 (version bumped, but same file content)
+    fw = tmp_path / "fw"
+    fw.mkdir()
+    (fw / "VERSION").write_text("0.4.0\n", encoding="utf-8")
+    (fw / "schemas").mkdir()
+    (fw / "schemas" / "config.schema.json").write_text(
+        (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (fw / "features" / "common" / "templates").mkdir(parents=True)
+    (fw / "features" / "common" / "templates" / "CLAUDE.md.tmpl").write_text(
+        "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Invariants\n\n{{INVARIANTS}}\n",
+        encoding="utf-8",
+    )
+    src = _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory.\n")
+    _write_fw_index(fw, version="0.4.0")
+
+    entry_hash = bl.sha256_file(src)
+
+    # Project scaffolded at v0.3.0 — same file content, no drift
+    proj = tmp_path / "proj"
+    _write_config(proj, frameworkVersion="0.3.0")
+    _write_manifest(proj, [{
+        "feature": "invariants", "stack": "common", "name": "tdd",
+        "source": "features/common/invariants/tdd.md",
+        "target": ".ai-badger/invariants/tdd.md",
+        "frameworkVersion": "0.3.0", "hash": entry_hash,
+    }], version="0.3.0")
+    (proj / ".ai-badger" / "invariants").mkdir(parents=True)
+    (proj / ".ai-badger" / "invariants" / "tdd.md").write_text(
+        "- TDD is mandatory.\n", encoding="utf-8"
+    )
+
+    rc = refresh.main(["--target", str(proj), "--root", str(fw)])
+
+    assert rc == 0
+    # The key assertion: config.frameworkVersion must be updated to 0.4.0
+    config = json.loads((proj / ".ai-badger" / "config.json").read_text(encoding="utf-8"))
+    assert config["frameworkVersion"] == "0.4.0", (
+        f"Expected frameworkVersion '0.4.0' but got '{config['frameworkVersion']}'. "
+        "Version sync should happen even when there is no file drift."
+    )

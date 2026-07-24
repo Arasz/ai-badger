@@ -7,7 +7,8 @@ Each version gets its own file: `{version}-{slug}.md`.
 
 ```
 docs/changelog/
-  0.9.1-github-fallback-framework-root.md   # Latest
+  0.9.2-refresh-version-sync-fix.md   # Latest
+  0.9.1-github-fallback-framework-root.md
   0.9.0-hook-wiring-execute-copilot.md
   0.8.0-tier2-drift-new-items.md
   0.7.2-move-auto-wm-to-claude.md
