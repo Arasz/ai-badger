@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/config.schema.json",
-  "frameworkVersion": "0.9.4",
+  "frameworkVersion": "0.10.0",
   "project": {
     "name": "ai-badger",
     "summary": "Agent-instruction framework distributed as a Claude Code plugin. Pure-stdlib Python 3.8+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. Two .mjs helper scripts under skills/maintain-agent-instructions/.",

@@ -1,8 +1,8 @@
 {
   "$schema": "../schemas/manifest.schema.json",
-  "frameworkVersion": "0.9.4",
-  "frameworkCommit": "2176e90ffef6ffe3500f4594d9c0eb89eebcbfc3",
-  "frameworkDirty": false,
+  "frameworkVersion": "0.10.0",
+  "frameworkCommit": "ca9cf60ab8f4d394b773f8a03c4c6be1e6cefaaa",
+  "frameworkDirty": true,
   "generatedAt": null,
   "agents": [
     "claude",
@@ -18,7 +18,7 @@
       "name": "architect",
       "source": "features/common/personas/architect.md",
       "target": ".ai-badger/agents/architect.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "4614d118464b9bc9db87b3a7075b7a8d71c3e3b2f09faea4bd8a630f5a8349ac"
     },
     {
@@ -27,7 +27,7 @@
       "name": "code-reviewer",
       "source": "features/common/personas/code-reviewer.md",
       "target": ".ai-badger/agents/code-reviewer.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "e49eedc6c6cb3a14de19f86e50adc232aa008db62c2c061029fe371202f4e849"
     },
     {
@@ -36,7 +36,7 @@
       "name": "test-engineer",
       "source": "features/common/personas/test-engineer.md",
       "target": ".ai-badger/agents/test-engineer.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "c48501ca0af5bf8a186324c17a00f73e2426095163a383086517faa9592e2057"
     },
     {
@@ -45,7 +45,7 @@
       "name": "documentation.instructions",
       "source": "features/common/instructions/documentation.instructions.md",
       "target": ".ai-badger/instructions/documentation.instructions.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "49d0deaa5e85453ef729cab6fbb443ad079eaf3a6bab6d82d9d735cced36c4ca"
     },
     {
@@ -54,7 +54,7 @@
       "name": "python.instructions",
       "source": "features/python/instructions/python.instructions.md",
       "target": ".ai-badger/instructions/python.instructions.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "a78607719b69927ece0d3ba8115037005c36ebd19aad6fefa0ce145a99c1b79d"
     },
     {
@@ -63,7 +63,7 @@
       "name": "javascript.instructions",
       "source": "features/js/instructions/javascript.instructions.md",
       "target": ".ai-badger/instructions/javascript.instructions.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "aee34b31f88b32868758abe80d1f4676e9cc4268b83a71eebe22dacc2ceeb59c"
     },
     {
@@ -72,7 +72,7 @@
       "name": "guard-clauses",
       "source": "features/common/invariants/guard-clauses.md",
       "target": ".ai-badger/invariants/guard-clauses.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "81e27d082d09fbf6d93cfac034f07eea3481d77e36a176d5170e4c55c8ead4fb"
     },
     {
@@ -81,7 +81,7 @@
       "name": "minimal-comments",
       "source": "features/common/invariants/minimal-comments.md",
       "target": ".ai-badger/invariants/minimal-comments.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "28c17e954bfc850a6441c2ccbc032318d60085695b1320536e2b75bd563d0079"
     },
     {
@@ -90,7 +90,7 @@
       "name": "no-hand-rolled-crypto",
       "source": "features/common/invariants/no-hand-rolled-crypto.md",
       "target": ".ai-badger/invariants/no-hand-rolled-crypto.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "cbf086eeac7d8f6449d58c711b39e2aecbdff6885f4ed8575d090ae6cf8c1996"
     },
     {
@@ -99,7 +99,7 @@
       "name": "no-hardcoded-secrets",
       "source": "features/common/invariants/no-hardcoded-secrets.md",
       "target": ".ai-badger/invariants/no-hardcoded-secrets.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "b7433087d8f1260ace6a99ca3055286b89c16934e933c5e90834310c86c05e18"
     },
     {
@@ -108,7 +108,7 @@
       "name": "pr-per-task",
       "source": "features/common/invariants/pr-per-task.md",
       "target": ".ai-badger/invariants/pr-per-task.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "28d40ad3ab3c5c230903f527faebf752f6587739a2e05d5d37013588486545b6"
     },
     {
@@ -117,7 +117,7 @@
       "name": "screaming-architecture",
       "source": "features/common/invariants/screaming-architecture.md",
       "target": ".ai-badger/invariants/screaming-architecture.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "3fea8c23b252277aa3f003ef03944c66654384ef3a49c18e8b2e0a4a87581dcc"
     },
     {
@@ -126,7 +126,7 @@
       "name": "small-commits-early-draft-pr",
       "source": "features/common/invariants/small-commits-early-draft-pr.md",
       "target": ".ai-badger/invariants/small-commits-early-draft-pr.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "77d2954d232a9b7c1fc0c1186681979a4215cba322421521de584d1a4b175d4f"
     },
     {
@@ -135,7 +135,7 @@
       "name": "tdd-mandatory",
       "source": "features/common/invariants/tdd-mandatory.md",
       "target": ".ai-badger/invariants/tdd-mandatory.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "59b4a6d1cda4e11820f79949f673c45cdaa4f69d528d5be00a7fdfef63391b2b"
     },
     {
@@ -144,7 +144,7 @@
       "name": "version-changelog-required",
       "source": "features/common/invariants/version-changelog-required.md",
       "target": ".ai-badger/invariants/version-changelog-required.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "bb1ccec43e0f06d48ccff2e7505be608037dbfacf3e852f66c4c44a0adb36412"
     },
     {
@@ -153,8 +153,12 @@
       "name": "den-refresh",
       "source": "features/common/skills/den-refresh",
       "target": ".ai-badger/skills/den-refresh",
-      "frameworkVersion": "0.9.4",
-      "hash": "eb82e0a0daeef1db2606ca398c8c3eb7b99d58ca0495901fdbecbd35ca246e45"
+      "frameworkVersion": "0.10.0",
+      "hash": "f9d722ea056ef93dd15abc9c26a74a88c548c7c9ca0c1b483b8c57cf5fb3482f",
+      "dirMeta": {
+        "file_count": 2,
+        "dir_count": 1
+      }
     },
     {
       "feature": "skills",
@@ -162,8 +166,12 @@
       "name": "feed-badger",
       "source": "features/common/skills/feed-badger",
       "target": ".ai-badger/skills/feed-badger",
-      "frameworkVersion": "0.9.4",
-      "hash": "4e3e5f0c8bc02909794330b510545ca5efb68975d971754d44fcd90b3ba09e3d"
+      "frameworkVersion": "0.10.0",
+      "hash": "d3f28b69ced42484c8f29895e0822c34fdea6a2814b70c0a72c414938e1e0c46",
+      "dirMeta": {
+        "file_count": 3,
+        "dir_count": 1
+      }
     },
     {
       "feature": "skills",
@@ -171,8 +179,12 @@
       "name": "maintain-agent-instructions",
       "source": "features/common/skills/maintain-agent-instructions",
       "target": ".ai-badger/skills/maintain-agent-instructions",
-      "frameworkVersion": "0.9.4",
-      "hash": "42d1926313a3dac4321b7036006d474b0a425061acc100a14361e12ab75d5a44"
+      "frameworkVersion": "0.10.0",
+      "hash": "42d1926313a3dac4321b7036006d474b0a425061acc100a14361e12ab75d5a44",
+      "dirMeta": {
+        "file_count": 5,
+        "dir_count": 2
+      }
     },
     {
       "feature": "skills",
@@ -180,8 +192,12 @@
       "name": "mcp-index",
       "source": "features/common/skills/mcp-index",
       "target": ".ai-badger/skills/mcp-index",
-      "frameworkVersion": "0.9.4",
-      "hash": "6ed7c9740e37aa20ef6372626e9731ab6ff15c9bab54542499a4287b9a447cde"
+      "frameworkVersion": "0.10.0",
+      "hash": "6ed7c9740e37aa20ef6372626e9731ab6ff15c9bab54542499a4287b9a447cde",
+      "dirMeta": {
+        "file_count": 2,
+        "dir_count": 1
+      }
     },
     {
       "feature": "skills",
@@ -189,8 +205,12 @@
       "name": "prompt-markers",
       "source": "features/common/skills/prompt-markers",
       "target": ".ai-badger/skills/prompt-markers",
-      "frameworkVersion": "0.9.4",
-      "hash": "975157c8abb8bedd45590fb54dca66b5c444198bb3763d6b93987e74fc48780a"
+      "frameworkVersion": "0.10.0",
+      "hash": "975157c8abb8bedd45590fb54dca66b5c444198bb3763d6b93987e74fc48780a",
+      "dirMeta": {
+        "file_count": 3,
+        "dir_count": 1
+      }
     },
     {
       "feature": "skills",
@@ -198,8 +218,12 @@
       "name": "task",
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
-      "frameworkVersion": "0.9.4",
-      "hash": "7fa32fc635e70f4e791f63b3511824fbd65864cc1eae735e8fa1cccbdf1d0427"
+      "frameworkVersion": "0.10.0",
+      "hash": "776359f70d73b4095dbb9af5b574a2dd9a313d4ca48da5f7ba851b043fda544c",
+      "dirMeta": {
+        "file_count": 13,
+        "dir_count": 2
+      }
     },
     {
       "feature": "skills",
@@ -207,8 +231,12 @@
       "name": "welcome-ai-badger",
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
-      "frameworkVersion": "0.9.4",
-      "hash": "d85409eeb956b2d0a68cccb2fd77943fdb72aa1f0549150c917789edcddcd0a9"
+      "frameworkVersion": "0.10.0",
+      "hash": "e5ac06f1bcb328442988420c326e8235a60972cce2d192684222cd69036f81f1",
+      "dirMeta": {
+        "file_count": 4,
+        "dir_count": 1
+      }
     },
     {
       "feature": "adjustments",
@@ -216,7 +244,7 @@
       "name": "adjustments/.github/hooks/ai-badger-hooks.json",
       "source": "features/copilot/adjustments/adjust_hooks.py",
       "target": ".github/hooks/ai-badger-hooks.json",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "462a019a3bee85c1b6c2782774e9432b43872773dbf6c78273c27004f2e2b342"
     },
     {
@@ -225,8 +253,8 @@
       "name": "adjustments/.github/skills/den-refresh",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/den-refresh",
-      "frameworkVersion": "0.9.4",
-      "hash": "eb82e0a0daeef1db2606ca398c8c3eb7b99d58ca0495901fdbecbd35ca246e45"
+      "frameworkVersion": "0.10.0",
+      "hash": "f9d722ea056ef93dd15abc9c26a74a88c548c7c9ca0c1b483b8c57cf5fb3482f"
     },
     {
       "feature": "adjustments",
@@ -234,8 +262,8 @@
       "name": "adjustments/.github/skills/feed-badger",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/feed-badger",
-      "frameworkVersion": "0.9.4",
-      "hash": "4e3e5f0c8bc02909794330b510545ca5efb68975d971754d44fcd90b3ba09e3d"
+      "frameworkVersion": "0.10.0",
+      "hash": "d3f28b69ced42484c8f29895e0822c34fdea6a2814b70c0a72c414938e1e0c46"
     },
     {
       "feature": "adjustments",
@@ -243,7 +271,7 @@
       "name": "adjustments/.github/skills/maintain-agent-instructions",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/maintain-agent-instructions",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "42d1926313a3dac4321b7036006d474b0a425061acc100a14361e12ab75d5a44"
     },
     {
@@ -252,7 +280,7 @@
       "name": "adjustments/.github/skills/mcp-index",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/mcp-index",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "6ed7c9740e37aa20ef6372626e9731ab6ff15c9bab54542499a4287b9a447cde"
     },
     {
@@ -261,7 +289,7 @@
       "name": "adjustments/.github/skills/prompt-markers",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/prompt-markers",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "975157c8abb8bedd45590fb54dca66b5c444198bb3763d6b93987e74fc48780a"
     },
     {
@@ -270,7 +298,7 @@
       "name": "adjustments/.github/skills/task",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/task",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "7fa32fc635e70f4e791f63b3511824fbd65864cc1eae735e8fa1cccbdf1d0427"
     },
     {
@@ -279,8 +307,8 @@
       "name": "adjustments/.github/skills/welcome-ai-badger",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/welcome-ai-badger",
-      "frameworkVersion": "0.9.4",
-      "hash": "d85409eeb956b2d0a68cccb2fd77943fdb72aa1f0549150c917789edcddcd0a9"
+      "frameworkVersion": "0.10.0",
+      "hash": "e5ac06f1bcb328442988420c326e8235a60972cce2d192684222cd69036f81f1"
     },
     {
       "feature": "adjustments",
@@ -288,7 +316,7 @@
       "name": "adjustments/.github/agents/angular-engineer.agent.md",
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/angular-engineer.agent.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "a4939e7ad126bf5159d1030ffbd0d2b3af7bc11d95a28dd0780e95f22b24649d"
     },
     {
@@ -297,7 +325,7 @@
       "name": "adjustments/.github/agents/cloud-infra-engineer.agent.md",
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/cloud-infra-engineer.agent.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "4c1676e9c9c0face7a672288246fc3e56a5c459b6f625cfdf78efb6841514968"
     },
     {
@@ -306,7 +334,7 @@
       "name": "adjustments/.github/agents/architect.agent.md",
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/architect.agent.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "0ea21579be81bd4376d8d17ed1875fab1013c4ce99e46874f61235edaffe20ab"
     },
     {
@@ -315,7 +343,7 @@
       "name": "adjustments/.github/agents/code-reviewer.agent.md",
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/code-reviewer.agent.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "c3085e5f1f70d3e3b56e10a93ef1fb6826509d44a0921be8a6fd3f40c3e6a208"
     },
     {
@@ -324,7 +352,7 @@
       "name": "adjustments/.github/agents/test-engineer.agent.md",
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/test-engineer.agent.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "dc7cd9886cec40ca50a32e12260d692865b999a3ff4683d00dcba1f0887f94c3"
     },
     {
@@ -333,7 +361,7 @@
       "name": "adjustments/.github/agents/dotnet-engineer.agent.md",
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/dotnet-engineer.agent.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "f0826c93815b95f1749bf9e6de658f951e52cb9a66a416cbff589c0d5d7930ff"
     },
     {
@@ -342,7 +370,7 @@
       "name": "adjustments/.github/agents/hermes-agent-author.agent.md",
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/hermes-agent-author.agent.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "6f23be687bc115f624f3018889fda6ec1e045aabf45d2ae3977ba6cacf689770"
     },
     {
@@ -351,7 +379,7 @@
       "name": "adjustments/.github/agents/api-engineer.agent.md",
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/api-engineer.agent.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "44f2bf52ec16360f8005ac840a97b461204442a8265080fef9a0dc04304027cc"
     },
     {
@@ -360,7 +388,7 @@
       "name": "adjustments/.github/agents/frontend-engineer.agent.md",
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/frontend-engineer.agent.md",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "b700c1fc73774c4ce6730921b10519c2e66382c856a22a25e52022cbb10ad9e6"
     },
     {
@@ -369,7 +397,7 @@
       "name": "adjustments/.ai-badger/hooks/ai_badger_hooks.py",
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/ai_badger_hooks.py",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "de8189de6782247b432788a6b18d192e455f5b0130c4156c6966c6c5a175c91f"
     },
     {
@@ -378,7 +406,7 @@
       "name": "adjustments/.ai-badger/hooks/mcp_index_hook.py",
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/mcp_index_hook.py",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "b00ce98f50a3fa1b344146bd9cc81623f068d285e080f59abbd205cb2c08c11b"
     },
     {
@@ -387,7 +415,7 @@
       "name": "common/skills-source.json",
       "source": "features/common/skills-source.json",
       "target": ".ai-badger/skills-data/common/skills-source.json",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "ab2e2c2fa70f7fcb94fc026c49fe2d7db83bafe7de3b918afcac5790bb703a84"
     },
     {
@@ -396,7 +424,7 @@
       "name": "common/skills.json",
       "source": "features/common/skills.json",
       "target": ".ai-badger/skills-data/common/skills.json",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "d4193b9893a17927003d9af040a88d57adb7f4d1b5d72f085373967985cc5276"
     },
     {
@@ -405,7 +433,7 @@
       "name": "python/skills-source.json",
       "source": "features/python/skills-source.json",
       "target": ".ai-badger/skills-data/python/skills-source.json",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "3329354a78d8a6b61911452d4c5bdce1441306fc2e8db441b3ed26d5cf9d544d"
     },
     {
@@ -414,7 +442,7 @@
       "name": "python/skills.json",
       "source": "features/python/skills.json",
       "target": ".ai-badger/skills-data/python/skills.json",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "0c6df010c0615c9d3b719d9ca64ae0541caecdc2ec64f8dc3bf902d53b68b944"
     },
     {
@@ -423,7 +451,7 @@
       "name": "github/skills.json",
       "source": "features/github/skills.json",
       "target": ".ai-badger/skills-data/github/skills.json",
-      "frameworkVersion": "0.9.4",
+      "frameworkVersion": "0.10.0",
       "hash": "5875bafd3c61f4bbdbd0dbd8f7ce1e26870e1d03289ada235f6aeaf7f8b6265e"
     }
   ]

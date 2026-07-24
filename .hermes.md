@@ -6,7 +6,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Pure-stdlib Pyt
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github
-> Scaffolded by ai-badger 0.9.4. Source of truth for this file: `.ai-badger/HERMES.md`.
+> Scaffolded by ai-badger 0.10.0. Source of truth for this file: `.ai-badger/HERMES.md`.
 
 ## Non-negotiable invariants
 
