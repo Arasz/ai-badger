@@ -71,7 +71,7 @@ native terminology, or [`docs/changelog/`](docs/changelog/) for version history.
 ## The 3-layer model: `features/{stack | common}/{feature}`
 
 Everything in the catalog is filed under a **stack** (a technology) and a **feature** (a kind
-of asset: `personas`, `invariants`, `instructions`, `plugins`, `templates`, `skills`).
+of asset: `personas`, `invariants`, `instructions`, `skills`, `hooks`, `adjustments`, `templates`).
 
 ```
 features/<stack>/<feature>/<item>
@@ -79,11 +79,13 @@ features/<stack>/<feature>/<item>
 
 - **personas**, **invariants**, and **instructions** are individual `*.md` files, named by
   filename stem.
-- **plugins** is a single `plugins.json` (the list of plugins to install) plus a sibling
-  `marketplaces.json` (where they come from) — at most one of each per stack.
 - **skills** — the installable operational skills live at `features/common/skills/` (each
   containing a `SKILL.md` plus scripts/references). Stack-scoped skill *extensions* live at
-  `features/<stack>/skills/<base>-extensions/<ext>/`.
+  `features/<stack>/skills/<base>-extensions/<ext>/`. External skill sources are declared in
+  `skills-source.json` with per-agent installation instructions in `plugins-instructions.json`.
+- **hooks** — Claude Code and Hermes Agent hook scripts at `features/common/hooks/` with a
+  `hooks-manifest.json` mapping hooks to agents.
+- **adjustments** — per-agent scaffold adjustments at `features/{agent}/adjustments/`.
 
 A script-generated `index.json` at the repo root scans this tree and is the single source of
 truth the scaffolder and feed tooling read — see
@@ -128,17 +130,15 @@ ai-badger/
       personas/{architect, test-engineer, code-reviewer}.md
       invariants/*.md            # Agnostic invariant snippets
       instructions/*.md          # Agnostic scoped instructions
-      plugins/plugins.json       # Curated agnostic external plugins
+      hooks/                     # Claude + Hermes hooks with hooks-manifest.json
+      skills-source.json         # External skill sources
+      skills.json                # External skills to install
       templates/                 # CLAUDE.md.tmpl, HERMES.md.tmpl, state.json, agent-instructions
-    dotnet/    {personas,invariants,instructions,plugins}/…
-    azure/     {personas,invariants,instructions,plugins}/…
-    cosmos/    {invariants,instructions}/…
-    terraform/ {instructions}/…
-    mcp/       {invariants,instructions}/…
-    github/    {plugins, skills/task-extensions/github}/…
+    dotnet/ azure/ cosmos/ terraform/ mcp/  {personas,invariants,instructions}/…
+    github/    skills/task-extensions/github/  (+ skills.json extension marker)
     angular/ node/ js/ ts/ react/ css/  {personas,invariants,instructions}/…
-    hermes/    {personas,instructions,skills/task-extensions/hermes}/…
-    claude/ copilot/ junie/     Agent-specific templates
+    hermes/    {personas,instructions,skills/task-extensions/hermes,adjustments}/…
+    claude/ copilot/ junie/     Agent-specific templates + plugins-instructions.json
 ```
 
 ### Framework overview — structure & data flow
@@ -149,7 +149,7 @@ flowchart TB
     IDX["index.json\n(script-generated)"]
     SCH["schemas/*.schema.json"]
     subgraph CAT["catalog: features/{stack|common}/{feature}"]
-      COMMON["common/\npersonas·invariants·instructions·plugins·templates"]
+      COMMON["common/\npersonas·invariants·instructions·hooks·templates"]
       STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · github · angular"]
     end
     SKILLSDIR["features/common/skills/\nwelcome · feed · task · maintain · auto-wm · prompt-markers\n· den-refresh · mcp-index"]

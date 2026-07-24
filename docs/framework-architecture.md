@@ -2,7 +2,7 @@
 
 This document explains how ai-badger is put together: the stack×feature catalog model, the two
 JSON contracts that connect the framework to a target project, the hard split between what
-scripts do and what the agent does, how plugins and the `task` skill compose, and the structure
+scripts do and what the agent does, how skills/hooks/adjustments and the `task` skill compose, and the structure
 `welcome-ai-badger` produces inside a target repo. It assumes you've read the top-level
 [`README.md`](../README.md) quickstart first.
 
@@ -12,7 +12,7 @@ The framework repo is organized as **stack × feature**, rooted under `features/
 
 - **stack** — a technology: `dotnet`, `azure`, `cosmos`, `terraform`, `mcp`, `node`, `js`, `ts`,
   `react`, `css`, `github`, `angular`, … plus **`common`** for stack-agnostic content.
-- **feature** — a kind of framework asset: `personas`, `invariants`, `instructions`, `plugins`,
+- **feature** — a kind of framework asset: `personas`, `invariants`, `instructions`, `skills`, `hooks`, `adjustments`,
   `skills`, and — `common`-only — `templates`. Stack-scoped skill *extensions* also live here,
   nested under a stack's `skills/` directory (§5).
 
@@ -27,7 +27,9 @@ Each feature item is a small, self-describing unit:
 | `personas` | `*.md` file | named by filename stem |
 | `invariants` | `*.md` file | named by filename stem |
 | `instructions` | `*.md` file | named by filename stem |
-| `plugins` | single `plugins.json` (+ sibling `marketplaces.json`) | at most one of each per stack |
+| `skills` (external) | `skills-source.json` + `skills.json` | at most one pair per stack |
+| `hooks` | `hooks-manifest.json` + hook files | at most one manifest per stack |
+| `adjustments` | `adjustment.json` + scripts | per-agent, at most one descriptor |
 | `templates` (`common` only) | file/dir | every top-level entry |
 | `skills` (extensions only, e.g. `github`) | directory | `<base>-extensions/<ext>/` containing a manifest, attached by directory convention (§5) |
 
@@ -66,9 +68,9 @@ where:
       "personas":     [ { "name": "architect", "path": "features/common/personas/architect.md" } ],
       "invariants":   [ /* … */ ],
       "instructions": [ /* … */ ],
-      "plugins":      [ { "name": "superpowers", "path": "features/common/plugins/plugins.json" } ]
+      "hooks":        [ { "name": "hooks-manifest", "path": "features/common/hooks/hooks-manifest.json" } ]
     },
-    "dotnet": { "personas": [ /* … */ ], "invariants": [ /* … */ ], "instructions": [ /* … */ ], "plugins": [ /* … */ ] },
+    "dotnet": { "personas": [ /* … */ ], "invariants": [ /* … */ ], "instructions": [ /* … */ ] },
     "react":  { /* … */ }
   }
 }
@@ -154,9 +156,9 @@ for the genuinely creative decisions.
 **Scripts do all mechanical work, no LLM, no network (except `open_pr.py`'s `gh` call):**
 
 - `index_build.py` — scan the catalog tree → `index.json`, validated against its schema.
-- `validate.py` — validate any model (`config` / `manifest` / `index` / `plugins` /
-  `marketplaces`) against its schema; `--all` validates the whole repo (schemas self-check +
-  `index.json` + every stack's `plugins.json`/`marketplaces.json`).
+- `validate.py` — validate any model (`config` / `manifest` / `index` / `skills-source` / `skills` /
+  `plugins-instructions` / `adjustment` / `hooks-manifest`) against its schema; `--all` validates the whole repo (schemas self-check +
+  `index.json` + every stack's `skills-source.json`/`skills.json`).
 - `detect.py` — best-effort detection: stacks from package/project files and extensions, agents
   from `CLAUDE.md` / `.github/copilot-instructions.md` / `.junie/` traces (repo *and* user
   scope: `~/.claude`, `~/.copilot`), commands from stack metadata → emits a *proposed*
@@ -164,7 +166,7 @@ for the genuinely creative decisions.
 - `scaffold.py` — given a validated `config.json` + a framework checkout + `index.json`:
   materialize `.ai-badger/` (copy selected features), assemble `CLAUDE.md` from the template
   plus selected invariants/instructions/routing, create the agent-file copies/references
-  (§5 below), install plugins per scope, and write `manifest.json`.
+  (§5 below), install skills per scope via `install_plugins.py`, and write `manifest.json`.
 - `detect_additions.py` (feed) — diff `.ai-badger/manifest.json` against the current project
   `.ai-badger/` tree → candidate additions.
 - `open_pr.py` (feed) — branch/commit/`gh pr create --draft` against `ai-badger`.
@@ -178,31 +180,29 @@ for the genuinely creative decisions.
 
 If a step can be expressed as a deterministic rule, it belongs in a script, not a prompt.
 
-## 4. Plugins as a feature, with scope
+## 4. External skills as a feature, with scope
 
-`plugins` is a first-class feature, not a separate concept — Claude Code marketplaces are
-merged into it rather than tracked independently. Unlike the other features, `plugins` is
-**compact**: each stack has at most one `features/<stack>/plugins/plugins.json` — a single
-**list** of plugin entries — and one sibling `marketplaces.json`. There is no per-plugin
-subdirectory.
+External skills are installed from sources declared in `skills-source.json`. Each stack has at
+most one `features/<stack>/skills-source.json` and one `features/<stack>/skills.json`. This
+replaces the old `plugins/` feature (removed in v0.7.0).
 
-- **`plugins.json`** (`schemas/plugins.schema.json`) —
-  `{ "plugins": [ { "name": "...", "marketplace": "<name in marketplaces.json>", "scope":
-  "default"|"local"|"user", "description": "..." }, ... ] }`. `scope` on an entry is
-  `"default" | "local" | "user"`, and `"default"` means *inherit the scope chosen at init*.
-- **`marketplaces.json`** (`schemas/marketplaces.schema.json`) — all the marketplaces this
-  stack's plugins install from: `{ "marketplaces": [ { "name": "...", "source":
-  "https://github.com/Owner/repo" } ] }`. Each plugin entry's `marketplace` field references a
-  marketplace by `name` here. Sources are full GitHub repo URLs, not `github:Owner/repo`
-  shorthand.
+- **`skills-source.json`** (`schemas/skills-source.schema.json`) —
+  `{ "sources": [ { "name": "...", "type": "marketplace"|"hub"|"tap"|"url"|"well-known",
+  "source": "...", "support": "common"|["claude","hermes"] }, ... ] }`. The `type` field
+  determines which agent instruction template is used for installation. `support: "common"`
+  means all agents; an array restricts to specific agents.
+- **`skills.json`** (`schemas/skills.schema.json`) —
+  `{ "skills": [ { "name": "...", "source": "<name in skills-source.json>", "scope":
+  "default"|"local"|"user", "description": "..." }, ... ] }`. Extension-only stacks use
+  `{"skills": []}`.
+- **`plugins-instructions.json`** (`schemas/plugins-instructions.schema.json`) — per-agent
+  installation instructions at `features/<agent>/plugins-instructions.json`. Maps source types
+  to shell commands with `{source}`, `{name}`, `{scope}` placeholders.
 
-At `welcome-ai-badger` time, the agent asks a single **plugin scope: default | local-only**
+At `welcome-ai-badger` time, the agent asks a single **skill scope: default | local-only**
 question. `default` honors each entry's own declared `scope`; `local-only` forces every install
-to project/local scope regardless of what an entry declares. There is deliberately no
-user-only option at this prompt — a project scaffold should never silently reach into the
-user's global Claude Code config. `scaffold.py` then runs the appropriate
-`claude plugin marketplace add` / `plugin install` per scope, or records the intended commands
-when it can't shell out.
+to project/local scope. `scaffold.py` delegates to `install_plugins.py` which resolves
+per-agent commands from `plugins-instructions.json` and generates the installation commands.
 
 ## 5. `task` = generic base + config-gated extensions
 
