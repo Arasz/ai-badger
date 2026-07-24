@@ -94,10 +94,11 @@ def check_prerequisites(target: Path) -> Optional[str]:
     return None
 
 
-def run_drift(root: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
+def run_drift(root: Path, manifest: Dict[str, Any],
+              stacks: Optional[List[str]] = None) -> Dict[str, Any]:
     """Run drift comparison against the framework's current content."""
     drift_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/drift.py", root)
-    return drift_mod.compare(root, manifest)
+    return drift_mod.compare(root, manifest, stacks=stacks)
 
 
 def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
@@ -179,9 +180,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     # 6. Check drift
     scaffold_version = config.get("frameworkVersion", "?")
     current_version = (root / "VERSION").read_text(encoding="utf-8").strip()
-    drift_result = run_drift(root, manifest)
+    drift_result = run_drift(root, manifest, stacks=config.get("stacks", []))
 
-    has_drift = bool(drift_result.get("changed") or drift_result.get("removed"))
+    has_drift = bool(drift_result.get("changed") or drift_result.get("removed")
+                     or drift_result.get("newItems"))
 
     # 7. Re-scaffold if drift detected (or breaking change forces full re-scaffold)
     scaffold_result = None
