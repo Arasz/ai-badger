@@ -66,14 +66,70 @@ def is_breaking_transition(from_version: str, to_version: str, root: Path) -> bo
 
 
 # --------------------------------------------------------------------------- roots / io
+FRAMEWORK_REPO = "https://github.com/Arasz/ai-badger"
+FRAMEWORK_CACHE = Path.home() / ".ai-badger" / "framework"
+
+
+def _ensure_framework_cache() -> Path:
+    """Clone or update the ai-badger framework repo at ~/.ai-badger/framework/.
+
+    Returns the path to the cached framework root.
+    Raises RuntimeError if git is unavailable or clone fails.
+    """
+    import subprocess
+
+    FRAMEWORK_CACHE.mkdir(parents=True, exist_ok=True)
+
+    if (FRAMEWORK_CACHE / ".git").is_dir():
+        # Already cloned — pull latest
+        try:
+            subprocess.run(
+                ["git", "pull", "--ff-only"],
+                cwd=str(FRAMEWORK_CACHE), capture_output=True, text=True, timeout=30,
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            pass  # non-fatal: use whatever we have
+    else:
+        # Fresh clone
+        result = subprocess.run(
+            ["git", "clone", "--depth=1", FRAMEWORK_REPO, str(FRAMEWORK_CACHE)],
+            capture_output=True, text=True, timeout=60,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Failed to clone ai-badger framework from {FRAMEWORK_REPO}: "
+                f"{result.stderr.strip()}"
+            )
+
+    return FRAMEWORK_CACHE
+
+
 def find_root(start: Optional[Path] = None) -> Path:
-    """Walk up from `start` (or this file) to the framework root: the dir holding
-    schemas/ + features/."""
+    """Find the ai-badger framework root.
+
+    Strategy:
+    1. Walk up from `start` (or this file) looking for schemas/ + features/
+    2. If not found locally, check ~/.ai-badger/framework/ (cached clone)
+    3. If no cache, clone from GitHub to ~/.ai-badger/framework/
+    """
     p = (start or Path(__file__)).resolve()
     for anc in [p, *p.parents]:
         if (anc / "schemas").is_dir() and (anc / "features").is_dir():
             return anc
-    raise RuntimeError("ai-badger framework root not found (no dir with schemas/ + features/)")
+
+    # Fallback: check cached framework repo
+    if (FRAMEWORK_CACHE / "schemas").is_dir() and (FRAMEWORK_CACHE / "features").is_dir():
+        return FRAMEWORK_CACHE
+
+    # Last resort: clone from GitHub
+    cache = _ensure_framework_cache()
+    if (cache / "schemas").is_dir() and (cache / "features").is_dir():
+        return cache
+
+    raise RuntimeError(
+        f"ai-badger framework root not found locally and GitHub clone at "
+        f"{FRAMEWORK_CACHE} is missing schemas/ or features/"
+    )
 
 
 def load_json(path: Path) -> Any:

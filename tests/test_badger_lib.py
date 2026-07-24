@@ -23,14 +23,19 @@ def test_find_root_walks_up_to_dir_with_schemas_and_features(tmp_path, load_scri
     assert found == fake_root.resolve()
 
 
-def test_find_root_raises_when_no_ancestor_has_schemas_and_features(tmp_path, load_script):
+def test_find_root_raises_when_no_ancestor_and_no_fallback(tmp_path, load_script):
     bl = load_script("scripts/badger_lib.py")
     lonely = tmp_path / "some" / "unrelated" / "dir"
     lonely.mkdir(parents=True)
 
-    import pytest
-    with pytest.raises(RuntimeError):
-        bl.find_root(lonely)
+    import unittest.mock
+    # Mock FRAMEWORK_CACHE to a non-existent path and _ensure_framework_cache to fail
+    fake_cache = tmp_path / "fake-cache"
+    with unittest.mock.patch.object(bl, "FRAMEWORK_CACHE", fake_cache), \
+         unittest.mock.patch.object(bl, "_ensure_framework_cache", side_effect=RuntimeError("no git")):
+        import pytest
+        with pytest.raises(RuntimeError):
+            bl.find_root(lonely)
 
 
 def test_find_root_default_start_resolves_the_real_framework_root(load_script, root):

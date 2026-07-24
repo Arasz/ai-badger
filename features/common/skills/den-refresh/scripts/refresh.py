@@ -29,7 +29,16 @@ def _bootstrap_lib() -> None:
         if cand.exists() and (anc / "schemas").is_dir():
             sys.path.insert(0, str(anc / "scripts"))
             return
-    raise RuntimeError("could not locate ai-badger scripts/badger_lib.py")
+    # Fallback: check cached framework repo at ~/.ai-badger/framework/
+    cache = Path.home() / ".ai-badger" / "framework"
+    cache_scripts = cache / "scripts" / "badger_lib.py"
+    if cache_scripts.exists() and (cache / "schemas").is_dir():
+        sys.path.insert(0, str(cache / "scripts"))
+        return
+    raise RuntimeError(
+        "could not locate ai-badger scripts/badger_lib.py locally or at "
+        f"{cache} — run with --root <framework> or clone https://github.com/Arasz/ai-badger"
+    )
 
 
 def _load_script(relpath: str, base: Path):
