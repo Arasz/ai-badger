@@ -121,16 +121,13 @@ stacks that have no external skills.
 
 **An extension to an existing skill** (e.g. a new `task` extension):
 
-1. Decide which stack owns the extension — usually the stack the extension's capability
-   requires (a GitHub-specific extension lives under
-   `features/github/skills/task-extensions/github/`, not under `common`).
-2. Create `features/<stack>/skills/<base>-extensions/<ext>/` where `<base>` is the target
-   skill's name (e.g. `task-extensions/github` attaches to the `task` skill at the repo root).
-3. Gate the extension's activation on `config.json` fields it genuinely needs — don't hardcode
-   assumptions the base skill can't verify. See `docs/framework-architecture.md` §5 for the
-   `task` base+extensions split and its "zero stack-specific literals in the base" rule.
-4. Run `index_build.py` — the extension will show up under the base skill's `extensions` array
-   in `index.json` (see `common.skills[].extensions` in the schema) — then `validate.py --all`.
+1. Create `features/common/skills/<base>/extensions/<ext>/` where `<base>` is the target
+   skill's name (e.g. `task/extensions/github` attaches to the `task` skill).
+2. Add an `extension.json` with `requires` conditions gating activation on `config.json`
+   fields the extension genuinely needs — don't hardcode assumptions the base skill can't
+   verify. See `docs/framework-architecture.md` §5 for the `task` base+extensions split
+   and its "zero stack-specific literals in the base" rule.
+3. Run `index_build.py` then `validate.py --all`.
 
 ## Checklist before opening a PR
 
@@ -139,4 +136,4 @@ stacks that have no external skills.
 - [ ] New content filed under the right stack (or genuinely `common`) — no project-specific
       paths or domain-coupled models leaked into `common`.
 - [ ] If you touched `skills/task`, grep it for stack-specific literals (`dotnet`,
-      `Cosmos`, `gh `, a hardcoded repo) — none should be present outside `task-extensions/`.
+      `Cosmos`, `gh `, a hardcoded repo) — none should be present outside `task/extensions/`.

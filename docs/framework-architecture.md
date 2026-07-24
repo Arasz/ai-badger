@@ -45,8 +45,9 @@ The **installable operational skills** — `welcome-ai-badger`, `feed-badger`, `
 `task`, `maintain-agent-instructions`, `prompt-markers`, `mcp-index` — live at
 `features/common/skills/`, discovered by `iter_feature_dirs` like any other stack feature.
 (`auto-wm` lives at `features/claude/skills/` since it depends on Claude Code's `PreToolUse` hooks.)
-Stack-scoped skill *extensions* (e.g. `features/github/skills/task-extensions/github/`) are
-attached to their base skill by `index_build.py` via directory convention (§5).
+Stack-scoped skill *extensions* live inline inside the base skill directory (e.g.
+`features/common/skills/task/extensions/github/`). `scaffold.py` embeds them when their
+`extension.json` `requires` conditions are met and prunes them otherwise.
 
 Historical note: skills previously lived at the repo-root `skills/` directory as a workaround
 for the Claude Code plugin loader's discovery mechanism. This was resolved by having the
@@ -215,18 +216,19 @@ The `task` skill ships in two parts:
   implements), TDD enforcement, token tracking, resume cron, finish protocol, review loop — all
   driven purely by reading `config.json`. It contains no hardcoded GitHub, no dashboard, no
   `dotnet` — nothing stack- or platform-specific.
-- **Extensions** (`features/<stack>/skills/task-extensions/<name>/`, e.g. under `features/github/`)
-  are opt-in slices embedded into the scaffolded skill only when `config.json` supplies the data
-  they need:
+- **Extensions** (`features/common/skills/task/extensions/<name>/`) are opt-in slices
+  shipped inline inside the base skill directory, gated by `extension.json` `requires`
+  conditions evaluated against `config.json` at scaffold time:
   - `github` — create/track issues + PRs, Copilot review loop; needs `sourceControl.platform ==
     "github"` and `sourceControl.repoUrl`; project-board features additionally need
     `sourceControl.projectUrl`.
+  - `hermes` — Hermes Agent delegation patterns; needs `hermes` in `stacks`.
   - (future) `dotnet-verify` — a `dotnet build && dotnet test` gate; needs the `dotnet` stack
     plus `commands.build`/`commands.test`.
 
-`index_build.py` links an extension to its base by directory convention: a directory named
-`<base>-extensions/<ext>/` under any stack's `features/<stack>/skills/` attaches `<ext>` to the
-skill named `<base>`, wherever that base skill lives (in practice, always `features/common/skills/`).
+`scaffold.py` evaluates each extension's `extension.json` `requires` array against
+`config.json` at scaffold time. Met requirements → embed; unmet → prune. No separate
+`index_build.py` convention needed — extensions are found by their `extension.json`.
 
 `prompt-markers` ships as its own skill at `features/common/skills/prompt-markers` (hook +
 `markers-context.json` + `marker-state.json`, see ADR-0017 in the design doc) and is referenced

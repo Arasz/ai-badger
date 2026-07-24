@@ -219,7 +219,7 @@ What the framework ships and where:
 
 | Artifact | Claude path | Hermes path |
 |---|---|---|
-| Drift notice | `hooks/hooks.json` + `drift_notice_hook.py` | `features/hermes/skills/task-extensions/hermes/` docs + plugin hook code |
+| Drift notice | `hooks/hooks.json` + `drift_notice_hook.py` | `features/common/skills/task/extensions/hermes/` docs + plugin hook code |
 | Session tracking | `session_start_hook.py` in scaffolded `.ai-badger/` | Documented in task extension; replaced by native Hermes features |
 | Statusline capture | `statusline_capture.py` | `/usage` + `pre_llm_call` enrichment in task extension |
 | Background poller | `poll_limit.py` | Not needed; documented removal in task extension |
