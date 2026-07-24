@@ -27,10 +27,10 @@ def _make_fake_root(tmp_path, root):
     dotnet_instructions.mkdir(parents=True)
     (dotnet_instructions / "style.md").write_text("# style\n", encoding="utf-8")
 
-    dotnet_plugins = features / "dotnet" / "plugins"
-    dotnet_plugins.mkdir(parents=True)
-    (dotnet_plugins / "plugins.json").write_text(json.dumps({
-        "plugins": [{"name": "dotnet-tool", "source": "x"}]
+    dotnet_hooks = features / "dotnet" / "hooks"
+    dotnet_hooks.mkdir(parents=True)
+    (dotnet_hooks / "hooks-manifest.json").write_text(json.dumps({
+        "hooks": [{"name": "test-hook", "agents": {"hermes": {"type": "plugin", "entry": "test.py"}}}]
     }), encoding="utf-8")
 
     dotnet_templates = features / "dotnet" / "templates"
@@ -85,7 +85,7 @@ def test_build_index_assembles_expected_stacks_and_items(tmp_path, root, load_sc
                                       "path": "features/dotnet/invariants/no-secrets.md"}]
     assert dotnet["instructions"] == [{"name": "style",
                                         "path": "features/dotnet/instructions/style.md"}]
-    assert dotnet["plugins"] == [{"name": "dotnet-tool", "path": "features/dotnet/plugins/plugins.json"}]
+    assert dotnet["hooks"] == [{"name": "hooks-manifest", "path": "features/dotnet/hooks/hooks-manifest.json"}]
     assert dotnet["templates"] == [{"name": "Program.cs", "path": "features/dotnet/templates/Program.cs"}]
     assert dotnet["meta"]["description"] == ".NET stack"
     assert "name" not in dotnet["meta"]  # stripped by build_index

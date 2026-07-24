@@ -61,6 +61,29 @@ _bootstrap_lib()
 import badger_lib as bl
 
 
+def check_breaking_and_backup(root: Path, target: Path) -> Dict[str, Any]:
+    """Check if the version transition is breaking; if so, back up .ai-badger/.
+
+    Returns {"isBreaking": bool, "backupPath": str|None}.
+    """
+    aib = target / ".ai-badger"
+    config = bl.load_json(aib / "config.json")
+    from_version = config.get("frameworkVersion", "0.0.0")
+    to_version = (root / "VERSION").read_text(encoding="utf-8").strip()
+
+    is_breaking = bl.is_breaking_transition(from_version, to_version, root)
+    if not is_breaking:
+        return {"isBreaking": False, "backupPath": None}
+
+    # Back up .ai-badger/ to .ai-badger.bckp/
+    import shutil
+    bckp = target / ".ai-badger.bckp"
+    if bckp.exists():
+        shutil.rmtree(bckp)
+    shutil.copytree(aib, bckp)
+    return {"isBreaking": True, "backupPath": str(bckp)}
+
+
 def check_prerequisites(target: Path) -> Optional[str]:
     """Verify target has config.json and manifest.json; return error message or None."""
     aib = target / ".ai-badger"
@@ -150,32 +173,36 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(json.dumps({"error": f"could not read manifest at {manifest_path}: {exc}"}))
         return 2
 
-    # 5. Check drift
+    # 5. Check for breaking version transition
+    breaking_result = check_breaking_and_backup(root, target)
+
+    # 6. Check drift
     scaffold_version = config.get("frameworkVersion", "?")
     current_version = (root / "VERSION").read_text(encoding="utf-8").strip()
     drift_result = run_drift(root, manifest)
 
     has_drift = bool(drift_result.get("changed") or drift_result.get("removed"))
 
-    # 6. Re-scaffold if drift detected
+    # 7. Re-scaffold if drift detected (or breaking change forces full re-scaffold)
     scaffold_result = None
-    if has_drift:
+    if has_drift or breaking_result["isBreaking"]:
         scaffold_result = re_scaffold(root, target, config, manifest,
                                        generated_at=args.generated_at)
 
-    # 6. Report
+    # 8. Report
     report = {
         "frameworkVersion": {
             "scaffolded": scaffold_version,
             "current": current_version,
         },
+        "breakingChange": breaking_result,
         "drift": {
             "changed": drift_result.get("changed", []),
             "removed": drift_result.get("removed", []),
             "skipped": drift_result.get("skipped", []),
             "invalid": drift_result.get("invalid", 0),
         },
-        "reScaffolded": has_drift,
+        "reScaffolded": has_drift or breaking_result["isBreaking"],
     }
     if scaffold_result:
         report["scaffold"] = scaffold_result

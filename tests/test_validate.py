@@ -24,7 +24,7 @@ def test_kind_config_valid_instance_returns_zero(tmp_path, root, load_script, ca
         "sourceControl": {"platform": "none", "repoUrl": None, "projectUrl": None},
         "commands": {},
         "personaRouting": [],
-        "pluginScope": "default",
+        "skillScope": "default",
         "docs": {},
     }), encoding="utf-8")
 
@@ -92,13 +92,13 @@ def test_all_flag_validates_the_real_framework_tree_and_reports_ok(root, load_sc
     assert "schemas self-check" in out
 
 
-def test_all_flag_reports_invalid_when_a_plugins_json_fails_its_schema(tmp_path, root, load_script, capsys):
+def test_all_flag_reports_invalid_when_a_skills_source_fails_its_schema(tmp_path, root, load_script, capsys):
     validate = load_script("scripts/validate.py")
     fake_root = _copy_real_schemas(tmp_path, root)
-    plugins_dir = fake_root / "features" / "dotnet" / "plugins"
-    plugins_dir.mkdir(parents=True)
-    (plugins_dir / "plugins.json").write_text(json.dumps({"not": "matching the schema"}),
-                                                encoding="utf-8")
+    skills_dir = fake_root / "features" / "dotnet" / "skills"
+    skills_dir.mkdir(parents=True)
+    ss = fake_root / "features" / "dotnet" / "skills-source.json"
+    ss.write_text(json.dumps({"not": "matching the schema"}), encoding="utf-8")
 
     rc = validate.main(["--all", "--root", str(fake_root)])
 

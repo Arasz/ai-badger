@@ -1,0 +1,33 @@
+{
+  "hooks": [
+    {
+      "name": "drift-notice",
+      "description": "Detect framework version drift on session start",
+      "agents": {
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "SessionStart" },
+        "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "on_session_start" }
+      }
+    },
+    {
+      "name": "context-enrichment",
+      "description": "Inject framework context into every LLM turn",
+      "agents": {
+        "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "pre_llm_call" }
+      }
+    },
+    {
+      "name": "mcp-index-init",
+      "description": "Initialize MCP tool index on session start if missing",
+      "agents": {
+        "hermes": { "type": "plugin", "entry": "mcp_index_hook.py", "method": "on_session_start" }
+      }
+    },
+    {
+      "name": "mcp-index-update",
+      "description": "Auto-update MCP index when mcp commands are detected",
+      "agents": {
+        "hermes": { "type": "plugin", "entry": "mcp_index_hook.py", "method": "post_tool_call" }
+      }
+    }
+  ]
+}

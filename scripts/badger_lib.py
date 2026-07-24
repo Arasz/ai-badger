@@ -14,7 +14,55 @@ from typing import Any, Dict, List, Optional, Tuple
 import jsonschema  # scripts/requirements.txt: jsonschema>=4
 from jsonschema import Draft202012Validator
 
-FEATURES = ["skills", "personas", "invariants", "instructions", "plugins", "templates"]
+FEATURES = ["skills", "personas", "invariants", "instructions", "templates", "hooks", "adjustments"]
+
+# Canonical agent list — keep in sync with schemas/agents.schema.json and
+# schemas/config.schema.json agents enum.
+AGENT_NAMES = ["claude", "copilot", "hermes", "junie"]
+
+
+# ---------------------------------------------------------------------- breaking versions
+def read_breaking_versions(root: Path) -> List[str]:
+    """Read BREAKING_VERSIONS file — one semver per line, comments start with #."""
+    bv = root / "BREAKING_VERSIONS"
+    if not bv.exists():
+        return []
+    versions = []
+    for line in bv.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            versions.append(line)
+    return versions
+
+
+def _parse_semver(v: str) -> tuple:
+    """Parse 'major.minor.patch' into (major, minor, patch) ints."""
+    parts = v.split(".")
+    return tuple(int(p) for p in parts[:3])
+
+
+def is_breaking_transition(from_version: str, to_version: str, root: Path) -> bool:
+    """Check if the version transition crosses a breaking version boundary.
+
+    A transition from_version -> to_version is breaking if any version in
+    BREAKING_VERSIONS satisfies from_version < breaking <= to_version.
+    """
+    breaking = read_breaking_versions(root)
+    if not breaking:
+        return False
+    try:
+        from_v = _parse_semver(from_version)
+        to_v = _parse_semver(to_version)
+    except (ValueError, IndexError):
+        return False
+    for bv in breaking:
+        try:
+            bv_v = _parse_semver(bv)
+        except (ValueError, IndexError):
+            continue
+        if from_v < bv_v <= to_v:
+            return True
+    return False
 
 
 # --------------------------------------------------------------------------- roots / io

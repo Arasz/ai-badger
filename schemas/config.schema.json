@@ -32,8 +32,8 @@
     "agents": {
       "type": "array",
       "minItems": 1,
-      "items": { "enum": ["claude", "copilot", "junie", "hermes"] },
-      "description": "Coding agents detected as present in the repo/user scope; only these are initialized."
+      "items": { "enum": ["claude", "copilot", "hermes", "junie"] },
+      "description": "Coding agents detected as present in the repo/user scope; only these are initialized. Keep in sync with AGENT_NAMES in badger_lib.py."
     },
     "sourceControl": {
       "type": "object",
@@ -67,10 +67,10 @@
         }
       }
     },
-    "pluginScope": {
+    "skillScope": {
       "enum": ["default", "local"],
       "default": "default",
-      "description": "default = honor each plugin entry's declared scope; local = force all installs to project scope."
+      "description": "default = honor each skill entry's declared scope; local = force all installs to project scope. Renamed from pluginScope in v0.7.0."
     },
     "docs": {
       "type": "object",

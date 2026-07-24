@@ -1,0 +1,15 @@
+{
+  "agent": "hermes",
+  "adjustments": [
+    {
+      "feature": "hooks",
+      "description": "Install ai_badger_hooks.py and mcp_index_hook.py as Hermes plugins",
+      "script": "adjust_hooks.py"
+    },
+    {
+      "feature": "task",
+      "description": "Embed Hermes delegation model into task skill",
+      "script": "adjust_task.py"
+    }
+  ]
+}

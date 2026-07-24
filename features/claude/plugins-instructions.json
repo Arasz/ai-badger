@@ -1,0 +1,13 @@
+{
+  "agent": "claude",
+  "instructions": {
+    "marketplace": {
+      "description": "Add Claude Code marketplace",
+      "commands": ["claude plugin marketplace add {source}"]
+    },
+    "url": {
+      "description": "Install from URL",
+      "commands": ["claude plugin install {source}"]
+    }
+  }
+}

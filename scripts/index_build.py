@@ -60,13 +60,33 @@ def _skill_items(fdir: Path, root: Path):
 
 
 def _plugin_items(fdir: Path, root: Path):
-    """One index item per plugin listed in the single <stack>/plugins/plugins.json."""
+    """DEPRECATED: kept for backward compat during migration. Will be removed."""
     pj = fdir / "plugins.json"
     if not pj.exists():
         return []
     rel = pj.relative_to(root).as_posix()
     data = bl.load_json(pj)
     return [{"name": p["name"], "path": rel} for p in data.get("plugins", [])]
+
+
+def _hooks_items(fdir: Path, root: Path):
+    """Index items for the hooks feature: the manifest + all hook files."""
+    items = []
+    for f in sorted(fdir.iterdir()):
+        if f.name == "README.md":
+            continue
+        if f.is_file():
+            items.append({"name": f.stem, "path": f.relative_to(root).as_posix()})
+    return items
+
+
+def _adjustments_items(fdir: Path, root: Path):
+    """Index items for the adjustments feature: the descriptor + all scripts."""
+    items = []
+    for f in sorted(fdir.iterdir()):
+        if f.is_file():
+            items.append({"name": f.stem, "path": f.relative_to(root).as_posix()})
+    return items
 
 
 def _template_items(fdir: Path, root: Path):
@@ -86,7 +106,11 @@ def build_index(root: Path) -> dict:
         if feature == "skills":
             items = _skill_items(fdir, root)
         elif feature == "plugins":
-            items = _plugin_items(fdir, root)
+            items = _plugin_items(fdir, root)  # deprecated, remove when plugins/ dirs deleted
+        elif feature == "hooks":
+            items = _hooks_items(fdir, root)
+        elif feature == "adjustments":
+            items = _adjustments_items(fdir, root)
         elif feature == "templates":
             items = _template_items(fdir, root)
         else:  # personas / invariants / instructions

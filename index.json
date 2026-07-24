@@ -184,16 +184,6 @@
           "path": "features/common/instructions/documentation.instructions.md"
         }
       ],
-      "plugins": [
-        {
-          "name": "superpowers",
-          "path": "features/common/plugins/plugins.json"
-        },
-        {
-          "name": "pr-review-toolkit",
-          "path": "features/common/plugins/plugins.json"
-        }
-      ],
       "templates": [
         {
           "name": "CLAUDE.md.tmpl",
@@ -214,6 +204,24 @@
         {
           "name": "state.json",
           "path": "features/common/templates/state.json"
+        }
+      ],
+      "hooks": [
+        {
+          "name": "ai_badger_hooks",
+          "path": "features/common/hooks/ai_badger_hooks.py"
+        },
+        {
+          "name": "hooks-manifest",
+          "path": "features/common/hooks/hooks-manifest.json"
+        },
+        {
+          "name": "hooks",
+          "path": "features/common/hooks/hooks.json"
+        },
+        {
+          "name": "mcp_index_hook",
+          "path": "features/common/hooks/mcp_index_hook.py"
         }
       ]
     },
@@ -328,6 +336,20 @@
           "path": "features/hermes/templates/HERMES.md.tmpl"
         }
       ],
+      "adjustments": [
+        {
+          "name": "adjust_hooks",
+          "path": "features/hermes/adjustments/adjust_hooks.py"
+        },
+        {
+          "name": "adjust_task",
+          "path": "features/hermes/adjustments/adjust_task.py"
+        },
+        {
+          "name": "adjustment",
+          "path": "features/hermes/adjustments/adjustment.json"
+        }
+      ],
       "meta": {
         "description": "Hermes Agent framework: multi-model AI agent with skills, persistent memory, multi-platform gateway, cron scheduling, and subagent delegation. Supports any LLM provider (OpenRouter, Anthropic, OpenAI, Google, DeepSeek, etc.).",
         "detectionSignals": [
@@ -424,20 +446,6 @@
         {
           "name": "python.instructions",
           "path": "features/python/instructions/python.instructions.md"
-        }
-      ],
-      "plugins": [
-        {
-          "name": "pyright-lsp",
-          "path": "features/python/plugins/plugins.json"
-        },
-        {
-          "name": "semgrep",
-          "path": "features/python/plugins/plugins.json"
-        },
-        {
-          "name": "pydantic-ai",
-          "path": "features/python/plugins/plugins.json"
         }
       ],
       "meta": {
