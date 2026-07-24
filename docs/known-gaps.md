@@ -37,22 +37,20 @@ Honest list of what's not yet done, ordered by impact. None block the core loop
    ad-hoc source; it has not yet been rewired to consume skills from this marketplace (a
    deliberate, separate follow-up).
 
+8. ~~**Non-standard existing agent files aren't merged.**~~ **Fixed in v0.10.1.** `scaffold.py`
+   now detects known non-standard agent file equivalents (e.g. root `COPILOT_INSTRUCTIONS.md`)
+   and warns the user to reconcile. Detection uses `_NONSTANDARD_AGENT_FILES` mapping —
+   extensible for future agents.
+
+9. ~~**`task` skill scripts not exercised end-to-end.**~~ **Fixed in v0.10.1.** Added
+   `test_full_lifecycle_start_subagent_finish_grade` integration test exercising the complete
+   start → subagent → finish → grade → status cycle.
+
+10. ~~**Plugin install is advisory by default.**~~ **Resolved.** The `--execute` flag runs
+    install commands automatically with 30s timeout and error handling. Advisory default is
+    intentional — `--execute` is the opt-in for automation.
+
 ## Open
-
-8. **Non-standard existing agent files aren't merged.** A repo may already ship a root
-   `COPILOT_INSTRUCTIONS.md` (the arasz-home-page dogfood does). `welcome-ai-badger` writes the
-   standard `.github/copilot-instructions.md` and leaves the old file in place; the two coexist.
-   **Deferred** — merge logic is complex edge case. Follow-up: detect and reconcile pre-existing
-   agent instruction files.
-
-9. **`task` skill scripts not exercised end-to-end in a scaffolded project.** The
-   dogfood ran `welcome`/`feed`, not a full `/task` cycle inside the scaffolded repo. The
-   tracking scripts compile and smoke-test, but a real task run in a scaffolded project is untested.
-   Follow-up: write integration test exercising `start` → `finish` → `grade` lifecycle.
-
-10. **Plugin install is advisory by default.** `scaffold.py` prints `claude plugin marketplace add` /
-    `plugin install` commands per chosen scope. The new `--execute` flag runs them automatically
-    with 30s timeout and error handling. Default behavior unchanged (advisory/prints only).
 
 11. **Catalog is MVP-sized.** Several stacks have instructions/invariants but no dedicated persona
     (e.g. `ts`, `js`, `css`, `terraform`, `mcp`). Personas exist where clearly justified
