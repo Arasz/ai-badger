@@ -80,9 +80,11 @@ features/<stack>/<feature>/<item>
 - **personas**, **invariants**, and **instructions** are individual `*.md` files, named by
   filename stem.
 - **skills** — the installable operational skills live at `features/common/skills/` (each
-  containing a `SKILL.md` plus scripts/references). Stack-scoped skill *extensions* live at
-  `features/<stack>/skills/<base>-extensions/<ext>/`. External skill sources are declared in
-  `skills-source.json` with per-agent installation instructions in `plugins-instructions.json`.
+  containing a `SKILL.md` plus scripts/references). Config-gated *extensions* live inline at
+  `features/common/skills/<skill>/extensions/<ext>/` with `extension.json` activation
+  conditions. Skills may carry a `project-local.md` for project-specific additions (seed-once).
+  Skills with a `<!-- MERGE_EXTENSIONS -->` marker in SKILL.md have their extensions merged
+  into the skill file at scaffold time; others keep extensions as separate files.
 - **hooks** — Claude Code and Hermes Agent hook scripts at `features/common/hooks/` with a
   `hooks-manifest.json` mapping hooks to agents.
 - **adjustments** — per-agent scaffold adjustments at `features/{agent}/adjustments/`.
@@ -135,9 +137,9 @@ ai-badger/
       skills.json                # External skills to install
       templates/                 # CLAUDE.md.tmpl, HERMES.md.tmpl, state.json, agent-instructions
     dotnet/ azure/ cosmos/ terraform/ mcp/  {personas,invariants,instructions}/…
-    github/    skills/task-extensions/github/  (+ skills.json extension marker)
+    github/    (stack-specific features; extensions now inline in skills/)
     angular/ node/ js/ ts/ react/ css/  {personas,invariants,instructions}/…
-    hermes/    {personas,instructions,skills/task-extensions/hermes,adjustments}/…
+    hermes/    {personas,instructions,adjustments}/…
     claude/ copilot/ junie/     Agent-specific templates + plugins-instructions.json
 ```
 
