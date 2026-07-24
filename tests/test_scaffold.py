@@ -604,3 +604,37 @@ def test_scaffold_hermes_adjust_task_does_not_fail_with_absolute_path(tmp_path, 
     assert not any("failed" in n.lower() for n in adj_notes), (
         f"adjust_task.py should not fail: {adj_notes}"
     )
+
+
+# ------------------------------------------------ non-standard agent file detection
+def test_scaffold_warns_about_nonstandard_copilot_instructions(tmp_path, load_script, root):
+    """When a repo has COPILOT_INSTRUCTIONS.md at root, the scaffolder should warn."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+    # Create a non-standard Copilot instruction file at root
+    (target / "COPILOT_INSTRUCTIONS.md").write_text("# My Copilot Rules\n", encoding="utf-8")
+
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(agents=["copilot"]),
+                                skills=[], install=False)
+    result = scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    assert any("COPILOT_INSTRUCTIONS.md" in n and "non-standard" in n.lower()
+               for n in result["notes"]), (
+        f"Expected non-standard agent file warning, got: {result['notes']}"
+    )
+
+
+def test_scaffold_no_warning_when_no_nonstandard_files(tmp_path, load_script, root):
+    """No warning when only standard agent files exist."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(agents=["copilot"]),
+                                skills=[], install=False)
+    result = scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    assert not any("non-standard" in n.lower() for n in result["notes"]), (
+        f"Unexpected non-standard warning: {result['notes']}"
+    )
