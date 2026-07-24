@@ -188,6 +188,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     if has_drift or breaking_result["isBreaking"]:
         scaffold_result = re_scaffold(root, target, config, manifest,
                                        generated_at=args.generated_at)
+        # Update config.frameworkVersion to reflect the re-scaffold
+        if scaffold_result:
+            config["frameworkVersion"] = current_version
+            bl.dump_json(config_path, config)
 
     # 8. Report
     report = {

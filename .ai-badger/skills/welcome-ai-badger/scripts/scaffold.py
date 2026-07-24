@@ -339,90 +339,151 @@ class Scaffolder:
                                      self._compute_doc_slots(invariants, instr_paths))
 
     # -- agent-discovery copies -----------------------------------------------------
+    def _render_template_file(self, source: Path, instr_paths: List[Path],
+                               invariants: List[str]) -> str:
+        """Render a .tmpl file with the standard scaffold slots."""
+        tmpl = source.read_text(encoding="utf-8")
+        slots = self._compute_doc_slots(invariants, instr_paths)
+        for k, v in slots.items():
+            tmpl = tmpl.replace("{{" + k + "}}", str(v))
+        return tmpl
+
+    def _copy_with_header(self, dest: Path, name: str, body: str) -> None:
+        """Write body to dest with managed header, preserving hand-authored files."""
+        if (not self.overwrite and dest.exists()
+                and not dest.read_text(encoding="utf-8",
+                                       errors="ignore").lstrip().startswith(_MANAGED_PREFIX)):
+            self.notes.append(
+                f"preserved hand-authored {dest.relative_to(self.target).as_posix()} "
+                "(source written to .ai-badger/; pass --overwrite-agent-files to replace)"
+            )
+            return
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(MANAGED_HEADER.format(name=name) + body, encoding="utf-8")
+
+    def _apply_scaffolding(self, agent_name: str, instructions_doc: str,  # pylint: disable=too-many-statements
+                            instr_paths: List[Path], invariants: List[str]) -> None:
+        """Apply features/<agent>/scaffolding.json to write agent files."""
+        scaffolding_path = self.root / "features" / agent_name / "scaffolding.json"
+        if not scaffolding_path.is_file():
+            self.notes.append(f"no scaffolding.json for agent '{agent_name}' — skipped")
+            return
+
+        scaffolding = bl.load_json(scaffolding_path)
+        schema = bl.load_json(self.root / "schemas" / "scaffolding.schema.json")
+        errors = bl.validate(scaffolding, schema)
+        if errors:
+            self.notes.append(
+                f"scaffolding.json for '{agent_name}' is invalid — skipping: {errors}"
+            )
+            return
+
+        feature_dir = self.root / "features" / agent_name
+        for file_entry in scaffolding["files"]:
+            source = feature_dir / file_entry["source"]
+            target = self.target / file_entry["target"]
+            managed = file_entry.get("managed", True)
+            seed_once = file_entry.get("seedOnce", False)
+            is_template = file_entry.get("template", False)
+            also_target = file_entry.get("alsoTarget")
+            aib_copy = file_entry.get("aibCopy")
+            instructions_scoped = file_entry.get("instructionsScoped", False)
+
+            if not source.exists():
+                self.notes.append(
+                    f"scaffolding source '{file_entry['source']}' for '{agent_name}' "
+                    f"not found at {source} — skipping"
+                )
+                continue
+
+            # Determine the body content
+            if is_template:
+                body = self._render_template_file(source, instr_paths, invariants)
+            else:
+                body = source.read_text(encoding="utf-8")
+
+            # Write source-of-truth copy under .ai-badger/
+            if aib_copy:
+                (self.aib / aib_copy).write_text(body, encoding="utf-8")
+
+            # Seed-once: skip if target already exists
+            if seed_once and target.exists():
+                self.notes.append(
+                    f"preserved seed-once {file_entry['target']} for '{agent_name}'"
+                )
+                continue
+
+            # Write the primary target
+            content = body
+            if managed:
+                self._copy_with_header(target, file_entry["target"], content)
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if is_template:
+                    target.write_text(content, encoding="utf-8")
+                else:
+                    shutil.copyfile(source, target)
+
+            # Write alsoTarget (e.g. .hermes.md alias)
+            if also_target:
+                also_dest = self.target / also_target
+                if managed:
+                    self._copy_with_header(also_dest, also_target, content)
+                else:
+                    also_dest.parent.mkdir(parents=True, exist_ok=True)
+                    if is_template:
+                        also_dest.write_text(content, encoding="utf-8")
+                    else:
+                        shutil.copyfile(source, also_dest)
+
+            # Write per-instruction scoped copies (copilot's .github/instructions/)
+            if instructions_scoped:
+                for p in instr_paths:
+                    self._copy_with_header(
+                        self.target / ".github" / "instructions" / p.name,
+                        f"instructions/{p.name}",
+                        p.read_text(encoding="utf-8")
+                    )
+
     def write_agent_files(self, instructions_doc: str, instr_paths: List[Path],
                            invariants: List[str]) -> None:
-        """Write the assembled instructions doc into .ai-badger/ and each configured agent's
-        discovery location (CLAUDE.md, AGENTS.md, copilot-instructions.md, HERMES.md).
+        """Write agent discovery files using scaffolding.json from each agent's feature dir.
 
-        Existing hand-authored discovery files are preserved by default: a target that already
-        exists and does not carry the managed header is left untouched (its .ai-badger/ source is
-        still written), so a mature repo's curated CLAUDE.md and instructions are never clobbered.
-        Framework-written copies (which carry the header) and brand-new files are still written and
-        refreshed. Pass overwrite=True (CLI --overwrite-agent-files) to force the old copy-over.
+        Each agent in config.agents must have a features/<agent>/scaffolding.json that
+        declares what files to write. No hardcoded fallback — all agents are data-driven.
         """
         agents = self.config.get("agents", [])
-        # source-of-truth files inside .ai-badger
-        (self.aib / "CLAUDE.md").write_text(instructions_doc, encoding="utf-8")
+        for agent_name in agents:
+            self._apply_scaffolding(agent_name, instructions_doc, instr_paths, invariants)
 
-        def copy_with_header(dest: Path, name: str, body: str) -> None:
-            if (not self.overwrite and dest.exists()
-                    and not dest.read_text(encoding="utf-8",
-                                           errors="ignore").lstrip().startswith(_MANAGED_PREFIX)):
-                self.notes.append(
-                    f"preserved hand-authored {dest.relative_to(self.target).as_posix()} "
-                    "(source written to .ai-badger/; pass --overwrite-agent-files to replace)"
-                )
-                return
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text(MANAGED_HEADER.format(name=name) + body, encoding="utf-8")
-
-        if "claude" in agents:
-            copy_with_header(self.target / "CLAUDE.md", "CLAUDE.md", instructions_doc)
-        if "junie" in agents:
-            (self.aib / "AGENTS.md").write_text(instructions_doc, encoding="utf-8")
-            copy_with_header(self.target / ".junie" / "AGENTS.md", "AGENTS.md", instructions_doc)
-        if "copilot" in agents:
-            (self.aib / "copilot-instructions.md").write_text(instructions_doc, encoding="utf-8")
-            copy_with_header(self.target / ".github" / "copilot-instructions.md",
-                             "copilot-instructions.md", instructions_doc)
-            # copilot discovers scoped instructions under .github/instructions/
-            for p in instr_paths:
-                copy_with_header(self.target / ".github" / "instructions" / p.name,
-                                 f"instructions/{p.name}", p.read_text(encoding="utf-8"))
-        if "hermes" in agents:
-            hermes_doc = self.assemble_hermes_doc(invariants, instr_paths)
-            (self.aib / "HERMES.md").write_text(hermes_doc, encoding="utf-8")
-            # HERMES.md at repo root — Hermes priority 1 discovery (walks parents to git root)
-            copy_with_header(self.target / "HERMES.md", "HERMES.md", hermes_doc)
-            # .hermes.md alias — cwd-only discovery fallback
-            copy_with_header(self.target / ".hermes.md", ".hermes.md", hermes_doc)
-
-    # -- plugins --------------------------------------------------------------------
+    # -- skill installation --------------------------------------------------------
     def install_plugins(self) -> List[str]:
-        """Copy each applicable stack's plugins.json/marketplaces.json for provenance and
-        return the `claude plugin ...` commands needed to install them."""
-        cmds: List[str] = []
-        added_markets: set = set()
-        scope_choice = self.config.get("pluginScope", "default")
+        """Generate skill installation commands using the install_plugins library.
+
+        Reads skills-source.json + skills.json per stack, resolves per-agent
+        installation commands from plugins-instructions.json.
+        """
+        import install_plugins as ip_lib
+        result = ip_lib.install_skills(self.root, self.config, dry_run=not self.install)
+
+        # Provenance: copy skills-source.json + skills.json per stack
         for stack in self.stacks:
-            pdir = self.root / "features" / stack / "plugins"
-            pj = pdir / "plugins.json"
-            if not pj.exists():
-                continue
-            mj = pdir / "marketplaces.json"
-            markets = {m["name"]: m["source"]
-                       for m in (bl.load_json(mj).get("marketplaces", []) if mj.exists() else [])}
-            for plug in bl.load_json(pj).get("plugins", []):
-                src = markets.get(plug.get("marketplace"))
-                if src and src not in added_markets:  # add each marketplace URL once
-                    cmds.append(f"claude plugin marketplace add {src}")
-                    added_markets.add(src)
-                entry_scope = "local" if scope_choice == "local" else plug.get("scope", "default")
-                flag = " --scope user" if entry_scope == "user" else ""
-                cmds.append(f"claude plugin install {plug['name']}{flag}")
-            # provenance: copy the stack's single plugins.json + marketplaces.json
-            dest_dir = self.aib / "plugins" / stack
-            dest_dir.mkdir(parents=True, exist_ok=True)
-            dest_pj = dest_dir / "plugins.json"
-            shutil.copyfile(pj, dest_pj)
-            self.record("plugins", stack, f"{stack}/plugins", pj, dest_pj)
-            if mj.exists():
-                dest_mj = dest_dir / "marketplaces.json"
-                shutil.copyfile(mj, dest_mj)
-                self.record("plugins", stack, f"{stack}/marketplaces", mj, dest_mj)
+            for fname in ("skills-source.json", "skills.json"):
+                src = self.root / "features" / stack / fname
+                if src.exists():
+                    dest_dir = self.aib / "skills-data" / stack
+                    dest_dir.mkdir(parents=True, exist_ok=True)
+                    dest = dest_dir / fname
+                    shutil.copyfile(src, dest)
+                    feature = "skills"
+                    self.record(feature, stack, f"{stack}/{fname}", src, dest)
+
+        cmds = result["commands"]
         if self.install and cmds:
-            self.notes.append("plugin auto-install requested but deferred to report "
+            self.notes.append("skill auto-install requested but deferred to report "
                               "(run the commands below manually or via the CLI)")
+        for w in result.get("warnings", []):
+            self.notes.append(f"skill install warning: {w}")
         return cmds
 
     # -- Hermes skill discovery ---------------------------------------------------
@@ -449,7 +510,7 @@ class Scaffolder:
             dst.symlink_to(os.path.relpath(src, dst.parent))
 
     # -- orchestrate ----------------------------------------------------------------
-    def run(self, generated_at: Optional[str]) -> Dict[str, Any]:
+    def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
         """Run every scaffold step in order and return the manifest, plugin commands, and notes."""
         self.aib.mkdir(parents=True, exist_ok=True)
         self.scaffold_personas()
@@ -473,7 +534,8 @@ class Scaffolder:
             "frameworkDirty": self.dirty,
             "generatedAt": generated_at,
             "agents": self.config.get("agents", []),
-            "pluginScope": self.config.get("pluginScope", "default"),
+            "skillScope": self.config.get("skillScope", self.config.get("pluginScope", "default")),
+            "pluginScope": self.config.get("skillScope", self.config.get("pluginScope", "default")),  # compat
             "entries": self.entries,
         }
         bl.dump_json(self.aib / "manifest.json", manifest)

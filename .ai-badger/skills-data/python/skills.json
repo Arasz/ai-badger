@@ -1,0 +1,22 @@
+{
+  "skills": [
+    {
+      "name": "pyright-lsp",
+      "source": "claude-plugins-official",
+      "scope": "default",
+      "description": "Python language server (Pyright): real types, symbol resolution, and diagnostics for the agent."
+    },
+    {
+      "name": "semgrep",
+      "source": "claude-plugins-official",
+      "scope": "default",
+      "description": "Static analysis and security scanning with Python support; surfaces vulnerabilities and anti-patterns."
+    },
+    {
+      "name": "pydantic-ai",
+      "source": "claude-plugins-official",
+      "scope": "default",
+      "description": "Skills for building validated, type-safe Python applications and agents with Pydantic."
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-<!-- Managed by ai-badger. Source of truth: .ai-badger/copilot-instructions.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
+<!-- Managed by ai-badger. Source of truth: .ai-badger/.github/copilot-instructions.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
 
 # ai-badger
 
@@ -6,7 +6,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Pure-stdlib Pyt
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github
-> Scaffolded by ai-badger 0.6.0. Source of truth for this file: `.ai-badger/CLAUDE.md`.
+> Scaffolded by ai-badger 0.7.0. Source of truth for this file: `.ai-badger/CLAUDE.md`.
 
 ## Non-negotiable invariants
 
