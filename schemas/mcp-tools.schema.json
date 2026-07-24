@@ -4,9 +4,16 @@
   "title": "MCP Tool Index",
   "description": "Maps every MCP server tool to tags (for categorical filtering) and intent (for semantic matching). Lives at .ai-badger/mcp-tools.yaml in scaffolded projects.",
   "type": "object",
-  "required": ["version", "generated_at", "sources"],
+  "required": [
+    "version",
+    "generated_at",
+    "sources"
+  ],
   "additionalProperties": false,
   "properties": {
+    "$schema": {
+      "type": "string"
+    },
     "version": {
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$",
@@ -19,13 +26,18 @@
     "sources": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/mcpSource" }
+      "items": {
+        "$ref": "#/$defs/mcpSource"
+      }
     }
   },
   "$defs": {
     "mcpSource": {
       "type": "object",
-      "required": ["name", "tools"],
+      "required": [
+        "name",
+        "tools"
+      ],
       "additionalProperties": false,
       "properties": {
         "name": {
@@ -40,19 +52,27 @@
         "tools": {
           "type": "object",
           "minProperties": 1,
-          "additionalProperties": { "$ref": "#/$defs/toolEntry" }
+          "additionalProperties": {
+            "$ref": "#/$defs/toolEntry"
+          }
         }
       }
     },
     "toolEntry": {
       "type": "object",
-      "required": ["tags", "intent"],
+      "required": [
+        "tags",
+        "intent"
+      ],
       "additionalProperties": false,
       "properties": {
         "tags": {
           "type": "array",
           "minItems": 1,
-          "items": { "type": "string", "minLength": 1 },
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
           "description": "Category tags from the closed taxonomy in features/common/mcp-tags.json."
         },
         "intent": {
@@ -62,7 +82,10 @@
           "description": "Human-readable one-sentence description of what the tool accomplishes. Used for semantic matching."
         },
         "status": {
-          "enum": ["active", "removed"],
+          "enum": [
+            "active",
+            "removed"
+          ],
           "default": "active",
           "description": "Set to 'removed' when the MCP server no longer exposes this tool (preserves manual tags for later re-addition)."
         }

@@ -28,6 +28,13 @@
       "agents": {
         "hermes": { "type": "plugin", "entry": "mcp_index_hook.py", "method": "post_tool_call" }
       }
+    },
+    {
+      "name": "prompt-markers",
+      "description": "Detect prompt markers (h:, f:, e:) and inject behavior context",
+      "agents": {
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "UserPromptSubmit" }
+      }
     }
   ]
 }

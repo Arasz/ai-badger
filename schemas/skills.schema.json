@@ -4,23 +4,44 @@
   "title": "ai-badger external skills list",
   "description": "External skills to install from sources declared in sibling skills-source.json. Lives at features/<stack>/skills.json. Use {\"skills\":[]} for extension-only stacks.",
   "type": "object",
-  "required": ["skills"],
+  "required": [
+    "skills"
+  ],
   "additionalProperties": false,
   "properties": {
+    "$schema": {
+      "type": "string"
+    },
     "skills": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "source"],
+        "required": [
+          "name",
+          "source"
+        ],
         "additionalProperties": false,
         "properties": {
-          "name": { "type": "string", "minLength": 1 },
-          "source": { "type": "string", "minLength": 1, "description": "Name of a source in the sibling skills-source.json." },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Name of a source in the sibling skills-source.json."
+          },
           "scope": {
-            "enum": ["default", "local", "user"],
+            "enum": [
+              "default",
+              "local",
+              "user"
+            ],
             "default": "default"
           },
-          "description": { "type": "string" }
+          "description": {
+            "type": "string"
+          }
         }
       }
     }

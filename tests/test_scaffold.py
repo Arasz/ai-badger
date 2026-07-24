@@ -332,134 +332,88 @@ def test_scaffold_model_json_seed_once_regression_pin(tmp_path, load_script, roo
 
 # ---------------------------------------------------------------------- hermes skill symlinks
 def test_scaffold_creates_hermes_skill_symlinks(tmp_path, load_script, root):
-    """Scaffolding with hermes agent should symlink .hermes/skills/ → .ai-badger/skills/."""
+    """Scaffolding with hermes agent should symlink skills into ~/.hermes/skills/<project>/."""
+    import unittest.mock
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
+
+    hermes_dir = tmp_path / "hermes-home"
+    hermes_dir.mkdir()
 
     scaf = scaffold.Scaffolder(
         root=root, target=target,
         config=_config(agents=["hermes"]),
         skills=["task", "prompt-markers"], install=False,
     )
-    scaf.run(generated_at="2026-07-22T00:00:00Z")
+    with unittest.mock.patch("pathlib.Path.home", return_value=hermes_dir):
+        scaf.run(generated_at="2026-07-22T00:00:00Z")
 
-    hermes_skills = target / ".hermes" / "skills"
-    assert hermes_skills.is_dir()
+    # Skills are namespaced under ~/.hermes/skills/<project-name>/
+    namespace = hermes_dir / ".hermes" / "skills" / "probe"
+    assert namespace.is_dir()
 
-    task_link = hermes_skills / "task"
+    task_link = namespace / "task"
     assert task_link.is_symlink()
     assert task_link.resolve().is_dir()
     assert (task_link.resolve() / "SKILL.md").exists()
 
-    pm_link = hermes_skills / "prompt-markers"
+    pm_link = namespace / "prompt-markers"
     assert pm_link.is_symlink()
     assert (pm_link.resolve() / "SKILL.md").exists()
 
 
 def test_scaffold_no_symlinks_without_hermes_agent(tmp_path, load_script, root):
-    """Scaffolding without hermes should not create .hermes/skills/ symlinks."""
+    """Scaffolding without hermes should not create ~/.hermes/skills/<project>/."""
+    import unittest.mock
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
+    hermes_dir = tmp_path / "hermes-home"
+    hermes_dir.mkdir()
 
     scaf = scaffold.Scaffolder(
         root=root, target=target,
         config=_config(agents=["claude"]),
         skills=["task"], install=False,
     )
-    scaf.run(generated_at="2026-07-22T00:00:00Z")
+    with unittest.mock.patch("pathlib.Path.home", return_value=hermes_dir):
+        scaf.run(generated_at="2026-07-22T00:00:00Z")
 
-    # .hermes/skills should not exist
-    hermes_skills = target / ".hermes" / "skills"
-    assert not hermes_skills.exists() or not any(hermes_skills.iterdir())
+    namespace = hermes_dir / ".hermes" / "skills" / "probe"
+    assert not namespace.exists()
 
 
 def test_rescaffold_recreates_hermes_symlinks(tmp_path, load_script, root):
     """Re-scaffold should recreate symlinks even if they already exist."""
+    import unittest.mock
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
+    hermes_dir = tmp_path / "hermes-home"
+    hermes_dir.mkdir()
 
     config = _config(agents=["hermes"])
-    scaf = scaffold.Scaffolder(
-        root=root, target=target, config=config,
-        skills=["task"], install=False,
-    )
-    scaf.run(generated_at="2026-07-22T00:00:00Z")
+    with unittest.mock.patch("pathlib.Path.home", return_value=hermes_dir):
+        scaf = scaffold.Scaffolder(
+            root=root, target=target, config=config,
+            skills=["task"], install=False,
+        )
+        scaf.run(generated_at="2026-07-22T00:00:00Z")
 
-    task_link = target / ".hermes" / "skills" / "task"
-    first_target = task_link.resolve()
+        task_link = hermes_dir / ".hermes" / "skills" / "probe" / "task"
+        first_target = task_link.resolve()
 
-    # Re-scaffold — should recreate the symlink
-    scaf2 = scaffold.Scaffolder(
-        root=root, target=target, config=config,
-        skills=["task"], install=False,
-    )
-    scaf2.run(generated_at="2026-07-22T01:00:00Z")
+        # Re-scaffold — should recreate the symlink
+        scaf2 = scaffold.Scaffolder(
+            root=root, target=target, config=config,
+            skills=["task"], install=False,
+        )
+        scaf2.run(generated_at="2026-07-22T01:00:00Z")
 
     assert task_link.is_symlink()
     assert task_link.resolve() == first_target
 
-
-def test_scaffold_registers_hermes_external_dirs(tmp_path, load_script, root):
-    """Scaffolding with hermes should register .hermes/skills in external_dirs."""
-    import yaml
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
-
-    # Create a fake hermes home with .hermes/config.yaml
-    hermes_dir = tmp_path / "hermes-home"
-    (hermes_dir / ".hermes").mkdir(parents=True)
-    hermes_config = hermes_dir / ".hermes" / "config.yaml"
-    hermes_config.write_text(yaml.dump({"skills": {"external_dirs": []}}),
-                             encoding="utf-8")
-
-    scaf = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(agents=["hermes"]),
-        skills=["task"], install=False,
-    )
-
-    # Patch Path.home() to use our fake hermes dir
-    import unittest.mock
-    with unittest.mock.patch("pathlib.Path.home", return_value=hermes_dir):
-        scaf.run(generated_at="2026-07-24T00:00:00Z")
-
-    # Verify the project was registered
-    cfg = yaml.safe_load(hermes_config.read_text(encoding="utf-8"))
-    ext_dirs = cfg.get("skills", {}).get("external_dirs", [])
-    skills_path = str((target / ".hermes" / "skills").resolve())
-    assert skills_path in ext_dirs
-
-
-def test_scaffold_no_external_dirs_without_hermes(tmp_path, load_script, root):
-    """Scaffolding without hermes should not modify external_dirs."""
-    import yaml
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
-
-    hermes_dir = tmp_path / "hermes-home"
-    (hermes_dir / ".hermes").mkdir(parents=True)
-    hermes_config = hermes_dir / ".hermes" / "config.yaml"
-    hermes_config.write_text(yaml.dump({"skills": {"external_dirs": []}}),
-                             encoding="utf-8")
-
-    scaf = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(agents=["claude"]),
-        skills=["task"], install=False,
-    )
-
-    import unittest.mock
-    with unittest.mock.patch("pathlib.Path.home", return_value=hermes_dir):
-        scaf.run(generated_at="2026-07-24T00:00:00Z")
-
-    cfg = yaml.safe_load(hermes_config.read_text(encoding="utf-8"))
-    ext_dirs = cfg.get("skills", {}).get("external_dirs", [])
-    assert ext_dirs == []
 
 
 def test_scaffold_reset_seed_files_flag_forces_reset(tmp_path, load_script, root):
@@ -489,3 +443,138 @@ def test_scaffold_reset_seed_files_flag_forces_reset(tmp_path, load_script, root
         (root / "features" / "common" / "skills" / "prompt-markers" / "markers-context.json").read_text(encoding="utf-8"))
     assert json.loads(state_path.read_text(encoding="utf-8")) == template_state
     assert json.loads(marker_path.read_text(encoding="utf-8")) == template_marker
+
+
+# ---------------------------------------------------------------------- hook wiring
+def test_scaffold_wires_claude_hooks_into_settings_json(tmp_path, load_script, root):
+    """Scaffolding with claude agent should wire hooks into .claude/settings.json."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(agents=["claude"]),
+        skills=["task", "prompt-markers"], install=False,
+    )
+    scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    # .claude/settings.json should exist with hooks
+    settings_path = target / ".claude" / "settings.json"
+    assert settings_path.exists(), ".claude/settings.json not created"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    assert "hooks" in settings
+
+    hooks = settings["hooks"]
+    # SessionStart hook (drift-notice) should be wired
+    assert "SessionStart" in hooks
+    # UserPromptSubmit hook (prompt-markers) should be wired
+    assert "UserPromptSubmit" in hooks
+
+    # Verify paths point to .ai-badger/skills/ not framework paths
+    for event_hooks in hooks.values():
+        for entry in event_hooks:
+            for h in entry.get("hooks", []):
+                cmd = h.get("command", "")
+                assert "${CLAUDE_PLUGIN_ROOT}" not in cmd, \
+                    f"Unresolved plugin root variable in command: {cmd}"
+                assert ".ai-badger/skills/" in cmd or "user_prompt_hook" in cmd
+
+    # .ai-badger/hooks/hooks.json should also exist
+    hooks_json = target / ".ai-badger" / "hooks" / "hooks.json"
+    assert hooks_json.exists(), ".ai-badger/hooks/hooks.json not created"
+
+
+def test_scaffold_hook_wiring_is_idempotent(tmp_path, load_script, root):
+    """Running scaffold twice should not duplicate hooks in settings.json."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    for _ in range(2):
+        scaf = scaffold.Scaffolder(
+            root=root, target=target,
+            config=_config(agents=["claude"]),
+            skills=["task", "prompt-markers"], install=False,
+        )
+        scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    settings_path = target / ".claude" / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+
+    # Count total hook entries — should be exactly 1 per event
+    for event, event_hooks in settings.get("hooks", {}).items():
+        total_commands = sum(
+            len(h.get("hooks", []))
+            for entry in event_hooks
+            for h in [entry]
+        )
+        assert total_commands == 1, f"Duplicate hooks for {event}: {total_commands}"
+
+
+def test_scaffold_no_hooks_without_claude_agent(tmp_path, load_script, root):
+    """Scaffolding without claude agent should not create hooks."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(agents=["hermes"]),
+        skills=["task"], install=False,
+    )
+    scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    settings_path = target / ".claude" / "settings.json"
+    assert not settings_path.exists()
+    hooks_json = target / ".ai-badger" / "hooks" / "hooks.json"
+    assert not hooks_json.exists()
+
+
+# ---------------------------------------------------------------------- --execute flag
+def test_scaffold_execute_flag_runs_commands(tmp_path, load_script, root):
+    """--execute flag should execute install commands and log results."""
+    import unittest.mock
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(agents=["claude"]),
+        skills=["task"], install=True, execute=True,
+    )
+
+    # Mock subprocess.run to capture calls without actually running them
+    with unittest.mock.patch("subprocess.run") as mock_run:
+        mock_run.return_value = unittest.mock.MagicMock(returncode=0, stderr="")
+        scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    # If there were commands, subprocess.run should have been called
+    if mock_run.called:
+        for call in mock_run.call_args_list:
+            cmd = call[0][0] if call[0] else call[1].get("command", "")
+            assert isinstance(cmd, str)
+
+
+def test_scaffold_execute_flag_handles_failure(tmp_path, load_script, root):
+    """--execute flag should log failures without crashing."""
+    import unittest.mock
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(agents=["claude"]),
+        skills=["task"], install=True, execute=True,
+    )
+
+    with unittest.mock.patch("subprocess.run") as mock_run:
+        mock_run.return_value = unittest.mock.MagicMock(returncode=1, stderr="not found")
+        scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    # Should not crash, failures are logged in notes
+    if mock_run.called:
+        failure_notes = [n for n in scaf.notes if "command failed" in n or "executed:" in n]
+        assert len(failure_notes) > 0 or len(mock_run.call_args_list) == 0

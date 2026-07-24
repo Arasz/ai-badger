@@ -4,25 +4,45 @@
   "title": "Agent skill installation instructions",
   "description": "Describes how an agent installs external skills. Lives at features/<agent>/plugins-instructions.json.",
   "type": "object",
-  "required": ["agent", "instructions"],
+  "required": [
+    "agent",
+    "instructions"
+  ],
   "additionalProperties": false,
   "properties": {
-    "agent": { "type": "string" },
+    "$schema": {
+      "type": "string"
+    },
+    "agent": {
+      "type": "string"
+    },
     "instructions": {
       "type": "object",
       "description": "Map of source type to installation commands. Keys must match skills-source.schema.json type enum.",
       "propertyNames": {
-        "enum": ["marketplace", "hub", "tap", "url", "well-known"]
+        "enum": [
+          "marketplace",
+          "hub",
+          "tap",
+          "url",
+          "well-known"
+        ]
       },
       "additionalProperties": {
         "type": "object",
-        "required": ["commands"],
+        "required": [
+          "commands"
+        ],
         "additionalProperties": false,
         "properties": {
-          "description": { "type": "string" },
+          "description": {
+            "type": "string"
+          },
           "commands": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "Shell commands with {source}, {name}, {scope} placeholders."
           }
         }

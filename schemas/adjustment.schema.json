@@ -4,20 +4,39 @@
   "title": "Agent adjustment descriptor",
   "description": "Declares agent-level adjustments executed during scaffold. Lives at features/<agent>/adjustments/adjustment.json.",
   "type": "object",
-  "required": ["agent", "adjustments"],
+  "required": [
+    "agent",
+    "adjustments"
+  ],
   "additionalProperties": false,
   "properties": {
-    "agent": { "type": "string" },
+    "$schema": {
+      "type": "string"
+    },
+    "agent": {
+      "type": "string"
+    },
     "adjustments": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["feature", "script"],
+        "required": [
+          "feature",
+          "script"
+        ],
         "additionalProperties": false,
         "properties": {
-          "feature": { "type": "string", "description": "Feature being adjusted (e.g. 'hooks', 'task')." },
-          "description": { "type": "string" },
-          "script": { "type": "string", "description": "Filename in the adjustments/ directory." }
+          "feature": {
+            "type": "string",
+            "description": "Feature being adjusted (e.g. 'hooks', 'task')."
+          },
+          "description": {
+            "type": "string"
+          },
+          "script": {
+            "type": "string",
+            "description": "Filename in the adjustments/ directory."
+          }
         }
       }
     }
