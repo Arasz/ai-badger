@@ -167,7 +167,9 @@ for the genuinely creative decisions.
 - `scaffold.py` — given a validated `config.json` + a framework checkout + `index.json`:
   materialize `.ai-badger/` (copy selected features), assemble `CLAUDE.md` from the template
   plus selected invariants/instructions/routing, create the agent-file copies/references
-  (§5 below), install skills per scope via `install_plugins.py`, and write `manifest.json`.
+  (§5 below), wire hooks into agent settings, run agent-specific adjustments (e.g. Copilot
+  hooks/skills/agents), install skills per scope via `install_plugins.py`, and write
+  `manifest.json`.
 - `detect_additions.py` (feed) — diff `.ai-badger/manifest.json` against the current project
   `.ai-badger/` tree → candidate additions.
 - `open_pr.py` (feed) — branch/commit/`gh pr create --draft` against `ai-badger`.

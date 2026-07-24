@@ -260,7 +260,7 @@ catalog stacks under `features/` are data the skills read.)
 2. Agent refines `config.json`; asks clarifying questions only for genuine ambiguity; ask plugin
    scope (default|local-only).
 3. `validate.py config.json` — must pass.
-4. `scaffold.py` → materialize `.ai-badger/` + agent copies + plugin installs + `manifest.json`.
+4. `scaffold.py` → materialize `.ai-badger/` + agent copies + hooks wiring + adjustments + plugin installs + `manifest.json`.
 5. `validate.py` on outputs + agent-instruction validators; report.
 
 ## 11. feed-badger — flow

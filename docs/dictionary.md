@@ -51,7 +51,7 @@ How ai-badger's concepts map to each supported agent's native terminology.
 | **Scaffolding** (`scaffolding.json`) | Plugin install + file copies | Skill symlink + file copies | File copies to `.github/` | File copies to `.junie/` |
 | **Manifest** (`manifest.json`) | Plugin provenance | Same | Same | Same |
 | **Config** (`config.json`) | Project profile | Same | Same | Same |
-| **Adjustment** (`adjustments/`) | N/A (Claude is the "native" agent) | Agent-specific scaffold tweaks | N/A | N/A |
+| **Adjustment** (`adjustments/`) | N/A (Claude is the "native" agent) | Agent-specific scaffold tweaks | Hooks, skills, agents via adjustments | N/A |
 
 ## Task Orchestration
 
