@@ -112,7 +112,7 @@ to the Hermes log when drift is detected, plus injects a context notice via
 **Installation:**
 ```bash
 # Copy the hook module to your Hermes plugins directory
-cp features/hermes/skills/task-extensions/hermes/ai_badger_hooks.py ~/.hermes/plugins/
+cp features/common/hooks/ai_badger_hooks.py ~/.hermes/plugins/
 ```
 
 ### 2. Context enrichment (Claude: UserPromptSubmit → Hermes: pre_llm_call)

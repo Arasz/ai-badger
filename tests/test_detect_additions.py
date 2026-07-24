@@ -13,7 +13,7 @@ def _write_manifest(aib, entries, framework_version="0.1.0"):
         "frameworkVersion": framework_version,
         "generatedAt": "2026-07-19T00:00:00Z",
         "agents": ["claude"],
-        "pluginScope": "default",
+        "skillScope": "default",
         "entries": entries,
     }), encoding="utf-8")
 
@@ -197,7 +197,7 @@ def _minimal_config():
         "sourceControl": {"platform": "none", "repoUrl": None, "projectUrl": None},
         "commands": {},
         "personaRouting": [],
-        "pluginScope": "default",
+        "skillScope": "default",
         "docs": {},
     }
 

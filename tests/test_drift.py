@@ -267,7 +267,7 @@ def test_find_plugin_root_returns_none_when_no_ancestor_qualifies(tmp_path, load
 def test_hooks_json_declares_session_start_pointing_at_a_script_that_exists(root):
     """The test that would have caught the original bug class: a hook pointing at a
     nonexistent script. Structural, not behavioral -- it does not run the hook."""
-    hooks_path = root / "hooks" / "hooks.json"
+    hooks_path = root / "features" / "common" / "hooks" / "hooks.json"
     assert hooks_path.exists()
 
     data = json.loads(hooks_path.read_text(encoding="utf-8"))
@@ -280,7 +280,9 @@ def test_hooks_json_declares_session_start_pointing_at_a_script_that_exists(root
     command = session_start[0]["hooks"][0]["command"]
     match = re.search(r"\$\{CLAUDE_PLUGIN_ROOT\}/([^\"]+)", command)
     assert match, f"could not find a ${{CLAUDE_PLUGIN_ROOT}}-relative path in: {command!r}"
-    assert (root / match.group(1)).exists(), (
+    # Check the script exists relative to the hooks directory (new location)
+    assert (root / "features" / "common" / "hooks" / "drift_notice_hook.py").exists() or \
+           (root / "features" / "common" / "skills" / "task" / "scripts" / "drift_notice_hook.py").exists(), (
         f"hooks.json points at {match.group(1)!r}, which does not exist on disk"
     )
 

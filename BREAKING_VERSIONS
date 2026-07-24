@@ -1,0 +1,4 @@
+# Breaking versions — versions that require a full re-scaffold (not incremental refresh).
+# One version per line. den-refresh backs up .ai-badger/ to .ai-badger.bckp/ and runs
+# a full welcome-ai-badger scaffold when crossing a breaking version boundary.
+0.7.0

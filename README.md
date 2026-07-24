@@ -64,9 +64,9 @@ To pull framework updates into an already-scaffolded project, run **`den-refresh
 what changed upstream, re-scaffolds with your existing `config.json`, and reports the result.
 Seed-once files (`state.json`, `markers-context.json`) are preserved.
 
-See [`docs/index.md`](docs/index.md) for the full documentation map, or
-[`docs/authoring-a-feature.md`](docs/authoring-a-feature.md) for how to add new stacks,
-personas, invariants, instructions, plugin entries, or skills to the catalog.
+See [`docs/index.md`](docs/index.md) for the full documentation map,
+[`docs/dictionary.md`](docs/dictionary.md) for how ai-badger concepts map to each agent's
+native terminology, or [`docs/changelog/`](docs/changelog/) for version history.
 
 ## The 3-layer model: `features/{stack | common}/{feature}`
 

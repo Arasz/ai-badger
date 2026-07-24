@@ -30,7 +30,7 @@ def _write_config(target, **overrides):
         "sourceControl": {"platform": "none", "repoUrl": None, "projectUrl": None},
         "commands": {},
         "personaRouting": [],
-        "pluginScope": "default",
+        "skillScope": "default",
         "docs": {},
     }
     config.update(overrides)
@@ -49,7 +49,7 @@ def _write_manifest(target, entries, version="0.3.0"):
         "frameworkDirty": False,
         "generatedAt": "2026-07-22T00:00:00Z",
         "agents": ["claude"],
-        "pluginScope": "default",
+        "skillScope": "default",
         "entries": entries,
     }
     (aib / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")

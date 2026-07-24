@@ -462,7 +462,7 @@ class Scaffolder:
         return the `claude plugin ...` commands needed to install them."""
         cmds: List[str] = []
         added_markets: set = set()
-        scope_choice = self.config.get("pluginScope", "default")
+        scope_choice = self.config.get("skillScope", self.config.get("pluginScope", "default"))
         for stack in self.stacks:
             pdir = self.root / "features" / stack / "plugins"
             pj = pdir / "plugins.json"
@@ -542,7 +542,8 @@ class Scaffolder:
             "frameworkDirty": self.dirty,
             "generatedAt": generated_at,
             "agents": self.config.get("agents", []),
-            "pluginScope": self.config.get("pluginScope", "default"),
+            "skillScope": self.config.get("skillScope", self.config.get("pluginScope", "default")),
+            "pluginScope": self.config.get("skillScope", self.config.get("pluginScope", "default")),  # compat
             "entries": self.entries,
         }
         bl.dump_json(self.aib / "manifest.json", manifest)

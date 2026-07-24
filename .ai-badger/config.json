@@ -27,6 +27,6 @@
     "build": "python3 scripts/index_build.py --check"
   },
   "personaRouting": [],
-  "pluginScope": "default",
+  "skillScope": "default",
   "docs": {}
 }

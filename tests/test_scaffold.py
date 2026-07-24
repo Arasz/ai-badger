@@ -20,7 +20,7 @@ def _config(stacks=None, source_control=None, commands=None, agents=None) -> dic
             {"platform": "none", "repoUrl": None, "projectUrl": None},
         "commands": commands if commands is not None else {},
         "personaRouting": [],
-        "pluginScope": "default",
+        "skillScope": "default",
         "docs": {},
     }
 

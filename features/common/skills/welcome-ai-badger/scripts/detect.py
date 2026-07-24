@@ -228,7 +228,7 @@ def main(argv=None) -> int:
         "sourceControl": detect_source_control(target),
         "commands": detect_commands(target, stacks),
         "personaRouting": [],
-        "pluginScope": "default",
+        "skillScope": "default",
         "docs": {},
     }
     print(json.dumps(proposed, indent=2, ensure_ascii=False))

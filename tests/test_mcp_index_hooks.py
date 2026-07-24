@@ -68,7 +68,7 @@ def _sample_index() -> dict:
 # Import the hooks module
 HOOKS_PATH = (
     Path(__file__).resolve().parents[1]
-    / "features" / "hermes" / "skills" / "task-extensions" / "hermes" / "ai_badger_hooks.py"
+    / "features" / "common" / "hooks" / "ai_badger_hooks.py"
 )
 
 # Must add parent dir to sys.path so the module can be imported

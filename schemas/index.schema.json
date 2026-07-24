@@ -31,8 +31,9 @@
           "personas": { "$ref": "#/$defs/featureList" },
           "invariants": { "$ref": "#/$defs/featureList" },
           "instructions": { "$ref": "#/$defs/featureList" },
-          "plugins": { "$ref": "#/$defs/featureList" },
-          "templates": { "$ref": "#/$defs/featureList" }
+          "templates": { "$ref": "#/$defs/featureList" },
+          "hooks": { "$ref": "#/$defs/featureList" },
+          "adjustments": { "$ref": "#/$defs/featureList" }
         }
       }
     }
@@ -48,6 +49,7 @@
           "name": { "type": "string" },
           "path": { "type": "string" },
           "extensions": { "type": "array", "items": { "type": "string" } },
+          "external": { "type": "boolean", "description": "True for external skills referenced in skills.json." },
           "detectionSignals": {
             "type": "array",
             "items": { "type": "string" },

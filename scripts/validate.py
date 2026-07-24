@@ -22,8 +22,11 @@ KIND_TO_SCHEMA = {
     "config": "config.schema.json",
     "manifest": "manifest.schema.json",
     "index": "index.schema.json",
-    "plugins": "plugins.schema.json",
-    "marketplaces": "marketplaces.schema.json",
+    "skills-source": "skills-source.schema.json",
+    "skills": "skills.schema.json",
+    "plugins-instructions": "plugins-instructions.schema.json",
+    "adjustment": "adjustment.schema.json",
+    "hooks-manifest": "hooks-manifest.schema.json",
 }
 
 PROVENANCE_KEYS = ("frameworkCommit", "frameworkDirty")
@@ -60,24 +63,39 @@ def _report(label: str, errors) -> bool:
 
 
 def validate_all(root: Path) -> int:
-    """Validate index.json, every stack's plugins/marketplaces JSON, and the schemas themselves."""
+    """Validate index.json, every stack's skills-source/skills JSON, and the schemas themselves."""
     ok = True
     ok &= _report("schemas self-check", bl.check_schemas_selfvalid(root / "schemas"))
     idx = root / "index.json"
     if idx.exists():
         ok &= _report("index.json", bl.validate_file(idx, root / "schemas" / "index.schema.json"))
-    # each stack's single plugins.json + marketplaces.json
+    # each stack's skills-source.json + skills.json
     for _stack, feature, fdir in bl.iter_feature_dirs(root):
-        if feature != "plugins":
-            continue
-        pj = fdir / "plugins.json"
-        if pj.exists():
-            ok &= _report(str(pj.relative_to(root)),
-                          bl.validate_file(pj, root / "schemas" / "plugins.schema.json"))
-        mj = fdir / "marketplaces.json"
-        if mj.exists():
-            ok &= _report(str(mj.relative_to(root)),
-                          bl.validate_file(mj, root / "schemas" / "marketplaces.schema.json"))
+        if feature == "skills":
+            ssj = fdir.parent / "skills-source.json"
+            if ssj.exists():
+                ok &= _report(str(ssj.relative_to(root)),
+                              bl.validate_file(ssj, root / "schemas" / "skills-source.schema.json"))
+            skj = fdir.parent / "skills.json"
+            if skj.exists():
+                ok &= _report(str(skj.relative_to(root)),
+                              bl.validate_file(skj, root / "schemas" / "skills.schema.json"))
+        if feature == "hooks":
+            hmj = fdir / "hooks-manifest.json"
+            if hmj.exists():
+                ok &= _report(str(hmj.relative_to(root)),
+                              bl.validate_file(hmj, root / "schemas" / "hooks-manifest.schema.json"))
+        if feature == "adjustments":
+            adj = fdir / "adjustment.json"
+            if adj.exists():
+                ok &= _report(str(adj.relative_to(root)),
+                              bl.validate_file(adj, root / "schemas" / "adjustment.schema.json"))
+    # per-agent plugins-instructions.json
+    for agent in bl.AGENT_NAMES:
+        pii = root / "features" / agent / "plugins-instructions.json"
+        if pii.exists():
+            ok &= _report(str(pii.relative_to(root)),
+                          bl.validate_file(pii, root / "schemas" / "plugins-instructions.schema.json"))
     return 0 if ok else 1
 
 

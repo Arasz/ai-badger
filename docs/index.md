@@ -13,12 +13,25 @@
 | [framework-architecture.md](framework-architecture.md) | The stack×feature catalog model, `config.json`/`manifest.json` contracts, script vs agent responsibility split, plugins, `task` base+extensions, target repo structure, data flow diagrams |
 | [authoring-a-feature.md](authoring-a-feature.md) | How to add a new stack, persona, invariant, instruction, plugin entry, or skill to the catalog |
 | [scripts.md](scripts.md) | How to run framework scripts and the test suite |
+| [dictionary.md](dictionary.md) | How ai-badger concepts (skills, hooks, instructions, personas, scaffolding) map to each supported agent's native terminology |
 
 ## Agent compatibility
 
 | Document | What it covers |
 |---|---|
 | [hermes-claude-compatibility.md](hermes-claude-compatibility.md) | How ai-badger's Claude Code features map to Hermes Agent equivalents — hook systems, session tracking, statusline, tool comparison, delegation, gap analysis |
+
+## Specifications
+
+| Document | What it covers |
+|---|---|
+| [specs/001-plugin-hooks-adjustments-refactor.md](specs/001-plugin-hooks-adjustments-refactor.md) | Major refactor spec: plugin→skills merge, hooks as first-class feature, adjustments concept, per-agent install instructions |
+
+## Changelog
+
+| Document | What it covers |
+|---|---|
+| [changelog/](changelog/) | Per-version change history |
 
 ## Design decisions (ADRs)
 

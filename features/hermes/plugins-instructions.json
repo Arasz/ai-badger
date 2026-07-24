@@ -1,0 +1,21 @@
+{
+  "agent": "hermes",
+  "instructions": {
+    "hub": {
+      "description": "Install from Hermes Skills Hub",
+      "commands": ["hermes skills install {source}"]
+    },
+    "tap": {
+      "description": "Add GitHub tap for skills",
+      "commands": ["hermes skills tap add {source}"]
+    },
+    "url": {
+      "description": "Install from direct URL",
+      "commands": ["hermes skills install {source}"]
+    },
+    "well-known": {
+      "description": "Install from well-known endpoint",
+      "commands": ["hermes skills install well-known:{source}"]
+    }
+  }
+}

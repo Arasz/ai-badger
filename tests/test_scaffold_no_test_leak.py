@@ -19,7 +19,7 @@ def _minimal_config() -> dict:
         "sourceControl": {"platform": "none", "repoUrl": None, "projectUrl": None},
         "commands": {},
         "personaRouting": [],
-        "pluginScope": "default",
+        "skillScope": "default",
         "docs": {},
     }
 
