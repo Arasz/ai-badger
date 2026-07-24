@@ -57,17 +57,20 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         if not event:
             continue
 
-        # Map Copilot event names (camelCase)
+        # Event from manifest is already in Copilot camelCase format
+        copilot_event = event
+
+        # Map Copilot event names (camelCase) to Claude/PascalCase for source lookup
         event_map = {
-            "SessionStart": "sessionStart",
-            "UserPromptSubmitted": "userPromptSubmitted",
-            "PreToolUse": "preToolUse",
-            "PostToolUse": "postToolUse",
+            "sessionStart": "SessionStart",
+            "userPromptSubmitted": "UserPromptSubmit",
+            "preToolUse": "PreToolUse",
+            "postToolUse": "PostToolUse",
         }
-        copilot_event = event_map.get(event, event)
+        source_event = event_map.get(copilot_event, copilot_event)
 
         # Get hook config from source or generate
-        source_event_hooks = source_hooks.get("hooks", {}).get(event, [])
+        source_event_hooks = source_hooks.get("hooks", {}).get(source_event, [])
         if source_event_hooks:
             # Rewrite paths from framework to scaffolded project
             entries = []

@@ -5,7 +5,8 @@
       "description": "Detect framework version drift on session start",
       "agents": {
         "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "SessionStart" },
-        "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "on_session_start" }
+        "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "on_session_start" },
+        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "sessionStart" }
       }
     },
     {
@@ -33,7 +34,8 @@
       "name": "prompt-markers",
       "description": "Detect prompt markers (h:, f:, e:) and inject behavior context",
       "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "UserPromptSubmit" }
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "UserPromptSubmit" },
+        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "userPromptSubmitted" }
       }
     }
   ]
