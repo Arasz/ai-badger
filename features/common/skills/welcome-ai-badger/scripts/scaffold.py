@@ -90,10 +90,13 @@ def cfg_get(config: Dict[str, Any], dotted: str) -> Any:
 
 
 def requirement_met(config: Dict[str, Any], req: str) -> bool:
-    """Evaluate an extension requirement like 'sourceControl.platform==github' or
-    'sourceControl.repoUrl' (presence)."""
+    """Evaluate an extension requirement like 'sourceControl.platform==github',
+    'stacks=hermes' (value equality), or 'sourceControl.repoUrl' (presence)."""
     if "==" in req:
         path, expected = (s.strip() for s in req.split("==", 1))
+        return str(cfg_get(config, path)) == expected
+    if "=" in req:
+        path, expected = (s.strip() for s in req.split("=", 1))
         return str(cfg_get(config, path)) == expected
     val = cfg_get(config, req)
     return val not in (None, "", [], {})
@@ -159,9 +162,9 @@ class Scaffolder:
             "frameworkVersion": self.index["frameworkVersion"],
         }
         if source.is_dir():
-            # Directory entry (skills): hash the SOURCE dir (before extension embedding)
-            # so drift detection compares like-for-like
-            fingerprint = bl.dir_content_hash(source, exclude=bl.SKILL_EXCLUDE_PATTERNS)
+            # Directory entry (skills): hash the TARGET dir (after extension
+            # embedding/pruning) so drift detection compares the actual scaffolded output
+            fingerprint = bl.dir_content_hash(target, exclude=bl.SKILL_EXCLUDE_PATTERNS)
             entry["hash"] = fingerprint["content_hash"]
             entry["dirMeta"] = {
                 "file_count": fingerprint["file_count"],
@@ -259,9 +262,39 @@ class Scaffolder:
                 shutil.rmtree(dest)
             shutil.copytree(src, dest, ignore=_test_ignore)
             self._restore_seed_once_skill_files(skill_name, dest, stashed)
+            self._prune_inline_extensions(skill_name, dest)
             self._embed_extensions(skill_name, item, dest)
             # hash includes embedded extensions
             self.record("skills", "common", skill_name, src, dest)
+
+    def _prune_inline_extensions(self, skill_name: str, dest: Path) -> None:
+        """Remove extensions shipped inside the skill directory whose requires aren't met.
+
+        Extensions stored at <skill>/extensions/<ext>/ are copied by copytree before their
+        activation conditions are checked.  This prunes any whose extension.json declares
+        unmet requires, keeping the scaffolded output config-gated.
+        """
+        ext_base = dest / "extensions"
+        if not ext_base.is_dir():
+            return
+        for ext_dir in sorted(ext_base.iterdir()):
+            if not ext_dir.is_dir():
+                continue
+            descriptor = ext_dir / "extension.json"
+            if not descriptor.exists():
+                continue
+            reqs = bl.load_json(descriptor).get("requires", [])
+            if all(requirement_met(self.config, r) for r in reqs):
+                self.notes.append(
+                    f"embedded extension '{ext_dir.name}' into skill "
+                    f"'{skill_name}' (requirements met)"
+                )
+            else:
+                shutil.rmtree(ext_dir)
+                self.notes.append(
+                    f"extension '{ext_dir.name}' for '{skill_name}' "
+                    "skipped (config requirements not met)"
+                )
 
     def _embed_extensions(self, skill_name: str, item: Dict[str, Any], dest: Path) -> None:
         for ext in item.get("extensions", []):

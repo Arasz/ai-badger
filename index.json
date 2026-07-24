@@ -121,11 +121,7 @@
         },
         {
           "name": "task",
-          "path": "features/common/skills/task",
-          "extensions": [
-            "github",
-            "hermes"
-          ]
+          "path": "features/common/skills/task"
         },
         {
           "name": "welcome-ai-badger",
