@@ -199,6 +199,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         result = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=str(root), capture_output=True, text=True, timeout=5,
+            check=False,
         )
         if result.returncode == 0:
             fw_commit = result.stdout.strip()
