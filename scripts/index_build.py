@@ -8,7 +8,8 @@ Feature discovery rules per <stack>/<feature>/:
   personas      -> each *.md (excluding README.md), name = stem
   invariants    -> each *.md (excluding README.md), name = stem
   instructions  -> each *.md (excluding README.md), name = stem
-  plugins       -> each subdir containing plugins.json
+  hooks         -> all files in features/<stack>/hooks/
+  adjustments   -> all files in features/<agent>/adjustments/
   templates     -> each top-level file/dir (common only)
 
 Common skills live at features/common/skills/ and are discovered by iter_feature_dirs
@@ -59,16 +60,6 @@ def _skill_items(fdir: Path, root: Path):
     return items
 
 
-def _plugin_items(fdir: Path, root: Path):
-    """DEPRECATED: kept for backward compat during migration. Will be removed."""
-    pj = fdir / "plugins.json"
-    if not pj.exists():
-        return []
-    rel = pj.relative_to(root).as_posix()
-    data = bl.load_json(pj)
-    return [{"name": p["name"], "path": rel} for p in data.get("plugins", [])]
-
-
 def _hooks_items(fdir: Path, root: Path):
     """Index items for the hooks feature: the manifest + all hook files."""
     items = []
@@ -105,8 +96,6 @@ def build_index(root: Path) -> dict:
         bucket = ensure(stack)
         if feature == "skills":
             items = _skill_items(fdir, root)
-        elif feature == "plugins":
-            items = _plugin_items(fdir, root)  # deprecated, remove when plugins/ dirs deleted
         elif feature == "hooks":
             items = _hooks_items(fdir, root)
         elif feature == "adjustments":

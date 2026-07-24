@@ -3,8 +3,8 @@
 
 Usage:
   validate.py <instance.json> [--schema <schema.json>]
-  validate.py --kind {config|manifest|index|plugin-entry|marketplaces} <instance.json>
-  validate.py --all         # validate index.json + every plugin entry + self-check schemas
+  validate.py --kind {config|manifest|index|skills-source|skills|plugins-instructions|adjustment|hooks-manifest} <instance.json>
+  validate.py --all         # validate index.json + all feature data + self-check schemas
 
 Exit code 0 == valid, 1 == invalid, 2 == usage error. Mechanical; no LLM, no network.
 """

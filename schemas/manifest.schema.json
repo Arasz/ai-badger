@@ -29,7 +29,7 @@
         "required": ["feature", "stack", "name", "source", "target", "frameworkVersion", "hash"],
         "additionalProperties": false,
         "properties": {
-          "feature": { "enum": ["skills", "personas", "invariants", "instructions", "plugins", "templates"] },
+          "feature": { "enum": ["skills", "personas", "invariants", "instructions", "templates", "hooks", "adjustments"] },
           "stack": { "type": "string" },
           "name": { "type": "string" },
           "source": { "type": "string", "description": "Path within the framework repo." },
