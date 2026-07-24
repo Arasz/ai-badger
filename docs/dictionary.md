@@ -6,7 +6,7 @@ How ai-badger's concepts map to each supported agent's native terminology.
 
 | ai-badger | Claude Code | Hermes Agent | GitHub Copilot | JetBrains Junie |
 |---|---|---|---|---|
-| **Skill** (in-repo, `SKILL.md`) | Plugin skill | Skill (`~/.hermes/skills/`) | N/A (inline instructions) | N/A (inline instructions) |
+| **Skill** (in-repo, `SKILL.md`) | Plugin skill | Skill (`~/.hermes/skills/`) | `.github/skills/*/SKILL.md` | N/A (inline instructions) |
 | **External skill** (`skills.json`) | Plugin from marketplace | Hub skill / tap skill / URL skill | N/A | N/A |
 | **Skill source** (`skills-source.json`) | Plugin marketplace | Skills Hub / GitHub tap / well-known endpoint | N/A | N/A |
 | **Skill installation** (`plugins-instructions.json`) | `claude plugin install` | `hermes skills install` / `hermes skills tap add` | N/A | N/A |
@@ -17,26 +17,26 @@ How ai-badger's concepts map to each supported agent's native terminology.
 
 | ai-badger | Claude Code | Hermes Agent | GitHub Copilot | JetBrains Junie |
 |---|---|---|---|---|
-| **Hooks** (`features/common/hooks/`) | `hooks.json` in plugin root | Plugin hooks (`ctx.register_hook()`) + gateway hooks | N/A | N/A |
-| **Session start hook** | `SessionStart` event | `on_session_start` plugin hook | N/A | N/A |
-| **Context injection** | `UserPromptSubmit` event | `pre_llm_call` plugin hook | N/A | N/A |
-| **Tool call hook** | `PostToolUse` / `PreToolUse` | `post_tool_call` / `pre_tool_call` | N/A | N/A |
-| **Hooks manifest** (`hooks-manifest.json`) | Inline in `hooks.json` | Plugin `register()` function | N/A | N/A |
+| **Hooks** (`features/common/hooks/`) | `hooks.json` in plugin root | Plugin hooks (`ctx.register_hook()`) + gateway hooks | `.github/hooks/*.json` (`{version:1, hooks:{...}}`) | N/A |
+| **Session start hook** | `SessionStart` event | `on_session_start` plugin hook | `sessionStart` event | N/A |
+| **Context injection** | `UserPromptSubmit` event | `pre_llm_call` plugin hook | `userPromptSubmitted` event | N/A |
+| **Tool call hook** | `PostToolUse` / `PreToolUse` | `post_tool_call` / `pre_tool_call` | `postToolUse` / `preToolUse` | N/A |
+| **Hooks manifest** (`hooks-manifest.json`) | Inline in `hooks.json` | Plugin `register()` function | Copilot entries in manifest → `adjust_hooks.py` | N/A |
 
 ## Instructions
 
 | ai-badger | Claude Code | Hermes Agent | GitHub Copilot | JetBrains Junie |
 |---|---|---|---|---|
 | **Project instructions** | `CLAUDE.md` | `HERMES.md` / `.hermes.md` | `.github/copilot-instructions.md` | `.junie/AGENTS.md` |
-| **Scoped instructions** (`instructions/*.md`) | Referenced in `CLAUDE.md` | Referenced in `HERMES.md` | `.github/instructions/*.md` | Referenced in `AGENTS.md` |
+| **Scoped instructions** (`instructions/*.md`) | Referenced in `CLAUDE.md` | Referenced in `HERMES.md` | `.github/instructions/*.md` with `applyTo` frontmatter | Referenced in `AGENTS.md` |
 | **Source of truth** | `.ai-badger/CLAUDE.md` | `.ai-badger/HERMES.md` | `.ai-badger/copilot-instructions.md` | `.ai-badger/AGENTS.md` |
 
 ## Personas
 
 | ai-badger | Claude Code | Hermes Agent | GitHub Copilot | JetBrains Junie |
 |---|---|---|---|---|
-| **Persona** (`personas/*.md`) | Custom slash command / subagent persona | Skill or delegate_task `role` | Inline in instructions | Inline in instructions |
-| **Persona routing** (`config.json`) | Task delegation model | `delegate_task` role routing | N/A | N/A |
+| **Persona** (`personas/*.md`) | Custom slash command / subagent persona | Skill or delegate_task `role` | `.github/agents/*.agent.md` (custom agents) | Inline in instructions |
+| **Persona routing** (`config.json`) | Task delegation model | `delegate_task` role routing | Custom agent invocation (`/agent-name`) | N/A |
 
 ## Invariants
 
