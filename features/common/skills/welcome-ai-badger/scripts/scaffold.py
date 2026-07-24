@@ -419,7 +419,10 @@ class Scaffolder:
                 self._copy_with_header(target, file_entry["target"], content)
             else:
                 target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(source, target)
+                if is_template:
+                    target.write_text(content, encoding="utf-8")
+                else:
+                    shutil.copyfile(source, target)
 
             # Write alsoTarget (e.g. .hermes.md alias)
             if also_target:
@@ -428,7 +431,10 @@ class Scaffolder:
                     self._copy_with_header(also_dest, also_target, content)
                 else:
                     also_dest.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copyfile(source, also_dest)
+                    if is_template:
+                        also_dest.write_text(content, encoding="utf-8")
+                    else:
+                        shutil.copyfile(source, also_dest)
 
             # Write per-instruction scoped copies (copilot's .github/instructions/)
             if instructions_scoped:

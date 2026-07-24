@@ -123,10 +123,10 @@ flowchart TB
       COMMON["common/\npersonas·invariants·instructions·plugins·templates"]
       STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · github · angular"]
     end
-    SKILLSDIR["skills/ (root — plugin-loader exception)\nwelcome · feed · task · maintain · auto-wm · prompt-markers"]
+    SKILLSDIR["features/common/skills/\nwelcome · feed · task · maintain · auto-wm · prompt-markers"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]
   end
-  IDXbuild["index_build.py"] -->|scans CAT + skills/| IDX
+  IDXbuild["index_build.py"] -->|scans features/| IDX
   CAT --> IDXbuild
   SKILLSDIR --> IDXbuild
   MKT -->|/plugin install| SKILLS["installed skills:\nwelcome · feed · task · maintain · auto-wm · prompt-markers"]
