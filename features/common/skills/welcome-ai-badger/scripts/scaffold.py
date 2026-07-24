@@ -124,7 +124,7 @@ class Scaffolder:
 
     def __init__(self, root: Path, target: Path, config: Dict[str, Any],
                  skills: List[str], install: bool, overwrite: bool = False,
-                 reset_seed_files: bool = False):
+                 reset_seed_files: bool = False, execute: bool = False):
         self.root = root
         self.target = target
         self.config = config
@@ -132,6 +132,7 @@ class Scaffolder:
         self.install = install
         self.overwrite = overwrite
         self.reset_seed_files = reset_seed_files
+        self.execute = execute
         self.index = bl.read_index(root)
         self.commit, self.dirty = git_provenance(root)
         self.aib = target / ".ai-badger"
@@ -479,9 +480,27 @@ class Scaffolder:
                     self.record(feature, stack, f"{stack}/{fname}", src, dest)
 
         cmds = result["commands"]
-        if self.install and cmds:
+        if self.execute and cmds:
+            for cmd in cmds:
+                try:
+                    proc = subprocess.run(
+                        cmd, shell=True, capture_output=True, text=True,
+                        timeout=30, cwd=str(self.target),
+                    )
+                    if proc.returncode == 0:
+                        self.notes.append(f"executed: {cmd}")
+                    else:
+                        self.notes.append(
+                            f"command failed (exit {proc.returncode}): {cmd}"
+                            f"{': ' + proc.stderr.strip() if proc.stderr.strip() else ''}"
+                        )
+                except subprocess.TimeoutExpired:
+                    self.notes.append(f"command timed out (30s): {cmd}")
+                except OSError as exc:
+                    self.notes.append(f"command error: {cmd} — {exc}")
+        elif self.install and cmds:
             self.notes.append("skill auto-install requested but deferred to report "
-                              "(run the commands below manually or via the CLI)")
+                              "(run the commands below manually or via --execute)")
         for w in result.get("warnings", []):
             self.notes.append(f"skill install warning: {w}")
         return cmds
@@ -518,6 +537,128 @@ class Scaffolder:
                 continue
             dst.symlink_to(os.path.relpath(src, dst.parent))
 
+    # -- hook wiring ---------------------------------------------------------------
+    def wire_hooks(self) -> None:
+        """Wire framework hooks into .claude/settings.json for Claude Code projects.
+
+        Reads hooks-manifest.json, generates a project-specific hooks.json under
+        .ai-badger/hooks/ with paths rewritten to the scaffolded .ai-badger/skills/
+        directory, and merges hook registrations into .claude/settings.json.
+        """
+        if "claude" not in self.config.get("agents", []):
+            return
+
+        manifest_path = self.root / "features" / "common" / "hooks" / "hooks-manifest.json"
+        if not manifest_path.exists():
+            return
+
+        try:
+            manifest = bl.load_json(manifest_path)
+        except (ValueError, OSError):
+            return
+
+        # Source hooks.json (framework plugin version)
+        source_hooks_path = self.root / "features" / "common" / "hooks" / "hooks.json"
+        source_hooks = {}
+        if source_hooks_path.exists():
+            try:
+                source_hooks = bl.load_json(source_hooks_path)
+            except (ValueError, OSError):
+                pass
+
+        # Build the target hooks.json by rewriting paths
+        target_hooks: Dict[str, Any] = {"hooks": {}}
+        settings_hooks: Dict[str, Any] = {}
+
+        for hook in manifest.get("hooks", []):
+            claude_entry = hook.get("agents", {}).get("claude")
+            if not claude_entry or claude_entry.get("type") != "hooks-json":
+                continue
+
+            event = claude_entry.get("event")
+            if not event:
+                continue
+
+            # Get the hook config from source hooks.json
+            source_event_hooks = source_hooks.get("hooks", {}).get(event, [])
+            if not source_event_hooks:
+                # Generate a default hook entry for skills not in the framework hooks.json
+                # (e.g., prompt-markers which has its own hook script)
+                hook_name = hook.get("name", "")
+                skill_hook_script = self.aib / "skills" / hook_name / "scripts"
+                # Find the hook script (look for *_hook.py)
+                hook_scripts = list(skill_hook_script.glob("*_hook.py")) if skill_hook_script.exists() else []
+                if not hook_scripts:
+                    self.notes.append(f"hook '{hook_name}': no hook script found — skipped")
+                    continue
+                script_path = hook_scripts[0]
+                rel_path = script_path.relative_to(self.target)
+                rewritten = [{
+                    "hooks": [{
+                        "type": "command",
+                        "command": f'python3 "{self.target / rel_path}"'
+                    }]
+                }]
+            else:
+                # Rewrite paths from framework to scaffolded project
+                rewritten = []
+                for entry in source_event_hooks:
+                    new_entry = dict(entry)
+                    new_hooks = []
+                    for h in entry.get("hooks", []):
+                        new_h = dict(h)
+                        cmd = h.get("command", "")
+                        # Rewrite: ${CLAUDE_PLUGIN_ROOT}/features/common/skills/ → <target>/.ai-badger/skills/
+                        cmd = cmd.replace(
+                            "${CLAUDE_PLUGIN_ROOT}/features/common/skills/",
+                            str(self.aib / "skills") + "/"
+                        )
+                        new_h["command"] = cmd
+                        new_hooks.append(new_h)
+                    new_entry["hooks"] = new_hooks
+                    rewritten.append(new_entry)
+
+            target_hooks["hooks"][event] = rewritten
+            settings_hooks[event] = rewritten
+
+        if not target_hooks["hooks"]:
+            return
+
+        # Write .ai-badger/hooks/hooks.json
+        hooks_dir = self.aib / "hooks"
+        hooks_dir.mkdir(parents=True, exist_ok=True)
+        bl.dump_json(hooks_dir / "hooks.json", target_hooks)
+
+        # Merge into .claude/settings.json
+        settings_path = self.target / ".claude" / "settings.json"
+        settings: Dict[str, Any] = {}
+        if settings_path.exists():
+            try:
+                settings = bl.load_json(settings_path)
+            except (ValueError, OSError):
+                settings = {}
+
+        existing_hooks = settings.get("hooks", {})
+        for event, hook_entries in settings_hooks.items():
+            existing_event_hooks = existing_hooks.get(event, [])
+            # Idempotent: skip if hook command already registered
+            for new_entry in hook_entries:
+                for new_hook in new_entry.get("hooks", []):
+                    new_cmd = new_hook.get("command", "")
+                    already_exists = any(
+                        existing_hook.get("command") == new_cmd
+                        for existing_entry in existing_event_hooks
+                        for existing_hook in existing_entry.get("hooks", [])
+                    )
+                    if not already_exists:
+                        existing_event_hooks.append(new_entry)
+            existing_hooks[event] = existing_event_hooks
+
+        settings["hooks"] = existing_hooks
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        bl.dump_json(settings_path, settings)
+        self.notes.append(f"wired {len(settings_hooks)} hook(s) into .claude/settings.json")
+
     # -- orchestrate ----------------------------------------------------------------
     def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
         """Run every scaffold step in order and return the manifest, plugin commands, and notes."""
@@ -531,6 +672,7 @@ class Scaffolder:
         self.scaffold_templates()
         doc = self.assemble_instructions_doc(invariants, instr_paths)
         self.write_agent_files(doc, instr_paths, invariants)
+        self.wire_hooks()
         plugin_cmds = self.install_plugins()
 
         # copy the config into place (source of truth for the skills)
@@ -568,6 +710,9 @@ def main(argv=None) -> int:
                          "model.json, skills/prompt-markers/markers-context.json) from the "
                          "framework template, discarding any project-owned edits. Default "
                          "preserves them once they exist.")
+    ap.add_argument("--execute", action="store_true",
+                    help="Execute skill install commands instead of just printing them. "
+                         "Commands run with 30s timeout per command. Default is advisory-only.")
     ap.add_argument("--generated-at", default=None,
                     help="ISO timestamp to stamp in manifest (orchestrator supplies; "
                          "scripts avoid clocks).")
@@ -589,7 +734,8 @@ def main(argv=None) -> int:
     skills = [s for s in args.skills.split(",") if s]
     scaf = Scaffolder(root, target, config, skills, install=not args.no_install,
                       overwrite=args.overwrite_agent_files,
-                      reset_seed_files=args.reset_seed_files)
+                      reset_seed_files=args.reset_seed_files,
+                      execute=args.execute)
     result = scaf.run(generated_at=args.generated_at)
 
     print(f"scaffolded {len(result['manifest']['entries'])} entries into {scaf.aib}")
