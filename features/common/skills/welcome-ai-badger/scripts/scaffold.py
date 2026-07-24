@@ -456,42 +456,34 @@ class Scaffolder:
         for agent_name in agents:
             self._apply_scaffolding(agent_name, instructions_doc, instr_paths, invariants)
 
-    # -- plugins --------------------------------------------------------------------
+    # -- skill installation --------------------------------------------------------
     def install_plugins(self) -> List[str]:
-        """Copy each applicable stack's plugins.json/marketplaces.json for provenance and
-        return the `claude plugin ...` commands needed to install them."""
-        cmds: List[str] = []
-        added_markets: set = set()
-        scope_choice = self.config.get("skillScope", self.config.get("pluginScope", "default"))
+        """Generate skill installation commands using the install_plugins library.
+
+        Reads skills-source.json + skills.json per stack, resolves per-agent
+        installation commands from plugins-instructions.json.
+        """
+        import install_plugins as ip_lib
+        result = ip_lib.install_skills(self.root, self.config, dry_run=not self.install)
+
+        # Provenance: copy skills-source.json + skills.json per stack
         for stack in self.stacks:
-            pdir = self.root / "features" / stack / "plugins"
-            pj = pdir / "plugins.json"
-            if not pj.exists():
-                continue
-            mj = pdir / "marketplaces.json"
-            markets = {m["name"]: m["source"]
-                       for m in (bl.load_json(mj).get("marketplaces", []) if mj.exists() else [])}
-            for plug in bl.load_json(pj).get("plugins", []):
-                src = markets.get(plug.get("marketplace"))
-                if src and src not in added_markets:  # add each marketplace URL once
-                    cmds.append(f"claude plugin marketplace add {src}")
-                    added_markets.add(src)
-                entry_scope = "local" if scope_choice == "local" else plug.get("scope", "default")
-                flag = " --scope user" if entry_scope == "user" else ""
-                cmds.append(f"claude plugin install {plug['name']}{flag}")
-            # provenance: copy the stack's single plugins.json + marketplaces.json
-            dest_dir = self.aib / "plugins" / stack
-            dest_dir.mkdir(parents=True, exist_ok=True)
-            dest_pj = dest_dir / "plugins.json"
-            shutil.copyfile(pj, dest_pj)
-            self.record("plugins", stack, f"{stack}/plugins", pj, dest_pj)
-            if mj.exists():
-                dest_mj = dest_dir / "marketplaces.json"
-                shutil.copyfile(mj, dest_mj)
-                self.record("plugins", stack, f"{stack}/marketplaces", mj, dest_mj)
+            for fname in ("skills-source.json", "skills.json"):
+                src = self.root / "features" / stack / fname
+                if src.exists():
+                    dest_dir = self.aib / "skills-data" / stack
+                    dest_dir.mkdir(parents=True, exist_ok=True)
+                    dest = dest_dir / fname
+                    shutil.copyfile(src, dest)
+                    feature = "skills"
+                    self.record(feature, stack, f"{stack}/{fname}", src, dest)
+
+        cmds = result["commands"]
         if self.install and cmds:
-            self.notes.append("plugin auto-install requested but deferred to report "
+            self.notes.append("skill auto-install requested but deferred to report "
                               "(run the commands below manually or via the CLI)")
+        for w in result.get("warnings", []):
+            self.notes.append(f"skill install warning: {w}")
         return cmds
 
     # -- Hermes skill discovery ---------------------------------------------------
