@@ -361,7 +361,7 @@ class Scaffolder:
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(MANAGED_HEADER.format(name=name) + body, encoding="utf-8")
 
-    def _apply_scaffolding(self, agent_name: str, instructions_doc: str,
+    def _apply_scaffolding(self, agent_name: str, instructions_doc: str,  # pylint: disable=too-many-statements
                             instr_paths: List[Path], invariants: List[str]) -> None:
         """Apply features/<agent>/scaffolding.json to write agent files."""
         scaffolding_path = self.root / "features" / agent_name / "scaffolding.json"
@@ -518,7 +518,7 @@ class Scaffolder:
             dst.symlink_to(os.path.relpath(src, dst.parent))
 
     # -- orchestrate ----------------------------------------------------------------
-    def run(self, generated_at: Optional[str]) -> Dict[str, Any]:
+    def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
         """Run every scaffold step in order and return the manifest, plugin commands, and notes."""
         self.aib.mkdir(parents=True, exist_ok=True)
         self.scaffold_personas()
