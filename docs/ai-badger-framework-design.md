@@ -41,7 +41,7 @@ ai-badger/
     proxy-files-spike.md         # documented feature-plan (see §8)
     ai-badger-framework-design.md
   skills/                         # INSTALLABLE operational skills (root — the one exception, §9)
-    task/ welcome-ai-badger/ feed-badger/ maintain-agent-instructions/ auto-wm/ prompt-markers/
+    task/ welcome-ai-badger/ feed-badger/ maintain-agent-instructions/ prompt-markers/
   features/
     common/
       personas/{architect, test-engineer, code-reviewer}.md
@@ -241,7 +241,7 @@ junie: `.junie/`). Only present agents get files initialized.
 
 `ai-badger` is itself a Claude marketplace: `.claude-plugin/marketplace.json` declares one
 plugin with `"source": "./"` — the whole repo is the plugin root — wrapping the root `skills/`
-(`welcome-ai-badger`, `feed-badger`, `task`, `maintain-agent-instructions`, `auto-wm`,
+(`welcome-ai-badger`, `feed-badger`, `task`, `maintain-agent-instructions`,
 `prompt-markers`). Install:
 `/plugin marketplace add https://github.com/Arasz/ai-badger` → `/plugin install ai-badger` →
 run `welcome-ai-badger`.
@@ -294,13 +294,13 @@ flowchart TB
       COMMON["common/\npersonas·invariants·instructions·plugins·templates"]
       STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · github · angular"]
     end
-    SKILLSDIR["features/common/skills/\nwelcome · feed · task · maintain · auto-wm · prompt-markers"]
+    SKILLSDIR["features/common/skills/\nwelcome · feed · task · maintain · prompt-markers"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]
   end
   IDXbuild["index_build.py"] -->|scans features/| IDX
   CAT --> IDXbuild
   SKILLSDIR --> IDXbuild
-  MKT -->|/plugin install| SKILLS["installed skills:\nwelcome · feed · task · maintain · auto-wm · prompt-markers"]
+  MKT -->|/plugin install| SKILLS["installed skills:\nwelcome · feed · task · maintain · prompt-markers"]
   IDX -. read .-> SKILLS
   CAT -. copied features .-> PROJ
   subgraph PROJ["target repo (.ai-badger/)"]

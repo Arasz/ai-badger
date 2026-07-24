@@ -42,8 +42,9 @@ duplicated.
 ### Skills location
 
 The **installable operational skills** — `welcome-ai-badger`, `feed-badger`, `den-refresh`,
-`task`, `maintain-agent-instructions`, `auto-wm`, `prompt-markers`, `mcp-index` — live at
+`task`, `maintain-agent-instructions`, `prompt-markers`, `mcp-index` — live at
 `features/common/skills/`, discovered by `iter_feature_dirs` like any other stack feature.
+(`auto-wm` lives at `features/claude/skills/` since it depends on Claude Code's `PreToolUse` hooks.)
 Stack-scoped skill *extensions* (e.g. `features/github/skills/task-extensions/github/`) are
 attached to their base skill by `index_build.py` via directory convention (§5).
 

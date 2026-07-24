@@ -3,11 +3,12 @@
 Honest list of what the MVP does not yet do, ordered by how likely each is to bite. None block
 the core loop (welcome scaffolds; feed detects + PRs), which is dogfooded and green.
 
-1. **Plugin-level hooks are not auto-wired.** `auto-wm` and `prompt-markers` bundle hook scripts
-   inside their skill dirs, but the plugin has no root `hooks/hooks.json`, so installing the
+1. **Plugin-level hooks are not auto-wired.** `prompt-markers` bundles hook scripts
+   inside its skill dir, but the plugin has no root `hooks/hooks.json`, so installing the
    plugin does not by itself activate the `UserPromptSubmit`/gate hooks. Follow-up: either add a
    plugin-level `hooks/hooks.json`, or have `welcome-ai-badger` wire the hooks into the target
    project's `.claude/settings.json`. Until then, hooks must be wired manually per the skills' docs.
+   (`auto-wm` was moved to `features/claude/skills/` — it uses Claude Code-specific hooks.)
 
 2. **`agent-instructions/schema.json` vs `$schema` key.** The ported model schema sets
    `additionalProperties: false` without allowing a `$schema` property, yet `model.template.json`

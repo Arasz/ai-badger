@@ -48,11 +48,12 @@ python3 "$AI_BADGER/features/common/skills/feed-badger/scripts/detect_additions.
 python3 "$AI_BADGER/features/common/skills/feed-badger/scripts/open_pr.py" --dry-run   # drop --dry-run to push + open a draft PR
 ```
 
-## task / auto-wm / prompt-markers skill scripts
+## task / prompt-markers skill scripts
 
 These run inside a scaffolded project as hooks and CLIs (`task_tracker.py`, `resume_cron.py`,
-`poll_limit.py`, `statusline_capture.py`, `awm.py`, hook entry points). They are documented by
+`poll_limit.py`, `statusline_capture.py`, hook entry points). They are documented by
 their owning skills; `poll_limit.py --once` and `--interval-seconds` support manual/testing runs.
+(`auto-wm` scripts live at `features/claude/skills/auto-wm/` — Claude Code-specific.)
 
 ## Running the test suite
 
