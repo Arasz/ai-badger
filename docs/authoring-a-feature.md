@@ -2,8 +2,8 @@
 
 A practical how-to for adding to the ai-badger catalog. Read
 [`framework-architecture.md`](framework-architecture.md) first if you haven't — this doc assumes
-you know the `features/{stack|common}/{feature}` model, the root-`skills/` exception, and the
-`config.json`/`manifest.json` contracts.
+you know the `features/{stack|common}/{feature}` model and the `config.json`/`manifest.json`
+contracts.
 
 **The rule that matters most:** after *any* change to the catalog tree, run
 
@@ -28,7 +28,7 @@ python3 -m pip install -r scripts/requirements.txt   # jsonschema
 
 | feature | shape | rule |
 |---|---|---|
-| `skills` (installable) | directory | any subdir of the repo-root `skills/` containing a `SKILL.md` — the one feature *not* under `features/` (see the root-`skills/` exception in `framework-architecture.md` §1) |
+| `skills` (installable) | directory | any subdir of `features/common/skills/` containing a `SKILL.md` |
 | `personas` | file | any `*.md` in `features/<stack>/personas/` (excluding `README.md`); name = filename stem |
 | `invariants` | file | any `*.md` in `features/<stack>/invariants/` (excluding `README.md`); name = filename stem |
 | `instructions` | file | any `*.md` in `features/<stack>/instructions/` (excluding `README.md`); name = filename stem |
@@ -38,17 +38,15 @@ python3 -m pip install -r scripts/requirements.txt   # jsonschema
 Skill **extensions** use a directory-naming convention rather than a manifest field: a directory
 at `features/<stack>/skills/<base>-extensions/<ext>/` attaches `<ext>` to the skill named
 `<base>`, searched across all stacks (so a `github`-stack extension can attach to a base skill
-living at the root `skills/`, as with `task`). Per-stack metadata — detection signals, implied
+living at `features/common/skills/`, as with `task`). Per-stack metadata — detection signals, implied
 stacks, default commands — is read from an optional `features/<stack>/stack.json`, validated
 against `schemas/stack.schema.json`, and folded into `index.json.stacks[stack].meta`.
 
 ## Adding a new stack
 
 1. Create `features/<stack>/` with whichever feature subdirectories apply (`personas/`,
-   `invariants/`, `instructions/`, `plugins/` — `templates/` is a `common`-only convention;
-   `skills/` under a stack is only for task extensions, not standalone installable skills, which
-   always live at the repo-root `skills/` regardless of stack — keep to the pattern used by
-   existing stacks unless you have a reason not to).
+   `invariants/`, `instructions/`, `plugins/`, `skills/` — `templates/` is a `common`-only
+   convention). Keep to the pattern used by existing stacks unless you have a reason not to.
 2. Optionally add `features/<stack>/stack.json` (`schemas/stack.schema.json`) with
    `detectionSignals` (glob/filename hints `detect.py` uses to auto-propose this stack — e.g.
    `"*.tsx"` for `react`), `requires` (other stacks this one implies, e.g. `react` implies `ts`
@@ -112,11 +110,9 @@ never silently pointed at the user's global config unless a specific curated ent
 
 **A standalone, installable skill:**
 
-1. Create `skills/<name>/` at the **repo root** (not under `features/`) with a `SKILL.md` (plus
-   any `scripts/`, `references/` subdirs the skill needs — these are copied as-is by
-   `scaffold.py`). This is the root-`skills/` exception — see `framework-architecture.md` §1:
-   the Claude Code plugin loader only discovers skills at the plugin root's `skills/`, and
-   ai-badger's plugin `source` is `"./"`.
+1. Create `features/common/skills/<name>/` with a `SKILL.md` (plus any `scripts/`, `references/`
+   subdirs the skill needs — these are copied as-is by `scaffold.py`). Skills are a regular
+   feature under `features/common/` — see `framework-architecture.md` §1.
 2. Run `index_build.py` then `validate.py --all`.
 
 **An extension to an existing skill** (e.g. a new `task` extension):
