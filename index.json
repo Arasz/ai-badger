@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.7.0",
+  "frameworkVersion": "0.7.1",
   "stacks": {
     "angular": {
       "personas": [
@@ -176,6 +176,10 @@
         {
           "name": "tdd-mandatory",
           "path": "features/common/invariants/tdd-mandatory.md"
+        },
+        {
+          "name": "version-changelog-required",
+          "path": "features/common/invariants/version-changelog-required.md"
         }
       ],
       "instructions": [

@@ -402,6 +402,66 @@ def test_rescaffold_recreates_hermes_symlinks(tmp_path, load_script, root):
     assert task_link.resolve() == first_target
 
 
+def test_scaffold_registers_hermes_external_dirs(tmp_path, load_script, root):
+    """Scaffolding with hermes should register .hermes/skills in external_dirs."""
+    import yaml
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    # Create a fake hermes home with .hermes/config.yaml
+    hermes_dir = tmp_path / "hermes-home"
+    (hermes_dir / ".hermes").mkdir(parents=True)
+    hermes_config = hermes_dir / ".hermes" / "config.yaml"
+    hermes_config.write_text(yaml.dump({"skills": {"external_dirs": []}}),
+                             encoding="utf-8")
+
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(agents=["hermes"]),
+        skills=["task"], install=False,
+    )
+
+    # Patch Path.home() to use our fake hermes dir
+    import unittest.mock
+    with unittest.mock.patch("pathlib.Path.home", return_value=hermes_dir):
+        scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    # Verify the project was registered
+    cfg = yaml.safe_load(hermes_config.read_text(encoding="utf-8"))
+    ext_dirs = cfg.get("skills", {}).get("external_dirs", [])
+    skills_path = str((target / ".hermes" / "skills").resolve())
+    assert skills_path in ext_dirs
+
+
+def test_scaffold_no_external_dirs_without_hermes(tmp_path, load_script, root):
+    """Scaffolding without hermes should not modify external_dirs."""
+    import yaml
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    hermes_dir = tmp_path / "hermes-home"
+    (hermes_dir / ".hermes").mkdir(parents=True)
+    hermes_config = hermes_dir / ".hermes" / "config.yaml"
+    hermes_config.write_text(yaml.dump({"skills": {"external_dirs": []}}),
+                             encoding="utf-8")
+
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(agents=["claude"]),
+        skills=["task"], install=False,
+    )
+
+    import unittest.mock
+    with unittest.mock.patch("pathlib.Path.home", return_value=hermes_dir):
+        scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    cfg = yaml.safe_load(hermes_config.read_text(encoding="utf-8"))
+    ext_dirs = cfg.get("skills", {}).get("external_dirs", [])
+    assert ext_dirs == []
+
+
 def test_scaffold_reset_seed_files_flag_forces_reset(tmp_path, load_script, root):
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"

@@ -488,12 +488,11 @@ class Scaffolder:
 
     # -- Hermes skill discovery ---------------------------------------------------
     def symlink_hermes_skills(self) -> None:
-        """Symlink .ai-badger/skills/ → .hermes/skills/ for Hermes auto-discovery.
+        """Symlink .ai-badger/skills/ → .hermes/skills/ and register in external_dirs.
 
-        Hermes discovers project-local skills from .hermes/skills/ in the
-        working directory. These symlinks make ai-badger-scaffolded skills
-        visible without any config changes — just start hermes in the project
-        root.
+        Hermes discovers skills from ~/.hermes/skills/ (global) and directories
+        listed in skills.external_dirs in ~/.hermes/config.yaml. This method
+        creates symlinks AND registers the project path so Hermes can find them.
         """
         if "hermes" not in self.config.get("agents", []):
             return
@@ -508,6 +507,27 @@ class Scaffolder:
             if dst.is_symlink() or dst.exists():
                 dst.unlink()
             dst.symlink_to(os.path.relpath(src, dst.parent))
+        # Register in Hermes external_dirs so skills are discoverable
+        self._register_hermes_external_dir(hermes_skills)
+
+    @staticmethod
+    def _register_hermes_external_dir(skills_path: Path) -> None:
+        """Add skills_path to ~/.hermes/config.yaml skills.external_dirs if not present."""
+        import yaml  # pylint: disable=import-error
+        hermes_config = Path.home() / ".hermes" / "config.yaml"
+        if not hermes_config.exists():
+            return
+        try:
+            cfg = yaml.safe_load(hermes_config.read_text(encoding="utf-8")) or {}
+            skills_cfg = cfg.setdefault("skills", {})
+            ext_dirs = skills_cfg.setdefault("external_dirs", [])
+            abs_path = str(skills_path.resolve())
+            if abs_path not in ext_dirs:
+                ext_dirs.append(abs_path)
+                hermes_config.write_text(yaml.dump(cfg, default_flow_style=False,
+                                                    allow_unicode=True), encoding="utf-8")
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass  # non-fatal: user can add manually
 
     # -- orchestrate ----------------------------------------------------------------
     def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
