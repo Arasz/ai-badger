@@ -488,46 +488,35 @@ class Scaffolder:
 
     # -- Hermes skill discovery ---------------------------------------------------
     def symlink_hermes_skills(self) -> None:
-        """Symlink .ai-badger/skills/ → .hermes/skills/ and register in external_dirs.
+        """Symlink project skills into ~/.hermes/skills/ with project namespace.
 
-        Hermes discovers skills from ~/.hermes/skills/ (global) and directories
-        listed in skills.external_dirs in ~/.hermes/config.yaml. This method
-        creates symlinks AND registers the project path so Hermes can find them.
+        Each project's skills are namespaced under ~/.hermes/skills/<project-name>/
+        to avoid conflicts when multiple projects have skills with the same name
+        (e.g., 'task'). Hermes discovers skills from ~/.hermes/skills/ (global).
+
+        Does NOT use external_dirs — that's a shared global list that causes
+        skill name conflicts across projects.
         """
         if "hermes" not in self.config.get("agents", []):
             return
-        hermes_skills = self.target / ".hermes" / "skills"
-        hermes_skills.mkdir(parents=True, exist_ok=True)
+        project_name = self.config.get("project", {}).get("name", "unknown")
+        global_skills = Path.home() / ".hermes" / "skills"
+        global_skills.mkdir(parents=True, exist_ok=True)
+        namespace_dir = global_skills / project_name
+        if namespace_dir.is_symlink() or namespace_dir.exists():
+            if namespace_dir.is_dir() and not namespace_dir.is_symlink():
+                import shutil
+                shutil.rmtree(namespace_dir)
+            else:
+                namespace_dir.unlink()
+        # Create namespace dir and symlink each skill into it
+        namespace_dir.mkdir(parents=True, exist_ok=True)
         for skill_name in self.skills:
             src = self.aib / "skills" / skill_name
-            dst = hermes_skills / skill_name
+            dst = namespace_dir / skill_name
             if not src.is_dir():
                 continue
-            # Remove stale symlink or directory before recreating
-            if dst.is_symlink() or dst.exists():
-                dst.unlink()
             dst.symlink_to(os.path.relpath(src, dst.parent))
-        # Register in Hermes external_dirs so skills are discoverable
-        self._register_hermes_external_dir(hermes_skills)
-
-    @staticmethod
-    def _register_hermes_external_dir(skills_path: Path) -> None:
-        """Add skills_path to ~/.hermes/config.yaml skills.external_dirs if not present."""
-        import yaml  # pylint: disable=import-error
-        hermes_config = Path.home() / ".hermes" / "config.yaml"
-        if not hermes_config.exists():
-            return
-        try:
-            cfg = yaml.safe_load(hermes_config.read_text(encoding="utf-8")) or {}
-            skills_cfg = cfg.setdefault("skills", {})
-            ext_dirs = skills_cfg.setdefault("external_dirs", [])
-            abs_path = str(skills_path.resolve())
-            if abs_path not in ext_dirs:
-                ext_dirs.append(abs_path)
-                hermes_config.write_text(yaml.dump(cfg, default_flow_style=False,
-                                                    allow_unicode=True), encoding="utf-8")
-        except Exception:  # pylint: disable=broad-exception-caught
-            pass  # non-fatal: user can add manually
 
     # -- orchestrate ----------------------------------------------------------------
     def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
