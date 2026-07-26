@@ -1,0 +1,11 @@
+repos:
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: python3 -m pylint
+        language: system
+        types: [python]
+        args:
+          - --rcfile=/dev/null
+          - --disable=C,R
