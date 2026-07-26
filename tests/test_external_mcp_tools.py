@@ -60,7 +60,7 @@ def test_external_tools_instructions_rendered_in_claude_md(tmp_path, load_script
 
 
 def test_no_external_tools_no_extra_section(tmp_path, load_script, root):
-    """Config without externalTools produces no MCP instruction section."""
+    """Config without externalTools still gets catalog tools injected."""
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
@@ -71,7 +71,8 @@ def test_no_external_tools_no_extra_section(tmp_path, load_script, root):
     scaf.run(generated_at="2026-07-26T00:00:00Z")
 
     claude_md = (target / ".ai-badger" / "CLAUDE.md").read_text(encoding="utf-8")
-    assert "MCP Tools:" not in claude_md
+    # Catalog tools (code-review-graph) are auto-injected even without config.externalTools
+    assert "code-review-graph" in claude_md
 
 
 def test_multiple_external_tools_rendered(tmp_path, load_script, root):

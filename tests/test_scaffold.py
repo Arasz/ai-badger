@@ -514,6 +514,33 @@ def test_scaffold_hook_wiring_is_idempotent(tmp_path, load_script, root):
         assert total_commands == 1, f"Duplicate hooks for {event}: {total_commands}"
 
 
+def test_scaffold_hook_dedup_does_not_duplicate_multi_hook_entries(tmp_path, load_script, root):
+    """Dedup must not re-append an entry when only some of its hooks are new.
+
+    Regression: the old code checked each inner hook individually but appended
+    the entire outer entry, so an entry with N hooks could be appended with
+    hooks that already existed in another entry — producing duplicates.
+    """
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+
+    # existing: one entry with hook-a
+    existing = {"SessionStart": [
+        {"matcher": "", "hooks": [{"type": "command", "command": "hook-a"}]},
+    ]}
+    # new: entry with hook-a + hook-b — only hook-b should be appended
+    new = {"SessionStart": [
+        {"matcher": "m", "hooks": [
+            {"type": "command", "command": "hook-a"},
+            {"type": "command", "command": "hook-b"},
+        ]},
+    ]}
+    scaffold.merge_hooks(existing, new)
+    entries = existing["SessionStart"]
+    all_cmds = [h["command"] for e in entries for h in e["hooks"]]
+    assert all_cmds.count("hook-a") == 1, f"hook-a duplicated: {all_cmds}"
+    assert "hook-b" in all_cmds
+
+
 def test_scaffold_no_hooks_without_claude_agent(tmp_path, load_script, root):
     """Scaffolding without claude agent should not create hooks."""
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
@@ -957,3 +984,95 @@ def test_extension_marker_routing_positions_items_correctly(tmp_path, load_scrip
     # Post-merge: dotnet/react items present
     assert "dotnet build" in content and "clean on main" in content
     assert "Frontend lint + test all pass" in content
+
+
+# ---------------------------------------------------------------------- external tools catalog
+def test_scaffold_injects_catalog_external_tool_into_claude_md(tmp_path, load_script, root):
+    """External tools from features/common/external-tools.json are auto-injected."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(agents=["claude"]),
+        skills=["task"], install=False,
+    )
+    scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    claude_md = (target / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "code-review-graph" in claude_md, "Catalog tool not injected into CLAUDE.md"
+
+
+def test_scaffold_catalog_tool_generates_mcp_json(tmp_path, load_script, root):
+    """Catalog tools with generate_mcp_json produce .mcp.json entries."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(agents=["claude"]),
+        skills=["task"], install=False,
+    )
+    scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    mcp_json = target / ".mcp.json"
+    assert mcp_json.exists(), ".mcp.json not created"
+    mcp = json.loads(mcp_json.read_text(encoding="utf-8"))
+    assert "code-review-graph" in mcp.get("mcpServers", {})
+
+
+def test_scaffold_user_external_tools_override_catalog(tmp_path, load_script, root):
+    """config.externalTools overrides catalog tools on name conflict."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    config = _config(agents=["claude"])
+    config["externalTools"] = [{
+        "name": "code-review-graph",
+        "package": "code-review-graph",
+        "command": "custom-command",
+        "instructions": "CUSTOM INSTRUCTIONS",
+        "generate_mcp_json": True,
+    }]
+
+    scaf = scaffold.Scaffolder(
+        root=root, target=target, config=config,
+        skills=["task"], install=False,
+    )
+    scaf.run(generated_at="2026-07-24T00:00:00Z")
+
+    claude_md = (target / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "CUSTOM INSTRUCTIONS" in claude_md, "User override not applied"
+    assert "MCP Tools: code-review-graph" not in claude_md, "Catalog instructions not overridden"
+
+
+def test_collect_external_tools_reads_common_catalog(tmp_path, load_script, root):
+    """_collect_external_tools reads features/common/external-tools.json."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(agents=["claude"]),
+        skills=["task"], install=False,
+    )
+    tools = scaf._collect_external_tools()
+    names = [t["name"] for t in tools]
+    assert "code-review-graph" in names
+
+
+def test_merge_external_tools_user_overrides_catalog(load_script):
+    """_merge_external_tools: user tools override catalog on name conflict."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+
+    catalog = [{"name": "tool-a", "package": "p", "command": "c1", "instructions": "orig"}]
+    user = [{"name": "tool-a", "package": "p", "command": "c2", "instructions": "override"}]
+
+    merged = scaffold.Scaffolder._merge_external_tools(catalog, user)
+    assert len(merged) == 1
+    assert merged[0]["command"] == "c2"
+    assert merged[0]["instructions"] == "override"
