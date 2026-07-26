@@ -55,6 +55,7 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
    - `drift.changed` — framework files that differ from the scaffolded copies
    - `drift.removed` — scaffolded files whose framework source no longer exists
    - `drift.skipped` — directory-valued entries (skills) that can't be hash-compared
+   - `newStacks` — stacks detectable in the target but missing from config
    - `reScaffolded` — whether a re-scaffold was performed
    - `scaffold` — if re-scaffolded: entry count, refreshed skill names, notes
 
@@ -81,7 +82,10 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
 
 - **Never re-detect.** den-refresh uses the project's existing config.json as-is.
   If the config needs updating (new stacks, changed commands), edit it first,
-  then run den-refresh.
+  then run den-refresh. **Exception:** den-refresh now detects stacks that have
+  signals in the target but are missing from config, and reports them as
+  `newStacks` in the JSON output. The agent should offer to add them to the
+  config and re-run.
 - **Seed-once files survive.** `state.json`, `markers-context.json`, and
   `model.json` are seed-once and preserved across re-scaffolds.
 - **Skills with extensions are refreshed.** The script extracts skill names

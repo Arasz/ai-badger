@@ -192,8 +192,12 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     drift_result = run_drift(root, manifest, stacks=config.get("stacks", []))
 
+    # 6b. Detect new stacks not in config
+    drift_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/drift.py", root)
+    new_stacks = drift_mod.detect_new_stacks(target, root, config_stacks=config.get("stacks", []))
+
     has_drift = bool(drift_result.get("changed") or drift_result.get("removed")
-                     or drift_result.get("newItems"))
+                     or drift_result.get("newItems") or new_stacks)
 
     # 7. Re-scaffold if drift detected (or breaking change forces full re-scaffold)
     scaffold_result = None
@@ -219,6 +223,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             "skipped": drift_result.get("skipped", []),
             "invalid": drift_result.get("invalid", 0),
         },
+        "newStacks": new_stacks,
         "reScaffolded": has_drift or breaking_result["isBreaking"],
     }
     if scaffold_result:

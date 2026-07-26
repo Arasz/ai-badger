@@ -764,3 +764,124 @@ def test_compare_passes_unchanged_dir(tmp_path, load_script):
     result = drift.compare(fw, manifest)
     assert "features/common/skills/my-skill" not in result["changed"]
     assert "features/common/skills/my-skill" not in result.get("skipped", [])
+
+
+# ── detect_new_stacks ────────────────────────────────────────────────────────
+
+def test_detect_new_stacks_finds_stack_not_in_config(tmp_path, load_script):
+    """A stack with detection signals present but missing from config should be reported."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+
+    fw = tmp_path / "fw"
+    # Index has python and hermes stacks
+    idx = {
+        "frameworkVersion": "0.3.0",
+        "stacks": {
+            "python": {
+                "meta": {"detectionSignals": ["*.py", "pyproject.toml", "requirements.txt"]},
+            },
+            "hermes": {
+                "meta": {"detectionSignals": [".hermes.md", "HERMES.md"]},
+            },
+        },
+    }
+    fw.mkdir(parents=True, exist_ok=True)
+    bl = load_script("scripts/badger_lib.py")
+    bl.dump_json(fw / "index.json", idx)
+
+    # Target has hermes signals but config only knows about python
+    target = tmp_path / "proj"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / ".hermes.md").write_text("# Hermes\n")
+
+    new_stacks = drift.detect_new_stacks(target, fw, config_stacks=["python"])
+
+    assert new_stacks == ["hermes"]
+
+
+def test_detect_new_stacks_empty_when_config_is_complete(tmp_path, load_script):
+    """When all detectable stacks are already in config, return empty."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+
+    fw = tmp_path / "fw"
+    idx = {
+        "frameworkVersion": "0.3.0",
+        "stacks": {
+            "python": {
+                "meta": {"detectionSignals": ["*.py", "pyproject.toml"]},
+            },
+        },
+    }
+    fw.mkdir(parents=True, exist_ok=True)
+    bl = load_script("scripts/badger_lib.py")
+    bl.dump_json(fw / "index.json", idx)
+
+    target = tmp_path / "proj"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "pyproject.toml").write_text("[project]\n")
+
+    new_stacks = drift.detect_new_stacks(target, fw, config_stacks=["python"])
+
+    assert new_stacks == []
+
+
+def test_detect_new_stacks_ignores_stacks_not_in_index(tmp_path, load_script):
+    """Stacks detected by dependency heuristics but not in the index are ignored."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+
+    fw = tmp_path / "fw"
+    # Index only knows about python
+    idx = {
+        "frameworkVersion": "0.3.0",
+        "stacks": {
+            "python": {
+                "meta": {"detectionSignals": ["*.py", "pyproject.toml"]},
+            },
+        },
+    }
+    fw.mkdir(parents=True, exist_ok=True)
+    bl = load_script("scripts/badger_lib.py")
+    bl.dump_json(fw / "index.json", idx)
+
+    # Target has hermes signals but hermes is not in the index
+    target = tmp_path / "proj"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / ".hermes.md").write_text("# Hermes\n")
+    (target / "pyproject.toml").write_text("[project]\n")
+
+    new_stacks = drift.detect_new_stacks(target, fw, config_stacks=[])
+
+    # python is detectable and in index but not in config — should be reported
+    # hermes is detectable but NOT in index — should be ignored
+    assert new_stacks == ["python"]
+
+
+def test_detect_new_stacks_includes_expanded_requires(tmp_path, load_script):
+    """New stacks should include transitively required stacks."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+
+    fw = tmp_path / "fw"
+    idx = {
+        "frameworkVersion": "0.3.0",
+        "stacks": {
+            "react": {
+                "meta": {"detectionSignals": ["*.tsx"], "requires": ["ts"]},
+            },
+            "ts": {
+                "meta": {"detectionSignals": ["tsconfig.json"]},
+            },
+        },
+    }
+    fw.mkdir(parents=True, exist_ok=True)
+    bl = load_script("scripts/badger_lib.py")
+    bl.dump_json(fw / "index.json", idx)
+
+    # Target has tsx files → react detected → requires ts
+    target = tmp_path / "proj"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "app.tsx").write_text("export default () => null\n")
+
+    new_stacks = drift.detect_new_stacks(target, fw, config_stacks=[])
+
+    assert "react" in new_stacks
+    assert "ts" in new_stacks
