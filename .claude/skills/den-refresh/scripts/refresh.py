@@ -141,6 +141,24 @@ def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
     }
 
 
+def relink_hermes_skills(root: Path, target: Path, config: Dict[str, Any]) -> List[str]:
+    """Re-link the project's skills into ~/.hermes/skills/<project>/ after a refresh.
+
+    Reads the skill names from disk so added skills are linked and removed ones are dropped;
+    a no-op unless hermes is a configured agent.
+    """
+    if "hermes" not in config.get("agents", []):
+        return []
+    skills_dir = target / ".ai-badger" / "skills"
+    if not skills_dir.is_dir():
+        return []
+    names = sorted(p.name for p in skills_dir.iterdir() if p.is_dir())
+    scaffold_mod = _load_script(
+        "features/common/skills/welcome-ai-badger/scripts/scaffold.py", root
+    )
+    return scaffold_mod.relink_hermes_skills(target, config, names)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     """CLI entry point: check drift, re-scaffold if needed, print JSON report."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -216,6 +234,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         scaffold_result = re_scaffold(root, target, config, manifest,
                                        generated_at=args.generated_at)
 
+    # 7b. Re-link the hermes namespace so added/removed skills propagate (#58, ADR 0003)
+    hermes_links = relink_hermes_skills(root, target, config)
+
     # Always sync config.frameworkVersion when framework has advanced
     if scaffold_version != current_version:
         config["frameworkVersion"] = current_version
@@ -239,6 +260,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     }
     if scaffold_result:
         report["scaffold"] = scaffold_result
+    if hermes_links:
+        report["hermesSkillLinks"] = hermes_links
 
     print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0

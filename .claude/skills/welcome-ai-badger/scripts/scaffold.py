@@ -99,6 +99,65 @@ def git_provenance(root: Path) -> Tuple[Optional[str], bool]:
     return (sha or None), bool(status)
 
 
+# -- Hermes skill discovery ---------------------------------------------------------
+LEARNED_SKILLS_DIR = "learned"
+
+
+def _owns_link(entry: Path, skills_root: Path) -> bool:
+    """True if *entry* is a symlink resolving inside *skills_root* — i.e. ai-badger placed it."""
+    if not entry.is_symlink():
+        return False
+    try:
+        entry.resolve().relative_to(skills_root.resolve())
+    except (ValueError, OSError):
+        return False
+    return True
+
+
+def relink_hermes_skills(target: Path, config: Dict[str, Any],
+                         skills: List[str]) -> List[str]:
+    """Rebuild ~/.hermes/skills/<project>/ so it links exactly *skills* plus learned/.
+
+    Only symlinks resolving into <target>/.ai-badger/skills/ are removed; every other entry
+    is left exactly as found (docs/adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md).
+    Returns the link names created.
+    """
+    project_name = config.get("project", {}).get("name", "unknown")
+    skills_root = target / ".ai-badger" / "skills"
+    namespace_dir = Path.home() / ".hermes" / "skills" / project_name
+    if namespace_dir.is_symlink() and not _owns_link(namespace_dir, skills_root):
+        return []
+
+    wanted = [n for n in dict.fromkeys(skills) if (skills_root / n).is_dir()]
+    if (skills_root / LEARNED_SKILLS_DIR).is_dir() and LEARNED_SKILLS_DIR not in wanted:
+        wanted.append(LEARNED_SKILLS_DIR)
+
+    if namespace_dir.is_symlink():
+        namespace_dir.unlink()
+    elif namespace_dir.is_dir():
+        for entry in sorted(namespace_dir.iterdir()):
+            if _owns_link(entry, skills_root):
+                entry.unlink()
+    if not wanted:
+        return []
+
+    namespace_dir.mkdir(parents=True, exist_ok=True)
+    # Resolve both ends before computing the relative link, so a symlinked home or project
+    # path does not produce a link with the wrong number of `..` segments.
+    link_base = namespace_dir.resolve()
+    skills_base = skills_root.resolve()
+    created: List[str] = []
+    for name in wanted:
+        link = namespace_dir / name
+        if link.is_symlink():
+            link.unlink()
+        elif link.exists():
+            continue  # foreign real entry — never clobber
+        link.symlink_to(os.path.relpath(skills_base / name, link_base))
+        created.append(name)
+    return created
+
+
 # Import mixin classes from domain modules
 from hook_wiring import HookWiringMixin, merge_hooks  # noqa: E402
 from template_rendering import TemplateRenderingMixin  # noqa: E402
@@ -260,6 +319,16 @@ class Scaffolder(
             self._append_project_local(skill_name, dest)
             # hash includes embedded extensions
             self.record("skills", "common", skill_name, src, dest)
+            # emit per-file entries for extension content so feed-badger can
+            # detect user edits to extension files (#65)
+            ext_dir = dest / "extensions"
+            if ext_dir.is_dir():
+                for f in sorted(ext_dir.rglob("*")):
+                    if f.is_file():
+                        ext_src = src / "extensions" / f.relative_to(ext_dir)
+                        self.record("skills", "common",
+                                    f"{skill_name}/extensions/{f.relative_to(ext_dir).as_posix()}",
+                                    ext_src if ext_src.exists() else f, f)
 
     def scaffold_agent_instructions(self) -> None:
         """Copy the agent-instructions schema/model template into .ai-badger/agent-instructions/."""
@@ -333,14 +402,17 @@ class Scaffolder(
 
     # -- Hermes skill discovery ---------------------------------------------------
     def symlink_hermes_skills(self) -> None:
-        """No-op: ai-badger skills live only in .ai-badger/skills/ (project scope).
+        """Link this project's skills into ~/.hermes/skills/<project>/ when hermes is an agent.
 
-        Hermes discovers project skills via the project-local skill directory.
-        User-scoped copies at ~/.hermes/skills/ are not managed by ai-badger —
-        see issue #58 for the rationale.
+        Hermes resolves skills from ~/.hermes/skills/ plus skills.external_dirs only; the
+        per-project namespace directory avoids the cross-project name collisions that made
+        external_dirs unusable (docs/adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md).
         """
-        # Intentionally empty — skills are project-scoped only.
-        return
+        if "hermes" not in self.config.get("agents", []):
+            return
+        links = relink_hermes_skills(self.target, self.config, self.skills)
+        if links:
+            self.notes.append(f"hermes skill links: {', '.join(links)}")
 
     # -- dependency checking ---------------------------------------------------------
     def _check_dependencies(self) -> Dict[str, Any]:
