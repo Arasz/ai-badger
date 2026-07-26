@@ -3,10 +3,11 @@
 Provides feature-parity with Claude Code hooks:
 - on_session_start: drift notice (Tier 1, ADR-0001 decision 5)
 - pre_llm_call: inject framework version context, usage hints, and MCP tool index recommendations
-- post_tool_call: log tool usage for session tracking and index hit/miss metrics
+- post_tool_call: log tool usage, index hit/miss metrics, and learned-skill sync
 
-Installation: copy/symlink this file to ~/.hermes/plugins/ai_badger_hooks.py
-or include it in a Hermes plugin package with a register() entry point.
+Installation: `welcome-ai-badger` copies this file and learned_skills_sync.py into
+~/.hermes/plugins/ (features/hermes/adjustments/adjust_hooks.py); Hermes discovers
+plugins there via the register() entry point.
 
 The plugin self-locates the ai-badger framework root by walking ancestor
 directories (same pattern as _bootstrap_lib in the scaffold scripts),
@@ -15,9 +16,13 @@ NOT via a hardcoded path or environment variable.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import logging
+import os
+import sys
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -62,6 +67,15 @@ def _read_framework_version() -> Optional[str]:
         return None
 
 
+def _project_cwd(cwd: str = "") -> str:
+    """Resolve the project directory for a hook callback.
+
+    Hermes passes no `cwd` to any plugin hook, so the process working directory is the
+    only signal available. See issue #76.
+    """
+    return cwd or os.getcwd()
+
+
 def _read_scaffold_version(cwd: Optional[str]) -> Optional[str]:
     """Read the project's manifest.json frameworkVersion, or None."""
     if not cwd:
@@ -84,7 +98,7 @@ def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
     Silent on match, on an unscaffolded project, and on any read error.
     A hook that breaks session start or nags unconditionally defeats its purpose.
     """
-    scaffold_ver = _read_scaffold_version(cwd)
+    scaffold_ver = _read_scaffold_version(_project_cwd(cwd))
     fw_version = _read_framework_version()
     if not scaffold_ver or not fw_version or scaffold_ver == fw_version:
         return
@@ -218,7 +232,7 @@ def _find_relevant_tools(
 # ---------------------------------------------------------------------------
 
 def pre_llm_inject_context(
-    cwd: str = "", message: str = "", **_kwargs: Any
+    cwd: str = "", message: str = "", user_message: str = "", **_kwargs: Any
 ) -> Optional[Dict[str, str]]:
     """Inject ai-badger framework context into every LLM turn.
 
@@ -233,11 +247,13 @@ def pre_llm_inject_context(
     - MCP tool index recommendations (when .ai-badger/mcp-tools.yaml exists)
     """
     parts: list[str] = []
+    project = _project_cwd(cwd)
+    prompt = message or user_message
 
     # Framework version
     fw_version = _read_framework_version()
     if fw_version:
-        scaffold_ver = _read_scaffold_version(cwd)
+        scaffold_ver = _read_scaffold_version(project)
         if scaffold_ver and scaffold_ver != fw_version:
             parts.append(
                 f"[ai-badger] Scaffolded with {scaffold_ver}, "
@@ -252,10 +268,10 @@ def pre_llm_inject_context(
     )
 
     # MCP tool index recommendations
-    if message and cwd:
-        index = _load_mcp_index(cwd)
+    if prompt:
+        index = _load_mcp_index(project)
         if index:
-            ranked = _find_relevant_tools(message, index, top_n=5)
+            ranked = _find_relevant_tools(prompt, index, top_n=5)
             if ranked:
                 tools_str = ", ".join(
                     f"{name} ({', '.join(tags_for_display(name, index))})"
@@ -288,11 +304,68 @@ def tags_for_display(tool_name: str, index: dict[str, Any]) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Learned-skill sync — wiring only; logic lives in learned_skills_sync.py
+# (docs/design/hermes-learned-skills-sync-impl-plan.md, stage 4)
+# ---------------------------------------------------------------------------
+
+SKILL_MANAGE_TOOL = "skill_manage"
+SYNC_MODULE_NAME = "ai_badger_learned_skills_sync"
+
+
+def hermes_skills_root() -> Path:
+    """Resolve the Hermes skills root: HERMES_HOME wins, else the platform default."""
+    override = os.environ.get("HERMES_HOME", "").strip()
+    base = Path(override).expanduser() if override else Path.home() / ".hermes"
+    return base / "skills"
+
+
+def _load_learned_skills_sync() -> Optional[Any]:
+    """Import the sibling sync module lazily; None when an older scaffold lacks it."""
+    cached = sys.modules.get(SYNC_MODULE_NAME)
+    if cached is not None:
+        return cached
+    path = Path(__file__).resolve().parent / "learned_skills_sync.py"
+    if not path.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location(SYNC_MODULE_NAME, path)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[SYNC_MODULE_NAME] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:  # pylint: disable=broad-exception-caught
+        sys.modules.pop(SYNC_MODULE_NAME, None)
+        logger.debug("learned-skill sync unavailable", exc_info=True)
+        return None
+    return module
+
+
+def _sync_learned_skill(args: Dict[str, Any], status: str, cwd: str) -> None:
+    """Hand one skill_manage call to the sync.
+
+    Hermes' post_tool_call payload carries no cwd, so the process cwd is the only
+    project signal available; the sync itself no-ops unless it is a scaffolded project.
+    """
+    sync = _load_learned_skills_sync()
+    if sync is None:
+        return
+    outcome = sync.on_skill_manage(
+        args, status, cwd or os.getcwd(),
+        skills_root=hermes_skills_root(),
+        now=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        tool_name=SKILL_MANAGE_TOOL,
+    )
+    if outcome:
+        logger.debug("learned-skill sync: %s", outcome)
+
+
+# ---------------------------------------------------------------------------
 # Tool call observer — equivalent to Claude's PostToolUse hook
 # ---------------------------------------------------------------------------
 
 def post_tool_observer(tool_name: str = "", result: str = "",
-                        duration_ms: int = 0, cwd: str = "", **_kwargs: Any) -> None:
+                        duration_ms: int = 0, cwd: str = "", **kwargs: Any) -> None:
     """Observe tool calls for debugging and metrics.
 
     Fires after every tool execution. Logs at DEBUG level so it doesn't flood
@@ -303,9 +376,15 @@ def post_tool_observer(tool_name: str = "", result: str = "",
         tool_name, duration_ms, len(result) if result else 0,
     )
 
+    if tool_name == SKILL_MANAGE_TOOL:
+        try:
+            _sync_learned_skill(kwargs.get("args") or {}, kwargs.get("status", "ok"), cwd)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.debug("learned-skill sync failed", exc_info=True)
+
     # Log index hit/miss metrics if the index is available
-    if cwd and tool_name:
-        index = _load_mcp_index(cwd)
+    if tool_name:
+        index = _load_mcp_index(_project_cwd(cwd))
         if index:
             # Check if this tool exists in the index
             sname, _, tname = tool_name.partition(":") if ":" in tool_name else ("", "", tool_name)

@@ -67,7 +67,7 @@ def _load_script(relpath: str, base: Path):
 
 
 _bootstrap_lib()
-import badger_lib as bl
+import badger_lib as bl  # pylint: disable=wrong-import-position
 
 
 def check_breaking_and_backup(root: Path, target: Path) -> Dict[str, Any]:
@@ -104,10 +104,11 @@ def check_prerequisites(target: Path) -> Optional[str]:
 
 
 def run_drift(root: Path, manifest: Dict[str, Any],
-              stacks: Optional[List[str]] = None) -> Dict[str, Any]:
+              stacks: Optional[List[str]] = None,
+              target: Optional[Path] = None) -> Dict[str, Any]:
     """Run drift comparison against the framework's current content."""
     drift_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/drift.py", root)
-    return drift_mod.compare(root, manifest, stacks=stacks)
+    return drift_mod.compare(root, manifest, stacks=stacks, target=target)
 
 
 def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
@@ -138,6 +139,24 @@ def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
         "pluginCommands": result["pluginCommands"],
         "refreshedSkills": skill_names,
     }
+
+
+def relink_hermes_skills(root: Path, target: Path, config: Dict[str, Any]) -> List[str]:
+    """Re-link the project's skills into ~/.hermes/skills/<project>/ after a refresh.
+
+    Reads the skill names from disk so added skills are linked and removed ones are dropped;
+    a no-op unless hermes is a configured agent.
+    """
+    if "hermes" not in config.get("agents", []):
+        return []
+    skills_dir = target / ".ai-badger" / "skills"
+    if not skills_dir.is_dir():
+        return []
+    names = sorted(p.name for p in skills_dir.iterdir() if p.is_dir())
+    scaffold_mod = _load_script(
+        "features/common/skills/welcome-ai-badger/scripts/scaffold.py", root
+    )
+    return scaffold_mod.relink_hermes_skills(target, config, names)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -190,7 +209,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     scaffold_version = config.get("frameworkVersion", "?")
     current_version = (root / "VERSION").read_text(encoding="utf-8").strip()
 
-    drift_result = run_drift(root, manifest, stacks=config.get("stacks", []))
+    drift_result = run_drift(root, manifest, stacks=config.get("stacks", []), target=target)
 
     # 6b. Detect new stacks not in config (respecting stack-ignore.json)
     drift_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/drift.py", root)
@@ -215,6 +234,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         scaffold_result = re_scaffold(root, target, config, manifest,
                                        generated_at=args.generated_at)
 
+    # 7b. Re-link the hermes namespace so added/removed skills propagate (#58, ADR 0003)
+    hermes_links = relink_hermes_skills(root, target, config)
+
     # Always sync config.frameworkVersion when framework has advanced
     if scaffold_version != current_version:
         config["frameworkVersion"] = current_version
@@ -238,6 +260,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     }
     if scaffold_result:
         report["scaffold"] = scaffold_result
+    if hermes_links:
+        report["hermesSkillLinks"] = hermes_links
 
     print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0

@@ -99,6 +99,92 @@ def git_provenance(root: Path) -> Tuple[Optional[str], bool]:
     return (sha or None), bool(status)
 
 
+# -- Hermes skill discovery ---------------------------------------------------------
+LEARNED_SKILLS_DIR = "learned"
+
+
+def _owns_link(entry: Path, skills_root: Path) -> bool:
+    """True if *entry* is a symlink resolving inside *skills_root* — i.e. ai-badger placed it."""
+    if not entry.is_symlink():
+        return False
+    try:
+        entry.resolve().relative_to(skills_root.resolve())
+    except (ValueError, OSError):
+        return False
+    return True
+
+
+def demote_headings(text: str, levels: int = 2) -> str:
+    """Push ATX headings down `levels` so an embedded snippet keeps the host's outline.
+
+    Fenced code is skipped — a `# comment` inside a block is not a heading.
+    """
+    out: List[str] = []
+    fence = ""
+    for line in text.splitlines(keepends=True):
+        stripped = line.lstrip()
+        if fence:
+            if stripped.startswith(fence):
+                fence = ""
+            out.append(line)
+            continue
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            fence = stripped[:3]
+            out.append(line)
+            continue
+        hashes = len(stripped) - len(stripped.lstrip("#"))
+        # An ATX heading needs a space after the hashes; `#5` is an issue reference.
+        if 0 < hashes <= 6 and stripped[hashes:hashes + 1] == " ":
+            out.append("#" * min(hashes + levels, 6) + line[line.index("#") + hashes:])
+        else:
+            out.append(line)
+    return "".join(out)
+
+
+def relink_hermes_skills(target: Path, config: Dict[str, Any],
+                         skills: List[str]) -> List[str]:
+    """Rebuild ~/.hermes/skills/<project>/ so it links exactly *skills* plus learned/.
+
+    Only symlinks resolving into <target>/.ai-badger/skills/ are removed; every other entry
+    is left exactly as found (docs/adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md).
+    Returns the link names created.
+    """
+    project_name = config.get("project", {}).get("name", "unknown")
+    skills_root = target / ".ai-badger" / "skills"
+    namespace_dir = Path.home() / ".hermes" / "skills" / project_name
+    if namespace_dir.is_symlink() and not _owns_link(namespace_dir, skills_root):
+        return []
+
+    wanted = [n for n in dict.fromkeys(skills) if (skills_root / n).is_dir()]
+    if (skills_root / LEARNED_SKILLS_DIR).is_dir() and LEARNED_SKILLS_DIR not in wanted:
+        wanted.append(LEARNED_SKILLS_DIR)
+
+    if namespace_dir.is_symlink():
+        namespace_dir.unlink()
+    elif namespace_dir.is_dir():
+        for entry in sorted(namespace_dir.iterdir()):
+            if _owns_link(entry, skills_root):
+                entry.unlink()
+    if not wanted:
+        return []
+
+    namespace_dir.mkdir(parents=True, exist_ok=True)
+    # Resolve both ends before computing the relative link, so a symlinked home or project
+    # path does not produce a link with the wrong number of `..` segments.
+    link_base = namespace_dir.resolve()
+    skills_base = skills_root.resolve()
+    created: List[str] = []
+    for name in wanted:
+        link = namespace_dir / name
+        if link.is_symlink():
+            link.unlink()
+        elif link.exists():
+            continue  # foreign real entry — never clobber
+        link.symlink_to(os.path.relpath(skills_base / name, link_base))
+        created.append(name)
+    return created
+
+
 # Import mixin classes from domain modules
 from hook_wiring import HookWiringMixin, merge_hooks  # noqa: E402
 from template_rendering import TemplateRenderingMixin  # noqa: E402
@@ -146,9 +232,13 @@ class Scaffolder(
             "frameworkVersion": self.index["frameworkVersion"],
         }
         if source.is_dir():
-            # Directory entry (skills): hash the TARGET dir (after extension
-            # embedding/pruning) so drift detection compares the actual scaffolded output
-            fingerprint = bl.dir_content_hash(target, exclude=bl.SKILL_EXCLUDE_PATTERNS)
+            # Directory entry (skills): hash the TARGET dir, excluding extensions/ — which
+            # config gating keeps or prunes per project, so it is not part of the skill's own
+            # identity. Consumers (feed-badger's detect_additions) must exclude it the same way
+            # or every project that retains an extension reads as permanently "changed".
+            fingerprint = bl.dir_content_hash(
+                target, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
+            )
             entry["hash"] = fingerprint["content_hash"]
             entry["dirMeta"] = {
                 "file_count": fingerprint["file_count"],
@@ -232,7 +322,7 @@ class Scaffolder(
             for item in feature_items(self.index, stack, "invariants"):
                 dest = self.copy_file("invariants", stack, item, self.aib / "invariants")
                 text = dest.read_text(encoding="utf-8").strip()
-                rendered.append(text)
+                rendered.append(demote_headings(text))
         return rendered
 
     def scaffold_skills(self) -> None:
@@ -256,6 +346,16 @@ class Scaffolder(
             self._append_project_local(skill_name, dest)
             # hash includes embedded extensions
             self.record("skills", "common", skill_name, src, dest)
+            # emit per-file entries for extension content so feed-badger can
+            # detect user edits to extension files (#65)
+            ext_dir = dest / "extensions"
+            if ext_dir.is_dir():
+                for f in sorted(ext_dir.rglob("*")):
+                    if f.is_file():
+                        ext_src = src / "extensions" / f.relative_to(ext_dir)
+                        self.record("skills", "common",
+                                    f"{skill_name}/extensions/{f.relative_to(ext_dir).as_posix()}",
+                                    ext_src if ext_src.exists() else f, f)
 
     def scaffold_agent_instructions(self) -> None:
         """Copy the agent-instructions schema/model template into .ai-badger/agent-instructions/."""
@@ -329,34 +429,17 @@ class Scaffolder(
 
     # -- Hermes skill discovery ---------------------------------------------------
     def symlink_hermes_skills(self) -> None:
-        """Symlink project skills into ~/.hermes/skills/ with project namespace.
+        """Link this project's skills into ~/.hermes/skills/<project>/ when hermes is an agent.
 
-        Each project's skills are namespaced under ~/.hermes/skills/<project-name>/
-        to avoid conflicts when multiple projects have skills with the same name
-        (e.g., 'task'). Hermes discovers skills from ~/.hermes/skills/ (global).
-
-        Does NOT use external_dirs — that's a shared global list that causes
-        skill name conflicts across projects.
+        Hermes resolves skills from ~/.hermes/skills/ plus skills.external_dirs only; the
+        per-project namespace directory avoids the cross-project name collisions that made
+        external_dirs unusable (docs/adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md).
         """
         if "hermes" not in self.config.get("agents", []):
             return
-        project_name = self.config.get("project", {}).get("name", "unknown")
-        global_skills = Path.home() / ".hermes" / "skills"
-        global_skills.mkdir(parents=True, exist_ok=True)
-        namespace_dir = global_skills / project_name
-        if namespace_dir.is_symlink() or namespace_dir.exists():
-            if namespace_dir.is_dir() and not namespace_dir.is_symlink():
-                shutil.rmtree(namespace_dir)
-            else:
-                namespace_dir.unlink()
-        # Create namespace dir and symlink each skill into it
-        namespace_dir.mkdir(parents=True, exist_ok=True)
-        for skill_name in self.skills:
-            src = self.aib / "skills" / skill_name
-            dst = namespace_dir / skill_name
-            if not src.is_dir():
-                continue
-            dst.symlink_to(os.path.relpath(src, dst.parent))
+        links = relink_hermes_skills(self.target, self.config, self.skills)
+        if links:
+            self.notes.append(f"hermes skill links: {', '.join(links)}")
 
     # -- dependency checking ---------------------------------------------------------
     def _check_dependencies(self) -> Dict[str, Any]:
@@ -374,6 +457,9 @@ class Scaffolder(
         if result["errors"]:
             for err in result["errors"]:
                 self.notes.append(f"dependency error: {err}")
+        if result["hints"]:
+            for hint in result["hints"]:
+                self.notes.append(f"optional dependency: {hint}")
         # Report venv python path for MCP server commands
         venv_python = dc_lib.get_venv_python(self.target)
         if venv_python:

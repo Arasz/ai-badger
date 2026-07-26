@@ -4,7 +4,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Pure-stdlib Pyt
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github
-> Scaffolded by ai-badger 0.15.1. Source of truth for this file: `.ai-badger/HERMES.md`.
+> Scaffolded by ai-badger 0.18.1. Source of truth for this file: `.ai-badger/HERMES.md`.
 
 ## Non-negotiable invariants
 
@@ -47,10 +47,8 @@ Write a failing, behavior-focused test before any production code change. No pro
 
 Every release — no matter how small — must:
 1. Bump `VERSION` (semver patch for fixes, minor for features, major for breaking changes)
-2. Run `python3 scripts/version_sync.py` to propagate the version into plugin.json, marketplace.json, and index.json
-3. Run `python3 scripts/index_build.py` to rebuild index.json if any feature files changed
-4. Add a `docs/changelog/{version}-{slug}.md` entry describing what changed
-5. Update `docs/changelog/README.md` if adding a new changelog format convention
+2. Add a `docs/changelog/{version}-{slug}.md` entry describing what changed
+3. Update `docs/changelog/README.md` if adding a new changelog format convention
 
 This ensures every change is traceable and users can see what changed between versions.
 
@@ -127,6 +125,8 @@ Entry points: `semantic_search_nodes_tool` to locate code, `query_graph_tool` to
 callers/callees/imports/tests, `detect_changes_tool` for review, `get_impact_radius_tool`
 for blast radius, `get_architecture_overview_tool` for structure. Each tool's own
 description covers the rest; the graph auto-updates on file change.
+
+
 
 ## Framework
 
