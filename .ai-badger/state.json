@@ -1,7 +1,13 @@
 {
-  "lastUpdated": "2026-07-26T11:00:00Z",
+  "lastUpdated": "2026-07-26T09:25:37.955033+00:00",
   "next": null,
   "completedTasks": [
+    {
+      "id": "mcp-servers-feature",
+      "title": "MCP server declarations per stack feature",
+      "summary": "Added mcp-servers.json per stack for declaring recommended MCP servers. Scaffold collects, merges (externalTools > stack > common), and writes to agent-specific configs: .mcp.json (Claude/Hermes/Junie), ~/.hermes/config.yaml (Hermes user-scoped), ~/.claude/settings.json (Claude user-scoped), .github/copilot/mcp-config.json (Copilot). 48 new tests, 590 total passing.",
+      "completedAt": "2026-07-26T09:25:37.954922+00:00"
+    },
     {
       "id": "den-stack-detection",
       "title": "detect new stacks after initial scaffold",
