@@ -221,3 +221,39 @@ def test_pristine_scaffold_produces_zero_candidates(tmp_path, load_script, root,
     assert rc == 0
     assert out["candidateCount"] == 0
     assert out["candidates"] == []
+
+
+def test_scaffold_retaining_an_extension_is_not_reported_as_changed(
+    tmp_path, load_script, root, capsys
+):
+    """A skill whose config-gated extension survives pruning must still diff clean.
+
+    scaffold.record() and detect_additions must exclude extensions/ from the skill's
+    content hash identically; otherwise every project that keeps an extension reads as
+    permanently 'changed' and feed-badger offers to contribute framework content back.
+    """
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    detect_additions = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
+
+    target = tmp_path / "proj"
+    target.mkdir()
+    config = _minimal_config()
+    config["stacks"] = ["dotnet", "hermes"]
+    config["sourceControl"] = {
+        "platform": "github",
+        "repoUrl": "https://github.com/o/r",
+        "projectUrl": None,
+    }
+    scaffold.Scaffolder(
+        root=root, target=target, config=config, skills=["task"], install=False,
+    ).run(generated_at="2026-07-19T00:00:00Z")
+
+    kept = sorted(
+        p.name for p in (target / ".ai-badger/skills/task/extensions").iterdir() if p.is_dir()
+    )
+    assert kept, "expected at least one extension to survive pruning for this to be a real test"
+
+    rc, out = _run(detect_additions, target, capsys)
+
+    assert rc == 0
+    assert out["candidates"] == []

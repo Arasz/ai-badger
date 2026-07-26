@@ -1,6 +1,6 @@
 # task extension: hermes
 
-This is a **config-gated extension** of the base `task` skill (`skills/task/`), not a standalone skill. It adapts task orchestration patterns for Hermes Agent, replacing Claude-specific delegation models (Fable/Sonnet/Haiku) with Hermes equivalents.
+This is a **config-gated extension** of the base `task` skill (`skills/task/`), not a standalone skill. It adapts task orchestration patterns for Hermes Agent, binding the base skill's delegation roles (planning, implementation, review) to Hermes equivalents — the same job the `claude` extension does for Claude models.
 
 **Activates when:** the project's `.ai-badger/config.json` has `"hermes"` in its `stacks` array.
 
@@ -8,7 +8,7 @@ This is a **config-gated extension** of the base `task` skill (`skills/task/`), 
 
 Hermes uses `delegate_task` for subagent spawning instead of Claude's `/task` model dispatch:
 
-### Plan phase (equivalent: Fable for planning)
+### Plan phase (the base skill's high-reasoning planning role)
 
 Use a subagent with planning context:
 
@@ -22,7 +22,7 @@ delegate_task(
 
 The planner returns a structured plan. Review it for completeness before dispatching implementation.
 
-### Implement phase (equivalent: Sonnet/Haiku for implementation)
+### Implement phase (the base skill's implementation and cheap-mechanical roles)
 
 Dispatch leaf agents for each implementation step:
 
@@ -89,7 +89,7 @@ Same git workflow as the base `task` skill:
 
 ## Notes for the base skill
 
-- The base `task` skill's references to Fable/Sonnet/Haiku are Claude-specific and should be treated as the *purpose* (planning, implementation, review) rather than the *mechanism*. Use Hermes `delegate_task` to achieve the same purpose.
+- The base `task` skill names delegation roles (planning, implementation, cheap mechanical work), not models. Read those as the *purpose* and use Hermes `delegate_task` as the *mechanism*; ignore the `claude` extension's model lanes, which bind the same roles to Claude models.
 - All path-specific instructions, invariants, and commands from `HERMES.md` apply to every subagent — include them in the `context` field when delegating.
 - Hermes subagents have NO memory of the parent conversation — explicitly pass all relevant context.
 
