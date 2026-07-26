@@ -192,9 +192,19 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     drift_result = run_drift(root, manifest, stacks=config.get("stacks", []))
 
-    # 6b. Detect new stacks not in config
+    # 6b. Detect new stacks not in config (respecting stack-ignore.json)
     drift_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/drift.py", root)
-    new_stacks = drift_mod.detect_new_stacks(target, root, config_stacks=config.get("stacks", []))
+    stack_ignore_path = target / ".ai-badger" / "stack-ignore.json"
+    stack_ignore: List[str] = []
+    if stack_ignore_path.exists():
+        try:
+            ignore_data = bl.load_json(stack_ignore_path)
+            stack_ignore = ignore_data.get("ignore", [])
+        except (ValueError, OSError):
+            pass
+    new_stacks = drift_mod.detect_new_stacks(
+        target, root, config_stacks=config.get("stacks", []), ignore=stack_ignore
+    )
 
     has_drift = bool(drift_result.get("changed") or drift_result.get("removed")
                      or drift_result.get("newItems") or new_stacks)

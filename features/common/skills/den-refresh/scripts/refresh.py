@@ -67,7 +67,7 @@ def _load_script(relpath: str, base: Path):
 
 
 _bootstrap_lib()
-import badger_lib as bl
+import badger_lib as bl  # pylint: disable=wrong-import-position
 
 
 def check_breaking_and_backup(root: Path, target: Path) -> Dict[str, Any]:
