@@ -20,9 +20,9 @@ now design constraints, and the plan below will not make sense without them:
    directory still contains leftover symlinks pointing back into `.ai-badger/skills/`. A
    naive walk re-imports ai-badger's own framework skills as "learned" and grows every run.
    (Research C2.)
-3. **Do not assume anything distributes `.ai-badger/skills/` to agents.** Nothing does, for
-   any agent, today. Stage 5 addresses it explicitly; do not silently rely on it. (Research
-   C3.)
+3. **Nothing distributes `.ai-badger/skills/` to any agent today** — #58 removed the only
+   mechanism. Stage 5 reverses #58 to restore it. Until that stage lands, do not assume a
+   synced skill is loadable by anything. (Research C3.)
 4. **Do not build a `~/.hermes/hooks/` handler or edit `~/.hermes/config.yaml`.** The
    mechanism is the Python plugin this repo already ships, which already registers
    `post_tool_call`. (Research C4, C10.)
@@ -79,7 +79,11 @@ build  python3 scripts/index_build.py --check
 | `scripts/validate.py` | register `learned-skills` in `KIND_TO_SCHEMA` |
 | `features/common/skills/feed-badger/scripts/detect_additions.py` | group `learned/**` per skill |
 | `tests/test_detect_additions.py` | Stage 6 additions |
-| `features/common/skills/welcome-ai-badger/scripts/scaffold.py` | fix the incorrect docstring at `symlink_hermes_skills()` (Stage 5) |
+| `features/common/skills/welcome-ai-badger/scripts/scaffold.py` | Stage 5 — restore `symlink_hermes_skills()` (reverse #58), with the no-`rmtree` fix and a corrected docstring |
+| `features/common/skills/den-refresh/scripts/refresh.py` | Stage 5 — re-link on refresh |
+| `tests/test_den_refresh.py` | Stage 5 additions |
+| `docs/adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md` | **new** — Stage 5 |
+| `docs/audit-symlink-hermes-skills.md` | reconcile with the reversal |
 | `docs/changelog/0.18.0-<slug>.md` | **new** |
 | `VERSION`, `plugin.json`, `marketplace.json`, `index.json` | via `version_sync.py` / `index_build.py` |
 
@@ -103,7 +107,6 @@ means "the framework placed this and owns it", which a learned skill is not.
 
 ```json
 {
-  "$schema": "../../../schemas/learned-skills.schema.json",
   "version": 1,
   "skills": [
     {
@@ -124,6 +127,12 @@ means "the framework placed this and owns it", which a learned skill is not.
 - `status` ∈ `synced` | `orphaned` | `conflict`.
 - `sourceHash` uses `badger_lib.dir_content_hash` for consistency with the rest of the
   framework.
+- **No `$schema` key.** A relative `$schema` would dangle — a scaffolded project has no
+  `schemas/` directory. Validation is explicit:
+  `python3 scripts/validate.py --kind learned-skills <file>`.
+- The record carries no `hermesVersion`. Research D6 listed one, but the hook context does
+  not expose a reliable Hermes version, and the schema is `additionalProperties: false`, so
+  adding it later is a deliberate schema change rather than a silent extension.
 
 ### 2.3 `schemas/learned-skills.schema.json`
 
@@ -324,31 +333,96 @@ in the PR description — this is the proof-of-concept the issue asks for.
 
 ---
 
-## 7. Stage 5 — Distribution: close the gap, or state it plainly
+## 7. Stage 5 — Reverse #58: restore Hermes skill discovery
 
-**Goal:** stop `.ai-badger/skills/` from being invisible to every agent (research C3). Without
-this the whole feature has no user-observable effect.
+**Decision (maintainer, 2026-07-26):** reverse #58 for **all** ai-badger skills, not just
+`learned/`. This supersedes the three-option table that previously stood here.
 
-This stage is **the one genuine open decision** in the plan. Do not pick one silently — put
-the options to the maintainer, then implement the chosen one:
+### 7.1 Why the reversal is correct
 
-| Option | Effect | Cost |
-|---|---|---|
-| **A. Project-local copy** — scaffold copies `.ai-badger/skills/**` into `.claude/skills/` (and Copilot's path) | works for Claude Code today | duplicate files, drift on refresh; needs a prune step |
-| **B. Re-enable namespaced Hermes symlinks** for `learned/` only | restores Hermes visibility, no flat-namespace collision (the namespace dir is per-project) | reintroduces user-home writes that #58 deliberately removed |
-| **C. Ship nothing; document the gap** | honest, zero risk | feature has no observable effect until a later release |
+`bafb952` ("fix: remove Hermes user-scoped skill symlinks (#58)") made
+`Scaffolder.symlink_hermes_skills()` a no-op and justified it with this docstring:
 
-Whichever is chosen, **fix the false docstring** at
-`features/common/skills/welcome-ai-badger/scripts/scaffold.py:346-352`, which claims "Hermes
-discovers project skills via the project-local skill directory". Hermes has no such mechanism
-(`agent/skill_utils.py:515-523`). Test:
-`test_symlink_hermes_skills_docstring_does_not_claim_project_local_discovery` is overkill —
-instead assert the behavior chosen above, and correct the prose in the same commit.
+> "Hermes discovers project skills via the project-local skill directory."
 
-**Done when:** the choice is recorded in `docs/adr/` (this is an architecture-level decision,
-per the documentation instructions) and the corresponding tests pass — or, for option C, the
-gap is written into `docs/known-gaps.md` and the changelog says the sync is currently
-storage-only.
+**That statement is false.** Hermes resolves skills from `~/.hermes/skills/` plus
+`skills.external_dirs` and nothing else (`agent/skill_utils.py:432,515-523`). There is no
+project-local discovery mechanism. #58's fix therefore did not fix the reported staleness — it
+removed discovery, silently making every scaffolded ai-badger skill invisible to Hermes.
+
+**Symlinks were never the cause of #58.** A relative symlink has no second copy that can go
+stale. The drift #58 reported (`den-refresh/SKILL.md` content differs, `drift.py` content
+differs) can only exist between real files, so it was not produced by the symlink code, which
+wrote `os.path.relpath` symlinks. The removed implementation was already sound: gated on
+`hermes` in `config.agents`, namespaced per project under
+`~/.hermes/skills/<project-name>/` — which is precisely what makes it safe where the rejected
+`external_dirs` flat list was not (research C1).
+
+**Discovery depth is not a constraint.** `iter_skill_index_files` uses
+`os.walk(skills_dir, followlinks=True)` with no depth bound
+(`agent/skill_utils.py:810-832`), so `<namespace>/learned/<category>/<name>/SKILL.md` is
+discovered through the symlink just as `<namespace>/task/SKILL.md` is.
+
+**Consequence for Stages 1–3, and it is not optional.** `followlinks=True` plus a restored
+project symlink means `~/.hermes/skills/<project>/learned/...` resolves back into
+`.ai-badger/skills/learned/`. The Stage-1 containment gates (`is_syncable`) become
+load-bearing: without them, `--reconcile` re-imports already-synced learned skills into
+themselves, and framework skills round-trip in as "learned". Re-verify AC9 after this stage.
+
+### 7.2 Tests first — `tests/test_scaffold.py`
+
+The three tests `bafb952` inverted (they currently assert that *no* symlinks are created) must
+be inverted back; do not delete them, restore their intent.
+
+| Test | Asserts |
+|---|---|
+| `test_scaffold_creates_hermes_skill_symlinks` | with `Path.home` patched to `tmp_path` and `hermes` in `agents`, each scaffolded skill appears as a symlink under `<home>/.hermes/skills/<project>/` |
+| `test_scaffold_hermes_symlinks_are_relative` | `os.readlink` returns a relative path — no absolute home path baked in |
+| `test_scaffold_skips_hermes_symlinks_without_hermes_agent` | `agents` without `hermes` → namespace dir not created |
+| `test_scaffold_preserves_foreign_dirs_in_namespace` | **the data-loss guard**: a real (non-symlink) directory in the namespace survives a re-scaffold untouched |
+| `test_scaffold_removes_stale_managed_symlinks` | a symlink for a skill no longer in `config.skills` is unlinked on re-scaffold |
+| `test_scaffold_replaces_broken_symlink` | a dangling symlink is relinked, not left broken |
+| `test_scaffold_symlinks_learned_skills_dir` | `learned/` is reachable through the namespace (one symlink for the `learned` tree is sufficient given unbounded `os.walk`) |
+
+And in `tests/test_den_refresh.py`:
+
+| Test | Asserts |
+|---|---|
+| `test_refresh_relinks_hermes_skills` | after a refresh that adds a skill, the namespace has a symlink for it; after one that removes a skill, the stale symlink is gone |
+
+### 7.3 Then implement
+
+Restore `symlink_hermes_skills()` from `bafb952^` with **two mandatory changes**:
+
+1. **Never `rmtree` the namespace directory.** The old code did
+   `shutil.rmtree(namespace_dir)` when it existed as a real dir. `~/.hermes/skills/ai-badger/`
+   currently contains `agent-skill-discovery/` — a real, Hermes-authored skill — proving the
+   namespace accumulates content ai-badger did not place. Rebuild by unlinking **only entries
+   that are symlinks whose target resolves inside this project's `.ai-badger/skills/`**, then
+   re-linking. Anything else is left exactly as found. Losing a user's learned skill to a
+   re-scaffold is unacceptable.
+2. **Correct the docstring.** State what is true: Hermes discovers skills from
+   `~/.hermes/skills/` and `skills.external_dirs` only; the per-project namespace directory
+   avoids the cross-project name collisions that made `external_dirs` unusable.
+
+Then wire the same call into `den-refresh` so a refresh re-links (this is #58's legitimate
+half — its own option (b)).
+
+### 7.4 Paper trail
+
+- **ADR required** — this reverses a shipped decision. Add
+  `docs/adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md` covering: what #58
+  reported, why its chosen fix was based on a false premise, why symlinks are immune to the
+  drift it described, the `rmtree` data-loss hazard found in the original implementation, and
+  the rejected alternatives (`external_dirs`, project-local copies).
+- **Reopen #58** (or file a follow-up referencing it) noting that the staleness it reported is
+  addressed by symlinks-plus-relink rather than by removing discovery.
+- Update `docs/audit-symlink-hermes-skills.md`, whose recommendation ("keep
+  `symlink_hermes_skills()` as-is") was overtaken by `bafb952` and is now correct again for a
+  different reason.
+
+**Done when:** the Stage-5 tests pass, the ADR is written, `hermes skills list` in this repo
+shows the ai-badger skills again, and AC9 has been re-verified against the restored symlinks.
 
 ---
 
@@ -388,7 +462,10 @@ each green on its own:
 |---|---|---|
 | **PR 1** | 1–3 | `learned_skills_sync.py` + schema + `validate.py` registration + `--reconcile` CLI. Pure logic, no wiring. Nothing fires yet. |
 | **PR 2** | 4 | hook branch + scaffold plugin install. The feature becomes live; PR description carries the proof-of-concept transcript. |
-| **PR 3** | 5–6 | distribution decision (+ADR) and feed-badger grouping. |
+| **PR 3** | 5–6 | reversal of #58 (+ADR 0003) and feed-badger grouping. |
+
+PR 3's Stage 5 is a behavior reversal of a shipped decision, not an addition — it deserves its
+own review attention and its own changelog line, separate from the sync feature.
 
 Open each as a draft from the first commit. Bump `VERSION` once, in PR 1 (0.18.0), and add
 one changelog entry per PR under `docs/changelog/`.
@@ -455,9 +532,22 @@ Every box must be independently checkable by a reviewer; "passes tests" alone is
       named for the skill, carrying `origin: "hermes-learned"`.
 - [ ] **AC15** Existing `detect_additions` behavior for non-learned files is unchanged — the
       pre-existing tests pass without modification.
-- [ ] **AC16** The Stage-5 distribution decision is recorded: either an ADR under `docs/adr/`
-      plus working distribution, or an entry in `docs/known-gaps.md` plus a changelog line
-      stating the sync is storage-only for now.
+- [ ] **AC16** `hermes skills list` run in a scaffolded project shows that project's
+      ai-badger skills again, resolved through `~/.hermes/skills/<project>/`. Capture the
+      output in the PR.
+- [ ] **AC16a** Every created link is a **relative** symlink (`os.readlink` returns no
+      absolute path), and none is created when `hermes` is absent from `config.agents`.
+- [ ] **AC16b** **No data loss on re-scaffold**: a real (non-symlink) directory placed in
+      `~/.hermes/skills/<project>/` — the `agent-skill-discovery` case — survives a
+      re-scaffold and a den-refresh byte-identical. Only ai-badger-owned symlinks are
+      removed.
+- [ ] **AC16c** `docs/adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md` exists and
+      states why #58's fix was based on a false premise; the false docstring in
+      `scaffold.py` is corrected; `docs/audit-symlink-hermes-skills.md` is reconciled; #58 is
+      reopened or superseded by a referencing follow-up.
+- [ ] **AC16d** With symlinks restored, AC9 is **re-verified**: `--reconcile` over the real
+      corpus still refuses every path that resolves back into `.ai-badger/skills/`, so no
+      learned or framework skill round-trips into itself.
 
 ### Project hygiene
 

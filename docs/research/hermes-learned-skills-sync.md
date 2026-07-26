@@ -296,18 +296,32 @@ the plugin was not installed. Blanket auto-import of the whole corpus is never t
 metadata area (`skills-data/{common,python,github}/skills.json`), and learned skills arrive
 from the `hermes` stack, so the path fits the existing layout. It must stay **separate from
 `.ai-badger/manifest.json`**: manifest.json means "the framework placed this and owns it",
-which is exactly what a learned skill is not. Records: `name`, `category`, `sourcePath`,
-`sourceHash`, `syncedAt`, `hermesVersion`, `status`.
+which is exactly what a learned skill is not. Records: `name`, `category`, `target`,
+`sourcePath`, `sourceHash`, `syncedAt`, `status`. (An earlier draft of this decision listed
+`hermesVersion`; it was dropped because the hook context exposes no reliable Hermes version.)
 
 **D7 — Open question 3 (hand-authored skills in `.ai-badger/skills/`): not learned.** The
 discriminator is presence in `learned.json`, not heuristics on `author:` frontmatter — which
 [finding 1](#1-where-does-hermes-store-learned-skills--confirmed) shows is unreliable. A
 hand-authored skill is simply a project addition and feed-badger already treats it as one.
 
-**D8 — Distribution to agents is out of scope for the sync, and explicitly sequenced.** Per
-[C3] it is a pre-existing gap affecting all project-scoped skills, not something this feature
-introduced. It gets its own stage in the plan and its own acceptance criteria so the sync does
-not quietly ship as a no-op feature.
+**D8 — Distribution: reverse #58 and restore namespaced Hermes symlinks, for all skills.**
+(Maintainer decision, 2026-07-26.) Per [C3] the gap affects every project-scoped skill, not
+just learned ones, so the fix is scoped the same way. The justification is that `bafb952`'s
+stated rationale — "Hermes discovers project skills via the project-local skill directory" —
+is false: discovery is `~/.hermes/skills/` + `skills.external_dirs` only
+(`agent/skill_utils.py:432,515-523`). #58 reported *staleness between copies*; a relative
+symlink has no second copy to go stale, so the symlink mechanism was never its cause. The
+restoration carries two mandatory corrections: never `rmtree` the namespace directory (the
+original code would have destroyed `agent-skill-discovery`, a real Hermes-authored skill
+living there), and den-refresh must re-link. Requires an ADR — see plan Stage 5.
+
+**D9 — The containment gates become load-bearing.** `iter_skill_index_files` walks with
+`os.walk(..., followlinks=True)` and no depth bound (`agent/skill_utils.py:810-832`). Once D8
+restores the project symlink, `~/.hermes/skills/<project>/learned/...` resolves back into
+`.ai-badger/skills/learned/`, so the [C2] loop is live rather than hypothetical. The Stage-1
+`is_syncable` gates are the only thing preventing learned skills from re-importing themselves
+and framework skills from round-tripping in as learned.
 
 ---
 
