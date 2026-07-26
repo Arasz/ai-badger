@@ -392,17 +392,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     summary = reconcile(project, Path(args.skills_root),
                         now=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                         dry_run=args.dry_run)
-    safe_summary: Dict[str, Any] = dict(summary)
-    safe_details = []
-    for detail in summary.get("details", []):
-        if isinstance(detail, dict):
-            clean_detail = dict(detail)
-            clean_detail.pop("secretFindings", None)
-            safe_details.append(clean_detail)
-        else:
-            safe_details.append(detail)
-    safe_summary["details"] = safe_details
-    print(json.dumps(safe_summary, indent=2, sort_keys=True))
+    print(json.dumps(summary, indent=2, sort_keys=True))
     return 0
 
 
