@@ -1,0 +1,8 @@
+{
+  "servers": [
+    {
+      "name": "baseline",
+      "command": "echo baseline"
+    }
+  ]
+}

@@ -7,7 +7,8 @@ Each version gets its own file: `{version}-{slug}.md`.
 
 ```
 docs/changelog/
-  0.12.0-new-stack-detection.md             # Latest
+  0.13.0-stack-mcp-declarations.md         # Latest
+  0.12.0-new-stack-detection.md
   0.11.1-mcp-index-text-parsing.md
   0.11.0-external-mcp-tools.md
   0.10.2-known-gaps-cleanup.md

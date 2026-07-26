@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/support.schema.json",
   "description": "Agent capability matrix: what each agent supports and what ai-badger scaffolds for it.",
-  "lastUpdated": "2026-07-24",
+  "lastUpdated": "2026-07-26",
   "agents": {
     "claude": {
       "name": "Claude Code",
@@ -54,8 +54,9 @@
         },
         "mcpServers": {
           "supported": true,
-          "mechanism": ".claude/settings.json mcpServers",
-          "aiBadgerSupport": false
+          "mechanism": ".mcp.json (project-scoped) + ~/.claude/settings.json (user-scoped)",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "scaffold.py _generate_mcp_json() + _scaffold_claude_mcp_user()"
         },
         "cacheAwareDispatch": {
           "supported": true,
@@ -119,8 +120,9 @@
         },
         "mcpServers": {
           "supported": true,
-          "mechanism": "~/.hermes/config.yaml mcp",
-          "aiBadgerSupport": false
+          "mechanism": ".mcp.json (project-scoped) + ~/.hermes/config.yaml (user-scoped)",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "scaffold.py _generate_mcp_json() + _scaffold_hermes_mcp_user()"
         },
         "cacheAwareDispatch": {
           "supported": true,
@@ -165,7 +167,20 @@
           "supported": true,
           "mechanism": ".github/hooks/*.json — events: sessionStart, sessionEnd, preToolUse, postToolUse, userPromptSubmitted, agentStop, subagentStop, errorOccurred",
           "configPath": ".github/hooks/",
-          "format": { "version": 1, "hooks": { "<event>": [{ "type": "command", "bash": "...", "powershell": "...", "cwd": ".", "timeoutSec": 10 }] } },
+          "format": {
+            "version": 1,
+            "hooks": {
+              "<event>": [
+                {
+                  "type": "command",
+                  "bash": "...",
+                  "powershell": "...",
+                  "cwd": ".",
+                  "timeoutSec": 10
+                }
+              ]
+            }
+          },
           "aiBadgerSupport": true,
           "wiredBy": "copilot/adjustments/adjust_hooks.py"
         },
@@ -188,8 +203,9 @@
         },
         "mcpServers": {
           "supported": true,
-          "mechanism": ".github/copilot/mcp-config.json or custom agent mcp-servers",
-          "aiBadgerSupport": false
+          "mechanism": ".github/copilot/mcp-config.json",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "scaffold.py _generate_copilot_mcp_config()"
         },
         "cacheAwareDispatch": {
           "supported": false,
@@ -250,8 +266,9 @@
         },
         "mcpServers": {
           "supported": true,
-          "mechanism": "JetBrains MCP config",
-          "aiBadgerSupport": false
+          "mechanism": ".mcp.json (project-scoped, JetBrains 2024.2+)",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "scaffold.py _generate_mcp_json() (shared with Claude)"
         },
         "cacheAwareDispatch": {
           "supported": false,
