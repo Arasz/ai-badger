@@ -76,6 +76,39 @@
       "type": "object",
       "additionalProperties": { "type": "string" }
     },
+    "externalTools": {
+      "type": "array",
+      "description": "External MCP tools (e.g. code-review-graph) whose instructions are injected into CLAUDE.md/HERMES.md during scaffold.",
+      "items": {
+        "type": "object",
+        "required": ["name", "package", "command", "instructions"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Tool identifier (e.g. 'code-review-graph')."
+          },
+          "package": {
+            "type": "string",
+            "description": "PyPI/npm package name for install reference."
+          },
+          "command": {
+            "type": "string",
+            "description": "MCP server launch command (e.g. 'uvx code-review-graph serve')."
+          },
+          "instructions": {
+            "type": "string",
+            "description": "Markdown block injected into agent instruction files (CLAUDE.md, HERMES.md)."
+          },
+          "generate_mcp_json": {
+            "type": "boolean",
+            "default": false,
+            "description": "When true, scaffold generates .mcp.json entry for this tool."
+          }
+        }
+      }
+    },
     "mcpToolIndex": {
       "type": "object",
       "description": "MCP tool index configuration. When enabled, the mcp-index skill and ai_badger_hooks plugin use index-based tool recommendations.",

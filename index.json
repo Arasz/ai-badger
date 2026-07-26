@@ -100,6 +100,10 @@
     "common": {
       "skills": [
         {
+          "name": "code-review-checklist",
+          "path": "features/common/skills/code-review-checklist"
+        },
+        {
           "name": "den-refresh",
           "path": "features/common/skills/den-refresh"
         },

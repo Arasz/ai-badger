@@ -7,7 +7,8 @@ Each version gets its own file: `{version}-{slug}.md`.
 
 ```
 docs/changelog/
-  0.10.2-known-gaps-cleanup.md          # Latest
+  0.11.0-external-mcp-tools.md            # Latest
+  0.10.2-known-gaps-cleanup.md
   0.10.1-config-gated-inline-extensions.md
   0.10.0-dir-hash-drift-detection.md
   0.9.3-commit-drift-detection.md
