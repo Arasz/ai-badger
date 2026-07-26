@@ -10,6 +10,16 @@
           "ecosystem": "python",
           "package": "code-review-graph",
           "venv": true
+        },
+        {
+          "name": "code-review-graph-embeddings",
+          "ecosystem": "python",
+          "package": "code-review-graph",
+          "extras": "[embeddings]",
+          "importName": "sentence_transformers",
+          "venv": true,
+          "optional": true,
+          "note": "Enables real local vector search for semantic_search_nodes_tool. Installs sentence-transformers + torch (~2 GB) and may lack prebuilt wheels on very new Python versions (e.g. 3.14) — not installed automatically for that reason."
         }
       ]
     }

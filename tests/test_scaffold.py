@@ -6,7 +6,9 @@ GitHub extension embed gate.
 """
 from __future__ import annotations
 
+import importlib
 import json
+from unittest.mock import patch
 
 
 def _config(stacks=None, source_control=None, commands=None, agents=None) -> dict:
@@ -1063,6 +1065,29 @@ def test_collect_external_tools_reads_common_catalog(tmp_path, load_script, root
     tools = scaf._collect_external_tools()
     names = [t["name"] for t in tools]
     assert "code-review-graph" in names
+
+
+def test_check_dependencies_surfaces_optional_hints_as_notes(tmp_path, load_script, root):
+    """Optional-dependency hints (e.g. code-review-graph[embeddings]) must reach scaffold notes
+    so the user is told about silently-degraded semantic search, not left to discover it later."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    dependency_check = importlib.import_module("dependency_check")
+
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    hint = "code-review-graph-embeddings: not installed. Install with: /venv/bin/python3 -m pip install ..."
+
+    def fake_run_dependency_check(root_, target_, features=None):
+        return {"installed": [], "already_present": [], "errors": [], "hints": [hint]}
+
+    with patch.object(dependency_check, "run_dependency_check", side_effect=fake_run_dependency_check), \
+         patch.object(dependency_check, "get_venv_python", return_value=None):
+        scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
+                                    skills=["code-review-graph"], install=False)
+        scaf._check_dependencies()
+
+    assert any(hint in n for n in scaf.notes)
 
 
 def test_merge_external_tools_user_overrides_catalog(load_script):

@@ -378,6 +378,9 @@ class Scaffolder(
         if result["errors"]:
             for err in result["errors"]:
                 self.notes.append(f"dependency error: {err}")
+        if result["hints"]:
+            for hint in result["hints"]:
+                self.notes.append(f"optional dependency: {hint}")
         # Report venv python path for MCP server commands
         venv_python = dc_lib.get_venv_python(self.target)
         if venv_python:
