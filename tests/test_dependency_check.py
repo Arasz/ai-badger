@@ -57,7 +57,7 @@ def dep_target(tmp_path):
 def test_missing_file(load_script, tmp_path):
     dc = load_script(SCRIPT)
     result = dc.run_dependency_check(tmp_path, tmp_path)
-    assert result == {"installed": [], "already_present": [], "errors": []}
+    assert result == {"installed": [], "already_present": [], "errors": [], "hints": []}
 
 
 def test_venv_created_for_python_dep(load_script, dep_root, dep_target):
@@ -206,3 +206,145 @@ def test_cli_main(load_script, dep_root, dep_target, capsys):
     json_start = out_text.index("{")
     out = json.loads(out_text[json_start:])
     assert "installed" in out
+
+
+# --- optional dependencies (e.g. code-review-graph[embeddings]) ---
+
+
+@pytest.fixture
+def dep_root_optional(tmp_path):
+    """Fake framework root with a required dep plus an optional one."""
+    deps = {
+        "dependencies": [
+            {
+                "feature": "code-review-graph",
+                "path": "features/common/skills/code-review-graph",
+                "dependencies": [
+                    {
+                        "name": "code-review-graph",
+                        "ecosystem": "python",
+                        "package": "code-review-graph",
+                        "venv": True,
+                    },
+                    {
+                        "name": "code-review-graph-embeddings",
+                        "ecosystem": "python",
+                        "package": "code-review-graph",
+                        "extras": "[embeddings]",
+                        "importName": "sentence_transformers",
+                        "venv": True,
+                        "optional": True,
+                        "note": "Installs sentence-transformers + torch (~2 GB); may lack "
+                                 "prebuilt wheels on very new Python versions.",
+                    },
+                ],
+            }
+        ]
+    }
+    (tmp_path / "features" / "common").mkdir(parents=True)
+    (tmp_path / "features" / "common" / "dependencies.json").write_text(
+        json.dumps(deps), encoding="utf-8"
+    )
+    return tmp_path
+
+
+def _fake_run_optional_missing(cmd, **kw):
+    """subprocess.run stub: code-review-graph import succeeds, sentence_transformers fails."""
+    if cmd[0] == "uv" and cmd[1] == "--version":
+        raise FileNotFoundError("uv not found")
+    if "-c" in cmd:
+        code = cmd[cmd.index("-c") + 1]
+        if "sentence_transformers" in code:
+            return MagicMock(returncode=1, stdout="", stderr="ModuleNotFoundError")
+        if "code_review_graph" in code:
+            return MagicMock(returncode=0, stdout="", stderr="")
+    return MagicMock(returncode=0, stdout="", stderr="")
+
+
+def _fake_run_optional_present(cmd, **kw):
+    """subprocess.run stub: both code-review-graph and sentence_transformers import fine."""
+    if cmd[0] == "uv" and cmd[1] == "--version":
+        raise FileNotFoundError("uv not found")
+    if "-c" in cmd:
+        return MagicMock(returncode=0, stdout="", stderr="")
+    return MagicMock(returncode=0, stdout="", stderr="")
+
+
+def test_optional_dependency_not_auto_installed(load_script, dep_root_optional, dep_target):
+    """Optional deps must never be pip-installed automatically (that's the ~2GB torch trap)."""
+    dc = load_script(SCRIPT)
+    dep_target.mkdir(parents=True)
+    (dep_target / ".venv").mkdir()
+    with patch("subprocess.run", side_effect=_fake_run_optional_missing) as mock_run:
+        dc.run_dependency_check(dep_root_optional, dep_target, features=["code-review-graph"])
+        for call in mock_run.call_args_list:
+            cmd = call.args[0]
+            if isinstance(cmd, list) and "install" in cmd:
+                assert "[embeddings]" not in " ".join(cmd)
+
+
+def test_optional_dependency_missing_yields_hint_not_error(load_script, dep_root_optional, dep_target):
+    dc = load_script(SCRIPT)
+    dep_target.mkdir(parents=True)
+    (dep_target / ".venv").mkdir()
+    with patch("subprocess.run", side_effect=_fake_run_optional_missing):
+        result = dc.run_dependency_check(dep_root_optional, dep_target, features=["code-review-graph"])
+    assert result["errors"] == []
+    assert "code-review-graph" not in result["already_present"]
+    assert len(result["hints"]) == 1
+    hint = result["hints"][0]
+    assert "pip install" in hint
+    assert "[embeddings]" in hint
+    assert "sentence-transformers" in hint.lower() or "torch" in hint.lower()
+
+
+def test_optional_dependency_hint_names_exact_interpreter(load_script, dep_root_optional, dep_target):
+    """The hint must name a concrete interpreter path, not a bare 'python'/'pip'."""
+    dc = load_script(SCRIPT)
+    dep_target.mkdir(parents=True)
+    (dep_target / ".venv").mkdir()
+    with patch("subprocess.run", side_effect=_fake_run_optional_missing):
+        result = dc.run_dependency_check(dep_root_optional, dep_target, features=["code-review-graph"])
+    hint = result["hints"][0]
+    venv_python = str(dep_target / ".venv" / "bin" / "python3")
+    assert venv_python in hint
+    assert hint.strip() != "pip install sentence-transformers"
+
+
+def test_optional_dependency_present_is_not_reinstalled_and_has_no_hint(
+    load_script, dep_root_optional, dep_target
+):
+    dc = load_script(SCRIPT)
+    dep_target.mkdir(parents=True)
+    (dep_target / ".venv").mkdir()
+    with patch("subprocess.run", side_effect=_fake_run_optional_present):
+        result = dc.run_dependency_check(dep_root_optional, dep_target, features=["code-review-graph"])
+    assert result["hints"] == []
+    assert "code-review-graph" in result["already_present"]
+
+
+def test_optional_dependency_falls_back_to_path_python3_when_no_venv_yet(
+    load_script, dep_root_optional, dep_target
+):
+    """Before the venv exists, the host interpreter is resolved from PATH."""
+    dc = load_script(SCRIPT)
+    dep_target.mkdir(parents=True)
+
+    def fake_run(cmd, **kw):
+        if cmd[0] == "uv" and cmd[1] == "--version":
+            raise FileNotFoundError("uv not found")
+        if "-c" in cmd:
+            code = cmd[cmd.index("-c") + 1]
+            if "sentence_transformers" in code:
+                return MagicMock(returncode=1, stdout="", stderr="ModuleNotFoundError")
+            if "code_review_graph" in code:
+                return MagicMock(returncode=0, stdout="", stderr="")
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    with patch("subprocess.run", side_effect=fake_run), \
+         patch.object(dc.shutil, "which", return_value="/opt/homebrew/bin/python3"):
+        result = dc.run_dependency_check(
+            dep_root_optional, dep_target, features=["code-review-graph"]
+        )
+    hint = result["hints"][0]
+    assert "/opt/homebrew/bin/python3" in hint

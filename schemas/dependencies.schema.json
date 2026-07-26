@@ -56,6 +56,19 @@
                 "command": {
                   "type": "string",
                   "description": "Custom install command (overrides ecosystem default)."
+                },
+                "optional": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "If true, never auto-installed. Instead detected in the host interpreter and surfaced as an actionable hint when missing."
+                },
+                "importName": {
+                  "type": "string",
+                  "description": "Python import name used to detect presence, when it differs from the pip package name (e.g. 'sentence_transformers' for extras that don't share the base package's import name)."
+                },
+                "note": {
+                  "type": "string",
+                  "description": "Extra caveat appended to the install hint for optional dependencies (cost, compatibility risk, silent-degradation consequence, etc.)."
                 }
               }
             }
