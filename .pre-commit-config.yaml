@@ -1,0 +1,23 @@
+repos:
+  - repo: local
+    hooks:
+      - id: version-sync
+        name: version-sync
+        entry: python3 scripts/version_sync.py --check
+        language: system
+        always_run: true
+        pass_filenames: false
+      - id: index-build
+        name: index-build
+        entry: python3 scripts/index_build.py --check
+        language: system
+        always_run: true
+        pass_filenames: false
+      - id: pylint
+        name: pylint
+        entry: python3 -m pylint
+        language: system
+        types: [python]
+        args:
+          - --rcfile=/dev/null
+          - --disable=C,R

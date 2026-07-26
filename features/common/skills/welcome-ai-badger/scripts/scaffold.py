@@ -358,6 +358,28 @@ class Scaffolder(
                 continue
             dst.symlink_to(os.path.relpath(src, dst.parent))
 
+    # -- dependency checking ---------------------------------------------------------
+    def _check_dependencies(self) -> Dict[str, Any]:
+        """Check and install feature dependencies from dependencies.json.
+
+        Loads the dependency catalog, filters to scaffolded features, creates
+        a Python venv if needed, and installs packages.
+        """
+        import dependency_check as dc_lib
+        result = dc_lib.run_dependency_check(self.root, self.target, features=self.skills)
+        if result["installed"]:
+            self.notes.append(
+                f"installed dependencies: {', '.join(result['installed'])}"
+            )
+        if result["errors"]:
+            for err in result["errors"]:
+                self.notes.append(f"dependency error: {err}")
+        # Report venv python path for MCP server commands
+        venv_python = dc_lib.get_venv_python(self.target)
+        if venv_python:
+            self.notes.append(f"venv python: {venv_python}")
+        return result
+
     # -- adjustments ----------------------------------------------------------------
     def run_adjustments(self) -> None:
         """Run agent-specific adjustments declared in features/<agent>/adjustments/.
@@ -452,6 +474,9 @@ class Scaffolder(
         self.run_adjustments()
         plugin_cmds = self.install_plugins()
 
+        # Check and install feature dependencies
+        dep_result = self._check_dependencies()
+
         # copy the config into place (source of truth for the skills)
         bl.dump_json(self.aib / "config.json", self.config)
 
@@ -478,7 +503,12 @@ class Scaffolder(
             "entries": self.entries,
         }
         bl.dump_json(self.aib / "manifest.json", manifest)
-        return {"manifest": manifest, "pluginCommands": plugin_cmds, "notes": self.notes}
+        return {
+            "manifest": manifest,
+            "pluginCommands": plugin_cmds,
+            "dependencyResult": dep_result,
+            "notes": self.notes,
+        }
 
 
 def main(argv=None) -> int:
