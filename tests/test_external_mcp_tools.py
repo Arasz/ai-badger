@@ -208,3 +208,22 @@ def test_config_schema_rejects_unknown_external_tool_fields():
 # ── Helper for schema tests ───────────────────────────────────────────────────
 
 root_path = pytest.importorskip("pathlib").Path(__file__).resolve().parents[1]
+
+
+def test_catalog_tool_instructions_stay_within_a_line_budget(root):
+    """Injected instructions land verbatim in every agent file — keep them policy, not manuals.
+
+    A tool's own schema already describes it; restating that here costs every session.
+    """
+    catalog = json.loads((root / "features" / "common" / "external-tools.json")
+                         .read_text(encoding="utf-8"))
+    oversized = {}
+    for tool in catalog.get("externalTools", catalog.get("tools", [])):
+        text = tool.get("instructions") or ""
+        lines = len(text.splitlines())
+        if lines > 15:
+            oversized[tool.get("name", "?")] = lines
+    assert not oversized, (
+        f"instruction blocks over the 15-line budget: {oversized}. "
+        "Drop tool tables and workflow lists; keep the when-to-use policy."
+    )

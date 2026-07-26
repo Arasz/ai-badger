@@ -8,42 +8,42 @@ Agent-instruction framework distributed as a Claude Code plugin. Pure-stdlib Pyt
 
 ## Non-negotiable invariants
 
-# Guard clauses over hand-rolled null checks
+### Guard clauses over hand-rolled null checks
 
 Prefer a dedicated guard/throw-helper for argument validation over hand-rolled `x ?? throw ...`
 or ad hoc `if (x == null) throw` blocks — a guard reads as intent, not boilerplate, and keeps
 the exception type/message consistent across the codebase. Use the idiomatic guard utility for
 the language/stack in use, and fail fast at the boundary rather than letting invalid state flow in.
 
-# Minimal comments
+### Minimal comments
 
 Keep doc comments to 1-3 lines stating the contract, not the provenance or rationale — point at an ADR or spec doc for the "why" instead of writing an essay inline. Test doc comments are one sentence or none; the test name and body should carry the intent.
 
-# No hand-rolled crypto or security orchestration
+### No hand-rolled crypto or security orchestration
 
 Never implement security/cryptographic orchestration yourself — key derivation, token signing, session/cookie protection, encryption-at-rest schemes. Delegate to an audited, platform-provided library rather than composing audited primitives into your own protocol, even when the primitives themselves are sound.
 
-# No hardcoded secrets
+### No hardcoded secrets
 
 No credentials, connection strings, API keys, or tokens in tracked files, examples, or fixtures. Read secrets from configuration or environment variables, and keep sample/test values obviously fake.
 
-# One PR per task
+### One PR per task
 
 Every unit of work ends in a pull request; never push directly to the main/trunk branch. One task maps to one PR — don't bundle unrelated work into the same change so review and rollback stay scoped.
 
-# Screaming architecture
+### Screaming architecture
 
 Organize folders and modules by domain/business concept, not by generic technical bucket. A new folder name should tell a reader what the system *does*, not what kind of file lives there — avoid catch-all `Services/`, `Controllers/`, `Utils/` buckets in favor of concept-named ones. A shared technical chassis (logging, DI wiring, cross-cutting middleware) is the one accepted exception.
 
-# Small commits, early draft PR
+### Small commits, early draft PR
 
 Commit one coherent work package at a time and push often. Open a draft PR from the first commit of a unit of work so progress is visible in-flight, rather than surfacing a single large diff at the end.
 
-# TDD is mandatory
+### TDD is mandatory
 
 Write a failing, behavior-focused test before any production code change. No production code without a test that demanded it — implementation follows the test, never the other way around.
 
-# Always bump VERSION and add changelog entry
+### Always bump VERSION and add changelog entry
 
 Every release — no matter how small — must:
 1. Bump `VERSION` (semver patch for fixes, minor for features, major for breaking changes)

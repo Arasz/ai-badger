@@ -114,6 +114,33 @@ def _owns_link(entry: Path, skills_root: Path) -> bool:
     return True
 
 
+def demote_headings(text: str, levels: int = 2) -> str:
+    """Push ATX headings down `levels` so an embedded snippet keeps the host's outline.
+
+    Fenced code is skipped — a `# comment` inside a block is not a heading.
+    """
+    out: List[str] = []
+    fence = ""
+    for line in text.splitlines(keepends=True):
+        stripped = line.lstrip()
+        if fence:
+            if stripped.startswith(fence):
+                fence = ""
+            out.append(line)
+            continue
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            fence = stripped[:3]
+            out.append(line)
+            continue
+        hashes = len(stripped) - len(stripped.lstrip("#"))
+        # An ATX heading needs a space after the hashes; `#5` is an issue reference.
+        if 0 < hashes <= 6 and stripped[hashes:hashes + 1] == " ":
+            out.append("#" * min(hashes + levels, 6) + line[line.index("#") + hashes:])
+        else:
+            out.append(line)
+    return "".join(out)
+
+
 def relink_hermes_skills(target: Path, config: Dict[str, Any],
                          skills: List[str]) -> List[str]:
     """Rebuild ~/.hermes/skills/<project>/ so it links exactly *skills* plus learned/.
@@ -295,7 +322,7 @@ class Scaffolder(
             for item in feature_items(self.index, stack, "invariants"):
                 dest = self.copy_file("invariants", stack, item, self.aib / "invariants")
                 text = dest.read_text(encoding="utf-8").strip()
-                rendered.append(text)
+                rendered.append(demote_headings(text))
         return rendered
 
     def scaffold_skills(self) -> None:

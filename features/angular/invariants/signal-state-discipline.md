@@ -1,4 +1,4 @@
-## Signal state discipline
+# Signal state discipline
 
 Component state lives in **signals**; derived state is `computed()`. Never `mutate` a signal —
 use `set` or `update`, and keep transformations pure. Treat `input()` values as immutable. State
