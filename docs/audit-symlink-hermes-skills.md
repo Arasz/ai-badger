@@ -1,7 +1,11 @@
 # Audit: symlink_hermes_skills() — still needed?
 
 **Date:** 2026-07-26
-**Status:** Research only — no code changes (other agent working on branch)
+**Status:** Superseded then re-confirmed — see [Reconciliation](#reconciliation-2026-07-26) at
+the end. The recommendation below ("keep it as-is") was overridden by `bafb952` (#58), which
+made the function a no-op, and is now correct again — for a different reason and with two
+mandatory changes. Authoritative record:
+[ADR-0003](adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md).
 
 ## Question
 
@@ -83,6 +87,10 @@ The only improvement worth considering: if Hermes adds project-local skill disco
 (e.g., `.hermes/skills/` in the project root), the symlinks could be replaced.
 Until then, they're necessary.
 
+> **"As-is" no longer applies to the implementation** — see
+> [Reconciliation](#reconciliation-2026-07-26). The mechanism is kept; the `rmtree` in the
+> original implementation is not.
+
 ## Files examined
 
 - `features/common/skills/welcome-ai-badger/scripts/scaffold.py:772-800`
@@ -92,3 +100,26 @@ Until then, they're necessary.
 - `~/.hermes/skills/ai-badger/` (8 symlinks confirmed)
 - `tests/test_scaffold.py:336-406` (symlink tests)
 - `schemas/config.schema.json` (skillScope enum)
+
+## Reconciliation (2026-07-26)
+
+This audit's conclusion — "keep `symlink_hermes_skills()` as-is" — was overridden the same day
+by `bafb952` ("fix: remove Hermes user-scoped skill symlinks (#58)"), which made the function a
+no-op on the premise that "Hermes discovers project skills via the project-local skill
+directory." That premise is false: `agent/skill_utils.py` resolves skills from
+`~/.hermes/skills/` plus `skills.external_dirs` and nothing else, exactly as §3 of this audit
+found. The no-op therefore did not fix #58's staleness — it removed discovery.
+
+The audit was right about the mechanism and wrong about one detail: it treated the
+implementation as sound. It was not. The original code called `shutil.rmtree(namespace_dir)`
+when the namespace existed as a real directory, which would have destroyed
+`agent-skill-discovery/` — the Hermes-authored skill this audit's own file list records as
+living there.
+
+**Current state.** The symlinks are restored with two changes: only symlinks resolving into this
+project's `.ai-badger/skills/` are ever removed (no `rmtree`, foreign entries preserved), and
+den-refresh re-links on every refresh so added/removed skills propagate. The alternatives table
+in §"Alternatives considered" above still holds — `external_dirs` collides across projects,
+project-local discovery does not exist in Hermes, and copying is what produced #58 in the first
+place. Rationale and rejected options:
+[ADR-0003](adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md).
