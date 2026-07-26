@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -117,6 +118,70 @@ def get_venv_python(target: Path) -> Optional[str]:
     return str(venv_path / "bin" / "python3")
 
 
+def _module_importable(python: str, module: str) -> bool:
+    """Return True if `import module` succeeds under the given interpreter."""
+    try:
+        result = subprocess.run(
+            [python, "-c", f"import {module}"],
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+def _find_host_python(target: Path) -> Optional[str]:
+    """Find the interpreter that already has code-review-graph installed.
+
+    Checks the project .venv first (dependency_check's own install target),
+    then falls back to whatever `python3` resolves to on PATH — the MCP
+    server command declared for code-review-graph launches via bare
+    `python3`, so PATH resolution is what actually runs at MCP-server time.
+    Returns the first candidate with `code_review_graph` importable, or the
+    first candidate at all if neither has it (best-effort naming for the hint).
+    """
+    candidates: List[str] = []
+    venv_python = get_venv_python(target)
+    if venv_python:
+        candidates.append(venv_python)
+    which_python3 = shutil.which("python3")
+    if which_python3 and which_python3 not in candidates:
+        candidates.append(which_python3)
+
+    for candidate in candidates:
+        if _module_importable(candidate, "code_review_graph"):
+            return candidate
+    return candidates[0] if candidates else None
+
+
+def _check_optional_dependency(dep: Dict[str, Any], target: Path) -> Dict[str, Any]:
+    """Detect an optional dependency's presence; never installs it.
+
+    Returns {"present": True} when importable in the host interpreter, or
+    {"present": False, "hint": "<actionable install hint>"} when missing.
+    """
+    import_name = dep.get("importName", dep["package"].replace("-", "_"))
+    host = _find_host_python(target)
+
+    if host and _module_importable(host, import_name):
+        return {"present": True}
+
+    pkg_spec = f"{dep['package']}{dep.get('extras', '')}"
+    interpreter = host or (
+        "the interpreter that runs your code-review-graph MCP server "
+        "(check the `command` in .mcp.json)"
+    )
+    hint = f"{dep['name']}: not installed. Install with: {interpreter} -m pip install \"{pkg_spec}\""
+    note = dep.get("note")
+    if note:
+        hint += f" — {note}"
+    hint += (
+        " Without it, semantic search silently falls back to keyword "
+        "matching (list_graph_stats_tool will report 0 nodes embedded)."
+    )
+    return {"present": False, "hint": hint}
+
+
 def run_dependency_check(
     root: Path,
     target: Path,
@@ -124,15 +189,20 @@ def run_dependency_check(
 ) -> Dict[str, Any]:
     """Check and install all declared dependencies for the given features.
 
-    Returns {"installed": [...], "already_present": [...], "errors": [...]}.
+    Optional dependencies (`optional: true`) are never auto-installed — they
+    are detected in the host interpreter and surfaced as a hint when missing.
+
+    Returns {"installed": [...], "already_present": [...], "errors": [...], "hints": [...]}.
     """
+    empty_result = {"installed": [], "already_present": [], "errors": [], "hints": []}
     deps = _load_dependencies(root)
     if not deps:
-        return {"installed": [], "already_present": [], "errors": []}
+        return empty_result
 
     installed: List[str] = []
     already_present: List[str] = []
     errors: List[str] = []
+    hints: List[str] = []
 
     # Filter to requested features
     active = [
@@ -140,9 +210,9 @@ def run_dependency_check(
         if features is None or d["feature"] in features
     ]
 
-    # Check which Python deps need venv
+    # Check which required Python deps need venv (optional deps never trigger this)
     needs_venv = any(
-        dep.get("venv") and dep["ecosystem"] == "python"
+        dep.get("venv") and dep["ecosystem"] == "python" and not dep.get("optional")
         for entry in active
         for dep in entry["dependencies"]
     )
@@ -155,6 +225,14 @@ def run_dependency_check(
 
     for entry in active:
         for dep in entry["dependencies"]:
+            if dep.get("optional"):
+                check = _check_optional_dependency(dep, target)
+                if check["present"]:
+                    already_present.append(dep["package"])
+                else:
+                    hints.append(check["hint"])
+                continue
+
             eco = dep["ecosystem"]
             pkg = dep["package"]
 
@@ -177,6 +255,7 @@ def run_dependency_check(
         "installed": installed,
         "already_present": already_present,
         "errors": errors,
+        "hints": hints,
     }
 
 
@@ -211,6 +290,9 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if result["installed"]:
         print(f"installed: {', '.join(result['installed'])}")
+    if result["hints"]:
+        for hint in result["hints"]:
+            print(f"hint: {hint}")
     if result["errors"]:
         for err in result["errors"]:
             print(f"error: {err}", file=sys.stderr)

@@ -333,34 +333,14 @@ class Scaffolder(
 
     # -- Hermes skill discovery ---------------------------------------------------
     def symlink_hermes_skills(self) -> None:
-        """Symlink project skills into ~/.hermes/skills/ with project namespace.
+        """No-op: ai-badger skills live only in .ai-badger/skills/ (project scope).
 
-        Each project's skills are namespaced under ~/.hermes/skills/<project-name>/
-        to avoid conflicts when multiple projects have skills with the same name
-        (e.g., 'task'). Hermes discovers skills from ~/.hermes/skills/ (global).
-
-        Does NOT use external_dirs — that's a shared global list that causes
-        skill name conflicts across projects.
+        Hermes discovers project skills via the project-local skill directory.
+        User-scoped copies at ~/.hermes/skills/ are not managed by ai-badger —
+        see issue #58 for the rationale.
         """
-        if "hermes" not in self.config.get("agents", []):
-            return
-        project_name = self.config.get("project", {}).get("name", "unknown")
-        global_skills = Path.home() / ".hermes" / "skills"
-        global_skills.mkdir(parents=True, exist_ok=True)
-        namespace_dir = global_skills / project_name
-        if namespace_dir.is_symlink() or namespace_dir.exists():
-            if namespace_dir.is_dir() and not namespace_dir.is_symlink():
-                shutil.rmtree(namespace_dir)
-            else:
-                namespace_dir.unlink()
-        # Create namespace dir and symlink each skill into it
-        namespace_dir.mkdir(parents=True, exist_ok=True)
-        for skill_name in self.skills:
-            src = self.aib / "skills" / skill_name
-            dst = namespace_dir / skill_name
-            if not src.is_dir():
-                continue
-            dst.symlink_to(os.path.relpath(src, dst.parent))
+        # Intentionally empty — skills are project-scoped only.
+        return
 
     # -- dependency checking ---------------------------------------------------------
     def _check_dependencies(self) -> Dict[str, Any]:
@@ -378,6 +358,9 @@ class Scaffolder(
         if result["errors"]:
             for err in result["errors"]:
                 self.notes.append(f"dependency error: {err}")
+        if result["hints"]:
+            for hint in result["hints"]:
+                self.notes.append(f"optional dependency: {hint}")
         # Report venv python path for MCP server commands
         venv_python = dc_lib.get_venv_python(self.target)
         if venv_python:

@@ -6,7 +6,9 @@ GitHub extension embed gate.
 """
 from __future__ import annotations
 
+import importlib
 import json
+from unittest.mock import patch
 
 
 def _config(stacks=None, source_control=None, commands=None, agents=None) -> dict:
@@ -334,7 +336,10 @@ def test_scaffold_model_json_seed_once_regression_pin(tmp_path, load_script, roo
 
 # ---------------------------------------------------------------------- hermes skill symlinks
 def test_scaffold_creates_hermes_skill_symlinks(tmp_path, load_script, root):
-    """Scaffolding with hermes agent should symlink skills into ~/.hermes/skills/<project>/."""
+    """Scaffolding with hermes agent does NOT create user-scoped symlinks (#58).
+
+    Skills live only in .ai-badger/skills/ (project scope).
+    """
     import unittest.mock
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
@@ -351,18 +356,13 @@ def test_scaffold_creates_hermes_skill_symlinks(tmp_path, load_script, root):
     with unittest.mock.patch("pathlib.Path.home", return_value=hermes_dir):
         scaf.run(generated_at="2026-07-22T00:00:00Z")
 
-    # Skills are namespaced under ~/.hermes/skills/<project-name>/
+    # Skills are project-scoped only — no user-scoped symlinks
     namespace = hermes_dir / ".hermes" / "skills" / "probe"
-    assert namespace.is_dir()
+    assert not namespace.exists()
 
-    task_link = namespace / "task"
-    assert task_link.is_symlink()
-    assert task_link.resolve().is_dir()
-    assert (task_link.resolve() / "SKILL.md").exists()
-
-    pm_link = namespace / "prompt-markers"
-    assert pm_link.is_symlink()
-    assert (pm_link.resolve() / "SKILL.md").exists()
+    # But project-local skills exist
+    assert (target / ".ai-badger" / "skills" / "task" / "SKILL.md").exists()
+    assert (target / ".ai-badger" / "skills" / "prompt-markers" / "SKILL.md").exists()
 
 
 def test_scaffold_no_symlinks_without_hermes_agent(tmp_path, load_script, root):
@@ -387,7 +387,7 @@ def test_scaffold_no_symlinks_without_hermes_agent(tmp_path, load_script, root):
 
 
 def test_rescaffold_recreates_hermes_symlinks(tmp_path, load_script, root):
-    """Re-scaffold should recreate symlinks even if they already exist."""
+    """Re-scaffold does NOT create user-scoped symlinks (#58)."""
     import unittest.mock
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
@@ -403,18 +403,19 @@ def test_rescaffold_recreates_hermes_symlinks(tmp_path, load_script, root):
         )
         scaf.run(generated_at="2026-07-22T00:00:00Z")
 
-        task_link = hermes_dir / ".hermes" / "skills" / "probe" / "task"
-        first_target = task_link.resolve()
-
-        # Re-scaffold — should recreate the symlink
+        # Re-scaffold
         scaf2 = scaffold.Scaffolder(
             root=root, target=target, config=config,
             skills=["task"], install=False,
         )
         scaf2.run(generated_at="2026-07-22T01:00:00Z")
 
-    assert task_link.is_symlink()
-    assert task_link.resolve() == first_target
+    # No user-scoped symlinks
+    namespace = hermes_dir / ".hermes" / "skills" / "probe"
+    assert not namespace.exists()
+
+    # Project-local skills still exist
+    assert (target / ".ai-badger" / "skills" / "task" / "SKILL.md").exists()
 
 
 
@@ -1063,6 +1064,29 @@ def test_collect_external_tools_reads_common_catalog(tmp_path, load_script, root
     tools = scaf._collect_external_tools()
     names = [t["name"] for t in tools]
     assert "code-review-graph" in names
+
+
+def test_check_dependencies_surfaces_optional_hints_as_notes(tmp_path, load_script, root):
+    """Optional-dependency hints (e.g. code-review-graph[embeddings]) must reach scaffold notes
+    so the user is told about silently-degraded semantic search, not left to discover it later."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    dependency_check = importlib.import_module("dependency_check")
+
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    hint = "code-review-graph-embeddings: not installed. Install with: /venv/bin/python3 -m pip install ..."
+
+    def fake_run_dependency_check(root_, target_, features=None):
+        return {"installed": [], "already_present": [], "errors": [], "hints": [hint]}
+
+    with patch.object(dependency_check, "run_dependency_check", side_effect=fake_run_dependency_check), \
+         patch.object(dependency_check, "get_venv_python", return_value=None):
+        scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
+                                    skills=["code-review-graph"], install=False)
+        scaf._check_dependencies()
+
+    assert any(hint in n for n in scaf.notes)
 
 
 def test_merge_external_tools_user_overrides_catalog(load_script):
