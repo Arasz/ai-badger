@@ -1,7 +1,13 @@
 {
-  "lastUpdated": "2026-07-26T10:30:00Z",
+  "lastUpdated": "2026-07-26T11:00:00Z",
   "next": null,
   "completedTasks": [
+    {
+      "id": "den-stack-detection",
+      "title": "detect new stacks after initial scaffold",
+      "summary": "Added detect_new_stacks() to drift.py. Wired into den-refresh as newStacks report field. 4 tests. Fixes gap where new stacks (e.g. hermes) were invisible to den-refresh.",
+      "completedAt": "2026-07-26T11:00:00Z"
+    },
     {
       "id": "crg-integration",
       "title": "code-review-graph integration into ai-badger",
