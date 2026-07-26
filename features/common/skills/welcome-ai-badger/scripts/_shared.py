@@ -1,0 +1,68 @@
+"""Shared constants and utility functions used across scaffold domain modules.
+
+This module exists to break cyclic imports between scaffold.py and its
+domain modules (extensions.py, template_rendering.py, etc.).
+"""
+from __future__ import annotations
+
+import shutil
+from typing import Any, Dict, List
+
+# Test files and eval suites — applied to every copytree to keep framework-only
+# content out of scaffolded repos.
+_test_ignore = shutil.ignore_patterns(
+    "test_*.py", "*_test.py", "tests", "evals", "__pycache__", "*.pyc"
+)
+
+PROJECT_LOCAL_FILE = "project-local.md"
+
+MANAGED_HEADER = (
+    "<!-- Managed by ai-badger. Source of truth: .ai-badger/{name}. "
+    "Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->\n\n"
+)
+
+# Stable leading text every managed copy begins with (the part before the {name} slot).
+_MANAGED_PREFIX = MANAGED_HEADER.split("{name}", 1)[0]
+
+
+def cfg_get(config: Dict[str, Any], dotted: str) -> Any:
+    """Look up a dotted path (e.g. 'project.name') in config, or None if any part is missing."""
+    node: Any = config
+    for part in dotted.split("."):
+        if isinstance(node, dict) and part in node:
+            node = node[part]
+        else:
+            return None
+    return node
+
+
+def _condition_met(config: Dict[str, Any], cond: str) -> bool:
+    """Evaluate a single condition (no OR). Supports ==, =, and presence checks."""
+    if "==" in cond:
+        path, expected = (s.strip() for s in cond.split("==", 1))
+        val = cfg_get(config, path)
+        if isinstance(val, list):
+            return expected in val
+        return str(val) == expected
+    if "=" in cond:
+        path, expected = (s.strip() for s in cond.split("=", 1))
+        val = cfg_get(config, path)
+        if isinstance(val, list):
+            return expected in val
+        return str(val) == expected
+    val = cfg_get(config, cond)
+    return val not in (None, "", [], {})
+
+
+def requirement_met(config: Dict[str, Any], req: str) -> bool:
+    """Evaluate an extension requirement.
+
+    Syntax:
+        'sourceControl.platform==github'  — value equality
+        'stacks=dotnet'                   — value equality; list membership
+        'sourceControl.repoUrl'           — presence check
+        'stacks=dotnet||stacks=node'      — OR: true if any sub-condition is met
+    """
+    if "||" in req:
+        return any(_condition_met(config, c) for c in req.split("||"))
+    return _condition_met(config, req)
