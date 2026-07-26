@@ -6,7 +6,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Pure-stdlib Pyt
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github
-> Scaffolded by ai-badger 0.10.2. Source of truth for this file: `.ai-badger/HERMES.md`.
+> Scaffolded by ai-badger 0.15.1. Source of truth for this file: `.ai-badger/HERMES.md`.
 
 ## Non-negotiable invariants
 
@@ -49,8 +49,10 @@ Write a failing, behavior-focused test before any production code change. No pro
 
 Every release — no matter how small — must:
 1. Bump `VERSION` (semver patch for fixes, minor for features, major for breaking changes)
-2. Add a `docs/changelog/{version}-{slug}.md` entry describing what changed
-3. Update `docs/changelog/README.md` if adding a new changelog format convention
+2. Run `python3 scripts/version_sync.py` to propagate the version into plugin.json, marketplace.json, and index.json
+3. Run `python3 scripts/index_build.py` to rebuild index.json if any feature files changed
+4. Add a `docs/changelog/{version}-{slug}.md` entry describing what changed
+5. Update `docs/changelog/README.md` if adding a new changelog format convention
 
 This ensures every change is traceable and users can see what changed between versions.
 
@@ -153,6 +155,8 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 2. Use `detect_changes_tool` for code review.
 3. Use `get_affected_flows_tool` to understand impact.
 4. Use `query_graph_tool` pattern="tests_for" to check coverage.
+
+
 
 ## Framework
 
