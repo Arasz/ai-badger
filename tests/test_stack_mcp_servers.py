@@ -67,7 +67,7 @@ def test_collect_from_common(tmp_path, load_script, root):
 
     common_dir = root / "features" / "common"
     common_file = common_dir / "mcp-servers.json"
-    had_common = common_file.exists()
+    original = common_file.read_text(encoding="utf-8") if common_file.exists() else None
     try:
         _write_mcp_servers(common_dir, [
             {"name": "baseline", "command": "echo baseline"}
@@ -77,7 +77,9 @@ def test_collect_from_common(tmp_path, load_script, root):
         assert len(result) == 1
         assert result[0]["name"] == "baseline"
     finally:
-        if not had_common and common_file.exists():
+        if original is not None:
+            common_file.write_text(original, encoding="utf-8")
+        elif common_file.exists():
             common_file.unlink()
 
 

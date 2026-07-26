@@ -1,8 +1,4 @@
 {
-  "servers": [
-    {
-      "name": "baseline",
-      "command": "echo baseline"
-    }
-  ]
+  "$schema": "../../../schemas/mcp-servers.schema.json",
+  "servers": []
 }

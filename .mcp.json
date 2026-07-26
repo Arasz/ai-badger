@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "code-review-graph": {
-      "command": "/Users/arasz/RiderProjects/ai-badger/.venv/bin/python3.14",
+      "command": "python3",
       "args": [
         "-m",
         "code_review_graph",

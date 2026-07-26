@@ -140,7 +140,6 @@ def _parse_mcp_list_text(stdout: str) -> list[dict[str, Any]]:
         line = line.strip()
         if not line or line.startswith("MCP Servers") or line.startswith("─") or line.startswith("Name"):
             continue
-        # Columns: Name  Transport  Tools  Status
         parts = line.split()
         if len(parts) >= 4 and ("enabled" in line or "disabled" in line):
             name = parts[0]

@@ -20,6 +20,7 @@ count as drift.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -46,6 +47,26 @@ def _bootstrap_lib() -> None:
 
 _bootstrap_lib()
 import badger_lib as bl  # pylint: disable=wrong-import-position
+
+
+def _load_script(relpath: str, base: Path):
+    """Import an ai-badger script by repo-relative path."""
+    candidates = [base]
+    script_repo = Path(__file__).resolve()
+    for anc in script_repo.parents:
+        if (anc / "scripts" / "badger_lib.py").exists() and (anc / "schemas").is_dir():
+            candidates.append(anc)
+            break
+    for cand in candidates:
+        path = cand / relpath
+        if path.exists():
+            name = "aib_" + path.stem
+            spec = importlib.util.spec_from_file_location(name, path)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[name] = module
+            spec.loader.exec_module(module)
+            return module
+    raise FileNotFoundError(f"could not find {relpath} in {candidates}")
 
 
 def detect_new_items(root: Path, manifest: Dict[str, Any],
@@ -89,6 +110,35 @@ def detect_new_items(root: Path, manifest: Dict[str, Any],
                     })
 
     return sorted(new_items, key=lambda x: (x["stack"], x["feature"], x["name"]))
+
+
+def detect_new_stacks(target: Path, root: Path,
+                      config_stacks: Optional[List[str]] = None) -> List[str]:
+    """Find stacks that have detection signals in the target but are missing from config.
+
+    Reuses detect.py's detection logic against the framework index, then returns
+    only stacks that are in the index but not in the project's current config.
+    """
+    index_path = root / "index.json"
+    if not index_path.exists():
+        return []
+
+    try:
+        index = bl.load_json(index_path)
+    except (ValueError, OSError):
+        return []
+
+    # Load detect.py and run stack detection against the target
+    detect_mod = _load_script(
+        "features/common/skills/welcome-ai-badger/scripts/detect.py", root
+    )
+    detected = detect_mod.detect_stacks(target, index)
+    detected = detect_mod.expand_requires(detected, index)
+
+    # Filter to stacks known by the index but missing from config
+    known = set(index.get("stacks", {}).keys())
+    current = set(config_stacks or [])
+    return [s for s in detected if s in known and s not in current]
 
 
 def compare(root: Path, manifest: Dict[str, Any],

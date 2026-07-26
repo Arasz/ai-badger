@@ -1,9 +1,9 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.10.2",
-  "frameworkCommit": "3c33290f8d0cb180ad7548b024ff9515af1328c3",
+  "frameworkCommit": "bc0e4ada68c71d921240c39dd25b910f278ce933",
   "frameworkDirty": true,
-  "generatedAt": "2026-07-26T10:00:00Z",
+  "generatedAt": null,
   "agents": [
     "claude",
     "copilot",
@@ -154,7 +154,7 @@
       "source": "features/common/skills/den-refresh",
       "target": ".ai-badger/skills/den-refresh",
       "frameworkVersion": "0.10.2",
-      "hash": "f9d722ea056ef93dd15abc9c26a74a88c548c7c9ca0c1b483b8c57cf5fb3482f",
+      "hash": "f2ae90f7478bc869ea83985b759e57d795b471c83bdf4721e8378249aad715c0",
       "dirMeta": {
         "file_count": 2,
         "dir_count": 1
@@ -193,7 +193,7 @@
       "source": "features/common/skills/mcp-index",
       "target": ".ai-badger/skills/mcp-index",
       "frameworkVersion": "0.10.2",
-      "hash": "6ed7c9740e37aa20ef6372626e9731ab6ff15c9bab54542499a4287b9a447cde",
+      "hash": "3f4d960dd7fa925dfdfc9e84bebc8afe859300e6cd8ce95a89f3bed473ef130b",
       "dirMeta": {
         "file_count": 2,
         "dir_count": 1
@@ -232,7 +232,7 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.10.2",
-      "hash": "609608659db8676af1e1daf51b8e1b5439ca83c2888f72d3f794ee0c2c600291",
+      "hash": "ac01e02972be2fac815d99773b0e9cd8aa0a9d722bbeccb77598eded0aa8a62f",
       "dirMeta": {
         "file_count": 4,
         "dir_count": 1
@@ -250,20 +250,11 @@
     {
       "feature": "adjustments",
       "stack": "copilot",
-      "name": "adjustments/.github/skills/auto-wm",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/auto-wm",
-      "frameworkVersion": "0.10.2",
-      "hash": "4945c312a8ec8ac11af5337e1d67e3510c4b268aa9b53bb0a1f9f8446dfb1b98"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
       "name": "adjustments/.github/skills/den-refresh",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/den-refresh",
       "frameworkVersion": "0.10.2",
-      "hash": "f9d722ea056ef93dd15abc9c26a74a88c548c7c9ca0c1b483b8c57cf5fb3482f"
+      "hash": "f2ae90f7478bc869ea83985b759e57d795b471c83bdf4721e8378249aad715c0"
     },
     {
       "feature": "adjustments",
@@ -290,7 +281,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/mcp-index",
       "frameworkVersion": "0.10.2",
-      "hash": "6ed7c9740e37aa20ef6372626e9731ab6ff15c9bab54542499a4287b9a447cde"
+      "hash": "3f4d960dd7fa925dfdfc9e84bebc8afe859300e6cd8ce95a89f3bed473ef130b"
     },
     {
       "feature": "adjustments",
@@ -317,7 +308,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/welcome-ai-badger",
       "frameworkVersion": "0.10.2",
-      "hash": "609608659db8676af1e1daf51b8e1b5439ca83c2888f72d3f794ee0c2c600291"
+      "hash": "ac01e02972be2fac815d99773b0e9cd8aa0a9d722bbeccb77598eded0aa8a62f"
     },
     {
       "feature": "adjustments",
