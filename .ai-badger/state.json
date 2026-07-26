@@ -1,7 +1,13 @@
 {
-  "lastUpdated": "2026-07-26T21:20:00Z",
-  "next": null,
+  "lastUpdated": "2026-07-27T00:25:00Z",
+  "next": "wave-2-shipped-features-must-actually-ship (docs/plans/2026-07-26-remediation-plan.md; WP6 first, WP7 before WP8)",
   "completedTasks": [
+    {
+      "id": "full-project-code-review",
+      "title": "Full-project multi-agent code review + Wave 1 remediation (0.19.0)",
+      "summary": "Ran 8 parallel reviewers (architecture, security, python, ai-agent design, skill engineering, tests, silent failures, docs) over the whole project, then an Opus integrating pass that VERIFIED every Critical against the code rather than trusting it: 23 raw -> 19 distinct -> 7 confirmed, 12 downgraded to Important, 5 sub-claims rejected (incl. security's 'live RCE', correctly latent, and docs' 'nothing shipped since v0.2.0', disproved by plugin.json). Root cause behind four dead features: tests validate synthetic fixtures instead of the real catalog, so install_skills emitting zero install commands and mcp_index_hook targeting a nonexistent script both shipped green. Wave 1 fixed the five destructive Criticals TDD-first: sync_plugin_skills --dry-run rmtree'd before its own guard (wiped all 8 shipped skill dirs); five sites treated an unparseable config as {} then overwrote it, two of them machine-global (~/.claude/settings.json, ~/.hermes/config.yaml); a user-scope Hermes hook exec'd a cwd-derived path the framework never creates (removed, NOT renamed - renaming to the real mcp_index.py would have armed it; guard test parametrized over both names); install_cron could replace the whole crontab when crontab -l failed, and ran by default (now opt-in --cron); the learned-skill secret scanner skipped symlinks while copytree dereferenced them, leaking outside-root file contents into an un-gitignored dir. Also aligned pre-commit's pylint with pyproject on E0401 - the two gates disagreed, arbitrarily failing any small new test file. 691 -> 727 tests. Waves 2-5 planned but deliberately unshipped; hard constraint recorded: the auto-wm denylist (F-12) MUST land before session_start_hook is wired (F-07), or the framework ships a machine that can enable unattended auto-approval of its own tool calls. PR #78.",
+      "completedAt": "2026-07-27T00:25:00Z"
+    },
     {
       "id": "hermes-skills-sync",
       "title": "Hermes learned-skills sync (#67) + reverse #58 + plugin-hook cwd fix (#76)",
