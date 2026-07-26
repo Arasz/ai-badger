@@ -19,5 +19,4 @@ repos:
         language: system
         types: [python]
         args:
-          - --rcfile=/dev/null
           - --disable=C,R
