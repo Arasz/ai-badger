@@ -9,6 +9,8 @@ import pathlib
 import pytest
 
 NOW = "2026-07-26T20:00:00Z"
+# Obviously fake, but shaped like the github-token pattern the scanner recognises.
+FAKE_GITHUB_TOKEN = "ghp_FAKEnotarealtoken" + "0" * 19
 
 
 @pytest.fixture
@@ -46,6 +48,20 @@ def _make_source_skill(skills_root, category, name, body="---\nname: demo\n---\n
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text(body, encoding="utf-8")
     return skill_dir
+
+
+def _make_secret_file(tmp_path, name="credentials"):
+    """A credential-shaped file outside the skills root, i.e. a symlink's payload."""
+    secret = tmp_path / "outside" / name
+    secret.parent.mkdir(exist_ok=True)
+    secret.write_text(f"token={FAKE_GITHUB_TOKEN}\n", encoding="utf-8")
+    return secret
+
+
+def _learned_tree_text(project):
+    learned = project / ".ai-badger" / "skills" / "learned"
+    return "".join(path.read_text(encoding="utf-8", errors="ignore")
+                   for path in sorted(learned.rglob("*")) if path.is_file())
 
 
 # --------------------------------------------------------------------------------------
@@ -93,6 +109,15 @@ def test_is_syncable_rejects_symlinked_skill_dir(tmp_path, sync):
     (namespace / "task").symlink_to(framework, target_is_directory=True)
 
     assert sync.is_syncable(namespace / "task", skills_root) == (False, "symlink")
+
+
+def test_is_syncable_rejects_symlink_pointing_outside_skills_root(tmp_path, sync):
+    """A link inside the skill is as unsyncable as a linked skill dir: the copy follows it."""
+    skills_root = tmp_path / "skills"
+    source = _make_source_skill(skills_root, "apple", "apple-notes")
+    (source / "creds.txt").symlink_to(_make_secret_file(tmp_path))
+
+    assert sync.is_syncable(source, skills_root) == (False, "symlink")
 
 
 def test_is_syncable_rejects_path_escaping_skills_root(tmp_path, sync):
@@ -500,6 +525,79 @@ def test_secret_scan_allows_placeholder_env_reference(tmp_path, sync):
         body="---\nname: demo\n---\napi_key=${OPENAI_API_KEY}\ntoken: $env:FOO\n")
 
     assert sync.scan_for_unsafe_literals(source) == []
+
+
+def test_skill_containing_symlink_is_refused(tmp_path, sync):
+    """The scanner cannot read through a symlink, so the copy must never dereference one."""
+    project = _make_project(tmp_path)
+    skills_root = tmp_path / "skills"
+    source = _make_source_skill(skills_root, "apple", "apple-notes")
+    (source / "creds.txt").symlink_to(_make_secret_file(tmp_path))
+
+    result = sync.sync_skill(project, source, "apple-notes", "apple", now=NOW)
+
+    assert result["action"] == "refused"
+    assert result["reason"] == "symlink"
+    assert FAKE_GITHUB_TOKEN not in _learned_tree_text(project)
+    assert not _learned_json_path(project).exists()
+
+
+def test_symlink_refusal_carries_no_bytes_from_the_symlink_target(tmp_path, sync):
+    """The refusal vocabulary is fixed: neither the target's content nor its path is echoed."""
+    project = _make_project(tmp_path)
+    skills_root = tmp_path / "skills"
+    source = _make_source_skill(skills_root, "apple", "apple-notes")
+    secret = _make_secret_file(tmp_path)
+    (source / "creds.txt").symlink_to(secret)
+
+    result = sync.sync_skill(project, source, "apple-notes", "apple", now=NOW)
+    serialized = json.dumps(result)
+
+    assert result["action"] == "refused"
+    assert FAKE_GITHUB_TOKEN not in serialized
+    assert str(secret) not in serialized
+    assert secret.name not in serialized
+
+
+def test_nested_symlink_inside_a_skill_subdirectory_is_refused(tmp_path, sync):
+    project = _make_project(tmp_path)
+    skills_root = tmp_path / "skills"
+    source = _make_source_skill(skills_root, "apple", "apple-notes")
+    (source / "reference").mkdir()
+    (source / "reference" / "creds.txt").symlink_to(_make_secret_file(tmp_path))
+
+    result = sync.sync_skill(project, source, "apple-notes", "apple", now=NOW)
+
+    assert (result["action"], result["reason"]) == ("refused", "symlink")
+    assert FAKE_GITHUB_TOKEN not in _learned_tree_text(project)
+
+
+def test_symlinked_directory_inside_a_skill_is_refused(tmp_path, sync):
+    project = _make_project(tmp_path)
+    skills_root = tmp_path / "skills"
+    source = _make_source_skill(skills_root, "apple", "apple-notes")
+    secret = _make_secret_file(tmp_path)
+    (source / "vendor").symlink_to(secret.parent, target_is_directory=True)
+
+    result = sync.sync_skill(project, source, "apple-notes", "apple", now=NOW)
+
+    assert (result["action"], result["reason"]) == ("refused", "symlink")
+    assert FAKE_GITHUB_TOKEN not in _learned_tree_text(project)
+
+
+def test_on_skill_manage_never_dereferences_a_symlinked_secret(tmp_path, sync):
+    """The hook path stops at gate 4, so the refusal reads as 'skipped' with the same reason."""
+    project = _make_project(tmp_path)
+    skills_root = tmp_path / "skills"
+    source = _make_source_skill(skills_root, "apple", "apple-notes")
+    (source / "creds.txt").symlink_to(_make_secret_file(tmp_path))
+
+    result = sync.on_skill_manage(
+        {"action": "create", "name": "apple-notes", "category": "apple"},
+        "ok", str(project), skills_root=skills_root, now=NOW)
+
+    assert result == {"action": "skipped", "target": "", "reason": "symlink"}
+    assert FAKE_GITHUB_TOKEN not in _learned_tree_text(project)
 
 
 def _seed_reconcile_root(tmp_path, project):
