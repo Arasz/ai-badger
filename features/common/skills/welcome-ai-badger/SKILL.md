@@ -106,3 +106,69 @@ python3 "$AI_BADGER/skills/den-refresh/scripts/refresh.py" --target . --root "$A
 config.json (no re-detection, no questions), and reports the result. Seed-once
 files (state.json, markers-context.json, model.json) are preserved. Review the
 diff before committing.
+
+## Error Recovery
+
+When any script in the welcome flow (`detect.py`, `validate.py`, `scaffold.py`)
+exits non-zero or emits an error, attempt recovery before surfacing the failure.
+
+1. **Parse the error.** Scripts emit structured JSON with an `error` field and
+   sometimes `validationErrors`. Read both to classify the failure.
+
+2. **Attempt automatic recovery.** Try the applicable fix, then re-run the
+   failed step.
+
+   | Error | Fix |
+   |---|---|
+   | `jsonschema` import error | `python3 -m pip install -r "$AI_BADGER/scripts/requirements.txt"` |
+   | `index.json` missing or stale | `python3 "$AI_BADGER/scripts/index_build.py"` |
+   | `validate.py` reports config errors | Read errors, patch config JSON, re-validate |
+   | `scaffold.py` file-permission / encoding error | Fix the file/permission, retry once |
+   | `detect.py` found no stacks | Check that `$AI_BADGER` points at a valid framework checkout (has `index.json`) |
+   | Agent file write failed (read-only discovery file) | Pass `--overwrite-agent-files` or remove the conflicting file |
+
+   After applying a fix, **re-run the failed step** and continue the flow. If it
+   succeeds, report what was fixed.
+
+3. **Recovery failed — offer to create a GitHub issue.** If all applicable fixes
+   were tried and the step still fails:
+
+   - **Ask the user for permission:** "Recovery failed. Should I create a GitHub
+     issue in `Arasz/ai-badger` with the error details?"
+   - **Gate on `gh` availability.** Only offer if `command -v gh` succeeds and
+     `gh auth status` returns 0. If `gh` is unavailable, print the error details
+     and suggest the user create the issue manually.
+   - **Create the issue** (if approved):
+     ```bash
+     gh issue create \
+       --repo Arasz/ai-badger \
+       --title "bug: welcome-ai-badger failed — <error summary>" \
+       --body "<structured body>" \
+       --label "bug,triage"
+     ```
+   - **Issue body structure:**
+     ```markdown
+     ## welcome-ai-badger failure
+
+     **Failed step:** <detect / validate / scaffold>
+     **Framework version:** <from VERSION file>
+     **OS / Python:** <os> / <python version>
+     **gh version:** <gh --version>
+
+     ### Error output
+     ```json
+     <full JSON error from the script>
+     ```
+
+     ### Recovery attempts
+     1. <what was tried>
+     2. <what was tried>
+
+     ### Project config (sanitized)
+     ```json
+     <config.json with any secrets removed>
+     ```
+     ```
+
+   - **Do not create the issue without explicit user approval.** The user may
+     prefer to debug locally or file the issue themselves.
