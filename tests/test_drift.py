@@ -967,3 +967,40 @@ def test_drift_hashes_target_not_source(tmp_path, load_script):
     result = drift.compare(fw, manifest, target=target)
     # Should NOT report task as changed — the target content hasn't drifted
     assert "features/common/skills/task" not in result["changed"]
+
+
+def test_real_scaffold_with_retained_extensions_has_no_drift(tmp_path, load_script, root):
+    """Round-trip guard: scaffold.record() and drift.compare() must hash alike.
+
+    The other dir-entry tests hand-build their manifest, so they cannot catch the two sides
+    diverging on which directory they hash or which patterns they exclude. This one scaffolds
+    for real with every extension retained, which is the case where a mismatch shows up.
+    """
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+
+    target = tmp_path / "proj"
+    target.mkdir()
+    config = {
+        "frameworkVersion": "0.1.0",
+        "project": {"name": "p", "summary": "s", "domain": "d"},
+        "stacks": ["dotnet", "hermes"],
+        "agents": ["claude"],
+        "sourceControl": {
+            "platform": "github", "repoUrl": "https://github.com/o/r", "projectUrl": None,
+        },
+        "commands": {}, "personaRouting": [], "skillScope": "default", "docs": {},
+    }
+    scaffold.Scaffolder(
+        root=root, target=target, config=config, skills=["task"], install=False,
+    ).run(generated_at="2026-07-19T00:00:00Z")
+
+    kept = sorted(
+        p.name for p in (target / ".ai-badger/skills/task/extensions").iterdir() if p.is_dir()
+    )
+    assert kept, "expected extensions to survive pruning for this to be a real test"
+
+    manifest = json.loads((target / ".ai-badger/manifest.json").read_text())
+    result = drift.compare(root, manifest, target=target)
+
+    assert "features/common/skills/task" not in result["changed"]
