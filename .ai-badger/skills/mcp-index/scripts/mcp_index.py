@@ -133,28 +133,52 @@ def _auto_tags(tool_name: str, server_name: str = "") -> list[str]:
 
 # ── MCP tool discovery ──────────────────────────────────────────────────────
 
+def _parse_mcp_list_text(stdout: str) -> list[dict[str, Any]]:
+    """Parse the text table from 'hermes mcp list' into server dicts."""
+    servers = []
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line or line.startswith("MCP Servers") or line.startswith("─") or line.startswith("Name"):
+            continue
+        # Columns: Name  Transport  Tools  Status
+        parts = line.split()
+        if len(parts) >= 4 and ("enabled" in line or "disabled" in line):
+            name = parts[0]
+            servers.append({"name": name, "tools": []})
+    return servers
+
+
 def _fetch_mcp_tools(from_json: Optional[str] = None) -> list[dict[str, Any]]:
     """Get MCP tool list.
 
     If from_json is provided, parse it directly (for testing).
-    Otherwise, call `hermes mcp list --json`.
+    Otherwise, call `hermes mcp list --json` (falling back to text parsing).
     """
     if from_json is not None:
         data = json.loads(from_json)
         return data.get("servers", [])
 
+    # Try JSON first
     result = subprocess.run(
         ["hermes", "mcp", "list", "--json"],
         capture_output=True, text=True, timeout=30, check=False,
     )
+    if result.returncode == 0:
+        data = json.loads(result.stdout)
+        return data.get("servers", [])
+
+    # Fallback: parse text table
+    result = subprocess.run(
+        ["hermes", "mcp", "list"],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
     if result.returncode != 0:
         print(
-            f"ERROR: hermes mcp list --json failed: {result.stderr}",
+            f"ERROR: hermes mcp list failed: {result.stderr}",
             file=sys.stderr,
         )
         sys.exit(1)
-    data = json.loads(result.stdout)
-    return data.get("servers", [])
+    return _parse_mcp_list_text(result.stdout)
 
 
 # ── Index file operations ────────────────────────────────────────────────────

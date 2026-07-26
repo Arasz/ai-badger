@@ -522,3 +522,46 @@ def test_tag_without_tags(tmp_path, load_script):
     mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["tag", "rider:tool_a", "--target", str(tmp_path)])
     assert rc == 2
+
+
+# ── text parsing fallback ────────────────────────────────────────────────────
+
+def test_parse_mcp_list_text(load_script):
+    """_parse_mcp_list_text extracts server names from hermes mcp list output."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    text = """\
+MCP Servers:
+
+  Name             Transport                      Tools        Status
+  ──────────────── ────────────────────────────── ──────────── ──────────
+  dotnet-sdk       dotnet-mcp                     all          ✓ enabled
+  code-review-graph /Users/foo/.venv/bin/python    all          ✓ enabled
+  llmstudio        http://127.0.0.1:1235          all          ✗ disabled
+"""
+    servers = mod._parse_mcp_list_text(text)
+    names = [s["name"] for s in servers]
+    assert names == ["dotnet-sdk", "code-review-graph", "llmstudio"]
+    # All should have empty tools (text output has no tool detail)
+    assert all(s["tools"] == [] for s in servers)
+
+
+def test_parse_mcp_list_text_empty(load_script):
+    """_parse_mcp_list_text returns empty list for header-only output."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    text = "MCP Servers:\n\n  Name             Transport\n  ──────────────── ─────────\n"
+    assert mod._parse_mcp_list_text(text) == []
+
+
+def test_init_with_from_json(tmp_path, load_script):
+    """init --from-json creates index from provided JSON (bypasses hermes CLI)."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    data = json.dumps({"servers": [
+        {"name": "test-srv", "tools": [
+            {"name": "my_tool", "description": "Does stuff"},
+        ]},
+    ]})
+    rc = mod.main(["init", "--target", str(tmp_path), "--from-json", data])
+    assert rc == 0
+    index = _read_index(tmp_path)
+    assert len(index["sources"]) == 1
+    assert "my_tool" in index["sources"][0]["tools"]
