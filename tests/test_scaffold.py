@@ -336,7 +336,10 @@ def test_scaffold_model_json_seed_once_regression_pin(tmp_path, load_script, roo
 
 # ---------------------------------------------------------------------- hermes skill symlinks
 def test_scaffold_creates_hermes_skill_symlinks(tmp_path, load_script, root):
-    """Scaffolding with hermes agent should symlink skills into ~/.hermes/skills/<project>/."""
+    """Scaffolding with hermes agent does NOT create user-scoped symlinks (#58).
+
+    Skills live only in .ai-badger/skills/ (project scope).
+    """
     import unittest.mock
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
@@ -353,18 +356,13 @@ def test_scaffold_creates_hermes_skill_symlinks(tmp_path, load_script, root):
     with unittest.mock.patch("pathlib.Path.home", return_value=hermes_dir):
         scaf.run(generated_at="2026-07-22T00:00:00Z")
 
-    # Skills are namespaced under ~/.hermes/skills/<project-name>/
+    # Skills are project-scoped only — no user-scoped symlinks
     namespace = hermes_dir / ".hermes" / "skills" / "probe"
-    assert namespace.is_dir()
+    assert not namespace.exists()
 
-    task_link = namespace / "task"
-    assert task_link.is_symlink()
-    assert task_link.resolve().is_dir()
-    assert (task_link.resolve() / "SKILL.md").exists()
-
-    pm_link = namespace / "prompt-markers"
-    assert pm_link.is_symlink()
-    assert (pm_link.resolve() / "SKILL.md").exists()
+    # But project-local skills exist
+    assert (target / ".ai-badger" / "skills" / "task" / "SKILL.md").exists()
+    assert (target / ".ai-badger" / "skills" / "prompt-markers" / "SKILL.md").exists()
 
 
 def test_scaffold_no_symlinks_without_hermes_agent(tmp_path, load_script, root):
@@ -389,7 +387,7 @@ def test_scaffold_no_symlinks_without_hermes_agent(tmp_path, load_script, root):
 
 
 def test_rescaffold_recreates_hermes_symlinks(tmp_path, load_script, root):
-    """Re-scaffold should recreate symlinks even if they already exist."""
+    """Re-scaffold does NOT create user-scoped symlinks (#58)."""
     import unittest.mock
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
@@ -405,18 +403,19 @@ def test_rescaffold_recreates_hermes_symlinks(tmp_path, load_script, root):
         )
         scaf.run(generated_at="2026-07-22T00:00:00Z")
 
-        task_link = hermes_dir / ".hermes" / "skills" / "probe" / "task"
-        first_target = task_link.resolve()
-
-        # Re-scaffold — should recreate the symlink
+        # Re-scaffold
         scaf2 = scaffold.Scaffolder(
             root=root, target=target, config=config,
             skills=["task"], install=False,
         )
         scaf2.run(generated_at="2026-07-22T01:00:00Z")
 
-    assert task_link.is_symlink()
-    assert task_link.resolve() == first_target
+    # No user-scoped symlinks
+    namespace = hermes_dir / ".hermes" / "skills" / "probe"
+    assert not namespace.exists()
+
+    # Project-local skills still exist
+    assert (target / ".ai-badger" / "skills" / "task" / "SKILL.md").exists()
 
 
 
