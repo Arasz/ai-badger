@@ -72,10 +72,10 @@ def sync_skill(src: Path, dest: Path, dry_run: bool) -> int:
     """Sync one skill directory from src to dest. Returns count of files copied."""
     if not src.is_dir():
         return 0
-    if dest.exists():
-        shutil.rmtree(dest)
     if dry_run:
         return 1
+    if dest.exists():
+        shutil.rmtree(dest)
     shutil.copytree(src, dest, ignore=shutil.ignore_patterns(*SKIP_PATTERNS))
     return 1
 
@@ -95,11 +95,10 @@ def main(argv=None) -> int:
             continue
         src = common_base / name
         dest = TARGET / name
-        copied += sync_skill(src, dest, args.dry_run)
-        if not args.dry_run:
-            print(f"  synced: {name}")
-        else:
-            print(f"  would sync: {name}")
+        result = sync_skill(src, dest, args.dry_run)
+        copied += result
+        if result:
+            print(f"  {'would sync' if args.dry_run else 'synced'}: {name}")
 
     # Sync claude-specific skills
     claude_base = ROOT / "features" / "claude" / "skills"
@@ -108,11 +107,10 @@ def main(argv=None) -> int:
             continue
         src = claude_base / name
         dest = TARGET / name
-        copied += sync_skill(src, dest, args.dry_run)
-        if not args.dry_run:
-            print(f"  synced: {name}")
-        else:
-            print(f"  would sync: {name}")
+        result = sync_skill(src, dest, args.dry_run)
+        copied += result
+        if result:
+            print(f"  {'would sync' if args.dry_run else 'synced'}: {name}")
 
     print(f"\n{'Would sync' if args.dry_run else 'Synced'} {copied} skill(s) into {TARGET.relative_to(ROOT)}")
     return 0
