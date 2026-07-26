@@ -88,6 +88,11 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
   config and re-run.
 - **Seed-once files survive.** `state.json`, `markers-context.json`, and
   `model.json` are seed-once and preserved across re-scaffolds.
+- **Stack ignore list.** If `.ai-badger/stack-ignore.json` exists, stacks
+  listed in its `ignore` array are excluded from `newStacks` detection.
+  Use this to suppress false-positive stack detection (e.g. `python`
+  detected because `.mcp.json` references `python3` for a tool dependency).
+  The file is project-owned (manual) and never overwritten by re-scaffold.
 - **Skills with extensions are refreshed.** The script extracts skill names
   from the manifest, so skills like `task` (with `github`/`hermes` extensions)
   are re-scaffolded and their extensions re-embedded.

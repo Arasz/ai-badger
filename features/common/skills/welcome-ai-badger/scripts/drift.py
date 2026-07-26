@@ -113,11 +113,13 @@ def detect_new_items(root: Path, manifest: Dict[str, Any],
 
 
 def detect_new_stacks(target: Path, root: Path,
-                      config_stacks: Optional[List[str]] = None) -> List[str]:
+                      config_stacks: Optional[List[str]] = None,
+                      ignore: Optional[List[str]] = None) -> List[str]:
     """Find stacks that have detection signals in the target but are missing from config.
 
     Reuses detect.py's detection logic against the framework index, then returns
     only stacks that are in the index but not in the project's current config.
+    Stacks in the ignore list are excluded from results.
     """
     index_path = root / "index.json"
     if not index_path.exists():
@@ -138,7 +140,8 @@ def detect_new_stacks(target: Path, root: Path,
     # Filter to stacks known by the index but missing from config
     known = set(index.get("stacks", {}).keys())
     current = set(config_stacks or [])
-    return [s for s in detected if s in known and s not in current]
+    ignored = set(ignore or [])
+    return [s for s in detected if s in known and s not in current and s not in ignored]
 
 
 def compare(root: Path, manifest: Dict[str, Any],
