@@ -67,6 +67,15 @@ def _read_framework_version() -> Optional[str]:
         return None
 
 
+def _project_cwd(cwd: str = "") -> str:
+    """Resolve the project directory for a hook callback.
+
+    Hermes passes no `cwd` to any plugin hook, so the process working directory is the
+    only signal available. See issue #76.
+    """
+    return cwd or os.getcwd()
+
+
 def _read_scaffold_version(cwd: Optional[str]) -> Optional[str]:
     """Read the project's manifest.json frameworkVersion, or None."""
     if not cwd:
@@ -89,7 +98,7 @@ def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
     Silent on match, on an unscaffolded project, and on any read error.
     A hook that breaks session start or nags unconditionally defeats its purpose.
     """
-    scaffold_ver = _read_scaffold_version(cwd)
+    scaffold_ver = _read_scaffold_version(_project_cwd(cwd))
     fw_version = _read_framework_version()
     if not scaffold_ver or not fw_version or scaffold_ver == fw_version:
         return
@@ -223,7 +232,7 @@ def _find_relevant_tools(
 # ---------------------------------------------------------------------------
 
 def pre_llm_inject_context(
-    cwd: str = "", message: str = "", **_kwargs: Any
+    cwd: str = "", message: str = "", user_message: str = "", **_kwargs: Any
 ) -> Optional[Dict[str, str]]:
     """Inject ai-badger framework context into every LLM turn.
 
@@ -238,11 +247,13 @@ def pre_llm_inject_context(
     - MCP tool index recommendations (when .ai-badger/mcp-tools.yaml exists)
     """
     parts: list[str] = []
+    project = _project_cwd(cwd)
+    prompt = message or user_message
 
     # Framework version
     fw_version = _read_framework_version()
     if fw_version:
-        scaffold_ver = _read_scaffold_version(cwd)
+        scaffold_ver = _read_scaffold_version(project)
         if scaffold_ver and scaffold_ver != fw_version:
             parts.append(
                 f"[ai-badger] Scaffolded with {scaffold_ver}, "
@@ -257,10 +268,10 @@ def pre_llm_inject_context(
     )
 
     # MCP tool index recommendations
-    if message and cwd:
-        index = _load_mcp_index(cwd)
+    if prompt:
+        index = _load_mcp_index(project)
         if index:
-            ranked = _find_relevant_tools(message, index, top_n=5)
+            ranked = _find_relevant_tools(prompt, index, top_n=5)
             if ranked:
                 tools_str = ", ".join(
                     f"{name} ({', '.join(tags_for_display(name, index))})"
@@ -372,8 +383,8 @@ def post_tool_observer(tool_name: str = "", result: str = "",
             logger.debug("learned-skill sync failed", exc_info=True)
 
     # Log index hit/miss metrics if the index is available
-    if cwd and tool_name:
-        index = _load_mcp_index(cwd)
+    if tool_name:
+        index = _load_mcp_index(_project_cwd(cwd))
         if index:
             # Check if this tool exists in the index
             sname, _, tname = tool_name.partition(":") if ":" in tool_name else ("", "", tool_name)
