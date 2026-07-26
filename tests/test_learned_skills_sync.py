@@ -426,6 +426,54 @@ def test_secret_scan_refuses_skill_with_api_key_literal(tmp_path, sync):
     assert not _learned_json_path(project).exists()
 
 
+def test_secret_findings_are_structured_and_carry_no_scanned_text(tmp_path, sync):
+    """Findings name the file and the pattern; the matched literal never leaves the scanner."""
+    literal = "sk-FAKE-not-a-real-key-000"
+    skills_root = tmp_path / "skills"
+    source = _make_source_skill(
+        skills_root, "apple", "apple-notes",
+        body=f"---\nname: demo\n---\nRun with {literal} to authenticate.\n")
+
+    findings = sync.scan_for_secrets(source)
+    assert findings == [{"file": "SKILL.md", "pattern": "provider api key"}]
+    assert all(f["pattern"] in sync.SECRET_PATTERN_LABELS for f in findings)
+    assert literal not in json.dumps(findings)
+
+
+def test_refusal_result_never_contains_the_matched_literal(tmp_path, sync):
+    """A refusal is safe to print: no scanned content reaches the result (CodeQL alert 13)."""
+    literal = "sk-FAKE-not-a-real-key-000"
+    project = _make_project(tmp_path)
+    skills_root = tmp_path / "skills"
+    _make_source_skill(
+        skills_root, "apple", "apple-notes",
+        body=f"---\nname: demo\n---\nRun with {literal} to authenticate.\n")
+
+    result = sync.on_skill_manage(
+        {"action": "create", "name": "apple-notes", "category": "apple"},
+        "ok", str(project), skills_root=skills_root, now=NOW)
+
+    assert result["action"] == "refused"
+    assert literal not in json.dumps(result)
+    assert result["secretFindings"] == [{"file": "SKILL.md", "pattern": "provider api key"}]
+
+
+def test_reconcile_detail_reports_which_file_tripped_the_scan(tmp_path, sync):
+    """A refusal must stay actionable: the offending file survives into the summary."""
+    literal = "sk-FAKE-not-a-real-key-000"
+    project = _make_project(tmp_path)
+    skills_root = tmp_path / "skills"
+    _make_source_skill(
+        skills_root, "apple", "apple-notes",
+        body=f"---\nname: demo\n---\nRun with {literal} to authenticate.\n")
+
+    summary = sync.reconcile(project, skills_root, now=NOW, dry_run=True)
+
+    refused = [d for d in summary["details"] if d["action"] == "refused"]
+    assert refused[0]["secretFindings"] == [{"file": "SKILL.md", "pattern": "provider api key"}]
+    assert literal not in json.dumps(summary)
+
+
 def test_secret_scan_allows_placeholder_env_reference(tmp_path, sync):
     skills_root = tmp_path / "skills"
     source = _make_source_skill(

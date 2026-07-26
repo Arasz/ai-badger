@@ -58,6 +58,9 @@ SECRET_PATTERNS = (
                 r"[\"']?[A-Za-z0-9/+=._-]{20,}")),
 )
 SECRET_SCAN_MAX_BYTES = 1_000_000
+# The only vocabulary a finding may report. Keeping it fixed is what makes a finding
+# safe to print: a new pattern contributes a label, never captured text.
+SECRET_PATTERN_LABELS = frozenset(label for label, _ in SECRET_PATTERNS)
 
 
 def target_project(cwd: str) -> Optional[Path]:
@@ -205,8 +208,10 @@ def sync_skill(project: Path, source_dir: Path, name: str, category: Optional[st
     rel_target = f"{LEARNED_REL}/{segment}/{name}"
     secrets = scan_for_secrets(source_dir)
     if secrets:
+        # Fixed reason string; the {file, pattern} findings travel in their own field so
+        # no scanned text can ever be interpolated into printable output.
         return {"action": "refused", "target": rel_target,
-                "reason": "secret literal: " + "; ".join(secrets)}
+                "reason": "secret literal detected", "secretFindings": secrets}
 
     data = load_manifest(project)
     record = _find_record(data, name, segment)
@@ -245,9 +250,14 @@ def sync_skill(project: Path, source_dir: Path, name: str, category: Optional[st
     return {"action": action, "target": rel_target, "reason": ""}
 
 
-def scan_for_secrets(source_dir: Path) -> List[str]:
-    """Report high-confidence secret literals found in a skill directory (guard, not proof)."""
-    findings = []
+def scan_for_secrets(source_dir: Path) -> List[Dict[str, str]]:
+    """Locate high-confidence secret literals in a skill directory (a guard, not a proof).
+
+    Findings are {file, pattern} pairs. `pattern` is always drawn from
+    SECRET_PATTERN_LABELS and scanned text never reaches the return value, so a
+    finding is safe to log or print — see docs/adr, CodeQL py/clear-text-logging.
+    """
+    findings: List[Dict[str, str]] = []
     for path in sorted(source_dir.rglob("*")):
         if not path.is_file() or path.is_symlink():
             continue
@@ -259,8 +269,10 @@ def scan_for_secrets(source_dir: Path) -> List[str]:
             continue
         rel = path.relative_to(source_dir).as_posix()
         for label, pattern in SECRET_PATTERNS:
-            if pattern.search(text):
-                findings.append(f"{rel}: {label}")
+            # bool() pins the match to a boolean: no match object, group, or span can
+            # escape this scope, so no scanned byte can reach a caller.
+            if bool(pattern.search(text)):
+                findings.append({"file": rel, "pattern": label})
     return findings
 
 
@@ -354,8 +366,12 @@ def _record(summary: Dict[str, Any], name: str, category: Optional[str],
     action = result.get("action", "skipped")
     if action in summary:
         summary[action] += 1
-    summary["details"].append({"name": name, "category": category, "action": action,
-                               "reason": result.get("reason", "")})
+    detail = {"name": name, "category": category, "action": action,
+              "reason": result.get("reason", "")}
+    # Safe to carry through: findings are {file, pattern} pairs, never scanned text.
+    if result.get("secretFindings"):
+        detail["secretFindings"] = result["secretFindings"]
+    summary["details"].append(detail)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
