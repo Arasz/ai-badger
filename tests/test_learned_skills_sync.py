@@ -416,7 +416,7 @@ def test_secret_scan_refuses_skill_with_api_key_literal(tmp_path, sync):
         skills_root, "apple", "apple-notes",
         body="---\nname: demo\n---\nRun with sk-FAKE-not-a-real-key-000 to authenticate.\n")
 
-    assert sync.scan_for_secrets(source)
+    assert sync.scan_for_unsafe_literals(source)
     result = sync.on_skill_manage(
         {"action": "create", "name": "apple-notes", "category": "apple"},
         "ok", str(project), skills_root=skills_root, now=NOW)
@@ -434,9 +434,9 @@ def test_secret_findings_are_structured_and_carry_no_scanned_text(tmp_path, sync
         skills_root, "apple", "apple-notes",
         body=f"---\nname: demo\n---\nRun with {literal} to authenticate.\n")
 
-    findings = sync.scan_for_secrets(source)
+    findings = sync.scan_for_unsafe_literals(source)
     assert findings == [{"file": "SKILL.md", "pattern": "provider api key"}]
-    assert all(f["pattern"] in sync.SECRET_PATTERN_LABELS for f in findings)
+    assert all(f["pattern"] in sync.UNSAFE_LITERAL_LABELS for f in findings)
     assert literal not in json.dumps(findings)
 
 
@@ -455,7 +455,7 @@ def test_refusal_result_never_contains_the_matched_literal(tmp_path, sync):
 
     assert result["action"] == "refused"
     assert literal not in json.dumps(result)
-    assert result["secretFindings"] == [{"file": "SKILL.md", "pattern": "provider api key"}]
+    assert result["unsafeLiterals"] == [{"file": "SKILL.md", "pattern": "provider api key"}]
 
 
 def test_reconcile_detail_reports_which_file_tripped_the_scan(tmp_path, sync):
@@ -470,8 +470,27 @@ def test_reconcile_detail_reports_which_file_tripped_the_scan(tmp_path, sync):
     summary = sync.reconcile(project, skills_root, now=NOW, dry_run=True)
 
     refused = [d for d in summary["details"] if d["action"] == "refused"]
-    assert refused[0]["secretFindings"] == [{"file": "SKILL.md", "pattern": "provider api key"}]
+    assert refused[0]["unsafeLiterals"] == [{"file": "SKILL.md", "pattern": "provider api key"}]
     assert literal not in json.dumps(summary)
+
+
+def test_cli_output_names_the_file_that_tripped_the_scan(tmp_path, sync, capsys, monkeypatch):
+    """Guards the CLI path: reconcile() keeping the detail is not enough if main() drops it."""
+    literal = "sk-FAKE-not-a-real-key-000"
+    project = _make_project(tmp_path)
+    skills_root = tmp_path / "skills"
+    _make_source_skill(
+        skills_root, "apple", "apple-notes",
+        body=f"---\nname: demo\n---\nRun with {literal} to authenticate.\n")
+    monkeypatch.chdir(project)
+
+    assert sync.main(["--reconcile", "--target", str(project),
+                      "--skills-root", str(skills_root), "--dry-run"]) == 0
+
+    printed = capsys.readouterr().out
+    assert literal not in printed
+    refused = [d for d in json.loads(printed)["details"] if d["action"] == "refused"]
+    assert refused[0]["unsafeLiterals"] == [{"file": "SKILL.md", "pattern": "provider api key"}]
 
 
 def test_secret_scan_allows_placeholder_env_reference(tmp_path, sync):
@@ -480,7 +499,7 @@ def test_secret_scan_allows_placeholder_env_reference(tmp_path, sync):
         skills_root, "apple", "apple-notes",
         body="---\nname: demo\n---\napi_key=${OPENAI_API_KEY}\ntoken: $env:FOO\n")
 
-    assert sync.scan_for_secrets(source) == []
+    assert sync.scan_for_unsafe_literals(source) == []
 
 
 def _seed_reconcile_root(tmp_path, project):
