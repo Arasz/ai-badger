@@ -10,6 +10,8 @@ import json as _json
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+import config_guard as cg
+
 
 class McpToolsMixin:
     """Mixin providing MCP server and external tool scaffolding methods."""
@@ -129,6 +131,41 @@ class McpToolsMixin:
         parts = command.split()
         return parts[0], parts[1:]
 
+    def _server_entry(self, srv: Dict[str, Any]) -> Dict[str, Any]:
+        """Render one server declaration as an agent config entry."""
+        entry = {}  # type: Dict[str, Any]
+        if "args" in srv:
+            entry["command"] = srv["command"]
+            entry["args"] = srv["args"]
+        else:
+            exe, args = self._parse_command(srv.get("command", ""))
+            entry["command"] = exe
+            if args:
+                entry["args"] = args
+        if "env" in srv:
+            entry["env"] = srv["env"]
+        return entry
+
+    def _merge_mcp_servers_json(
+        self,
+        path: Path,
+        entries: Dict[str, Dict[str, Any]],
+        consequence: str,
+    ) -> bool:
+        """Merge rendered *entries* into the ``mcpServers`` object of the JSON file at *path*.
+
+        Returns False without writing when the existing file is not a readable mapping.
+        """
+        existing, note = cg.read_json_mapping(path)
+        section = cg.mapping_section(existing, "mcpServers") if existing is not None else None
+        if section is None:
+            note = note or cg.refusal(path, "mcpServers is not a mapping")
+            self.notes.append(f"{note} ({consequence})")
+            return False
+        section.update(entries)
+        cg.write_json_with_backup(path, existing)
+        return True
+
     def _scaffold_hermes_mcp_user(
         self, user_servers: Dict[str, Dict[str, Any]]
     ) -> None:
@@ -148,35 +185,20 @@ class McpToolsMixin:
             return
 
         config_path = Path.home() / ".hermes" / "config.yaml"
-        config_path.parent.mkdir(parents=True, exist_ok=True)
+        existing, note = cg.read_mergeable_mapping(
+            config_path, yaml.safe_load, (yaml.YAMLError, ValueError)
+        )
+        section = cg.mapping_section(existing, "mcp", "servers") if existing is not None else None
+        if section is None:
+            note = note or cg.refusal(config_path, "mcp.servers is not a mapping")
+            self.notes.append(f"{note} (hermes user MCP servers not registered)")
+            return
 
-        existing = {}  # type: Dict[str, Any]
-        if config_path.exists():
-            try:
-                existing = yaml.safe_load(
-                    config_path.read_text(encoding="utf-8")
-                ) or {}
-            except (ValueError, OSError):
-                pass
-
-        existing.setdefault("mcp", {}).setdefault("servers", {})
         for name, srv in user_servers.items():
-            entry = {}  # type: Dict[str, Any]
-            if "args" in srv:
-                entry["command"] = srv["command"]
-                entry["args"] = srv["args"]
-            else:
-                exe, args = self._parse_command(srv.get("command", ""))
-                entry["command"] = exe
-                if args:
-                    entry["args"] = args
-            if "env" in srv:
-                entry["env"] = srv["env"]
-            existing["mcp"]["servers"][name] = entry
+            section[name] = self._server_entry(srv)
 
-        config_path.write_text(
-            yaml.safe_dump(existing, default_flow_style=False),
-            encoding="utf-8",
+        cg.write_with_backup(
+            config_path, yaml.safe_dump(existing, default_flow_style=False)
         )
 
     def _scaffold_claude_mcp_user(
@@ -191,36 +213,10 @@ class McpToolsMixin:
         if not user_servers:
             return
 
-        settings_path = Path.home() / ".claude" / "settings.json"
-        settings_path.parent.mkdir(parents=True, exist_ok=True)
-
-        existing = {}  # type: Dict[str, Any]
-        if settings_path.exists():
-            try:
-                existing = _json.loads(
-                    settings_path.read_text(encoding="utf-8")
-                )
-            except (ValueError, OSError):
-                pass
-
-        existing.setdefault("mcpServers", {})
-        for name, srv in user_servers.items():
-            entry = {}  # type: Dict[str, Any]
-            if "args" in srv:
-                entry["command"] = srv["command"]
-                entry["args"] = srv["args"]
-            else:
-                exe, args = self._parse_command(srv.get("command", ""))
-                entry["command"] = exe
-                if args:
-                    entry["args"] = args
-            if "env" in srv:
-                entry["env"] = srv["env"]
-            existing["mcpServers"][name] = entry
-
-        settings_path.write_text(
-            _json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
+        self._merge_mcp_servers_json(
+            Path.home() / ".claude" / "settings.json",
+            {name: self._server_entry(srv) for name, srv in user_servers.items()},
+            "claude user MCP servers not registered",
         )
 
     def _generate_copilot_mcp_config(
@@ -235,36 +231,10 @@ class McpToolsMixin:
         if not servers:
             return
 
-        config_path = self.target / ".github" / "copilot" / "mcp-config.json"
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-
-        existing = {}  # type: Dict[str, Any]
-        if config_path.exists():
-            try:
-                existing = _json.loads(
-                    config_path.read_text(encoding="utf-8")
-                )
-            except (ValueError, OSError):
-                pass
-
-        existing.setdefault("mcpServers", {})
-        for name, srv in servers.items():
-            entry = {}  # type: Dict[str, Any]
-            if "args" in srv:
-                entry["command"] = srv["command"]
-                entry["args"] = srv["args"]
-            else:
-                exe, args = self._parse_command(srv.get("command", ""))
-                entry["command"] = exe
-                if args:
-                    entry["args"] = args
-            if "env" in srv:
-                entry["env"] = srv["env"]
-            existing["mcpServers"][name] = entry
-
-        config_path.write_text(
-            _json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
+        self._merge_mcp_servers_json(
+            self.target / ".github" / "copilot" / "mcp-config.json",
+            {name: self._server_entry(srv) for name, srv in servers.items()},
+            "copilot MCP config not updated",
         )
 
     # -- orchestrate ----------------------------------------------------------------
@@ -330,19 +300,10 @@ class McpToolsMixin:
 
         if not mcp_servers:
             return
-        mcp_json_path = self.target / ".mcp.json"
-        # Merge with existing .mcp.json if present
-        existing = {}  # type: Dict[str, Any]
-        if mcp_json_path.exists():
-            try:
-                existing = _json.loads(mcp_json_path.read_text(encoding="utf-8"))
-            except (ValueError, OSError):
-                pass
-        existing.setdefault("mcpServers", {}).update(mcp_servers)
-        mcp_json_path.write_text(
-            _json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
+        written = self._merge_mcp_servers_json(
+            self.target / ".mcp.json", mcp_servers, ".mcp.json not updated"
         )
-        self.notes.append(
-            f"generated .mcp.json with {len(mcp_servers)} external tool(s)"
-        )
+        if written:
+            self.notes.append(
+                f"generated .mcp.json with {len(mcp_servers)} external tool(s)"
+            )

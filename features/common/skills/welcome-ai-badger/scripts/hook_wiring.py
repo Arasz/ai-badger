@@ -46,6 +46,7 @@ class HookWiringMixin:
         directory, and merges hook registrations into .claude/settings.json.
         """
         import badger_lib as bl
+        import config_guard as cg
 
         if "claude" not in self.config.get("agents", []):
             return
@@ -128,19 +129,16 @@ class HookWiringMixin:
         hooks_dir.mkdir(parents=True, exist_ok=True)
         bl.dump_json(hooks_dir / "hooks.json", target_hooks)
 
-        # Merge into .claude/settings.json
+        # Merge into .claude/settings.json — never over an unreadable file
         settings_path = self.target / ".claude" / "settings.json"
-        settings: Dict[str, Any] = {}
-        if settings_path.exists():
-            try:
-                settings = bl.load_json(settings_path)
-            except (ValueError, OSError):
-                settings = {}
+        settings, note = cg.read_json_mapping(settings_path)
+        if settings is None:
+            self.notes.append(f"{note} (hooks not wired)")
+            return
 
         existing_hooks = settings.get("hooks", {})
         merge_hooks(existing_hooks, settings_hooks)
 
         settings["hooks"] = existing_hooks
-        settings_path.parent.mkdir(parents=True, exist_ok=True)
-        bl.dump_json(settings_path, settings)
+        cg.write_json_with_backup(settings_path, settings)
         self.notes.append(f"wired {len(settings_hooks)} hook(s) into .claude/settings.json")
