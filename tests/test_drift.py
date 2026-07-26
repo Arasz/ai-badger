@@ -917,3 +917,53 @@ def test_detect_new_stacks_respects_ignore_list(tmp_path, load_script):
         target, fw, config_stacks=["python"], ignore=["hermes"]
     )
     assert new_stacks == []
+
+
+def test_drift_hashes_target_not_source(tmp_path, load_script):
+    """Drift should compare the scaffolded target hash, not the framework source hash.
+    This is the core of #60: scaffold records a hash of the target dir (excluding
+    extensions/), so drift must also hash the target — not the source — or any skill
+    with extensions reports false drift.
+    """
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("scripts/badger_lib.py")
+
+    fw = tmp_path / "fw"
+    fw.mkdir()
+
+    # Framework source: skill has an extensions/ dir with github
+    skill_src = fw / "features" / "common" / "skills" / "task"
+    (skill_src / "extensions" / "github").mkdir(parents=True)
+    (skill_src / "scripts").mkdir(parents=True)
+    (skill_src / "SKILL.md").write_text("# task skill\n")
+    (skill_src / "scripts" / "tracker.py").write_text("print('track')\n")
+    (skill_src / "extensions" / "github" / "extension.md").write_text("# GitHub ext\n")
+
+    # Scaffolded target: same skill but WITHOUT extensions (pruned by config)
+    target = tmp_path / "proj"
+    skill_tgt = target / ".ai-badger" / "skills" / "task"
+    (skill_tgt / "scripts").mkdir(parents=True)
+    (skill_tgt / "SKILL.md").write_text("# task skill\n")
+    (skill_tgt / "scripts" / "tracker.py").write_text("print('track')\n")
+
+    # Manifest records hash of the TARGET (matching scaffold.record() behavior)
+    fingerprint = bl.dir_content_hash(
+        skill_tgt, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
+    )
+    manifest = {
+        "frameworkVersion": "0.3.0",
+        "entries": [{
+            "feature": "skills", "stack": "common", "name": "task",
+            "source": "features/common/skills/task",
+            "target": ".ai-badger/skills/task",
+            "hash": fingerprint["content_hash"],
+            "dirMeta": {
+                "file_count": fingerprint["file_count"],
+                "dir_count": fingerprint["dir_count"],
+            },
+        }],
+    }
+
+    result = drift.compare(fw, manifest, target=target)
+    # Should NOT report task as changed — the target content hasn't drifted
+    assert "features/common/skills/task" not in result["changed"]
