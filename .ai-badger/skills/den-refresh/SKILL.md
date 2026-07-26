@@ -105,3 +105,69 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
 - den-refresh delegates to the same `scaffold.py` that `welcome-ai-badger`
   uses — the re-scaffold is identical to an initial scaffold, just driven by
   an existing config.
+
+## Error Recovery
+
+When `refresh.py` exits non-zero or returns JSON with an `error` field, attempt
+recovery before surfacing the failure to the user.
+
+1. **Parse the error.** The script emits structured JSON — read the `error` field
+   and any `validationErrors` array to classify the failure.
+
+2. **Attempt automatic recovery.** Try the applicable fix, then re-run the
+   refresh command from step 1 of the Flow.
+
+   | Error | Fix |
+   |---|---|
+   | `config.json` invalid / `validationErrors` present | Read the errors, patch `config.json`, re-run |
+   | `manifest.json` missing or corrupt | Re-run `welcome-ai-badger` steps 4-5 (validate + scaffold) |
+   | `index.json` missing or stale | `python3 "$AI_BADGER/scripts/index_build.py"` |
+   | `frameworkVersion` mismatch between config and framework | Update `frameworkVersion` in config.json to match `cat "$AI_BADGER/VERSION"` |
+   | Scaffold script raised an exception (file-permission, encoding) | Fix the file/permission issue, retry once |
+   | Python dependency missing (`jsonschema`) | `python3 -m pip install -r "$AI_BADGER/scripts/requirements.txt"` |
+
+   After applying a fix, **re-run the refresh**. If it succeeds, report what was
+   fixed and continue with the normal flow (review diff, commit).
+
+3. **Recovery failed — offer to create a GitHub issue.** If all applicable fixes
+   were tried and the refresh still fails:
+
+   - **Ask the user for permission:** "Recovery failed. Should I create a GitHub
+     issue in `Arasz/ai-badger` with the error details?"
+   - **Gate on `gh` availability.** Only offer if `command -v gh` succeeds and
+     `gh auth status` returns 0. If `gh` is unavailable, print the error details
+     and suggest the user create the issue manually.
+   - **Create the issue** (if approved):
+     ```bash
+     gh issue create \
+       --repo Arasz/ai-badger \
+       --title "bug: den-refresh failed — <error summary>" \
+       --body "<structured body>" \
+       --label "bug,triage"
+     ```
+   - **Issue body structure:**
+     ```markdown
+     ## den-refresh failure
+
+     **Framework version:** <from VERSION file>
+     **Project config version:** <frameworkVersion from config.json>
+     **OS / Python:** <os> / <python version>
+     **gh version:** <gh --version>
+
+     ### Error output
+     ```json
+     <full JSON error from refresh.py>
+     ```
+
+     ### Recovery attempts
+     1. <what was tried>
+     2. <what was tried>
+
+     ### Project config (sanitized)
+     ```json
+     <config.json with any secrets removed>
+     ```
+     ```
+
+   - **Do not create the issue without explicit user approval.** The user may
+     prefer to debug locally or file the issue themselves.

@@ -61,3 +61,67 @@ back to `ai-badger` as a **draft PR** for human review.
   not the framework. Better to under-contribute than to pollute the catalog.
 - **Provenance drives detection.** `feed-badger` only works on repos scaffolded by ai-badger
   (those with `.ai-badger/manifest.json`).
+
+## Error Recovery
+
+When any script in the feed flow (`detect_additions.py`, `open_pr.py`) exits
+non-zero or emits an error, attempt recovery before surfacing the failure.
+
+1. **Parse the error.** Scripts emit structured JSON — read the `error` field to
+   classify the failure.
+
+2. **Attempt automatic recovery.** Try the applicable fix, then re-run the
+   failed step.
+
+   | Error | Fix |
+   |---|---|
+   | `manifest.json` missing or corrupt | Project not scaffolded — run `welcome-ai-badger` first |
+   | `detect_additions.py` found no candidates | Confirm `.ai-badger/` has changes beyond manifest; check git status |
+   | `open_pr.py` — `gh` not authenticated | `gh auth login` or set `GITHUB_TOKEN` |
+   | `open_pr.py` — branch already exists | Delete the remote branch (`git push origin --delete <branch>`) or use a new slug |
+   | `open_pr.py` — push rejected | Pull latest, rebase, force-push (draft branch only) |
+   | `index_build.py` / `validate.py` error after placing files | Fix the placed files, re-run index build + validate |
+
+   After applying a fix, **re-run the failed step** and continue the flow. If it
+   succeeds, report what was fixed.
+
+3. **Recovery failed — offer to create a GitHub issue.** If all applicable fixes
+   were tried and the step still fails:
+
+   - **Ask the user for permission:** "Recovery failed. Should I create a GitHub
+     issue in `Arasz/ai-badger` with the error details?"
+   - **Gate on `gh` availability.** Only offer if `command -v gh` succeeds and
+     `gh auth status` returns 0. If `gh` is unavailable, print the error details
+     and suggest the user create the issue manually.
+   - **Create the issue** (if approved):
+     ```bash
+     gh issue create \
+       --repo Arasz/ai-badger \
+       --title "bug: feed-badger failed — <error summary>" \
+       --body "<structured body>" \
+       --label "bug,triage"
+     ```
+   - **Issue body structure:**
+     ```markdown
+     ## feed-badger failure
+
+     **Failed step:** <detect / place / open_pr>
+     **Framework version:** <from VERSION file>
+     **OS / Python:** <os> / <python version>
+     **gh version:** <gh --version>
+
+     ### Error output
+     ```json
+     <full JSON error from the script>
+     ```
+
+     ### Recovery attempts
+     1. <what was tried>
+     2. <what was tried>
+
+     ### Candidates detected
+     <list of candidates from detect_additions.py, if available>
+     ```
+
+   - **Do not create the issue without explicit user approval.** The user may
+     prefer to debug locally or file the issue themselves.
