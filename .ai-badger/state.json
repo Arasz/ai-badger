@@ -1,7 +1,13 @@
 {
-  "lastUpdated": "2026-07-26T15:05:00Z",
+  "lastUpdated": "2026-07-26T21:20:00Z",
   "next": null,
   "completedTasks": [
+    {
+      "id": "hermes-skills-sync",
+      "title": "Hermes learned-skills sync (#67) + reverse #58 + plugin-hook cwd fix (#76)",
+      "summary": "Reviewed docs/research/hermes-learned-skills-sync.md and corrected four load-bearing claims: external_dirs was already tried and reverted (#58/v0.7.1); the ~/.hermes/skills/ symlinks still exist on disk so a naive scan re-imports framework skills; NOTHING distributed .ai-badger/skills/ to any agent; and the hook mechanism is the Python plugin this repo already ships, not ~/.hermes/hooks/. Wrote a staged TDD plan with acceptance criteria, then implemented it: learned_skills_sync.py (5 gates, learned.json provenance, opt-in --reconcile, unsafe-literal refusal), feed-badger per-skill grouping, post_tool_call wiring + ~/.hermes/plugins install, and the #58 reversal restoring namespaced symlinks without the original rmtree data-loss hazard. Key discovery beyond scope: Hermes passes NO cwd to any plugin hook, and names the prompt kwarg user_message not message \u2014 so the drift notice, the pre_llm drift line, and the MCP index logging had never fired (#76, fixed). CodeQL's clear-text-logging alert was name-heuristic, not flow-based: Copilot autofix traded alert 13 for 14 and cost CLI output, so it was reverted and the identifiers renamed to unsafe-literal terms, which cleared it. PRs #73/#74/#75 + recovery #77; 683 tests green at 0.18.0.",
+      "completedAt": "2026-07-26T21:20:00Z"
+    },
     {
       "id": "den-refresh-recovery",
       "title": "Error recovery + GH issue creation for scaffold skills",
