@@ -1,0 +1,17 @@
+{
+  "$schema": "../../schemas/dependencies.schema.json",
+  "dependencies": [
+    {
+      "feature": "code-review-graph",
+      "path": "features/common/skills/code-review-graph",
+      "dependencies": [
+        {
+          "name": "code-review-graph",
+          "ecosystem": "python",
+          "package": "code-review-graph",
+          "venv": true
+        }
+      ]
+    }
+  ]
+}
