@@ -1,0 +1,3 @@
+# Scaffolded copy — source of truth is features/common/
+# Tests import from features/, not .ai-badger/
+.ai-badger/
