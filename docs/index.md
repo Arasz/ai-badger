@@ -41,6 +41,13 @@
 | [adr/0002-den-refresh-skill.md](adr/0002-den-refresh-skill.md) | Why `den-refresh` exists as a separate skill from `welcome-ai-badger` |
 | [adr/ADR-0002-mcp-tool-index.md](adr/ADR-0002-mcp-tool-index.md) | MCP Tool Index with tag + intent semantic matching for reduced prompt bloat and better tool selection |
 
+## Reviews & remediation plans
+
+| Document | What it covers |
+|---|---|
+| [reviews/2026-07-26-full-project-review.md](reviews/2026-07-26-full-project-review.md) | Eight-lens parallel code review of 0.18.1 with every Critical verified against the code; confirmed/downgraded/rejected verdicts, themes, and strengths worth preserving |
+| [plans/2026-07-26-remediation-plan.md](plans/2026-07-26-remediation-plan.md) | Wave-structured remediation plan derived from that review — execution order, dependency graph, agent dispatch queue, and per-package TDD entry points |
+
 ## Design docs & spikes
 
 | Document | What it covers |

@@ -7,7 +7,10 @@ Each version gets its own file: `{version}-{slug}.md`.
 
 ```
 docs/changelog/
-  0.14.1-scaffold-domain-module-split.md    # Latest
+  0.19.0-destructive-write-guards.md        # Latest
+  0.18.1-agent-file-size-and-outline.md
+  0.18.0-hermes-learned-skills-sync.md      # several 0.18.0-* entries; one per PR
+  0.14.1-scaffold-domain-module-split.md
   0.14.0-external-tools-catalog.md
   0.13.1-hook-dedup-fix.md
   0.13.0-stack-mcp-declarations.md

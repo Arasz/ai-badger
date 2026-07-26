@@ -1,18 +1,20 @@
-"""MCP index auto-update hooks for Hermes Agent.
+"""MCP index status notices for Hermes Agent.
 
-Provides:
-- on_session_start: initialize MCP tool index if .ai-badger/mcp-tools.yaml doesn't exist
-- post_tool_call: detect MCP tool usage, trigger index rebuild if stale
-
-Installation: copy/symlink this file to ~/.hermes/plugins/mcp_index_hook.py
+Advisory only: these hooks report a missing .ai-badger/mcp-tools.yaml and never
+execute anything resolved from the project tree (see F-03 in
+docs/reviews/2026-07-26-full-project-review.md).
 """
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger("mcp_index_hook")
+
+_MISSING_INDEX_NOTICE = (
+    "MCP index not found at %s/.ai-badger/mcp-tools.yaml; run the mcp-index skill to build it"
+)
 
 
 def _find_project_root(cwd: Optional[str] = None) -> Optional[Path]:
@@ -29,60 +31,31 @@ def _has_mcp_index(project_root: Path) -> bool:
     return (project_root / ".ai-badger" / "mcp-tools.yaml").exists()
 
 
-def _rebuild_index(project_root: Path) -> bool:
-    """Rebuild MCP tool index. Returns True if rebuild was attempted."""
-    try:
-        import subprocess
-        result = subprocess.run(  # pylint: disable=subprocess-run-check
-            ["python3", str(project_root / ".ai-badger" / "skills" / "mcp-index" / "scripts" / "mcp_index_build.py"),
-             "--target", str(project_root)],
-            capture_output=True, text=True, timeout=30, check=False
-        )
-        if result.returncode == 0:
-            logger.info("MCP index rebuilt successfully")
-            return True
-        logger.warning("MCP index rebuild failed: %s", result.stderr)
-        return False
-    except (OSError, subprocess.SubprocessError, TimeoutError) as exc:
-        logger.warning("MCP index rebuild error: %s", exc)
-        return False
+def _notice_if_index_missing(cwd: Optional[str]) -> None:
+    """Log a notice when the project has no MCP tool index."""
+    project_root = _find_project_root(cwd)
+    if project_root is None or _has_mcp_index(project_root):
+        return
+    logger.info(_MISSING_INDEX_NOTICE, project_root)
 
 
 def on_session_start(ctx: Any = None) -> None:
-    """Initialize MCP index if it doesn't exist."""
+    """Report a missing MCP index at session start."""
     try:
-        cwd = getattr(ctx, "cwd", None) if ctx else None
-        project_root = _find_project_root(cwd)
-        if project_root is None:
-            return
-        if not _has_mcp_index(project_root):
-            logger.info("MCP index not found, initializing...")
-            _rebuild_index(project_root)
+        _notice_if_index_missing(getattr(ctx, "cwd", None) if ctx else None)
     except Exception:  # pylint: disable=broad-exception-caught
-        logger.debug("MCP index init skipped due to error", exc_info=True)
+        logger.debug("MCP index check skipped due to error", exc_info=True)
 
 
 def post_tool_call(tool_name: str, args: Any = None, result: Any = None,
                    duration_ms: float = 0, ctx: Any = None) -> None:
-    """Detect MCP tool usage and trigger index rebuild if needed."""
+    """Report a missing MCP index when an MCP tool is used."""
     try:
-        is_mcp = False
-        if tool_name and "mcp" in tool_name.lower():
-            is_mcp = True
-        elif isinstance(args, dict) and "command" in args:
-            cmd = str(args.get("command", ""))
-            if "mcp" in cmd.lower():
-                is_mcp = True
-
+        is_mcp = bool(tool_name) and "mcp" in tool_name.lower()
+        if not is_mcp and isinstance(args, dict) and "command" in args:
+            is_mcp = "mcp" in str(args.get("command", "")).lower()
         if not is_mcp:
             return
-
-        cwd = getattr(ctx, "cwd", None) if ctx else None
-        project_root = _find_project_root(cwd)
-        if project_root is None:
-            return
-
-        logger.info("MCP tool usage detected, checking index...")
-        _rebuild_index(project_root)
+        _notice_if_index_missing(getattr(ctx, "cwd", None) if ctx else None)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.debug("MCP index check skipped due to error", exc_info=True)

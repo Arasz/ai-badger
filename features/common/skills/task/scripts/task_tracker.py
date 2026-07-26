@@ -28,12 +28,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import subprocess
 import sys
 
 import tracker_lib as lib
 
 CRON_MARKER = "# task-skill-resume"
+_NO_CRONTAB_MARKER = "no crontab for"
+
+
+class CrontabUnavailable(Exception):
+    """The current crontab could not be read, or the `crontab` binary is missing.
+
+    Never treat this as "the crontab is empty" — doing so is what turns a transient read
+    failure into an overwrite of the user's real cron jobs.
+    """
 
 
 def _session_or_die(args) -> dict:
@@ -110,6 +120,15 @@ def cmd_start(args) -> int:
         checkpoints["latest"] = checkpoint
         lib.save_json(lib.TOKEN_USAGE, usage)
 
+    if args.no_cron:
+        print(
+            "--no-cron is deprecated and is now a no-op: cron installation is opt-in via "
+            "--cron.",
+            file=sys.stderr,
+        )
+    if args.cron:
+        install_cron(quiet=True)
+
     print(
         json.dumps(
             {
@@ -125,8 +144,6 @@ def cmd_start(args) -> int:
         "so this session's label matches the task. Do not skip this silently.",
         file=sys.stderr,
     )
-    if not args.no_cron:
-        install_cron(quiet=True)
     return 0
 
 
@@ -287,15 +304,46 @@ def cmd_status(_args) -> int:
     return 0
 
 
+def _run_crontab(argv: list, **kwargs):
+    """subprocess.run wrapper for crontab invocations: a missing binary is a reported
+    condition (`CrontabUnavailable`), never a traceback.
+    """
+    try:
+        return subprocess.run(argv, capture_output=True, text=True, check=False, **kwargs)
+    except FileNotFoundError as exc:
+        raise CrontabUnavailable(f"crontab executable not found: {exc}") from exc
+
+
 def _current_crontab() -> str:
-    result = subprocess.run(["crontab", "-l"], capture_output=True, text=True, check=False)
-    return result.stdout if result.returncode == 0 else ""
+    """Return the user's current crontab text, or "" if they genuinely have none yet.
+
+    Raises `CrontabUnavailable` for every other failure — a read failure must never be
+    conflated with an empty crontab, since the caller may go on to write an authoritative
+    replacement computed from this value.
+    """
+    result = _run_crontab(["crontab", "-l"])
+    if result.returncode == 0:
+        return result.stdout
+    stderr = (result.stderr or "").strip()
+    if _NO_CRONTAB_MARKER in stderr.lower():
+        return ""
+    raise CrontabUnavailable(stderr or f"crontab -l exited with status {result.returncode}")
 
 
 def _desired_cron_line() -> str:
-    script = lib.SCRIPT_DIR / "resume_cron.py"
-    log = lib.DATA_DIR / "resume.log"
+    script = shlex.quote(_cron_escape(str(lib.SCRIPT_DIR / "resume_cron.py")))
+    log = shlex.quote(_cron_escape(str(lib.DATA_DIR / "resume.log")))
     return f"*/30 * * * * /usr/bin/env python3 {script} run >> {log} 2>&1 {CRON_MARKER}"
+
+
+def _cron_escape(value: str) -> str:
+    """Escape `%` for a crontab command field.
+
+    cron(5): an unescaped `%` in the command is turned into a newline, and everything after
+    it is sent to the command as stdin — a `%` in an interpolated path would silently
+    truncate the job.
+    """
+    return value.replace("%", r"\%")
 
 
 def install_cron(quiet: bool = False) -> int:
@@ -305,7 +353,11 @@ def install_cron(quiet: bool = False) -> int:
     (e.g. the skill moved on disk) is replaced in place, since the marker check alone would
     otherwise leave a dead cron entry pointing at a script that no longer exists.
     """
-    current = _current_crontab()
+    try:
+        current = _current_crontab()
+    except CrontabUnavailable as exc:
+        print(f"Not installing resume cron job: {exc}", file=sys.stderr)
+        return 1
     desired_line = _desired_cron_line()
     lines = current.splitlines()
     marker_indices = [i for i, line in enumerate(lines) if CRON_MARKER in line]
@@ -327,9 +379,11 @@ def install_cron(quiet: bool = False) -> int:
         new_lines = lines + [desired_line]
         verb = "Installed"
     new_tab = "\n".join(new_lines) + "\n"
-    result = subprocess.run(
-        ["crontab", "-"], input=new_tab, text=True, capture_output=True, check=False
-    )
+    try:
+        result = _run_crontab(["crontab", "-"], input=new_tab)
+    except CrontabUnavailable as exc:
+        print(f"Not installing resume cron job: {exc}", file=sys.stderr)
+        return 1
     if result.returncode != 0:
         print(f"Failed to install cron job: {result.stderr}", file=sys.stderr)
         return 1
@@ -339,11 +393,17 @@ def install_cron(quiet: bool = False) -> int:
 
 
 def uninstall_cron() -> int:
-    current = _current_crontab()
+    try:
+        current = _current_crontab()
+    except CrontabUnavailable as exc:
+        print(f"Not modifying crontab: {exc}", file=sys.stderr)
+        return 1
     kept = [line for line in current.splitlines() if CRON_MARKER not in line]
-    result = subprocess.run(
-        ["crontab", "-"], input="\n".join(kept) + "\n", text=True, capture_output=True, check=False
-    )
+    try:
+        result = _run_crontab(["crontab", "-"], input="\n".join(kept) + "\n")
+    except CrontabUnavailable as exc:
+        print(f"Not modifying crontab: {exc}", file=sys.stderr)
+        return 1
     if result.returncode != 0:
         print(f"Failed to update crontab: {result.stderr}", file=sys.stderr)
         return 1
@@ -363,7 +423,14 @@ def main() -> int:
     p_start.add_argument("task_id")
     p_start.add_argument("--title", default="")
     p_start.add_argument("--branch", default="")
-    p_start.add_argument("--no-cron", action="store_true")
+    p_start.add_argument(
+        "--cron", action="store_true",
+        help="Install the 30-min resume cron job (opt-in).",
+    )
+    p_start.add_argument(
+        "--no-cron", action="store_true",
+        help="Deprecated no-op: cron installation is opt-in via --cron now.",
+    )
     add_session_args(p_start)
 
     p_finish = sub.add_parser("finish")

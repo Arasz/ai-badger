@@ -16,6 +16,7 @@ anything tries to shell out - so `install-cron`/`uninstall-cron` tests must expl
 their own fake before exercising that code path, and every other test would fail loudly instead
 of silently touching a real crontab.
 """
+# pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations
 
 import json
@@ -145,7 +146,8 @@ def test_start_with_no_cron_flag_never_calls_install_cron(tt, monkeypatch, tmp_p
     assert calls == []
 
 
-def test_start_without_no_cron_flag_installs_cron_quietly(tt, monkeypatch, tmp_path):
+def test_start_without_cron_flag_does_not_install_cron(tt, monkeypatch, tmp_path):
+    """Cron install is opt-in: no --cron, no crontab write (F-04)."""
     calls = _no_cron_recorder(monkeypatch, tt)
     transcript = tmp_path / "t.jsonl"
 
@@ -153,7 +155,7 @@ def test_start_without_no_cron_flag_installs_cron_quietly(tt, monkeypatch, tmp_p
                 "--session-id", "sid-4", "--transcript-path", str(transcript))
 
     assert code == 0
-    assert calls == [True]
+    assert calls == []
 
 
 def test_start_refuses_when_session_already_attached_to_another_unfinished_task(

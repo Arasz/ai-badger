@@ -20,6 +20,9 @@ repos:
         types: [python]
         additional_dependencies: ['pylint>=3.0']
         args:
+          # E0401 matches pyproject.toml's repo-wide disable: scripts resolve badger_lib
+          # via sys.path, and this hook's isolated venv has no pytest, so every import in
+          # a test file reports unresolvable. --rcfile=/dev/null re-enabled it here only.
           - --rcfile=/dev/null
-          - --disable=C,R,W0611,W0613
+          - --disable=C,R,W0611,W0613,E0401
           - --fail-under=9.5

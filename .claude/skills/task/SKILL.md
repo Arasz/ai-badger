@@ -148,8 +148,9 @@ project's docs against the merged code, fix small drift, and report gaps needing
 
 ## Recovery
 
-`task_tracker.py` records each task's session id and resume command; a resume cron watches for
-stalled sessions. If you wake in a resumed session mid-task, run
+`task_tracker.py` records each task's session id and resume command. Pass `--cron` to `start` to
+also install a resume cron that watches for stalled sessions — it is opt-in, since it writes to
+your crontab. If you wake in a resumed session mid-task, run
 `python3 scripts/task_tracker.py reattach <taskId>` first, then continue.
 
 > **Extensions:** source-control PR/issue/review-loop behavior and agent-specific model lanes

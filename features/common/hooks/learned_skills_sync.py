@@ -110,8 +110,17 @@ def _relative_parts(path: Path, base: Path) -> Optional[Tuple[str, ...]]:
     return None
 
 
+def contains_symlink(source_dir: Path) -> bool:
+    """True when any entry under a skill directory is a symlink.
+
+    Refusal, not resolution: the scanner cannot read through a link and the target can
+    change between scan and copy, so a link is never syncable (F-05).
+    """
+    return any(path.is_symlink() for path in source_dir.rglob("*"))
+
+
 def is_syncable(source_dir: Path, skills_root: Path) -> Tuple[bool, str]:
-    """Gate 4: reject symlinked or escaping source dirs before any read (C2)."""
+    """Gate 4: reject escaping source dirs, and symlinks inside or above one, before a read (C2)."""
     parts = _relative_parts(source_dir, skills_root)
     if not parts:
         return False, "outside skills root"
@@ -131,6 +140,8 @@ def is_syncable(source_dir: Path, skills_root: Path) -> Tuple[bool, str]:
         return False, "not a directory"
     if not (source_dir / "SKILL.md").is_file():
         return False, "no SKILL.md"
+    if contains_symlink(source_dir):
+        return False, "symlink"
     return True, ""
 
 
@@ -206,6 +217,10 @@ def sync_skill(project: Path, source_dir: Path, name: str, category: Optional[st
         return _refused("escapes learned root")
 
     rel_target = f"{LEARNED_REL}/{segment}/{name}"
+    if contains_symlink(source_dir):
+        # Ahead of the literal scan: the scan skips links, but copytree(symlinks=False)
+        # would inline their targets' bytes into the repo.
+        return {"action": "refused", "target": rel_target, "reason": "symlink"}
     unsafe = scan_for_unsafe_literals(source_dir)
     if unsafe:
         # Fixed reason string; the {file, pattern} findings travel in their own field so
