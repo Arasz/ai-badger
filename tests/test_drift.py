@@ -885,3 +885,35 @@ def test_detect_new_stacks_includes_expanded_requires(tmp_path, load_script):
 
     assert "react" in new_stacks
     assert "ts" in new_stacks
+
+
+def test_detect_new_stacks_respects_ignore_list(tmp_path, load_script):
+    """Stacks in the ignore list should be excluded from newStacks."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+
+    fw = tmp_path / "fw"
+    idx = {
+        "frameworkVersion": "0.3.0",
+        "stacks": {
+            "python": {
+                "meta": {"detectionSignals": ["*.py", "pyproject.toml"]},
+            },
+            "hermes": {
+                "meta": {"detectionSignals": [".hermes.md", "HERMES.md"]},
+            },
+        },
+    }
+    fw.mkdir(parents=True, exist_ok=True)
+    bl = load_script("scripts/badger_lib.py")
+    bl.dump_json(fw / "index.json", idx)
+
+    target = tmp_path / "proj"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "main.py").write_text("print('hi')\n")
+    (target / ".hermes.md").write_text("# Hermes\n")
+
+    # python is in config, hermes is detectable but ignored
+    new_stacks = drift.detect_new_stacks(
+        target, fw, config_stacks=["python"], ignore=["hermes"]
+    )
+    assert new_stacks == []
