@@ -1,7 +1,13 @@
 {
-  "lastUpdated": "2026-07-26T13:00:00Z",
+  "lastUpdated": "2026-07-26T15:05:00Z",
   "next": null,
   "completedTasks": [
+    {
+      "id": "den-refresh-recovery",
+      "title": "Error recovery + GH issue creation for scaffold skills",
+      "summary": "Added Error Recovery section to den-refresh, welcome-ai-badger, feed-badger. Agent parses errors, tries automatic fixes (config validation, version sync, index rebuild, deps install, gh auth), and offers to create GH issue in Arasz/ai-badger with user permission. PR #51.",
+      "completedAt": "2026-07-26T15:05:00Z"
+    },
     {
       "id": "split-python-files",
       "title": "Split Python files into smaller domain-specific modules",
