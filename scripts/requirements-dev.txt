@@ -1,4 +1,4 @@
 # Development dependencies for ai-badger contributors.
 # Install alongside runtime deps:
 #   python3 -m pip install -r scripts/requirements.txt -r scripts/requirements-dev.txt
-pylint>=3.0
+pylint>=4.0.6
