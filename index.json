@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.17.4",
+  "frameworkVersion": "0.18.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -224,6 +224,10 @@
         {
           "name": "hooks",
           "path": "features/common/hooks/hooks.json"
+        },
+        {
+          "name": "learned_skills_sync",
+          "path": "features/common/hooks/learned_skills_sync.py"
         },
         {
           "name": "mcp_index_hook",

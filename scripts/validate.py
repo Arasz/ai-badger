@@ -3,7 +3,7 @@
 
 Usage:
   validate.py <instance.json> [--schema <schema.json>]
-  validate.py --kind {config|manifest|index|skills-source|skills|plugins-instructions|adjustment|hooks-manifest} <instance.json>
+  validate.py --kind {config|manifest|index|skills-source|skills|plugins-instructions|adjustment|hooks-manifest|learned-skills} <instance.json>
   validate.py --all         # validate index.json + all feature data + self-check schemas
 
 Exit code 0 == valid, 1 == invalid, 2 == usage error. Mechanical; no LLM, no network.
@@ -27,6 +27,7 @@ KIND_TO_SCHEMA = {
     "plugins-instructions": "plugins-instructions.schema.json",
     "adjustment": "adjustment.schema.json",
     "hooks-manifest": "hooks-manifest.schema.json",
+    "learned-skills": "learned-skills.schema.json",
 }
 
 PROVENANCE_KEYS = ("frameworkCommit", "frameworkDirty")

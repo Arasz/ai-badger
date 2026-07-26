@@ -17,7 +17,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Set, Tuple
 
 def _bootstrap_lib() -> None:
     here = Path(__file__).resolve()
@@ -49,6 +49,55 @@ MANAGED = {
     "skills": "skills",
     "plugins": "plugins",
 }
+
+# provenance record for skills synced from Hermes (see learned-skills-sync plan §2.2)
+LEARNED_MANIFEST_REL = Path("skills-data") / "hermes" / "learned.json"
+
+
+def _load_learned_records(aib: Path) -> Dict[str, Dict]:
+    """Map skill name -> its learned.json record; empty when absent or unreadable.
+
+    Provenance is a bonus, never a precondition: a hand-broken learned.json must not
+    take down candidate detection for the whole repo.
+    """
+    path = aib / LEARNED_MANIFEST_REL
+    if not path.exists():
+        return {}
+    try:
+        skills = bl.load_json(path).get("skills", [])
+        return {rec["name"]: rec for rec in skills if isinstance(rec, dict) and "name" in rec}
+    except (ValueError, OSError, AttributeError):
+        return {}
+
+
+def _learned_skill_candidates(aib: Path, target: Path) -> Tuple[List[Dict], Set[str]]:
+    """One candidate per .ai-badger/skills/learned/<category>/<name>/ dir (research C9).
+
+    Returns the candidates plus the set of file paths they cover, so the per-file
+    loop below can skip them instead of emitting one candidate per file.
+    """
+    learned_root = aib / "skills" / "learned"
+    candidates: List[Dict] = []
+    covered: Set[str] = set()
+    if not learned_root.is_dir():
+        return candidates, covered
+
+    records = _load_learned_records(aib)
+    for category_dir in sorted(p for p in learned_root.iterdir() if p.is_dir()):
+        for skill_dir in sorted(p for p in category_dir.iterdir() if p.is_dir()):
+            for f in skill_dir.rglob("*"):
+                if f.is_file():
+                    covered.add(f.relative_to(target).as_posix())
+            candidate = {
+                "status": "new", "feature": "skills",
+                "path": skill_dir.relative_to(target).as_posix(),
+                "name": skill_dir.name, "origin": "hermes-learned",
+            }
+            record = records.get(skill_dir.name)
+            if record and record.get("sourcePath"):
+                candidate["sourcePath"] = record["sourcePath"]
+            candidates.append(candidate)
+    return candidates, covered
 
 
 def main(argv=None) -> int:
@@ -114,6 +163,10 @@ def main(argv=None) -> int:
                 "originSource": entry["source"],
             })
 
+    # learned-skill dirs: one candidate per skill, not one per contained file
+    learned_candidates, learned_covered = _learned_skill_candidates(aib, target)
+    candidates.extend(learned_candidates)
+
     # file-level entries + genuinely new files in managed dirs
     for subdir, feature in MANAGED.items():
         base = aib / subdir
@@ -123,6 +176,8 @@ def main(argv=None) -> int:
             if not f.is_file():
                 continue
             rel = f.relative_to(target).as_posix()
+            if rel in learned_covered:
+                continue  # part of a learned-skill dir — handled above
             if under_dir_target(rel):
                 continue  # part of a scaffolded skill dir — handled above
             entry = file_targets.get(rel)
