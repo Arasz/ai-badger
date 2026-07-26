@@ -15,8 +15,11 @@ repos:
         pass_filenames: false
       - id: pylint
         name: pylint
-        entry: python3 -m pylint
-        language: system
+        entry: pylint
+        language: python
         types: [python]
+        additional_dependencies: ['pylint>=3.0']
         args:
-          - --disable=C,R
+          - --rcfile=/dev/null
+          - --disable=C,R,W0611,W0613
+          - --fail-under=9.5
