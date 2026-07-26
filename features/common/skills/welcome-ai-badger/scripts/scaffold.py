@@ -526,6 +526,18 @@ class Scaffolder:
         self._seed_once_copy(state, self.aib / "state.json", ".ai-badger/state.json")
 
     # -- CLAUDE.md assembly ---------------------------------------------------------
+    @staticmethod
+    def _render_external_mcp_instructions(external_tools: list) -> str:
+        """Render externalTools instructions blocks from config."""
+        if not external_tools:
+            return ""
+        blocks = []
+        for tool in external_tools:
+            instr = tool.get("instructions", "").strip()
+            if instr:
+                blocks.append(instr)
+        return "\n\n".join(blocks) + "\n\n" if blocks else ""
+
     def _compute_doc_slots(self, invariants: List[str], instr_paths: List[Path]) -> Dict[str, str]:
         """Compute the template slots shared by CLAUDE.md and HERMES.md assembly."""
         project = self.config.get("project", {})
@@ -540,6 +552,9 @@ class Scaffolder:
         instr_md = "\n".join(
             f"- `{p.name}` → `.ai-badger/instructions/{p.name}`" for p in instr_paths
         ) or "_None._"
+        ext_mcp_md = self._render_external_mcp_instructions(
+            self.config.get("externalTools", [])
+        )
         return {
             "PROJECT_NAME": project.get("name", ""),
             "PROJECT_SUMMARY": project.get("summary", ""),
@@ -549,6 +564,7 @@ class Scaffolder:
             "COMMANDS": cmd_md,
             "PERSONA_ROUTING": route_md,
             "PATH_INSTRUCTIONS": instr_md,
+            "EXTERNAL_MCP_INSTRUCTIONS": ext_mcp_md,
             "FRAMEWORK_VERSION": self.index["frameworkVersion"],
         }
 
@@ -978,6 +994,45 @@ class Scaffolder:
                     )
 
     # -- orchestrate ----------------------------------------------------------------
+    def _generate_mcp_json(self) -> None:
+        """Generate .mcp.json for external tools with generate_mcp_json=true.
+
+        Uses portable commands (uvx for Python packages) — no hardcoded paths.
+        """
+        import json as _json
+        external_tools = self.config.get("externalTools", [])
+        mcp_servers = {}
+        for tool in external_tools:
+            if not tool.get("generate_mcp_json"):
+                continue
+            name = tool["name"]
+            command = tool["command"]
+            # Parse command into executable + args
+            parts = command.split()
+            mcp_servers[name] = {
+                "command": parts[0],
+                "args": parts[1:],
+                "cwd": str(self.target),
+            }
+        if not mcp_servers:
+            return
+        mcp_json_path = self.target / ".mcp.json"
+        # Merge with existing .mcp.json if present
+        existing: Dict[str, Any] = {}
+        if mcp_json_path.exists():
+            try:
+                existing = _json.loads(mcp_json_path.read_text(encoding="utf-8"))
+            except (ValueError, OSError):
+                pass
+        existing.setdefault("mcpServers", {}).update(mcp_servers)
+        mcp_json_path.write_text(
+            _json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        self.notes.append(
+            f"generated .mcp.json with {len(mcp_servers)} external tool(s)"
+        )
+
     def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
         """Run every scaffold step in order and return the manifest, plugin commands, and notes."""
         self.aib.mkdir(parents=True, exist_ok=True)
@@ -996,6 +1051,9 @@ class Scaffolder:
 
         # copy the config into place (source of truth for the skills)
         bl.dump_json(self.aib / "config.json", self.config)
+
+        # generate .mcp.json for external tools that request it
+        self._generate_mcp_json()
 
         manifest = {
             "$schema": "../schemas/manifest.schema.json",
