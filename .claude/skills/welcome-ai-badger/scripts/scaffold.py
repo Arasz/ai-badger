@@ -146,9 +146,13 @@ class Scaffolder(
             "frameworkVersion": self.index["frameworkVersion"],
         }
         if source.is_dir():
-            # Directory entry (skills): hash the TARGET dir (after extension
-            # embedding/pruning) so drift detection compares the actual scaffolded output
-            fingerprint = bl.dir_content_hash(target, exclude=bl.SKILL_EXCLUDE_PATTERNS)
+            # Directory entry (skills): hash the TARGET dir, excluding extensions/ — which
+            # config gating keeps or prunes per project, so it is not part of the skill's own
+            # identity. Consumers (feed-badger's detect_additions) must exclude it the same way
+            # or every project that retains an extension reads as permanently "changed".
+            fingerprint = bl.dir_content_hash(
+                target, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
+            )
             entry["hash"] = fingerprint["content_hash"]
             entry["dirMeta"] = {
                 "file_count": fingerprint["file_count"],
