@@ -36,7 +36,7 @@ def _check_uv_available() -> bool:
     try:
         result = subprocess.run(
             ["uv", "--version"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, timeout=10, check=False,
         )
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -77,7 +77,7 @@ def _install_python(
 
     try:
         result = subprocess.run(
-            pip_cmd, capture_output=True, text=True, timeout=120,
+            pip_cmd, capture_output=True, text=True, timeout=120, check=False,
         )
         if result.returncode != 0:
             errors.append(f"{pkg}: pip install failed — {result.stderr.strip()}")
@@ -98,7 +98,7 @@ def _install_node(dep: Dict[str, Any]) -> List[str]:
     try:
         result = subprocess.run(
             ["npm", "install", "-g", pkg],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, timeout=120, check=False,
         )
         if result.returncode != 0:
             errors.append(f"{pkg}: npm install failed — {result.stderr.strip()}")
