@@ -128,12 +128,27 @@ to the framework's copy right now, but nothing maintains that. **Any work that p
 this plugin must also ship the install/refresh step, or the hook will never fire for a user
 who did not hand-copy it.**
 
-<a id="c6"></a>**Correction C6 — `cwd` does not reliably identify the target project.** The
-`cwd` passed to hook callbacks is `os.getcwd()` of the Hermes process
-(`agent/shell_hooks.py:540-551`). In a CLI session that is the project. In a gateway session
-(Telegram, Discord, Slack) it is wherever the gateway was launched — very often not a project
-at all. The sync must therefore **no-op unless `Path(cwd)/.ai-badger/manifest.json` exists**,
-and must never guess a target.
+<a id="c6"></a>**Correction C6 — `cwd` does not reliably identify the target project, and for plugin
+hooks it is not passed at all.** For *shell* hooks, `cwd` is `os.getcwd()` of the Hermes
+process (`agent/shell_hooks.py:540-551`): in a CLI session that is the project; in a gateway
+session (Telegram, Discord, Slack) it is wherever the gateway was launched — very often not a
+project at all.
+
+**Revised during implementation (verified 2026-07-26):** the *plugin* hook path — the one this
+design uses — passes **no `cwd` whatsoever**. `model_tools.py:1049-1064` invokes
+`post_tool_call` with `tool_name, args, result, task_id, session_id, tool_call_id, turn_id,
+api_request_id, duration_ms, status, error_type, error_message, middleware_trace` and nothing
+else. `conversation_loop.py:504-509` invokes `on_session_start` with only `session_id, model,
+platform`. So a plugin callback must resolve the project itself via `os.getcwd()` and then
+gate on it. The rule is unchanged and is now the *only* protection: **no-op unless
+`Path(cwd)/.ai-badger/manifest.json` exists**, never guess a target.
+
+<a id="c6b"></a>**Correction C6b — this reveals two pre-existing broken hooks, unrelated to
+this feature.** `ai_badger_hooks.py` has always declared `cwd: str = ""` on both
+`on_session_start_drift_notice` and `post_tool_observer` and used it to locate the project.
+Since Hermes passes no `cwd` for either event, the Hermes-side drift notice and the MCP-index
+hit/miss logging have **never fired in production**. Tracked separately — fixing them is not
+in scope for the sync feature, and doing so silently would change untested behavior.
 
 <a id="c10"></a>**Correction C10 — process constraints on `config.yaml`.** The project's own
 `hermes.instructions.md` says *"Use `hermes config set <key> <value>` for configuration,
