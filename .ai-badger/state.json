@@ -1,7 +1,13 @@
 {
-  "lastUpdated": "2026-07-26T09:25:37.955033+00:00",
+  "lastUpdated": "2026-07-26T13:00:00Z",
   "next": null,
   "completedTasks": [
+    {
+      "id": "split-python-files",
+      "title": "Split Python files into smaller domain-specific modules",
+      "summary": "Refactored scaffold.py (1455 lines) into 6 domain modules via mixin pattern: mcp_tools.py, hook_wiring.py, template_rendering.py, agent_files.py, extensions.py. scaffold.py reduced to ~600 lines. All 596 tests pass. PR #50.",
+      "completedAt": "2026-07-26T13:00:00Z"
+    },
     {
       "id": "mcp-servers-feature",
       "title": "MCP server declarations per stack feature",
