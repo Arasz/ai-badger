@@ -3,44 +3,50 @@
 This is a **config-gated extension** of the base `task` skill (`skills/task/`), not a standalone
 skill. The base skill names delegation *roles* — "a high-reasoning agent", "a cheap model" —
 because it scaffolds for several coding agents. This extension binds those roles to concrete
-Claude models, and explains the subscription economics that make the binding worth following.
+Claude models, and records the subscription mechanics that motivate the binding.
 
 **Activates when:** the project's `.ai-badger/config.json` has `"claude"` in its `agents` array.
 
-## Why the lanes are what they are
+## What the metering actually says
 
-The lanes below are not a quality ranking. They follow from how a Claude subscription meters
-usage, which is not what most people assume:
+`config.json` carries no plan-tier signal, so this section states what is documented rather than
+assuming which plan you are on. **Check Settings → Usage for your actual plan and limits before
+leaning on any of it.**
 
-- **One weekly pool covers every model.** There is no bonus allowance that a more expensive
-  model draws from instead. Anthropic's own wording for the top tier: *"Fable 5 draws from your
-  plan's regular weekly usage limits and uses them faster than other Claude models."*
-- **Fable 5 is additionally capped at half that pool** on Max and Team Premium: *"You can use up
-  to 50% of your weekly limit on Fable 5, but your use of other models draws from the same usage
-  limits and you can never use more than your weekly limit."* So Fable is not extra capacity —
-  it is the same capacity spent faster, against a ceiling.
-- **Sonnet has headroom nothing else can reach.** Max plans carry a second weekly limit that
-  applies to Sonnet only. Work pushed to Sonnet is therefore the cheapest work in the literal
-  sense: some of it is paid for out of an allowance the other lanes cannot spend.
-- **On Pro and Team Standard the picture differs** — there Fable is billed from separate
-  pay-as-you-go usage credits rather than the plan, so it costs cash per call instead of pool.
+On **Max plans, premium seats on Team plans, and premium seats on seat-based Enterprise plans**:
 
-Whether Opus additionally has its own sub-pool is genuinely ambiguous in Anthropic's docs — the
-Max-plan article describes the second weekly limit as Sonnet-only, while the usage-limit
-best-practices article still refers to a reset "for Opus only and all other models". The
-recommendation is robust either way: if Opus shares the pool it is no worse than the tier above
-it, and if Opus has its own reset it is strictly better.
+- Models included in the plan share a weekly pool. Anthropic on the top tier: *"Fable 5 draws
+  from your plan's regular weekly usage limits and uses them faster than other Claude models."*
+- Fable has a **billing threshold at 50%, not a ceiling**: *"once you use up to 50% of your
+  weekly usage limits on Fable 5, you can continue in one of two ways: keep using Fable 5 with
+  usage credits, or switch to another Claude model."* Past that point Fable stops being
+  plan-funded and starts costing cash.
+- There is also a second weekly limit **scoped to Sonnet models**: *"Max plans also have two
+  weekly usage limits: one that applies across all models and another for Sonnet models only."*
+  Anthropic does not document how the two interact — whether Sonnet usage is exempt from the
+  all-model limit or is simply constrained twice. **Do not treat it as bonus capacity.** Sonnet
+  is the cheap lane on per-token price and task fit, which is reason enough; it is not
+  established that it spends an allowance the other lanes cannot.
 
-> Verified 2026-07-26 against `support.claude.com`. Limits and tiers change; re-check the
-> "Usage and limits" collection before treating these numbers as current, and prefer whatever
-> the plan's own Settings → Usage page shows.
+On **Pro plans and standard seats on Team plans**: *"Fable 5 isn't included in your plan's usage
+limits. You can use Fable 5 with usage credits."* Fable does not touch the weekly pool there at
+all — it bills separately from the first call.
+
+Whether Opus carries its own weekly limit is genuinely ambiguous: the Max-plan article describes
+the second limit as Sonnet-only, while the usage-limit best-practices article still refers to a
+reset *"for Opus only and all other models"*. Note that if Opus does have its own limit it is a
+**cap, not a bonus** — the same reading that applies to the Sonnet one. Re-derive the lanes if
+Anthropic clarifies which article is current.
+
+> Verified 2026-07-26 against `support.claude.com`. Limits, tiers and pricing change; re-check
+> the "Usage and limits" collection rather than trusting these numbers indefinitely.
 
 ## Claude model lanes
 
 - **Opus — planning and the quality gate.** Phase 1 decomposition and the Phase 3 correctness +
-  architecture review. Also: adversarial review of another agent's claims, money/tax or other
+  architecture review. Also: adversarial review of another agent's claims, money or other
   derivation-heavy math, non-obvious root-cause debugging, and arbitration when two work
-  packages disagree about a contract. Dispatch with `model: "opus"` and prefix the call's
+  packages disagree about a contract. Dispatch `model: "opus"` and prefix the call's
   `description` with `"Opus: "` so the lane is visible in the agent panel.
 - **Sonnet — implementation, by default.** Everything that executes an already-decided spec:
   writing code, writing ADRs and docs where the decision is already recorded, mechanical
@@ -48,8 +54,13 @@ it, and if Opus has its own reset it is strictly better.
   explicitly rather than relying on the default, so the lane survives a change of session model.
 - **Haiku — trivial mechanical work.** Comment and doc touch-ups, rote refactors, liveness
   probes. Dispatch `general-purpose` with `model: "haiku"`.
-- **Fable — not a routine lane.** Same pool, faster burn, 50% ceiling. Reserve it for a problem
-  Opus has actually been tried on and failed, and state that reason when you dispatch it.
+- **Fable — not a routine lane**, on either plan shape, but for different reasons. On Max and
+  premium seats it draws the same pool as Opus and drains it faster, then bills cash past the
+  50% threshold — so for reasoning work Opus already handles it is strictly the worse trade. On
+  Pro and standard Team seats it costs cash per call from the first call while Opus costs pool,
+  so the trade is budget-versus-pool rather than pool-versus-pool; decide on which is actually
+  scarce for you. Either way: reserve it for a problem Opus has been tried on and failed, and
+  say why when you dispatch `model: "fable"`.
 
 The orchestrating session must not assume it is already running the planning lane — the default
 model for new sessions changes. Get the reasoning by dispatching an explicit `Agent` call with
