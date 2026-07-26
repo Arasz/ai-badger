@@ -113,6 +113,18 @@ the schema.
 | **prompt-markers** | Structured prompt markers (`h:`, `f:`, `e:`) for agent communication |
 | **mcp-index** | MCP tool index with tag + intent semantic matching |
 
+## Bundled tools
+
+In addition to skills, ai-badger bundles external MCP tools that are auto-scaffolded into
+your project during `welcome-ai-badger` or `den-refresh`:
+
+| Tool | What it does |
+|---|---|
+| [**code-review-graph**](https://github.com/tirth8205/code-review-graph) | Local-first code intelligence graph for MCP. Builds a persistent map of your codebase so AI coding tools read only what matters — used for code review, impact analysis, and architecture exploration. |
+
+External tools are declared in `features/common/external-tools.json` and merged into
+`.mcp.json` during scaffold.
+
 ## Architecture overview
 
 ```
@@ -135,6 +147,7 @@ ai-badger/
       hooks/                     # Claude + Hermes hooks with hooks-manifest.json
       skills-source.json         # External skill sources
       skills.json                # External skills to install
+      external-tools.json        # External MCP tools (code-review-graph, …)
       templates/                 # CLAUDE.md.tmpl, HERMES.md.tmpl, state.json, agent-instructions
     dotnet/ azure/ cosmos/ terraform/ mcp/  {personas,invariants,instructions}/…
     github/    (stack-specific features; extensions now inline in skills/)
@@ -155,11 +168,13 @@ flowchart TB
       STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · github · angular"]
     end
     SKILLSDIR["features/common/skills/\nwelcome · feed · task · maintain · auto-wm · prompt-markers\n· den-refresh · mcp-index"]
+    EXTOOLS["external-tools.json\ncode-review-graph (MCP)"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]
   end
   IDXbuild["index_build.py"] -->|scans features/| IDX
   CAT --> IDXbuild
   SKILLSDIR --> IDXbuild
+  EXTOOLS --> IDXbuild
   MKT -->|/plugin install| SKILLS["installed skills"]
   IDX -. read .-> SKILLS
   CAT -. copied features .-> PROJ
