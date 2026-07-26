@@ -260,6 +260,16 @@ class Scaffolder(
             self._append_project_local(skill_name, dest)
             # hash includes embedded extensions
             self.record("skills", "common", skill_name, src, dest)
+            # emit per-file entries for extension content so feed-badger can
+            # detect user edits to extension files (#65)
+            ext_dir = dest / "extensions"
+            if ext_dir.is_dir():
+                for f in sorted(ext_dir.rglob("*")):
+                    if f.is_file():
+                        ext_src = src / "extensions" / f.relative_to(ext_dir)
+                        self.record("skills", "common",
+                                    f"{skill_name}/extensions/{f.relative_to(ext_dir).as_posix()}",
+                                    ext_src if ext_src.exists() else f, f)
 
     def scaffold_agent_instructions(self) -> None:
         """Copy the agent-instructions schema/model template into .ai-badger/agent-instructions/."""

@@ -75,7 +75,21 @@ def main(argv=None) -> int:
         (dir_targets if tp.is_dir() else file_targets)[e["target"]] = e
 
     def under_dir_target(rel: str) -> bool:
-        return any(rel == d or rel.startswith(d + "/") for d in dir_targets)
+        """Return True if rel is inside a directory entry, EXCEPT extension files.
+
+        Extension files have per-file manifest entries and must fall through
+        to the per-file comparison loop (#65).
+        """
+        for d in dir_targets:
+            if rel == d:
+                return True
+            if rel.startswith(d + "/"):
+                # Allow extension files to fall through
+                suffix = rel[len(d) + 1:]
+                if suffix.startswith("extensions/"):
+                    return False
+                return True
+        return False
 
     candidates: List[Dict] = []
 
