@@ -1,5 +1,18 @@
 {
-  "lastUpdated": null,
+  "lastUpdated": "2026-07-26T10:30:00Z",
   "next": null,
-  "completedTasks": []
+  "completedTasks": [
+    {
+      "id": "crg-integration",
+      "title": "code-review-graph integration into ai-badger",
+      "summary": "Added externalTools config for MCP tool injection. Integrated code-review-graph (MIT, 30 tools). TDD with 8 tests. PR #48 merged.",
+      "completedAt": "2026-07-26T10:30:00Z"
+    },
+    {
+      "id": "dir-hash-drift",
+      "title": "dir-hash-drift detection",
+      "summary": "Completed 2026-07-24.",
+      "completedAt": "2026-07-24T08:28:47Z"
+    }
+  ]
 }

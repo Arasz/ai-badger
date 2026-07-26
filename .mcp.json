@@ -1,12 +1,20 @@
 {
   "mcpServers": {
     "code-review-graph": {
-      "command": "uvx",
+      "command": "/Users/arasz/RiderProjects/ai-badger/.venv/bin/python3.14",
       "args": [
-        "code-review-graph",
+        "-m",
+        "code_review_graph",
         "serve"
       ],
       "cwd": "/Users/arasz/RiderProjects/ai-badger"
+    },
+    "hermes": {
+      "command": "/Users/arasz/.local/bin/hermes",
+      "args": [
+        "mcp",
+        "serve"
+      ]
     }
   }
 }
