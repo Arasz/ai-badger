@@ -26,14 +26,15 @@ python3 -m pip install -r scripts/requirements.txt   # jsonschema
 
 ## Discovery rules (how `index_build.py` finds things)
 
-| feature | shape | rule |
-|---|---|---|
-| `skills` (installable) | directory | any subdir of `features/common/skills/` containing a `SKILL.md` |
-| `personas` | file | any `*.md` in `features/<stack>/personas/` (excluding `README.md`); name = filename stem |
-| `invariants` | file | any `*.md` in `features/<stack>/invariants/` (excluding `README.md`); name = filename stem |
-| `instructions` | file | any `*.md` in `features/<stack>/instructions/` (excluding `README.md`); name = filename stem |
-| `plugins` | single file | the `plugins` array inside `features/<stack>/plugins/plugins.json`, if present (at most one per stack) |
-| `templates` (`common` only) | file/dir | every top-level entry under `features/common/templates/` |
+| feature                     | shape       | rule                                                                                                           |
+|-----------------------------|-------------|----------------------------------------------------------------------------------------------------------------|
+| `skills` (installable)      | directory   | any subdir of `features/common/skills/` containing a `SKILL.md`                                                |
+| `personas`                  | file        | any `*.md` in `features/<stack>/personas/` (excluding `README.md`); name = filename stem                       |
+| `invariants`                | file        | any `*.md` in `features/<stack>/invariants/` (excluding `README.md`); name = filename stem                     |
+| `instructions`              | file        | any `*.md` in `features/<stack>/instructions/` (excluding `README.md`); name = filename stem                   |
+| `plugins`                   | single file | the `plugins` array inside `features/<stack>/plugins/plugins.json`, if present (at most one per stack)         |
+| `templates` (`common` only) | file/dir    | every top-level entry under `features/common/templates/`                                                       |
+| `external-tools`            | file        | `features/{common,stack}/external-tools.json` (`schemas/external-tools.schema.json`); last-writer-wins on name |
 
 Skill **extensions** use a directory-naming convention rather than a manifest field: a directory
 at `features/<stack>/skills/<base>-extensions/<ext>/` attaches `<ext>` to the skill named
@@ -109,6 +110,31 @@ most one `features/<stack>/skills-source.json` and one `features/<stack>/skills.
 Scope semantics: `"default"` means "whatever scope the project chose at scaffold time";
 `"local"` and `"user"` force that specific scope. Use `{"skills": []}` for extension-only
 stacks that have no external skills.
+
+## Adding external tools
+
+External tools are MCP servers whose **instructions** are injected into agent instruction
+files (CLAUDE.md, HERMES.md) and whose **MCP server entries** are written to `.mcp.json`.
+They follow the same common → stack → user merge pattern as `mcp-servers.json`.
+
+1. Open (or create) `features/<stack>/external-tools.json`
+   (`schemas/external-tools.schema.json`) and add a tool:
+   ```jsonc
+   {
+     "tools": [
+       {
+         "name": "my-tool",
+         "package": "my-tool-pypi-name",
+         "command": "python3 -m my_tool serve",
+         "instructions": "<!-- my-tool MCP tools -->\n## MCP Tools: my-tool\n\n...",
+         "generate_mcp_json": true
+       }
+     ]
+   }
+   ```
+2. The scaffold auto-merges: common first, then stacks (last-writer-wins on name),
+   then `config.externalTools` from the consumer repo (user overrides).
+3. No `index_build.py` run needed — these files are read at scaffold time, not indexed.
 
 ## Adding a new skill (or a `task` extension)
 

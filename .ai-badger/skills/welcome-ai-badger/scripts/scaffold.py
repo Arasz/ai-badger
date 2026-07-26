@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=too-many-lines
 """Materialize a target repo's .ai-badger/ scaffold from a validated config.json.
 
 MECHANICAL ONLY — no LLM, no network (except optional plugin installs, which are
@@ -165,6 +166,33 @@ def git_provenance(root: Path) -> Tuple[Optional[str], bool]:
     return (sha or None), bool(status)
 
 
+def merge_hooks(existing_hooks: Dict[str, Any], new_hooks: Dict[str, Any]) -> None:
+    """Merge *new_hooks* into *existing_hooks* in-place, deduplicating by command.
+
+    Each value is a list of entry dicts, each containing a ``"hooks"`` list of
+    individual hook dicts with a ``"command"`` key.  Only genuinely new commands
+    are appended; existing entries are never duplicated.
+    """
+    for event, hook_entries in new_hooks.items():
+        existing_event_hooks = existing_hooks.get(event, [])
+        registered_cmds = {
+            h.get("command", "")
+            for entry in existing_event_hooks
+            for h in entry.get("hooks", [])
+        }
+        for new_entry in hook_entries:
+            new_hs = [
+                h for h in new_entry.get("hooks", [])
+                if h.get("command", "") not in registered_cmds
+            ]
+            if new_hs:
+                filtered = dict(new_entry)
+                filtered["hooks"] = new_hs
+                existing_event_hooks.append(filtered)
+                registered_cmds.update(h.get("command", "") for h in new_hs)
+        existing_hooks[event] = existing_event_hooks
+
+
 class Scaffolder:
     """Materializes a target repo's .ai-badger/ scaffold from a validated config.json."""
 
@@ -185,6 +213,8 @@ class Scaffolder:
         self.entries: List[Dict[str, Any]] = []
         self.stacks: List[str] = ["common"] + list(config.get("stacks", []))
         self.notes: List[str] = []
+        self._merged_external_tools: List[Dict[str, Any]] = []
+        self._external_tools_merged = False
 
     # -- provenance -----------------------------------------------------------------
     def record(self, feature: str, stack: str, name: str, source: Path, target: Path) -> None:
@@ -553,7 +583,7 @@ class Scaffolder:
             f"- `{p.name}` → `.ai-badger/instructions/{p.name}`" for p in instr_paths
         ) or "_None._"
         ext_mcp_md = self._render_external_mcp_instructions(
-            self.config.get("externalTools", [])
+            self._merged_external_tools
         )
         return {
             "PROJECT_NAME": project.get("name", ""),
@@ -901,20 +931,7 @@ class Scaffolder:
                 settings = {}
 
         existing_hooks = settings.get("hooks", {})
-        for event, hook_entries in settings_hooks.items():
-            existing_event_hooks = existing_hooks.get(event, [])
-            # Idempotent: skip if hook command already registered
-            for new_entry in hook_entries:
-                for new_hook in new_entry.get("hooks", []):
-                    new_cmd = new_hook.get("command", "")
-                    already_exists = any(
-                        existing_hook.get("command") == new_cmd
-                        for existing_entry in existing_event_hooks
-                        for existing_hook in existing_entry.get("hooks", [])
-                    )
-                    if not already_exists:
-                        existing_event_hooks.append(new_entry)
-            existing_hooks[event] = existing_event_hooks
+        merge_hooks(existing_hooks, settings_hooks)
 
         settings["hooks"] = existing_hooks
         settings_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1015,6 +1032,44 @@ class Scaffolder:
                 result = [s for s in result if s.get("name") != srv.get("name")]
                 result.append(srv)
         return result
+
+    def _collect_external_tools(self) -> List[Dict[str, Any]]:
+        """Read external-tools.json from features/common/ and each active stack.
+
+        Common first, then stacks in config order.  The last writer wins on name
+        conflict (later stack overrides earlier).  Mirrors _collect_stack_mcp_servers.
+        """
+        import json as _json
+        result = []  # type: List[Dict[str, Any]]
+        for stack in self.stacks:
+            tools_path = self.root / "features" / stack / "external-tools.json"
+            if not tools_path.exists():
+                continue
+            try:
+                data = _json.loads(tools_path.read_text(encoding="utf-8"))
+            except (ValueError, OSError):
+                continue
+            for tool in data.get("tools", []):
+                result = [t for t in result if t.get("name") != tool.get("name")]
+                result.append(tool)
+        return result
+
+    @staticmethod
+    def _merge_external_tools(
+        catalog_tools: List[Dict[str, Any]],
+        user_tools: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Merge catalog-declared tools with config.externalTools.
+
+        Catalog tools are added first; user tools override on name conflict.
+        Returns a list of tool dicts.
+        """
+        by_name = {}  # type: Dict[str, Dict[str, Any]]
+        for tool in catalog_tools:
+            by_name[tool["name"]] = dict(tool)
+        for tool in user_tools:
+            by_name[tool["name"]] = dict(tool)
+        return list(by_name.values())
 
     def _merge_mcp_servers(
         self,
@@ -1220,10 +1275,17 @@ class Scaffolder:
         """
         import json as _json
 
+        # Lazy-init: merge catalog + config external tools if not yet done
+        if not self._external_tools_merged:
+            self._merged_external_tools = self._merge_external_tools(
+                self._collect_external_tools(),
+                self.config.get("externalTools", []),
+            )
+            self._external_tools_merged = True
+
         # Collect from stacks and external tools
         stack_servers = self._collect_stack_mcp_servers()
-        external_tools = self.config.get("externalTools", [])
-        merged = self._merge_mcp_servers(stack_servers, external_tools)
+        merged = self._merge_mcp_servers(stack_servers, self._merged_external_tools)
         project_servers, _ = self._split_servers_by_scope(merged)
 
         agents = self.config.get("agents", [])
@@ -1295,6 +1357,11 @@ class Scaffolder:
         self.symlink_hermes_skills()
         self.scaffold_agent_instructions()
         self.scaffold_templates()
+        self._merged_external_tools = self._merge_external_tools(
+            self._collect_external_tools(),
+            self.config.get("externalTools", []),
+        )
+        self._external_tools_merged = True
         doc = self.assemble_instructions_doc(invariants, instr_paths)
         self.write_agent_files(doc, instr_paths, invariants)
         self.wire_hooks()
@@ -1309,8 +1376,7 @@ class Scaffolder:
 
         # scaffold user-scoped MCP servers into agent-specific config files
         stack_servers = self._collect_stack_mcp_servers()
-        external_tools = self.config.get("externalTools", [])
-        merged = self._merge_mcp_servers(stack_servers, external_tools)
+        merged = self._merge_mcp_servers(stack_servers, self._merged_external_tools)
         project_servers, user_servers = self._split_servers_by_scope(merged)
         self._scaffold_hermes_mcp_user(user_servers)
         self._scaffold_claude_mcp_user(user_servers)
