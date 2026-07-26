@@ -104,10 +104,11 @@ def check_prerequisites(target: Path) -> Optional[str]:
 
 
 def run_drift(root: Path, manifest: Dict[str, Any],
-              stacks: Optional[List[str]] = None) -> Dict[str, Any]:
+              stacks: Optional[List[str]] = None,
+              target: Optional[Path] = None) -> Dict[str, Any]:
     """Run drift comparison against the framework's current content."""
     drift_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/drift.py", root)
-    return drift_mod.compare(root, manifest, stacks=stacks)
+    return drift_mod.compare(root, manifest, stacks=stacks, target=target)
 
 
 def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
@@ -190,7 +191,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     scaffold_version = config.get("frameworkVersion", "?")
     current_version = (root / "VERSION").read_text(encoding="utf-8").strip()
 
-    drift_result = run_drift(root, manifest, stacks=config.get("stacks", []))
+    drift_result = run_drift(root, manifest, stacks=config.get("stacks", []), target=target)
 
     # 6b. Detect new stacks not in config (respecting stack-ignore.json)
     drift_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/drift.py", root)

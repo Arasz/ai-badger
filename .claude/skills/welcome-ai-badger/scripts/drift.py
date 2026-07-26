@@ -145,14 +145,17 @@ def detect_new_stacks(target: Path, root: Path,
 
 
 def compare(root: Path, manifest: Dict[str, Any],
-            stacks: Optional[List[str]] = None) -> Dict[str, Any]:
+            stacks: Optional[List[str]] = None,
+            target: Optional[Path] = None) -> Dict[str, Any]:
     """Diff an already-parsed manifest against the framework's current catalog content.
 
-    When `stacks` is provided, also detects new items via index.json.
+    When ``target`` is provided, directory entries (skills) are hashed from the
+    scaffolded output directory — matching what ``scaffold.record()`` wrote into
+    the manifest.  This avoids false drift when extensions are pruned by config.
+    Falls back to hashing the framework source when ``target`` is None or the
+    target path doesn't exist.
 
-    Directory entries (skills) are compared using dir_content_hash() with a
-    two-phase approach: structural pre-check (file/dir counts) then content hash.
-    Files matching SKILL_EXCLUDE_PATTERNS are excluded from the hash.
+    When ``stacks`` is provided, also detects new items via index.json.
     """
     changed: List[str] = []
     removed: List[str] = []
@@ -169,9 +172,19 @@ def compare(root: Path, manifest: Dict[str, Any],
             removed.append(source_rel)
             continue
         if source.is_dir():
-            # Directory entry — use content hash with structural pre-check
+            # Directory entry — hash from the scaffolded target when available,
+            # matching scaffold.record() which hashes the target with extensions excluded.
+            hash_dir = source
+            exclude = bl.SKILL_EXCLUDE_PATTERNS
+            if target is not None:
+                target_rel = entry.get("target")
+                if target_rel:
+                    target_path = target / target_rel
+                    if target_path.is_dir():
+                        hash_dir = target_path
+                        exclude = bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
             try:
-                fingerprint = bl.dir_content_hash(source, exclude=bl.SKILL_EXCLUDE_PATTERNS)
+                fingerprint = bl.dir_content_hash(hash_dir, exclude=exclude)
             except (ValueError, OSError):
                 skipped.append(source_rel)
                 continue
@@ -234,7 +247,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         except (ValueError, OSError):
             pass
 
-    result = compare(root, manifest, stacks=stacks if stacks else None)
+    result = compare(root, manifest, stacks=stacks if stacks else None, target=target)
     for label in ("changed", "removed"):
         for path in result[label]:
             print(f"  {label:8} {path}")
