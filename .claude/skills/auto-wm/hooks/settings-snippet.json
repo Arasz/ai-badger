@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/skills/auto-wm/hooks/awm_gate.py",
+            "timeout": 10,
+            "statusMessage": "auto-wm gate"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/skills/auto-wm/hooks/awm_context.py",
+            "timeout": 10,
+            "statusMessage": "auto-wm status"
+          }
+        ]
+      }
+    ]
+  }
+}
