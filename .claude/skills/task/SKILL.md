@@ -46,6 +46,10 @@ assuming its own model.
   lightweight per-subagent completion check, run the configured build/test, and tiny surgical
   fixes found during the quality gate.
 
+These are roles, not models. Which concrete model fills each role — and why the subscription's
+metering makes that the cheap choice rather than merely the fast one — is bound by the
+agent-specific extension for your coding agent (`extensions/claude/` for Claude).
+
 Subagent prompts must be self-contained: scope, acceptance criteria, files/docs to read, the
 project's TDD + code-style rules (point them at CLAUDE.md), and what to report back. Run
 independent subagents in parallel.
@@ -148,6 +152,7 @@ project's docs against the merged code, fix small drift, and report gaps needing
 stalled sessions. If you wake in a resumed session mid-task, run
 `python3 scripts/task_tracker.py reattach <taskId>` first, then continue.
 
-> **Extensions:** source-control PR/issue/review-loop behavior is defined in
-> `extensions/<name>/` and is embedded by `welcome-ai-badger` only when `config.json` supplies
-> the required data. The base skill above stays platform- and stack-neutral.
+> **Extensions:** source-control PR/issue/review-loop behavior and agent-specific model lanes
+> are defined in `extensions/<name>/` and are embedded by `welcome-ai-badger` only when
+> `config.json` supplies the required data. The base skill above stays platform-, stack- and
+> model-neutral.
