@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "code-review-graph": {
-      "command": "python3",
+      "command": "/opt/homebrew/bin/python3",
       "args": [
         "-m",
         "code_review_graph",
