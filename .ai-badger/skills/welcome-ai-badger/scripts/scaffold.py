@@ -416,20 +416,21 @@ class Scaffolder(
             for cmd in cmds:
                 try:
                     proc = subprocess.run(
-                        cmd, shell=True, capture_output=True, text=True,
+                        cmd, capture_output=True, text=True,
                         timeout=30, cwd=str(self.target), check=False,
                     )
+                    shown = ip_lib.printable(cmd)
                     if proc.returncode == 0:
-                        self.notes.append(f"executed: {cmd}")
+                        self.notes.append(f"executed: {shown}")
                     else:
                         self.notes.append(
-                            f"command failed (exit {proc.returncode}): {cmd}"
+                            f"command failed (exit {proc.returncode}): {shown}"
                             f"{': ' + proc.stderr.strip() if proc.stderr.strip() else ''}"
                         )
                 except subprocess.TimeoutExpired:
-                    self.notes.append(f"command timed out (30s): {cmd}")
+                    self.notes.append(f"command timed out (30s): {ip_lib.printable(cmd)}")
                 except OSError as exc:
-                    self.notes.append(f"command error: {cmd} — {exc}")
+                    self.notes.append(f"command error: {ip_lib.printable(cmd)} — {exc}")
         elif self.install and cmds:
             self.notes.append("skill auto-install requested but deferred to report "
                               "(run the commands below manually or via --execute)")
@@ -459,7 +460,8 @@ class Scaffolder(
         a Python venv if needed, and installs packages.
         """
         import dependency_check as dc_lib
-        result = dc_lib.run_dependency_check(self.root, self.target, features=self.skills)
+        result = dc_lib.run_dependency_check(self.root, self.target, features=self.skills,
+                                             allow_install=self.execute)
         if result["installed"]:
             self.notes.append(
                 f"installed dependencies: {', '.join(result['installed'])}"

@@ -112,6 +112,19 @@ LEARNED_SKILLS_DIR = "learned"
 PARTIAL_MANIFEST = "manifest.json.partial"
 
 
+def _within(parent: Path, candidate: Path) -> bool:
+    """True when `candidate` resolves to `parent` itself or something inside it.
+
+    `project.name` reaches this from config.json, which constrains it to a non-empty string
+    and nothing more — so containment is asserted here, not assumed upstream (security I1).
+    """
+    try:
+        candidate.resolve().relative_to(parent.resolve())
+    except (ValueError, OSError):
+        return False
+    return True
+
+
 def _owns_link(entry: Path, skills_root: Path) -> bool:
     """True if *entry* is a symlink resolving inside *skills_root* — i.e. ai-badger placed it."""
     if not entry.is_symlink():
@@ -160,7 +173,13 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
     """
     project_name = config.get("project", {}).get("name", "unknown")
     skills_root = target / ".ai-badger" / "skills"
-    namespace_dir = Path.home() / ".hermes" / "skills" / project_name
+    hermes_skills = Path.home() / ".hermes" / "skills"
+    namespace_dir = hermes_skills / project_name
+    if not _within(hermes_skills, namespace_dir):
+        raise ValueError(
+            f"project name {project_name!r} does not resolve to a directory inside "
+            f"{hermes_skills} — refusing to create it"
+        )
     if namespace_dir.is_symlink() and not _owns_link(namespace_dir, skills_root):
         return []
 
@@ -416,20 +435,21 @@ class Scaffolder(
             for cmd in cmds:
                 try:
                     proc = subprocess.run(
-                        cmd, shell=True, capture_output=True, text=True,
+                        cmd, capture_output=True, text=True,
                         timeout=30, cwd=str(self.target), check=False,
                     )
+                    shown = ip_lib.printable(cmd)
                     if proc.returncode == 0:
-                        self.notes.append(f"executed: {cmd}")
+                        self.notes.append(f"executed: {shown}")
                     else:
                         self.notes.append(
-                            f"command failed (exit {proc.returncode}): {cmd}"
+                            f"command failed (exit {proc.returncode}): {shown}"
                             f"{': ' + proc.stderr.strip() if proc.stderr.strip() else ''}"
                         )
                 except subprocess.TimeoutExpired:
-                    self.notes.append(f"command timed out (30s): {cmd}")
+                    self.notes.append(f"command timed out (30s): {ip_lib.printable(cmd)}")
                 except OSError as exc:
-                    self.notes.append(f"command error: {cmd} — {exc}")
+                    self.notes.append(f"command error: {ip_lib.printable(cmd)} — {exc}")
         elif self.install and cmds:
             self.notes.append("skill auto-install requested but deferred to report "
                               "(run the commands below manually or via --execute)")
@@ -447,7 +467,12 @@ class Scaffolder(
         """
         if "hermes" not in self.config.get("agents", []):
             return
-        links = relink_hermes_skills(self.target, self.config, self.skills)
+        try:
+            links = relink_hermes_skills(self.target, self.config, self.skills)
+        except ValueError as exc:
+            # A refusal the user can act on: it names their project name as the cause.
+            self.notes.append(f"hermes skill links skipped — {exc}")
+            return
         if links:
             self.notes.append(f"hermes skill links: {', '.join(links)}")
 
@@ -459,7 +484,8 @@ class Scaffolder(
         a Python venv if needed, and installs packages.
         """
         import dependency_check as dc_lib
-        result = dc_lib.run_dependency_check(self.root, self.target, features=self.skills)
+        result = dc_lib.run_dependency_check(self.root, self.target, features=self.skills,
+                                             allow_install=self.execute)
         if result["installed"]:
             self.notes.append(
                 f"installed dependencies: {', '.join(result['installed'])}"
@@ -686,9 +712,10 @@ def main(argv=None) -> int:
     for n in result["notes"]:
         print(f"  note: {n}")
     if result["pluginCommands"]:
+        import install_plugins as ip_lib  # pylint: disable=import-outside-toplevel
         print("  plugin setup commands (run per chosen scope):")
         for c in result["pluginCommands"]:
-            print(f"    $ {c}")
+            print(f"    $ {ip_lib.printable(c)}")
     return 0
 
 

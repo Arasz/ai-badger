@@ -179,3 +179,17 @@ test("a directory missing an expected file fails", () => {
   assert.equal(result.code, 1);
   assert.match(result.stderr, /missing expected file python\.md/);
 });
+
+
+test("an oversized pattern is reported, not thrown as a stack trace", () => {
+  const root = makeProject({ "CLAUDE.md": "# P\n" }, {
+    ...MINIMAL_MODEL,
+    validation: { requiredPatterns: { "CLAUDE.md": ["(a+)+".repeat(200)] } },
+  });
+
+  const result = run(SCRIPT, root);
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /pattern too long/i);
+  assert.doesNotMatch(result.stderr, /at Object\.|at Module\./);
+});

@@ -20,11 +20,28 @@ function readJson(filePath) {
 }
 
 function readText(relativePath) {
-  return readFileSync(path.join(root, relativePath), "utf8");
+  const absolute = path.join(root, relativePath);
+  const { size } = statSync(absolute);
+  if (size > MAX_SCAN_BYTES) {
+    throw new Error(`${relativePath} is too large to scan (${size} bytes)`);
+  }
+  return readFileSync(absolute, "utf8");
+}
+
+// A model is data, and these two limits keep a bad one from becoming a hang rather than an
+// error: an unbounded pattern (catastrophic backtracking) or an unbounded input (review F-39).
+const MAX_PATTERN_LENGTH = 500;
+const MAX_SCAN_BYTES = 1_000_000;
+
+function compilePattern(pattern, flags) {
+  if (typeof pattern !== "string" || pattern.length > MAX_PATTERN_LENGTH) {
+    throw new Error(`pattern too long (over ${MAX_PATTERN_LENGTH} chars); simplify it`);
+  }
+  return new RegExp(pattern, flags);
 }
 
 function matchesAny(text, patterns) {
-  return patterns.some((pattern) => new RegExp(pattern, "is").test(text));
+  return patterns.some((pattern) => compilePattern(pattern, "is").test(text));
 }
 
 function parseHeadingSpec(heading) {
@@ -88,10 +105,12 @@ if (!existsSync(schemaPath)) {
   errors.push(`Missing ${path.join(modelDir, "schema.json")}`);
 }
 
+let guardFailure = "";
 const model = existsSync(modelPath) ? readJson(modelPath) : undefined;
 if (!model) {
   errors.push(`Missing ${path.join(modelDir, "model.json")}`);
 } else {
+  try {
   if (model.version !== 1) {
     errors.push(`Unsupported model version: ${model.version}`);
   }
@@ -205,6 +224,14 @@ if (!model) {
       }
     }
   }
+  } catch (error) {
+    // A guard rejection is a reported failure, not a stack trace.
+    guardFailure = error.message;
+  }
+}
+
+if (guardFailure) {
+  errors.push(guardFailure);
 }
 
 if (warnings.length > 0) {

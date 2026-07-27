@@ -208,3 +208,16 @@ def test_spelled_out_prefix_still_matches_without_whitespace(load_script):
     hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
 
     assert hook.match_marker("hint:check the cache", _markers())[0]["id"] == "hint"
+
+
+def test_the_marker_state_file_is_owner_readable_only(tmp_path, load_script):
+    """marker-state.json stores whole prompts verbatim — it is not world-readable (security I5)."""
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    tracking = tmp_path / ".ai-badger"
+    tracking.mkdir()
+
+    hook.record_transformation(str(tmp_path), "h: check the cache", "h:", "hint", "HINT: ...")
+
+    state_file = tracking.joinpath(*hook.STATE_SUBPATH)
+    assert state_file.exists()
+    assert state_file.stat().st_mode & 0o777 == 0o600

@@ -69,7 +69,7 @@ class TestInstallSkills:
 
         result = ip.install_skills(fw, config, dry_run=True)
 
-        cmds = result["commands"]
+        cmds = [ip.printable(c) for c in result["commands"]]
         assert any("claude plugin marketplace add" in c for c in cmds)
         assert any("skill-a" in c for c in cmds)
 
@@ -80,7 +80,7 @@ class TestInstallSkills:
 
         result = ip.install_skills(fw, config, dry_run=True)
 
-        cmds = result["commands"]
+        cmds = [ip.printable(c) for c in result["commands"]]
         assert any("hermes skills install" in c for c in cmds)
         assert any("skill-b" in c for c in cmds)
 
@@ -92,8 +92,8 @@ class TestInstallSkills:
 
         result = ip.install_skills(fw, config, dry_run=True)
 
-        claude_cmds = [c for c in result["commands"] if "claude" in c]
-        hermes_cmds = [c for c in result["commands"] if "hermes" in c]
+        claude_cmds = [ip.printable(c) for c in result["commands"] if "claude" in ip.printable(c)]
+        hermes_cmds = [ip.printable(c) for c in result["commands"] if "hermes" in ip.printable(c)]
         assert len(claude_cmds) >= 2
         assert len(hermes_cmds) >= 2
 
@@ -116,8 +116,8 @@ class TestInstallSkills:
 
         result = ip.install_skills(fw, config, dry_run=True)
 
-        name_install_cmds = [c for c in result["commands"]
-                             if "install" in c and "skill-" in c]
+        name_install_cmds = [ip.printable(c) for c in result["commands"]
+                             if "install" in ip.printable(c) and "skill-" in ip.printable(c)]
         assert len(name_install_cmds) >= 1
         for cmd in name_install_cmds:
             assert "--scope local" in cmd
@@ -215,7 +215,7 @@ class TestRealCatalog:
         declared = self._declared_skills(root, ["common", "python"])
         assert declared, "expected the real catalog to declare skills"
         for name in declared:
-            assert any(name in cmd for cmd in result["commands"]), \
+            assert any(name in ip.printable(cmd) for cmd in result["commands"]), \
                 f"no install command mentions '{name}': {result['commands']}"
 
     def test_common_stack_is_always_resolved(self, root, load_script):
@@ -225,7 +225,7 @@ class TestRealCatalog:
 
         result = ip.install_skills(root, self._real_config(), dry_run=True)
 
-        assert any("superpowers" in cmd for cmd in result["commands"]), result["commands"]
+        assert any("superpowers" in ip.printable(cmd) for cmd in result["commands"]), result["commands"]
 
     def test_real_catalog_emits_no_warnings(self, root, load_script):
         ip = load_script("scripts/install_plugins.py")
@@ -241,7 +241,7 @@ class TestRealCatalog:
 
         result = ip.install_skills(root, config, dry_run=True)
 
-        assert len(result["commands"]) == len(set(result["commands"]))
+        assert len(result["commands"]) == len({tuple(c) for c in result["commands"]})
 
 
 class TestMissingNameTemplate:
@@ -272,7 +272,8 @@ class TestMissingNameTemplate:
 
         result = ip.install_skills(fw, config, dry_run=True)
 
-        assert result["commands"] == ["claude plugin install https://example.com/pack"]
+        assert [ip.printable(c) for c in result["commands"]] == \
+            ["claude plugin install https://example.com/pack"]
         assert any("packaged-skill" in w for w in result["warnings"])
 
 
@@ -307,4 +308,64 @@ class TestConfigDrivenCommonStack:
 
         result = ip.install_skills(fw, config, dry_run=True)
 
-        assert any("house-skill" in cmd for cmd in result["commands"]), result
+        assert any("house-skill" in ip.printable(cmd) for cmd in result["commands"]), result
+
+
+class TestNoShellInterpretation:
+    """Install commands are argv lists: a skill name is data, never shell syntax (security I2)."""
+
+    def test_a_command_with_a_shell_metacharacter_is_not_interpreted(self, tmp_path, load_script):
+        ip = load_script("scripts/install_plugins.py")
+        argv = ip._build_command(  # pylint: disable=protected-access
+            "claude plugin install {name}@{sourceName}", "https://example.test",
+            "evil; touch pwned", "default", "src")
+
+        assert isinstance(argv, list)
+        assert "evil; touch pwned@src" in argv
+        assert not any(tok == ";" for tok in argv)
+
+    def test_a_source_url_with_a_space_stays_one_argument(self, load_script):
+        ip = load_script("scripts/install_plugins.py")
+        argv = ip._build_command(  # pylint: disable=protected-access
+            "claude plugin marketplace add {source}", "https://example.test/a b")
+
+        assert argv == ["claude", "plugin", "marketplace", "add", "https://example.test/a b"]
+
+    def test_printable_round_trips_for_display(self, load_script):
+        ip = load_script("scripts/install_plugins.py")
+
+        text = ip.printable(["claude", "plugin", "install", "a b"])
+
+        assert text.startswith("claude plugin install ")
+        assert "a b" in text
+
+    def test_the_scaffold_executor_never_uses_a_shell(self, tmp_path, load_script, root):
+        """The one place these commands actually run must pass argv, not a string."""
+        scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+        source = (root / "features" / "common" / "skills" / "welcome-ai-badger"
+                  / "scripts" / "scaffold.py").read_text(encoding="utf-8")
+
+        assert "shell=True" not in source
+        assert scaffold is not None
+
+    def test_the_scaffold_prints_copy_pasteable_commands(self, tmp_path, load_script, root,
+                                                          capsys):
+        """WP37 turned commands into argv lists; the printed form must stay a command line."""
+        scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+        target = tmp_path / "proj"
+        target.mkdir()
+        config = target / "config.json"
+        config.write_text(json.dumps({
+            "$schema": "./schemas/config.schema.json", "frameworkVersion": "0.1.0",
+            "project": {"name": "p", "summary": "s", "domain": "d"},
+            "stacks": ["python"], "agents": ["claude"],
+            "sourceControl": {"platform": "none", "repoUrl": None, "projectUrl": None},
+            "commands": {}, "personaRouting": [], "skillScope": "default", "docs": {},
+        }), encoding="utf-8")
+
+        scaffold.main(["--config", str(config), "--target", str(target), "--root", str(root),
+                       "--skills", "task", "--generated-at", "2026-07-27T00:00:00Z"])
+
+        out = capsys.readouterr().out
+        assert "$ claude plugin install" in out
+        assert "['claude'," not in out

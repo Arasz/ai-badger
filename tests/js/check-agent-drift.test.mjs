@@ -93,3 +93,24 @@ test("patterns match case-insensitively and across lines", () => {
 
   assert.equal(run(SCRIPT, root).code, 0);
 });
+
+
+test("an oversized pattern is rejected rather than compiled", () => {
+  const root = makeProject({ "CLAUDE.md": "# P\n" }, modelWith([{
+    ...TDD_RULE, patterns: ["(a+)+".repeat(200)],
+  }]));
+
+  const result = run(SCRIPT, root);
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /pattern too long/i);
+});
+
+test("an oversized file is not scanned", () => {
+  const root = makeProject({ "CLAUDE.md": "x".repeat(2_000_000) }, modelWith([TDD_RULE]));
+
+  const result = run(SCRIPT, root);
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /too large/i);
+});

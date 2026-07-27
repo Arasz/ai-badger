@@ -5,9 +5,14 @@ The agent first writes the generalized feature files into the ai-badger CHECKOUT
 right {stack}/{feature}/ paths) and regenerates index.json. This script does the mechanical
 git+PR work: branch, commit, push, `gh pr create --draft`. No LLM.
 
+Every declared path is scanned for credential-shaped literals first; a finding refuses the
+PR. Only declared paths are staged — an unrelated dirty file in the checkout never rides along
+(security I4).
+
 Usage:
   open_pr.py --checkout <ai-badger checkout> --branch feed/<slug> \
-             --title "..." --body-file <path> [--repo Arasz/ai-badger] [--dry-run]
+             --title "..." --body-file <path> --path <rel> [--path <rel> ...] \
+             [--repo Arasz/ai-badger] [--dry-run]
 
 --dry-run prints the git/gh commands without executing (used for logic-tests).
 """
@@ -39,6 +44,7 @@ def _bootstrap_lib() -> None:
 
 
 _bootstrap_lib()
+import unsafe_literals as ul  # pylint: disable=wrong-import-position
 
 
 def run(cmd: List[str], cwd: Path, dry: bool) -> int:
@@ -60,15 +66,28 @@ def main(argv=None) -> int:
     ap.add_argument("--title", required=True)
     ap.add_argument("--body-file", required=True)
     ap.add_argument("--repo", default="Arasz/ai-badger")
+    ap.add_argument("--path", action="append", dest="paths", required=True, metavar="REL",
+                    help="Checkout-relative path to contribute. Repeatable. Required: only "
+                         "declared paths are staged, so nothing else in the tree can ride "
+                         "along.")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args(argv)
 
     checkout = Path(args.checkout).resolve()
     dry = args.dry_run
 
+    findings = ul.scan_paths(checkout, args.paths)
+    if findings:
+        print("refusing to open a PR — content that looks like a credential was found:")
+        for finding in findings:
+            print(f"    - {finding['file']}: {finding['pattern']}")
+        print("Remove it (or replace it with an obviously fake value) and re-run. This is a "
+              "guard, not proof: it checks known literal shapes, nothing more.")
+        return 1
+
     steps = [
         ["git", "checkout", "-b", args.branch],
-        ["git", "add", "-A"],
+        ["git", "add", "--", *args.paths],
         ["git", "commit", "-m", args.title],
         ["git", "push", "-u", "origin", args.branch],
         ["gh", "pr", "create", "--draft", "--repo", args.repo,

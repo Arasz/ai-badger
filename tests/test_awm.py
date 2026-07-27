@@ -272,3 +272,55 @@ def test_a_window_longer_than_the_maximum_is_capped(tmp_path, load_script, monke
     state = awm.load_state()
     assert state["duration_seconds"] == awm.MAX_DURATION_SECONDS
     assert "capping" in capsys.readouterr().out
+
+
+# ── user-scope state privacy (security I5) ───────────────────────────────────
+
+def test_state_file_is_owner_readable_only(tmp_path, load_script, monkeypatch):
+    """~/.claude/awm/ records where you work and what was auto-approved (security I5)."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    monkeypatch.setattr(awm, "AWM_DIR", tmp_path / "awm")
+    monkeypatch.setattr(awm, "STATE_FILE", tmp_path / "awm" / "state.json")
+    monkeypatch.setattr(awm, "DECISIONS_FILE", tmp_path / "awm" / "decisions.jsonl")
+
+    awm.main(["partner"])
+
+    assert (tmp_path / "awm" / "state.json").stat().st_mode & 0o777 == 0o600
+
+
+def test_decision_log_is_owner_readable_only(tmp_path, load_script, monkeypatch):
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    monkeypatch.setattr(awm, "AWM_DIR", tmp_path / "awm")
+    monkeypatch.setattr(awm, "STATE_FILE", tmp_path / "awm" / "state.json")
+    monkeypatch.setattr(awm, "DECISIONS_FILE", tmp_path / "awm" / "decisions.jsonl")
+
+    awm.main(["partner"])
+
+    assert (tmp_path / "awm" / "decisions.jsonl").stat().st_mode & 0o777 == 0o600
+
+
+def test_the_state_directory_is_not_world_readable(tmp_path, load_script, monkeypatch):
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    monkeypatch.setattr(awm, "AWM_DIR", tmp_path / "awm")
+    monkeypatch.setattr(awm, "STATE_FILE", tmp_path / "awm" / "state.json")
+    monkeypatch.setattr(awm, "DECISIONS_FILE", tmp_path / "awm" / "decisions.jsonl")
+
+    awm.main(["partner"])
+
+    assert (tmp_path / "awm").stat().st_mode & 0o077 == 0
+
+
+def test_the_decision_log_is_capped(tmp_path, load_script, monkeypatch):
+    """An append-only log of every auto-approved call must not grow without bound."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    monkeypatch.setattr(awm, "AWM_DIR", tmp_path / "awm")
+    monkeypatch.setattr(awm, "STATE_FILE", tmp_path / "awm" / "state.json")
+    monkeypatch.setattr(awm, "DECISIONS_FILE", tmp_path / "awm" / "decisions.jsonl")
+    monkeypatch.setattr(awm, "MAX_DECISION_LINES", 5)
+
+    for i in range(20):
+        awm.log_event("decision", f"entry {i}")
+
+    lines = (tmp_path / "awm" / "decisions.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(lines) <= 5
+    assert "entry 19" in lines[-1]

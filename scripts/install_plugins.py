@@ -22,6 +22,7 @@ MECHANICAL ONLY — no LLM, no network.
 from __future__ import annotations
 
 import argparse
+import shlex
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
@@ -72,13 +73,30 @@ def _resolve_scope(entry_scope: str, config_scope: str) -> str:
 
 
 def _build_command(template: str, source_url: str, skill_name: str = "",
-                   scope: str = "default", source_name: str = "") -> str:
-    """Substitute placeholders in a command template."""
-    cmd = template.replace("{source}", source_url)
-    cmd = cmd.replace("{sourceName}", source_name)
-    cmd = cmd.replace("{name}", skill_name)
-    cmd = cmd.replace("{scope}", scope)
-    return cmd
+                   scope: str = "default", source_name: str = "") -> List[str]:
+    """Substitute placeholders into a command template, returning an argv list.
+
+    The TEMPLATE is tokenised first and substitution happens per token, so a value
+    containing a space or a shell metacharacter stays exactly one argument. Catalog data
+    is data; only the template decides argument boundaries (security I2).
+    """
+    substitutions = (
+        ("{source}", source_url),
+        ("{sourceName}", source_name),
+        ("{name}", skill_name),
+        ("{scope}", scope),
+    )
+    argv = []
+    for token in shlex.split(template):
+        for placeholder, value in substitutions:
+            token = token.replace(placeholder, value)
+        argv.append(token)
+    return argv
+
+
+def printable(argv: List[str]) -> str:
+    """Render an argv list the way a user would type it — for display only."""
+    return shlex.join(argv)
 
 
 def _install_template(cmd_templates: List[str]) -> str:
@@ -176,13 +194,10 @@ def install_skills(root: Path, config: Dict[str, Any],
                 scope = _resolve_scope(
                     skill.get("scope", "default"), config_scope)
 
-                scope_suffix = ""
-                if scope != "default" and "{scope}" not in install_template:
-                    scope_suffix = f" --scope {scope}"
-
                 install_cmd = _build_command(
                     install_template, source_url, skill["name"], scope, source_name)
-                install_cmd += scope_suffix
+                if scope != "default" and "{scope}" not in install_template:
+                    install_cmd += ["--scope", scope]
                 commands.append(install_cmd)
 
     return {"commands": commands, "warnings": warnings, "dryRun": dry_run}
@@ -209,7 +224,7 @@ def main(argv: Any = None) -> int:
 
     if result["commands"]:
         for cmd in result["commands"]:
-            print(cmd)
+            print(printable(cmd))
     else:
         print("No skill installation commands needed.")
 
