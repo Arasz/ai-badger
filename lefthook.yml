@@ -1,0 +1,17 @@
+# Local quality gate. Only `pre-push` is configured on purpose: `.git/hooks/pre-commit`
+# belongs to the pre-commit framework (and chains to code-review-graph via
+# pre-commit.legacy), and `lefthook install` renames a conflicting hook to `.old` and never
+# runs it again. Configuring pre-commit here would silently kill both.
+# All logic lives in the script so it stays runnable by hand, by CI and by an agent.
+min_version: 2.1.0
+assert_lefthook_installed: true
+
+pre-push:
+  jobs:
+    # args replaces git's own pre-push argv (<remote> <url>) with the subcommand;
+    # use_stdin forwards the "<local ref> <sha> <remote ref> <sha>" lines the gate reads.
+    - name: quality gate
+      script: "verify.sh"
+      runner: bash
+      use_stdin: true
+      args: pre-push

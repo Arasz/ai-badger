@@ -13,3 +13,5 @@ task-tracking/
 .ai-badger/prompt-markers/
 # subagent worktrees: a full nested checkout, never part of a commit
 .claude/worktrees/
+# per-developer lefthook overrides: personal skips are never shared
+lefthook-local.yml
