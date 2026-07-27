@@ -93,26 +93,46 @@ version each component actually ran at.
 
 ## Producing a health report
 
-`analyze` compares what a project **wires** against what was **observed**, and hands you
+`analyze` compares what a project **registers** against what was **observed**, and hands you
 findings rather than a verdict. Run it with `--json` and write the report yourself.
 
 ```bash
 python3 .ai-badger/skills/call-behaviorist/scripts/behaviorist.py analyze --json
 ```
 
+### Where the expected components come from
+
+Hooks run from what is **registered** with the agent, so that is what is audited — in order,
+`.claude/settings.json`, `.claude/settings.local.json`, then `.ai-badger/hooks/hooks.json`.
+The last is ai-badger's own declaration and the only project-level record in a deployment that
+registers hooks elsewhere (Hermes, Copilot), so it never stops counting. A script registered in
+more than one of them is one component.
+
+Components are named by their **project-relative path**, not their filename: several skills
+ship a `user_prompt_hook.py`, and merging them lets one hook's silence hide behind another's
+excuse. A hook ai-badger did not wire is still listed — someone else's hook is information, and
+it lands in `not_instrumented` because it cannot report on itself. A hook whose command runs no
+`.py` script (an installed binary, a shell one-liner) has nothing to inspect and is not listed.
+
 ### What the findings mean
 
 | `kind` | Severity | Means |
 |---|---|---|
-| `never_observed` | high | Wired **and** instrumented, but produced no record. It may never load, or never fire. This is the failure the tool exists to catch. |
-| `not_instrumented` | low | Wired but calls no debug logger, so it *cannot* produce records. Its silence says nothing about health — do not report it as broken. |
+| `never_observed` | high | Registered **and** instrumented, but produced no record while the log holds records from elsewhere. It may never load, or never fire. This is the failure the tool exists to catch. |
+| `not_instrumented` | low | Registered but calls no debug logger, so it *cannot* produce records. Its silence says nothing about health — do not report it as broken. |
 | `version_skew` | high | One component ran at more than one framework version. Copies disagree — typically a plugin cache against a `.ai-badger/` scaffold. |
 | `always_skipped` | medium | Fired every time and exited early every time. Live, but doing nothing. |
-| `unexpected_component` | low | Produced records but is not wired by this project. Often legitimate (a plugin-side hook); worth a glance. |
+| `unexpected_component` | low | Produced records but is not registered by this project. Often legitimate (a plugin-side hook); worth a glance. |
 
 `health` is `ok`, `warn`, `degraded`, or **`unknown`**. Treat `unknown` as *nobody looked* — it
-means there are no records, not that everything is fine. Say so plainly in the report rather
+means there is no evidence, not that everything is fine. Say so plainly in the report rather
 than implying health.
+
+**Evidence is not the same as lines in the log.** This tool records its own `enabled`,
+`disabled` and `cleared` events; those prove the log exists and nothing more. They are excluded
+from the record count, from `observed`, and from the health verdict. With no evidence,
+`never_observed` is withheld too — when nothing at all was observed, every component is
+trivially silent, and reporting that as a high-severity failure would be crying wolf.
 
 ### Writing it up
 

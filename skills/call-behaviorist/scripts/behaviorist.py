@@ -151,28 +151,62 @@ def _evidence(records) -> list:
     return [r for r in records if r.get(dl.KEY_COMPONENT) != TOOL_COMPONENT]
 
 
-def _wired_hooks(project) -> dict:
-    """script stem -> absolute path, for every hook wired in .ai-badger/hooks/hooks.json."""
-    found = {}
-    hooks_file = Path(project) / ".ai-badger" / "hooks" / "hooks.json"
+SCRIPT_RE = re.compile(r'([^\s"\']+/)?([A-Za-z0-9_\-]+)\.py')
+PROJECT_DIR_VARS = ("${CLAUDE_PROJECT_DIR}", "$CLAUDE_PROJECT_DIR")
+
+# Read in order; a script registered in more than one of them is still one component.
+# The first two are what Claude Code actually runs. The third is ai-badger's own declaration
+# and the only project-level record where hooks register elsewhere (Hermes, Copilot).
+HOOK_SOURCES = (
+    ".claude/settings.json",
+    ".claude/settings.local.json",
+    ".ai-badger/hooks/hooks.json",
+)
+
+
+def _script_path(project, command):
+    """(project-relative name, absolute path) for the script a hook command runs, or None."""
+    match = SCRIPT_RE.search(command)
+    if not match:
+        return None
+    raw = (match.group(1) or "") + match.group(2) + ".py"
+    for var in PROJECT_DIR_VARS:
+        raw = raw.replace(var, str(project))
+    path = Path(raw)
+    if not path.is_absolute():
+        path = Path(project) / path
     try:
-        data = json.loads(hooks_file.read_text(encoding="utf-8"))
+        name = path.resolve().relative_to(Path(project).resolve()).as_posix()
     except (OSError, ValueError):
-        return found
-    for entries in (data.get("hooks") or {}).values():
-        for entry in entries or []:
-            for hook in entry.get("hooks") or []:
-                match = re.search(r'([^\s"\']+/)?([A-Za-z0-9_\-]+)\.py',
-                                  hook.get("command", ""))
-                if match:
-                    found[match.group(2)] = (match.group(1) or "") + match.group(2) + ".py"
+        name = raw
+    return name, path
+
+
+def _wired_hooks(project) -> dict:
+    """project-relative script path -> absolute path, for every registered hook.
+
+    Keyed by path, not filename: two skills can ship the same hook filename, and collapsing
+    them hides one's silence behind the other's excuse.
+    """
+    found = {}
+    for source in HOOK_SOURCES:
+        try:
+            data = json.loads((Path(project) / source).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for entries in (data.get("hooks") or {}).values():
+            for entry in entries or []:
+                for hook in entry.get("hooks") or []:
+                    script = _script_path(project, hook.get("command", ""))
+                    if script:
+                        found.setdefault(script[0], script[1])
     return found
 
 
 def expected_components(project) -> list:
-    """Components a scaffolded project should produce records for.
+    """Components a registered project should produce records for.
 
-    Derived from what is actually wired. A component absent from here is not judged; one
+    Derived from what is actually registered. A component absent from here is not judged; one
     present here and silent is the finding this tool exists for.
     """
     return sorted(_wired_hooks(project))
@@ -190,14 +224,20 @@ def is_instrumented(script_path) -> bool:
         return False
 
 
-def _matches(expected: str, component: str) -> bool:
-    """True when `component` is `expected`, or `expected` qualified by a phase.
+def _component_stem(expected: str) -> str:
+    """The name a wired script logs under: its filename stem, or the name as given."""
+    return expected[:-len(".py")].rsplit("/", 1)[-1] if expected.endswith(".py") else expected
 
-    Observed names may be phase-qualified (`session_start_hook/drift`) while wired names are
-    bare script stems (`session_start_hook`). Matching is on the whole stem, not a prefix
-    fragment, so `hooks/alpha` never satisfies `hooks/never`.
+
+def _matches(expected: str, component: str) -> bool:
+    """True when `component` is `expected`'s stem, or that stem qualified by a phase.
+
+    Observed names may be phase-qualified (`session_start_hook/drift`) while expected names are
+    script paths (`task/scripts/session_start_hook.py`). Matching is on the whole stem, not a
+    prefix fragment, so `hooks/alpha` never satisfies `hooks/never`.
     """
-    return component == expected or component.startswith(expected + "/")
+    stem = _component_stem(expected)
+    return component == stem or component.startswith(stem + "/")
 
 
 def _observed(records) -> dict:

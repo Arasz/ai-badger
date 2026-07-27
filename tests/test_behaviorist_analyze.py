@@ -39,6 +39,34 @@ def _kinds(report):
     return [f["kind"] for f in report["findings"]]
 
 
+def _by_component(report):
+    return {f["component"]: f["kind"] for f in report["findings"]}
+
+
+QUIET = "print('no logging here')\n"
+LOUD = "import debug_log\ndebug_log.log_event\n"
+
+
+SETTINGS = ".claude/settings.json"
+HOOKS_JSON = ".ai-badger/hooks/hooks.json"
+
+
+def _register(tmp_path, scripts, config=SETTINGS, event="SessionStart"):
+    """Write `scripts` ({project-relative path: body}) and register them in `config`."""
+    root = tmp_path / "proj"
+    for relpath, body in scripts.items():
+        script = root / relpath
+        script.parent.mkdir(parents=True, exist_ok=True)
+        script.write_text(body, encoding="utf-8")
+    path = root / config
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"hooks": {event: [{"hooks": [
+        {"type": "command", "command": f'python3 "${{CLAUDE_PROJECT_DIR}}/{relpath}"'}
+        for relpath in scripts
+    ]}]}}), encoding="utf-8")
+    return str(root)
+
+
 class TestAbsenceOfDataIsNotHealth:
     """An empty log means nobody looked, not that everything is fine."""
 
@@ -215,6 +243,102 @@ class TestComponentNamesMatchAcrossNamespaces:
         report = beh.analyze(project="/repo", expected=["alpha_hook"])
 
         assert report["findings"] == [], report["findings"]
+
+
+class TestTwoHooksCanShareAFilename:
+    """`user_prompt_hook.py` exists in more than one skill; they are not one component."""
+
+    SCRIPTS = {
+        "task/scripts/user_prompt_hook.py": QUIET,
+        "markers/scripts/user_prompt_hook.py": LOUD,
+    }
+
+    def test_both_paths_are_expected_components(self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = _register(tmp_path, self.SCRIPTS, config=HOOKS_JSON)
+
+        report = beh.analyze(project=project)
+
+        assert report["expected"] == sorted(self.SCRIPTS)
+
+    def test_the_instrumented_twin_is_still_reported_silent(self, load_script, tmp_path,
+                                                            monkeypatch):
+        """The uninstrumented sibling must not explain away the other's silence."""
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = _register(tmp_path, self.SCRIPTS, config=HOOKS_JSON)
+        _write(beh, [_record("other", project=project)])
+
+        report = beh.analyze(project=project)
+
+        by_component = _by_component(report)
+        assert by_component["task/scripts/user_prompt_hook.py"] == "not_instrumented"
+        assert by_component["markers/scripts/user_prompt_hook.py"] == "never_observed"
+        assert report["health"] == "degraded"
+
+
+class TestItAuditsWhatIsRegistered:
+    """Hooks run from what is registered with the agent, not from what ai-badger declared."""
+
+    def test_a_hook_only_in_claude_settings_is_audited(self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = _register(tmp_path, {"task/scripts/stop_hook.py": LOUD}, config=SETTINGS)
+
+        report = beh.analyze(project=project)
+
+        assert report["expected"] == ["task/scripts/stop_hook.py"]
+
+    def test_hooks_json_still_counts_where_there_is_no_claude_settings(self, load_script,
+                                                                       tmp_path, monkeypatch):
+        """A Hermes- or Copilot-only project registers nothing under .claude/."""
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = _register(tmp_path, {"task/scripts/stop_hook.py": LOUD}, config=HOOKS_JSON)
+
+        report = beh.analyze(project=project)
+
+        assert report["expected"] == ["task/scripts/stop_hook.py"]
+
+    def test_a_hook_in_both_files_is_one_component(self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        scripts = {"task/scripts/stop_hook.py": LOUD}
+        _register(tmp_path, scripts, config=HOOKS_JSON)
+        project = _register(tmp_path, scripts, config=SETTINGS)
+
+        report = beh.analyze(project=project)
+
+        assert report["expected"] == ["task/scripts/stop_hook.py"]
+
+    def test_a_third_party_hook_is_classified_not_hidden(self, load_script, tmp_path,
+                                                          monkeypatch):
+        """Someone else's hook is information; it just cannot report on itself."""
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = _register(tmp_path, {"vendor/other_hook.py": QUIET}, config=SETTINGS)
+        _write(beh, [_record("other", project=project)])
+
+        report = beh.analyze(project=project)
+
+        assert _by_component(report)["vendor/other_hook.py"] == "not_instrumented"
+
+
+class TestAProjectThatWasNeverObserved:
+    """The end-to-end shape: everything wired, nothing looked at."""
+
+    def test_five_registered_hooks_and_an_empty_log_report_unknown(self, load_script, tmp_path,
+                                                                    monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        scripts = {
+            "task/scripts/session_start_hook.py": LOUD,
+            "task/scripts/stop_hook.py": LOUD,
+            "task/scripts/drift_notice_hook.py": QUIET,
+            "task/scripts/user_prompt_hook.py": QUIET,
+            "markers/scripts/user_prompt_hook.py": QUIET,
+        }
+        project = _register(tmp_path, scripts, config=SETTINGS)
+
+        report = beh.analyze(project=project)
+
+        assert report["health"] == "unknown"
+        assert report["expected"] == sorted(scripts)
+        assert [f for f in report["findings"] if f["severity"] == "high"] == []
 
 
 class TestTheToolsOwnEventsAreNotEvidence:
