@@ -130,7 +130,8 @@ External tools are declared in `features/common/external-tools.json` and merged 
 ```
 ai-badger/
   index.json                     # SOURCE OF TRUTH: every feature for every stack (script-generated)
-  README.md   LICENSE (MIT)   VERSION
+  README.md   LICENSE (MIT)   VERSION   BREAKING_VERSIONS
+  CONTRIBUTING.md   SECURITY.md   CODE_OF_CONDUCT.md   RELEASING.md
   .claude-plugin/marketplace.json   # ai-badger is itself installable, plugin source "./"
   .claude-plugin/plugin.json        # the installable plugin wrapping the root skills
   schemas/                       # JSON Schema for every *.json model
@@ -196,6 +197,25 @@ mechanical Python with one dependency:
 ```bash
 python3 -m pip install -r scripts/requirements.txt   # jsonschema
 ```
+
+## Contributing
+
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first — it covers setup, the failing-test-first
+workflow this repo actually enforces, and every gate CI runs. The short version: branch (never
+push to `main`), write the failing test before the code, one task per PR, and let
+`scripts/release_guard.py` tell you whether a `VERSION` bump and a `docs/changelog/` entry are
+due.
+
+Releases are a separate, deliberate step — [`RELEASING.md`](RELEASING.md). Decisions that would
+otherwise get re-litigated are recorded as ADRs in [`docs/adr/`](docs/adr/README.md).
+
+Participation is governed by [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
+## Security
+
+Do not open a public issue for a security problem — report it privately through GitHub's
+**Security → Report a vulnerability** tab. [`SECURITY.md`](SECURITY.md) has the threat model, the
+supported-version policy, and what hardening is already in place.
 
 ## License
 
