@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import re
 from unittest.mock import patch
 
 
@@ -1207,3 +1208,61 @@ def test_merge_external_tools_user_overrides_catalog(load_script):
     assert len(merged) == 1
     assert merged[0]["command"] == "c2"
     assert merged[0]["instructions"] == "override"
+
+
+# ------------------------------------------------------------------- managed headers (F-08)
+_HEADER_RE = re.compile(r"Source of truth(?: for this file)?: `?([^\s`]+)")
+
+
+def _referenced_path(text: str):
+    """The .ai-badger/ path a managed banner or self-reference names, or None."""
+    match = _HEADER_RE.search(text)
+    return match.group(1).rstrip(".") if match else None
+
+
+def _managed_files(target) -> list:
+    """Every scaffolded file carrying the managed-by-ai-badger banner."""
+    found = []
+    for path in sorted(target.rglob("*.md")):
+        if path.is_file() and path.read_text(encoding="utf-8").startswith("<!-- Managed by"):
+            found.append(path)
+    return found
+
+
+def _scaffold_all_agents(scaffold, root, target):
+    scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(agents=["claude", "copilot", "hermes", "junie"]),
+        skills=["task"], install=False,
+    ).run(generated_at="2026-07-24T00:00:00Z")
+
+
+def test_every_managed_header_points_at_an_existing_file(tmp_path, load_script, root):
+    """The banner is the first line an agent reads about where durable edits go (F-08)."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    _scaffold_all_agents(scaffold, root, target)
+
+    managed = _managed_files(target)
+    assert managed, "expected at least one managed file"
+    for path in managed:
+        first_line = path.read_text(encoding="utf-8").splitlines()[0]
+        referenced = _referenced_path(first_line)
+        assert referenced, f"{path.relative_to(target)}: unparseable header {first_line!r}"
+        assert (target / referenced).exists(), \
+            f"{path.relative_to(target)} points at {referenced}, which does not exist"
+
+
+def test_managed_body_self_reference_matches_the_banner(tmp_path, load_script, root):
+    """A rendered file's own 'Source of truth for this file' must name its own source."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    _scaffold_all_agents(scaffold, root, target)
+
+    body = (target / ".github" / "copilot-instructions.md").read_text(encoding="utf-8")
+    self_ref = next(line for line in body.splitlines() if "Source of truth for this file" in line)
+    assert _referenced_path(self_ref) == ".ai-badger/copilot-instructions.md"
