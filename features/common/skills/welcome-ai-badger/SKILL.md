@@ -89,6 +89,12 @@ If `index.json` is missing or stale, run `python3 "$AI_BADGER/scripts/index_buil
   copies (which carry the header) and brand-new files are written/refreshed normally, so
   idempotent re-scaffolding still works. Pass `--overwrite-agent-files` to force the old
   copy-over behavior on every discovery file.
+- **Preserved regions (per-block):** content between `<!-- ai-badger:keep-start -->` and
+  `<!-- ai-badger:keep-end -->` is carried verbatim into the regenerated file, in order, at the
+  end. This applies to every managed agent file *and* its `.ai-badger/` source-of-truth copy, so
+  a project block added to `.ai-badger/CLAUDE.md` survives a re-scaffold. Unbalanced or nested
+  markers leave the file untouched and emit a note — a marker typo never loses content. Tell the
+  user about this whenever they ask where to put project-authored content in a managed file.
 - **Extensions:** config-gated skill extensions (e.g. the GitHub PR/issue extension of `task`)
   are embedded automatically iff `config.json` supplies their required data.
 

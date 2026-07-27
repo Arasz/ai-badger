@@ -86,6 +86,11 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
   config and re-run.
 - **Seed-once files survive.** `state.json`, `markers-context.json`, and
   `model.json` are seed-once and preserved across re-scaffolds.
+- **Preserved regions survive.** Managed agent files (`CLAUDE.md`,
+  `.ai-badger/CLAUDE.md`, `AGENTS.md`, the Copilot and Hermes files) are
+  regenerated in full, so project-authored content in them is dropped *unless*
+  it sits between `<!-- ai-badger:keep-start -->` and `<!-- ai-badger:keep-end -->`.
+  When a refresh reports dropped content, that is the fix to offer.
 - **Stack ignore list.** If `.ai-badger/stack-ignore.json` exists, stacks
   listed in its `ignore` array are excluded from `newStacks` detection.
   Use this to suppress false-positive stack detection (e.g. `python`

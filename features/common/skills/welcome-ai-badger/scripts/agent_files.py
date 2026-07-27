@@ -64,9 +64,14 @@ class AgentFilesMixin:
             else:
                 body = source.read_text(encoding="utf-8")
 
-            # Write source-of-truth copy under .ai-badger/
+            # Write source-of-truth copy under .ai-badger/. It carries preserved regions on the
+            # same terms as the discovery copies — it is the file the project is told to edit.
             if aib_copy:
-                (self.aib / aib_copy).write_text(body, encoding="utf-8")
+                aib_dest = self.aib / aib_copy
+                carried = self.carried_body(aib_dest, body)
+                if carried is not None:
+                    aib_dest.parent.mkdir(parents=True, exist_ok=True)
+                    aib_dest.write_text(carried, encoding="utf-8")
 
             # Seed-once: skip if target already exists
             if seed_once and target.exists():

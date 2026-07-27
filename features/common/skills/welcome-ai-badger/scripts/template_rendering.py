@@ -6,7 +6,7 @@ files, and assembles agent discovery documents.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 class TemplateRenderingMixin:
@@ -95,6 +95,24 @@ class TemplateRenderingMixin:
             tmpl = tmpl.replace("{{" + k + "}}", str(v))
         return tmpl
 
+    def carried_body(self, dest: Path, body: str) -> Optional[str]:
+        """`body` plus dest's preserved regions, or None when dest's markers are malformed."""
+        from _shared import carry_keep_regions, MalformedKeepRegion  # pylint: disable=import-outside-toplevel
+
+        if not dest.exists():
+            return body
+        rel = dest.relative_to(self.target).as_posix()
+        try:
+            carried = carry_keep_regions(dest.read_text(encoding="utf-8", errors="ignore"), body)
+        except MalformedKeepRegion as exc:
+            self.notes.append(
+                f"{rel} left untouched — {exc}; fix the markers and re-run to refresh it"
+            )
+            return None
+        if carried != body:
+            self.notes.append(f"carried preserved regions into {rel}")
+        return carried
+
     def _copy_with_header(self, dest: Path, name: str, body: str) -> None:
         """Write body to dest with managed header, preserving hand-authored files."""
         from _shared import _MANAGED_PREFIX, MANAGED_HEADER  # pylint: disable=import-outside-toplevel
@@ -107,5 +125,8 @@ class TemplateRenderingMixin:
                 "(source written to .ai-badger/; pass --overwrite-agent-files to replace)"
             )
             return
+        carried = self.carried_body(dest, body)
+        if carried is None:
+            return
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(MANAGED_HEADER.format(name=name) + body, encoding="utf-8")
+        dest.write_text(MANAGED_HEADER.format(name=name) + carried, encoding="utf-8")
