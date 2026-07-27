@@ -155,6 +155,144 @@ def test_scaffold_hook_dedup_does_not_duplicate_multi_hook_entries(tmp_path, loa
     assert "hook-b" in all_cmds
 
 
+# ------------------------------------------------------- checkout-independent commands
+_CRG_ENTRY = {
+    "matcher": "",
+    "hooks": [{"type": "command", "command": "code-review-graph status", "timeout": 10}],
+}
+
+
+def _all_commands(settings: dict) -> list:
+    return [h.get("command", "")
+            for event_hooks in settings.get("hooks", {}).values()
+            for entry in event_hooks
+            for h in entry.get("hooks", [])]
+
+
+def _scaffold(scaffold, root, target, skills=("task", "prompt-markers")):
+    target.mkdir(parents=True, exist_ok=True)
+    scaffold.Scaffolder(root=root, target=target, config=_config(agents=["claude"]),
+                        skills=list(skills), install=False).run(generated_at="2026-07-24T00:00:00Z")
+    return json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+
+
+def test_wired_hook_commands_carry_no_absolute_checkout_path(tmp_path, load_script, root):
+    """A wired command must survive being read from another checkout of the same project."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+
+    settings = _scaffold(scaffold, root, target)
+
+    commands = _all_commands(settings)
+    assert commands
+    for cmd in commands:
+        assert str(target) not in cmd, f"absolute checkout path baked into command: {cmd}"
+        assert str(root) not in cmd, f"absolute framework path baked into command: {cmd}"
+        assert "CLAUDE_PROJECT_DIR" in cmd, cmd
+
+
+def test_wiring_from_a_second_checkout_does_not_append_a_duplicate(tmp_path, load_script, root):
+    """The same project scaffolded from two checkouts must leave one command per hook."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    first = tmp_path / "main-checkout"
+    second = tmp_path / "worktree-checkout"
+
+    first_settings = _scaffold(scaffold, root, first)
+    (second / ".claude").mkdir(parents=True)
+    (second / ".claude" / "settings.json").write_text(
+        json.dumps(first_settings), encoding="utf-8")
+
+    commands = _all_commands(_scaffold(scaffold, root, second))
+    assert len(commands) == len(set(commands)), commands
+    assert len(commands) == len(_all_commands(first_settings)), commands
+
+
+def test_merge_collapses_a_pre_existing_absolute_command(load_script):
+    """A stale absolute entry for the same script is replaced, not duplicated."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    portable = 'python3 "${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/session_start_hook.py"'
+    existing = {"SessionStart": [
+        dict(_CRG_ENTRY),
+        {"matcher": "startup|resume", "hooks": [
+            {"type": "command",
+             "command": 'python3 "/Users/a/proj/.ai-badger/skills/task/scripts/session_start_hook.py"'},
+        ]},
+        {"matcher": "startup|resume", "hooks": [
+            {"type": "command",
+             "command": 'python3 "/Users/a/wt/.ai-badger/skills/task/scripts/session_start_hook.py"'},
+        ]},
+    ]}
+
+    scaffold.merge_hooks(existing, {"SessionStart": [
+        {"matcher": "startup|resume",
+         "hooks": [{"type": "command", "command": portable}]},
+    ]})
+
+    commands = [h["command"] for e in existing["SessionStart"] for h in e["hooks"]]
+    assert commands.count(portable) == 1, commands
+    assert not [c for c in commands if "session_start_hook.py" in c and c != portable], commands
+
+
+def test_merge_collapses_framework_cache_and_plugin_root_forms(load_script):
+    """The framework-cache and ${CLAUDE_PLUGIN_ROOT} spellings name the same script."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    portable = 'python3 "${CLAUDE_PROJECT_DIR}/.ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py"'
+    existing = {"UserPromptSubmit": [
+        {"hooks": [
+            {"type": "command",
+             "command": 'python3 "/Users/a/.ai-badger/framework/features/common/skills/'
+                        'prompt-markers/scripts/user_prompt_hook.py"'},
+            {"type": "command",
+             "command": 'python3 "${CLAUDE_PLUGIN_ROOT}/features/common/skills/'
+                        'prompt-markers/scripts/user_prompt_hook.py"'},
+        ]},
+    ]}
+
+    scaffold.merge_hooks(existing, {"UserPromptSubmit": [
+        {"hooks": [{"type": "command", "command": portable}]},
+    ]})
+
+    commands = [h["command"] for e in existing["UserPromptSubmit"] for h in e["hooks"]]
+    assert commands == [portable], commands
+
+
+def test_merge_leaves_third_party_hook_entries_untouched(load_script):
+    """Hooks the framework does not own are never rewritten, reordered, or collapsed."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    existing = {"SessionStart": [
+        dict(_CRG_ENTRY),
+        {"matcher": "", "hooks": [{"type": "command", "command": "code-review-graph status"}]},
+    ]}
+
+    scaffold.merge_hooks(existing, {"SessionStart": [
+        {"matcher": "startup|resume", "hooks": [{
+            "type": "command",
+            "command": 'python3 "${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/'
+                       'session_start_hook.py"'}]},
+    ]})
+
+    assert existing["SessionStart"][:2] == [
+        _CRG_ENTRY,
+        {"matcher": "", "hooks": [{"type": "command", "command": "code-review-graph status"}]},
+    ], existing["SessionStart"]
+
+
+def test_merge_keeps_distinct_scripts_of_the_same_skill(load_script):
+    """Two different scripts under one skill must not collapse into one another."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    drift = 'python3 "/Users/a/proj/.ai-badger/skills/task/scripts/drift_notice_hook.py"'
+    existing = {"SessionStart": [{"hooks": [{"type": "command", "command": drift}]}]}
+    session = ('python3 "${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/'
+               'session_start_hook.py"')
+
+    scaffold.merge_hooks(existing, {"SessionStart": [
+        {"hooks": [{"type": "command", "command": session}]},
+    ]})
+
+    commands = [h["command"] for e in existing["SessionStart"] for h in e["hooks"]]
+    assert commands == [drift, session], commands
+
+
 def test_scaffold_no_hooks_without_claude_agent(tmp_path, load_script, root):
     """Scaffolding without claude agent should not create hooks."""
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
