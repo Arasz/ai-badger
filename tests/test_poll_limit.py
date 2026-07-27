@@ -110,7 +110,7 @@ def test_poll_once_resumes_after_limit_transition(load_script):
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
 
     calls = []
-    state = poll_limit.PollState(was_limited=True)
+    state = poll_limit.PollState(was_limited=True, auto_wm_on_reset=True)
     session = poll_limit.TargetSession(session_id="sid-1", task_id="T01", source="task-tracking")
 
     def check_limit():
@@ -132,6 +132,50 @@ def test_poll_once_resumes_after_limit_transition(load_script):
 
     assert calls == ["auto", ("resume", "sid-1", "T01")]
     assert state.was_limited is False
+
+
+def test_poll_once_does_not_self_enable_auto_wm(load_script):
+    """A limit reset must never turn auto-approval on by itself: opt-in is explicit (F-12)."""
+    poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
+
+    calls = []
+    state = poll_limit.PollState(was_limited=True)
+    session = poll_limit.TargetSession(session_id="sid-1", source="task-tracking")
+
+    poll_limit.poll_once(
+        state,
+        lambda: (False, "ok"),
+        lambda: [session],
+        lambda: calls.append("auto") or True,
+        lambda target: calls.append(("resume", target.session_id)) or True,
+        sleep_between_resumes=lambda _: None,
+    )
+
+    assert "auto" not in calls
+    assert calls == [("resume", "sid-1")]
+
+
+def test_main_does_not_opt_into_auto_wm_by_default(load_script, monkeypatch):
+    poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
+    seen = {}
+    monkeypatch.setattr(poll_limit, "poll_once", lambda state: seen.update(state=state))
+    monkeypatch.setattr(poll_limit.sys, "argv", ["poll_limit.py", "--once"])
+
+    poll_limit.main()
+
+    assert seen["state"].auto_wm_on_reset is False
+
+
+def test_main_opts_into_auto_wm_only_with_the_explicit_flag(load_script, monkeypatch):
+    poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
+    seen = {}
+    monkeypatch.setattr(poll_limit, "poll_once", lambda state: seen.update(state=state))
+    monkeypatch.setattr(poll_limit.sys, "argv",
+                        ["poll_limit.py", "--once", "--auto-wm-on-reset"])
+
+    poll_limit.main()
+
+    assert seen["state"].auto_wm_on_reset is True
 
 
 def test_dynamic_wait_schedule_after_limit_detection(load_script):

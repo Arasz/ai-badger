@@ -49,14 +49,36 @@ def test_disabled_mode_emits_nothing(tmp_path, load_script, monkeypatch, capsys)
 def test_partner_mode_prints_status(tmp_path, load_script, monkeypatch, capsys):
     context = load_script("features/claude/skills/auto-wm/hooks/awm_context.py")
     state_file, _ = _patch_state_paths(context, monkeypatch, tmp_path)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=3)
     _write_state(state_file, {"enabled": True, "mode": "partner",
-                               "enabled_at": datetime.now(timezone.utc).isoformat()})
+                               "enabled_at": datetime.now(timezone.utc).isoformat(),
+                               "expires_at": expires_at.isoformat()})
 
     context.main()
 
     out = capsys.readouterr().out
     assert "[auto-wm] PARTNER MODE ACTIVE" in out
-    assert "no expiry" in out
+    assert "remaining" in out
+
+
+def test_partner_expired_prints_expired_and_flips_state_off(tmp_path, load_script, monkeypatch,
+                                                              capsys):
+    """Partner mode is bounded now, so the context hook must retire it like away mode (F-12)."""
+    context = load_script("features/claude/skills/auto-wm/hooks/awm_context.py")
+    state_file, decisions_file = _patch_state_paths(context, monkeypatch, tmp_path)
+    expires_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+    _write_state(state_file, {"enabled": True, "mode": "partner",
+                               "enabled_at": (expires_at - timedelta(hours=8)).isoformat(),
+                               "expires_at": expires_at.isoformat()})
+
+    context.main()
+
+    assert "PARTNER MODE EXPIRED" in capsys.readouterr().out
+    state = json.loads(state_file.read_text(encoding="utf-8"))
+    assert state["enabled"] is False
+    assert state["disabled_reason"] == "expired"
+    assert json.loads(decisions_file.read_text(encoding="utf-8").splitlines()[-1])["type"] == \
+        "mode_expired"
 
 
 def test_away_active_prints_remaining_time(tmp_path, load_script, monkeypatch, capsys):
