@@ -3,8 +3,9 @@
 Point-in-time record. Supersedes nothing; the first checkpoint
 (`2026-07-27-session-checkpoint.md`) covers the waves up to 0.27.0.
 
-**0.32.0 is released** — `main` @ `1b69a7c`, tagged `ai-badger--v0.32.0`, pushed. 1031 tests
-passing, all ten gates green, re-scaffolded against itself.
+**0.33.0 is released** — tagged `ai-badger--v0.33.0`, pushed. 1053 tests passing, all ten gates
+green. 0.32.0 (four defects from a real refresh) and 0.33.0 (stop installing a tool-call
+interceptor) both shipped; statusline wiring is merged and unreleased.
 
 ## What shipped in 0.32.0
 
@@ -83,16 +84,68 @@ merged code: five entries collapse to three.
   messages. Split modules must be flat siblings, not a package with `__init__.py`.
 - **Wave 6** — was blocked by Waves 12 and 15; both have now shipped.
 
-## In flight
+## 0.33.0 — the plugin that intercepted every tool call
 
-- **`feat/wire-statusline-capture`** — `statusline_capture.py` ships but nothing registers it.
-  Verified inert: `statusline-state.json` does not exist, so `poll_limit.py`'s "use Claude
-  Code's own rate-limit metadata" fast path never fires and every check spends a probe. Same
-  shipped-but-inert class as the plugin hooks and the extension mechanism. **Maintainer decided:
-  wire the capture only, no ai-badger renderer, opt-in.** The agent was told to verify rather
-  than assume whether project-level `statusLine` is honoured and whether the settings `env`
-  block reaches the statusLine command — and to report back rather than ship if chaining cannot
-  be made reliable without leaning on undocumented behaviour.
+`semgrep` was `scope: default` for the python stack, so `welcome-ai-badger --execute` installed
+**Semgrep Guardian** on every python project: a ~16 MB prebuilt Go binary hooking
+`PreToolUse`/`PostToolUse` on `Write|Edit|Bash`, plus a `guardian` MCP server, which opens a
+browser to Semgrep OAuth when it finds no session. The symptom that surfaced it was a login page
+appearing on **`git commit`** — a commit is a Bash call.
+
+Removed from the catalog rather than made configurable: installing a tool-call interceptor
+silently, as a side effect of scaffolding, is not the framework's decision to make. The guard is
+`TestThirdPartyPluginsAreNotAddedSilently`, which pins the complete external-plugin set so
+adding one fails the suite until the allow-list is updated. `pydantic-ai` and `pyright-lsp` were
+re-checked rather than assumed: no hooks, no MCP server, no binaries.
+
+## Merged, unreleased — statusline capture
+
+`statusline_capture.py` shipped but nothing registered it. Verified inert:
+`statusline-state.json` did not exist, so `poll_limit.py`'s "use Claude Code's own rate-limit
+metadata" fast path never fired and every check spent a probe — the same shipped-but-inert class
+as the plugin hooks and the extension mechanism.
+
+Opt-in via `statusLineCapture.enabled` (default **false**), because a project-level `statusLine`
+**overrides the user's own** — demonstrated live, not assumed. Three verifications worth keeping:
+
+- **Project-level `statusLine` clobbers user-level.** Confirmed in the Claude Code binary's
+  trust scanner and then live in a pty: a probe entry rendered instead of the configured
+  `~/.claude/statusline.sh`.
+- **Settings `env` does reach the statusLine command — but that is undocumented**, so it was not
+  built on. The displaced renderer is recorded in
+  `.ai-badger/task-tracking/statusline-delegate.json` (gitignored, machine-local) instead;
+  `CLAUDE_USER_STATUSLINE` still wins when set.
+- **`${CLAUDE_PROJECT_DIR}` is documented only for hooks**, so it was verified directly:
+  statusLine and hooks share one executor that sets it in the child environment. Safe here,
+  confirmed two ways.
+
+A hazard found mid-task and fixed: with capture enabled but the `task` skill not scaffolded, the
+wiring pointed `statusLine` at a nonexistent script — silently blanking the status bar. It now
+refuses with a note.
+
+**Known gap:** flipping `enabled` back to `false` leaves the wired `statusLine` in place. An
+unwire path that restores the delegate is a coherent follow-up.
+
+## Issue triage (2026-07-27 16:40)
+
+- **#76** (Hermes plugin hooks receive no `cwd`) — **closed.** Fixed in 0.18.0; `_project_cwd()`
+  at `ai_badger_hooks.py:84` is the single resolver, with the requested tests in
+  `tests/test_hook_cwd_resolution.py`. Left open by oversight, not left unfixed.
+- **#67** (sync Hermes learned skills) — **closed.** Delivered in 0.18.0, past its acceptance
+  criteria: it asked for a proof-of-concept and got shipped code plus two test files. Its
+  question-5 assumption was corrected on close — the scaffold does *not* copy
+  `.ai-badger/skills/` into `.claude/skills/`; that path does not exist. Pointed at #103.
+- **#103** (ai-badger skills invisible to Claude Code) — **open, both causes reproduced on
+  0.33.0.** Cause 1: no `skills/` at the plugin root, so the plugin contributes zero skills
+  despite its description promising them. The convention was verified against the `superpowers`
+  plugin, which has a top-level `skills/` and declares no skills key in `plugin.json`. Cause 2:
+  `features/claude/` has **no `adjustments/` directory at all**, where copilot has three. Two
+  branches in flight: `fix/plugin-exposes-its-skills`, `fix/claude-skill-discovery`.
+
+The migration hazard in #103 is the delicate part: a hand-committed `.claude/skills/<name>` that
+appears in no manifest, which `den-refresh` cannot see and never updates, is worse than an absent
+skill. The rule being implemented is refuse-and-report for any real directory ai-badger did not
+place — skip that one skill, link the rest, leave third-party skills untouched.
 
 ## Open, not started
 
