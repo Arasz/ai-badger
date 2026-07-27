@@ -139,13 +139,30 @@ unwire path that restores the delegate is a coherent follow-up.
   0.33.0.** Cause 1: no `skills/` at the plugin root, so the plugin contributes zero skills
   despite its description promising them. The convention was verified against the `superpowers`
   plugin, which has a top-level `skills/` and declares no skills key in `plugin.json`. Cause 2:
-  `features/claude/` has **no `adjustments/` directory at all**, where copilot has three. Two
-  branches in flight: `fix/plugin-exposes-its-skills`, `fix/claude-skill-discovery`.
+  `features/claude/` has **no `adjustments/` directory at all**, where copilot has three.
+  **Cause 2 is fixed and merged** (`features/claude/adjustments/adjust_skills.py`, 12 tests);
+  cause 1 is still in flight on `fix/plugin-exposes-its-skills`.
 
-The migration hazard in #103 is the delicate part: a hand-committed `.claude/skills/<name>` that
-appears in no manifest, which `den-refresh` cannot see and never updates, is worse than an absent
-skill. The rule being implemented is refuse-and-report for any real directory ai-badger did not
-place — skip that one skill, link the rest, leave third-party skills untouched.
+The migration hazard was the delicate part: a hand-committed `.claude/skills/<name>` that appears
+in no manifest, which `den-refresh` cannot see and never updates, is worse than an absent skill.
+The implemented rule is refuse-and-report — a destination is replaced only when ai-badger
+demonstrably placed it (our own symlink resolving inside `.ai-badger/skills/`, or a path recorded
+in `manifest.json`). Everything else is left byte-for-byte and named in a note that says what to
+do about it, not merely what happened. Skills outside the adjustment's own list are never
+iterated, so third-party ones cannot be touched at all.
+
+I re-verified this independently of the agent's own tests, running the adjustment against a
+project seeded with both hazards: `den-refresh` linked and resolved to the managed copy, the
+hand-committed `task` kept its 0.18.1 content, and a third-party `my-own-skill` survived. The
+agent also mutation-tested its own guards — short-circuiting `_ours` to clobber-anything made
+exactly the four guard tests fail, which is the evidence that they are load-bearing rather than
+decorative.
+
+Deliberately not done: factoring the ~90% shared logic out of the copilot and claude adjustments.
+Per-agent duplication is the established pattern (`adjust_hooks.py` exists separately under both
+`copilot/` and `hermes/`), adjustments load standalone via `importlib` with no shared package,
+and a shared module would mean editing `features/copilot/`. Worth revisiting if a third agent
+needs the same behaviour.
 
 ## Open, not started
 
