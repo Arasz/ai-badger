@@ -93,6 +93,13 @@ git checkout -b task/short-description
 **One task, one PR.** Do not bundle unrelated work into a single change — it makes review and
 rollback lose their scope.
 
+The single exception: **the maintainer may ask for a change to be merged locally**, skipping the
+PR. That is their call and nobody else's — if you are contributing, or you are an agent working
+in this repo, assume the rule is absolute unless you were told otherwise for that specific
+change. The exception drops the PR, never the gates: everything in
+[step 6](#6-run-every-gate-before-you-ask-for-review) still has to pass before the push, because
+the PR was the record, not the safety net.
+
 ### 2. Write the failing test first
 
 TDD is a non-negotiable invariant in [`CLAUDE.md`](CLAUDE.md). No production code without a test
