@@ -180,6 +180,57 @@ class TestEnsureFrameworkCache:
         assert "fatal: tag not found" in str(excinfo.value)
 
 
+def test_dump_json_is_atomic_under_write_failure(tmp_path, load_script, monkeypatch):
+    bl = load_script("scripts/badger_lib.py")
+    path = tmp_path / "manifest.json"
+    path.write_text('{"entries": ["the user\'s data"]}\n', encoding="utf-8")
+    before = path.read_text(encoding="utf-8")
+
+    def exploding_replace(*args, **kwargs):  # pylint: disable=unused-argument
+        raise OSError("disk full")
+
+    monkeypatch.setattr(bl.os, "replace", exploding_replace)
+
+    with pytest.raises(OSError):
+        bl.dump_json(path, {"entries": []})
+
+    assert path.read_text(encoding="utf-8") == before
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_dump_json_leaves_the_target_untouched_when_serialisation_fails(tmp_path, load_script):
+    bl = load_script("scripts/badger_lib.py")
+    path = tmp_path / "index.json"
+    path.write_text('{"generated": true}\n', encoding="utf-8")
+
+    with pytest.raises(TypeError):
+        bl.dump_json(path, {"bad": object()})
+
+    assert path.read_text(encoding="utf-8") == '{"generated": true}\n'
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_atomic_write_text_preserves_the_file_mode(tmp_path, load_script):
+    bl = load_script("scripts/badger_lib.py")
+    path = tmp_path / "hook.sh"
+    path.write_text("old\n", encoding="utf-8")
+    path.chmod(0o755)
+
+    bl.atomic_write_text(path, "new\n")
+
+    assert path.read_text(encoding="utf-8") == "new\n"
+    assert path.stat().st_mode & 0o777 == 0o755
+
+
+def test_atomic_write_text_creates_missing_parents(tmp_path, load_script):
+    bl = load_script("scripts/badger_lib.py")
+    path = tmp_path / "a" / "b" / "c.json"
+
+    bl.atomic_write_text(path, "{}\n")
+
+    assert path.read_text(encoding="utf-8") == "{}\n"
+
+
 def test_find_root_default_start_resolves_the_real_framework_root(load_script, root):
     bl = load_script("scripts/badger_lib.py")
 

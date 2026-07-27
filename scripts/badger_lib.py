@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -178,11 +180,30 @@ def load_json(path: Path) -> Any:
         return json.load(fh)
 
 
+def atomic_write_text(path: Path, text: str) -> None:
+    """Write `text` via a temp file in the same directory + os.replace, preserving mode.
+
+    An interrupted write leaves the previous content intact and no temp file behind.
+    `config_guard._atomic_write` is the same contract for scripts that must load without
+    badger_lib on the path.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode = path.stat().st_mode & 0o7777 if path.exists() else None
+    handle, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        if mode is not None:
+            os.chmod(tmp, mode)
+        os.replace(tmp, str(path))
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
 def dump_json(path: Path, data: Any) -> None:
-    """Write `data` as pretty-printed, newline-terminated JSON."""
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=2, ensure_ascii=False)
-        fh.write("\n")
+    """Write `data` atomically as pretty-printed, newline-terminated JSON."""
+    atomic_write_text(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
 
 def sha256_text(text: str) -> str:
