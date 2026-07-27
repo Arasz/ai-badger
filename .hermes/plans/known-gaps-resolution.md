@@ -91,4 +91,6 @@ never registers it in the target project's `.claude/settings.json`.
 3. Task 4 (execute flag) — medium complexity
 4. Task 3 (e2e test) — validates the whole system
 
-After all tasks: update `docs/known-gaps.md` to reflect resolved items.
+After all tasks: update `docs/archive/2026-07-24-known-gaps.md` to reflect resolved items.
+(That file was archived on 2026-07-27 — the live gap surface is now
+`docs/reviews/2026-07-26-full-project-review.md` and `docs/plans/2026-07-27-deferred-work-plan.md`.)

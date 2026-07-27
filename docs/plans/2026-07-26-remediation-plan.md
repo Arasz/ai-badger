@@ -3,6 +3,17 @@
 **Source review:** [`docs/reviews/2026-07-26-full-project-review.md`](../reviews/2026-07-26-full-project-review.md)
 **Baseline commit:** `86457cf` · branch `task/full-project-code-review`
 **Date:** 2026-07-26
+**Status:** **Complete — all five waves, WP1–WP28, shipped as 0.19.0 → 0.23.0.** Kept as the
+record of what was fixed and why, not as outstanding work. Verified against the code at 0.27.0 on
+2026-07-27: every work package has landing evidence in the tree, one PR per wave, each with its
+changelog entry (`0.19.0-destructive-write-guards`, `0.20.0-inert-features-activated`,
+`0.21.0-gates-and-atomicity`, `0.22.0-portability-and-truth`,
+`0.23.0-skill-engineering-and-the-js-gap`).
+
+> **Where the still-open work lives.** This plan's §7 "explicitly out of scope" list was
+> re-planned as Waves 6–18 in
+> [`2026-07-27-deferred-work-plan.md`](2026-07-27-deferred-work-plan.md) — the active plan.
+> Four of those fourteen have since shipped (Waves 9, 10, 13, 14 → 0.24.0–0.27.0); nine have not.
 
 ## Binding constraints
 

@@ -1,5 +1,34 @@
 # Known gaps & follow-ups
 
+> **ARCHIVED — point-in-time record, not the current gap list.**
+> Written against **0.10.1**, last touched 2026-07-24 (commit `9c3d238`). The framework is now
+> seventeen minor releases past that. Do not treat anything below as current.
+>
+> **The current gap surface lives in
+> [`../reviews/2026-07-26-full-project-review.md`](../reviews/2026-07-26-full-project-review.md)
+> and [`../plans/2026-07-27-deferred-work-plan.md`](../plans/2026-07-27-deferred-work-plan.md).**
+> Fourteen remediation waves ran after this file was written — including one
+> ([0.20.0](../changelog/0.20.0-inert-features-activated.md)) devoted entirely to features that
+> shipped inert, a whole class of gap this list never contained.
+>
+> Verified against the code on 2026-07-27 while archiving:
+>
+> - The "Resolved" items still hold **in behaviour**, but three of them cite file paths that the
+>   0.14.1 module split moved: `wire_hooks` is now in
+>   `features/common/skills/welcome-ai-badger/scripts/hook_wiring.py`, `_NONSTANDARD_AGENT_FILES`
+>   in `.../agent_files.py`, and extension pruning in `.../extensions.py` — none of them are in
+>   `scaffold.py` any more.
+> - Resolved item 3 was **superseded by something stronger**: 0.27.0
+>   ([ADR-0006](../adr/0006-one-skill-extension-mechanism.md)) deleted the rival
+>   `<stack>/skills/<skill>-extensions/` mechanism outright. This file describes the intermediate
+>   state where both existed.
+> - Resolved item 2 — "all 9 schemas allow `$schema`" — is **now false**. There are 18 schemas,
+>   and `schemas/model.schema.json` sets `additionalProperties: false` without permitting
+>   `$schema` (same hole in `features/common/templates/agent-instructions/schema.json`). It is
+>   latent only because `scripts/validate.py`'s glob for it currently matches no files.
+> - The single remaining "Open" item (stacks without a dedicated persona) still holds, and is
+>   now under-inclusive: `python` and `cosmos` were added since and also have none.
+
 Honest list of what's not yet done, ordered by impact. None block the core loop
 (welcome scaffolds; feed detects + PRs), which is dogfooded and green.
 

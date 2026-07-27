@@ -7,6 +7,21 @@ made the function a no-op, and is now correct again — for a different reason a
 mandatory changes. Authoritative record:
 [ADR-0003](adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md).
 
+> **Closed — re-verified at 0.27.0 (2026-07-27).** Every finding in this audit is resolved; none
+> is outstanding. Kept in place, not archived, because ADR-0003 cites this path.
+>
+> Confirmed still true in the code: the mechanism matches ADR-0003 exactly
+> (`symlink_hermes_skills` / `relink_hermes_skills`, gated on `"hermes" in config.agents`);
+> ADR-0003 decision 2 ("never `rmtree`") is implemented as per-entry ownership via `_owns_link()`
+> with foreign entries never clobbered; decision 3 ("re-link on every refresh") is implemented in
+> `den-refresh`'s `refresh.py`; and §2's finding that `skills.external_dirs` is *not* used still
+> holds — the only remaining hits are explanatory docstrings.
+>
+> Stale details, unfixed on purpose so the audit reads as it was written: the `scaffold.py` and
+> `tests/test_scaffold.py` line citations are dead (the scaffolder was split into mixins after
+> this was written), and the "8 skills" list names `auto-wm`, which moved to
+> `features/claude/skills/` in 0.7.2.
+
 ## Question
 
 Do we still need `symlink_hermes_skills()` in scaffold.py, which writes symlinks

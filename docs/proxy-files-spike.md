@@ -3,6 +3,26 @@
 **Status:** documented plan only — not built, not scheduled. See "Out of scope" (§13) in
 [`ai-badger-framework-design.md`](ai-badger-framework-design.md).
 
+> **Dated record — written at 0.1.0 (2026-07-19), re-verified at 0.27.0 (2026-07-27).**
+> Kept in place, not archived, because
+> `features/common/skills/welcome-ai-badger/SKILL.md` points at this path.
+>
+> - **The core claim still holds.** No proxy, stub or `@import` mechanism exists anywhere in the
+>   scaffolder. Agent-discovery files are still full rendered copies — `agent_files.py` renders
+>   each agent's template and writes it with `_copy_with_header`.
+> - **The direction described below is inverted.** This document says
+>   `.ai-badger/CLAUDE.md → copied to CLAUDE.md`. In the code today the source is
+>   `features/<agent>/templates/*.tmpl`, driven by `features/<agent>/scaffolding.json`; the
+>   template is rendered once and written to *both* `.ai-badger/CLAUDE.md` and the root target,
+>   so the `.ai-badger/` file is an output, not the source.
+> - **A fourth agent exists.** `hermes` writes `HERMES.md` **and** a second full copy at
+>   `.hermes.md`, so there are more copies than this spike accounts for.
+> - **The idea has effectively been rejected, not merely deferred.** The archived gap list
+>   ([`archive/2026-07-24-known-gaps.md`](archive/2026-07-24-known-gaps.md), item 6) records it as
+>   *Dropped*, with a rationale: symlinks break on Windows, and Copilot does not follow
+>   references. Read this document as the reasoning behind that decision rather than as pending
+>   work.
+
 ## Today
 
 `scaffold.py` treats `.ai-badger/` as the single source of truth for a project's agent

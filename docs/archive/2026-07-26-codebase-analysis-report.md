@@ -1,5 +1,28 @@
 # Codebase Analysis Report — ai-badger
 
+> **ARCHIVED — a knowledge-graph snapshot, true of one commit.**
+> Taken at **0.14.1**, commit `7d9c767`. Fifty-six commits and ~115 changed files under
+> `features/ scripts/ tests/` have landed since. **Every number below is out of date**; if you
+> need these metrics, regenerate the graph rather than reading them here.
+>
+> Verified against the code on 2026-07-27 while archiving:
+>
+> - The **qualitative** conclusions still hold — the test suite dominates the graph, betweenness
+>   is low, the "dead code" hits on `_merge_extensions` / `wire_hooks` /
+>   `assemble_instructions_doc` are mixin-dispatch false positives, and the source/scaffold split
+>   is clean.
+> - §2's highlighted flow **`_embed_extensions` no longer exists** — it was deleted in 0.27.0
+>   ([ADR-0006](../adr/0006-one-skill-extension-mechanism.md)).
+> - §6's headline "zero actual dead production code" was **contradicted later**: 0.27.0 found and
+>   removed a genuinely dead mechanism this analysis did not flag.
+> - Two named test nodes are gone (`test_full_lifecycle_start_subagent_finish`,
+>   `test_finish_succeeds_when_state_json_updated`); several others are prefix-truncations of the
+>   real names.
+> - §5/§8's one actionable recommendation — "add smoke tests for `refresh.py`,
+>   `detect_additions.py`, `task_tracker.py` `main()`" — was **already satisfied when written**.
+>   All three `main()`s are invoked in-process by existing tests; the graph simply could not see
+>   the TESTED_BY edge, which the report itself hedges about.
+
 **Date:** 2026-07-26
 **Branch:** `main`
 **Commit:** `7d9c767`
