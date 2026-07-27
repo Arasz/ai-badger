@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import List
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import badger_lib as bl
@@ -88,6 +89,44 @@ def _template_items(fdir: Path, root: Path):
             for p in sorted(fdir.iterdir()) if p.name != "README.md"]
 
 
+LEGACY_EXT_SUFFIX = "-extensions"
+
+
+def legacy_extension_dirs(root: Path) -> List[str]:
+    """Repo-relative dirs still using the removed <skill>-extensions/<ext>/ layout, sorted.
+
+    The supported layout is <skill>/extensions/<name>/. See ADR-0006.
+    """
+    feat_root = root / "features"
+    if not feat_root.is_dir():
+        return []
+    found = []
+    for stack_dir in sorted(p for p in feat_root.iterdir() if p.is_dir()):
+        sk = stack_dir / "skills"
+        if not sk.is_dir():
+            continue
+        found.extend(
+            p.relative_to(root).as_posix()
+            for p in sorted(sk.iterdir())
+            if p.is_dir() and p.name.endswith(LEGACY_EXT_SUFFIX)
+        )
+    return found
+
+
+def _report_legacy(root: Path) -> int:
+    """Print every legacy extension dir with its replacement. Returns a process exit code."""
+    legacy = legacy_extension_dirs(root)
+    if not legacy:
+        return 0
+    print("UNSUPPORTED EXTENSION LAYOUT — index not built:")
+    for rel in legacy:
+        skill = Path(rel).name[: -len(LEGACY_EXT_SUFFIX)]
+        print(f"  {rel}  ->  move each <ext>/ under {Path(rel).parent.as_posix()}"
+              f"/{skill}/extensions/")
+    print("The <skill>-extensions/ mechanism was removed in 0.27.0; content there is inert.")
+    return 1
+
+
 def build_index(root: Path) -> dict:
     """Scan the framework tree under `root` and return the assembled index.json contents."""
     stacks: dict = {}
@@ -109,23 +148,6 @@ def build_index(root: Path) -> dict:
             items = _md_items(fdir, root)
         if items:
             bucket[feature] = items
-
-    # skill extensions: features/<stack>/skills/<base>-extensions/<ext>/
-    for stack_dir in sorted(p for p in (root / "features").iterdir() if p.is_dir()):
-        sk = stack_dir / "skills"
-        if not sk.is_dir():
-            continue
-        for extroot in sorted(
-            p for p in sk.iterdir() if p.is_dir() and p.name.endswith("-extensions")
-        ):
-            base = extroot.name[: -len("-extensions")]
-            exts = [d.name for d in sorted(p for p in extroot.iterdir() if p.is_dir())]
-            if not exts:
-                continue
-            for _s, b in stacks.items():
-                for entry in b.get("skills", []):
-                    if entry["name"] == base:
-                        entry.setdefault("extensions", []).extend(exts)
 
     # per-stack metadata from features/<stack>/stack.json
     feat_root = root / "features"
@@ -152,6 +174,10 @@ def main(argv=None) -> int:
     ap.add_argument("--check", action="store_true")
     args = ap.parse_args(argv)
     root = Path(args.root).resolve() if args.root else bl.find_root()
+
+    rc = _report_legacy(root)
+    if rc:
+        return rc
 
     index = build_index(root)
     errors = bl.validate(index, bl.load_json(root / "schemas" / "index.schema.json"))

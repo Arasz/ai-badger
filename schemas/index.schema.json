@@ -48,7 +48,6 @@
         "properties": {
           "name": { "type": "string" },
           "path": { "type": "string" },
-          "extensions": { "type": "array", "items": { "type": "string" } },
           "external": { "type": "boolean", "description": "True for external skills referenced in skills.json." },
           "scope": {
             "enum": ["default", "optIn"],

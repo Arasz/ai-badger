@@ -4,6 +4,9 @@ from __future__ import annotations
 import json
 import shutil
 
+import jsonschema
+import pytest
+
 
 def _make_fake_root(tmp_path, root):
     """A synthetic framework tree (real schemas/ copied in, hand-built features/)."""
@@ -37,11 +40,6 @@ def _make_fake_root(tmp_path, root):
     dotnet_templates.mkdir(parents=True)
     (dotnet_templates / "Program.cs").write_text("// template\n", encoding="utf-8")
     (dotnet_templates / "README.md").write_text("# readme, must be excluded\n", encoding="utf-8")
-
-    # skill extension: attaches to the "greet" skill above
-    ext_dir = features / "dotnet" / "skills" / "greet-extensions" / "loud"
-    ext_dir.mkdir(parents=True)
-    (ext_dir / "marker.txt").write_text("ext\n", encoding="utf-8")
 
     (features / "dotnet" / "stack.json").write_text(json.dumps({
         "name": "dotnet",
@@ -77,8 +75,7 @@ def test_build_index_assembles_expected_stacks_and_items(tmp_path, root, load_sc
     assert set(index["stacks"]) == {"dotnet", "metaonly", "common"}
 
     dotnet = index["stacks"]["dotnet"]
-    assert dotnet["skills"] == [{"name": "greet", "path": "features/dotnet/skills/greet",
-                                  "extensions": ["loud"]}]
+    assert dotnet["skills"] == [{"name": "greet", "path": "features/dotnet/skills/greet"}]
     assert dotnet["personas"] == [{"name": "reviewer",
                                     "path": "features/dotnet/personas/reviewer.md"}]
     assert dotnet["invariants"] == [{"name": "no-secrets",
@@ -116,16 +113,84 @@ def test_build_index_readme_excluded_from_md_and_template_items(tmp_path, root, 
     assert not any(p.endswith("README.md") for p in template_paths)
 
 
-def test_build_index_skill_extension_ignored_when_base_skill_not_found(tmp_path, root, load_script):
-    index_build = load_script("scripts/index_build.py")
-    fake_root = _make_fake_root(tmp_path, root)
-    orphan_ext = fake_root / "features" / "dotnet" / "skills" / "ghost-extensions" / "variant"
-    orphan_ext.mkdir(parents=True)
+class TestLegacyExtensionDirs:
+    """`<skill>-extensions/<ext>/` was removed; it must fail loudly, never silently do nothing."""
 
-    # must not raise even though "ghost" has no matching skill entry anywhere
-    index = index_build.build_index(fake_root)
+    def _legacy(self, fake_root, base="greet", ext="loud"):
+        d = fake_root / "features" / "dotnet" / "skills" / f"{base}-extensions" / ext
+        d.mkdir(parents=True)
+        (d / "marker.txt").write_text("ext\n", encoding="utf-8")
+        return d
 
-    assert index["stacks"]["dotnet"]["skills"][0]["name"] == "greet"
+    def test_the_generated_index_carries_no_extensions_field(self, tmp_path, root, load_script):
+        index_build = load_script("scripts/index_build.py")
+        fake_root = _make_fake_root(tmp_path, root)
+        self._legacy(fake_root)
+
+        index = index_build.build_index(fake_root)
+
+        assert all("extensions" not in item
+                   for stack in index["stacks"].values()
+                   for items in stack.values() if isinstance(items, list)
+                   for item in items)
+
+    def test_a_legacy_dir_is_reported_with_its_replacement_named(self, tmp_path, root,
+                                                                 load_script):
+        index_build = load_script("scripts/index_build.py")
+        fake_root = _make_fake_root(tmp_path, root)
+        self._legacy(fake_root)
+
+        found = index_build.legacy_extension_dirs(fake_root)
+
+        assert found == ["features/dotnet/skills/greet-extensions"]
+
+    def test_an_orphan_legacy_dir_is_reported_too(self, tmp_path, root, load_script):
+        """Naming no real skill made it doubly invisible before — it is still a mistake."""
+        index_build = load_script("scripts/index_build.py")
+        fake_root = _make_fake_root(tmp_path, root)
+        self._legacy(fake_root, base="ghost", ext="variant")
+
+        assert index_build.legacy_extension_dirs(fake_root) == [
+            "features/dotnet/skills/ghost-extensions"
+        ]
+
+    def test_a_clean_catalog_reports_nothing(self, tmp_path, root, load_script):
+        index_build = load_script("scripts/index_build.py")
+
+        assert index_build.legacy_extension_dirs(_make_fake_root(tmp_path, root)) == []
+
+    def test_main_refuses_to_build_and_points_at_the_supported_layout(self, tmp_path, root,
+                                                                     load_script, capsys):
+        index_build = load_script("scripts/index_build.py")
+        fake_root = _make_fake_root(tmp_path, root)
+        self._legacy(fake_root)
+
+        rc = index_build.main(["--root", str(fake_root)])
+
+        captured = capsys.readouterr()
+        out = captured.out + captured.err
+        assert rc == 1
+        assert "greet-extensions" in out
+        assert "greet/extensions/" in out, "must name the supported layout, not just refuse"
+
+    def test_the_real_catalog_uses_no_legacy_dirs(self, root, load_script):
+        index_build = load_script("scripts/index_build.py")
+
+        assert index_build.legacy_extension_dirs(root) == []
+
+
+def test_the_schema_no_longer_permits_the_removed_extensions_field(root):
+    """A stale index.json must be rejected, not quietly accepted as still-supported."""
+    schema = json.loads((root / "schemas" / "index.schema.json").read_text())
+    stale = {
+        "frameworkVersion": "1.2.3",
+        "stacks": {"dotnet": {"skills": [{"name": "greet",
+                                          "path": "features/dotnet/skills/greet",
+                                          "extensions": ["loud"]}]}},
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(stale, schema)
 
 
 def test_main_check_reports_stale_when_index_json_missing(tmp_path, root, load_script, capsys):

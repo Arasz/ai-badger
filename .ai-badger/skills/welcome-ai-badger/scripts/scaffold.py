@@ -60,16 +60,9 @@ from _shared import (  # noqa: E402 — re-exported for backward compatibility
     cfg_get, requirement_met, _condition_met,
 )
 
-DEFAULT_SKILLS = [
-    "auto-wm",
-    "den-refresh",
-    "feed-badger",
-    "maintain-agent-instructions",
-    "mcp-index",
-    "prompt-markers",
-    "task",
-    "welcome-ai-badger",
-]
+# Declared once in badger_lib.SKILL_SCOPES so the scaffold and the plugin ship list cannot
+# disagree about what a project gets without asking.
+DEFAULT_SKILLS = bl.default_skill_names()
 SEED_ONCE_SKILL_FILES: Dict[str, List[str]] = {
     "prompt-markers": ["markers-context.json"],
 }
@@ -110,6 +103,19 @@ LEARNED_SKILLS_DIR = "learned"
 # Progress marker for a run in flight. Present after a crash, absent after success:
 # den-refresh and feed-badger read its absence as "never fully scaffolded" (F-25).
 PARTIAL_MANIFEST = "manifest.json.partial"
+
+
+def _within(parent: Path, candidate: Path) -> bool:
+    """True when `candidate` resolves to `parent` itself or something inside it.
+
+    `project.name` reaches this from config.json, which constrains it to a non-empty string
+    and nothing more — so containment is asserted here, not assumed upstream (security I1).
+    """
+    try:
+        candidate.resolve().relative_to(parent.resolve())
+    except (ValueError, OSError):
+        return False
+    return True
 
 
 def _owns_link(entry: Path, skills_root: Path) -> bool:
@@ -160,7 +166,13 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
     """
     project_name = config.get("project", {}).get("name", "unknown")
     skills_root = target / ".ai-badger" / "skills"
-    namespace_dir = Path.home() / ".hermes" / "skills" / project_name
+    hermes_skills = Path.home() / ".hermes" / "skills"
+    namespace_dir = hermes_skills / project_name
+    if not _within(hermes_skills, namespace_dir):
+        raise ValueError(
+            f"project name {project_name!r} does not resolve to a directory inside "
+            f"{hermes_skills} — refusing to create it"
+        )
     if namespace_dir.is_symlink() and not _owns_link(namespace_dir, skills_root):
         return []
 
@@ -352,7 +364,6 @@ class Scaffolder(
             self._restore_seed_once_skill_files(skill_name, dest, stashed)
             self._prune_inline_extensions(skill_name, dest)
             self._merge_extensions(skill_name, dest)
-            self._embed_extensions(skill_name, item, dest)
             self._append_project_local(skill_name, dest)
             # hash includes embedded extensions
             self.record("skills", "common", skill_name, src, dest)
@@ -448,7 +459,12 @@ class Scaffolder(
         """
         if "hermes" not in self.config.get("agents", []):
             return
-        links = relink_hermes_skills(self.target, self.config, self.skills)
+        try:
+            links = relink_hermes_skills(self.target, self.config, self.skills)
+        except ValueError as exc:
+            # A refusal the user can act on: it names their project name as the cause.
+            self.notes.append(f"hermes skill links skipped — {exc}")
+            return
         if links:
             self.notes.append(f"hermes skill links: {', '.join(links)}")
 
@@ -688,9 +704,10 @@ def main(argv=None) -> int:
     for n in result["notes"]:
         print(f"  note: {n}")
     if result["pluginCommands"]:
+        import install_plugins as ip_lib  # pylint: disable=import-outside-toplevel
         print("  plugin setup commands (run per chosen scope):")
         for c in result["pluginCommands"]:
-            print(f"    $ {c}")
+            print(f"    $ {ip_lib.printable(c)}")
     return 0
 
 

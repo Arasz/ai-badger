@@ -1,7 +1,7 @@
 """Extension management for the Scaffolder.
 
-Parses, merges, prunes, and embeds skill extensions from features/<stack>/skills/<skill>-extensions/
-into the scaffolded .ai-badger/skills/ directory.
+Parses, merges, and prunes skill extensions shipped at <skill>/extensions/<name>/ as they
+land in .ai-badger/skills/. See ADR-0006 for why this is the only mechanism.
 """
 from __future__ import annotations
 
@@ -185,31 +185,4 @@ class ExtensionsMixin:
                 self.notes.append(
                     f"extension '{ext_dir.name}' for '{skill_name}' "
                     "skipped (config requirements not met)"
-                )
-
-    def _embed_extensions(self, skill_name: str, item: Dict[str, Any], dest: Path) -> None:
-        import badger_lib as bl
-        from _shared import requirement_met, _test_ignore  # pylint: disable=import-outside-toplevel
-
-        for ext in item.get("extensions", []):
-            # find the extension descriptor: features/<stack>/skills/<skill>-extensions/<ext>/
-            matches = list(self.root.glob(f"features/*/skills/{skill_name}-extensions/{ext}"))
-            if not matches:
-                continue
-            extdir = matches[0]
-            descriptor = extdir / "extension.json"
-            reqs = []
-            if descriptor.exists():
-                reqs = bl.load_json(descriptor).get("requires", [])
-            if all(requirement_met(self.config, r) for r in reqs):
-                ext_dest = dest / "extensions" / ext
-                if ext_dest.exists():
-                    shutil.rmtree(ext_dest)
-                shutil.copytree(extdir, ext_dest, ignore=_test_ignore)
-                self.notes.append(
-                    f"embedded extension '{ext}' into skill '{skill_name}' (requirements met)"
-                )
-            else:
-                self.notes.append(
-                    f"extension '{ext}' for '{skill_name}' skipped (config requirements not met)"
                 )

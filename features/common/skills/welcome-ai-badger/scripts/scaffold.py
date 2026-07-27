@@ -364,7 +364,6 @@ class Scaffolder(
             self._restore_seed_once_skill_files(skill_name, dest, stashed)
             self._prune_inline_extensions(skill_name, dest)
             self._merge_extensions(skill_name, dest)
-            self._embed_extensions(skill_name, item, dest)
             self._append_project_local(skill_name, dest)
             # hash includes embedded extensions
             self.record("skills", "common", skill_name, src, dest)
