@@ -1,53 +1,60 @@
-# Deferred-work plan — Waves 6–10
+# Deferred-work plan — Waves 6–18
 
-**Date:** 2026-07-27
+**Date:** 2026-07-27 (revised the same day to cover every §7 item)
 **Source:** `docs/plans/2026-07-26-remediation-plan.md` §7 "Explicitly out of scope for these PRs"
-**Predecessor:** Waves 1–5 landed as 0.19.0 → 0.23.0 (#78, #79, #80, #81, #82)
+**Predecessor:** Waves 1–5 landed as 0.19.0 → 0.23.0 (#78–#82)
 
-Every item below was excluded from the remediation waves *with a stated reason*, not
-forgotten. Waves 1–5 are now merged, so each reason has been re-checked against the code as
-it stands today; where the reason has changed, this document says so. Nothing here is a live
-defect — these are structural debts and defence-in-depth, and each is sized as one PR.
+Every one of the **fourteen** items §7 excluded is now scheduled, with the reason for its
+original deferral re-checked against the code as it stands. Nothing here was a live defect at
+the time of the review; two have since been found to be sharper than filed, and those are
+called out where they occur.
 
-Each wave is self-contained: it can be executed alone, in any order, by someone who has read
-only this document and the sections of the review it cites. **Work-package numbering continues
-from WP28** so a WP number never means two things.
+Each wave is self-contained: executable by someone who has read only this document and the
+review sections it cites. **Work-package numbering is continuous** — a WP number never means
+two things.
 
----
+## Status
+
+| Wave | Item | §7 source | State |
+|---|---|---|---|
+| 6 | `Scaffolder`'s five mixins → composed collaborators | architecture I1 / R10 | planned |
+| 7 | Nine `_bootstrap_lib()` copies; three root predicates | architecture I6 / R9 | planned |
+| 8 | Single feature-type registry | architecture I11 / R6 | planned |
+| 9 | The hardening pass (+ prompt-marker/AWM privacy) | security I1, I2, I5, I7, sugg. 1 & 3 | **done — 0.25.0 (#85)** |
+| 10 | `feed-badger` outbound scan + explicit pathspec | security I4 | **done — 0.24.0 (#84)** |
+| 11 | Package `badger_lib` as an installable distribution | architecture I6 / R11 | planned — **ADR first** |
+| 12 | Collapse the 3+1 MCP config writers | architecture I3 / R5 | planned |
+| 13 | Derive `DEFAULT_SKILLS`/`COMMON_SKILLS`; decide `code-review-checklist` | architecture I8 / R7 | planned — **decision, not refactor** |
+| 14 | Pick one extension mechanism | architecture I5 / R8 | planned |
+| 15 | Split `test_drift.py` / `test_scaffold.py` | python I6, tests sugg. | planned |
+| 16 | Rename top-level `scripts/` | architecture S1 | planned — **ADR first, after 11** |
+| 17 | Split `badger_lib.py` | architecture S2 | planned — after 7 and 8 |
+| 18 | gitleaks/trufflehog in CI | security sugg. 6 | planned |
 
 ## Recommended execution order
 
-The waves are numbered as listed, but numbering is not priority. Recommended order and why:
+Numbering is not priority. Two constraints are hard; the rest is judgement.
 
-| Order | Wave | Reason |
-|---|---|---|
-| 1st | **Wave 10** (feed-badger publish path) | It is the only path that *publishes* repo content outward. Smallest of the five, and it unblocks nothing else — do it while it is cheap. |
-| 2nd | **Wave 9** (hardening) | Defence-in-depth, but it touches the same `shell=True`/consent surfaces that any later refactor would otherwise re-plumb. |
-| 3rd | **Wave 8** (feature-type registry) | Small, mechanically bounded, and it *changes drift output* — a correction that wants its own changelog line rather than being buried in a refactor. |
-| 4th | **Wave 6** (Scaffolder split) | Wide but mechanical. Do it before Wave 7 so the bootstrap work lands on a `Scaffolder` that no longer hides state in `self`. |
-| 5th | **Wave 7** (bootstrap unification) | Highest-risk refactor in the whole review. It must go last, and it must not share a PR with anything else. |
+1. **Wave 11's ADR before Wave 7.** Packaging would retire Wave 7's shim work entirely.
+   Decide it first, or knowingly spend Wave 7 twice.
+2. **Wave 16 after Wave 11.** Renaming `scripts/` touches every `_bootstrap_lib` path, and
+   packaging changes what those paths are.
 
-A reader who disagrees should still keep **Wave 7 last** and **Wave 10 not last**.
+Suggested sequence: **14 → 13 → 8 → 15 → 12 → 18 → 11 (ADR) → 6 → 7 → 17 → 16.**
+Small and decisive first; the two ADR-gated renames last.
 
 ---
 
 ## Wave 6 — `Scaffolder` is five mixins pretending to be one object
 
-**Original reason for deferral:** *"~2,900 lines of test construct `Scaffolder` directly.
-Mechanically safe but wide, and mixing it with any behaviour change makes the diff
-unreviewable. Needs its own PR after Wave 3, with WP6's sync gate and WP13's atomic writes
-already in place."* (architecture I1 / R10)
+**Deferred because:** *"~2,900 lines of test construct `Scaffolder` directly. Mechanically
+safe but wide, and mixing it with any behaviour change makes the diff unreviewable."*
 
-**Still true?** Yes, and the preconditions are now met: WP6's `sync_plugin_skills --check`,
-WP13's atomic writes and WP17's partial-manifest marker have all landed. The count is
-**77 direct `Scaffolder(...)` constructions across 11 test files** (50 of them in
-`tests/test_scaffold.py`).
+**Still true?** Yes, and the preconditions are met: WP6's sync gate, WP13's atomic writes and
+WP17's partial-manifest marker have all landed. **77 direct `Scaffolder(...)` constructions
+across 11 test files** (50 in `tests/test_scaffold.py`).
 
-### What is actually there
-
-`Scaffolder` (`scaffold.py:205`) inherits five mixins — `McpToolsMixin`, `HookWiringMixin`,
-`TemplateRenderingMixin`, `AgentFilesMixin`, `ExtensionsMixin` — spread over 964 lines in five
-files. The coupling is smaller than the shape suggests. Every attribute the mixins reach for:
+The coupling is smaller than the shape suggests. Everything the five mixins reach for:
 
 | Attribute | Read by |
 |---|---|
@@ -57,257 +64,326 @@ files. The coupling is smaller than the shape suggests. Every attribute the mixi
 | `index`, `overwrite` | template_rendering |
 | `_merged_external_tools`, `_external_tools_merged` | mcp_tools, template_rendering |
 
-That is a `ScaffoldContext`, not a god object — the mixins are already nearly pure functions
-over a small shared record.
+That is a `ScaffoldContext`, not a god object.
 
-### Work packages
-
-| WP | Work | Files owned |
+| WP | Work | Files |
 |---|---|---|
-| **WP29** | Introduce `ScaffoldContext` (frozen dataclass for `root`/`target`/`aib`/`config`/`stacks`/`index`/`overwrite`/`reset_seed_files`/`execute`/`install`, plus the mutable `notes` and `entries` lists). `Scaffolder.__init__` builds one and keeps its current attributes as read-through properties, so **no test changes yet**. | `scaffold.py`, new `scaffold_context.py` |
-| **WP30** | Convert the five mixins to collaborators taking a `ScaffoldContext` in their constructor. `Scaffolder` composes them and delegates. Public method names on `Scaffolder` stay identical. | the five mixin modules, `scaffold.py` |
-| **WP31** | Delete the read-through properties that no longer have callers; update the tests that reach into internals (`_collect_external_tools`, `_generate_mcp_json`, `_scaffold_claude_mcp_user`, …) to go through the collaborator they now live on. | `tests/test_scaffold.py`, `tests/test_stack_mcp_servers.py`, `tests/test_external_mcp_tools.py` |
+| **WP29** | `ScaffoldContext` dataclass; `Scaffolder.__init__` builds one and keeps its attributes as read-through properties — **no test changes** | `scaffold.py`, new `scaffold_context.py` |
+| **WP30** | Mixins become collaborators taking a context; `Scaffolder` composes and delegates. Public method names unchanged | the five mixin modules, `scaffold.py` |
+| **WP31** | Drop the shims; move tests that reach into internals onto the collaborator that owns them | `test_scaffold.py`, `test_stack_mcp_servers.py`, `test_external_mcp_tools.py` |
 
-### TDD entry point
+**TDD entry point:** `tests/test_scaffold_context.py::test_context_is_the_only_state_the_collaborators_share`
+— construct each collaborator with a context and assert it works with no `Scaffolder` in scope.
+*Fails today: the mixins cannot be instantiated alone.*
 
-`tests/test_scaffold_context.py::test_context_is_the_only_state_the_collaborators_share` —
-construct each collaborator with a `ScaffoldContext` and assert it produces its output without
-a `Scaffolder` in scope at all. **Fails today: the mixins cannot be instantiated alone.**
+**Constraints.** WP29 must change zero tests — that is the checkpoint proving it is
+behaviour-preserving. `run()`'s step order is load-bearing (WP17 records it); assert
+`manifest.json.partial`'s `completedSteps` before and after. Do not split the test files here
+— that is Wave 15.
 
-### Constraints
-
-- **WP29 must not change a single test.** If a test needs editing during WP29, the property
-  shim is wrong. That is the checkpoint that proves the refactor is behaviour-preserving.
-- Do **not** split `tests/test_scaffold.py` (1,268 lines) in this PR — that is its own
-  mechanical PR, and combining them makes the diff unreviewable, which is the whole reason
-  this was deferred.
-- `run()`'s step order is load-bearing (WP17's progress marker records it). Preserve it
-  exactly; assert on `manifest.json.partial`'s `completedSteps` before and after.
-
-**Release:** `VERSION` → `0.24.0`, `docs/changelog/0.24.0-scaffold-context.md`.
+**Release:** `0.26.0`, `docs/changelog/0.26.0-scaffold-context.md`.
 
 ---
 
 ## Wave 7 — nine bootstrap shims and three disagreeing definitions of "framework root"
 
-**Original reason for deferral:** *"The shim must work in three deployment shapes (framework
-checkout, `.ai-badger/` scaffold, `~/.hermes/plugins/`). Needs an integration test per shape
-written first. Highest-risk refactor in the review; do it after WP12 has already split
-`find_root`."* (architecture I6 / R9)
+**Deferred because:** *"The shim must work in three deployment shapes… Needs an integration
+test per shape written first. Highest-risk refactor in the review."*
 
-**Still true?** Yes. WP12 has landed, so `find_root()` is now a pure lookup that raises — the
-precondition is met. The risk assessment is unchanged: **this is the one that can brick every
-entry point in every deployment shape at once.**
+**Still true?** Yes. WP12 has split `find_root`, so the precondition is met. The risk is
+unchanged: **this is the one that can brick every entry point in every deployment shape at
+once.**
 
-### What is actually there
-
-`_bootstrap_lib()` is copied into **9 source files** (16 including the shipped `.claude/`
-copies): `learned_skills_sync.py`, `ai_badger_hooks.py`, `detect_additions.py`, `open_pr.py`,
-`detect.py`, `drift.py`, `scaffold.py`, `drift_notice_hook.py`, `refresh.py`.
-
-Three different predicates answer "is this a framework root?", and they disagree:
+`_bootstrap_lib()` is copied into **9 source files** (16 with the shipped `.claude/` copies).
+Three predicates answer "is this a framework root?", and they disagree:
 
 | Predicate | Test | Where |
 |---|---|---|
 | `badger_lib._is_root` | `schemas/` **and** `features/` | `scripts/badger_lib.py:85` |
 | `_bootstrap_lib` (×9) | `scripts/badger_lib.py` **and** `schemas/` | e.g. `scaffold.py:34` |
-| `ai_badger_hooks.find_framework_root` | `VERSION` **and** `schemas/` | `features/common/hooks/ai_badger_hooks.py:50` |
+| `ai_badger_hooks.find_framework_root` | `VERSION` **and** `schemas/` | `ai_badger_hooks.py:50` |
 
-A plugin-cache install satisfies all three; a `.ai-badger/` scaffold satisfies none; a partial
-clone can satisfy exactly one. That is why the disagreement has never been felt — and why
-unifying them is a behaviour change, not a cleanup.
+A plugin cache satisfies all three; a `.ai-badger/` scaffold satisfies none; a partial clone
+can satisfy exactly one. That is why the disagreement has never been felt — and why unifying
+them is a behaviour change, not a cleanup.
 
-### Work packages
-
-| WP | Work | Files owned |
+| WP | Work | Files |
 |---|---|---|
-| **WP32** | **Integration test per deployment shape, first.** Build all three shapes under `tmp_path` (framework checkout, a scaffolded project, a `~/.hermes/plugins/` copy) and assert each entry point imports and runs. This test must exist and pass *before* any shim changes. | `tests/test_deployment_shapes.py` *(new)* |
-| **WP33** | One canonical `resolve_framework_root()` in `badger_lib`, with the predicate stated once and the three-shape contract in its docstring. Keep the existing names as thin aliases. | `scripts/badger_lib.py` |
-| **WP34** | Replace the nine `_bootstrap_lib()` bodies with the smallest possible shim that finds `badger_lib` and delegates. The shim itself cannot import `badger_lib` — that is the bootstrap problem — so it stays duplicated but shrinks to a path search with **one** definition of the predicate, sourced from a single literal. | the 9 files + their `.claude/` copies via `sync_plugin_skills.py` |
+| **WP32** | **Integration test per deployment shape, first.** All three shapes under `tmp_path`; assert each entry point imports and runs. Must pass before any shim changes | `tests/test_deployment_shapes.py` *(new)* |
+| **WP33** | One canonical `resolve_framework_root()` with the predicate stated once and the three-shape contract in its docstring | `scripts/badger_lib.py` |
+| **WP34** | Shrink the nine shims to a path search with **one** definition of the predicate. The shim cannot import `badger_lib` — that is the bootstrap problem — so it stays duplicated but stops disagreeing | the 9 files + `.claude/` copies |
 
-### TDD entry point
+**TDD entry point:** `test_every_entry_point_resolves_the_root_in_all_three_shapes`,
+parametrised over (entry point × shape). *Fails today for the `.ai-badger/` scaffold shape.*
 
-`tests/test_deployment_shapes.py::test_every_entry_point_resolves_the_root_in_all_three_shapes`
-— parametrised over (entry point × shape). **Fails today for at least the `.ai-badger/`
-scaffold shape**, which is exactly the gap the three predicates paper over.
+**Constraints.** Nothing else ships in this PR. If Wave 11's ADR is accepted, most of WP34 is
+thrown away — decide first.
 
-### Constraints
-
-- **Nothing else ships in this PR.** No behaviour change, no doc pass, no version-adjacent edit.
-- The packaging option (*"package `badger_lib` as an installable `ai_badger` distribution"*,
-  architecture I6 / R11) would retire this entire class of problem. It is still out of scope
-  and **still needs its own ADR** — but write that ADR *before* Wave 7 if there is any appetite
-  for it, because Wave 7's shim work is thrown away by it.
-
-**Release:** `VERSION` → `0.25.0`, `docs/changelog/0.25.0-one-framework-root.md`.
+**Release:** `0.27.0`, `docs/changelog/0.27.0-one-framework-root.md`.
 
 ---
 
-## Wave 8 — four hardcoded feature lists that already disagree
+## Wave 8 — three hardcoded feature lists that already disagree
 
-**Original reason for deferral:** *"The four already disagree about `templates`, so unifying
-them will change drift output. That is an intentional correction that deserves its own PR and
-changelog, not a side effect of WP16."* (architecture I11 / R6)
+**Deferred because:** *"The four already disagree about `templates`, so unifying them will
+change drift output."*
 
-**Still true?** Partly — and the shape has changed. WP16 replaced `validate.py`'s if-chain
-with the `SCHEMA_INSTANCES` table, so **three** lists remain, not four:
+**Still true? Partly — and it is a live bug, not a latent one.** WP16 replaced `validate.py`'s
+if-chain with a table, so **three** lists remain:
 
 | List | Contents | Where |
 |---|---|---|
-| `badger_lib.FEATURES` | skills, personas, invariants, instructions, **templates**, hooks, adjustments | `scripts/badger_lib.py:23` |
-| `index_build`'s if-chain | dispatches skills / hooks / adjustments / **templates** / else-md | `scripts/index_build.py:97-105` |
-| `drift.py`'s tuple | skills, personas, invariants, instructions, hooks, adjustments — **no templates** | `.../drift.py:100` |
+| `badger_lib.FEATURES` | …, **templates**, hooks, adjustments | `badger_lib.py:23` |
+| `index_build`'s if-chain | skills / hooks / adjustments / **templates** / else-md | `index_build.py:97-105` |
+| `drift.py`'s tuple | skills, personas, invariants, instructions, hooks, adjustments — **no templates** | `drift.py:100` |
 
-**The disagreement is confirmed and it is a real bug:** a new template added to the catalog is
-indexed, is scaffolded, and is invisible to `drift.py`'s "new items" report. A consumer running
-`den-refresh` is never told a template appeared.
+**Consequence:** a new template is indexed, is scaffolded, and is invisible to drift. A
+consumer running `den-refresh` is never told a template appeared.
 
-### Work packages
-
-| WP | Work | Files owned |
+| WP | Work | Files |
 |---|---|---|
-| **WP35** | A single feature-type registry in `badger_lib`: name, whether it carries `.md` items, its index-builder, and whether drift reports new items for it. `FEATURES` becomes derived from it. | `scripts/badger_lib.py`, `tests/test_badger_lib.py` |
-| **WP36** | Route `index_build`'s if-chain and `drift.py`'s tuple through the registry. **`templates` starts being reported by drift** — that is the intended correction; call it out in the changelog as a behaviour change. | `scripts/index_build.py`, `.../drift.py`, `tests/test_drift.py` |
+| **WP35** | One registry: name, `.md`-carrying, index-builder, drift-reports-new. `FEATURES` derives from it | `badger_lib.py`, `tests/test_badger_lib.py` |
+| **WP36** | Route `index_build` and `drift.py` through it. **`templates` starts being reported** — the intended correction; call it out in the changelog | `index_build.py`, `drift.py`, `tests/test_drift.py` |
 
-### TDD entry point
+**TDD entry point:** `tests/test_drift.py::test_a_new_template_is_reported_as_a_new_item`.
+*Fails today: `templates` is not in the tuple.*
 
-`tests/test_drift.py::test_a_new_template_is_reported_as_a_new_item` — add a template to a
-fixture catalog, run drift against a manifest that predates it, assert it appears.
-**Fails today: `templates` is not in the tuple, so the item is silently dropped.**
+**Constraint.** `index.json` must stay byte-identical (`index_build --check` proves it).
 
-### Constraints
-
-- `index.json` must stay **byte-identical** after WP35 (`index_build.py --check` is the proof).
-  The registry changes who decides, not what is produced.
-- Expect drift output to grow for real consumers. That is the point, and it is the only
-  user-visible change in this wave.
-
-**Release:** `VERSION` → `0.26.0`, `docs/changelog/0.26.0-feature-type-registry.md`.
+**Release:** `0.28.0`, `docs/changelog/0.28.0-feature-type-registry.md`.
 
 ---
 
-## Wave 9 — the hardening pass
+## Wave 9 — the hardening pass ✅ **done (0.25.0, #85)**
 
-**Original reason for deferral:** *"All confirmed by the security reviewer as defence-in-depth,
-not exploitable from a hostile repo today (catalog-controlled inputs, pattern-constrained
-`config.stacks`). Real work; belongs in a dedicated hardening PR after Wave 3, sized as one
-wave of its own."* (security I1, I2, I5, I7, suggestions 1 & 3)
+Covered §7's *"path-traversal hardening of `project.name`, `shell=True` in the skill
+installer, dependency auto-install consent, `.mjs` ReDoS caps, manifest absolute-path
+containment"* **and** *"prompt-marker state and AWM decision-log privacy"*, which §7 assigned
+to the same PR.
 
-**Still true?** Mostly. Every item was re-verified as still present, and the two the review
-left unquantified were pinned down (WP41, WP41b below). One correction to the original verdict:
-*"catalog-controlled or schema-constrained"* does not cover `project.name` — the schema
-constrains it to a non-empty string and nothing else, and it is interpolated into a `$HOME`
-path. Still not a hostile-repo exploit (the user writes their own `config.json`), but it is a
-foot-gun rather than pure defence-in-depth.
+WP37 (argv, no shell) · WP38 (install consent; **breaking**, in `BREAKING_VERSIONS`) ·
+WP39 (pattern and file caps in both `.mjs`) · WP40 (`0600`, capped logs, gitignore) ·
+WP41 (`project.name` containment) · WP41b (manifest `target` containment).
 
-### What is actually there
-
-| Item | Verified | Where |
-|---|---|---|
-| `shell=True` on skill-install commands | present | `scaffold.py:419` |
-| `npm install -g` with no consent prompt | present | `dependency_check.py:101` |
-| `pip install` into a venv with no consent prompt | present | `dependency_check.py:79-81` |
-| `new RegExp(pattern)` built from model-supplied patterns, no length or complexity cap | present, 2 files | `check-agent-drift.mjs:24`, `validate-agent-instructions.mjs:27` |
-| No `0600` on `~/.claude/awm/state.json`, `decisions.jsonl`, prompt-marker transformation log | present (no `chmod` anywhere) | `awm.py`, `awm_gate.py`, `user_prompt_hook.py` |
-| `project.name` interpolated into a `$HOME` path with no pattern constraint | **confirmed** | `scaffold.py:161-163`, `schemas/config.schema.json` |
-| Manifest `target` joined with no containment check | **confirmed** | `drift.py:180-182` |
-
-### Work packages
-
-| WP | Work | Files owned |
-|---|---|---|
-| **WP37** | Replace `shell=True` with an argv list. The install commands come from `plugins-instructions.json` templates, so they can be tokenised at build time instead of concatenated into a string — `install_plugins._build_command` should return a list. | `scripts/install_plugins.py`, `.../scaffold.py`, `tests/test_install_plugins.py` |
-| **WP38** | Consent gate on anything installed outside the project: `npm install -g` and the venv `pip install` both print exactly what they will run and require an explicit opt-in (flag or prompt), defaulting to **print-and-skip**. Mirrors what WP9 already did for skill installs. | `.../dependency_check.py`, `tests/test_dependency_check.py` |
-| **WP39** | Cap pattern length and input size before `new RegExp` in both `.mjs` scripts; reject a pattern over the cap with a named error rather than hanging. Cover with `tests/js/` (the suite Wave 5 created). | the two `.mjs` scripts, `tests/js/` |
-| **WP40** | `0600` on the three user-scope state files at creation, size caps on the two append-only logs, and the matching `.gitignore` entries. | `awm.py`, `awm_gate.py`, `prompt-markers/scripts/user_prompt_hook.py`, `tracker_lib.py` |
-| **WP41** | **`project.name` containment.** `scaffold.py:163` builds `Path.home() / ".hermes" / "skills" / project_name`, and `config.schema.json` constrains `project.name` to nothing but `type: string, minLength: 1`. A name of `../../.ssh` resolves outside the namespace directory. Add a pattern to the schema **and** a containment assert at the join — the schema alone is not enough, because a hand-edited `config.json` reaches `scaffold.py` through `den-refresh` without re-validation. | `schemas/config.schema.json`, `.../scaffold.py`, `tests/test_scaffold.py` |
-| **WP41b** | **Manifest `target` containment.** `drift.py:181` computes `target / target_rel` straight from the manifest. `pathlib` lets an absolute right-hand side win outright (`Path("/a") / "/etc"` → `/etc`), so a hand-edited or corrupted manifest points the hasher anywhere on disk. Read-only today, but `refresh.py` re-scaffolds from the same entries. Resolve and assert containment under `target`, skip with a note otherwise — the pattern `learned_skills_sync` already uses. | `.../drift.py`, `.../refresh.py`, `tests/test_drift.py` |
-
-### TDD entry point
-
-`tests/test_install_plugins.py::test_a_command_with_a_shell_metacharacter_is_not_interpreted`
-— declare a skill whose name contains `; touch pwned`, assert the file is not created and the
-command is passed as a single argv element. **Fails today: `shell=True` interprets it.**
-
-### Constraints
-
-- WP38 changes default behaviour: dependencies stop auto-installing. That is a **breaking
-  change for anyone relying on the silent install** — it belongs in `BREAKING_VERSIONS`, and the
-  scaffold must print what to run.
-- Do not add gitleaks/trufflehog here (security suggestion 6). It is a new CI dependency with
-  its own finding backlog — separate task, as originally scoped.
-
-**Release:** `VERSION` → `0.27.0`, `docs/changelog/0.27.0-hardening.md`. Add `0.27.0` to
-`BREAKING_VERSIONS` if WP38 lands as specified.
+**Correction to the original verdict.** §7 called these *"catalog-controlled inputs"*. That
+does not cover `project.name`: the schema constrains it to a non-empty string and nothing
+else, and it is interpolated into a `$HOME` path. A foot-gun rather than pure
+defence-in-depth. Recorded in `docs/changelog/0.25.0-hardening.md`.
 
 ---
 
-## Wave 10 — the path that publishes
+## Wave 10 — the outbound publish path ✅ **done (0.24.0, #84)**
 
-**Original reason for deferral:** *"Genuinely important — it is the path that publishes — but
-the fix depends on extracting `scan_for_unsafe_literals` into a shared module, which WP5 and
-WP13 both touch. Schedule immediately after Wave 3."* (security I4)
+Covered §7's *"`feed-badger` outbound secret scan + replacing `git add -A` with an explicit
+pathspec"*. WP42 extracted the scanner to `scripts/unsafe_literals.py` (shared by both
+directions); WP43 scans every declared path before any git command and made `--path` required.
 
-**Still true?** The dependency is now clear: WP5 and WP13 have landed, and
-`scan_for_unsafe_literals` sits in `features/common/hooks/learned_skills_sync.py:279` with its
-`UNSAFE_LITERAL_PATTERNS` / `UNSAFE_LITERAL_LABELS` / `LITERAL_SCAN_MAX_BYTES` constants. It is
-ready to extract. **This wave is overdue relative to its own stated schedule** ("immediately
-after Wave 3") — hence the recommendation to run it first.
-
-### What is actually there
-
-`feed-badger`'s `open_pr.py:71` runs **`git add -A`** in the ai-badger checkout, then commits
-and pushes to a branch and opens a PR. Whatever is in that working tree at that moment is
-published. Nothing scans the outgoing content, and nothing constrains *which* paths are staged —
-`-A` stages every modification present, including any the user did not intend to contribute.
-
-The inbound path (`learned_skills_sync`) already refuses a skill whose content matches an
-unsafe-literal pattern. The **outbound** path has no equivalent.
-
-### Work packages
-
-| WP | Work | Files owned |
-|---|---|---|
-| **WP42** | Extract `scan_for_unsafe_literals` + its constants into a shared module both paths import (`features/common/hooks/` is the wrong home for something `feed-badger` needs). Behaviour-preserving; `learned_skills_sync` keeps working through the new import. | new shared module, `learned_skills_sync.py`, `tests/test_learned_skills_sync.py` |
-| **WP43** | `open_pr.py` scans everything it is about to stage and **refuses** on a finding, naming the file and the pattern label (never the matched text — the existing closed-vocabulary rule). Replace `git add -A` with an explicit pathspec derived from what `detect_additions.py` proposed, so an unrelated dirty file in the checkout cannot ride along. | `.../feed-badger/scripts/open_pr.py`, `tests/test_open_pr.py` |
-
-### TDD entry point
-
-`tests/test_open_pr.py::test_a_secret_shaped_literal_blocks_the_pr` — stage a contribution
-containing an obviously-fake token matching a known pattern, run `open_pr.py --dry-run`, assert
-a non-zero exit, the file named, and **no** `git push` in the printed command list.
-**Fails today: nothing scans, so the PR command list is printed unchanged.**
-
-A second entry point worth writing at the same time:
-`test_an_unrelated_dirty_file_is_not_staged` — dirty an unrelated file in the checkout, assert
-it does not appear in the staged pathspec. **Fails today: `git add -A` takes everything.**
-
-### Constraints
-
-- The scanner is *"a guard, not proof"* (its own docstring). Do not let WP43's messaging imply
-  it certifies the diff is clean — say what it checked.
-- Findings must keep travelling as `{file, label}` pairs. No scanned byte reaches stdout,
-  the PR body, or a log line. This is the CodeQL `py/clear-text-logging` rule the inbound path
-  already respects.
-
-**Release:** `VERSION` → `0.28.0`, `docs/changelog/0.28.0-outbound-scan.md`.
+§7 scheduled this *"immediately after Wave 3"*; it ran after Wave 5. Taken first among the
+deferred waves for that reason.
 
 ---
 
-## Still deferred after these waves
+## Wave 11 — package `badger_lib` + the scaffold engine as an installable distribution
 
-From the same §7, deliberately **not** scheduled here, with the reason each is still parked:
+**Deferred because:** *"Changes how the plugin ships and how scaffolded projects resolve the
+engine. **Needs its own ADR.** Would retire the nine `_bootstrap_lib` copies and most of
+F-17's root cause — high value, wrong time."*
 
-| Item | Why still parked |
-|---|---|
-| Package `badger_lib` as an installable `ai_badger` distribution | Needs its own ADR. Would retire Wave 7's shim work entirely — decide before Wave 7, not after. |
-| Collapse the 3+1 MCP config writers into one table-driven writer | ~215 → ~90 lines, but the `.mcp.json` command-splitting heuristic must be preserved verbatim or deliberately unified. Own PR. |
-| Derive `DEFAULT_SKILLS`/`COMMON_SKILLS` from catalog metadata; decide `code-review-checklist`'s status | A **product decision**, not a refactor: that skill is in the catalog, indexed, tested, and reachable by neither default path. Somebody has to decide. |
-| Pick one extension mechanism | Removing a schema field is a compatibility decision. Small PR, own changelog. |
-| Split `test_drift.py` / `test_scaffold.py` | Purely mechanical; do it when no wave is touching them. Wave 6 touches both — schedule after. |
-| Rename `scripts/` to a domain name | Renames every entry point and `_bootstrap_lib` path. Own PR, own ADR, after packaging is decided. |
-| Split `badger_lib.py` into `catalog.py`/`fingerprint.py`/`versioning.py` | Waves 7 and 8 both touch it. Schedule after both. |
-| gitleaks/trufflehog in CI | New external CI dependency plus an initial finding backlog. Separate task. |
+**Still true?** Yes, and it is now the highest-leverage item on this list: it subsumes Wave 7
+and unblocks Wave 16. It also has the widest blast radius of anything here — it changes what
+"installed" means for every consumer.
+
+| WP | Work | Files |
+|---|---|---|
+| **WP44** | **ADR-0005: how ai-badger ships.** Options: status quo (vendored + shims), a PyPI distribution, or a vendored single-file amalgamation. Must answer: how a plugin-cache install resolves the engine; how a `.ai-badger/` scaffold does; how `~/.hermes/plugins/` does; what happens when the installed engine and the scaffold disagree on version; whether pure-stdlib survives | `docs/adr/0005-*.md` |
+| **WP45** | *Only if the ADR chooses packaging:* the packaging itself, plus the shim reduction it enables | `pyproject.toml`, `scripts/`, the 9 shims |
+
+**TDD entry point:** none — WP44 is a decision. WP45 inherits Wave 7's
+`tests/test_deployment_shapes.py`, which must exist and pass first either way.
+
+**Constraint.** Do not start WP45 before the ADR is accepted, and do not let the ADR be
+written by whoever is mid-way through Wave 7 — that is how a sunk cost becomes a decision.
+
+**Release:** ADR only, no version bump. WP45 would be a major-ish minor: `0.3x.0` with a
+`BREAKING_VERSIONS` entry.
+
+---
+
+## Wave 12 — collapse the 3+1 MCP config writers
+
+**Deferred because:** *"~215 lines → ~90, no test names the module, and the `.mcp.json`
+command-splitting heuristic diverges from `_parse_command` and must be preserved verbatim or
+deliberately unified. WP19 fixes only the `for … break` correctness bug."*
+
+**Still true?** Yes, and WP19 (Wave 4) made it cleaner: each writer now resolves overrides
+through its own owner constant (`MCP_JSON_OWNER`, `COPILOT_MCP_OWNER`, `HERMES_MCP_OWNER`), so
+the per-file differences are already explicit — the table this wave writes has its columns
+named for it. `tests/test_stack_mcp_servers.py` now covers all four writers, so the "no test
+names the module" objection is gone.
+
+The four writers: `_generate_mcp_json` (project `.mcp.json`), `_scaffold_claude_mcp_user`
+(`~/.claude/settings.json`), `_scaffold_hermes_mcp_user` (`~/.hermes/config.yaml`, YAML),
+`_generate_copilot_mcp_config` (`.github/copilot/mcp-config.json`).
+
+| WP | Work | Files |
+|---|---|---|
+| **WP46** | Characterisation tests pinning the `.mcp.json` command-splitting heuristic against `_parse_command`, **before** touching either | `tests/test_stack_mcp_servers.py` |
+| **WP47** | One table-driven writer: (path, format, owning agent, scope, merge strategy). Either preserve the heuristic verbatim or unify it **and say so in the changelog** — silently changing generated `.mcp.json` content is the failure mode | `mcp_tools.py` |
+
+**TDD entry point:** `test_the_two_command_splitters_agree_or_are_documented_to_differ` —
+feed both the same commands and assert the current outputs. *Passes today by construction;
+its job is to fail the moment WP47 changes one.*
+
+**Release:** `0.29.0`, `docs/changelog/0.29.0-one-mcp-writer.md`.
+
+---
+
+## Wave 13 — decide what the default skill set is
+
+**Deferred because:** *"Changes the default skill set — a product decision, not a bug fix.
+`code-review-checklist` is currently in the catalog, indexed, tested, and reachable by
+**neither** default path; somebody has to decide, not just refactor."*
+
+**Still true? Confirmed, unchanged.** `code-review-checklist` is in `features/common/skills.json`
+and in `index.json`'s common skills — and is in **neither** `scaffold.DEFAULT_SKILLS` (8 names)
+nor `sync_plugin_skills.COMMON_SKILLS`. It ships to nobody by either route.
+
+**This wave starts with a decision, not code.** Three defensible answers: make it default;
+make it opt-in *and say so where a user would look*; or remove it. Each is fine. Silence is
+not — it currently reads as an oversight either way.
+
+| WP | Work | Files |
+|---|---|---|
+| **WP48** | Record the decision for `code-review-checklist` in the changelog with its reason | `docs/changelog/` |
+| **WP49** | Derive `DEFAULT_SKILLS` and `COMMON_SKILLS` from catalog metadata (a `default: true` / `scope:` field on the skill entry) so the lists stop being two hand-maintained copies of a product decision | `skills.schema.json`, `scaffold.py`, `sync_plugin_skills.py`, `features/*/skills.json` |
+
+**TDD entry point:** `tests/test_sync_plugin_skills.py::test_every_catalog_skill_is_reachable_by_a_declared_route`
+— assert each catalog skill is either default-scaffolded, shipped in the plugin copy, or
+explicitly marked opt-in. *Fails today on `code-review-checklist`.*
+
+**Release:** `0.30.0`, `docs/changelog/0.30.0-default-skill-set.md`.
+
+---
+
+## Wave 14 — pick one extension mechanism
+
+**Deferred because:** *"Zero catalog instances exist, so 'delete' is behaviour-preserving
+today — but it removes a schema field, which is a compatibility decision."*
+
+**Still true? Confirmed.** `find features -name "*-extensions"` returns **nothing**: the
+`<stack>/skills/<base>-extensions/<ext>/` mechanism (`index_build.py:110-125`,
+`extensions.py`, and the `extensions` field in `index.schema.json:51`) has no instances at
+all. Meanwhile `<skill>/extensions/<name>/` is used by `task` for claude, github, hermes and
+copilot. **Two mechanisms, one of them dead.**
+
+Smallest wave here, and a good first one.
+
+| WP | Work | Files |
+|---|---|---|
+| **WP50** | Delete the unused mechanism: `_embed_extensions`, `index_build.py:110-125`, and the `extensions` field from `index.schema.json`. Removing a schema field is a compatibility change — an older manifest carrying it must still validate or be told to re-scaffold | `extensions.py`, `index_build.py`, `index.schema.json`, `tests/` |
+
+**TDD entry point:** `tests/test_index_build.py::test_a_manifest_from_before_the_field_was_removed_still_validates`.
+*Write it before deleting anything.*
+
+**Constraint.** Confirm zero instances **at the moment of deletion**, not from this document —
+a catalog entry could appear between writing and doing.
+
+**Release:** `0.31.0`, `docs/changelog/0.31.0-one-extension-mechanism.md`.
+
+---
+
+## Wave 15 — split the two oversized test files
+
+**Deferred because:** *"Purely mechanical, and both files are touched by Waves 2–3. Splitting
+them mid-remediation guarantees merge conflicts."*
+
+**Still true?** The conflict risk is gone once Waves 6–8 land — but **Wave 6 touches
+`test_scaffold.py` heavily**, so this goes after it, not before. Current sizes:
+`test_scaffold.py` **1,338 lines**, `test_drift.py` **1,006** — both over the C0302 threshold,
+and `test_scaffold.py` has grown 187 lines across Waves 2–9.
+
+| WP | Work | Files |
+|---|---|---|
+| **WP51** | Split both along their existing `# ---` domain boundaries. Pure moves: no renames, no assertion edits, no new coverage. The diff must be reviewable as "these lines moved" | `tests/test_scaffold.py`, `tests/test_drift.py` → several files each |
+
+**TDD entry point:** none — the test count before and after **must be identical**, and that is
+the check. Record the number in the PR body.
+
+**Constraint.** Only C0302 lint debt; CI's pylint scope excludes `tests/`. Do not bundle this
+with anything.
+
+**Release:** patch bump, no behaviour change.
+
+---
+
+## Wave 16 — rename top-level `scripts/`
+
+**Deferred because:** *"The screaming-architecture invariant genuinely applies. But this
+renames every entry point, every `_bootstrap_lib` path, and every doc reference. Own PR, own
+ADR, after packaging is decided."*
+
+**Still true?** Yes, and it is now **doubly gated**: on Wave 11's packaging ADR (which decides
+whether `scripts/` remains an importable directory at all) and on Wave 7 (which is what makes
+the `_bootstrap_lib` paths mechanical to change).
+
+| WP | Work | Files |
+|---|---|---|
+| **WP52** | ADR: what the directory is *for*, and therefore its name. `catalog/`, `distribution/`, `release/` were all proposed — they are not synonyms, and the answer decides whether it is one directory or several | `docs/adr/` |
+| **WP53** | The rename, mechanically, with every reference updated in one commit | `scripts/` → chosen name; the 9 shims; docs; CI; pre-commit |
+
+**TDD entry point:** Wave 7's `tests/test_deployment_shapes.py` is the safety net. Do not
+attempt this wave without it.
+
+**Release:** `BREAKING_VERSIONS` entry; consumers with a pinned path will break.
+
+---
+
+## Wave 17 — split `badger_lib.py`
+
+**Deferred because:** *"Same reason [as the `scripts/` rename]; WP12 and WP13 both touch this
+file and should land first."*
+
+**Still true?** WP12 and WP13 have landed, so the stated blocker is cleared — but Waves 7 and
+8 both add to this file (`resolve_framework_root`, the feature-type registry). Doing it before
+them means splitting a file that is about to change shape. **After 7 and 8.**
+
+Current state: **353 lines**, already grouped by domain — breaking versions, roots/IO,
+hashing, schema validation, catalog iteration.
+
+| WP | Work | Files |
+|---|---|---|
+| **WP54** | Split into `catalog.py` / `fingerprint.py` / `versioning.py` along the existing section comments. `badger_lib` becomes a re-export facade so the nine shims and every `import badger_lib as bl` keep working unchanged | `scripts/badger_lib.py` → three modules |
+
+**TDD entry point:** `tests/test_badger_lib.py` must pass **untouched** — it imports through
+the facade. If it needs editing, the facade is wrong.
+
+**Release:** patch bump, no behaviour change.
+
+---
+
+## Wave 18 — secret scanning in CI
+
+**Deferred because:** *"Cheap and sensible, but it is a new external dependency in CI and will
+produce an initial finding backlog. Separate task."*
+
+**Still true?** Yes, with one update: Wave 10 added `scripts/unsafe_literals.py`, which scans
+the **outbound contribution path** only. It is a guard on one door, not the repository history
+— which is exactly what gitleaks/trufflehog covers and it does not.
+
+| WP | Work | Files |
+|---|---|---|
+| **WP55** | Add the scanner to CI on a **new-findings-only** baseline first, so the initial backlog does not block every PR. Record the baseline and its size | `.github/workflows/` |
+| **WP56** | Work the backlog down, then remove the baseline. A permanently-baselined scanner is theatre | as found |
+
+**TDD entry point:** none (CI configuration). Verify by pushing a branch with an obviously
+fake credential and confirming the job fails — the same way Wave 5's `tdd_guard` was verified.
+
+**Constraint.** Do not let this replace `unsafe_literals`: one guards outbound content at the
+moment of publishing, the other scans history. Different doors.
+
+**Release:** patch bump.
+
+---
 
 ## Definition of done, per wave
 
@@ -315,6 +391,9 @@ From the same §7, deliberately **not** scheduled here, with the reason each is 
 2. All gates green: `pytest -q`, `node --test "tests/js/*.test.mjs"`, `pylint` (scripts) at
    10.00, `index_build --check`, `validate --all`, `version_sync --check`,
    `sync_plugin_skills --check`, `release_guard`, `tdd_guard`.
-3. `VERSION` bumped and a changelog entry added (`.ai-badger/invariants/`, non-negotiable).
+3. `VERSION` bumped and a changelog entry added — plus a `BREAKING_VERSIONS` line where the
+   wave says so.
 4. One PR, merged, **then tagged** `ai-badger--v{version}` — the step whose 32 consecutive
    omissions are recorded in `docs/incidents/2026-07-27-untagged-releases.md`.
+5. Any pre-existing test rewritten to a new contract is named in the PR body. Rewriting a test
+   to match new behaviour is the move that most deserves review.
