@@ -1,0 +1,90 @@
+"""Manifest provenance: entry shape, and the partial marker a failed run leaves behind."""
+# pylint: disable=protected-access  # exercises Scaffolder internals directly; see pyproject.toml
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from scaffold_helpers import _config
+
+
+# -------------------------------------------------------------------------- manifest shape
+def test_scaffold_manifest_entries_have_expected_shape(tmp_path, load_script, root):
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(stacks=["dotnet"]),
+                                skills=["task"], install=False)
+    result = scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    entries = result["manifest"]["entries"]
+    assert entries, "expected at least one manifest entry"
+    base_keys = {"feature", "stack", "name", "source", "target",
+                 "frameworkVersion", "hash"}
+    for entry in entries:
+        # Directory entries (skills) also have dirMeta
+        allowed_keys = base_keys | ({"dirMeta"} if "dirMeta" in entry else set())
+        assert set(entry.keys()) == allowed_keys
+        assert entry["source"].startswith("features/")
+        assert len(entry["hash"]) == 64
+        int(entry["hash"], 16)  # must be valid hex
+        assert entry["frameworkVersion"] == result["manifest"]["frameworkVersion"]
+
+    manifest_on_disk = (target / ".ai-badger" / "manifest.json")
+    assert manifest_on_disk.exists()
+
+
+# --------------------------------------------------------- partial-run recovery (F-25)
+def test_failed_run_leaves_a_detectable_partial_marker(tmp_path, load_script, root):
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
+                                skills=[], install=False)
+
+    def _explode():
+        raise RuntimeError("hook wiring blew up mid-scaffold")
+
+    scaf.wire_hooks = _explode
+
+    with pytest.raises(RuntimeError):
+        scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    partial = json.loads(
+        (target / ".ai-badger" / "manifest.json.partial").read_text(encoding="utf-8"))
+    assert not (target / ".ai-badger" / "manifest.json").exists()
+    assert "agent-files" in partial["completedSteps"]
+    assert "hooks" not in partial["completedSteps"]
+
+
+def test_a_successful_run_leaves_no_partial_marker(tmp_path, load_script, root):
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
+                                skills=[], install=False)
+    scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    assert (target / ".ai-badger" / "manifest.json").exists()
+    assert not (target / ".ai-badger" / "manifest.json.partial").exists()
+
+
+def test_a_failing_user_scope_write_degrades_to_a_note(tmp_path, load_script, root):
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
+                                skills=[], install=False)
+
+    def _explode(*_args, **_kwargs):
+        raise OSError("read-only home directory")
+
+    scaf._scaffold_claude_mcp_user = _explode
+
+    result = scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    assert (target / ".ai-badger" / "manifest.json").exists()
+    assert any("OSError" in note for note in result["notes"])
