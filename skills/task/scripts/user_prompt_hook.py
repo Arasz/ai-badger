@@ -29,6 +29,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import tracker_lib as lib
 
+try:
+    import debug_log  # pylint: disable=wrong-import-position
+except ImportError:  # pragma: no cover - a missing logger must never break a hook
+    debug_log = None
+
+COMPONENT = "task_user_prompt_hook"
+
+
+def _debug(event: str, **fields) -> None:
+    """Record that this hook ran. Silent when debug is off or the logger is unavailable."""
+    if debug_log is not None:
+        debug_log.log_event(COMPONENT, event, **fields)
 # Matches `/task <id>` (optionally `/task:something <id>`, or namespaced as a plugin skill —
 # `/<plugin>:task <id>` — the form Claude Code uses once this skill is installed via a
 # marketplace plugin) at the very start of the prompt. Kept local to this hook, rather than in
@@ -97,10 +109,12 @@ def main() -> int:
 
     task_id = task_id_from_prompt(payload.get("prompt", ""))
     if not task_id or not session_id:
+        _debug("skip", reason="no_task_id" if not task_id else "no_session_id")
         return 0
 
     try:
         _register_task(task_id, session_id, transcript)
+        _debug("register", task=task_id, session=session_id)
     except Exception:  # pylint: disable=broad-exception-caught
         # Registration is a convenience net, not the source of truth: task_tracker.py's own
         # `start` command is idempotent and can register the task later. A hook must never

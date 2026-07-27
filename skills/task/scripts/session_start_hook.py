@@ -26,6 +26,18 @@ import sys
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 import tracker_lib as lib
 
+try:
+    import debug_log  # pylint: disable=wrong-import-position
+except ImportError:  # pragma: no cover - a missing logger must never break a hook
+    debug_log = None
+
+COMPONENT = "session_start_hook"
+
+
+def _debug(event: str, **fields) -> None:
+    """Record that this hook ran. Silent when debug is off or the logger is unavailable."""
+    if debug_log is not None:
+        debug_log.log_event(COMPONENT, event, **fields)
 
 def start_poll_limit_background() -> None:
     script = lib.SCRIPT_DIR / "poll_limit.py"
@@ -53,7 +65,10 @@ def main() -> int:
     transcript = payload.get("transcript_path", "")
     if session_id:
         lib.save_current_session(session_id, transcript, payload.get("cwd", ""))
+    else:
+        _debug("skip", reason="no_session_id")
     start_poll_limit_background()
+    _debug("start", session=session_id, resume=payload.get("source") == "resume")
 
     notices = []
     if payload.get("source") == "resume":

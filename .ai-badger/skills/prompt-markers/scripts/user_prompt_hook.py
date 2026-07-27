@@ -23,6 +23,19 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    import debug_log  # pylint: disable=wrong-import-position
+except ImportError:  # pragma: no cover - a missing logger must never break a hook
+    debug_log = None
+
+COMPONENT = "prompt_markers_hook"
+
+
+def _debug(event: str, **fields) -> None:
+    """Record that this hook ran. Silent when debug is off or the logger is unavailable."""
+    if debug_log is not None:
+        debug_log.log_event(COMPONENT, event, **fields)
+
 SKILL_DIR = Path(__file__).resolve().parent.parent
 MARKERS_CONTEXT_FILE = SKILL_DIR / "markers-context.json"
 
@@ -111,17 +124,20 @@ def main() -> int:
     payload = json.load(sys.stdin)
     prompt = payload.get("prompt", "")
     if not prompt:
+        _debug("skip", reason="no_prompt")
         return 0
 
     config = load_markers_context()
     matched = match_marker(prompt, config.get("markers", []))
     if matched is None:
+        _debug("skip", reason="no_match")
         return 0
 
     marker, prefix = matched
     injected = marker["inject"]
 
     record_transformation(payload.get("cwd", ""), prompt, marker["id"], prefix, injected)
+    _debug("fire", marker=marker["id"], prefix=prefix)
 
     print(json.dumps({
         "hookSpecificOutput": {

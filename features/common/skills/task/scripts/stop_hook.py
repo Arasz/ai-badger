@@ -21,6 +21,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import tracker_lib as lib
 
+try:
+    import debug_log  # pylint: disable=wrong-import-position
+except ImportError:  # pragma: no cover - a missing logger must never break a hook
+    debug_log = None
+
+COMPONENT = "stop_hook"
+
+
+def _debug(event: str, **fields) -> None:
+    """Record that this hook ran. Silent when debug is off or the logger is unavailable."""
+    if debug_log is not None:
+        debug_log.log_event(COMPONENT, event, **fields)
 
 def main() -> int:
     try:
@@ -30,6 +42,7 @@ def main() -> int:
     session_id = payload.get("session_id", "")
     transcript = payload.get("transcript_path", "")
     if not session_id:
+        _debug("skip", reason="no_session_id")
         return 0
 
     block_reasons = []
@@ -84,7 +97,10 @@ def main() -> int:
             lib.save_json(lib.TOKEN_USAGE, usage)
 
     if block_reasons:
+        _debug("block", reasons=len(block_reasons))
         print(json.dumps({"decision": "block", "reason": " ".join(block_reasons)}))
+    else:
+        _debug("checkpoint", session=session_id)
     return 0
 
 

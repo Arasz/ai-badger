@@ -31,6 +31,18 @@ from typing import Any, Dict, Optional
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import drift_notice  # pylint: disable=wrong-import-position
 
+try:
+    import debug_log  # pylint: disable=wrong-import-position
+except ImportError:  # pragma: no cover - a missing logger must never break a hook
+    debug_log = None
+
+COMPONENT = "drift_notice_hook"
+
+
+def _debug(event: str, **fields) -> None:
+    """Record that this hook ran. Silent when debug is off or the logger is unavailable."""
+    if debug_log is not None:
+        debug_log.log_event(COMPONENT, event, **fields)
 
 def _bootstrap_lib() -> Path:
     """Put the framework's scripts/ on sys.path and return its root.
@@ -141,10 +153,14 @@ def main() -> int:
 
     project_root = resolve_project_root(payload)
     if FRAMEWORK_ROOT is None or project_root is None:
+        _debug("skip", reason="no_root" if project_root is None else "no_framework")
         return 0
 
     notice = drift_notice.scaffold_drift_notice(project_root, str(FRAMEWORK_ROOT))
-    if notice:
+    if not notice:
+        _debug("skip", reason="no_drift")
+    else:
+        _debug("fire", project=str(project_root))
         print(json.dumps({
             "hookSpecificOutput": {
                 "hookEventName": "SessionStart",

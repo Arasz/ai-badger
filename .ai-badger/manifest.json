@@ -1,8 +1,8 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.35.0",
-  "frameworkCommit": "51bdee01e1ef6fe91bc0e22ecb0772b3295330ce",
-  "frameworkDirty": false,
+  "frameworkCommit": "97999a261c71648cced69f9e83228be9f10d2129",
+  "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
   "agents": [
@@ -233,9 +233,9 @@
       "source": "features/common/skills/prompt-markers",
       "target": ".ai-badger/skills/prompt-markers",
       "frameworkVersion": "0.35.0",
-      "hash": "709b2f95d74bb7c464d5df43cb035afc1c43866ea384284fb24cc0deb02c60a7",
+      "hash": "48c205eb44fda4df84292147facab8d7dee5b424547c50c3f4b8e2857adf37ba",
       "dirMeta": {
-        "file_count": 3,
+        "file_count": 4,
         "dir_count": 1
       }
     },
@@ -246,9 +246,9 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.35.0",
-      "hash": "c05243f71722409fa929ceeb73ae153cc3f258c783d4544ea258724b0b920472",
+      "hash": "7399a08b6d08c408efca773999a7da40b28f56410a4440d213086c705f9a9919",
       "dirMeta": {
-        "file_count": 13,
+        "file_count": 14,
         "dir_count": 2
       }
     },
