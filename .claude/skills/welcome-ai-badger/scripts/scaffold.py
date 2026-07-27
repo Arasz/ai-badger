@@ -212,11 +212,13 @@ from template_rendering import TemplateRenderingMixin  # noqa: E402
 from agent_files import AgentFilesMixin  # noqa: E402
 from extensions import ExtensionsMixin  # noqa: E402
 from mcp_tools import McpToolsMixin  # noqa: E402
+from statusline_wiring import StatusLineWiringMixin  # noqa: E402
 
 
 class Scaffolder(
     McpToolsMixin,
     HookWiringMixin,
+    StatusLineWiringMixin,
     TemplateRenderingMixin,
     AgentFilesMixin,
     ExtensionsMixin,
@@ -610,6 +612,7 @@ class Scaffolder(
         self.write_agent_files(doc, instr_paths, invariants)
         self._record_progress("agent-files")
         self.wire_hooks()
+        self.wire_statusline_capture()
         self.run_adjustments()
         self._record_progress("hooks")
         plugin_cmds = self.install_plugins()

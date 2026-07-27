@@ -133,6 +133,18 @@
           "description": "Relative path to the index file within the project."
         }
       }
+    },
+    "statusLineCapture": {
+      "type": "object",
+      "description": "Capture Claude Code's statusLine payload so the task skill can read its rate-limit metadata instead of spending a probe. When enabled, scaffolding points .claude/settings.json statusLine at ai-badger's capture wrapper and records the renderer it replaced as the wrapper's delegate, so the existing status line keeps rendering.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Wire the capture wrapper into .claude/settings.json. Off by default: statusLine is a personal setting and a project-level entry overrides the user's own."
+        }
+      }
     }
   }
 }
