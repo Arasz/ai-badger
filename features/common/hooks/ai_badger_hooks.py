@@ -343,10 +343,15 @@ def pre_llm_inject_context(
     - Drift notice if the project is behind
     - Hermes-specific usage hints (/usage, hermes insights, session_search)
     - MCP tool index recommendations (when .ai-badger/mcp-tools.yaml exists)
+    - A pending commit-reminder nudge stashed by post_tool_observer, surfaced once
     """
     parts: list[str] = []
     project = _project_cwd(cwd)
     prompt = message or user_message
+
+    pending_reminder = _pop_pending_reminder(project)
+    if pending_reminder:
+        parts.append(pending_reminder)
 
     # Framework version
     fw_version = _read_framework_version()
@@ -462,6 +467,148 @@ def _sync_learned_skill(args: Dict[str, Any], status: str, cwd: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Commit reminder — Hermes has no PostToolUse return channel into the model's
+# context, so the check runs here and stashes a pending nudge that
+# pre_llm_inject_context surfaces on the very next turn (docs: commit-reminder skill).
+# ---------------------------------------------------------------------------
+
+COMMIT_REMINDER_MODULE_NAME = "ai_badger_commit_reminder"
+IMPACT_ESTIMATOR_MODULE_NAME = "ai_badger_impact_estimator"
+COMMIT_REMINDER_THRESHOLD_ENV = "AI_BADGER_COMMIT_REMINDER_THRESHOLD"
+COMMIT_REMINDER_IMPACT_ENV = "AI_BADGER_COMMIT_REMINDER_IMPACT"
+DEFAULT_COMMIT_REMINDER_THRESHOLD = 5
+
+# Deliberately separate from commit_reminder.py's own STATE_FILE (the per-project marker
+# ratchet): a pending nudge is Hermes-only and clears the moment it is surfaced, a
+# different lifecycle from the marker's threshold-crossing debounce. Keeping them apart
+# means this addition can never corrupt the marker schema the Claude/Copilot hook depends on.
+PENDING_REMINDER_FILE = Path.home() / ".ai-badger" / "commit-reminder" / "pending.json"
+
+
+def _load_commit_reminder() -> Optional[Any]:
+    """Import the sibling commit_reminder module lazily; None when an older scaffold lacks it."""
+    cached = sys.modules.get(COMMIT_REMINDER_MODULE_NAME)
+    if cached is not None:
+        return cached
+    path = Path(__file__).resolve().parent / "commit_reminder.py"
+    if not path.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location(COMMIT_REMINDER_MODULE_NAME, path)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[COMMIT_REMINDER_MODULE_NAME] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:  # pylint: disable=broad-exception-caught
+        sys.modules.pop(COMMIT_REMINDER_MODULE_NAME, None)
+        logger.warning("commit_reminder could not be loaded from %s", path, exc_info=True)
+        return None
+    return module
+
+
+def _load_impact_estimator() -> Optional[Any]:
+    """Import the sibling impact_estimator module lazily; None when an older scaffold lacks it."""
+    cached = sys.modules.get(IMPACT_ESTIMATOR_MODULE_NAME)
+    if cached is not None:
+        return cached
+    path = Path(__file__).resolve().parent / "impact_estimator.py"
+    if not path.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location(IMPACT_ESTIMATOR_MODULE_NAME, path)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[IMPACT_ESTIMATOR_MODULE_NAME] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:  # pylint: disable=broad-exception-caught
+        sys.modules.pop(IMPACT_ESTIMATOR_MODULE_NAME, None)
+        logger.warning("impact_estimator could not be loaded from %s", path, exc_info=True)
+        return None
+    return module
+
+
+def _commit_reminder_threshold() -> int:
+    """Read the threshold from env, guarded int-parse; default 5."""
+    try:
+        return int(os.environ.get(COMMIT_REMINDER_THRESHOLD_ENV, ""))
+    except ValueError:
+        return DEFAULT_COMMIT_REMINDER_THRESHOLD
+
+
+def _load_pending_reminders() -> Dict[str, str]:
+    """Load the pending-reminder file; `{}` on missing file, read error, or malformed JSON."""
+    try:
+        raw = PENDING_REMINDER_FILE.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_pending_reminders(pending: Dict[str, str]) -> None:
+    """Persist the pending-reminder file, creating parent directories as needed."""
+    PENDING_REMINDER_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PENDING_REMINDER_FILE.write_text(json.dumps(pending), encoding="utf-8")
+
+
+def _set_pending_reminder(project: str, message: str) -> None:
+    """Stash ``message`` for ``project``, keyed by its resolved absolute path."""
+    pending = _load_pending_reminders()
+    pending[str(Path(project).resolve())] = message
+    _save_pending_reminders(pending)
+
+
+def _pop_pending_reminder(project: str) -> Optional[str]:
+    """Return and clear the pending reminder for ``project``, or None if there isn't one."""
+    pending = _load_pending_reminders()
+    key = str(Path(project).resolve())
+    message = pending.pop(key, None)
+    if message is not None:
+        _save_pending_reminders(pending)
+    return message
+
+
+def _maybe_remind_commit(tool_name: str, cwd: str) -> None:
+    """After an edit-shaped tool call, ratchet-check the uncommitted count and stash a nudge.
+
+    Guard: an unavailable module or a non-edit tool name skips before any git call.
+    """
+    commit_reminder = _load_commit_reminder()
+    if commit_reminder is None or not commit_reminder.is_edit_tool(tool_name):
+        _debug("ai_badger_hooks/commit_reminder", "skip", tool_name=tool_name)
+        return
+
+    project = _project_cwd(cwd)
+    files = commit_reminder.uncommitted_files(project)
+    count = len(files)
+    marker = commit_reminder.get_marker(project)
+    threshold = _commit_reminder_threshold()
+    _debug("ai_badger_hooks/commit_reminder", "checked", project=project,
+           count=count, threshold=threshold)
+
+    fires, new_marker = commit_reminder.should_remind(count, marker, threshold=threshold)
+    commit_reminder.set_marker(project, new_marker)
+    if not fires:
+        return
+
+    impact_estimator = _load_impact_estimator()
+    if impact_estimator is not None:
+        use_graph = os.environ.get(COMMIT_REMINDER_IMPACT_ENV) == "graph"
+        impact = impact_estimator.estimate_impact(files, project, use_graph=use_graph)
+    else:
+        impact = f"{count} file(s) changed"
+    message = f"[ai-badger] {impact}. Consider committing your work."
+    _set_pending_reminder(project, message)
+    _debug("ai_badger_hooks/commit_reminder", "fire", project=project,
+           count=count, threshold=threshold)
+
+
+# ---------------------------------------------------------------------------
 # Tool call observer — equivalent to Claude's PostToolUse hook
 # ---------------------------------------------------------------------------
 
@@ -482,6 +629,11 @@ def post_tool_observer(tool_name: str = "", result: str = "",
             _sync_learned_skill(kwargs.get("args") or {}, kwargs.get("status", "ok"), cwd)
         except Exception:  # pylint: disable=broad-exception-caught
             logger.warning("learned-skill sync failed", exc_info=True)
+
+    try:
+        _maybe_remind_commit(tool_name, cwd)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("commit reminder check failed", exc_info=True)
 
     # Log index hit/miss metrics if the index is available
     if tool_name:

@@ -174,3 +174,22 @@ def test_failure_block_prints_all_three_escape_hatches():
     assert "SKIP_VERIFY=1" in out
     assert "--no-verify" in out
     assert "reproduce:" in out
+
+
+def test_summary_log_is_appended_on_run():
+    """Every gate invocation appends a structured line to logs/lefthook.log."""
+    log_path = REPO / "logs" / "lefthook.log"
+    before_lines = log_path.read_text().splitlines() if log_path.exists() else []
+    _run("release", env={"VERIFY_SKIP": "release"})
+    assert log_path.exists(), "logs/lefthook.log was not created"
+    after_lines = log_path.read_text().splitlines()
+    assert len(after_lines) > len(before_lines), "no new log line appended"
+    line = after_lines[-1]
+    # Format: 2026-07-27 21:30:00 | lane       | release | PASS | 0s
+    assert "|" in line
+    parts = [p.strip() for p in line.split("|")]
+    assert len(parts) == 5, f"expected 5 pipe-delimited fields, got {len(parts)}"
+    assert parts[1] == "lane"
+    assert parts[2] == "release"
+    assert parts[3] in ("PASS", "FAIL")
+    assert parts[4].endswith("s")

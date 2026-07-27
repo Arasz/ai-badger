@@ -14,6 +14,21 @@ from typing import Any, Dict, List
 PROJECT_HOOKS = ("ai_badger_hooks.py", "mcp_index_hook.py")
 USER_PLUGINS = ("ai_badger_hooks.py", "learned_skills_sync.py")
 
+# Files that live under a skill's own scripts/ dir, not features/common/hooks/, but must
+# still land beside ai_badger_hooks.py in both destinations so its lazy sibling-import
+# (_load_commit_reminder/_load_impact_estimator) finds them post-copy. Kept separate from
+# PROJECT_HOOKS/USER_PLUGINS so their resolution against a different source dir is explicit,
+# not a special case buried inside one shared tuple.
+SHARED_SKILL_MODULES = (
+    ("commit-reminder", "commit_reminder.py"),
+    ("commit-reminder", "impact_estimator.py"),
+)
+
+
+def _shared_skill_module_src(framework_root: Path, skill_name: str, filename: str) -> Path:
+    return (framework_root / "features" / "common" / "skills" / skill_name / "scripts"
+            / filename)
+
 
 def _record_framework_root(plugins_dir: Path, framework_root: Path) -> None:
     """Record where these copies came from, beside them and outside any repo.
@@ -39,6 +54,13 @@ def _install_user_plugins(hooks_dir: Path, framework_root: Path) -> List[str]:
         plugins_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, plugins_dir / name)
         installed.append(name)
+    for skill_name, filename in SHARED_SKILL_MODULES:
+        src = _shared_skill_module_src(framework_root, skill_name, filename)
+        if not src.is_file():
+            continue
+        plugins_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, plugins_dir / filename)
+        installed.append(filename)
     if installed:
         _record_framework_root(plugins_dir, framework_root)
     return installed
@@ -70,6 +92,13 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         src = hooks_dir / hook_file
         if src.exists():
             dst = target_dir / "hooks" / hook_file
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            files.append(str(dst.relative_to(target_dir.parent)))
+    for skill_name, filename in SHARED_SKILL_MODULES:
+        src = _shared_skill_module_src(framework_root, skill_name, filename)
+        if src.exists():
+            dst = target_dir / "hooks" / filename
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
             files.append(str(dst.relative_to(target_dir.parent)))

@@ -383,7 +383,7 @@ def dir_content_hash(path: Path, exclude: Optional[List[str]] = None) -> Dict[st
 
     for item in sorted(path.rglob("*")):
         rel = item.relative_to(path)
-        name = item.name
+        # name intentionally unused — rel carries the hash path
 
         # Check if any ancestor in the relative path matches exclude
         excluded = False
@@ -448,6 +448,7 @@ SKILL_SCOPES: Dict[str, str] = {
     "auto-wm": SKILL_SCOPE_DEFAULT,
     "call-behaviorist": SKILL_SCOPE_DEFAULT,
     "code-review-checklist": SKILL_SCOPE_DEFAULT,
+    "commit-reminder": SKILL_SCOPE_DEFAULT,
     "den-refresh": SKILL_SCOPE_DEFAULT,
     "feed-badger": SKILL_SCOPE_DEFAULT,
     "maintain-agent-instructions": SKILL_SCOPE_DEFAULT,

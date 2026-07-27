@@ -20,6 +20,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_QUARANTINE_PATH \
 _log_key="$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)"
 readonly LOG_DIR="${VERIFY_LOG_DIR:-${TMPDIR:-/tmp}/ai-badger-verify/$_log_key}"
 readonly BASE_REF="${VERIFY_BASE:-origin/main}"
+readonly LOG_SUMMARY="logs/lefthook.log"
 
 # Cheap lanes first so a typo fails fast, before pylint and pytest.
 readonly LANES="version-sync index plugin-skills deps docs release validate tdd js pylint pytest"
@@ -70,6 +71,20 @@ _fail_block() {
     printf '                SKIP_VERIFY=1 git push          # skip every lane\n'
     printf '                git push --no-verify            # skip the hook entirely\n'
     printf '    logs:       %s\n\n' "$log"
+}
+
+_log_summary() {
+    local hook=$1 lanes=$2 result=$3 elapsed=$4 failed=${5:-}
+    mkdir -p "$(dirname "$LOG_SUMMARY")"
+    if [ -n "$failed" ]; then
+        printf '%s | %-10s | %s | %s | %ss | failed:%s\n' \
+            "$(date '+%Y-%m-%d %H:%M:%S')" "$hook" "$lanes" "$result" "$elapsed" "$failed" \
+            >>"$LOG_SUMMARY"
+    else
+        printf '%s | %-10s | %s | %s | %ss\n' \
+            "$(date '+%Y-%m-%d %H:%M:%S')" "$hook" "$lanes" "$result" "$elapsed" \
+            >>"$LOG_SUMMARY"
+    fi
 }
 
 # --------------------------------------------------------------------------- lanes
@@ -147,14 +162,17 @@ run_lane() {
 }
 
 # Runs the named lanes and returns non-zero if any failed. Never swallows a verdict.
+# Sets _FAILED_LANES for callers that need the names (e.g. _log_summary).
 run_lanes() {
     local lane failed="" start
+    _FAILED_LANES=""
     start=$(date +%s)
     for lane in $@; do
         run_lane "$lane" || failed="$failed $lane"
     done
     printf '\n'
     if [ -n "$failed" ]; then
+        _FAILED_LANES="$failed"
         printf 'FAILED after %ss:%s\n' "$(( $(date +%s) - start ))" "$failed"
         return 1
     fi
@@ -340,7 +358,11 @@ main() {
         doctor) doctor; return $? ;;
         all)
             printf '\xe2\x96\xb8 verify all\n'
-            run_lanes "$LANES"; return $? ;;
+            local rc start
+            start=$(date +%s)
+            run_lanes "$LANES"; rc=$?
+            _log_summary "all" "$LANES" "$([ $rc -eq 0 ] && echo PASS || echo FAIL)" "$(( $(date +%s) - start ))" "$_FAILED_LANES"
+            return $rc ;;
         lanes)
             _select_lanes; return $? ;;
         pre-push)
@@ -354,10 +376,19 @@ main() {
                 "")       printf 'verify: nothing to verify\n'; return 0 ;;
             esac
             printf '\xe2\x96\xb8 verify pre-push: %s\n' "$lanes"
-            run_lanes "$lanes"; return $? ;;
+            local rc start
+            start=$(date +%s)
+            run_lanes "$lanes"; rc=$?
+            _log_summary "pre-push" "$lanes" "$([ $rc -eq 0 ] && echo PASS || echo FAIL)" "$(( $(date +%s) - start ))" "$_FAILED_LANES"
+            return $rc ;;
         *)
             case " $LANES " in
-                *" $cmd "*) run_lanes "$cmd"; return $? ;;
+                *" $cmd "*)
+                    local rc start
+                    start=$(date +%s)
+                    run_lanes "$cmd"; rc=$?
+                    _log_summary "lane" "$cmd" "$([ $rc -eq 0 ] && echo PASS || echo FAIL)" "$(( $(date +%s) - start ))"
+                    return $rc ;;
                 *) printf 'unknown subcommand: %s\n\n' "$cmd" >&2; usage >&2; return 2 ;;
             esac ;;
     esac
