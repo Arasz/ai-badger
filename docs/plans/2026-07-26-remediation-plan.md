@@ -123,6 +123,12 @@ One PR.
 > schemas directory would still not reach it. The agent capability matrix — which decides what
 > gets scaffolded for each agent — is validated by nothing. WP16 must author
 > `schemas/support.schema.json`, correct the `$schema` pointer, and cover it in `validate_all`.
+>
+> **F-50 (found 2026-07-27 by WP16's own fix).** The first run of the schema-driven
+> `validate_all` failed: `features/claude/stack.json` and `features/hermes/stack.json` are both
+> missing `name`, which `stack.schema.json` marks required. Neither had ever been validated.
+> Fixed in the same commit — the finding is recorded because it is the evidence that F-24's
+> coverage gap was hiding real breakage, not just theoretical risk.
 | **WP17** | F-25 — `manifest.json.partial` progress marker + unconditional `.ai-badger.bckp/` before re-scaffold; wrap user-scope writes so they degrade to notes                                                                                       | Important | `features/common/skills/welcome-ai-badger/scripts/scaffold.py`, `features/common/skills/den-refresh/scripts/refresh.py`, `tests/test_scaffold.py`, `tests/test_den_refresh.py`                                                                       |
 
 **Release:** `VERSION` → `0.21.0`, `docs/changelog/0.21.0-gates-and-atomicity.md`.

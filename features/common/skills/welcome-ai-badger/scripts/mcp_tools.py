@@ -31,7 +31,11 @@ class McpToolsMixin:
                 continue
             try:
                 data = _json.loads(mcp_path.read_text(encoding="utf-8"))
-            except (ValueError, OSError):
+            except (ValueError, OSError) as exc:
+                self.notes.append(
+                    f"features/{stack}/mcp-servers.json is unreadable "
+                    f"({type(exc).__name__}) — its entries were not scaffolded"
+                )
                 continue
             for srv in data.get("servers", []):
                 # Last writer wins: remove any earlier entry with the same name
@@ -52,7 +56,11 @@ class McpToolsMixin:
                 continue
             try:
                 data = _json.loads(tools_path.read_text(encoding="utf-8"))
-            except (ValueError, OSError):
+            except (ValueError, OSError) as exc:
+                self.notes.append(
+                    f"features/{stack}/external-tools.json is unreadable "
+                    f"({type(exc).__name__}) — its entries were not scaffolded"
+                )
                 continue
             for tool in data.get("tools", []):
                 result = [t for t in result if t.get("name") != tool.get("name")]
