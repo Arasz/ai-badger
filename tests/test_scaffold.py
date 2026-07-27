@@ -12,6 +12,8 @@ import os
 import re
 from unittest.mock import patch
 
+import pytest
+
 
 def _config(stacks=None, source_control=None, commands=None, agents=None) -> dict:
     return {
@@ -1265,3 +1267,57 @@ def test_managed_body_self_reference_matches_the_banner(tmp_path, load_script, r
     body = (target / ".github" / "copilot-instructions.md").read_text(encoding="utf-8")
     self_ref = next(line for line in body.splitlines() if "Source of truth for this file" in line)
     assert _referenced_path(self_ref) == ".ai-badger/copilot-instructions.md"
+
+
+# --------------------------------------------------------- partial-run recovery (F-25)
+def test_failed_run_leaves_a_detectable_partial_marker(tmp_path, load_script, root):
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
+                                skills=[], install=False)
+
+    def _explode():
+        raise RuntimeError("hook wiring blew up mid-scaffold")
+
+    scaf.wire_hooks = _explode
+
+    with pytest.raises(RuntimeError):
+        scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    partial = json.loads(
+        (target / ".ai-badger" / "manifest.json.partial").read_text(encoding="utf-8"))
+    assert not (target / ".ai-badger" / "manifest.json").exists()
+    assert "agent-files" in partial["completedSteps"]
+    assert "hooks" not in partial["completedSteps"]
+
+
+def test_a_successful_run_leaves_no_partial_marker(tmp_path, load_script, root):
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
+                                skills=[], install=False)
+    scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    assert (target / ".ai-badger" / "manifest.json").exists()
+    assert not (target / ".ai-badger" / "manifest.json.partial").exists()
+
+
+def test_a_failing_user_scope_write_degrades_to_a_note(tmp_path, load_script, root):
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
+                                skills=[], install=False)
+
+    def _explode(*_args, **_kwargs):
+        raise OSError("read-only home directory")
+
+    scaf._scaffold_claude_mcp_user = _explode
+
+    result = scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    assert (target / ".ai-badger" / "manifest.json").exists()
+    assert any("OSError" in note for note in result["notes"])

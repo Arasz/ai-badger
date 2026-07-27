@@ -470,3 +470,20 @@ def test_refresh_relinks_hermes_skills(tmp_path, load_script, root):
     assert not stale.is_symlink()
     assert foreign.is_dir() and not foreign.is_symlink()
     assert (foreign / "SKILL.md").read_text(encoding="utf-8") == "# hermes-authored\n"
+
+
+def test_backup_is_taken_even_when_the_transition_is_not_breaking(tmp_path, load_script, root):
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    target = tmp_path / "proj"
+    aib = target / ".ai-badger"
+    aib.mkdir(parents=True)
+    (aib / "config.json").write_text(
+        json.dumps({"frameworkVersion": "0.20.0"}), encoding="utf-8")
+    (aib / "state.json").write_text('{"mine": true}\n', encoding="utf-8")
+
+    result = refresh.check_breaking_and_backup(root, target)
+
+    assert result["backupPath"]
+    assert not result["isBreaking"]
+    backup = target / ".ai-badger.bckp"
+    assert (backup / "state.json").read_text(encoding="utf-8") == '{"mine": true}\n'

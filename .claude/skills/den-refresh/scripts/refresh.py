@@ -71,7 +71,10 @@ import badger_lib as bl  # pylint: disable=wrong-import-position
 
 
 def check_breaking_and_backup(root: Path, target: Path) -> Dict[str, Any]:
-    """Check if the version transition is breaking; if so, back up .ai-badger/.
+    """Back up .ai-badger/ before any re-scaffold, and report whether the jump is breaking.
+
+    The backup is unconditional: a routine refresh rewrites the same files a breaking one
+    does, and a re-scaffold that raises partway leaves no other recovery path (F-25).
 
     Returns {"isBreaking": bool, "backupPath": str|None}.
     """
@@ -81,8 +84,6 @@ def check_breaking_and_backup(root: Path, target: Path) -> Dict[str, Any]:
     to_version = (root / "VERSION").read_text(encoding="utf-8").strip()
 
     is_breaking = bl.is_breaking_transition(from_version, to_version, root)
-    if not is_breaking:
-        return {"isBreaking": False, "backupPath": None}
 
     # Back up .ai-badger/ to .ai-badger.bckp/
     import shutil
@@ -90,7 +91,7 @@ def check_breaking_and_backup(root: Path, target: Path) -> Dict[str, Any]:
     if bckp.exists():
         shutil.rmtree(bckp)
     shutil.copytree(aib, bckp)
-    return {"isBreaking": True, "backupPath": str(bckp)}
+    return {"isBreaking": is_breaking, "backupPath": str(bckp)}
 
 
 def check_prerequisites(target: Path) -> Optional[str]:

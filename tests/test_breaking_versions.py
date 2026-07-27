@@ -77,8 +77,8 @@ class TestRefreshBreakingChange:
         assert (target / ".ai-badger.bckp" / "config.json").exists()
         assert (target / ".ai-badger.bckp" / "state.json").exists()
 
-    def test_non_breaking_change_no_backup(self, tmp_path, root, load_script):
-        """Non-breaking transitions should not create backup."""
+    def test_non_breaking_change_still_backs_up(self, tmp_path, root, load_script):
+        """A routine refresh rewrites the same files a breaking one does — back it up too (F-25)."""
         refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
 
         (tmp_path / "VERSION").write_text("0.7.1\n")
@@ -92,4 +92,4 @@ class TestRefreshBreakingChange:
         result = refresh.check_breaking_and_backup(tmp_path, target)
 
         assert result["isBreaking"] is False
-        assert not (target / ".ai-badger.bckp").exists()
+        assert (target / ".ai-badger.bckp" / "config.json").exists()
