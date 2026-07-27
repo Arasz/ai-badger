@@ -74,6 +74,7 @@ looks the way it does. Not plans.
 | Document | Status |
 |---|---|
 | [plans/2026-07-27-deferred-work-plan.md](plans/2026-07-27-deferred-work-plan.md) | **Active.** Waves 6–18. Four have shipped (9, 10, 13, 14 → 0.24.0–0.27.0); nine remain, with a suggested order and two hard ordering constraints |
+| [plans/2026-07-27-session-checkpoint-2.md](plans/2026-07-27-session-checkpoint-2.md) | **Current.** Waves 11, 12, 15 and 18 merged and unreleased; three defect fixes in flight; what ADR-0007 decided for the waves that waited on it |
 | [plans/2026-07-27-session-checkpoint.md](plans/2026-07-27-session-checkpoint.md) | Resume notes for the documentation work — step 1 (research) and step 2 (this refactor) done, step 3 (a docs-sync gate) sized as a wave in the plan above |
 | [plans/2026-07-26-remediation-plan.md](plans/2026-07-26-remediation-plan.md) | **Complete.** All 28 work packages shipped as 0.19.0–0.23.0; kept as the record of what was fixed |
 
