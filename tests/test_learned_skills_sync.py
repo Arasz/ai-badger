@@ -3,8 +3,11 @@
 Stages 1-3 of docs/design/hermes-learned-skills-sync-impl-plan.md.
 """
 # pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
+import importlib.util
 import json
 import pathlib
+import shutil
+import sys
 
 import pytest
 
@@ -525,6 +528,78 @@ def test_secret_scan_allows_placeholder_env_reference(tmp_path, sync):
         body="---\nname: demo\n---\napi_key=${OPENAI_API_KEY}\ntoken: $env:FOO\n")
 
     assert sync.scan_for_unsafe_literals(source) == []
+
+
+# --------------------------------------------------------------------------------------
+# No framework root — the ~/.hermes/plugins/ copy whose recorded root went away
+# --------------------------------------------------------------------------------------
+
+@pytest.fixture
+def rootless_sync(root, tmp_path, monkeypatch):
+    """The module as the Hermes host loads it when nothing resolves a framework root."""
+    home = tmp_path / "home"
+    home.mkdir()
+    stranded = tmp_path / "plugins" / "learned_skills_sync.py"
+    stranded.parent.mkdir(parents=True)
+    shutil.copy2(root / "features" / "common" / "hooks" / "learned_skills_sync.py", stranded)
+    monkeypatch.delenv("AI_BADGER", raising=False)
+    monkeypatch.setattr(pathlib.Path, "home", staticmethod(lambda: home))
+    monkeypatch.chdir(tmp_path)
+
+    spec = importlib.util.spec_from_file_location("aib_stranded_sync", stranded)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+        assert module.FRAMEWORK_ROOT is None, "the fixture is not rootless; it proves nothing"
+        yield module
+    finally:
+        sys.modules.pop(spec.name, None)
+
+
+def test_the_plugin_still_imports_when_no_framework_root_resolves(rootless_sync):
+    """Hermes imports this file at startup; raising there takes the whole plugin down."""
+    assert rootless_sync.FRAMEWORK_ROOT is None
+
+
+def test_the_sync_is_silent_when_no_framework_root_resolves(tmp_path, rootless_sync):
+    """The host's entry point reports nothing and writes nothing without the engine."""
+    project = _make_project(tmp_path)
+    skills_root = tmp_path / "skills"
+    _make_source_skill(skills_root, "apple", "apple-notes")
+
+    result = rootless_sync.on_skill_manage(
+        {"action": "create", "name": "apple-notes", "category": "apple"},
+        "ok", str(project), skills_root=skills_root, now=NOW)
+
+    assert result is None
+    assert not (project / ".ai-badger" / "skills" / "learned").exists()
+
+
+def test_sync_skill_refuses_rather_than_copying_unscanned_without_the_engine(
+        tmp_path, rootless_sync):
+    """No scanner means no proof a skill is safe to copy: refuse, never write."""
+    project = _make_project(tmp_path)
+    skills_root = tmp_path / "skills"
+    source = _make_source_skill(skills_root, "apple", "apple-notes")
+
+    result = rootless_sync.sync_skill(project, source, "apple-notes", "apple", now=NOW)
+
+    assert result["action"] == "refused"
+    assert "framework" in result["reason"]
+    assert not (project / ".ai-badger" / "skills" / "learned").exists()
+
+
+def test_the_cli_reports_the_missing_framework_rather_than_a_clean_run(
+        tmp_path, rootless_sync, capsys):
+    """A CLI is not a hook: --reconcile must say why it did nothing, not print an empty summary."""
+    project = _make_project(tmp_path)
+
+    rc = rootless_sync.main(["--reconcile", "--target", str(project),
+                             "--skills-root", str(tmp_path / "skills")])
+
+    assert rc == 1
+    assert "framework" in json.loads(capsys.readouterr().out)["error"]
 
 
 def test_skill_containing_symlink_is_refused(tmp_path, sync):

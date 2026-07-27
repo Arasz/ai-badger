@@ -98,9 +98,18 @@ def _bootstrap_lib() -> Path:
     return root.resolve()
 
 
-FRAMEWORK_ROOT = _bootstrap_lib()
-import badger_lib as bl
-import unsafe_literals as ul
+try:
+    FRAMEWORK_ROOT: Optional[Path] = _bootstrap_lib()
+except RuntimeError:  # a hook degrades to silence; it never breaks a session
+    FRAMEWORK_ROOT = None
+
+if FRAMEWORK_ROOT is not None:
+    import badger_lib as bl
+    import unsafe_literals as ul
+else:
+    # No engine on sys.path: import still succeeds so the host's plugin load does, and every
+    # entry point below declines rather than syncing without a writer or a scanner.
+    bl = ul = None  # pylint: disable=invalid-name  # module aliases, not constants
 
 
 class ManifestUnreadable(RuntimeError):
@@ -116,10 +125,12 @@ UNCATEGORIZED = "uncategorized"
 SYNC_ACTIONS = frozenset({"create", "edit", "patch", "write_file", "remove_file"})
 DELETE_ACTIONS = frozenset({"delete"})
 
+NO_FRAMEWORK = "no ai-badger framework root resolved"
+
 # The scanner is shared with feed-badger's outbound PR path; see scripts/unsafe_literals.py.
-UNSAFE_LITERAL_PATTERNS = ul.UNSAFE_LITERAL_PATTERNS
-LITERAL_SCAN_MAX_BYTES = ul.LITERAL_SCAN_MAX_BYTES
-UNSAFE_LITERAL_LABELS = ul.UNSAFE_LITERAL_LABELS
+UNSAFE_LITERAL_PATTERNS = ul.UNSAFE_LITERAL_PATTERNS if ul else ()
+LITERAL_SCAN_MAX_BYTES = ul.LITERAL_SCAN_MAX_BYTES if ul else 0
+UNSAFE_LITERAL_LABELS = ul.UNSAFE_LITERAL_LABELS if ul else frozenset()
 
 
 def target_project(cwd: str) -> Optional[Path]:
@@ -263,6 +274,9 @@ def sync_skill(project: Path, source_dir: Path, name: str, category: Optional[st
                *, now: str, source_path: Optional[str] = None,
                dry_run: bool = False) -> Dict[str, Any]:
     """Copy one skill into learned/ and record it. Returns a result dict; never raises (D4)."""
+    if bl is None or ul is None:
+        # Without the scanner there is no evidence a skill is safe to copy.
+        return _refused(NO_FRAMEWORK)
     if _is_unsafe_segment(name or ""):
         return _refused("unsafe name")
     if category is not None and category != "" and _is_unsafe_segment(category):
@@ -355,6 +369,8 @@ def _mark_orphaned(project: Path, name: str, category: str, now: str) -> Dict[st
 def on_skill_manage(args: Dict[str, Any], status: str, cwd: str, *, skills_root: Path,
                     now: str, tool_name: str = "skill_manage") -> Optional[Dict[str, Any]]:
     """Hook entry point: sync the one skill a successful skill_manage call named."""
+    if bl is None or ul is None:
+        return None
     if tool_name != "skill_manage" or status != "ok" or not isinstance(args, dict):
         return None
 
@@ -448,6 +464,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--skills-root", default=str(Path.home() / ".hermes" / "skills"))
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args(argv)
+
+    if bl is None or ul is None:
+        # A CLI says why it did nothing; only the hook path is allowed to be silent.
+        print(json.dumps({"error": NO_FRAMEWORK, "target": args.target}))
+        return 1
 
     project = target_project(args.target)
     if project is None:

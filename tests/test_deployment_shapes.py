@@ -5,6 +5,7 @@ the broken shapes pass for the wrong reason, via a stale `~/.ai-badger/framework
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
 import shutil
@@ -256,6 +257,50 @@ def test_no_root_predicate_lives_outside_a_bootstrap_shim(root):
 
     assert not strays, "root predicate outside _bootstrap_lib:\n" + "\n".join(
         f"  {p} ({n}x)" for p, n in sorted(strays.items()))
+
+
+def _module_scope_bootstrap_calls(tree: ast.Module) -> list:
+    """Top-level statements whose value calls `_bootstrap_lib()`."""
+    def calls(node) -> bool:
+        return any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                   and n.func.id == "_bootstrap_lib" for n in ast.walk(node))
+
+    return [stmt for stmt in tree.body
+            if not isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            and calls(stmt)]
+
+
+def _guards_runtime_error(stmt) -> bool:
+    """True when `stmt` is a try/except that catches RuntimeError."""
+    if not isinstance(stmt, ast.Try):
+        return False
+    for handler in stmt.handlers:
+        caught = handler.type
+        names = caught.elts if isinstance(caught, ast.Tuple) else [caught]
+        if any(isinstance(n, ast.Name) and n.id in ("RuntimeError", "Exception") for n in names):
+            return True
+    return False
+
+
+def test_every_hermes_plugin_guards_its_module_scope_bootstrap(root):
+    """A hook degrades to silence; it never breaks a session.
+
+    Both files land loose in ~/.hermes/plugins/, where the recorded root is all that answers
+    and it can stop resolving. An unguarded shim there takes the plugin down at import.
+    """
+    hooks = root / "features" / "common" / "hooks"
+    unguarded = []
+    checked = 0
+    for path in sorted(hooks.glob("*.py")):
+        for stmt in _module_scope_bootstrap_calls(ast.parse(path.read_text(encoding="utf-8"))):
+            checked += 1
+            if not _guards_runtime_error(stmt):
+                unguarded.append(path)
+
+    assert checked >= len(HERMES_PLUGINS), (
+        f"expected each of {HERMES_PLUGINS} to bootstrap at module scope, found {checked}")
+    assert not unguarded, "module-scope _bootstrap_lib() outside a try/except RuntimeError:\n" \
+        + "\n".join(f"  {p}" for p in unguarded)
 
 
 def test_the_shim_and_badger_lib_state_one_predicate(root):
