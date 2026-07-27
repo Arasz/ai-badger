@@ -1,4 +1,4 @@
-"""Tests for scripts/sync_plugin_skills.py — plugin skill directory sync (F-01)."""
+"""Tests for scripts/sync_plugin_skills.py — plugin skill directory sync (F-01, F-17)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -158,3 +158,104 @@ class TestSyncSkillRealCopy:
 
         assert result == 0
         assert after == before
+
+
+@pytest.fixture
+def temp_framework(tmp_path, load_script, monkeypatch):
+    """A sync script bound to a throwaway framework tree with one common + one claude skill."""
+    sps = load_script("scripts/sync_plugin_skills.py")
+    _write_tree(tmp_path / "features" / "common" / "skills" / "task", {
+        "SKILL.md": "task skill",
+        "scripts/helper.py": "print('hi')",
+    })
+    _write_tree(tmp_path / "features" / "claude" / "skills" / "auto-wm", {
+        "SKILL.md": "auto-wm skill",
+    })
+    monkeypatch.setattr(sps, "ROOT", tmp_path)
+    monkeypatch.setattr(sps, "TARGET", tmp_path / ".claude" / "skills")
+    monkeypatch.setattr(sps, "COMMON_SKILLS", ["task"])
+    monkeypatch.setattr(sps, "CLAUDE_SKILLS", ["auto-wm"])
+    return sps
+
+
+class TestCheckMode:
+    """--check must fail the build whenever the shipped .claude/ copy diverges (F-17)."""
+
+    def test_check_mode_fails_when_claude_copy_diverges(self, tmp_path, temp_framework):
+        temp_framework.main([])
+
+        shipped = tmp_path / ".claude" / "skills" / "task" / "SKILL.md"
+        shipped.write_text("task skill (hand-edited)")
+
+        assert temp_framework.main(["--check"]) == 1
+
+    def test_check_mode_passes_when_copies_are_in_sync(self, temp_framework):
+        temp_framework.main([])
+
+        assert temp_framework.main(["--check"]) == 0
+
+    def test_check_mode_fails_when_a_skill_was_never_synced(self, tmp_path, temp_framework):
+        temp_framework.main([])
+        import shutil
+        shutil.rmtree(tmp_path / ".claude" / "skills" / "auto-wm")
+
+        assert temp_framework.main(["--check"]) == 1
+
+    def test_check_mode_names_the_diverged_skill(self, tmp_path, temp_framework, capsys):
+        temp_framework.main([])
+        capsys.readouterr()
+        (tmp_path / ".claude" / "skills" / "task" / "scripts" / "helper.py").write_text("drift")
+
+        temp_framework.main(["--check"])
+
+        out = capsys.readouterr().out
+        assert "task" in out
+        assert "auto-wm" not in out
+
+    def test_check_mode_ignores_excluded_files(self, tmp_path, temp_framework):
+        temp_framework.main([])
+        _write_tree(tmp_path / "features" / "common" / "skills" / "task", {
+            "tests/test_helper.py": "def test_x(): pass",
+            "evals/one.md": "eval",
+        })
+
+        assert temp_framework.main(["--check"]) == 0
+
+    def test_check_mode_never_writes(self, tmp_path, temp_framework):
+        temp_framework.main([])
+        target = tmp_path / ".claude" / "skills"
+        (target / "task" / "SKILL.md").write_text("diverged")
+
+        before = _snapshot(target)
+        temp_framework.main(["--check"])
+        after = _snapshot(target)
+
+        assert after == before
+
+    def test_check_mode_ignores_managed_externally(self, tmp_path, load_script, monkeypatch):
+        sps = load_script("scripts/sync_plugin_skills.py")
+        _write_tree(tmp_path / "features" / "common" / "skills" / "debug-issue",
+                    {"SKILL.md": "framework version"})
+        _write_tree(tmp_path / ".claude" / "skills" / "debug-issue",
+                    {"SKILL.md": "externally managed version"})
+        monkeypatch.setattr(sps, "ROOT", tmp_path)
+        monkeypatch.setattr(sps, "TARGET", tmp_path / ".claude" / "skills")
+        monkeypatch.setattr(sps, "COMMON_SKILLS", ["debug-issue"])
+        monkeypatch.setattr(sps, "CLAUDE_SKILLS", [])
+
+        assert sps.main(["--check"]) == 0
+
+    def test_check_and_dry_run_are_mutually_exclusive(self, temp_framework):
+        with pytest.raises(SystemExit):
+            temp_framework.main(["--check", "--dry-run"])
+
+
+class TestRealCatalogParity:
+    """The shipped .claude/skills/ copy of this repo must match features/ at all times."""
+
+    def test_repo_plugin_copy_is_in_sync(self, load_script):
+        sps = load_script("scripts/sync_plugin_skills.py")
+
+        assert sps.main(["--check"]) == 0, (
+            "run `python3 scripts/sync_plugin_skills.py` to refresh .claude/skills/"
+        )
