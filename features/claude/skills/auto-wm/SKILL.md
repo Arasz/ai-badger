@@ -61,7 +61,7 @@ All via `python3 ~/.claude/skills/auto-wm/scripts/awm.py`:
 
 ## Common mistakes
 
-- **Marker in the project** (`.claude/` in a repo, `CLAUDE.md` edits) — it's user-level state; project files pollute git. Use `~/.claude/awm/` only.
+- **State in the project** (`.claude/` in a repo, `CLAUDE.md` edits) — the *scripts* are scaffolded per project, but the *state* is user-level: enabled flag, window, decisions. Keep all of it in `~/.claude/awm/`; a state marker committed to a repo both leaks and misleads.
 - **Permission allowlist ≠ AWM.** Adding `permissions.allow` entries doesn't approve everything; only the PreToolUse hook does.
 - **Treating partner mode like away mode.** Partner mode does not deny `AskUserQuestion` — don't apply away's "never ask, always log" contract when the state file says `mode: partner`.
 - **Reading a fall-through as a failure.** A denylisted or out-of-scope call is not an error: the normal permission prompt reaches the user, exactly as if AWM were off. Don't retry it a different way to get around the gate — ask.
@@ -70,8 +70,27 @@ All via `python3 ~/.claude/skills/auto-wm/scripts/awm.py`:
 
 ## Installing from ai-badger
 
-This skill is user-level by design: its state (`~/.claude/awm/`) and hook scripts
-(`~/.claude/skills/auto-wm/`) live outside any project, so the same install covers every repo you
-work in. `welcome-ai-badger` copies this directory to `~/.claude/skills/auto-wm/` once (not into
-`.ai-badger/`) and merges `hooks/settings-snippet.json` into `~/.claude/settings.json`. Re-running
-`welcome-ai-badger` on another project does not reinstall it.
+Two things are user-level here, and one is not. Getting them mixed up is why this section used
+to describe an install that never happened (review F-42).
+
+**What `welcome-ai-badger` does:** it scaffolds this skill into `.ai-badger/skills/auto-wm/`
+like every other skill. It does **not** copy anything to `~/.claude/skills/`, and it does
+**not** merge `hooks/settings-snippet.json` into `~/.claude/settings.json`.
+
+**What you do once, by hand:** the gate only fires if its two hooks are registered in
+`~/.claude/settings.json`. Copy the hooks somewhere stable and merge the snippet:
+
+```bash
+mkdir -p ~/.claude/skills/auto-wm
+cp -R .ai-badger/skills/auto-wm/. ~/.claude/skills/auto-wm/
+# then merge hooks/settings-snippet.json into ~/.claude/settings.json, preserving existing keys
+```
+
+The snippet's commands point at `~/.claude/skills/auto-wm/hooks/`, so the registered hooks keep
+working in every repo — which is the point: **state is machine-wide** (`~/.claude/awm/`), and a
+window enabled in one project is scoped to that project by `state.json`, not by which copy of
+the scripts ran.
+
+**Why the skill files are per project anyway:** they are versioned with the framework, so a
+`den-refresh` updates them. Re-copy to `~/.claude/skills/auto-wm/` after an update that touches
+`hooks/` — nothing does it for you.

@@ -1,11 +1,9 @@
 ---
 name: feed-badger
 description: >-
-  Harvest project-agnostic improvements from a repo back into the ai-badger framework via a
-  draft PR. Use when a user wants to contribute additions upstream — "feed-badger", "contribute
-  this back to the framework", "push my skill/persona/invariant changes to ai-badger", "harvest
-  agnostic additions". Detects what changed beyond the original scaffold, classifies and
-  generalizes the agnostic parts, places them into {stack}/{feature}, and opens a draft PR.
+  Use when something learned in this repo belongs in the ai-badger framework itself — a new
+  skill, persona, invariant, instruction or fix that is project-agnostic — and the user wants to
+  contribute it back. Opens a draft PR against the framework; refuses anything project-specific.
 ---
 
 # feed-badger
@@ -85,43 +83,8 @@ non-zero or emits an error, attempt recovery before surfacing the failure.
    After applying a fix, **re-run the failed step** and continue the flow. If it
    succeeds, report what was fixed.
 
-3. **Recovery failed — offer to create a GitHub issue.** If all applicable fixes
-   were tried and the step still fails:
-
-   - **Ask the user for permission:** "Recovery failed. Should I create a GitHub
-     issue in `Arasz/ai-badger` with the error details?"
-   - **Gate on `gh` availability.** Only offer if `command -v gh` succeeds and
-     `gh auth status` returns 0. If `gh` is unavailable, print the error details
-     and suggest the user create the issue manually.
-   - **Create the issue** (if approved):
-     ```bash
-     gh issue create \
-       --repo Arasz/ai-badger \
-       --title "bug: feed-badger failed — <error summary>" \
-       --body "<structured body>" \
-       --label "bug,triage"
-     ```
-   - **Issue body structure:**
-     ```markdown
-     ## feed-badger failure
-
-     **Failed step:** <detect / place / open_pr>
-     **Framework version:** <from VERSION file>
-     **OS / Python:** <os> / <python version>
-     **gh version:** <gh --version>
-
-     ### Error output
-     ```json
-     <full JSON error from the script>
-     ```
-
-     ### Recovery attempts
-     1. <what was tried>
-     2. <what was tried>
-
-     ### Candidates detected
-     <list of candidates from detect_additions.py, if available>
-     ```
-
-   - **Do not create the issue without explicit user approval.** The user may
-     prefer to debug locally or file the issue themselves.
+3. **Recovery failed — offer to create a GitHub issue.** Follow
+   `.ai-badger/skills/welcome-ai-badger/references/reporting-a-framework-bug.md`: ask
+   permission first, gate on `gh` being installed and authenticated, sanitize the config
+   before including it. **Never create the issue without explicit user approval** — that rule
+   holds even if the reference file is not present.

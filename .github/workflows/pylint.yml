@@ -43,3 +43,12 @@ jobs:
     - name: Release guard - shipped surface change requires a VERSION bump
       run: |
         python3 scripts/release_guard.py
+    - name: JS gate scripts have tests
+      if: matrix.python-version == '3.10'
+      run: |
+        node --test "tests/js/*.test.mjs"
+    - name: TDD guard - code change requires a test change
+      if: matrix.python-version == '3.10' && github.ref != 'refs/heads/main'
+      run: |
+        git fetch --no-tags --depth=0 origin main
+        python3 scripts/tdd_guard.py --base origin/main

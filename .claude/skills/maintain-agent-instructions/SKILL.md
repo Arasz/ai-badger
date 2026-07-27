@@ -1,9 +1,10 @@
 ---
 name: maintain-agent-instructions
 description: >-
-  Maintain a project's Claude, Copilot, Junie, hosted-review, and path-scoped agent instructions
-  from the machine-readable agent-instructions model. Use this when updating agent policy, adding
-  instructions, reducing instruction token usage, or checking drift between agent files.
+  Use when agent instruction files have drifted from each other or from the policy model —
+  CLAUDE.md, copilot-instructions.md, AGENTS.md, hosted-review and path-scoped instruction files
+  — or when validation/drift checks fail in CI. Reconciles them from the machine-readable model
+  in .ai-badger/agent-instructions/.
 ---
 
 # Maintain agent instructions
@@ -31,17 +32,19 @@ script instead of by eye — if the project records this decision as an ADR, lin
 1. Run validation:
 
    ```bash
-   bun skills/maintain-agent-instructions/scripts/validate-agent-instructions.mjs
+   node .ai-badger/skills/maintain-agent-instructions/scripts/validate-agent-instructions.mjs
    ```
 
 2. Run drift detection:
 
    ```bash
-   bun skills/maintain-agent-instructions/scripts/check-agent-drift.mjs
+   node .ai-badger/skills/maintain-agent-instructions/scripts/check-agent-drift.mjs
    ```
 
-   (Adjust the path prefix to wherever this skill was scaffolded into the target project, e.g.
-   `.ai-badger/skills/maintain-agent-instructions/scripts/...`.)
+   Both scripts are `#!/usr/bin/env node` and import only `node:fs` / `node:path` — Node 18+,
+   no bundler, no dependencies. Run them from the project root; they read `process.cwd()` and
+   `AGENT_INSTRUCTIONS_DIR` (default `.ai-badger/agent-instructions`). Adjust the path prefix
+   if the skill was scaffolded elsewhere.
 
 3. If both pass, report success.
 4. If either fails:

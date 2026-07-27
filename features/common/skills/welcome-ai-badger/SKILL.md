@@ -1,11 +1,10 @@
 ---
 name: welcome-ai-badger
 description: >-
-  Bootstrap a repository with the ai-badger framework. Use when a user wants to set up a new
-  or existing project with ai-badger — "welcome-ai-badger", "set up ai-badger here", "scaffold
-  this repo with the framework", "onboard this project". Detects the repo's stacks and coding
-  agents, authors a validated project config, and materializes a tailored .ai-badger/ scaffold
-  (CLAUDE.md, personas, instructions, invariants, skills) plus agent-discovery copies.
+  Use when a repository should be set up with ai-badger — "welcome-ai-badger", "scaffold this
+  project", "add agent instructions here", "onboard this repo" — whether it is new or already has
+  agent files. Detects stacks, writes .ai-badger/, and generates each configured agent's
+  discovery file.
 ---
 
 # welcome-ai-badger
@@ -130,45 +129,8 @@ exits non-zero or emits an error, attempt recovery before surfacing the failure.
    After applying a fix, **re-run the failed step** and continue the flow. If it
    succeeds, report what was fixed.
 
-3. **Recovery failed — offer to create a GitHub issue.** If all applicable fixes
-   were tried and the step still fails:
-
-   - **Ask the user for permission:** "Recovery failed. Should I create a GitHub
-     issue in `Arasz/ai-badger` with the error details?"
-   - **Gate on `gh` availability.** Only offer if `command -v gh` succeeds and
-     `gh auth status` returns 0. If `gh` is unavailable, print the error details
-     and suggest the user create the issue manually.
-   - **Create the issue** (if approved):
-     ```bash
-     gh issue create \
-       --repo Arasz/ai-badger \
-       --title "bug: welcome-ai-badger failed — <error summary>" \
-       --body "<structured body>" \
-       --label "bug,triage"
-     ```
-   - **Issue body structure:**
-     ```markdown
-     ## welcome-ai-badger failure
-
-     **Failed step:** <detect / validate / scaffold>
-     **Framework version:** <from VERSION file>
-     **OS / Python:** <os> / <python version>
-     **gh version:** <gh --version>
-
-     ### Error output
-     ```json
-     <full JSON error from the script>
-     ```
-
-     ### Recovery attempts
-     1. <what was tried>
-     2. <what was tried>
-
-     ### Project config (sanitized)
-     ```json
-     <config.json with any secrets removed>
-     ```
-     ```
-
-   - **Do not create the issue without explicit user approval.** The user may
-     prefer to debug locally or file the issue themselves.
+3. **Recovery failed — offer to create a GitHub issue.** Follow
+   `.ai-badger/skills/welcome-ai-badger/references/reporting-a-framework-bug.md`: ask
+   permission first, gate on `gh` being installed and authenticated, sanitize the config
+   before including it. **Never create the issue without explicit user approval** — that rule
+   holds even if the reference file is not present.
