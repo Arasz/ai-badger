@@ -369,3 +369,34 @@ class TestNoShellInterpretation:
         out = capsys.readouterr().out
         assert "$ claude plugin install" in out
         assert "['claude'," not in out
+
+
+class TestThirdPartyPluginsAreNotAddedSilently:
+    """A default-scope external plugin runs on every scaffolded project without being asked for."""
+
+    # Every externally-sourced plugin ai-badger installs by default. Adding a name here is a
+    # deliberate act: the plugin runs in the user's agent, and some ship binaries that hook
+    # every tool call. See docs/changelog/0.33.0-no-third-party-tool-call-interception.md.
+    ALLOWED = {
+        ("common", "superpowers"),
+        ("common", "pr-review-toolkit"),
+        ("python", "pyright-lsp"),
+        ("python", "pydantic-ai"),
+    }
+
+    @staticmethod
+    def _declared(root):
+        found = set()
+        for path in sorted((root / "features").glob("*/skills.json")):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for skill in data.get("skills", []):
+                if skill.get("source"):
+                    found.add((path.parent.name, skill["name"]))
+        return found
+
+    def test_the_catalog_installs_only_reviewed_third_party_plugins(self, root):
+        assert self._declared(Path(root)) == self.ALLOWED
+
+    def test_semgrep_is_not_reinstated(self, root):
+        """It hooks PreToolUse/PostToolUse on Write|Edit|Bash and needs an external account."""
+        assert not [s for _, s in self._declared(Path(root)) if s == "semgrep"]
