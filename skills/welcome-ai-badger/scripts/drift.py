@@ -96,8 +96,8 @@ def detect_new_items(root: Path, manifest: Dict[str, Any],
     for stack_name, stack_data in index.get("stacks", {}).items():
         if stack_name not in check_stacks:
             continue
-        # Features that can have new items (skip meta)
-        for feature in ("skills", "personas", "invariants", "instructions", "hooks", "adjustments"):
+        # Feature types the registry marks as reportable (skips index "meta")
+        for feature in bl.DRIFT_NEW_FEATURES:
             items = stack_data.get(feature, [])
             for item in items:
                 key = (stack_name, feature, item.get("name"))

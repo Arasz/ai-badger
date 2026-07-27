@@ -89,6 +89,15 @@ def _template_items(fdir: Path, root: Path):
             for p in sorted(fdir.iterdir()) if p.name != "README.md"]
 
 
+# Discovery rule -> item builder. Keys are badger_lib.FeatureType.index_rule values.
+_RULES = {
+    "skills": _skill_items,
+    "md": _md_items,
+    "templates": _template_items,
+    "hooks": _hooks_items,
+    "adjustments": _adjustments_items,
+}
+
 LEGACY_EXT_SUFFIX = "-extensions"
 
 
@@ -136,16 +145,7 @@ def build_index(root: Path) -> dict:
 
     for stack, feature, fdir in bl.iter_feature_dirs(root):
         bucket = ensure(stack)
-        if feature == "skills":
-            items = _skill_items(fdir, root)
-        elif feature == "hooks":
-            items = _hooks_items(fdir, root)
-        elif feature == "adjustments":
-            items = _adjustments_items(fdir, root)
-        elif feature == "templates":
-            items = _template_items(fdir, root)
-        else:  # personas / invariants / instructions
-            items = _md_items(fdir, root)
+        items = _RULES[bl.feature_type(feature).index_rule](fdir, root)
         if items:
             bucket[feature] = items
 

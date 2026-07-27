@@ -15,12 +15,50 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import jsonschema  # scripts/requirements.txt: jsonschema>=4
 from jsonschema import Draft202012Validator
 
-FEATURES = ["skills", "personas", "invariants", "instructions", "templates", "hooks", "adjustments"]
+class FeatureType(NamedTuple):
+    """One catalog feature type and the behaviour every stage keys off.
+
+    ``index_rule`` names index_build's discovery rule; ``drift_reports_new`` marks types
+    whose catalog items drift reports when the manifest lacks them.
+    """
+
+    name: str
+    index_rule: str
+    drift_reports_new: bool
+
+    @property
+    def md_carrying(self) -> bool:
+        """True when items are `*.md` files under the feature dir, named by stem."""
+        return self.index_rule == "md"
+
+
+FEATURE_TYPES: Tuple[FeatureType, ...] = (
+    FeatureType("skills", "skills", True),
+    FeatureType("personas", "md", True),
+    FeatureType("invariants", "md", True),
+    FeatureType("instructions", "md", True),
+    FeatureType("templates", "templates", True),
+    FeatureType("hooks", "hooks", True),
+    FeatureType("adjustments", "adjustments", True),
+)
+
+FEATURES = [ft.name for ft in FEATURE_TYPES]
+
+DRIFT_NEW_FEATURES: Tuple[str, ...] = tuple(
+    ft.name for ft in FEATURE_TYPES if ft.drift_reports_new
+)
+
+_BY_NAME = {ft.name: ft for ft in FEATURE_TYPES}
+
+
+def feature_type(name: str) -> FeatureType:
+    """Look up a feature type by name; raises KeyError for anything not in the registry."""
+    return _BY_NAME[name]
 
 # Canonical agent list — keep in sync with schemas/agents.schema.json and
 # schemas/config.schema.json agents enum.
