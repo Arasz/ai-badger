@@ -7,20 +7,19 @@ re-deriving anything. Delete this file once the outstanding work below is picked
 
 | Thing | State |
 |---|---|
-| `main` | `0.26.0`, tagged `ai-badger--v0.26.0` |
-| Tags | `ai-badger--v0.20.0` … `v0.26.0` exist; earlier versions deliberately untagged (`docs/incidents/2026-07-27-untagged-releases.md`) |
-| **PR #88** | **OPEN** — Wave 14, `0.27.0`, branch `task/wave-14-one-extension-mechanism`. CI was still running. |
+| `main` | `0.27.0`, tagged `ai-badger--v0.27.0`; `release_guard` PASS |
+| Tags | `ai-badger--v0.20.0` … `v0.27.0` exist; earlier versions deliberately untagged (`docs/incidents/2026-07-27-untagged-releases.md`) |
+| **PR #89** | **OPEN** — this checkpoint + the research report. Docs only, no version bump, no tag. |
 | This branch | `task/docs-research-and-refactor` — holds the research report + this checkpoint only |
 
 ### Immediate next action
 
-1. `gh pr checks 88` → when green, `gh pr merge 88 --admin --squash --delete-branch`
-2. Tag it: `git tag -a ai-badger--v0.27.0 -m "ai-badger 0.27.0 — one way to extend a skill" <sha>`
-   then `git push origin ai-badger--v0.27.0`
-3. Verify with `python3 scripts/release_guard.py`
+Merge PR #89, then pick up the documentation work below, or the next wave from the
+deferred-work plan.
 
-**Do not skip the tag.** `release_guard` compares against the last release tag; skipping one is
-what caused the 32-release gap recorded in the incident report.
+**Never skip a release tag.** `release_guard` compares against the last release tag, so a
+skipped tag silently disables the guard — that is what caused the 32-release gap recorded in
+the incident report.
 
 ## Waves done this session
 
@@ -30,7 +29,7 @@ what caused the 32-release gap recorded in the incident report.
 | 10 | 0.24.0 | #84 | feed-badger outbound secret scan + explicit pathspec |
 | — | — | #86 | Plan rewritten to cover all fourteen §7 items as Waves 6–18 |
 | 13 | 0.26.0 | #87 | One declaration of which skills ship; `code-review-checklist` now default |
-| 14 | 0.27.0 | **#88 open** | One skill-extension mechanism; legacy layout now refused, not ignored |
+| 14 | 0.27.0 | #88 | One skill-extension mechanism; legacy layout now refused, not ignored |
 
 Remaining planned waves: **6, 7, 8, 11, 12, 15, 16, 17, 18** — all specified in
 `docs/plans/2026-07-27-deferred-work-plan.md`, with a suggested order and two hard ordering
