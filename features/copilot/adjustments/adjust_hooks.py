@@ -28,7 +28,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     framework_root = context["framework_root"]
     target_dir = context["target_dir"]
     target = context["target"]
-    skills = context.get("skills", [])
+    _skills = context.get("skills", [])
 
     # Read hooks-manifest.json
     manifest_path = framework_root / "features" / "common" / "hooks" / "hooks-manifest.json"
@@ -83,6 +83,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
             # Rewrite paths from framework to scaffolded project
             entries = []
             for entry in source_event_hooks:
+                matcher = entry.get("matcher")
                 for h in entry.get("hooks", []):
                     cmd = h.get("command", "")
                     # Rewrite: ${CLAUDE_PLUGIN_ROOT}/features/common/skills/ → .ai-badger/skills/
@@ -92,11 +93,14 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
                     )
                     # Remove surrounding quotes if present
                     cmd = cmd.strip('"')
-                    entries.append({
+                    hook_entry = {
                         "type": "command",
                         "bash": cmd,
                         "timeoutSec": 10,
-                    })
+                    }
+                    if matcher:
+                        hook_entry["matcher"] = matcher
+                    entries.append(hook_entry)
             copilot_hooks["hooks"][copilot_event] = entries
         else:
             # Generate from skill name (e.g., prompt-markers)

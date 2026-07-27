@@ -9,6 +9,12 @@ from __future__ import annotations
 from unittest.mock import patch
 
 PLUGIN_FILES = ("ai_badger_hooks.py", "learned_skills_sync.py")
+SHARED_SKILL_FILES = ("commit_reminder.py", "impact_estimator.py")
+
+
+def _commit_reminder_script(root, name):
+    return (root / "features" / "common" / "skills" / "commit-reminder" / "scripts"
+            / name).read_text(encoding="utf-8")
 
 
 def _config(agents) -> dict:
@@ -126,3 +132,52 @@ def test_adjust_hooks_reports_user_scope_install_in_notes(tmp_path, load_script,
     for name in PLUGIN_FILES:
         assert name in result["notes"]
         assert (home / ".hermes" / "plugins" / name).is_file()
+
+
+def test_adjust_hooks_copies_shared_skill_modules_to_project_hooks_dir(
+        tmp_path, load_script, root):
+    adjust_hooks = load_script("features/hermes/adjustments/adjust_hooks.py")
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    home.mkdir()
+
+    with patch("pathlib.Path.home", return_value=home):
+        adjust_hooks.adjust(_adjust_context(root, target, ["hermes"]))
+
+    for name in SHARED_SKILL_FILES:
+        dst = target / ".ai-badger" / "hooks" / name
+        assert dst.read_text(encoding="utf-8") == _commit_reminder_script(root, name)
+
+
+def test_adjust_hooks_copies_shared_skill_modules_to_user_plugins_dir(
+        tmp_path, load_script, root):
+    adjust_hooks = load_script("features/hermes/adjustments/adjust_hooks.py")
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    home.mkdir()
+
+    with patch("pathlib.Path.home", return_value=home):
+        adjust_hooks.adjust(_adjust_context(root, target, ["hermes"]))
+
+    for name in SHARED_SKILL_FILES:
+        dst = home / ".hermes" / "plugins" / name
+        assert dst.read_text(encoding="utf-8") == _commit_reminder_script(root, name)
+
+
+def test_adjust_hooks_still_copies_project_hooks_alongside_shared_skill_modules(
+        tmp_path, load_script, root):
+    """Generalizing the copy loop must not regress the pre-existing PROJECT_HOOKS copy."""
+    adjust_hooks = load_script("features/hermes/adjustments/adjust_hooks.py")
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    home.mkdir()
+
+    with patch("pathlib.Path.home", return_value=home):
+        result = adjust_hooks.adjust(_adjust_context(root, target, ["hermes"]))
+
+    for name in adjust_hooks.PROJECT_HOOKS:
+        dst = target / ".ai-badger" / "hooks" / name
+        assert dst.read_text(encoding="utf-8") == _framework_hook(root, name)
+    assert set(SHARED_SKILL_FILES).issubset({
+        f.rsplit("/", 1)[-1] for f in result["files"]
+    })

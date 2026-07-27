@@ -30,6 +30,14 @@
         "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "UserPromptSubmit" },
         "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "userPromptSubmitted" }
       }
+    },
+    {
+      "name": "commit-reminder",
+      "description": "Nudge toward smaller, more frequent commits once uncommitted file count crosses a threshold",
+      "agents": {
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PostToolUse", "script": "commit_reminder_hook.py" },
+        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "postToolUse", "script": "commit_reminder_hook.py" }
+      }
     }
   ]
 }
