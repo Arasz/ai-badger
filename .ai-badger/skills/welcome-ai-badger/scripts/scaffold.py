@@ -212,11 +212,13 @@ from template_rendering import TemplateRenderingMixin  # noqa: E402
 from agent_files import AgentFilesMixin  # noqa: E402
 from extensions import ExtensionsMixin  # noqa: E402
 from mcp_tools import McpToolsMixin  # noqa: E402
+from statusline_wiring import StatusLineWiringMixin  # noqa: E402
 
 
 class Scaffolder(
     McpToolsMixin,
     HookWiringMixin,
+    StatusLineWiringMixin,
     TemplateRenderingMixin,
     AgentFilesMixin,
     ExtensionsMixin,
@@ -246,7 +248,12 @@ class Scaffolder(
 
     # -- provenance -----------------------------------------------------------------
     def record(self, feature: str, stack: str, name: str, source: Path, target: Path) -> None:
-        """Append a manifest entry recording where a scaffolded item came from and went."""
+        """Append a manifest entry recording where a scaffolded item came from and went.
+
+        Feature types the registry marks `hashes_source` record the framework source's hash
+        rather than the written file's, because drift.compare re-hashes the source for file
+        entries and any other choice can never match (ADR-0006).
+        """
         entry = {
             "feature": feature, "stack": stack, "name": name,
             "source": source.relative_to(self.root).as_posix(),
@@ -267,7 +274,8 @@ class Scaffolder(
                 "dir_count": fingerprint["dir_count"],
             }
         else:
-            entry["hash"] = bl.sha256_file(target)
+            hash_from = source if bl.feature_type(feature).hashes_source else target
+            entry["hash"] = bl.sha256_file(hash_from)
         self.entries.append(entry)
 
     def copy_file(self, feature: str, stack: str, item: Dict[str, Any], dest_dir: Path) -> Path:
@@ -279,10 +287,17 @@ class Scaffolder(
         self.record(feature, stack, item["name"], src, dest)
         return dest
 
+    def record_template(self, src: Path, dest: Path) -> None:
+        """Record a template's provenance, named by its path under the stack's templates dir."""
+        rel = src.relative_to(self.root / "features").parts
+        self.record("templates", rel[0], Path(*rel[2:]).as_posix(), src, dest)
+
     # -- seed-once (framework writes once, project owns thereafter; see #15) --------
     def _seed_once_copy(self, src: Path, dest: Path, label: str) -> None:
         """Copy src to dest only on first scaffold. If dest already exists, it is project-owned
         and left untouched (--reset-seed-files overrides this and reseeds from src)."""
+        if src.exists():
+            self.record_template(src, dest)
         if dest.exists() and not self.reset_seed_files:
             self.notes.append(
                 f"preserved seed-once {label} (already exists; not re-seeded; "
@@ -389,6 +404,7 @@ class Scaffolder(
         schema = tdir / "schema.json"
         if schema.exists():
             shutil.copyfile(schema, out / "schema.json")
+            self.record_template(schema, out / "schema.json")
         model_tmpl = tdir / "model.template.json"
         self._seed_once_copy(model_tmpl, out / "model.json",
                               ".ai-badger/agent-instructions/model.json")
@@ -610,6 +626,7 @@ class Scaffolder(
         self.write_agent_files(doc, instr_paths, invariants)
         self._record_progress("agent-files")
         self.wire_hooks()
+        self.wire_statusline_capture()
         self.run_adjustments()
         self._record_progress("hooks")
         plugin_cmds = self.install_plugins()
