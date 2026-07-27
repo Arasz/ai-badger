@@ -88,6 +88,16 @@
           "path": "features/claude/templates/CLAUDE.md.tmpl"
         }
       ],
+      "adjustments": [
+        {
+          "name": "adjust_skills",
+          "path": "features/claude/adjustments/adjust_skills.py"
+        },
+        {
+          "name": "adjustment",
+          "path": "features/claude/adjustments/adjustment.json"
+        }
+      ],
       "meta": {
         "description": "Claude Code: Anthropic's CLI-based coding agent with project-local CLAUDE.md instructions, plugin system, and hooks.",
         "detectionSignals": [

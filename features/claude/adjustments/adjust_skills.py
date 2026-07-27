@@ -1,0 +1,114 @@
+"""Adjustment: symlink ai-badger skills into .claude/skills/ for Claude Code.
+
+Claude Code discovers skills from .claude/skills/*/SKILL.md. This adjustment
+symlinks each scaffolded skill into the Claude Code discovery path.
+"""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+from pathlib import Path
+from typing import Any, Dict
+
+
+def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
+    """Symlink skills for Claude Code discovery.
+
+    Args:
+        context: {
+            'framework_root': Path,
+            'config': dict,
+            'target_dir': Path,     # .ai-badger/
+            'target': Path,         # project root
+            'skills': list[str],
+        }
+    Returns:
+        {'applied': bool, 'files': list[str], 'notes': str}
+    """
+    if "claude" not in context.get("config", {}).get("agents", []):
+        return {"applied": False, "files": [], "notes": "claude not in config.agents"}
+
+    target_dir = context["target_dir"]
+    target = context["target"]
+    skills = context.get("skills", [])
+
+    claude_skills = target / ".claude" / "skills"
+    claude_skills.mkdir(parents=True, exist_ok=True)
+
+    skills_root = target_dir / "skills"
+    owned_targets = _manifest_targets(target_dir)
+
+    linked, refused = [], []
+    for skill_name in skills:
+        src = skills_root / skill_name
+        if not src.is_dir():
+            continue
+
+        # Check if skill has SKILL.md (required for Claude Code discovery)
+        skill_md = src / "SKILL.md"
+        if not skill_md.exists():
+            continue
+
+        dst = claude_skills / skill_name
+        if dst.exists() or dst.is_symlink():
+            if not _ours(dst, skills_root, owned_targets):
+                refused.append(skill_name)
+                continue
+            _remove(dst)
+
+        dst.symlink_to(os.path.relpath(src, dst.parent))
+        linked.append(skill_name)
+
+    notes = []
+    if linked:
+        notes.append(f"Symlinked {len(linked)} skill(s) into .claude/skills/")
+    if refused:
+        shadowed = ", ".join(f".claude/skills/{name}" for name in sorted(refused))
+        notes.append(
+            f"left {shadowed} untouched — not placed by ai-badger, so it shadows the "
+            f"managed skill and will not follow releases; remove by hand to let Claude "
+            f"Code discover the scaffolded skill"
+        )
+    return {
+        "applied": bool(linked),
+        "files": [f".claude/skills/{name}" for name in linked],
+        "notes": "; ".join(notes) or "No skills with SKILL.md found",
+    }
+
+
+def _manifest_targets(target_dir: Path) -> set:
+    """Targets recorded in .ai-badger/manifest.json — paths ai-badger placed."""
+    manifest = target_dir / "manifest.json"
+    if not manifest.is_file():
+        return set()
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return {str(entry.get("target", "")) for entry in data.get("entries", [])}
+
+
+def _ours(dst: Path, skills_root: Path, owned_targets: set) -> bool:
+    """True only for a destination ai-badger placed: our symlink, or a recorded target.
+
+    Everything else — a hand-committed skill directory, a plain file, a symlink pointing
+    elsewhere — belongs to the user. `.claude/skills/` is Claude Code's own convention and
+    routinely holds third-party skills, so a collision there is expected, not exceptional.
+    """
+    if f".claude/skills/{dst.name}" in owned_targets:
+        return True
+    if not dst.is_symlink():
+        return False
+    try:
+        dst.resolve().relative_to(skills_root.resolve())
+    except (ValueError, OSError):
+        return False
+    return True
+
+
+def _remove(dst: Path) -> None:
+    if dst.is_symlink() or dst.is_file():
+        dst.unlink()
+    else:
+        shutil.rmtree(dst)
