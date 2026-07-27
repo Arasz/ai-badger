@@ -26,6 +26,7 @@ All via `python3 .ai-badger/skills/call-behaviorist/scripts/behaviorist.py`:
 | `off` | Disable |
 | `status` | Mode, scope, expiry, record count |
 | `tail [N]` | Last N records, one line each (default 20) |
+| `analyze [--project DIR] [--json]` | Health state and findings for a project |
 | `clear` | Truncate the log, recording the truncation |
 
 `AI_BADGER_DEBUG=1` in the environment forces logging on regardless of stored state, for a
@@ -52,6 +53,7 @@ On disk they are compact, one JSON object per line:
 | `e` | event — `start`, `skip`, or a domain outcome |
 | `v` | version of the copy of the code that ran |
 | `p` | project directory, when determinable |
+| `n` | project name from `.ai-badger/config.json`, read once per process |
 | `s` | session id, when the host supplies one |
 
 The single-letter keys are a budget, not cosmetics: a record must stay under `PIPE_BUF`
@@ -88,6 +90,55 @@ jq -r '[.component, .version] | @tsv' ~/.ai-badger/debug/audit.jsonl | sort | un
 
 The second is the useful one when several copies of ai-badger are installed: it shows which
 version each component actually ran at.
+
+## Producing a health report
+
+`analyze` compares what a project **wires** against what was **observed**, and hands you
+findings rather than a verdict. Run it with `--json` and write the report yourself.
+
+```bash
+python3 .ai-badger/skills/call-behaviorist/scripts/behaviorist.py analyze --json
+```
+
+### What the findings mean
+
+| `kind` | Severity | Means |
+|---|---|---|
+| `never_observed` | high | Wired **and** instrumented, but produced no record. It may never load, or never fire. This is the failure the tool exists to catch. |
+| `not_instrumented` | low | Wired but calls no debug logger, so it *cannot* produce records. Its silence says nothing about health — do not report it as broken. |
+| `version_skew` | high | One component ran at more than one framework version. Copies disagree — typically a plugin cache against a `.ai-badger/` scaffold. |
+| `always_skipped` | medium | Fired every time and exited early every time. Live, but doing nothing. |
+| `unexpected_component` | low | Produced records but is not wired by this project. Often legitimate (a plugin-side hook); worth a glance. |
+
+`health` is `ok`, `warn`, `degraded`, or **`unknown`**. Treat `unknown` as *nobody looked* — it
+means there are no records, not that everything is fine. Say so plainly in the report rather
+than implying health.
+
+### Writing it up
+
+1. Run `analyze --json` and read the findings. **Do not restate them.** For each one, check the
+   actual file before claiming a cause — `not_instrumented` and `never_observed` look identical
+   in a summary and mean opposite things.
+2. Lead with what is *wrong*, not with counts. "Two wired hooks never fire" beats "5 findings".
+3. Include the observation window and record count, so a reader knows how much evidence there
+   is. A `degraded` verdict from three records deserves that caveat.
+4. Name the versions involved for any `version_skew` — that is the actionable part.
+
+### Filing it
+
+**Read the project's `CONTRIBUTING.md` first and follow it.** How issues are filed is a
+project's own decision — the tracker, the required template, the labels, whether an issue is
+even the right channel. This skill ships into repositories it knows nothing about, so it does
+not prescribe a command.
+
+If the project has no `CONTRIBUTING.md`, or it is silent on issues, ask before filing.
+
+Two things regardless of process:
+
+- **Do not paste raw JSON as the issue body.** The written report is the deliverable; the
+  `--json` output is your evidence for it.
+- Title it so the headline is legible in a list: `ai-badger health: <project> — <what is
+  wrong>`, not `health report`.
 
 ## Turn it off when you are done
 

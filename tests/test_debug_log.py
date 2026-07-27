@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+from pathlib import Path
 
 
 def _load(load_script, tmp_path, monkeypatch):
@@ -222,3 +223,77 @@ def test_the_vendored_copy_matches_the_canonical_one(root):
     assert canonical == vendored, (
         "copy features/common/hooks/debug_log.py over the call-behaviorist copy"
     )
+
+
+class TestProjectIdentity:
+    """A path is machine-specific; the project's own name travels."""
+
+    def _scaffolded(self, tmp_path, name="probe"):
+        aib = tmp_path / "proj" / ".ai-badger"
+        aib.mkdir(parents=True, exist_ok=True)
+        (aib / "config.json").write_text(
+            json.dumps({"project": {"name": name}}), encoding="utf-8")
+        return str(tmp_path / "proj")
+
+    def test_the_project_name_is_recorded_when_scaffolded(self, load_script, tmp_path,
+                                                          monkeypatch):
+        dl = _load(load_script, tmp_path, monkeypatch)
+        _enable(dl)
+        project = self._scaffolded(tmp_path, "my-service")
+
+        dl.log_event("h", "start", project=project)
+
+        assert _records(dl)[0][dl.KEY_NAME] == "my-service"
+
+    def test_an_unscaffolded_project_simply_has_no_name(self, load_script, tmp_path,
+                                                        monkeypatch):
+        dl = _load(load_script, tmp_path, monkeypatch)
+        _enable(dl)
+
+        dl.log_event("h", "start", project=str(tmp_path))
+
+        assert dl.KEY_NAME not in _records(dl)[0]
+
+    def test_the_name_is_read_once_per_process(self, load_script, tmp_path, monkeypatch):
+        """A file read on every hook event would be a real cost for a debug facility."""
+        dl = _load(load_script, tmp_path, monkeypatch)
+        _enable(dl)
+        project = self._scaffolded(tmp_path, "cached")
+
+        dl.log_event("h", "start", project=project)
+        (Path(project) / ".ai-badger" / "config.json").unlink()
+        dl.log_event("h", "start", project=project)
+
+        assert [r[dl.KEY_NAME] for r in _records(dl)] == ["cached", "cached"]
+
+
+class TestUserScopeInstalls:
+    """A hook installed at user level belongs to no project — naming one would be a guess."""
+
+    def test_a_user_scope_install_records_user_not_a_project_name(self, load_script, tmp_path,
+                                                                  monkeypatch):
+        dl = _load(load_script, tmp_path, monkeypatch)
+        _enable(dl)
+        monkeypatch.setattr(dl, "is_user_scope", lambda: True)
+
+        dl.log_event("h", "start", project=str(tmp_path))
+
+        assert _records(dl)[0][dl.KEY_NAME] == dl.NAME_USER_SCOPE
+
+    def test_a_project_install_is_unaffected(self, load_script, tmp_path, monkeypatch):
+        dl = _load(load_script, tmp_path, monkeypatch)
+        _enable(dl)
+        monkeypatch.setattr(dl, "is_user_scope", lambda: False)
+        aib = tmp_path / "proj" / ".ai-badger"
+        aib.mkdir(parents=True, exist_ok=True)
+        (aib / "config.json").write_text(json.dumps({"project": {"name": "svc"}}),
+                                         encoding="utf-8")
+
+        dl.log_event("h", "start", project=str(tmp_path / "proj"))
+
+        assert _records(dl)[0][dl.KEY_NAME] == "svc"
+
+    def test_the_user_install_roots_are_under_home(self, load_script, tmp_path, monkeypatch):
+        dl = _load(load_script, tmp_path, monkeypatch)
+
+        assert all(str(r).startswith(str(Path.home())) for r in dl.USER_INSTALL_ROOTS)

@@ -1,0 +1,217 @@
+"""`behaviorist analyze` turns the audit log into findings an agent can report on."""
+from __future__ import annotations
+
+import json
+
+
+def _load(load_script, tmp_path, monkeypatch):
+    beh = load_script("features/common/skills/call-behaviorist/scripts/behaviorist.py")
+    root = tmp_path / "debug"
+    root.mkdir(parents=True, exist_ok=True)
+    for module in (beh.dl,):
+        monkeypatch.setattr(module, "DEBUG_DIR", root)
+        monkeypatch.setattr(module, "STATE_FILE", root / "state.json")
+        monkeypatch.setattr(module, "AUDIT_FILE", root / "audit.jsonl")
+    return beh
+
+
+def _write(beh, records):
+    lines = [json.dumps(r) for r in records]
+    beh.dl.AUDIT_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _record(component, event="start", version="0.30.0", project="/repo", **extra):
+    rec = {
+        beh_keys["t"]: "2026-07-27T09:00:00+00:00",
+        beh_keys["c"]: component,
+        beh_keys["e"]: event,
+        beh_keys["v"]: version,
+        beh_keys["p"]: project,
+    }
+    rec.update(extra)
+    return rec
+
+
+beh_keys = {"t": "t", "c": "c", "e": "e", "v": "v", "p": "p"}
+
+
+def _kinds(report):
+    return [f["kind"] for f in report["findings"]]
+
+
+class TestAbsenceOfDataIsNotHealth:
+    """An empty log means nobody looked, not that everything is fine."""
+
+    def test_no_records_reports_unknown_not_ok(self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+
+        report = beh.analyze(project="/repo", expected=["a/hook"])
+
+        assert report["health"] == "unknown"
+        assert report["window"]["records"] == 0
+
+    def test_it_says_how_to_collect_data(self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+
+        report = beh.analyze(project="/repo", expected=[])
+
+        assert "behaviorist.py on" in report["hint"]
+
+
+class TestSilentComponents:
+    """The failure this feature exists for: something wired that never runs."""
+
+    def test_an_expected_component_that_never_logged_is_a_finding(self, load_script, tmp_path,
+                                                                  monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha", "hooks/never"])
+
+        silent = [f for f in report["findings"] if f["kind"] == "never_observed"]
+        assert [f["component"] for f in silent] == ["hooks/never"]
+        assert report["health"] == "degraded"
+
+    def test_a_component_that_only_ever_skips_is_a_finding(self, load_script, tmp_path,
+                                                          monkeypatch):
+        """It fires but always exits early — live, but doing nothing."""
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha", event="start"),
+                     _record("hooks/alpha", event="skip"),
+                     _record("hooks/alpha", event="start"),
+                     _record("hooks/alpha", event="skip")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        assert "always_skipped" in _kinds(report)
+
+    def test_a_healthy_component_produces_no_finding(self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha", event="start"),
+                     _record("hooks/alpha", event="done")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        assert report["findings"] == []
+        assert report["health"] == "ok"
+
+
+class TestVersionSkew:
+    """Several copies of ai-badger coexist; when they disagree the symptoms are baffling."""
+
+    def test_one_component_logging_two_versions_is_a_finding(self, load_script, tmp_path,
+                                                             monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha", version="0.13.0"),
+                     _record("hooks/alpha", version="0.30.0")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        skew = [f for f in report["findings"] if f["kind"] == "version_skew"]
+        assert skew and sorted(skew[0]["versions"]) == ["0.13.0", "0.30.0"]
+
+    def test_a_single_version_is_not_skew(self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha"), _record("hooks/alpha")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        assert "version_skew" not in _kinds(report)
+
+
+class TestScoping:
+    """A user-wide log holds every project; analysis is about one of them."""
+
+    def test_records_from_other_projects_are_excluded(self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha", project="/elsewhere"),
+                     _record("hooks/beta", project="/repo")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/beta"])
+
+        assert set(report["observed"]) == {"hooks/beta"}
+
+    def test_unexpected_components_are_reported_not_hidden(self, load_script, tmp_path,
+                                                           monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/surprise")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        assert "unexpected_component" in _kinds(report)
+
+
+class TestOutputIsMachineReadable:
+    """The report is handed to an agent, which turns it into a GitHub issue."""
+
+    def test_the_cli_emits_valid_json(self, load_script, tmp_path, monkeypatch, capsys):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha")])
+
+        rc = beh.main(["analyze", "--project", "/repo", "--json"])
+
+        report = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert report["observed"]["hooks/alpha"]["count"] == 1
+
+    def test_findings_carry_a_severity_and_an_explanation(self, load_script, tmp_path,
+                                                          monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha", "hooks/never"])
+
+        finding = report["findings"][0]
+        assert finding["severity"] in ("high", "medium", "low")
+        assert finding["detail"]
+
+
+class TestNotYetInstrumentedIsNotAFailure:
+    """A wired hook with no logging call cannot produce records — that is not a defect."""
+
+    def _wire(self, tmp_path, script_name, body):
+        aib = tmp_path / "proj" / ".ai-badger"
+        (aib / "hooks").mkdir(parents=True, exist_ok=True)
+        (aib / "hooks" / "hooks.json").write_text(json.dumps({
+            "hooks": {"SessionStart": [{"hooks": [
+                {"type": "command", "command": f'python3 "{tmp_path}/proj/{script_name}"'}]}]}
+        }), encoding="utf-8")
+        (tmp_path / "proj" / script_name).write_text(body, encoding="utf-8")
+        return str(tmp_path / "proj")
+
+    def test_an_uninstrumented_hook_is_reported_as_such_not_as_broken(self, load_script,
+                                                                      tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = self._wire(tmp_path, "quiet_hook.py", "print('no logging here')\n")
+        _write(beh, [_record("other", project=project)])
+
+        report = beh.analyze(project=project)
+
+        kinds = {f["kind"]: f for f in report["findings"]}
+        assert "not_instrumented" in kinds
+        assert kinds["not_instrumented"]["severity"] == "low"
+        assert "never_observed" not in kinds
+
+    def test_an_instrumented_hook_that_stays_silent_is_a_real_finding(self, load_script,
+                                                                      tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = self._wire(tmp_path, "loud_hook.py", "import debug_log\ndebug_log.log_event\n")
+        _write(beh, [_record("other", project=project)])
+
+        report = beh.analyze(project=project)
+
+        kinds = {f["kind"]: f for f in report["findings"]}
+        assert kinds["never_observed"]["severity"] == "high"
+
+
+class TestComponentNamesMatchAcrossNamespaces:
+    """Observed names are `<script>/<phase>`; expected names come from hooks.json filenames."""
+
+    def test_a_phase_qualified_component_matches_its_script(self, load_script, tmp_path,
+                                                            monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("alpha_hook/session_start")])
+
+        report = beh.analyze(project="/repo", expected=["alpha_hook"])
+
+        assert report["findings"] == [], report["findings"]

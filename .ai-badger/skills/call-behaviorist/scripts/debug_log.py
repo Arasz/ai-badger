@@ -31,6 +31,7 @@ KEY_EVENT = "e"
 KEY_VERSION = "v"
 KEY_PROJECT = "p"
 KEY_SESSION = "s"
+KEY_NAME = "n"
 
 # The legend `tail` and any reader needs to expand a record.
 KEY_NAMES = {
@@ -40,7 +41,12 @@ KEY_NAMES = {
     KEY_VERSION: "version",
     KEY_PROJECT: "project",
     KEY_SESSION: "session",
+    KEY_NAME: "name",
 }
+
+# project dir -> name, resolved once per process: a config read on every hook event is a real
+# cost for a facility that is meant to be nearly free.
+_NAME_CACHE = {}
 
 
 def now() -> datetime:
@@ -61,6 +67,53 @@ def framework_version() -> str:
             if text:
                 return text
     return "unknown"
+
+
+NAME_USER_SCOPE = "user"
+
+# Where a user-scope install lives. A hook running from one of these belongs to no project,
+# so naming a project would be a guess.
+USER_INSTALL_ROOTS = (
+    Path.home() / ".claude",
+    Path.home() / ".hermes",
+    Path.home() / ".ai-badger",
+)
+
+
+def is_user_scope() -> bool:
+    """True when this copy of the logger is installed at user level, not inside a project."""
+    here = Path(__file__).resolve()
+    for root in USER_INSTALL_ROOTS:
+        try:
+            here.relative_to(root.resolve())
+            return True
+        except (ValueError, OSError):
+            continue
+    return False
+
+
+def project_name(project):
+    """The scaffolded project's name, `user` for a user-scope install, else None.
+
+    Cached per process: a config read on every hook event is a real cost for a facility that
+    is meant to be nearly free.
+    """
+    if is_user_scope():
+        return NAME_USER_SCOPE
+    if not project:
+        return None
+    if project in _NAME_CACHE:
+        return _NAME_CACHE[project]
+    name = None
+    try:
+        config = json.loads(
+            (Path(project) / ".ai-badger" / "config.json").read_text(encoding="utf-8"))
+        candidate = config.get("project", {}).get("name")
+        name = candidate if isinstance(candidate, str) and candidate else None
+    except (OSError, ValueError, AttributeError):
+        name = None
+    _NAME_CACHE[project] = name
+    return name
 
 
 def _state():
@@ -135,6 +188,9 @@ def log_event(component: str, event: str, project=None, session=None, **fields) 
         }
         if project:
             record[KEY_PROJECT] = _clip(project)
+            name = project_name(project)
+            if name:
+                record[KEY_NAME] = _clip(name)
         if session:
             record[KEY_SESSION] = _clip(session)
         for key, value in fields.items():

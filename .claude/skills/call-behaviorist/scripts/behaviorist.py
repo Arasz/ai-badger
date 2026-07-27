@@ -116,6 +116,186 @@ def cmd_tail(count: int) -> int:
     return 0
 
 
+ENABLE_HINT = "no records yet — run `behaviorist.py on 4h`, work normally, then analyze again"
+
+
+def _read_records(project=None):
+    """Every parseable record, optionally narrowed to one project."""
+    try:
+        lines = dl.AUDIT_FILE.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    records = []
+    for line in lines:
+        try:
+            rec = json.loads(line)
+        except ValueError:
+            continue
+        if project and rec.get(dl.KEY_PROJECT) not in (None, project):
+            continue
+        records.append(rec)
+    return records
+
+
+def _wired_hooks(project) -> dict:
+    """script stem -> absolute path, for every hook wired in .ai-badger/hooks/hooks.json."""
+    found = {}
+    hooks_file = Path(project) / ".ai-badger" / "hooks" / "hooks.json"
+    try:
+        data = json.loads(hooks_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return found
+    for entries in (data.get("hooks") or {}).values():
+        for entry in entries or []:
+            for hook in entry.get("hooks") or []:
+                match = re.search(r'([^\s"\']+/)?([A-Za-z0-9_\-]+)\.py',
+                                  hook.get("command", ""))
+                if match:
+                    found[match.group(2)] = (match.group(1) or "") + match.group(2) + ".py"
+    return found
+
+
+def expected_components(project) -> list:
+    """Components a scaffolded project should produce records for.
+
+    Derived from what is actually wired. A component absent from here is not judged; one
+    present here and silent is the finding this tool exists for.
+    """
+    return sorted(_wired_hooks(project))
+
+
+def is_instrumented(script_path) -> bool:
+    """True when the script actually calls the debug logger.
+
+    A wired hook with no logging call *cannot* produce records, so its silence says nothing
+    about health. Reporting that as a failure would make the whole report untrustworthy.
+    """
+    try:
+        return "debug_log" in Path(script_path).read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
+def _matches(expected: str, component: str) -> bool:
+    """True when `component` is `expected`, or `expected` qualified by a phase.
+
+    Observed names may be phase-qualified (`session_start_hook/drift`) while wired names are
+    bare script stems (`session_start_hook`). Matching is on the whole stem, not a prefix
+    fragment, so `hooks/alpha` never satisfies `hooks/never`.
+    """
+    return component == expected or component.startswith(expected + "/")
+
+
+def _observed(records) -> dict:
+    """component -> {count, events, versions}."""
+    seen = {}
+    for rec in records:
+        name = rec.get(dl.KEY_COMPONENT)
+        if not name:
+            continue
+        entry = seen.setdefault(name, {"count": 0, "events": {}, "versions": []})
+        entry["count"] += 1
+        event = rec.get(dl.KEY_EVENT, "?")
+        entry["events"][event] = entry["events"].get(event, 0) + 1
+        version = rec.get(dl.KEY_VERSION)
+        if version and version not in entry["versions"]:
+            entry["versions"].append(version)
+    return seen
+
+
+def _finding(kind, component, severity, detail, **extra):
+    finding = {"kind": kind, "component": component, "severity": severity, "detail": detail}
+    finding.update(extra)
+    return finding
+
+
+def analyze(project, expected=None) -> dict:
+    """Compare what a project should do against what it was observed doing."""
+    wired = _wired_hooks(project) if expected is None else {}
+    expected = list(expected if expected is not None else sorted(wired))
+    records = _read_records(project)
+    observed = _observed(records)
+    findings = []
+    for name in expected:
+        if any(_matches(name, seen) for seen in observed):
+            continue
+        script = wired.get(name)
+        if script and not is_instrumented(script):
+            findings.append(_finding(
+                "not_instrumented", name, "low",
+                "wired but calls no debug logger, so it cannot produce records — "
+                "its silence says nothing about health",
+            ))
+        else:
+            findings.append(_finding(
+                "never_observed", name, "high",
+                "wired and instrumented, but produced no record — "
+                "it may never load or never fire",
+            ))
+    for name, entry in sorted(observed.items()):
+        if expected and not any(_matches(e, name) for e in expected):
+            findings.append(_finding(
+                "unexpected_component", name, "low",
+                "produced records but is not among the components this project wires",
+            ))
+        if len(entry["versions"]) > 1:
+            findings.append(_finding(
+                "version_skew", name, "high",
+                "ran at more than one framework version — copies disagree "
+                "(plugin cache vs .ai-badger/ scaffold)",
+                versions=sorted(entry["versions"]),
+            ))
+        starts = entry["events"].get("start", 0)
+        skips = entry["events"].get("skip", 0)
+        if starts and skips >= starts:
+            findings.append(_finding(
+                "always_skipped", name, "medium",
+                f"fired {starts} time(s) and exited early every time — live but doing nothing",
+                starts=starts, skips=skips,
+            ))
+
+    if not records:
+        health = "unknown"
+    elif any(f["severity"] == "high" for f in findings):
+        health = "degraded"
+    elif findings:
+        health = "warn"
+    else:
+        health = "ok"
+
+    stamps = [r.get(dl.KEY_TS) for r in records if r.get(dl.KEY_TS)]
+    return {
+        "project": project,
+        "health": health,
+        "window": {
+            "records": len(records),
+            "from": min(stamps) if stamps else None,
+            "to": max(stamps) if stamps else None,
+        },
+        "expected": expected,
+        "observed": observed,
+        "findings": findings,
+        "hint": ENABLE_HINT if not records else "",
+    }
+
+
+def cmd_analyze(project, as_json: bool) -> int:
+    report = analyze(project or str(Path.cwd()))
+    if as_json:
+        print(json.dumps(report, indent=2))
+        return 0
+    print(f"ai-badger health: {report['health'].upper()}  ({report['window']['records']} "
+          f"record(s) for {report['project']})")
+    if report["hint"]:
+        print(report["hint"])
+    for finding in report["findings"]:
+        print(f"  [{finding['severity']}] {finding['kind']}: {finding['component']}")
+        print(f"      {finding['detail']}")
+    if not report["findings"] and report["window"]["records"]:
+        print("  no findings — every wired component produced records")
+    return 0
+
+
 def cmd_clear() -> int:
     if dl.AUDIT_FILE.exists():
         dl.AUDIT_FILE.write_text("", encoding="utf-8")
@@ -139,6 +319,10 @@ def main(argv=None) -> int:
     tail = sub.add_parser("tail", help="show the last records")
     tail.add_argument("count", nargs="?", type=int, default=20)
     sub.add_parser("clear", help="truncate the audit log")
+    analyse = sub.add_parser("analyze", help="health state and findings for a project")
+    analyse.add_argument("--project", default=None)
+    analyse.add_argument("--json", action="store_true", dest="as_json",
+                         help="machine-readable report, for an agent to turn into a report")
 
     args = parser.parse_args(argv)
     if args.command == "on":
@@ -153,6 +337,8 @@ def main(argv=None) -> int:
         return cmd_tail(args.count)
     if args.command == "clear":
         return cmd_clear()
+    if args.command == "analyze":
+        return cmd_analyze(args.project, args.as_json)
     return cmd_status()
 
 
