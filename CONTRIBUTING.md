@@ -134,7 +134,7 @@ as one large diff at the end.
 
 ### 4. Re-scaffold if you touched the scaffolder
 
-`.claude/skills/` and `.ai-badger/` hold copies of catalog content that go stale. After touching
+`skills/` and `.ai-badger/` hold copies of catalog content that go stale. After touching
 `scripts/` or `features/common/skills/welcome-ai-badger/`, regenerate them or
 `sync_plugin_skills --check` and pylint will fail:
 
@@ -197,7 +197,7 @@ What each one is for:
 | `pylint` | Anything below 10.00 on non-test Python. Tests keep their own conventions and are excluded. |
 | `pytest -q` | Any test fails. |
 | `index_build.py --check` | `index.json` does not match the catalog on disk. |
-| `sync_plugin_skills.py --check` | The shipped `.claude/skills/` copy has drifted from `features/`. |
+| `sync_plugin_skills.py --check` | The shipped `skills/` copy has drifted from `features/`. |
 | `validate.py --all` | Any catalog JSON violates its schema in `schemas/`. |
 | `version_sync.py --check` | `plugin.json`, `marketplace.json` or `index.json` disagree with `VERSION`. |
 | `docs_guard.py` | A relative link or a backticked repo path in the docs no longer resolves, or a changelog entry is missing from `docs/changelog/README.md`. |

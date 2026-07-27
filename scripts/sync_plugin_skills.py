@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Sync framework skills into .claude/skills/ for plugin discovery.
+"""Sync framework skills into skills/ — the one directory Claude Code reads them from.
 
-Claude Code discovers plugin-provided skills from .claude/skills/ (or skills/)
-in the plugin directory. This script copies SKILL.md + essential files from
-features/common/skills/ and features/claude/skills/ into .claude/skills/.
+Claude Code scans <plugin-root>/skills/ for a plugin's skills and nowhere else (ADR-0008).
+This script copies SKILL.md + essential files from features/common/skills/ and
+features/claude/skills/ into skills/.
 
 Run after changing skill content, before publishing the plugin.
 
@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import badger_lib as bl
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = ROOT / ".claude" / "skills"
+TARGET = ROOT / "skills"
 
 # Which skills ship is declared once, in badger_lib.SKILL_SCOPES; each list is just that
 # decision filtered to the stack whose directory holds the skill.
@@ -33,8 +33,7 @@ CLAUDE_SKILLS = bl.default_skills_in(ROOT / "features" / "claude" / "skills")
 # --check so a file that is never copied can never be reported as divergence.
 SKIP_PATTERNS = tuple(bl.SKILL_EXCLUDE_PATTERNS)
 
-# Skills already in .claude/skills/ that should NOT be overwritten
-# (e.g. code-review-graph skills managed externally)
+# Skills whose content another tool owns (code-review-graph): never written, never checked.
 MANAGED_EXTERNALLY = {
     "debug-issue",
     "explore-codebase",
