@@ -565,3 +565,20 @@ def test_init_with_from_json(tmp_path, load_script):
     index = _read_index(tmp_path)
     assert len(index["sources"]) == 1
     assert "my_tool" in index["sources"][0]["tools"]
+
+def test_missing_yaml_degrades_with_a_message(load_script, monkeypatch):
+    """The script is run directly on whatever python3 is on PATH; a missing dep must explain."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def no_yaml(name, *args, **kwargs):
+        if name == "yaml":
+            raise ImportError("No module named 'yaml'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_yaml)
+    mcp_index = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+
+    assert mcp_index.yaml is None
+    assert "pyyaml" in mcp_index.YAML_MISSING_HINT.lower()

@@ -6,6 +6,7 @@ description: >-
   Use whenever the user wants to start, continue, or finish a backlog task — "/task <id>", "start
   task X", "work on the next task", "finish this task". Reads project specifics from
   .ai-badger/config.json; source-control/PR behavior comes from config-gated extensions.
+platforms: [linux, macos]
 ---
 
 # task orchestration skill

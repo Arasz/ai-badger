@@ -91,3 +91,28 @@ def test_main_reads_stdin_captures_and_renders(tmp_path, load_script, capsys, mo
 
     assert rc == 0
     assert json.loads(state_path.read_text(encoding="utf-8"))["sessionId"] == "sid-1"
+
+
+def test_no_maintainer_path_is_shipped_as_the_default(load_script):
+    """A personal absolute path as the default made the feature dead for everyone else (F-20)."""
+    statusline_capture = load_script("features/common/skills/task/scripts/statusline_capture.py")
+
+    assert statusline_capture.USER_STATUSLINE is None
+
+
+def test_env_var_selects_the_user_statusline(load_script, monkeypatch, tmp_path):
+    script = tmp_path / "statusline.sh"
+    script.write_text("#!/bin/sh\necho hi\n", encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_USER_STATUSLINE", str(script))
+    statusline_capture = load_script("features/common/skills/task/scripts/statusline_capture.py")
+
+    assert statusline_capture.USER_STATUSLINE == script
+
+
+def test_render_is_a_no_op_when_unset(load_script, capsys):
+    statusline_capture = load_script("features/common/skills/task/scripts/statusline_capture.py")
+
+    rc = statusline_capture.render_user_statusline("{}")
+
+    assert rc == 0
+    assert capsys.readouterr().out == ""

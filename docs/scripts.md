@@ -55,6 +55,11 @@ These run inside a scaffolded project as hooks and CLIs (`task_tracker.py`, `res
 their owning skills; `poll_limit.py --once` and `--interval-seconds` support manual/testing runs.
 (`auto-wm` scripts live at `features/claude/skills/auto-wm/` — Claude Code-specific.)
 
+`statusline_capture.py` captures session state and then, **only if `CLAUDE_USER_STATUSLINE`
+points at an executable**, runs it with the same stdin and prints its output — so your own
+statusline keeps working. Unset (the default), that step is skipped. The `task` skill declares
+`platforms: [linux, macos]`: `fcntl` and `crontab` make it POSIX-only.
+
 ## Running the test suite
 
 Framework tests live **only** in the top-level `tests/` directory. They are never part of any

@@ -24,7 +24,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-import yaml  # pylint: disable=import-error
+try:
+    import yaml  # pylint: disable=import-error
+except ImportError:  # pragma: no cover - exercised via a patched __import__
+    yaml = None
+
+YAML_MISSING_HINT = (
+    "mcp-index needs PyYAML: pip install pyyaml (it is in scripts/requirements.txt)"
+)
 
 # ── Tag taxonomy (loaded from features/common/mcp-tags.json or fallback) ──
 _DEFAULT_TAXONOMY: dict[str, Any] = {
@@ -561,6 +568,10 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if not argv:
         return _usage()
+
+    if yaml is None:
+        print(YAML_MISSING_HINT, file=sys.stderr)
+        return 1
 
     cmd = argv[0]
     target, remaining = _parse_target_and_remaining(argv)

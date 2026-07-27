@@ -125,3 +125,33 @@ def test_noop_when_copilot_is_not_a_configured_agent(tmp_path, load_script, root
 
     assert not result["applied"]
     assert not (target / ".github" / "skills").exists()
+
+
+def test_adjust_agents_degrades_with_a_note_when_yaml_is_missing(tmp_path, load_script, root,
+                                                                  monkeypatch):
+    """adjust_agents needs PyYAML; without it the scaffold notes the gap, not a traceback."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def no_yaml(name, *args, **kwargs):
+        if name == "yaml":
+            raise ImportError("No module named 'yaml'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_yaml)
+    adjust_agents = load_script("features/copilot/adjustments/adjust_agents.py")
+    target = tmp_path / "proj"
+    (target / ".ai-badger").mkdir(parents=True)
+
+    result = adjust_agents.adjust({
+        "framework_root": root,
+        "config": {"agents": ["copilot"]},
+        "target_dir": target / ".ai-badger",
+        "target": target,
+        "index": {"stacks": {"common": {"personas": [{"name": "architect",
+                                                       "path": "features/common/personas/architect.md"}]}}},
+    })
+
+    assert not result["applied"]
+    assert "yaml" in result["notes"].lower()
