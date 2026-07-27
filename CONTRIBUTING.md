@@ -54,7 +54,7 @@ Optionally install the pre-commit hooks, which run four of the gates locally:
 pre-commit install
 ```
 
-They are `version-sync`, `index-build`, `plugin-skills-sync`, and `pylint` — see
+They are `version-sync`, `index-build`, `plugin-skills-sync`, `docs-guard`, and `pylint` — see
 [`.pre-commit-config.yaml`](.pre-commit-config.yaml).
 
 ## How the repository is laid out
@@ -63,7 +63,8 @@ They are `version-sync`, `index-build`, `plugin-skills-sync`, and `pylint` — s
 features/{stack|common}/{feature}/   the catalog — skills, personas, invariants, instructions,
                                      hooks, adjustments, templates
 scripts/                             mechanical Python: index_build, validate, version_sync,
-                                     release_guard, tdd_guard, sync_plugin_skills, badger_lib
+                                     release_guard, tdd_guard, docs_guard,
+                                     sync_plugin_skills, badger_lib
 schemas/                             a JSON Schema per *.json model
 index.json                           SCRIPT-GENERATED. Never hand-edit it.
 tests/                               pytest; tests/js/ holds the node --test suites
@@ -164,6 +165,7 @@ green build:
 .venv/bin/python3 scripts/sync_plugin_skills.py --check
 .venv/bin/python3 scripts/validate.py --all
 .venv/bin/python3 scripts/version_sync.py --check
+.venv/bin/python3 scripts/docs_guard.py
 .venv/bin/python3 scripts/release_guard.py
 .venv/bin/python3 scripts/tdd_guard.py --base origin/main
 node --test "tests/js/*.test.mjs"
@@ -179,6 +181,7 @@ What each one is for:
 | `sync_plugin_skills.py --check` | The shipped `.claude/skills/` copy has drifted from `features/`. |
 | `validate.py --all` | Any catalog JSON violates its schema in `schemas/`. |
 | `version_sync.py --check` | `plugin.json`, `marketplace.json` or `index.json` disagree with `VERSION`. |
+| `docs_guard.py` | A relative link or a backticked repo path in the docs no longer resolves, or a changelog entry is missing from `docs/changelog/README.md`. |
 | `release_guard.py` | The shipped surface changed since the last release tag without a `VERSION` bump. |
 | `tdd_guard.py` | Code changed and no test changed with it. Runs on branches, not on `main`. |
 | `node --test` | A `.mjs` gate script's tests fail. |
