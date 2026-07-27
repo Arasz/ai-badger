@@ -56,6 +56,9 @@ class AgentFilesMixin:
                 )
                 continue
 
+            if file_entry["source"].startswith("templates/"):
+                self.record_template(source, target)
+
             # Determine the body content
             source_of_truth = aib_copy or file_entry["target"]
             if is_template:

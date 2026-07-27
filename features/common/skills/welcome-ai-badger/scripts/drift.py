@@ -5,10 +5,13 @@ Tier 2 of ADR-0001 decision 5: the expensive per-entry hash walk, run explicitly
 Tier 1 (the cheap version comparison) lives in the task skill's SessionStart hook,
 because welcome-ai-badger is plugin-only and is not scaffolded into a project.
 
+Newly-added catalog items are found by `detect_new_items`, which walks index.json for the
+stacks a re-scaffold would actually deliver (`badger_lib.resolve_stacks`, so the always-on
+`common` stack is included).
+
 Known limitations, accepted rather than solved: an upstream rename reads as "removed",
-because a manifest entry's source is a path with no forwarding record; newly-added
-catalog items are invisible, because this walks the manifest rather than the catalog;
-and directory-valued entries (skills scaffold as directories) are not compared per-entry,
+because a manifest entry's source is a path with no forwarding record; and
+directory-valued entries (skills scaffold as directories) are not compared per-entry,
 because the recorded hash covers the scaffolded copy -- produced with tests/evals stripped
 and extensions embedded -- which is not a comparable artifact to the framework's source
 tree. Such entries are reported as "skipped" rather than silently omitted or falsely
@@ -23,7 +26,7 @@ import argparse
 import importlib.util
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 def _bootstrap_lib() -> None:
@@ -70,11 +73,12 @@ def _load_script(relpath: str, base: Path):
 
 
 def detect_new_items(root: Path, manifest: Dict[str, Any],
-                     stacks: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+                     stacks: Union[str, List[str], None] = None) -> List[Dict[str, Any]]:
     """Find catalog items in index.json that are not in the manifest.
 
-    Only checks stacks the project actually uses (from config.stacks).
-    Returns list of {name, feature, stack, path} for items not scaffolded.
+    `stacks` is what a re-scaffold would deliver — `badger_lib.resolve_stacks(config)`, not
+    `config.stacks`, which never names the always-on `common` stack. A bare string is one
+    stack name, not five letters. Returns {name, feature, stack, path} per unscaffolded item.
     """
     index_path = root / "index.json"
     if not index_path.exists():
@@ -90,7 +94,7 @@ def detect_new_items(root: Path, manifest: Dict[str, Any],
     for entry in manifest.get("entries", []):
         manifest_keys.add((entry.get("stack"), entry.get("feature"), entry.get("name")))
 
-    check_stacks = set(stacks) if stacks else set()
+    check_stacks = {stacks} if isinstance(stacks, str) else set(stacks or ())
     new_items: List[Dict[str, Any]] = []
 
     for stack_name, stack_data in index.get("stacks", {}).items():
@@ -261,7 +265,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if config_path.exists():
         try:
             config = bl.load_json(config_path)
-            stacks = config.get("stacks", [])
+            stacks = bl.resolve_stacks(config)
         except (ValueError, OSError):
             pass
 
