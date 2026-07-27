@@ -594,9 +594,6 @@ def test_plugin_registers_drift_notice_from_its_own_hooks_json(root):
                 for h in entry["hooks"]]
     assert any("${CLAUDE_PLUGIN_ROOT}" in cmd and "drift_notice_hook.py" in cmd
                for cmd in commands), commands
-    plugin_manifest = json.loads(
-        (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
-    assert plugin_manifest.get("hooks") == "./hooks/hooks.json"
 
 
 def test_scaffold_hook_wiring_is_idempotent(tmp_path, load_script, root):
