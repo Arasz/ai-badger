@@ -1,3 +1,6 @@
 # Scaffolded copy — source of truth is features/common/
 # Tests import from features/, not .ai-badger/
 .ai-badger/
+# Published plugin copy — source of truth is features/ (ADR-0008)
+# Anchored: features/*/skills/ must stay indexed.
+/skills/

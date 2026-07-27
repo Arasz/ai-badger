@@ -69,7 +69,7 @@ class TestMainPrintReflectsResult:
         sps = load_script("scripts/sync_plugin_skills.py")
         fw = self._setup_framework(tmp_path)
         monkeypatch.setattr(sps, "ROOT", fw)
-        monkeypatch.setattr(sps, "TARGET", fw / ".claude" / "skills")
+        monkeypatch.setattr(sps, "TARGET", fw / "skills")
         monkeypatch.setattr(sps, "COMMON_SKILLS", ["task", "missing-skill"])
         monkeypatch.setattr(sps, "CLAUDE_SKILLS", [])
 
@@ -85,7 +85,7 @@ class TestMainPrintReflectsResult:
         sps = load_script("scripts/sync_plugin_skills.py")
         fw = self._setup_framework(tmp_path)
         monkeypatch.setattr(sps, "ROOT", fw)
-        monkeypatch.setattr(sps, "TARGET", fw / ".claude" / "skills")
+        monkeypatch.setattr(sps, "TARGET", fw / "skills")
         monkeypatch.setattr(sps, "COMMON_SKILLS", ["task", "missing-skill"])
         monkeypatch.setattr(sps, "CLAUDE_SKILLS", [])
 
@@ -103,11 +103,11 @@ class TestManagedExternallyNeverTouched:
         sps = load_script("scripts/sync_plugin_skills.py")
         common_skills = tmp_path / "features" / "common" / "skills"
         _write_tree(common_skills / "debug-issue", {"SKILL.md": "framework version"})
-        dest = tmp_path / ".claude" / "skills" / "debug-issue"
+        dest = tmp_path / "skills" / "debug-issue"
         _write_tree(dest, {"SKILL.md": "externally managed version"})
 
         monkeypatch.setattr(sps, "ROOT", tmp_path)
-        monkeypatch.setattr(sps, "TARGET", tmp_path / ".claude" / "skills")
+        monkeypatch.setattr(sps, "TARGET", tmp_path / "skills")
         monkeypatch.setattr(sps, "COMMON_SKILLS", ["debug-issue"])
         monkeypatch.setattr(sps, "CLAUDE_SKILLS", [])
         assert "debug-issue" in sps.MANAGED_EXTERNALLY
@@ -173,19 +173,19 @@ def temp_framework(tmp_path, load_script, monkeypatch):
         "SKILL.md": "auto-wm skill",
     })
     monkeypatch.setattr(sps, "ROOT", tmp_path)
-    monkeypatch.setattr(sps, "TARGET", tmp_path / ".claude" / "skills")
+    monkeypatch.setattr(sps, "TARGET", tmp_path / "skills")
     monkeypatch.setattr(sps, "COMMON_SKILLS", ["task"])
     monkeypatch.setattr(sps, "CLAUDE_SKILLS", ["auto-wm"])
     return sps
 
 
 class TestCheckMode:
-    """--check must fail the build whenever the shipped .claude/ copy diverges (F-17)."""
+    """--check must fail the build whenever the shipped copy diverges (F-17)."""
 
-    def test_check_mode_fails_when_claude_copy_diverges(self, tmp_path, temp_framework):
+    def test_check_mode_fails_when_shipped_copy_diverges(self, tmp_path, temp_framework):
         temp_framework.main([])
 
-        shipped = tmp_path / ".claude" / "skills" / "task" / "SKILL.md"
+        shipped = tmp_path / "skills" / "task" / "SKILL.md"
         shipped.write_text("task skill (hand-edited)")
 
         assert temp_framework.main(["--check"]) == 1
@@ -198,14 +198,14 @@ class TestCheckMode:
     def test_check_mode_fails_when_a_skill_was_never_synced(self, tmp_path, temp_framework):
         temp_framework.main([])
         import shutil
-        shutil.rmtree(tmp_path / ".claude" / "skills" / "auto-wm")
+        shutil.rmtree(tmp_path / "skills" / "auto-wm")
 
         assert temp_framework.main(["--check"]) == 1
 
     def test_check_mode_names_the_diverged_skill(self, tmp_path, temp_framework, capsys):
         temp_framework.main([])
         capsys.readouterr()
-        (tmp_path / ".claude" / "skills" / "task" / "scripts" / "helper.py").write_text("drift")
+        (tmp_path / "skills" / "task" / "scripts" / "helper.py").write_text("drift")
 
         temp_framework.main(["--check"])
 
@@ -224,7 +224,7 @@ class TestCheckMode:
 
     def test_check_mode_never_writes(self, tmp_path, temp_framework):
         temp_framework.main([])
-        target = tmp_path / ".claude" / "skills"
+        target = tmp_path / "skills"
         (target / "task" / "SKILL.md").write_text("diverged")
 
         before = _snapshot(target)
@@ -237,10 +237,10 @@ class TestCheckMode:
         sps = load_script("scripts/sync_plugin_skills.py")
         _write_tree(tmp_path / "features" / "common" / "skills" / "debug-issue",
                     {"SKILL.md": "framework version"})
-        _write_tree(tmp_path / ".claude" / "skills" / "debug-issue",
+        _write_tree(tmp_path / "skills" / "debug-issue",
                     {"SKILL.md": "externally managed version"})
         monkeypatch.setattr(sps, "ROOT", tmp_path)
-        monkeypatch.setattr(sps, "TARGET", tmp_path / ".claude" / "skills")
+        monkeypatch.setattr(sps, "TARGET", tmp_path / "skills")
         monkeypatch.setattr(sps, "COMMON_SKILLS", ["debug-issue"])
         monkeypatch.setattr(sps, "CLAUDE_SKILLS", [])
 
@@ -252,13 +252,13 @@ class TestCheckMode:
 
 
 class TestRealCatalogParity:
-    """The shipped .claude/skills/ copy of this repo must match features/ at all times."""
+    """The shipped skills/ copy of this repo must match features/ at all times."""
 
     def test_repo_plugin_copy_is_in_sync(self, load_script):
         sps = load_script("scripts/sync_plugin_skills.py")
 
         assert sps.main(["--check"]) == 0, (
-            "run `python3 scripts/sync_plugin_skills.py` to refresh .claude/skills/"
+            "run `python3 scripts/sync_plugin_skills.py` to refresh skills/"
         )
 
 

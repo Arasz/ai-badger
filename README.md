@@ -141,6 +141,7 @@ ai-badger/
   CONTRIBUTING.md   SECURITY.md   CODE_OF_CONDUCT.md   RELEASING.md
   .claude-plugin/marketplace.json   # ai-badger is itself installable, plugin source "./"
   .claude-plugin/plugin.json        # the installable plugin wrapping the root skills
+  skills/                        # What the plugin exposes to Claude Code (generated from features/)
   schemas/                       # JSON Schema for every *.json model
   scripts/                       # Mechanical Python scripts (no LLM, no network)
   docs/                          # Architecture, authoring guides, ADRs
