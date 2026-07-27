@@ -74,6 +74,7 @@ looks the way it does. Not plans.
 | Document | Status |
 |---|---|
 | [plans/2026-07-27-deferred-work-plan.md](plans/2026-07-27-deferred-work-plan.md) | **Active.** Waves 6–19. Eight resolved (9, 10, 12, 13, 14, 15, 18, 19) and 11 decided by ADR-0007; Waves 6, 7, 8, 16 and 17 remain |
+| [plans/2026-07-27-analyze-measures-the-wrong-things.md](plans/2026-07-27-analyze-measures-the-wrong-things.md) | **Next up.** Three reproduced defects in `call-behaviorist analyze`, ordered, with the red tests already parked on a branch |
 | [plans/2026-07-27-session-checkpoint-3.md](plans/2026-07-27-session-checkpoint-3.md) | **Current.** 20 commits unreleased; Wave 7 under independent review; #104 and the `analyze` defects in flight |
 | [plans/2026-07-27-session-checkpoint-2.md](plans/2026-07-27-session-checkpoint-2.md) | Superseded. What 0.32.0 shipped, the decisions behind it, and what ADR-0007 means for Waves 6, 7, 16 and 17 |
 | [plans/2026-07-27-session-checkpoint.md](plans/2026-07-27-session-checkpoint.md) | Resume notes for the documentation work — step 1 (research) and step 2 (this refactor) done, step 3 (a docs-sync gate) sized as a wave in the plan above |
