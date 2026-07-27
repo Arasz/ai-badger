@@ -40,6 +40,9 @@ jobs:
     - name: Version literals (plugin.json, marketplace.json, index.json) agree with VERSION
       run: |
         python3 scripts/version_sync.py --check
+    - name: Docs guard - links, repo paths and the changelog index still resolve
+      run: |
+        python3 scripts/docs_guard.py
     - name: Release guard - shipped surface change requires a VERSION bump
       run: |
         python3 scripts/release_guard.py
