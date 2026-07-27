@@ -18,8 +18,8 @@ from scaffold_helpers import _config
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# A framework tree: everything the four root predicates and a scaffold run read.
-_FRAMEWORK_TREE = ("features", "schemas", "scripts", "hooks", ".claude-plugin",
+# A framework tree: everything the root predicates and a scaffold run read.
+_FRAMEWORK_TREE = ("features", "schemas", "scripts", "hooks", "skills", ".claude-plugin",
                    "VERSION", "index.json", "BREAKING_VERSIONS")
 
 # Every entry point that must resolve a framework root before it can do anything, keyed by
@@ -48,6 +48,19 @@ SCAFFOLD_PATHS = {
     "drift_notice_hook": ".ai-badger/skills/task/scripts/drift_notice_hook.py",
     "mcp_index": ".ai-badger/skills/mcp-index/scripts/mcp_index.py",
     "ai_badger_hooks": ".ai-badger/hooks/ai_badger_hooks.py",
+}
+
+# The plugin cache is a copy of the whole repo, and Claude Code loads the generated mirror
+# under skills/ (ADR-0008) — that copy, not features/, is what actually runs there.
+MIRROR_PATHS = {
+    "detect": "skills/welcome-ai-badger/scripts/detect.py",
+    "scaffold": "skills/welcome-ai-badger/scripts/scaffold.py",
+    "drift": "skills/welcome-ai-badger/scripts/drift.py",
+    "refresh": "skills/den-refresh/scripts/refresh.py",
+    "detect_additions": "skills/feed-badger/scripts/detect_additions.py",
+    "open_pr": "skills/feed-badger/scripts/open_pr.py",
+    "drift_notice_hook": "skills/task/scripts/drift_notice_hook.py",
+    "mcp_index": "skills/mcp-index/scripts/mcp_index.py",
 }
 
 # `features/hermes/adjustments/adjust_hooks.py` copies exactly these two into ~/.hermes/plugins/.
@@ -125,6 +138,11 @@ def shapes(tmp_path_factory) -> dict:
         capture_output=True, text=True, cwd=str(consumer), env=_env(home), check=False)
     assert proc.returncode == 0, f"scaffold run failed:\n{proc.stdout}\n{proc.stderr}"
 
+    manifest = json.loads(
+        (consumer / ".ai-badger" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["frameworkRoot"] == str(checkout), (
+        "the scaffold shape can only resolve a root that scaffold.py recorded")
+
     return {"home": home, "checkout": checkout, "cache": cache, "consumer": consumer,
             "hermes": home / ".hermes" / "plugins"}
 
@@ -134,7 +152,9 @@ def _entry_path(shapes: dict, shape: str, name: str) -> Path:
     if shape == "checkout":
         return shapes["checkout"] / ENTRY_POINTS[name]
     if shape == "plugin-cache":
-        return shapes["cache"] / ENTRY_POINTS[name]
+        mirrored = shapes["cache"] / MIRROR_PATHS.get(name, "")
+        return mirrored if name in MIRROR_PATHS and mirrored.is_file() \
+            else shapes["cache"] / ENTRY_POINTS[name]
     if shape == "scaffold":
         if name not in SCAFFOLD_PATHS:
             pytest.skip(f"{name} is not scaffolded into .ai-badger/")
@@ -189,6 +209,45 @@ def test_every_cli_entry_point_reaches_argparse_in_all_four_shapes(shapes, name,
     assert proc.returncode == 0, (
         f"{name} --help failed in the {shape} shape:\n{proc.stdout}\n{proc.stderr}")
     assert "usage:" in proc.stdout
+
+
+def _shim_text(path: Path) -> str:
+    """The `_bootstrap_lib` block of a source file, or "" when it defines none."""
+    text = path.read_text(encoding="utf-8")
+    start = text.find("def _bootstrap_lib()")
+    if start < 0:
+        return ""
+    end = text.find("    return root.resolve()", start)
+    assert end > 0, f"{path} defines _bootstrap_lib but does not end it as the others do"
+    return text[start:end]
+
+
+def test_every_bootstrap_shim_is_the_same_predicate(root):
+    """The shim cannot import badger_lib, so it stays duplicated — byte-identical (ADR-0007).
+
+    Covers the catalog and the generated plugin mirror; `.ai-badger/` is this repo's own
+    scaffold output, refreshed by re-scaffolding rather than edited.
+    """
+    sources = [p for tree in ("features", "skills") for p in (root / tree).rglob("*.py")]
+    shims = {p: text for p, text in ((p, _shim_text(p)) for p in sources) if text}
+    assert len(shims) >= 10, f"expected every entry point to carry the shim, found {len(shims)}"
+
+    assert len(set(shims.values())) == 1, (
+        "bootstrap shims disagree:\n" + "\n".join(sorted(str(p) for p in shims)))
+
+
+def test_the_shim_and_badger_lib_state_one_predicate(root):
+    """One predicate, in two places only because the shim runs before badger_lib exists."""
+    def normalise(text: str) -> str:
+        return " ".join(text.split())
+
+    predicate = normalise('(path / "schemas").is_dir() and (path / "features").is_dir() '
+                          'and (path / "scripts" / "badger_lib.py").is_file()')
+    lib = normalise((root / "scripts" / "badger_lib.py").read_text(encoding="utf-8"))
+    shim = normalise(_shim_text(root / ENTRY_POINTS["scaffold"]))
+
+    assert predicate in lib
+    assert predicate in shim
 
 
 def test_hermes_drift_notice_has_a_version_to_compare(shapes, tmp_path):

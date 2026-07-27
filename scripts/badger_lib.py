@@ -113,38 +113,118 @@ def is_breaking_transition(from_version: str, to_version: str, root: Path) -> bo
 FRAMEWORK_REPO = "https://github.com/Arasz/ai-badger"
 FRAMEWORK_CACHE = Path.home() / ".ai-badger" / "framework"
 RELEASE_TAG_PREFIX = "ai-badger--v"
+ROOT_ENV_VAR = "AI_BADGER"
+SCAFFOLD_DIR = ".ai-badger"
+MANIFEST_NAME = "manifest.json"
+MANIFEST_ROOT_KEY = "frameworkRoot"
 
 
 class FrameworkRootNotFound(RuntimeError):
     """No usable ai-badger framework root, and none may be fetched without consent."""
 
 
-def _is_root(path: Path) -> bool:
-    return (path / "schemas").is_dir() and (path / "features").is_dir()
+def is_framework_root(path: Path) -> bool:
+    """The one predicate: a framework root holds schemas/, features/ and scripts/badger_lib.py.
 
-
-def find_root(start: Optional[Path] = None) -> Path:
-    """Find the ai-badger framework root. Pure lookup: no network, ever.
-
-    Walks up from `start` (or this file) for schemas/ + features/, then falls back to an
-    already-populated ~/.ai-badger/framework/. Raises FrameworkRootNotFound if neither
-    exists — fetching one is `ensure_root(..., allow_network=True)`, never a side effect
-    of looking.
+    Stated here once. The bootstrap shims repeat it verbatim because they run before this
+    module can be imported — that is the bootstrap problem, not a second definition (ADR-0007).
     """
-    p = (start or Path(__file__)).resolve()
-    for anc in [p, *p.parents]:
-        if _is_root(anc):
+    return ((path / "schemas").is_dir() and (path / "features").is_dir()
+            and (path / "scripts" / "badger_lib.py").is_file())
+
+
+def _manifest_candidates(start: Path) -> List[Path]:
+    """Every .ai-badger/manifest.json at or above `start`, nearest first."""
+    found = []
+    for anc in [start, *start.parents]:
+        if anc.name == SCAFFOLD_DIR:
+            found.append(anc / MANIFEST_NAME)
+        found.append(anc / SCAFFOLD_DIR / MANIFEST_NAME)
+    return found
+
+
+def recorded_root(start: Path) -> Optional[Path]:
+    """Framework root recorded by scaffold.py in the nearest readable manifest, or None.
+
+    The pointer a copied file otherwise lacks. Validated before it is returned: a manifest
+    from another machine names a path that is not a framework root here, and is ignored.
+    """
+    for manifest in _manifest_candidates(start):
+        if not manifest.is_file():
+            continue
+        try:
+            recorded = load_json(manifest).get(MANIFEST_ROOT_KEY)
+        except (OSError, ValueError):
+            continue
+        if not recorded:
+            continue
+        candidate = Path(recorded).expanduser()
+        if not candidate.is_absolute():
+            candidate = manifest.parent.parent / candidate
+        if is_framework_root(candidate):
+            return candidate.resolve()
+    return None
+
+
+def _declared_root(value, source: str) -> Path:
+    """Accept an operator-supplied root, or refuse loudly: a wrong pointer is not a fallback."""
+    candidate = Path(value).expanduser()
+    if not is_framework_root(candidate):
+        raise FrameworkRootNotFound(
+            f"{source} is {candidate}, which is not an ai-badger framework root "
+            f"(no schemas/ + features/ + scripts/badger_lib.py)."
+        )
+    return candidate.resolve()
+
+
+def resolve_framework_root(explicit=None, start: Optional[Path] = None,
+                           cwd: Optional[Path] = None) -> Path:
+    """Resolve the ai-badger framework root. Pure lookup: no network, ever.
+
+    Ordered inputs, first hit wins; `explicit` and `$AI_BADGER` are operator-declared and
+    refuse rather than fall through when they name a non-root:
+
+    1. `explicit` — a `--root` argument.
+    2. `$AI_BADGER` — the checkout documented in getting-started.md Route B.
+    3. an ancestor walk from `start` (default: this file).
+    4. `frameworkRoot` recorded in the nearest `.ai-badger/manifest.json` above `start`, then
+       above `cwd` (default: the process working directory).
+    5. `~/.ai-badger/framework`, the cache.
+
+    Four deployment shapes (ADR-0007): a framework checkout and the Claude plugin cache are
+    answered by (3); a `.ai-badger/` scaffold and `~/.hermes/plugins/` hold no framework
+    above them, so (3) structurally cannot succeed there and (4) is what answers them.
+    """
+    if explicit:
+        return _declared_root(explicit, "--root")
+    env_value = os.environ.get(ROOT_ENV_VAR)
+    if env_value:
+        return _declared_root(env_value, f"${ROOT_ENV_VAR}")
+
+    origin = (start or Path(__file__)).resolve()
+    for anc in [origin, *origin.parents]:
+        if is_framework_root(anc):
             return anc
 
-    if _is_root(FRAMEWORK_CACHE):
+    for base in (origin, Path(cwd).resolve() if cwd else Path.cwd()):
+        recorded = recorded_root(base)
+        if recorded:
+            return recorded
+
+    if is_framework_root(FRAMEWORK_CACHE):
         return FRAMEWORK_CACHE
 
     raise FrameworkRootNotFound(
-        f"ai-badger framework root not found above {p} and no usable cache at "
-        f"{FRAMEWORK_CACHE}. Pass --root <framework checkout>, or call "
-        f"ensure_root(allow_network=True) to fetch the release matching your installed "
-        f"VERSION from {FRAMEWORK_REPO}."
+        f"ai-badger framework root not found above {origin}, in ${ROOT_ENV_VAR}, in any "
+        f"{SCAFFOLD_DIR}/{MANIFEST_NAME} {MANIFEST_ROOT_KEY}, or at {FRAMEWORK_CACHE}. "
+        f"Pass --root <framework checkout>, or call ensure_root(allow_network=True) to fetch "
+        f"the release matching your installed VERSION from {FRAMEWORK_REPO}."
     )
+
+
+def find_root(start: Optional[Path] = None, cwd: Optional[Path] = None) -> Path:
+    """Resolve the framework root — the long-standing name for `resolve_framework_root`."""
+    return resolve_framework_root(start=start, cwd=cwd)
 
 
 def installed_version(start: Optional[Path] = None) -> Optional[str]:
@@ -206,9 +286,10 @@ def _clone_pinned(version: str) -> Path:
             f"Releases before 0.20.0 carry no tag "
             f"(docs/incidents/2026-07-27-untagged-releases.md)."
         )
-    if not _is_root(FRAMEWORK_CACHE):
+    if not is_framework_root(FRAMEWORK_CACHE):
         raise FrameworkRootNotFound(
-            f"cloned {tag} into {FRAMEWORK_CACHE} but it has no schemas/ + features/"
+            f"cloned {tag} into {FRAMEWORK_CACHE} but it is not a framework root "
+            f"(no schemas/ + features/ + scripts/badger_lib.py)"
         )
     return FRAMEWORK_CACHE
 

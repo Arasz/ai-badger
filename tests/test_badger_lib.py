@@ -4,21 +4,39 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
 
 def _make_root(tmp_path, version=None):
-    """Build a minimal fake framework root (schemas/ + features/) under tmp_path."""
+    """Build a minimal fake framework root: schemas/ + features/ + scripts/badger_lib.py."""
     (tmp_path / "schemas").mkdir(parents=True, exist_ok=True)
     (tmp_path / "features").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "scripts").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "scripts" / "badger_lib.py").write_text("", encoding="utf-8")
     if version is not None:
         (tmp_path / "VERSION").write_text(f"{version}\n", encoding="utf-8")
     return tmp_path
 
 
+def _make_scaffold(project, framework_root):
+    """Write the .ai-badger/manifest.json a scaffold run leaves behind, root recorded."""
+    aib = project / ".ai-badger"
+    aib.mkdir(parents=True, exist_ok=True)
+    (aib / "manifest.json").write_text(
+        json.dumps({"frameworkRoot": str(framework_root)}), encoding="utf-8")
+    return aib
+
+
 def _forbidden_subprocess(*args, **kwargs):
     raise AssertionError(f"offline code path ran a subprocess: {args} {kwargs}")
+
+
+@pytest.fixture(autouse=True)
+def _no_declared_root(monkeypatch):
+    """Root lookup must not be steered by whatever $AI_BADGER the developer exported."""
+    monkeypatch.delenv("AI_BADGER", raising=False)
 
 
 def test_find_root_walks_up_to_dir_with_schemas_and_features(tmp_path, load_script):
@@ -39,7 +57,7 @@ def test_find_root_raises_when_no_ancestor_and_no_fallback(tmp_path, load_script
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
 
     with pytest.raises(bl.FrameworkRootNotFound):
-        bl.find_root(lonely)
+        bl.find_root(lonely, cwd=lonely)
 
 
 def test_find_root_never_touches_the_network(tmp_path, load_script, monkeypatch):
@@ -50,7 +68,7 @@ def test_find_root_never_touches_the_network(tmp_path, load_script, monkeypatch)
     monkeypatch.setattr(bl.subprocess, "run", _forbidden_subprocess)
 
     with pytest.raises(bl.FrameworkRootNotFound):
-        bl.find_root(lonely)
+        bl.find_root(lonely, cwd=lonely)
 
 
 def test_find_root_failure_names_the_explicit_opt_in(tmp_path, load_script, monkeypatch):
@@ -60,7 +78,7 @@ def test_find_root_failure_names_the_explicit_opt_in(tmp_path, load_script, monk
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
 
     with pytest.raises(bl.FrameworkRootNotFound) as excinfo:
-        bl.find_root(lonely)
+        bl.find_root(lonely, cwd=lonely)
 
     message = str(excinfo.value)
     assert "--root" in message
@@ -75,7 +93,122 @@ def test_find_root_uses_an_existing_cache_without_network(tmp_path, load_script,
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", cache)
     monkeypatch.setattr(bl.subprocess, "run", _forbidden_subprocess)
 
-    assert bl.find_root(lonely) == cache
+    assert bl.find_root(lonely, cwd=lonely) == cache
+
+
+# ------------------------------------------------------- resolve_framework_root (ADR-0007)
+def test_a_catalog_without_the_engine_is_not_a_framework_root(tmp_path, load_script):
+    """schemas/ + features/ alone is a catalog; a root also carries scripts/badger_lib.py."""
+    bl = load_script("scripts/badger_lib.py")
+    (tmp_path / "schemas").mkdir()
+    (tmp_path / "features").mkdir()
+
+    assert not bl.is_framework_root(tmp_path)
+    assert bl.is_framework_root(_make_root(tmp_path))
+
+
+def test_explicit_root_outranks_every_other_input(tmp_path, load_script, monkeypatch):
+    bl = load_script("scripts/badger_lib.py")
+    declared = _make_root(tmp_path / "declared")
+    ancestor = _make_root(tmp_path / "ancestor")
+    monkeypatch.setenv("AI_BADGER", str(_make_root(tmp_path / "env")))
+
+    assert bl.resolve_framework_root(explicit=declared, start=ancestor) == declared.resolve()
+
+
+def test_a_declared_root_that_is_not_a_root_refuses_rather_than_falls_through(
+        tmp_path, load_script):
+    """A wrong --root is a misconfiguration to report, not a reason to resolve something else."""
+    bl = load_script("scripts/badger_lib.py")
+    ancestor = _make_root(tmp_path / "ancestor")
+    wrong = tmp_path / "not-a-root"
+    wrong.mkdir()
+
+    with pytest.raises(bl.FrameworkRootNotFound) as excinfo:
+        bl.resolve_framework_root(explicit=wrong, start=ancestor)
+
+    assert str(wrong) in str(excinfo.value)
+
+
+def test_env_var_outranks_the_ancestor_walk(tmp_path, load_script, monkeypatch):
+    bl = load_script("scripts/badger_lib.py")
+    env_root = _make_root(tmp_path / "env")
+    ancestor = _make_root(tmp_path / "ancestor")
+    monkeypatch.setenv("AI_BADGER", str(env_root))
+
+    assert bl.resolve_framework_root(start=ancestor) == env_root.resolve()
+
+
+def test_a_stale_env_var_refuses_rather_than_falls_through(tmp_path, load_script, monkeypatch):
+    bl = load_script("scripts/badger_lib.py")
+    stale = tmp_path / "moved-away"
+    monkeypatch.setenv("AI_BADGER", str(stale))
+
+    with pytest.raises(bl.FrameworkRootNotFound) as excinfo:
+        bl.resolve_framework_root(start=_make_root(tmp_path / "ancestor"))
+
+    assert "AI_BADGER" in str(excinfo.value)
+
+
+def test_a_scaffold_resolves_the_root_recorded_in_its_manifest(tmp_path, load_script,
+                                                               monkeypatch):
+    """The shape with no framework above it: only a recorded root can answer (ADR-0007)."""
+    bl = load_script("scripts/badger_lib.py")
+    framework = _make_root(tmp_path / "framework")
+    aib = _make_scaffold(tmp_path / "consumer", framework)
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
+
+    script = aib / "skills" / "welcome-ai-badger" / "scripts"
+    script.mkdir(parents=True)
+
+    assert bl.resolve_framework_root(start=script, cwd=script) == framework.resolve()
+
+
+def test_a_hermes_plugin_resolves_the_recorded_root_from_its_working_directory(
+        tmp_path, load_script, monkeypatch):
+    """Two loose files in ~/.hermes/plugins/ have no framework and no scaffold above them."""
+    bl = load_script("scripts/badger_lib.py")
+    framework = _make_root(tmp_path / "framework")
+    consumer = tmp_path / "consumer"
+    _make_scaffold(consumer, framework)
+    plugins = tmp_path / "home" / ".hermes" / "plugins"
+    plugins.mkdir(parents=True)
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
+
+    assert bl.resolve_framework_root(start=plugins, cwd=consumer) == framework.resolve()
+
+
+def test_a_recorded_root_from_another_machine_is_ignored(tmp_path, load_script, monkeypatch):
+    """A manifest is a hint, validated before use — a foreign path is not a root here."""
+    bl = load_script("scripts/badger_lib.py")
+    aib = _make_scaffold(tmp_path / "consumer", Path("/nowhere/ai-badger"))
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
+
+    with pytest.raises(bl.FrameworkRootNotFound):
+        bl.resolve_framework_root(start=aib, cwd=aib)
+
+
+def test_a_recorded_root_may_be_relative_to_the_scaffolded_project(tmp_path, load_script,
+                                                                   monkeypatch):
+    """A repo scaffolded by itself records `.` — the one value that survives a git clone."""
+    bl = load_script("scripts/badger_lib.py")
+    project = _make_root(tmp_path / "self-hosted")
+    aib = project / ".ai-badger"
+    aib.mkdir()
+    (aib / "manifest.json").write_text(json.dumps({"frameworkRoot": "."}), encoding="utf-8")
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
+
+    assert bl.recorded_root(aib) == project.resolve()
+
+
+def test_the_ancestor_walk_outranks_a_recorded_root(tmp_path, load_script, monkeypatch):
+    bl = load_script("scripts/badger_lib.py")
+    recorded = _make_root(tmp_path / "recorded")
+    ancestor = _make_root(tmp_path / "ancestor")
+    _make_scaffold(ancestor, recorded)
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
+
+    assert bl.resolve_framework_root(start=ancestor / ".ai-badger") == ancestor.resolve()
 
 
 class TestEnsureFrameworkCache:

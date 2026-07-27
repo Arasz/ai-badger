@@ -237,31 +237,25 @@ def test_hook_main_falls_back_to_payload_cwd_when_project_dir_env_unset(
     assert plugin_version in out["hookSpecificOutput"]["additionalContext"]
 
 
-def test_find_plugin_root_walks_ancestors_not_a_fixed_depth(tmp_path, load_script):
-    """The regression test for the original bug class: a hardcoded `parents[N]` would
-    misroot the moment the script's depth under the plugin root differs from the real repo's
-    (`features/common/skills/task/scripts/`, depth 5). Build a fixture plugin tree several levels deeper and
-    confirm the walk still finds it."""
+def test_the_hook_resolves_the_same_root_from_two_different_depths(load_script, root):
+    """The regression test for the original bug class: a hardcoded `parents[N]` would misroot
+    the moment the script's depth changes. The catalog copy sits at depth 5, the generated
+    plugin copy at depth 3, and both must answer with the same framework root."""
+    catalog = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
+    mirrored = load_script("skills/task/scripts/drift_notice_hook.py")
+
+    assert catalog.FRAMEWORK_ROOT == root
+    assert mirrored.FRAMEWORK_ROOT == root
+
+
+def test_the_notice_is_silent_when_no_framework_root_resolves(load_script, monkeypatch, capsys):
+    """No root means no version to compare: exit 0, print nothing, never crash."""
     hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
+    monkeypatch.setattr(hook, "FRAMEWORK_ROOT", None)
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"cwd": "/tmp"})))
 
-    plugin_root = tmp_path / "some" / "install" / "path" / "ai-badger"
-    (plugin_root / "features" / "common" / "skills").mkdir(parents=True)
-    (plugin_root / "VERSION").write_text("9.9.9\n", encoding="utf-8")
-    deep_script_dir = plugin_root / "extra" / "nesting" / "that" / "does" / "not" / "exist" \
-        / "in" / "the" / "real" / "repo"
-    deep_script_dir.mkdir(parents=True)
-
-    found = hook.find_plugin_root(deep_script_dir)
-
-    assert found == plugin_root
-
-
-def test_find_plugin_root_returns_none_when_no_ancestor_qualifies(tmp_path, load_script):
-    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
-    lonely = tmp_path / "no" / "version" / "or" / "skills" / "dir" / "here"
-    lonely.mkdir(parents=True)
-
-    assert hook.find_plugin_root(lonely) is None
+    assert hook.main() == 0
+    assert capsys.readouterr().out == ""
 
 
 def test_hooks_json_declares_session_start_pointing_at_a_script_that_exists(root):

@@ -18,6 +18,10 @@
       "type": "boolean",
       "description": "True when scaffolded from a working tree with uncommitted changes: provenance that is not reproducible. False from a plugin cache, where local edits are impossible."
     },
+    "frameworkRoot": {
+      "type": "string",
+      "description": "Where the framework was when this scaffold was written — the pointer a copied file otherwise lacks (ADR-0007). Relative to the project when the framework is inside it (a self-hosted repo records '.'), absolute otherwise. A machine-local hint, always re-validated against the root predicate before use, so a value from another machine is ignored rather than trusted."
+    },
     "generatedAt": { "type": ["string", "null"], "description": "ISO timestamp stamped by the orchestrator after scaffold (scripts avoid nondeterministic clocks)." },
     "agents": { "type": "array", "items": { "enum": ["claude", "copilot", "hermes", "junie"] } },
     "pluginScope": { "enum": ["default", "local"] },
