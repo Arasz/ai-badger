@@ -5,7 +5,9 @@ symlinks each scaffolded skill into the Copilot discovery path.
 """
 from __future__ import annotations
 
+import json
 import os
+import shutil
 from pathlib import Path
 from typing import Any, Dict
 
@@ -34,9 +36,12 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     github_skills = target / ".github" / "skills"
     github_skills.mkdir(parents=True, exist_ok=True)
 
-    linked = []
+    skills_root = target_dir / "skills"
+    owned_targets = _manifest_targets(target_dir)
+
+    linked, refused = [], []
     for skill_name in skills:
-        src = target_dir / "skills" / skill_name
+        src = skills_root / skill_name
         if not src.is_dir():
             continue
 
@@ -46,20 +51,62 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
             continue
 
         dst = github_skills / skill_name
-        # Remove stale symlink or directory
-        if dst.is_symlink():
-            dst.unlink()
-        elif dst.is_dir():
-            import shutil
-            shutil.rmtree(dst)
+        if dst.exists() or dst.is_symlink():
+            if not _ours(dst, skills_root, owned_targets):
+                refused.append(skill_name)
+                continue
+            _remove(dst)
 
         dst.symlink_to(os.path.relpath(src, dst.parent))
         linked.append(skill_name)
 
+    notes = []
     if linked:
-        return {
-            "applied": True,
-            "files": [f".github/skills/{name}" for name in linked],
-            "notes": f"Symlinked {len(linked)} skill(s) into .github/skills/",
-        }
-    return {"applied": False, "files": [], "notes": "No skills with SKILL.md found"}
+        notes.append(f"Symlinked {len(linked)} skill(s) into .github/skills/")
+    if refused:
+        notes.append(
+            f"left {', '.join(sorted(refused))} in .github/skills/ untouched — not placed by "
+            f"ai-badger; remove by hand to let Copilot discover the scaffolded skill"
+        )
+    return {
+        "applied": bool(linked),
+        "files": [f".github/skills/{name}" for name in linked],
+        "notes": "; ".join(notes) or "No skills with SKILL.md found",
+    }
+
+
+def _manifest_targets(target_dir: Path) -> set:
+    """Targets recorded in .ai-badger/manifest.json — paths ai-badger placed."""
+    manifest = target_dir / "manifest.json"
+    if not manifest.is_file():
+        return set()
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return {str(entry.get("target", "")) for entry in data.get("entries", [])}
+
+
+def _ours(dst: Path, skills_root: Path, owned_targets: set) -> bool:
+    """True only for a destination ai-badger placed: our symlink, or a recorded target.
+
+    Everything else — a hand-authored directory, a plain file, a symlink pointing
+    elsewhere — belongs to the user. `.github/skills/` is Copilot's own convention, so a
+    collision there is expected rather than exceptional.
+    """
+    if f".github/skills/{dst.name}" in owned_targets:
+        return True
+    if not dst.is_symlink():
+        return False
+    try:
+        dst.resolve().relative_to(skills_root.resolve())
+    except (ValueError, OSError):
+        return False
+    return True
+
+
+def _remove(dst: Path) -> None:
+    if dst.is_symlink() or dst.is_file():
+        dst.unlink()
+    else:
+        shutil.rmtree(dst)
