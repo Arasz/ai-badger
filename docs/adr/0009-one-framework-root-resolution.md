@@ -123,3 +123,103 @@ shapes under one empty `HOME` and asserts each entry point both imports and repo
   remains open, and is the right scope for its own change rather than a rider on this one.
 - Wave 16 (renaming `scripts/`) now has exactly one literal to change per shim copy, plus
   `badger_lib.is_framework_root`. ADR-0007 asked for Wave 7 first for this reason.
+
+---
+
+## Amendment — 2026-07-27: the working directory is not an input
+
+**Status:** Accepted. Decisions 6-8 below revise decisions 2, 3 and 4 above; the earlier text
+is left standing as the record of what was decided and why it was wrong.
+
+Review of `task/wave-7-one-framework-root` reproduced two behaviour regressions. Both trace to
+the same root cause: resolution accepted inputs that neither the operator nor the installer
+controls.
+
+### The reproduction
+
+A repository containing a tracked `.ai-badger/manifest.json` with `"frameworkRoot": "vendor"`,
+and a `vendor/` tree satisfying the predicate whose `scripts/badger_lib.py` writes a marker
+file, was cloned and opened with `HOME` empty, no `$AI_BADGER`, and the working directory set
+to that repo. Importing `~/.hermes/plugins/learned_skills_sync.py` — which Hermes loads
+automatically on session start — **executed the repository's code**. On the pre-wave-7 resolver
+the identical fixture raised and put nothing on `sys.path`.
+
+Decision 4 argued that re-validation makes the hint safe. That argument is sound against
+*staleness* and worthless against *adversarial input*: **re-validation proves the target is a
+framework tree, never whose.** A repo that supplies the tree it points at passes validation by
+construction.
+
+### 6. Every input is derived from the script's own location or from an operator
+
+The recorded root is read only from a `.ai-badger/manifest.json` **above the script file**.
+`Path.cwd()` is no longer consulted, and `resolve_framework_root` no longer takes a `cwd`
+argument — a parameter that exists is a parameter that gets passed.
+
+The line is ownership, not path shape. A manifest above the script belongs to whoever installed
+the script, which is the trust already granted by running it — the same boundary the ancestor
+walk has always used. A manifest above the working directory belongs to whatever repository the
+user happened to open, and a session-start hook's working directory is any repo they cloned.
+
+**The invariant: a repository cannot steer the `sys.path` of a hook that runs on session start.**
+
+Two alternatives were weighed and rejected:
+
+- *Require the recorded root to be absolute and outside the project.* Weaker than it looks. An
+  attacker-controlled manifest can name an absolute path outside the project just as easily as
+  a relative one; the constraint filters accidents, not adversaries. It would also break the
+  self-hosted `.` that decision 4 correctly wanted.
+- *Drop the hint entirely and require `--root`/`$AI_BADGER` in shapes B and D.* Honest, and
+  genuinely costly: ADR-0007 established that the ancestor walk **structurally cannot** answer
+  those shapes, so this re-breaks the two shapes wave 7 existed to fix. Rejected because the
+  hint is not the defect — reading it from an untrusted directory was.
+
+Shape D keeps working because the installer now records the pointer where the shape can use it:
+`adjust_hooks.py` writes `~/.hermes/plugins/.ai-badger/manifest.json` with an absolute
+`frameworkRoot` at the moment it copies the two plugin files. That record is machine-local,
+user-scope, above the script, and outside every repository — exactly ADR-0007's "record the
+root at copy time, which costs nothing".
+
+### 7. The ancestor walk outranks `$AI_BADGER`
+
+The new order is `--root`, the ancestor walk, `$AI_BADGER`, the recorded root, the cache.
+
+`getting-started.md` Route B tells users to `export AI_BADGER="$PWD"`, and more than one
+checkout per machine is normal — worktrees make it routine. With the environment variable
+ranked above the walk, a stale export paired a foreign engine with this repository's catalog:
+running this project's own suite under `AI_BADGER=~/.ai-badger/framework` (VERSION 0.13.0)
+produced 269 failures and 13 errors, all variants of `module 'badger_lib' has no attribute
+...`. That is precisely the engine/catalog skew ADR-0007 exists to eliminate, reintroduced at
+higher precedence than the unambiguous local answer.
+
+A script living inside a framework tree is not ambiguous about which engine belongs to it. A
+shell profile is a guess about a different machine state. Decision 2's refusal semantics are
+unchanged: when `$AI_BADGER` *is* consulted — no framework above the script — naming a
+non-root still raises rather than falling through.
+
+### 8. `--root` is read from `sys.argv` only when this file is the program
+
+Decision 3 had the shim scan `sys.argv` unconditionally. `ai_badger_hooks.py` and
+`learned_skills_sync.py` are imported into the Hermes host process, where `sys.argv` belongs to
+the host. A host launched with an unrelated `--root <path>` made the shim raise; verified by
+simulating the host's argv, `ai_badger_hooks` degraded to `None` as designed while
+`learned_skills_sync` — which calls `_bootstrap_lib()` unguarded at module scope — failed its
+plugin load outright.
+
+The shim now compares `Path(sys.argv[0]).resolve()` against `Path(__file__).resolve()` and
+peeks only when they agree. Decision 3's purpose survives intact: a script invoked as
+`python detect.py --root X` is its own program and still reads the flag before argparse exists.
+
+### Consequences
+
+- `test_every_bootstrap_shim_is_the_same_predicate` only inspected text *between*
+  `def _bootstrap_lib()` and `return root.resolve()`, so a fifth root predicate survived inside
+  `_load_script()` in `drift.py` and `refresh.py`. Those now use the already-resolved
+  `FRAMEWORK_ROOT`, and `test_no_root_predicate_lives_outside_a_bootstrap_shim` asserts every
+  quoted mention of `badger_lib.py` in `features/` and `skills/` lies inside a shim.
+- `tests/test_deployment_shapes.py` pops `$AI_BADGER` from the subprocess environment, so
+  neither it nor CI could observe decision 7's defect.
+  `test_an_exported_env_var_never_displaces_the_checkout_a_script_lives_in` sets it deliberately.
+- `learned_skills_sync` still calls `_bootstrap_lib()` unguarded at module scope, so a genuinely
+  rootless machine breaks its plugin load rather than degrading to silence. That predates this
+  wave and is not fixed here: the module imports `badger_lib` at module scope throughout, so
+  degrading properly means making the whole module lazy. It is worth its own change.

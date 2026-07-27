@@ -148,10 +148,11 @@ def _manifest_candidates(start: Path) -> List[Path]:
 
 
 def recorded_root(start: Path) -> Optional[Path]:
-    """Framework root recorded by scaffold.py in the nearest readable manifest, or None.
+    """Framework root recorded in the nearest readable manifest above `start`, or None.
 
-    The pointer a copied file otherwise lacks. Validated before it is returned: a manifest
-    from another machine names a path that is not a framework root here, and is ignored.
+    The pointer a copied file otherwise lacks. `start` is always the script's own location,
+    never the working directory: only whoever installed the script may steer its sys.path
+    (ADR-0009 decision 6). Validated before it is returned.
     """
     for manifest in _manifest_candidates(start):
         if not manifest.is_file():
@@ -181,39 +182,38 @@ def _declared_root(value, source: str) -> Path:
     return candidate.resolve()
 
 
-def resolve_framework_root(explicit=None, start: Optional[Path] = None,
-                           cwd: Optional[Path] = None) -> Path:
+def resolve_framework_root(explicit=None, start: Optional[Path] = None) -> Path:
     """Resolve the ai-badger framework root. Pure lookup: no network, ever.
 
-    Ordered inputs, first hit wins; `explicit` and `$AI_BADGER` are operator-declared and
-    refuse rather than fall through when they name a non-root:
+    Ordered inputs, first hit wins. Every input is derived from the script's own location or
+    from an operator, never from the working directory (ADR-0009 decision 6):
 
     1. `explicit` — a `--root` argument.
-    2. `$AI_BADGER` — the checkout documented in getting-started.md Route B.
-    3. an ancestor walk from `start` (default: this file).
-    4. `frameworkRoot` recorded in the nearest `.ai-badger/manifest.json` above `start`, then
-       above `cwd` (default: the process working directory).
+    2. an ancestor walk from `start` (default: this file).
+    3. `$AI_BADGER` — the checkout documented in getting-started.md Route B; refuses rather
+       than falls through when it names a non-root.
+    4. `frameworkRoot` recorded in the nearest `.ai-badger/manifest.json` above `start`.
     5. `~/.ai-badger/framework`, the cache.
 
     Four deployment shapes (ADR-0007): a framework checkout and the Claude plugin cache are
-    answered by (3); a `.ai-badger/` scaffold and `~/.hermes/plugins/` hold no framework
-    above them, so (3) structurally cannot succeed there and (4) is what answers them.
+    answered by (2); a `.ai-badger/` scaffold and `~/.hermes/plugins/` hold no framework
+    above them, so (2) structurally cannot succeed there and (4) is what answers them.
     """
     if explicit:
         return _declared_root(explicit, "--root")
-    env_value = os.environ.get(ROOT_ENV_VAR)
-    if env_value:
-        return _declared_root(env_value, f"${ROOT_ENV_VAR}")
 
     origin = (start or Path(__file__)).resolve()
     for anc in [origin, *origin.parents]:
         if is_framework_root(anc):
             return anc
 
-    for base in (origin, Path(cwd).resolve() if cwd else Path.cwd()):
-        recorded = recorded_root(base)
-        if recorded:
-            return recorded
+    env_value = os.environ.get(ROOT_ENV_VAR)
+    if env_value:
+        return _declared_root(env_value, f"${ROOT_ENV_VAR}")
+
+    recorded = recorded_root(origin)
+    if recorded:
+        return recorded
 
     if is_framework_root(FRAMEWORK_CACHE):
         return FRAMEWORK_CACHE
@@ -226,9 +226,9 @@ def resolve_framework_root(explicit=None, start: Optional[Path] = None,
     )
 
 
-def find_root(start: Optional[Path] = None, cwd: Optional[Path] = None) -> Path:
+def find_root(start: Optional[Path] = None) -> Path:
     """Resolve the framework root — the long-standing name for `resolve_framework_root`."""
-    return resolve_framework_root(start=start, cwd=cwd)
+    return resolve_framework_root(start=start)
 
 
 def installed_version(start: Optional[Path] = None) -> Optional[str]:

@@ -8,10 +8,13 @@ directly here; the hook tests below exercise `drift_notice_hook.main()` end-to-e
 """
 from __future__ import annotations
 
+import importlib.util
 import io
 import json
 import re
+import shutil
 import sys
+from pathlib import Path
 
 
 def _write_manifest(target, version):
@@ -248,12 +251,25 @@ def test_the_hook_resolves_the_same_root_from_two_different_depths(load_script, 
     assert mirrored.FRAMEWORK_ROOT == root
 
 
-def test_the_notice_is_silent_when_no_framework_root_resolves(load_script, monkeypatch, capsys):
-    """No root means no version to compare: exit 0, print nothing, never crash."""
-    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
-    monkeypatch.setattr(hook, "FRAMEWORK_ROOT", None)
-    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"cwd": "/tmp"})))
+def test_the_notice_is_silent_when_no_framework_root_resolves(root, tmp_path, monkeypatch,
+                                                              capsys):
+    """A copy stranded with no framework above it and an empty home: exit 0, print nothing."""
+    home = tmp_path / "home"
+    stranded = tmp_path / "plugins" / "drift_notice_hook.py"
+    stranded.parent.mkdir(parents=True)
+    home.mkdir()
+    shutil.copy2(root / "features/common/skills/task/scripts/drift_notice_hook.py", stranded)
+    monkeypatch.delenv("AI_BADGER", raising=False)
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+    monkeypatch.chdir(tmp_path)
 
+    spec = importlib.util.spec_from_file_location("aib_stranded_notice", stranded)
+    hook = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = hook
+    spec.loader.exec_module(hook)
+
+    assert hook.FRAMEWORK_ROOT is None, "the fixture is not rootless; the test proves nothing"
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"cwd": str(tmp_path)})))
     assert hook.main() == 0
     assert capsys.readouterr().out == ""
 

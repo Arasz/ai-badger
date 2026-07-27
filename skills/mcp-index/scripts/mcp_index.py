@@ -71,24 +71,43 @@ def _bootstrap_lib() -> Path:
     """Put the framework's scripts/ on sys.path and return its root.
 
     One predicate, shared with badger_lib.is_framework_root: schemas/ + features/ +
-    scripts/badger_lib.py. Ordered inputs: --root, $AI_BADGER, an ancestor walk, the root
-    recorded in a nearby .ai-badger/manifest.json, then ~/.ai-badger/framework (ADR-0007).
-    Duplicated verbatim in every entry point because locating badger_lib is what it is for.
+    scripts/badger_lib.py. Ordered inputs: --root, an ancestor walk, $AI_BADGER, the root
+    recorded in a .ai-badger/manifest.json above this file, then ~/.ai-badger/framework
+    (ADR-0009). Duplicated verbatim in every entry point because locating badger_lib is
+    what it is for.
     """
     def is_root(path):
         return ((path / "schemas").is_dir() and (path / "features").is_dir()
                 and (path / "scripts" / "badger_lib.py").is_file())
 
-    def declared():
+    def argv_root():
+        # sys.argv is ours only when this file is the program being run; these modules are
+        # also imported into hosts whose own --root means something else entirely.
+        try:
+            if not sys.argv or Path(sys.argv[0]).resolve() != Path(__file__).resolve():
+                return None
+        except (OSError, ValueError):
+            return None
         argv = sys.argv[1:]
         for i, arg in enumerate(argv):
             if arg == "--root" and i + 1 < len(argv):
                 return argv[i + 1]
             if arg.startswith("--root="):
                 return arg.split("=", 1)[1]
-        return os.environ.get("AI_BADGER")
+        return None
+
+    def checked(value, source):
+        root = Path(value).expanduser()
+        if not is_root(root):
+            raise RuntimeError(
+                f"{source} is {root}, which is not an ai-badger framework root "
+                f"(no schemas/ + features/ + scripts/badger_lib.py)"
+            )
+        return root
 
     def recorded(start):
+        # Above this file only. A working directory belongs to whatever repo the user
+        # opened, and no repo may steer the sys.path of a hook that runs on session start.
         for anc in [start, *start.parents]:
             manifest = (anc / "manifest.json" if anc.name == ".ai-badger"
                         else anc / ".ai-badger" / "manifest.json")
@@ -107,30 +126,20 @@ def _bootstrap_lib() -> Path:
                 return candidate.resolve()
         return None
 
-    def working_dir():
-        try:
-            return Path.cwd().resolve()
-        except OSError:
-            return here
-
     here = Path(__file__).resolve()
     cache = Path.home() / ".ai-badger" / "framework"
-    value = declared()
+    value = argv_root()
     if value:
-        root = Path(value).expanduser()
-        if not is_root(root):
-            raise RuntimeError(
-                f"--root/$AI_BADGER is {root}, which is not an ai-badger framework root "
-                f"(no schemas/ + features/ + scripts/badger_lib.py)"
-            )
+        root = checked(value, "--root")
     else:
         root = next((anc for anc in [here, *here.parents] if is_root(anc)), None)
-        root = root or recorded(here) or recorded(working_dir())
-        root = root or (cache if is_root(cache) else None)
+        if root is None and os.environ.get("AI_BADGER"):
+            root = checked(os.environ["AI_BADGER"], "$AI_BADGER")
+        root = root or recorded(here) or (cache if is_root(cache) else None)
     if root is None:
         raise RuntimeError(
             f"could not locate the ai-badger framework: none above {here.parent}, no "
-            f"$AI_BADGER, no frameworkRoot in a nearby .ai-badger/manifest.json, and no "
+            f"$AI_BADGER, no frameworkRoot in a .ai-badger/manifest.json above it, and no "
             f"cache at {cache} — pass --root <framework> or clone "
             f"https://github.com/Arasz/ai-badger"
         )

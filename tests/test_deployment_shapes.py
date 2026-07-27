@@ -169,13 +169,16 @@ def _cwd_for(shapes: dict, shape: str) -> Path:
     return shapes["consumer"] if shape in ("scaffold", "hermes-plugins") else shapes["checkout"]
 
 
-def _probe_root(shapes: dict, shape: str, path: Path, tmp_path: Path):
+def _probe_root(shapes: dict, shape: str, path: Path, tmp_path: Path, cwd: Path = None,
+                extra_env: dict = None, argv: list = None):
     """Import `path` in a fresh interpreter and return (process, reported root)."""
     probe = tmp_path / "probe.py"
     probe.write_text(_PROBE, encoding="utf-8")
-    proc = subprocess.run([sys.executable, str(probe), str(path)],
-                          capture_output=True, text=True, cwd=str(_cwd_for(shapes, shape)),
-                          env=_env(shapes["home"]), check=False)
+    env = _env(shapes["home"])
+    env.update(extra_env or {})
+    proc = subprocess.run([sys.executable, str(probe), str(path), *(argv or [])],
+                          capture_output=True, text=True,
+                          cwd=str(cwd or _cwd_for(shapes, shape)), env=env, check=False)
     lines = [ln for ln in proc.stdout.splitlines() if ln.startswith("AIB_ROOT=")]
     reported = json.loads(lines[-1][len("AIB_ROOT="):]) if lines else "__missing__"
     return proc, reported
@@ -236,6 +239,25 @@ def test_every_bootstrap_shim_is_the_same_predicate(root):
         "bootstrap shims disagree:\n" + "\n".join(sorted(str(p) for p in shims)))
 
 
+def test_no_root_predicate_lives_outside_a_bootstrap_shim(root):
+    """`_bootstrap_lib` is the only place allowed to test a path for the engine.
+
+    Byte-identical shims are not enough: a second predicate elsewhere in the same file is
+    invisible to that check, and is how the count went from four to five.
+    """
+    marker = '"badger_lib.py"'
+    strays = {}
+    for tree in ("features", "skills"):
+        for path in (root / tree).rglob("*.py"):
+            text = path.read_text(encoding="utf-8")
+            outside = text.count(marker) - _shim_text(path).count(marker)
+            if outside:
+                strays[path] = outside
+
+    assert not strays, "root predicate outside _bootstrap_lib:\n" + "\n".join(
+        f"  {p} ({n}x)" for p, n in sorted(strays.items()))
+
+
 def test_the_shim_and_badger_lib_state_one_predicate(root):
     """One predicate, in two places only because the shim runs before badger_lib exists."""
     def normalise(text: str) -> str:
@@ -257,3 +279,69 @@ def test_hermes_drift_notice_has_a_version_to_compare(shapes, tmp_path):
     assert proc.returncode == 0, proc.stderr
     assert reported not in (None, "__missing__")
     assert (Path(reported) / "VERSION").is_file()
+
+
+def _hostile_repo(base: Path) -> Path:
+    """A cloned repo whose tracked manifest points at a tree of its own, holding a payload."""
+    repo = base / "hostile"
+    (repo / ".ai-badger").mkdir(parents=True)
+    for name in ("schemas", "features", "scripts"):
+        (repo / "vendor" / name).mkdir(parents=True)
+    (repo / ".ai-badger" / "manifest.json").write_text(
+        json.dumps({"frameworkVersion": "0.33.0", "frameworkRoot": "vendor", "entries": []}),
+        encoding="utf-8")
+    (repo / "vendor" / "scripts" / "badger_lib.py").write_text(
+        "from pathlib import Path\n"
+        f"Path({str(base / 'PWNED')!r}).write_text('x', encoding='utf-8')\n", encoding="utf-8")
+    return repo
+
+
+@pytest.mark.parametrize("name", HERMES_PLUGINS)
+def test_a_cloned_repo_cannot_steer_a_session_start_hook(shapes, name, tmp_path):
+    """A repo's own manifest must never reach the sys.path of a hook that runs on session start.
+
+    The hooks load automatically from ~/.hermes/plugins/, so the working directory is any repo
+    the user opened — including one they only cloned.
+    """
+    repo = _hostile_repo(tmp_path)
+    path = shapes["hermes"] / f"{name}.py"
+
+    _probe_root(shapes, "hermes-plugins", path, tmp_path, cwd=repo)
+
+    assert not (tmp_path / "PWNED").exists(), (
+        f"{name} executed code from the repo it was merely standing in")
+
+
+@pytest.mark.parametrize("shape", ("checkout", "plugin-cache"))
+@pytest.mark.parametrize("name", sorted(ENTRY_POINTS))
+def test_an_exported_env_var_never_displaces_the_checkout_a_script_lives_in(
+        shapes, name, shape, tmp_path):
+    """`export AI_BADGER=...` in a shell profile must not pair a foreign engine with this catalog.
+
+    Route B tells users to export it, and several checkouts per machine is normal, so a stale
+    export is the common case rather than the exotic one.
+    """
+    decoy = _copy_framework(tmp_path / "decoy")
+    path = _entry_path(shapes, shape, name)
+
+    proc, reported = _probe_root(shapes, shape, path, tmp_path,
+                                 extra_env={"AI_BADGER": str(decoy)})
+
+    assert proc.returncode == 0, f"{name} failed to import in the {shape} shape:\n{proc.stderr}"
+    expected = shapes["checkout"] if shape == "checkout" else shapes["cache"]
+    assert reported == str(expected), (
+        f"{name} resolved {reported} in the {shape} shape rather than the tree it lives in")
+
+
+@pytest.mark.parametrize("name", HERMES_PLUGINS)
+def test_a_host_processes_own_argv_is_not_read_as_a_root(shapes, name, tmp_path):
+    """These two are imported into the Hermes host, so `--root` in its argv is not ours."""
+    unrelated = tmp_path / "unrelated"
+    unrelated.mkdir()
+    path = shapes["hermes"] / f"{name}.py"
+
+    proc, reported = _probe_root(shapes, "hermes-plugins", path, tmp_path,
+                                 argv=["--root", str(unrelated)])
+
+    assert proc.returncode == 0, f"{name} broke on the host's argv:\n{proc.stderr}"
+    assert reported not in (None, "__missing__")

@@ -6,6 +6,7 @@ Rationale: docs/research/hermes-learned-skills-sync.md correction C5.
 """
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List
@@ -14,7 +15,20 @@ PROJECT_HOOKS = ("ai_badger_hooks.py", "mcp_index_hook.py")
 USER_PLUGINS = ("ai_badger_hooks.py", "learned_skills_sync.py")
 
 
-def _install_user_plugins(hooks_dir: Path) -> List[str]:
+def _record_framework_root(plugins_dir: Path, framework_root: Path) -> None:
+    """Record where these copies came from, beside them and outside any repo.
+
+    ~/.hermes/plugins/ has no framework above it, so only a recorded pointer can answer it —
+    and it must be one no cloned repo can write (ADR-0009 decision 6).
+    """
+    manifest = plugins_dir / ".ai-badger" / "manifest.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(
+        json.dumps({"frameworkRoot": str(Path(framework_root).resolve())}, indent=2) + "\n",
+        encoding="utf-8")
+
+
+def _install_user_plugins(hooks_dir: Path, framework_root: Path) -> List[str]:
     """Copy (and refresh) the Hermes plugin modules into ~/.hermes/plugins/."""
     plugins_dir = Path.home() / ".hermes" / "plugins"
     installed: List[str] = []
@@ -25,6 +39,8 @@ def _install_user_plugins(hooks_dir: Path) -> List[str]:
         plugins_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, plugins_dir / name)
         installed.append(name)
+    if installed:
+        _record_framework_root(plugins_dir, framework_root)
     return installed
 
 
@@ -60,7 +76,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
 
     # User-scope copies are deliberately absent from 'files': the scaffolder records every
     # returned file relative to the project target, which a home path cannot be.
-    installed = _install_user_plugins(hooks_dir)
+    installed = _install_user_plugins(hooks_dir, framework_root)
 
     notes = []
     if files:
