@@ -68,6 +68,10 @@ They are `version-sync`, `index-build`, `plugin-skills-sync`, `docs-guard`, `dep
 `pylint` — see
 [`.pre-commit-config.yaml`](.pre-commit-config.yaml).
 
+Separately, lefthook runs **every** gate on `git push`. That one is worth installing — it is what
+stops an unbumped `VERSION` or a failing test from reaching CI. See
+[Automating the gates](#automating-the-gates-lefthook).
+
 ## How the repository is laid out
 
 ```
@@ -173,8 +177,16 @@ Full detail, including the semver-for-a-catalog rules, is in [`RELEASING.md`](RE
 
 ### 6. Run every gate before you ask for review
 
-These are exactly what CI runs (`.github/workflows/pylint.yml`), so a green local run means a
-green build:
+One command runs all of them:
+
+```bash
+.lefthook/pre-push/verify.sh all
+```
+
+That is the same script the pre-push hook runs — see
+[Automating the gates](#automating-the-gates-lefthook) below. To run them by hand instead, or to
+see what each one does, these are exactly what CI runs (`.github/workflows/pylint.yml`), so a
+green local run means a green build:
 
 ```bash
 .venv/bin/python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')   # 10.00 required
@@ -207,6 +219,54 @@ What each one is for:
 | `node --test` | A `.mjs` gate script's tests fail. |
 
 **CodeQL** also runs on every pull request and is a required check before merge.
+
+### Automating the gates (lefthook)
+
+[`lefthook.yml`](lefthook.yml) wires the gates to `pre-push`, so the checks above cannot be
+skipped by forgetting them. Install it once:
+
+```bash
+brew install lefthook   # or: go install github.com/evilmartians/lefthook@latest
+lefthook install
+.lefthook/pre-push/verify.sh doctor
+```
+
+`doctor` reports the interpreter it resolved, whether `pytest`/`pylint`/`jsonschema` import, and
+whether the hooks are intact. Run it first when the gate behaves oddly.
+
+All the logic is in [`.lefthook/pre-push/verify.sh`](.lefthook/pre-push/verify.sh), not in the
+YAML, so it stays runnable by hand, in CI and by an agent:
+
+| Command | Does |
+|---|---|
+| `verify.sh all` | Every lane, no change detection. |
+| `verify.sh pre-push` | Only the lanes the pushed commits can affect. |
+| `verify.sh lanes` | Prints what `pre-push` would run, without running it. |
+| `verify.sh <lane>` | One lane — `pytest`, `pylint`, `docs`, `release`, `tdd`, `js`, … |
+| `verify.sh doctor` | Environment and hook integrity. |
+
+Only `pre-push` is wired. `pre-commit` deliberately stays with the pre-commit framework: it
+already runs six of these gates and chains to code-review-graph, and `lefthook install` renames
+a hook it conflicts with to `.old` and never runs it again. Configuring both would silently kill
+that chain.
+
+**It verifies; it never edits.** A pre-push hook must not mutate the tree — by the time it runs,
+the commits being pushed are already fixed, so bumping `VERSION` there would leave a dirty
+working tree and push a commit without the bump. `release_guard.py` is what makes the bump
+unskippable: it fails the push until you bump `VERSION` yourself. Do that in a commit, per
+[step 5](#5-decide-whether-this-is-a-release).
+
+When a lane fails it prints how to reproduce it, where the log is, and how to bypass it:
+
+```
+VERIFY_SKIP=pytest git push   # skip one lane
+SKIP_VERIFY=1 git push        # skip every lane
+git push --no-verify          # skip the hook entirely
+```
+
+Use them when a lane is broken for reasons unrelated to your change, and say so in the PR — CI
+still runs every gate, so a bypassed push fails there instead. Per-developer overrides go in
+`lefthook-local.yml`, which is gitignored.
 
 ### 7. Open the PR
 
