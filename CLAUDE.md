@@ -2,7 +2,7 @@
 
 # ai-badger
 
-Agent-instruction framework distributed as a Claude Code plugin. Pure-stdlib Python 3.8+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. Two .mjs helper scripts under skills/maintain-agent-instructions/.
+Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. Stdlib-only except jsonschema and pyyaml (scripts/requirements.txt); every third-party import is guarded and degrades to a note. Two .mjs helper scripts under skills/maintain-agent-instructions/.
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github

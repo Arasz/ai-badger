@@ -1,4 +1,8 @@
 [tool.pylint.main]
+# The supported floor, matching the CI matrix (3.8, 3.9, 3.10). Declared here rather than in
+# a [project] table because that would introduce a fourth version literal, which ADR-0001
+# exists to prevent. pylint enforces it: newer syntax fails the lint gate.
+py-version = "3.8"
 # jsonschema is a real runtime dependency (see scripts/requirements.txt). Some lint
 # environments run without it installed, which would otherwise spuriously raise
 # import-error (E0401) on `import jsonschema`.
