@@ -48,7 +48,6 @@ metadata:
 > the generic phases. Project-specific checks (incident lessons, project
 > conventions) go in `project-local.md` and are appended automatically.
 
-<!-- MERGE_EXTENSIONS -->
 
 ---
 
@@ -63,8 +62,6 @@ metadata:
 - [ ] **No unjustified warning suppressions** — every suppression must have a tracked TODO or documented reason
 - [ ] **VERSION bumped** — if this is a release, the version has been bumped (semver) and a changelog entry exists
 - [ ] **One PR = one task** — the PR does not bundle unrelated changes
-
-<!-- EXT:pre-takeoff -->
 
 ---
 
@@ -100,8 +97,6 @@ metadata:
   Avoid catch-all `Services/`, `Controllers/`, `Utils/` buckets.
 - [ ] **Shared technical chassis is the only exception** — logging, DI wiring,
   cross-cutting middleware may use generic names.
-
-<!-- EXT:architecture -->
 
 ---
 
@@ -147,8 +142,6 @@ metadata:
 - [ ] **Import paths are accurate** — all referenced modules, components, and
   utilities exist at the paths used in import statements.
 
-<!-- EXT:cross-cutting -->
-
 ---
 
 ## Phase 4: Backend Runtime Behavior (Concurrency, Errors)
@@ -172,8 +165,6 @@ metadata:
 
 - [ ] **Problem type URIs / error codes are consistent** — the error identifier
   used by the backend must match what the client checks. Drift = silent failures.
-
-<!-- EXT:backend-runtime -->
 
 ---
 
@@ -200,7 +191,16 @@ metadata:
   changes, the test fixtures must update too. Wrong fixtures = tests pass
   against phantom data.
 
-<!-- EXT:contract -->
+## ts: TypeScript Quality
+- [ ] **No `any` types in application code** — zero tolerance
+- [ ] **No `as` type assertions except for `JSON.parse` and `event.target.value`**
+  — unsafe `as` casts bypass type checking
+- [ ] **Route params are type-safe** — use `z.string().parse(param)` or a
+  guard clause that returns early. No eslint-disable on route params.
+- [ ] **Types are explicitly defined** — every type referenced in an API call
+  must have a corresponding interface/type definition (not inline any).
+- [ ] **Client types mirror backend record types** — field names, optionality,
+  nesting all match. Enum values use the wire format.
 
 ---
 
@@ -214,8 +214,6 @@ metadata:
   modules share ~70 lines of identical logic, extract it.
 - [ ] **Bulk operations consider parallelism** — sequential processing of 10+
   items is slow. Document why sequential is required or use concurrent execution.
-
-<!-- EXT:patterns -->
 
 ---
 
@@ -233,8 +231,6 @@ metadata:
 - [ ] **Nav links have aria-current="page" on active state**
 - [ ] **External links have target="_blank" rel="noopener"**
 
-<!-- EXT:accessibility -->
-
 ---
 
 ## Phase 8: Orchestration & Async Patterns
@@ -245,8 +241,6 @@ metadata:
   functions. Activities/workers do the I/O.
 - [ ] **Retry loops are bounded** — every retry, poller, or concurrency gate
   has an explicit finite cap. An unbounded loop is a standing availability/cost risk.
-
-<!-- EXT:orchestration -->
 
 ---
 
@@ -261,8 +255,6 @@ metadata:
 - [ ] **Infrastructure definitions updated** — if new resources were added
   (database tables, containers, queues, storage)
 - [ ] **Issues closed with PR reference comments** — traceability maintained
-
-<!-- EXT:post-merge -->
 
 ---
 

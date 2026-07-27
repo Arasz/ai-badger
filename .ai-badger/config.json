@@ -1,6 +1,6 @@
 {
   "$schema": "../schemas/config.schema.json",
-  "frameworkVersion": "0.35.0",
+  "frameworkVersion": "0.35.2",
   "project": {
     "name": "ai-badger",
     "summary": "Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. Stdlib-only except two declared dependencies (scripts/requirements.txt): jsonschema is required — validation refuses rather than silently passing — and pyyaml is optional, guarded, and degrades to a printed note. Two .mjs helper scripts under skills/maintain-agent-instructions/.",
@@ -10,7 +10,11 @@
   "stacks": [
     "python",
     "js",
-    "github"
+    "github",
+    "claude",
+    "hermes",
+    "ts",
+    "node"
   ],
   "agents": [
     "claude",

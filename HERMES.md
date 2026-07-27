@@ -5,8 +5,8 @@
 Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. Stdlib-only except two declared dependencies (scripts/requirements.txt): jsonschema is required — validation refuses rather than silently passing — and pyyaml is optional, guarded, and degrades to a printed note. Two .mjs helper scripts under skills/maintain-agent-instructions/.
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
-> Stacks: python, js, github
-> Scaffolded by ai-badger 0.35.0. Source of truth for this file: `.ai-badger/HERMES.md`.
+> Stacks: python, js, github, claude, hermes, ts, node
+> Scaffolded by ai-badger 0.35.2. Source of truth for this file: `.ai-badger/HERMES.md`.
 
 ## Non-negotiable invariants
 
@@ -71,6 +71,9 @@ Before editing matching files, read the applicable scoped instruction file:
 - `documentation.instructions.md` → `.ai-badger/instructions/documentation.instructions.md`
 - `python.instructions.md` → `.ai-badger/instructions/python.instructions.md`
 - `javascript.instructions.md` → `.ai-badger/instructions/javascript.instructions.md`
+- `hermes.instructions.md` → `.ai-badger/instructions/hermes.instructions.md`
+- `typescript.instructions.md` → `.ai-badger/instructions/typescript.instructions.md`
+- `node.instructions.md` → `.ai-badger/instructions/node.instructions.md`
 
 ## Agent delegation
 
