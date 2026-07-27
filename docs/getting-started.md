@@ -267,6 +267,41 @@ by filesystem convention. Each carries a header:
 <!-- Managed by ai-badger. Source of truth: .ai-badger/CLAUDE.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
 ```
 
+### Preserved regions
+
+A managed file is regenerated in full on every re-scaffold, so anything you add to it is
+dropped. To keep a block of your own in one, wrap it in keep markers:
+
+```markdown
+<!-- ai-badger:keep-start -->
+
+- `api-routes.instructions.md` → `.github/instructions/api-routes.instructions.md` — project-owned.
+
+<!-- ai-badger:keep-end -->
+```
+
+Every marked block is carried into the regenerated file verbatim, in the order you wrote them,
+and the scaffold reports `note: carried preserved regions into <file>`. The rules:
+
+- **Where they land.** At the end of the file. The templates have no anchors to re-seat a block
+  at, so position is not preserved — only content and relative order.
+- **Which files.** Every file the scaffolder generates from an agent template: `CLAUDE.md`,
+  `HERMES.md`, `.hermes.md`, `.junie/AGENTS.md`, `.github/copilot-instructions.md`, the scoped
+  `.github/instructions/*.md`, and their `.ai-badger/` source-of-truth copies — the source of
+  truth on the same terms as the copy, so the two cannot drift the way they used to. All are
+  Markdown, which is why an HTML comment works as the marker in all of them; a non-Markdown
+  agent file would need a marker in its own comment syntax and does not get one for free.
+- **Content is never interpreted.** A block that points at a section the template no longer has
+  is carried anyway, still pointing at nothing. Fixing that is yours.
+- **Malformed markers cost nothing.** A `keep-start` with no `keep-end`, a stray `keep-end`, or a
+  nested pair means the file is *not rewritten at all* — it stays exactly as you left it and the
+  scaffold says why: `note: <file> left untouched — ai-badger:keep-start at line 42 has no
+  matching keep-end; fix the markers and re-run to refresh it`. A typo can cost you a refresh,
+  never your content.
+- **Removing a block** means deleting the markers. `--overwrite-agent-files` does not discard
+  preserved regions; it governs whole-file preservation of *unmarked* hand-authored files.
+- **Fresh scaffolds** have no prior file to read, so nothing is carried and no markers are added.
+
 ### Review this before you commit
 
 - **`CLAUDE.md`** — read it top to bottom once. It is what your agent reads on every turn.

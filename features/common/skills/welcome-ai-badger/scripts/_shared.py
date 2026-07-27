@@ -5,6 +5,7 @@ domain modules (extensions.py, template_rendering.py, etc.).
 """
 from __future__ import annotations
 
+import re
 import shutil
 from typing import Any, Dict, List
 
@@ -23,6 +24,60 @@ MANAGED_HEADER = (
 
 # Stable leading text every managed copy begins with (the part before the {name} slot).
 _MANAGED_PREFIX = MANAGED_HEADER.split("{name}", 1)[0]
+
+# Preserved regions: the project-authored opt-out from the managed header above. Every file
+# the managed header goes on is Markdown, so an HTML comment is the marker in all of them.
+_KEEP_START_RE = re.compile(r"^\s*<!--\s*ai-badger:keep-start\s*-->\s*$")
+_KEEP_END_RE = re.compile(r"^\s*<!--\s*ai-badger:keep-end\s*-->\s*$")
+
+
+class MalformedKeepRegion(ValueError):
+    """A file's keep markers are unbalanced or nested, so its regions cannot be read."""
+
+
+def extract_keep_regions(text: str) -> List[str]:
+    """Return each keep-start/keep-end block of `text` verbatim, markers included, in order.
+
+    Raises MalformedKeepRegion rather than guessing: a caller that cannot read the regions
+    must refuse to rewrite the file (docs/getting-started.md, "Preserved regions").
+    """
+    regions: List[str] = []
+    current: List[str] = []
+    open_at = 0
+    for num, line in enumerate(text.splitlines(), 1):
+        if _KEEP_START_RE.match(line):
+            if open_at:
+                raise MalformedKeepRegion(
+                    f"ai-badger:keep-start at line {num} opens inside the region opened "
+                    f"at line {open_at}"
+                )
+            current, open_at = [line], num
+        elif _KEEP_END_RE.match(line):
+            if not open_at:
+                raise MalformedKeepRegion(
+                    f"ai-badger:keep-end at line {num} has no matching keep-start"
+                )
+            current.append(line)
+            regions.append("\n".join(current))
+            current, open_at = [], 0
+        elif open_at:
+            current.append(line)
+    if open_at:
+        raise MalformedKeepRegion(
+            f"ai-badger:keep-start at line {open_at} has no matching keep-end"
+        )
+    return regions
+
+
+def carry_keep_regions(existing: str, body: str) -> str:
+    """Return `body` with every keep region of `existing` appended verbatim, in order.
+
+    Regions land at the end because the templates carry no anchors to re-seat them at.
+    """
+    regions = extract_keep_regions(existing)
+    if not regions:
+        return body
+    return body.rstrip("\n") + "\n\n" + "\n\n".join(regions) + "\n"
 
 
 def cfg_get(config: Dict[str, Any], dotted: str) -> Any:
