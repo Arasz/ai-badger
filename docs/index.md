@@ -47,7 +47,8 @@
 | Document | What it covers |
 |---|---|
 | [reviews/2026-07-26-full-project-review.md](reviews/2026-07-26-full-project-review.md) | Eight-lens parallel code review of 0.18.1 with every Critical verified against the code; confirmed/downgraded/rejected verdicts, themes, and strengths worth preserving |
-| [plans/2026-07-26-remediation-plan.md](plans/2026-07-26-remediation-plan.md) | Wave-structured remediation plan derived from that review — execution order, dependency graph, agent dispatch queue, and per-package TDD entry points |
+| [plans/2026-07-26-remediation-plan.md](plans/2026-07-26-remediation-plan.md) | Wave-structured remediation plan derived from that review — execution order, dependency graph, agent dispatch queue, and per-package TDD entry points. Waves 1–5 landed as 0.19.0–0.23.0 |
+| [plans/2026-07-27-deferred-work-plan.md](plans/2026-07-27-deferred-work-plan.md) | Waves 6–10: the work that plan deferred on purpose — Scaffolder decomposition, one framework-root definition, a feature-type registry, the hardening pass, and scanning the outbound publish path |
 
 ## Incidents
 
