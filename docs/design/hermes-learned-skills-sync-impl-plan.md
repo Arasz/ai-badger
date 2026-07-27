@@ -1,7 +1,7 @@
 # Hermes Learned-Skills Sync — TDD Implementation Plan
 
 **Date:** 2026-07-26
-**Status:** Ready for implementation
+**Status:** Implemented in 0.18.0 — kept as the design record, not a plan
 **Issue:** #67
 **Research:** `docs/research/hermes-learned-skills-sync.md` (read it first — this plan assumes
 its corrections C1–C10)

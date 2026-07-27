@@ -1,4 +1,4 @@
-# ADR-0002: MCP Tool Index with Tag + Intent Semantic Matching
+# ADR-0004 — MCP Tool Index with Tag + Intent Semantic Matching
 
 **Date:** 2026-07-22
 **Status:** Accepted

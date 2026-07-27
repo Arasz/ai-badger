@@ -16,7 +16,12 @@ python3 -m pip install -r scripts/requirements.txt   # jsonschema
 |--------|--------------|-----|
 | `index_build.py` | Rebuild `index.json` from the `features/` catalog (source of truth). | `python3 scripts/index_build.py` — add `--check` to fail if stale (CI). |
 | `validate.py` | Validate config / catalog JSON against `schemas/`. | `python3 scripts/validate.py --all` or `--kind config <file>`. |
-| `badger_lib.py` | Shared helpers (root discovery, JSON load/dump, sha256, index read). Imported by the other scripts; not run directly. | — |
+| `badger_lib.py` | Shared helpers (root discovery, atomic JSON write, sha256, index read). Imported by the other scripts; not run directly. | — |
+| `version_sync.py` | Propagate `VERSION` into `plugin.json`, `marketplace.json`, `index.json`. | `python3 scripts/version_sync.py` — `--check` fails CI on mismatch. |
+| `release_guard.py` | Fail if the shipped surface changed since the last release tag without a `VERSION` bump. | `python3 scripts/release_guard.py` (needs `fetch-depth: 0` in CI). |
+| `sync_plugin_skills.py` | Refresh the published `.claude/skills/` copy from `features/`. | `python3 scripts/sync_plugin_skills.py` — `--check` fails on divergence. |
+| `install_plugins.py` | Resolve per-agent skill install commands from `plugins-instructions.json`. Print-only; `scaffold.py --execute` runs them. | `python3 scripts/install_plugins.py --config <config.json>` |
+| `drift.py` (in `welcome-ai-badger`) | Compare a scaffold against the framework's current content. | See den-refresh. |
 
 ## welcome-ai-badger (`features/common/skills/welcome-ai-badger/scripts/`)
 

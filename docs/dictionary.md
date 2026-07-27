@@ -11,7 +11,7 @@ How ai-badger's concepts map to each supported agent's native terminology.
 | **Skill source** (`skills-source.json`) | Plugin marketplace | Skills Hub / GitHub tap / well-known endpoint | N/A | N/A |
 | **Skill installation** (`plugins-instructions.json`) | `claude plugin install` | `hermes skills install` / `hermes skills tap add` | N/A | N/A |
 | **Skill scope** (`skillScope`) | `default` / `local` / `user` | Profile-level (`~/.hermes/skills/`) or external dir | N/A | N/A |
-| **Skill extension** (`skills/{base}-extensions/`) | Plugin override | Skill patch | N/A | N/A |
+| **Skill extension** (`<skill>/extensions/<name>/`) | Plugin override | Skill patch | N/A | N/A |
 
 ## Hooks
 

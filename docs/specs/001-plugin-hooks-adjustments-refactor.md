@@ -1,6 +1,6 @@
 # Specification: Skills Sources, Hooks, and Adjustments Refactor
 
-**Status:** Ready for implementation  
+**Status:** Implemented in 0.7.0 — kept as the design record, not a plan  
 **Date:** 2026-07-24  
 **Spec review:** Completed — all critical/medium/low findings addressed (see §14).
 

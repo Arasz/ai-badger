@@ -108,7 +108,7 @@ activate, what commands to run) is derived from it.
   "sourceControl": { "platform": "github", "repoUrl": "https://github.com/Arasz/arasz-home-page", "projectUrl": null },
   "commands": { "build": "bun run build", "test": "bun run test", "lint": "bun run lint", "run": "bun run dev" },
   "personaRouting": [ { "work": "frontend UI/UX", "agent": "frontend-engineer" } ],
-  "pluginScope": "default",
+  "skillScope": "default",
   "docs": { "architecture": "docs/…" }
 }
 ```
@@ -138,7 +138,7 @@ additions.
   "frameworkVersion": "0.1.0",
   "generatedAt": "…",
   "agents": ["claude", "copilot"],
-  "pluginScope": "default",
+  "skillScope": "default",
   "entries": [
     { "feature": "skills",  "stack": "common", "name": "task",             "source": "features/common/skills/task",       "target": ".ai-badger/skills/task",               "frameworkVersion": "0.1.0", "hash": "…" },
     { "feature": "personas","stack": "react",  "name": "frontend-engineer","source": "react/personas/frontend-engineer.md","target": ".ai-badger/agents/frontend-engineer.md","frameworkVersion": "0.1.0", "hash": "…" }
