@@ -1,7 +1,18 @@
 # Session checkpoint — 2026-07-27
 
 State at the point the session approached its limit, so the next session can resume without
-re-deriving anything. Delete this file once the outstanding work below is picked up.
+re-deriving anything.
+
+> **Updated 2026-07-27.** Step 2 of the documentation work — the refactor — is **done**
+> (branch `task/docs-refactor`). Step 3 is now sized as **Wave 19** in
+> [`2026-07-27-deferred-work-plan.md`](2026-07-27-deferred-work-plan.md). What this file still
+> carries that is not recorded elsewhere is the **conventions section at the bottom** and the
+> **full gate command list**; those have since been written up properly in
+> [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md). Once Wave 19 lands, this file can go.
+>
+> Two details below are now out of date: PR #89 merged as `b9509f2`, and `docs/` no longer holds
+> `known-gaps.md` or `codebase-analysis-report.md` at top level — both are in
+> [`../archive/`](../archive/README.md).
 
 ## Where the code is
 
@@ -37,13 +48,17 @@ constraints (Wave 11's ADR gates 7 and 16; Wave 17 must follow 7 and 8).
 
 ## Outstanding: the documentation work (user-requested, mid-flight)
 
-The user asked for three things, in order. **Step 1 is done; steps 2 and 3 are not started.**
+The user asked for three things, in order. **Steps 1 and 2 are done; step 3 is planned as Wave 19.**
 
 1. ✅ **Research** — best-practice docs structure, what to document in OSS, contribution guides
    and enforcement. Complete: `docs/research/2026-07-27-docs-structure-and-contribution.md`.
-2. ⬜ **Refactor the docs** against the current project state, using that research.
+2. ✅ **Refactor the docs** against the current project state, using that research. Done on
+   `task/docs-refactor`: `SECURITY.md`, `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` added at the
+   repo root; `docs/index.md` regrouped by reader intent; three superseded records moved to
+   `docs/archive/`; every remaining point-in-time document verified against the code and dated.
 3. ⬜ **Keep docs in sync with the project from then on** — an ongoing enforcement mechanism,
-   not a one-off.
+   not a one-off. **Sized as Wave 19** in `docs/plans/2026-07-27-deferred-work-plan.md`, with the
+   concrete rot the refactor found as its justification.
 
 ### What the refactor has to contend with
 

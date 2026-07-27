@@ -30,6 +30,7 @@ two things.
 | 16 | Rename top-level `scripts/` | architecture S1 | planned — **ADR first, after 11** |
 | 17 | Split `badger_lib.py` | architecture S2 | planned — after 7 and 8 |
 | 18 | gitleaks/trufflehog in CI | security sugg. 6 | planned |
+| 19 | Keep docs in sync with the code — a `docs_guard` and its CI step | docs refactor, step 3 | planned |
 
 ## Recommended execution order
 
@@ -388,6 +389,69 @@ fake credential and confirming the job fails — the same way Wave 5's `tdd_guar
 moment of publishing, the other scans history. Different doors.
 
 **Release:** patch bump.
+
+---
+
+## Wave 19 — keep the docs in sync with the code
+
+**Added 2026-07-27** by the documentation refactor
+(`task/docs-refactor`). Not from the review's §7 — it is step 3 of the three-step documentation
+request recorded in [`2026-07-27-session-checkpoint.md`](2026-07-27-session-checkpoint.md).
+Step 1 (research) and step 2 (the refactor) are done; this is the ongoing enforcement mechanism
+that stops the tree rotting again.
+
+**Why it is a wave and not part of the refactor PR.** The refactor was documents only, on purpose.
+This is CI configuration plus a new gate script plus, probably, an initial finding backlog — the
+same shape as Wave 18, and it deserves the same separation.
+
+**The evidence that it is needed.** Verifying the existing docs against the code for the refactor
+turned up rot that no gate could have caught, because no gate exists:
+
+- `docs/hermes-claude-compatibility.md` quoted a hook command path
+  (`${CLAUDE_PLUGIN_ROOT}/skills/task/scripts/…`) that had been wrong since the catalog moved
+  under `features/common/`. A **dead-path check** would have caught it the day it broke.
+- `docs/audit-symlink-hermes-skills.md` cites `scaffold.py:772-800` in a 715-line file, and
+  `docs/archive/2026-07-26-codebase-analysis-report.md` names two test functions that no longer
+  exist. **Line-number and symbol citations rot silently.**
+- `docs/known-gaps.md` sat at the top of `docs/` for seventeen minor releases advertising itself
+  as the honest gap list. **A document with no freshness signal cannot be spotted as stale.**
+
+| WP | Work | Files |
+|---|---|---|
+| **WP57** | `scripts/docs_guard.py`: fail when a Markdown file under `docs/` (or a root community-health file) references a repository path that does not exist. Backtick-quoted paths and Markdown links both count. This is the highest-yield check and needs no external dependency | `scripts/docs_guard.py`, `tests/test_docs_guard.py` |
+| **WP58** | Extend it to relative Markdown links between docs, so a future move breaks the build rather than the reader | same |
+| **WP59** | Add **lychee** for external URLs, on a schedule rather than per-PR — external links fail for reasons a contributor cannot fix, so a per-PR gate on them is a tax | `.github/workflows/` |
+| **WP60** | Add **markdownlint** with a deliberately small rule set, and mirror it in `.pre-commit-config.yaml` — the sourced guidance is that local hooks, not CI, are what make writers internalise the rules | `.pre-commit-config.yaml`, `.github/workflows/` |
+| **WP61** | Decide on **Vale** separately. Prose linting has a much worse signal-to-noise ratio than link checking at this size, and is the easiest piece to skip | — |
+
+**TDD entry point:** `tests/test_docs_guard.py::test_a_doc_referencing_a_missing_path_fails` —
+write a fixture doc citing `scripts/does_not_exist.py` and assert a non-zero exit. Then
+`test_a_doc_referencing_a_real_path_passes`.
+
+**Constraints.**
+
+- **Do not make it a required check until the existing backlog is clear**, or every unrelated PR
+  turns red on inherited debt. Same lesson as Wave 18's baseline.
+- **Archived documents must be exempt.** `docs/archive/` deliberately preserves references to
+  paths that no longer exist — that is the point of an archive. Exempt the directory outright
+  rather than annotating each file.
+- **Do not gate on line numbers.** A citation like `scaffold.py:772` is *usefully* wrong — it
+  tells you the file moved — and any check strict enough to catch it will be noisy enough to be
+  disabled. Prefer symbol names over line numbers in new docs and leave the old ones alone.
+
+**Two corrections this wave should fold in**, both found while verifying documents for the
+refactor and both left unfixed there because this plan is off-limits to a documents-only change:
+
+- The **Status table above lists Wave 14 as `planned`**. It shipped as **0.27.0 (#88)** —
+  `docs/changelog/0.27.0-one-extension-mechanism.md` and
+  `docs/adr/0006-one-skill-extension-mechanism.md` are both in the tree, and
+  `find features -name "*-extensions"` returns nothing. The Wave 14 section heading is likewise
+  missing its ✅.
+- **Wave 11's ADR cannot be 0005.** That number and 0006 were consumed by Waves 13 and 14. The
+  packaging ADR must be **0007**.
+
+**Release:** patch bump when the gate script lands; the CI-only work packages are not shipped
+surface and `release_guard` will say so.
 
 ---
 
