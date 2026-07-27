@@ -9,10 +9,13 @@ config files (.mcp.json, ~/.hermes/config.yaml, ~/.claude/settings.json,
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 
 
 def _config(stacks=None, agents=None, external_tools=None):
@@ -785,3 +788,107 @@ def test_copilot_config_uses_copilot_overrides(tmp_path, load_script, root):
     cfg = json.loads(
         (target / ".github" / "copilot" / "mcp-config.json").read_text(encoding="utf-8"))
     assert cfg["mcpServers"]["fs"]["command"] == "copilot-resolved"
+
+
+# ── how each destination renders one server (WP46 characterisation) ───────────
+
+def _no_user_tool_dirs(monkeypatch, load_script):
+    """Empty USER_TOOL_DIRS so these cases exercise splitting, not the ${HOME} rewrite."""
+    load_script(SCAFFOLD)
+    monkeypatch.setattr(sys.modules["mcp_tools"], "USER_TOOL_DIRS", ())
+
+
+def _render_everywhere(tmp_path, load_script, server, home):
+    """Render *server* into all four destinations; return their entries for it."""
+    yaml = pytest.importorskip("yaml")
+    scaffold = load_script(SCAFFOLD)
+    target = tmp_path / "proj"
+    target.mkdir(exist_ok=True)
+    _write_mcp_servers(tmp_path / "features" / "python", [server])
+    by_name = {server["name"]: server}
+
+    with patch("pathlib.Path.home", return_value=home):
+        scaf = _scaf(scaffold, tmp_path, target,
+                     _config(stacks=["python"], agents=["claude", "copilot", "hermes"]))
+        scaf._generate_mcp_json()
+        scaf._generate_copilot_mcp_config(by_name)
+        scaf._scaffold_claude_mcp_user(by_name)
+        scaf._scaffold_hermes_mcp_user(by_name)
+
+    name = server["name"]
+
+    def _json_entry(path):
+        return json.loads(path.read_text(encoding="utf-8"))["mcpServers"][name]
+
+    return {
+        "mcp_json": _json_entry(target / ".mcp.json"),
+        "copilot": _json_entry(target / ".github" / "copilot" / "mcp-config.json"),
+        "claude_user": _json_entry(home / ".claude" / "settings.json"),
+        "hermes_user": yaml.safe_load(
+            (home / ".hermes" / "config.yaml").read_text(encoding="utf-8"))["mcp"]["servers"][name],
+    }
+
+
+_SPLIT_CASES = [
+    # command, .mcp.json entry (minus cwd), entry in every other destination
+    ("uvx mcp-server-pyright",
+     {"command": "uvx", "args": ["mcp-server-pyright"]},
+     {"command": "uvx", "args": ["mcp-server-pyright"]}),
+    ("npx -y @modelcontextprotocol/server-github",
+     {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"]},
+     {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"]}),
+    ("node /opt/mcp/server.js",
+     {"command": "node", "args": ["/opt/mcp/server.js"]},
+     {"command": "node", "args": ["/opt/mcp/server.js"]}),
+    # No package-shaped argument: .mcp.json keeps the whole string, the others split it.
+    ("echo v2", {"command": "echo v2"}, {"command": "echo", "args": ["v2"]}),
+    ("hermes mcp serve",
+     {"command": "hermes mcp serve"},
+     {"command": "hermes", "args": ["mcp", "serve"]}),
+    ("pyright-mcp", {"command": "pyright-mcp"}, {"command": "pyright-mcp"}),
+]
+
+
+@pytest.mark.parametrize("command,in_mcp_json,elsewhere", _SPLIT_CASES)
+def test_the_two_command_splitters_agree_or_are_documented_to_differ(
+        command, in_mcp_json, elsewhere, tmp_path, monkeypatch, load_script, root):
+    """.mcp.json splits a command only on package-shaped args; every other destination splits on whitespace."""
+    _no_user_tool_dirs(monkeypatch, load_script)
+    home = tmp_path / "home"
+    home.mkdir()
+
+    entries = _render_everywhere(
+        tmp_path, load_script, {"name": "srv", "command": command}, home)
+
+    assert {k: v for k, v in entries.pop("mcp_json").items() if k != "cwd"} == in_mcp_json
+    for destination, entry in entries.items():
+        assert entry == elsewhere, destination
+
+
+def test_only_mcp_json_pins_the_project_cwd(tmp_path, monkeypatch, load_script, root):
+    """The other three configs are read by agents that supply their own working directory."""
+    _no_user_tool_dirs(monkeypatch, load_script)
+    home = tmp_path / "home"
+    home.mkdir()
+
+    entries = _render_everywhere(
+        tmp_path, load_script,
+        {"name": "srv", "command": "uvx mcp-server-pyright"}, home)
+
+    assert entries.pop("mcp_json")["cwd"] == str(tmp_path / "proj")
+    for destination, entry in entries.items():
+        assert "cwd" not in entry, destination
+
+
+def test_env_reaches_every_destination(tmp_path, monkeypatch, load_script, root):
+    _no_user_tool_dirs(monkeypatch, load_script)
+    home = tmp_path / "home"
+    home.mkdir()
+
+    entries = _render_everywhere(
+        tmp_path, load_script,
+        {"name": "srv", "command": "uvx mcp-server-pyright",
+         "env": {"TOKEN": "not-a-real-token"}}, home)
+
+    for destination, entry in entries.items():
+        assert entry["env"] == {"TOKEN": "not-a-real-token"}, destination

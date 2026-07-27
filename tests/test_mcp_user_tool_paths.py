@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -179,3 +180,40 @@ def test_copilot_config_keeps_the_bare_command(tmp_path, monkeypatch, load_scrip
     cfg = json.loads(
         (target / ".github" / "copilot" / "mcp-config.json").read_text(encoding="utf-8"))
     assert cfg["mcpServers"]["roslyn"]["command"] == "cwm-roslyn-navigator"
+
+
+def _user_scoped_roslyn(tmp_path, monkeypatch, load_script, agent):
+    """Install a user-tool-dir command, then scaffold it into *agent*'s user-level config."""
+    dotnet, _ = _fake_tool_dirs(monkeypatch, load_script, tmp_path)
+    _install(dotnet, "cwm-roslyn-navigator")
+    scaffold = load_script(SCAFFOLD)
+    target = tmp_path / "proj"
+    target.mkdir(exist_ok=True)
+    home = tmp_path / "home"
+    home.mkdir()
+    server = {"roslyn": {"name": "roslyn", "command": "cwm-roslyn-navigator", "scope": "user"}}
+
+    with patch("pathlib.Path.home", return_value=home):
+        scaf = _scaf(scaffold, tmp_path, target, _config(agents=[agent]))
+        if agent == "claude":
+            scaf._scaffold_claude_mcp_user(server)
+        else:
+            scaf._scaffold_hermes_mcp_user(server)
+    return home
+
+
+def test_claude_user_settings_keep_the_bare_command(tmp_path, monkeypatch, load_script):
+    """Only .mcp.json documents ${VAR} expansion — ~/.claude/settings.json gets the bare command."""
+    home = _user_scoped_roslyn(tmp_path, monkeypatch, load_script, "claude")
+
+    settings = json.loads((home / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert settings["mcpServers"]["roslyn"]["command"] == "cwm-roslyn-navigator"
+
+
+def test_hermes_user_config_keeps_the_bare_command(tmp_path, monkeypatch, load_script):
+    """~/.hermes/config.yaml has no documented ${VAR} expansion either."""
+    yaml = pytest.importorskip("yaml")
+    home = _user_scoped_roslyn(tmp_path, monkeypatch, load_script, "hermes")
+
+    cfg = yaml.safe_load((home / ".hermes" / "config.yaml").read_text(encoding="utf-8"))
+    assert cfg["mcp"]["servers"]["roslyn"]["command"] == "cwm-roslyn-navigator"
