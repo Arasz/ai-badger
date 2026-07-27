@@ -4,8 +4,8 @@ Point-in-time record, written at 17:37 CEST. Supersedes
 [`2026-07-27-session-checkpoint-2.md`](2026-07-27-session-checkpoint-2.md) for anything that
 disagrees; that file keeps the detail on 0.32.0/0.33.0 and the ADR-0007 consequences.
 
-**State:** `main` @ `773dec9`, VERSION `0.33.0`, last tag `ai-badger--v0.33.0`.
-**20 commits are merged and unreleased.** 1106 tests passing on `main`, all ten gates green.
+**State (updated 20:50):** `main` @ `ef35fe3`, VERSION `0.33.0`, last tag `ai-badger--v0.33.0`.
+**24 commits merged and unreleased.** 1117 tests passing, all ten gates green, pushed.
 
 ## Released today
 
@@ -52,26 +52,56 @@ mechanics:
 
 **Do not merge Wave 7 until the review reports.** Waves 16 and 17 are queued behind it.
 
-### 2. Issue #104 — den-refresh cannot deliver a new skill
+**The first review attempt died on a session limit having done no work.** Relaunched at 20:50
+with an added instruction to budget effort — run the four-shape verification first, since a
+partial review that actually executed the shapes beats a thorough plan that never ran.
 
-Branch `fix/drift-sees-common-and-templates`, agent still running, **scope was extended
-mid-flight** to cover all three defects in the issue. Shipping only the first achieves nothing
-visible, which is why they are one change:
+### 2. Issue #104 — **fixed and merged**, but it grew
 
-1. `detect_new_items` skips `common` — every framework skill lives in `stacks.common.skills`, so
-   the whole skill catalog is discarded before comparison.
-2. `refresh.py:230` reads `newItems` to gate the re-scaffold, but the report at :254-256 never
-   emits it. The one signal that would have caught this was computed and thrown away.
-3. `refresh.py:127` derives the re-scaffold's skill list from `manifest.entries` — a closed
-   loop. Absent from manifest → absent from the list → never scaffolded → stays absent.
+Merged as `ef35fe3`. All three reported defects fixed, plus one the issue did not know about.
 
-Coupled to it, from Wave 8: **`templates` get no manifest entries at all**, so fixing (1)
-without that makes every template a permanent `new` false positive. The agent may instead land
-`drift_reports_new=False` for templates as an explicit interim — the registry makes it one line.
+- **Defect 1** — `detect_new_items` skipped `common`. Both call sites now pass
+  `bl.resolve_stacks(config)`, with string-normalisation inside for the `commonStacks: "common"`
+  landmine.
+- **Defect 2** — `newItems` is now emitted in the refresh report. One line.
+- **Defect 3** — the re-scaffold's skill list is `manifest skills + bl.default_skills_in(...)`,
+  manifest-first. **Not** `default_skill_names()` as the issue suggested: that includes
+  `auto-wm`, a `claude`-stack skill `scaffold_skills` structurally cannot resolve, so it would
+  emit a "not in index common.skills — skipped" note on every refresh forever.
 
-Open judgement call it was told to make explicit: a union skill list means a **deliberately
-removed** skill comes back, because manifest-absence currently means both "not wanted" and "not
-yet known".
+**The find beyond the brief: `adjustments` was a permanent false positive too, not just
+`templates`.** Index names are `['adjust_agents','adjust_hooks','adjust_skills','adjustment']`
+while manifest names are output paths (`adjustments/.github/agents/architect.agent.md`) — they
+can never match. This matters for projects that list `hermes`/`claude` as *config stacks*, which
+the reporting project does. `DRIFT_NEW_FEATURES` is now exactly
+`("skills", "personas", "invariants", "instructions")` — the four types whose manifest entries
+are keyed by the index item's own name. Templates are now recorded in the manifest (hashing the
+**framework source**, since `drift.compare` hashes the source; recording the rendered target
+would have produced a permanent `changed`).
+
+Guard proved rather than asserted: flipping `adjustments` back on fails
+`test_no_catalog_item_drift_reports_as_new_survives_a_full_scaffold[stacks1]`, parametrised over
+`["python"]` and `["python","hermes"]` — the second is the reporting project's shape. Real drift
+against this repo post-fix: **zero `new` items.**
+
+**Two things for the changelog** (agent's wording, worth keeping):
+
+> The first `den-refresh` after upgrading will report — and install — every default-scope
+> framework skill your project never received, because detection was previously blind to the
+> `common` stack where all of them live.
+
+> **A skill deleted from a project will now come back on the next refresh.** Manifest absence
+> meant both "not wanted" and "not yet known". `welcome-ai-badger` already restored deleted
+> default skills on every run, so removal-by-absence only ever "worked" in den-refresh — the
+> divergence between the two entry points *was* the bug. The supported opt-out is
+> `badger_lib.SKILL_SCOPES` (`opt-in` scope), not deleting the directory.
+
+**New follow-up it surfaced, unfixed:** `drift.py` reports **22 permanent `changed` entries** for
+`features/{copilot,hermes}/adjustments/*.py` on this repo. `run_adjustments` records
+`hash = sha256(written output)` while `source` is the adjustment *script*, so `compare` hashes
+the script and never matches. Pre-existing on `main`, same bug class as the ones just fixed,
+deserves its own issue. Also still open: hooks and adjustments get no manifest entries at all —
+turning `drift_reports_new` off removes the false positive but leaves them without provenance.
 
 ### 3. `call-behaviorist analyze` is measuring the wrong things — **three** defects
 
@@ -128,7 +158,7 @@ must still be reported. The fix must mute the false alarms without muting the re
 | **#76** Hermes hooks receive no `cwd` | **closed** — fixed in 0.18.0, left open by oversight |
 | **#67** sync Hermes learned skills | **closed** — delivered in 0.18.0; its question-5 assumption corrected on close |
 | **#103** skills invisible to Claude Code | **closed** — both causes merged, unreleased |
-| **#104** den-refresh cannot deliver a new skill | **open** — fix in flight, see above |
+| **#104** den-refresh cannot deliver a new skill | **fixed and merged** (`ef35fe3`), unreleased — close it once released |
 
 No open PRs. **13 merged remote branches** could be pruned; offered twice, not actioned, because
 it is outward-facing.
