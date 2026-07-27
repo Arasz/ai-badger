@@ -69,8 +69,16 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         }
         source_event = event_map.get(copilot_event, copilot_event)
 
-        # Get hook config from source or generate
+        # Get this hook's own command from the source, or generate one
         source_event_hooks = source_hooks.get("hooks", {}).get(source_event, [])
+        script = copilot_entry.get("script")
+        if script:
+            source_event_hooks = [
+                dict(entry, hooks=[h for h in entry.get("hooks", [])
+                                   if h.get("command", "").rstrip('"').endswith(script)])
+                for entry in source_event_hooks
+            ]
+            source_event_hooks = [e for e in source_event_hooks if e["hooks"]]
         if source_event_hooks:
             # Rewrite paths from framework to scaffolded project
             entries = []

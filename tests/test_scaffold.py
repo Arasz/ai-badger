@@ -518,7 +518,7 @@ def test_scaffold_wires_claude_hooks_into_settings_json(tmp_path, load_script, r
     assert "hooks" in settings
 
     hooks = settings["hooks"]
-    # SessionStart hook (drift-notice) should be wired
+    # SessionStart hook (session-start-tracking) should be wired
     assert "SessionStart" in hooks
     # UserPromptSubmit hook (prompt-markers) should be wired
     assert "UserPromptSubmit" in hooks
@@ -535,6 +535,64 @@ def test_scaffold_wires_claude_hooks_into_settings_json(tmp_path, load_script, r
     # .ai-badger/hooks/hooks.json should also exist
     hooks_json = target / ".ai-badger" / "hooks" / "hooks.json"
     assert hooks_json.exists(), ".ai-badger/hooks/hooks.json not created"
+
+
+def _wired_scripts(settings: dict, event: str) -> list:
+    """The script each wired command for one event ends in.
+
+    Compared by trailing filename, never by substring of the whole command: a
+    command embeds an absolute path, and under pytest that path carries the test's
+    own name.
+    """
+    return [h.get("command", "").rstrip('"').rsplit("/", 1)[-1]
+            for entry in settings.get("hooks", {}).get(event, [])
+            for h in entry.get("hooks", [])]
+
+
+def test_session_start_hook_is_the_wired_session_start_command(tmp_path, load_script, root):
+    """The scaffolded SessionStart hook must be session_start_hook.py itself (F-07).
+
+    Asserting only that *some* SessionStart hook exists is what let a hook that cannot
+    resolve its plugin root in a consumer pass as the session-recording feature.
+    """
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaffold.Scaffolder(root=root, target=target, config=_config(agents=["claude"]),
+                        skills=["task"], install=False).run(generated_at="2026-07-24T00:00:00Z")
+
+    settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    scripts = _wired_scripts(settings, "SessionStart")
+    assert "session_start_hook.py" in scripts, scripts
+
+
+def test_consumer_settings_do_not_wire_the_plugin_only_drift_hook(tmp_path, load_script, root):
+    """Drift notice runs from the plugin's own hooks.json; a consumer copy can never
+    locate the plugin root, so wiring it there only looks like the feature works (F-07)."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaffold.Scaffolder(root=root, target=target, config=_config(agents=["claude"]),
+                        skills=["task"], install=False).run(generated_at="2026-07-24T00:00:00Z")
+
+    settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert "drift_notice_hook.py" not in _wired_scripts(settings, "SessionStart")
+
+
+def test_plugin_registers_drift_notice_from_its_own_hooks_json(root):
+    """The plugin-provided hooks.json is what actually fires drift notice for consumers."""
+    plugin_hooks = json.loads((root / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+
+    commands = [h["command"]
+                for entry in plugin_hooks["hooks"]["SessionStart"]
+                for h in entry["hooks"]]
+    assert any("${CLAUDE_PLUGIN_ROOT}" in cmd and "drift_notice_hook.py" in cmd
+               for cmd in commands), commands
+    plugin_manifest = json.loads(
+        (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    assert plugin_manifest.get("hooks") == "./hooks/hooks.json"
 
 
 def test_scaffold_hook_wiring_is_idempotent(tmp_path, load_script, root):

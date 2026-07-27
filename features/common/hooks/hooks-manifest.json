@@ -4,9 +4,16 @@
       "name": "drift-notice",
       "description": "Detect framework version drift on session start",
       "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "SessionStart" },
+        "claude": { "type": "plugin-hooks-json", "entry": "hooks.json", "event": "SessionStart", "script": "drift_notice_hook.py" },
         "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "on_session_start" },
-        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "sessionStart" }
+        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "sessionStart", "script": "drift_notice_hook.py" }
+      }
+    },
+    {
+      "name": "session-start-tracking",
+      "description": "Record the session id and transcript, surface unfinished tracked tasks, and start the usage-limit poller",
+      "agents": {
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "SessionStart", "script": "session_start_hook.py" }
       }
     },
     {

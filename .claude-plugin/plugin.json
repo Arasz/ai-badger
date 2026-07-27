@@ -6,5 +6,6 @@
     "name": "Rafał Araszkiewicz",
     "url": "https://github.com/Arasz"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "hooks": "./hooks/hooks.json"
 }

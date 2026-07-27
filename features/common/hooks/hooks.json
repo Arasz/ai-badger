@@ -1,10 +1,14 @@
 {
-  "description": "ai-badger plugin hooks: Tier 1 drift notice (ADR-0001 decision 5) on session start.",
+  "description": "Command shapes for hooks that get rewritten into an agent's own config (.claude/settings.json, .github/hooks/). Paths under ${CLAUDE_PLUGIN_ROOT}/features/common/skills/ are rewritten to the project's .ai-badger/skills/ copy. Each manifest entry selects its command here by its `script` name — Claude deliberately skips drift_notice_hook.py, which is plugin-provided via hooks/hooks.json at the repo root and needs a ${CLAUDE_PLUGIN_ROOT} only the plugin loader substitutes.",
   "hooks": {
     "SessionStart": [
       {
         "matcher": "startup|resume",
         "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/task/scripts/session_start_hook.py\""
+          },
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/task/scripts/drift_notice_hook.py\""
