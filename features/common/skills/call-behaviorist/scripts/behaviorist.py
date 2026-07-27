@@ -30,6 +30,10 @@ DEFAULT_DURATION = "4h"
 DURATION_RE = re.compile(r"^(?:(\d+)h)?(?:(\d+)m)?$")
 MAX_DURATION_SECONDS = 24 * 3600
 
+# The component this tool logs its own lifecycle under. Those records are bookkeeping,
+# never evidence about a hook.
+TOOL_COMPONENT = "call-behaviorist"
+
 
 def parse_duration(text: str) -> int:
     """'4h', '90m', '1h30m', or a bare number of hours -> seconds."""
@@ -64,7 +68,7 @@ def cmd_on(duration: str, project_scoped: bool) -> int:
     where = state["project"] if project_scoped else "every project"
     print(f"debug logging ON for {where}, expires {state['expires_at']}")
     print(f"records: {dl.AUDIT_FILE}")
-    dl.log_event("call-behaviorist", "enabled", project=state["project"], scope=state["scope"])
+    dl.log_event(TOOL_COMPONENT, "enabled", project=state["project"], scope=state["scope"])
     return 0
 
 
@@ -72,7 +76,7 @@ def cmd_off() -> int:
     if not dl.STATE_FILE.exists():
         print("debug logging is already off.")
         return 0
-    dl.log_event("call-behaviorist", "disabled")
+    dl.log_event(TOOL_COMPONENT, "disabled")
     dl.STATE_FILE.write_text(json.dumps({"enabled": False}, indent=2) + "\n", encoding="utf-8")
     print("debug logging OFF.")
     return 0
@@ -116,7 +120,8 @@ def cmd_tail(count: int) -> int:
     return 0
 
 
-ENABLE_HINT = "no records yet — run `behaviorist.py on 4h`, work normally, then analyze again"
+ENABLE_HINT = ("nothing observed yet — run `behaviorist.py on 4h`, work normally, "
+               "then analyze again")
 
 
 def _read_records(project=None):
@@ -137,28 +142,71 @@ def _read_records(project=None):
     return records
 
 
-def _wired_hooks(project) -> dict:
-    """script stem -> absolute path, for every hook wired in .ai-badger/hooks/hooks.json."""
-    found = {}
-    hooks_file = Path(project) / ".ai-badger" / "hooks" / "hooks.json"
+def _evidence(records) -> list:
+    """Records that say something about a hook.
+
+    The tool's own `enabled`/`disabled`/`cleared` lines are bookkeeping: they prove the log
+    exists, never that anything was observed.
+    """
+    return [r for r in records if r.get(dl.KEY_COMPONENT) != TOOL_COMPONENT]
+
+
+SCRIPT_RE = re.compile(r'([^\s"\']+/)?([A-Za-z0-9_\-]+)\.py')
+PROJECT_DIR_VARS = ("${CLAUDE_PROJECT_DIR}", "$CLAUDE_PROJECT_DIR")
+
+# Read in order; a script registered in more than one of them is still one component.
+# The first two are what Claude Code actually runs. The third is ai-badger's own declaration
+# and the only project-level record where hooks register elsewhere (Hermes, Copilot).
+HOOK_SOURCES = (
+    ".claude/settings.json",
+    ".claude/settings.local.json",
+    ".ai-badger/hooks/hooks.json",
+)
+
+
+def _script_path(project, command):
+    """(project-relative name, absolute path) for the script a hook command runs, or None."""
+    match = SCRIPT_RE.search(command)
+    if not match:
+        return None
+    raw = (match.group(1) or "") + match.group(2) + ".py"
+    for var in PROJECT_DIR_VARS:
+        raw = raw.replace(var, str(project))
+    path = Path(raw)
+    if not path.is_absolute():
+        path = Path(project) / path
     try:
-        data = json.loads(hooks_file.read_text(encoding="utf-8"))
+        name = path.resolve().relative_to(Path(project).resolve()).as_posix()
     except (OSError, ValueError):
-        return found
-    for entries in (data.get("hooks") or {}).values():
-        for entry in entries or []:
-            for hook in entry.get("hooks") or []:
-                match = re.search(r'([^\s"\']+/)?([A-Za-z0-9_\-]+)\.py',
-                                  hook.get("command", ""))
-                if match:
-                    found[match.group(2)] = (match.group(1) or "") + match.group(2) + ".py"
+        name = raw
+    return name, path
+
+
+def _wired_hooks(project) -> dict:
+    """project-relative script path -> absolute path, for every registered hook.
+
+    Keyed by path, not filename: two skills can ship the same hook filename, and collapsing
+    them hides one's silence behind the other's excuse.
+    """
+    found = {}
+    for source in HOOK_SOURCES:
+        try:
+            data = json.loads((Path(project) / source).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for entries in (data.get("hooks") or {}).values():
+            for entry in entries or []:
+                for hook in entry.get("hooks") or []:
+                    script = _script_path(project, hook.get("command", ""))
+                    if script:
+                        found.setdefault(script[0], script[1])
     return found
 
 
 def expected_components(project) -> list:
-    """Components a scaffolded project should produce records for.
+    """Components a registered project should produce records for.
 
-    Derived from what is actually wired. A component absent from here is not judged; one
+    Derived from what is actually registered. A component absent from here is not judged; one
     present here and silent is the finding this tool exists for.
     """
     return sorted(_wired_hooks(project))
@@ -176,14 +224,20 @@ def is_instrumented(script_path) -> bool:
         return False
 
 
-def _matches(expected: str, component: str) -> bool:
-    """True when `component` is `expected`, or `expected` qualified by a phase.
+def _component_stem(expected: str) -> str:
+    """The name a wired script logs under: its filename stem, or the name as given."""
+    return expected[:-len(".py")].rsplit("/", 1)[-1] if expected.endswith(".py") else expected
 
-    Observed names may be phase-qualified (`session_start_hook/drift`) while wired names are
-    bare script stems (`session_start_hook`). Matching is on the whole stem, not a prefix
-    fragment, so `hooks/alpha` never satisfies `hooks/never`.
+
+def _matches(expected: str, component: str) -> bool:
+    """True when `component` is `expected`'s stem, or that stem qualified by a phase.
+
+    Observed names may be phase-qualified (`session_start_hook/drift`) while expected names are
+    script paths (`task/scripts/session_start_hook.py`). Matching is on the whole stem, not a
+    prefix fragment, so `hooks/alpha` never satisfies `hooks/never`.
     """
-    return component == expected or component.startswith(expected + "/")
+    stem = _component_stem(expected)
+    return component == stem or component.startswith(stem + "/")
 
 
 def _observed(records) -> dict:
@@ -213,7 +267,7 @@ def analyze(project, expected=None) -> dict:
     """Compare what a project should do against what it was observed doing."""
     wired = _wired_hooks(project) if expected is None else {}
     expected = list(expected if expected is not None else sorted(wired))
-    records = _read_records(project)
+    records = _evidence(_read_records(project))
     observed = _observed(records)
     findings = []
     for name in expected:
@@ -226,7 +280,8 @@ def analyze(project, expected=None) -> dict:
                 "wired but calls no debug logger, so it cannot produce records — "
                 "its silence says nothing about health",
             ))
-        else:
+        elif records:
+            # Vacuous without evidence: with nothing observed, everything is trivially silent.
             findings.append(_finding(
                 "never_observed", name, "high",
                 "wired and instrumented, but produced no record — "
@@ -300,7 +355,7 @@ def cmd_clear() -> int:
     if dl.AUDIT_FILE.exists():
         dl.AUDIT_FILE.write_text("", encoding="utf-8")
         dl._own_only(dl.AUDIT_FILE)  # pylint: disable=protected-access
-    dl.log_event("call-behaviorist", "cleared")
+    dl.log_event(TOOL_COMPONENT, "cleared")
     print("audit log cleared.")
     return 0
 
