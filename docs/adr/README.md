@@ -18,6 +18,7 @@ held two files numbered 0002. That collision was resolved in 0.22.0. One number,
 | [0004](0004-mcp-tool-index.md) | MCP Tool Index with tag + intent semantic matching | Accepted (2026-07-22) | Cutting prompt bloat and improving tool selection by indexing MCP tools instead of injecting every definition every turn |
 | [0005](0005-default-skill-set.md) | One declaration of which skills ship | Accepted (2026-07-27) | Collapsing two hand-maintained skill lists into one source of truth; `code-review-checklist` becomes default |
 | [0006](0006-one-skill-extension-mechanism.md) | One skill extension mechanism | Accepted (2026-07-27) | Two rival ways to extend a skill reduced to one; the legacy layout is now refused at build time rather than silently ignored |
+| [0007](0007-no-python-distribution.md) | ai-badger ships as files, not as a Python distribution | Accepted (2026-07-27) | Why packaging `badger_lib` is declined against all four deployment shapes; what Waves 7, 16 and 17 should therefore do |
 
 ## Writing a new one
 
