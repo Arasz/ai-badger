@@ -68,6 +68,30 @@ version. Comparing against the last release tag rather than the previous commit 
 — it lets several PRs land at one unreleased version without inflating the number, and it is
 the check that would have caught the situation in Context.
 
+**Amendment (2026-07-27, Wave 3): decision 2 was documented and then not operated for 32
+versions.** No tag was cut past `ai-badger--v0.2.0` while `VERSION` advanced to `0.20.0`, so the
+release guard compared every commit against an 18-minor-old baseline, always found changes,
+always found a bumped `VERSION`, and always passed. The guard was structurally incapable of
+failing for the entire period it was credited with protecting.
+
+The decision stands unchanged — tag-per-version, immutable, never re-pointed. What is amended is
+the record of how it broke and what now reports it:
+
+- **A batching policy was explicitly rejected.** Rewriting this ADR to say tags are cut in
+  batches would have described the drift accurately and removed the guard's only baseline.
+  Policy is not amended to match a lapse.
+- **The 32 skipped versions stay untagged.** Retro-tagging would assert they passed
+  RELEASING.md's mandatory content verification. They did not, and inventing a release point is
+  the same error as inventing provenance, rejected under decision 4 for the same reason.
+- **The baseline restarts at `ai-badger--v0.20.0`** (commit `4e89872`), which did pass the full
+  gate set.
+- **`release_guard.py` gained the two signals whose absence made this silent:** a git command
+  that fails now prints `GIT COMMAND FAILED` and exits 1 instead of returning empty output that
+  reads as "nothing changed", and any changelog version between the last tag and `VERSION` is
+  named under `UNTAGGED RELEASES`.
+
+Full account: [docs/incidents/2026-07-27-untagged-releases.md](../incidents/2026-07-27-untagged-releases.md).
+
 ### 3. Semver for a catalog
 
 This ships instructions and scaffolding, not an API, so the usual definitions need restating:
@@ -176,7 +200,9 @@ run in the first place.
 **Good.** A version identifies content, so a bug report can name one. Installs become
 reproducible. Fixes actually ship, because releasing is one action rather than remembering four
 files. The two plugin manifests come under mechanical validation for the first time. The
-release guard makes the failure that produced this ADR impossible to repeat silently.
+release guard makes the failure that produced this ADR impossible to repeat silently — *once
+its baseline is kept current*, which for 32 versions it was not (see the amendment to decision
+2).
 
 **Costs.** Every consumer must re-scaffold to reach 0.2.0. Releasing gains ceremony that a
 one-maintainer project did not previously have. Two literals (`v0.1.0` and `ai-badger--v0.1.0`)
