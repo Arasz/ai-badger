@@ -295,3 +295,42 @@ def test_hooks_json_declares_session_start_pointing_at_a_script_that_exists(root
            (root / "features" / "common" / "skills" / "task" / "scripts" / "drift_notice_hook.py").exists(), (
         f"hooks.json points at {match.group(1)!r}, which does not exist on disk"
     )
+
+
+def test_debug_logging_records_fire_when_drift_detected(tmp_path, root, load_script, monkeypatch):
+    """Debug log fires when drift notice is emitted."""
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
+    project = tmp_path / "proj"
+    _write_manifest(project, "0.1.0")
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+
+    calls = []
+
+    class FakeDebugLog:
+        def log_event(self, component, event, **fields):
+            calls.append((component, event, fields))
+
+    monkeypatch.setattr(hook, "debug_log", FakeDebugLog())
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({
+        "session_id": "sid-1", "source": "startup", "cwd": str(project),
+    })))
+    hook.main()
+
+    events = {e: (c, f) for c, e, f in calls}
+    assert "fire" in events
+    assert events["fire"][0] == "drift_notice_hook"
+
+
+def test_debug_logging_is_noop_when_unavailable(tmp_path, root, load_script, monkeypatch):
+    """Hook runs normally when debug_log is None."""
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
+    project = tmp_path / "proj"
+    _write_manifest(project, "0.1.0")
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+    monkeypatch.setattr(hook, "debug_log", None)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({
+        "session_id": "sid-1", "source": "startup", "cwd": str(project),
+    })))
+
+    rc = hook.main()
+    assert rc == 0

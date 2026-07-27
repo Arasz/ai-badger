@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name  # module-local fixture reuse
 """Tests for skills/prompt-markers/scripts/user_prompt_hook.py.
 
 Covers marker detection (prefix at the very start of the prompt, case-insensitive),
@@ -221,3 +222,32 @@ def test_the_marker_state_file_is_owner_readable_only(tmp_path, load_script):
     state_file = tracking.joinpath(*hook.STATE_SUBPATH)
     assert state_file.exists()
     assert state_file.stat().st_mode & 0o777 == 0o600
+
+
+def test_debug_logging_records_fire_event(tmp_path, load_script, monkeypatch):
+    """Debug log fires a fire event when a marker matches."""
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    _write_markers_context(hook.MARKERS_CONTEXT_FILE)
+
+    calls = []
+
+    class FakeDebugLog:
+        def log_event(self, component, event, **fields):
+            calls.append((component, event, fields))
+
+    monkeypatch.setattr(hook, "debug_log", FakeDebugLog())
+    _call_main(hook, monkeypatch, {"prompt": "h: check the cache", "cwd": str(tmp_path)})
+
+    events = {e: (c, f) for c, e, f in calls}
+    assert "fire" in events
+    assert events["fire"][0] == "prompt_markers_hook"
+
+
+def test_debug_logging_is_noop_when_unavailable(tmp_path, load_script, monkeypatch):
+    """Hook runs normally when debug_log is None."""
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    _write_markers_context(hook.MARKERS_CONTEXT_FILE)
+    monkeypatch.setattr(hook, "debug_log", None)
+
+    rc = _call_main(hook, monkeypatch, {"prompt": "h: check the cache", "cwd": str(tmp_path)})
+    assert rc == 0

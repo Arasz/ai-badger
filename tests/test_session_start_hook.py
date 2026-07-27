@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name  # module-local fixture reuse
 """Tests for skills/task/scripts/session_start_hook.py.
 
 The script does three things:
@@ -151,4 +152,29 @@ def test_poll_limit_launch_failure_does_not_propagate_out_of_hook(session_start,
 
     rc = _run(session_start, monkeypatch, {"session_id": "sid-1"})
 
+    assert rc == 0
+
+
+def test_debug_logging_records_start_event(session_start, monkeypatch):
+    calls = []
+    monkeypatch.setattr(session_start.lib, "save_current_session", lambda *a, **k: None)
+
+    class FakeDebugLog:
+        def log_event(self, component, event, **fields):
+            calls.append((component, event, fields))
+
+    monkeypatch.setattr(session_start, "debug_log", FakeDebugLog())
+    _run(session_start, monkeypatch, {"session_id": "sid-1"})
+
+    events = {e: (c, f) for c, e, f in calls}
+    assert "start" in events
+    assert events["start"][0] == "session_start_hook"
+    assert events["start"][1]["session"] == "sid-1"
+
+
+def test_debug_logging_is_noop_when_unavailable(session_start, monkeypatch):
+    monkeypatch.setattr(session_start, "debug_log", None)
+    monkeypatch.setattr(session_start.lib, "save_current_session", lambda *a, **k: None)
+
+    rc = _run(session_start, monkeypatch, {"session_id": "sid-1"})
     assert rc == 0

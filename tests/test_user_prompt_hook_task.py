@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name  # module-local fixture reuse
 """Tests for skills/task/scripts/user_prompt_hook.py.
 
 Covers: session refresh on every prompt; `/task <id>` auto-registers a tracked entry (and a
@@ -227,3 +228,33 @@ class TestFailureHandling:
         assert "task_register" in errors.read_text(encoding="utf-8")
         assert "OSError" in errors.read_text(encoding="utf-8")
         assert "task_register" in capsys.readouterr().err
+
+
+def test_debug_logging_records_register_event(prompt_hook, monkeypatch):
+    """Debug log fires a register event when a task is auto-registered."""
+    calls = []
+
+    class FakeDebugLog:
+        def log_event(self, component, event, **fields):
+            calls.append((component, event, fields))
+
+    monkeypatch.setattr(prompt_hook, "debug_log", FakeDebugLog())
+    _run(prompt_hook, monkeypatch, {
+        "session_id": "sid-1", "transcript_path": "/tmp/t.jsonl",
+        "prompt": "/task my-task",
+    })
+
+    events = {e: (c, f) for c, e, f in calls}
+    assert "register" in events
+    assert events["register"][0] == "task_user_prompt_hook"
+    assert events["register"][1]["task"] == "my-task"
+
+
+def test_debug_logging_is_noop_when_unavailable(prompt_hook, monkeypatch):
+    """Hook runs normally when debug_log is None."""
+    monkeypatch.setattr(prompt_hook, "debug_log", None)
+    rc = _run(prompt_hook, monkeypatch, {
+        "session_id": "sid-1", "transcript_path": "/tmp/t.jsonl",
+        "prompt": "just a regular prompt",
+    })
+    assert rc == 0

@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name  # module-local fixture reuse
 """Tests for skills/task/scripts/stop_hook.py.
 
 Covers: no session_id / invalid stdin JSON are no-ops; STARTED -> IN_PROGRESS promotion with a
@@ -187,3 +188,26 @@ def test_stop_hook_active_flag_suppresses_finished_task_enforcement(
     assert capsys.readouterr().out == ""
     entry = stop_hook.lib.load_tasks()["tasks"][0]
     assert "stateJsonReminderSent" not in entry
+
+
+def test_debug_logging_records_checkpoint_event(stop_hook, monkeypatch):
+    """Debug log fires a checkpoint event when stop completes normally."""
+    calls = []
+
+    class FakeDebugLog:
+        def log_event(self, component, event, **fields):
+            calls.append((component, event, fields))
+
+    monkeypatch.setattr(stop_hook, "debug_log", FakeDebugLog())
+    _run_hook(stop_hook, monkeypatch, {"session_id": "sid-1", "transcript_path": ""})
+
+    events = {e: (c, f) for c, e, f in calls}
+    assert "checkpoint" in events
+    assert events["checkpoint"][0] == "stop_hook"
+
+
+def test_debug_logging_is_noop_when_unavailable(stop_hook, monkeypatch):
+    """Hook runs normally when debug_log is None."""
+    monkeypatch.setattr(stop_hook, "debug_log", None)
+    rc = _run_hook(stop_hook, monkeypatch, {"session_id": "sid-1", "transcript_path": ""})
+    assert rc == 0
