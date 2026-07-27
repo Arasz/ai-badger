@@ -28,7 +28,21 @@ from typing import Any, Dict, Optional
 
 import yaml  # pylint: disable=import-error
 
+# debug_log sits beside this file in every deployment shape; it is a no-op unless the
+# call-behaviorist skill has switched debug on.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    import debug_log  # pylint: disable=import-error
+except ImportError:  # pragma: no cover - a missing logger must never break a hook
+    debug_log = None
+
 logger = logging.getLogger("ai_badger_hooks")
+
+
+def _debug(component: str, event: str, **fields) -> None:
+    """Record that a hook ran. Silent when debug is off or the logger is unavailable."""
+    if debug_log is not None:
+        debug_log.log_event(component, event, **fields)
 
 
 # ---------------------------------------------------------------------------
@@ -108,10 +122,16 @@ def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
     A hook that breaks session start or nags unconditionally defeats its purpose.
     """
     reset_session_hints()
-    scaffold_ver = _read_scaffold_version(_project_cwd(cwd))
+    project = _project_cwd(cwd)
+    _debug("ai_badger_hooks/session_start", "start", project=project)
+    scaffold_ver = _read_scaffold_version(project)
     fw_version = _read_framework_version()
     if not scaffold_ver or not fw_version or scaffold_ver == fw_version:
+        _debug("ai_badger_hooks/session_start", "skip", project=project,
+               scaffold_version=scaffold_ver, framework_version=fw_version)
         return
+    _debug("ai_badger_hooks/session_start", "drift", project=project,
+           scaffold_version=scaffold_ver, framework_version=fw_version)
     logger.info(
         "ai-badger drift: scaffolded with %s, framework is %s. "
         "Run den-refresh to update.",

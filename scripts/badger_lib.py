@@ -320,6 +320,7 @@ SKILL_SCOPE_OPT_IN = "optIn"
 # declaration lives here rather than in SKILL.md frontmatter.
 SKILL_SCOPES: Dict[str, str] = {
     "auto-wm": SKILL_SCOPE_DEFAULT,
+    "call-behaviorist": SKILL_SCOPE_DEFAULT,
     "code-review-checklist": SKILL_SCOPE_DEFAULT,
     "den-refresh": SKILL_SCOPE_DEFAULT,
     "feed-badger": SKILL_SCOPE_DEFAULT,

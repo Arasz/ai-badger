@@ -17,6 +17,7 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
+| 0.30.0 | [see what the framework actually did](0.30.0-see-what-the-framework-did.md) |
 | 0.29.1 | [the PR rule has a named exception](0.29.1-pr-rule-has-a-named-exception.md) |
 | 0.29.0 | [documentation that still points at the tree](0.29.0-docs-that-stay-true.md) |
 | 0.28.3 | [the onboarding commands actually run](0.28.3-onboarding-commands-that-run.md) |

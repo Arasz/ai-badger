@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.29.1",
+  "frameworkVersion": "0.30.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -100,6 +100,11 @@
     },
     "common": {
       "skills": [
+        {
+          "name": "call-behaviorist",
+          "path": "features/common/skills/call-behaviorist",
+          "scope": "default"
+        },
         {
           "name": "code-review-checklist",
           "path": "features/common/skills/code-review-checklist",
@@ -225,6 +230,10 @@
         {
           "name": "ai_badger_hooks",
           "path": "features/common/hooks/ai_badger_hooks.py"
+        },
+        {
+          "name": "debug_log",
+          "path": "features/common/hooks/debug_log.py"
         },
         {
           "name": "hooks-manifest",
