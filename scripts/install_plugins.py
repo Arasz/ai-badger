@@ -76,17 +76,6 @@ def _build_command(template: str, source_url: str, skill_name: str = "",
     return cmd
 
 
-def _resolve_stacks(config: Dict[str, Any]) -> List[str]:
-    """Stacks to read catalogs from: always 'common' first, then config's, deduplicated.
-
-    config.stacks may not contain 'common' (config.schema.json forbids it), so a resolver
-    that reads config.stacks alone never sees features/common/skills.json at all.
-    """
-    ordered = ["common"] + list(config.get("stacks", []))
-    seen = set()
-    return [s for s in ordered if not (s in seen or seen.add(s))]
-
-
 def _install_template(cmd_templates: List[str]) -> str:
     """The template that installs one named skill, or "" when the agent has none."""
     for tpl in cmd_templates:
@@ -119,7 +108,7 @@ def install_skills(root: Path, config: Dict[str, Any],
         }
     """
     agents = config.get("agents", [])
-    stacks = _resolve_stacks(config)
+    stacks = bl.resolve_stacks(config)
     config_scope = config.get("skillScope", config.get("pluginScope", "default"))
 
     commands: List[str] = []

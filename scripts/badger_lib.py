@@ -257,6 +257,24 @@ def read_index(root: Path) -> Dict[str, Any]:
     return load_json(root / "index.json")
 
 
+DEFAULT_COMMON_STACKS = ["common"]
+
+
+def resolve_stacks(config: Dict[str, Any]) -> List[str]:
+    """Catalog stacks to read, always-included ones first, deduplicated in order.
+
+    `config.commonStacks` names the always-included stack(s) — config.stacks may not
+    contain them (config.schema.json forbids it), so a caller reading config.stacks
+    alone never sees that catalog at all.
+    """
+    common = config.get("commonStacks", DEFAULT_COMMON_STACKS)
+    if isinstance(common, str):
+        common = [common]
+    seen = set()
+    return [s for s in list(common) + list(config.get("stacks", []))
+            if not (s in seen or seen.add(s))]
+
+
 def iter_feature_dirs(root: Path) -> List[Tuple[str, str, Path]]:
     """Yield (stack, feature, dir) for every features/<stack>/<feature> directory present.
 

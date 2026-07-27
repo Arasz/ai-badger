@@ -274,3 +274,37 @@ class TestMissingNameTemplate:
 
         assert result["commands"] == ["claude plugin install https://example.com/pack"]
         assert any("packaged-skill" in w for w in result["warnings"])
+
+
+class TestConfigDrivenCommonStack:
+    """install_skills takes the always-included stack's name from config (not a literal)."""
+
+    def _framework(self, tmp_path, root, stack_name):
+        features = tmp_path / "features" / stack_name
+        features.mkdir(parents=True)
+        (tmp_path / "schemas").symlink_to(root / "schemas")
+        (features / "skills-source.json").write_text(json.dumps({
+            "sources": [{"name": "market", "type": "marketplace",
+                         "source": "https://example.com/m", "support": ["claude"]}]
+        }))
+        (features / "skills.json").write_text(json.dumps({
+            "skills": [{"name": "house-skill", "source": "market"}]
+        }))
+        (tmp_path / "features" / "claude").mkdir(parents=True)
+        (tmp_path / "features" / "claude" / "plugins-instructions.json").write_text(json.dumps({
+            "agent": "claude",
+            "instructions": {"marketplace": {"commands": [
+                "claude plugin marketplace add {source}",
+                "claude plugin install {name}@{sourceName}",
+            ]}},
+        }))
+        return tmp_path
+
+    def test_named_common_stack_is_resolved(self, tmp_path, root, load_script):
+        ip = load_script("scripts/install_plugins.py")
+        fw = self._framework(tmp_path, root, "house")
+        config = {"agents": ["claude"], "commonStacks": "house", "stacks": []}
+
+        result = ip.install_skills(fw, config, dry_run=True)
+
+        assert any("house-skill" in cmd for cmd in result["commands"]), result

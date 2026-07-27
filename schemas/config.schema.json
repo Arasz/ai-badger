@@ -23,6 +23,14 @@
         "domain": { "type": "string", "description": "One-line business/domain description; NOT a stack." }
       }
     },
+    "commonStacks": {
+      "description": "Catalog stack(s) always resolved in addition to `stacks` — the source of the always-included stack's name for scaffold.py and install_plugins.py. Defaults to \"common\" when absent.",
+      "default": "common",
+      "oneOf": [
+        { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" } }
+      ]
+    },
     "stacks": {
       "type": "array",
       "minItems": 1,

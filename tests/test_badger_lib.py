@@ -286,3 +286,35 @@ def test_dir_content_hash_same_when_excluded_files_differ(tmp_path, load_script)
     h2 = bl.dir_content_hash(d2, exclude=["tests"])
 
     assert h1["content_hash"] == h2["content_hash"]
+
+class TestResolveStacks:
+    """The always-included catalog stack is config data, not a literal in each script."""
+
+    def test_defaults_to_common_first(self, load_script):
+        bl = load_script("scripts/badger_lib.py")
+
+        assert bl.resolve_stacks({"stacks": ["python", "github"]}) == \
+            ["common", "python", "github"]
+
+    def test_config_names_the_common_stack(self, load_script):
+        bl = load_script("scripts/badger_lib.py")
+
+        assert bl.resolve_stacks({"commonStacks": "shared", "stacks": ["python"]}) == \
+            ["shared", "python"]
+
+    def test_config_may_name_several(self, load_script):
+        bl = load_script("scripts/badger_lib.py")
+
+        assert bl.resolve_stacks({"commonStacks": ["common", "house"], "stacks": ["python"]}) == \
+            ["common", "house", "python"]
+
+    def test_duplicates_collapse_and_order_is_kept(self, load_script):
+        bl = load_script("scripts/badger_lib.py")
+
+        assert bl.resolve_stacks({"stacks": ["python", "common", "python"]}) == \
+            ["common", "python"]
+
+    def test_empty_common_stacks_resolves_to_the_configured_stacks_only(self, load_script):
+        bl = load_script("scripts/badger_lib.py")
+
+        assert bl.resolve_stacks({"commonStacks": [], "stacks": ["python"]}) == ["python"]
