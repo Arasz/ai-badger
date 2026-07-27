@@ -43,9 +43,16 @@ carries `pylint`; `pytest` is not pinned in either, so install it separately (CI
 may be a version with no pytest installed; every command in this file assumes the venv
 interpreter.
 
-Runtime dependencies are deliberately minimal — `jsonschema` and `pyyaml`, both imported behind a
-guard that degrades to a printed note. Everything else is standard library. **Do not add a third
-runtime dependency without a very good reason**; if you must, guard the import the same way.
+Runtime dependencies are deliberately minimal, and the two behave differently on purpose:
+
+- **`jsonschema` is required.** `scripts/badger_lib.py` imports it unguarded. Validation that
+  silently no-ops is worse than a missing dependency — an unvalidated config would sail straight
+  into the scaffolder — so it fails loudly instead.
+- **`pyyaml` is optional.** It is imported behind a guard and degrades to a printed note
+  (`mcp_index.YAML_MISSING_HINT`), because the features needing it are not on the critical path.
+
+Everything else is standard library. **Do not add a third runtime dependency without a very good
+reason**; if you must, decide deliberately which of these two shapes it takes and say so here.
 
 Optionally install the pre-commit hooks, which run four of the gates locally:
 
