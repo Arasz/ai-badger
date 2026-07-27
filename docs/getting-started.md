@@ -264,8 +264,7 @@ Files outside `.ai-badger/` are copies that exist only because agent CLIs discov
 by filesystem convention. Each carries a header:
 
 ```
-<!-- Managed by ai-badger. Source of truth: .ai-badger/CLAUDE.md. Do not edit this copy by hand;
-     edit the source and re-run welcome-ai-badger. -->
+<!-- Managed by ai-badger. Source of truth: .ai-badger/CLAUDE.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
 ```
 
 ### Review this before you commit
