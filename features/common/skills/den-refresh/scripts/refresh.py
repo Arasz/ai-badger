@@ -117,16 +117,18 @@ def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
                 generated_at: Optional[str] = None) -> Dict[str, Any]:
     """Re-run scaffold.py with the existing config.json.
 
-    Extracts skill names from the manifest so skills with extensions
-    (e.g., task with github/hermes extensions) are re-scaffolded and
-    their extensions re-embedded.
+    The skill list is the manifest's own skills first — so extension-bearing ones keep their
+    extensions — unioned with the catalog's default-scope skills, so a skill added upstream
+    after this project was scaffolded actually arrives (#104). Manifest absence is not opt-out.
     """
     scaffold_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py", root)
 
-    # Extract skill names from manifest entries
+    # Manifest skill entries include per-file `<skill>/extensions/<file>` rows; those are
+    # provenance for a skill already named here, not skills the Scaffolder can resolve.
+    scaffolded = [e["name"] for e in manifest.get("entries", [])
+                  if e.get("feature") == "skills" and "/" not in e["name"]]
     skill_names = list(dict.fromkeys(
-        e["name"] for e in manifest.get("entries", [])
-        if e.get("feature") == "skills"
+        scaffolded + bl.default_skills_in(root / "features" / "common" / "skills")
     ))
 
     scaf = scaffold_mod.Scaffolder(
@@ -210,7 +212,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     scaffold_version = config.get("frameworkVersion", "?")
     current_version = (root / "VERSION").read_text(encoding="utf-8").strip()
 
-    drift_result = run_drift(root, manifest, stacks=config.get("stacks", []), target=target)
+    drift_result = run_drift(root, manifest, stacks=bl.resolve_stacks(config), target=target)
 
     # 6b. Detect new stacks not in config (respecting stack-ignore.json)
     drift_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/drift.py", root)
@@ -255,6 +257,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             "removed": drift_result.get("removed", []),
             "skipped": drift_result.get("skipped", []),
             "invalid": drift_result.get("invalid", 0),
+            "newItems": drift_result.get("newItems", []),
         },
         "newStacks": new_stacks,
         "reScaffolded": has_drift or breaking_result["isBreaking"],

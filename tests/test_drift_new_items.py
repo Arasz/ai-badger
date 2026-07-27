@@ -113,8 +113,8 @@ def test_detect_new_items_only_checks_configured_stacks(tmp_path, load_script):
     assert len(new_items) == 1
 
 
-def test_a_new_template_is_reported_as_a_new_item(tmp_path, load_script):
-    """Templates are a catalog feature type, so an unscaffolded one counts as new."""
+def test_a_new_template_is_not_reported_as_a_new_item(tmp_path, load_script):
+    """Templates are scaffolder machinery, not a menu: reporting them would never clear."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     bl = load_script("scripts/badger_lib.py")
 
@@ -134,7 +134,65 @@ def test_a_new_template_is_reported_as_a_new_item(tmp_path, load_script):
 
     new_items = drift.detect_new_items(fw, manifest, stacks=["common"])
 
-    assert [(i["feature"], i["name"]) for i in new_items] == [("templates", "new.md.tmpl")]
+    assert new_items == []
+
+
+def test_common_stacks_given_as_a_bare_string_is_not_split_into_characters(
+        tmp_path, load_script):
+    """config.commonStacks may be a string; `set("house")` would scan five letter-stacks."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("scripts/badger_lib.py")
+
+    fw = tmp_path / "fw"
+    (fw / "features" / "house" / "invariants").mkdir(parents=True)
+    (fw / "features" / "house" / "invariants" / "rule.md").write_text("rule\n")
+    (fw / "VERSION").write_text("0.3.0\n")
+    bl.dump_json(fw / "index.json", {
+        "frameworkVersion": "0.3.0",
+        "stacks": {"house": {"invariants": [
+            {"name": "rule", "path": "features/house/invariants/rule.md"}
+        ]}},
+    })
+
+    manifest = {"frameworkVersion": "0.3.0", "agents": ["claude"], "entries": []}
+
+    new_items = drift.detect_new_items(fw, manifest, stacks="house")
+
+    assert [i["name"] for i in new_items] == ["rule"]
+
+
+def test_drift_reports_a_new_common_item_although_config_stacks_omits_common(
+        tmp_path, load_script, capsys):
+    """`common` is a commonStacks entry, never in config.stacks — drift must resolve it."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("scripts/badger_lib.py")
+
+    fw = tmp_path / "fw"
+    (fw / "features" / "common" / "skills" / "fresh-skill").mkdir(parents=True)
+    (fw / "features" / "common" / "skills" / "fresh-skill" / "SKILL.md").write_text("s\n")
+    (fw / "VERSION").write_text("0.3.0\n")
+    bl.dump_json(fw / "index.json", {
+        "frameworkVersion": "0.3.0",
+        "stacks": {
+            "common": {"skills": [
+                {"name": "fresh-skill", "path": "features/common/skills/fresh-skill"}
+            ]},
+            "python": {"skills": []},
+        },
+    })
+
+    proj = tmp_path / "proj"
+    aib = proj / ".ai-badger"
+    aib.mkdir(parents=True)
+    bl.dump_json(aib / "config.json", {"stacks": ["python"], "agents": ["claude"]})
+    bl.dump_json(aib / "manifest.json", {
+        "frameworkVersion": "0.3.0", "agents": ["claude"], "entries": [],
+    })
+
+    rc = drift.main(["--root", str(fw), "--target", str(proj)])
+
+    assert "common/skills/fresh-skill" in capsys.readouterr().out
+    assert rc == 1
 
 
 def test_compare_includes_new_items(tmp_path, load_script):
