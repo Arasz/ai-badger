@@ -72,8 +72,16 @@ def test_gate_own_files_route_to_every_lane():
     """A change to the gate itself must run everything, or a broken gate hides silently."""
     head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
                           cwd=str(REPO), check=True).stdout.strip()
-    selected = _run("lanes", stdin=f"refs/heads/x {head} refs/heads/x {ZERO}\n").stdout.split()
-    # HEAD's branch carries .lefthook/ and lefthook.yml, so selection must be the full set.
+    # Find the commit that last touched .lefthook/ and use its parent as base,
+    # so the diff includes gate files and want_all triggers.
+    last_gate = subprocess.run(["git", "log", "-1", "--format=%H", "--", ".lefthook/"],
+                               capture_output=True, text=True, cwd=str(REPO),
+                               check=False).stdout.strip()
+    if not last_gate:
+        pytest.skip("no .lefthook/ commit in history")
+    base = f"{last_gate}~1"
+    selected = _run("lanes", stdin=f"refs/heads/x {head} refs/heads/x {base}\n").stdout.split()
+    # Gate file changes must select every lane, or a broken gate hides silently.
     for lane in ("pytest", "pylint", "js", "docs", "release", "validate"):
         assert lane in selected
 
