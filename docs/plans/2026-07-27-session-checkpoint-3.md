@@ -73,13 +73,34 @@ Open judgement call it was told to make explicit: a union skill list means a **d
 removed** skill comes back, because manifest-absence currently means both "not wanted" and "not
 yet known".
 
-### 3. `call-behaviorist analyze` reports false alarms — RED tests parked
+### 3. `call-behaviorist analyze` is measuring the wrong things — **three** defects
 
-Branch **`fix/behaviorist-evidence-vs-bookkeeping`** holds four deliberately-failing tests. **Do
-not merge it as-is.**
+Reported from a real `job-search-ai-assistant` run, then reproduced and confirmed here. Branch
+**`fix/behaviorist-evidence-vs-bookkeeping`** holds four deliberately-RED tests covering defect C
+only; A and B are diagnosed but not yet written. **Do not merge that branch as-is.**
 
-Reported from a real project, then reproduced here and found worse than reported: with debug
-logging off and a single `cleared` record, `analyze` returns
+**A. It audits the wrong file — the sharpest of the three.** `_wired_hooks` reads
+`<project>/.ai-badger/hooks/hooks.json`, which is what ai-badger *intended* to wire. Hooks
+actually run from `.claude/settings.json`. Measured on this repo: **2 entries vs 4**; in the
+reporting project, 2 of 5. So `drift_notice_hook` and `stop_hook` are wired and **invisible to
+the analyzer** — if either stopped firing, the report would not say so. A tool that audits a
+declaration instead of the registration is the exact failure class it exists to catch.
+
+**B. It keys on basename, so it conflates distinct hooks.** `_wired_hooks` stores
+`found[match.group(2)]` — the bare stem. Two different `user_prompt_hook.py` exist:
+`skills/task/scripts/` (not instrumented) and `skills/prompt-markers/scripts/`
+(instrumented). Collapsed to one component, they are reported as a single `not_instrumented`
+finding. **Concrete consequence: if the prompt-markers hook stopped firing, `never_observed`
+would never trigger**, because its sibling's lack of instrumentation explains the silence away.
+Fix: enumerate by path, not basename.
+
+**C. The tool's own bookkeeping counts as evidence, so `unknown` is unreachable.**
+`call-behaviorist` logs `enabled`/`disabled`/`cleared` with no project; `_read_records` admits
+project-less records into *every* project (deliberate, so user-scope hooks stay visible), so
+`records` is never empty once anyone has run `clear` — and `health = "unknown"` is gated on
+`not records`. It also counts itself as an `unexpected_component`.
+
+Reproduced locally with one `cleared` record and no wired-hooks file:
 
 ```
 health: degraded   records: 1
@@ -87,23 +108,18 @@ findings: [('never_observed', 'session_start_hook', 'high'),
            ('unexpected_component', 'call-behaviorist', 'low')]
 ```
 
-**One root cause.** `call-behaviorist` logs its own lifecycle events (`enabled`/`disabled`/
-`cleared`) with no project. `_read_records` admits project-less records into *every* project's
-analysis — deliberate, so user-scope hooks are visible — so `records` is never empty once anyone
-has run `clear`, and `health = "unknown"` is gated on `not records`. The tool also counts itself
-as an `unexpected_component`.
+The reporter saw `warn` rather than `degraded` — same defect, different path: their findings were
+all low-severity, mine hit the high-severity `never_observed` branch. Both are verdicts resting
+on no evidence.
 
-`unknown` is supposed to mean *nobody looked*. It is currently unreachable in practice, which
-inverts the whole design: the report claims a verdict where it has no evidence. This is the
-"cries wolf" failure the skill's own docs warn about.
+**Also worth recording from that report:** the shared user-scope audit log is dominated by the
+framework's **own test suite** — 141 records, whose `project` values are mostly
+`pytest-of-arasz/pytest-689/...` temp dirs. Real hook activity and test activity share one file.
+Not a defect on its own, but it makes the log much less useful than it looks, and any per-project
+analysis is reading through that noise.
 
-**Blocked on:** the maintainer is sending the full health report. Their excerpt names a **second
-defect** ("the analyzer is measuring the wrong things") that is not yet visible, and their run
-showed `warn` where the local repro gives `degraded` — possibly a different path. Wait for it
-before implementing; the fix design may need to widen.
-
-The fifth test in that commit is a guard that must pass before *and* after: genuine silence must
-still be reported. The fix must mute the false alarm without muting the real signal.
+The fifth test in the parked commit is a guard that must pass before *and* after: genuine silence
+must still be reported. The fix must mute the false alarms without muting the real signal.
 
 ## Issues
 
