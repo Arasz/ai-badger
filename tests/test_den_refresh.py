@@ -488,3 +488,126 @@ def test_backup_is_taken_even_when_the_transition_is_not_breaking(tmp_path, load
     assert not result["isBreaking"]
     backup = target / ".ai-badger.bckp"
     assert (backup / "state.json").read_text(encoding="utf-8") == '{"mine": true}\n'
+
+
+# ------------------------------------------------- delivering a newly-added catalog skill
+def _mock_fw_with_skills(fw, root, skill_names):
+    """Build a mock framework whose common stack ships `skill_names` and one invariant."""
+    fw.mkdir(exist_ok=True)
+    (fw / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    (fw / "schemas").mkdir(exist_ok=True)
+    (fw / "schemas" / "config.schema.json").write_text(
+        (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"), encoding="utf-8")
+    tdir = fw / "features" / "common" / "templates"
+    tdir.mkdir(parents=True, exist_ok=True)
+    (tdir / "CLAUDE.md.tmpl").write_text("# {{PROJECT_NAME}}\n", encoding="utf-8")
+    _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory.\n")
+    for name in skill_names:
+        sd = fw / "features" / "common" / "skills" / name
+        sd.mkdir(parents=True, exist_ok=True)
+        (sd / "SKILL.md").write_text(f"# {name}\n", encoding="utf-8")
+    index = {
+        "$schema": "./schemas/index.schema.json",
+        "frameworkVersion": "0.3.0",
+        "stacks": {
+            "common": {
+                "invariants": [{"name": "tdd", "path": "features/common/invariants/tdd.md"}],
+                "skills": [{"name": n, "path": f"features/common/skills/{n}"}
+                           for n in skill_names],
+                "templates": [{"name": "CLAUDE.md.tmpl",
+                               "path": "features/common/templates/CLAUDE.md.tmpl"}],
+            },
+            "dotnet": {"personas": [], "invariants": [], "instructions": []},
+        },
+    }
+    (fw / "index.json").write_text(json.dumps(index), encoding="utf-8")
+
+
+def test_refresh_delivers_a_skill_added_to_the_catalog_after_the_project_was_scaffolded(
+        tmp_path, load_script, root, capsys):
+    """The whole-fix regression: detection sees common, the report says so, and it lands."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+
+    fw = tmp_path / "fw"
+    _mock_fw_with_skills(fw, root, ["task"])
+    proj = tmp_path / "proj"
+    config = _write_config(proj, frameworkVersion="0.3.0")
+    scaffold.Scaffolder(root=fw, target=proj, config=config,
+                        skills=["task"], install=False).run(generated_at="2026-07-22T00:00:00Z")
+    assert not (proj / ".ai-badger" / "skills" / "call-behaviorist").exists()
+
+    # The framework ships a new common skill; the project's manifest knows nothing of it.
+    _mock_fw_with_skills(fw, root, ["task", "call-behaviorist"])
+
+    rc = refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert (proj / ".ai-badger" / "skills" / "call-behaviorist" / "SKILL.md").exists()
+    assert "call-behaviorist" in [i["name"] for i in report["drift"]["newItems"]]
+    assert "call-behaviorist" in report["scaffold"]["refreshedSkills"]
+
+
+def test_refresh_reports_new_catalog_items_it_used_to_compute_and_discard(
+        tmp_path, load_script, root, capsys):
+    """newItems gated the re-scaffold but never reached the operator."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+
+    fw = tmp_path / "fw"
+    _mock_fw_with_skills(fw, root, ["task"])
+    proj = tmp_path / "proj"
+    config = _write_config(proj, frameworkVersion="0.3.0")
+    scaffold.Scaffolder(root=fw, target=proj, config=config,
+                        skills=["task"], install=False).run(generated_at="2026-07-22T00:00:00Z")
+
+    refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert report["drift"]["newItems"] == []
+
+
+def test_refresh_keeps_scaffolding_skills_recorded_only_in_the_manifest(
+        tmp_path, load_script, root, capsys):
+    """The union is manifest-first: a skill already installed must not be dropped."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+
+    fw = tmp_path / "fw"
+    _mock_fw_with_skills(fw, root, ["task", "auto-wm"])
+    proj = tmp_path / "proj"
+    config = _write_config(proj, frameworkVersion="0.3.0")
+    scaffold.Scaffolder(root=fw, target=proj, config=config,
+                        skills=["task", "auto-wm"], install=False).run(
+                            generated_at="2026-07-22T00:00:00Z")
+    _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory (v2).\n")
+
+    refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert (proj / ".ai-badger" / "skills" / "auto-wm" / "SKILL.md").exists()
+    assert "auto-wm" in report["scaffold"]["refreshedSkills"]
+
+
+def test_refresh_does_not_report_per_file_extension_entries_as_refreshed_skills(
+        tmp_path, load_script, root, capsys):
+    """Manifest skill entries include `<skill>/extensions/<file>` rows; those are not skills."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+
+    fw = tmp_path / "fw"
+    _mock_fw_with_skills(fw, root, ["task"])
+    ext = fw / "features" / "common" / "skills" / "task" / "extensions"
+    ext.mkdir(parents=True)
+    (ext / "dotnet.md").write_text("# dotnet extension\n", encoding="utf-8")
+    proj = tmp_path / "proj"
+    config = _write_config(proj, frameworkVersion="0.3.0")
+    scaffold.Scaffolder(root=fw, target=proj, config=config,
+                        skills=["task"], install=False).run(generated_at="2026-07-22T00:00:00Z")
+    _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory (v2).\n")
+
+    refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert all("/" not in name for name in report["scaffold"]["refreshedSkills"])

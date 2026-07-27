@@ -60,6 +60,87 @@ def test_scaffolded_manifest_validates_against_the_manifest_schema(
     assert bl.validate_file(manifest_on_disk, root / "schemas" / "manifest.schema.json") == []
 
 
+# -------------------------------------------------------------------- template provenance
+def test_scaffolded_templates_are_recorded_in_the_manifest(tmp_path, load_script, root):
+    """Templates are placed into the project, so the manifest must say where they came from."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(stacks=["dotnet"]),
+                                skills=[], install=False)
+    result = scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    templates = [e for e in result["manifest"]["entries"] if e["feature"] == "templates"]
+
+    assert {(e["stack"], e["name"]) for e in templates} == {
+        ("common", "state.json"),
+        ("common", "agent-instructions/schema.json"),
+        ("common", "agent-instructions/model.template.json"),
+        ("claude", "CLAUDE.md.tmpl"),
+    }
+
+
+def test_recorded_templates_hash_their_framework_source(tmp_path, load_script, root):
+    """drift.compare hashes the source for file entries; recording the target would misreport."""
+    bl = load_script("scripts/badger_lib.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(stacks=["dotnet"]),
+                                skills=[], install=False)
+    result = scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    for entry in (e for e in result["manifest"]["entries"] if e["feature"] == "templates"):
+        assert entry["hash"] == bl.sha256_file(root / entry["source"])
+
+
+def test_a_scaffolded_template_is_not_reported_as_new_on_a_second_run(
+        tmp_path, load_script, root):
+    """The anti-false-positive gate: a recorded template must never re-appear as drift."""
+    bl = load_script("scripts/badger_lib.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+    config = _config(stacks=["dotnet"])
+
+    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
+                                skills=[], install=False)
+    manifest = scaf.run(generated_at="2026-07-19T00:00:00Z")["manifest"]
+
+    result = drift.compare(root, manifest, stacks=bl.resolve_stacks(config), target=target)
+
+    assert [i for i in result["newItems"] if i["feature"] == "templates"] == []
+    assert [p for p in result["changed"] if "/templates/" in p] == []
+
+
+@pytest.mark.parametrize("stacks", [["python"], ["python", "hermes"]])
+def test_no_catalog_item_drift_reports_as_new_survives_a_full_scaffold(
+        tmp_path, load_script, root, stacks):
+    """Every reportable feature type must be recorded by scaffold, or the gate cries wolf.
+
+    `hermes` is an agent whose catalog is also a selectable stack — the shape that turns an
+    unrecorded feature type into a permanent false positive (#104).
+    """
+    bl = load_script("scripts/badger_lib.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+    config = _config(stacks=stacks)
+
+    scaf = scaffold.Scaffolder(
+        root=root, target=target, config=config,
+        skills=bl.default_skills_in(root / "features" / "common" / "skills"), install=False)
+    manifest = scaf.run(generated_at="2026-07-19T00:00:00Z")["manifest"]
+
+    result = drift.compare(root, manifest, stacks=bl.resolve_stacks(config), target=target)
+
+    assert result["newItems"] == []
+
+
 # --------------------------------------------------------- partial-run recovery (F-25)
 def test_failed_run_leaves_a_detectable_partial_marker(tmp_path, load_script, root):
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
