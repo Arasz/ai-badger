@@ -1,0 +1,10 @@
+{
+  "agent": "claude",
+  "adjustments": [
+    {
+      "feature": "skills",
+      "description": "Symlink ai-badger skills into .claude/skills/ for Claude Code discovery",
+      "script": "adjust_skills.py"
+    }
+  ]
+}
