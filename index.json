@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.25.0",
+  "frameworkVersion": "0.26.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -78,7 +78,8 @@
       "skills": [
         {
           "name": "auto-wm",
-          "path": "features/claude/skills/auto-wm"
+          "path": "features/claude/skills/auto-wm",
+          "scope": "default"
         }
       ],
       "templates": [
@@ -101,35 +102,43 @@
       "skills": [
         {
           "name": "code-review-checklist",
-          "path": "features/common/skills/code-review-checklist"
+          "path": "features/common/skills/code-review-checklist",
+          "scope": "default"
         },
         {
           "name": "den-refresh",
-          "path": "features/common/skills/den-refresh"
+          "path": "features/common/skills/den-refresh",
+          "scope": "default"
         },
         {
           "name": "feed-badger",
-          "path": "features/common/skills/feed-badger"
+          "path": "features/common/skills/feed-badger",
+          "scope": "default"
         },
         {
           "name": "maintain-agent-instructions",
-          "path": "features/common/skills/maintain-agent-instructions"
+          "path": "features/common/skills/maintain-agent-instructions",
+          "scope": "default"
         },
         {
           "name": "mcp-index",
-          "path": "features/common/skills/mcp-index"
+          "path": "features/common/skills/mcp-index",
+          "scope": "default"
         },
         {
           "name": "prompt-markers",
-          "path": "features/common/skills/prompt-markers"
+          "path": "features/common/skills/prompt-markers",
+          "scope": "default"
         },
         {
           "name": "task",
-          "path": "features/common/skills/task"
+          "path": "features/common/skills/task",
+          "scope": "default"
         },
         {
           "name": "welcome-ai-badger",
-          "path": "features/common/skills/welcome-ai-badger"
+          "path": "features/common/skills/welcome-ai-badger",
+          "scope": "default"
         }
       ],
       "personas": [

@@ -24,7 +24,7 @@ two things.
 | 10 | `feed-badger` outbound scan + explicit pathspec | security I4 | **done — 0.24.0 (#84)** |
 | 11 | Package `badger_lib` as an installable distribution | architecture I6 / R11 | planned — **ADR first** |
 | 12 | Collapse the 3+1 MCP config writers | architecture I3 / R5 | planned |
-| 13 | Derive `DEFAULT_SKILLS`/`COMMON_SKILLS`; decide `code-review-checklist` | architecture I8 / R7 | planned — **decision, not refactor** |
+| 13 | Derive `DEFAULT_SKILLS`/`COMMON_SKILLS`; decide `code-review-checklist` | architecture I8 / R7 | **done — 0.26.0 (#87)** |
 | 14 | Pick one extension mechanism | architecture I5 / R8 | planned |
 | 15 | Split `test_drift.py` / `test_scaffold.py` | python I6, tests sugg. | planned |
 | 16 | Rename top-level `scripts/` | architecture S1 | planned — **ADR first, after 11** |
@@ -238,30 +238,36 @@ its job is to fail the moment WP47 changes one.*
 
 ---
 
-## Wave 13 — decide what the default skill set is
+## Wave 13 — decide what the default skill set is — **DONE (0.26.0, PR #87)**
 
 **Deferred because:** *"Changes the default skill set — a product decision, not a bug fix.
 `code-review-checklist` is currently in the catalog, indexed, tested, and reachable by
 **neither** default path; somebody has to decide, not just refactor."*
 
-**Still true? Confirmed, unchanged.** `code-review-checklist` is in `features/common/skills.json`
-and in `index.json`'s common skills — and is in **neither** `scaffold.DEFAULT_SKILLS` (8 names)
-nor `sync_plugin_skills.COMMON_SKILLS`. It ships to nobody by either route.
+**Was true, with one correction.** `code-review-checklist` was in `index.json`'s common skills
+and in **neither** `scaffold.DEFAULT_SKILLS` (8 names) nor `sync_plugin_skills.COMMON_SKILLS`,
+so it shipped to nobody by either route. It was *not* in `features/common/skills.json` — that
+file is the **external** skills list (superpowers, pr-review-toolkit), not the in-repo catalog;
+the earlier draft of this plan had that wrong.
 
-**This wave starts with a decision, not code.** Three defensible answers: make it default;
-make it opt-in *and say so where a user would look*; or remove it. Each is fine. Silence is
-not — it currently reads as an oversight either way.
+**The decision (made by the maintainer): move it to common — it ships by default.**
 
 | WP | Work | Files |
 |---|---|---|
-| **WP48** | Record the decision for `code-review-checklist` in the changelog with its reason | `docs/changelog/` |
-| **WP49** | Derive `DEFAULT_SKILLS` and `COMMON_SKILLS` from catalog metadata (a `default: true` / `scope:` field on the skill entry) so the lists stop being two hand-maintained copies of a product decision | `skills.schema.json`, `scaffold.py`, `sync_plugin_skills.py`, `features/*/skills.json` |
+| **WP48** | ✅ Decision recorded with its reason | `docs/adr/0005-default-skill-set.md`, `docs/changelog/0.26.0-default-skill-set.md` |
+| **WP49** | ✅ Both lists derive from one declaration, `badger_lib.SKILL_SCOPES` (`default` / `optIn`); `skill_scope()` raises `UnknownSkillScope` rather than assuming; `index_build` stamps `scope` onto each skill entry | `badger_lib.py`, `scaffold.py`, `sync_plugin_skills.py`, `index_build.py`, `schemas/index.schema.json` |
 
-**TDD entry point:** `tests/test_sync_plugin_skills.py::test_every_catalog_skill_is_reachable_by_a_declared_route`
-— assert each catalog skill is either default-scaffolded, shipped in the plugin copy, or
-explicitly marked opt-in. *Fails today on `code-review-checklist`.*
+**TDD entry point (as planned):** `tests/test_sync_plugin_skills.py::TestCatalogRouting::test_every_catalog_skill_is_reachable_by_a_declared_route`
+— failed on `code-review-checklist`, along with four siblings covering the reverse direction
+(a declaration naming a skill that no longer exists), plugin-copy reachability, and the raise.
 
-**Release:** `0.30.0`, `docs/changelog/0.30.0-default-skill-set.md`.
+**Not done as scoped:** the declaration is a constant in `badger_lib`, not a `scope:` field in
+SKILL.md frontmatter as WP49 originally sketched. No script parses YAML frontmatter today and
+pyyaml is a guarded optional import; adding a parser for one scalar is a worse trade than the
+constant. Reasoning in ADR-0005. `features/*/skills.json` was untouched — it is the external
+list, so it was never in scope once the correction above surfaced.
+
+**Released:** `0.26.0`, `docs/changelog/0.26.0-default-skill-set.md`.
 
 ---
 

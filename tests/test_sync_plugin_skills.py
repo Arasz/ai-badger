@@ -1,6 +1,7 @@
 """Tests for scripts/sync_plugin_skills.py — plugin skill directory sync (F-01, F-17)."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -259,3 +260,54 @@ class TestRealCatalogParity:
         assert sps.main(["--check"]) == 0, (
             "run `python3 scripts/sync_plugin_skills.py` to refresh .claude/skills/"
         )
+
+
+def _catalog_skill_names(root) -> set:
+    """Every in-repo skill the built index advertises, across all stacks."""
+    index = json.loads((root / "index.json").read_text())
+    return {
+        entry["name"]
+        for stack in index["stacks"].values()
+        for entry in stack.get("skills", [])
+        if not entry.get("external")
+    }
+
+
+class TestCatalogRouting:
+    """Every catalogued skill must reach users by a route somebody chose on purpose."""
+
+    def test_every_catalog_skill_is_reachable_by_a_declared_route(self, root, load_script):
+        bl = load_script("scripts/badger_lib.py")
+
+        undeclared = sorted(_catalog_skill_names(root) - set(bl.SKILL_SCOPES))
+
+        assert not undeclared, (
+            f"catalogued but routed nowhere: {undeclared}. Add each to "
+            "badger_lib.SKILL_SCOPES as 'default' (ships everywhere) or 'optIn'."
+        )
+
+    def test_scope_declarations_name_only_real_skills(self, root, load_script):
+        bl = load_script("scripts/badger_lib.py")
+
+        assert not sorted(set(bl.SKILL_SCOPES) - _catalog_skill_names(root))
+
+    def test_default_scope_skills_ship_in_the_plugin_copy(self, root, load_script):
+        bl = load_script("scripts/badger_lib.py")
+        sps = load_script("scripts/sync_plugin_skills.py")
+        shipped = set(sps.COMMON_SKILLS) | set(sps.CLAUDE_SKILLS)
+
+        for name in bl.default_skill_names():
+            assert name in shipped, f"{name} is scope 'default' but the plugin ships no copy"
+
+    def test_the_review_checklist_ships_with_every_project(self, load_script):
+        bl = load_script("scripts/badger_lib.py")
+        sps = load_script("scripts/sync_plugin_skills.py")
+
+        assert bl.skill_scope("code-review-checklist") == bl.SKILL_SCOPE_DEFAULT
+        assert "code-review-checklist" in sps.COMMON_SKILLS
+
+    def test_an_undeclared_skill_is_refused_rather_than_guessed(self, load_script):
+        bl = load_script("scripts/badger_lib.py")
+
+        with pytest.raises(bl.UnknownSkillScope):
+            bl.skill_scope("no-such-skill")

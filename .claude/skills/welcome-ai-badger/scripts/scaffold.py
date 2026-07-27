@@ -60,16 +60,9 @@ from _shared import (  # noqa: E402 — re-exported for backward compatibility
     cfg_get, requirement_met, _condition_met,
 )
 
-DEFAULT_SKILLS = [
-    "auto-wm",
-    "den-refresh",
-    "feed-badger",
-    "maintain-agent-instructions",
-    "mcp-index",
-    "prompt-markers",
-    "task",
-    "welcome-ai-badger",
-]
+# Declared once in badger_lib.SKILL_SCOPES so the scaffold and the plugin ship list cannot
+# disagree about what a project gets without asking.
+DEFAULT_SKILLS = bl.default_skill_names()
 SEED_ONCE_SKILL_FILES: Dict[str, List[str]] = {
     "prompt-markers": ["markers-context.json"],
 }

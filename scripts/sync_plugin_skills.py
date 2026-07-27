@@ -24,21 +24,10 @@ import badger_lib as bl
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / ".claude" / "skills"
 
-# Skills from features/common/skills/ to expose in the plugin
-COMMON_SKILLS = [
-    "task",
-    "welcome-ai-badger",
-    "feed-badger",
-    "den-refresh",
-    "maintain-agent-instructions",
-    "prompt-markers",
-    "mcp-index",
-]
-
-# Skills from features/claude/skills/ to expose in the plugin
-CLAUDE_SKILLS = [
-    "auto-wm",
-]
+# Which skills ship is declared once, in badger_lib.SKILL_SCOPES; each list is just that
+# decision filtered to the stack whose directory holds the skill.
+COMMON_SKILLS = bl.default_skills_in(ROOT / "features" / "common" / "skills")
+CLAUDE_SKILLS = bl.default_skills_in(ROOT / "features" / "claude" / "skills")
 
 # Files to skip when copying (test files, caches, evals). Shared with the hash used by
 # --check so a file that is never copied can never be reported as divergence.
