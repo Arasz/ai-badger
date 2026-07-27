@@ -39,7 +39,8 @@
 |---|---|
 | [adr/0001-versioning-and-release-model.md](adr/0001-versioning-and-release-model.md) | Versioning, immutable release tags, semver for a catalog, provenance in `manifest.json`, two-tier drift detection |
 | [adr/0002-den-refresh-skill.md](adr/0002-den-refresh-skill.md) | Why `den-refresh` exists as a separate skill from `welcome-ai-badger` |
-| [adr/ADR-0002-mcp-tool-index.md](adr/ADR-0002-mcp-tool-index.md) | MCP Tool Index with tag + intent semantic matching for reduced prompt bloat and better tool selection |
+| [adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md](adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md) | The authoritative record of how Hermes discovers skills: per-project symlinks under `~/.hermes/skills/<project>/`, after `skills.external_dirs` shipped in 0.7.1 and was reverted |
+| [adr/0004-mcp-tool-index.md](adr/0004-mcp-tool-index.md) | MCP Tool Index with tag + intent semantic matching for reduced prompt bloat and better tool selection |
 
 ## Reviews & remediation plans
 
@@ -58,6 +59,17 @@
 
 | Document | What it covers |
 |---|---|
-| [ai-badger-framework-design.md](ai-badger-framework-design.md) | The original design document this repo implements — full decision log, risk list, and Mermaid diagrams |
+| [ai-badger-framework-design.md](ai-badger-framework-design.md) | **Historical (pre-0.7.0).** The original design document — decision log, risk list and Mermaid diagrams. Describes a root `skills/` tree and a `plugins.json` mechanism 0.7.0 replaced; read `framework-architecture.md` for the current shape |
 | [proxy-files-spike.md](proxy-files-spike.md) | Documented feature plan: replacing full agent-file copies with thin delegating proxies (not yet built) |
 | [known-gaps.md](known-gaps.md) | Honest list of what the MVP does not yet do, ordered by likelihood of impact |
+| [audit-symlink-hermes-skills.md](audit-symlink-hermes-skills.md) | Audit of the Hermes skill-symlink mechanism against what ADR-0003 specifies |
+
+## Implemented designs
+
+Kept as decision records, not as plans — each one shipped.
+
+| Document | What it covers |
+|---|---|
+| [design/mcp-stack-declarations.md](design/mcp-stack-declarations.md) | Stack-declared MCP servers (shipped 0.13.0), with [its implementation plan](design/mcp-stack-declarations-impl-plan.md) |
+| [design/hermes-learned-skills-sync-impl-plan.md](design/hermes-learned-skills-sync-impl-plan.md) | Hermes learned-skill sync, stages 1–3 (shipped 0.18.0) |
+| [research/hermes-learned-skills-sync.md](research/hermes-learned-skills-sync.md) | The research pass behind that design |

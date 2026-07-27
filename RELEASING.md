@@ -3,7 +3,7 @@
 A `git push` is not a release. ai-badger is consumed via two paths:
 
 1. **Claude Code** — installed as a plugin from `.claude-plugin/`. Consumers resolve by `version` in `plugin.json`.
-2. **Hermes Agent** — skills discovered via `skills.external_dirs` in `~/.hermes/config.yaml`. Consumers get updates via `den-refresh`.
+2. **Hermes Agent** — skills discovered through per-project symlinks under `~/.hermes/skills/<project>/` ([ADR-0003](docs/adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md)). Consumers get updates via `den-refresh`. The `skills.external_dirs` mechanism this line used to describe shipped in v0.7.1 and was reverted.
 
 Both paths require a version bump to signal a release. See [ADR-0001](docs/adr/0001-versioning-and-release-model.md).
 

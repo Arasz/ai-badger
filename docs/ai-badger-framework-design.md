@@ -1,5 +1,8 @@
 # ai-badger — framework design (v2)
 
+> **Historical (pre-0.7.0).** This is the original design document, kept for its decision log and risk list. It describes a root `skills/` directory and a `plugins.json`/`marketplaces.json` mechanism that 0.7.0 replaced — see `docs/framework-architecture.md` for the current shape.
+
+
 **Date:** 2026-07-18 (rev 2026-07-19)
 **Status:** Shipped v0.1.0 (2026-07-19). Dogfooded on arasz-home-page (branch `ai-badger-bootstrap`). Angular stack added during dogfood; feed round-trip logic-tested. See `known-gaps.md`.
 **Owner:** Rafał Araszkiewicz (Arasz)

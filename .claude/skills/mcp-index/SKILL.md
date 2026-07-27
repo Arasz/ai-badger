@@ -13,6 +13,14 @@ metadata:
 
 # MCP Tool Index
 
+## Prerequisites
+
+The scripts here need PyYAML:
+```bash
+python3 -m pip install pyyaml   # also in $AI_BADGER/scripts/requirements.txt
+```
+Without it every command exits 1 with that hint rather than a traceback.
+
 Manage `.ai-badger/mcp-tools.yaml` — a machine-readable index that maps every MCP server tool to tags (for filtering) and intent (for semantic matching). The index feeds the `ai_badger_hooks.py` plugin's `pre_llm_call` hook, which injects relevant tool recommendations into every LLM turn.
 
 ## Overview

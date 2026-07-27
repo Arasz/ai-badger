@@ -1,6 +1,6 @@
 # Design: MCP Server Declarations for Stack Features
 
-**Status:** Proposed
+**Status:** Implemented in 0.13.0 — kept as the design record, not a plan
 **Author:** ai-badger subagent
 **Date:** 2026-07-26
 **Related:** `externalTools` in config.json, `features/mcp/` stack

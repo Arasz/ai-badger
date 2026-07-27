@@ -4,6 +4,7 @@ test_scaffold_no_test_leak.py already covers the test-file anti-leak guarantee; 
 exercises preserve-vs-managed file handling, no-stack-leakage, manifest shape, and the
 GitHub extension embed gate.
 """
+# pylint: disable=protected-access  # exercises Scaffolder internals directly; see pyproject.toml
 from __future__ import annotations
 
 import importlib
@@ -836,7 +837,6 @@ def test_scaffold_appends_project_local_md_to_skill(tmp_path, load_script, root)
     scaf.run(generated_at="2026-07-24T00:00:00Z")
 
     skill_md = target / ".ai-badger" / "skills" / "task" / "SKILL.md"
-    original = skill_md.read_text()
 
     # Write project-local additions
     pl = target / ".ai-badger" / "skills" / "task" / "project-local.md"
@@ -1321,3 +1321,18 @@ def test_a_failing_user_scope_write_degrades_to_a_note(tmp_path, load_script, ro
 
     assert (target / ".ai-badger" / "manifest.json").exists()
     assert any("OSError" in note for note in result["notes"])
+
+
+def test_empty_persona_routing_renders_as_absent_not_as_a_policy(tmp_path, load_script, root):
+    """`_Default routing._` read like a configured policy; there is no such policy (F-38)."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
+                                skills=[], install=False)
+    scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    content = (target / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "_Default routing._" not in content
+    assert "personaRouting" in content

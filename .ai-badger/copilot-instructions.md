@@ -1,10 +1,10 @@
 # ai-badger
 
-Agent-instruction framework distributed as a Claude Code plugin. Pure-stdlib Python 3.8+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. Two .mjs helper scripts under skills/maintain-agent-instructions/.
+Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. Stdlib-only except jsonschema and pyyaml (scripts/requirements.txt); every third-party import is guarded and degrades to a note. Two .mjs helper scripts under skills/maintain-agent-instructions/.
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github
-> Scaffolded by ai-badger 0.20.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
+> Scaffolded by ai-badger 0.21.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
 ## Non-negotiable invariants
 
@@ -68,7 +68,7 @@ Before editing matching files, read the applicable scoped instruction file:
 
 ## Agent delegation
 
-_Default routing._
+_None configured — work is not dispatched to a persona. Add entries to `personaRouting` in `.ai-badger/config.json` to route it._
 
 ## Prompt markers
 

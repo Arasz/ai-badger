@@ -8,6 +8,11 @@ and idempotently (safe to re-run; it rewrites managed files and refreshes the ma
 Usage:
   scaffold.py --config <path/to/config.json> --target <target repo dir> [--root <framework>]
               [--skills task,prompt-markers] [--no-install] [--generated-at <iso>]
+              [--overwrite-agent-files] [--reset-seed-files] [--execute]
+
+  --overwrite-agent-files  replace hand-authored CLAUDE.md/copilot/junie files
+  --reset-seed-files       reseed SEED-ONCE files, discarding project-owned edits
+  --execute                actually run skill install commands (default: print them)
 
 Outputs under <target>/.ai-badger/ plus copied agent-discovery files (CLAUDE.md, copilot,
 junie) per config.agents, and <target>/.ai-badger/manifest.json.

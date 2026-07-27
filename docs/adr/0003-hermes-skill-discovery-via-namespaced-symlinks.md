@@ -2,9 +2,9 @@
 
 **Status:** Accepted (2026-07-26) — reverses the decision shipped in `bafb952` for issue #58
 
-> **Numbering note.** `docs/adr/` already contains both `0002-den-refresh-skill.md` and
-> `ADR-0002-mcp-tool-index.md` — a pre-existing collision on number 0002. This ADR takes 0003
-> and does not renumber the existing files.
+> **Numbering note.** When this ADR was written, `docs/adr/` held two files numbered 0002.
+> The collision was resolved in 0.22.0: the MCP tool index ADR became `0004-mcp-tool-index.md`
+> and `0002-den-refresh-skill.md` kept its number. One number, one ADR.
 
 ## Context
 

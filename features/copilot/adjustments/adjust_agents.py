@@ -47,6 +47,13 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     if "copilot" not in context.get("config", {}).get("agents", []):
         return {"applied": False, "files": [], "notes": "copilot not in config.agents"}
 
+    try:
+        import yaml  # pylint: disable=import-outside-toplevel
+    except ImportError:
+        return {"applied": False, "files": [],
+                "notes": "PyYAML not available — Copilot custom agents not generated; "
+                         "pip install pyyaml (scripts/requirements.txt)"}
+
     framework_root = context["framework_root"]
     target = context["target"]
     index = context.get("index", {})
@@ -82,7 +89,6 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         })
 
         # Generate Copilot custom agent format using proper YAML
-        import yaml
         frontmatter = {
             "name": name,
             "description": agent_config["description"],

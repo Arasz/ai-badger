@@ -37,8 +37,9 @@ class TemplateRenderingMixin:
 
         inv_md = "\n\n".join(invariants) if invariants else "_None yet._"
         cmd_md = "\n".join(f"- `{k}`: `{v}`" for k, v in commands.items()) or "_None configured._"
-        route_md = (
-            "\n".join(f"- {r['work']} → `{r['agent']}`" for r in routing) or "_Default routing._"
+        route_md = "\n".join(f"- {r['work']} → `{r['agent']}`" for r in routing) or (
+            "_None configured — work is not dispatched to a persona. Add entries to "
+            "`personaRouting` in `.ai-badger/config.json` to route it._"
         )
         instr_md = "\n".join(
             f"- `{p.name}` → `.ai-badger/instructions/{p.name}`" for p in instr_paths

@@ -10,7 +10,12 @@ Usage (library):
     result = install_skills(framework_root, config, dry_run=True)
 
 Usage (CLI):
-    install_plugins.py --root <framework> --config <config.json> [--dry-run]
+    install_plugins.py --root <framework> --config <config.json>
+
+The CLI is print-only and has no mode that executes: `--dry-run` was always True
+regardless of the flag (F-26), and the honest resolution is that execution belongs to
+one place — `scaffold.py --execute`, which runs the same commands with a timeout and
+records each outcome as a note.
 
 MECHANICAL ONLY — no LLM, no network.
 """
@@ -189,7 +194,8 @@ def main(argv: Any = None) -> int:
     ap.add_argument("--root", help="Framework root (default: auto-detect)")
     ap.add_argument("--config", required=True, help="Path to config.json")
     ap.add_argument("--dry-run", action="store_true", default=True,
-                    help="Don't execute, just print commands (default: True)")
+                    help="No-op: this CLI only ever prints. Execution lives in "
+                         "welcome-ai-badger's scaffold.py --execute.")
     args = ap.parse_args(argv)
 
     root = Path(args.root).resolve() if args.root else bl.find_root()

@@ -5,6 +5,7 @@ merged with externalTools, split by scope, and scaffolded into agent-specific
 config files (.mcp.json, ~/.hermes/config.yaml, ~/.claude/settings.json,
 .github/copilot/mcp-config.json).
 """
+# pylint: disable=protected-access  # exercises the Scaffolder MCP mixin directly; see pyproject.toml
 from __future__ import annotations
 
 import json
@@ -471,7 +472,7 @@ def test_hermes_user_server_merge_preserves_existing(tmp_path, load_script, root
 
 def test_hermes_user_server_creates_config_if_missing(tmp_path, load_script, root):
     """If ~/.hermes/config.yaml doesn't exist, it's created."""
-    yaml = pytest.importorskip("yaml")
+    pytest.importorskip("yaml")
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
@@ -683,7 +684,7 @@ def test_full_scaffold_with_stack_mcp(tmp_path, load_script, root):
     with patch("pathlib.Path.home", return_value=home):
         scaf = _scaf(scaffold, tmp_path, target,
                       _config(stacks=["python"], agents=["claude"]))
-        result = scaf.run()
+        scaf.run()
 
     mcp_path = target / ".mcp.json"
     assert mcp_path.exists()
@@ -725,3 +726,62 @@ def test_no_mcp_json_when_no_servers(tmp_path, load_script, root):
     scaf._generate_mcp_json()
 
     assert not (target / ".mcp.json").exists()
+
+
+# ── .mcp.json override policy (F-22) ──────────────────────────────────────────
+
+def _both_agents_server():
+    return [{
+        "name": "fs",
+        "command": "npx -y server-filesystem /tmp",
+        "agentOverrides": {
+            "claude": {"command": "claude-resolved"},
+            "copilot": {"command": "copilot-resolved"},
+        },
+    }]
+
+
+def test_mcp_json_uses_claude_overrides_regardless_of_agent_order(tmp_path, load_script, root):
+    """.mcp.json is Claude Code's project-scope file — list order must not decide (F-22)."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+    _write_mcp_servers(tmp_path / "features" / "python", _both_agents_server())
+
+    scaf = _scaf(scaffold, tmp_path, target,
+                  _config(stacks=["python"], agents=["copilot", "claude"]))
+    scaf._generate_mcp_json()
+
+    mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
+    assert mcp["mcpServers"]["fs"]["command"] == "claude-resolved"
+
+
+def test_mcp_json_applies_no_override_when_claude_is_not_configured(tmp_path, load_script, root):
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+    _write_mcp_servers(tmp_path / "features" / "python", _both_agents_server())
+
+    scaf = _scaf(scaffold, tmp_path, target,
+                  _config(stacks=["python"], agents=["copilot"]))
+    scaf._generate_mcp_json()
+
+    mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
+    assert mcp["mcpServers"]["fs"]["command"] == "npx"
+    assert any(".mcp.json" in note for note in scaf.notes)
+
+
+def test_copilot_config_uses_copilot_overrides(tmp_path, load_script, root):
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+    _write_mcp_servers(tmp_path / "features" / "python", _both_agents_server())
+
+    scaf = _scaf(scaffold, tmp_path, target,
+                  _config(stacks=["python"], agents=["copilot", "claude"]))
+    servers = {s["name"]: s for s in scaf._collect_stack_mcp_servers()}
+    scaf._generate_copilot_mcp_config(servers)
+
+    cfg = json.loads(
+        (target / ".github" / "copilot" / "mcp-config.json").read_text(encoding="utf-8"))
+    assert cfg["mcpServers"]["fs"]["command"] == "copilot-resolved"

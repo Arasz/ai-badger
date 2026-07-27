@@ -190,17 +190,15 @@ def test_external_tools_instructions_in_hermes_md(tmp_path, load_script, root):
 
 def test_config_schema_accepts_external_tools():
     """config.schema.json validates an externalTools array."""
-    import json as _json
     schema_path = root_path / "schemas" / "config.schema.json"
-    schema = _json.loads(schema_path.read_text(encoding="utf-8"))
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
     assert "externalTools" in schema["properties"]
 
 
 def test_config_schema_rejects_unknown_external_tool_fields():
     """externalTools items reject fields not in the schema."""
-    import json as _json
     schema_path = root_path / "schemas" / "config.schema.json"
-    schema = _json.loads(schema_path.read_text(encoding="utf-8"))
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
     tool_schema = schema["properties"]["externalTools"]["items"]
     assert tool_schema.get("additionalProperties") is False
 

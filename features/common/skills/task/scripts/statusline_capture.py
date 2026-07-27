@@ -20,8 +20,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import tracker_lib as lib
 
-_DEFAULT_USER_STATUSLINE = "/Users/arasz/.claude/statusline.sh"
-USER_STATUSLINE = Path(os.environ.get("CLAUDE_USER_STATUSLINE", _DEFAULT_USER_STATUSLINE))
+# No default: a path is personal to one machine, so there is nothing sensible to guess.
+# Set CLAUDE_USER_STATUSLINE to chain your own statusline script after ai-badger's capture.
+_USER_STATUSLINE_ENV = "CLAUDE_USER_STATUSLINE"
+_configured = os.environ.get(_USER_STATUSLINE_ENV)
+USER_STATUSLINE = Path(_configured) if _configured else None
 STATUSLINE_STATE = lib.DATA_DIR / "statusline-state.json"
 
 
@@ -44,7 +47,7 @@ def capture_statusline(input_text: str) -> None:
 
 
 def render_user_statusline(input_text: str) -> int:
-    if not USER_STATUSLINE.exists():
+    if USER_STATUSLINE is None or not USER_STATUSLINE.exists():
         return 0
     result = subprocess.run(
         [str(USER_STATUSLINE)],

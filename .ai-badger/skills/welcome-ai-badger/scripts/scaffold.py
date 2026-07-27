@@ -8,6 +8,11 @@ and idempotently (safe to re-run; it rewrites managed files and refreshes the ma
 Usage:
   scaffold.py --config <path/to/config.json> --target <target repo dir> [--root <framework>]
               [--skills task,prompt-markers] [--no-install] [--generated-at <iso>]
+              [--overwrite-agent-files] [--reset-seed-files] [--execute]
+
+  --overwrite-agent-files  replace hand-authored CLAUDE.md/copilot/junie files
+  --reset-seed-files       reseed SEED-ONCE files, discarding project-owned edits
+  --execute                actually run skill install commands (default: print them)
 
 Outputs under <target>/.ai-badger/ plus copied agent-discovery files (CLAUDE.md, copilot,
 junie) per config.agents, and <target>/.ai-badger/manifest.json.
@@ -101,6 +106,10 @@ def git_provenance(root: Path) -> Tuple[Optional[str], bool]:
 
 # -- Hermes skill discovery ---------------------------------------------------------
 LEARNED_SKILLS_DIR = "learned"
+
+# Progress marker for a run in flight. Present after a crash, absent after success:
+# den-refresh and feed-badger read its absence as "never fully scaffolded" (F-25).
+PARTIAL_MANIFEST = "manifest.json.partial"
 
 
 def _owns_link(entry: Path, skills_root: Path) -> bool:
@@ -221,6 +230,7 @@ class Scaffolder(
         self.notes: List[str] = []
         self._merged_external_tools: List[Dict[str, Any]] = []
         self._external_tools_merged = False
+        self._completed_steps: List[str] = []
 
     # -- provenance -----------------------------------------------------------------
     def record(self, feature: str, stack: str, name: str, source: Path, target: Path) -> None:
@@ -539,14 +549,38 @@ class Scaffolder(
                     )
 
     # -- orchestrate ----------------------------------------------------------------
+    def _record_progress(self, step: str) -> None:
+        """Append `step` to manifest.json.partial — the breadcrumb a crashed run leaves."""
+        self._completed_steps.append(step)
+        bl.dump_json(self.aib / PARTIAL_MANIFEST, {
+            "note": "a scaffold run started and did not finish; steps below completed",
+            "frameworkVersion": self.index["frameworkVersion"],
+            "completedSteps": list(self._completed_steps),
+        })
+
+    def _outside_project(self, step: str, action) -> None:
+        """Run a write that lands outside the project; a failure becomes a note, not a crash.
+
+        The project scaffold must not be lost because ~/.claude or ~/.hermes is unwritable.
+        """
+        try:
+            action()
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            self.notes.append(f"{step} failed ({type(exc).__name__}) — skipped; "
+                              f"the project scaffold is unaffected")
+
     def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
         """Run every scaffold step in order and return the manifest, plugin commands, and notes."""
         self.aib.mkdir(parents=True, exist_ok=True)
+        self._completed_steps = []
+        self._record_progress("start")
         self.scaffold_personas()
         instr_paths = self.scaffold_instructions()
         invariants = self.collect_invariants()
+        self._record_progress("personas-and-instructions")
         self.scaffold_skills()
-        self.symlink_hermes_skills()
+        self._record_progress("skills")
+        self._outside_project("hermes skill symlinks", self.symlink_hermes_skills)
         self.scaffold_agent_instructions()
         self.scaffold_templates()
         self._merged_external_tools = self._merge_external_tools(
@@ -556,8 +590,10 @@ class Scaffolder(
         self._external_tools_merged = True
         doc = self.assemble_instructions_doc(invariants, instr_paths)
         self.write_agent_files(doc, instr_paths, invariants)
+        self._record_progress("agent-files")
         self.wire_hooks()
         self.run_adjustments()
+        self._record_progress("hooks")
         plugin_cmds = self.install_plugins()
 
         # Check and install feature dependencies
@@ -568,13 +604,16 @@ class Scaffolder(
 
         # generate .mcp.json for external tools that request it
         self._generate_mcp_json()
+        self._record_progress("config-and-mcp")
 
         # scaffold user-scoped MCP servers into agent-specific config files
         stack_servers = self._collect_stack_mcp_servers()
         merged = self._merge_mcp_servers(stack_servers, self._merged_external_tools)
         project_servers, user_servers = self._split_servers_by_scope(merged)
-        self._scaffold_hermes_mcp_user(user_servers)
-        self._scaffold_claude_mcp_user(user_servers)
+        self._outside_project("hermes user MCP config",
+                              lambda: self._scaffold_hermes_mcp_user(user_servers))
+        self._outside_project("claude user MCP config",
+                              lambda: self._scaffold_claude_mcp_user(user_servers))
         self._generate_copilot_mcp_config(project_servers)
 
         manifest = {
@@ -589,6 +628,7 @@ class Scaffolder(
             "entries": self.entries,
         }
         bl.dump_json(self.aib / "manifest.json", manifest)
+        (self.aib / PARTIAL_MANIFEST).unlink(missing_ok=True)
         return {
             "manifest": manifest,
             "pluginCommands": plugin_cmds,
