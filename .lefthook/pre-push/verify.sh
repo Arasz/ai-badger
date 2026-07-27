@@ -387,7 +387,7 @@ main() {
                     local rc start
                     start=$(date +%s)
                     run_lanes "$cmd"; rc=$?
-                    _log_summary "lane" "$cmd" "$([ $rc -eq 0 ] && echo PASS || echo FAIL)" "$(( $(date +%s) - start ))"
+                    _log_summary "lane" "$cmd" "$([ $rc -eq 0 ] && echo PASS || echo FAIL)" "$(( $(date +%s) - start ))" "$_FAILED_LANES"
                     return $rc ;;
                 *) printf 'unknown subcommand: %s\n\n' "$cmd" >&2; usage >&2; return 2 ;;
             esac ;;

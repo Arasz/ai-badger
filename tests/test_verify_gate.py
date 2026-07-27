@@ -188,8 +188,21 @@ def test_summary_log_is_appended_on_run():
     # Format: 2026-07-27 21:30:00 | lane       | release | PASS | 0s
     assert "|" in line
     parts = [p.strip() for p in line.split("|")]
-    assert len(parts) == 5, f"expected 5 pipe-delimited fields, got {len(parts)}"
+    assert len(parts) >= 5, f"expected at least 5 pipe-delimited fields, got {len(parts)}"
     assert parts[1] == "lane"
     assert parts[2] == "release"
     assert parts[3] in ("PASS", "FAIL")
     assert parts[4].endswith("s")
+
+
+def test_summary_log_records_failed_lanes():
+    """A failing run logs the failed lane names after a 'failed:' marker."""
+    log_path = REPO / "logs" / "lefthook.log"
+    before_lines = log_path.read_text().splitlines() if log_path.exists() else []
+    _run("release", env={"AIB_PYTHON": "/bin/false"})
+    after_lines = log_path.read_text().splitlines()
+    assert len(after_lines) > len(before_lines), "no log line for failing run"
+    line = after_lines[-1]
+    assert "FAIL" in line
+    assert "failed:" in line, f"expected 'failed:' marker in: {line}"
+    assert "release" in line.split("failed:")[1]
