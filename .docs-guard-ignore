@@ -1,0 +1,8 @@
+# Paths scripts/docs_guard.py must not check, one repo-relative prefix per line.
+# An entry matches both a document (which is then not scanned) and a referenced path
+# (which is then never reported missing). Add one only when the absence is correct.
+
+# Frozen pre-0.7.0 design document, kept for its decision log. It names the
+# plugins.json/marketplaces.json mechanism 0.7.0 deleted; rewriting it would falsify
+# the record. Same rationale as docs/archive/, which is exempt by construction.
+docs/ai-badger-framework-design.md

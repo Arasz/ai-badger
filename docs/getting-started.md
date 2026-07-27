@@ -441,9 +441,9 @@ call its `python3` explicitly.
 
 `index.json` is stale. `scaffold.py` reads `index.json`, never the `features/` tree, and there is
 no freshness check at scaffold time — a file added to `features/` after the last index build is
-simply absent from the output, **silently**. Reproduced: adding
-`features/common/invariants/demo-invariant.md` and scaffolding without rebuilding produced a
-`.ai-badger/invariants/` with no `demo-invariant.md` and no warning.
+simply absent from the output, **silently**. Reproduced by adding a throwaway invariant under
+`features/common/invariants/` and scaffolding without rebuilding: it never reached
+`.ai-badger/invariants/`, and nothing warned.
 
 Detect it:
 
@@ -478,11 +478,11 @@ It is never overwritten by a re-scaffold.
 
 ### `can't open file '.../skills/welcome-ai-badger/scripts/detect.py'`
 
-The skill files under `features/common/skills/` (and their scaffolded copies) spell the script
-paths as `$AI_BADGER/skills/<skill>/scripts/…`. **There is no `skills/` directory at a framework
-checkout's root** — the catalog path is `features/common/skills/<skill>/scripts/…`, which is what
-[scripts.md](scripts.md) and this page use. If you are following a `SKILL.md` by hand, insert
-`features/common/`.
+**Fixed in 0.28.3.** Before that release, the skill files spelled their script paths as
+`$AI_BADGER/skills/<skill>/scripts/…`, and **there is no `skills/` directory at a framework
+checkout's root** — the catalog path is `features/common/skills/<skill>/scripts/…`. If you see
+this error, you are on 0.28.2 or older, or following a stale copy of a `SKILL.md`: insert
+`features/common/` into the path, and update.
 
 ### `ai-badger framework root not found above …`
 
@@ -493,8 +493,9 @@ explicitly. Lookup is pure — it never fetches anything as a side effect.
 ### `validate.py` says `Additional properties are not allowed`
 
 `config.schema.json` is closed (`additionalProperties: false`) at every level. The one that
-catches people: the key is **`skillScope`**, not `pluginScope` — the latter was renamed in 0.7.0
-and is now rejected outright.
+catches people: the key is **`skillScope`**, not `pluginScope`, which the schema rejects
+outright. `welcome-ai-badger`'s own instructions named the wrong key until 0.28.3; `detect.py`
+always emitted the right one.
 
 ### The scaffold printed plugin-install commands but did not run them
 

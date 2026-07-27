@@ -25,12 +25,12 @@ two things.
 | 11 | Package `badger_lib` as an installable distribution | architecture I6 / R11 | planned — **ADR first** |
 | 12 | Collapse the 3+1 MCP config writers | architecture I3 / R5 | planned |
 | 13 | Derive `DEFAULT_SKILLS`/`COMMON_SKILLS`; decide `code-review-checklist` | architecture I8 / R7 | **done — 0.26.0 (#87)** |
-| 14 | Pick one extension mechanism | architecture I5 / R8 | planned |
+| 14 | Pick one extension mechanism | architecture I5 / R8 | **done — 0.27.0 (#88)** |
 | 15 | Split `test_drift.py` / `test_scaffold.py` | python I6, tests sugg. | planned |
 | 16 | Rename top-level `scripts/` | architecture S1 | planned — **ADR first, after 11** |
 | 17 | Split `badger_lib.py` | architecture S2 | planned — after 7 and 8 |
 | 18 | gitleaks/trufflehog in CI | security sugg. 6 | planned |
-| 19 | Keep docs in sync with the code — a `docs_guard` and its CI step | docs refactor, step 3 | planned |
+| 19 | Keep docs in sync with the code — a `docs_guard` and its CI step | docs refactor, step 3 | **done — 0.29.0** |
 
 ## Recommended execution order
 
@@ -196,7 +196,7 @@ and unblocks Wave 16. It also has the widest blast radius of anything here — i
 
 | WP | Work | Files |
 |---|---|---|
-| **WP44** | **ADR-0005: how ai-badger ships.** Options: status quo (vendored + shims), a PyPI distribution, or a vendored single-file amalgamation. Must answer: how a plugin-cache install resolves the engine; how a `.ai-badger/` scaffold does; how `~/.hermes/plugins/` does; what happens when the installed engine and the scaffold disagree on version; whether pure-stdlib survives | `docs/adr/0005-*.md` |
+| **WP44** | **ADR-0007: how ai-badger ships.** Options: status quo (vendored + shims), a PyPI distribution, or a vendored single-file amalgamation. Must answer: how a plugin-cache install resolves the engine; how a `.ai-badger/` scaffold does; how `~/.hermes/plugins/` does; what happens when the installed engine and the scaffold disagree on version; whether pure-stdlib survives | `docs/adr/0007-*.md` |
 | **WP45** | *Only if the ADR chooses packaging:* the packaging itself, plus the shim reduction it enables | `pyproject.toml`, `scripts/`, the 9 shims |
 
 **TDD entry point:** none — WP44 is a decision. WP45 inherits Wave 7's
@@ -272,7 +272,7 @@ list, so it was never in scope once the correction above surfaced.
 
 ---
 
-## Wave 14 — pick one extension mechanism
+## Wave 14 — pick one extension mechanism — **DONE (0.27.0, PR #88)**
 
 **Deferred because:** *"Zero catalog instances exist, so 'delete' is behaviour-preserving
 today — but it removes a schema field, which is a compatibility decision."*
@@ -452,6 +452,19 @@ refactor and both left unfixed there because this plan is off-limits to a docume
 
 **Release:** patch bump when the gate script lands; the CI-only work packages are not shipped
 surface and `release_guard` will say so.
+
+**Outcome — shipped as 0.29.0.** WP57 and WP58 landed together as `scripts/docs_guard.py`, wired
+into `.pre-commit-config.yaml` and `.github/workflows/pylint.yml`, with a third check the plan
+did not ask for: the changelog index, which was three releases stale when the guard first ran.
+`docs/archive/` is unscanned and the record directories (`adr`, `changelog`, `design`,
+`incidents`, `plans`, `research`, `reviews`, `specs`) keep link checking but not path checking,
+which is what cleared the inherited backlog the constraint above warned about — the gate went
+required immediately, with two exemptions rather than a backlog.
+
+**WP59 (lychee), WP60 (markdownlint) and WP61 (Vale) are declined, not deferred.** Each needs a
+network call or a Node toolchain, which is a bar the gate deliberately does not clear; the
+reasoning is in `docs/changelog/0.29.0-docs-that-stay-true.md`. Reopen them only with a new
+argument, not by rediscovering the research recommendation that named them.
 
 ---
 

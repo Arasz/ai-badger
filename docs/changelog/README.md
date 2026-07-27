@@ -17,6 +17,12 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
+| 0.29.0 | [documentation that still points at the tree](0.29.0-docs-that-stay-true.md) |
+| 0.28.3 | [the onboarding commands actually run](0.28.3-onboarding-commands-that-run.md) |
+| 0.28.2 | [config.json says which version wrote it](0.28.2-config-says-which-version-wrote-it.md) |
+| 0.28.1 | [plugin hooks load again](0.28.1-plugin-hooks-load-again.md) |
+| 0.28.0 | [MCP servers that never started](0.28.0-mcp-user-tool-paths.md) |
+| 0.27.1 | [task tracking actually runs](0.27.1-task-tracking-actually-runs.md) |
 | 0.27.0 | [one way to extend a skill](0.27.0-one-extension-mechanism.md) |
 | 0.26.0 | [the default skill set has one home](0.26.0-default-skill-set.md) |
 | 0.25.0 | [the hardening pass](0.25.0-hardening.md) |
