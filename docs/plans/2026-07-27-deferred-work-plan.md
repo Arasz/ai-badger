@@ -19,7 +19,7 @@ two things.
 |---|---|---|---|
 | 6 | `Scaffolder`'s five mixins → composed collaborators | architecture I1 / R10 | planned |
 | 7 | Seven `_bootstrap_lib()` copies; four root predicates | architecture I6 / R9 | planned — **proceed per ADR-0007**; counts corrected by WP45 |
-| 8 | Single feature-type registry | architecture I11 / R6 | planned |
+| 8 | Single feature-type registry | architecture I11 / R6 | **done — unreleased.** Two follow-ups found: drift never scans `common`; templates get no manifest entries |
 | 9 | The hardening pass (+ prompt-marker/AWM privacy) | security I1, I2, I5, I7, sugg. 1 & 3 | **done — 0.25.0 (#85)** |
 | 10 | `feed-badger` outbound scan + explicit pathspec | security I4 | **done — 0.24.0 (#84)** |
 | 11 | Package `badger_lib` as an installable distribution | architecture I6 / R11 | **decided — ADR-0007: no. WP45 declined** |
