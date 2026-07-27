@@ -20,6 +20,7 @@ once the in-flight work lands.
 | Wave 15 — `test_scaffold.py` and `test_drift.py` split into 12 modules | tests only | no |
 | deps-guard — `scripts/deps_guard.py` + pre-commit + CI | gate | **yes** |
 | Wave 12 — one MCP entry renderer behind a destination table | refactor | **yes** |
+| Defect 1 — `manifest.schema.json` permits `dirMeta` | schema fix | **yes** |
 
 Two of these touch the shipped surface, so the central release must be at least a minor:
 **0.32.0**.
@@ -53,9 +54,16 @@ verified each before dispatching, rather than taking the report at face value.
 
 | Branch | Defect | Verified how |
 |---|---|---|
-| `fix/manifest-dirmeta-schema` | `scaffold.py` emits `dirMeta`; `manifest.schema.json` sets `additionalProperties: false` and omits it | `validate_file` on `.ai-badger/manifest.json` → **9 of 57 entries rejected** |
-| `fix/portable-hook-paths` | `wire_hooks` writes absolute paths; `merge_hooks` dedupes on the whole command string | this repo's `.claude/settings.json` holds `python3 "/Users/arasz/RiderProjects/ai-badger/.ai-badger/skills/task/scripts/session_start_hook.py"` |
-| `feat/preserved-regions` | managed agent files silently drop project-authored content on re-scaffold | reporter's own workaround was a hand-written "re-check this line after a refresh" reminder |
+| `fix/manifest-dirmeta-schema` — **merged** | `scaffold.py` emits `dirMeta`; `manifest.schema.json` sets `additionalProperties: false` and omits it | `validate_file` on `.ai-badger/manifest.json` → **9 of 57 entries rejected**; now 0 |
+| `fix/portable-hook-paths` — in flight | `wire_hooks` writes absolute paths; `merge_hooks` dedupes on the whole command string | this repo's `.claude/settings.json` holds `python3 "/Users/arasz/RiderProjects/ai-badger/.ai-badger/skills/task/scripts/session_start_hook.py"` |
+| `feat/preserved-regions` — in flight | managed agent files silently drop project-authored content on re-scaffold | reporter's own workaround was a hand-written "re-check this line after a refresh" reminder |
+
+The report attributed `dirMeta` to `feed-badger`'s `detect_additions`. That is wrong, and the
+agent checked rather than accepting it: `detect_additions.py` never reads the key — it
+recomputes `bl.dir_content_hash` and compares only `content_hash`. The real consumer is
+`drift.py:208`, which uses it as an O(1) structural pre-check before the content hash, driven
+by `refresh.py`. Keeping the key and widening the schema was therefore right; removing the
+emitter would have silently slowed every drift check to a full re-hash.
 
 The hook-path defect is the worst of the three. Absolute paths mean every additional checkout
 — worktree, second clone, or the `~/.ai-badger/framework` cache — appends a permanent duplicate
