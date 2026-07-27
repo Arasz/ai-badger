@@ -25,7 +25,7 @@ back to `ai-badger` as a **draft PR** for human review.
 
 1. **Detect candidates** (from the target repo root):
    ```bash
-   python3 "$AI_BADGER/skills/feed-badger/scripts/detect_additions.py" --target . --root "$AI_BADGER"
+   python3 "$AI_BADGER/features/common/skills/feed-badger/scripts/detect_additions.py" --target . --root "$AI_BADGER"
    ```
    Emits `new` (files not from the framework) and `changed` (files edited beyond the scaffold)
    candidates, by feature.
@@ -45,7 +45,7 @@ back to `ai-badger` as a **draft PR** for human review.
 4. **Open a draft PR.** Write a PR body summarizing each contribution and why it is agnostic,
    then:
    ```bash
-   python3 "$AI_BADGER/skills/feed-badger/scripts/open_pr.py" \
+   python3 "$AI_BADGER/features/common/skills/feed-badger/scripts/open_pr.py" \
      --checkout <checkout> --branch feed/<slug> \
      --title "feed: <summary>" --body-file <body.md> --repo Arasz/ai-badger \
      --path features/<stack>/<feature>/<name> --path index.json

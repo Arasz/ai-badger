@@ -36,7 +36,7 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
 
 1. **Run refresh.** From the target repo root:
    ```bash
-   python3 "$AI_BADGER/skills/den-refresh/scripts/refresh.py" --target . --root "$AI_BADGER"
+   python3 "$AI_BADGER/features/common/skills/den-refresh/scripts/refresh.py" --target . --root "$AI_BADGER"
    ```
    This:
    - Validates that config.json and manifest.json exist
