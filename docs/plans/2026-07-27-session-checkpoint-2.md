@@ -195,6 +195,33 @@ re-sync is expected.
 | **Wave 17** — split `badger_lib.py` | Needs 7 **and** 8. ADR-0007: the `badger_lib` facade is mandatory, not tidiness — flat sibling modules, never a package with `__init__.py` |
 | **Small batch B** — preserved-region asymmetry in `.ai-badger/instructions/*.md`; instrument `prompt-markers` / `task` / `mcp_index` hooks | Both touch `scaffold.py` / hook preambles that Wave 7 edits |
 
+## Wave 8 corrected the plan's diagnosis — two follow-ups, both verified
+
+Wave 8 shipped the registry and `templates` now joins drift's new-item scan. But the plan's
+stated consequence — *"a consumer running `den-refresh` is never told a template appeared"* —
+had the wrong cause, and the fix alone does not deliver it.
+
+1. **Drift never scans `common` at all.** `detect_new_items` iterates `config.stacks`
+   (`drift.py:230`, `stacks = config.get("stacks", [])` at :264). `common` is a *commonStack*,
+   never in that list. Verified on this repo: `stacks: ['python','js','github']`,
+   `commonStacks: common`. So **no `common` item of any feature type** — skills, personas,
+   invariants included — can ever be reported as new. That is the real reason templates were
+   invisible, and it is a much larger hole than the missing tuple entry.
+2. **`scaffold.py` records no `templates` manifest entries.** Verified: this repo's manifest
+   holds `personas 3, instructions 3, invariants 9, skills 20, adjustments 22` — **no
+   `templates`**. Templates go through `_seed_once_copy`, which records nothing, while `record()`
+   is only reached for skills, adjustments, and `copy_file`'s personas/instructions/invariants.
+
+**These two compose into a trap.** Fixing (1) without (2) makes every template report as `new`
+on *every* run, permanently — a gate that cries wolf, which this repo has twice decided is worse
+than no gate. Do them together, or flip `drift_reports_new=False` for templates first; the
+registry makes that a one-line policy change, which is exactly what a registry is for.
+
+Today's effect is nil and was measured, not assumed: drift output against this repo is
+byte-identical before and after, because every `templates/` dir lives under `common`, `claude`,
+`copilot`, `hermes` or `junie` — none of which is ever a configured stack. The correction bites
+the first time a real stack gains one.
+
 ## Open, not started
 
 1. Instrument the remaining hooks (`prompt-markers`, `task`, `mcp_index`) — best after Wave 7.

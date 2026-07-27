@@ -381,6 +381,38 @@ def test_check_schemas_selfvalid_flags_a_broken_schema(tmp_path, load_script):
     assert "broken.schema.json" in problems[0]
 
 
+# ---------------------------------------------------------------- feature type registry
+def test_features_is_derived_from_the_registry(load_script):
+    bl = load_script("scripts/badger_lib.py")
+
+    assert bl.FEATURES == [ft.name for ft in bl.FEATURE_TYPES]
+
+
+def test_every_feature_type_is_looked_up_by_name(load_script):
+    bl = load_script("scripts/badger_lib.py")
+
+    for ft in bl.FEATURE_TYPES:
+        assert bl.feature_type(ft.name) is ft
+
+
+def test_md_carrying_feature_types_are_the_ones_indexed_as_markdown(load_script):
+    bl = load_script("scripts/badger_lib.py")
+
+    md = [ft.name for ft in bl.FEATURE_TYPES if ft.md_carrying]
+
+    assert md == ["personas", "invariants", "instructions"]
+    assert all(bl.feature_type(name).index_rule == "md" for name in md)
+
+
+def test_templates_are_reported_as_new_by_drift(load_script):
+    bl = load_script("scripts/badger_lib.py")
+
+    assert "templates" in bl.DRIFT_NEW_FEATURES
+    assert bl.DRIFT_NEW_FEATURES == tuple(
+        ft.name for ft in bl.FEATURE_TYPES if ft.drift_reports_new
+    )
+
+
 def test_iter_feature_dirs_returns_empty_list_when_no_features_dir(tmp_path, load_script):
     bl = load_script("scripts/badger_lib.py")
 
