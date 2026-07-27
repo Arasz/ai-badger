@@ -1,0 +1,5 @@
+{
+  "skill": "code-review-checklist",
+  "extension": "cosmos",
+  "requires": ["stacks=cosmos"]
+}

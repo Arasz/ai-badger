@@ -56,7 +56,10 @@ def _skill_items(fdir: Path, root: Path):
         if d.name.endswith("-extensions"):
             continue
         if (d / "SKILL.md").exists():
-            items.append({"name": d.name, "path": d.relative_to(root).as_posix()})
+            item = {"name": d.name, "path": d.relative_to(root).as_posix()}
+            if d.name in bl.SKILL_SCOPES:
+                item["scope"] = bl.SKILL_SCOPES[d.name]
+            items.append(item)
     return items
 
 

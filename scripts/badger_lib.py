@@ -311,6 +311,60 @@ def check_schemas_selfvalid(schemas_dir: Path) -> List[str]:
     return problems
 
 
+# ------------------------------------------------------------------------ skill routing
+SKILL_SCOPE_DEFAULT = "default"
+SKILL_SCOPE_OPT_IN = "optIn"
+
+# The single home for "which skills reach a user". scaffold.DEFAULT_SKILLS and the
+# plugin's per-stack ship lists both derive from this. See ADR-0005 for why the
+# declaration lives here rather than in SKILL.md frontmatter.
+SKILL_SCOPES: Dict[str, str] = {
+    "auto-wm": SKILL_SCOPE_DEFAULT,
+    "code-review-checklist": SKILL_SCOPE_DEFAULT,
+    "den-refresh": SKILL_SCOPE_DEFAULT,
+    "feed-badger": SKILL_SCOPE_DEFAULT,
+    "maintain-agent-instructions": SKILL_SCOPE_DEFAULT,
+    "mcp-index": SKILL_SCOPE_DEFAULT,
+    "prompt-markers": SKILL_SCOPE_DEFAULT,
+    "task": SKILL_SCOPE_DEFAULT,
+    "welcome-ai-badger": SKILL_SCOPE_DEFAULT,
+}
+
+
+class UnknownSkillScope(KeyError):
+    """A skill's routing was asked for but never declared."""
+
+
+def skill_scope(name: str) -> str:
+    """Declared routing scope for a catalog skill. Undeclared is an error, not a default."""
+    if name not in SKILL_SCOPES:
+        raise UnknownSkillScope(
+            f"{name}: no scope declared in badger_lib.SKILL_SCOPES "
+            f"(use {SKILL_SCOPE_DEFAULT!r} or {SKILL_SCOPE_OPT_IN!r})"
+        )
+    return SKILL_SCOPES[name]
+
+
+def default_skill_names() -> List[str]:
+    """Every skill scoped to ship without being asked for, sorted."""
+    return sorted(n for n, s in SKILL_SCOPES.items() if s == SKILL_SCOPE_DEFAULT)
+
+
+def default_skills_in(skills_dir: Path) -> List[str]:
+    """Default-scope skills that actually live in `skills_dir`, sorted.
+
+    Undeclared skill directories are skipped, not guessed at; the catalog-routing test
+    is what turns that omission into a failure.
+    """
+    if not skills_dir.is_dir():
+        return []
+    return sorted(
+        d.name for d in skills_dir.iterdir()
+        if d.is_dir() and (d / "SKILL.md").exists()
+        and SKILL_SCOPES.get(d.name) == SKILL_SCOPE_DEFAULT
+    )
+
+
 # ------------------------------------------------------------------------ catalog access
 def read_index(root: Path) -> Dict[str, Any]:
     """Load the framework's generated index.json."""
