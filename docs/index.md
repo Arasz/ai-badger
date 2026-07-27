@@ -18,6 +18,7 @@ Two conventions worth knowing before you read anything:
 
 | Document | What it covers |
 |---|---|
+| [getting-started.md](getting-started.md) | **Start here if you just found the repo.** What ai-badger is and who it is not for, plugin vs. clone, the first run end to end with real command output, what to review before committing, and the failures that actually bite |
 | [`../README.md`](../README.md) | What the project is, install, quickstart, the `features/{stack\|common}/{feature}` model, supported agents and stacks |
 | [framework-architecture.md](framework-architecture.md) | **The reference.** The stack × feature catalog model, the `config.json` / `manifest.json` contracts, the script-vs-agent responsibility split, plugins, `task` base + extensions, target repo structure, data-flow diagrams |
 | [dictionary.md](dictionary.md) | How ai-badger's vocabulary (skills, hooks, instructions, personas, scaffolding) maps onto each supported agent's native terminology |
