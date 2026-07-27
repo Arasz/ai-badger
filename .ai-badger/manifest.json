@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.27.0",
-  "frameworkCommit": "7dad57166a24d833a55bb63ddf3545361711eb82",
+  "frameworkCommit": "f8afc397c2bb5a906cc679245bfcbc4df209fef3",
   "frameworkDirty": true,
   "generatedAt": null,
   "agents": [
@@ -232,7 +232,7 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.27.0",
-      "hash": "68ecb9c2f22f03f66faa39248922eaa988d0b0629d0a0099efc5fb1f268cae4e",
+      "hash": "8285906b5f8c4cee0029ee4e34207edca5f1f9cc181954f4ecb7779b14d57021",
       "dirMeta": {
         "file_count": 13,
         "dir_count": 2
@@ -384,7 +384,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/task",
       "frameworkVersion": "0.27.0",
-      "hash": "cd13270d2f9449f5df5def223898d4b4ae70dd836e200170050116a005fb63bb"
+      "hash": "fe8fd14ce942b6718e16571e2c2b7d95a345491a3a6e273723302bee5969b8d6"
     },
     {
       "feature": "adjustments",

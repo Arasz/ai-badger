@@ -87,7 +87,7 @@ reduced rigor since high-reasoning delegation wasn't possible.
 
 ## Phase 0 — Context hygiene
 
-1. `python3 scripts/task_tracker.py status`. If a previous task is unfinished, finish or park it.
+1. `python3 .ai-badger/skills/task/scripts/task_tracker.py status`. If a previous task is unfinished, finish or park it.
 2. Confirm `.ai-badger/state.json` reflects the last finished task; repair if not.
 3. If this session carries heavy history, tell the user to `/compact` (or start fresh) and
    re-invoke `/task <id>` on a clean context, then stop — unless autonomous.
@@ -96,7 +96,7 @@ reduced rigor since high-reasoning delegation wasn't possible.
 
 1. Resolve the task (an issue URL, or freeform text used as scope/title; cross-check the project
    board via the source-control extension if active). Read the referenced docs.
-2. Register: `python3 scripts/task_tracker.py start <taskId> --title "<title>" --branch task/<taskId>-<slug>`.
+2. Register: `python3 .ai-badger/skills/task/scripts/task_tracker.py start <taskId> --title "<title>" --branch task/<taskId>-<slug>`.
 3. Ask the user to rename the session to match the task (skip if autonomous).
 4. Create/switch to the task branch.
 5. Plan: delegate decomposition to a high-reasoning agent (the `architect` persona), feeding it
@@ -107,7 +107,7 @@ reduced rigor since high-reasoning delegation wasn't possible.
 1. Dispatch implementation subagents per `personaRouting`. Instruct every code subagent to write
    the failing test first (TDD).
 2. Record each subagent's `total_tokens` on completion:
-   `python3 scripts/task_tracker.py subagent <taskId> <total_tokens> --description "<what it did>"`.
+   `python3 .ai-badger/skills/task/scripts/task_tracker.py subagent <taskId> <total_tokens> --description "<what it did>"`.
 3. Review each result at the seams (matches plan? acceptance criteria?). Send follow-ups back
    rather than rewriting, unless the fix is a few lines.
 4. Commit and push per work package (small commits). If the source-control extension is active,
@@ -130,8 +130,8 @@ build/test, then proceed.
    `completedTasks`, refresh `next`/`lastUpdated`; write verbose notes/decisions to the
    project's notes file.
 3. Compaction check on CLAUDE.md if the project tracks one.
-4. Close tracking: `python3 scripts/task_tracker.py finish <taskId>`.
-5. Ask the user to grade the skill 0–5: `python3 scripts/task_tracker.py grade <taskId> <0-5>`
+4. Close tracking: `python3 .ai-badger/skills/task/scripts/task_tracker.py finish <taskId>`.
+5. Ask the user to grade the skill 0–5: `python3 .ai-badger/skills/task/scripts/task_tracker.py grade <taskId> <0-5>`
    (skip/leave unset if autonomous).
 6. Report the task's token cost and recommend `/compact` or a fresh session before the next
    task — this is the default ending. **Authorized auto-continue** (alternative path, only when
@@ -152,7 +152,7 @@ project's docs against the merged code, fix small drift, and report gaps needing
 `task_tracker.py` records each task's session id and resume command. Pass `--cron` to `start` to
 also install a resume cron that watches for stalled sessions — it is opt-in, since it writes to
 your crontab. If you wake in a resumed session mid-task, run
-`python3 scripts/task_tracker.py reattach <taskId>` first, then continue.
+`python3 .ai-badger/skills/task/scripts/task_tracker.py reattach <taskId>` first, then continue.
 
 > **Extensions:** source-control PR/issue/review-loop behavior and agent-specific model lanes
 > are defined in `extensions/<name>/` and are embedded by `welcome-ai-badger` only when
