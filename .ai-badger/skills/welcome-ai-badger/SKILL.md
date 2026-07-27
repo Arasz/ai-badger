@@ -35,7 +35,7 @@ If `index.json` is missing or stale, run `python3 "$AI_BADGER/scripts/index_buil
 
 1. **Detect.** From the target repo root:
    ```bash
-   python3 "$AI_BADGER/skills/welcome-ai-badger/scripts/detect.py" --target . --root "$AI_BADGER" > /tmp/proposed-config.json
+   python3 "$AI_BADGER/features/common/skills/welcome-ai-badger/scripts/detect.py" --target . --root "$AI_BADGER" > /tmp/proposed-config.json
    ```
    This proposes stacks (with `requires` expanded), detected coding agents
    (claude/copilot/junie — only those with traces in the repo or user scope), source control,
@@ -50,7 +50,7 @@ If `index.json` is missing or stale, run `python3 "$AI_BADGER/scripts/index_buil
    can't tell the project's focus).
 
 3. **Ask plugin scope.** Ask the user: **default** (honor each plugin entry's declared scope) or
-   **local-only** (force every plugin install to project scope). Set `pluginScope` accordingly.
+   **local-only** (force every plugin install to project scope). Set `skillScope` accordingly.
    (There is deliberately no "user-only" option.)
 
 4. **Validate.**
@@ -61,7 +61,7 @@ If `index.json` is missing or stale, run `python3 "$AI_BADGER/scripts/index_buil
 
 5. **Scaffold.**
    ```bash
-   python3 "$AI_BADGER/skills/welcome-ai-badger/scripts/scaffold.py" \
+   python3 "$AI_BADGER/features/common/skills/welcome-ai-badger/scripts/scaffold.py" \
      --config /tmp/proposed-config.json --target . --root "$AI_BADGER" \
      --generated-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
    ```
@@ -98,7 +98,7 @@ The initial scaffold is a one-time setup. For ongoing updates when the framework
 releases new features or fixes, use **`den-refresh`** instead of re-running welcome:
 
 ```bash
-python3 "$AI_BADGER/skills/den-refresh/scripts/refresh.py" --target . --root "$AI_BADGER"
+python3 "$AI_BADGER/features/common/skills/den-refresh/scripts/refresh.py" --target . --root "$AI_BADGER"
 ```
 
 `den-refresh` checks what changed upstream, re-scaffolds with your existing
