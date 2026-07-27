@@ -1,10 +1,9 @@
 ---
 name: code-review-checklist
 description: >-
-  Aviation-style preflight checklist for code reviews. Every item is a concrete,
-  pass/fail check organized into sequential phases. Stack-specific checks activate
-  via extensions (dotnet, react, cosmos, azure, ts, mcp). Use when reviewing PRs,
-  performing milestone reviews, or self-reviewing before push.
+  Use when reviewing code — a PR, a diff, or freshly written changes — and you want concrete
+  pass/fail checks rather than impressions. An aviation-style preflight checklist organised into
+  sequential phases, with stack-specific items merged in from the project's config.
 version: 1.0.0
 author: ai-badger
 license: MIT

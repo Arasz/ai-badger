@@ -1,8 +1,12 @@
 ---
 name: mcp-index
-description: "Use when managing MCP tool index: init, update, validate, tag, or list MCP server tools. After adding/removing MCP servers, run update to sync the index. When the agent struggles to pick the right tool or you want to reduce prompt bloat, init the index and curate tool tags."
+description: >-
+  Use when MCP tool selection needs help — the agent keeps picking the wrong tool, server tool
+  definitions are bloating the prompt, or MCP servers were just added or removed. Manages
+  .ai-badger/mcp-tools.yaml: tags, intent descriptions, and the hook that recommends tools per
+  turn.
 version: 0.1.0
-author: Hermes Agent
+author: ai-badger
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
@@ -56,7 +60,7 @@ Tools auto-tagged as `[general]` need manual curation.
 ### `init` — create the index
 
 ```bash
-python3 skills/mcp-index/scripts/mcp_index.py init --target <project-root>
+python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py init --target <project-root>
 ```
 
 Reads `hermes mcp list --json` (or `--from-json` for testing), auto-tags tools by name heuristics, and writes `.ai-badger/mcp-tools.yaml`. Reports how many tools were tagged as `general`.
@@ -66,7 +70,7 @@ Reads `hermes mcp list --json` (or `--from-json` for testing), auto-tags tools b
 ### `update` — sync index with current MCP state
 
 ```bash
-python3 skills/mcp-index/scripts/mcp_index.py update --target <project-root>
+python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py update --target <project-root>
 ```
 
 Adds new tools (auto-tagged), marks removed tools with `status: removed` (preserving manual tags), and adds new MCP servers. **Preserves manually-set tags and intents on existing tools.**
@@ -76,7 +80,7 @@ Adds new tools (auto-tagged), marks removed tools with `status: removed` (preser
 ### `validate` — check index quality
 
 ```bash
-python3 skills/mcp-index/scripts/mcp_index.py validate --target <project-root>
+python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py validate --target <project-root>
 ```
 
 Fails (exit code 1) if any tool has `[general]` tags, empty tags, missing intent, or invalid tags.
@@ -86,7 +90,7 @@ Fails (exit code 1) if any tool has `[general]` tags, empty tags, missing intent
 ### `tag` — set tags for a tool
 
 ```bash
-python3 skills/mcp-index/scripts/mcp_index.py tag rider:search_symbol semantic search --target <project-root>
+python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py tag rider:search_symbol semantic search --target <project-root>
 ```
 
 Validates tags against the taxonomy. Rejects unknown tags.
@@ -96,7 +100,7 @@ Validates tags against the taxonomy. Rejects unknown tags.
 ### `intent` — set intent for a tool
 
 ```bash
-python3 skills/mcp-index/scripts/mcp_index.py intent rider:get_file_problems "Check a file for Rider code analysis errors and warnings" --target <project-root>
+python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py intent rider:get_file_problems "Check a file for Rider code analysis errors and warnings" --target <project-root>
 ```
 
 Requires ≥10 characters. Use a concise one-sentence description that would help an agent pick this tool from a list of candidates.
@@ -106,9 +110,9 @@ Requires ≥10 characters. Use a concise one-sentence description that would hel
 ### `list` — display tools
 
 ```bash
-python3 skills/mcp-index/scripts/mcp_index.py list --target <project-root>
-python3 skills/mcp-index/scripts/mcp_index.py list --tag diagnostic --target <project-root>
-python3 skills/mcp-index/scripts/mcp_index.py list --untagged --target <project-root>
+python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py list --target <project-root>
+python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py list --tag diagnostic --target <project-root>
+python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py list --untagged --target <project-root>
 ```
 
 **Completion criterion:** All matching tools are displayed with server, tags, and intent.
