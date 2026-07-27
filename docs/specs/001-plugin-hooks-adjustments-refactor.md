@@ -2,6 +2,16 @@
 
 **Status:** Implemented in 0.7.0 — kept as the design record, not a plan  
 **Date:** 2026-07-24  
+**Re-verified:** 2026-07-27 against 0.27.0. All nine phases confirmed landed, independently of
+this header's claim — schemas, migration, `plugins-instructions.json` per agent, the hooks
+feature, the adjustments mechanism, `validate.py`'s `KIND_TO_SCHEMA`, and the
+`pluginScope` → `skillScope` rename. **Two deliberate deviations the text below does not
+mention:** (1) Phase 4 step 6, "remove the `hooks/` directory at repo root", was *not* done and
+will not be — `hooks/hooks.json` is still the value of `"hooks"` in `.claude-plugin/plugin.json`
+and is the only place `${CLAUDE_PLUGIN_ROOT}` gets substituted, which `drift_notice_hook.py`
+needs (see ADR-0001 decision 5). It is a live, maintained file. (2) The `pluginScope` rename is a
+superset, not a replacement: `schemas/manifest.schema.json` still declares `pluginScope` and the
+scaffolder still writes it, marked `# compat`, for pre-0.7.0 manifests.  
 **Spec review:** Completed — all critical/medium/low findings addressed (see §14).
 
 ---

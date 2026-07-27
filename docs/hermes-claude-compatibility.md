@@ -4,6 +4,16 @@ How ai-badger's Claude Code features map to Hermes Agent equivalents.
 Every concept the framework depends on listed with its Hermes counterpart
 and any gaps that need bridging.
 
+> **Written 2026-07-22, spot-checked against the code at 0.27.0 on 2026-07-27.** The conceptual
+> mapping holds. Three corrections were applied inline (marked *Correction*); one framing caveat:
+> the sections below that read as *proposals* ("Option A … recommended") describe work that has
+> since **shipped**, and shipped differently. `features/common/hooks/ai_badger_hooks.py` registers
+> all three hooks — `on_session_start` for the drift notice, `pre_llm_call` for context
+> injection, `post_tool_call` for observation. Drift is reported at session start, not per turn,
+> and `pre_llm_call` carries drift plus usage hints plus MCP tool-index recommendations. The
+> advice below to inject usage context "into every turn" was explicitly walked back in 0.18.0 —
+> repeated every turn, the hints became wallpaper, so they are now once per session.
+
 ## Hook systems
 
 Claude Code has a single hook system (SessionStart, PostToolUse, etc.).
@@ -38,7 +48,7 @@ messaging platform. Claude's hook surface is simpler but less flexible.
       "matcher": "startup|resume",
       "hooks": [{
         "type": "command",
-        "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/task/scripts/drift_notice_hook.py\""
+        "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/task/scripts/drift_notice_hook.py\""
       }]
     }]
   }
@@ -47,6 +57,11 @@ messaging platform. Claude's hook surface is simpler but less flexible.
 
 Fires on every session start, reads `manifest.json` frameworkVersion, compares to plugin's VERSION,
 prints a one-line notice if they differ.
+
+*Correction (2026-07-27):* the `command` above previously read
+`${CLAUDE_PLUGIN_ROOT}/skills/task/…`. The real path in `hooks/hooks.json` is
+`${CLAUDE_PLUGIN_ROOT}/features/common/skills/task/…` and has been for some time; the rest of
+this paragraph is accurate.
 
 **Hermes** — two options:
 
@@ -219,7 +234,7 @@ What the framework ships and where:
 
 | Artifact | Claude path | Hermes path |
 |---|---|---|
-| Drift notice | `hooks/hooks.json` + `drift_notice_hook.py` | `features/common/skills/task/extensions/hermes/` docs + plugin hook code |
+| Drift notice | `hooks/hooks.json` + `drift_notice_hook.py` | `features/common/hooks/ai_badger_hooks.py`, installed into `~/.hermes/plugins/` by `features/hermes/adjustments/adjust_hooks.py` |
 | Session tracking | `session_start_hook.py` in scaffolded `.ai-badger/` | Documented in task extension; replaced by native Hermes features |
 | Statusline capture | `statusline_capture.py` | `/usage` + `pre_llm_call` enrichment in task extension |
 | Background poller | `poll_limit.py` | Not needed; documented removal in task extension |

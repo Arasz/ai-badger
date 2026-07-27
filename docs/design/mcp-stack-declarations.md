@@ -1,6 +1,17 @@
 # Design: MCP Server Declarations for Stack Features
 
 **Status:** Implemented in 0.13.0 — kept as the design record, not a plan
+**Re-verified:** 2026-07-27 against 0.27.0. **Machinery complete, content layer empty.** §2's
+schema, §3's four agent strategies, §4's merge semantics (user > stack > common), §5.1's scaffold
+integration and §5.3's `support.json` entries all landed, with 55 tests across
+`tests/test_mcp_servers_schema.py` and `tests/test_stack_mcp_servers.py`. Still outstanding:
+**no stack declares any server** — `features/common/mcp-servers.json` is `{"servers": []}` and it
+is the only such file — and the `targetAgents` field validates but is **never read by production
+code**, so a stack scoping a server to one agent would still be scaffolded into every agent's
+config. Because no real declaration exists, §9's open questions 1, 3 and 4 (Junie
+`.idea/mcp.json`, per-agent Copilot MCP, install checking) have never been exercised and remain
+open. Open question 2 *was* resolved — the impl plan overrode this document's "advisory notes"
+recommendation with a real `_scaffold_hermes_mcp_user()` write.
 **Author:** ai-badger subagent
 **Date:** 2026-07-26
 **Related:** `externalTools` in config.json, `features/mcp/` stack

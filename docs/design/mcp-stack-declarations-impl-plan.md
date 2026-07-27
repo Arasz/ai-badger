@@ -1,7 +1,17 @@
 # MCP Stack Declarations — Refined Implementation Plan
 
 **Date:** 2026-07-26
-**Status:** Ready for implementation
+**Status:** Implemented in 0.13.0 apart from two items — kept as the design record, not a plan.
+Re-verified 2026-07-27 against 0.27.0: every planned method exists in
+`features/common/skills/welcome-ai-badger/scripts/mcp_tools.py`, the schema and both test files
+landed (16 and 39 tests, against the 10 and 38 planned), and Change 5 / §6.6's merge-only file
+semantics were later strengthened by remediation WP19 into explicit owner constants. **Two items
+did not land:** Phase 4 step 15 — "add `mcp-servers.json` to the stacks that have real MCP servers
+(`github`, `azure`, `python`)" — was never started, so the mechanism ships with zero declarations;
+and §3 / Pitfall 7's `targetAgents` is schema-valid but behaviourally inert, read by no production
+code. Both are candidates for Wave 12 of
+[`../plans/2026-07-27-deferred-work-plan.md`](../plans/2026-07-27-deferred-work-plan.md), which is
+already rewriting `mcp_tools.py`.
 **Supersedes:** `docs/design/mcp-stack-declarations.md` §8 (implementation plan section)
 **Version target:** 0.13.0
 

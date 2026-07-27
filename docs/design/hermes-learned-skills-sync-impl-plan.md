@@ -2,6 +2,11 @@
 
 **Date:** 2026-07-26
 **Status:** Implemented in 0.18.0 — kept as the design record, not a plan
+**Re-verified:** 2026-07-27 against 0.27.0. All six stages confirmed landed, at the planned
+signatures. Note that the shipped code is now **ahead of this plan**, not behind it: §5.2's secret
+scan was hardened past its own spec by remediation WP5 (skills containing symlinks are refused)
+and by Wave 10, which extracted the scanner into `scripts/unsafe_literals.py` and pointed both the
+inbound and outbound paths at it.
 **Issue:** #67
 **Research:** `docs/research/hermes-learned-skills-sync.md` (read it first — this plan assumes
 its corrections C1–C10)
