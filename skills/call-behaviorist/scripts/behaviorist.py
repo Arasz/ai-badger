@@ -30,6 +30,10 @@ DEFAULT_DURATION = "4h"
 DURATION_RE = re.compile(r"^(?:(\d+)h)?(?:(\d+)m)?$")
 MAX_DURATION_SECONDS = 24 * 3600
 
+# The component this tool logs its own lifecycle under. Those records are bookkeeping,
+# never evidence about a hook.
+TOOL_COMPONENT = "call-behaviorist"
+
 
 def parse_duration(text: str) -> int:
     """'4h', '90m', '1h30m', or a bare number of hours -> seconds."""
@@ -64,7 +68,7 @@ def cmd_on(duration: str, project_scoped: bool) -> int:
     where = state["project"] if project_scoped else "every project"
     print(f"debug logging ON for {where}, expires {state['expires_at']}")
     print(f"records: {dl.AUDIT_FILE}")
-    dl.log_event("call-behaviorist", "enabled", project=state["project"], scope=state["scope"])
+    dl.log_event(TOOL_COMPONENT, "enabled", project=state["project"], scope=state["scope"])
     return 0
 
 
@@ -72,7 +76,7 @@ def cmd_off() -> int:
     if not dl.STATE_FILE.exists():
         print("debug logging is already off.")
         return 0
-    dl.log_event("call-behaviorist", "disabled")
+    dl.log_event(TOOL_COMPONENT, "disabled")
     dl.STATE_FILE.write_text(json.dumps({"enabled": False}, indent=2) + "\n", encoding="utf-8")
     print("debug logging OFF.")
     return 0
@@ -116,7 +120,8 @@ def cmd_tail(count: int) -> int:
     return 0
 
 
-ENABLE_HINT = "no records yet — run `behaviorist.py on 4h`, work normally, then analyze again"
+ENABLE_HINT = ("nothing observed yet — run `behaviorist.py on 4h`, work normally, "
+               "then analyze again")
 
 
 def _read_records(project=None):
@@ -135,6 +140,15 @@ def _read_records(project=None):
             continue
         records.append(rec)
     return records
+
+
+def _evidence(records) -> list:
+    """Records that say something about a hook.
+
+    The tool's own `enabled`/`disabled`/`cleared` lines are bookkeeping: they prove the log
+    exists, never that anything was observed.
+    """
+    return [r for r in records if r.get(dl.KEY_COMPONENT) != TOOL_COMPONENT]
 
 
 def _wired_hooks(project) -> dict:
@@ -213,7 +227,7 @@ def analyze(project, expected=None) -> dict:
     """Compare what a project should do against what it was observed doing."""
     wired = _wired_hooks(project) if expected is None else {}
     expected = list(expected if expected is not None else sorted(wired))
-    records = _read_records(project)
+    records = _evidence(_read_records(project))
     observed = _observed(records)
     findings = []
     for name in expected:
@@ -226,7 +240,8 @@ def analyze(project, expected=None) -> dict:
                 "wired but calls no debug logger, so it cannot produce records — "
                 "its silence says nothing about health",
             ))
-        else:
+        elif records:
+            # Vacuous without evidence: with nothing observed, everything is trivially silent.
             findings.append(_finding(
                 "never_observed", name, "high",
                 "wired and instrumented, but produced no record — "
@@ -300,7 +315,7 @@ def cmd_clear() -> int:
     if dl.AUDIT_FILE.exists():
         dl.AUDIT_FILE.write_text("", encoding="utf-8")
         dl._own_only(dl.AUDIT_FILE)  # pylint: disable=protected-access
-    dl.log_event("call-behaviorist", "cleared")
+    dl.log_event(TOOL_COMPONENT, "cleared")
     print("audit log cleared.")
     return 0
 
