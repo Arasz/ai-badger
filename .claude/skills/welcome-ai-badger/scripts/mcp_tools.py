@@ -7,6 +7,8 @@ user config, and scaffolds into agent-specific config files (.mcp.json,
 from __future__ import annotations
 
 import json as _json
+import os
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -16,6 +18,14 @@ import config_guard as cg
 MCP_JSON_OWNER = "claude"
 COPILOT_MCP_OWNER = "copilot"
 HERMES_MCP_OWNER = "hermes"
+
+# Directories user-level package managers install executables into that a non-login
+# process does not have on PATH.  (probe directory, ``${HOME}``-relative prefix emitted
+# into the config).  See docs/changelog/0.28.0-mcp-user-tool-paths.md.
+USER_TOOL_DIRS = (
+    (Path.home() / ".dotnet" / "tools", "${HOME}/.dotnet/tools"),
+    (Path.home() / ".local" / "bin", "${HOME}/.local/bin"),
+)
 
 
 class McpToolsMixin:
@@ -176,6 +186,33 @@ class McpToolsMixin:
             entry["env"] = srv["env"]
         return entry
 
+    def _home_relative_command(self, name: str, command: str) -> str:
+        """Rewrite a bare executable that lives in a user tool dir to its ``${HOME}`` form.
+
+        Leaves anything already pathed, already expandable, or resolvable elsewhere on PATH
+        alone; notes a command that resolves nowhere.
+        """
+        if not command or " " in command or "/" in command or command.startswith("${"):
+            return command
+        for probe_dir, prefix in USER_TOOL_DIRS:
+            candidate = Path(probe_dir) / command
+            if candidate.is_file() and os.access(str(candidate), os.X_OK):
+                return prefix + "/" + command
+        if shutil.which(command) is None:
+            self.notes.append(
+                f"MCP server '{name}' command '{command}' was not found on PATH or in any "
+                f"known user tool directory — that server will fail to start"
+            )
+        return command
+
+    def _home_relative_commands(
+        self, entries: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
+        """Apply :meth:`_home_relative_command` to each rendered entry's executable."""
+        for name, entry in entries.items():
+            entry["command"] = self._home_relative_command(name, entry.get("command", ""))
+        return entries
+
     def _merge_mcp_servers_json(
         self,
         path: Path,
@@ -275,8 +312,8 @@ class McpToolsMixin:
     def _generate_mcp_json(self) -> None:
         """Generate .mcp.json for merged stack + external tool MCP servers.
 
-        Uses portable commands (uvx for Python packages) — no hardcoded paths.
-        Only project-scoped servers are written to .mcp.json.
+        Commands stay portable — no absolute paths; a bare executable found in a user tool
+        directory is emitted ``${HOME}``-relative.  Only project-scoped servers are written.
         """
         # Lazy-init: merge catalog + config external tools if not yet done
         if not self._external_tools_merged:
@@ -329,6 +366,8 @@ class McpToolsMixin:
 
         if not mcp_servers:
             return
+        # .mcp.json is the one config whose ${VAR} expansion is documented (Claude Code).
+        self._home_relative_commands(mcp_servers)
         written = self._merge_mcp_servers_json(
             self.target / ".mcp.json", mcp_servers, ".mcp.json not updated"
         )
