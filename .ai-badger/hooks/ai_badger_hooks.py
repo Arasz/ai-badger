@@ -92,12 +92,22 @@ def _read_scaffold_version(cwd: Optional[str]) -> Optional[str]:
         return None
 
 
+# Hints already injected in this session; cleared at session start.
+_session_hints_shown: set = set()
+
+
+def reset_session_hints() -> None:
+    """Forget which one-per-session hints have been shown."""
+    _session_hints_shown.clear()
+
+
 def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
     """Check for framework version drift on every session start.
 
     Silent on match, on an unscaffolded project, and on any read error.
     A hook that breaks session start or nags unconditionally defeats its purpose.
     """
+    reset_session_hints()
     scaffold_ver = _read_scaffold_version(_project_cwd(cwd))
     fw_version = _read_framework_version()
     if not scaffold_ver or not fw_version or scaffold_ver == fw_version:
@@ -260,12 +270,15 @@ def pre_llm_inject_context(
                 f"framework is {fw_version}. Run den-refresh to update."
             )
 
-    # Usage hints
-    parts.append(
-        "[Hermes] Use /usage for token consumption and model info. "
-        "Use hermes insights --days 7 for weekly analytics. "
-        "Use session_search to recall past decisions."
-    )
+    # Usage hints — once per session. Repeated every turn, they became wallpaper: the
+    # 0.18.0 changelog records an unconditional line as why a broken hook went unnoticed.
+    if not _session_hints_shown:
+        _session_hints_shown.add("usage")
+        parts.append(
+            "[Hermes] Use /usage for token consumption and model info. "
+            "Use hermes insights --days 7 for weekly analytics. "
+            "Use session_search to recall past decisions."
+        )
 
     # MCP tool index recommendations
     if prompt:
@@ -336,7 +349,7 @@ def _load_learned_skills_sync() -> Optional[Any]:
         spec.loader.exec_module(module)
     except Exception:  # pylint: disable=broad-exception-caught
         sys.modules.pop(SYNC_MODULE_NAME, None)
-        logger.debug("learned-skill sync unavailable", exc_info=True)
+        logger.warning("learned-skill sync could not be loaded from %s", path, exc_info=True)
         return None
     return module
 
@@ -380,7 +393,7 @@ def post_tool_observer(tool_name: str = "", result: str = "",
         try:
             _sync_learned_skill(kwargs.get("args") or {}, kwargs.get("status", "ok"), cwd)
         except Exception:  # pylint: disable=broad-exception-caught
-            logger.debug("learned-skill sync failed", exc_info=True)
+            logger.warning("learned-skill sync failed", exc_info=True)
 
     # Log index hit/miss metrics if the index is available
     if tool_name:

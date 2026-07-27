@@ -102,6 +102,10 @@ STATE_FINISHED = "FINISHED"
 CLAUDE_MD = _PATHS["claude_md"]
 CLAUDE_MD_MAX_CHARS = 12000
 CLAUDE_MD_MAX_LINES = 110
+
+# Every agent's discovery file pays the same context cost, so all of them share the budget.
+AGENT_DOC_FILES = ("CLAUDE.md", "HERMES.md", ".hermes.md", "AGENTS.md",
+                   ".github/copilot-instructions.md")
 STATE_JSON = _PATHS["state_json"]
 CONFIG_JSON = _PATHS["config_json"]
 
@@ -393,21 +397,43 @@ def compute_usage(start_cp: dict, finish_cp: dict, subagents: list) -> dict:
     }
 
 
-def claude_md_stats() -> dict:
+def doc_stats(path) -> dict:
+    """Size + budget verdict for one agent discovery file."""
     try:
-        text = CLAUDE_MD.read_text()
-    except FileNotFoundError:
+        text = Path(path).read_text(encoding="utf-8")
+    except (FileNotFoundError, IsADirectoryError):
         text = ""
     chars = len(text)
     lines = text.count("\n") + (1 if text and not text.endswith("\n") else 0)
     return {
-        "path": str(CLAUDE_MD),
+        "path": str(path),
         "chars": chars,
         "lines": lines,
         "maxChars": CLAUDE_MD_MAX_CHARS,
         "maxLines": CLAUDE_MD_MAX_LINES,
         "overBudget": chars > CLAUDE_MD_MAX_CHARS or lines > CLAUDE_MD_MAX_LINES,
     }
+
+
+def claude_md_stats() -> dict:
+    return doc_stats(CLAUDE_MD)
+
+
+def over_budget_docs() -> list:
+    """Every agent discovery file that exists and exceeds the budget.
+
+    The budget is a context-window cost every agent pays, not a Claude-only concern —
+    HERMES.md and copilot-instructions.md were unchecked by anything (F-36).
+    """
+    over = []
+    for rel in AGENT_DOC_FILES:
+        path = PROJECT_ROOT / rel
+        if not path.is_file():
+            continue
+        stats = doc_stats(path)
+        if stats["overBudget"]:
+            over.append(stats)
+    return over
 
 
 def state_json_updated_since(started_at: str) -> bool:

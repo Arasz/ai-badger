@@ -63,15 +63,19 @@ def main() -> int:
                             "updated. Add what this task changed/learned to it now."
                         )
                     tasks_dirty = True
-                stats = lib.claude_md_stats()
-                if stats["overBudget"] and not entry.get("compactionReminderSent"):
+                over = lib.over_budget_docs()
+                if over and not entry.get("compactionReminderSent"):
                     entry["compactionReminderSent"] = True
                     tasks_dirty = True
+                    listed = "; ".join(
+                        f"{Path(s['path']).name} ({s['chars']} chars / {s['lines']} lines)"
+                        for s in over
+                    )
                     block_reasons.append(
-                        f"CLAUDE.md is over its size budget ({stats['chars']} chars / "
-                        f"{stats['lines']} lines; limits {stats['maxChars']} chars / "
-                        f"{stats['maxLines']} lines). Compact it: drop anything derivable from "
-                        "code/git/docs — per-task state belongs in .ai-badger/state.json, not here."
+                        f"{len(over)} agent instruction file(s) over the size budget "
+                        f"({over[0]['maxChars']} chars / {over[0]['maxLines']} lines): {listed}. "
+                        "Compact them: drop anything derivable from code/git/docs — per-task "
+                        "state belongs in .ai-badger/state.json, not here."
                     )
 
         if tasks_dirty:

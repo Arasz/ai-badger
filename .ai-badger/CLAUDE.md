@@ -4,7 +4,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scr
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github
-> Scaffolded by ai-badger 0.20.0. Source of truth for this file: `.ai-badger/CLAUDE.md`.
+> Scaffolded by ai-badger 0.21.0. Source of truth for this file: `.ai-badger/CLAUDE.md`.
 
 ## Non-negotiable invariants
 
@@ -68,7 +68,7 @@ Before editing matching files, read the applicable scoped instruction file:
 
 ## Agent delegation
 
-_Default routing._
+_None configured — work is not dispatched to a persona. Add entries to `personaRouting` in `.ai-badger/config.json` to route it._
 
 ## Prompt markers
 

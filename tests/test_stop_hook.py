@@ -10,6 +10,7 @@ No subprocess is involved in this script, so nothing needs mocking there — iso
 about redirecting tracker_lib's module-level path constants (shared across the whole test
 session) into tmp_path, and feeding the hook's stdin payload directly.
 """
+# pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations
 
 import io
@@ -116,10 +117,30 @@ def test_finished_task_claude_md_over_budget_blocks_with_compaction_reason(
     payload = json.loads(capsys.readouterr().out)
     assert rc == 0
     assert payload["decision"] == "block"
-    assert "CLAUDE.md is over its size budget" in payload["reason"]
+    assert "over the size budget" in payload["reason"]
+    assert "CLAUDE.md" in payload["reason"]
     assert "state.json was not updated" not in payload["reason"]
     entry = stop_hook.lib.load_tasks()["tasks"][0]
     assert entry["compactionReminderSent"] is True
+
+
+def test_finished_task_reports_every_over_budget_agent_file(
+    stop_hook, monkeypatch, tmp_path, capsys
+):
+    """HERMES.md was 24-26 lines over budget with nothing checking it (F-36)."""
+    (tmp_path / "CLAUDE.md").write_text("short\n", encoding="utf-8")
+    (tmp_path / "HERMES.md").write_text("x" * 20000, encoding="utf-8")
+    _write_state(stop_hook, tasks=[{
+        "taskId": "T01", "sessionId": "sid-1", "state": "FINISHED",
+        "startedAt": stop_hook.lib.now_iso(), "stateJsonUpdated": True,
+    }])
+
+    _run_hook(stop_hook, monkeypatch, {"session_id": "sid-1", "transcript_path": ""})
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["decision"] == "block"
+    assert "HERMES.md" in payload["reason"]
+    assert "CLAUDE.md" not in payload["reason"]
 
 
 def test_finished_task_clean_state_produces_no_nag(stop_hook, monkeypatch, tmp_path, capsys):

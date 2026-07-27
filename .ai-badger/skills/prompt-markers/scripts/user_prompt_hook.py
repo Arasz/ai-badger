@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import sys
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -46,12 +47,20 @@ def load_markers_context() -> dict:
 
 
 def match_marker(prompt: str, markers: list[dict]) -> tuple[dict, str] | None:
-    """Return the (marker, matched prefix) whose prefix leads `prompt`, or None."""
+    """Return the (marker, matched prefix) whose prefix leads `prompt`, or None.
+
+    A single-letter prefix must be followed by whitespace or end of prompt, so a
+    Windows path (`H:\\Projects\\foo.py …`) is not read as `h:` (F-21).
+    """
     prompt_trimmed = prompt.strip().lower()
     for marker in markers:
         for prefix in marker.get("prefixes", []):
-            if prompt_trimmed.startswith(prefix.lower()):
-                return marker, prefix
+            if not prompt_trimmed.startswith(prefix.lower()):
+                continue
+            rest = prompt_trimmed[len(prefix):]
+            if len(prefix.rstrip(":")) == 1 and rest and not rest[0].isspace():
+                continue
+            return marker, prefix
     return None
 
 
@@ -118,10 +127,38 @@ def main() -> int:
     return 0
 
 
-if __name__ == "__main__":
+HOOK_ERRORS_FILE = Path.home() / ".ai-badger" / "hook-errors.log"
+MAX_ERROR_LOG_BYTES = 1_000_000
+
+
+def record_hook_failure(where):
+    """Leave one content-free line behind before a hook swallows an exception.
+
+    Type and location only: an exception message can quote scanned input.
+    """
+    exc_type, _, tb = sys.exc_info()
+    frame = traceback.extract_tb(tb)[-1] if tb else None
+    at = f"{Path(frame.filename).name}:{frame.lineno}" if frame else "unknown"
+    name = exc_type.__name__ if exc_type else "Unknown"
+    print(f"[ai-badger] {where} hook failed: {name} at {at}", file=sys.stderr)
     try:
-        sys.exit(main())
+        HOOK_ERRORS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        if HOOK_ERRORS_FILE.exists() and HOOK_ERRORS_FILE.stat().st_size > MAX_ERROR_LOG_BYTES:
+            HOOK_ERRORS_FILE.unlink()
+        with HOOK_ERRORS_FILE.open("a", encoding="utf-8") as fh:
+            fh.write(f"{datetime.now(timezone.utc).isoformat()} {where} {name} at {at}\n")
+    except OSError:
+        pass
+
+
+def guarded_main():
+    """Run main(): a hook never breaks the session, but never fails invisibly either."""
+    try:
+        return main() or 0
     except Exception:  # pylint: disable=broad-exception-caught
-        # A broken hook must never block the prompt: swallow everything, not just the
-        # exceptions we anticipated.
-        sys.exit(0)
+        record_hook_failure("user_prompt_hook")
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(guarded_main())

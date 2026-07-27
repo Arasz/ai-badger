@@ -16,13 +16,22 @@ Commands:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-import yaml  # pylint: disable=import-error
+try:
+    import yaml  # pylint: disable=import-error
+except ImportError:  # pragma: no cover - exercised via a patched __import__
+    yaml = None
+
+YAML_MISSING_HINT = (
+    "mcp-index needs PyYAML: pip install pyyaml (it is in scripts/requirements.txt)"
+)
 
 # ── Tag taxonomy (loaded from features/common/mcp-tags.json or fallback) ──
 _DEFAULT_TAXONOMY: dict[str, Any] = {
@@ -196,13 +205,22 @@ def _read_index(target: str) -> Optional[dict[str, Any]]:
 
 
 def _write_index(target: str, data: dict[str, Any]) -> None:
-    """Write the index file, creating parent directories."""
+    """Write the index file atomically — it holds hand-curated tags a partial write loses.
+
+    Local copy of `badger_lib.atomic_write_text`: this script is scaffolded into projects
+    that need not have the framework on sys.path.
+    """
     path = _index_path(target)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        yaml.dump(data, sort_keys=False, default_flow_style=False),
-        encoding="utf-8",
-    )
+    text = yaml.dump(data, sort_keys=False, default_flow_style=False)
+    handle, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp, str(path))
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
 
 
 # ── Commands ─────────────────────────────────────────────────────────────────
@@ -550,6 +568,10 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if not argv:
         return _usage()
+
+    if yaml is None:
+        print(YAML_MISSING_HINT, file=sys.stderr)
+        return 1
 
     cmd = argv[0]
     target, remaining = _parse_target_and_remaining(argv)

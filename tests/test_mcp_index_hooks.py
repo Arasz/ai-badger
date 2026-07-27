@@ -5,6 +5,7 @@ Covers:
 - pre_llm_inject_context: injecting tool recommendations based on user message
 - Keyword extraction and tag matching
 """
+# pylint: disable=protected-access,redefined-outer-name  # hook internals + local module handle; see pyproject.toml
 
 from __future__ import annotations
 
@@ -209,6 +210,7 @@ def test_find_relevant_tools_no_match(tmp_path):
 
 def test_pre_llm_inject_no_index():
     """Without an index, should still return context (usage hints)."""
+    hooks.reset_session_hints()  # the usage hint is once per session (F-37)
     result = hooks.pre_llm_inject_context(cwd="/nonexistent/path")
     assert result is not None
     assert "context" in result
@@ -219,6 +221,7 @@ def test_pre_llm_inject_no_index():
 def test_pre_llm_inject_with_index_build_query(tmp_path):
     """With an index and a build query, should recommend build_solution."""
     _write_mcp_index(tmp_path, _sample_index())
+    hooks.reset_session_hints()  # the usage hint is once per session (F-37)
 
     # This test verifies the hook CAN read the index. The actual user message
     # injection is handled by Hermes at runtime — we test that the helper
@@ -233,6 +236,7 @@ def test_pre_llm_inject_with_index_build_query(tmp_path):
 def test_pre_llm_inject_with_index_no_double_injection(tmp_path):
     """Hook should not crash when index exists but query is empty."""
     _write_mcp_index(tmp_path, _sample_index())
+    hooks.reset_session_hints()
 
     result = hooks.pre_llm_inject_context(cwd=str(tmp_path))
     assert result is not None
@@ -252,3 +256,26 @@ def test_post_tool_observer_noop():
     )
     # post_tool_observer is a no-op observer — it logs at DEBUG level.
     # The test passes if no exception is raised.
+
+
+def test_usage_hint_is_injected_once_per_session(load_script, tmp_path):
+    """A line repeated every turn is a line the agent stops reading (F-37)."""
+    hooks = load_script("features/common/hooks/ai_badger_hooks.py")
+    hooks.reset_session_hints()
+
+    first = hooks.pre_llm_inject_context(cwd=str(tmp_path), message="hello")
+    second = hooks.pre_llm_inject_context(cwd=str(tmp_path), message="hello again")
+
+    assert "/usage" in (first or {}).get("context", "")
+    assert "/usage" not in (second or {}).get("context", "")
+
+
+def test_usage_hint_returns_after_a_session_reset(load_script, tmp_path):
+    hooks = load_script("features/common/hooks/ai_badger_hooks.py")
+    hooks.reset_session_hints()
+    hooks.pre_llm_inject_context(cwd=str(tmp_path), message="hello")
+
+    hooks.on_session_start_drift_notice(cwd=str(tmp_path))
+    again = hooks.pre_llm_inject_context(cwd=str(tmp_path), message="new session")
+
+    assert "/usage" in (again or {}).get("context", "")

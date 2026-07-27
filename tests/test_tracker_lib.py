@@ -6,12 +6,14 @@ file location at import time. Every test here loads a *fresh* module instance vi
 and immediately overwrites those constants to point into `tmp_path`, so nothing ever touches the
 real ai-badger repo checkout.
 """
+# pylint: disable=protected-access  # exercises tracker_lib internals; see pyproject.toml
 from __future__ import annotations
 
 import json
 import os
 import threading
 from datetime import timedelta
+from pathlib import Path
 
 
 def _redirect(tl, tmp_path):
@@ -770,3 +772,34 @@ def test_resolve_own_session_returns_empty_when_nothing_matches(load_script, tmp
     resolved = tl.resolve_own_session()
 
     assert resolved == {}
+
+
+# ---------------------------------------------------------------------------
+# over_budget_docs — every agent's discovery file, not only Claude's (F-36)
+# ---------------------------------------------------------------------------
+
+def test_over_budget_docs_is_empty_when_every_file_fits(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    tl.CLAUDE_MD.write_text("short\n", encoding="utf-8")
+
+    assert tl.over_budget_docs() == []
+
+
+def test_over_budget_docs_reports_hermes_and_copilot_files(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    fat = "x\n" * (tl.CLAUDE_MD_MAX_LINES + 5)
+    (tmp_path / "HERMES.md").write_text(fat, encoding="utf-8")
+    copilot = tmp_path / ".github" / "copilot-instructions.md"
+    copilot.parent.mkdir(parents=True, exist_ok=True)
+    copilot.write_text(fat, encoding="utf-8")
+    tl.CLAUDE_MD.write_text("short\n", encoding="utf-8")
+
+    names = sorted(Path(s["path"]).name for s in tl.over_budget_docs())
+
+    assert names == ["HERMES.md", "copilot-instructions.md"]
+
+
+def test_over_budget_docs_ignores_files_that_do_not_exist(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+
+    assert tl.over_budget_docs() == []
