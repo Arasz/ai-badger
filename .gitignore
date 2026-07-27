@@ -11,3 +11,5 @@ task-tracking/
 .ai-badger.bckp/
 # prompt-marker history: stores whole prompts verbatim
 .ai-badger/prompt-markers/
+# subagent worktrees: a full nested checkout, never part of a commit
+.claude/worktrees/
