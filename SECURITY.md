@@ -117,9 +117,29 @@ Structural properties that predate those waves:
   imported unguarded, because a guarded import would let validation silently pass when it is
   absent; `pyyaml` is optional and guarded, degrading to a printed note.
 
-There is still no secret-scanning **pre-commit** hook — the scan above is CI-side only, so a
-credential can be committed locally and is caught when it is pushed. Saying so here is more
-useful than implying coverage that does not exist.
+There is still no secret-scanning **pre-commit** hook. That is now a decision rather than an
+omission, and both candidates were looked at:
+
+- **gitleaks as a local hook.** `.pre-commit-config.yaml` is deliberately one `local` repo of
+  `language: system` hooks with no third-party dependency. Adding gitleaks there puts a
+  downloaded binary or a Go toolchain on every contributor's machine and in every commit — the
+  trade CI can make and a commit hook cannot, which is why
+  [`.github/workflows/secret-scan.yml`](.github/workflows/secret-scan.yml) uses the Action and
+  stops there.
+- **`scripts/unsafe_literals.py` as a local hook.** It is offline and stdlib-only, but it is a
+  five-pattern guard on content *leaving* a repository, not a history scanner — a different
+  door on purpose. It also matches three tracked files on deliberately fake fixture values
+  ([`docs/design/hermes-learned-skills-sync-impl-plan.md`](docs/design/hermes-learned-skills-sync-impl-plan.md),
+  [`docs/reviews/2026-07-26-full-project-review.md`](docs/reviews/2026-07-26-full-project-review.md),
+  [`tests/test_learned_skills_sync.py`](tests/test_learned_skills_sync.py)), so it would ship
+  with a permanent exception list from its first run. A permanently-baselined scanner is
+  theatre, and a five-pattern one advertised as secret scanning is worse than none: it buys
+  false confidence.
+
+So, stated plainly: **a credential can be committed locally, and is caught when the branch is
+pushed to `main` or opened as a pull request** — not on the push of a topic branch that is
+neither. Closing that last window is a matter of widening the CI trigger, not of adding a local
+hook.
 
 ## Out of scope
 
