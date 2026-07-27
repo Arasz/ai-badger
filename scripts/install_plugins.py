@@ -67,12 +67,32 @@ def _resolve_scope(entry_scope: str, config_scope: str) -> str:
 
 
 def _build_command(template: str, source_url: str, skill_name: str = "",
-                   scope: str = "default") -> str:
+                   scope: str = "default", source_name: str = "") -> str:
     """Substitute placeholders in a command template."""
     cmd = template.replace("{source}", source_url)
+    cmd = cmd.replace("{sourceName}", source_name)
     cmd = cmd.replace("{name}", skill_name)
     cmd = cmd.replace("{scope}", scope)
     return cmd
+
+
+def _resolve_stacks(config: Dict[str, Any]) -> List[str]:
+    """Stacks to read catalogs from: always 'common' first, then config's, deduplicated.
+
+    config.stacks may not contain 'common' (config.schema.json forbids it), so a resolver
+    that reads config.stacks alone never sees features/common/skills.json at all.
+    """
+    ordered = ["common"] + list(config.get("stacks", []))
+    seen = set()
+    return [s for s in ordered if not (s in seen or seen.add(s))]
+
+
+def _install_template(cmd_templates: List[str]) -> str:
+    """The template that installs one named skill, or "" when the agent has none."""
+    for tpl in cmd_templates:
+        if "{name}" in tpl:
+            return tpl
+    return cmd_templates[1] if len(cmd_templates) > 1 else ""
 
 
 def install_skills(root: Path, config: Dict[str, Any],
@@ -99,7 +119,7 @@ def install_skills(root: Path, config: Dict[str, Any],
         }
     """
     agents = config.get("agents", [])
-    stacks = config.get("stacks", [])
+    stacks = _resolve_stacks(config)
     config_scope = config.get("skillScope", config.get("pluginScope", "default"))
 
     commands: List[str] = []
@@ -146,29 +166,28 @@ def install_skills(root: Path, config: Dict[str, Any],
                 # Add source command once per (agent, source_type, source_url)
                 source_key = (source_type, source_url)
                 if source_key not in added_sources[agent]:
-                    commands.append(_build_command(cmd_templates[0], source_url))
+                    commands.append(
+                        _build_command(cmd_templates[0], source_url, source_name=source_name))
                     added_sources[agent].add(source_key)
 
                 # Install skill command
+                install_template = _install_template(cmd_templates)
+                if not install_template:
+                    warnings.append(
+                        f"Agent '{agent}' has no per-skill install template for source type "
+                        f"'{source_type}' — skill '{skill['name']}' is covered only by the "
+                        f"'{source_name}' source command, not installed by name")
+                    continue
+
                 scope = _resolve_scope(
                     skill.get("scope", "default"), config_scope)
-
-                install_template = None
-                for tpl in cmd_templates:
-                    if "{name}" in tpl:
-                        install_template = tpl
-                        break
-                if install_template is None and len(cmd_templates) > 1:
-                    install_template = cmd_templates[1]
-                elif install_template is None:
-                    install_template = cmd_templates[0]
 
                 scope_suffix = ""
                 if scope != "default" and "{scope}" not in install_template:
                     scope_suffix = f" --scope {scope}"
 
                 install_cmd = _build_command(
-                    install_template, source_url, skill["name"], scope)
+                    install_template, source_url, skill["name"], scope, source_name)
                 install_cmd += scope_suffix
                 commands.append(install_cmd)
 

@@ -191,3 +191,86 @@ class TestInstallSkills:
         result = ip.install_skills(tmp_path, config, dry_run=True)
 
         assert any("hub" in w for w in result["warnings"])
+
+
+class TestRealCatalog:
+    """install_skills must work against the shipped features/ tree, not just fixtures (F-06)."""
+
+    def _real_config(self):
+        return {"agents": ["claude"], "stacks": ["python"], "skillScope": "default"}
+
+    def _declared_skills(self, root, stacks):
+        names = []
+        for stack in stacks:
+            path = root / "features" / stack / "skills.json"
+            if path.exists():
+                names += [s["name"] for s in json.loads(path.read_text())["skills"]]
+        return names
+
+    def test_real_catalog_emits_an_install_command_per_declared_skill(self, root, load_script):
+        ip = load_script("scripts/install_plugins.py")
+
+        result = ip.install_skills(root, self._real_config(), dry_run=True)
+
+        declared = self._declared_skills(root, ["common", "python"])
+        assert declared, "expected the real catalog to declare skills"
+        for name in declared:
+            assert any(name in cmd for cmd in result["commands"]), \
+                f"no install command mentions '{name}': {result['commands']}"
+
+    def test_common_stack_is_always_resolved(self, root, load_script):
+        """config.stacks may not contain 'common' (the schema forbids it), so the resolver
+        must add it — otherwise features/common/skills.json is dead catalog data."""
+        ip = load_script("scripts/install_plugins.py")
+
+        result = ip.install_skills(root, self._real_config(), dry_run=True)
+
+        assert any("superpowers" in cmd for cmd in result["commands"]), result["commands"]
+
+    def test_real_catalog_emits_no_warnings(self, root, load_script):
+        ip = load_script("scripts/install_plugins.py")
+
+        result = ip.install_skills(root, self._real_config(), dry_run=True)
+
+        assert result["warnings"] == []
+
+    def test_duplicate_stacks_do_not_duplicate_commands(self, root, load_script):
+        ip = load_script("scripts/install_plugins.py")
+        config = {"agents": ["claude"], "stacks": ["common", "python", "python"],
+                  "skillScope": "default"}
+
+        result = ip.install_skills(root, config, dry_run=True)
+
+        assert len(result["commands"]) == len(set(result["commands"]))
+
+
+class TestMissingNameTemplate:
+    """An agent whose instruction cannot name a skill must say so, not emit a duplicate."""
+
+    def _framework(self, tmp_path, root):
+        features = tmp_path / "features" / "common"
+        features.mkdir(parents=True)
+        (tmp_path / "schemas").symlink_to(root / "schemas")
+        (features / "skills-source.json").write_text(json.dumps({
+            "sources": [{"name": "by-url", "type": "url",
+                         "source": "https://example.com/pack", "support": ["claude"]}]
+        }))
+        (features / "skills.json").write_text(json.dumps({
+            "skills": [{"name": "packaged-skill", "source": "by-url"}]
+        }))
+        (tmp_path / "features" / "claude").mkdir(parents=True)
+        (tmp_path / "features" / "claude" / "plugins-instructions.json").write_text(json.dumps({
+            "agent": "claude",
+            "instructions": {"url": {"commands": ["claude plugin install {source}"]}},
+        }))
+        return tmp_path
+
+    def test_warns_instead_of_repeating_the_source_command(self, tmp_path, root, load_script):
+        ip = load_script("scripts/install_plugins.py")
+        fw = self._framework(tmp_path, root)
+        config = {"agents": ["claude"], "stacks": [], "skillScope": "default"}
+
+        result = ip.install_skills(fw, config, dry_run=True)
+
+        assert result["commands"] == ["claude plugin install https://example.com/pack"]
+        assert any("packaged-skill" in w for w in result["warnings"])
