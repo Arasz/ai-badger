@@ -865,6 +865,83 @@ def test_the_two_command_splitters_agree_or_are_documented_to_differ(
         assert entry == elsewhere, destination
 
 
+def _scaffold_mcp_json_from(tmp_path, load_script, target, server):
+    """Run only the .mcp.json generation, as though scaffolded from *target*."""
+    scaffold = load_script(SCAFFOLD)
+    _write_mcp_servers(tmp_path / "features" / "python", [server])
+    scaf = _scaf(scaffold, tmp_path, target,
+                 _config(stacks=["python"], agents=["claude"]))
+    scaf._generate_mcp_json()
+    return scaf
+
+
+class TestCwdSurvivesAScaffoldFromAnotherCheckout:
+    """.mcp.json is tracked, so a refresh run from a worktree must not restage its cwd."""
+
+    @staticmethod
+    def _project(tmp_path, name):
+        target = tmp_path / name
+        (target / ".ai-badger").mkdir(parents=True, exist_ok=True)
+        return target
+
+    @staticmethod
+    def _cwd_of(target, name="srv"):
+        return json.loads(
+            (target / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"][name]["cwd"]
+
+    def test_a_cwd_pointing_at_a_live_checkout_is_left_alone(
+            self, tmp_path, monkeypatch, load_script, root):
+        _no_user_tool_dirs(monkeypatch, load_script)
+        main = self._project(tmp_path, "proj")
+        worktree = self._project(tmp_path, "wt")
+        server = {"name": "srv", "command": "uvx mcp-server-pyright"}
+        _scaffold_mcp_json_from(tmp_path, load_script, main, server)
+        (worktree / ".mcp.json").write_text(
+            (main / ".mcp.json").read_text(encoding="utf-8"), encoding="utf-8")
+
+        _scaffold_mcp_json_from(tmp_path, load_script, worktree, server)
+
+        assert self._cwd_of(worktree) == str(main)
+
+    def test_a_cwd_pointing_nowhere_is_replaced(
+            self, tmp_path, monkeypatch, load_script, root):
+        _no_user_tool_dirs(monkeypatch, load_script)
+        target = self._project(tmp_path, "proj")
+        (target / ".mcp.json").write_text(json.dumps({"mcpServers": {"srv": {
+            "command": "uvx", "args": ["mcp-server-pyright"],
+            "cwd": str(tmp_path / "deleted-worktree")}}}), encoding="utf-8")
+
+        _scaffold_mcp_json_from(
+            tmp_path, load_script, target, {"name": "srv", "command": "uvx mcp-server-pyright"})
+
+        assert self._cwd_of(target) == str(target)
+
+    def test_a_first_scaffold_pins_the_project_it_ran_from(
+            self, tmp_path, monkeypatch, load_script, root):
+        _no_user_tool_dirs(monkeypatch, load_script)
+        target = self._project(tmp_path, "proj")
+
+        _scaffold_mcp_json_from(
+            tmp_path, load_script, target, {"name": "srv", "command": "uvx mcp-server-pyright"})
+
+        assert self._cwd_of(target) == str(target)
+
+    def test_everything_but_cwd_is_still_refreshed(
+            self, tmp_path, monkeypatch, load_script, root):
+        """Preserving cwd must not freeze the rest of a stale entry."""
+        _no_user_tool_dirs(monkeypatch, load_script)
+        main = self._project(tmp_path, "proj")
+        (main / ".mcp.json").write_text(json.dumps({"mcpServers": {"srv": {
+            "command": "stale-command", "cwd": str(main)}}}), encoding="utf-8")
+
+        _scaffold_mcp_json_from(
+            tmp_path, load_script, main, {"name": "srv", "command": "uvx mcp-server-pyright"})
+
+        entry = json.loads((main / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["srv"]
+        assert entry["command"] == "uvx"
+        assert entry["cwd"] == str(main)
+
+
 def test_only_mcp_json_pins_the_project_cwd(tmp_path, monkeypatch, load_script, root):
     """The other three configs are read by agents that supply their own working directory."""
     _no_user_tool_dirs(monkeypatch, load_script)

@@ -284,11 +284,30 @@ class McpToolsMixin:
             entry["command"] = self._home_relative_command(name, entry.get("command", ""))
         return entries
 
+    def _carry_live_cwd(
+        self, section: Dict[str, Any], entries: Dict[str, Dict[str, Any]]
+    ) -> None:
+        """Keep a recorded ``cwd`` that still names a scaffolded project.
+
+        ``.mcp.json`` is tracked, so re-scaffolding from a second checkout would otherwise
+        restage every entry's ``cwd`` onto a directory the original checkout never used.
+        """
+        for name, entry in entries.items():
+            recorded = section.get(name, {}).get("cwd")
+            if not isinstance(recorded, str) or not recorded:
+                continue
+            if recorded != entry.get("cwd") and (Path(recorded) / ".ai-badger").is_dir():
+                entry["cwd"] = recorded
+                self.notes.append(
+                    f"MCP server '{name}': kept the recorded cwd {recorded} rather than "
+                    f"repointing it at {self.target}"
+                )
+
     def _merge_mcp_servers_json(
         self,
         path: Path,
         entries: Dict[str, Dict[str, Any]],
-        consequence: str,
+        dest: McpDestination,
     ) -> bool:
         """Merge rendered *entries* into the ``mcpServers`` object of the JSON file at *path*.
 
@@ -298,8 +317,10 @@ class McpToolsMixin:
         section = cg.mapping_section(existing, "mcpServers") if existing is not None else None
         if section is None:
             note = note or cg.refusal(path, "mcpServers is not a mapping")
-            self.notes.append(f"{note} ({consequence})")
+            self.notes.append(f"{note} ({dest.consequence})")
             return False
+        if dest.pin_cwd:
+            self._carry_live_cwd(section, entries)
         section.update(entries)
         cg.write_json_with_backup(path, existing)
         return True
@@ -349,7 +370,7 @@ class McpToolsMixin:
         self._merge_mcp_servers_json(
             Path.home() / ".claude" / "settings.json",
             self._render_entries(user_servers, CLAUDE_USER_SETTINGS),
-            CLAUDE_USER_SETTINGS.consequence,
+            CLAUDE_USER_SETTINGS,
         )
 
     def _generate_copilot_mcp_config(
@@ -365,7 +386,7 @@ class McpToolsMixin:
         self._merge_mcp_servers_json(
             self.target / ".github" / "copilot" / "mcp-config.json",
             self._render_entries(servers, COPILOT_MCP_CONFIG),
-            COPILOT_MCP_CONFIG.consequence,
+            COPILOT_MCP_CONFIG,
         )
 
     # -- orchestrate ----------------------------------------------------------------
@@ -394,7 +415,7 @@ class McpToolsMixin:
 
         mcp_servers = self._render_entries(project_servers, MCP_JSON)
         written = self._merge_mcp_servers_json(
-            self.target / ".mcp.json", mcp_servers, MCP_JSON.consequence
+            self.target / ".mcp.json", mcp_servers, MCP_JSON
         )
         if written:
             self.notes.append(
