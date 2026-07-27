@@ -1,6 +1,6 @@
 ---
 description: 'Azure Functions and Durable Functions conventions.'
-applyTo: '**/*Function*.cs,**/*Orchestrator*.cs,**/*Activity*.cs,**/functions/**/*.ts,**/functions/**/*.js,**/*[Oo]rchestrator*.ts,**/*[Oo]rchestrator*.js,**/host.json,**/local.settings.json'
+applyTo: '**/*Function*.cs,**/*Orchestrat*.cs,**/*Activity*.cs,**/functions/**/*.ts,**/functions/**/*.js,**/*[Oo]rchestrat*.ts,**/*[Oo]rchestrat*.js,**/host.json,**/local.settings.json'
 ---
 
 # Azure Functions & Durable Functions
