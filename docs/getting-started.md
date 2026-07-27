@@ -112,11 +112,27 @@ drift notice — you have to remember to refresh.
 
 ### They are the same catalog
 
-The scripts find the framework root by walking up from their own location for a directory that
-holds both `schemas/` and `features/`, falling back to an already-populated
-`~/.ai-badger/framework/` (`badger_lib.find_root`). So `--root` is usually optional, and if you
-took Route A your `$AI_BADGER` is simply the plugin's install directory. Passing `--root`
-explicitly is still the safe habit — every example below does.
+Every script resolves the framework root the same way, in this order: `--root`, then an
+ancestor walk from the script's own location, then `$AI_BADGER`, then the root recorded in the
+nearest `.ai-badger/manifest.json` **above the script**, then an already-populated
+`~/.ai-badger/framework/` (`badger_lib.resolve_framework_root`,
+[ADR-0007](adr/0007-no-python-distribution.md),
+[ADR-0009](adr/0009-one-framework-root-resolution.md)). A root is a directory holding
+`schemas/`, `features/` and `scripts/badger_lib.py`.
+
+Two consequences worth knowing:
+
+- **A script inside a checkout always uses that checkout.** `$AI_BADGER` is consulted only when
+  no framework stands above the script, so a stale export cannot pair one clone's engine with
+  another's catalog — which matters if you keep several checkouts or work in git worktrees.
+- **Your working directory is never consulted.** Resolution reads only what the operator
+  declared and what sits above the script itself, so a repository you merely cloned cannot
+  point the framework at code of its own.
+
+So `--root` is usually optional, and if you took Route A your `$AI_BADGER` is simply the
+plugin's install directory — but if you set either one and it is not a framework root, the
+script says so instead of quietly resolving something else. Passing `--root` explicitly is
+still the safe habit — every example below does.
 
 You can do both: install the plugin for day-to-day use, and keep a clone for contributing.
 

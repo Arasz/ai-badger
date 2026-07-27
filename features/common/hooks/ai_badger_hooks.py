@@ -9,9 +9,9 @@ Installation: `welcome-ai-badger` copies this file and learned_skills_sync.py in
 ~/.hermes/plugins/ (features/hermes/adjustments/adjust_hooks.py); Hermes discovers
 plugins there via the register() entry point.
 
-The plugin self-locates the ai-badger framework root by walking ancestor
-directories (same pattern as _bootstrap_lib in the scaffold scripts),
-NOT via a hardcoded path or environment variable.
+The plugin self-locates the framework root with the shared `_bootstrap_lib()` shim. In
+~/.hermes/plugins/ there is no framework above these two loose files, so the root recorded
+in the project's .ai-badger/manifest.json is what answers (ADR-0007).
 """
 
 from __future__ import annotations
@@ -46,24 +46,93 @@ def _debug(component: str, event: str, **fields) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Framework root discovery (same ancestor-walk as scaffold/detect scripts)
+# Framework root discovery — the shim every ai-badger entry point carries
 # ---------------------------------------------------------------------------
 
-def find_framework_root(start: Optional[Path] = None) -> Optional[Path]:
-    """Walk ancestors from `start` for the ai-badger framework root.
+def _bootstrap_lib() -> Path:
+    """Put the framework's scripts/ on sys.path and return its root.
 
-    A framework root is the nearest ancestor containing both a `VERSION` file
-    and a `schemas/` directory. Falls back to this file's own location.
-
-    Deliberately NOT a fixed parents[N] — see ADR-0001 Context section for
-    why hardcoded depth caused a real misrooting bug.
+    One predicate, shared with badger_lib.is_framework_root: schemas/ + features/ +
+    scripts/badger_lib.py. Ordered inputs: --root, an ancestor walk, $AI_BADGER, the root
+    recorded in a .ai-badger/manifest.json above this file, then ~/.ai-badger/framework
+    (ADR-0009). Duplicated verbatim in every entry point because locating badger_lib is
+    what it is for.
     """
-    if start is None:
-        start = Path(__file__).resolve()
-    for anc in [start, *start.parents]:
-        if (anc / "VERSION").is_file() and (anc / "schemas").is_dir():
-            return anc
-    return None
+    def is_root(path):
+        return ((path / "schemas").is_dir() and (path / "features").is_dir()
+                and (path / "scripts" / "badger_lib.py").is_file())
+
+    def argv_root():
+        # sys.argv is ours only when this file is the program being run; these modules are
+        # also imported into hosts whose own --root means something else entirely.
+        try:
+            if not sys.argv or Path(sys.argv[0]).resolve() != Path(__file__).resolve():
+                return None
+        except (OSError, ValueError):
+            return None
+        argv = sys.argv[1:]
+        for i, arg in enumerate(argv):
+            if arg == "--root" and i + 1 < len(argv):
+                return argv[i + 1]
+            if arg.startswith("--root="):
+                return arg.split("=", 1)[1]
+        return None
+
+    def checked(value, source):
+        root = Path(value).expanduser()
+        if not is_root(root):
+            raise RuntimeError(
+                f"{source} is {root}, which is not an ai-badger framework root "
+                f"(no schemas/ + features/ + scripts/badger_lib.py)"
+            )
+        return root
+
+    def recorded(start):
+        # Above this file only. A working directory belongs to whatever repo the user
+        # opened, and no repo may steer the sys.path of a hook that runs on session start.
+        for anc in [start, *start.parents]:
+            manifest = (anc / "manifest.json" if anc.name == ".ai-badger"
+                        else anc / ".ai-badger" / "manifest.json")
+            if not manifest.is_file():
+                continue
+            try:
+                value = json.loads(manifest.read_text(encoding="utf-8")).get("frameworkRoot")
+            except (OSError, ValueError):
+                continue
+            if not value:
+                continue
+            candidate = Path(value).expanduser()
+            if not candidate.is_absolute():
+                candidate = manifest.parent.parent / candidate
+            if is_root(candidate):
+                return candidate.resolve()
+        return None
+
+    here = Path(__file__).resolve()
+    cache = Path.home() / ".ai-badger" / "framework"
+    value = argv_root()
+    if value:
+        root = checked(value, "--root")
+    else:
+        root = next((anc for anc in [here, *here.parents] if is_root(anc)), None)
+        if root is None and os.environ.get("AI_BADGER"):
+            root = checked(os.environ["AI_BADGER"], "$AI_BADGER")
+        root = root or recorded(here) or (cache if is_root(cache) else None)
+    if root is None:
+        raise RuntimeError(
+            f"could not locate the ai-badger framework: none above {here.parent}, no "
+            f"$AI_BADGER, no frameworkRoot in a .ai-badger/manifest.json above it, and no "
+            f"cache at {cache} — pass --root <framework> or clone "
+            f"https://github.com/Arasz/ai-badger"
+        )
+    sys.path.insert(0, str(root / "scripts"))
+    return root.resolve()
+
+
+try:
+    FRAMEWORK_ROOT: Optional[Path] = _bootstrap_lib()
+except RuntimeError:  # a hook degrades to silence; it never breaks a session
+    FRAMEWORK_ROOT = None
 
 
 # ---------------------------------------------------------------------------
@@ -72,11 +141,10 @@ def find_framework_root(start: Optional[Path] = None) -> Optional[Path]:
 
 def _read_framework_version() -> Optional[str]:
     """Read the framework's VERSION file, or None on any error."""
-    root = find_framework_root()
-    if root is None:
+    if FRAMEWORK_ROOT is None:
         return None
     try:
-        return (root / "VERSION").read_text(encoding="utf-8").strip()
+        return (FRAMEWORK_ROOT / "VERSION").read_text(encoding="utf-8").strip()
     except OSError:
         return None
 

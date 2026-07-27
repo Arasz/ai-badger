@@ -4,21 +4,39 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
 
 def _make_root(tmp_path, version=None):
-    """Build a minimal fake framework root (schemas/ + features/) under tmp_path."""
+    """Build a minimal fake framework root: schemas/ + features/ + scripts/badger_lib.py."""
     (tmp_path / "schemas").mkdir(parents=True, exist_ok=True)
     (tmp_path / "features").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "scripts").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "scripts" / "badger_lib.py").write_text("", encoding="utf-8")
     if version is not None:
         (tmp_path / "VERSION").write_text(f"{version}\n", encoding="utf-8")
     return tmp_path
 
 
+def _make_scaffold(project, framework_root):
+    """Write the .ai-badger/manifest.json a scaffold run leaves behind, root recorded."""
+    aib = project / ".ai-badger"
+    aib.mkdir(parents=True, exist_ok=True)
+    (aib / "manifest.json").write_text(
+        json.dumps({"frameworkRoot": str(framework_root)}), encoding="utf-8")
+    return aib
+
+
 def _forbidden_subprocess(*args, **kwargs):
     raise AssertionError(f"offline code path ran a subprocess: {args} {kwargs}")
+
+
+@pytest.fixture(autouse=True)
+def _no_declared_root(monkeypatch):
+    """Root lookup must not be steered by whatever $AI_BADGER the developer exported."""
+    monkeypatch.delenv("AI_BADGER", raising=False)
 
 
 def test_find_root_walks_up_to_dir_with_schemas_and_features(tmp_path, load_script):
@@ -76,6 +94,148 @@ def test_find_root_uses_an_existing_cache_without_network(tmp_path, load_script,
     monkeypatch.setattr(bl.subprocess, "run", _forbidden_subprocess)
 
     assert bl.find_root(lonely) == cache
+
+
+# ------------------------------------------------------- resolve_framework_root (ADR-0007)
+def test_a_catalog_without_the_engine_is_not_a_framework_root(tmp_path, load_script):
+    """schemas/ + features/ alone is a catalog; a root also carries scripts/badger_lib.py."""
+    bl = load_script("scripts/badger_lib.py")
+    (tmp_path / "schemas").mkdir()
+    (tmp_path / "features").mkdir()
+
+    assert not bl.is_framework_root(tmp_path)
+    assert bl.is_framework_root(_make_root(tmp_path))
+
+
+def test_explicit_root_outranks_every_other_input(tmp_path, load_script, monkeypatch):
+    bl = load_script("scripts/badger_lib.py")
+    declared = _make_root(tmp_path / "declared")
+    ancestor = _make_root(tmp_path / "ancestor")
+    monkeypatch.setenv("AI_BADGER", str(_make_root(tmp_path / "env")))
+
+    assert bl.resolve_framework_root(explicit=declared, start=ancestor) == declared.resolve()
+
+
+def test_a_declared_root_that_is_not_a_root_refuses_rather_than_falls_through(
+        tmp_path, load_script):
+    """A wrong --root is a misconfiguration to report, not a reason to resolve something else."""
+    bl = load_script("scripts/badger_lib.py")
+    ancestor = _make_root(tmp_path / "ancestor")
+    wrong = tmp_path / "not-a-root"
+    wrong.mkdir()
+
+    with pytest.raises(bl.FrameworkRootNotFound) as excinfo:
+        bl.resolve_framework_root(explicit=wrong, start=ancestor)
+
+    assert str(wrong) in str(excinfo.value)
+
+
+def test_the_ancestor_walk_outranks_the_env_var(tmp_path, load_script, monkeypatch):
+    """A script inside a checkout uses that checkout's engine, whatever a shell profile says."""
+    bl = load_script("scripts/badger_lib.py")
+    monkeypatch.setenv("AI_BADGER", str(_make_root(tmp_path / "env")))
+    ancestor = _make_root(tmp_path / "ancestor")
+
+    assert bl.resolve_framework_root(start=ancestor) == ancestor.resolve()
+
+
+def test_the_env_var_answers_when_no_framework_stands_above_the_script(
+        tmp_path, load_script, monkeypatch):
+    bl = load_script("scripts/badger_lib.py")
+    env_root = _make_root(tmp_path / "env")
+    lonely = tmp_path / "unrelated"
+    lonely.mkdir()
+    monkeypatch.setenv("AI_BADGER", str(env_root))
+
+    assert bl.resolve_framework_root(start=lonely) == env_root.resolve()
+
+
+def test_a_stale_env_var_refuses_rather_than_falls_through(tmp_path, load_script, monkeypatch):
+    bl = load_script("scripts/badger_lib.py")
+    stale = tmp_path / "moved-away"
+    lonely = tmp_path / "unrelated"
+    lonely.mkdir()
+    monkeypatch.setenv("AI_BADGER", str(stale))
+
+    with pytest.raises(bl.FrameworkRootNotFound) as excinfo:
+        bl.resolve_framework_root(start=lonely)
+
+    assert "AI_BADGER" in str(excinfo.value)
+
+
+def test_a_scaffold_resolves_the_root_recorded_in_its_manifest(tmp_path, load_script,
+                                                               monkeypatch):
+    """The shape with no framework above it: only a recorded root can answer (ADR-0007)."""
+    bl = load_script("scripts/badger_lib.py")
+    framework = _make_root(tmp_path / "framework")
+    aib = _make_scaffold(tmp_path / "consumer", framework)
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
+
+    script = aib / "skills" / "welcome-ai-badger" / "scripts"
+    script.mkdir(parents=True)
+
+    assert bl.resolve_framework_root(start=script) == framework.resolve()
+
+
+def test_a_hermes_plugin_resolves_the_root_recorded_beside_it(tmp_path, load_script,
+                                                              monkeypatch):
+    """Two loose files in ~/.hermes/plugins/ are answered by a record their installer wrote."""
+    bl = load_script("scripts/badger_lib.py")
+    framework = _make_root(tmp_path / "framework")
+    plugins = tmp_path / "home" / ".hermes" / "plugins"
+    _make_scaffold(plugins, framework)
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
+
+    assert bl.resolve_framework_root(start=plugins / "learned_skills_sync.py") \
+        == framework.resolve()
+
+
+def test_a_manifest_above_the_working_directory_cannot_steer_resolution(
+        tmp_path, load_script, monkeypatch):
+    """A cloned repo must not put its own tree on the sys.path of a session-start hook (A1)."""
+    bl = load_script("scripts/badger_lib.py")
+    attacker = _make_root(tmp_path / "hostile" / "vendor")
+    _make_scaffold(tmp_path / "hostile", attacker)
+    plugins = tmp_path / "home" / ".hermes" / "plugins"
+    plugins.mkdir(parents=True)
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
+    monkeypatch.chdir(tmp_path / "hostile")
+
+    with pytest.raises(bl.FrameworkRootNotFound):
+        bl.resolve_framework_root(start=plugins / "learned_skills_sync.py")
+
+
+def test_a_recorded_root_from_another_machine_is_ignored(tmp_path, load_script, monkeypatch):
+    """A manifest is a hint, validated before use — a foreign path is not a root here."""
+    bl = load_script("scripts/badger_lib.py")
+    aib = _make_scaffold(tmp_path / "consumer", Path("/nowhere/ai-badger"))
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
+
+    with pytest.raises(bl.FrameworkRootNotFound):
+        bl.resolve_framework_root(start=aib)
+
+
+def test_a_recorded_root_may_be_relative_to_the_scaffolded_project(tmp_path, load_script,
+                                                                   monkeypatch):
+    """A repo scaffolded by itself records `.` — the one value that survives a git clone."""
+    bl = load_script("scripts/badger_lib.py")
+    project = _make_root(tmp_path / "self-hosted")
+    aib = project / ".ai-badger"
+    aib.mkdir()
+    (aib / "manifest.json").write_text(json.dumps({"frameworkRoot": "."}), encoding="utf-8")
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
+
+    assert bl.recorded_root(aib) == project.resolve()
+
+
+def test_the_ancestor_walk_outranks_a_recorded_root(tmp_path, load_script, monkeypatch):
+    bl = load_script("scripts/badger_lib.py")
+    recorded = _make_root(tmp_path / "recorded")
+    ancestor = _make_root(tmp_path / "ancestor")
+    _make_scaffold(ancestor, recorded)
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
+
+    assert bl.resolve_framework_root(start=ancestor / ".ai-badger") == ancestor.resolve()
 
 
 class TestEnsureFrameworkCache:
