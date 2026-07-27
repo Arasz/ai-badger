@@ -10,14 +10,9 @@ import json as _json
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
 import config_guard as cg
-
-# Each generated MCP file is read by exactly one agent, and carries that agent's overrides.
-MCP_JSON_OWNER = "claude"
-COPILOT_MCP_OWNER = "copilot"
-HERMES_MCP_OWNER = "hermes"
 
 # Directories user-level package managers install executables into that a non-login
 # process does not have on PATH.  (probe directory, ``${HOME}``-relative prefix emitted
@@ -25,6 +20,62 @@ HERMES_MCP_OWNER = "hermes"
 USER_TOOL_DIRS = (
     (Path.home() / ".dotnet" / "tools", "${HOME}/.dotnet/tools"),
     (Path.home() / ".local" / "bin", "${HOME}/.local/bin"),
+)
+
+
+def split_on_whitespace(command: str) -> Tuple[str, List[str]]:
+    """Split *command* into ``(executable, args)``: every word after the first is an argument."""
+    parts = command.split()
+    return parts[0], parts[1:]
+
+
+def split_package_args(command: str) -> Tuple[str, List[str]]:
+    """Split *command* only when an argument looks like a package name (``-``, ``@``, ``/``).
+
+    Keeps ``echo v2`` whole while parsing ``uvx mcp-server-pyright`` into executable + args.
+    """
+    parts = command.split()
+    if len(parts) >= 2 and any("-" in p or "@" in p or "/" in p for p in parts[1:]):
+        return parts[0], parts[1:]
+    return command, []
+
+
+class McpDestination(NamedTuple):
+    """One generated MCP config file — these columns are the only differences between them."""
+
+    label: str
+    owner: str  # the one agent that reads the file; its agentOverrides are the ones applied (F-22)
+    requires_owner: bool  # written only for that agent, vs written whether or not it is configured
+    pin_cwd: bool
+    split_command: Callable[[str], Tuple[str, List[str]]]
+    expand_home: bool  # rewrite a user-tool-dir command to ``${HOME}`` form
+    consequence: str  # what a refusal to write costs, for the note
+
+
+# ``.mcp.json`` alone expands ``${VAR}`` (documented by Claude Code) and alone pins ``cwd``;
+# it also keeps a command whole unless an argument looks like a package name.  Every other
+# destination splits on whitespace and writes the command bare.  The asymmetry is deliberate:
+# docs/changelog/0.28.0-mcp-user-tool-paths.md, and Wave 12 of
+# docs/plans/2026-07-27-deferred-work-plan.md.
+MCP_JSON = McpDestination(
+    label=".mcp.json", owner="claude", requires_owner=False, pin_cwd=True,
+    split_command=split_package_args, expand_home=True,
+    consequence=".mcp.json not updated",
+)
+COPILOT_MCP_CONFIG = McpDestination(
+    label=".github/copilot/mcp-config.json", owner="copilot", requires_owner=True, pin_cwd=False,
+    split_command=split_on_whitespace, expand_home=False,
+    consequence="copilot MCP config not updated",
+)
+CLAUDE_USER_SETTINGS = McpDestination(
+    label="~/.claude/settings.json", owner="claude", requires_owner=True, pin_cwd=False,
+    split_command=split_on_whitespace, expand_home=False,
+    consequence="claude user MCP servers not registered",
+)
+HERMES_USER_CONFIG = McpDestination(
+    label="~/.hermes/config.yaml", owner="hermes", requires_owner=True, pin_cwd=False,
+    split_command=split_on_whitespace, expand_home=False,
+    consequence="hermes user MCP servers not registered",
 )
 
 
@@ -136,19 +187,29 @@ class McpToolsMixin:
                 project[name] = srv
         return project, user
 
-    def _override_owner(self, owner: str, filename: str,
-                         servers: Dict[str, Dict[str, Any]]) -> Optional[str]:
-        """Return *owner* if it is a configured agent, else None + a note if that drops overrides.
+    def _destination_applies(
+        self, dest: McpDestination, servers: Dict[str, Dict[str, Any]]
+    ) -> bool:
+        """Whether *dest* is written at all: it needs servers, and may need its owner configured."""
+        if not servers:
+            return False
+        return not dest.requires_owner or dest.owner in self.config.get("agents", [])
+
+    def _override_owner(
+        self, dest: McpDestination, servers: Dict[str, Dict[str, Any]]
+    ) -> Optional[str]:
+        """Return *dest*'s owner if it is a configured agent, else None + a note if overrides drop.
 
         Each generated file has exactly one reading agent, so its overrides are that
         agent's — never whichever agent happens to come first in config.agents (F-22).
         """
+        owner = dest.owner
         if owner in self.config.get("agents", []):
             return owner
         dropped = sorted(name for name, srv in servers.items() if srv.get("agentOverrides"))
         if dropped:
             self.notes.append(
-                f"{filename} written without agent overrides ({', '.join(dropped)}) — "
+                f"{dest.label} written without agent overrides ({', '.join(dropped)}) — "
                 f"'{owner}' is not in config.agents and the file is read by {owner}"
             )
         return None
@@ -165,23 +226,33 @@ class McpToolsMixin:
             return resolved
         return dict(server)
 
-    @staticmethod
-    def _parse_command(command: str) -> Tuple[str, List[str]]:
-        """Split *command* string into ``(executable, args_list)``."""
-        parts = command.split()
-        return parts[0], parts[1:]
+    def _render_entries(
+        self, servers: Dict[str, Dict[str, Any]], dest: McpDestination
+    ) -> Dict[str, Dict[str, Any]]:
+        """Render *servers* as *dest*'s config entries, resolved for its owning agent."""
+        owner = self._override_owner(dest, servers)
+        entries = {
+            name: self._render_entry(
+                self._resolve_server_for_agent(srv, owner) if owner else dict(srv), dest)
+            for name, srv in servers.items()
+        }
+        if dest.expand_home:
+            self._home_relative_commands(entries)
+        return entries
 
-    def _server_entry(self, srv: Dict[str, Any]) -> Dict[str, Any]:
-        """Render one server declaration as an agent config entry."""
+    def _render_entry(self, srv: Dict[str, Any], dest: McpDestination) -> Dict[str, Any]:
+        """Render one resolved server declaration as one *dest* entry."""
         entry = {}  # type: Dict[str, Any]
         if "args" in srv:
-            entry["command"] = srv["command"]
+            entry["command"] = srv.get("command", "")
             entry["args"] = srv["args"]
         else:
-            exe, args = self._parse_command(srv.get("command", ""))
+            exe, args = dest.split_command(srv.get("command", ""))
             entry["command"] = exe
             if args:
                 entry["args"] = args
+        if dest.pin_cwd:
+            entry["cwd"] = str(self.target)
         if "env" in srv:
             entry["env"] = srv["env"]
         return entry
@@ -241,9 +312,7 @@ class McpToolsMixin:
         Merge-only (never overwrites existing entries).  Gated on ``"hermes"``
         being present in ``config.agents``.
         """
-        if "hermes" not in self.config.get("agents", []):
-            return
-        if not user_servers:
+        if not self._destination_applies(HERMES_USER_CONFIG, user_servers):
             return
         try:
             import yaml  # type: ignore
@@ -258,12 +327,10 @@ class McpToolsMixin:
         section = cg.mapping_section(existing, "mcp", "servers") if existing is not None else None
         if section is None:
             note = note or cg.refusal(config_path, "mcp.servers is not a mapping")
-            self.notes.append(f"{note} (hermes user MCP servers not registered)")
+            self.notes.append(f"{note} ({HERMES_USER_CONFIG.consequence})")
             return
 
-        for name, srv in user_servers.items():
-            section[name] = self._server_entry(
-                self._resolve_server_for_agent(srv, HERMES_MCP_OWNER))
+        section.update(self._render_entries(user_servers, HERMES_USER_CONFIG))
 
         cg.write_with_backup(
             config_path, yaml.safe_dump(existing, default_flow_style=False)
@@ -276,16 +343,13 @@ class McpToolsMixin:
 
         JSON merge-only.  Gated on ``"claude"`` in ``config.agents``.
         """
-        if "claude" not in self.config.get("agents", []):
-            return
-        if not user_servers:
+        if not self._destination_applies(CLAUDE_USER_SETTINGS, user_servers):
             return
 
         self._merge_mcp_servers_json(
             Path.home() / ".claude" / "settings.json",
-            {name: self._server_entry(self._resolve_server_for_agent(srv, MCP_JSON_OWNER))
-             for name, srv in user_servers.items()},
-            "claude user MCP servers not registered",
+            self._render_entries(user_servers, CLAUDE_USER_SETTINGS),
+            CLAUDE_USER_SETTINGS.consequence,
         )
 
     def _generate_copilot_mcp_config(
@@ -295,16 +359,13 @@ class McpToolsMixin:
 
         Merge-only.  Gated on ``"copilot"`` in ``config.agents``.
         """
-        if "copilot" not in self.config.get("agents", []):
-            return
-        if not servers:
+        if not self._destination_applies(COPILOT_MCP_CONFIG, servers):
             return
 
         self._merge_mcp_servers_json(
             self.target / ".github" / "copilot" / "mcp-config.json",
-            {name: self._server_entry(self._resolve_server_for_agent(srv, COPILOT_MCP_OWNER))
-             for name, srv in servers.items()},
-            "copilot MCP config not updated",
+            self._render_entries(servers, COPILOT_MCP_CONFIG),
+            COPILOT_MCP_CONFIG.consequence,
         )
 
     # -- orchestrate ----------------------------------------------------------------
@@ -328,48 +389,12 @@ class McpToolsMixin:
         merged = self._merge_mcp_servers(stack_servers, self._merged_external_tools)
         project_servers, _ = self._split_servers_by_scope(merged)
 
-        owner = self._override_owner(MCP_JSON_OWNER, ".mcp.json", project_servers)
-        mcp_servers = {}  # type: Dict[str, Any]
-        for name, srv in project_servers.items():
-            resolved = self._resolve_server_for_agent(srv, owner) if owner else dict(srv)
-
-            # Parse command into executable + args
-            command = resolved.get("command", "")
-            if "args" in resolved:
-                # Agent override provides explicit args
-                entry = {
-                    "command": command,
-                    "args": resolved["args"],
-                    "cwd": str(self.target),
-                }
-            else:
-                parts = command.split()
-                # Split into executable + args only when arguments contain
-                # package-name characters (hyphens, @, /) — keeps simple
-                # commands like "echo v2" intact while parsing
-                # "uvx mcp-server-pyright" correctly.
-                has_pkg_args = (
-                    len(parts) >= 2
-                    and any("-" in p or "@" in p or "/" in p for p in parts[1:])
-                )
-                if has_pkg_args:
-                    entry = {
-                        "command": parts[0],
-                        "args": parts[1:],
-                        "cwd": str(self.target),
-                    }
-                else:
-                    entry = {"command": command, "cwd": str(self.target)}
-            if "env" in resolved:
-                entry["env"] = resolved["env"]
-            mcp_servers[name] = entry
-
-        if not mcp_servers:
+        if not self._destination_applies(MCP_JSON, project_servers):
             return
-        # .mcp.json is the one config whose ${VAR} expansion is documented (Claude Code).
-        self._home_relative_commands(mcp_servers)
+
+        mcp_servers = self._render_entries(project_servers, MCP_JSON)
         written = self._merge_mcp_servers_json(
-            self.target / ".mcp.json", mcp_servers, ".mcp.json not updated"
+            self.target / ".mcp.json", mcp_servers, MCP_JSON.consequence
         )
         if written:
             self.notes.append(
