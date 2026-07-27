@@ -222,6 +222,33 @@ byte-identical before and after, because every `templates/` dir lives under `com
 `copilot`, `hermes` or `junie` — none of which is ever a configured stack. The correction bites
 the first time a real stack gains one.
 
+## STANDING INSTRUCTION — Wave 7 gets an independent review before it merges
+
+Maintainer instruction (2026-07-27 17:31): **when `task/wave-7-one-framework-root` lands, review
+it with an independent sub-agent before merging.** Not after.
+
+Why it earned special treatment: the plan calls it *"the one that can brick every entry point in
+every deployment shape at once"*, it is the only wave two others are queued behind (16, 17), and
+its blast radius is 19 files across four deployment shapes — two of which cannot be exercised
+from this checkout without a fake home.
+
+The reviewer must be **independent**: given the diff, ADR-0007 and the repo, **not** the
+implementing agent's own report or reasoning. Its job is to try to falsify the change, not to
+confirm it. Specific things to make it check rather than assume:
+
+- Does the four-shape integration test actually fail before the fix, in **all four** shapes? A
+  test that passes for the wrong reason is the recorded hazard here: `~/.ai-badger/framework`
+  exists on this machine at VERSION 0.13.0 and satisfies `_is_root`, so a real-home test is
+  green regardless of correctness.
+- Do all four predicates now agree, or only the three the plan named? (`drift_notice_hook.
+  find_plugin_root` is the fourth and was missed by the plan.)
+- Does every entry point still *import* in each shape? Both broken shapes previously raised
+  `RuntimeError` at module import, so `--root` advice was unreachable — argparse never ran.
+- Is the shim still self-contained? It cannot import `badger_lib` — that is the bootstrap
+  problem — so it must stay duplicated while ceasing to disagree.
+- Did the generated mirrors under `skills/` and `.ai-badger/skills/` get regenerated rather than
+  hand-edited?
+
 ## Open, not started
 
 1. Instrument the remaining hooks (`prompt-markers`, `task`, `mcp_index`) — best after Wave 7.
