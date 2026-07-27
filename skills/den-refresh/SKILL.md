@@ -53,6 +53,8 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
    - `drift.changed` — framework files that differ from the scaffolded copies
    - `drift.removed` — scaffolded files whose framework source no longer exists
    - `drift.skipped` — directory-valued entries (skills) that can't be hash-compared
+   - `drift.newItems` — catalog items the project has never scaffolded, including ones
+     added to the framework's always-on `common` stack after this project was set up
    - `newStacks` — stacks detectable in the target but missing from config
    - `reScaffolded` — whether a re-scaffold was performed
    - `scaffold` — if re-scaffolded: entry count, refreshed skill names, notes

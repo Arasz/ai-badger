@@ -24,7 +24,8 @@ class FeatureType(NamedTuple):
     """One catalog feature type and the behaviour every stage keys off.
 
     ``index_rule`` names index_build's discovery rule; ``drift_reports_new`` marks types
-    whose catalog items drift reports when the manifest lacks them.
+    whose catalog items drift reports when the manifest lacks them — only safe where
+    scaffold records an entry under the item's own index name, or the report never clears.
     """
 
     name: str
@@ -42,9 +43,12 @@ FEATURE_TYPES: Tuple[FeatureType, ...] = (
     FeatureType("personas", "md", True),
     FeatureType("invariants", "md", True),
     FeatureType("instructions", "md", True),
-    FeatureType("templates", "templates", True),
-    FeatureType("hooks", "hooks", True),
-    FeatureType("adjustments", "adjustments", True),
+    # These three are materialised under names of their own — a rendered/seeded output, a
+    # settings.json wiring, a written file per adjustment — so no manifest entry is ever
+    # keyed by the index item's name and a "new" report could never clear (ADR-0006).
+    FeatureType("templates", "templates", False),
+    FeatureType("hooks", "hooks", False),
+    FeatureType("adjustments", "adjustments", False),
 )
 
 FEATURES = [ft.name for ft in FEATURE_TYPES]

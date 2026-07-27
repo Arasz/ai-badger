@@ -537,13 +537,14 @@ def test_md_carrying_feature_types_are_the_ones_indexed_as_markdown(load_script)
     assert all(bl.feature_type(name).index_rule == "md" for name in md)
 
 
-def test_templates_are_reported_as_new_by_drift(load_script):
+def test_only_feature_types_scaffold_records_by_index_name_are_reported_as_new(load_script):
+    """Templates, hooks and adjustments land under names of their own; drift must stay quiet."""
     bl = load_script("scripts/badger_lib.py")
 
-    assert "templates" in bl.DRIFT_NEW_FEATURES
     assert bl.DRIFT_NEW_FEATURES == tuple(
         ft.name for ft in bl.FEATURE_TYPES if ft.drift_reports_new
     )
+    assert bl.DRIFT_NEW_FEATURES == ("skills", "personas", "invariants", "instructions")
 
 
 def test_iter_feature_dirs_returns_empty_list_when_no_features_dir(tmp_path, load_script):
