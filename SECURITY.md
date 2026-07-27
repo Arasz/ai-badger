@@ -104,14 +104,12 @@ Structural properties that predate those waves:
   (`.github/workflows/codeql.yml`).
 - **Dependabot** watches `scripts/requirements.txt` and the GitHub Actions used by the workflows,
   weekly (`.github/dependabot.yml`).
-- **gitleaks** scans the commit range on every push to `main` and every pull request, and the
+- **gitleaks** scans the commit range on every push to **any** branch and every pull request, and the
   whole history weekly (`.github/workflows/secret-scan.yml`). Findings are redacted: this
   repository is public, so an unredacted report would publish the credential it just caught.
 - **`deps_guard.py`** fails the build on a third-party import that
   `scripts/requirements.txt` does not declare — in pre-commit and on all three CI Python
   versions.
-- **Dependabot** watches `scripts/requirements.txt` and the GitHub Actions used by the workflows,
-  weekly (`.github/dependabot.yml`).
 - The runtime dependency surface is deliberately tiny: **`jsonschema` and `pyyaml`**. Everything
   else is Python 3.8+ stdlib. Their imports differ on purpose — `jsonschema` is required and
   imported unguarded, because a guarded import would let validation silently pass when it is
