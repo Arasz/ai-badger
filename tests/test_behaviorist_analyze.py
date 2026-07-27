@@ -215,3 +215,57 @@ class TestComponentNamesMatchAcrossNamespaces:
         report = beh.analyze(project="/repo", expected=["alpha_hook"])
 
         assert report["findings"] == [], report["findings"]
+
+
+class TestTheToolsOwnEventsAreNotEvidence:
+    """`enabled`/`disabled`/`cleared` are bookkeeping; they say nothing about any hook."""
+
+    def test_only_bookkeeping_records_still_reports_unknown(self, load_script, tmp_path,
+                                                            monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("call-behaviorist", event="cleared", project=None)])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        assert report["health"] == "unknown"
+
+    def test_no_high_severity_finding_is_raised_without_evidence(self, load_script, tmp_path,
+                                                                 monkeypatch):
+        """`never_observed` is vacuous when nothing was observed at all."""
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("call-behaviorist", event="cleared", project=None)])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        assert [f for f in report["findings"] if f["severity"] == "high"] == []
+
+    def test_the_tool_is_not_reported_as_an_unexpected_component(self, load_script, tmp_path,
+                                                                 monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("call-behaviorist", event="cleared", project=None),
+                     _record("hooks/alpha", project="/repo")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        assert "unexpected_component" not in _kinds(report)
+
+    def test_the_window_counts_evidence_not_bookkeeping(self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("call-behaviorist", event="cleared", project=None),
+                     _record("hooks/alpha", project="/repo")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        assert report["window"]["records"] == 1
+
+    def test_real_evidence_still_produces_a_real_finding(self, load_script, tmp_path, monkeypatch):
+        """The fix must not mute genuine silence — alpha fired, never did not."""
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("call-behaviorist", event="cleared", project=None),
+                     _record("hooks/alpha", project="/repo")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha", "hooks/never"])
+
+        silent = [f for f in report["findings"] if f["kind"] == "never_observed"]
+        assert [f["component"] for f in silent] == ["hooks/never"]
+        assert report["health"] == "degraded"
