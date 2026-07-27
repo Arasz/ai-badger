@@ -190,7 +190,60 @@ that wording is false.
 
 ---
 
-## Research in flight — skill removal semantics
+## Group I — a project cannot decline anything **[research done; ready to dispatch]**
+
+Full findings: [`../research/2026-07-27-skill-removal-semantics.md`](../research/2026-07-27-skill-removal-semantics.md).
+Merged. Four results, each verified by running rather than reading:
+
+1. **The opt-out we were about to document does not exist.** `config.schema.json` is
+   `additionalProperties: false` with no exclusion key, and `skillScope` is `['default','local']`
+   — *install* scope, not selection. `SKILL_SCOPES` is framework source, shipped read-only in the
+   plugin cache. **The drafted #104 changelog sentence is false and must be rewritten.**
+2. **Deleting a skill never worked in `den-refresh` either.** Pre-#104 the list came from the
+   manifest, and deleting a directory does not touch `manifest.json` — the skill was still named
+   there and still re-copied. "Removal by absence" always required hand-editing generated
+   provenance.
+3. **Deletion leaves the project broken, not merely unchanged.** After `rm -r
+   .ai-badger/skills/foo`, `.claude/skills/foo` is a **dangling symlink** — `adjust_skills.py`
+   only adds links, never prunes.
+4. **The docs already promise the fix, and the promise is false.**
+   `docs/getting-started.md` tells users, of invariants: *"Delete the ones you do not want before
+   committing."* A refresh restores them. This is the decisive argument against "document it as
+   non-removable" — the hole is not skills-only, and we have already told users otherwise.
+
+**Recommendation to implement:** `"exclude": {"skills": [...]}` in `config.json`, enforced
+**once, in `Scaffolder.__init__`**. Every consumer (`scaffold_skills`, `symlink_hermes_skills`,
+the adjustments context, the dependency check) reads `self.skills`, so filtering there makes the
+two entry points structurally unable to disagree — putting it in either caller re-creates the
+#104 bug. `refresh.py` needs no change, and that is the point.
+
+Rejected, with reasons: a **delete hook** has no trigger (nothing observes the filesystem between
+runs; a user-invoked one is a command writing state — tombstones with a nicer door) and would
+read `git checkout`, a revert or a bad merge as a policy declaration. **Tombstones** put a user
+decision into generated provenance that `feed-badger` diffs through. **"Non-removable,
+documented"** contradicts a promise already shipped in the docs.
+
+On ADR tension: ADR-0005 governs *supply* and its failure mode is omission; an exclusion is
+*demand* — per-project, explicit, and unable to reproduce that failure. Against ADR-0006, there
+are currently **zero** ways to decline an artifact, so this is the first mechanism, not a fifth.
+
+**Hard constraint the implementation must honour:** `hook_wiring.py` rewrites
+`${CLAUDE_PLUGIN_ROOT}/…/skills/task/scripts/session_start_hook.py` into `.ai-badger/skills/`
+**without checking the file exists**, so excluding `task` would wire two `SessionStart` commands
+pointing at nothing. Extensions are *not* a coupling — `requires` are config predicates, never
+skill names.
+
+**Blast radius:** `config.schema.json` changes; `manifest.schema.json` deliberately does not;
+**minor bump** under ADR-0001 §3. Fold in the bonus fix it found: `DEFAULT_SKILLS` should be
+`default_skills_in(common)`, not `default_skill_names()` — the latter includes `auto-wm` (a
+`features/claude` skill) and prints a permanent `not in index common.skills — skipped` note on
+every scaffold. That is the last residue of the #104 divergence.
+
+**Scope decision still open:** the research covers skills, but finding 4 shows invariants have
+the same hole and a false doc promise. Decide whether `exclude` covers one feature type or
+several before implementing.
+
+## Superseded — research now complete
 
 Branch `research/skill-removal-semantics`, agent running. Question: **how should a project say "I
 do not want this skill"?** Today it cannot — `welcome-ai-badger` always restored deleted default
