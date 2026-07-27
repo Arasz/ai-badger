@@ -112,6 +112,54 @@ def test_every_advertised_lane_is_dispatchable(lane):
     assert lane in done.stdout
 
 
+def test_lanes_do_not_inherit_the_hook_git_environment(tmp_path):
+    """git points a hook's children at THIS repo, so a test building a temp repo would
+    commit into the real one. The lane must see the environment a hand-run would."""
+    probe = tmp_path / "probe.sh"
+    probe.write_text('#!/bin/sh\nfor v in GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE; do\n'
+                     '  eval "val=\\$$v"\n  [ -n "$val" ] && exit 9\ndone\nexit 0\n',
+                     encoding="utf-8")
+    probe.chmod(0o755)
+    gitdir = _git("rev-parse", "--path-format=absolute", "--git-dir").strip()
+    done = _run("docs", env={"AIB_PYTHON": str(probe), "GIT_DIR": gitdir,
+                             "GIT_INDEX_FILE": f"{gitdir}/index"})
+    assert done.returncode == 0, f"a lane still saw git's hook environment:\n{done.stdout}"
+
+
+@pytest.mark.parametrize("lane", ["pylint", "js"])
+def test_lane_with_nothing_to_check_fails_instead_of_passing(lane, tmp_path):
+    """A file-list lane that finds nothing has a broken index, not a clean tree. Reporting
+    a 0s pass there is the "passing run that ran nothing" failure the gate exists to stop."""
+    empty = tmp_path / "repo"
+    empty.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=str(empty), check=True)
+    gate = empty / ".lefthook" / "pre-push"
+    gate.mkdir(parents=True)
+    (gate / "verify.sh").write_text(GATE.read_text(encoding="utf-8"), encoding="utf-8")
+    (gate / "verify.sh").chmod(0o755)
+    done = subprocess.run(["/bin/bash", str(gate / "verify.sh"), lane], cwd=str(empty),
+                          capture_output=True, text=True, check=False)
+    assert done.returncode != 0, f"{lane} reported a pass with nothing to check"
+    assert "refusing to report a pass" in done.stdout
+
+
+def test_log_dir_is_per_checkout(tmp_path):
+    """Two checkouts must not share a log path, or a nested run overwrites the log the
+    failure block just told the developer to open."""
+    other = tmp_path / "repo"
+    other.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=str(other), check=True)
+    gate = other / ".lefthook" / "pre-push"
+    gate.mkdir(parents=True)
+    (gate / "verify.sh").write_text(GATE.read_text(encoding="utf-8"), encoding="utf-8")
+    (gate / "verify.sh").chmod(0o755)
+    here = _run("pylint", env={"VERIFY_SKIP": "pylint"}).stdout
+    there = subprocess.run(["/bin/bash", str(gate / "verify.sh"), "pylint"], cwd=str(other),
+                           capture_output=True, text=True, check=False).stdout
+    assert "refusing to report a pass" not in here
+    assert "refusing to report a pass" in there
+
+
 def test_failing_lane_propagates_non_zero():
     """The bash trap the guide names: an `if` with no `else` returns 0 and eats the failure."""
     done = _run("release", env={"AIB_PYTHON": "/bin/false"})

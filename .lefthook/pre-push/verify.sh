@@ -9,7 +9,16 @@ _self_abs="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOUR
 cd "$(git rev-parse --show-toplevel)" || exit 1
 readonly SELF="${_self_abs#"$PWD"/}"
 
-readonly LOG_DIR="${TMPDIR:-/tmp}/ai-badger-verify"
+# git exports these to a hook and they point a child's git at THIS repo, so a test building a
+# throwaway repo would write to the real one. Dropped after the cd, so a lane sees the same
+# environment it would see when run by hand.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_QUARANTINE_PATH \
+      GIT_REFLOG_ACTION GIT_AUTHOR_DATE GIT_COMMITTER_DATE GIT_EDITOR
+
+# Keyed by checkout: the pytest lane runs this script in a throwaway repo, and a shared path
+# would let that nested run overwrite the log the failure block just cited.
+_log_key="$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)"
+readonly LOG_DIR="${VERIFY_LOG_DIR:-${TMPDIR:-/tmp}/ai-badger-verify/$_log_key}"
 readonly BASE_REF="${VERIFY_BASE:-origin/main}"
 
 # Cheap lanes first so a typo fails fast, before pylint and pytest.
@@ -75,20 +84,36 @@ lane_cmd() {
         release)       "$PY" scripts/release_guard.py ;;
         validate)      "$PY" scripts/validate.py --all ;;
         tdd)           lane_tdd ;;
-        js)            node --test tests/js/*.test.mjs ;;
+        js)            lane_js ;;
         pylint)        lane_pylint ;;
         pytest)        "$PY" -m pytest -q ;;
         *)             printf 'unknown lane: %s\n' "$1" >&2; return 2 ;;
     esac
 }
 
-# Mirrors CI: non-test Python only, 10.00 required.
+# Mirrors CI: non-test Python only, 10.00 required. An empty file list means the index is
+# wrong, not that the tree is clean, so it fails rather than reporting a 0s pass.
 lane_pylint() {
     local files
     files="$(git ls-files '*.py' | grep -v '^tests/')"
-    [ -n "$files" ] || return 0
+    if [ -z "$files" ]; then
+        printf 'no non-test *.py files in the index; refusing to report a pass\n' >&2
+        return 1
+    fi
     # shellcheck disable=SC2086
     "$PY" -m pylint $files
+}
+
+# node's own glob would expand to nothing and still exit 0 if the suite moved.
+lane_js() {
+    local files
+    files="$(git ls-files 'tests/js/*.test.mjs')"
+    if [ -z "$files" ]; then
+        printf 'no tests/js/*.test.mjs in the index; refusing to report a pass\n' >&2
+        return 1
+    fi
+    # shellcheck disable=SC2086
+    node --test $files
 }
 
 # tdd_guard compares against the base branch, so that ref must exist locally.
