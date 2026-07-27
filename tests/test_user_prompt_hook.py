@@ -181,3 +181,30 @@ def test_internal_error_is_recorded_somewhere(tmp_path, load_script, monkeypatch
     assert rc == 0
     assert "user_prompt_hook" in errors.read_text(encoding="utf-8")
     assert "user_prompt_hook" in capsys.readouterr().err
+
+
+def _markers():
+    return [{"id": "hint", "prefixes": ["h:", "hint:"]},
+            {"id": "feedback", "prefixes": ["f:", "feedback:"]}]
+
+
+def test_windows_drive_letter_path_is_not_a_marker(load_script):
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+
+    match = hook.match_marker(r"H:\Projects\foo.py, can you check this?", _markers())
+
+    assert match is None
+
+
+def test_bare_prefix_needs_whitespace_after_it(load_script):
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+
+    assert hook.match_marker("h: check the cache layer", _markers())[0]["id"] == "hint"
+    assert hook.match_marker("h:", _markers())[0]["id"] == "hint"
+    assert hook.match_marker("h:no-space-here", _markers()) is None
+
+
+def test_spelled_out_prefix_still_matches_without_whitespace(load_script):
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+
+    assert hook.match_marker("hint:check the cache", _markers())[0]["id"] == "hint"

@@ -47,12 +47,20 @@ def load_markers_context() -> dict:
 
 
 def match_marker(prompt: str, markers: list[dict]) -> tuple[dict, str] | None:
-    """Return the (marker, matched prefix) whose prefix leads `prompt`, or None."""
+    """Return the (marker, matched prefix) whose prefix leads `prompt`, or None.
+
+    A single-letter prefix must be followed by whitespace or end of prompt, so a
+    Windows path (`H:\\Projects\\foo.py …`) is not read as `h:` (F-21).
+    """
     prompt_trimmed = prompt.strip().lower()
     for marker in markers:
         for prefix in marker.get("prefixes", []):
-            if prompt_trimmed.startswith(prefix.lower()):
-                return marker, prefix
+            if not prompt_trimmed.startswith(prefix.lower()):
+                continue
+            rest = prompt_trimmed[len(prefix):]
+            if len(prefix.rstrip(":")) == 1 and rest and not rest[0].isspace():
+                continue
+            return marker, prefix
     return None
 
 

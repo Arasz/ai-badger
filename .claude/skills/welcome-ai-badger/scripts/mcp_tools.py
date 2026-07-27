@@ -8,9 +8,14 @@ from __future__ import annotations
 
 import json as _json
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import config_guard as cg
+
+# Each generated MCP file is read by exactly one agent, and carries that agent's overrides.
+MCP_JSON_OWNER = "claude"
+COPILOT_MCP_OWNER = "copilot"
+HERMES_MCP_OWNER = "hermes"
 
 
 class McpToolsMixin:
@@ -121,6 +126,23 @@ class McpToolsMixin:
                 project[name] = srv
         return project, user
 
+    def _override_owner(self, owner: str, filename: str,
+                         servers: Dict[str, Dict[str, Any]]) -> Optional[str]:
+        """Return *owner* if it is a configured agent, else None + a note if that drops overrides.
+
+        Each generated file has exactly one reading agent, so its overrides are that
+        agent's — never whichever agent happens to come first in config.agents (F-22).
+        """
+        if owner in self.config.get("agents", []):
+            return owner
+        dropped = sorted(name for name, srv in servers.items() if srv.get("agentOverrides"))
+        if dropped:
+            self.notes.append(
+                f"{filename} written without agent overrides ({', '.join(dropped)}) — "
+                f"'{owner}' is not in config.agents and the file is read by {owner}"
+            )
+        return None
+
     def _resolve_server_for_agent(
         self, server: Dict[str, Any], agent_name: str
     ) -> Dict[str, Any]:
@@ -203,7 +225,8 @@ class McpToolsMixin:
             return
 
         for name, srv in user_servers.items():
-            section[name] = self._server_entry(srv)
+            section[name] = self._server_entry(
+                self._resolve_server_for_agent(srv, HERMES_MCP_OWNER))
 
         cg.write_with_backup(
             config_path, yaml.safe_dump(existing, default_flow_style=False)
@@ -223,7 +246,8 @@ class McpToolsMixin:
 
         self._merge_mcp_servers_json(
             Path.home() / ".claude" / "settings.json",
-            {name: self._server_entry(srv) for name, srv in user_servers.items()},
+            {name: self._server_entry(self._resolve_server_for_agent(srv, MCP_JSON_OWNER))
+             for name, srv in user_servers.items()},
             "claude user MCP servers not registered",
         )
 
@@ -241,7 +265,8 @@ class McpToolsMixin:
 
         self._merge_mcp_servers_json(
             self.target / ".github" / "copilot" / "mcp-config.json",
-            {name: self._server_entry(srv) for name, srv in servers.items()},
+            {name: self._server_entry(self._resolve_server_for_agent(srv, COPILOT_MCP_OWNER))
+             for name, srv in servers.items()},
             "copilot MCP config not updated",
         )
 
@@ -266,14 +291,10 @@ class McpToolsMixin:
         merged = self._merge_mcp_servers(stack_servers, self._merged_external_tools)
         project_servers, _ = self._split_servers_by_scope(merged)
 
-        agents = self.config.get("agents", [])
+        owner = self._override_owner(MCP_JSON_OWNER, ".mcp.json", project_servers)
         mcp_servers = {}  # type: Dict[str, Any]
         for name, srv in project_servers.items():
-            # Apply agent override for the first configured agent
-            resolved = srv
-            for agent in agents:
-                resolved = self._resolve_server_for_agent(srv, agent)
-                break
+            resolved = self._resolve_server_for_agent(srv, owner) if owner else dict(srv)
 
             # Parse command into executable + args
             command = resolved.get("command", "")
