@@ -128,7 +128,40 @@ longer tests resolution at all.
 
 ---
 
-## Group B — `call-behaviorist analyze` measures the wrong things
+## Group B — `call-behaviorist analyze` **— DONE, merged**
+
+Merged. All three defects fixed, plus **a fourth nobody had diagnosed**, and that fourth one has
+an uncomfortable provenance worth recording.
+
+**B-D — `is_instrumented()` was reading a path that does not exist.** It did
+`Path(script_path).read_text()` on a command string containing the literal
+`${CLAUDE_PROJECT_DIR}`, which is not a real path, so the read always raised and **every
+ai-badger hook was reported `not_instrumented`.** Every `not_instrumented` finding the tool has
+ever emitted was noise.
+
+**We caused it.** Hook commands only became `${CLAUDE_PROJECT_DIR}`-relative in **0.32.0**, in
+the portable-hook-paths fix — before that they were absolute and readable. A fix that repaired
+duplicate hook registration silently blinded the tool built to detect hook problems, and no gate
+noticed because "everything is uninstrumented" is a plausible-looking report.
+
+It also mattered for B-B: path-keying alone would not have restored the suppressed true positive,
+because the instrumented twin would still have been muted as uninstrumented.
+
+**Source-of-truth decision (B-A):** `HOOK_SOURCES` is the union of `.claude/settings.json`,
+`.claude/settings.local.json` and `.ai-badger/hooks/hooks.json`, deduplicated by resolved path.
+Registration is primary because that is what the agent runs; `hooks.json` is *kept* rather than
+replaced, because Hermes registers hooks in `~/.hermes/config.yaml` and a Hermes- or
+Copilot-only project has nothing under `.claude/` — reading only `settings.json` would have
+swapped one agent-specific blind spot for another.
+
+Third-party hooks are **classified, not filtered** — they surface as `not_instrumented` (low),
+which is literally true of them. No new finding kind was invented.
+
+Verified against this repo post-merge: components are full paths, `health: warn`, and the
+findings are real signal rather than artefacts. One of them — `always_skipped` on
+`ai_badger_hooks/session_start`, fired once and exited early — is worth a look on its own.
+
+## Group B (original detail, kept for reference)
 
 Full detail: [`2026-07-27-analyze-measures-the-wrong-things.md`](2026-07-27-analyze-measures-the-wrong-things.md).
 Read it; it is written to be executed cold. Summary of the three defects, all reproduced:
