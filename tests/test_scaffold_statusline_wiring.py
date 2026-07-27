@@ -213,6 +213,81 @@ def test_statusline_is_not_wired_when_the_capture_script_was_not_scaffolded(
     assert any("statusline capture" in n and "task" in n for n in notes), notes
 
 
+def test_disabling_capture_restores_the_renderer_it_displaced(target, load_script, root,
+                                                              fake_home):
+    """Turning the flag off must give the user their own status line back."""
+    _write_settings(target, {"statusLine": {"type": "command", "command": "my-renderer.sh"}})
+    _run(load_script, root, target, _capture_config())
+
+    _run(load_script, root, target, _capture_config(enabled=False))
+
+    assert _settings(target)["statusLine"]["command"] == "my-renderer.sh"
+
+
+def test_disabling_capture_preserves_the_display_options_of_the_restored_renderer(
+        target, load_script, root, fake_home):
+    _write_settings(target, {"statusLine": {
+        "type": "command", "command": "my-renderer.sh", "padding": 1,
+    }})
+    _run(load_script, root, target, _capture_config())
+
+    _run(load_script, root, target, _capture_config(enabled=False))
+
+    entry = _settings(target)["statusLine"]
+    assert entry["command"] == "my-renderer.sh"
+    assert entry["padding"] == 1
+
+
+def test_disabling_capture_removes_the_statusline_when_it_displaced_nothing(
+        target, load_script, root, fake_home):
+    _run(load_script, root, target, _capture_config())
+
+    _run(load_script, root, target, _capture_config(enabled=False))
+
+    assert "statusLine" not in _settings(target)
+
+
+def test_disabling_capture_never_removes_a_statusline_ai_badger_did_not_place(
+        target, load_script, root, fake_home):
+    """Refuse-to-clobber: a renderer we never displaced is not ours to remove."""
+    _write_settings(target, {"statusLine": {"type": "command", "command": "my-renderer.sh"}})
+
+    _run(load_script, root, target, _capture_config(enabled=False))
+
+    assert _settings(target)["statusLine"]["command"] == "my-renderer.sh"
+
+
+def test_dropping_claude_from_the_agents_unwires_the_capture(target, load_script, root,
+                                                             fake_home):
+    _write_settings(target, {"statusLine": {"type": "command", "command": "my-renderer.sh"}})
+    _run(load_script, root, target, _capture_config())
+
+    _run(load_script, root, target, _capture_config(agents=["copilot"]))
+
+    assert _settings(target)["statusLine"]["command"] == "my-renderer.sh"
+
+
+def test_unwiring_refuses_an_unreadable_settings_file_with_a_note(target, load_script, root,
+                                                                 fake_home):
+    _run(load_script, root, target, _capture_config())
+    path = target / ".claude" / "settings.json"
+    path.write_text("{ not json", encoding="utf-8")
+
+    notes = _run(load_script, root, target, _capture_config(enabled=False))
+
+    assert path.read_text(encoding="utf-8") == "{ not json"
+    assert any("refused" in n and "statusline" in n.lower() for n in notes), notes
+
+
+def test_unwiring_leaves_a_statusline_of_the_wrong_shape_alone(target, load_script, root,
+                                                              fake_home):
+    _write_settings(target, {"statusLine": "not-a-mapping"})
+
+    _run(load_script, root, target, _capture_config(enabled=False))
+
+    assert _settings(target)["statusLine"] == "not-a-mapping"
+
+
 def test_config_schema_accepts_the_statusline_capture_key(tmp_path, root, load_script, capsys):
     import shutil  # pylint: disable=import-outside-toplevel
 
