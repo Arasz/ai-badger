@@ -223,10 +223,12 @@ def compare(root: Path, manifest: Dict[str, Any],
             continue
         if bl.sha256_file(source) != entry_hash:
             changed.append(source_rel)
+    # De-duplicated: adjustments record one entry per written file, all naming one source
+    # script, so a single upstream edit would otherwise print the same line ten times.
     result = {
-        "changed": sorted(changed),
-        "removed": sorted(removed),
-        "skipped": sorted(skipped),
+        "changed": sorted(set(changed)),
+        "removed": sorted(set(removed)),
+        "skipped": sorted(set(skipped)),
         "invalid": invalid,
         "notes": notes,
     }

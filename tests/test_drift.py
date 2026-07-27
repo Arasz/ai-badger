@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 
+from scaffold_helpers import _config
+
 
 def _manifest_with_entry(target, source_rel, target_rel, entry_hash):
     """Write a manifest with one entry to `target/.ai-badger/manifest.json` and return the
@@ -461,3 +463,45 @@ def test_a_manifest_target_outside_the_project_is_not_hashed(tmp_path, load_scri
 
     assert str(outside) not in json.dumps(result)
     assert any("outside the project" in note for note in result.get("notes", []))
+
+
+def test_freshly_scaffolded_project_reports_nothing_changed(tmp_path, load_script, root):
+    """A project scaffolded from this framework and left untouched must report no drift."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    result = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(stacks=["python"], agents=["claude", "copilot"]),
+        skills=["task"], install=False,
+    ).run(generated_at="2026-07-19T00:00:00Z")
+
+    assert any(e["feature"] == "adjustments" for e in result["manifest"]["entries"]), \
+        "expected adjustment entries so this exercises the reported defect"
+
+    compared = drift.compare(root, result["manifest"], target=target)
+
+    assert compared["changed"] == []
+
+
+def test_one_changed_source_is_reported_once_however_many_entries_share_it(
+        tmp_path, load_script):
+    """Adjustments record an entry per written file, all sharing one source script."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    fw = tmp_path / "fw"
+    (fw / "features" / "copilot" / "adjustments").mkdir(parents=True)
+    (fw / "features" / "copilot" / "adjustments" / "adjust_skills.py").write_text(
+        "upstream moved on\n", encoding="utf-8")
+    source_rel = "features/copilot/adjustments/adjust_skills.py"
+    manifest = {"entries": [
+        {"feature": "adjustments", "stack": "copilot", "name": f"adjustments/s{i}",
+         "source": source_rel, "target": f".github/skills/s{i}",
+         "frameworkVersion": "0.1.0", "hash": "0" * 64}
+        for i in range(3)
+    ]}
+
+    result = drift.compare(fw, manifest)
+
+    assert result["changed"] == [source_rel]

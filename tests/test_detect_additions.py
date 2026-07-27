@@ -168,3 +168,32 @@ def test_non_learned_new_files_still_yield_per_file_candidates(tmp_path, load_sc
     assert candidate["name"] == "extra.instructions"
     assert candidate["path"] == ".ai-badger/instructions/extra.instructions.md"
     assert "origin" not in candidate
+
+
+def test_source_hashed_entries_are_never_project_change_candidates(
+        tmp_path, load_script, root, capsys):
+    """An adjustment's hash describes the framework script, so no project file can match it."""
+    detect = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
+    target = tmp_path / "proj"
+    aib = target / ".ai-badger"
+    linked = aib / "skills" / "task"
+    linked.mkdir(parents=True)
+    (linked / "SKILL.md").write_text("# task\n", encoding="utf-8")
+    mirror = target / ".github" / "skills"
+    mirror.mkdir(parents=True)
+    (mirror / "task").symlink_to(linked)
+    (aib / "manifest.json").write_text(json.dumps({
+        "frameworkVersion": "0.33.0",
+        "entries": [{
+            "feature": "adjustments", "stack": "copilot", "name": "adjustments/task",
+            "source": "features/copilot/adjustments/adjust_skills.py",
+            "target": ".github/skills/task",
+            "frameworkVersion": "0.33.0", "hash": "0" * 64,
+        }],
+    }), encoding="utf-8")
+
+    rc = detect.main(["--target", str(target), "--root", str(root)])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+
+    assert [c for c in out["candidates"] if c["feature"] == "adjustments"] == []
