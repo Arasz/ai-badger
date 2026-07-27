@@ -164,6 +164,37 @@ Per-agent duplication is the established pattern (`adjust_hooks.py` exists separ
 and a shared module would mean editing `features/copilot/`. Worth revisiting if a third agent
 needs the same behaviour.
 
+## Backlog dispatch plan (2026-07-27 17:00)
+
+Split by real file surface, not by theme. **Part 1 is running now; Part 2 waits on Wave 7.**
+
+### Part 1 — dispatched, in flight
+
+| Branch | Work |
+|---|---|
+| `fix/plugin-exposes-its-skills` | #103 cause 1 — plugin contributes zero skills |
+| `task/wave-7-one-framework-root` | **The keystone.** WP32/33/34 per ADR-0007 |
+| `task/wave-8-feature-registry` | One feature-type registry; a new template becomes visible to drift |
+| `fix/small-batch-a` | Junie path contradiction · `$schema` rejected by every strict schema · statusline unwire path · secret-scanning pre-commit (or a justified decision not to) |
+
+**Waves 7 and 8 share two files by design.** `scripts/badger_lib.py`: Wave 7 owns root
+resolution (~L84+), Wave 8 owns `FEATURES` (~L23). `drift.py`: Wave 7 owns only the
+`_bootstrap_lib()` preamble, Wave 8 owns the feature tuple (~L100). Each agent was told which
+region it owns. This is a regional overlap, not a collision.
+
+Every Part 1 agent was told **not** to hand-edit `.claude/skills/` — regenerate via
+`sync_plugin_skills.py` — because #103 cause 1 may be *relocating* that mirror. A post-merge
+re-sync is expected.
+
+### Part 2 — queued, dispatch after Wave 7 merges
+
+| Work | Why it waits |
+|---|---|
+| **Wave 6** — five mixins → composed collaborators | Genuine collision: restructures `scaffold.py` and the welcome-ai-badger mixins, which Wave 7's shim work also edits |
+| **Wave 16** — rename top-level `scripts/` | After 7, so the root literal lives in one predicate instead of 19 files |
+| **Wave 17** — split `badger_lib.py` | Needs 7 **and** 8. ADR-0007: the `badger_lib` facade is mandatory, not tidiness — flat sibling modules, never a package with `__init__.py` |
+| **Small batch B** — preserved-region asymmetry in `.ai-badger/instructions/*.md`; instrument `prompt-markers` / `task` / `mcp_index` hooks | Both touch `scaffold.py` / hook preambles that Wave 7 edits |
+
 ## Open, not started
 
 1. Instrument the remaining hooks (`prompt-markers`, `task`, `mcp_index`) — best after Wave 7.
