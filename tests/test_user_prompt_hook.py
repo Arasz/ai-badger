@@ -227,7 +227,9 @@ def test_the_marker_state_file_is_owner_readable_only(tmp_path, load_script):
 def test_debug_logging_records_fire_event(tmp_path, load_script, monkeypatch):
     """Debug log fires a fire event when a marker matches."""
     hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
-    _write_markers_context(hook.MARKERS_CONTEXT_FILE)
+    config_path = tmp_path / "markers-context.json"
+    _write_markers_context(config_path)
+    monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
 
     calls = []
 
@@ -246,7 +248,9 @@ def test_debug_logging_records_fire_event(tmp_path, load_script, monkeypatch):
 def test_debug_logging_is_noop_when_unavailable(tmp_path, load_script, monkeypatch):
     """Hook runs normally when debug_log is None."""
     hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
-    _write_markers_context(hook.MARKERS_CONTEXT_FILE)
+    config_path = tmp_path / "markers-context.json"
+    _write_markers_context(config_path)
+    monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
     monkeypatch.setattr(hook, "debug_log", None)
 
     rc = _call_main(hook, monkeypatch, {"prompt": "h: check the cache", "cwd": str(tmp_path)})

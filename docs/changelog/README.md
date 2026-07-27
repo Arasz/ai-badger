@@ -17,6 +17,7 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
+| 0.35.2 | [test isolation fix for prompt-markers debug-log tests](0.35.2-test-isolation-fix.md) |
 | 0.35.1 | [all hooks instrumented with debug_log](0.35.1-all-hooks-instrumented.md) |
 | 0.35.0 | [lefthook summary logging](0.35.0-lefthook-summary-logging.md) |
 | 0.34.1 | [a hook never breaks a session](0.34.1-a-hook-never-breaks-a-session.md) |
