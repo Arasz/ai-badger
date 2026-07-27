@@ -36,6 +36,30 @@ def test_scaffold_manifest_entries_have_expected_shape(tmp_path, load_script, ro
     assert manifest_on_disk.exists()
 
 
+@pytest.mark.parametrize("stacks,agents", [
+    (["dotnet"], ["claude"]),
+    (["python", "js"], ["claude", "copilot"]),
+])
+def test_scaffolded_manifest_validates_against_the_manifest_schema(
+        tmp_path, load_script, root, stacks, agents):
+    """The manifest scaffold writes must satisfy schemas/manifest.schema.json."""
+    bl = load_script("scripts/badger_lib.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(root=root, target=target,
+                                config=_config(stacks=stacks, agents=agents),
+                                skills=["task"], install=False)
+    scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    manifest_on_disk = target / ".ai-badger" / "manifest.json"
+    assert any("dirMeta" in entry
+               for entry in json.loads(manifest_on_disk.read_text(encoding="utf-8"))["entries"]), \
+        "expected at least one directory entry so dirMeta is actually exercised"
+    assert bl.validate_file(manifest_on_disk, root / "schemas" / "manifest.schema.json") == []
+
+
 # --------------------------------------------------------- partial-run recovery (F-25)
 def test_failed_run_leaves_a_detectable_partial_marker(tmp_path, load_script, root):
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
