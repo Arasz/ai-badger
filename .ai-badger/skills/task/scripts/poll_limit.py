@@ -2,10 +2,12 @@
 """Background usage-limit poller for the /task skill.
 
 Starts as a daemon-friendly foreground process. It watches Claude availability;
-when a previous limited state becomes available again, it runs `/auto-wm away 4h`
-and resumes active /task sessions discovered from task tracking data, falling back
-to Claude's user-level transcript store (~/.claude/projects) when tracking is not
-yet populated.
+when a previous limited state becomes available again, it resumes active /task
+sessions discovered from task tracking data, falling back to Claude's user-level
+transcript store (~/.claude/projects) when tracking is not yet populated.
+
+Passing --auto-wm-on-reset additionally runs `/auto-wm away 4h` on that transition.
+It is off by default: nothing may hand tool approval to the agent unattended.
 """
 # pylint: disable=missing-function-docstring,missing-class-docstring,broad-exception-caught
 # Ported verbatim from the originating job-search-ai-assistant repo's /task skill: kept in
@@ -60,6 +62,9 @@ class TargetSession:
 class PollState:
     was_limited: bool | None = None
     limited_checks: int = 0
+    # Off unless --auto-wm-on-reset was passed: a limit reset must never turn
+    # auto-approval on with no human in the loop (F-12).
+    auto_wm_on_reset: bool = False
 
 
 def log(message: str) -> None:
@@ -300,7 +305,8 @@ def poll_once(
     limited, output = limit_checker()
     if state.was_limited is True and limited is False:
         log("Limit reset detected!")
-        auto_wm_runner()
+        if state.auto_wm_on_reset:
+            auto_wm_runner()
         sessions = session_discoverer()
         if sessions:
             log(f"Found {len(sessions)} sessions to resume: {[s.session_id for s in sessions]}")
@@ -322,14 +328,14 @@ def poll_once(
     return DEFAULT_AVAILABLE_INTERVAL_SECONDS
 
 
-def run_forever(interval_seconds: int | None = None) -> int:
+def run_forever(interval_seconds: int | None = None, auto_wm_on_reset: bool = False) -> int:
     if already_running():
         log("poll_limit.py is already running; exiting")
         return 0
     write_pid()
     log("Starting Claude limit poller (dynamic interval: 2h, 30m, 15m, then 5m "
         "while limited; 5m otherwise)...")
-    state = PollState()
+    state = PollState(auto_wm_on_reset=auto_wm_on_reset)
     while True:
         try:
             wait_seconds = poll_once(state)
@@ -343,12 +349,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--interval-seconds", type=int, default=None)
     parser.add_argument("--once", action="store_true")
+    parser.add_argument(
+        "--auto-wm-on-reset", action="store_true",
+        help="On a limit reset, also run `/auto-wm away 4h`. Off by default: this hands "
+             "tool approval to the agent, so it must be asked for explicitly.")
     args = parser.parse_args()
     if args.once:
-        state = PollState(was_limited=True)
+        state = PollState(was_limited=True, auto_wm_on_reset=args.auto_wm_on_reset)
         poll_once(state)
         return 0
-    return run_forever(args.interval_seconds)
+    return run_forever(args.interval_seconds, args.auto_wm_on_reset)
 
 
 if __name__ == "__main__":

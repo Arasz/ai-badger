@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"/Users/arasz/RiderProjects/ai-badger/.ai-badger/skills/task/scripts/drift_notice_hook.py\""
+            "command": "python3 \"/Users/arasz/RiderProjects/ai-badger/.ai-badger/skills/task/scripts/session_start_hook.py\""
           }
         ]
       }
