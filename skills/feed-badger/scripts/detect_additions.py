@@ -120,6 +120,11 @@ def main(argv=None) -> int:
     file_targets: Dict[str, Dict] = {}
     dir_targets: Dict[str, Dict] = {}
     for e in entries:
+        # Source-hashed entries (templates, adjustments) record the framework script's hash,
+        # not the artifact's — no project file can ever match it, so comparing would report
+        # a change that never clears.
+        if bl.feature_type(e["feature"]).hashes_source:
+            continue
         tp = target / e["target"]
         (dir_targets if tp.is_dir() else file_targets)[e["target"]] = e
 

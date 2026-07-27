@@ -26,11 +26,14 @@ class FeatureType(NamedTuple):
     ``index_rule`` names index_build's discovery rule; ``drift_reports_new`` marks types
     whose catalog items drift reports when the manifest lacks them — only safe where
     scaffold records an entry under the item's own index name, or the report never clears.
+    ``hashes_source`` marks types whose written output is not a copy of its source, so the
+    manifest must carry the source hash — drift.compare re-hashes the source (ADR-0006).
     """
 
     name: str
     index_rule: str
     drift_reports_new: bool
+    hashes_source: bool = False
 
     @property
     def md_carrying(self) -> bool:
@@ -46,9 +49,9 @@ FEATURE_TYPES: Tuple[FeatureType, ...] = (
     # These three are materialised under names of their own — a rendered/seeded output, a
     # settings.json wiring, a written file per adjustment — so no manifest entry is ever
     # keyed by the index item's name and a "new" report could never clear (ADR-0006).
-    FeatureType("templates", "templates", False),
+    FeatureType("templates", "templates", False, hashes_source=True),
     FeatureType("hooks", "hooks", False),
-    FeatureType("adjustments", "adjustments", False),
+    FeatureType("adjustments", "adjustments", False, hashes_source=True),
 )
 
 FEATURES = [ft.name for ft in FEATURE_TYPES]

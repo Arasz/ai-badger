@@ -247,13 +247,12 @@ class Scaffolder(
         self._completed_steps: List[str] = []
 
     # -- provenance -----------------------------------------------------------------
-    def record(self, feature: str, stack: str, name: str, source: Path, target: Path,
-               hash_source: bool = False) -> None:
+    def record(self, feature: str, stack: str, name: str, source: Path, target: Path) -> None:
         """Append a manifest entry recording where a scaffolded item came from and went.
 
-        `hash_source` hashes the framework source instead of the written file — required
-        when the two differ (rendered or renamed templates), because drift.compare hashes
-        the source for file entries.
+        Feature types the registry marks `hashes_source` record the framework source's hash
+        rather than the written file's, because drift.compare re-hashes the source for file
+        entries and any other choice can never match (ADR-0006).
         """
         entry = {
             "feature": feature, "stack": stack, "name": name,
@@ -275,7 +274,8 @@ class Scaffolder(
                 "dir_count": fingerprint["dir_count"],
             }
         else:
-            entry["hash"] = bl.sha256_file(source if hash_source else target)
+            hash_from = source if bl.feature_type(feature).hashes_source else target
+            entry["hash"] = bl.sha256_file(hash_from)
         self.entries.append(entry)
 
     def copy_file(self, feature: str, stack: str, item: Dict[str, Any], dest_dir: Path) -> Path:
@@ -290,8 +290,7 @@ class Scaffolder(
     def record_template(self, src: Path, dest: Path) -> None:
         """Record a template's provenance, named by its path under the stack's templates dir."""
         rel = src.relative_to(self.root / "features").parts
-        self.record("templates", rel[0], Path(*rel[2:]).as_posix(), src, dest,
-                    hash_source=True)
+        self.record("templates", rel[0], Path(*rel[2:]).as_posix(), src, dest)
 
     # -- seed-once (framework writes once, project owns thereafter; see #15) --------
     def _seed_once_copy(self, src: Path, dest: Path, label: str) -> None:
