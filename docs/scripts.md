@@ -20,6 +20,7 @@ python3 -m pip install -r scripts/requirements.txt   # jsonschema
 | `version_sync.py` | Propagate `VERSION` into `plugin.json`, `marketplace.json`, `index.json`. | `python3 scripts/version_sync.py` — `--check` fails CI on mismatch. |
 | `release_guard.py` | Fail if the shipped surface changed since the last release tag without a `VERSION` bump. | `python3 scripts/release_guard.py` (needs `fetch-depth: 0` in CI). |
 | `docs_guard.py` | Fail if a relative link or a backticked repo path in the docs no longer resolves, or a changelog entry is missing from its index. | `python3 scripts/docs_guard.py`; exempt a path in `.docs-guard-ignore`. |
+| `deps_guard.py` | Fail if any `*.py` under `scripts/` or `features/` imports a third-party module that `scripts/requirements.txt` does not declare. Imports inside functions and `try:` blocks count. | `python3 scripts/deps_guard.py` |
 | `sync_plugin_skills.py` | Refresh the published `.claude/skills/` copy from `features/`. | `python3 scripts/sync_plugin_skills.py` — `--check` fails on divergence. |
 | `install_plugins.py` | Resolve per-agent skill install commands from `plugins-instructions.json`. Print-only; `scaffold.py --execute` runs them. | `python3 scripts/install_plugins.py --config <config.json>` |
 | `drift.py` (in `welcome-ai-badger`) | Compare a scaffold against the framework's current content. | See den-refresh. |

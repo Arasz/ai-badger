@@ -53,15 +53,19 @@ Runtime dependencies are deliberately minimal, and the two behave differently on
 
 Everything else is standard library. **Do not add a third runtime dependency without a very good
 reason**; if you must, decide deliberately which of these two shapes it takes and say so here.
+`scripts/deps_guard.py` enforces the declaration half of that rule: it parses every `*.py` under
+`scripts/` and `features/` and fails on a third-party import — including one hidden inside a
+function or a `try:` block — that `scripts/requirements.txt` does not declare.
 
-Optionally install the pre-commit hooks, which run four of the gates locally:
+Optionally install the pre-commit hooks, which run six of the gates locally:
 
 ```bash
 .venv/bin/python3 -m pip install pre-commit
 pre-commit install
 ```
 
-They are `version-sync`, `index-build`, `plugin-skills-sync`, `docs-guard`, and `pylint` — see
+They are `version-sync`, `index-build`, `plugin-skills-sync`, `docs-guard`, `deps-guard`, and
+`pylint` — see
 [`.pre-commit-config.yaml`](.pre-commit-config.yaml).
 
 ## How the repository is laid out
@@ -70,7 +74,7 @@ They are `version-sync`, `index-build`, `plugin-skills-sync`, `docs-guard`, and 
 features/{stack|common}/{feature}/   the catalog — skills, personas, invariants, instructions,
                                      hooks, adjustments, templates
 scripts/                             mechanical Python: index_build, validate, version_sync,
-                                     release_guard, tdd_guard, docs_guard,
+                                     release_guard, tdd_guard, docs_guard, deps_guard,
                                      sync_plugin_skills, badger_lib
 schemas/                             a JSON Schema per *.json model
 index.json                           SCRIPT-GENERATED. Never hand-edit it.
@@ -180,6 +184,7 @@ green build:
 .venv/bin/python3 scripts/validate.py --all
 .venv/bin/python3 scripts/version_sync.py --check
 .venv/bin/python3 scripts/docs_guard.py
+.venv/bin/python3 scripts/deps_guard.py
 .venv/bin/python3 scripts/release_guard.py
 .venv/bin/python3 scripts/tdd_guard.py --base origin/main
 node --test "tests/js/*.test.mjs"
@@ -196,6 +201,7 @@ What each one is for:
 | `validate.py --all` | Any catalog JSON violates its schema in `schemas/`. |
 | `version_sync.py --check` | `plugin.json`, `marketplace.json` or `index.json` disagree with `VERSION`. |
 | `docs_guard.py` | A relative link or a backticked repo path in the docs no longer resolves, or a changelog entry is missing from `docs/changelog/README.md`. |
+| `deps_guard.py` | Code imports a third-party module that `scripts/requirements.txt` does not declare. |
 | `release_guard.py` | The shipped surface changed since the last release tag without a `VERSION` bump. |
 | `tdd_guard.py` | Code changed and no test changed with it. Runs on branches, not on `main`. |
 | `node --test` | A `.mjs` gate script's tests fail. |

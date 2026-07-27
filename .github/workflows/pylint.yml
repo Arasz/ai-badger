@@ -46,6 +46,9 @@ jobs:
     - name: Release guard - shipped surface change requires a VERSION bump
       run: |
         python3 scripts/release_guard.py
+    - name: Dependency guard - every third-party import is declared in scripts/requirements.txt
+      run: |
+        python3 scripts/deps_guard.py
     - name: JS gate scripts have tests
       if: matrix.python-version == '3.10'
       run: |
