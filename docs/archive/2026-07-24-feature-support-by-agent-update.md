@@ -1,5 +1,21 @@
 # Article Update Note: Feature Support by Agent
 
+> **ARCHIVED — an editorial note for an external article, written at 0.9.0 (2026-07-24).**
+> It was never a description of the repository; it was a correction list for a published
+> article's support matrix. The machine-readable source of truth for per-agent support is
+> **`features/common/support.json`**.
+>
+> Verified against the code on 2026-07-27 while archiving:
+>
+> - The **upstream-capability** claims still hold: Copilot hooks at `.github/hooks/*.json` across
+>   eight events, skills at `.github/skills/*/SKILL.md`, custom agents at
+>   `.github/agents/*.agent.md` — all reproduced in `features/common/support.json`. The matrix
+>   cells for cache-aware dispatch, Junie hooks, and the Copilot feedback loop also match.
+> - **All three "❌ not yet" rows about ai-badger are now wrong.** Copilot hooks
+>   (`features/copilot/adjustments/adjust_hooks.py`), skills (`adjust_skills.py`) and custom
+>   agents mapped from personas (`adjust_agents.py`) all shipped, each with tests. The matrix also
+>   predates Copilot MCP config generation and scoped-instruction scaffolding.
+
 ## Issue
 
 The article's feature matrix for Copilot is outdated. GitHub Copilot CLI gained hooks, skills, and custom agents support in early 2026.

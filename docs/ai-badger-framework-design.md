@@ -4,7 +4,7 @@
 
 
 **Date:** 2026-07-18 (rev 2026-07-19)
-**Status:** Shipped v0.1.0 (2026-07-19). Dogfooded on arasz-home-page (branch `ai-badger-bootstrap`). Angular stack added during dogfood; feed round-trip logic-tested. See `known-gaps.md`.
+**Status:** Shipped v0.1.0 (2026-07-19). Dogfooded on arasz-home-page (branch `ai-badger-bootstrap`). Angular stack added during dogfood; feed round-trip logic-tested. See `archive/2026-07-24-known-gaps.md`.
 **Owner:** Rafał Araszkiewicz (Arasz)
 
 ## 1. Goal
