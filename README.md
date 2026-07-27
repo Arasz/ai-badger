@@ -42,6 +42,10 @@ This installs the operational skills: `welcome-ai-badger`, `feed-badger`, `den-r
 
 ## Quickstart
 
+New here? [`docs/getting-started.md`](docs/getting-started.md) walks one project from "found the
+repo" to a committed scaffold — the plugin-vs-clone decision, the literal commands with their real
+output, and the failures that actually bite.
+
 Run **`welcome-ai-badger`** inside a project you want to scaffold:
 
 1. It detects stacks, present agents (`claude`, `copilot`, `junie`, `hermes`), and commands from
