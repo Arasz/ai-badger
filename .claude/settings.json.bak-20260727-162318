@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/session_start_hook.py\""
+            "command": "python3 \"/Users/arasz/RiderProjects/ai-badger/.ai-badger/skills/task/scripts/session_start_hook.py\""
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\""
+            "command": "python3 \"/Users/arasz/RiderProjects/ai-badger/.ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\""
           }
         ]
       }

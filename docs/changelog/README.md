@@ -17,6 +17,7 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
+| 0.32.0 | [four defects a real refresh found](0.32.0-defects-found-by-a-real-refresh.md) |
 | 0.31.1 | [orchestration files load their instructions](0.31.1-orchestration-files-load-their-instructions.md) |
 | 0.31.0 | [a health report built from evidence](0.31.0-a-health-report-from-evidence.md) |
 | 0.30.0 | [see what the framework actually did](0.30.0-see-what-the-framework-did.md) |
