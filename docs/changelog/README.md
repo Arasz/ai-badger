@@ -17,6 +17,7 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
+| 0.34.0 | [skills that arrive, and a root that agrees](0.34.0-skills-that-arrive-and-a-root-that-agrees.md) |
 | 0.33.0 | [no third-party tool-call interception by default](0.33.0-no-third-party-tool-call-interception.md) |
 | 0.32.0 | [four defects a real refresh found](0.32.0-defects-found-by-a-real-refresh.md) |
 | 0.31.1 | [orchestration files load their instructions](0.31.1-orchestration-files-load-their-instructions.md) |
