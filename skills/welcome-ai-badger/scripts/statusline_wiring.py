@@ -3,7 +3,8 @@
 Points ``.claude/settings.json`` statusLine at ai-badger's capture wrapper and records the
 renderer it displaces, so the user's own status line keeps rendering behind the capture.
 Opt-in via ``config.statusLineCapture.enabled``: a project-level statusLine overrides the
-user's own, so it is never wired unasked.
+user's own, so it is never wired unasked, and turning the flag back off restores the
+recorded renderer rather than leaving the status bar routed through ai-badger.
 """
 from __future__ import annotations
 
@@ -68,6 +69,7 @@ class StatusLineWiringMixin:
         delegate recorded by the run that displaced the original renderer.
         """
         if not self._statusline_capture_enabled():
+            self.unwire_statusline_capture()
             return
         if not (self.aib / "skills" / CAPTURE_SCRIPT).is_file():
             self.notes.append("statusline capture not wired — the 'task' skill, which owns "
@@ -95,6 +97,42 @@ class StatusLineWiringMixin:
         settings["statusLine"] = entry
         cg.write_json_with_backup(settings_path, settings)
         self.notes.append("wired statusline capture into .claude/settings.json")
+
+    def unwire_statusline_capture(self) -> None:
+        """Restore the displaced renderer, or drop ``statusLine`` when there was none.
+
+        Only ever touches a ``statusLine`` running ai-badger's own wrapper: a renderer the
+        scaffolder never displaced is not the scaffolder's to remove.
+        """
+        settings_path = self.target / ".claude" / "settings.json"
+        if not settings_path.exists():
+            return
+        settings, note = cg.read_json_mapping(settings_path)
+        if settings is None:
+            self.notes.append(f"{note} (statusline capture not unwired)")
+            return
+
+        existing, _ = read_statusline(settings, settings_path)
+        if not existing or not is_capture_command(existing.get("command", "")):
+            return
+
+        record_path = self.target / DELEGATE_RECORD
+        record, record_note = cg.read_json_mapping(record_path)
+        if record is None:
+            self.notes.append(f"{record_note} (statusline capture left wired — the renderer "
+                              "it displaced cannot be read back)")
+            return
+
+        delegate = record.get("command")
+        if delegate:
+            entry = dict(existing)
+            entry["type"] = "command"
+            entry["command"] = delegate
+            settings["statusLine"] = entry
+        else:
+            del settings["statusLine"]
+        cg.write_json_with_backup(settings_path, settings)
+        self.notes.append("unwired statusline capture from .claude/settings.json")
 
     def _record_delegate(self, command: Optional[str]) -> None:
         """Record the renderer the wrapper delegates to; ``None`` means capture only."""

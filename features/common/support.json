@@ -225,13 +225,13 @@
       "capabilities": {
         "instructions": {
           "supported": true,
-          "mechanism": ".junie/guidelines.md, AGENTS.md",
+          "mechanism": ".junie/AGENTS.md, AGENTS.md, .junie/guidelines.md (legacy)",
           "aiBadgerSupport": true,
-          "scaffoldedFile": ".junie/guidelines.md"
+          "scaffoldedFile": ".junie/AGENTS.md"
         },
         "invariants": {
           "supported": true,
-          "mechanism": "guidelines.md sections",
+          "mechanism": ".junie/AGENTS.md sections",
           "aiBadgerSupport": true
         },
         "scopedInstructions": {
