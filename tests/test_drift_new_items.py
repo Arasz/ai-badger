@@ -113,6 +113,30 @@ def test_detect_new_items_only_checks_configured_stacks(tmp_path, load_script):
     assert len(new_items) == 1
 
 
+def test_a_new_template_is_reported_as_a_new_item(tmp_path, load_script):
+    """Templates are a catalog feature type, so an unscaffolded one counts as new."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("scripts/badger_lib.py")
+
+    fw = tmp_path / "fw"
+    (fw / "features" / "common" / "templates").mkdir(parents=True)
+    (fw / "features" / "common" / "templates" / "new.md.tmpl").write_text("hi\n")
+    (fw / "VERSION").write_text("0.3.0\n")
+    idx = {
+        "frameworkVersion": "0.3.0",
+        "stacks": {"common": {"templates": [
+            {"name": "new.md.tmpl", "path": "features/common/templates/new.md.tmpl"}
+        ]}}
+    }
+    bl.dump_json(fw / "index.json", idx)
+
+    manifest = {"frameworkVersion": "0.3.0", "agents": ["claude"], "entries": []}
+
+    new_items = drift.detect_new_items(fw, manifest, stacks=["common"])
+
+    assert [(i["feature"], i["name"]) for i in new_items] == [("templates", "new.md.tmpl")]
+
+
 def test_compare_includes_new_items(tmp_path, load_script):
     """compare() should include new items in its result when index and stacks are provided."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
