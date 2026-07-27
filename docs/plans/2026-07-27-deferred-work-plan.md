@@ -22,7 +22,7 @@ two things.
 | 8 | Single feature-type registry | architecture I11 / R6 | planned |
 | 9 | The hardening pass (+ prompt-marker/AWM privacy) | security I1, I2, I5, I7, sugg. 1 & 3 | **done — 0.25.0 (#85)** |
 | 10 | `feed-badger` outbound scan + explicit pathspec | security I4 | **done — 0.24.0 (#84)** |
-| 11 | Package `badger_lib` as an installable distribution | architecture I6 / R11 | planned — **ADR first** |
+| 11 | Package `badger_lib` as an installable distribution | architecture I6 / R11 | **decided — ADR-0007: no. WP45 declined** |
 | 12 | Collapse the 3+1 MCP config writers | architecture I3 / R5 | planned |
 | 13 | Derive `DEFAULT_SKILLS`/`COMMON_SKILLS`; decide `code-review-checklist` | architecture I8 / R7 | **done — 0.26.0 (#87)** |
 | 14 | Pick one extension mechanism | architecture I5 / R8 | **done — 0.27.0 (#88)** |
@@ -207,6 +207,26 @@ written by whoever is mid-way through Wave 7 — that is how a sunk cost becomes
 
 **Release:** ADR only, no version bump. WP45 would be a major-ish minor: `0.3x.0` with a
 `BREAKING_VERSIONS` entry.
+
+**Decided 2026-07-27 — WP44 done, WP45 declined.**
+[ADR-0007](../adr/0007-no-python-distribution.md) answers **no**: `badger_lib` and the scaffold
+engine are not published as a Python distribution, and no `[project]` table is added. Packaging
+would fix the two deployment shapes that already work (a framework checkout, the Claude plugin
+cache) and does nothing for the two that are broken (a `.ai-badger/` scaffold,
+`~/.hermes/plugins/`), because those fail to find the *catalog* they were copied away from, not
+to import a library.
+
+Three corrections the ADR records, verified against the tree: there are **seven** canonical
+`_bootstrap_lib()` copies, not nine (19 files counting the generated `.claude/` and
+`.ai-badger/` mirrors); there are **four** disagreeing root predicates, not three
+(`drift_notice_hook.find_plugin_root` is the fourth); and `~/.hermes/plugins/` is a **fourth
+deployment shape** this plan's three-shape framing omits.
+
+**Wave 7 is unblocked and loses nothing** — WP34 is not retired, and WP32 must now be written
+against four shapes with `Path.home()` pointed somewhere empty. **Wave 16 is unblocked**:
+`scripts/` stays an importable directory resolved by path, so its rename is a rename. **Wave 17**
+inherits a hard constraint: the split modules stay flat siblings and `badger_lib` stays a
+permanent re-export facade. Consequences in full in the ADR.
 
 ---
 
