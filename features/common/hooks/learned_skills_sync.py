@@ -36,6 +36,7 @@ def _bootstrap_lib() -> None:
 
 _bootstrap_lib()
 import badger_lib as bl
+import unsafe_literals as ul
 
 
 class ManifestUnreadable(RuntimeError):
@@ -51,21 +52,10 @@ UNCATEGORIZED = "uncategorized"
 SYNC_ACTIONS = frozenset({"create", "edit", "patch", "write_file", "remove_file"})
 DELETE_ACTIONS = frozenset({"delete"})
 
-# High-confidence literal shapes only — refuse and report, never redact (plan §5.2).
-UNSAFE_LITERAL_PATTERNS = (
-    ("provider api key", re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}")),
-    ("github token", re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}")),
-    ("private key block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
-    ("aws secret access key",
-     re.compile(r"AWS_SECRET_ACCESS_KEY\s*[=:]\s*[\"']?[A-Za-z0-9/+=]{40,}")),
-    ("credential assignment",
-     re.compile(r"(?i)\b(?:password|passwd|secret|token|api[_-]?key)\s*[=:]\s*"
-                r"[\"']?[A-Za-z0-9/+=._-]{20,}")),
-)
-LITERAL_SCAN_MAX_BYTES = 1_000_000
-# The only vocabulary a finding may report. Keeping it fixed is what makes a finding
-# safe to print: a new pattern contributes a label, never captured text.
-UNSAFE_LITERAL_LABELS = frozenset(label for label, _ in UNSAFE_LITERAL_PATTERNS)
+# The scanner is shared with feed-badger's outbound PR path; see scripts/unsafe_literals.py.
+UNSAFE_LITERAL_PATTERNS = ul.UNSAFE_LITERAL_PATTERNS
+LITERAL_SCAN_MAX_BYTES = ul.LITERAL_SCAN_MAX_BYTES
+UNSAFE_LITERAL_LABELS = ul.UNSAFE_LITERAL_LABELS
 
 
 def target_project(cwd: str) -> Optional[Path]:
@@ -279,27 +269,9 @@ def sync_skill(project: Path, source_dir: Path, name: str, category: Optional[st
 def scan_for_unsafe_literals(source_dir: Path) -> List[Dict[str, str]]:
     """Locate high-confidence risky literal shapes in a skill directory (a guard, not proof).
 
-    Findings are {file, pattern} pairs. `pattern` is always drawn from
-    UNSAFE_LITERAL_LABELS and scanned text never reaches the return value, so a
-    finding is safe to log or print — see docs/adr, CodeQL py/clear-text-logging.
+    Delegates to the shared scanner so the inbound and outbound paths cannot drift apart.
     """
-    findings: List[Dict[str, str]] = []
-    for path in sorted(source_dir.rglob("*")):
-        if not path.is_file() or path.is_symlink():
-            continue
-        try:
-            if path.stat().st_size > LITERAL_SCAN_MAX_BYTES:
-                continue
-            text = path.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        rel = path.relative_to(source_dir).as_posix()
-        for label, pattern in UNSAFE_LITERAL_PATTERNS:
-            # bool() pins the match to a boolean: no match object, group, or span can
-            # escape this scope, so no scanned byte can reach a caller.
-            if bool(pattern.search(text)):
-                findings.append({"file": rel, "pattern": label})
-    return findings
+    return ul.scan_tree(source_dir)
 
 
 def _mark_orphaned(project: Path, name: str, category: str, now: str) -> Dict[str, Any]:

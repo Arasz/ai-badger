@@ -47,8 +47,17 @@ back to `ai-badger` as a **draft PR** for human review.
    ```bash
    python3 "$AI_BADGER/skills/feed-badger/scripts/open_pr.py" \
      --checkout <checkout> --branch feed/<slug> \
-     --title "feed: <summary>" --body-file <body.md> --repo Arasz/ai-badger
+     --title "feed: <summary>" --body-file <body.md> --repo Arasz/ai-badger \
+     --path features/<stack>/<feature>/<name> --path index.json
    ```
+   `--path` is **required and repeatable**: name every path you placed, plus `index.json` if
+   you regenerated it. Only declared paths are staged, so an unrelated dirty file in the
+   checkout cannot ride along in the PR.
+
+   Every declared path is scanned for credential-shaped literals before anything is staged.
+   A finding refuses the PR and names the file and the shape — never the matched text. It is
+   a guard, not proof: it checks known literal shapes, so a clean run is not a certificate.
+
    Use `--dry-run` to preview the git/gh commands without executing (useful for testing).
 
 ## Rules

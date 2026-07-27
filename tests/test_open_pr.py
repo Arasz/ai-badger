@@ -9,15 +9,19 @@ from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
+import pytest
+
 
 def _argv(checkout, branch="feed/my-feature", title="Add my-feature", body_file="body.md",
-          repo=None, dry_run=False):
+          repo=None, dry_run=False, paths=()):
     argv = [
         "--checkout", str(checkout),
         "--branch", branch,
         "--title", title,
         "--body-file", str(body_file),
     ]
+    for rel in paths:
+        argv += ["--path", rel]
     if repo is not None:
         argv += ["--repo", repo]
     if dry_run:
@@ -25,13 +29,21 @@ def _argv(checkout, branch="feed/my-feature", title="Add my-feature", body_file=
     return argv
 
 
+def _contribution(checkout, rel="features/common/skills/thing/SKILL.md", body="# thing\n"):
+    path = checkout / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+    return rel
+
+
 def test_dry_run_makes_zero_subprocess_calls(tmp_path, load_script, capsys):
     open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
     checkout = tmp_path / "checkout"
     checkout.mkdir()
+    rel = _contribution(checkout)
 
     with patch("subprocess.run") as mock_run:
-        rc = open_pr.main(_argv(checkout, dry_run=True))
+        rc = open_pr.main(_argv(checkout, dry_run=True, paths=[rel]))
 
     assert rc == 0
     mock_run.assert_not_called()
@@ -39,7 +51,7 @@ def test_dry_run_makes_zero_subprocess_calls(tmp_path, load_script, capsys):
     assert "dry-run=True" in out
     # every step is still reported, just not executed
     assert "$ git checkout -b feed/my-feature" in out
-    assert "$ git add -A" in out
+    assert f"$ git add -- {rel}" in out
     assert "$ git commit -m Add my-feature" in out
     assert "$ git push -u origin feed/my-feature" in out
     assert "$ gh pr create --draft --repo Arasz/ai-badger" in out
@@ -50,11 +62,12 @@ def test_typical_flow_issues_expected_commands_in_order(tmp_path, load_script, c
     checkout = tmp_path / "checkout"
     checkout.mkdir()
     body_file = tmp_path / "body.md"
+    rel = _contribution(checkout)
 
     with patch("subprocess.run") as mock_run:
         mock_run.return_value = Mock(returncode=0)
         rc = open_pr.main(_argv(checkout, branch="feed/xyz", title="Add xyz feature",
-                                 body_file=body_file, repo="Someone/fork"))
+                                 body_file=body_file, repo="Someone/fork", paths=[rel]))
 
     assert rc == 0
     assert mock_run.call_count == 5
@@ -71,7 +84,7 @@ def test_typical_flow_issues_expected_commands_in_order(tmp_path, load_script, c
     assert cwd0 == resolved_checkout
 
     cmd1, cwd1 = cmd_and_cwd(calls[1])
-    assert cmd1 == ["git", "add", "-A"]
+    assert cmd1 == ["git", "add", "--", rel]
     assert cwd1 == resolved_checkout
 
     cmd2, _ = cmd_and_cwd(calls[2])
@@ -93,10 +106,11 @@ def test_default_repo_is_used_when_not_specified(tmp_path, load_script):
     open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
     checkout = tmp_path / "checkout"
     checkout.mkdir()
+    rel = _contribution(checkout)
 
     with patch("subprocess.run") as mock_run:
         mock_run.return_value = Mock(returncode=0)
-        open_pr.main(_argv(checkout))
+        open_pr.main(_argv(checkout, paths=[rel]))
 
     gh_cmd = mock_run.call_args_list[-1][0][0]
     assert "--repo" in gh_cmd
@@ -108,11 +122,12 @@ def test_stops_and_returns_failure_code_when_a_step_fails(tmp_path, load_script,
     checkout = tmp_path / "checkout"
     checkout.mkdir()
 
-    # git checkout -b and git add -A succeed, git commit fails (e.g. nothing to commit)
+    # git checkout -b and git add succeed, git commit fails (e.g. nothing to commit)
+    rel = _contribution(checkout)
     responses = [Mock(returncode=0), Mock(returncode=0), Mock(returncode=1)]
     with patch("subprocess.run") as mock_run:
         mock_run.side_effect = responses
-        rc = open_pr.main(_argv(checkout))
+        rc = open_pr.main(_argv(checkout, paths=[rel]))
 
     assert rc == 1
     assert mock_run.call_count == 3  # push and gh pr create never attempted
@@ -133,3 +148,98 @@ def test_no_real_subprocess_invoked_without_patch_would_be_caught(tmp_path, load
 
     assert rc == 0
     mock_run.assert_called_once_with(["git", "status"], cwd=str(checkout), check=False)
+
+
+# ── outbound content guard + explicit pathspec (security I4) ──────────────────
+
+FAKE_GITHUB_TOKEN = "ghp_FAKEnotarealtoken" + "0" * 19
+
+
+def test_a_secret_shaped_literal_blocks_the_pr(tmp_path, load_script, capsys):
+    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    rel = _contribution(checkout, body=f"token: {FAKE_GITHUB_TOKEN}\n")
+
+    with patch("subprocess.run") as mock_run:
+        rc = open_pr.main(_argv(checkout, dry_run=True) + ["--path", rel])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    mock_run.assert_not_called()
+    assert rel in out
+    assert "github token" in out
+    assert "git push" not in out
+
+
+def test_the_blocked_output_never_prints_the_matched_text(tmp_path, load_script, capsys):
+    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    rel = _contribution(checkout, body=f"token: {FAKE_GITHUB_TOKEN}\n")
+
+    with patch("subprocess.run"):
+        open_pr.main(_argv(checkout, dry_run=True) + ["--path", rel])
+
+    assert FAKE_GITHUB_TOKEN not in capsys.readouterr().out
+
+
+def test_a_clean_contribution_stages_only_the_declared_paths(tmp_path, load_script):
+    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    rel = _contribution(checkout)
+    (checkout / "index.json").write_text("{}\n", encoding="utf-8")
+
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = Mock(returncode=0)
+        rc = open_pr.main(_argv(checkout) + ["--path", rel, "--path", "index.json"])
+
+    assert rc == 0
+    add_cmd = [c[0][0] for c in mock_run.call_args_list if c[0][0][:2] == ["git", "add"]][0]
+    assert add_cmd == ["git", "add", "--", rel, "index.json"]
+    assert "-A" not in add_cmd
+
+
+def test_an_unrelated_dirty_file_is_not_staged(tmp_path, load_script):
+    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    rel = _contribution(checkout)
+    (checkout / "unrelated-local-note.md").write_text("private\n", encoding="utf-8")
+
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = Mock(returncode=0)
+        open_pr.main(_argv(checkout) + ["--path", rel])
+
+    add_cmd = [c[0][0] for c in mock_run.call_args_list if c[0][0][:2] == ["git", "add"]][0]
+    assert "unrelated-local-note.md" not in add_cmd
+
+
+def test_omitting_path_is_a_usage_error_rather_than_staging_everything(tmp_path, load_script):
+    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+
+    with patch("subprocess.run") as mock_run:
+        with pytest.raises(SystemExit):
+            open_pr.main(_argv(checkout))
+
+    mock_run.assert_not_called()
+
+
+def test_a_declared_directory_is_scanned_recursively(tmp_path, load_script, capsys):
+    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    _contribution(checkout, rel="features/common/skills/thing/SKILL.md")
+    _contribution(checkout, rel="features/common/skills/thing/notes.md",
+                  body=f"api_key = {FAKE_GITHUB_TOKEN}\n")
+
+    with patch("subprocess.run") as mock_run:
+        rc = open_pr.main(_argv(checkout, dry_run=True)
+                          + ["--path", "features/common/skills/thing"])
+
+    assert rc == 1
+    mock_run.assert_not_called()
+    assert "notes.md" in capsys.readouterr().out
