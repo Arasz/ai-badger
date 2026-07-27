@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import re
 from unittest.mock import patch
 
 
@@ -518,7 +519,7 @@ def test_scaffold_wires_claude_hooks_into_settings_json(tmp_path, load_script, r
     assert "hooks" in settings
 
     hooks = settings["hooks"]
-    # SessionStart hook (drift-notice) should be wired
+    # SessionStart hook (session-start-tracking) should be wired
     assert "SessionStart" in hooks
     # UserPromptSubmit hook (prompt-markers) should be wired
     assert "UserPromptSubmit" in hooks
@@ -535,6 +536,64 @@ def test_scaffold_wires_claude_hooks_into_settings_json(tmp_path, load_script, r
     # .ai-badger/hooks/hooks.json should also exist
     hooks_json = target / ".ai-badger" / "hooks" / "hooks.json"
     assert hooks_json.exists(), ".ai-badger/hooks/hooks.json not created"
+
+
+def _wired_scripts(settings: dict, event: str) -> list:
+    """The script each wired command for one event ends in.
+
+    Compared by trailing filename, never by substring of the whole command: a
+    command embeds an absolute path, and under pytest that path carries the test's
+    own name.
+    """
+    return [h.get("command", "").rstrip('"').rsplit("/", 1)[-1]
+            for entry in settings.get("hooks", {}).get(event, [])
+            for h in entry.get("hooks", [])]
+
+
+def test_session_start_hook_is_the_wired_session_start_command(tmp_path, load_script, root):
+    """The scaffolded SessionStart hook must be session_start_hook.py itself (F-07).
+
+    Asserting only that *some* SessionStart hook exists is what let a hook that cannot
+    resolve its plugin root in a consumer pass as the session-recording feature.
+    """
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaffold.Scaffolder(root=root, target=target, config=_config(agents=["claude"]),
+                        skills=["task"], install=False).run(generated_at="2026-07-24T00:00:00Z")
+
+    settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    scripts = _wired_scripts(settings, "SessionStart")
+    assert "session_start_hook.py" in scripts, scripts
+
+
+def test_consumer_settings_do_not_wire_the_plugin_only_drift_hook(tmp_path, load_script, root):
+    """Drift notice runs from the plugin's own hooks.json; a consumer copy can never
+    locate the plugin root, so wiring it there only looks like the feature works (F-07)."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaffold.Scaffolder(root=root, target=target, config=_config(agents=["claude"]),
+                        skills=["task"], install=False).run(generated_at="2026-07-24T00:00:00Z")
+
+    settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert "drift_notice_hook.py" not in _wired_scripts(settings, "SessionStart")
+
+
+def test_plugin_registers_drift_notice_from_its_own_hooks_json(root):
+    """The plugin-provided hooks.json is what actually fires drift notice for consumers."""
+    plugin_hooks = json.loads((root / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+
+    commands = [h["command"]
+                for entry in plugin_hooks["hooks"]["SessionStart"]
+                for h in entry["hooks"]]
+    assert any("${CLAUDE_PLUGIN_ROOT}" in cmd and "drift_notice_hook.py" in cmd
+               for cmd in commands), commands
+    plugin_manifest = json.loads(
+        (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    assert plugin_manifest.get("hooks") == "./hooks/hooks.json"
 
 
 def test_scaffold_hook_wiring_is_idempotent(tmp_path, load_script, root):
@@ -1149,3 +1208,61 @@ def test_merge_external_tools_user_overrides_catalog(load_script):
     assert len(merged) == 1
     assert merged[0]["command"] == "c2"
     assert merged[0]["instructions"] == "override"
+
+
+# ------------------------------------------------------------------- managed headers (F-08)
+_HEADER_RE = re.compile(r"Source of truth(?: for this file)?: `?([^\s`]+)")
+
+
+def _referenced_path(text: str):
+    """The .ai-badger/ path a managed banner or self-reference names, or None."""
+    match = _HEADER_RE.search(text)
+    return match.group(1).rstrip(".") if match else None
+
+
+def _managed_files(target) -> list:
+    """Every scaffolded file carrying the managed-by-ai-badger banner."""
+    found = []
+    for path in sorted(target.rglob("*.md")):
+        if path.is_file() and path.read_text(encoding="utf-8").startswith("<!-- Managed by"):
+            found.append(path)
+    return found
+
+
+def _scaffold_all_agents(scaffold, root, target):
+    scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(agents=["claude", "copilot", "hermes", "junie"]),
+        skills=["task"], install=False,
+    ).run(generated_at="2026-07-24T00:00:00Z")
+
+
+def test_every_managed_header_points_at_an_existing_file(tmp_path, load_script, root):
+    """The banner is the first line an agent reads about where durable edits go (F-08)."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    _scaffold_all_agents(scaffold, root, target)
+
+    managed = _managed_files(target)
+    assert managed, "expected at least one managed file"
+    for path in managed:
+        first_line = path.read_text(encoding="utf-8").splitlines()[0]
+        referenced = _referenced_path(first_line)
+        assert referenced, f"{path.relative_to(target)}: unparseable header {first_line!r}"
+        assert (target / referenced).exists(), \
+            f"{path.relative_to(target)} points at {referenced}, which does not exist"
+
+
+def test_managed_body_self_reference_matches_the_banner(tmp_path, load_script, root):
+    """A rendered file's own 'Source of truth for this file' must name its own source."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    _scaffold_all_agents(scaffold, root, target)
+
+    body = (target / ".github" / "copilot-instructions.md").read_text(encoding="utf-8")
+    self_ref = next(line for line in body.splitlines() if "Source of truth for this file" in line)
+    assert _referenced_path(self_ref) == ".ai-badger/copilot-instructions.md"

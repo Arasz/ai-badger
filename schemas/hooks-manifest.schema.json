@@ -42,8 +42,10 @@
                 "type": {
                   "enum": [
                     "hooks-json",
+                    "plugin-hooks-json",
                     "plugin"
-                  ]
+                  ],
+                  "description": "hooks-json: wired into the consumer's own settings from the hooks.json template. plugin-hooks-json: registered by the plugin's own hooks/hooks.json and never wired into a consumer (it needs ${CLAUDE_PLUGIN_ROOT}). plugin: a method on the agent's plugin module."
                 },
                 "entry": {
                   "type": "string",
@@ -56,6 +58,10 @@
                 "event": {
                   "type": "string",
                   "description": "Hook event name (for type=hooks-json)."
+                },
+                "script": {
+                  "type": "string",
+                  "description": "Filename of this hook's script; selects its command from hooks.json when an event carries more than one."
                 }
               }
             }

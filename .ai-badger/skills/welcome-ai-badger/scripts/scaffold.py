@@ -217,7 +217,7 @@ class Scaffolder(
         self.commit, self.dirty = git_provenance(root)
         self.aib = target / ".ai-badger"
         self.entries: List[Dict[str, Any]] = []
-        self.stacks: List[str] = ["common"] + list(config.get("stacks", []))
+        self.stacks: List[str] = bl.resolve_stacks(config)
         self.notes: List[str] = []
         self._merged_external_tools: List[Dict[str, Any]] = []
         self._external_tools_merged = False

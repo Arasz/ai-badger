@@ -47,9 +47,12 @@ def test_parse_duration_rejects_unparseable_or_nonpositive(tmp_path, load_script
         awm.parse_duration("0h")
 
 
-def test_main_partner_enables_indefinite_mode(tmp_path, load_script, monkeypatch, capsys):
+def test_main_partner_enables_a_bounded_project_scoped_mode(tmp_path, load_script, monkeypatch,
+                                                             capsys):
+    """Partner mode carries a wall-clock window and the project it was enabled in (F-12)."""
     awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
     awm_dir = _patch_state_paths(awm, monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
 
     rc = awm.main(["partner"])
 
@@ -57,7 +60,10 @@ def test_main_partner_enables_indefinite_mode(tmp_path, load_script, monkeypatch
     state = awm.load_state()
     assert state["enabled"] is True
     assert state["mode"] == "partner"
-    assert state["expires_at"] is None
+    assert state["duration"] == awm.DEFAULT_PARTNER_DURATION
+    assert state["project"] == str(tmp_path)
+    remaining = datetime.fromisoformat(state["expires_at"]) - datetime.now(timezone.utc)
+    assert 0 < remaining.total_seconds() <= awm.parse_duration(awm.DEFAULT_PARTNER_DURATION)
     decisions = _read_decisions(awm_dir)
     assert decisions[-1]["type"] == "mode_enabled"
     assert "PARTNER" in capsys.readouterr().out.upper()
@@ -173,7 +179,8 @@ def test_main_status_reports_active_partner_mode(tmp_path, load_script, monkeypa
     assert rc == 0
     out = capsys.readouterr().out
     assert "PARTNER" in out
-    assert "no expiry" in out
+    assert "remaining" in out
+    assert "Scope:" in out
 
 
 def test_main_status_reports_active_away_mode_with_remaining_time(tmp_path, load_script,
@@ -242,3 +249,26 @@ def test_main_unknown_command_is_an_error(tmp_path, load_script, monkeypatch, ca
 
     assert rc == 1
     assert "unknown command" in capsys.readouterr().err.lower()
+
+
+def test_main_away_records_the_project_it_was_enabled_in(tmp_path, load_script, monkeypatch):
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    _patch_state_paths(awm, monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    awm.main(["away", "2h"])
+
+    assert awm.load_state()["project"] == str(tmp_path)
+
+
+def test_a_window_longer_than_the_maximum_is_capped(tmp_path, load_script, monkeypatch, capsys):
+    """No auto-approval window is open-ended, however long the user asks for (F-12)."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    _patch_state_paths(awm, monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    awm.main(["away", "48h"])
+
+    state = awm.load_state()
+    assert state["duration_seconds"] == awm.MAX_DURATION_SECONDS
+    assert "capping" in capsys.readouterr().out

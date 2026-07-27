@@ -43,7 +43,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Shell commands with {source}, {name}, {scope} placeholders."
+            "description": "Shell commands with {source}, {sourceName}, {name}, {scope} placeholders. The first entry adds the source; a later entry containing {name} installs one skill. Without a {name} template no skill can be installed by name, and install_plugins.py warns."
           }
         }
       }

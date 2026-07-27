@@ -57,8 +57,10 @@ class AgentFilesMixin:
                 continue
 
             # Determine the body content
+            source_of_truth = aib_copy or file_entry["target"]
             if is_template:
-                body = self._render_template_file(source, instr_paths, invariants)
+                body = self._render_template_file(source, instr_paths, invariants,
+                                                  source_of_truth)
             else:
                 body = source.read_text(encoding="utf-8")
 
@@ -73,10 +75,11 @@ class AgentFilesMixin:
                 )
                 continue
 
-            # Write the primary target
+            # Write the primary target. The header must name the .ai-badger/ copy it is
+            # generated from — its own target path is where edits get discarded (F-08).
             content = body
             if managed:
-                self._copy_with_header(target, file_entry["target"], content)
+                self._copy_with_header(target, source_of_truth, content)
             else:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 if is_template:
@@ -88,7 +91,7 @@ class AgentFilesMixin:
             if also_target:
                 also_dest = self.target / also_target
                 if managed:
-                    self._copy_with_header(also_dest, also_target, content)
+                    self._copy_with_header(also_dest, source_of_truth, content)
                 else:
                     also_dest.parent.mkdir(parents=True, exist_ok=True)
                     if is_template:

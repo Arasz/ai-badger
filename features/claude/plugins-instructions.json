@@ -2,8 +2,11 @@
   "agent": "claude",
   "instructions": {
     "marketplace": {
-      "description": "Add Claude Code marketplace",
-      "commands": ["claude plugin marketplace add {source}"]
+      "description": "Add a Claude Code marketplace, then install a plugin from it by name",
+      "commands": [
+        "claude plugin marketplace add {source}",
+        "claude plugin install {name}@{sourceName}"
+      ]
     },
     "url": {
       "description": "Install from URL",

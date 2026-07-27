@@ -8,7 +8,8 @@ features/common/skills/ and features/claude/skills/ into .claude/skills/.
 Run after changing skill content, before publishing the plugin.
 
 Usage:
-  python3 scripts/sync_plugin_skills.py [--dry-run]
+  python3 scripts/sync_plugin_skills.py [--dry-run | --check]
+  --check : do not write; exit 1 if any shipped copy diverges from features/.
 """
 from __future__ import annotations
 
@@ -16,6 +17,9 @@ import argparse
 import shutil
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import badger_lib as bl
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / ".claude" / "skills"
@@ -36,15 +40,9 @@ CLAUDE_SKILLS = [
     "auto-wm",
 ]
 
-# Files to skip when copying (test files, caches, evals)
-SKIP_PATTERNS = {
-    "__pycache__",
-    "*.pyc",
-    "test_*.py",
-    "*_test.py",
-    "tests",
-    "evals",
-}
+# Files to skip when copying (test files, caches, evals). Shared with the hash used by
+# --check so a file that is never copied can never be reported as divergence.
+SKIP_PATTERNS = tuple(bl.SKILL_EXCLUDE_PATTERNS)
 
 # Skills already in .claude/skills/ that should NOT be overwritten
 # (e.g. code-review-graph skills managed externally)
@@ -56,16 +54,16 @@ MANAGED_EXTERNALLY = {
 }
 
 
-def _should_skip(path: Path) -> bool:
-    """Return True if path matches a skip pattern."""
-    name = path.name
-    for pat in SKIP_PATTERNS:
-        if pat.startswith("*"):
-            if name.endswith(pat[1:]):
-                return True
-        elif name == pat:
-            return True
-    return False
+def _shipped_skills():
+    """Yield (name, src, dest) for every skill the plugin ships, minus externally managed ones."""
+    for base, names in (
+        (ROOT / "features" / "common" / "skills", COMMON_SKILLS),
+        (ROOT / "features" / "claude" / "skills", CLAUDE_SKILLS),
+    ):
+        for name in names:
+            if name in MANAGED_EXTERNALLY:
+                continue
+            yield name, base / name, TARGET / name
 
 
 def sync_skill(src: Path, dest: Path, dry_run: bool) -> int:
@@ -80,40 +78,67 @@ def sync_skill(src: Path, dest: Path, dry_run: bool) -> int:
     return 1
 
 
-def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dry-run", action="store_true", help="Show what would be copied")
-    args = parser.parse_args(argv)
+def check_skill(src: Path, dest: Path):
+    """Return the divergence reason for one skill, or None when the shipped copy matches."""
+    if not src.is_dir():
+        return None
+    if not dest.is_dir():
+        return "missing"
+    excluded = list(SKIP_PATTERNS)
+    src_hash = bl.dir_content_hash(src, excluded)["content_hash"]
+    dest_hash = bl.dir_content_hash(dest, excluded)["content_hash"]
+    if src_hash != dest_hash:
+        return "diverged"
+    return None
 
+
+def check_all() -> int:
+    """Report every shipped skill whose .claude/ copy differs from features/. 1 if any."""
+    checked = 0
+    out_of_sync = 0
+    for name, src, dest in _shipped_skills():
+        if not src.is_dir():
+            continue
+        checked += 1
+        reason = check_skill(src, dest)
+        if reason:
+            out_of_sync += 1
+            print(f"  {reason}: {name}")
+
+    if out_of_sync:
+        print(f"\n{out_of_sync} of {checked} skill(s) out of sync — "
+              f"run: python3 scripts/sync_plugin_skills.py")
+        return 1
+    print(f"\n{checked} skill(s) in sync")
+    return 0
+
+
+def sync_all(dry_run: bool) -> int:
+    """Copy every shipped skill into TARGET. Returns 0."""
     TARGET.mkdir(parents=True, exist_ok=True)
     copied = 0
-
-    # Sync common skills
-    common_base = ROOT / "features" / "common" / "skills"
-    for name in COMMON_SKILLS:
-        if name in MANAGED_EXTERNALLY:
-            continue
-        src = common_base / name
-        dest = TARGET / name
-        result = sync_skill(src, dest, args.dry_run)
+    for name, src, dest in _shipped_skills():
+        result = sync_skill(src, dest, dry_run)
         copied += result
         if result:
-            print(f"  {'would sync' if args.dry_run else 'synced'}: {name}")
+            print(f"  {'would sync' if dry_run else 'synced'}: {name}")
 
-    # Sync claude-specific skills
-    claude_base = ROOT / "features" / "claude" / "skills"
-    for name in CLAUDE_SKILLS:
-        if name in MANAGED_EXTERNALLY:
-            continue
-        src = claude_base / name
-        dest = TARGET / name
-        result = sync_skill(src, dest, args.dry_run)
-        copied += result
-        if result:
-            print(f"  {'would sync' if args.dry_run else 'synced'}: {name}")
-
-    print(f"\n{'Would sync' if args.dry_run else 'Synced'} {copied} skill(s) into {TARGET.relative_to(ROOT)}")
+    print(f"\n{'Would sync' if dry_run else 'Synced'} {copied} skill(s) "
+          f"into {TARGET.relative_to(ROOT)}")
     return 0
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dry-run", action="store_true", help="Show what would be copied")
+    mode.add_argument("--check", action="store_true",
+                      help="Verify .claude/skills/ matches features/; exit 1 on divergence")
+    args = parser.parse_args(argv)
+
+    if args.check:
+        return check_all()
+    return sync_all(args.dry_run)
 
 
 if __name__ == "__main__":

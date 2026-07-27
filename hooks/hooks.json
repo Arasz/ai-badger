@@ -1,0 +1,16 @@
+{
+  "description": "Plugin-provided hooks. Claude Code loads this file from the plugin itself and substitutes ${CLAUDE_PLUGIN_ROOT}, which is the only way drift_notice_hook.py can locate the plugin it must compare against (ADR-0001 decision 5, #24). A copy wired through a consumer's own .claude/settings.json never has it set.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/task/scripts/drift_notice_hook.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

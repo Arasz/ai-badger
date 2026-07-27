@@ -8,6 +8,25 @@ from __future__ import annotations
 from typing import Any, Dict
 
 
+def select_hooks(source_event_hooks, script):
+    """Keep only the commands belonging to *script*, dropping now-empty entries.
+
+    An event carries one command per hook that registers for it, so a manifest entry
+    must take its own command and no one else's.
+    """
+    if not script:
+        return list(source_event_hooks)
+    selected = []
+    for entry in source_event_hooks:
+        matching = [h for h in entry.get("hooks", [])
+                    if h.get("command", "").rstrip('"').endswith(script)]
+        if matching:
+            picked = dict(entry)
+            picked["hooks"] = matching
+            selected.append(picked)
+    return selected
+
+
 def merge_hooks(existing_hooks: Dict[str, Any], new_hooks: Dict[str, Any]) -> None:
     """Merge *new_hooks* into *existing_hooks* in-place, deduplicating by command.
 
@@ -75,6 +94,9 @@ class HookWiringMixin:
 
         for hook in manifest.get("hooks", []):
             claude_entry = hook.get("agents", {}).get("claude")
+            # "plugin-hooks-json" hooks are registered by the plugin's own hooks/hooks.json
+            # and rely on ${CLAUDE_PLUGIN_ROOT}, which is never set for a hook a consumer
+            # registers itself — wiring them here would only look like the feature works.
             if not claude_entry or claude_entry.get("type") != "hooks-json":
                 continue
 
@@ -82,8 +104,9 @@ class HookWiringMixin:
             if not event:
                 continue
 
-            # Get the hook config from source hooks.json
-            source_event_hooks = source_hooks.get("hooks", {}).get(event, [])
+            # Get this hook's own command from the source hooks.json
+            source_event_hooks = select_hooks(
+                source_hooks.get("hooks", {}).get(event, []), claude_entry.get("script"))
             if not source_event_hooks:
                 # Generate a default hook entry for skills not in the framework hooks.json
                 hook_name = hook.get("name", "")
@@ -118,8 +141,9 @@ class HookWiringMixin:
                     new_entry["hooks"] = new_hooks_list
                     rewritten.append(new_entry)
 
-            target_hooks["hooks"][event] = rewritten
-            settings_hooks[event] = rewritten
+            # Accumulate: two manifest entries may register for the same event.
+            target_hooks["hooks"].setdefault(event, []).extend(rewritten)
+            settings_hooks.setdefault(event, []).extend(rewritten)
 
         if not target_hooks["hooks"]:
             return

@@ -24,8 +24,13 @@ class TemplateRenderingMixin:
                 blocks.append(instr)
         return "\n\n".join(blocks) + "\n\n" if blocks else ""
 
-    def _compute_doc_slots(self, invariants: List[str], instr_paths: List[Path]) -> Dict[str, str]:
-        """Compute the template slots shared by CLAUDE.md and HERMES.md assembly."""
+    def _compute_doc_slots(self, invariants: List[str], instr_paths: List[Path],
+                            source_of_truth: str = "CLAUDE.md") -> Dict[str, str]:
+        """Compute the template slots shared by CLAUDE.md and HERMES.md assembly.
+
+        `source_of_truth` is the .ai-badger/ file this render is the copy of — every agent
+        renders the same template, so the self-reference cannot be hardcoded (F-08).
+        """
         project = self.config.get("project", {})
         commands = self.config.get("commands", {})
         routing = self.config.get("personaRouting", [])
@@ -52,6 +57,7 @@ class TemplateRenderingMixin:
             "PATH_INSTRUCTIONS": instr_md,
             "EXTERNAL_MCP_INSTRUCTIONS": ext_mcp_md,
             "FRAMEWORK_VERSION": self.index["frameworkVersion"],
+            "SOURCE_OF_TRUTH": source_of_truth,
         }
 
     def _render_template(self, tmpl_name: str, slots: Dict[str, str]) -> str:
@@ -73,16 +79,17 @@ class TemplateRenderingMixin:
 
     def assemble_hermes_doc(self, invariants: List[str], instr_paths: List[Path]) -> str:
         """Render the HERMES.md.tmpl template with this config's project/commands/invariants."""
-        return self._render_template("HERMES.md.tmpl",
-                                     self._compute_doc_slots(invariants, instr_paths))
+        return self._render_template(
+            "HERMES.md.tmpl",
+            self._compute_doc_slots(invariants, instr_paths, source_of_truth="HERMES.md"))
 
     # -- agent-discovery copies -----------------------------------------------------
 
     def _render_template_file(self, source: Path, instr_paths: List[Path],
-                               invariants: List[str]) -> str:
+                               invariants: List[str], source_of_truth: str = "CLAUDE.md") -> str:
         """Render a .tmpl file with the standard scaffold slots."""
         tmpl = source.read_text(encoding="utf-8")
-        slots = self._compute_doc_slots(invariants, instr_paths)
+        slots = self._compute_doc_slots(invariants, instr_paths, source_of_truth)
         for k, v in slots.items():
             tmpl = tmpl.replace("{{" + k + "}}", str(v))
         return tmpl
