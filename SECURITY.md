@@ -104,12 +104,22 @@ Structural properties that predate those waves:
   (`.github/workflows/codeql.yml`).
 - **Dependabot** watches `scripts/requirements.txt` and the GitHub Actions used by the workflows,
   weekly (`.github/dependabot.yml`).
-- The runtime dependency surface is deliberately tiny: **`jsonschema` and `pyyaml`**, both with
-  guarded imports that degrade to a printed note. Everything else is Python 3.8+ stdlib.
+- **gitleaks** scans the commit range on every push to `main` and every pull request, and the
+  whole history weekly (`.github/workflows/secret-scan.yml`). Findings are redacted: this
+  repository is public, so an unredacted report would publish the credential it just caught.
+- **`deps_guard.py`** fails the build on a third-party import that
+  `scripts/requirements.txt` does not declare — in pre-commit and on all three CI Python
+  versions.
+- **Dependabot** watches `scripts/requirements.txt` and the GitHub Actions used by the workflows,
+  weekly (`.github/dependabot.yml`).
+- The runtime dependency surface is deliberately tiny: **`jsonschema` and `pyyaml`**. Everything
+  else is Python 3.8+ stdlib. Their imports differ on purpose — `jsonschema` is required and
+  imported unguarded, because a guarded import would let validation silently pass when it is
+  absent; `pyyaml` is optional and guarded, degrading to a printed note.
 
-There is **no** secret-scanning pre-commit hook (`gitleaks`/`trufflehog`) yet; it is a planned
-wave in [`docs/plans/2026-07-27-deferred-work-plan.md`](docs/plans/2026-07-27-deferred-work-plan.md).
-Saying so here is more useful than implying coverage that does not exist.
+There is still no secret-scanning **pre-commit** hook — the scan above is CI-side only, so a
+credential can be committed locally and is caught when it is pushed. Saying so here is more
+useful than implying coverage that does not exist.
 
 ## Out of scope
 

@@ -18,18 +18,18 @@ two things.
 | Wave | Item | §7 source | State |
 |---|---|---|---|
 | 6 | `Scaffolder`'s five mixins → composed collaborators | architecture I1 / R10 | planned |
-| 7 | Nine `_bootstrap_lib()` copies; three root predicates | architecture I6 / R9 | planned |
+| 7 | Seven `_bootstrap_lib()` copies; four root predicates | architecture I6 / R9 | planned — **proceed per ADR-0007**; counts corrected by WP45 |
 | 8 | Single feature-type registry | architecture I11 / R6 | planned |
 | 9 | The hardening pass (+ prompt-marker/AWM privacy) | security I1, I2, I5, I7, sugg. 1 & 3 | **done — 0.25.0 (#85)** |
 | 10 | `feed-badger` outbound scan + explicit pathspec | security I4 | **done — 0.24.0 (#84)** |
 | 11 | Package `badger_lib` as an installable distribution | architecture I6 / R11 | **decided — ADR-0007: no. WP45 declined** |
-| 12 | Collapse the 3+1 MCP config writers | architecture I3 / R5 | planned |
+| 12 | Collapse the 3+1 MCP config writers | architecture I3 / R5 | **done — 0.32.0** |
 | 13 | Derive `DEFAULT_SKILLS`/`COMMON_SKILLS`; decide `code-review-checklist` | architecture I8 / R7 | **done — 0.26.0 (#87)** |
 | 14 | Pick one extension mechanism | architecture I5 / R8 | **done — 0.27.0 (#88)** |
-| 15 | Split `test_drift.py` / `test_scaffold.py` | python I6, tests sugg. | planned |
-| 16 | Rename top-level `scripts/` | architecture S1 | planned — **ADR first, after 11** |
+| 15 | Split `test_drift.py` / `test_scaffold.py` | python I6, tests sugg. | **done — 0.32.0** |
+| 16 | Rename top-level `scripts/` | architecture S1 | planned — **unblocked by ADR-0007**; after 7 |
 | 17 | Split `badger_lib.py` | architecture S2 | planned — after 7 and 8 |
-| 18 | gitleaks/trufflehog in CI | security sugg. 6 | planned |
+| 18 | gitleaks/trufflehog in CI | security sugg. 6 | **done — 0.32.0** (gitleaks; no baseline, history clean) |
 | 19 | Keep docs in sync with the code — a `docs_guard` and its CI step | docs refactor, step 3 | **done — 0.29.0** |
 
 ## Recommended execution order
