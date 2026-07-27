@@ -1,13 +1,16 @@
 """Shared helpers for ai-badger scripts.
 
 Deterministic and offline (Python 3.9+): scripts must be runnable wherever the plugin is
-installed. JSON Schema validation uses the audited `jsonschema` library (see
-scripts/requirements.txt) rather than a hand-rolled validator.
+installed. `ensure_root(allow_network=True)` is the single exception and the only function
+here that may reach the network; it is opt-in and pinned to a release tag. JSON Schema
+validation uses the audited `jsonschema` library (see scripts/requirements.txt) rather than
+a hand-rolled validator.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -68,70 +71,105 @@ def is_breaking_transition(from_version: str, to_version: str, root: Path) -> bo
 # --------------------------------------------------------------------------- roots / io
 FRAMEWORK_REPO = "https://github.com/Arasz/ai-badger"
 FRAMEWORK_CACHE = Path.home() / ".ai-badger" / "framework"
+RELEASE_TAG_PREFIX = "ai-badger--v"
 
 
-def _ensure_framework_cache() -> Path:
-    """Clone or update the ai-badger framework repo at ~/.ai-badger/framework/.
+class FrameworkRootNotFound(RuntimeError):
+    """No usable ai-badger framework root, and none may be fetched without consent."""
 
-    Returns the path to the cached framework root.
-    Raises RuntimeError if git is unavailable or clone fails.
-    """
-    import subprocess
 
-    FRAMEWORK_CACHE.mkdir(parents=True, exist_ok=True)
-
-    if (FRAMEWORK_CACHE / ".git").is_dir():
-        # Already cloned — pull latest
-        try:
-            subprocess.run(
-                ["git", "pull", "--ff-only"],
-                cwd=str(FRAMEWORK_CACHE), capture_output=True, text=True, timeout=30,
-                check=False,
-            )
-        except (subprocess.TimeoutExpired, OSError):
-            pass  # non-fatal: use whatever we have
-    else:
-        # Fresh clone
-        result = subprocess.run(
-            ["git", "clone", "--depth=1", FRAMEWORK_REPO, str(FRAMEWORK_CACHE)],
-            capture_output=True, text=True, timeout=60,
-            check=False,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"Failed to clone ai-badger framework from {FRAMEWORK_REPO}: "
-                f"{result.stderr.strip()}"
-            )
-
-    return FRAMEWORK_CACHE
+def _is_root(path: Path) -> bool:
+    return (path / "schemas").is_dir() and (path / "features").is_dir()
 
 
 def find_root(start: Optional[Path] = None) -> Path:
-    """Find the ai-badger framework root.
+    """Find the ai-badger framework root. Pure lookup: no network, ever.
 
-    Strategy:
-    1. Walk up from `start` (or this file) looking for schemas/ + features/
-    2. If not found locally, check ~/.ai-badger/framework/ (cached clone)
-    3. If no cache, clone from GitHub to ~/.ai-badger/framework/
+    Walks up from `start` (or this file) for schemas/ + features/, then falls back to an
+    already-populated ~/.ai-badger/framework/. Raises FrameworkRootNotFound if neither
+    exists — fetching one is `ensure_root(..., allow_network=True)`, never a side effect
+    of looking.
     """
     p = (start or Path(__file__)).resolve()
     for anc in [p, *p.parents]:
-        if (anc / "schemas").is_dir() and (anc / "features").is_dir():
+        if _is_root(anc):
             return anc
 
-    # Fallback: check cached framework repo
-    if (FRAMEWORK_CACHE / "schemas").is_dir() and (FRAMEWORK_CACHE / "features").is_dir():
+    if _is_root(FRAMEWORK_CACHE):
         return FRAMEWORK_CACHE
 
-    # Last resort: clone from GitHub
-    cache = _ensure_framework_cache()
-    if (cache / "schemas").is_dir() and (cache / "features").is_dir():
-        return cache
-
-    raise RuntimeError(
-        f"ai-badger framework root not found locally and GitHub clone at "
-        f"{FRAMEWORK_CACHE} is missing schemas/ or features/"
+    raise FrameworkRootNotFound(
+        f"ai-badger framework root not found above {p} and no usable cache at "
+        f"{FRAMEWORK_CACHE}. Pass --root <framework checkout>, or call "
+        f"ensure_root(allow_network=True) to fetch the release matching your installed "
+        f"VERSION from {FRAMEWORK_REPO}."
     )
+
+
+def installed_version(start: Optional[Path] = None) -> Optional[str]:
+    """Read the VERSION file of the tree this code is installed in, or None."""
+    p = (start or Path(__file__)).resolve()
+    for anc in [p, *p.parents]:
+        version_file = anc / "VERSION"
+        if version_file.is_file():
+            text = version_file.read_text(encoding="utf-8").strip()
+            if text:
+                return text
+    return None
+
+
+def ensure_root(start: Optional[Path] = None, allow_network: bool = False,
+                version: Optional[str] = None) -> Path:
+    """Find the framework root, optionally fetching the pinned release if none is present.
+
+    Network access is opt-in and pinned: the clone targets the tag matching `version`
+    (default: the installed VERSION), never an unpinned branch. See ADR-0001 decision 2.
+    """
+    try:
+        return find_root(start)
+    except FrameworkRootNotFound:
+        if not allow_network:
+            raise
+
+    release = version or installed_version(start)
+    if not release:
+        raise FrameworkRootNotFound(
+            "cannot fetch the framework: no release version is known (no VERSION file "
+            "above the installed scripts). Pass version=<x.y.z> or --root <checkout>."
+        )
+    return _clone_pinned(release)
+
+
+def _clone_pinned(version: str) -> Path:
+    """Clone the framework at tag ai-badger--v{version} into FRAMEWORK_CACHE."""
+    if FRAMEWORK_CACHE.exists():
+        raise FrameworkRootNotFound(
+            f"{FRAMEWORK_CACHE} exists but is not a usable framework root (no schemas/ + "
+            f"features/). It is never updated in place — inspect it, remove it, and retry."
+        )
+
+    tag = f"{RELEASE_TAG_PREFIX}{version}"
+    FRAMEWORK_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        result = subprocess.run(
+            ["git", "clone", "--depth=1", "--branch", tag, FRAMEWORK_REPO,
+             str(FRAMEWORK_CACHE)],
+            capture_output=True, text=True, timeout=120, check=False,
+        )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        raise FrameworkRootNotFound(f"git clone of {tag} failed: {exc}") from exc
+
+    if result.returncode != 0:
+        raise FrameworkRootNotFound(
+            f"failed to clone {FRAMEWORK_REPO} at {tag}: {result.stderr.strip()}. "
+            f"Releases before 0.20.0 carry no tag "
+            f"(docs/incidents/2026-07-27-untagged-releases.md)."
+        )
+    if not _is_root(FRAMEWORK_CACHE):
+        raise FrameworkRootNotFound(
+            f"cloned {tag} into {FRAMEWORK_CACHE} but it has no schemas/ + features/"
+        )
+    return FRAMEWORK_CACHE
 
 
 def load_json(path: Path) -> Any:
