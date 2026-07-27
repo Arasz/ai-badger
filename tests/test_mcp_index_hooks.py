@@ -233,15 +233,22 @@ def test_pre_llm_inject_with_index_build_query(tmp_path):
     assert "/usage" in result["context"] or "session_search" in result["context"]
 
 
-def test_pre_llm_inject_with_index_no_double_injection(tmp_path):
-    """Hook should not crash when index exists but query is empty."""
+def test_pre_llm_inject_without_a_message_recommends_no_tools(tmp_path):
+    """Tool hints come from keywords in the user message; with no message there are none.
+
+    Previously named ..._no_double_injection and asserted only `result is not None`,
+    with two comments describing a check that was never written (F-48).
+    """
     _write_mcp_index(tmp_path, _sample_index())
     hooks.reset_session_hints()
 
     result = hooks.pre_llm_inject_context(cwd=str(tmp_path))
+
     assert result is not None
-    # Should not have MCP tool hints in the standard injection
-    # (tool hints come from keyword extraction which needs the actual user message)
+    context = result["context"]
+    assert "/usage" in context
+    for tool in ("build_solution", "execute_sql_query", "get_file_problems"):
+        assert tool not in context
 
 
 # ── post_tool_observer with index ──────────────────────────────────────────
