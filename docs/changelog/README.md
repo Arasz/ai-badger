@@ -18,6 +18,8 @@ re-scaffold.
 | Version | Entry |
 |---|---|
 | 0.29.0 | [documentation that still points at the tree](0.29.0-docs-that-stay-true.md) |
+| 0.28.3 | [the onboarding commands actually run](0.28.3-onboarding-commands-that-run.md) |
+| 0.28.2 | [config.json says which version wrote it](0.28.2-config-says-which-version-wrote-it.md) |
 | 0.28.1 | [plugin hooks load again](0.28.1-plugin-hooks-load-again.md) |
 | 0.28.0 | [MCP servers that never started](0.28.0-mcp-user-tool-paths.md) |
 | 0.27.1 | [task tracking actually runs](0.27.1-task-tracking-actually-runs.md) |
