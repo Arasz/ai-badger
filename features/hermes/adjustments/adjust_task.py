@@ -29,9 +29,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     if not ext_md.exists():
         return {"applied": False, "files": [], "notes": "extension.md not found"}
 
-    # The extension.md content is appended to the task skill during scaffold
-    # by scaffold.py's extension embedding logic. This adjustment ensures
-    # the extension is recognized as active. No files are copied here —
-    # _embed_extensions() handles the actual embedding.
+    # The extension ships inside the skill at task/extensions/hermes/ and is merged into
+    # SKILL.md during scaffold by _merge_extensions(). No files are copied here.
     return {"applied": True, "files": [],
             "notes": "Hermes task extension.md registered for embedding"}

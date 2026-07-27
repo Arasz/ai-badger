@@ -99,6 +99,11 @@ def record_transformation(
     })
     state["history"] = state["history"][-MAX_HISTORY:]
     state_file.write_text(json.dumps(state, indent=2) + "\n")
+    try:
+        # Whole prompts land here verbatim; keep them owner-only (security I5).
+        state_file.chmod(0o600)
+    except OSError:
+        pass
 
 
 def main() -> int:
