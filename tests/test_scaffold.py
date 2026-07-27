@@ -1068,7 +1068,6 @@ def test_extension_marker_routing_positions_items_correctly(tmp_path, load_scrip
     # Verify EXT markers are consumed (not left in output)
     # Verify actual EXT marker lines are consumed (not left in output)
     # Note: Usage Tips may reference EXT markers in prose — that is fine
-    import re
     ext_marker_lines = [l for l in content.split(chr(10)) if re.match(r"^\s*<!-- EXT:[a-z]", l)]
     assert not ext_marker_lines, f"EXT marker lines should be removed: {ext_marker_lines}"
     assert "<!-- MERGE_EXTENSIONS -->" not in content, "MERGE_EXTENSIONS sentinel should be removed"

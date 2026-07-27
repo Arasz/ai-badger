@@ -336,7 +336,7 @@ def _load_learned_skills_sync() -> Optional[Any]:
         spec.loader.exec_module(module)
     except Exception:  # pylint: disable=broad-exception-caught
         sys.modules.pop(SYNC_MODULE_NAME, None)
-        logger.debug("learned-skill sync unavailable", exc_info=True)
+        logger.warning("learned-skill sync could not be loaded from %s", path, exc_info=True)
         return None
     return module
 
@@ -380,7 +380,7 @@ def post_tool_observer(tool_name: str = "", result: str = "",
         try:
             _sync_learned_skill(kwargs.get("args") or {}, kwargs.get("status", "ok"), cwd)
         except Exception:  # pylint: disable=broad-exception-caught
-            logger.debug("learned-skill sync failed", exc_info=True)
+            logger.warning("learned-skill sync failed", exc_info=True)
 
     # Log index hit/miss metrics if the index is available
     if tool_name:

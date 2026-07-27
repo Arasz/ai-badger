@@ -354,3 +354,36 @@ def test_missing_state_file_is_silent_via_entrypoint_guard(tmp_path, load_script
     _run_main_never_raises(gate, monkeypatch, _payload())
 
     assert capsys.readouterr().out == ""
+
+
+def _explode():
+    raise RuntimeError("state file is a directory")
+
+
+def test_internal_error_is_recorded_somewhere(tmp_path, load_script, monkeypatch, capsys):
+    gate = load_script("features/claude/skills/auto-wm/hooks/awm_gate.py")
+    errors = tmp_path / "hook-errors.log"
+    monkeypatch.setattr(gate, "HOOK_ERRORS_FILE", errors)
+    monkeypatch.setattr(gate, "main", _explode)
+
+    rc = gate.guarded_main()
+
+    assert rc == 0
+    assert "awm_gate" in errors.read_text(encoding="utf-8")
+    assert "RuntimeError" in errors.read_text(encoding="utf-8")
+    assert "awm_gate" in capsys.readouterr().err
+
+
+def test_the_breadcrumb_records_no_exception_message(tmp_path, load_script, monkeypatch):
+    """The audit-log rule holds here too: a message may quote a scanned command."""
+    gate = load_script("features/claude/skills/auto-wm/hooks/awm_gate.py")
+    errors = tmp_path / "hook-errors.log"
+    monkeypatch.setattr(gate, "HOOK_ERRORS_FILE", errors)
+
+    def leaky():
+        raise RuntimeError("SECRET-PROJECT-PATH")
+
+    monkeypatch.setattr(gate, "main", leaky)
+    gate.guarded_main()
+
+    assert "SECRET-PROJECT-PATH" not in errors.read_text(encoding="utf-8")

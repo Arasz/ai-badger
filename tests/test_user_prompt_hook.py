@@ -164,3 +164,20 @@ def test_marker_usage_not_recorded_when_tracking_dir_absent(tmp_path, load_scrip
     assert rc == 0
     assert not (project / ".ai-badger").exists()
     assert not list(tmp_path.rglob("marker-state.json"))
+
+
+def test_internal_error_is_recorded_somewhere(tmp_path, load_script, monkeypatch, capsys):
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    errors = tmp_path / "hook-errors.log"
+    monkeypatch.setattr(hook, "HOOK_ERRORS_FILE", errors)
+
+    def explode():
+        raise RuntimeError("broken marker table")
+
+    monkeypatch.setattr(hook, "main", explode)
+
+    rc = hook.guarded_main()
+
+    assert rc == 0
+    assert "user_prompt_hook" in errors.read_text(encoding="utf-8")
+    assert "user_prompt_hook" in capsys.readouterr().err
