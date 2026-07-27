@@ -7,3 +7,5 @@ task-tracking/
 .ai-badger/task-tracking/
 # Added by code-review-graph
 .code-review-graph/
+# den-refresh backup of a previous scaffold
+.ai-badger.bckp/

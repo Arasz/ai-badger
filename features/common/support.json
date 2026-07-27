@@ -1,5 +1,5 @@
 {
-  "$schema": "./schemas/support.schema.json",
+  "$schema": "../../schemas/support.schema.json",
   "description": "Agent capability matrix: what each agent supports and what ai-badger scaffolds for it.",
   "lastUpdated": "2026-07-26",
   "agents": {

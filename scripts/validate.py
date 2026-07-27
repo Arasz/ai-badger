@@ -30,6 +30,34 @@ KIND_TO_SCHEMA = {
     "learned-skills": "learned-skills.schema.json",
 }
 
+# Every catalog file --all validates, as root-relative globs per schema. Adding a schema
+# without a line here fails test_every_schema_has_a_coverage_decision.
+SCHEMA_INSTANCES = {
+    "index.schema.json": ["index.json"],
+    "skills-source.schema.json": ["features/*/skills-source.json"],
+    "skills.schema.json": ["features/*/skills.json"],
+    "hooks-manifest.schema.json": ["features/*/hooks/hooks-manifest.json"],
+    "adjustment.schema.json": ["features/*/adjustments/adjustment.json"],
+    "plugins-instructions.schema.json": ["features/*/plugins-instructions.json"],
+    "mcp-servers.schema.json": ["features/*/mcp-servers.json"],
+    "external-tools.schema.json": ["features/*/external-tools.json"],
+    "stack.schema.json": ["features/*/stack.json"],
+    "dependencies.schema.json": ["features/*/dependencies.json"],
+    "scaffolding.schema.json": ["features/*/scaffolding.json"],
+    "support.schema.json": ["features/*/support.json"],
+    "model.schema.json": ["features/*/agent-instructions/model.json"],
+}
+
+# Schemas with no instance in this repo, and why. Listed so the completeness check stays
+# honest rather than silently shrinking.
+SCHEMAS_WITHOUT_LOCAL_INSTANCES = {
+    "config.schema.json": "instances live in consumer projects (.ai-badger/config.json)",
+    "manifest.schema.json": "instances live in consumer projects (.ai-badger/manifest.json)",
+    "learned-skills.schema.json": "instances live in consumer projects (skills-data/)",
+    "agents.schema.json": "vocabulary schema, referenced by others; no standalone instance",
+    "mcp-tools.schema.json": "instances are YAML (mcp-tools.yaml); not JSON-validated here",
+}
+
 PROVENANCE_KEYS = ("frameworkCommit", "frameworkDirty")
 
 PROVENANCE_HINT = (
@@ -63,40 +91,33 @@ def _report(label: str, errors) -> bool:
     return True
 
 
+def undecided_schemas(root: Path) -> List[str]:
+    """Schemas in schemas/ that SCHEMA_INSTANCES and the exemption list both ignore."""
+    shipped = {p.name for p in (root / "schemas").glob("*.schema.json")}
+    decided = set(SCHEMA_INSTANCES) | set(SCHEMAS_WITHOUT_LOCAL_INSTANCES)
+    return sorted(shipped - decided)
+
+
 def validate_all(root: Path) -> int:
-    """Validate index.json, every stack's skills-source/skills JSON, and the schemas themselves."""
+    """Validate every catalog file SCHEMA_INSTANCES maps, plus the schemas themselves."""
     ok = True
     ok &= _report("schemas self-check", bl.check_schemas_selfvalid(root / "schemas"))
-    idx = root / "index.json"
-    if idx.exists():
-        ok &= _report("index.json", bl.validate_file(idx, root / "schemas" / "index.schema.json"))
-    # each stack's skills-source.json + skills.json
-    for _stack, feature, fdir in bl.iter_feature_dirs(root):
-        if feature == "skills":
-            ssj = fdir.parent / "skills-source.json"
-            if ssj.exists():
-                ok &= _report(str(ssj.relative_to(root)),
-                              bl.validate_file(ssj, root / "schemas" / "skills-source.schema.json"))
-            skj = fdir.parent / "skills.json"
-            if skj.exists():
-                ok &= _report(str(skj.relative_to(root)),
-                              bl.validate_file(skj, root / "schemas" / "skills.schema.json"))
-        if feature == "hooks":
-            hmj = fdir / "hooks-manifest.json"
-            if hmj.exists():
-                ok &= _report(str(hmj.relative_to(root)),
-                              bl.validate_file(hmj, root / "schemas" / "hooks-manifest.schema.json"))
-        if feature == "adjustments":
-            adj = fdir / "adjustment.json"
-            if adj.exists():
-                ok &= _report(str(adj.relative_to(root)),
-                              bl.validate_file(adj, root / "schemas" / "adjustment.schema.json"))
-    # per-agent plugins-instructions.json
-    for agent in bl.AGENT_NAMES:
-        pii = root / "features" / agent / "plugins-instructions.json"
-        if pii.exists():
-            ok &= _report(str(pii.relative_to(root)),
-                          bl.validate_file(pii, root / "schemas" / "plugins-instructions.schema.json"))
+
+    undecided = undecided_schemas(root)
+    if undecided:
+        ok &= _report("schema coverage",
+                      [f"{name} validates nothing: add it to SCHEMA_INSTANCES or to "
+                       f"SCHEMAS_WITHOUT_LOCAL_INSTANCES with a reason" for name in undecided])
+
+    for schema_name, patterns in sorted(SCHEMA_INSTANCES.items()):
+        schema_path = root / "schemas" / schema_name
+        if not schema_path.is_file():
+            ok &= _report(f"schemas/{schema_name}", ["declared in SCHEMA_INSTANCES but missing"])
+            continue
+        for pattern in patterns:
+            for instance in sorted(root.glob(pattern)):
+                ok &= _report(str(instance.relative_to(root)),
+                              bl.validate_file(instance, schema_path))
     return 0 if ok else 1
 
 

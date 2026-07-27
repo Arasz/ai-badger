@@ -670,3 +670,29 @@ def test_learned_manifest_validates_against_schema(tmp_path, sync, root):
     errors = sync.bl.validate_file(_learned_json_path(project),
                                    root / "schemas" / "learned-skills.schema.json")
     assert errors == []
+
+
+def test_load_manifest_refuses_to_discard_an_unreadable_manifest(tmp_path, sync):
+    project = _make_project(tmp_path)
+    manifest = project / ".ai-badger" / "skills-data" / "hermes" / "learned.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text('{"skills": [{"name": "a"}', encoding="utf-8")  # truncated by a crash
+
+    with pytest.raises(sync.ManifestUnreadable):
+        sync.load_manifest(project)
+
+
+def test_sync_refuses_rather_than_overwriting_an_unreadable_manifest(tmp_path, sync):
+    project = _make_project(tmp_path)
+    manifest = project / ".ai-badger" / "skills-data" / "hermes" / "learned.json"
+    manifest.parent.mkdir(parents=True)
+    truncated = '{"skills": [{"name": "kept", "category": "general"}'
+    manifest.write_text(truncated, encoding="utf-8")
+    source = tmp_path / "hermes-skills" / "general" / "note-taking"
+    source.mkdir(parents=True)
+    (source / "SKILL.md").write_text("# note taking\n", encoding="utf-8")
+
+    result = sync.sync_skill(project, source, "note-taking", "general", now=NOW)
+
+    assert result["action"] == "refused"
+    assert manifest.read_text(encoding="utf-8") == truncated

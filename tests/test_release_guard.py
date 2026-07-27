@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import subprocess
 
+import pytest
+
 
 def _git(repo, *args):
     return subprocess.run(["git", *args], cwd=str(repo), check=True,
@@ -142,3 +144,112 @@ def test_several_commits_can_land_at_one_unreleased_version_against_last_tag(
     # compared against the last release TAG (still 0.1.0), not the previous commit, so this
     # still passes: VERSION (0.2.0) still differs from the tag's version (0.1.0).
     assert release_guard.main(["--root", str(repo)]) == 0
+
+
+def _released_repo(path):
+    """A repo at 0.1.0 with one shipped file, tagged — the guard's happy starting state."""
+    repo = _init_repo(path)
+    (repo / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+    (repo / "skills").mkdir()
+    (repo / "skills" / "a.md").write_text("a\n", encoding="utf-8")
+    _commit_all(repo, "release 0.1.0")
+    _tag(repo, "ai-badger--v0.1.0")
+    return repo
+
+
+def _break_git_subcommand(monkeypatch, release_guard, subcommand):
+    """Make one git subcommand exit non-zero; every other git call runs for real."""
+    real_run = subprocess.run
+
+    def fake_run(cmd, *args, **kwargs):
+        if list(cmd[:2]) == ["git", subcommand]:
+            return subprocess.CompletedProcess(cmd, 128, "", "fatal: bad object HEAD\n")
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(release_guard.subprocess, "run", fake_run)
+
+
+def test_git_failure_is_not_reported_as_no_changes(tmp_path, load_script, capsys, monkeypatch):
+    release_guard = load_script("scripts/release_guard.py")
+    repo = _released_repo(tmp_path)
+    _break_git_subcommand(monkeypatch, release_guard, "diff")
+
+    rc = release_guard.main(["--root", str(repo)])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "GIT COMMAND FAILED" in out
+    assert "no shipped-surface changes" not in out
+
+
+def test_git_failure_listing_tags_is_not_reported_as_no_release_tag(
+    tmp_path, load_script, capsys, monkeypatch,
+):
+    release_guard = load_script("scripts/release_guard.py")
+    repo = _released_repo(tmp_path)
+    _break_git_subcommand(monkeypatch, release_guard, "tag")
+
+    rc = release_guard.main(["--root", str(repo)])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "GIT COMMAND FAILED" in out
+    assert "NO RELEASE TAG FOUND" not in out
+
+
+def test_git_failure_reports_the_command_and_stderr(tmp_path, load_script, capsys, monkeypatch):
+    release_guard = load_script("scripts/release_guard.py")
+    repo = _released_repo(tmp_path)
+    _break_git_subcommand(monkeypatch, release_guard, "diff")
+
+    release_guard.main(["--root", str(repo)])
+
+    out = capsys.readouterr().out
+    assert "git diff" in out
+    assert "fatal: bad object HEAD" in out
+
+
+def _changelog(repo, *versions):
+    (repo / "docs" / "changelog").mkdir(parents=True, exist_ok=True)
+    for version in versions:
+        (repo / "docs" / "changelog" / f"{version}-slug.md").write_text("x\n", encoding="utf-8")
+
+
+def test_versions_documented_but_never_tagged_are_reported(tmp_path, load_script, capsys):
+    release_guard = load_script("scripts/release_guard.py")
+    repo = _released_repo(tmp_path)
+    _changelog(repo, "0.1.0", "0.2.0", "0.3.0", "0.4.0")
+    (repo / "VERSION").write_text("0.4.0\n", encoding="utf-8")
+    (repo / "skills" / "a.md").write_text("changed\n", encoding="utf-8")
+    _commit_all(repo, "several releases documented, none tagged")
+
+    rc = release_guard.main(["--root", str(repo)])
+
+    out = capsys.readouterr().out
+    assert rc == 0  # informational: the bump itself is correct
+    assert "UNTAGGED RELEASES" in out
+    assert "0.2.0" in out and "0.3.0" in out
+    assert "0.4.0" not in out.split("UNTAGGED RELEASES")[1]  # in flight, not skipped
+
+
+def test_the_version_in_flight_alone_is_not_reported_as_untagged(tmp_path, load_script, capsys):
+    release_guard = load_script("scripts/release_guard.py")
+    repo = _released_repo(tmp_path)
+    _changelog(repo, "0.1.0", "0.2.0")
+    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    (repo / "skills" / "a.md").write_text("changed\n", encoding="utf-8")
+    _commit_all(repo, "one unreleased version, the normal case")
+
+    rc = release_guard.main(["--root", str(repo)])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "UNTAGGED RELEASES" not in out
+
+
+def test_git_helper_raises_rather_than_returning_empty_output(tmp_path, load_script):
+    release_guard = load_script("scripts/release_guard.py")
+    repo = _init_repo(tmp_path)
+
+    with pytest.raises(release_guard.GitCommandFailed):
+        release_guard._git(repo, "rev-parse", "definitely-not-a-ref")

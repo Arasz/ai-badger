@@ -12,6 +12,7 @@ Silent (exit 0, no output) when the mode is off or on any internal error.
 # except below is intentional — a broken hook must never block a prompt.
 import json
 import sys
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -74,9 +75,38 @@ def main():
           "python3 ~/.claude/skills/auto-wm/scripts/awm.py decision \"<what and why>\"")
 
 
-if __name__ == "__main__":
+HOOK_ERRORS_FILE = Path.home() / ".ai-badger" / "hook-errors.log"
+MAX_ERROR_LOG_BYTES = 1_000_000
+
+
+def record_hook_failure(where):
+    """Leave one content-free line behind before a hook swallows an exception.
+
+    Type and location only: an exception message can quote scanned input.
+    """
+    exc_type, _, tb = sys.exc_info()
+    frame = traceback.extract_tb(tb)[-1] if tb else None
+    at = f"{Path(frame.filename).name}:{frame.lineno}" if frame else "unknown"
+    name = exc_type.__name__ if exc_type else "Unknown"
+    print(f"[ai-badger] {where} hook failed: {name} at {at}", file=sys.stderr)
     try:
-        main()
-    except Exception:
+        HOOK_ERRORS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        if HOOK_ERRORS_FILE.exists() and HOOK_ERRORS_FILE.stat().st_size > MAX_ERROR_LOG_BYTES:
+            HOOK_ERRORS_FILE.unlink()
+        with HOOK_ERRORS_FILE.open("a", encoding="utf-8") as fh:
+            fh.write(f"{datetime.now(timezone.utc).isoformat()} {where} {name} at {at}\n")
+    except OSError:
         pass
-    sys.exit(0)
+
+
+def guarded_main():
+    """Run main(): a hook never breaks the session, but never fails invisibly either."""
+    try:
+        return main() or 0
+    except Exception:  # pylint: disable=broad-exception-caught
+        record_hook_failure("awm_context")
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(guarded_main())

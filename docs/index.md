@@ -48,6 +48,12 @@
 | [reviews/2026-07-26-full-project-review.md](reviews/2026-07-26-full-project-review.md) | Eight-lens parallel code review of 0.18.1 with every Critical verified against the code; confirmed/downgraded/rejected verdicts, themes, and strengths worth preserving |
 | [plans/2026-07-26-remediation-plan.md](plans/2026-07-26-remediation-plan.md) | Wave-structured remediation plan derived from that review — execution order, dependency graph, agent dispatch queue, and per-package TDD entry points |
 
+## Incidents
+
+| Document | What it covers |
+|---|---|
+| [incidents/2026-07-27-untagged-releases.md](incidents/2026-07-27-untagged-releases.md) | 32 versions released with no tag, and why the release guard could not report it — baseline restart, rejected batching policy, and the two signals added |
+
 ## Design docs & spikes
 
 | Document | What it covers |

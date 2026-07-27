@@ -3,13 +3,22 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+
+import pytest
 
 
-def _make_root(tmp_path):
+def _make_root(tmp_path, version=None):
     """Build a minimal fake framework root (schemas/ + features/) under tmp_path."""
-    (tmp_path / "schemas").mkdir()
-    (tmp_path / "features").mkdir()
+    (tmp_path / "schemas").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "features").mkdir(parents=True, exist_ok=True)
+    if version is not None:
+        (tmp_path / "VERSION").write_text(f"{version}\n", encoding="utf-8")
     return tmp_path
+
+
+def _forbidden_subprocess(*args, **kwargs):
+    raise AssertionError(f"offline code path ran a subprocess: {args} {kwargs}")
 
 
 def test_find_root_walks_up_to_dir_with_schemas_and_features(tmp_path, load_script):
@@ -23,19 +32,203 @@ def test_find_root_walks_up_to_dir_with_schemas_and_features(tmp_path, load_scri
     assert found == fake_root.resolve()
 
 
-def test_find_root_raises_when_no_ancestor_and_no_fallback(tmp_path, load_script):
+def test_find_root_raises_when_no_ancestor_and_no_fallback(tmp_path, load_script, monkeypatch):
     bl = load_script("scripts/badger_lib.py")
     lonely = tmp_path / "some" / "unrelated" / "dir"
     lonely.mkdir(parents=True)
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
 
-    import unittest.mock
-    # Mock FRAMEWORK_CACHE to a non-existent path and _ensure_framework_cache to fail
-    fake_cache = tmp_path / "fake-cache"
-    with unittest.mock.patch.object(bl, "FRAMEWORK_CACHE", fake_cache), \
-         unittest.mock.patch.object(bl, "_ensure_framework_cache", side_effect=RuntimeError("no git")):
-        import pytest
-        with pytest.raises(RuntimeError):
-            bl.find_root(lonely)
+    with pytest.raises(bl.FrameworkRootNotFound):
+        bl.find_root(lonely)
+
+
+def test_find_root_never_touches_the_network(tmp_path, load_script, monkeypatch):
+    bl = load_script("scripts/badger_lib.py")
+    lonely = tmp_path / "unrelated"
+    lonely.mkdir()
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
+    monkeypatch.setattr(bl.subprocess, "run", _forbidden_subprocess)
+
+    with pytest.raises(bl.FrameworkRootNotFound):
+        bl.find_root(lonely)
+
+
+def test_find_root_failure_names_the_explicit_opt_in(tmp_path, load_script, monkeypatch):
+    bl = load_script("scripts/badger_lib.py")
+    lonely = tmp_path / "unrelated"
+    lonely.mkdir()
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
+
+    with pytest.raises(bl.FrameworkRootNotFound) as excinfo:
+        bl.find_root(lonely)
+
+    message = str(excinfo.value)
+    assert "--root" in message
+    assert "ensure_root" in message and "allow_network" in message
+
+
+def test_find_root_uses_an_existing_cache_without_network(tmp_path, load_script, monkeypatch):
+    bl = load_script("scripts/badger_lib.py")
+    lonely = tmp_path / "unrelated"
+    lonely.mkdir()
+    cache = _make_root(tmp_path / "cache")
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", cache)
+    monkeypatch.setattr(bl.subprocess, "run", _forbidden_subprocess)
+
+    assert bl.find_root(lonely) == cache
+
+
+class TestEnsureFrameworkCache:
+    """ensure_root() is the only path allowed to reach the network, and only when pinned."""
+
+    @staticmethod
+    def _recording_clone(tmp_path, calls, returncode=0):
+        """Stand in for git clone: record argv, materialise a usable root on success."""
+        def fake_run(cmd, *args, **kwargs):  # pylint: disable=unused-argument
+            calls.append(list(cmd))
+            if returncode == 0:
+                _make_root(tmp_path / "cache")
+            return subprocess.CompletedProcess(cmd, returncode, "", "fatal: tag not found\n")
+        return fake_run
+
+    def test_returns_the_local_root_without_network_when_one_exists(
+        self, tmp_path, load_script, monkeypatch,
+    ):
+        bl = load_script("scripts/badger_lib.py")
+        local = _make_root(tmp_path / "checkout")
+        monkeypatch.setattr(bl.subprocess, "run", _forbidden_subprocess)
+
+        assert bl.ensure_root(local, allow_network=True) == local
+
+    def test_refuses_to_clone_without_allow_network(self, tmp_path, load_script, monkeypatch):
+        bl = load_script("scripts/badger_lib.py")
+        lonely = tmp_path / "unrelated"
+        lonely.mkdir()
+        monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "cache")
+        monkeypatch.setattr(bl.subprocess, "run", _forbidden_subprocess)
+
+        with pytest.raises(bl.FrameworkRootNotFound):
+            bl.ensure_root(lonely)
+
+    def test_clones_pinned_to_the_release_tag(self, tmp_path, load_script, monkeypatch):
+        bl = load_script("scripts/badger_lib.py")
+        calls = []
+        monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "cache")
+        monkeypatch.setattr(bl.subprocess, "run", self._recording_clone(tmp_path, calls))
+
+        found = bl.ensure_root(tmp_path / "unrelated", allow_network=True, version="0.20.0")
+
+        assert found == tmp_path / "cache"
+        assert calls, "no git command ran"
+        argv = calls[0]
+        assert argv[:2] == ["git", "clone"]
+        assert "--branch" in argv and "ai-badger--v0.20.0" in argv
+        assert bl.FRAMEWORK_REPO in argv
+
+    def test_refuses_to_clone_when_the_release_version_is_unknown(
+        self, tmp_path, load_script, monkeypatch,
+    ):
+        bl = load_script("scripts/badger_lib.py")
+        lonely = tmp_path / "unrelated"
+        lonely.mkdir()
+        monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "cache")
+        monkeypatch.setattr(bl.subprocess, "run", _forbidden_subprocess)
+
+        with pytest.raises(bl.FrameworkRootNotFound) as excinfo:
+            bl.ensure_root(lonely, allow_network=True, version=None)
+
+        assert "version" in str(excinfo.value).lower()
+
+    def test_takes_the_version_from_the_installed_tree_when_not_given(
+        self, tmp_path, load_script, monkeypatch,
+    ):
+        bl = load_script("scripts/badger_lib.py")
+        installed = tmp_path / "plugin"
+        (installed / "scripts").mkdir(parents=True)
+        (installed / "VERSION").write_text("0.19.0\n", encoding="utf-8")
+        calls = []
+        monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "cache")
+        monkeypatch.setattr(bl.subprocess, "run", self._recording_clone(tmp_path, calls))
+
+        bl.ensure_root(installed / "scripts", allow_network=True)
+
+        assert "ai-badger--v0.19.0" in calls[0]
+
+    def test_an_unusable_cache_is_reported_not_silently_updated(
+        self, tmp_path, load_script, monkeypatch,
+    ):
+        bl = load_script("scripts/badger_lib.py")
+        cache = tmp_path / "cache"
+        (cache / ".git").mkdir(parents=True)  # a clone that is missing schemas/ + features/
+        monkeypatch.setattr(bl, "FRAMEWORK_CACHE", cache)
+        monkeypatch.setattr(bl.subprocess, "run", _forbidden_subprocess)
+
+        with pytest.raises(bl.FrameworkRootNotFound) as excinfo:
+            bl.ensure_root(tmp_path / "unrelated", allow_network=True, version="0.20.0")
+
+        assert str(cache) in str(excinfo.value)
+
+    def test_a_failed_clone_reports_git_stderr(self, tmp_path, load_script, monkeypatch):
+        bl = load_script("scripts/badger_lib.py")
+        monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "cache")
+        monkeypatch.setattr(bl.subprocess, "run",
+                            self._recording_clone(tmp_path, [], returncode=128))
+
+        with pytest.raises(bl.FrameworkRootNotFound) as excinfo:
+            bl.ensure_root(tmp_path / "unrelated", allow_network=True, version="0.14.1")
+
+        assert "fatal: tag not found" in str(excinfo.value)
+
+
+def test_dump_json_is_atomic_under_write_failure(tmp_path, load_script, monkeypatch):
+    bl = load_script("scripts/badger_lib.py")
+    path = tmp_path / "manifest.json"
+    path.write_text('{"entries": ["the user\'s data"]}\n', encoding="utf-8")
+    before = path.read_text(encoding="utf-8")
+
+    def exploding_replace(*args, **kwargs):  # pylint: disable=unused-argument
+        raise OSError("disk full")
+
+    monkeypatch.setattr(bl.os, "replace", exploding_replace)
+
+    with pytest.raises(OSError):
+        bl.dump_json(path, {"entries": []})
+
+    assert path.read_text(encoding="utf-8") == before
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_dump_json_leaves_the_target_untouched_when_serialisation_fails(tmp_path, load_script):
+    bl = load_script("scripts/badger_lib.py")
+    path = tmp_path / "index.json"
+    path.write_text('{"generated": true}\n', encoding="utf-8")
+
+    with pytest.raises(TypeError):
+        bl.dump_json(path, {"bad": object()})
+
+    assert path.read_text(encoding="utf-8") == '{"generated": true}\n'
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_atomic_write_text_preserves_the_file_mode(tmp_path, load_script):
+    bl = load_script("scripts/badger_lib.py")
+    path = tmp_path / "hook.sh"
+    path.write_text("old\n", encoding="utf-8")
+    path.chmod(0o755)
+
+    bl.atomic_write_text(path, "new\n")
+
+    assert path.read_text(encoding="utf-8") == "new\n"
+    assert path.stat().st_mode & 0o777 == 0o755
+
+
+def test_atomic_write_text_creates_missing_parents(tmp_path, load_script):
+    bl = load_script("scripts/badger_lib.py")
+    path = tmp_path / "a" / "b" / "c.json"
+
+    bl.atomic_write_text(path, "{}\n")
+
+    assert path.read_text(encoding="utf-8") == "{}\n"
 
 
 def test_find_root_default_start_resolves_the_real_framework_root(load_script, root):

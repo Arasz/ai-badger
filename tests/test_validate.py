@@ -116,3 +116,53 @@ def test_all_flag_skips_index_json_when_absent(tmp_path, root, load_script, caps
     out = capsys.readouterr().out
     assert rc == 0
     assert "index.json" not in out
+
+
+def test_all_validates_mcp_servers_and_stack_json(tmp_path, root, load_script, capsys):
+    validate = load_script("scripts/validate.py")
+    fake_root = _copy_real_schemas(tmp_path, root)
+    (fake_root / "features" / "dotnet").mkdir(parents=True)
+    (fake_root / "features" / "dotnet" / "mcp-servers.json").write_text(
+        json.dumps({"servers": "not a list"}), encoding="utf-8")
+
+    rc = validate.main(["--all", "--root", str(fake_root)])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "mcp-servers.json" in out
+
+
+def test_all_validates_the_agent_capability_matrix(tmp_path, root, load_script, capsys):
+    validate = load_script("scripts/validate.py")
+    fake_root = _copy_real_schemas(tmp_path, root)
+    (fake_root / "features" / "common").mkdir(parents=True)
+    (fake_root / "features" / "common" / "support.json").write_text(
+        json.dumps({"description": "d", "agents": {"claude": {"name": "c"}}}), encoding="utf-8")
+
+    rc = validate.main(["--all", "--root", str(fake_root)])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "support.json" in out
+
+
+def test_all_validates_stack_descriptors(tmp_path, root, load_script, capsys):
+    validate = load_script("scripts/validate.py")
+    fake_root = _copy_real_schemas(tmp_path, root)
+    (fake_root / "features" / "python").mkdir(parents=True)
+    (fake_root / "features" / "python" / "stack.json").write_text(
+        json.dumps({"nope": True}), encoding="utf-8")
+
+    rc = validate.main(["--all", "--root", str(fake_root)])
+
+    assert rc == 1
+    assert "stack.json" in capsys.readouterr().out
+
+
+def test_every_schema_has_a_coverage_decision(root, load_script):
+    validate = load_script("scripts/validate.py")
+    shipped = {p.name for p in (root / "schemas").glob("*.schema.json")}
+
+    decided = set(validate.SCHEMA_INSTANCES) | set(validate.SCHEMAS_WITHOUT_LOCAL_INSTANCES)
+
+    assert shipped == decided

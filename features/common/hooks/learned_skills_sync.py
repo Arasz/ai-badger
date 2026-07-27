@@ -37,6 +37,11 @@ def _bootstrap_lib() -> None:
 _bootstrap_lib()
 import badger_lib as bl
 
+
+class ManifestUnreadable(RuntimeError):
+    """learned.json exists but cannot be parsed; overwriting it would discard its records."""
+
+
 LEARNED_REL = ".ai-badger/skills/learned"
 MANIFEST_REL = ".ai-badger/skills-data/hermes/learned.json"
 MANIFEST_SCHEMA_REF = "../../../schemas/learned-skills.schema.json"
@@ -163,27 +168,30 @@ def is_framework_owned(project: Path, name: str) -> bool:
 
 
 def load_manifest(project: Path) -> Dict[str, Any]:
-    """Read learned.json, returning an empty manifest when it is absent or unreadable."""
+    """Read learned.json, returning an empty manifest only when it is genuinely absent.
+
+    Raises ManifestUnreadable when the file exists but cannot be parsed: every caller
+    writes the result back, so treating unreadable as empty discards every prior record.
+    """
     empty = {"$schema": MANIFEST_SCHEMA_REF, "version": MANIFEST_VERSION, "skills": []}
     path = project / MANIFEST_REL
     if not path.is_file():
         return empty
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return empty
+    except (OSError, ValueError) as exc:
+        raise ManifestUnreadable(f"{path} exists but could not be read: {exc}") from exc
     if not isinstance(data, dict) or not isinstance(data.get("skills"), list):
-        return empty
+        raise ManifestUnreadable(f"{path} is not a learned-skills manifest (no skills list)")
     return data
 
 
 def save_manifest(project: Path, data: Dict[str, Any]) -> None:
-    """Write learned.json deterministically: stable key/record order, trailing newline."""
-    path = project / MANIFEST_REL
-    path.parent.mkdir(parents=True, exist_ok=True)
+    """Write learned.json atomically and deterministically: stable order, trailing newline."""
     data["skills"] = sorted(data.get("skills", []),
                             key=lambda rec: (rec.get("category", ""), rec.get("name", "")))
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    bl.atomic_write_text(project / MANIFEST_REL,
+                         json.dumps(data, indent=2, sort_keys=True) + "\n")
 
 
 def _find_record(data: Dict[str, Any], name: str, category: str) -> Optional[Dict[str, Any]]:
@@ -228,7 +236,10 @@ def sync_skill(project: Path, source_dir: Path, name: str, category: Optional[st
         return {"action": "refused", "target": rel_target,
                 "reason": "unsafe literal detected", "unsafeLiterals": unsafe}
 
-    data = load_manifest(project)
+    try:
+        data = load_manifest(project)
+    except ManifestUnreadable as exc:
+        return _refused(str(exc))
     record = _find_record(data, name, segment)
     if record is None and dest.exists():
         return {"action": "conflict", "target": rel_target, "reason": "untracked path exists"}
@@ -292,7 +303,10 @@ def scan_for_unsafe_literals(source_dir: Path) -> List[Dict[str, str]]:
 
 
 def _mark_orphaned(project: Path, name: str, category: str, now: str) -> Dict[str, Any]:
-    data = load_manifest(project)
+    try:
+        data = load_manifest(project)
+    except ManifestUnreadable as exc:
+        return _refused(str(exc))
     record = _find_record(data, name, category)
     if record is None:
         return {"action": "skipped", "target": "", "reason": "not tracked"}

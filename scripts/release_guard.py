@@ -25,6 +25,10 @@ than silently permissive, the no-tag path always prints the literal string
 "NO RELEASE TAG FOUND" — grep CI logs for it; if it appears on a repo that HAS releases, tags
 were not fetched.
 
+A git command that FAILS is a third outcome, distinct from both "no tags" and "no changes": it
+prints "GIT COMMAND FAILED" and exits 1, because empty output from a failed command proves
+nothing about the shipped surface (F-10).
+
 Usage: release_guard.py [--root <dir>]
 """
 from __future__ import annotations
@@ -43,11 +47,20 @@ TAG_PATTERN = re.compile(r"^ai-badger--v(\d+)\.(\d+)\.(\d+)$")
 SHIPPED_PATHS = ["skills", "features", "scripts", "schemas", "index.json"]
 
 
+class GitCommandFailed(RuntimeError):
+    """A git command the guard depends on exited non-zero; its output proves nothing."""
+
+    def __init__(self, args: Tuple[str, ...], stderr: str) -> None:
+        self.command = "git " + " ".join(args)
+        self.stderr = stderr.strip()
+        super().__init__(f"{self.command}: {self.stderr or 'no stderr'}")
+
+
 def _git(root: Path, *args: str) -> str:
     proc = subprocess.run(["git", *args], cwd=str(root), capture_output=True, text=True,
                            check=False)
     if proc.returncode != 0:
-        return ""
+        raise GitCommandFailed(args, proc.stderr)
     return proc.stdout
 
 
@@ -75,6 +88,23 @@ def tag_version(tag: str) -> str:
     return f"{m.group(1)}.{m.group(2)}.{m.group(3)}"
 
 
+def skipped_versions(root: Path, released: str, current: str) -> List[str]:
+    """Changelog versions strictly between the last tag and VERSION — documented, never cut.
+
+    The version in VERSION is excluded: one unreleased version in flight is the model
+    (RELEASING.md, "Several PRs, one release"). Anything below it never got a tag at all.
+    """
+    low, high = _semver(f"ai-badger--v{released}"), _semver(f"ai-badger--v{current}")
+    if low is None or high is None:
+        return []
+    found = []
+    for entry in (root / "docs" / "changelog").glob("*.md"):
+        version = _semver(f"ai-badger--v{entry.name.split('-')[0]}")
+        if version is not None and low < version < high:
+            found.append(".".join(str(part) for part in version))
+    return sorted(found, key=lambda v: _semver(f"ai-badger--v{v}"))
+
+
 def changed_shipped_paths(root: Path, tag: str) -> List[str]:
     """Return sorted shipped-surface paths that differ between `tag` and the working tree."""
     out = _git(root, "diff", "--name-only", tag, "--", *SHIPPED_PATHS)
@@ -83,6 +113,27 @@ def changed_shipped_paths(root: Path, tag: str) -> List[str]:
 
 def check(root: Path) -> int:
     """Run the release guard; print its verdict; return 0 pass / 1 fail."""
+    try:
+        return _check(root)
+    except GitCommandFailed as exc:
+        print(f"GIT COMMAND FAILED ({exc.command}): {exc.stderr or 'no stderr'}")
+        print("the guard cannot prove the shipped surface is unchanged — FAIL. A shallow or "
+              "partial clone is the usual cause; CI needs fetch-depth: 0.")
+        return 1
+
+
+def _report_skipped(root: Path, released_version: str, current_version: str) -> None:
+    skipped = skipped_versions(root, released_version, current_version)
+    if not skipped:
+        return
+    print(f"UNTAGGED RELEASES: {len(skipped)} version(s) have a changelog entry but no "
+          f"ai-badger--v* tag: {', '.join(skipped)}")
+    print("each denotes no commit, so no bug report can be pinned to it "
+          "(see docs/incidents/2026-07-27-untagged-releases.md)")
+
+
+def _check(root: Path) -> int:
+    """The guard proper, assuming every git command it runs succeeds."""
     tag = latest_release_tag(root)
     if tag is None:
         print("NO RELEASE TAG FOUND (ai-badger--v*) — nothing to guard against; PASS. "
@@ -100,6 +151,7 @@ def check(root: Path) -> int:
     if current_version != released_version:
         print(f"shipped surface changed since {tag} and VERSION was bumped "
               f"({released_version} -> {current_version}) — PASS")
+        _report_skipped(root, released_version, current_version)
         return 0
 
     print(f"shipped surface changed since {tag} but VERSION is still {current_version}:")

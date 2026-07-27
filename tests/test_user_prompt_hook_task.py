@@ -208,3 +208,22 @@ class TestFailureHandling:
         })
 
         assert rc == 0
+
+    def test_registration_failure_leaves_a_breadcrumb(self, prompt_hook, monkeypatch, tmp_path,
+                                                       capsys):
+        errors = tmp_path / "hook-errors.log"
+        monkeypatch.setattr(prompt_hook, "HOOK_ERRORS_FILE", errors)
+        monkeypatch.setattr(prompt_hook.lib, "save_current_session", lambda *a, **k: None)
+
+        def _boom(*_args, **_kwargs):
+            raise OSError("tracking file is corrupt")
+
+        monkeypatch.setattr(prompt_hook, "_register_task", _boom)
+
+        _run(prompt_hook, monkeypatch, {
+            "session_id": "sid-1", "transcript_path": "", "prompt": "/task T17 do the thing",
+        })
+
+        assert "task_register" in errors.read_text(encoding="utf-8")
+        assert "OSError" in errors.read_text(encoding="utf-8")
+        assert "task_register" in capsys.readouterr().err

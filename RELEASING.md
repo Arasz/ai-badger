@@ -25,7 +25,10 @@ Pre-1.0, the minor slot is the breaking slot. The number tracks blast radius, no
 4. `python3 scripts/version_sync.py --check && python3 scripts/release_guard.py` — both must pass.
 5. `python3 -m pytest tests/ -q` and `python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')`.
 6. Open a PR; CI runs the same gates.
-7. After merge, from `main`: `claude plugin tag --push` — creates `ai-badger--v{version}`.
+7. **This step is the release.** After merge, from `main`: `claude plugin tag --push` — creates
+   `ai-badger--v{version}`. Until it runs, the version denotes no commit and `release_guard.py`
+   still compares against the *previous* tag. Skipping it is invisible on a green PR; it was
+   skipped 32 times (see [the incident report](docs/incidents/2026-07-27-untagged-releases.md)).
 8. **Verify content, not just metadata** (fixes #27):
 
 ### Verification (mandatory)
@@ -70,6 +73,10 @@ This re-scaffolds with the latest framework. If the version is in `BREAKING_VERS
 
 Releases are tagged `ai-badger--v{version}` — the convention Claude Code resolves by. A version denotes exactly one commit, forever; never re-point or reuse one.
 
+Tags are **not** cut in batches. `0.3.0`–`0.19.0` carry no tag and never will: retro-tagging them would claim they passed the verification below, which they did not. The baseline restarts at `ai-badger--v0.20.0`.
+
 ## Several PRs, one release
 
 `release_guard.py` compares against the last release *tag*, not the previous commit. Multiple PRs may land at one unreleased version; tag once when the set is complete.
+
+*One* unreleased version in flight is this model working. Two or more means a tag was skipped, and the guard now prints `UNTAGGED RELEASES` naming them. That line is informational — it does not fail CI — but it is the only signal that the release model has stopped being operated.

@@ -124,3 +124,20 @@ def test_missing_state_file_is_silent_via_entrypoint_guard(tmp_path, load_script
     _run_main_never_raises(context)
 
     assert capsys.readouterr().out == ""
+
+
+def test_internal_error_is_recorded_somewhere(tmp_path, load_script, monkeypatch, capsys):
+    context = load_script("features/claude/skills/auto-wm/hooks/awm_context.py")
+    errors = tmp_path / "hook-errors.log"
+    monkeypatch.setattr(context, "HOOK_ERRORS_FILE", errors)
+
+    def explode():
+        raise RuntimeError("unreadable state")
+
+    monkeypatch.setattr(context, "main", explode)
+
+    rc = context.guarded_main()
+
+    assert rc == 0
+    assert "awm_context" in errors.read_text(encoding="utf-8")
+    assert "awm_context" in capsys.readouterr().err

@@ -1,6 +1,10 @@
 {
+  "name": "claude",
   "description": "Claude Code: Anthropic's CLI-based coding agent with project-local CLAUDE.md instructions, plugin system, and hooks.",
-  "detectionSignals": ["CLAUDE.md", ".claude"],
+  "detectionSignals": [
+    "CLAUDE.md",
+    ".claude"
+  ],
   "requires": [],
   "commands": {}
 }

@@ -16,8 +16,10 @@ Commands:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -196,13 +198,22 @@ def _read_index(target: str) -> Optional[dict[str, Any]]:
 
 
 def _write_index(target: str, data: dict[str, Any]) -> None:
-    """Write the index file, creating parent directories."""
+    """Write the index file atomically — it holds hand-curated tags a partial write loses.
+
+    Local copy of `badger_lib.atomic_write_text`: this script is scaffolded into projects
+    that need not have the framework on sys.path.
+    """
     path = _index_path(target)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        yaml.dump(data, sort_keys=False, default_flow_style=False),
-        encoding="utf-8",
-    )
+    text = yaml.dump(data, sort_keys=False, default_flow_style=False)
+    handle, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp, str(path))
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
 
 
 # ── Commands ─────────────────────────────────────────────────────────────────
