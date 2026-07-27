@@ -617,8 +617,11 @@ class Scaffolder(
         # Check and install feature dependencies
         dep_result = self._check_dependencies()
 
-        # copy the config into place (source of truth for the skills)
-        bl.dump_json(self.aib / "config.json", self.config)
+        # copy the config into place (source of truth for the skills), stamped with the
+        # version that actually wrote it — the incoming value describes an earlier run.
+        written_config = dict(self.config)
+        written_config["frameworkVersion"] = self.index["frameworkVersion"]
+        bl.dump_json(self.aib / "config.json", written_config)
 
         # generate .mcp.json for external tools that request it
         self._generate_mcp_json()
