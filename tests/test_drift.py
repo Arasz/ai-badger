@@ -371,7 +371,6 @@ def test_compare_reports_directory_entry_as_skipped_not_changed(tmp_path, load_s
     # Compute the correct hash
     fingerprint = bl.dir_content_hash(skill_dir)
 
-    proj = tmp_path / "proj"
     manifest = {
         "entries": [{
             "feature": "skills", "stack": "common", "name": "task",
@@ -713,7 +712,6 @@ def test_main_reports_invalid_entry_count_in_output(tmp_path, load_script, capsy
 def test_compare_detects_changed_dir_by_hash(tmp_path, load_script):
     """A directory entry with different content should be reported as changed."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
 
     fw = tmp_path / "fw"
     skill_dir = fw / "features" / "common" / "skills" / "my-skill"
@@ -1004,3 +1002,29 @@ def test_real_scaffold_with_retained_extensions_has_no_drift(tmp_path, load_scri
     result = drift.compare(root, manifest, target=target)
 
     assert "features/common/skills/task" not in result["changed"]
+
+
+def test_a_manifest_target_outside_the_project_is_not_hashed(tmp_path, load_script, root):
+    """`Path("/a") / "/etc"` is `/etc`: an absolute manifest target must not steer the
+    hasher out of the project (WP41b / security I1)."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    target = tmp_path / "proj"
+    (target / ".ai-badger").mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.md").write_text("not ours\n", encoding="utf-8")
+
+    manifest = {
+        "frameworkVersion": "0.1.0",
+        "entries": [{
+            "feature": "skills", "stack": "common", "name": "task",
+            "source": "features/common/skills/task",
+            "target": str(outside),
+            "frameworkVersion": "0.1.0", "hash": "0" * 64,
+        }],
+    }
+
+    result = drift.compare(root, manifest, target=target)
+
+    assert str(outside) not in json.dumps(result)
+    assert any("outside the project" in note for note in result.get("notes", []))

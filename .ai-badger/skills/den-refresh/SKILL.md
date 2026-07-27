@@ -1,11 +1,9 @@
 ---
 name: den-refresh
 description: >-
-  Pull framework updates into an already-scaffolded ai-badger project. Use when
-  the framework has new features or fixes and you want to update a project's
-  .ai-badger/ content — "den-refresh", "refresh my project from the framework",
-  "pull ai-badger updates", "update the scaffold". Checks what changed upstream,
-  re-scaffolds with the existing config, and reports the result.
+  Use when an already-scaffolded project is behind the framework — a drift notice appeared, a new
+  ai-badger version shipped, or the user asks to "refresh"/"update ai-badger". Reports what
+  changed, backs up .ai-badger/, and re-scaffolds from the project's existing config.
 ---
 
 # den-refresh
@@ -134,45 +132,8 @@ recovery before surfacing the failure to the user.
    After applying a fix, **re-run the refresh**. If it succeeds, report what was
    fixed and continue with the normal flow (review diff, commit).
 
-3. **Recovery failed — offer to create a GitHub issue.** If all applicable fixes
-   were tried and the refresh still fails:
-
-   - **Ask the user for permission:** "Recovery failed. Should I create a GitHub
-     issue in `Arasz/ai-badger` with the error details?"
-   - **Gate on `gh` availability.** Only offer if `command -v gh` succeeds and
-     `gh auth status` returns 0. If `gh` is unavailable, print the error details
-     and suggest the user create the issue manually.
-   - **Create the issue** (if approved):
-     ```bash
-     gh issue create \
-       --repo Arasz/ai-badger \
-       --title "bug: den-refresh failed — <error summary>" \
-       --body "<structured body>" \
-       --label "bug,triage"
-     ```
-   - **Issue body structure:**
-     ```markdown
-     ## den-refresh failure
-
-     **Framework version:** <from VERSION file>
-     **Project config version:** <frameworkVersion from config.json>
-     **OS / Python:** <os> / <python version>
-     **gh version:** <gh --version>
-
-     ### Error output
-     ```json
-     <full JSON error from refresh.py>
-     ```
-
-     ### Recovery attempts
-     1. <what was tried>
-     2. <what was tried>
-
-     ### Project config (sanitized)
-     ```json
-     <config.json with any secrets removed>
-     ```
-     ```
-
-   - **Do not create the issue without explicit user approval.** The user may
-     prefer to debug locally or file the issue themselves.
+3. **Recovery failed — offer to create a GitHub issue.** Follow
+   `.ai-badger/skills/welcome-ai-badger/references/reporting-a-framework-bug.md`: ask
+   permission first, gate on `gh` being installed and authenticated, sanitize the config
+   before including it. **Never create the issue without explicit user approval** — that rule
+   holds even if the reference file is not present.

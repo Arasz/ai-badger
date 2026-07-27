@@ -9,3 +9,5 @@ task-tracking/
 .code-review-graph/
 # den-refresh backup of a previous scaffold
 .ai-badger.bckp/
+# prompt-marker history: stores whole prompts verbatim
+.ai-badger/prompt-markers/

@@ -1,4 +1,5 @@
 """Tests for dependency_check.py — verifies feature dependency detection and installation."""
+# pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations
 
 import json
@@ -63,7 +64,7 @@ def test_missing_file(load_script, tmp_path):
 def test_venv_created_for_python_dep(load_script, dep_root, dep_target):
     dc = load_script(SCRIPT)
     dep_target.mkdir(parents=True)
-    result = dc.run_dependency_check(dep_root, dep_target, features=["code-review-graph"])
+    dc.run_dependency_check(dep_root, dep_target, allow_install=True, features=["code-review-graph"])
     venv_path = dep_target / ".venv"
     assert venv_path.exists()
     assert (venv_path / "bin" / "python3").exists() or (venv_path / "Scripts").exists()
@@ -76,7 +77,7 @@ def test_venv_not_created_when_already_exists(load_script, dep_root, dep_target)
     venv.mkdir()
     with patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        dc.run_dependency_check(dep_root, dep_target, features=["code-review-graph"])
+        dc.run_dependency_check(dep_root, dep_target, allow_install=True, features=["code-review-graph"])
         create_calls = [c for c in mock_run.call_args_list if "venv" in str(c)]
         assert len(create_calls) == 0
 
@@ -86,7 +87,7 @@ def test_pip_install_in_venv(load_script, dep_root, dep_target):
     dep_target.mkdir(parents=True)
     with patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        dc.run_dependency_check(dep_root, dep_target, features=["code-review-graph"])
+        dc.run_dependency_check(dep_root, dep_target, allow_install=True, features=["code-review-graph"])
         # With uv available, uses "uv pip install"; without uv, uses .venv/bin/pip
         install_calls = [
             c for c in mock_run.call_args_list
@@ -107,7 +108,7 @@ def test_uv_used_when_available(load_script, dep_root, dep_target):
             return MagicMock(returncode=0, stdout="uv 0.4.0", stderr="")
         return MagicMock(returncode=0, stdout="", stderr="")
     with patch("subprocess.run", side_effect=fake_run):
-        dc.run_dependency_check(dep_root, dep_target, features=["code-review-graph"])
+        dc.run_dependency_check(dep_root, dep_target, allow_install=True, features=["code-review-graph"])
         assert call_count[0] >= 2
 
 
@@ -119,7 +120,7 @@ def test_uv_unavailable_falls_back_to_pip(load_script, dep_root, dep_target):
             raise FileNotFoundError("uv not found")
         return MagicMock(returncode=0, stdout="", stderr="")
     with patch("subprocess.run", side_effect=fake_run):
-        result = dc.run_dependency_check(dep_root, dep_target, features=["code-review-graph"])
+        result = dc.run_dependency_check(dep_root, dep_target, allow_install=True, features=["code-review-graph"])
         assert "code-review-graph" in result["installed"]
 
 
@@ -133,7 +134,7 @@ def test_install_error_recorded(load_script, dep_root, dep_target):
             return MagicMock(returncode=1, stdout="", stderr="no such package")
         return MagicMock(returncode=0, stdout="", stderr="")
     with patch("subprocess.run", side_effect=fake_run):
-        result = dc.run_dependency_check(dep_root, dep_target, features=["code-review-graph"])
+        result = dc.run_dependency_check(dep_root, dep_target, allow_install=True, features=["code-review-graph"])
         assert len(result["errors"]) == 1
         assert "code-review-graph" in result["errors"][0]
 
@@ -143,7 +144,7 @@ def test_node_ecosystem_uses_npx(load_script, dep_root, dep_target):
     dep_target.mkdir(parents=True)
     with patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        dc.run_dependency_check(dep_root, dep_target, features=["some-node-tool"])
+        dc.run_dependency_check(dep_root, dep_target, allow_install=True, features=["some-node-tool"])
         install_calls = [
             c for c in mock_run.call_args_list
             if any("install" in str(a) for a in c.args[0] if isinstance(a, str))
@@ -160,7 +161,7 @@ def test_multiple_ecosystems(load_script, dep_root, dep_target):
     with patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         result = dc.run_dependency_check(
-            dep_root, dep_target, features=["code-review-graph", "some-node-tool"]
+            dep_root, dep_target, allow_install=True, features=["code-review-graph", "some-node-tool"]
         )
         assert len(result["installed"]) == 2
 
@@ -276,7 +277,8 @@ def test_optional_dependency_not_auto_installed(load_script, dep_root_optional, 
     dep_target.mkdir(parents=True)
     (dep_target / ".venv").mkdir()
     with patch("subprocess.run", side_effect=_fake_run_optional_missing) as mock_run:
-        dc.run_dependency_check(dep_root_optional, dep_target, features=["code-review-graph"])
+        dc.run_dependency_check(dep_root_optional, dep_target, allow_install=True,
+                                            features=["code-review-graph"])
         for call in mock_run.call_args_list:
             cmd = call.args[0]
             if isinstance(cmd, list) and "install" in cmd:
@@ -288,7 +290,8 @@ def test_optional_dependency_missing_yields_hint_not_error(load_script, dep_root
     dep_target.mkdir(parents=True)
     (dep_target / ".venv").mkdir()
     with patch("subprocess.run", side_effect=_fake_run_optional_missing):
-        result = dc.run_dependency_check(dep_root_optional, dep_target, features=["code-review-graph"])
+        result = dc.run_dependency_check(dep_root_optional, dep_target, allow_install=True,
+                                            features=["code-review-graph"])
     assert result["errors"] == []
     assert "code-review-graph" not in result["already_present"]
     assert len(result["hints"]) == 1
@@ -304,7 +307,8 @@ def test_optional_dependency_hint_names_exact_interpreter(load_script, dep_root_
     dep_target.mkdir(parents=True)
     (dep_target / ".venv").mkdir()
     with patch("subprocess.run", side_effect=_fake_run_optional_missing):
-        result = dc.run_dependency_check(dep_root_optional, dep_target, features=["code-review-graph"])
+        result = dc.run_dependency_check(dep_root_optional, dep_target, allow_install=True,
+                                            features=["code-review-graph"])
     hint = result["hints"][0]
     venv_python = str(dep_target / ".venv" / "bin" / "python3")
     assert venv_python in hint
@@ -318,7 +322,8 @@ def test_optional_dependency_present_is_not_reinstalled_and_has_no_hint(
     dep_target.mkdir(parents=True)
     (dep_target / ".venv").mkdir()
     with patch("subprocess.run", side_effect=_fake_run_optional_present):
-        result = dc.run_dependency_check(dep_root_optional, dep_target, features=["code-review-graph"])
+        result = dc.run_dependency_check(dep_root_optional, dep_target, allow_install=True,
+                                            features=["code-review-graph"])
     assert result["hints"] == []
     assert "code-review-graph" in result["already_present"]
 
@@ -344,7 +349,61 @@ def test_optional_dependency_falls_back_to_path_python3_when_no_venv_yet(
     with patch("subprocess.run", side_effect=fake_run), \
          patch.object(dc.shutil, "which", return_value="/opt/homebrew/bin/python3"):
         result = dc.run_dependency_check(
-            dep_root_optional, dep_target, features=["code-review-graph"]
+            dep_root_optional, dep_target, allow_install=True, features=["code-review-graph"]
         )
     hint = result["hints"][0]
     assert "/opt/homebrew/bin/python3" in hint
+
+
+# ── consent gate (security I7) ────────────────────────────────────────────────
+
+class TestInstallConsent:
+    """Installing into $HOME or a global npm prefix is opt-in, never a scaffold side effect."""
+
+    def test_nothing_is_installed_without_consent(self, load_script, dep_root, dep_target):
+        dc = load_script(SCRIPT)
+
+        with patch("subprocess.run") as mock_run:
+            result = dc.run_dependency_check(dep_root, dep_target)
+
+        mock_run.assert_not_called()
+        assert result["installed"] == []
+
+    def test_the_skipped_installs_are_reported_not_silent(self, load_script, dep_root,
+                                                           dep_target):
+        dc = load_script(SCRIPT)
+
+        with patch("subprocess.run"):
+            result = dc.run_dependency_check(dep_root, dep_target)
+
+        pending = " ".join(result["hints"])
+        assert "code-review-graph" in pending
+        assert "some-node-tool" in pending
+        assert "--execute" in pending
+
+    def test_no_venv_is_created_without_consent(self, load_script, dep_root, dep_target):
+        dc = load_script(SCRIPT)
+
+        with patch("subprocess.run"):
+            dc.run_dependency_check(dep_root, dep_target)
+
+        assert not (dep_target / "venv").exists()
+
+    def test_consent_restores_installation(self, load_script, dep_root, dep_target):
+        dc = load_script(SCRIPT)
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stderr="")
+            result = dc.run_dependency_check(dep_root, dep_target, allow_install=True)
+
+        assert mock_run.called
+        assert "code-review-graph" in result["installed"]
+
+    def test_a_global_npm_install_is_named_in_the_hint(self, load_script, dep_root, dep_target):
+        """`npm install -g` writes outside the project — the hint must say so."""
+        dc = load_script(SCRIPT)
+
+        with patch("subprocess.run"):
+            result = dc.run_dependency_check(dep_root, dep_target)
+
+        assert any("-g" in hint or "global" in hint for hint in result["hints"])

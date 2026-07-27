@@ -25,6 +25,7 @@ from pathlib import Path
 AWM_DIR = Path.home() / ".claude" / "awm"
 STATE_FILE = AWM_DIR / "state.json"
 DECISIONS_FILE = AWM_DIR / "decisions.jsonl"
+MAX_DECISION_LINES = 5000
 DEFAULT_AWAY_DURATION = "4h"
 DEFAULT_PARTNER_DURATION = "8h"
 # No auto-approval window is open-ended: an unattended one is capped here, and the gate
@@ -61,14 +62,42 @@ def load_state():
 
 def write_state(state):
     AWM_DIR.mkdir(parents=True, exist_ok=True)
+    _own_only(AWM_DIR)
     STATE_FILE.write_text(json.dumps(state, indent=2) + "\n")
+    _own_only(STATE_FILE)
+
+
+def _own_only(path):
+    """0600 for a file, 0700 for a directory. This state says where you work and what ran."""
+    try:
+        path.chmod(0o700 if path.is_dir() else 0o600)
+    except OSError:
+        pass
 
 
 def log_event(event_type, detail):
     AWM_DIR.mkdir(parents=True, exist_ok=True)
+    _own_only(AWM_DIR)
     entry = {"ts": now_utc().isoformat(timespec="seconds"), "type": event_type, "detail": detail}
     with DECISIONS_FILE.open("a") as f:
         f.write(json.dumps(entry) + "\n")
+    _own_only(DECISIONS_FILE)
+    _trim_decisions()
+
+
+def _trim_decisions():
+    """Keep the newest MAX_DECISION_LINES entries. An unbounded audit log is its own risk."""
+    try:
+        lines = DECISIONS_FILE.read_text().splitlines(keepends=True)
+    except OSError:
+        return
+    if len(lines) <= MAX_DECISION_LINES:
+        return
+    try:
+        DECISIONS_FILE.write_text("".join(lines[-MAX_DECISION_LINES:]))
+        _own_only(DECISIONS_FILE)
+    except OSError:
+        pass
 
 
 def fmt_local(iso):

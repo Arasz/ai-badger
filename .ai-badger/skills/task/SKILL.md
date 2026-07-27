@@ -1,11 +1,11 @@
 ---
 name: task
 description: >-
-  Run one backlog task end-to-end as a cleanly separated, token-tracked unit of work with model
-  delegation (a high-reasoning model plans/reviews; implementation models do the hands-on work).
-  Use whenever the user wants to start, continue, or finish a backlog task — "/task <id>", "start
-  task X", "work on the next task", "finish this task". Reads project specifics from
-  .ai-badger/config.json; source-control/PR behavior comes from config-gated extensions.
+  Use when the user wants to start, continue, or finish a backlog task — "/task <id>", "start
+  task X", "work on the next task", "finish this task". Runs it end-to-end as a cleanly
+  separated, token-tracked unit of work with model delegation: a high-reasoning model plans and
+  reviews, implementation models do the hands-on work. Project specifics come from
+  .ai-badger/config.json; source-control and PR behaviour from config-gated extensions.
 platforms: [linux, macos]
 ---
 

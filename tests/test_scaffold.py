@@ -691,11 +691,12 @@ def test_scaffold_execute_flag_runs_commands(tmp_path, load_script, root):
         mock_run.return_value = unittest.mock.MagicMock(returncode=0, stderr="")
         scaf.run(generated_at="2026-07-24T00:00:00Z")
 
-    # If there were commands, subprocess.run should have been called
-    if mock_run.called:
-        for call in mock_run.call_args_list:
-            cmd = call[0][0] if call[0] else call[1].get("command", "")
-            assert isinstance(cmd, str)
+    # Every command is an argv list run without a shell: a skill name is data, not syntax.
+    assert mock_run.called
+    for call in mock_run.call_args_list:
+        cmd = call[0][0] if call[0] else call[1].get("command", [])
+        assert isinstance(cmd, list), f"not argv: {cmd!r}"
+        assert not call[1].get("shell"), f"ran through a shell: {cmd!r}"
 
 
 def test_scaffold_execute_flag_handles_failure(tmp_path, load_script, root):
@@ -1186,7 +1187,7 @@ def test_check_dependencies_surfaces_optional_hints_as_notes(tmp_path, load_scri
 
     hint = "code-review-graph-embeddings: not installed. Install with: /venv/bin/python3 -m pip install ..."
 
-    def fake_run_dependency_check(root_, target_, features=None):
+    def fake_run_dependency_check(root_, target_, features=None, allow_install=False):
         return {"installed": [], "already_present": [], "errors": [], "hints": [hint]}
 
     with patch.object(dependency_check, "run_dependency_check", side_effect=fake_run_dependency_check), \
@@ -1336,3 +1337,26 @@ def test_empty_persona_routing_renders_as_absent_not_as_a_policy(tmp_path, load_
     content = (target / "CLAUDE.md").read_text(encoding="utf-8")
     assert "_Default routing._" not in content
     assert "personaRouting" in content
+
+
+# --------------------------------------------------------- containment (security I1)
+def test_a_traversing_project_name_cannot_escape_the_hermes_namespace(tmp_path, load_script,
+                                                                       root, monkeypatch):
+    """project.name is interpolated into ~/.hermes/skills/<name> and the schema allows
+    any non-empty string, so containment has to be asserted at the join (WP41)."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    home = tmp_path / "home"
+    (home / ".hermes" / "skills").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    target = tmp_path / "proj"
+    target.mkdir()
+    config = _config(agents=["hermes"])
+    config["project"]["name"] = "../../escaped"
+
+    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
+                                skills=["task"], install=False)
+    result = scaf.run(generated_at="2026-07-27T00:00:00Z")
+
+    assert not (tmp_path / "home" / "escaped").exists()
+    assert not (home / ".hermes" / "escaped").exists()
+    assert any("project name" in n for n in result["notes"])

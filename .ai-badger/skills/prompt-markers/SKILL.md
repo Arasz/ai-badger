@@ -1,10 +1,10 @@
 ---
 name: prompt-markers
 description: >-
-  Defines the prompt-marker system (h:/hint:, f:/feedback:, e:/extension:) and the
-  UserPromptSubmit hook that detects them and injects behavior instructions. Use this when
-  installing or explaining prompt markers, adjusting their injected wording, or debugging why a
-  marker did or didn't change agent behavior.
+  Use when a prompt starts with a marker prefix — `h:`/`hint:` (a lead to validate before
+  acting), `f:`/`feedback:` (a correction to apply immediately), `e:`/`extension:` (a request to
+  widen scope) — or when the user asks to add, change, or inspect those markers. The
+  UserPromptSubmit hook detects them and injects the matching behaviour.
 ---
 
 # Prompt markers

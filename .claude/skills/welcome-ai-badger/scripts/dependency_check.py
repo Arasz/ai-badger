@@ -186,10 +186,16 @@ def run_dependency_check(
     root: Path,
     target: Path,
     features: Optional[List[str]] = None,
+    allow_install: bool = False,
 ) -> Dict[str, Any]:
-    """Check and install all declared dependencies for the given features.
+    """Check declared dependencies for the given features; install only with consent.
 
-    Optional dependencies (`optional: true`) are never auto-installed — they
+    Installing writes outside the project — a venv in the target, and `npm install -g`
+    into the machine's global prefix. That is not a side effect a scaffold may take on its
+    own (security I7), so `allow_install` defaults to False: every required dependency is
+    reported as a hint naming the command that would run, and nothing is executed.
+
+    Optional dependencies (`optional: true`) are never installed either way — they
     are detected in the host interpreter and surfaced as a hint when missing.
 
     Returns {"installed": [...], "already_present": [...], "errors": [...], "hints": [...]}.
@@ -219,7 +225,7 @@ def run_dependency_check(
     venv_path: Optional[Path] = None
     uv_available = False
 
-    if needs_venv:
+    if needs_venv and allow_install:
         venv_path = _ensure_venv(target)
         uv_available = _check_uv_available()
 
@@ -235,6 +241,10 @@ def run_dependency_check(
 
             eco = dep["ecosystem"]
             pkg = dep["package"]
+
+            if not allow_install:
+                hints.append(_pending_hint(dep))
+                continue
 
             if eco == "python":
                 if venv_path is None:
@@ -259,6 +269,19 @@ def run_dependency_check(
     }
 
 
+def _pending_hint(dep: Dict[str, Any]) -> str:
+    """What would be installed, and what to run to allow it."""
+    pkg = dep["package"]
+    if dep["ecosystem"] == "node":
+        where = "globally (npm install -g)"
+    elif dep.get("venv"):
+        where = "into the project venv"
+    else:
+        where = "into the host interpreter"
+    return (f"{pkg}: not installed — would install {where}. Re-run with --execute to "
+            f"allow it, or install it yourself.")
+
+
 def detect_new_deps(
     root: Path,
     scaffolded_features: List[str],
@@ -277,6 +300,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--features", default=None,
         help="comma-separated feature names to check (default: all)",
     )
+    parser.add_argument(
+        "--execute", action="store_true",
+        help="Actually install missing dependencies. Default: report what would be installed.",
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
@@ -286,7 +313,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.features else None
     )
 
-    result = run_dependency_check(root, target, features=features)
+    result = run_dependency_check(root, target, features=features,
+                                  allow_install=args.execute)
 
     if result["installed"]:
         print(f"installed: {', '.join(result['installed'])}")

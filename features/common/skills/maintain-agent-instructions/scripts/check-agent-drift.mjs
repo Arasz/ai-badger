@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
@@ -17,11 +17,28 @@ function readJson(filePath) {
 }
 
 function readText(relativePath) {
-  return readFileSync(path.join(root, relativePath), "utf8");
+  const absolute = path.join(root, relativePath);
+  const { size } = statSync(absolute);
+  if (size > MAX_SCAN_BYTES) {
+    throw new Error(`${relativePath} is too large to scan (${size} bytes)`);
+  }
+  return readFileSync(absolute, "utf8");
+}
+
+// A model is data, and these two limits keep a bad one from becoming a hang rather than an
+// error: an unbounded pattern (catastrophic backtracking) or an unbounded input (review F-39).
+const MAX_PATTERN_LENGTH = 500;
+const MAX_SCAN_BYTES = 1_000_000;
+
+function compilePattern(pattern, flags) {
+  if (typeof pattern !== "string" || pattern.length > MAX_PATTERN_LENGTH) {
+    throw new Error(`pattern too long (over ${MAX_PATTERN_LENGTH} chars); simplify it`);
+  }
+  return new RegExp(pattern, flags);
 }
 
 function matchesAny(text, patterns) {
-  return patterns.some((pattern) => new RegExp(pattern, "is").test(text));
+  return patterns.some((pattern) => compilePattern(pattern, "is").test(text));
 }
 
 function checkRule(rule, kind) {
@@ -44,12 +61,17 @@ if (!existsSync(modelPath)) {
 } else {
   const model = readJson(modelPath);
   if (model) {
-    for (const invariant of model.sharedPolicy?.nonNegotiableInvariants ?? []) {
-      checkRule(invariant, "invariant");
-    }
+    try {
+      for (const invariant of model.sharedPolicy?.nonNegotiableInvariants ?? []) {
+        checkRule(invariant, "invariant");
+      }
 
-    for (const category of model.sharedPolicy?.reviewCategories ?? []) {
-      checkRule(category, "review category");
+      for (const category of model.sharedPolicy?.reviewCategories ?? []) {
+        checkRule(category, "review category");
+      }
+    } catch (error) {
+      // A guard rejection is a reported failure, not a stack trace.
+      errors.push(error.message);
     }
   }
 }

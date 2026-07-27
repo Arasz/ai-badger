@@ -139,7 +139,6 @@ def test_refresh_detects_drift_and_re_scaffolds(tmp_path, load_script, root):
     """When framework content differs from scaffold, refresh re-scaffolds and reports changes."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    bl = load_script("scripts/badger_lib.py")
 
     fw = tmp_path / "fw"
     fw.mkdir()
@@ -477,8 +476,10 @@ def test_backup_is_taken_even_when_the_transition_is_not_breaking(tmp_path, load
     target = tmp_path / "proj"
     aib = target / ".ai-badger"
     aib.mkdir(parents=True)
+    # Same version both sides: no boundary is crossed, whatever BREAKING_VERSIONS holds.
+    current = (root / "VERSION").read_text(encoding="utf-8").strip()
     (aib / "config.json").write_text(
-        json.dumps({"frameworkVersion": "0.20.0"}), encoding="utf-8")
+        json.dumps({"frameworkVersion": current}), encoding="utf-8")
     (aib / "state.json").write_text('{"mine": true}\n', encoding="utf-8")
 
     result = refresh.check_breaking_and_backup(root, target)

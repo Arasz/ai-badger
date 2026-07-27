@@ -144,6 +144,15 @@ def detect_new_stacks(target: Path, root: Path,
     return [s for s in detected if s in known and s not in current and s not in ignored]
 
 
+def _within(parent: Path, candidate: Path) -> bool:
+    """True when `candidate` resolves to `parent` itself or something inside it."""
+    try:
+        candidate.resolve().relative_to(parent.resolve())
+    except (ValueError, OSError):
+        return False
+    return True
+
+
 def compare(root: Path, manifest: Dict[str, Any],
             stacks: Optional[List[str]] = None,
             target: Optional[Path] = None) -> Dict[str, Any]:
@@ -160,6 +169,7 @@ def compare(root: Path, manifest: Dict[str, Any],
     changed: List[str] = []
     removed: List[str] = []
     skipped: List[str] = []
+    notes: List[str] = []
     invalid = 0
     for entry in manifest.get("entries", []):
         source_rel = entry.get("source")
@@ -180,7 +190,14 @@ def compare(root: Path, manifest: Dict[str, Any],
                 target_rel = entry.get("target")
                 if target_rel:
                     target_path = target / target_rel
-                    if target_path.is_dir():
+                    if not _within(target, target_path):
+                        # `Path("/a") / "/etc"` is `/etc`: an absolute or traversing manifest
+                        # target would steer the hasher out of the project (security I1).
+                        notes.append(
+                            f"manifest entry {source_rel}: target resolves outside the "
+                            f"project — hashing the framework source instead"
+                        )
+                    elif target_path.is_dir():
                         hash_dir = target_path
                         exclude = bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
             try:
@@ -207,6 +224,7 @@ def compare(root: Path, manifest: Dict[str, Any],
         "removed": sorted(removed),
         "skipped": sorted(skipped),
         "invalid": invalid,
+        "notes": notes,
     }
     if stacks is not None:
         result["newItems"] = detect_new_items(root, manifest, stacks)
