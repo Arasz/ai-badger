@@ -253,7 +253,7 @@ target-repo/
     agents/*.md              # scaffolded personas
     instructions/*.md        # scoped instructions
     invariants/*.md
-    skills/…                 # embedded skills (task + extensions, etc.) — symlinked from features/common/skills/
+    skills/…                 # embedded skills — real copies of features/*/skills/, not symlinks
     state.json               # empty task index
     agent-instructions/{schema.json, model.json, validators}
   CLAUDE.md                  # COPY of .ai-badger/CLAUDE.md, header: "source of truth: .ai-badger/CLAUDE.md"

@@ -38,7 +38,8 @@ agent-specific stacks (`claude`, `copilot`, `junie`).
 ```
 
 This installs the operational skills: `welcome-ai-badger`, `feed-badger`, `den-refresh`,
-`task`, `maintain-agent-instructions`, `auto-wm`, `prompt-markers`, and `mcp-index`.
+`task`, `maintain-agent-instructions`, `auto-wm`, `prompt-markers`, `mcp-index`,
+`code-review-checklist`, and `call-behaviorist`.
 
 ## Quickstart
 
@@ -116,6 +117,8 @@ the schema.
 | **auto-wm** | Autonomous working mode: partner/away/disable transitions |
 | **prompt-markers** | Structured prompt markers (`h:`, `f:`, `e:`) for agent communication |
 | **mcp-index** | MCP tool index with tag + intent semantic matching |
+| **code-review-checklist** | Aviation-style preflight checks for a PR or diff |
+| **call-behaviorist** | Debug audit log for ai-badger's own hooks, and a health report |
 
 ## Bundled tools
 
@@ -145,7 +148,8 @@ ai-badger/
     common/
       skills/                    # Installable operational skills
         task/ welcome-ai-badger/ feed-badger/ den-refresh/
-        maintain-agent-instructions/ auto-wm/ prompt-markers/ mcp-index/
+        maintain-agent-instructions/ prompt-markers/ mcp-index/
+        code-review-checklist/ call-behaviorist/
       personas/{architect, test-engineer, code-reviewer}.md
       invariants/*.md            # Agnostic invariant snippets
       instructions/*.md          # Agnostic scoped instructions
@@ -156,6 +160,8 @@ ai-badger/
       templates/                 # CLAUDE.md.tmpl, HERMES.md.tmpl, state.json, agent-instructions
     dotnet/ azure/ cosmos/ terraform/ mcp/  {personas,invariants,instructions}/…
     github/    (stack-specific features; extensions now inline in skills/)
+    claude/    skills/auto-wm/, adjustments/   # agent-specific, not common
+    hermes/ copilot/ junie/   adjustments/     # per-agent scaffolding tweaks
     angular/ node/ js/ ts/ react/ css/  {personas,invariants,instructions}/…
     hermes/    {personas,instructions,adjustments}/…
     claude/ copilot/ junie/     Agent-specific templates + plugins-instructions.json
@@ -172,7 +178,8 @@ flowchart TB
       COMMON["common/\npersonas·invariants·instructions·hooks·templates"]
       STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · github · angular"]
     end
-    SKILLSDIR["features/common/skills/\nwelcome · feed · task · maintain · auto-wm · prompt-markers\n· den-refresh · mcp-index"]
+    SKILLSDIR["features/common/skills/\nwelcome · feed · task · maintain · prompt-markers\n· den-refresh · mcp-index · code-review-checklist · call-behaviorist"]
+    CLAUDESKILLS["features/claude/skills/\nauto-wm"]
     EXTOOLS["external-tools.json\ncode-review-graph (MCP)"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]
   end
