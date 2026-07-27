@@ -41,6 +41,15 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/commit-reminder/scripts/commit_reminder_hook.py\""
+          }
+        ]
       }
     ]
   }
