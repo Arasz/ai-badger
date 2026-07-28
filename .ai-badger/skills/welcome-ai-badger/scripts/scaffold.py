@@ -394,13 +394,23 @@ class Scaffolder:
                     f"delete it by hand"
                 )
 
-    def prune_declined(self) -> None:
-        """Delete the file a previous run placed for a now-declined item, and nothing else.
+    def _superseded_reason(self, entry: Dict[str, Any]) -> Optional[str]:
+        """Why this config no longer asks for a file a previous run placed, or None to keep it."""
+        feature, name = entry.get("feature"), entry.get("name")
+        if name in self.excluded.get(feature, set()):
+            return f"declined in config.exclude.{feature}"
+        if bl.is_orphaned(entry, bl.delivering_stacks(self.config)):
+            return f"stack '{entry.get('stack')}' is no longer in config.stacks"
+        return None
 
-        Ownership is the previous manifest: the recorded target, still carrying its recorded
-        hash. An edited copy is the project's own and is reported instead of removed. Skill
-        directories are left on disk — they may hold project-local files, and a config edit
-        that rm -rf's a directory is a trap (research §2).
+    def prune_superseded(self) -> None:
+        """Delete the files a previous run placed that this config no longer asks for.
+
+        Two ways to stop asking: decline the item in `config.exclude`, or drop the stack that
+        delivered it (#116). Ownership is the previous manifest: the recorded target, still
+        carrying its recorded hash. An edited copy is the project's own and is reported instead
+        of removed. Skill directories are left on disk — they may hold project-local files, and
+        a config edit that rm -rf's a directory is a trap (research §2).
         """
         manifest_path = self.aib / "manifest.json"
         if not manifest_path.is_file():
@@ -410,20 +420,18 @@ class Scaffolder:
         except (ValueError, OSError):
             return
         for entry in entries:
-            feature, name = entry.get("feature"), entry.get("name")
-            if name not in self.excluded.get(feature, set()):
+            reason = self._superseded_reason(entry)
+            if reason is None:
                 continue
             path = self.target / entry.get("target", "")
             if not _within(self.target, path) or not path.is_file():
                 continue
             rel = entry["target"]
             if bl.sha256_file(path) != entry.get("hash"):
-                self.notes.append(
-                    f"declined {feature[:-1]} '{name}': {rel} was edited here — left in place"
-                )
+                self.notes.append(f"{rel} was edited here — left in place ({reason})")
                 continue
             path.unlink()
-            self.notes.append(f"removed {rel} — declined in config.exclude.{feature}")
+            self.notes.append(f"removed {rel} — {reason}")
 
     # -- provenance -----------------------------------------------------------------
     def record(self, feature: str, stack: str, name: str, source: Path, target: Path) -> None:
@@ -653,27 +661,10 @@ class Scaffolder:
             self.notes.append(f"skill install warning: {w}")
         return cmds
 
-    # -- hooks and statusline capture ------------------------------------------------
+    # -- hooks ------------------------------------------------------------------------
     def wire_hooks(self) -> None:
         """Merge the framework's hook registrations into the project's .claude/settings.json."""
         self.hooks.wire()
-
-    def wire_statusline_capture(self) -> None:
-        """Wire the capture wrapper into .claude/settings.json, preserving the renderer."""
-        self.statusline.wire()
-
-    def unwire_statusline_capture(self) -> None:
-        """Restore the displaced renderer, or drop statusLine when there was none."""
-        self.statusline.unwire()
-
-    # -- template rendering -----------------------------------------------------------
-    def assemble_instructions_doc(self, invariants: List[str], instr_paths: List[Path]) -> str:
-        """Render CLAUDE.md.tmpl with this config's project/commands/invariants."""
-        return self.rendering.assemble_instructions_doc(invariants, instr_paths)
-
-    def assemble_hermes_doc(self, invariants: List[str], instr_paths: List[Path]) -> str:
-        """Render HERMES.md.tmpl with this config's project/commands/invariants."""
-        return self.rendering.assemble_hermes_doc(invariants, instr_paths)
 
     # -- Hermes skill discovery ---------------------------------------------------
     def symlink_hermes_skills(self) -> None:
@@ -836,7 +827,7 @@ class Scaffolder:
         self.aib.mkdir(parents=True, exist_ok=True)
         self._completed_steps = []
         self._record_progress("start")
-        self.prune_declined()
+        self.prune_superseded()
         self.scaffold_personas()
         instr_paths = self.scaffold_instructions()
         invariants = self.collect_invariants()
