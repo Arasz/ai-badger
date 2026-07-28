@@ -311,15 +311,6 @@ def _ctx_property(name: str) -> property:
                     lambda self, value: setattr(self.ctx, name, value))
 
 
-def _mcp_delegate(name: str):
-    """A `Scaffolder` method that forwards to the same-named method on its McpTools."""
-    def _forward(self, *args, **kwargs):
-        return getattr(self.mcp, name)(*args, **kwargs)
-    _forward.__name__ = name
-    _forward.__doc__ = f"Delegates to McpTools.{name}."
-    return _forward
-
-
 class Scaffolder:
     """Materializes a target repo's .ai-badger/ scaffold from a validated config.json."""
 
@@ -672,20 +663,6 @@ class Scaffolder:
         """Render HERMES.md.tmpl with this config's project/commands/invariants."""
         return self.rendering.assemble_hermes_doc(invariants, instr_paths)
 
-    # -- MCP servers and external tools -----------------------------------------------
-    # The collaborator owns these; the names stay reachable here because the suite calls
-    # them on a Scaffolder.
-    _collect_stack_mcp_servers = _mcp_delegate("collect_stack_mcp_servers")
-    _collect_external_tools = _mcp_delegate("collect_external_tools")
-    # Static on both sides: callers reach it through the class, with no instance in hand.
-    _merge_external_tools = staticmethod(McpTools.merge_external_tools)
-    _merge_mcp_servers = _mcp_delegate("merge_mcp_servers")
-    _split_servers_by_scope = _mcp_delegate("split_servers_by_scope")
-    _scaffold_hermes_mcp_user = _mcp_delegate("scaffold_hermes_mcp_user")
-    _scaffold_claude_mcp_user = _mcp_delegate("scaffold_claude_mcp_user")
-    _generate_copilot_mcp_config = _mcp_delegate("generate_copilot_mcp_config")
-    _generate_mcp_json = _mcp_delegate("generate_mcp_json")
-
     # -- Hermes skill discovery ---------------------------------------------------
     def symlink_hermes_skills(self) -> None:
         """Link this project's skills into ~/.hermes/skills/<project>/ when hermes is an agent.
@@ -884,20 +861,18 @@ class Scaffolder:
         bl.dump_json(self.aib / "config.json", written_config)
 
         # generate .mcp.json for external tools that request it
-        self._generate_mcp_json()
+        self.mcp.generate_mcp_json()
         self._record_progress("config-and-mcp")
 
         # scaffold user-scoped MCP servers into agent-specific config files
-        # Through this class's own delegations, not self.mcp: these are the seams the suite
-        # replaces to simulate an unwritable home.
-        stack_servers = self._collect_stack_mcp_servers()
-        merged = self._merge_mcp_servers(stack_servers, self.ctx.merged_external_tools)
-        project_servers, user_servers = self._split_servers_by_scope(merged)
+        stack_servers = self.mcp.collect_stack_mcp_servers()
+        merged = self.mcp.merge_mcp_servers(stack_servers, self.ctx.merged_external_tools)
+        project_servers, user_servers = self.mcp.split_servers_by_scope(merged)
         self._outside_project("hermes user MCP config",
-                              lambda: self._scaffold_hermes_mcp_user(user_servers))
+                              lambda: self.mcp.scaffold_hermes_mcp_user(user_servers))
         self._outside_project("claude user MCP config",
-                              lambda: self._scaffold_claude_mcp_user(user_servers))
-        self._generate_copilot_mcp_config(project_servers)
+                              lambda: self.mcp.scaffold_claude_mcp_user(user_servers))
+        self.mcp.generate_copilot_mcp_config(project_servers)
 
         manifest = {
             "$schema": "../schemas/manifest.schema.json",

@@ -75,7 +75,7 @@ def _mcp_json_for(load_script, tmp_path, servers, agents=None):
         json.dumps({"servers": servers}), encoding="utf-8")
 
     scaf = _scaf(scaffold, tmp_path, target, _config(agents))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
     written = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
     return scaf, written["mcpServers"]
 
@@ -174,7 +174,7 @@ def test_copilot_config_keeps_the_bare_command(tmp_path, monkeypatch, load_scrip
     target.mkdir(exist_ok=True)
 
     scaf = _scaf(scaffold, tmp_path, target, _config(agents=["copilot"]))
-    scaf._generate_copilot_mcp_config(
+    scaf.mcp.generate_copilot_mcp_config(
         {"roslyn": {"name": "roslyn", "command": "cwm-roslyn-navigator"}})
 
     cfg = json.loads(
@@ -196,9 +196,9 @@ def _user_scoped_roslyn(tmp_path, monkeypatch, load_script, agent):
     with patch("pathlib.Path.home", return_value=home):
         scaf = _scaf(scaffold, tmp_path, target, _config(agents=[agent]))
         if agent == "claude":
-            scaf._scaffold_claude_mcp_user(server)
+            scaf.mcp.scaffold_claude_mcp_user(server)
         else:
-            scaf._scaffold_hermes_mcp_user(server)
+            scaf.mcp.scaffold_hermes_mcp_user(server)
     return home
 
 

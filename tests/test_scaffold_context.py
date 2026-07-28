@@ -287,6 +287,21 @@ def test_the_scaffolder_is_a_plain_class_over_a_context_and_six_collaborators(
     assert "Mixin" not in (root / SCRIPTS / "scaffold.py").read_text(encoding="utf-8")
 
 
+# The nine McpTools methods Scaffolder used to re-expose under a private name.
+_RETIRED_MCP_SHIMS = {
+    "_collect_stack_mcp_servers", "_collect_external_tools", "_merge_external_tools",
+    "_merge_mcp_servers", "_split_servers_by_scope", "_scaffold_hermes_mcp_user",
+    "_scaffold_claude_mcp_user", "_generate_copilot_mcp_config", "_generate_mcp_json",
+}
+
+
+def test_the_scaffolder_keeps_no_private_shims_for_its_collaborators(load_script, root):
+    """A collaborator's own methods are reached on it, not through a Scaffolder shim."""
+    scaffold = _load(load_script, root, "scaffold")
+
+    assert _RETIRED_MCP_SHIMS & set(vars(scaffold.Scaffolder)) == set()
+
+
 # ----------------------------------------------------------------- step-order golden master
 def test_the_scaffold_runs_its_steps_in_the_recorded_order(
         tmp_path, load_script, root, monkeypatch):
