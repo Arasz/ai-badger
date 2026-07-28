@@ -5,7 +5,7 @@ Reads hooks-manifest.json, generates project-specific hooks.json under
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 # Hook commands must name their script through this placeholder, never an absolute path:
 # every checkout of a project (worktree, second clone, framework cache) spells the same
@@ -28,6 +28,54 @@ def skill_script_id(command: str) -> Optional[str]:
         if idx != -1:
             return command[idx + len(marker):].rstrip('"')
     return None
+
+
+def project_script(command: str) -> Optional[str]:
+    """The project-relative script a rewritten command runs, or None if it names none."""
+    marker = PROJECT_DIR_VAR + "/"
+    idx = command.rfind(marker)
+    if idx == -1:
+        return None
+    rest = command[idx + len(marker):]
+    for closer in ('"', "'", " "):
+        rest = rest.split(closer, 1)[0]
+    return rest or None
+
+
+def declined_skill(command: str, declined: Set[str]) -> Optional[str]:
+    """The declined skill a framework hook command belongs to, or None."""
+    script_id = skill_script_id(command)
+    if not script_id:
+        return None
+    name = script_id.split("/")[0]
+    return name if name in declined else None
+
+
+def drop_declined(existing_hooks: Dict[str, Any], declined: Set[str]) -> List[str]:
+    """Remove framework hooks belonging to a declined skill; return the script ids dropped.
+
+    A hook wired by an earlier run outlives the skill's discovery link — settings.json is
+    merged into, not rewritten — so declining a skill has to reach in here as well.
+    """
+    dropped: List[str] = []
+    for event, event_hooks in list(existing_hooks.items()):
+        kept_entries = []
+        for entry in event_hooks:
+            hooks = entry.get("hooks", [])
+            kept = []
+            for hook in hooks:
+                command = hook.get("command", "")
+                if declined_skill(command, declined):
+                    dropped.append(skill_script_id(command))
+                else:
+                    kept.append(hook)
+            if not kept and hooks:
+                continue
+            pruned = dict(entry)
+            pruned["hooks"] = kept
+            kept_entries.append(pruned)
+        existing_hooks[event] = kept_entries
+    return dropped
 
 
 def _hook_key(command: str) -> str:
@@ -171,6 +219,12 @@ class HookWiringMixin:
             if not source_event_hooks:
                 # Generate a default hook entry for skills not in the framework hooks.json
                 hook_name = hook.get("name", "")
+                if hook_name in self.excluded["skills"]:
+                    self.notes.append(
+                        f"hook '{hook_name}': skill '{hook_name}' is declined in "
+                        f"config.exclude — not wired"
+                    )
+                    continue
                 skill_hook_script = self.aib / "skills" / hook_name / "scripts"
                 hook_scripts = list(skill_hook_script.glob("*_hook.py")) if skill_hook_script.exists() else []
                 if not hook_scripts:
@@ -198,33 +252,62 @@ class HookWiringMixin:
                             "${CLAUDE_PLUGIN_ROOT}/features/common/skills/",
                             f"{PROJECT_DIR_VAR}/{aib_rel}/skills/"
                         )
+                        # A rewritten path is only a claim about the project: a declined
+                        # skill's copy may still sit on disk, and a partial scaffold leaves
+                        # the script absent. Wiring either is worse than wiring nothing.
+                        skipped = declined_skill(cmd, self.excluded["skills"])
+                        if skipped:
+                            self.notes.append(
+                                f"hook '{hook.get('name', '')}': skill '{skipped}' is "
+                                f"declined in config.exclude — not wired"
+                            )
+                            continue
+                        script = project_script(cmd)
+                        if script and not (self.target / script).is_file():
+                            self.notes.append(
+                                f"hook '{hook.get('name', '')}': {script} is not scaffolded "
+                                f"— skipped"
+                            )
+                            continue
                         new_h["command"] = cmd
                         new_hooks_list.append(new_h)
+                    if not new_hooks_list:
+                        continue
                     new_entry["hooks"] = new_hooks_list
                     rewritten.append(new_entry)
+                if not rewritten:
+                    continue
 
             # Accumulate: two manifest entries may register for the same event.
             target_hooks["hooks"].setdefault(event, []).extend(rewritten)
             settings_hooks.setdefault(event, []).extend(rewritten)
 
-        if not target_hooks["hooks"]:
+        settings_path = self.target / ".claude" / "settings.json"
+        # Nothing to wire and nothing a previous run could have wired for a declined skill.
+        if not target_hooks["hooks"] and not (
+                self.excluded["skills"] and settings_path.exists()):
             return
 
-        # Write .ai-badger/hooks/hooks.json
-        hooks_dir = self.aib / "hooks"
-        hooks_dir.mkdir(parents=True, exist_ok=True)
-        bl.dump_json(hooks_dir / "hooks.json", target_hooks)
+        if target_hooks["hooks"]:
+            hooks_dir = self.aib / "hooks"
+            hooks_dir.mkdir(parents=True, exist_ok=True)
+            bl.dump_json(hooks_dir / "hooks.json", target_hooks)
 
         # Merge into .claude/settings.json — never over an unreadable file
-        settings_path = self.target / ".claude" / "settings.json"
         settings, note = cg.read_json_mapping(settings_path)
         if settings is None:
             self.notes.append(f"{note} (hooks not wired)")
             return
 
         existing_hooks = settings.get("hooks", {})
+        unwired = drop_declined(existing_hooks, self.excluded["skills"])
         merge_hooks(existing_hooks, settings_hooks)
 
         settings["hooks"] = existing_hooks
         cg.write_json_with_backup(settings_path, settings)
-        self.notes.append(f"wired {len(settings_hooks)} hook(s) into .claude/settings.json")
+        for script_id in unwired:
+            self.notes.append(
+                f"unwired {script_id} from .claude/settings.json — declined in config.exclude"
+            )
+        if settings_hooks:
+            self.notes.append(f"wired {len(settings_hooks)} hook(s) into .claude/settings.json")

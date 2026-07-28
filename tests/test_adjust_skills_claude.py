@@ -173,6 +173,32 @@ def test_a_directory_the_manifest_records_as_ours_is_replaced(tmp_path, load_scr
     assert ".claude/skills/task" in result["files"]
 
 
+def test_a_link_to_a_skill_no_longer_delivered_is_pruned(tmp_path, load_script, root):
+    adjust_skills = load_script(SCRIPT)
+    target = _project(tmp_path, skills=("task", "call-behaviorist"))
+    adjust_skills.adjust(_context(root, target, skills=("task", "call-behaviorist")))
+
+    result = adjust_skills.adjust(_context(root, target, skills=("task",)))
+
+    link = target / ".claude" / "skills" / "call-behaviorist"
+    assert not link.exists() and not link.is_symlink()
+    assert (target / ".claude" / "skills" / "task").is_symlink()
+    assert "call-behaviorist" in result["notes"]
+
+
+def test_a_dangling_link_we_placed_is_pruned(tmp_path, load_script, root):
+    """The defect deletion leaves behind today: a link whose target is gone."""
+    adjust_skills = load_script(SCRIPT)
+    target = _project(tmp_path)
+    dangling = target / ".claude" / "skills" / "mcp-index"
+    dangling.parent.mkdir(parents=True, exist_ok=True)
+    dangling.symlink_to("../../.ai-badger/skills/mcp-index")
+
+    adjust_skills.adjust(_context(root, target))
+
+    assert not dangling.is_symlink()
+
+
 def test_noop_when_claude_is_not_a_configured_agent(tmp_path, load_script, root):
     adjust_skills = load_script(SCRIPT)
     target = _project(tmp_path)

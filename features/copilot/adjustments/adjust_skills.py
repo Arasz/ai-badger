@@ -60,19 +60,41 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         dst.symlink_to(os.path.relpath(src, dst.parent))
         linked.append(skill_name)
 
+    pruned = _prune(github_skills, skills, skills_root, owned_targets)
+
     notes = []
     if linked:
         notes.append(f"Symlinked {len(linked)} skill(s) into .github/skills/")
+    if pruned:
+        notes.append(
+            f"removed {', '.join('.github/skills/' + n for n in pruned)} — no longer "
+            f"delivered to this project"
+        )
     if refused:
         notes.append(
             f"left {', '.join(sorted(refused))} in .github/skills/ untouched — not placed by "
             f"ai-badger; remove by hand to let Copilot discover the scaffolded skill"
         )
     return {
-        "applied": bool(linked),
+        "applied": bool(linked or pruned),
         "files": [f".github/skills/{name}" for name in linked],
         "notes": "; ".join(notes) or "No skills with SKILL.md found",
     }
+
+
+def _prune(discovery_dir: Path, skills, skills_root: Path, owned_targets: set) -> list:
+    """Remove links ai-badger placed for skills it no longer delivers, and only those.
+
+    A skill the project declined, or one deleted upstream, otherwise leaves a symlink to
+    nothing; ownership is the same test the link path applies before replacing anything.
+    """
+    pruned = []
+    for entry in sorted(discovery_dir.iterdir()):
+        if entry.name in skills or not _ours(entry, skills_root, owned_targets):
+            continue
+        _remove(entry)
+        pruned.append(entry.name)
+    return pruned
 
 
 def _manifest_targets(target_dir: Path) -> set:

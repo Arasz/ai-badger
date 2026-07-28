@@ -123,8 +123,10 @@ from _shared import (  # noqa: E402 — re-exported for backward compatibility
 )
 
 # Declared once in badger_lib.SKILL_SCOPES so the scaffold and the plugin ship list cannot
-# disagree about what a project gets without asking.
-DEFAULT_SKILLS = bl.default_skill_names()
+# disagree about what a project gets without asking. Resolved against the catalog
+# scaffold_skills actually reads, so a default-scope skill shipped from another stack is
+# not offered here and then reported as missing.
+DEFAULT_SKILLS = bl.default_skills_in(FRAMEWORK_ROOT / "features" / "common" / "skills")
 SEED_ONCE_SKILL_FILES: Dict[str, List[str]] = {
     "prompt-markers": ["markers-context.json"],
 }
@@ -238,7 +240,11 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
     if namespace_dir.is_symlink() and not _owns_link(namespace_dir, skills_root):
         return []
 
-    wanted = [n for n in dict.fromkeys(skills) if (skills_root / n).is_dir()]
+    # Declined skills are filtered here too: den-refresh re-links from the names on disk,
+    # where an excluded skill's copy is deliberately left behind.
+    declined = bl.exclusions(config)["skills"]
+    wanted = [n for n in dict.fromkeys(skills)
+              if n not in declined and (skills_root / n).is_dir()]
     if (skills_root / LEARNED_SKILLS_DIR).is_dir() and LEARNED_SKILLS_DIR not in wanted:
         wanted.append(LEARNED_SKILLS_DIR)
 
@@ -293,7 +299,11 @@ class Scaffolder(
         self.root = root
         self.target = target
         self.config = config
-        self.skills = skills
+        # The one enforcement point for config.exclude: every consumer reads self.skills or
+        # self.items(), so welcome-ai-badger and den-refresh cannot disagree about what a
+        # project declined (docs/research/2026-07-27-skill-removal-semantics.md §2).
+        self.excluded = bl.exclusions(config)
+        self.skills = [s for s in skills if s not in self.excluded["skills"]]
         self.install = install
         self.overwrite = overwrite
         self.reset_seed_files = reset_seed_files
@@ -307,6 +317,73 @@ class Scaffolder(
         self._merged_external_tools: List[Dict[str, Any]] = []
         self._external_tools_merged = False
         self._completed_steps: List[str] = []
+        self._note_exclusions()
+
+    # -- exclusions -------------------------------------------------------------------
+    def items(self, stack: str, feature: str) -> List[Dict[str, Any]]:
+        """Index items for one stack's feature bucket, minus the ones config.exclude declines."""
+        declined = self.excluded.get(feature, set())
+        return [i for i in feature_items(self.index, stack, feature)
+                if i.get("name") not in declined]
+
+    def _note_exclusions(self) -> None:
+        """Report each exclusion: what it declined, and what it no longer matches.
+
+        An exclusion naming a catalog item the framework has since dropped goes inert rather
+        than fatal — refresh refuses on an invalid config, so a fatal one would turn an
+        upstream deletion into a broken upgrade (research §4.2).
+        """
+        for feature in bl.EXCLUDABLE_FEATURES:
+            declined = self.excluded[feature]
+            if not declined:
+                continue
+            known = {i.get("name") for stack in self.stacks
+                     for i in feature_items(self.index, stack, feature)}
+            singular = feature[:-1]
+            for name in sorted(declined - known):
+                self.notes.append(
+                    f"exclusion '{name}' matches no catalog {singular} — safe to remove "
+                    f"from config.json"
+                )
+            for name in sorted(declined & known):
+                self.notes.append(f"declined {singular} '{name}' (config.exclude.{feature})")
+        for name in sorted(self.excluded["skills"]):
+            if (self.aib / "skills" / name).is_dir():
+                self.notes.append(
+                    f"declined skill '{name}': .ai-badger/skills/{name} left on disk — "
+                    f"delete it by hand"
+                )
+
+    def prune_declined(self) -> None:
+        """Delete the file a previous run placed for a now-declined item, and nothing else.
+
+        Ownership is the previous manifest: the recorded target, still carrying its recorded
+        hash. An edited copy is the project's own and is reported instead of removed. Skill
+        directories are left on disk — they may hold project-local files, and a config edit
+        that rm -rf's a directory is a trap (research §2).
+        """
+        manifest_path = self.aib / "manifest.json"
+        if not manifest_path.is_file():
+            return
+        try:
+            entries = bl.load_json(manifest_path).get("entries", [])
+        except (ValueError, OSError):
+            return
+        for entry in entries:
+            feature, name = entry.get("feature"), entry.get("name")
+            if name not in self.excluded.get(feature, set()):
+                continue
+            path = self.target / entry.get("target", "")
+            if not _within(self.target, path) or not path.is_file():
+                continue
+            rel = entry["target"]
+            if bl.sha256_file(path) != entry.get("hash"):
+                self.notes.append(
+                    f"declined {feature[:-1]} '{name}': {rel} was edited here — left in place"
+                )
+                continue
+            path.unlink()
+            self.notes.append(f"removed {rel} — declined in config.exclude.{feature}")
 
     # -- provenance -----------------------------------------------------------------
     def record(self, feature: str, stack: str, name: str, source: Path, target: Path) -> None:
@@ -403,14 +480,14 @@ class Scaffolder(
     def scaffold_personas(self) -> None:
         """Copy every applicable stack's persona files into .ai-badger/agents/."""
         for stack in self.stacks:
-            for item in feature_items(self.index, stack, "personas"):
+            for item in self.items(stack, "personas"):
                 self.copy_file("personas", stack, item, self.aib / "agents")
 
     def scaffold_instructions(self) -> List[Path]:
         """Copy every applicable stack's instruction files into .ai-badger/instructions/."""
         out: List[Path] = []
         for stack in self.stacks:
-            for item in feature_items(self.index, stack, "instructions"):
+            for item in self.items(stack, "instructions"):
                 out.append(self.copy_file("instructions", stack, item, self.aib / "instructions"))
         return out
 
@@ -418,7 +495,7 @@ class Scaffolder(
         """Copy invariant snippets and return their rendered markdown for CLAUDE.md."""
         rendered: List[str] = []
         for stack in self.stacks:
-            for item in feature_items(self.index, stack, "invariants"):
+            for item in self.items(stack, "invariants"):
                 dest = self.copy_file("invariants", stack, item, self.aib / "invariants")
                 text = dest.read_text(encoding="utf-8").strip()
                 rendered.append(demote_headings(text))
@@ -681,6 +758,7 @@ class Scaffolder(
         self.aib.mkdir(parents=True, exist_ok=True)
         self._completed_steps = []
         self._record_progress("start")
+        self.prune_declined()
         self.scaffold_personas()
         instr_paths = self.scaffold_instructions()
         invariants = self.collect_invariants()

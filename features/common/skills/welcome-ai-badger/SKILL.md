@@ -53,6 +53,11 @@ If `index.json` is missing or stale, run `python3 "$AI_BADGER/scripts/index_buil
    **local-only** (force every plugin install to project scope). Set `skillScope` accordingly.
    (There is deliberately no "user-only" option.)
 
+   If the user declines a skill, persona, invariant or instruction, name it in `exclude`
+   (`{"skills": ["mcp-index"]}`) — deleting the scaffolded file is undone by the next refresh.
+   The declined item is not delivered and its discovery symlinks are removed; the copy already
+   under `.ai-badger/skills/` stays on disk for the user to delete.
+
 4. **Validate.**
    ```bash
    python3 "$AI_BADGER/scripts/validate.py" --kind config /tmp/proposed-config.json

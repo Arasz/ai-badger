@@ -57,6 +57,20 @@ def _mentions(notes, *fragments):
     return any(all(f in note for f in fragments) for note in notes)
 
 
+def _place_hook_scripts(root, target):
+    """Create the scaffolded scripts the framework's hooks.json names — wire_hooks skips absent
+    ones, so a project with none of them wires nothing and never reaches settings.json."""
+    source = json.loads(
+        (root / "features" / "common" / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+    for entries in source.get("hooks", {}).values():
+        for entry in entries:
+            for hook in entry.get("hooks", []):
+                rel = hook["command"].split("/features/common/skills/", 1)[-1].rstrip('"')
+                script = target / ".ai-badger" / "skills" / rel
+                script.parent.mkdir(parents=True, exist_ok=True)
+                script.write_text("", encoding="utf-8")
+
+
 # ── project .claude/settings.json (hook_wiring) ───────────────────────────────
 
 def test_wire_hooks_aborts_on_unparseable_settings(tmp_path, load_script, root, fake_home):
@@ -67,6 +81,7 @@ def test_wire_hooks_aborts_on_unparseable_settings(tmp_path, load_script, root, 
     settings_path = target / ".claude" / "settings.json"
     original = b'{"permissions":{"deny":["Bash"]}},,,'
     settings_path.write_bytes(original)
+    _place_hook_scripts(root, target)
 
     scaf = _scaf(scaffold, root, target, _config(agents=["claude"]))
     scaf.wire_hooks()

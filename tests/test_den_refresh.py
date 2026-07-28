@@ -611,3 +611,49 @@ def test_refresh_does_not_report_per_file_extension_entries_as_refreshed_skills(
     report = json.loads(capsys.readouterr().out)
 
     assert all("/" not in name for name in report["scaffold"]["refreshedSkills"])
+
+
+def test_refresh_does_not_deliver_a_skill_the_project_excluded(
+        tmp_path, load_script, root, capsys):
+    """The union hands every default-scope skill over; the exclusion is what stops delivery."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+
+    fw = tmp_path / "fw"
+    _mock_fw_with_skills(fw, root, ["task", "call-behaviorist"])
+    proj = tmp_path / "proj"
+    config = _write_config(proj, frameworkVersion="0.3.0",
+                           exclude={"skills": ["call-behaviorist"]})
+    scaffold.Scaffolder(root=fw, target=proj, config=config,
+                        skills=["task"], install=False).run(generated_at="2026-07-22T00:00:00Z")
+    _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory (v2).\n")
+
+    rc = refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert not (proj / ".ai-badger" / "skills" / "call-behaviorist").exists()
+    assert "call-behaviorist" not in report["scaffold"]["refreshedSkills"]
+    assert "call-behaviorist" not in [i["name"] for i in report["drift"]["newItems"]]
+
+
+def test_refresh_re_delivers_a_skill_whose_exclusion_was_removed(
+        tmp_path, load_script, root, capsys):
+    """Un-excluding is deleting the line: the next refresh delivers the skill fresh."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+
+    fw = tmp_path / "fw"
+    _mock_fw_with_skills(fw, root, ["task", "call-behaviorist"])
+    proj = tmp_path / "proj"
+    config = _write_config(proj, frameworkVersion="0.3.0",
+                           exclude={"skills": ["call-behaviorist"]})
+    scaffold.Scaffolder(root=fw, target=proj, config=config,
+                        skills=["task"], install=False).run(generated_at="2026-07-22T00:00:00Z")
+    _write_config(proj, frameworkVersion="0.3.0")
+
+    refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert (proj / ".ai-badger" / "skills" / "call-behaviorist" / "SKILL.md").exists()
+    assert "call-behaviorist" in report["scaffold"]["refreshedSkills"]

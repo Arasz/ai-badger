@@ -197,6 +197,10 @@ script. Fill in:
   GitHub PR/issue extension at scaffold time.
 - `skillScope` — `"default"` honours each skill's declared scope; `"local"` forces every install
   to project scope.
+- `exclude` — what this project declines, by catalog name:
+  `{"skills": ["mcp-index"], "invariants": ["pr-per-task"]}`. Keys are `skills`, `personas`,
+  `invariants` and `instructions`; anything else is a validation error, so a typo cannot become
+  a silent no-op. See [declining an artifact](#declining-an-artifact) below.
 
 The full contract is [`schemas/config.schema.json`](../schemas/config.schema.json). It sets
 `additionalProperties: false`, so a stray key is a hard validation failure, not a warning.
@@ -322,7 +326,8 @@ and the scaffold reports `note: carried preserved regions into <file>`. The rule
 - **`CLAUDE.md`** — read it top to bottom once. It is what your agent reads on every turn.
 - **`.ai-badger/config.json`** — the summary and domain are yours; the rest is what you approved.
 - **Invariants** under `.ai-badger/invariants/` — these are non-negotiable rules you are agreeing
-  to. Delete the ones you do not want *before* committing.
+  to. Decline the ones you do not want by name in `config.exclude.invariants` and re-scaffold;
+  deleting the file only lasts until the next refresh (see below).
 - **`.claude/settings.json` and `.mcp.json`** — hooks and MCP servers were wired in. If your repo
   already had these files, check the merge.
 - **The printed plugin-setup commands** — these were *not* run. Run them yourself, or re-scaffold
@@ -337,6 +342,38 @@ and the scaffold reports `note: carried preserved regions into <file>`. The rule
   That is by design
   ([ADR-0003](adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md)) but it is not in your
   `git status`.
+
+### Declining an artifact
+
+Deleting a scaffolded file is not a decision the framework can read: `.ai-badger/` is tracked in
+git, so a revert, a bad merge or a stash pop would look exactly like "we do not want this". The
+next scaffold or refresh puts it back. The supported way to say no is a line in
+`.ai-badger/config.json`:
+
+```json
+"exclude": {
+  "skills": ["mcp-index"],
+  "invariants": ["pr-per-task"]
+}
+```
+
+- **What can be declined:** `skills`, `personas`, `invariants`, `instructions` — the catalog items
+  addressed by their own name. Templates, hooks and adjustments cannot: they materialise output
+  under names of their own, so an index name has nothing to point at there.
+- **What an exclusion does.** Neither `welcome-ai-badger` nor `den-refresh` delivers the item
+  again, an excluded invariant stops being rendered into `CLAUDE.md`, and the discovery symlinks
+  ai-badger placed for an excluded skill (`.claude/skills/`, `.github/skills/`,
+  `~/.hermes/skills/<project>/`) are removed. Its hooks are not wired, and one an earlier run
+  already put in `.claude/settings.json` is taken out again. An excluded `*.md` item that a
+  previous run copied under `.ai-badger/` is deleted — unless you edited it, in which case it is
+  yours and the scaffold says so.
+- **What it does not do.** A copy already under `.ai-badger/skills/<name>/` is left on disk — it
+  may hold project-local files, and a config edit does not `rm -rf` a directory behind your back.
+  The scaffold reminds you it is there; remove it by hand.
+- **Un-declining** is deleting the line. The next run delivers the item fresh.
+- **A name that matches nothing** is reported (`exclusion 'foo' matches no catalog skill — safe to
+  remove from config.json`), never fatal: when the framework drops an item you had excluded, your
+  next upgrade must not break.
 
 ---
 
