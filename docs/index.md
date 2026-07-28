@@ -41,7 +41,9 @@ Two conventions worth knowing before you read anything:
 **Decisions** — [`adr/`](adr/README.md) is the index; each entry is one decision, never edited
 after acceptance. `0001` versioning and releases · `0002` `den-refresh` · `0003` Hermes skill
 discovery · `0004` MCP tool index · `0005` one declaration of which skills ship · `0006` one
-skill-extension mechanism · `0007` ai-badger ships as files, not a Python distribution.
+skill-extension mechanism · `0007` ai-badger ships as files, not a Python distribution ·
+`0008` plugin skills live at the plugin skill path · `0009` one framework root, resolved rather
+than searched · `0010` stack-local skill discovery · `0011` `engine/`, `tooling/` and `gates/`.
 
 **Design records** — descriptions of work that shipped, kept because they explain why the code
 looks the way it does. Not plans.
@@ -51,6 +53,7 @@ looks the way it does. Not plans.
 | [specs/001-plugin-hooks-adjustments-refactor.md](specs/001-plugin-hooks-adjustments-refactor.md) | The 0.7.0 refactor: plugin → skills merge, hooks as a first-class feature, the adjustments concept, per-agent install instructions. All nine phases shipped, with two deliberate deviations named in the header |
 | [design/mcp-stack-declarations.md](design/mcp-stack-declarations.md) | Stack-declared MCP servers (0.13.0), with [its implementation plan](design/mcp-stack-declarations-impl-plan.md). Machinery complete; no stack declares a server yet and `targetAgents` is inert |
 | [design/hermes-learned-skills-sync-impl-plan.md](design/hermes-learned-skills-sync-impl-plan.md) | Hermes learned-skill sync, stages 1–6 (0.18.0). The shipped code is now ahead of this plan |
+| [design/debug-mode-and-call-behaviorist.md](design/debug-mode-and-call-behaviorist.md) | The debug log every ai-badger hook writes and the `call-behaviorist` skill that reads it (0.30.0) |
 | [research/hermes-learned-skills-sync.md](research/hermes-learned-skills-sync.md) | The research pass behind that design |
 | [research/2026-07-27-docs-structure-and-contribution.md](research/2026-07-27-docs-structure-and-contribution.md) | Sourced research on docs structure, what an OSS project must document, and contribution enforcement — the input to this tree's current shape |
 
@@ -73,10 +76,13 @@ looks the way it does. Not plans.
 
 | Document | Status |
 |---|---|
-| [plans/2026-07-27-deferred-work-plan.md](plans/2026-07-27-deferred-work-plan.md) | **Active.** Waves 6–19. Eight resolved (9, 10, 12, 13, 14, 15, 18, 19) and 11 decided by ADR-0007; Waves 6, 7, 8, 16 and 17 remain |
+| [plans/2026-07-27-deferred-work-plan.md](plans/2026-07-27-deferred-work-plan.md) | **Active.** Waves 6–19. Eight resolved (9, 10, 12, 13, 14, 15, 18, 19) and 11 decided by ADR-0007; Waves 6 and 16 shipped as 0.37.0; Waves 7, 8 and 17 remain |
+| [plans/2026-07-28-wave-6-scaffold-collaborators.md](plans/2026-07-28-wave-6-scaffold-collaborators.md) | **Complete.** Shipped as 0.37.0 — `Scaffolder`'s six mixins became composed collaborators |
+| [plans/2026-07-28-wave-16-scripts-directory.md](plans/2026-07-28-wave-16-scripts-directory.md) | **Complete.** Phase 1 shipped as 0.36.2 (`gates/`), phase 2 as 0.37.0 (`engine/` + `tooling/`, ADR-0011) |
 | [plans/2026-07-27-improvement-plan.md](plans/2026-07-27-improvement-plan.md) | **The dispatch list.** Everything open, grouped for independent agents by dependency; Wave 7 is blocked on a reproduced security regression |
 | [plans/2026-07-27-analyze-measures-the-wrong-things.md](plans/2026-07-27-analyze-measures-the-wrong-things.md) | **Next up.** Three reproduced defects in `call-behaviorist analyze`, ordered, with the red tests already parked on a branch |
-| [plans/2026-07-27-session-checkpoint-3.md](plans/2026-07-27-session-checkpoint-3.md) | **Current.** 20 commits unreleased; Wave 7 under independent review; #104 and the `analyze` defects in flight |
+| [plans/2026-07-28-session-checkpoint-4.md](plans/2026-07-28-session-checkpoint-4.md) | **Current.** Continues checkpoint 3: the backfilled release tags, and the releases that followed |
+| [plans/2026-07-27-session-checkpoint-3.md](plans/2026-07-27-session-checkpoint-3.md) | Superseded by checkpoint 4. 20 commits unreleased; Wave 7 under independent review; #104 and the `analyze` defects in flight |
 | [plans/2026-07-27-session-checkpoint-2.md](plans/2026-07-27-session-checkpoint-2.md) | Superseded. What 0.32.0 shipped, the decisions behind it, and what ADR-0007 means for Waves 6, 7, 16 and 17 |
 | [plans/2026-07-27-session-checkpoint.md](plans/2026-07-27-session-checkpoint.md) | Resume notes for the documentation work — step 1 (research) and step 2 (this refactor) done, step 3 (a docs-sync gate) sized as a wave in the plan above |
 | [plans/2026-07-26-remediation-plan.md](plans/2026-07-26-remediation-plan.md) | **Complete.** All 28 work packages shipped as 0.19.0–0.23.0; kept as the record of what was fixed |

@@ -101,7 +101,7 @@ Every release must:
 2. Add a `docs/changelog/{version}-{slug}.md` entry, and a row to the table above.
 3. Add the version to [`BREAKING_VERSIONS`](../../BREAKING_VERSIONS) if a re-scaffold is
    *required*, not merely recommended.
-4. Run `python3 scripts/version_sync.py` to propagate the version into `plugin.json`,
+4. Run `python3 tooling/version_sync.py` to propagate the version into `plugin.json`,
    `marketplace.json` and `index.json`.
 
 Whether a change *is* a release is decided by `gates/release_guard.py`, not by judgement: if it
