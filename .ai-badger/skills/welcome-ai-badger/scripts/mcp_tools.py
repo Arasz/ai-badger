@@ -1,4 +1,4 @@
-"""MCP server and external tool management for the Scaffolder.
+"""MCP servers and external tools, one of the scaffold's collaborators.
 
 Collects stack-declared MCP servers and external tools, merges them with
 user config, and scaffolds into agent-specific config files (.mcp.json,
@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
 import config_guard as cg
+from scaffold_context import ScaffoldContext
 
 # Directories user-level package managers install executables into that a non-login
 # process does not have on PATH.  (probe directory, ``${HOME}``-relative prefix emitted
@@ -79,26 +80,29 @@ HERMES_USER_CONFIG = McpDestination(
 )
 
 
-class McpToolsMixin:
-    """Mixin providing MCP server and external tool scaffolding methods."""
+class McpTools:
+    """Collects, merges and writes MCP server declarations into each agent's config file."""
+
+    def __init__(self, ctx: ScaffoldContext):
+        self.ctx = ctx
 
     # -- MCP stack declarations -------------------------------------------------------
 
-    def _collect_stack_mcp_servers(self) -> List[Dict[str, Any]]:
+    def collect_stack_mcp_servers(self) -> List[Dict[str, Any]]:
         """Read mcp-servers.json from features/common/ and each active stack.
 
         Common first, then stacks in config order.  The last writer wins on name
         conflict (later stack overrides earlier).
         """
         result = []  # type: List[Dict[str, Any]]
-        for stack in self.stacks:
-            mcp_path = self.root / "features" / stack / "mcp-servers.json"
+        for stack in self.ctx.stacks:
+            mcp_path = self.ctx.root / "features" / stack / "mcp-servers.json"
             if not mcp_path.exists():
                 continue
             try:
                 data = _json.loads(mcp_path.read_text(encoding="utf-8"))
             except (ValueError, OSError) as exc:
-                self.notes.append(
+                self.ctx.notes.append(
                     f"features/{stack}/mcp-servers.json is unreadable "
                     f"({type(exc).__name__}) — its entries were not scaffolded"
                 )
@@ -109,21 +113,21 @@ class McpToolsMixin:
                 result.append(srv)
         return result
 
-    def _collect_external_tools(self) -> List[Dict[str, Any]]:
+    def collect_external_tools(self) -> List[Dict[str, Any]]:
         """Read external-tools.json from features/common/ and each active stack.
 
         Common first, then stacks in config order.  The last writer wins on name
         conflict (later stack overrides earlier).  Mirrors _collect_stack_mcp_servers.
         """
         result = []  # type: List[Dict[str, Any]]
-        for stack in self.stacks:
-            tools_path = self.root / "features" / stack / "external-tools.json"
+        for stack in self.ctx.stacks:
+            tools_path = self.ctx.root / "features" / stack / "external-tools.json"
             if not tools_path.exists():
                 continue
             try:
                 data = _json.loads(tools_path.read_text(encoding="utf-8"))
             except (ValueError, OSError) as exc:
-                self.notes.append(
+                self.ctx.notes.append(
                     f"features/{stack}/external-tools.json is unreadable "
                     f"({type(exc).__name__}) — its entries were not scaffolded"
                 )
@@ -134,7 +138,7 @@ class McpToolsMixin:
         return result
 
     @staticmethod
-    def _merge_external_tools(
+    def merge_external_tools(
         catalog_tools: List[Dict[str, Any]],
         user_tools: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
@@ -150,7 +154,21 @@ class McpToolsMixin:
             by_name[tool["name"]] = dict(tool)
         return list(by_name.values())
 
-    def _merge_mcp_servers(
+    def fill_merged_external_tools(self) -> None:
+        """Fill ``ctx.merged_external_tools`` once, so template rendering can read it.
+
+        The cache lives on the context rather than on either collaborator: whoever renders
+        the externalTools instructions must not have to know who collected them.
+        """
+        if self.ctx.external_tools_merged:
+            return
+        self.ctx.merged_external_tools = self.merge_external_tools(
+            self.collect_external_tools(),
+            self.ctx.config.get("externalTools", []),
+        )
+        self.ctx.external_tools_merged = True
+
+    def merge_mcp_servers(
         self,
         stack_servers: List[Dict[str, Any]],
         user_tools: List[Dict[str, Any]],
@@ -171,7 +189,7 @@ class McpToolsMixin:
             merged[name] = dict(tool)
         return merged
 
-    def _split_servers_by_scope(
+    def split_servers_by_scope(
         self, servers: Dict[str, Dict[str, Any]]
     ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
         """Split merged servers into (project_servers, user_servers).
@@ -193,7 +211,7 @@ class McpToolsMixin:
         """Whether *dest* is written at all: it needs servers, and may need its owner configured."""
         if not servers:
             return False
-        return not dest.requires_owner or dest.owner in self.config.get("agents", [])
+        return not dest.requires_owner or dest.owner in self.ctx.config.get("agents", [])
 
     def _override_owner(
         self, dest: McpDestination, servers: Dict[str, Dict[str, Any]]
@@ -204,11 +222,11 @@ class McpToolsMixin:
         agent's — never whichever agent happens to come first in config.agents (F-22).
         """
         owner = dest.owner
-        if owner in self.config.get("agents", []):
+        if owner in self.ctx.config.get("agents", []):
             return owner
         dropped = sorted(name for name, srv in servers.items() if srv.get("agentOverrides"))
         if dropped:
-            self.notes.append(
+            self.ctx.notes.append(
                 f"{dest.label} written without agent overrides ({', '.join(dropped)}) — "
                 f"'{owner}' is not in config.agents and the file is read by {owner}"
             )
@@ -252,7 +270,7 @@ class McpToolsMixin:
             if args:
                 entry["args"] = args
         if dest.pin_cwd:
-            entry["cwd"] = str(self.target)
+            entry["cwd"] = str(self.ctx.target)
         if "env" in srv:
             entry["env"] = srv["env"]
         return entry
@@ -270,7 +288,7 @@ class McpToolsMixin:
             if candidate.is_file() and os.access(str(candidate), os.X_OK):
                 return prefix + "/" + command
         if shutil.which(command) is None:
-            self.notes.append(
+            self.ctx.notes.append(
                 f"MCP server '{name}' command '{command}' was not found on PATH or in any "
                 f"known user tool directory — that server will fail to start"
             )
@@ -298,9 +316,9 @@ class McpToolsMixin:
                 continue
             if recorded != entry.get("cwd") and (Path(recorded) / ".ai-badger").is_dir():
                 entry["cwd"] = recorded
-                self.notes.append(
+                self.ctx.notes.append(
                     f"MCP server '{name}': kept the recorded cwd {recorded} rather than "
-                    f"repointing it at {self.target}"
+                    f"repointing it at {self.ctx.target}"
                 )
 
     def _merge_mcp_servers_json(
@@ -317,7 +335,7 @@ class McpToolsMixin:
         section = cg.mapping_section(existing, "mcpServers") if existing is not None else None
         if section is None:
             note = note or cg.refusal(path, "mcpServers is not a mapping")
-            self.notes.append(f"{note} ({dest.consequence})")
+            self.ctx.notes.append(f"{note} ({dest.consequence})")
             return False
         if dest.pin_cwd:
             self._carry_live_cwd(section, entries)
@@ -325,7 +343,7 @@ class McpToolsMixin:
         cg.write_json_with_backup(path, existing)
         return True
 
-    def _scaffold_hermes_mcp_user(
+    def scaffold_hermes_mcp_user(
         self, user_servers: Dict[str, Dict[str, Any]]
     ) -> None:
         """Write scope:user servers into ``~/.hermes/config.yaml`` mcp.servers.
@@ -338,7 +356,7 @@ class McpToolsMixin:
         try:
             import yaml  # type: ignore
         except ImportError:
-            self.notes.append("yaml not available — skipping hermes user MCP config")
+            self.ctx.notes.append("yaml not available — skipping hermes user MCP config")
             return
 
         config_path = Path.home() / ".hermes" / "config.yaml"
@@ -348,7 +366,7 @@ class McpToolsMixin:
         section = cg.mapping_section(existing, "mcp", "servers") if existing is not None else None
         if section is None:
             note = note or cg.refusal(config_path, "mcp.servers is not a mapping")
-            self.notes.append(f"{note} ({HERMES_USER_CONFIG.consequence})")
+            self.ctx.notes.append(f"{note} ({HERMES_USER_CONFIG.consequence})")
             return
 
         section.update(self._render_entries(user_servers, HERMES_USER_CONFIG))
@@ -357,7 +375,7 @@ class McpToolsMixin:
             config_path, yaml.safe_dump(existing, default_flow_style=False)
         )
 
-    def _scaffold_claude_mcp_user(
+    def scaffold_claude_mcp_user(
         self, user_servers: Dict[str, Dict[str, Any]]
     ) -> None:
         """Write scope:user servers into ``~/.claude/settings.json`` mcpServers.
@@ -373,7 +391,7 @@ class McpToolsMixin:
             CLAUDE_USER_SETTINGS,
         )
 
-    def _generate_copilot_mcp_config(
+    def generate_copilot_mcp_config(
         self, servers: Dict[str, Dict[str, Any]]
     ) -> None:
         """Generate ``.github/copilot/mcp-config.json``.
@@ -384,40 +402,34 @@ class McpToolsMixin:
             return
 
         self._merge_mcp_servers_json(
-            self.target / ".github" / "copilot" / "mcp-config.json",
+            self.ctx.target / ".github" / "copilot" / "mcp-config.json",
             self._render_entries(servers, COPILOT_MCP_CONFIG),
             COPILOT_MCP_CONFIG,
         )
 
     # -- orchestrate ----------------------------------------------------------------
 
-    def _generate_mcp_json(self) -> None:
+    def generate_mcp_json(self) -> None:
         """Generate .mcp.json for merged stack + external tool MCP servers.
 
         Commands stay portable — no absolute paths; a bare executable found in a user tool
         directory is emitted ``${HOME}``-relative.  Only project-scoped servers are written.
         """
-        # Lazy-init: merge catalog + config external tools if not yet done
-        if not self._external_tools_merged:
-            self._merged_external_tools = self._merge_external_tools(
-                self._collect_external_tools(),
-                self.config.get("externalTools", []),
-            )
-            self._external_tools_merged = True
+        self.fill_merged_external_tools()
 
         # Collect from stacks and external tools
-        stack_servers = self._collect_stack_mcp_servers()
-        merged = self._merge_mcp_servers(stack_servers, self._merged_external_tools)
-        project_servers, _ = self._split_servers_by_scope(merged)
+        stack_servers = self.collect_stack_mcp_servers()
+        merged = self.merge_mcp_servers(stack_servers, self.ctx.merged_external_tools)
+        project_servers, _ = self.split_servers_by_scope(merged)
 
         if not self._destination_applies(MCP_JSON, project_servers):
             return
 
         mcp_servers = self._render_entries(project_servers, MCP_JSON)
         written = self._merge_mcp_servers_json(
-            self.target / ".mcp.json", mcp_servers, MCP_JSON
+            self.ctx.target / ".mcp.json", mcp_servers, MCP_JSON
         )
         if written:
-            self.notes.append(
+            self.ctx.notes.append(
                 f"generated .mcp.json with {len(mcp_servers)} external tool(s)"
             )
