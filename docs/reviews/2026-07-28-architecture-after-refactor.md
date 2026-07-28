@@ -112,10 +112,15 @@ reads as a known cost rather than a surprise.
 
 ## 5. Follow-up this suggests
 
-- `Scaffolder` at 583 lines is still the largest class in the codebase. The six public
-  delegations kept purely for API stability (`wire_statusline_capture`,
-  `unwire_statusline_capture`, `assemble_instructions_doc`, `assemble_hermes_doc` have **no
-  callers**) are the obvious first cut.
+- `Scaffolder` at 583 lines is still the largest class in the codebase. It keeps **five** public
+  delegations, of which **four have no caller on `Scaffolder`** — `wire_statusline_capture`,
+  `unwire_statusline_capture`, `assemble_instructions_doc` and `assemble_hermes_doc`. Only
+  `wire_hooks` is called. Those four are the obvious first cut.
+
+  Counted with care, because the naive grep is wrong: `.assemble_instructions_doc(` also matches
+  `self.rendering.assemble_instructions_doc(…)`, which is `run()` calling the **collaborator**
+  directly and bypassing the delegation entirely. Exclude the collaborator receivers before
+  counting.
 - `tooling-items` has the lowest cohesion of any production community (0.1133) — expected for
   five scripts that share a directory and little else, but worth watching if it grows.
 - The hub table is still entirely test helpers. Wave 15 (splitting the test files) is the change
