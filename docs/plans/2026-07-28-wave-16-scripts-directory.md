@@ -165,26 +165,121 @@ Also update, do not delete:
 
 ---
 
-# PHASE 2 — the top-level rename (**DO NOT START**)
+# PHASE 2 — `engine/` + `tooling/` (**DO NOT START**)
 
 Specified so the decision is informed, **not** authorised. Requires an explicit maintainer
-go-ahead and its own ADR (`docs/adr/0011-…`), because §1 shows it can strand consumers.
+go-ahead and its own ADR (`docs/adr/0011-…`).
 
-If it is ever approved, the only non-bricking sequence is:
+## 5a. The naming question is answered: `engine/` + `tooling/`
 
-1. **Release N** — `is_framework_root` accepts `scripts/badger_lib.py` **or**
-   `<newname>/badger_lib.py`, in `badger_lib` *and* all 10 verbatim shims. No rename yet.
-   `test_every_bootstrap_shim_is_the_same_predicate` keeps them identical.
-2. **Wait at least one release** so scaffolded projects refresh into the tolerant shim.
-3. **Release N+1** — perform the rename. Add to `BREAKING_VERSIONS`. Document that a project
-   which never refreshed during the window must run `den-refresh --root <framework checkout>`
-   once, by hand.
-4. **Release N+2** — drop the `scripts/` branch of the predicate.
+The open question below has a decision. `scripts/` becomes two directories, not one renamed one:
 
-**Open question for the maintainer, which the ADR must answer:** the engine (`badger_lib.py`,
-`unsafe_literals.py`) and the catalog tooling (`index_build`, `validate`, `sync_plugin_skills`,
-`version_sync`, `install_plugins`) are two different concerns that would need two different
-names. `catalog/`, `distribution/` and `release/` were all floated and are not synonyms.
+| New home | Files | Why |
+|---|---|---|
+| `engine/` | `badger_lib.py`, `unsafe_literals.py` | the library every shim imports; the root predicate's anchor |
+| `tooling/` | `index_build.py`, `validate.py`, `sync_plugin_skills.py`, `version_sync.py`, `install_plugins.py` | maintainer catalog/release tooling; documented in `RELEASING.md` and `CONTRIBUTING.md` |
+
+`catalog/`, `distribution/` and `release/` were rejected: each names one of the five tooling
+scripts' jobs and misnames the other four.
+
+## 5b. The bricking premise in §1 is wrong — recovery is one existing command
+
+Researched empirically on 2026-07-28; full method, fixtures and pasted output in
+[docs/research/2026-07-28-engine-tooling-split-migration.md](../research/2026-07-28-engine-tooling-split-migration.md).
+
+§1 says *"a project cannot refresh its way out of the breakage, because refreshing is what
+breaks."* That is false. Every copy of `den-refresh/SKILL.md` — catalog, plugin mirror, and the
+vendored one inside a scaffolded project — instructs the agent to run
+`"$AI_BADGER/features/common/skills/den-refresh/scripts/refresh.py" --target . --root "$AI_BADGER"`,
+i.e. the **framework's** copy carrying the **new** shim. The vendored
+`.ai-badger/skills/den-refresh/scripts/refresh.py` is what gets repaired, never what does the
+repairing. The same holds for `welcome-ai-badger` and `feed-badger`; `mcp-index` is the only
+skill that documents a vendored path, and it degrades to an ordinary CLI error.
+
+Verified against a real stranded project (scaffolded by the old layout, then the framework moved
+to `engine/` + `tooling/` and the old layout removed from the machine):
+
+```
+before: vendored shims still on the scripts/ predicate: 9 / 9
+$ new_fw/features/common/skills/den-refresh/scripts/refresh.py --target . --root new_fw
+rc: 0   reScaffolded: True   backupPath: .../.ai-badger.bckp
+after:  vendored shims still on the scripts/ predicate: 0 / 9   (all 9 import, rc=0)
+```
+
+The same command also repaired `~/.hermes/plugins/` — `adjust_hooks.py` re-copies with
+`shutil.copy2` and rewrites its own `frameworkRoot` pointer.
+
+**What §1 got right and is confirmed:** there is *no* manual escape hatch from inside a stale
+shim. `--root`, `$AI_BADGER`, the ancestor walk, the recorded root, the cache and `PYTHONPATH`
+all fail — the first two because `checked()` validates them with the *old* predicate, so
+ADR-0009 decision 2's refusal turns the operator's escape hatch into a second wall. The fix
+must come from outside the project; it just already exists.
+
+## 5c. Per-shape breakage
+
+| Shape | Stale shims | Behaviour | Recovery |
+|---|---|---|---|
+| Framework checkout | none — `git pull` replaces the tree | all 10 entry points `rc=0` | n/a |
+| Plugin cache | none — versioned dir replaced wholesale | all 8 mirrored entry points `rc=0` | n/a |
+| `.ai-badger/` scaffold | **9 files** | 6 CLIs raise at import (none of which any documented flow invokes), 3 hooks degrade to `FRAMEWORK_ROOT = None` | one den-refresh |
+| `~/.hermes/plugins/` | **2 files** | both degrade to `None`; learned-skills sync goes quiet | the same den-refresh |
+
+`drift_notice_hook.py` runs from `${CLAUDE_PLUGIN_ROOT}` (repo-root `hooks/hooks.json`), so it
+keeps firing from the self-healed plugin cache and keeps telling the user to refresh. That
+closes the recovery loop. The three hooks wired into `.claude/settings.json`
+(`session_start_hook.py`, `user_prompt_hook.py`, `commit_reminder_hook.py`) do **not** carry the
+bootstrap shim and are unaffected.
+
+## 5d. Sequencing — one release, not four
+
+The four-release tolerance ladder previously written here is **withdrawn**. A tolerant shim was
+built and does work, but it buys nothing a project that skips the window can use (verified: an
+old shim against a tolerant-split framework fails identically to no tolerance at all), while
+costing two extra releases and a period where the pinned shim invariant asserts a deliberately
+wrong predicate. A dedicated migration script was also built and works (9/9 files repaired), but
+it has the same "run it from the new framework" precondition as den-refresh while skipping the
+`.ai-badger.bckp` backup, the `~/.hermes/plugins/` re-copy and all non-shim drift — a second,
+weaker scaffolder maintained for one release. **Both rejected.**
+
+1. **Phase 1 first** (`gates/`) — independent, already in flight.
+2. **One release, one commit:** the two moves; the predicate and *both* `sys.path` inserts in
+   `badger_lib.is_framework_root` and all 10 shims; the five tooling scripts' own
+   `parent.parent / "engine"`; the four gates; `SHIPPED_PATHS`, `REQUIREMENTS`,
+   `CHECKED_ROOTS`, pylint targets, lefthook, pre-commit, CI; the 374 live references; and a
+   re-scaffold of this repo's own `.ai-badger/`.
+3. **Add the version to `BREAKING_VERSIONS`** — it repairs nothing on its own (a stranded
+   project cannot read the framework's copy), but it makes the first successful den-refresh do a
+   full backup-and-re-scaffold instead of an incremental one, which is correct when every
+   vendored script changed.
+4. **Document the one-time command** in the changelog entry and `docs/getting-started.md`
+   troubleshooting, in the `$AI_BADGER/features/…` form that needs no git clone.
+
+## 5e. Three findings that change the work, not just the sequencing
+
+1. **`unsafe_literals.py` must move with `badger_lib.py`.** There is one `sys.path` entry for
+   both. Leaving it in `scripts/` produced
+   `ModuleNotFoundError: No module named 'unsafe_literals'` in `open_pr.py` **and in
+   `learned_skills_sync.py`** — and that import sits *after* the `try` that ADR-0009 decision 5
+   relies on, so it fails the Hermes plugin load outright rather than degrading. Hard constraint;
+   assert it in a test.
+2. **A tolerant predicate is not sufficient on its own.** The last line of `_bootstrap_lib()` is
+   `sys.path.insert(0, str(root / "scripts"))`. A shim that accepts an `engine/` root and then
+   puts `scripts/` on the path resolves happily and `ImportError`s one line later. Any tolerance
+   work must make both tolerant. (Recorded because the withdrawn ladder said "predicate" only.)
+3. **`scaffold.py` bare-imports `install_plugins`** (lines 585 and 913), which works today only
+   because one `sys.path.insert` covers engine *and* tooling. After the split the shim must
+   insert **both** `engine/` and `tooling/`, in all 10 copies.
+
+Tests phase 2 must add, beyond updating `test_every_bootstrap_shim_is_the_same_predicate`:
+
+- *"the engine's two modules resolve from one sys.path entry"* — `badger_lib` and
+  `unsafe_literals` share a directory. Finding 1 is what this guards.
+- *"every documented skill invocation names a framework path, not a vendored one"* — parse the
+  `python3 "…"` lines out of each `SKILL.md`. This is the invariant the whole recoverability
+  argument rests on; if a future edit points den-refresh at `.ai-badger/`, it evaporates
+  silently.
+- a deployment-shape case asserting a stale vendored shim **degrades** rather than raising in
+  the three hook entry points.
 
 ---
 
