@@ -7,6 +7,7 @@ could only exist inside a `Scaffolder` with six collaborators built from one con
 from __future__ import annotations
 
 import ast
+import json
 import sys
 from pathlib import Path
 
@@ -113,6 +114,31 @@ def test_extensions_is_built_from_a_context_alone(tmp_path, load_script, root):
     assert "## Added" in (skill / "SKILL.md").read_text(encoding="utf-8")
     assert any("merged 1 extension section" in note for note in ctx.notes)
     assert "scaffold" not in _imported_modules(root, "extensions")
+
+
+def test_statusline_wiring_is_built_from_a_context_alone(tmp_path, load_script, root):
+    target = tmp_path / "proj"
+    (target / ".claude").mkdir(parents=True)
+    ctx = _hand_built_context(load_script, root, target)
+    ctx.config["statusLineCapture"] = {"enabled": True}
+    module = _load(load_script, root, "statusline_wiring")
+    statusline = module.StatusLineWiring(ctx)
+
+    statusline.wire()
+    assert any("the 'task' skill" in note for note in ctx.notes)
+
+    capture = ctx.aib / "skills" / module.CAPTURE_SCRIPT
+    capture.parent.mkdir(parents=True)
+    capture.write_text("", encoding="utf-8")
+    statusline.wire()
+    settings = target / ".claude" / "settings.json"
+    assert module.is_capture_command(
+        json.loads(settings.read_text(encoding="utf-8"))["statusLine"]["command"])
+
+    ctx.config["statusLineCapture"] = {"enabled": False}
+    statusline.unwire()
+    assert "statusLine" not in json.loads(settings.read_text(encoding="utf-8"))
+    assert "scaffold" not in _imported_modules(root, "statusline_wiring")
 
 
 # ----------------------------------------------------------------- step-order golden master

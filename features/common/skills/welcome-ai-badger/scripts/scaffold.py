@@ -302,7 +302,7 @@ from template_rendering import TemplateRenderingMixin  # noqa: E402
 from agent_files import AgentFilesMixin  # noqa: E402
 from extensions import Extensions  # noqa: E402
 from mcp_tools import McpToolsMixin  # noqa: E402
-from statusline_wiring import StatusLineWiringMixin  # noqa: E402
+from statusline_wiring import StatusLineWiring  # noqa: E402
 
 
 def _ctx_property(name: str) -> property:
@@ -314,7 +314,6 @@ def _ctx_property(name: str) -> property:
 class Scaffolder(
     McpToolsMixin,
     HookWiringMixin,
-    StatusLineWiringMixin,
     TemplateRenderingMixin,
     AgentFilesMixin,
 ):
@@ -350,6 +349,7 @@ class Scaffolder(
             record_template=self.record_template,
         )
         self.extensions = Extensions(self.ctx)
+        self.statusline = StatusLineWiring(self.ctx)
         self.install = install
         self.reset_seed_files = reset_seed_files
         self.execute = execute
@@ -642,6 +642,15 @@ class Scaffolder(
             self.notes.append(f"skill install warning: {w}")
         return cmds
 
+    # -- statusline capture ---------------------------------------------------------
+    def wire_statusline_capture(self) -> None:
+        """Wire the capture wrapper into .claude/settings.json, preserving the renderer."""
+        self.statusline.wire()
+
+    def unwire_statusline_capture(self) -> None:
+        """Restore the displaced renderer, or drop statusLine when there was none."""
+        self.statusline.unwire()
+
     # -- Hermes skill discovery ---------------------------------------------------
     def symlink_hermes_skills(self) -> None:
         """Link this project's skills into ~/.hermes/skills/<project>/ when hermes is an agent.
@@ -829,7 +838,7 @@ class Scaffolder(
         self.write_agent_files(doc, instr_paths, invariants)
         self._record_progress("agent-files")
         self.wire_hooks()
-        self.wire_statusline_capture()
+        self.statusline.wire()
         self.run_adjustments()
         self._record_progress("hooks")
         plugin_cmds = self.install_plugins()

@@ -1,4 +1,4 @@
-"""Statusline capture wiring for the Scaffolder.
+"""Statusline capture wiring, one of the scaffold's collaborators.
 
 Points ``.claude/settings.json`` statusLine at ai-badger's capture wrapper and records the
 renderer it displaces, so the user's own status line keeps rendering behind the capture.
@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import config_guard as cg
 from hook_wiring import PROJECT_DIR_VAR, skill_script_id
+from scaffold_context import ScaffoldContext
 
 CAPTURE_SCRIPT = "task/scripts/statusline_capture.py"
 
@@ -45,46 +46,49 @@ def read_statusline(settings: Dict[str, Any], path: Path) -> Tuple[Optional[Dict
     return entry, ""
 
 
-class StatusLineWiringMixin:
-    """Mixin providing statusline capture wiring."""
+class StatusLineWiring:
+    """Points .claude/settings.json statusLine at ai-badger's capture wrapper, or restores it."""
 
-    def _statusline_capture_enabled(self) -> bool:
-        return bool(self.config.get("statusLineCapture", {}).get("enabled")) \
-            and "claude" in self.config.get("agents", [])
+    def __init__(self, ctx: ScaffoldContext):
+        self.ctx = ctx
+
+    def _capture_enabled(self) -> bool:
+        return bool(self.ctx.config.get("statusLineCapture", {}).get("enabled")) \
+            and "claude" in self.ctx.config.get("agents", [])
 
     def _user_statusline_command(self) -> Optional[str]:
         """The command from ``~/.claude/settings.json`` statusLine, when it has one."""
         settings, note = cg.read_json_mapping(Path.home() / ".claude" / "settings.json")
         if settings is None:
-            self.notes.append(f"{note} (no delegate read from it — a user-level status "
+            self.ctx.notes.append(f"{note} (no delegate read from it — a user-level status "
                               f"line, if any, will stop rendering)")
             return None
         entry = settings.get("statusLine")
         return entry.get("command") if isinstance(entry, dict) else None
 
-    def wire_statusline_capture(self) -> None:
+    def wire(self) -> None:
         """Wire the capture wrapper into ``.claude/settings.json``, preserving the renderer.
 
         Never chains the wrapper to itself: an entry already running the capture keeps the
         delegate recorded by the run that displaced the original renderer.
         """
-        if not self._statusline_capture_enabled():
-            self.unwire_statusline_capture()
+        if not self._capture_enabled():
+            self.unwire()
             return
-        if not (self.aib / "skills" / CAPTURE_SCRIPT).is_file():
-            self.notes.append("statusline capture not wired — the 'task' skill, which owns "
+        if not (self.ctx.aib / "skills" / CAPTURE_SCRIPT).is_file():
+            self.ctx.notes.append("statusline capture not wired — the 'task' skill, which owns "
                               "the capture script, is not scaffolded")
             return
 
-        settings_path = self.target / ".claude" / "settings.json"
+        settings_path = self.ctx.target / ".claude" / "settings.json"
         settings, note = cg.read_json_mapping(settings_path)
         if settings is None:
-            self.notes.append(f"{note} (statusline capture not wired)")
+            self.ctx.notes.append(f"{note} (statusline capture not wired)")
             return
 
         existing, refusal = read_statusline(settings, settings_path)
         if existing is None:
-            self.notes.append(f"{refusal} (statusline capture not wired)")
+            self.ctx.notes.append(f"{refusal} (statusline capture not wired)")
             return
 
         current = existing.get("command", "")
@@ -93,33 +97,33 @@ class StatusLineWiringMixin:
 
         entry = dict(existing)
         entry["type"] = "command"
-        entry["command"] = capture_command(self.aib.relative_to(self.target).as_posix())
+        entry["command"] = capture_command(self.ctx.aib.relative_to(self.ctx.target).as_posix())
         settings["statusLine"] = entry
         cg.write_json_with_backup(settings_path, settings)
-        self.notes.append("wired statusline capture into .claude/settings.json")
+        self.ctx.notes.append("wired statusline capture into .claude/settings.json")
 
-    def unwire_statusline_capture(self) -> None:
+    def unwire(self) -> None:
         """Restore the displaced renderer, or drop ``statusLine`` when there was none.
 
         Only ever touches a ``statusLine`` running ai-badger's own wrapper: a renderer the
         scaffolder never displaced is not the scaffolder's to remove.
         """
-        settings_path = self.target / ".claude" / "settings.json"
+        settings_path = self.ctx.target / ".claude" / "settings.json"
         if not settings_path.exists():
             return
         settings, note = cg.read_json_mapping(settings_path)
         if settings is None:
-            self.notes.append(f"{note} (statusline capture not unwired)")
+            self.ctx.notes.append(f"{note} (statusline capture not unwired)")
             return
 
         existing, _ = read_statusline(settings, settings_path)
         if not existing or not is_capture_command(existing.get("command", "")):
             return
 
-        record_path = self.target / DELEGATE_RECORD
+        record_path = self.ctx.target / DELEGATE_RECORD
         record, record_note = cg.read_json_mapping(record_path)
         if record is None:
-            self.notes.append(f"{record_note} (statusline capture left wired — the renderer "
+            self.ctx.notes.append(f"{record_note} (statusline capture left wired — the renderer "
                               "it displaced cannot be read back)")
             return
 
@@ -132,8 +136,8 @@ class StatusLineWiringMixin:
         else:
             del settings["statusLine"]
         cg.write_json_with_backup(settings_path, settings)
-        self.notes.append("unwired statusline capture from .claude/settings.json")
+        self.ctx.notes.append("unwired statusline capture from .claude/settings.json")
 
     def _record_delegate(self, command: Optional[str]) -> None:
         """Record the renderer the wrapper delegates to; ``None`` means capture only."""
-        cg.write_json_with_backup(self.target / DELEGATE_RECORD, {"command": command})
+        cg.write_json_with_backup(self.ctx.target / DELEGATE_RECORD, {"command": command})
