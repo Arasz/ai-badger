@@ -3,7 +3,7 @@
 
 CONTRIBUTING.md's "do not add a third runtime dependency without a very good reason" had no
 mechanical backing, and an undeclared import is invisible until it crashes in a consumer repo.
-The gate parses every `*.py` under scripts/ and features/ with `ast` — it never imports the
+The gate parses every `*.py` under scripts/, features/ and gates/ with `ast` — it never imports the
 module, so a file with a top-level side effect is read, not run — and sorts each imported
 top-level name into one of three buckets:
 
@@ -41,10 +41,11 @@ import sysconfig
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Sequence, Set, Tuple
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# The engine stays in scripts/: is_framework_root anchors on scripts/badger_lib.py.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import badger_lib as bl
 
-CODE_ROOTS = ("scripts", "features")
+CODE_ROOTS = ("scripts", "features", "gates")
 REQUIREMENTS = "scripts/requirements.txt"
 SITE_DIRS = ("site-packages", "dist-packages")
 RESOLUTION_ERRORS = (ImportError, AttributeError, OSError, TypeError, ValueError)

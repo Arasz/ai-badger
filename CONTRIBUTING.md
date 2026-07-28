@@ -53,8 +53,8 @@ Runtime dependencies are deliberately minimal, and the two behave differently on
 
 Everything else is standard library. **Do not add a third runtime dependency without a very good
 reason**; if you must, decide deliberately which of these two shapes it takes and say so here.
-`scripts/deps_guard.py` enforces the declaration half of that rule: it parses every `*.py` under
-`scripts/` and `features/` and fails on a third-party import — including one hidden inside a
+`gates/deps_guard.py` enforces the declaration half of that rule: it parses every `*.py` under
+`scripts/`, `features/` and `gates/` and fails on a third-party import — including one hidden inside a
 function or a `try:` block — that `scripts/requirements.txt` does not declare.
 
 Optionally install the pre-commit hooks, which run six of the gates locally:
@@ -119,8 +119,8 @@ that demanded it.
 .venv/bin/python3 -m pytest -q                           # green
 ```
 
-`scripts/tdd_guard.py` checks the one thing a machine can: that a change to `.py` or `.mjs` under
-`scripts/` or `features/` came with a change to a test file. It is a signal, not a proof — it
+`gates/tdd_guard.py` checks the one thing a machine can: that a change to `.py` or `.mjs` under
+`scripts/`, `features/` or `gates/` came with a change to a test file. It is a signal, not a proof — it
 cannot tell a real test from an empty one, so passing it is not the point; writing the test first
 is.
 
@@ -154,10 +154,11 @@ or removing a catalog entry, and commit the result. Never edit it by hand.
 ### 5. Decide whether this is a release
 
 Run the release guard. It compares the shipped surface (`features/`, `scripts/`, `schemas/`,
-`index.json`, `skills/`) against the **last release tag** — not the previous commit:
+`index.json`, `skills/`) against the **last release tag** — not the previous commit. `gates/` is
+not shipped surface: a change confined to the repo gates needs no bump.
 
 ```bash
-.venv/bin/python3 scripts/release_guard.py
+.venv/bin/python3 gates/release_guard.py
 ```
 
 - **It passes and reports no shipped-surface change** (docs-only, tests-only): do *not* bump
@@ -195,10 +196,10 @@ green local run means a green build:
 .venv/bin/python3 scripts/sync_plugin_skills.py --check
 .venv/bin/python3 scripts/validate.py --all
 .venv/bin/python3 scripts/version_sync.py --check
-.venv/bin/python3 scripts/docs_guard.py
-.venv/bin/python3 scripts/deps_guard.py
-.venv/bin/python3 scripts/release_guard.py
-.venv/bin/python3 scripts/tdd_guard.py --base origin/main
+.venv/bin/python3 gates/docs_guard.py
+.venv/bin/python3 gates/deps_guard.py
+.venv/bin/python3 gates/release_guard.py
+.venv/bin/python3 gates/tdd_guard.py --base origin/main
 node --test "tests/js/*.test.mjs"
 ```
 

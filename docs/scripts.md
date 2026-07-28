@@ -18,12 +18,22 @@ python3 -m pip install -r scripts/requirements.txt   # jsonschema
 | `validate.py` | Validate config / catalog JSON against `schemas/`. | `python3 scripts/validate.py --all` or `--kind config <file>`. |
 | `badger_lib.py` | Shared helpers (root discovery, atomic JSON write, sha256, index read). Imported by the other scripts; not run directly. | — |
 | `version_sync.py` | Propagate `VERSION` into `plugin.json`, `marketplace.json`, `index.json`. | `python3 scripts/version_sync.py` — `--check` fails CI on mismatch. |
-| `release_guard.py` | Fail if the shipped surface changed since the last release tag without a `VERSION` bump. | `python3 scripts/release_guard.py` (needs `fetch-depth: 0` in CI). |
-| `docs_guard.py` | Fail if a relative link or a backticked repo path in the docs no longer resolves, or a changelog entry is missing from its index. | `python3 scripts/docs_guard.py`; exempt a path in `.docs-guard-ignore`. |
-| `deps_guard.py` | Fail if any `*.py` under `scripts/` or `features/` imports a third-party module that `scripts/requirements.txt` does not declare. Imports inside functions and `try:` blocks count. | `python3 scripts/deps_guard.py` |
 | `sync_plugin_skills.py` | Refresh the published `skills/` copy from `features/`. | `python3 scripts/sync_plugin_skills.py` — `--check` fails on divergence. |
 | `install_plugins.py` | Resolve per-agent skill install commands from `plugins-instructions.json`. Print-only; `scaffold.py --execute` runs them. | `python3 scripts/install_plugins.py --config <config.json>` |
 | `drift.py` (in `welcome-ai-badger`) | Compare a scaffold against the framework's current content. | See den-refresh. |
+
+## Repo gates (`gates/`)
+
+Run only by CI and the pre-push hook, never by a consumer of the plugin, so they live apart
+from the engine and the catalog tooling. They are not shipped surface: a gate-only change does
+not require a `VERSION` bump.
+
+| Gate | What it does | Run |
+|--------|--------------|-----|
+| `release_guard.py` | Fail if the shipped surface changed since the last release tag without a `VERSION` bump. | `python3 gates/release_guard.py` (needs `fetch-depth: 0` in CI). |
+| `docs_guard.py` | Fail if a relative link or a backticked repo path in the docs no longer resolves, or a changelog entry is missing from its index. | `python3 gates/docs_guard.py`; exempt a path in `.docs-guard-ignore`. |
+| `deps_guard.py` | Fail if any `*.py` under `scripts/`, `features/` or `gates/` imports a third-party module that `scripts/requirements.txt` does not declare. Imports inside functions and `try:` blocks count. | `python3 gates/deps_guard.py` |
+| `tdd_guard.py` | Fail if `.py`/`.mjs` under `scripts/`, `features/` or `gates/` changed since `--base` and nothing under `tests/` did. | `python3 gates/tdd_guard.py --base origin/main` |
 
 ## welcome-ai-badger (`features/common/skills/welcome-ai-badger/scripts/`)
 

@@ -1,4 +1,4 @@
-"""Tests for scripts/release_guard.py: shipped-surface-changed-without-a-bump gate.
+"""Tests for gates/release_guard.py: shipped-surface-changed-without-a-bump gate.
 
 Builds throwaway git repos under tmp_path (git init + commits + tags) since the guard is
 inherently git-shaped; tests/conftest.py has no existing git-repo helpers to reuse.
@@ -34,7 +34,7 @@ def _tag(repo, name):
 def test_latest_release_tag_selects_highest_semver_not_lexicographic_or_latest_date(
     tmp_path, load_script,
 ):
-    release_guard = load_script("scripts/release_guard.py")
+    release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
 
     (repo / "VERSION").write_text("0.10.0\n", encoding="utf-8")
@@ -51,7 +51,7 @@ def test_latest_release_tag_selects_highest_semver_not_lexicographic_or_latest_d
 
 
 def test_no_release_tag_passes_with_explanatory_message(tmp_path, load_script, capsys):
-    release_guard = load_script("scripts/release_guard.py")
+    release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
     (repo / "VERSION").write_text("0.1.0\n", encoding="utf-8")
     _commit_all(repo, "init")
@@ -64,7 +64,7 @@ def test_no_release_tag_passes_with_explanatory_message(tmp_path, load_script, c
 
 
 def test_fails_when_shipped_path_changed_without_version_bump(tmp_path, load_script, capsys):
-    release_guard = load_script("scripts/release_guard.py")
+    release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
     (repo / "VERSION").write_text("0.1.0\n", encoding="utf-8")
     (repo / "skills").mkdir()
@@ -84,7 +84,7 @@ def test_fails_when_shipped_path_changed_without_version_bump(tmp_path, load_scr
 
 
 def test_passes_when_shipped_path_changed_and_version_was_bumped(tmp_path, load_script, capsys):
-    release_guard = load_script("scripts/release_guard.py")
+    release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
     (repo / "VERSION").write_text("0.1.0\n", encoding="utf-8")
     (repo / "skills").mkdir()
@@ -102,7 +102,7 @@ def test_passes_when_shipped_path_changed_and_version_was_bumped(tmp_path, load_
 
 
 def test_passes_when_only_non_shipped_paths_changed_without_a_bump(tmp_path, load_script):
-    release_guard = load_script("scripts/release_guard.py")
+    release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
     (repo / "VERSION").write_text("0.1.0\n", encoding="utf-8")
     (repo / "skills").mkdir()
@@ -123,7 +123,7 @@ def test_passes_when_only_non_shipped_paths_changed_without_a_bump(tmp_path, loa
 def test_several_commits_can_land_at_one_unreleased_version_against_last_tag(
     tmp_path, load_script,
 ):
-    release_guard = load_script("scripts/release_guard.py")
+    release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
     (repo / "VERSION").write_text("0.1.0\n", encoding="utf-8")
     (repo / "skills").mkdir()
@@ -170,7 +170,7 @@ def _break_git_subcommand(monkeypatch, release_guard, subcommand):
 
 
 def test_git_failure_is_not_reported_as_no_changes(tmp_path, load_script, capsys, monkeypatch):
-    release_guard = load_script("scripts/release_guard.py")
+    release_guard = load_script("gates/release_guard.py")
     repo = _released_repo(tmp_path)
     _break_git_subcommand(monkeypatch, release_guard, "diff")
 
@@ -185,7 +185,7 @@ def test_git_failure_is_not_reported_as_no_changes(tmp_path, load_script, capsys
 def test_git_failure_listing_tags_is_not_reported_as_no_release_tag(
     tmp_path, load_script, capsys, monkeypatch,
 ):
-    release_guard = load_script("scripts/release_guard.py")
+    release_guard = load_script("gates/release_guard.py")
     repo = _released_repo(tmp_path)
     _break_git_subcommand(monkeypatch, release_guard, "tag")
 
@@ -198,7 +198,7 @@ def test_git_failure_listing_tags_is_not_reported_as_no_release_tag(
 
 
 def test_git_failure_reports_the_command_and_stderr(tmp_path, load_script, capsys, monkeypatch):
-    release_guard = load_script("scripts/release_guard.py")
+    release_guard = load_script("gates/release_guard.py")
     repo = _released_repo(tmp_path)
     _break_git_subcommand(monkeypatch, release_guard, "diff")
 
@@ -216,7 +216,7 @@ def _changelog(repo, *versions):
 
 
 def test_versions_documented_but_never_tagged_fail_the_guard(tmp_path, load_script, capsys):
-    release_guard = load_script("scripts/release_guard.py")
+    release_guard = load_script("gates/release_guard.py")
     repo = _released_repo(tmp_path)
     _changelog(repo, "0.1.0", "0.2.0", "0.3.0", "0.4.0")
     (repo / "VERSION").write_text("0.4.0\n", encoding="utf-8")
@@ -236,7 +236,7 @@ def test_an_untagged_release_fails_even_when_the_shipped_surface_is_unchanged(
     tmp_path, load_script, capsys,
 ):
     """The shape that let 0.35.0-0.35.2 ship untagged: a docs-only push after a release."""
-    release_guard = load_script("scripts/release_guard.py")
+    release_guard = load_script("gates/release_guard.py")
     repo = _released_repo(tmp_path)
     _changelog(repo, "0.1.0", "0.2.0", "0.3.0")
     (repo / "VERSION").write_text("0.3.0\n", encoding="utf-8")
@@ -252,7 +252,7 @@ def test_an_untagged_release_fails_even_when_the_shipped_surface_is_unchanged(
 
 def test_a_changelog_entry_for_the_tagged_version_is_not_reported(tmp_path, load_script, capsys):
     """`low < version` is strict: the last released version is tagged, by definition."""
-    release_guard = load_script("scripts/release_guard.py")
+    release_guard = load_script("gates/release_guard.py")
     repo = _released_repo(tmp_path)
     _changelog(repo, "0.1.0", "0.2.0")
     (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
@@ -266,7 +266,7 @@ def test_a_changelog_entry_for_the_tagged_version_is_not_reported(tmp_path, load
 
 
 def test_the_version_in_flight_alone_is_not_reported_as_untagged(tmp_path, load_script, capsys):
-    release_guard = load_script("scripts/release_guard.py")
+    release_guard = load_script("gates/release_guard.py")
     repo = _released_repo(tmp_path)
     _changelog(repo, "0.1.0", "0.2.0")
     (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
@@ -281,7 +281,7 @@ def test_the_version_in_flight_alone_is_not_reported_as_untagged(tmp_path, load_
 
 
 def test_git_helper_raises_rather_than_returning_empty_output(tmp_path, load_script):
-    release_guard = load_script("scripts/release_guard.py")
+    release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
 
     with pytest.raises(release_guard.GitCommandFailed):

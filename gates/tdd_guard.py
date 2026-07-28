@@ -7,7 +7,7 @@ none (review F-41). The gate is deliberately a *signal*, not a proof: nothing he
 a real test from an empty one. It checks the one thing a machine can — that a change to
 executable code touched tests at all.
 
-Scope: .py and .mjs under scripts/ and features/. Catalog JSON is covered by
+Scope: .py and .mjs under scripts/, features/ and gates/. Catalog JSON is covered by
 `validate.py --all`, and documentation by review, so neither counts as code here.
 
 Escape hatch: put `[no-tests]` in a commit message in the range. It is printed, so an
@@ -23,10 +23,11 @@ import sys
 from pathlib import Path
 from typing import List
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# The engine stays in scripts/: is_framework_root anchors on scripts/badger_lib.py.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import badger_lib as bl
 
-CODE_ROOTS = ("scripts/", "features/")
+CODE_ROOTS = ("scripts/", "features/", "gates/")
 CODE_SUFFIXES = (".py", ".mjs")
 TEST_PREFIX = "tests/"
 SKIP_MARKER = "[no-tests]"

@@ -1,4 +1,4 @@
-"""Tests for scripts/tdd_guard.py: shipped-code change without a test change.
+"""Tests for gates/tdd_guard.py: shipped-code change without a test change.
 
 "TDD is mandatory" is the only non-negotiable invariant with no mechanical backing, while
 its siblings have release_guard, version_sync --check and index_build --check (review F-41).
@@ -38,7 +38,7 @@ def _commit(repo, files, message="change"):
 
 
 def test_code_change_without_a_test_change_fails(tmp_path, load_script, capsys):
-    guard = load_script("scripts/tdd_guard.py")
+    guard = load_script("gates/tdd_guard.py")
     repo = _repo(tmp_path)
     _commit(repo, {"scripts/thing.py": "x = 1\n"})
 
@@ -50,7 +50,7 @@ def test_code_change_without_a_test_change_fails(tmp_path, load_script, capsys):
 
 
 def test_code_change_with_a_test_change_passes(tmp_path, load_script):
-    guard = load_script("scripts/tdd_guard.py")
+    guard = load_script("gates/tdd_guard.py")
     repo = _repo(tmp_path)
     _commit(repo, {"scripts/thing.py": "x = 1\n", "tests/test_thing.py": "def test_x(): pass\n"})
 
@@ -58,7 +58,7 @@ def test_code_change_with_a_test_change_passes(tmp_path, load_script):
 
 
 def test_documentation_only_change_passes(tmp_path, load_script):
-    guard = load_script("scripts/tdd_guard.py")
+    guard = load_script("gates/tdd_guard.py")
     repo = _repo(tmp_path)
     _commit(repo, {"features/common/skills/task/SKILL.md": "# task\n", "README.md": "docs\n"})
 
@@ -67,7 +67,7 @@ def test_documentation_only_change_passes(tmp_path, load_script):
 
 def test_catalog_json_change_without_tests_passes(tmp_path, load_script):
     """Catalog data is covered by validate.py --all, not by unit tests."""
-    guard = load_script("scripts/tdd_guard.py")
+    guard = load_script("gates/tdd_guard.py")
     repo = _repo(tmp_path)
     _commit(repo, {"features/python/stack.json": "{}\n"})
 
@@ -75,7 +75,7 @@ def test_catalog_json_change_without_tests_passes(tmp_path, load_script):
 
 
 def test_javascript_change_without_tests_fails(tmp_path, load_script):
-    guard = load_script("scripts/tdd_guard.py")
+    guard = load_script("gates/tdd_guard.py")
     repo = _repo(tmp_path)
     _commit(repo, {"features/common/skills/x/scripts/tool.mjs": "export const a = 1;\n"})
 
@@ -83,7 +83,7 @@ def test_javascript_change_without_tests_fails(tmp_path, load_script):
 
 
 def test_js_change_with_a_js_test_passes(tmp_path, load_script):
-    guard = load_script("scripts/tdd_guard.py")
+    guard = load_script("gates/tdd_guard.py")
     repo = _repo(tmp_path)
     _commit(repo, {
         "features/common/skills/x/scripts/tool.mjs": "export const a = 1;\n",
@@ -94,7 +94,7 @@ def test_js_change_with_a_js_test_passes(tmp_path, load_script):
 
 
 def test_an_explicit_marker_in_the_commit_message_is_honoured(tmp_path, load_script, capsys):
-    guard = load_script("scripts/tdd_guard.py")
+    guard = load_script("gates/tdd_guard.py")
     repo = _repo(tmp_path)
     _commit(repo, {"scripts/thing.py": "x = 1\n"}, message="mechanical rename [no-tests]")
 
@@ -105,14 +105,14 @@ def test_an_explicit_marker_in_the_commit_message_is_honoured(tmp_path, load_scr
 
 
 def test_no_changes_at_all_passes(tmp_path, load_script):
-    guard = load_script("scripts/tdd_guard.py")
+    guard = load_script("gates/tdd_guard.py")
     repo = _repo(tmp_path)
 
     assert guard.main(["--root", str(repo), "--base", "main"]) == 0
 
 
 def test_a_missing_base_ref_is_reported_not_silently_passed(tmp_path, load_script, capsys):
-    guard = load_script("scripts/tdd_guard.py")
+    guard = load_script("gates/tdd_guard.py")
     repo = _repo(tmp_path)
 
     rc = guard.main(["--root", str(repo), "--base", "origin/does-not-exist"])
@@ -123,7 +123,7 @@ def test_a_missing_base_ref_is_reported_not_silently_passed(tmp_path, load_scrip
 
 def test_a_new_untracked_code_file_counts_as_a_change(tmp_path, load_script, capsys):
     """`git diff` does not list untracked files; a brand-new script must still count."""
-    guard = load_script("scripts/tdd_guard.py")
+    guard = load_script("gates/tdd_guard.py")
     repo = _repo(tmp_path)
     (repo / "scripts" / "brand_new.py").write_text("x = 1\n", encoding="utf-8")
 
@@ -134,7 +134,7 @@ def test_a_new_untracked_code_file_counts_as_a_change(tmp_path, load_script, cap
 
 
 def test_a_new_untracked_test_file_satisfies_the_gate(tmp_path, load_script):
-    guard = load_script("scripts/tdd_guard.py")
+    guard = load_script("gates/tdd_guard.py")
     repo = _repo(tmp_path)
     (repo / "scripts" / "brand_new.py").write_text("x = 1\n", encoding="utf-8")
     (repo / "tests" / "test_brand_new.py").write_text("def test_x(): pass\n", encoding="utf-8")

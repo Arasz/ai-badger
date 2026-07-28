@@ -43,13 +43,14 @@ from pathlib import Path
 from typing import List, NamedTuple, Sequence, Tuple
 from urllib.parse import unquote
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# The engine stays in scripts/: is_framework_root anchors on scripts/badger_lib.py.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import badger_lib as bl
 
 DOCS_DIR = "docs"
 IGNORE_FILE = ".docs-guard-ignore"
 BUILTIN_EXEMPT = ("docs/archive/",)
-CHECKED_ROOTS = ("scripts", "features", "schemas", "hooks", "tests", "docs", ".github",
+CHECKED_ROOTS = ("scripts", "gates", "features", "schemas", "hooks", "tests", "docs", ".github",
                  ".claude-plugin")
 RECORD_DIRS = ("docs/adr/", "docs/changelog/", "docs/design/", "docs/incidents/", "docs/plans/",
                "docs/research/", "docs/reviews/", "docs/specs/")
