@@ -38,6 +38,7 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
    ```bash
    python3 "$AI_BADGER/features/common/skills/den-refresh/scripts/refresh.py" --target . --root "$AI_BADGER"
    ```
+   Add `--prune-cache` only when the user has asked for it (see step 3).
    This:
    - Validates that config.json and manifest.json exist
    - Reads the manifest to extract scaffolded skill names
@@ -58,13 +59,24 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
    - `newStacks` — stacks detectable in the target but missing from config
    - `reScaffolded` — whether a re-scaffold was performed
    - `scaffold` — if re-scaffolded: entry count, refreshed skill names, notes
+   - `frameworkCopies` — present only when more than one tree on the machine claims to be
+     ai-badger, or when `~/.ai-badger/framework` exists. `competing` names the path, version
+     and owner of each; `cache` reports what happened to `~/.ai-badger/framework`
+     (`reported` by default, `removed` with `--prune-cache`, `refused` with the reason)
 
-3. **Review the diff.** After re-scaffold, `git diff` shows exactly what
+3. **Surface competing copies.** When the report carries `frameworkCopies`, tell the user which
+   trees exist and at what versions — a drift notice fires once per tree, so two contradictory
+   notices mean two installs, not a framework bug. `~/.ai-badger/framework` is ai-badger's own
+   fallback clone and nothing updates it in place; offer to re-run with `--prune-cache` to
+   remove it. **Never offer to delete `~/.claude/plugins/cache/`** — Claude Code owns that path
+   and ai-badger only reads it.
+
+4. **Review the diff.** After re-scaffold, `git diff` shows exactly what
    changed. Seed-once files (state.json, markers-context.json, model.json) are
    preserved and won't appear in the diff unless they were mutated by the
    project before the refresh.
 
-4. **Commit or discard.** Managed files should be committed to pick up the
+5. **Commit or discard.** Managed files should be committed to pick up the
    framework updates. Seed-once files are project-owned and never overwritten.
 
 ## How it differs from `welcome-ai-badger`
@@ -104,6 +116,11 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
 - **Managed files are overwritten.** Everything else under `.ai-badger/` that
   the framework originally placed is refreshed to the framework's current
   content. Review the diff before committing.
+- **Only `~/.ai-badger/framework` is ever pruned, and only on request.** ai-badger created
+  that clone, so it may remove it — never silently, only under `--prune-cache`, never when it
+  is the root in use, and never when the path is a symlink or holds one that leaves it. Every
+  other tree (Claude Code's plugin cache, a framework checkout) is reported and left alone: no
+  command destroys state it did not create.
 
 ## Notes
 

@@ -79,6 +79,10 @@ If `index.json` is missing or stale, run `python3 "$AI_BADGER/tooling/index_buil
 
 6. **Verify & report.** Confirm the scaffold matches the stacks (no leakage from unselected
    stacks). Summarize what was written, the plugin commands, and any notes the script emitted.
+   When the output ends with a list of trees that "claim to be ai-badger", relay it: a drift
+   notice fires once per tree, so competing copies explain contradictory notices. Scaffolding
+   deletes nothing in the home directory — `den-refresh --prune-cache` is the one command that
+   removes `~/.ai-badger/framework`, and `~/.claude/plugins/cache/` is Claude Code's to manage.
 
 ## Notes
 
