@@ -113,7 +113,7 @@ def test_refresh_reports_up_to_date_when_no_drift(tmp_path, load_script, root):
     _write_fw_index(fw)
 
     # We need badger_lib from the test framework, not the mock
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     entry_hash = bl.sha256_file(src)
 
     proj = tmp_path / "proj"
@@ -364,7 +364,7 @@ def test_refresh_updates_framework_version_when_no_drift_but_version_bumped(
     """When the framework VERSION is bumped but files haven't changed,
     config.frameworkVersion must still be synced to the current version."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     # Framework at v0.4.0 (version bumped, but same file content)
     fw = tmp_path / "fw"
@@ -417,7 +417,7 @@ def test_refresh_relinks_hermes_skills(tmp_path, load_script, root):
     from unittest.mock import patch
 
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     fw = tmp_path / "fw"
     fw.mkdir()

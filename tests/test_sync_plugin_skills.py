@@ -1,4 +1,4 @@
-"""Tests for scripts/sync_plugin_skills.py — plugin skill directory sync (F-01, F-17)."""
+"""Tests for tooling/sync_plugin_skills.py — plugin skill directory sync (F-01, F-17)."""
 from __future__ import annotations
 
 import json
@@ -30,7 +30,7 @@ class TestSyncSkillDryRun:
     """sync_skill(..., dry_run=True) must never mutate dest."""
 
     def test_dry_run_leaves_dest_byte_identical(self, tmp_path, load_script):
-        sps = load_script("scripts/sync_plugin_skills.py")
+        sps = load_script("tooling/sync_plugin_skills.py")
         src = tmp_path / "src" / "some-skill"
         dest = tmp_path / "dest" / "some-skill"
         _write_tree(src, {"SKILL.md": "new content that must not land"})
@@ -43,7 +43,7 @@ class TestSyncSkillDryRun:
         assert after == before
 
     def test_dry_run_reports_would_sync_without_deleting(self, tmp_path, load_script):
-        sps = load_script("scripts/sync_plugin_skills.py")
+        sps = load_script("tooling/sync_plugin_skills.py")
         src = tmp_path / "src" / "some-skill"
         dest = tmp_path / "dest" / "some-skill"
         _write_tree(src, {"SKILL.md": "new content"})
@@ -66,7 +66,7 @@ class TestMainPrintReflectsResult:
         return tmp_path
 
     def test_missing_source_dir_prints_no_success_line(self, tmp_path, load_script, monkeypatch, capsys):
-        sps = load_script("scripts/sync_plugin_skills.py")
+        sps = load_script("tooling/sync_plugin_skills.py")
         fw = self._setup_framework(tmp_path)
         monkeypatch.setattr(sps, "ROOT", fw)
         monkeypatch.setattr(sps, "TARGET", fw / "skills")
@@ -82,7 +82,7 @@ class TestMainPrintReflectsResult:
     def test_missing_source_dir_prints_no_success_line_non_dry_run(
         self, tmp_path, load_script, monkeypatch, capsys
     ):
-        sps = load_script("scripts/sync_plugin_skills.py")
+        sps = load_script("tooling/sync_plugin_skills.py")
         fw = self._setup_framework(tmp_path)
         monkeypatch.setattr(sps, "ROOT", fw)
         monkeypatch.setattr(sps, "TARGET", fw / "skills")
@@ -100,7 +100,7 @@ class TestManagedExternallyNeverTouched:
     """Names in MANAGED_EXTERNALLY must be skipped entirely, dest untouched."""
 
     def test_managed_externally_skill_is_left_alone(self, tmp_path, load_script, monkeypatch, capsys):
-        sps = load_script("scripts/sync_plugin_skills.py")
+        sps = load_script("tooling/sync_plugin_skills.py")
         common_skills = tmp_path / "features" / "common" / "skills"
         _write_tree(common_skills / "debug-issue", {"SKILL.md": "framework version"})
         dest = tmp_path / "skills" / "debug-issue"
@@ -125,7 +125,7 @@ class TestSyncSkillRealCopy:
     """A real (non-dry) sync must copy content and honour SKIP_PATTERNS."""
 
     def test_real_sync_copies_and_skips_patterns(self, tmp_path, load_script):
-        sps = load_script("scripts/sync_plugin_skills.py")
+        sps = load_script("tooling/sync_plugin_skills.py")
         src = tmp_path / "src" / "some-skill"
         dest = tmp_path / "dest" / "some-skill"
         _write_tree(src, {
@@ -148,7 +148,7 @@ class TestSyncSkillRealCopy:
         assert not (dest / "__pycache__").exists()
 
     def test_missing_source_returns_zero_and_leaves_dest(self, tmp_path, load_script):
-        sps = load_script("scripts/sync_plugin_skills.py")
+        sps = load_script("tooling/sync_plugin_skills.py")
         src = tmp_path / "src" / "does-not-exist"
         dest = tmp_path / "dest" / "some-skill"
         _write_tree(dest, {"SKILL.md": "unchanged"})
@@ -164,7 +164,7 @@ class TestSyncSkillRealCopy:
 @pytest.fixture
 def temp_framework(tmp_path, load_script, monkeypatch):
     """A sync script bound to a throwaway framework tree with one common + one claude skill."""
-    sps = load_script("scripts/sync_plugin_skills.py")
+    sps = load_script("tooling/sync_plugin_skills.py")
     _write_tree(tmp_path / "features" / "common" / "skills" / "task", {
         "SKILL.md": "task skill",
         "scripts/helper.py": "print('hi')",
@@ -234,7 +234,7 @@ class TestCheckMode:
         assert after == before
 
     def test_check_mode_ignores_managed_externally(self, tmp_path, load_script, monkeypatch):
-        sps = load_script("scripts/sync_plugin_skills.py")
+        sps = load_script("tooling/sync_plugin_skills.py")
         _write_tree(tmp_path / "features" / "common" / "skills" / "debug-issue",
                     {"SKILL.md": "framework version"})
         _write_tree(tmp_path / "skills" / "debug-issue",
@@ -255,10 +255,10 @@ class TestRealCatalogParity:
     """The shipped skills/ copy of this repo must match features/ at all times."""
 
     def test_repo_plugin_copy_is_in_sync(self, load_script):
-        sps = load_script("scripts/sync_plugin_skills.py")
+        sps = load_script("tooling/sync_plugin_skills.py")
 
         assert sps.main(["--check"]) == 0, (
-            "run `python3 scripts/sync_plugin_skills.py` to refresh skills/"
+            "run `python3 tooling/sync_plugin_skills.py` to refresh skills/"
         )
 
 
@@ -277,7 +277,7 @@ class TestCatalogRouting:
     """Every catalogued skill must reach users by a route somebody chose on purpose."""
 
     def test_every_catalog_skill_is_reachable_by_a_declared_route(self, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
 
         # Stack-local skills (no scope in SKILL_SCOPES) are reachable via their
         # stack's index entry — the Scaffolder discovers them when the stack is
@@ -294,27 +294,27 @@ class TestCatalogRouting:
         )
 
     def test_scope_declarations_name_only_real_skills(self, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
 
         assert not sorted(set(bl.SKILL_SCOPES) - _catalog_skill_names(root))
 
     def test_default_scope_skills_ship_in_the_plugin_copy(self, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
-        sps = load_script("scripts/sync_plugin_skills.py")
+        bl = load_script("engine/badger_lib.py")
+        sps = load_script("tooling/sync_plugin_skills.py")
         shipped = set(sps.COMMON_SKILLS) | set(sps.CLAUDE_SKILLS)
 
         for name in bl.default_skill_names():
             assert name in shipped, f"{name} is scope 'default' but the plugin ships no copy"
 
     def test_the_review_checklist_ships_with_every_project(self, load_script):
-        bl = load_script("scripts/badger_lib.py")
-        sps = load_script("scripts/sync_plugin_skills.py")
+        bl = load_script("engine/badger_lib.py")
+        sps = load_script("tooling/sync_plugin_skills.py")
 
         assert bl.skill_scope("code-review-checklist") == bl.SKILL_SCOPE_DEFAULT
         assert "code-review-checklist" in sps.COMMON_SKILLS
 
     def test_an_undeclared_skill_is_refused_rather_than_guessed(self, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
 
         with pytest.raises(bl.UnknownSkillScope):
             bl.skill_scope("no-such-skill")

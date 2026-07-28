@@ -23,9 +23,13 @@ features:
   - changed-files:
       - any-glob-to-any-file: "features/**"
 
+# The label name is fixed by the repo's label set; the directory it named split into
+# engine/ + tooling/ (ADR-0011).
 scripts:
   - changed-files:
-      - any-glob-to-any-file: "scripts/**"
+      - any-glob-to-any-file:
+          - "engine/**"
+          - "tooling/**"
 
 skill:welcome-ai-badger:
   - changed-files:

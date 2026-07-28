@@ -1,4 +1,4 @@
-"""Tests for scripts/unsafe_literals.py: the shared outbound-content guard.
+"""Tests for engine/unsafe_literals.py: the shared outbound-content guard.
 
 Both paths that move content between a project and the framework use this: the inbound
 learned-skill sync (which already did) and feed-badger's outbound PR (which did not — review
@@ -13,7 +13,7 @@ FAKE_PROVIDER_KEY = "sk-FAKEnotarealkey" + "1" * 20
 
 
 def _mod(load_script):
-    return load_script("scripts/unsafe_literals.py")
+    return load_script("engine/unsafe_literals.py")
 
 
 def test_a_clean_tree_produces_no_findings(tmp_path, load_script):

@@ -143,7 +143,8 @@ ai-badger/
   .claude-plugin/plugin.json        # the installable plugin wrapping the root skills
   skills/                        # What the plugin exposes to Claude Code (generated from features/)
   schemas/                       # JSON Schema for every *.json model
-  scripts/                       # Mechanical Python scripts (no LLM, no network)
+  engine/                        # The library every bootstrap shim imports (badger_lib)
+  tooling/                       # Maintainer catalog and release tooling (no LLM, no network)
   gates/                         # Repo quality gates, run only by CI and the pre-push hook
   docs/                          # Architecture, authoring guides, ADRs
   features/
@@ -208,7 +209,7 @@ The framework scripts (`index_build.py`, `validate.py`, `detect.py`, `scaffold.p
 mechanical Python with one dependency:
 
 ```bash
-python3 -m pip install -r scripts/requirements.txt   # jsonschema
+python3 -m pip install -r engine/requirements.txt   # jsonschema
 ```
 
 ## Contributing

@@ -30,23 +30,23 @@ jobs:
         pytest -q
     - name: index.json is up to date
       run: |
-        python3 scripts/index_build.py --check
+        python3 tooling/index_build.py --check
     - name: Shipped .claude/skills/ copy matches features/
       run: |
-        python3 scripts/sync_plugin_skills.py --check
+        python3 tooling/sync_plugin_skills.py --check
     - name: Framework tree validates against its schemas
       run: |
-        python3 scripts/validate.py --all
+        python3 tooling/validate.py --all
     - name: Version literals (plugin.json, marketplace.json, index.json) agree with VERSION
       run: |
-        python3 scripts/version_sync.py --check
+        python3 tooling/version_sync.py --check
     - name: Docs guard - links, repo paths and the changelog index still resolve
       run: |
         python3 gates/docs_guard.py
     - name: Release guard - shipped surface change requires a VERSION bump
       run: |
         python3 gates/release_guard.py
-    - name: Dependency guard - every third-party import is declared in scripts/requirements.txt
+    - name: Dependency guard - every third-party import is declared in engine/requirements.txt
       run: |
         python3 gates/deps_guard.py
     - name: JS gate scripts have tests

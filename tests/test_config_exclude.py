@@ -33,7 +33,7 @@ def _scaffold(scaffold, root, tmp_path, config, skills=("task",)):
 
 # ------------------------------------------------------------------------------- schema
 def test_config_schema_accepts_an_exclude_block(load_script, root):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     config = _excluding(skills=["task"], personas=["architect"],
                         invariants=["tdd-mandatory"], instructions=["python.instructions"])
 
@@ -42,7 +42,7 @@ def test_config_schema_accepts_an_exclude_block(load_script, root):
 
 def test_config_schema_rejects_a_misspelled_feature_key(load_script, root):
     """A typo must fail validation rather than silently exclude nothing."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     config = _config(agents=["claude"])
     config["exclude"] = {"skils": ["task"]}
 
@@ -51,7 +51,7 @@ def test_config_schema_rejects_a_misspelled_feature_key(load_script, root):
 
 def test_config_schema_rejects_excluding_a_feature_type_with_no_stable_name(load_script, root):
     """templates/hooks/adjustments materialise outputs named otherwise — not excludable."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     config = _config(agents=["claude"])
     config["exclude"] = {"templates": ["CLAUDE.md.tmpl"]}
 
@@ -59,7 +59,7 @@ def test_config_schema_rejects_excluding_a_feature_type_with_no_stable_name(load
 
 
 def test_excludable_features_are_the_name_addressable_ones(load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     assert list(bl.EXCLUDABLE_FEATURES) == [ft.name for ft in bl.FEATURE_TYPES
                                             if ft.drift_reports_new]
@@ -266,7 +266,7 @@ def test_excluding_a_skill_unwires_the_hook_a_previous_run_registered(
 def test_default_skills_are_the_common_catalog_not_every_declared_scope(load_script, root):
     """DEFAULT_SKILLS must resolve where scaffold_skills looks — features/common/skills."""
     scaffold = load_script(SCAFFOLD)
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     assert scaffold.DEFAULT_SKILLS == bl.default_skills_in(
         root / "features" / "common" / "skills")

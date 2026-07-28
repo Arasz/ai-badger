@@ -87,6 +87,6 @@ def test_copilot_wires_commit_reminder_with_matcher(tmp_path, load_script, root)
 
 
 def test_badger_lib_declares_commit_reminder_as_a_default_skill(load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     assert bl.skill_scope("commit-reminder") == bl.SKILL_SCOPE_DEFAULT
     assert "commit-reminder" in bl.default_skill_names()

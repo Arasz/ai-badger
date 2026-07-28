@@ -67,7 +67,7 @@ From [0.24.0 — outbound scan](docs/changelog/0.24.0-outbound-scan.md):
   findings carry only `{file, pattern}` with `pattern` from a closed vocabulary.
 - `git add -A` was removed. Contributions are staged from an explicit, required, repeatable
   `--path`, so unrelated dirty files in the checkout cannot be published by accident.
-- The scanner is one module (`scripts/unsafe_literals.py`) used by both the inbound
+- The scanner is one module (`engine/unsafe_literals.py`) used by both the inbound
   learned-skills path and the outbound PR path.
 
 From [0.25.0 — the hardening pass](docs/changelog/0.25.0-hardening.md):
@@ -102,13 +102,13 @@ Structural properties that predate those waves:
 
 - **CodeQL** runs on every push to `main`, every pull request, and weekly
   (`.github/workflows/codeql.yml`).
-- **Dependabot** watches `scripts/requirements.txt` and the GitHub Actions used by the workflows,
+- **Dependabot** watches `engine/requirements.txt` and the GitHub Actions used by the workflows,
   weekly (`.github/dependabot.yml`).
 - **gitleaks** scans the commit range on every push to **any** branch and every pull request, and the
   whole history weekly (`.github/workflows/secret-scan.yml`). Findings are redacted: this
   repository is public, so an unredacted report would publish the credential it just caught.
 - **`deps_guard.py`** fails the build on a third-party import that
-  `scripts/requirements.txt` does not declare — in pre-commit and on all three CI Python
+  `engine/requirements.txt` does not declare — in pre-commit and on all three CI Python
   versions.
 - The runtime dependency surface is deliberately tiny: **`jsonschema` and `pyyaml`**. Everything
   else is Python 3.8+ stdlib. Their imports differ on purpose — `jsonschema` is required and
@@ -124,7 +124,7 @@ omission, and both candidates were looked at:
   trade CI can make and a commit hook cannot, which is why
   [`.github/workflows/secret-scan.yml`](.github/workflows/secret-scan.yml) uses the Action and
   stops there.
-- **`scripts/unsafe_literals.py` as a local hook.** It is offline and stdlib-only, but it is a
+- **`engine/unsafe_literals.py` as a local hook.** It is offline and stdlib-only, but it is a
   five-pattern guard on content *leaving* a repository, not a history scanner — a different
   door on purpose. It also matches three tracked files on deliberately fake fixture values
   ([`docs/design/hermes-learned-skills-sync-impl-plan.md`](docs/design/hermes-learned-skills-sync-impl-plan.md),

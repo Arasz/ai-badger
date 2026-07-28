@@ -1,4 +1,4 @@
-"""Tests for scripts/validate.py: --kind/--schema single-file validation and --all."""
+"""Tests for tooling/validate.py: --kind/--schema single-file validation and --all."""
 from __future__ import annotations
 
 import json
@@ -12,7 +12,7 @@ def _copy_real_schemas(tmp_path, root):
 
 
 def test_kind_config_valid_instance_returns_zero(tmp_path, root, load_script, capsys):
-    validate = load_script("scripts/validate.py")
+    validate = load_script("tooling/validate.py")
     fake_root = _copy_real_schemas(tmp_path, root)
     instance = tmp_path / "config.json"
     instance.write_text(json.dumps({
@@ -35,7 +35,7 @@ def test_kind_config_valid_instance_returns_zero(tmp_path, root, load_script, ca
 
 
 def test_kind_config_invalid_instance_returns_one(tmp_path, root, load_script, capsys):
-    validate = load_script("scripts/validate.py")
+    validate = load_script("tooling/validate.py")
     fake_root = _copy_real_schemas(tmp_path, root)
     instance = tmp_path / "config.json"
     instance.write_text(json.dumps({"not": "a valid config"}), encoding="utf-8")
@@ -48,7 +48,7 @@ def test_kind_config_invalid_instance_returns_one(tmp_path, root, load_script, c
 
 
 def test_explicit_schema_path_is_used_over_kind(tmp_path, load_script, capsys):
-    validate = load_script("scripts/validate.py")
+    validate = load_script("tooling/validate.py")
     schema_path = tmp_path / "s.schema.json"
     schema_path.write_text(json.dumps({"type": "object", "required": ["x"]}), encoding="utf-8")
     instance = tmp_path / "i.json"
@@ -61,7 +61,7 @@ def test_explicit_schema_path_is_used_over_kind(tmp_path, load_script, capsys):
 
 
 def test_missing_instance_and_missing_all_flag_is_a_usage_error(load_script):
-    validate = load_script("scripts/validate.py")
+    validate = load_script("tooling/validate.py")
 
     import pytest
     with pytest.raises(SystemExit) as exc_info:
@@ -71,7 +71,7 @@ def test_missing_instance_and_missing_all_flag_is_a_usage_error(load_script):
 
 
 def test_instance_without_schema_or_kind_is_a_usage_error(tmp_path, load_script):
-    validate = load_script("scripts/validate.py")
+    validate = load_script("tooling/validate.py")
     instance = tmp_path / "i.json"
     instance.write_text("{}", encoding="utf-8")
 
@@ -83,7 +83,7 @@ def test_instance_without_schema_or_kind_is_a_usage_error(tmp_path, load_script)
 
 
 def test_all_flag_validates_the_real_framework_tree_and_reports_ok(root, load_script, capsys):
-    validate = load_script("scripts/validate.py")
+    validate = load_script("tooling/validate.py")
 
     rc = validate.main(["--all", "--root", str(root)])
 
@@ -93,7 +93,7 @@ def test_all_flag_validates_the_real_framework_tree_and_reports_ok(root, load_sc
 
 
 def test_all_flag_reports_invalid_when_a_skills_source_fails_its_schema(tmp_path, root, load_script, capsys):
-    validate = load_script("scripts/validate.py")
+    validate = load_script("tooling/validate.py")
     fake_root = _copy_real_schemas(tmp_path, root)
     skills_dir = fake_root / "features" / "dotnet" / "skills"
     skills_dir.mkdir(parents=True)
@@ -108,7 +108,7 @@ def test_all_flag_reports_invalid_when_a_skills_source_fails_its_schema(tmp_path
 
 
 def test_all_flag_skips_index_json_when_absent(tmp_path, root, load_script, capsys):
-    validate = load_script("scripts/validate.py")
+    validate = load_script("tooling/validate.py")
     fake_root = _copy_real_schemas(tmp_path, root)
 
     rc = validate.main(["--all", "--root", str(fake_root)])
@@ -119,7 +119,7 @@ def test_all_flag_skips_index_json_when_absent(tmp_path, root, load_script, caps
 
 
 def test_all_validates_mcp_servers_and_stack_json(tmp_path, root, load_script, capsys):
-    validate = load_script("scripts/validate.py")
+    validate = load_script("tooling/validate.py")
     fake_root = _copy_real_schemas(tmp_path, root)
     (fake_root / "features" / "dotnet").mkdir(parents=True)
     (fake_root / "features" / "dotnet" / "mcp-servers.json").write_text(
@@ -133,7 +133,7 @@ def test_all_validates_mcp_servers_and_stack_json(tmp_path, root, load_script, c
 
 
 def test_all_validates_the_agent_capability_matrix(tmp_path, root, load_script, capsys):
-    validate = load_script("scripts/validate.py")
+    validate = load_script("tooling/validate.py")
     fake_root = _copy_real_schemas(tmp_path, root)
     (fake_root / "features" / "common").mkdir(parents=True)
     (fake_root / "features" / "common" / "support.json").write_text(
@@ -147,7 +147,7 @@ def test_all_validates_the_agent_capability_matrix(tmp_path, root, load_script, 
 
 
 def test_all_validates_stack_descriptors(tmp_path, root, load_script, capsys):
-    validate = load_script("scripts/validate.py")
+    validate = load_script("tooling/validate.py")
     fake_root = _copy_real_schemas(tmp_path, root)
     (fake_root / "features" / "python").mkdir(parents=True)
     (fake_root / "features" / "python" / "stack.json").write_text(
@@ -160,7 +160,7 @@ def test_all_validates_stack_descriptors(tmp_path, root, load_script, capsys):
 
 
 def test_every_schema_has_a_coverage_decision(root, load_script):
-    validate = load_script("scripts/validate.py")
+    validate = load_script("tooling/validate.py")
     shipped = {p.name for p in (root / "schemas").glob("*.schema.json")}
 
     decided = set(validate.SCHEMA_INSTANCES) | set(validate.SCHEMAS_WITHOUT_LOCAL_INSTANCES)

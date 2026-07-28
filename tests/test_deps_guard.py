@@ -2,8 +2,9 @@
 
 CONTRIBUTING says "do not add a third runtime dependency without a very good reason" and nothing
 enforced it — which is how the docs came to claim every third-party import was guarded while
-`jsonschema` was imported unguarded. The guard classifies every import in scripts/ and features/
-as stdlib, first-party or third-party, and fails on a third-party one that is not declared.
+`jsonschema` was imported unguarded. The guard classifies every import in engine/, tooling/,
+features/ and gates/ as stdlib, first-party or third-party, and fails on a third-party one that
+is not declared.
 """
 from __future__ import annotations
 
@@ -17,9 +18,9 @@ INSTALLED_BUT_UNDECLARED = "pylint"
 
 def _repo(tmp_path, requirements=DECLARED):
     """A tree the guard can scan: declared dependencies plus the two roots it walks."""
-    scripts = tmp_path / "scripts"
-    scripts.mkdir()
-    (scripts / "requirements.txt").write_text(requirements, encoding="utf-8")
+    engine = tmp_path / "engine"
+    engine.mkdir()
+    (engine / "requirements.txt").write_text(requirements, encoding="utf-8")
     (tmp_path / "features").mkdir()
     return tmp_path
 
@@ -41,7 +42,7 @@ class TestClassification:
 
     def test_a_declared_third_party_import_passes(self, tmp_path, guard, capsys):
         repo = _repo(tmp_path)
-        _module(repo, "scripts/validate.py", "import jsonschema\n")
+        _module(repo, "tooling/validate.py", "import jsonschema\n")
 
         assert guard.main(["--root", str(repo)]) == 0
         assert "PASS" in capsys.readouterr().out
@@ -49,30 +50,30 @@ class TestClassification:
     def test_an_undeclared_third_party_import_is_reported_with_file_and_line(
             self, tmp_path, guard, capsys):
         repo = _repo(tmp_path)
-        _module(repo, "scripts/thing.py", f"import os\n\nimport {INSTALLED_BUT_UNDECLARED}\n")
+        _module(repo, "engine/thing.py", f"import os\n\nimport {INSTALLED_BUT_UNDECLARED}\n")
 
         rc = guard.main(["--root", str(repo)])
 
         out = capsys.readouterr().out
         assert rc == 1
-        assert "scripts/thing.py:3" in out
+        assert "engine/thing.py:3" in out
         assert INSTALLED_BUT_UNDECLARED in out
 
     def test_a_module_that_resolves_nowhere_counts_as_undeclared(self, tmp_path, guard, capsys):
         """An unresolvable name is not proof of innocence — a missing dependency looks like this."""
         repo = _repo(tmp_path)
-        _module(repo, "scripts/thing.py", f"from {ABSENT} import helper\n")
+        _module(repo, "engine/thing.py", f"from {ABSENT} import helper\n")
 
         rc = guard.main(["--root", str(repo)])
 
         out = capsys.readouterr().out
         assert rc == 1
-        assert "scripts/thing.py:1" in out
+        assert "engine/thing.py:1" in out
         assert ABSENT in out
 
     def test_stdlib_imports_are_never_flagged(self, tmp_path, guard, capsys):
         repo = _repo(tmp_path)
-        _module(repo, "scripts/thing.py",
+        _module(repo, "engine/thing.py",
                 "from __future__ import annotations\n"
                 "import os\nimport sys\nimport json\nimport importlib.util\n"
                 "from pathlib import Path\nfrom typing import List\n"
@@ -82,9 +83,9 @@ class TestClassification:
         assert "PASS" in capsys.readouterr().out
 
     def test_a_first_party_sibling_import_is_never_flagged(self, tmp_path, guard, capsys):
-        """Hooks and skill scripts import siblings and scripts/ modules by bare name."""
+        """Hooks and skill scripts import siblings and engine/ modules by bare name."""
         repo = _repo(tmp_path)
-        _module(repo, "scripts/badger_lib.py", "VALUE = 1\n")
+        _module(repo, "engine/badger_lib.py", "VALUE = 1\n")
         _module(repo, "features/common/hooks/debug_log.py", "VALUE = 1\n")
         _module(repo, "features/common/hooks/hook.py",
                 "import badger_lib as bl\nimport debug_log\nfrom debug_log import VALUE\n")
@@ -106,7 +107,7 @@ class TestWhatTheWalkSees:
 
     def test_a_function_level_import_is_seen(self, tmp_path, guard, capsys):
         repo = _repo(tmp_path)
-        _module(repo, "scripts/thing.py",
+        _module(repo, "engine/thing.py",
                 f"def run():\n    import {INSTALLED_BUT_UNDECLARED}\n    return "
                 f"{INSTALLED_BUT_UNDECLARED}\n")
 
@@ -114,23 +115,23 @@ class TestWhatTheWalkSees:
 
         out = capsys.readouterr().out
         assert rc == 1
-        assert "scripts/thing.py:2" in out
+        assert "engine/thing.py:2" in out
 
     def test_a_try_block_import_is_seen(self, tmp_path, guard, capsys):
         repo = _repo(tmp_path)
-        _module(repo, "scripts/thing.py",
+        _module(repo, "engine/thing.py",
                 f"try:\n    import {ABSENT}\nexcept ImportError:\n    {ABSENT} = None\n")
 
         rc = guard.main(["--root", str(repo)])
 
         out = capsys.readouterr().out
         assert rc == 1
-        assert "scripts/thing.py:2" in out
+        assert "engine/thing.py:2" in out
 
     def test_a_file_is_parsed_and_never_executed(self, tmp_path, guard, capsys):
         """A module with a top-level side effect must not run — the guard reads the AST."""
         repo = _repo(tmp_path)
-        _module(repo, "scripts/thing.py",
+        _module(repo, "engine/thing.py",
                 "import sys\n\nraise RuntimeError('deps_guard imported this module')\n")
 
         assert guard.main(["--root", str(repo)]) == 0
@@ -139,13 +140,13 @@ class TestWhatTheWalkSees:
     def test_a_syntactically_invalid_file_is_reported_not_crashed_on(
             self, tmp_path, guard, capsys):
         repo = _repo(tmp_path)
-        _module(repo, "scripts/broken.py", "def (:\n")
+        _module(repo, "engine/broken.py", "def (:\n")
 
         rc = guard.main(["--root", str(repo)])
 
         out = capsys.readouterr().out
         assert rc == 1
-        assert "scripts/broken.py" in out
+        assert "engine/broken.py" in out
         assert "parse" in out.lower() or "syntax" in out.lower()
 
 
@@ -165,7 +166,7 @@ class TestDeclarations:
             "# Runtime dependencies.\n\n"
             "jsonschema[format-nongpl]>=4.26.0,<5  # validation\n"
             "PyYAML >= 6.0.3 ; python_version >= '3.8'\n"))
-        _module(repo, "scripts/thing.py", "import jsonschema\nimport yaml\n")
+        _module(repo, "engine/thing.py", "import jsonschema\nimport yaml\n")
 
         assert guard.main(["--root", str(repo)]) == 0
         assert "PASS" in capsys.readouterr().out
@@ -183,15 +184,15 @@ class TestDeclarations:
     def test_an_import_declared_nowhere_fails_even_when_a_sibling_is_declared(
             self, tmp_path, guard):
         repo = _repo(tmp_path, requirements="jsonschema>=4.26.0\n")
-        _module(repo, "scripts/thing.py", "import jsonschema\nimport yaml\n")
+        _module(repo, "engine/thing.py", "import jsonschema\nimport yaml\n")
 
         assert guard.main(["--root", str(repo)]) == 1
 
     def test_a_missing_requirements_file_fails_loudly(self, tmp_path, guard, capsys):
         """No declarations file means nothing is declared — that is a finding, not a free pass."""
         repo = _repo(tmp_path)
-        (repo / "scripts" / "requirements.txt").unlink()
-        _module(repo, "scripts/thing.py", "import jsonschema\n")
+        (repo / "engine" / "requirements.txt").unlink()
+        _module(repo, "engine/thing.py", "import jsonschema\n")
 
         rc = guard.main(["--root", str(repo)])
 

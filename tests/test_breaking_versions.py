@@ -11,37 +11,37 @@ import pytest
 
 class TestBreakingVersions:
     def test_is_breaking_transition_same_version(self, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         assert bl.is_breaking_transition("0.7.0", "0.7.0", root) is False
 
     def test_is_breaking_transition_crosses_breaking(self, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         # 0.6.0 -> 0.7.0 crosses the 0.7.0 breaking boundary
         assert bl.is_breaking_transition("0.6.0", "0.7.0", root) is True
 
     def test_is_breaking_transition_within_breaking(self, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         # 0.7.0 -> 0.7.1 doesn't cross a breaking boundary
         assert bl.is_breaking_transition("0.7.0", "0.7.1", root) is False
 
     def test_is_breaking_transition_before_breaking(self, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         # 0.5.0 -> 0.6.0 doesn't cross a breaking boundary
         assert bl.is_breaking_transition("0.5.0", "0.6.0", root) is False
 
     def test_is_breaking_transition_future_breaking(self, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         # 0.6.0 -> 0.8.0 crosses 0.7.0
         assert bl.is_breaking_transition("0.6.0", "0.8.0", root) is True
 
     def test_read_breaking_versions(self, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         versions = bl.read_breaking_versions(root)
         assert isinstance(versions, list)
         assert "0.7.0" in versions
 
     def test_read_breaking_versions_missing_file(self, tmp_path, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         versions = bl.read_breaking_versions(tmp_path)
         assert versions == []
 

@@ -24,7 +24,7 @@ class TestSkillsSourceSchema:
         assert self._schema_path(root).is_file()
 
     def test_valid_common_source(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"sources": [
             {"name": "test", "type": "marketplace", "source": "https://example.com", "support": "common"}
@@ -32,7 +32,7 @@ class TestSkillsSourceSchema:
         assert bl.validate(instance, schema) == []
 
     def test_valid_agent_specific_source(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"sources": [
             {"name": "hermes-hub", "type": "hub", "source": "https://hermes.example.com", "support": ["hermes"]}
@@ -40,7 +40,7 @@ class TestSkillsSourceSchema:
         assert bl.validate(instance, schema) == []
 
     def test_valid_multiple_agents(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"sources": [
             {"name": "shared", "type": "tap", "source": "org/repo", "support": ["claude", "hermes"]}
@@ -48,7 +48,7 @@ class TestSkillsSourceSchema:
         assert bl.validate(instance, schema) == []
 
     def test_invalid_type_value(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"sources": [
             {"name": "bad", "type": "unknown", "source": "x", "support": "common"}
@@ -56,7 +56,7 @@ class TestSkillsSourceSchema:
         assert bl.validate(instance, schema) != []
 
     def test_invalid_support_value(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"sources": [
             {"name": "bad", "type": "hub", "source": "x", "support": "invalid"}
@@ -64,19 +64,19 @@ class TestSkillsSourceSchema:
         assert bl.validate(instance, schema) != []
 
     def test_missing_required_fields(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"sources": [{"name": "bad"}]}
         assert bl.validate(instance, schema) != []
 
     def test_empty_sources_array_fails(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"sources": []}
         assert bl.validate(instance, schema) != []
 
     def test_missing_sources_key_fails(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         assert bl.validate({}, schema) != []
 
@@ -91,7 +91,7 @@ class TestSkillsSchema:
         assert self._schema_path(root).is_file()
 
     def test_valid_skills_list(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"skills": [
             {"name": "superpowers", "source": "claude-plugins-official", "scope": "default", "description": "desc"}
@@ -99,31 +99,31 @@ class TestSkillsSchema:
         assert bl.validate(instance, schema) == []
 
     def test_valid_empty_skills(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"skills": []}
         assert bl.validate(instance, schema) == []
 
     def test_valid_minimal_entry(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"skills": [{"name": "x", "source": "y"}]}
         assert bl.validate(instance, schema) == []
 
     def test_invalid_scope_value(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"skills": [{"name": "x", "source": "y", "scope": "invalid"}]}
         assert bl.validate(instance, schema) != []
 
     def test_missing_name_fails(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"skills": [{"source": "y"}]}
         assert bl.validate(instance, schema) != []
 
     def test_missing_skills_key_fails(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         assert bl.validate({}, schema) != []
 
@@ -138,7 +138,7 @@ class TestPluginsInstructionsSchema:
         assert self._schema_path(root).is_file()
 
     def test_valid_instructions(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {
             "agent": "hermes",
@@ -150,13 +150,13 @@ class TestPluginsInstructionsSchema:
         assert bl.validate(instance, schema) == []
 
     def test_valid_empty_instructions(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"agent": "copilot", "instructions": {}}
         assert bl.validate(instance, schema) == []
 
     def test_invalid_instruction_key(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {
             "agent": "test",
@@ -165,7 +165,7 @@ class TestPluginsInstructionsSchema:
         assert bl.validate(instance, schema) != []
 
     def test_missing_commands_fails(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {
             "agent": "test",
@@ -174,7 +174,7 @@ class TestPluginsInstructionsSchema:
         assert bl.validate(instance, schema) != []
 
     def test_missing_agent_fails(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"instructions": {}}
         assert bl.validate(instance, schema) != []
@@ -190,7 +190,7 @@ class TestAdjustmentSchema:
         assert self._schema_path(root).is_file()
 
     def test_valid_adjustment(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {
             "agent": "hermes",
@@ -202,19 +202,19 @@ class TestAdjustmentSchema:
         assert bl.validate(instance, schema) == []
 
     def test_valid_empty_adjustments(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"agent": "test", "adjustments": []}
         assert bl.validate(instance, schema) == []
 
     def test_missing_script_fails(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"agent": "test", "adjustments": [{"feature": "hooks"}]}
         assert bl.validate(instance, schema) != []
 
     def test_missing_agent_fails(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"adjustments": []}
         assert bl.validate(instance, schema) != []
@@ -230,7 +230,7 @@ class TestHooksManifestSchema:
         assert self._schema_path(root).is_file()
 
     def test_valid_manifest(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {
             "hooks": [
@@ -247,7 +247,7 @@ class TestHooksManifestSchema:
         assert bl.validate(instance, schema) == []
 
     def test_valid_minimal_hook(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {
             "hooks": [{"name": "test", "agents": {"hermes": {"type": "plugin", "entry": "x.py"}}}]
@@ -255,7 +255,7 @@ class TestHooksManifestSchema:
         assert bl.validate(instance, schema) == []
 
     def test_invalid_hook_type(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {
             "hooks": [{"name": "bad", "agents": {"claude": {"type": "invalid", "entry": "x"}}}]
@@ -263,18 +263,18 @@ class TestHooksManifestSchema:
         assert bl.validate(instance, schema) != []
 
     def test_missing_name_fails(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"hooks": [{"agents": {"hermes": {"type": "plugin", "entry": "x.py"}}}]}
         assert bl.validate(instance, schema) != []
 
     def test_missing_agents_fails(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         instance = {"hooks": [{"name": "bad"}]}
         assert bl.validate(instance, schema) != []
 
     def test_missing_hooks_key_fails(self, tmp_path, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         assert bl.validate({}, schema) != []

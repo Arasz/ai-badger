@@ -52,7 +52,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     except ImportError:
         return {"applied": False, "files": [],
                 "notes": "PyYAML not available — Copilot custom agents not generated; "
-                         "pip install pyyaml (scripts/requirements.txt)"}
+                         "pip install pyyaml (engine/requirements.txt)"}
 
     framework_root = context["framework_root"]
     target = context["target"]

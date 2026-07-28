@@ -33,7 +33,7 @@ def test_the_sweep_finds_the_schemas_it_is_meant_to_guard():
 
 def test_an_agent_instruction_model_carrying_the_editor_hint_still_validates(load_script):
     """The hint that makes the file self-describing must not be what invalidates it."""
-    badger_lib = load_script("scripts/badger_lib.py")
+    badger_lib = load_script("engine/badger_lib.py")
     schema = badger_lib.load_json(ROOT / "schemas" / "model.schema.json")
     instance = json.loads(
         (ROOT / ".ai-badger" / "agent-instructions" / "model.json").read_text(encoding="utf-8"))

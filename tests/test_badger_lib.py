@@ -1,4 +1,4 @@
-"""Tests for scripts/badger_lib.py: root discovery, JSON io, hashing, and jsonschema helpers."""
+"""Tests for engine/badger_lib.py: root discovery, JSON io, hashing, and jsonschema helpers."""
 from __future__ import annotations
 
 import hashlib
@@ -10,11 +10,11 @@ import pytest
 
 
 def _make_root(tmp_path, version=None):
-    """Build a minimal fake framework root: schemas/ + features/ + scripts/badger_lib.py."""
+    """Build a minimal fake framework root: schemas/ + features/ + engine/badger_lib.py."""
     (tmp_path / "schemas").mkdir(parents=True, exist_ok=True)
     (tmp_path / "features").mkdir(parents=True, exist_ok=True)
-    (tmp_path / "scripts").mkdir(parents=True, exist_ok=True)
-    (tmp_path / "scripts" / "badger_lib.py").write_text("", encoding="utf-8")
+    (tmp_path / "engine").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "engine" / "badger_lib.py").write_text("", encoding="utf-8")
     if version is not None:
         (tmp_path / "VERSION").write_text(f"{version}\n", encoding="utf-8")
     return tmp_path
@@ -40,7 +40,7 @@ def _no_declared_root(monkeypatch):
 
 
 def test_find_root_walks_up_to_dir_with_schemas_and_features(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     fake_root = _make_root(tmp_path)
     nested = fake_root / "features" / "dotnet" / "skills" / "foo"
     nested.mkdir(parents=True)
@@ -51,7 +51,7 @@ def test_find_root_walks_up_to_dir_with_schemas_and_features(tmp_path, load_scri
 
 
 def test_find_root_raises_when_no_ancestor_and_no_fallback(tmp_path, load_script, monkeypatch):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     lonely = tmp_path / "some" / "unrelated" / "dir"
     lonely.mkdir(parents=True)
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
@@ -61,7 +61,7 @@ def test_find_root_raises_when_no_ancestor_and_no_fallback(tmp_path, load_script
 
 
 def test_find_root_never_touches_the_network(tmp_path, load_script, monkeypatch):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     lonely = tmp_path / "unrelated"
     lonely.mkdir()
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
@@ -72,7 +72,7 @@ def test_find_root_never_touches_the_network(tmp_path, load_script, monkeypatch)
 
 
 def test_find_root_failure_names_the_explicit_opt_in(tmp_path, load_script, monkeypatch):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     lonely = tmp_path / "unrelated"
     lonely.mkdir()
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
@@ -86,7 +86,7 @@ def test_find_root_failure_names_the_explicit_opt_in(tmp_path, load_script, monk
 
 
 def test_find_root_uses_an_existing_cache_without_network(tmp_path, load_script, monkeypatch):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     lonely = tmp_path / "unrelated"
     lonely.mkdir()
     cache = _make_root(tmp_path / "cache")
@@ -98,8 +98,8 @@ def test_find_root_uses_an_existing_cache_without_network(tmp_path, load_script,
 
 # ------------------------------------------------------- resolve_framework_root (ADR-0007)
 def test_a_catalog_without_the_engine_is_not_a_framework_root(tmp_path, load_script):
-    """schemas/ + features/ alone is a catalog; a root also carries scripts/badger_lib.py."""
-    bl = load_script("scripts/badger_lib.py")
+    """schemas/ + features/ alone is a catalog; a root also carries engine/badger_lib.py."""
+    bl = load_script("engine/badger_lib.py")
     (tmp_path / "schemas").mkdir()
     (tmp_path / "features").mkdir()
 
@@ -108,7 +108,7 @@ def test_a_catalog_without_the_engine_is_not_a_framework_root(tmp_path, load_scr
 
 
 def test_explicit_root_outranks_every_other_input(tmp_path, load_script, monkeypatch):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     declared = _make_root(tmp_path / "declared")
     ancestor = _make_root(tmp_path / "ancestor")
     monkeypatch.setenv("AI_BADGER", str(_make_root(tmp_path / "env")))
@@ -119,7 +119,7 @@ def test_explicit_root_outranks_every_other_input(tmp_path, load_script, monkeyp
 def test_a_declared_root_that_is_not_a_root_refuses_rather_than_falls_through(
         tmp_path, load_script):
     """A wrong --root is a misconfiguration to report, not a reason to resolve something else."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     ancestor = _make_root(tmp_path / "ancestor")
     wrong = tmp_path / "not-a-root"
     wrong.mkdir()
@@ -132,7 +132,7 @@ def test_a_declared_root_that_is_not_a_root_refuses_rather_than_falls_through(
 
 def test_the_ancestor_walk_outranks_the_env_var(tmp_path, load_script, monkeypatch):
     """A script inside a checkout uses that checkout's engine, whatever a shell profile says."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     monkeypatch.setenv("AI_BADGER", str(_make_root(tmp_path / "env")))
     ancestor = _make_root(tmp_path / "ancestor")
 
@@ -141,7 +141,7 @@ def test_the_ancestor_walk_outranks_the_env_var(tmp_path, load_script, monkeypat
 
 def test_the_env_var_answers_when_no_framework_stands_above_the_script(
         tmp_path, load_script, monkeypatch):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     env_root = _make_root(tmp_path / "env")
     lonely = tmp_path / "unrelated"
     lonely.mkdir()
@@ -151,7 +151,7 @@ def test_the_env_var_answers_when_no_framework_stands_above_the_script(
 
 
 def test_a_stale_env_var_refuses_rather_than_falls_through(tmp_path, load_script, monkeypatch):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     stale = tmp_path / "moved-away"
     lonely = tmp_path / "unrelated"
     lonely.mkdir()
@@ -166,7 +166,7 @@ def test_a_stale_env_var_refuses_rather_than_falls_through(tmp_path, load_script
 def test_a_scaffold_resolves_the_root_recorded_in_its_manifest(tmp_path, load_script,
                                                                monkeypatch):
     """The shape with no framework above it: only a recorded root can answer (ADR-0007)."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     framework = _make_root(tmp_path / "framework")
     aib = _make_scaffold(tmp_path / "consumer", framework)
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
@@ -180,7 +180,7 @@ def test_a_scaffold_resolves_the_root_recorded_in_its_manifest(tmp_path, load_sc
 def test_a_hermes_plugin_resolves_the_root_recorded_beside_it(tmp_path, load_script,
                                                               monkeypatch):
     """Two loose files in ~/.hermes/plugins/ are answered by a record their installer wrote."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     framework = _make_root(tmp_path / "framework")
     plugins = tmp_path / "home" / ".hermes" / "plugins"
     _make_scaffold(plugins, framework)
@@ -193,7 +193,7 @@ def test_a_hermes_plugin_resolves_the_root_recorded_beside_it(tmp_path, load_scr
 def test_a_manifest_above_the_working_directory_cannot_steer_resolution(
         tmp_path, load_script, monkeypatch):
     """A cloned repo must not put its own tree on the sys.path of a session-start hook (A1)."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     attacker = _make_root(tmp_path / "hostile" / "vendor")
     _make_scaffold(tmp_path / "hostile", attacker)
     plugins = tmp_path / "home" / ".hermes" / "plugins"
@@ -207,7 +207,7 @@ def test_a_manifest_above_the_working_directory_cannot_steer_resolution(
 
 def test_a_recorded_root_from_another_machine_is_ignored(tmp_path, load_script, monkeypatch):
     """A manifest is a hint, validated before use — a foreign path is not a root here."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     aib = _make_scaffold(tmp_path / "consumer", Path("/nowhere/ai-badger"))
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
 
@@ -218,7 +218,7 @@ def test_a_recorded_root_from_another_machine_is_ignored(tmp_path, load_script, 
 def test_a_recorded_root_may_be_relative_to_the_scaffolded_project(tmp_path, load_script,
                                                                    monkeypatch):
     """A repo scaffolded by itself records `.` — the one value that survives a git clone."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     project = _make_root(tmp_path / "self-hosted")
     aib = project / ".ai-badger"
     aib.mkdir()
@@ -229,7 +229,7 @@ def test_a_recorded_root_may_be_relative_to_the_scaffolded_project(tmp_path, loa
 
 
 def test_the_ancestor_walk_outranks_a_recorded_root(tmp_path, load_script, monkeypatch):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     recorded = _make_root(tmp_path / "recorded")
     ancestor = _make_root(tmp_path / "ancestor")
     _make_scaffold(ancestor, recorded)
@@ -253,7 +253,7 @@ def _scaffold_recording_version(project, version, framework_root=None):
 def test_a_stale_cache_names_both_versions_when_it_is_what_answered(
         tmp_path, load_script, monkeypatch, capsys):
     """The cache is never updated in place, so it can be many releases behind the scaffold."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     cache = _make_root(tmp_path / "cache", version="0.13.0")
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", cache)
     aib = _scaffold_recording_version(tmp_path / "consumer", "0.35.2")
@@ -266,7 +266,7 @@ def test_a_stale_cache_names_both_versions_when_it_is_what_answered(
 
 def test_a_stale_cache_warns_rather_than_refuses(tmp_path, load_script, monkeypatch, capsys):
     """This statement also runs inside session-start hooks, which must never break a session."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     cache = _make_root(tmp_path / "cache", version="0.13.0")
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", cache)
     aib = _scaffold_recording_version(tmp_path / "consumer", "0.35.2")
@@ -279,7 +279,7 @@ def test_a_stale_cache_warns_rather_than_refuses(tmp_path, load_script, monkeypa
 
 def test_a_cache_that_matches_the_scaffold_says_nothing(
         tmp_path, load_script, monkeypatch, capsys):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     cache = _make_root(tmp_path / "cache", version="0.35.2")
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", cache)
     aib = _scaffold_recording_version(tmp_path / "consumer", "0.35.2")
@@ -291,7 +291,7 @@ def test_a_cache_that_matches_the_scaffold_says_nothing(
 def test_a_root_the_cache_did_not_answer_is_never_compared_against_it(
         tmp_path, load_script, monkeypatch, capsys):
     """A stale cache on the machine is irrelevant when something above the script answered."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", _make_root(tmp_path / "cache", version="0.13.0"))
     ancestor = _make_root(tmp_path / "ancestor", version="0.35.2")
 
@@ -302,7 +302,7 @@ def test_a_root_the_cache_did_not_answer_is_never_compared_against_it(
 def test_a_scaffold_that_records_no_version_leaves_the_cache_unjudged(
         tmp_path, load_script, monkeypatch, capsys):
     """With nothing to compare against there is no skew to report, and silence is correct."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     cache = _make_root(tmp_path / "cache", version="0.13.0")
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", cache)
     plugins = tmp_path / "home" / ".hermes" / "plugins"
@@ -314,7 +314,7 @@ def test_a_scaffold_that_records_no_version_leaves_the_cache_unjudged(
 
 def test_a_cache_without_a_version_file_is_left_unjudged(
         tmp_path, load_script, monkeypatch, capsys):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     cache = _make_root(tmp_path / "cache")
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", cache)
     aib = _scaffold_recording_version(tmp_path / "consumer", "0.35.2")
@@ -339,14 +339,14 @@ class TestEnsureFrameworkCache:
     def test_returns_the_local_root_without_network_when_one_exists(
         self, tmp_path, load_script, monkeypatch,
     ):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         local = _make_root(tmp_path / "checkout")
         monkeypatch.setattr(bl.subprocess, "run", _forbidden_subprocess)
 
         assert bl.ensure_root(local, allow_network=True) == local
 
     def test_refuses_to_clone_without_allow_network(self, tmp_path, load_script, monkeypatch):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         lonely = tmp_path / "unrelated"
         lonely.mkdir()
         monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "cache")
@@ -356,7 +356,7 @@ class TestEnsureFrameworkCache:
             bl.ensure_root(lonely)
 
     def test_clones_pinned_to_the_release_tag(self, tmp_path, load_script, monkeypatch):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         calls = []
         monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "cache")
         monkeypatch.setattr(bl.subprocess, "run", self._recording_clone(tmp_path, calls))
@@ -373,7 +373,7 @@ class TestEnsureFrameworkCache:
     def test_refuses_to_clone_when_the_release_version_is_unknown(
         self, tmp_path, load_script, monkeypatch,
     ):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         lonely = tmp_path / "unrelated"
         lonely.mkdir()
         monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "cache")
@@ -387,22 +387,22 @@ class TestEnsureFrameworkCache:
     def test_takes_the_version_from_the_installed_tree_when_not_given(
         self, tmp_path, load_script, monkeypatch,
     ):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         installed = tmp_path / "plugin"
-        (installed / "scripts").mkdir(parents=True)
+        (installed / "engine").mkdir(parents=True)
         (installed / "VERSION").write_text("0.19.0\n", encoding="utf-8")
         calls = []
         monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "cache")
         monkeypatch.setattr(bl.subprocess, "run", self._recording_clone(tmp_path, calls))
 
-        bl.ensure_root(installed / "scripts", allow_network=True)
+        bl.ensure_root(installed / "engine", allow_network=True)
 
         assert "ai-badger--v0.19.0" in calls[0]
 
     def test_an_unusable_cache_is_reported_not_silently_updated(
         self, tmp_path, load_script, monkeypatch,
     ):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         cache = tmp_path / "cache"
         (cache / ".git").mkdir(parents=True)  # a clone that is missing schemas/ + features/
         monkeypatch.setattr(bl, "FRAMEWORK_CACHE", cache)
@@ -414,7 +414,7 @@ class TestEnsureFrameworkCache:
         assert str(cache) in str(excinfo.value)
 
     def test_a_failed_clone_reports_git_stderr(self, tmp_path, load_script, monkeypatch):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "cache")
         monkeypatch.setattr(bl.subprocess, "run",
                             self._recording_clone(tmp_path, [], returncode=128))
@@ -426,7 +426,7 @@ class TestEnsureFrameworkCache:
 
 
 def test_dump_json_is_atomic_under_write_failure(tmp_path, load_script, monkeypatch):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     path = tmp_path / "manifest.json"
     path.write_text('{"entries": ["the user\'s data"]}\n', encoding="utf-8")
     before = path.read_text(encoding="utf-8")
@@ -444,7 +444,7 @@ def test_dump_json_is_atomic_under_write_failure(tmp_path, load_script, monkeypa
 
 
 def test_dump_json_leaves_the_target_untouched_when_serialisation_fails(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     path = tmp_path / "index.json"
     path.write_text('{"generated": true}\n', encoding="utf-8")
 
@@ -456,7 +456,7 @@ def test_dump_json_leaves_the_target_untouched_when_serialisation_fails(tmp_path
 
 
 def test_atomic_write_text_preserves_the_file_mode(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     path = tmp_path / "hook.sh"
     path.write_text("old\n", encoding="utf-8")
     path.chmod(0o755)
@@ -468,7 +468,7 @@ def test_atomic_write_text_preserves_the_file_mode(tmp_path, load_script):
 
 
 def test_atomic_write_text_creates_missing_parents(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     path = tmp_path / "a" / "b" / "c.json"
 
     bl.atomic_write_text(path, "{}\n")
@@ -477,7 +477,7 @@ def test_atomic_write_text_creates_missing_parents(tmp_path, load_script):
 
 
 def test_find_root_default_start_resolves_the_real_framework_root(load_script, root):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     found = bl.find_root()
 
@@ -485,7 +485,7 @@ def test_find_root_default_start_resolves_the_real_framework_root(load_script, r
 
 
 def test_load_json_dump_json_roundtrip(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     path = tmp_path / "data.json"
     data = {"b": 2, "a": [1, 2, 3], "nested": {"x": "y"}}
 
@@ -496,7 +496,7 @@ def test_load_json_dump_json_roundtrip(tmp_path, load_script):
 
 
 def test_dump_json_is_pretty_printed_and_newline_terminated(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     path = tmp_path / "data.json"
 
     bl.dump_json(path, {"a": 1})
@@ -507,13 +507,13 @@ def test_dump_json_is_pretty_printed_and_newline_terminated(tmp_path, load_scrip
 
 
 def test_sha256_text_matches_hashlib(load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     assert bl.sha256_text("hello") == hashlib.sha256(b"hello").hexdigest()
 
 
 def test_sha256_file_matches_hashlib_for_a_file(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     f = tmp_path / "f.txt"
     f.write_bytes(b"some bytes")
 
@@ -521,7 +521,7 @@ def test_sha256_file_matches_hashlib_for_a_file(tmp_path, load_script):
 
 
 def test_sha256_file_is_deterministic_for_a_directory(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     d = tmp_path / "d"
     d.mkdir()
     (d / "a.txt").write_text("A", encoding="utf-8")
@@ -535,7 +535,7 @@ def test_sha256_file_is_deterministic_for_a_directory(tmp_path, load_script):
 
 
 def test_sha256_file_directory_hash_changes_when_content_changes(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     d = tmp_path / "d"
     d.mkdir()
     (d / "a.txt").write_text("A", encoding="utf-8")
@@ -548,7 +548,7 @@ def test_sha256_file_directory_hash_changes_when_content_changes(tmp_path, load_
 
 
 def test_sha256_file_directory_hash_depends_on_relative_names_not_absolute_path(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     d1 = tmp_path / "one" / "d"
     d1.mkdir(parents=True)
     (d1 / "a.txt").write_text("A", encoding="utf-8")
@@ -561,7 +561,7 @@ def test_sha256_file_directory_hash_depends_on_relative_names_not_absolute_path(
 
 
 def test_read_index_loads_index_json_from_root(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     (tmp_path / "index.json").write_text(json.dumps({"frameworkVersion": "1.0.0", "stacks": {}}),
                                           encoding="utf-8")
 
@@ -571,7 +571,7 @@ def test_read_index_loads_index_json_from_root(tmp_path, load_script):
 
 
 def test_validate_returns_empty_list_when_instance_is_valid(load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     schema = {"type": "object", "required": ["name"], "properties": {"name": {"type": "string"}}}
 
     errors = bl.validate({"name": "ok"}, schema)
@@ -580,7 +580,7 @@ def test_validate_returns_empty_list_when_instance_is_valid(load_script):
 
 
 def test_validate_returns_readable_sorted_errors_when_instance_is_invalid(load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     schema = {
         "type": "object",
         "required": ["name", "age"],
@@ -594,7 +594,7 @@ def test_validate_returns_readable_sorted_errors_when_instance_is_invalid(load_s
 
 
 def test_validate_file_reads_both_json_files_and_validates(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     schema_path = tmp_path / "s.schema.json"
     schema_path.write_text(json.dumps({"type": "object", "required": ["x"]}), encoding="utf-8")
     instance_path = tmp_path / "i.json"
@@ -607,7 +607,7 @@ def test_validate_file_reads_both_json_files_and_validates(tmp_path, load_script
 
 
 def test_check_schemas_selfvalid_accepts_the_real_framework_schemas(root, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     problems = bl.check_schemas_selfvalid(root / "schemas")
 
@@ -615,7 +615,7 @@ def test_check_schemas_selfvalid_accepts_the_real_framework_schemas(root, load_s
 
 
 def test_check_schemas_selfvalid_flags_a_broken_schema(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     (tmp_path / "broken.schema.json").write_text(
         json.dumps({"type": "not-a-real-type"}), encoding="utf-8"
     )
@@ -628,20 +628,20 @@ def test_check_schemas_selfvalid_flags_a_broken_schema(tmp_path, load_script):
 
 # ---------------------------------------------------------------- feature type registry
 def test_features_is_derived_from_the_registry(load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     assert bl.FEATURES == [ft.name for ft in bl.FEATURE_TYPES]
 
 
 def test_every_feature_type_is_looked_up_by_name(load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     for ft in bl.FEATURE_TYPES:
         assert bl.feature_type(ft.name) is ft
 
 
 def test_md_carrying_feature_types_are_the_ones_indexed_as_markdown(load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     md = [ft.name for ft in bl.FEATURE_TYPES if ft.md_carrying]
 
@@ -651,7 +651,7 @@ def test_md_carrying_feature_types_are_the_ones_indexed_as_markdown(load_script)
 
 def test_only_feature_types_scaffold_records_by_index_name_are_reported_as_new(load_script):
     """Templates, hooks and adjustments land under names of their own; drift must stay quiet."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     assert bl.DRIFT_NEW_FEATURES == tuple(
         ft.name for ft in bl.FEATURE_TYPES if ft.drift_reports_new
@@ -660,13 +660,13 @@ def test_only_feature_types_scaffold_records_by_index_name_are_reported_as_new(l
 
 
 def test_iter_feature_dirs_returns_empty_list_when_no_features_dir(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     assert bl.iter_feature_dirs(tmp_path) == []
 
 
 def test_iter_feature_dirs_yields_stack_feature_dir_tuples_in_sorted_order(tmp_path, load_script):
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     features = tmp_path / "features"
     (features / "dotnet" / "skills").mkdir(parents=True)
     (features / "dotnet" / "personas").mkdir(parents=True)
@@ -688,7 +688,7 @@ def test_iter_feature_dirs_yields_stack_feature_dir_tuples_in_sorted_order(tmp_p
 # ---------------------------------------------------------------- dir_content_hash
 def test_dir_content_hash_excludes_patterns(tmp_path, load_script):
     """Files matching exclude patterns are not included in the hash."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     d = tmp_path / "skill"
     d.mkdir()
     (d / "SKILL.md").write_text("content\n")
@@ -708,7 +708,7 @@ def test_dir_content_hash_excludes_patterns(tmp_path, load_script):
 
 def test_dir_content_hash_deterministic(tmp_path, load_script):
     """Same directory content produces the same hash."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     d1 = tmp_path / "a"
     d1.mkdir()
     (d1 / "file.md").write_text("hello\n")
@@ -725,7 +725,7 @@ def test_dir_content_hash_deterministic(tmp_path, load_script):
 
 def test_dir_content_hash_differs_on_content_change(tmp_path, load_script):
     """Changed file content produces a different hash."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     d1 = tmp_path / "a"
     d1.mkdir()
     (d1 / "file.md").write_text("v1\n")
@@ -741,7 +741,7 @@ def test_dir_content_hash_differs_on_content_change(tmp_path, load_script):
 
 def test_dir_content_hash_same_when_excluded_files_differ(tmp_path, load_script):
     """Excluded files (tests, evals) don't affect the hash."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     d1 = tmp_path / "a"
     d1.mkdir()
     (d1 / "SKILL.md").write_text("content\n")
@@ -762,30 +762,30 @@ class TestResolveStacks:
     """The always-included catalog stack is config data, not a literal in each script."""
 
     def test_defaults_to_common_first(self, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
 
         assert bl.resolve_stacks({"stacks": ["python", "github"]}) == \
             ["common", "python", "github"]
 
     def test_config_names_the_common_stack(self, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
 
         assert bl.resolve_stacks({"commonStacks": "shared", "stacks": ["python"]}) == \
             ["shared", "python"]
 
     def test_config_may_name_several(self, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
 
         assert bl.resolve_stacks({"commonStacks": ["common", "house"], "stacks": ["python"]}) == \
             ["common", "house", "python"]
 
     def test_duplicates_collapse_and_order_is_kept(self, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
 
         assert bl.resolve_stacks({"stacks": ["python", "common", "python"]}) == \
             ["common", "python"]
 
     def test_empty_common_stacks_resolves_to_the_configured_stacks_only(self, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
 
         assert bl.resolve_stacks({"commonStacks": [], "stacks": ["python"]}) == ["python"]

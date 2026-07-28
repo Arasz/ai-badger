@@ -111,7 +111,7 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
   Fix the config first (re-run `welcome-ai-badger` steps 2-4 if needed), then
   run den-refresh.
 - If `index.json` is missing or stale in the framework checkout, run
-  `python3 "$AI_BADGER/scripts/index_build.py"` first.
+  `python3 "$AI_BADGER/tooling/index_build.py"` first.
 - den-refresh delegates to the same `scaffold.py` that `welcome-ai-badger`
   uses — the re-scaffold is identical to an initial scaffold, just driven by
   an existing config.
@@ -135,10 +135,10 @@ recovery before surfacing the failure to the user.
    |---|---|
    | `config.json` invalid / `validationErrors` present | Read the errors, patch `config.json`, re-run |
    | `manifest.json` missing or corrupt | Re-run `welcome-ai-badger` steps 4-5 (validate + scaffold) |
-   | `index.json` missing or stale | `python3 "$AI_BADGER/scripts/index_build.py"` |
+   | `index.json` missing or stale | `python3 "$AI_BADGER/tooling/index_build.py"` |
    | `frameworkVersion` mismatch between config and framework | Update `frameworkVersion` in config.json to match `cat "$AI_BADGER/VERSION"` |
    | Scaffold script raised an exception (file-permission, encoding) | Fix the file/permission issue, retry once |
-   | Python dependency missing (`jsonschema`) | `python3 -m pip install -r "$AI_BADGER/scripts/requirements.txt"` |
+   | Python dependency missing (`jsonschema`) | `python3 -m pip install -r "$AI_BADGER/engine/requirements.txt"` |
 
    After applying a fix, **re-run the refresh**. If it succeeds, report what was
    fixed and continue with the normal flow (review diff, commit).

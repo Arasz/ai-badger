@@ -15,8 +15,8 @@ Logic (see docs/adr/0001-versioning-and-release-model.md, decision 2):
      shipped untagged stays wrong on every later push, including docs-only ones. The version in
      VERSION is exempt — one release in flight is the model (RELEASING.md).
   4. Diff the working tree against that tag, limited to the shipped surface: skills/,
-     features/, scripts/, schemas/, index.json. `gates/` is deliberately absent — the repo
-     gates are internal tooling no consumer runs, so a gate-only change needs no bump.
+     features/, engine/, tooling/, schemas/, index.json. `gates/` is deliberately absent —
+     the repo gates are internal tooling no consumer runs, so a gate-only change needs no bump.
   5. If anything there changed, VERSION must differ from the tag's version, or this fails.
 
 Compared against the LAST RELEASE TAG, never the previous commit — load-bearing per the ADR,
@@ -45,12 +45,12 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-# The engine stays in scripts/: is_framework_root anchors on scripts/badger_lib.py.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+# The engine lives in engine/: is_framework_root anchors on engine/badger_lib.py (ADR-0011).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
 import badger_lib as bl
 
 TAG_PATTERN = re.compile(r"^ai-badger--v(\d+)\.(\d+)\.(\d+)$")
-SHIPPED_PATHS = ["skills", "features", "scripts", "schemas", "index.json"]
+SHIPPED_PATHS = ["skills", "features", "engine", "tooling", "schemas", "index.json"]
 
 
 class GitCommandFailed(RuntimeError):

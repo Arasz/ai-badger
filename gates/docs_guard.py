@@ -6,7 +6,7 @@ nothing checked (deferred-work plan, Wave 19). This gate checks only what a mach
 offline and without a toolchain — no prose linter, no markdown linter, no network link checker:
 
   1. Relative Markdown links in root `*.md` and under `docs/` resolve to something that exists.
-  2. Backticked repo paths (`scripts/foo.py`) name a file that exists.
+  2. Backticked repo paths (`tooling/foo.py`) name a file that exists.
   3. Every `docs/changelog/*.md` is reachable from that directory's README index, and VERSION
      has an entry.
 
@@ -43,15 +43,15 @@ from pathlib import Path
 from typing import List, NamedTuple, Sequence, Tuple
 from urllib.parse import unquote
 
-# The engine stays in scripts/: is_framework_root anchors on scripts/badger_lib.py.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+# The engine lives in engine/: is_framework_root anchors on engine/badger_lib.py (ADR-0011).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
 import badger_lib as bl
 
 DOCS_DIR = "docs"
 IGNORE_FILE = ".docs-guard-ignore"
 BUILTIN_EXEMPT = ("docs/archive/",)
-CHECKED_ROOTS = ("scripts", "gates", "features", "schemas", "hooks", "tests", "docs", ".github",
-                 ".claude-plugin")
+CHECKED_ROOTS = ("engine", "tooling", "gates", "features", "schemas", "hooks", "tests", "docs",
+                 ".github", ".claude-plugin")
 RECORD_DIRS = ("docs/adr/", "docs/changelog/", "docs/design/", "docs/incidents/", "docs/plans/",
                "docs/research/", "docs/reviews/", "docs/specs/")
 PATH_SUFFIXES = (".py", ".md", ".mjs", ".js", ".json", ".yaml", ".yml", ".toml", ".sh", ".txt")

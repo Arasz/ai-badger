@@ -16,7 +16,7 @@ class TestTheProjectDescriptionIsTrue:
 
     def test_the_summary_does_not_claim_every_import_degrades(self, root):
         assert OVERCLAIM not in _summary(root), (
-            "jsonschema is a hard requirement — scripts/badger_lib.py imports it unguarded. "
+            "jsonschema is a hard requirement — engine/badger_lib.py imports it unguarded. "
             "Only pyyaml degrades to a note. Describe what the code does."
         )
 
@@ -36,12 +36,12 @@ class TestTheContractIsWhatTheDocsSay:
 
     def test_jsonschema_is_imported_unguarded(self, root):
         """A hard dependency by decision: validation that silently no-ops is worse."""
-        source = (root / "scripts" / "badger_lib.py").read_text(encoding="utf-8")
+        source = (root / "engine" / "badger_lib.py").read_text(encoding="utf-8")
 
         assert "\nimport jsonschema" in source
 
     def test_both_dependencies_are_declared_in_requirements(self, root):
-        requirements = (root / "scripts" / "requirements.txt").read_text(encoding="utf-8").lower()
+        requirements = (root / "engine" / "requirements.txt").read_text(encoding="utf-8").lower()
 
         assert "jsonschema" in requirements and "pyyaml" in requirements
 

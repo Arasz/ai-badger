@@ -26,10 +26,10 @@ one creative artifact — and answer/ask a few questions.**
 
 Framework scripts need `jsonschema`:
 ```bash
-python3 -m pip install -r "$AI_BADGER/scripts/requirements.txt"
+python3 -m pip install -r "$AI_BADGER/engine/requirements.txt"
 ```
 `$AI_BADGER` = this framework's root (the dir containing `index.json`, `schemas/`, `common/`).
-If `index.json` is missing or stale, run `python3 "$AI_BADGER/scripts/index_build.py"` first.
+If `index.json` is missing or stale, run `python3 "$AI_BADGER/tooling/index_build.py"` first.
 
 ## Flow
 
@@ -60,7 +60,7 @@ If `index.json` is missing or stale, run `python3 "$AI_BADGER/scripts/index_buil
 
 4. **Validate.**
    ```bash
-   python3 "$AI_BADGER/scripts/validate.py" --kind config /tmp/proposed-config.json
+   python3 "$AI_BADGER/tooling/validate.py" --kind config /tmp/proposed-config.json
    ```
    Fix any reported error in the config and re-run until it passes.
 
@@ -130,8 +130,8 @@ exits non-zero or emits an error, attempt recovery before surfacing the failure.
 
    | Error | Fix |
    |---|---|
-   | `jsonschema` import error | `python3 -m pip install -r "$AI_BADGER/scripts/requirements.txt"` |
-   | `index.json` missing or stale | `python3 "$AI_BADGER/scripts/index_build.py"` |
+   | `jsonschema` import error | `python3 -m pip install -r "$AI_BADGER/engine/requirements.txt"` |
+   | `index.json` missing or stale | `python3 "$AI_BADGER/tooling/index_build.py"` |
    | `validate.py` reports config errors | Read errors, patch config JSON, re-validate |
    | `scaffold.py` file-permission / encoding error | Fix the file/permission, retry once |
    | `detect.py` found no stacks | Check that `$AI_BADGER` points at a valid framework checkout (has `index.json`) |

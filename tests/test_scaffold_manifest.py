@@ -43,7 +43,7 @@ def test_scaffold_manifest_entries_have_expected_shape(tmp_path, load_script, ro
 def test_scaffolded_manifest_validates_against_the_manifest_schema(
         tmp_path, load_script, root, stacks, agents):
     """The manifest scaffold writes must satisfy schemas/manifest.schema.json."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
@@ -83,7 +83,7 @@ def test_scaffolded_templates_are_recorded_in_the_manifest(tmp_path, load_script
 
 def test_recorded_templates_hash_their_framework_source(tmp_path, load_script, root):
     """drift.compare hashes the source for file entries; recording the target would misreport."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
     target.mkdir()
@@ -99,7 +99,7 @@ def test_recorded_templates_hash_their_framework_source(tmp_path, load_script, r
 def test_a_scaffolded_template_is_not_reported_as_new_on_a_second_run(
         tmp_path, load_script, root):
     """The anti-false-positive gate: a recorded template must never re-appear as drift."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     target = tmp_path / "proj"
@@ -124,7 +124,7 @@ def test_no_catalog_item_drift_reports_as_new_survives_a_full_scaffold(
     `hermes` is an agent whose catalog is also a selectable stack — the shape that turns an
     unrecorded feature type into a permanent false positive (#104).
     """
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     target = tmp_path / "proj"

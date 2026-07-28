@@ -8,8 +8,8 @@ contracts.
 **The rule that matters most:** after *any* change to the catalog tree, run
 
 ```bash
-python3 scripts/index_build.py
-python3 scripts/validate.py --all
+python3 tooling/index_build.py
+python3 tooling/validate.py --all
 ```
 
 `index_build.py` regenerates `index.json` (script-generated, never hand-edited) by scanning the
@@ -21,7 +21,7 @@ them; a PR against ai-badger with a stale `index.json` should be treated as brok
 Install the one dependency once:
 
 ```bash
-python3 -m pip install -r scripts/requirements.txt   # jsonschema
+python3 -m pip install -r engine/requirements.txt   # jsonschema
 ```
 
 ## Discovery rules (how `index_build.py` finds things)
@@ -157,8 +157,8 @@ They follow the same common → stack → user merge pattern as `mcp-servers.jso
 
 ## Checklist before opening a PR
 
-- [ ] `python3 scripts/index_build.py` run, `index.json` diff committed.
-- [ ] `python3 scripts/validate.py --all` passes.
+- [ ] `python3 tooling/index_build.py` run, `index.json` diff committed.
+- [ ] `python3 tooling/validate.py --all` passes.
 - [ ] New content filed under the right stack (or genuinely `common`) — no project-specific
       paths or domain-coupled models leaked into `common`.
 - [ ] If you touched `skills/task`, grep it for stack-specific literals (`dotnet`,

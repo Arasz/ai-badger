@@ -8,7 +8,7 @@ features/claude/skills/ into skills/.
 Run after changing skill content, before publishing the plugin.
 
 Usage:
-  python3 scripts/sync_plugin_skills.py [--dry-run | --check]
+  python3 tooling/sync_plugin_skills.py [--dry-run | --check]
   --check : do not write; exit 1 if any shipped copy diverges from features/.
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ import shutil
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
 import badger_lib as bl
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -96,7 +96,7 @@ def check_all() -> int:
 
     if out_of_sync:
         print(f"\n{out_of_sync} of {checked} skill(s) out of sync — "
-              f"run: python3 scripts/sync_plugin_skills.py")
+              f"run: python3 tooling/sync_plugin_skills.py")
         return 1
     print(f"\n{checked} skill(s) in sync")
     return 0

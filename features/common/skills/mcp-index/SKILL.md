@@ -21,7 +21,7 @@ metadata:
 
 The scripts here need PyYAML:
 ```bash
-python3 -m pip install pyyaml   # also in $AI_BADGER/scripts/requirements.txt
+python3 -m pip install pyyaml   # also in $AI_BADGER/engine/requirements.txt
 ```
 Without it every command exits 1 with that hint rather than a traceback.
 

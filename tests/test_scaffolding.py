@@ -7,7 +7,7 @@ import shutil
 
 def test_scaffolding_schema_validates_minimal_file(tmp_path, root, load_script):
     """A minimal scaffolding.json with one file entry must pass schema validation."""
-    badger_lib = load_script("scripts/badger_lib.py")
+    badger_lib = load_script("engine/badger_lib.py")
     schema = badger_lib.load_json(root / "schemas" / "scaffolding.schema.json")
     instance = {
         "agent": "claude",
@@ -21,7 +21,7 @@ def test_scaffolding_schema_validates_minimal_file(tmp_path, root, load_script):
 
 def test_scaffolding_schema_rejects_missing_agent(tmp_path, root, load_script):
     """Missing 'agent' field must fail validation."""
-    badger_lib = load_script("scripts/badger_lib.py")
+    badger_lib = load_script("engine/badger_lib.py")
     schema = badger_lib.load_json(root / "schemas" / "scaffolding.schema.json")
     instance = {
         "files": [
@@ -34,7 +34,7 @@ def test_scaffolding_schema_rejects_missing_agent(tmp_path, root, load_script):
 
 def test_scaffolding_schema_rejects_missing_files(tmp_path, root, load_script):
     """Missing 'files' field must fail validation."""
-    badger_lib = load_script("scripts/badger_lib.py")
+    badger_lib = load_script("engine/badger_lib.py")
     schema = badger_lib.load_json(root / "schemas" / "scaffolding.schema.json")
     instance = {"agent": "claude"}
     errors = badger_lib.validate(instance, schema)
@@ -43,7 +43,7 @@ def test_scaffolding_schema_rejects_missing_files(tmp_path, root, load_script):
 
 def test_scaffolding_schema_rejects_missing_required_file_fields(tmp_path, root, load_script):
     """Each file entry must have source, target, and managed."""
-    badger_lib = load_script("scripts/badger_lib.py")
+    badger_lib = load_script("engine/badger_lib.py")
     schema = badger_lib.load_json(root / "schemas" / "scaffolding.schema.json")
     instance = {
         "agent": "claude",
@@ -57,7 +57,7 @@ def test_scaffolding_schema_rejects_missing_required_file_fields(tmp_path, root,
 
 def test_scaffolding_schema_accepts_optional_seed_once(tmp_path, root, load_script):
     """The seedOnce boolean must be accepted as an optional field."""
-    badger_lib = load_script("scripts/badger_lib.py")
+    badger_lib = load_script("engine/badger_lib.py")
     schema = badger_lib.load_json(root / "schemas" / "scaffolding.schema.json")
     instance = {
         "agent": "prompt-markers",
@@ -76,7 +76,7 @@ def test_scaffolding_schema_accepts_optional_seed_once(tmp_path, root, load_scri
 
 def test_scaffolding_schema_validates_example_instance(root, load_script):
     """A realistic scaffolding.json must pass validation against its schema."""
-    badger_lib = load_script("scripts/badger_lib.py")
+    badger_lib = load_script("engine/badger_lib.py")
     schema = badger_lib.load_json(root / "schemas" / "scaffolding.schema.json")
     scaffolding = {
         "agent": "claude",

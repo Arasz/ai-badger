@@ -91,13 +91,13 @@ _log_summary() {
 
 lane_cmd() {
     case "$1" in
-        version-sync)  "$PY" scripts/version_sync.py --check ;;
-        index)         "$PY" scripts/index_build.py --check ;;
-        plugin-skills) "$PY" scripts/sync_plugin_skills.py --check ;;
+        version-sync)  "$PY" tooling/version_sync.py --check ;;
+        index)         "$PY" tooling/index_build.py --check ;;
+        plugin-skills) "$PY" tooling/sync_plugin_skills.py --check ;;
         deps)          "$PY" gates/deps_guard.py ;;
         docs)          "$PY" gates/docs_guard.py ;;
         release)       "$PY" gates/release_guard.py ;;
-        validate)      "$PY" scripts/validate.py --all ;;
+        validate)      "$PY" tooling/validate.py --all ;;
         tdd)           lane_tdd ;;
         js)            lane_js ;;
         pylint)        lane_pylint ;;

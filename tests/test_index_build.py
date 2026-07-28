@@ -1,4 +1,4 @@
-"""Tests for scripts/index_build.py: build_index() scanning + --check clean/stale CLI behavior."""
+"""Tests for tooling/index_build.py: build_index() scanning + --check clean/stale CLI behavior."""
 from __future__ import annotations
 
 import json
@@ -66,7 +66,7 @@ def _make_fake_root(tmp_path, root):
 
 
 def test_build_index_assembles_expected_stacks_and_items(tmp_path, root, load_script):
-    index_build = load_script("scripts/index_build.py")
+    index_build = load_script("tooling/index_build.py")
     fake_root = _make_fake_root(tmp_path, root)
 
     index = index_build.build_index(fake_root)
@@ -92,7 +92,7 @@ def test_build_index_assembles_expected_stacks_and_items(tmp_path, root, load_sc
 
 
 def test_build_index_defaults_framework_version_when_version_file_missing(tmp_path, root, load_script):
-    index_build = load_script("scripts/index_build.py")
+    index_build = load_script("tooling/index_build.py")
     fake_root = _make_fake_root(tmp_path, root)
     (fake_root / "VERSION").unlink()
 
@@ -102,7 +102,7 @@ def test_build_index_defaults_framework_version_when_version_file_missing(tmp_pa
 
 
 def test_build_index_readme_excluded_from_md_and_template_items(tmp_path, root, load_script):
-    index_build = load_script("scripts/index_build.py")
+    index_build = load_script("tooling/index_build.py")
     fake_root = _make_fake_root(tmp_path, root)
 
     index = index_build.build_index(fake_root)
@@ -123,7 +123,7 @@ class TestLegacyExtensionDirs:
         return d
 
     def test_the_generated_index_carries_no_extensions_field(self, tmp_path, root, load_script):
-        index_build = load_script("scripts/index_build.py")
+        index_build = load_script("tooling/index_build.py")
         fake_root = _make_fake_root(tmp_path, root)
         self._legacy(fake_root)
 
@@ -136,7 +136,7 @@ class TestLegacyExtensionDirs:
 
     def test_a_legacy_dir_is_reported_with_its_replacement_named(self, tmp_path, root,
                                                                  load_script):
-        index_build = load_script("scripts/index_build.py")
+        index_build = load_script("tooling/index_build.py")
         fake_root = _make_fake_root(tmp_path, root)
         self._legacy(fake_root)
 
@@ -146,7 +146,7 @@ class TestLegacyExtensionDirs:
 
     def test_an_orphan_legacy_dir_is_reported_too(self, tmp_path, root, load_script):
         """Naming no real skill made it doubly invisible before — it is still a mistake."""
-        index_build = load_script("scripts/index_build.py")
+        index_build = load_script("tooling/index_build.py")
         fake_root = _make_fake_root(tmp_path, root)
         self._legacy(fake_root, base="ghost", ext="variant")
 
@@ -155,13 +155,13 @@ class TestLegacyExtensionDirs:
         ]
 
     def test_a_clean_catalog_reports_nothing(self, tmp_path, root, load_script):
-        index_build = load_script("scripts/index_build.py")
+        index_build = load_script("tooling/index_build.py")
 
         assert index_build.legacy_extension_dirs(_make_fake_root(tmp_path, root)) == []
 
     def test_main_refuses_to_build_and_points_at_the_supported_layout(self, tmp_path, root,
                                                                      load_script, capsys):
-        index_build = load_script("scripts/index_build.py")
+        index_build = load_script("tooling/index_build.py")
         fake_root = _make_fake_root(tmp_path, root)
         self._legacy(fake_root)
 
@@ -174,7 +174,7 @@ class TestLegacyExtensionDirs:
         assert "greet/extensions/" in out, "must name the supported layout, not just refuse"
 
     def test_the_real_catalog_uses_no_legacy_dirs(self, root, load_script):
-        index_build = load_script("scripts/index_build.py")
+        index_build = load_script("tooling/index_build.py")
 
         assert index_build.legacy_extension_dirs(root) == []
 
@@ -194,7 +194,7 @@ def test_the_schema_no_longer_permits_the_removed_extensions_field(root):
 
 
 def test_main_check_reports_stale_when_index_json_missing(tmp_path, root, load_script, capsys):
-    index_build = load_script("scripts/index_build.py")
+    index_build = load_script("tooling/index_build.py")
     fake_root = _make_fake_root(tmp_path, root)
 
     rc = index_build.main(["--root", str(fake_root), "--check"])
@@ -204,7 +204,7 @@ def test_main_check_reports_stale_when_index_json_missing(tmp_path, root, load_s
 
 
 def test_main_writes_index_json_then_check_reports_clean(tmp_path, root, load_script, capsys):
-    index_build = load_script("scripts/index_build.py")
+    index_build = load_script("tooling/index_build.py")
     fake_root = _make_fake_root(tmp_path, root)
 
     rc_build = index_build.main(["--root", str(fake_root)])
@@ -219,7 +219,7 @@ def test_main_writes_index_json_then_check_reports_clean(tmp_path, root, load_sc
 
 
 def test_main_check_reports_stale_after_tree_changes(tmp_path, root, load_script):
-    index_build = load_script("scripts/index_build.py")
+    index_build = load_script("tooling/index_build.py")
     fake_root = _make_fake_root(tmp_path, root)
     index_build.main(["--root", str(fake_root)])
 
@@ -233,7 +233,7 @@ def test_main_check_reports_stale_after_tree_changes(tmp_path, root, load_script
 
 
 def test_main_writes_valid_pretty_printed_json_with_trailing_newline(tmp_path, root, load_script):
-    index_build = load_script("scripts/index_build.py")
+    index_build = load_script("tooling/index_build.py")
     fake_root = _make_fake_root(tmp_path, root)
 
     index_build.main(["--root", str(fake_root)])

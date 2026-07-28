@@ -31,11 +31,11 @@ Python **3.8+** (CI runs 3.8, 3.9 and 3.10) and Node (for the two `.mjs` gate sc
 git clone https://github.com/Arasz/ai-badger
 cd ai-badger
 python3 -m venv .venv
-.venv/bin/python3 -m pip install -r scripts/requirements.txt -r scripts/requirements-dev.txt
+.venv/bin/python3 -m pip install -r engine/requirements.txt -r engine/requirements-dev.txt
 .venv/bin/python3 -m pip install pytest
 ```
 
-`scripts/requirements.txt` carries the runtime dependencies and `scripts/requirements-dev.txt`
+`engine/requirements.txt` carries the runtime dependencies and `engine/requirements-dev.txt`
 carries `pylint`; `pytest` is not pinned in either, so install it separately (CI installs
 `pylint pytest jsonschema pyyaml` explicitly).
 
@@ -45,7 +45,7 @@ interpreter.
 
 Runtime dependencies are deliberately minimal, and the two behave differently on purpose:
 
-- **`jsonschema` is required.** `scripts/badger_lib.py` imports it unguarded. Validation that
+- **`jsonschema` is required.** `engine/badger_lib.py` imports it unguarded. Validation that
   silently no-ops is worse than a missing dependency — an unvalidated config would sail straight
   into the scaffolder — so it fails loudly instead.
 - **`pyyaml` is optional.** It is imported behind a guard and degrades to a printed note
@@ -54,8 +54,8 @@ Runtime dependencies are deliberately minimal, and the two behave differently on
 Everything else is standard library. **Do not add a third runtime dependency without a very good
 reason**; if you must, decide deliberately which of these two shapes it takes and say so here.
 `gates/deps_guard.py` enforces the declaration half of that rule: it parses every `*.py` under
-`scripts/`, `features/` and `gates/` and fails on a third-party import — including one hidden inside a
-function or a `try:` block — that `scripts/requirements.txt` does not declare.
+`engine/`, `tooling/`, `features/` and `gates/` and fails on a third-party import — including one
+hidden inside a function or a `try:` block — that `engine/requirements.txt` does not declare.
 
 Optionally install the pre-commit hooks, which run six of the gates locally:
 
@@ -77,9 +77,13 @@ stops an unbumped `VERSION` or a failing test from reaching CI. See
 ```
 features/{stack|common}/{feature}/   the catalog — skills, personas, invariants, instructions,
                                      hooks, adjustments, templates
-scripts/                             mechanical Python: index_build, validate, version_sync,
-                                     release_guard, tdd_guard, docs_guard, deps_guard,
-                                     sync_plugin_skills, badger_lib
+engine/                              the library every bootstrap shim imports: badger_lib,
+                                     unsafe_literals (and requirements.txt)
+tooling/                             maintainer catalog and release tooling: index_build,
+                                     validate, version_sync, sync_plugin_skills,
+                                     install_plugins
+gates/                               repo gates CI and the pre-push hook run: release_guard,
+                                     tdd_guard, docs_guard, deps_guard
 schemas/                             a JSON Schema per *.json model
 index.json                           SCRIPT-GENERATED. Never hand-edit it.
 tests/                               pytest; tests/js/ holds the node --test suites
@@ -120,9 +124,9 @@ that demanded it.
 ```
 
 `gates/tdd_guard.py` checks the one thing a machine can: that a change to `.py` or `.mjs` under
-`scripts/`, `features/` or `gates/` came with a change to a test file. It is a signal, not a proof — it
-cannot tell a real test from an empty one, so passing it is not the point; writing the test first
-is.
+`engine/`, `tooling/`, `features/` or `gates/` came with a change to a test file. It is a signal,
+not a proof — it cannot tell a real test from an empty one, so passing it is not the point;
+writing the test first is.
 
 There is an escape hatch — `[no-tests]` in a commit message in the range — and it is **printed in
 CI output**, so an unjustified one is visible rather than silent. Use it only for changes that
@@ -139,23 +143,23 @@ as one large diff at the end.
 ### 4. Re-scaffold if you touched the scaffolder
 
 `skills/` and `.ai-badger/` hold copies of catalog content that go stale. After touching
-`scripts/` or `features/common/skills/welcome-ai-badger/`, regenerate them or
+`engine/`, `tooling/` or `features/common/skills/welcome-ai-badger/`, regenerate them or
 `sync_plugin_skills --check` and pylint will fail:
 
 ```bash
-.venv/bin/python3 scripts/sync_plugin_skills.py
+.venv/bin/python3 tooling/sync_plugin_skills.py
 .venv/bin/python3 features/common/skills/welcome-ai-badger/scripts/scaffold.py \
     --config .ai-badger/config.json --target . --root .
 ```
 
-`index.json` is likewise generated — run `.venv/bin/python3 scripts/index_build.py` after adding
+`index.json` is likewise generated — run `.venv/bin/python3 tooling/index_build.py` after adding
 or removing a catalog entry, and commit the result. Never edit it by hand.
 
 ### 5. Decide whether this is a release
 
-Run the release guard. It compares the shipped surface (`features/`, `scripts/`, `schemas/`,
-`index.json`, `skills/`) against the **last release tag** — not the previous commit. `gates/` is
-not shipped surface: a change confined to the repo gates needs no bump.
+Run the release guard. It compares the shipped surface (`features/`, `engine/`, `tooling/`,
+`schemas/`, `index.json`, `skills/`) against the **last release tag** — not the previous commit.
+`gates/` is not shipped surface: a change confined to the repo gates needs no bump.
 
 ```bash
 .venv/bin/python3 gates/release_guard.py
@@ -171,7 +175,7 @@ not shipped surface: a change confined to the repo gates needs no bump.
      [`docs/changelog/README.md`](docs/changelog/README.md).
   3. Add the version to [`BREAKING_VERSIONS`](BREAKING_VERSIONS) if a re-scaffold is *required*,
      not merely recommended.
-  4. `.venv/bin/python3 scripts/version_sync.py` — propagates the version into `plugin.json`,
+  4. `.venv/bin/python3 tooling/version_sync.py` — propagates the version into `plugin.json`,
      `marketplace.json` and `index.json`.
 
 Full detail, including the semver-for-a-catalog rules, is in [`RELEASING.md`](RELEASING.md).
@@ -192,10 +196,10 @@ green local run means a green build:
 ```bash
 .venv/bin/python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')   # 10.00 required
 .venv/bin/python3 -m pytest -q
-.venv/bin/python3 scripts/index_build.py --check
-.venv/bin/python3 scripts/sync_plugin_skills.py --check
-.venv/bin/python3 scripts/validate.py --all
-.venv/bin/python3 scripts/version_sync.py --check
+.venv/bin/python3 tooling/index_build.py --check
+.venv/bin/python3 tooling/sync_plugin_skills.py --check
+.venv/bin/python3 tooling/validate.py --all
+.venv/bin/python3 tooling/version_sync.py --check
 .venv/bin/python3 gates/docs_guard.py
 .venv/bin/python3 gates/deps_guard.py
 .venv/bin/python3 gates/release_guard.py
@@ -214,7 +218,7 @@ What each one is for:
 | `validate.py --all` | Any catalog JSON violates its schema in `schemas/`. |
 | `version_sync.py --check` | `plugin.json`, `marketplace.json` or `index.json` disagree with `VERSION`. |
 | `docs_guard.py` | A relative link or a backticked repo path in the docs no longer resolves, or a changelog entry is missing from `docs/changelog/README.md`. |
-| `deps_guard.py` | Code imports a third-party module that `scripts/requirements.txt` does not declare. |
+| `deps_guard.py` | Code imports a third-party module that `engine/requirements.txt` does not declare. |
 | `release_guard.py` | The shipped surface changed since the last release tag without a `VERSION` bump. |
 | `tdd_guard.py` | Code changed and no test changed with it. Runs on branches, not on `main`. |
 | `node --test` | A `.mjs` gate script's tests fail. |
