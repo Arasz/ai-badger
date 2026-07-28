@@ -337,8 +337,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
 
     has_drift = bool(drift_result.get("changed") or drift_result.get("removed")
-                     or drift_result.get("newItems") or drift_result.get("versionChanged")
-                     or new_stacks)
+                     or drift_result.get("orphaned") or drift_result.get("newItems")
+                     or drift_result.get("versionChanged") or new_stacks)
 
     # 7. Re-scaffold if drift detected (or breaking change forces full re-scaffold)
     scaffold_result = None
@@ -370,6 +370,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "drift": {
             "changed": drift_result.get("changed", []),
             "removed": drift_result.get("removed", []),
+            "orphaned": drift_result.get("orphaned", []),
             "skipped": drift_result.get("skipped", []),
             "locallyModified": drift_result.get("locallyModified", []),
             "versionChanged": drift_result.get("versionChanged"),
