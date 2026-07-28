@@ -1,8 +1,8 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.36.1",
-  "frameworkCommit": "a39f8ab0b1c013fc3775cf114025e9d356235618",
-  "frameworkDirty": true,
+  "frameworkCommit": "040f1170bb5b8722a28f6df2670f212111d2c780",
+  "frameworkDirty": false,
   "frameworkRoot": ".",
   "generatedAt": null,
   "agents": [
@@ -389,7 +389,7 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.36.1",
-      "hash": "e0879bcf936fa747d0dc6801bc4e9eb9fe709ba981290567f148e74b0061c313",
+      "hash": "4271b2628b00febd4279933a7e52571834393fdfcc727b10dc44ab84046e1724",
       "dirMeta": {
         "file_count": 14,
         "dir_count": 2
@@ -657,15 +657,6 @@
       "name": "adjustments/.github/skills/welcome-ai-badger",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/welcome-ai-badger",
-      "frameworkVersion": "0.36.1",
-      "hash": "7368400e020383d905a151a208dd66cecc2209a3d60797277f38f76474acc219"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
-      "name": "adjustments/.github/skills/auto-wm",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/auto-wm",
       "frameworkVersion": "0.36.1",
       "hash": "7368400e020383d905a151a208dd66cecc2209a3d60797277f38f76474acc219"
     },
