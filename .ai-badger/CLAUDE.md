@@ -59,7 +59,7 @@ This ensures every change is traceable and users can see what changed between ve
 ## Commands
 
 - `test`: `python3 -m pytest -q`
-- `lint`: `python3 -m pylint engine tooling features gates tests`
+- `lint`: `python3 -m pylint engine tooling features gates`
 - `build`: `python3 tooling/index_build.py --check`
 
 ## Path-specific instructions

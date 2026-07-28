@@ -13,12 +13,17 @@ GATE_NAMES = ("deps_guard.py", "docs_guard.py", "release_guard.py", "tdd_guard.p
 # tooling/sync_plugin_skills.py and the scaffolder. Linting a copy lints nothing new.
 GENERATED_PY_ROOTS = frozenset({".ai-badger", ".claude", "skills"})
 
+# tests/ is exempt by policy, not by oversight: CONTRIBUTING.md says tests keep their own
+# conventions, and CI runs `git ls-files '*.py' | grep -v '^tests/'`. A declared command that
+# named tests/ would point agents at a tree no gate lints.
+LINT_EXEMPT_PY_ROOTS = GENERATED_PY_ROOTS | {"tests"}
+
 
 def _tracked_python_roots(root: Path) -> Set[str]:
     out = subprocess.run(["git", "ls-files", "*.py"], cwd=str(root), capture_output=True,
                          text=True, check=True).stdout
     roots = {line.split("/")[0] for line in out.splitlines() if "/" in line}
-    return roots - GENERATED_PY_ROOTS
+    return roots - LINT_EXEMPT_PY_ROOTS
 
 
 def test_every_gate_lives_in_the_gates_directory(root):

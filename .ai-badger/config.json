@@ -28,7 +28,7 @@
   },
   "commands": {
     "test": "python3 -m pytest -q",
-    "lint": "python3 -m pylint engine tooling features gates tests",
+    "lint": "python3 -m pylint engine tooling features gates",
     "build": "python3 tooling/index_build.py --check"
   },
   "personaRouting": [],
