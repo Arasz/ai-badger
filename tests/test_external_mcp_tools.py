@@ -32,11 +32,9 @@ def _config(stacks=None, source_control=None, commands=None, agents=None,
 
 # ── CLAUDE.md instruction rendering ──────────────────────────────────────────
 
-def test_external_tools_instructions_rendered_in_claude_md(tmp_path, load_script, root):
+def test_external_tools_instructions_rendered_in_claude_md(make_scaffolder):
     """Config with externalTools produces MCP instructions in CLAUDE.md."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     tools = [
         {
@@ -50,8 +48,7 @@ def test_external_tools_instructions_rendered_in_claude_md(tmp_path, load_script
         }
     ]
     cfg = _config(external_tools=tools)
-    scaf = scaffold.Scaffolder(root=root, target=target, config=cfg,
-                                skills=[], install=True)
+    scaf = make_scaffolder(config=cfg, install=True)
     scaf.run(generated_at="2026-07-26T00:00:00Z")
 
     claude_md = (target / ".ai-badger" / "CLAUDE.md").read_text(encoding="utf-8")
@@ -59,15 +56,12 @@ def test_external_tools_instructions_rendered_in_claude_md(tmp_path, load_script
     assert "Use graph tools before Grep/Glob/Read" in claude_md
 
 
-def test_no_external_tools_no_extra_section(tmp_path, load_script, root):
+def test_no_external_tools_no_extra_section(make_scaffolder):
     """Config without externalTools still gets catalog tools injected."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     cfg = _config()
-    scaf = scaffold.Scaffolder(root=root, target=target, config=cfg,
-                                skills=[], install=True)
+    scaf = make_scaffolder(config=cfg, install=True)
     scaf.run(generated_at="2026-07-26T00:00:00Z")
 
     claude_md = (target / ".ai-badger" / "CLAUDE.md").read_text(encoding="utf-8")
@@ -75,11 +69,9 @@ def test_no_external_tools_no_extra_section(tmp_path, load_script, root):
     assert "code-review-graph" in claude_md
 
 
-def test_multiple_external_tools_rendered(tmp_path, load_script, root):
+def test_multiple_external_tools_rendered(make_scaffolder):
     """Multiple externalTools each get their own section."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     tools = [
         {
@@ -96,8 +88,7 @@ def test_multiple_external_tools_rendered(tmp_path, load_script, root):
         },
     ]
     cfg = _config(external_tools=tools)
-    scaf = scaffold.Scaffolder(root=root, target=target, config=cfg,
-                                skills=[], install=True)
+    scaf = make_scaffolder(config=cfg, install=True)
     scaf.run(generated_at="2026-07-26T00:00:00Z")
 
     claude_md = (target / ".ai-badger" / "CLAUDE.md").read_text(encoding="utf-8")
@@ -107,11 +98,9 @@ def test_multiple_external_tools_rendered(tmp_path, load_script, root):
 
 # ── .mcp.json generation ──────────────────────────────────────────────────────
 
-def test_external_tools_generates_mcp_json(tmp_path, load_script, root):
+def test_external_tools_generates_mcp_json(make_scaffolder):
     """externalTools with generate_mcp_json produces a portable .mcp.json."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     tools = [
         {
@@ -123,8 +112,7 @@ def test_external_tools_generates_mcp_json(tmp_path, load_script, root):
         }
     ]
     cfg = _config(external_tools=tools)
-    scaf = scaffold.Scaffolder(root=root, target=target, config=cfg,
-                                skills=[], install=True)
+    scaf = make_scaffolder(config=cfg, install=True)
     scaf.run(generated_at="2026-07-26T00:00:00Z")
 
     mcp_json_path = target / ".mcp.json"
@@ -137,11 +125,9 @@ def test_external_tools_generates_mcp_json(tmp_path, load_script, root):
     assert "code-review-graph" in server["args"]
 
 
-def test_external_tools_no_mcp_json_when_not_requested(tmp_path, load_script, root):
+def test_external_tools_no_mcp_json_when_not_requested(make_scaffolder):
     """externalTools without generate_mcp_json does not create .mcp.json."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     tools = [
         {
@@ -152,8 +138,7 @@ def test_external_tools_no_mcp_json_when_not_requested(tmp_path, load_script, ro
         }
     ]
     cfg = _config(external_tools=tools)
-    scaf = scaffold.Scaffolder(root=root, target=target, config=cfg,
-                                skills=[], install=True)
+    scaf = make_scaffolder(config=cfg, install=True)
     scaf.run(generated_at="2026-07-26T00:00:00Z")
 
     # No .mcp.json should be generated (user manages it manually or via hermes mcp add)
@@ -163,11 +148,9 @@ def test_external_tools_no_mcp_json_when_not_requested(tmp_path, load_script, ro
 
 # ── HERMES.md also gets instructions ──────────────────────────────────────────
 
-def test_external_tools_instructions_in_hermes_md(tmp_path, load_script, root):
+def test_external_tools_instructions_in_hermes_md(make_scaffolder):
     """externalTools instructions also appear in HERMES.md for Hermes agent."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     tools = [
         {
@@ -178,8 +161,7 @@ def test_external_tools_instructions_in_hermes_md(tmp_path, load_script, root):
         }
     ]
     cfg = _config(external_tools=tools, agents=["hermes"])
-    scaf = scaffold.Scaffolder(root=root, target=target, config=cfg,
-                                skills=[], install=True)
+    scaf = make_scaffolder(config=cfg, install=True)
     scaf.run(generated_at="2026-07-26T00:00:00Z")
 
     hermes_md = (target / ".ai-badger" / "HERMES.md").read_text(encoding="utf-8")
