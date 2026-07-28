@@ -10,13 +10,10 @@ from scaffold_helpers import _config
 
 
 # -------------------------------------------------------------------------- manifest shape
-def test_scaffold_manifest_entries_have_expected_shape(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_scaffold_manifest_entries_have_expected_shape(make_scaffolder):
+    target = make_scaffolder.target
 
-    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(stacks=["dotnet"]),
-                                skills=["task"], install=False)
+    scaf = make_scaffolder(config=_config(stacks=["dotnet"]), skills=["task"])
     result = scaf.run(generated_at="2026-07-19T00:00:00Z")
 
     entries = result["manifest"]["entries"]
@@ -43,16 +40,12 @@ def test_scaffold_manifest_entries_have_expected_shape(tmp_path, load_script, ro
     (["python", "js"], ["claude", "copilot"]),
 ])
 def test_scaffolded_manifest_validates_against_the_manifest_schema(
-        tmp_path, load_script, root, stacks, agents):
+        load_script, root, make_scaffolder, stacks, agents):
     """The manifest scaffold writes must satisfy schemas/manifest.schema.json."""
     bl = load_script("engine/badger_lib.py")
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
-    scaf = scaffold.Scaffolder(root=root, target=target,
-                                config=_config(stacks=stacks, agents=agents),
-                                skills=["task"], install=False)
+    scaf = make_scaffolder(config=_config(stacks=stacks, agents=agents), skills=["task"])
     scaf.run(generated_at="2026-07-19T00:00:00Z")
 
     manifest_on_disk = target / ".ai-badger" / "manifest.json"
@@ -63,14 +56,9 @@ def test_scaffolded_manifest_validates_against_the_manifest_schema(
 
 
 # -------------------------------------------------------------------- template provenance
-def test_scaffolded_templates_are_recorded_in_the_manifest(tmp_path, load_script, root):
+def test_scaffolded_templates_are_recorded_in_the_manifest(make_scaffolder):
     """Templates are placed into the project, so the manifest must say where they came from."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
-
-    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(stacks=["dotnet"]),
-                                skills=[], install=False)
+    scaf = make_scaffolder(config=_config(stacks=["dotnet"]))
     result = scaf.run(generated_at="2026-07-19T00:00:00Z")
 
     templates = [e for e in result["manifest"]["entries"] if e["feature"] == "templates"]
@@ -83,15 +71,11 @@ def test_scaffolded_templates_are_recorded_in_the_manifest(tmp_path, load_script
     }
 
 
-def test_recorded_templates_hash_their_framework_source(tmp_path, load_script, root):
+def test_recorded_templates_hash_their_framework_source(load_script, root, make_scaffolder):
     """drift.compare hashes the source for file entries; recording the target would misreport."""
     bl = load_script("engine/badger_lib.py")
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
 
-    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(stacks=["dotnet"]),
-                                skills=[], install=False)
+    scaf = make_scaffolder(config=_config(stacks=["dotnet"]))
     result = scaf.run(generated_at="2026-07-19T00:00:00Z")
 
     for entry in (e for e in result["manifest"]["entries"] if e["feature"] == "templates"):
@@ -99,17 +83,14 @@ def test_recorded_templates_hash_their_framework_source(tmp_path, load_script, r
 
 
 def test_a_scaffolded_template_is_not_reported_as_new_on_a_second_run(
-        tmp_path, load_script, root):
+        load_script, root, make_scaffolder):
     """The anti-false-positive gate: a recorded template must never re-appear as drift."""
     bl = load_script("engine/badger_lib.py")
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     config = _config(stacks=["dotnet"])
 
-    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
-                                skills=[], install=False)
+    scaf = make_scaffolder(config=config)
     manifest = scaf.run(generated_at="2026-07-19T00:00:00Z")["manifest"]
 
     result = drift.compare(root, manifest, stacks=bl.resolve_stacks(config), target=target)
@@ -120,22 +101,20 @@ def test_a_scaffolded_template_is_not_reported_as_new_on_a_second_run(
 
 @pytest.mark.parametrize("stacks", [["python"], ["python", "hermes"]])
 def test_no_catalog_item_drift_reports_as_new_survives_a_full_scaffold(
-        tmp_path, load_script, root, stacks):
+        load_script, root, make_scaffolder, stacks):
     """Every reportable feature type must be recorded by scaffold, or the gate cries wolf.
 
     `hermes` is an agent whose catalog is also a selectable stack — the shape that turns an
     unrecorded feature type into a permanent false positive (#104).
     """
     bl = load_script("engine/badger_lib.py")
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     config = _config(stacks=stacks)
 
-    scaf = scaffold.Scaffolder(
-        root=root, target=target, config=config,
-        skills=bl.default_skills_in(root / "features" / "common" / "skills"), install=False)
+    scaf = make_scaffolder(
+        config=config,
+        skills=bl.default_skills_in(root / "features" / "common" / "skills"))
     manifest = scaf.run(generated_at="2026-07-19T00:00:00Z")["manifest"]
 
     result = drift.compare(root, manifest, stacks=bl.resolve_stacks(config), target=target)
@@ -144,12 +123,9 @@ def test_no_catalog_item_drift_reports_as_new_survives_a_full_scaffold(
 
 
 # --------------------------------------------------------- partial-run recovery (F-25)
-def test_failed_run_leaves_a_detectable_partial_marker(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
-    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
-                                skills=[], install=False)
+def test_failed_run_leaves_a_detectable_partial_marker(make_scaffolder):
+    target = make_scaffolder.target
+    scaf = make_scaffolder()
 
     def _explode():
         raise RuntimeError("hook wiring blew up mid-scaffold")
@@ -166,25 +142,19 @@ def test_failed_run_leaves_a_detectable_partial_marker(tmp_path, load_script, ro
     assert "hooks" not in partial["completedSteps"]
 
 
-def test_a_successful_run_leaves_no_partial_marker(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_a_successful_run_leaves_no_partial_marker(make_scaffolder):
+    target = make_scaffolder.target
 
-    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
-                                skills=[], install=False)
+    scaf = make_scaffolder()
     scaf.run(generated_at="2026-07-19T00:00:00Z")
 
     assert (target / ".ai-badger" / "manifest.json").exists()
     assert not (target / ".ai-badger" / "manifest.json.partial").exists()
 
 
-def test_a_failing_user_scope_write_degrades_to_a_note(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
-    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
-                                skills=[], install=False)
+def test_a_failing_user_scope_write_degrades_to_a_note(make_scaffolder):
+    target = make_scaffolder.target
+    scaf = make_scaffolder()
 
     def _explode(*_args, **_kwargs):
         raise OSError("read-only home directory")

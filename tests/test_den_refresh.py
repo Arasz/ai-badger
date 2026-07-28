@@ -135,10 +135,9 @@ def test_refresh_reports_up_to_date_when_no_drift(tmp_path, load_script, root):
 
 
 # ------------------------------------------------------------------- drift → re-scaffold
-def test_refresh_detects_drift_and_re_scaffolds(tmp_path, load_script, root):
+def test_refresh_detects_drift_and_re_scaffolds(tmp_path, load_script, root, make_scaffolder):
     """When framework content differs from scaffold, refresh re-scaffolds and reports changes."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
     fw = tmp_path / "fw"
     fw.mkdir()
@@ -166,8 +165,7 @@ def test_refresh_detects_drift_and_re_scaffolds(tmp_path, load_script, root):
     config = _write_config(proj, frameworkVersion="0.3.0")
 
     # Scaffold the project from the mock framework
-    scaf = scaffold.Scaffolder(root=fw, target=proj, config=config,
-                                skills=[], install=False)
+    scaf = make_scaffolder(root=fw, target=proj, config=config, skills=[])
     scaf.run(generated_at="2026-07-22T00:00:00Z")
 
     # Verify initial content
@@ -188,10 +186,9 @@ def test_refresh_detects_drift_and_re_scaffolds(tmp_path, load_script, root):
 
 
 # ---------------------------------------------------------------------- seed-once preservation
-def test_refresh_preserves_seed_once_files(tmp_path, load_script, root):
+def test_refresh_preserves_seed_once_files(tmp_path, load_script, root, make_scaffolder):
     """Seed-once files (state.json) must survive a refresh re-scaffold."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
     fw = tmp_path / "fw"
     fw.mkdir()
@@ -221,8 +218,7 @@ def test_refresh_preserves_seed_once_files(tmp_path, load_script, root):
     proj = tmp_path / "proj"
     config = _write_config(proj, frameworkVersion="0.3.0")
 
-    scaf = scaffold.Scaffolder(root=fw, target=proj, config=config,
-                                skills=[], install=False)
+    scaf = make_scaffolder(root=fw, target=proj, config=config, skills=[])
     scaf.run(generated_at="2026-07-22T00:00:00Z")
 
     # Mutate state.json (project-owned data)
@@ -270,10 +266,9 @@ def test_refresh_errors_when_no_manifest(tmp_path, load_script):
 
 
 # --------------------------------------------------------------------- hermes agent refresh
-def test_refresh_re_scaffolds_hermes_agent_files(tmp_path, load_script, root):
+def test_refresh_re_scaffolds_hermes_agent_files(tmp_path, load_script, root, make_scaffolder):
     """When a project has hermes as a detected agent, refresh must update HERMES.md."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
     fw = tmp_path / "fw"
     fw.mkdir()
@@ -325,8 +320,7 @@ def test_refresh_re_scaffolds_hermes_agent_files(tmp_path, load_script, root):
                            stacks=["dotnet"],
                            agents=["claude", "hermes"])
 
-    scaf = scaffold.Scaffolder(root=fw, target=proj, config=config,
-                                skills=[], install=False)
+    scaf = make_scaffolder(root=fw, target=proj, config=config, skills=[])
     scaf.run(generated_at="2026-07-22T00:00:00Z")
 
     # HERMES.md should exist
@@ -527,17 +521,16 @@ def _mock_fw_with_skills(fw, root, skill_names):
 
 
 def test_refresh_delivers_a_skill_added_to_the_catalog_after_the_project_was_scaffolded(
-        tmp_path, load_script, root, capsys):
+        tmp_path, load_script, root, capsys, make_scaffolder):
     """The whole-fix regression: detection sees common, the report says so, and it lands."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
     fw = tmp_path / "fw"
     _mock_fw_with_skills(fw, root, ["task"])
     proj = tmp_path / "proj"
     config = _write_config(proj, frameworkVersion="0.3.0")
-    scaffold.Scaffolder(root=fw, target=proj, config=config,
-                        skills=["task"], install=False).run(generated_at="2026-07-22T00:00:00Z")
+    make_scaffolder(root=fw, target=proj, config=config, skills=["task"]).run(
+        generated_at="2026-07-22T00:00:00Z")
     assert not (proj / ".ai-badger" / "skills" / "call-behaviorist").exists()
 
     # The framework ships a new common skill; the project's manifest knows nothing of it.
@@ -553,17 +546,16 @@ def test_refresh_delivers_a_skill_added_to_the_catalog_after_the_project_was_sca
 
 
 def test_refresh_delivers_a_skill_the_framework_changed_after_the_project_was_scaffolded(
-        tmp_path, load_script, root, capsys):
+        tmp_path, load_script, root, capsys, make_scaffolder):
     """End to end for #110: framework ahead → re-scaffold → the vendored copy matches it."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
     fw = tmp_path / "fw"
     _mock_fw_with_skills(fw, root, ["task"])
     proj = tmp_path / "proj"
     config = _write_config(proj, frameworkVersion="0.3.0")
-    scaffold.Scaffolder(root=fw, target=proj, config=config,
-                        skills=["task"], install=False).run(generated_at="2026-07-22T00:00:00Z")
+    make_scaffolder(root=fw, target=proj, config=config, skills=["task"]).run(
+        generated_at="2026-07-22T00:00:00Z")
 
     upstream = fw / "features" / "common" / "skills" / "task" / "SKILL.md"
     upstream.write_text("# task\n\nupstream v2\n", encoding="utf-8")
@@ -579,17 +571,16 @@ def test_refresh_delivers_a_skill_the_framework_changed_after_the_project_was_sc
 
 
 def test_refresh_reports_new_catalog_items_it_used_to_compute_and_discard(
-        tmp_path, load_script, root, capsys):
+        tmp_path, load_script, root, capsys, make_scaffolder):
     """newItems gated the re-scaffold but never reached the operator."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
     fw = tmp_path / "fw"
     _mock_fw_with_skills(fw, root, ["task"])
     proj = tmp_path / "proj"
     config = _write_config(proj, frameworkVersion="0.3.0")
-    scaffold.Scaffolder(root=fw, target=proj, config=config,
-                        skills=["task"], install=False).run(generated_at="2026-07-22T00:00:00Z")
+    make_scaffolder(root=fw, target=proj, config=config, skills=["task"]).run(
+        generated_at="2026-07-22T00:00:00Z")
 
     refresh.main(["--target", str(proj), "--root", str(fw)])
     report = json.loads(capsys.readouterr().out)
@@ -598,17 +589,15 @@ def test_refresh_reports_new_catalog_items_it_used_to_compute_and_discard(
 
 
 def test_refresh_keeps_scaffolding_skills_recorded_only_in_the_manifest(
-        tmp_path, load_script, root, capsys):
+        tmp_path, load_script, root, capsys, make_scaffolder):
     """The union is manifest-first: a skill already installed must not be dropped."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
     fw = tmp_path / "fw"
     _mock_fw_with_skills(fw, root, ["task", "auto-wm"])
     proj = tmp_path / "proj"
     config = _write_config(proj, frameworkVersion="0.3.0")
-    scaffold.Scaffolder(root=fw, target=proj, config=config,
-                        skills=["task", "auto-wm"], install=False).run(
+    make_scaffolder(root=fw, target=proj, config=config, skills=["task", "auto-wm"]).run(
                             generated_at="2026-07-22T00:00:00Z")
     _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory (v2).\n")
 
@@ -620,10 +609,9 @@ def test_refresh_keeps_scaffolding_skills_recorded_only_in_the_manifest(
 
 
 def test_refresh_does_not_report_per_file_extension_entries_as_refreshed_skills(
-        tmp_path, load_script, root, capsys):
+        tmp_path, load_script, root, capsys, make_scaffolder):
     """Manifest skill entries include `<skill>/extensions/<file>` rows; those are not skills."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
     fw = tmp_path / "fw"
     _mock_fw_with_skills(fw, root, ["task"])
@@ -632,8 +620,8 @@ def test_refresh_does_not_report_per_file_extension_entries_as_refreshed_skills(
     (ext / "dotnet.md").write_text("# dotnet extension\n", encoding="utf-8")
     proj = tmp_path / "proj"
     config = _write_config(proj, frameworkVersion="0.3.0")
-    scaffold.Scaffolder(root=fw, target=proj, config=config,
-                        skills=["task"], install=False).run(generated_at="2026-07-22T00:00:00Z")
+    make_scaffolder(root=fw, target=proj, config=config, skills=["task"]).run(
+        generated_at="2026-07-22T00:00:00Z")
     _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory (v2).\n")
 
     refresh.main(["--target", str(proj), "--root", str(fw)])
@@ -643,18 +631,17 @@ def test_refresh_does_not_report_per_file_extension_entries_as_refreshed_skills(
 
 
 def test_refresh_does_not_deliver_a_skill_the_project_excluded(
-        tmp_path, load_script, root, capsys):
+        tmp_path, load_script, root, capsys, make_scaffolder):
     """The union hands every default-scope skill over; the exclusion is what stops delivery."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
     fw = tmp_path / "fw"
     _mock_fw_with_skills(fw, root, ["task", "call-behaviorist"])
     proj = tmp_path / "proj"
     config = _write_config(proj, frameworkVersion="0.3.0",
                            exclude={"skills": ["call-behaviorist"]})
-    scaffold.Scaffolder(root=fw, target=proj, config=config,
-                        skills=["task"], install=False).run(generated_at="2026-07-22T00:00:00Z")
+    make_scaffolder(root=fw, target=proj, config=config, skills=["task"]).run(
+        generated_at="2026-07-22T00:00:00Z")
     _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory (v2).\n")
 
     rc = refresh.main(["--target", str(proj), "--root", str(fw)])
@@ -676,15 +663,14 @@ def _framework_tree(path, version):
     return path
 
 
-def _scaffolded_project(tmp_path, load_script, root):
+def _scaffolded_project(tmp_path, root, make_scaffolder):
     """A mock framework and a project already scaffolded from it, with no drift between them."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     fw = tmp_path / "fw"
     _mock_fw_with_skills(fw, root, ["task"])
     proj = tmp_path / "proj"
     config = _write_config(proj, frameworkVersion="0.3.0")
-    scaffold.Scaffolder(root=fw, target=proj, config=config,
-                        skills=["task"], install=False).run(generated_at="2026-07-22T00:00:00Z")
+    make_scaffolder(root=fw, target=proj, config=config, skills=["task"]).run(
+        generated_at="2026-07-22T00:00:00Z")
     return fw, proj
 
 
@@ -704,10 +690,10 @@ def _competing_home(tmp_path, monkeypatch, cache_version=None, plugin_version=No
 
 
 def test_refresh_reports_a_competing_framework_cache_and_leaves_it_on_disk(
-        tmp_path, load_script, root, monkeypatch, capsys):
+        tmp_path, load_script, root, monkeypatch, capsys, make_scaffolder):
     """Detect and report is the default: deleting from a home directory is not routine (#109)."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    fw, proj = _scaffolded_project(tmp_path, load_script, root)
+    fw, proj = _scaffolded_project(tmp_path, root, make_scaffolder)
     made = _competing_home(tmp_path, monkeypatch, cache_version="0.13.0")
 
     rc = refresh.main(["--target", str(proj), "--root", str(fw)])
@@ -722,9 +708,9 @@ def test_refresh_reports_a_competing_framework_cache_and_leaves_it_on_disk(
 
 
 def test_refresh_removes_the_cache_only_when_prune_cache_is_asked_for(
-        tmp_path, load_script, root, monkeypatch, capsys):
+        tmp_path, load_script, root, monkeypatch, capsys, make_scaffolder):
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    fw, proj = _scaffolded_project(tmp_path, load_script, root)
+    fw, proj = _scaffolded_project(tmp_path, root, make_scaffolder)
     made = _competing_home(tmp_path, monkeypatch, cache_version="0.13.0")
 
     rc = refresh.main(["--target", str(proj), "--root", str(fw), "--prune-cache"])
@@ -736,10 +722,10 @@ def test_refresh_removes_the_cache_only_when_prune_cache_is_asked_for(
 
 
 def test_refresh_never_prunes_claude_codes_plugin_cache(
-        tmp_path, load_script, root, monkeypatch, capsys):
+        tmp_path, load_script, root, monkeypatch, capsys, make_scaffolder):
     """ai-badger only ever reads that path; 76 MB of another tool's cache is not ours (#109)."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    fw, proj = _scaffolded_project(tmp_path, load_script, root)
+    fw, proj = _scaffolded_project(tmp_path, root, make_scaffolder)
     made = _competing_home(tmp_path, monkeypatch, cache_version="0.13.0",
                            plugin_version="0.36.2")
 
@@ -753,9 +739,9 @@ def test_refresh_never_prunes_claude_codes_plugin_cache(
 
 
 def test_refresh_says_nothing_about_copies_when_only_one_tree_exists(
-        tmp_path, load_script, root, monkeypatch, capsys):
+        tmp_path, load_script, root, monkeypatch, capsys, make_scaffolder):
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    fw, proj = _scaffolded_project(tmp_path, load_script, root)
+    fw, proj = _scaffolded_project(tmp_path, root, make_scaffolder)
     _competing_home(tmp_path, monkeypatch)
 
     refresh.main(["--target", str(proj), "--root", str(fw)])
@@ -765,18 +751,17 @@ def test_refresh_says_nothing_about_copies_when_only_one_tree_exists(
 
 
 def test_refresh_re_delivers_a_skill_whose_exclusion_was_removed(
-        tmp_path, load_script, root, capsys):
+        tmp_path, load_script, root, capsys, make_scaffolder):
     """Un-excluding is deleting the line: the next refresh delivers the skill fresh."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
     fw = tmp_path / "fw"
     _mock_fw_with_skills(fw, root, ["task", "call-behaviorist"])
     proj = tmp_path / "proj"
     config = _write_config(proj, frameworkVersion="0.3.0",
                            exclude={"skills": ["call-behaviorist"]})
-    scaffold.Scaffolder(root=fw, target=proj, config=config,
-                        skills=["task"], install=False).run(generated_at="2026-07-22T00:00:00Z")
+    make_scaffolder(root=fw, target=proj, config=config, skills=["task"]).run(
+        generated_at="2026-07-22T00:00:00Z")
     _write_config(proj, frameworkVersion="0.3.0")
 
     refresh.main(["--target", str(proj), "--root", str(fw)])
