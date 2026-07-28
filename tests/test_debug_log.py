@@ -1,6 +1,7 @@
 """Debug audit logging: off by default, bounded, private, and never able to break a hook."""
 from __future__ import annotations
 
+import io
 import json
 import os
 import stat
@@ -212,6 +213,109 @@ class TestHooksAreInstrumented:
         hooks.on_session_start_drift_notice(cwd=str(tmp_path))
 
         assert all(r.get(dl.KEY_VERSION) for r in _records(dl))
+
+
+class TestAScaffoldedProjectKnowsItsVersion:
+    """A scaffold ships no VERSION file; without a fallback every record reads `unknown`."""
+
+    def _scaffold(self, tmp_path, version="0.35.2"):
+        scripts = tmp_path / "proj" / ".ai-badger" / "skills" / "s" / "scripts"
+        scripts.mkdir(parents=True, exist_ok=True)
+        (tmp_path / "proj" / ".ai-badger" / "manifest.json").write_text(
+            json.dumps({"frameworkVersion": version}), encoding="utf-8")
+        return scripts / "debug_log.py"
+
+    def test_the_manifest_supplies_the_version_when_no_version_file_exists(
+            self, load_script, tmp_path, monkeypatch):
+        dl = _load(load_script, tmp_path, monkeypatch)
+
+        assert dl.framework_version(self._scaffold(tmp_path)) == "0.35.2"
+
+    def test_the_hosts_own_version_file_cannot_masquerade_as_the_frameworks(
+            self, load_script, tmp_path, monkeypatch):
+        """A scaffolded repo may version itself; that number is not ai-badger's."""
+        dl = _load(load_script, tmp_path, monkeypatch)
+        start = self._scaffold(tmp_path)
+        (tmp_path / "proj" / "VERSION").write_text("9.9.9", encoding="utf-8")
+
+        assert dl.framework_version(start) == "0.35.2"
+
+    def test_a_source_checkout_still_reads_its_version_file(self, load_script, tmp_path,
+                                                             monkeypatch):
+        """No manifest above it — a checkout of the framework itself."""
+        dl = _load(load_script, tmp_path, monkeypatch)
+        hooks = tmp_path / "src" / "features" / "common" / "hooks"
+        hooks.mkdir(parents=True, exist_ok=True)
+        (tmp_path / "src" / "VERSION").write_text("9.9.9", encoding="utf-8")
+
+        assert dl.framework_version(hooks / "debug_log.py") == "9.9.9"
+
+    def test_neither_present_is_still_the_sentinel(self, load_script, tmp_path, monkeypatch):
+        dl = _load(load_script, tmp_path, monkeypatch)
+        bare = tmp_path / "bare" / "scripts"
+        bare.mkdir(parents=True, exist_ok=True)
+
+        assert dl.framework_version(bare / "debug_log.py") == "unknown"
+
+
+class TestARecordSaysWhichProjectItCameFrom:
+    """An unattributed record pools into every project's analysis and skews all of them."""
+
+    def test_the_environment_names_the_project(self, load_script, tmp_path, monkeypatch):
+        dl = _load(load_script, tmp_path, monkeypatch)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", "/from/env")
+
+        assert dl.resolve_project_root({"cwd": "/from/payload"}) == "/from/env"
+
+    def test_the_payload_cwd_is_the_fallback(self, load_script, tmp_path, monkeypatch):
+        dl = _load(load_script, tmp_path, monkeypatch)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+
+        assert dl.resolve_project_root({"cwd": "/from/payload"}) == "/from/payload"
+
+    def test_neither_is_not_a_guess(self, load_script, tmp_path, monkeypatch):
+        dl = _load(load_script, tmp_path, monkeypatch)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+
+        assert dl.resolve_project_root({}) is None
+
+
+class TestEveryScaffoldedHookAttributesItsRecords:
+    """`analyze` scopes by project; a hook that never says where it ran cannot be scoped."""
+
+    HOOKS = [
+        ("features/common/skills/prompt-markers/scripts/user_prompt_hook.py",
+         {"prompt": "hint: check the cache"}),
+        ("features/common/skills/task/scripts/session_start_hook.py",
+         {"session_id": "s1", "source": "startup"}),
+    ]
+
+    def _run(self, load_script, tmp_path, monkeypatch, script, payload):
+        hook = load_script(script)
+        dl = hook.debug_log
+        for attr, value in (("DEBUG_DIR", tmp_path / "debug"),
+                            ("STATE_FILE", tmp_path / "debug" / "state.json"),
+                            ("AUDIT_FILE", tmp_path / "debug" / "audit.jsonl")):
+            monkeypatch.setattr(dl, attr, value)
+        _enable(dl)
+        monkeypatch.delenv(dl.DEBUG_ENV, raising=False)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path / "proj"))
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({**payload,
+                                                                 "cwd": str(tmp_path / "proj")})))
+        try:
+            hook.main()
+        except SystemExit:
+            pass
+        return dl
+
+    def test_each_hook_records_the_project_it_ran_in(self, load_script, tmp_path, monkeypatch):
+        for script, payload in self.HOOKS:
+            dl = self._run(load_script, tmp_path, monkeypatch, script, payload)
+            records = _records(dl)
+            assert records, f"{script} produced no record"
+            assert all(r.get(dl.KEY_PROJECT) == str(tmp_path / "proj") for r in records), (
+                f"{script} left records unattributed: {records}")
+            dl.AUDIT_FILE.unlink()
 
 
 def test_the_vendored_copy_matches_the_canonical_one(root):

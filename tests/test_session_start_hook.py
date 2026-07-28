@@ -163,6 +163,9 @@ def test_debug_logging_records_start_event(session_start, monkeypatch):
         def log_event(self, component, event, **fields):
             calls.append((component, event, fields))
 
+        def resolve_project_root(self, payload=None):
+            return (payload or {}).get("cwd")
+
     monkeypatch.setattr(session_start, "debug_log", FakeDebugLog())
     _run(session_start, monkeypatch, {"session_id": "sid-1"})
 

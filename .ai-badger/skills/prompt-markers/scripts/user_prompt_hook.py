@@ -31,10 +31,17 @@ except ImportError:  # pragma: no cover - a missing logger must never break a ho
 COMPONENT = "prompt_markers_hook"
 
 
+# The hook payload, kept so every record can name the project it came from. An unattributed
+# record pools into every project's analysis; see `call-behaviorist`.
+_PAYLOAD: dict = {}
+
+
 def _debug(event: str, **fields) -> None:
     """Record that this hook ran. Silent when debug is off or the logger is unavailable."""
-    if debug_log is not None:
-        debug_log.log_event(COMPONENT, event, **fields)
+    if debug_log is None:
+        return
+    project = fields.pop("project", None) or debug_log.resolve_project_root(_PAYLOAD)
+    debug_log.log_event(COMPONENT, event, project=project, **fields)
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 MARKERS_CONTEXT_FILE = SKILL_DIR / "markers-context.json"
@@ -122,6 +129,7 @@ def record_transformation(
 def main() -> int:
     """Read the hook payload from stdin and emit additionalContext if a marker matched."""
     payload = json.load(sys.stdin)
+    _PAYLOAD.update(payload)
     prompt = payload.get("prompt", "")
     if not prompt:
         _debug("skip", reason="no_prompt")
