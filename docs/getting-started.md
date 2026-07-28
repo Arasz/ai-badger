@@ -573,9 +573,10 @@ this error, you are on 0.28.2 or older, or following a stale copy of a `SKILL.md
 
 ### `ai-badger framework root not found above …`
 
-Raised by `badger_lib.find_root` when no ancestor of the script holds both `schemas/` and
-`features/` and `~/.ai-badger/framework/` is not populated. Pass `--root <framework checkout>`
-explicitly. Lookup is pure — it never fetches anything as a side effect.
+Raised by `badger_lib.find_root` when no ancestor of the script satisfies the root predicate —
+`schemas/`, `features/` and `engine/badger_lib.py` together — and `~/.ai-badger/framework/` is
+not populated. Pass `--root <framework checkout>` explicitly. Lookup is pure — it never fetches
+anything as a side effect.
 
 ### `... is not an ai-badger framework root (no schemas/ + features/ + scripts/badger_lib.py)`
 
