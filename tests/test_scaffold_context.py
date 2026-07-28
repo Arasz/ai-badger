@@ -293,6 +293,21 @@ def test_the_scaffolder_keeps_no_private_shims_for_its_collaborators(load_script
     assert _RETIRED_MCP_SHIMS & set(vars(scaffold.Scaffolder)) == set()
 
 
+# The four public delegations 0.37.0 kept for API stability; none ever had a caller.
+_RETIRED_DELEGATIONS = {
+    "wire_statusline_capture", "unwire_statusline_capture",
+    "assemble_instructions_doc", "assemble_hermes_doc",
+}
+
+
+def test_the_scaffolder_delegates_only_what_has_a_caller(load_script, root):
+    """wire_hooks is reached through the Scaffolder; the rest are reached on their collaborator."""
+    scaffold = _load(load_script, root, "scaffold")
+
+    assert _RETIRED_DELEGATIONS & set(vars(scaffold.Scaffolder)) == set()
+    assert "wire_hooks" in vars(scaffold.Scaffolder)
+
+
 # ----------------------------------------------------------------- step-order golden master
 def test_the_scaffold_runs_its_steps_in_the_recorded_order(
         load_script, root, monkeypatch, make_scaffolder):

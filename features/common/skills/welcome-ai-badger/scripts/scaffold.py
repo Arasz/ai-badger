@@ -661,27 +661,10 @@ class Scaffolder:
             self.notes.append(f"skill install warning: {w}")
         return cmds
 
-    # -- hooks and statusline capture ------------------------------------------------
+    # -- hooks ------------------------------------------------------------------------
     def wire_hooks(self) -> None:
         """Merge the framework's hook registrations into the project's .claude/settings.json."""
         self.hooks.wire()
-
-    def wire_statusline_capture(self) -> None:
-        """Wire the capture wrapper into .claude/settings.json, preserving the renderer."""
-        self.statusline.wire()
-
-    def unwire_statusline_capture(self) -> None:
-        """Restore the displaced renderer, or drop statusLine when there was none."""
-        self.statusline.unwire()
-
-    # -- template rendering -----------------------------------------------------------
-    def assemble_instructions_doc(self, invariants: List[str], instr_paths: List[Path]) -> str:
-        """Render CLAUDE.md.tmpl with this config's project/commands/invariants."""
-        return self.rendering.assemble_instructions_doc(invariants, instr_paths)
-
-    def assemble_hermes_doc(self, invariants: List[str], instr_paths: List[Path]) -> str:
-        """Render HERMES.md.tmpl with this config's project/commands/invariants."""
-        return self.rendering.assemble_hermes_doc(invariants, instr_paths)
 
     # -- Hermes skill discovery ---------------------------------------------------
     def symlink_hermes_skills(self) -> None:
