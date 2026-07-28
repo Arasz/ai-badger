@@ -6,6 +6,7 @@ could only exist inside a `Scaffolder` with six collaborators built from one con
 # pylint: disable=protected-access  # exercises Scaffolder internals directly; see pyproject.toml
 from __future__ import annotations
 
+import ast
 import sys
 from pathlib import Path
 
@@ -28,6 +29,18 @@ def _load(load_script, root, name):
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     return load_script(f"{SCRIPTS}/{name}.py")
+
+
+def _imported_modules(root, name):
+    """Every module name *name*.py imports, at any nesting depth."""
+    tree = ast.parse((root / SCRIPTS / f"{name}.py").read_text(encoding="utf-8"))
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module)
+    return imported
 
 
 def _hand_built_context(load_script, root, target):
@@ -80,6 +93,26 @@ def test_each_collaborator_works_with_no_scaffolder_in_scope(tmp_path, load_scri
 
     agent_files.write_agent_files("", [], [])
     assert (target / "CLAUDE.md").is_file()
+
+
+# ----------------------------------------------------------- per-collaborator construction
+def test_extensions_is_built_from_a_context_alone(tmp_path, load_script, root):
+    target = tmp_path / "proj"
+    target.mkdir()
+    ctx = _hand_built_context(load_script, root, target)
+    extensions = _load(load_script, root, "extensions").Extensions(ctx)
+
+    skill = target / ".ai-badger" / "skills" / "probe"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("# probe\n\n<!-- MERGE_EXTENSIONS -->\n", encoding="utf-8")
+    ext = skill / "extensions" / "one"
+    ext.mkdir(parents=True)
+    (ext / "extension.md").write_text("## Added\n\nbody\n", encoding="utf-8")
+    extensions.merge_extensions("probe", skill)
+
+    assert "## Added" in (skill / "SKILL.md").read_text(encoding="utf-8")
+    assert any("merged 1 extension section" in note for note in ctx.notes)
+    assert "scaffold" not in _imported_modules(root, "extensions")
 
 
 # ----------------------------------------------------------------- step-order golden master

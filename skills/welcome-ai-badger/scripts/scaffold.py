@@ -300,7 +300,7 @@ from scaffold_context import ScaffoldContext  # noqa: E402
 from hook_wiring import HookWiringMixin, merge_hooks  # noqa: E402
 from template_rendering import TemplateRenderingMixin  # noqa: E402
 from agent_files import AgentFilesMixin  # noqa: E402
-from extensions import ExtensionsMixin  # noqa: E402
+from extensions import Extensions  # noqa: E402
 from mcp_tools import McpToolsMixin  # noqa: E402
 from statusline_wiring import StatusLineWiringMixin  # noqa: E402
 
@@ -317,7 +317,6 @@ class Scaffolder(
     StatusLineWiringMixin,
     TemplateRenderingMixin,
     AgentFilesMixin,
-    ExtensionsMixin,
 ):
     """Materializes a target repo's .ai-badger/ scaffold from a validated config.json."""
 
@@ -350,6 +349,7 @@ class Scaffolder(
             excluded=excluded, overwrite=overwrite,
             record_template=self.record_template,
         )
+        self.extensions = Extensions(self.ctx)
         self.install = install
         self.reset_seed_files = reset_seed_files
         self.execute = execute
@@ -554,9 +554,9 @@ class Scaffolder(
                 shutil.rmtree(dest)
             shutil.copytree(src, dest, ignore=_test_ignore)
             self._restore_seed_once_skill_files(skill_name, dest, stashed)
-            self._prune_inline_extensions(skill_name, dest)
-            self._merge_extensions(skill_name, dest)
-            self._append_project_local(skill_name, dest)
+            self.extensions.prune_inline_extensions(skill_name, dest)
+            self.extensions.merge_extensions(skill_name, dest)
+            self.extensions.append_project_local(skill_name, dest)
             # hash includes embedded extensions
             self.record("skills", item_stack, skill_name, src, dest)
             # emit per-file entries for extension content so feed-badger can
