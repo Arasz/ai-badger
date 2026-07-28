@@ -621,14 +621,26 @@ def resolve_stacks(config: Dict[str, Any]) -> List[str]:
             if not (s in seen or seen.add(s))]
 
 
-def is_orphaned(entry: Dict[str, Any], stacks: List[str]) -> bool:
-    """True when a manifest entry's stack is no longer one this project configures.
+def delivering_stacks(config: Dict[str, Any]) -> List[str]:
+    """Every catalog stack this project draws from: configured stacks *and* configured agents.
+
+    `config.agents` reads `features/<agent>/` directly — adjustments, templates, personas — with
+    no entry in `config.stacks`, so an agent name is a catalog stack too. A caller that consults
+    `resolve_stacks` alone judges every agent-delivered entry an orphan.
+    """
+    seen = set()
+    return [s for s in resolve_stacks(config) + list(config.get("agents", []))
+            if not (s in seen or seen.add(s))]
+
+
+def is_orphaned(entry: Dict[str, Any], delivering: List[str]) -> bool:
+    """True when a manifest entry's stack is no longer one this project draws from.
 
     The one place that decides it, so drift and the re-scaffold cannot disagree about what a
-    dropped stack leaves behind (#116). `stacks` is `resolve_stacks(config)`, which always
-    carries the always-on common stack.
+    dropped stack leaves behind (#116). `delivering` is `delivering_stacks(config)` — passing
+    `resolve_stacks(config)` instead silently condemns every agent-delivered entry.
     """
-    return entry.get("stack") not in stacks
+    return entry.get("stack") not in delivering
 
 
 def iter_feature_dirs(root: Path) -> List[Tuple[str, str, Path]]:

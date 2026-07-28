@@ -44,7 +44,7 @@ class TestDriftSeesASubtraction:
         manifest = _manifest([_entry("ts", "features/ts/instructions/typescript.instructions.md",
                                      TS_INSTRUCTION)])
 
-        result = drift.compare(fw, manifest, stacks=["common", "python"], target=tmp_path / "p")
+        result = drift.compare(fw, manifest, delivering=["common", "python"], target=tmp_path / "p")
 
         assert result["orphaned"] == ["features/ts/instructions/typescript.instructions.md"]
 
@@ -58,7 +58,7 @@ class TestDriftSeesASubtraction:
         manifest = _manifest([_entry("ts", "features/ts/instructions/typescript.instructions.md",
                                      TS_INSTRUCTION, bl.sha256_file(src))])
 
-        result = drift.compare(fw, manifest, stacks=["common", "ts"], target=tmp_path / "p")
+        result = drift.compare(fw, manifest, delivering=["common", "ts"], target=tmp_path / "p")
 
         assert result["orphaned"] == []
 
@@ -74,7 +74,7 @@ class TestDriftSeesASubtraction:
                                      ".ai-badger/invariants/x.md", bl.sha256_file(src),
                                      feature="invariants")])
 
-        result = drift.compare(fw, manifest, stacks=["common"], target=tmp_path / "p")
+        result = drift.compare(fw, manifest, delivering=["common"], target=tmp_path / "p")
 
         assert result["orphaned"] == []
 
@@ -88,10 +88,36 @@ class TestDriftSeesASubtraction:
         manifest = _manifest([_entry("ts", "features/ts/instructions/typescript.instructions.md",
                                      TS_INSTRUCTION, "stale-hash")])
 
-        result = drift.compare(fw, manifest, stacks=["common"], target=tmp_path / "p")
+        result = drift.compare(fw, manifest, delivering=["common"], target=tmp_path / "p")
 
         assert result["changed"] == []
         assert result["orphaned"] == ["features/ts/instructions/typescript.instructions.md"]
+
+    def test_a_configured_agents_stack_is_not_orphaned(self, tmp_path, load_script):
+        """`config.agents` reads features/<agent>/ with no entry in config.stacks — and every
+        agent-delivered file would otherwise be condemned on every refresh."""
+        drift = load_script(DRIFT)
+        bl = load_script("engine/badger_lib.py")
+        fw = tmp_path / "fw"
+        (fw / "features" / "copilot" / "templates").mkdir(parents=True)
+        src = fw / "features" / "copilot" / "templates" / "copilot-instructions.md.tmpl"
+        src.write_text("copilot\n", encoding="utf-8")
+        manifest = _manifest([_entry("copilot",
+                                     "features/copilot/templates/copilot-instructions.md.tmpl",
+                                     ".github/copilot-instructions.md", bl.sha256_file(src),
+                                     feature="templates")])
+        config = {"commonStacks": "common", "stacks": ["python"], "agents": ["claude", "copilot"]}
+
+        result = drift.compare(fw, manifest, delivering=bl.delivering_stacks(config),
+                               target=tmp_path / "p")
+
+        assert result["orphaned"] == []
+
+    def test_delivering_stacks_carries_agents_as_well_as_stacks(self, load_script):
+        bl = load_script("engine/badger_lib.py")
+        config = {"commonStacks": "common", "stacks": ["python"], "agents": ["claude", "copilot"]}
+
+        assert bl.delivering_stacks(config) == ["common", "python", "claude", "copilot"]
 
     def test_without_a_stack_list_nothing_is_orphaned(self, tmp_path, load_script):
         """`compare()` is also called with no config in hand; it must not guess."""
@@ -107,6 +133,22 @@ class TestDriftSeesASubtraction:
         result = drift.compare(fw, manifest)
 
         assert result["orphaned"] == []
+
+
+class TestAnAgentIsNotAStackRemoval:
+    """An agent's files are delivered by config.agents; the prune must not condemn them."""
+
+    def test_the_rescaffold_keeps_a_configured_agents_files(self, tmp_path, load_script, root):
+        scaffold = load_script(SCAFFOLD)
+        config = _config(stacks=["python"], agents=["claude", "copilot"])
+        target, _ = _scaffolded(scaffold, root, tmp_path, config)
+        placed = target / ".github" / "copilot-instructions.md"
+        assert placed.is_file()
+
+        _, result = _scaffolded(scaffold, root, tmp_path, config)
+
+        assert placed.is_file()
+        assert not [n for n in result["notes"] if "no longer in config.stacks" in n]
 
 
 class TestTheReScaffoldPrunesTheOrphan:
