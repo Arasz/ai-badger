@@ -103,8 +103,15 @@ def _copy_framework(dest: Path) -> Path:
 
 def _env(home: Path) -> dict:
     """A process environment with an empty home and no `$AI_BADGER` escape hatch."""
+    import site
     env = dict(os.environ)
+    # Capture the real user site-packages before changing HOME, because Python
+    # resolves user site-packages relative to HOME — changing HOME would make
+    # packages installed with `pip install --user` invisible to the subprocess.
+    real_user_site = site.getusersitepackages()
     env["HOME"] = str(home)
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{real_user_site}:{existing}" if existing else real_user_site
     env.pop("AI_BADGER", None)
     env.pop("CLAUDE_PROJECT_DIR", None)
     return env
