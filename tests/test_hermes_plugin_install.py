@@ -1,8 +1,7 @@
 """Tests for features/hermes/adjustments/adjust_hooks.py: user-scope plugin install.
 
-Stage 4 of docs/design/hermes-learned-skills-sync-impl-plan.md. Hermes loads plugins only
-from ~/.hermes/plugins/, so the scaffold must install there (research C5). Kept out of
-test_scaffold.py, which is already at pylint's module-length limit.
+Hermes loads plugins only from ~/.hermes/plugins/, so the scaffold must install there.
+Kept out of test_scaffold.py, which is already at pylint's module-length limit.
 """
 from __future__ import annotations
 

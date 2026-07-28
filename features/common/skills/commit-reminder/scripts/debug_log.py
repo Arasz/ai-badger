@@ -1,8 +1,7 @@
 """Append-only debug audit log for ai-badger's own hooks.
 
 Off unless switched on by the `call-behaviorist` skill. Self-contained on purpose: hooks run
-from four deployment shapes and import nothing from the framework. See
-docs/design/debug-mode-and-call-behaviorist.md.
+from four deployment shapes and import nothing from the framework.
 """
 from __future__ import annotations
 

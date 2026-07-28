@@ -1,8 +1,7 @@
 """`config.exclude`: the project declines a framework artifact, and both entry points obey.
 
 The enforcement point is `Scaffolder.__init__`, so `welcome-ai-badger` and `den-refresh`
-cannot disagree (docs/research/2026-07-27-skill-removal-semantics.md). These tests assert
-the outcome at the target, not the mechanism.
+cannot disagree. These tests assert the outcome at the target, not the mechanism.
 """
 from __future__ import annotations
 

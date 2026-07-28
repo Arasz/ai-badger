@@ -1,7 +1,7 @@
 """The scaffold's shared state is a context; its collaborators need nothing else.
 
-Wave 6 (docs/plans/2026-07-28-wave-6-scaffold-collaborators.md) replaces six mixins that
-could only exist inside a `Scaffolder` with six collaborators built from one context.
+Wave 6 replaces six mixins that could only exist inside a `Scaffolder` with six
+collaborators built from one context.
 """
 # pylint: disable=protected-access  # exercises Scaffolder internals directly; see pyproject.toml
 from __future__ import annotations

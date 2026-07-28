@@ -1,7 +1,6 @@
 """Tests for the skill_manage branch of features/common/hooks/ai_badger_hooks.py.
 
-Stage 4 of docs/design/hermes-learned-skills-sync-impl-plan.md — hook wiring only;
-the sync logic itself is covered by tests/test_learned_skills_sync.py.
+Hook wiring only; the sync logic itself is covered by tests/test_learned_skills_sync.py.
 """
 # pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations

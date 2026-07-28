@@ -336,7 +336,7 @@ class Scaffolder:
                  reset_seed_files: bool = False, execute: bool = False):
         # The one enforcement point for config.exclude: every consumer reads self.skills or
         # self.items(), so welcome-ai-badger and den-refresh cannot disagree about what a
-        # project declined (docs/research/2026-07-27-skill-removal-semantics.md §2).
+        # project declined.
         excluded = bl.exclusions(config)
         self.ctx = ScaffoldContext(
             root=root, target=target, aib=target / ".ai-badger", config=config,

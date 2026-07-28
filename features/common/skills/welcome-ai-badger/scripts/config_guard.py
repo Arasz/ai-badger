@@ -2,7 +2,6 @@
 
 "Unreadable" is not "absent": a config that cannot be parsed into a mapping is never
 rewritten from an empty dict, and a parseable one is backed up before it is modified.
-Rationale and the destroyed-`permissions` case: docs/reviews F-02.
 """
 from __future__ import annotations
 

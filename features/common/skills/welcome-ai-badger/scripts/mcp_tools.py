@@ -56,8 +56,7 @@ class McpDestination(NamedTuple):
 # ``.mcp.json`` alone expands ``${VAR}`` (documented by Claude Code) and alone pins ``cwd``;
 # it also keeps a command whole unless an argument looks like a package name.  Every other
 # destination splits on whitespace and writes the command bare.  The asymmetry is deliberate:
-# docs/changelog/0.28.0-mcp-user-tool-paths.md, and Wave 12 of
-# docs/plans/2026-07-27-deferred-work-plan.md.
+# docs/changelog/0.28.0-mcp-user-tool-paths.md.
 MCP_JSON = McpDestination(
     label=".mcp.json", owner="claude", requires_owner=False, pin_cwd=True,
     split_command=split_package_args, expand_home=True,
