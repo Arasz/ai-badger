@@ -103,18 +103,25 @@ def _copy_framework(dest: Path) -> Path:
 
 def _env(home: Path) -> dict:
     """A process environment with an empty home and no `$AI_BADGER` escape hatch."""
-    import site
     env = dict(os.environ)
-    # Capture the real user site-packages before changing HOME, because Python
-    # resolves user site-packages relative to HOME — changing HOME would make
-    # packages installed with `pip install --user` invisible to the subprocess.
-    real_user_site = site.getusersitepackages()
     env["HOME"] = str(home)
-    existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = f"{real_user_site}:{existing}" if existing else real_user_site
     env.pop("AI_BADGER", None)
     env.pop("CLAUDE_PROJECT_DIR", None)
     return env
+
+
+def test_the_probe_environment_never_puts_the_real_home_on_pythonpath(tmp_path):
+    """An empty home is the premise of every shape test; PYTHONPATH must not smuggle one back.
+
+    Reinstating the developer's own site-packages makes these tests pass for a reason the
+    four deployment shapes do not have on a user's machine.
+    """
+    from conftest import REAL_HOME  # pylint: disable=import-outside-toplevel
+
+    env = _env(tmp_path / "home")
+
+    assert str(REAL_HOME) not in env.get("PYTHONPATH", ""), (
+        f"PYTHONPATH reaches back into the real home: {env.get('PYTHONPATH')}")
 
 
 def _write_config(path: Path) -> Path:
