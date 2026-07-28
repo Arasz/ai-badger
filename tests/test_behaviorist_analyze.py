@@ -20,9 +20,12 @@ def _write(beh, records):
     beh.dl.AUDIT_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _record(component, event="start", version="0.30.0", project="/repo", **extra):
+DEFAULT_TS = "2026-07-27T09:00:00+00:00"
+
+
+def _record(component, event="start", version="0.30.0", project="/repo", ts=DEFAULT_TS, **extra):
     rec = {
-        beh_keys["t"]: "2026-07-27T09:00:00+00:00",
+        beh_keys["t"]: ts,
         beh_keys["c"]: component,
         beh_keys["e"]: event,
         beh_keys["v"]: version,
@@ -483,3 +486,150 @@ class TestAnUnknownVersionIsNotADisagreement:
         report = beh.analyze(project="/repo", expected=["hooks/alpha"])
 
         assert "unknown" in report["observed"]["hooks/alpha"]["versions"]
+
+
+# Issue #108's window: seven releases, and every wired hook upgraded through them in turn.
+RELEASE_TRAIN = ("0.35.1", "0.35.2", "0.35.3", "0.35.4", "0.35.5", "0.35.6", "0.36.0")
+TRAINED_HOOKS = ("drift_notice_hook", "session_start_hook", "stop_hook", "task_user_prompt_hook",
+                 "commit_reminder_hook", "prompt_markers_hook", "learned_skills_hook")
+
+# The real instance from the same window: 0.35.2 still emitting while 0.36.0 was already live.
+CONCURRENT = (("0.35.2", "2026-07-27T22:55:42+00:00"),
+              ("0.35.2", "2026-07-28T06:41:21+00:00"),
+              ("0.36.0", "2026-07-28T06:25:49+00:00"),
+              ("0.36.0", "2026-07-28T06:48:09+00:00"))
+
+
+def _train(component, versions=RELEASE_TRAIN):
+    """One record per version, an hour apart: an upgrade sequence, never two copies at once."""
+    return [_record(component, version=version, ts=f"2026-07-27T{9 + i:02d}:00:00+00:00")
+            for i, version in enumerate(versions)]
+
+
+def _concurrent(component):
+    """Two versions whose observed ranges overlap — the real concurrent-copy instance."""
+    return [_record(component, version=version, ts=ts) for version, ts in CONCURRENT]
+
+
+def _high(report):
+    return [f for f in report["findings"] if f["severity"] == "high"]
+
+
+class TestAReleaseTrainIsNotSkew:
+    """Versions that ran one after another are an upgrade, not two copies disagreeing."""
+
+    def test_seven_releases_across_seven_hooks_raise_no_high_finding(self, load_script, tmp_path,
+                                                                     monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [rec for hook in TRAINED_HOOKS for rec in _train(hook)])
+
+        report = beh.analyze(project="/repo", expected=list(TRAINED_HOOKS))
+
+        assert _high(report) == []
+        assert report["health"] != "degraded"
+
+    def test_an_upgrade_sequence_leaves_health_ok(self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, _train("drift_notice_hook"))
+
+        report = beh.analyze(project="/repo", expected=["drift_notice_hook"])
+
+        assert report["health"] == "ok"
+
+    def test_the_sequence_is_still_reported_as_progression(self, load_script, tmp_path,
+                                                            monkeypatch):
+        """Suppressing the finding must not amount to hiding the upgrade."""
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, _train("drift_notice_hook"))
+
+        report = beh.analyze(project="/repo", expected=["drift_notice_hook"])
+
+        progression = [f for f in report["findings"] if f["kind"] == "version_progression"]
+        assert progression and progression[0]["severity"] == "info"
+        assert progression[0]["versions"] == list(RELEASE_TRAIN)
+
+    def test_a_single_version_reports_no_progression_either(self, load_script, tmp_path,
+                                                             monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha"), _record("hooks/alpha")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        assert report["findings"] == []
+
+
+class TestConcurrentCopiesAreStillHigh:
+    """Overlapping ranges are the problem the finding exists for; it must survive the fix."""
+
+    def test_overlapping_ranges_are_a_high_finding(self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, _concurrent("drift_notice_hook"))
+
+        report = beh.analyze(project="/repo", expected=["drift_notice_hook"])
+
+        skew = [f for f in report["findings"] if f["kind"] == "version_skew"]
+        assert len(skew) == 1 and skew[0]["severity"] == "high"
+        assert sorted(skew[0]["versions"]) == ["0.35.2", "0.36.0"]
+        assert report["health"] == "degraded"
+
+    def test_it_names_the_competing_versions_with_their_observed_ranges(self, load_script,
+                                                                        tmp_path, monkeypatch):
+        """Reconstructing this timeline by hand is what the issue's author had to do."""
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, _concurrent("drift_notice_hook"))
+
+        report = beh.analyze(project="/repo", expected=["drift_notice_hook"])
+
+        skew = [f for f in report["findings"] if f["kind"] == "version_skew"][0]
+        assert skew["ranges"]["0.35.2"]["from"] == "2026-07-27T22:55:42+00:00"
+        assert skew["ranges"]["0.35.2"]["to"] == "2026-07-28T06:41:21+00:00"
+        assert skew["ranges"]["0.36.0"]["from"] == "2026-07-28T06:25:49+00:00"
+        assert skew["ranges"]["0.36.0"]["to"] == "2026-07-28T06:48:09+00:00"
+        assert "0.35.2" in skew["detail"] and "2026-07-28T06:25:49+00:00" in skew["detail"]
+
+    def test_the_one_real_instance_is_not_buried_among_upgrades(self, load_script, tmp_path,
+                                                                 monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [rec for hook in TRAINED_HOOKS[1:] for rec in _train(hook)]
+               + _concurrent("drift_notice_hook"))
+
+        report = beh.analyze(project="/repo", expected=list(TRAINED_HOOKS))
+
+        assert [(f["kind"], f["component"]) for f in _high(report)] == [
+            ("version_skew", "drift_notice_hook")]
+
+
+class TestAnUnresolvableVersionNamesTheStaleScaffold:
+    """`unknown` is the sentinel for "no VERSION found" — evidence of a copy left behind."""
+
+    def test_the_sentinel_is_its_own_low_finding(self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha", version="0.36.0"),
+                     _record("hooks/alpha", version="unknown")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        unresolvable = [f for f in report["findings"] if f["kind"] == "version_unresolvable"]
+        assert unresolvable and unresolvable[0]["severity"] == "low"
+        assert _high(report) == []
+
+    def test_it_counts_the_records_that_could_not_name_a_version(self, load_script, tmp_path,
+                                                                  monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha", version="unknown", ts=f"2026-07-27T0{i}:00:00+00:00")
+                     for i in range(3)])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        unresolvable = [f for f in report["findings"] if f["kind"] == "version_unresolvable"][0]
+        assert unresolvable["records"] == 3
+
+    def test_the_sentinel_alone_is_neither_skew_nor_progression(self, load_script, tmp_path,
+                                                                 monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha", version="unknown"),
+                     _record("hooks/alpha", version="unknown")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        assert _kinds(report) == ["version_unresolvable"]

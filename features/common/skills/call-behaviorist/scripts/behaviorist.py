@@ -16,7 +16,7 @@ import argparse
 import json
 import re
 import sys
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -259,20 +259,48 @@ def _matches(key: str, component: str) -> bool:
     return component == key or component.startswith(key + "/")
 
 
+def _moment(stamp):
+    """A record timestamp as a comparable UTC datetime, or None when it cannot be read."""
+    if not stamp:
+        return None
+    text = stamp[:-1] + "+00:00" if stamp.endswith("Z") else stamp
+    try:
+        parsed = datetime.fromisoformat(text)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _widen(ranges, version, stamp) -> None:
+    """Widen `version`'s observed [from, to] to cover one more record."""
+    span = ranges.setdefault(version, {"from": None, "to": None, "records": 0})
+    span["records"] += 1
+    moment = _moment(stamp)
+    if moment is None:
+        return
+    if span["from"] is None or moment < _moment(span["from"]):
+        span["from"] = stamp
+    if span["to"] is None or moment > _moment(span["to"]):
+        span["to"] = stamp
+
+
 def _observed(records) -> dict:
-    """component -> {count, events, versions}."""
+    """component -> {count, events, versions, version_ranges}."""
     seen = {}
     for rec in records:
         name = rec.get(dl.KEY_COMPONENT)
         if not name:
             continue
-        entry = seen.setdefault(name, {"count": 0, "events": {}, "versions": []})
+        entry = seen.setdefault(
+            name, {"count": 0, "events": {}, "versions": [], "version_ranges": {}})
         entry["count"] += 1
         event = rec.get(dl.KEY_EVENT, "?")
         entry["events"][event] = entry["events"].get(event, 0) + 1
         version = rec.get(dl.KEY_VERSION)
-        if version and version not in entry["versions"]:
-            entry["versions"].append(version)
+        if version:
+            if version not in entry["versions"]:
+                entry["versions"].append(version)
+            _widen(entry["version_ranges"], version, rec.get(dl.KEY_TS))
     return seen
 
 
@@ -280,6 +308,76 @@ def _finding(kind, component, severity, detail, **extra):
     finding = {"kind": kind, "component": component, "severity": severity, "detail": detail}
     finding.update(extra)
     return finding
+
+
+# Context, not a fault: reported so the reader sees it, never counted against health.
+SEVERITY_INFO = "info"
+
+
+def _overlaps(one, other) -> bool:
+    """True when two observed spans share any instant, endpoints included.
+
+    A span whose timestamps cannot be read cannot be shown to be disjoint, so it counts as
+    overlapping: dropping the finding on unreadable evidence would hide the real instance.
+    """
+    bounds = (_moment(one["from"]), _moment(one["to"]),
+              _moment(other["from"]), _moment(other["to"]))
+    if any(bound is None for bound in bounds):
+        return True
+    a_lo, a_hi, b_lo, b_hi = bounds
+    return a_lo <= b_hi and b_lo <= a_hi
+
+
+def _concurrent(ranges) -> list:
+    """The versions whose spans overlap another's — empty when every version ran in turn."""
+    names = sorted(ranges)
+    competing = set()
+    for index, one in enumerate(names):
+        for other in names[index + 1:]:
+            if _overlaps(ranges[one], ranges[other]):
+                competing.update((one, other))
+    return sorted(competing)
+
+
+def _span(version, ranges) -> str:
+    """`0.36.0 [first → last]`, with `?` where a timestamp could not be read."""
+    span = ranges[version]
+    return f"{version} [{span['from'] or '?'} → {span['to'] or '?'}]"
+
+
+def _version_findings(component, ranges) -> list:
+    """What the versions behind a component's records say: an upgrade, a clash, or a gap.
+
+    Disjoint spans are an upgrade; overlapping spans are two copies live at once. The
+    `unknown` sentinel means "no VERSION found above the code that ran" — an absent number,
+    not a second one, so counting it as a version manufactures skew.
+    """
+    findings = []
+    real = {v: span for v, span in ranges.items() if v != dl.VERSION_UNKNOWN}
+    competing = _concurrent(real)
+    if competing:
+        findings.append(_finding(
+            "version_skew", component, "high",
+            "two copies were live at once — their observed ranges overlap: "
+            + "; ".join(_span(v, real) for v in competing),
+            versions=competing, ranges={v: real[v] for v in competing}))
+    elif len(real) > 1:
+        in_order = sorted(real, key=lambda v: (real[v]["from"] or "", v))
+        findings.append(_finding(
+            "version_progression", component, SEVERITY_INFO,
+            "upgraded through " + " → ".join(in_order)
+            + f" between {real[in_order[0]]['from']} and {real[in_order[-1]]['to']}"
+            " — the ranges are disjoint, so this is a release train, not copies disagreeing",
+            versions=in_order, ranges=real))
+    unresolved = ranges.get(dl.VERSION_UNKNOWN)
+    if unresolved:
+        findings.append(_finding(
+            "version_unresolvable", component, "low",
+            f"{unresolved['records']} record(s) could not name a version — the copy that ran "
+            "carries no VERSION and no manifest above it, so it predates 0.35.4 and needs "
+            "re-scaffolding",
+            records=unresolved["records"], range=unresolved))
+    return findings
 
 
 def analyze(project, expected=None) -> dict:
@@ -313,17 +411,7 @@ def analyze(project, expected=None) -> dict:
                 "unexpected_component", name, "low",
                 "produced records but is not among the components this project wires",
             ))
-        # The sentinel means "no VERSION found above the code that ran" — an absent number,
-        # not a second one. Counting it as a version manufactures skew wherever a scaffolded
-        # project's records land in the log.
-        versions = [v for v in entry["versions"] if v != dl.VERSION_UNKNOWN]
-        if len(versions) > 1:
-            findings.append(_finding(
-                "version_skew", name, "high",
-                "ran at more than one framework version — copies disagree "
-                "(plugin cache vs .ai-badger/ scaffold)",
-                versions=sorted(versions),
-            ))
+        findings.extend(_version_findings(name, entry["version_ranges"]))
         starts = entry["events"].get("start", 0)
         skips = entry["events"].get("skip", 0)
         if starts and skips >= starts:
@@ -337,7 +425,7 @@ def analyze(project, expected=None) -> dict:
         health = "unknown"
     elif any(f["severity"] == "high" for f in findings):
         health = "degraded"
-    elif findings:
+    elif any(f["severity"] != SEVERITY_INFO for f in findings):
         health = "warn"
     else:
         health = "ok"
