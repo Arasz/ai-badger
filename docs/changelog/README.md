@@ -17,6 +17,7 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
+| 0.36.2 | [the four repo gates move to `gates/`](0.36.2-the-gates-move-out-of-scripts.md) |
 | 0.36.1 | [stack-local skill discovery](0.36.1-stack-local-skill-discovery.md) |
 | 0.36.0 | [a project can decline a framework artifact](0.36.0-a-project-can-decline-an-artifact.md) · [an explicit debug sink](0.36.0-an-explicit-debug-sink.md) |
 | 0.35.6 | [the framework cache reports its own version skew](0.35.6-the-cache-reports-its-own-skew.md) |
