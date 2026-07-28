@@ -159,6 +159,38 @@ def test_hook_wiring_is_built_from_a_context_alone(tmp_path, load_script, root):
     assert "scaffold" not in _imported_modules(root, "hook_wiring")
 
 
+def test_mcp_tools_is_built_from_a_context_alone(tmp_path, load_script, root):
+    target = tmp_path / "proj"
+    target.mkdir()
+    ctx = _hand_built_context(load_script, root, target)
+    ctx.config["externalTools"] = [{"name": "probe", "command": "probe-server",
+                                    "generate_mcp_json": True}]
+    mcp = _load(load_script, root, "mcp_tools").McpTools(ctx)
+
+    mcp.fill_merged_external_tools()
+
+    assert ctx.external_tools_merged
+    assert "probe" in {tool["name"] for tool in ctx.merged_external_tools}
+    merged = mcp.merge_mcp_servers(mcp.collect_stack_mcp_servers(), ctx.merged_external_tools)
+    assert "probe" in mcp.split_servers_by_scope(merged)[0]
+    assert "scaffold" not in _imported_modules(root, "mcp_tools")
+
+
+def test_mcp_tools_fills_the_cache_the_template_rendering_reads(tmp_path, load_script, root):
+    """The one shared cache lives on the context — neither collaborator names the other."""
+    target = tmp_path / "proj"
+    target.mkdir()
+    ctx = _hand_built_context(load_script, root, target)
+    mcp = _load(load_script, root, "mcp_tools").McpTools(ctx)
+
+    mcp.fill_merged_external_tools()
+    first = list(ctx.merged_external_tools)
+    ctx.config["externalTools"] = [{"name": "late", "command": "late"}]
+    mcp.fill_merged_external_tools()
+
+    assert ctx.merged_external_tools == first, "filling twice must not re-read the config"
+
+
 # ----------------------------------------------------------------- step-order golden master
 def test_the_scaffold_runs_its_steps_in_the_recorded_order(
         tmp_path, load_script, root, monkeypatch):

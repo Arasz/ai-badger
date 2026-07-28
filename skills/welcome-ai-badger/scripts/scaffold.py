@@ -301,7 +301,7 @@ from hook_wiring import HookWiring, merge_hooks  # noqa: E402
 from template_rendering import TemplateRenderingMixin  # noqa: E402
 from agent_files import AgentFilesMixin  # noqa: E402
 from extensions import Extensions  # noqa: E402
-from mcp_tools import McpToolsMixin  # noqa: E402
+from mcp_tools import McpTools  # noqa: E402
 from statusline_wiring import StatusLineWiring  # noqa: E402
 
 
@@ -311,8 +311,16 @@ def _ctx_property(name: str) -> property:
                     lambda self, value: setattr(self.ctx, name, value))
 
 
+def _mcp_delegate(name: str):
+    """A `Scaffolder` method that forwards to the same-named method on its McpTools."""
+    def _forward(self, *args, **kwargs):
+        return getattr(self.mcp, name)(*args, **kwargs)
+    _forward.__name__ = name
+    _forward.__doc__ = f"Delegates to McpTools.{name}."
+    return _forward
+
+
 class Scaffolder(
-    McpToolsMixin,
     TemplateRenderingMixin,
     AgentFilesMixin,
 ):
@@ -350,6 +358,7 @@ class Scaffolder(
         self.extensions = Extensions(self.ctx)
         self.statusline = StatusLineWiring(self.ctx)
         self.hooks = HookWiring(self.ctx)
+        self.mcp = McpTools(self.ctx)
         self.install = install
         self.reset_seed_files = reset_seed_files
         self.execute = execute
@@ -655,6 +664,20 @@ class Scaffolder(
         """Restore the displaced renderer, or drop statusLine when there was none."""
         self.statusline.unwire()
 
+    # -- MCP servers and external tools -----------------------------------------------
+    # The collaborator owns these; the names stay reachable here because the suite calls
+    # them on a Scaffolder.
+    _collect_stack_mcp_servers = _mcp_delegate("collect_stack_mcp_servers")
+    _collect_external_tools = _mcp_delegate("collect_external_tools")
+    # Static on both sides: callers reach it through the class, with no instance in hand.
+    _merge_external_tools = staticmethod(McpTools.merge_external_tools)
+    _merge_mcp_servers = _mcp_delegate("merge_mcp_servers")
+    _split_servers_by_scope = _mcp_delegate("split_servers_by_scope")
+    _scaffold_hermes_mcp_user = _mcp_delegate("scaffold_hermes_mcp_user")
+    _scaffold_claude_mcp_user = _mcp_delegate("scaffold_claude_mcp_user")
+    _generate_copilot_mcp_config = _mcp_delegate("generate_copilot_mcp_config")
+    _generate_mcp_json = _mcp_delegate("generate_mcp_json")
+
     # -- Hermes skill discovery ---------------------------------------------------
     def symlink_hermes_skills(self) -> None:
         """Link this project's skills into ~/.hermes/skills/<project>/ when hermes is an agent.
@@ -833,11 +856,7 @@ class Scaffolder(
         self._outside_project("hermes skill symlinks", self.symlink_hermes_skills)
         self.scaffold_agent_instructions()
         self.scaffold_templates()
-        self._merged_external_tools = self._merge_external_tools(
-            self._collect_external_tools(),
-            self.config.get("externalTools", []),
-        )
-        self._external_tools_merged = True
+        self.mcp.fill_merged_external_tools()
         doc = self.assemble_instructions_doc(invariants, instr_paths)
         self.write_agent_files(doc, instr_paths, invariants)
         self._record_progress("agent-files")
@@ -861,8 +880,10 @@ class Scaffolder(
         self._record_progress("config-and-mcp")
 
         # scaffold user-scoped MCP servers into agent-specific config files
+        # Through this class's own delegations, not self.mcp: these are the seams the suite
+        # replaces to simulate an unwritable home.
         stack_servers = self._collect_stack_mcp_servers()
-        merged = self._merge_mcp_servers(stack_servers, self._merged_external_tools)
+        merged = self._merge_mcp_servers(stack_servers, self.ctx.merged_external_tools)
         project_servers, user_servers = self._split_servers_by_scope(merged)
         self._outside_project("hermes user MCP config",
                               lambda: self._scaffold_hermes_mcp_user(user_servers))
