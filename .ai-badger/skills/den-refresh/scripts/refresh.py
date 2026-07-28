@@ -187,10 +187,12 @@ def check_prerequisites(target: Path) -> Optional[str]:
 
 def run_drift(root: Path, manifest: Dict[str, Any],
               stacks: Optional[List[str]] = None,
-              target: Optional[Path] = None) -> Dict[str, Any]:
+              target: Optional[Path] = None,
+              delivering: Optional[List[str]] = None) -> Dict[str, Any]:
     """Run drift comparison against the framework's current content."""
     drift_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/drift.py", root)
-    return drift_mod.compare(root, manifest, stacks=stacks, target=target)
+    return drift_mod.compare(root, manifest, stacks=stacks, target=target,
+                             delivering=delivering)
 
 
 def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
@@ -320,7 +322,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     scaffold_version = config.get("frameworkVersion", "?")
     current_version = (root / "VERSION").read_text(encoding="utf-8").strip()
 
-    drift_result = run_drift(root, manifest, stacks=bl.resolve_stacks(config), target=target)
+    drift_result = run_drift(root, manifest, stacks=bl.resolve_stacks(config), target=target,
+                             delivering=bl.delivering_stacks(config))
 
     # 6b. Detect new stacks not in config (respecting stack-ignore.json)
     drift_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/drift.py", root)
@@ -337,8 +340,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
 
     has_drift = bool(drift_result.get("changed") or drift_result.get("removed")
-                     or drift_result.get("newItems") or drift_result.get("versionChanged")
-                     or new_stacks)
+                     or drift_result.get("orphaned") or drift_result.get("newItems")
+                     or drift_result.get("versionChanged") or new_stacks)
 
     # 7. Re-scaffold if drift detected (or breaking change forces full re-scaffold)
     scaffold_result = None
@@ -370,6 +373,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "drift": {
             "changed": drift_result.get("changed", []),
             "removed": drift_result.get("removed", []),
+            "orphaned": drift_result.get("orphaned", []),
             "skipped": drift_result.get("skipped", []),
             "locallyModified": drift_result.get("locallyModified", []),
             "versionChanged": drift_result.get("versionChanged"),
