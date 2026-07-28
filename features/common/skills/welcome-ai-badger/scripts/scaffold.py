@@ -298,7 +298,7 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
 # Import mixin classes from domain modules
 from scaffold_context import ScaffoldContext  # noqa: E402
 from hook_wiring import HookWiring, merge_hooks  # noqa: E402
-from template_rendering import TemplateRenderingMixin  # noqa: E402
+from template_rendering import TemplateRendering  # noqa: E402
 from agent_files import AgentFilesMixin  # noqa: E402
 from extensions import Extensions  # noqa: E402
 from mcp_tools import McpTools  # noqa: E402
@@ -321,7 +321,6 @@ def _mcp_delegate(name: str):
 
 
 class Scaffolder(
-    TemplateRenderingMixin,
     AgentFilesMixin,
 ):
     """Materializes a target repo's .ai-badger/ scaffold from a validated config.json."""
@@ -359,6 +358,7 @@ class Scaffolder(
         self.statusline = StatusLineWiring(self.ctx)
         self.hooks = HookWiring(self.ctx)
         self.mcp = McpTools(self.ctx)
+        self.rendering = TemplateRendering(self.ctx)
         self.install = install
         self.reset_seed_files = reset_seed_files
         self.execute = execute
@@ -664,6 +664,15 @@ class Scaffolder(
         """Restore the displaced renderer, or drop statusLine when there was none."""
         self.statusline.unwire()
 
+    # -- template rendering -----------------------------------------------------------
+    def assemble_instructions_doc(self, invariants: List[str], instr_paths: List[Path]) -> str:
+        """Render CLAUDE.md.tmpl with this config's project/commands/invariants."""
+        return self.rendering.assemble_instructions_doc(invariants, instr_paths)
+
+    def assemble_hermes_doc(self, invariants: List[str], instr_paths: List[Path]) -> str:
+        """Render HERMES.md.tmpl with this config's project/commands/invariants."""
+        return self.rendering.assemble_hermes_doc(invariants, instr_paths)
+
     # -- MCP servers and external tools -----------------------------------------------
     # The collaborator owns these; the names stay reachable here because the suite calls
     # them on a Scaffolder.
@@ -857,7 +866,7 @@ class Scaffolder(
         self.scaffold_agent_instructions()
         self.scaffold_templates()
         self.mcp.fill_merged_external_tools()
-        doc = self.assemble_instructions_doc(invariants, instr_paths)
+        doc = self.rendering.assemble_instructions_doc(invariants, instr_paths)
         self.write_agent_files(doc, instr_paths, invariants)
         self._record_progress("agent-files")
         self.wire_hooks()

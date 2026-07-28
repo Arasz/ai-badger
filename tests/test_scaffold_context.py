@@ -191,6 +191,32 @@ def test_mcp_tools_fills_the_cache_the_template_rendering_reads(tmp_path, load_s
     assert ctx.merged_external_tools == first, "filling twice must not re-read the config"
 
 
+def test_template_rendering_is_built_from_a_context_alone(tmp_path, load_script, root):
+    target = tmp_path / "proj"
+    target.mkdir()
+    ctx = _hand_built_context(load_script, root, target)
+    rendering = _load(load_script, root, "template_rendering").TemplateRendering(ctx)
+
+    doc = rendering.assemble_instructions_doc(["## An invariant"], [])
+
+    assert "probe" in doc and "## An invariant" in doc
+    assert "scaffold" not in _imported_modules(root, "template_rendering")
+    assert "mcp_tools" not in _imported_modules(root, "template_rendering")
+
+
+def test_template_rendering_reads_the_external_tools_off_the_context(
+        tmp_path, load_script, root):
+    """Edge 1: it must not reach into McpTools for the merged externalTools."""
+    target = tmp_path / "proj"
+    target.mkdir()
+    ctx = _hand_built_context(load_script, root, target)
+    ctx.merged_external_tools = [{"name": "probe", "instructions": "Use the probe server."}]
+    ctx.external_tools_merged = True
+    rendering = _load(load_script, root, "template_rendering").TemplateRendering(ctx)
+
+    assert "Use the probe server." in rendering.assemble_instructions_doc([], [])
+
+
 # ----------------------------------------------------------------- step-order golden master
 def test_the_scaffold_runs_its_steps_in_the_recorded_order(
         tmp_path, load_script, root, monkeypatch):
