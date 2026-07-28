@@ -5,6 +5,8 @@ other scaffold behaviors live in the sibling test_scaffold_*.py modules.
 """
 from __future__ import annotations
 
+import json
+
 from scaffold_helpers import _config
 
 
@@ -218,3 +220,36 @@ def test_stack_local_skill_not_symlinked_to_other_agent(
 
     assert "auto-wm" in claude_skills
     assert "auto-wm" not in copilot_skills
+
+
+# ------------------------------------------------------- competing framework copies (#109)
+def _framework_tree(path, version):
+    """A directory the framework-root predicate accepts, carrying a VERSION."""
+    for name in ("schemas", "features", "engine"):
+        (path / name).mkdir(parents=True, exist_ok=True)
+    (path / "engine" / "badger_lib.py").write_text("", encoding="utf-8")
+    (path / "VERSION").write_text(version + "\n", encoding="utf-8")
+    return path
+
+
+def test_scaffold_names_a_competing_framework_cache_and_deletes_nothing(
+        tmp_path, load_script, root, monkeypatch, capsys):
+    """Onboarding a repo never removes anything from a home directory; it says what is there."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    cache = _framework_tree(home / ".ai-badger" / "framework", "0.13.0")
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_config(stacks=["python"])), encoding="utf-8")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    rc = scaffold.main(["--config", str(config_path), "--target", str(target),
+                        "--root", str(root), "--skills", "", "--no-install"])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert str(cache) in out and "0.13.0" in out
+    assert "den-refresh --prune-cache" in out
+    assert (cache / "VERSION").is_file()

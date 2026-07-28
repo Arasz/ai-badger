@@ -36,6 +36,30 @@ def _write_plugin(tmp_path, version):
     return plugin
 
 
+def _make_root(path, version):
+    """A directory the framework-root predicate accepts, carrying a VERSION."""
+    for name in ("schemas", "features", "engine"):
+        (path / name).mkdir(parents=True, exist_ok=True)
+    (path / "engine" / "badger_lib.py").write_text("", encoding="utf-8")
+    (path / "VERSION").write_text(version + "\n", encoding="utf-8")
+    return path
+
+
+def _competing_home(tmp_path, monkeypatch, cache_version=None, plugin_versions=()):
+    """A `$HOME` holding the trees that compete with the running framework (#109)."""
+    home = tmp_path / "home"
+    home.mkdir(exist_ok=True)
+    monkeypatch.setenv("HOME", str(home))
+    made = {}
+    if cache_version:
+        made["cache"] = _make_root(home / ".ai-badger" / "framework", cache_version)
+    made["plugins"] = [
+        _make_root(home / ".claude" / "plugins" / "cache" / "ai-badger" / "ai-badger" / v, v)
+        for v in plugin_versions
+    ]
+    return made
+
+
 def test_notice_when_scaffold_and_plugin_versions_differ(tmp_path, load_script):
     dn = load_script("features/common/skills/task/scripts/drift_notice.py")
     project = tmp_path / "proj"
@@ -334,3 +358,101 @@ def test_debug_logging_is_noop_when_unavailable(tmp_path, root, load_script, mon
 
     rc = hook.main()
     assert rc == 0
+
+
+# ------------------------------------------------------- competing framework copies (#109)
+def test_the_notice_names_every_tree_that_claims_to_be_ai_badger(
+        tmp_path, root, load_script, monkeypatch, capsys):
+    """Two contradictory notices read as a versioning bug; naming the trees says "two installs"."""
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
+    made = _competing_home(tmp_path, monkeypatch, cache_version="0.13.0",
+                           plugin_versions=("0.36.2",))
+    project = tmp_path / "proj"
+    _write_manifest(project, "0.1.0")
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"cwd": str(project)})))
+
+    rc = hook.main()
+
+    assert rc == 0
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    assert "was scaffolded by 0.1.0" in context
+    for named in (made["cache"], "0.13.0", made["plugins"][0], "0.36.2", root):
+        assert str(named) in context, named
+    assert "den-refresh --prune-cache" in context
+    assert "Claude Code" in context
+
+
+def test_the_notice_appears_for_an_idle_cache_even_when_the_scaffold_matches(
+        tmp_path, root, load_script, monkeypatch, capsys):
+    """The 0.13.0 copy that sat through 23 releases produced no drift of its own (#109)."""
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
+    made = _competing_home(tmp_path, monkeypatch, cache_version="0.13.0")
+    project = tmp_path / "proj"
+    _write_manifest(project, (root / "VERSION").read_text(encoding="utf-8").strip())
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"cwd": str(project)})))
+
+    rc = hook.main()
+
+    assert rc == 0
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    assert "was scaffolded by" not in context
+    assert str(made["cache"]) in context and "0.13.0" in context
+
+
+def test_the_hook_stays_silent_when_only_claude_codes_plugin_cache_holds_extra_versions(
+        tmp_path, root, load_script, monkeypatch, capsys):
+    """Claude Code keeps every version it installed; nagging about its cache is not our place."""
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
+    _competing_home(tmp_path, monkeypatch, plugin_versions=("0.36.0", "0.36.2"))
+    project = tmp_path / "proj"
+    _write_manifest(project, (root / "VERSION").read_text(encoding="utf-8").strip())
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"cwd": str(project)})))
+
+    rc = hook.main()
+
+    assert rc == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_the_drift_notice_survives_a_copy_scan_that_fails(
+        tmp_path, load_script, monkeypatch, capsys):
+    """A hook degrades to silence on the part that broke, never on the whole session."""
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
+    project = tmp_path / "proj"
+    _write_manifest(project, "0.1.0")
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"cwd": str(project)})))
+
+    class Exploding:
+        """A copy scanner that fails the way a permission error would."""
+
+        @staticmethod
+        def discover(**_kwargs):
+            raise OSError("no")
+
+    monkeypatch.setattr(hook, "framework_copies", Exploding())
+    rc = hook.main()
+
+    assert rc == 0
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    assert "was scaffolded by 0.1.0" in context
+
+
+def test_the_hook_is_silent_when_the_framework_ships_no_copy_scanner(
+        tmp_path, root, load_script, monkeypatch, capsys):
+    """A resolved root predating this module still emits its drift notice, and nothing else."""
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
+    _competing_home(tmp_path, monkeypatch, cache_version="0.13.0")
+    project = tmp_path / "proj"
+    _write_manifest(project, (root / "VERSION").read_text(encoding="utf-8").strip())
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"cwd": str(project)})))
+    monkeypatch.setattr(hook, "framework_copies", None)
+
+    rc = hook.main()
+
+    assert rc == 0
+    assert capsys.readouterr().out == ""

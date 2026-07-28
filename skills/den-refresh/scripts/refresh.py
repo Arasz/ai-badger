@@ -148,6 +148,7 @@ def _load_script(relpath: str, base: Path):
 
 FRAMEWORK_ROOT = _bootstrap_lib()
 import badger_lib as bl  # pylint: disable=wrong-import-position
+import framework_copies as fc  # pylint: disable=wrong-import-position
 
 
 def check_breaking_and_backup(root: Path, target: Path) -> Dict[str, Any]:
@@ -244,6 +245,27 @@ def relink_hermes_skills(root: Path, target: Path, config: Dict[str, Any]) -> Li
     return scaffold_mod.relink_hermes_skills(target, config, names)
 
 
+def report_framework_copies(root: Path, prune: bool) -> Optional[Dict[str, Any]]:
+    """Name every tree claiming to be ai-badger, and act on the one cache we created.
+
+    Reporting is unconditional; deletion happens only when `prune` was asked for, and only for
+    `~/.ai-badger/framework` — Claude Code owns its plugin cache and ai-badger never removes
+    another tool's state (#109, 0.19.0).
+    """
+    copies = fc.discover(running_root=root)
+    cache = fc.prune_home_cache(running_root=root, execute=prune)
+    competing = [{"path": str(c.path), "version": c.version, "owner": c.owner,
+                  "running": c.running, "prunable": c.prunable}
+                 for c in copies if not c.running]
+    if not competing and cache.status == fc.ABSENT:
+        return None
+    report: Dict[str, Any] = {"running": str(root), "competing": competing}
+    if cache.status != fc.ABSENT:
+        report["cache"] = {"status": cache.status, "path": str(cache.path),
+                           "version": cache.version, "detail": cache.detail}
+    return report
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     """CLI entry point: check drift, re-scaffold if needed, print JSON report."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -251,6 +273,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--target", required=True, help="scaffolded project root")
     parser.add_argument("--generated-at", default=None,
                         help="ISO timestamp for manifest (default: none)")
+    parser.add_argument("--prune-cache", action="store_true",
+                        help="Delete ~/.ai-badger/framework, the clone ai-badger makes when it "
+                             "has no other root and never updates in place. Default reports it "
+                             "and deletes nothing. Claude Code's plugin cache is never touched.")
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve() if args.root else bl.find_root()
@@ -348,6 +374,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         report["scaffold"] = scaffold_result
     if hermes_links:
         report["hermesSkillLinks"] = hermes_links
+    copies = report_framework_copies(root, args.prune_cache)
+    if copies:
+        report["frameworkCopies"] = copies
 
     print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0

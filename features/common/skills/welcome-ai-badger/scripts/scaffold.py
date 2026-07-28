@@ -134,6 +134,7 @@ def _bootstrap_lib() -> Path:
 
 FRAMEWORK_ROOT = _bootstrap_lib()
 import badger_lib as bl
+import framework_copies as fc
 
 # Ensure the script's directory is on sys.path so domain modules resolve
 # when scaffold.py is loaded dynamically (e.g. via tests' load_script).
@@ -950,6 +951,12 @@ def main(argv=None) -> int:
         print("  plugin setup commands (run per chosen scope):")
         for c in result["pluginCommands"]:
             print(f"    $ {ip_lib.printable(c)}")
+
+    # Onboarding a repository never deletes anything in a home directory; it names what is
+    # there, and den-refresh --prune-cache is the one command that acts on it (#109).
+    copies = fc.competing_copies_notice(fc.discover(running_root=root))
+    if copies:
+        print(copies)
     return 0
 
 
