@@ -175,7 +175,7 @@ for the genuinely creative decisions.
   Internally it is one `Scaffolder` holding a `ScaffoldContext` — a dataclass carrying root,
   target, config, index, stacks, skills, exclusions and notes — plus six collaborators
   (`McpTools`, `Extensions`, `HookWiring`, `AgentFiles`, `TemplateRendering`,
-  `StatusLineWiring`), each constructible from a context alone. Shared state lives on the
+  `StatusLineWiring`), five of them constructible from a context alone. Shared state lives on the
   context, never on a sibling: `McpTools` fills `ctx.merged_external_tools` and
   `TemplateRendering` reads it, and manifest bookkeeping goes through `ctx.record_template`.
   The one collaborator-to-collaborator dependency is an explicit constructor argument —

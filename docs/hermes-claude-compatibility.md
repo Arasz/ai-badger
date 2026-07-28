@@ -243,8 +243,8 @@ What the framework ships and where:
 ### Learned-skill sync
 
 Hermes can author skills at runtime; ai-badger's plugin captures them into the project. The
-`post_tool_call` hook fires only on a successful `skill_manage` call whose action creates or
-edits a skill, and only when the working directory holds a `.ai-badger/manifest.json`. The skill
+`post_tool_call` hook fires only on a successful `skill_manage` call whose action creates, edits
+or deletes a skill, and only when the working directory holds a `.ai-badger/manifest.json`. The skill
 is copied to `.ai-badger/skills/learned/<category>/<name>/` — `uncategorized` when Hermes
 declares none — and recorded in `.ai-badger/skills-data/hermes/learned.json`, deliberately
 separate from `manifest.json`: the manifest means "the framework placed this and owns it",

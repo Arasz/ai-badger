@@ -17,6 +17,7 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
+| 0.40.0 | [drift compares the framework, and every check must prove it can fail](0.40.0-drift-compares-the-framework.md) |
 | 0.39.1 | [the documentation describes the product, not the work that produced it](0.39.1-docs-describe-the-product-not-the-work.md) |
 | 0.39.0 | [three trees claim to be ai-badger](0.39.0-three-trees-claim-to-be-ai-badger.md) |
 | 0.38.0 | [an upgrade is not version skew](0.38.0-an-upgrade-is-not-version-skew.md) |

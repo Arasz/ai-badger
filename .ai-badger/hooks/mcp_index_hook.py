@@ -1,8 +1,7 @@
 """MCP index status notices for Hermes Agent.
 
 Advisory only: these hooks report a missing .ai-badger/mcp-tools.yaml and never
-execute anything resolved from the project tree (see F-03 in
-docs/reviews/2026-07-26-full-project-review.md).
+execute anything resolved from the project tree.
 """
 from __future__ import annotations
 

@@ -8,7 +8,7 @@
   behaviorist.py clear                        truncate the log
 
 Debug is user-scoped by default: every project logs. `--project` narrows it to the current
-working directory. See docs/design/debug-mode-and-call-behaviorist.md.
+working directory.
 """
 from __future__ import annotations
 
