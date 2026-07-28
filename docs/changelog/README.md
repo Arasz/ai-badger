@@ -17,7 +17,8 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
-| 0.42.1 | [an agent is a catalog stack too](0.42.1-an-agent-is-a-catalog-stack-too.md) |
+| 0.43.1 | [an agent is a catalog stack too](0.43.1-an-agent-is-a-catalog-stack-too.md) |
+| 0.43.0 | [the delegations nothing called](0.43.0-the-delegations-nothing-called.md) |
 | 0.42.0 | [drift sees a subtraction](0.42.0-drift-sees-a-subtraction.md) |
 | 0.41.0 | [a record that names no project belongs to no project](0.41.0-a-record-that-names-no-project.md) |
 | 0.40.0 | [drift compares the framework, and every check must prove it can fail](0.40.0-drift-compares-the-framework.md) |
