@@ -138,6 +138,12 @@ from the record count, from `observed`, and from the health verdict. With no evi
 `never_observed` is withheld too — when nothing at all was observed, every component is
 trivially silent, and reporting that as a high-severity failure would be crying wolf.
 
+**A record that names no project belongs to no project.** The log is user-wide, and a hook that
+could not determine its project emits a record no analysis can place. Those are excluded from
+`observed`, from the record count and from the verdict, and reported as `window.unattributed`
+with the components they came from in `window.unattributed_components`. They are set aside, not
+dropped — a non-zero count means a hook somewhere is still not attributing its records.
+
 ### Writing it up
 
 1. Run `analyze --json` and read the findings. **Do not restate them.** For each one, check the
@@ -145,7 +151,9 @@ trivially silent, and reporting that as a high-severity failure would be crying 
    in a summary and mean opposite things.
 2. Lead with what is *wrong*, not with counts. "Two wired hooks never fire" beats "5 findings".
 3. Include the observation window and record count, so a reader knows how much evidence there
-   is. A `degraded` verdict from three records deserves that caveat.
+   is. A `degraded` verdict from three records deserves that caveat. If `window.unattributed`
+   is non-zero, say so and name the components — evidence was set aside, and the reader is
+   entitled to know how much.
 4. Name the versions involved for any `version_skew`, **with the ranges they were observed in**
    — that is the actionable part, and it is what says which copy to remove. Do not report a
    `version_progression` as a fault; mention it only as the release train it is.
