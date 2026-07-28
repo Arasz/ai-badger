@@ -503,6 +503,8 @@ def test_freshly_scaffolded_project_reports_nothing_changed(tmp_path, load_scrip
     compared = drift.compare(root, result["manifest"], target=target)
 
     assert compared["changed"] == []
+    assert compared["locallyModified"] == []
+    assert compared["skipped"] == []
 
 
 def test_a_skill_changed_in_the_framework_is_reported_as_drift(tmp_path, load_script, root):

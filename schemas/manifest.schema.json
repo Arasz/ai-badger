@@ -39,10 +39,21 @@
           "source": { "type": "string", "description": "Path within the framework repo." },
           "target": { "type": "string", "description": "Path within the target repo." },
           "frameworkVersion": { "type": "string" },
-          "hash": { "type": "string", "description": "sha256 of the source content at scaffold time." },
+          "hash": { "type": "string", "description": "sha256 of the source content at scaffold time. For directory entries this covers the written target, so it answers whether the project edited its own copy — see sourceHash for framework drift." },
+          "sourceHash": { "type": "string", "description": "Directory entries only: sha256 of the framework source directory at scaffold time. The only hash that can answer whether the framework has moved ahead, because the target is rendered output (#110)." },
           "dirMeta": {
             "type": "object",
             "description": "Directory entries only: structural fingerprint drift.py compares before the content hash.",
+            "required": ["file_count", "dir_count"],
+            "additionalProperties": false,
+            "properties": {
+              "file_count": { "type": "integer", "minimum": 0 },
+              "dir_count": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "sourceMeta": {
+            "type": "object",
+            "description": "Directory entries only: the same structural pre-check for the framework source directory.",
             "required": ["file_count", "dir_count"],
             "additionalProperties": false,
             "properties": {

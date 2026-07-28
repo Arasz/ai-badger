@@ -337,7 +337,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
 
     has_drift = bool(drift_result.get("changed") or drift_result.get("removed")
-                     or drift_result.get("newItems") or new_stacks)
+                     or drift_result.get("newItems") or drift_result.get("versionChanged")
+                     or new_stacks)
 
     # 7. Re-scaffold if drift detected (or breaking change forces full re-scaffold)
     scaffold_result = None
@@ -348,28 +349,38 @@ def main(argv: Optional[List[str]] = None) -> int:
     # 7b. Re-link the hermes namespace so added/removed skills propagate (#58, ADR 0003)
     hermes_links = relink_hermes_skills(root, target, config)
 
-    # Always sync config.frameworkVersion when framework has advanced
-    if scaffold_version != current_version:
-        config["frameworkVersion"] = current_version
-        bl.dump_json(config_path, config)
+    # The version stamp follows the re-scaffold; it never leads it. Advancing it without one
+    # made the next report read the stamp this run wrote and call a stale scaffold green,
+    # while manifest.json and the agent files stayed on the old version (#110). A re-scaffold
+    # writes the stamp itself, so there is nothing left to sync here.
+    if scaffold_result is None and scaffold_version != current_version:
+        report_note = (f"config.json still says {scaffold_version}; no re-scaffold ran, so "
+                       f"the generated files were not rewritten for {current_version}")
+    else:
+        report_note = None
 
     # 8. Report
     report = {
         "frameworkVersion": {
             "scaffolded": scaffold_version,
             "current": current_version,
+            "manifest": manifest.get("frameworkVersion"),
         },
         "breakingChange": breaking_result,
         "drift": {
             "changed": drift_result.get("changed", []),
             "removed": drift_result.get("removed", []),
             "skipped": drift_result.get("skipped", []),
+            "locallyModified": drift_result.get("locallyModified", []),
+            "versionChanged": drift_result.get("versionChanged"),
             "invalid": drift_result.get("invalid", 0),
             "newItems": drift_result.get("newItems", []),
         },
         "newStacks": new_stacks,
         "reScaffolded": has_drift or breaking_result["isBreaking"],
     }
+    if report_note:
+        report["note"] = report_note
     if scaffold_result:
         report["scaffold"] = scaffold_result
     if hermes_links:
