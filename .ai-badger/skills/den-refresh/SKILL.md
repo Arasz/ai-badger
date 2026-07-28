@@ -115,6 +115,10 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
 - den-refresh delegates to the same `scaffold.py` that `welcome-ai-badger`
   uses — the re-scaffold is identical to an initial scaffold, just driven by
   an existing config.
+- A deleted skill, persona, invariant or instruction comes back: absence is not a
+  declaration. To decline one for good, add its name to `exclude` in `config.json`
+  (`{"skills": ["mcp-index"]}`); the refresh then stops delivering it and removes the
+  discovery symlinks ai-badger placed for it.
 
 ## Error Recovery
 

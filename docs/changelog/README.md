@@ -17,6 +17,7 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
+| 0.36.0 | [a project can decline a framework artifact](0.36.0-a-project-can-decline-an-artifact.md) · [an explicit debug sink](0.36.0-an-explicit-debug-sink.md) |
 | 0.35.6 | [the framework cache reports its own version skew](0.35.6-the-cache-reports-its-own-skew.md) |
 | 0.35.5 | [the test suite cannot reach the real audit log](0.35.5-the-suite-cannot-reach-the-real-log.md) |
 | 0.35.4 | [the behaviorist stops inventing failures](0.35.4-behaviorist-stops-inventing-failures.md) |

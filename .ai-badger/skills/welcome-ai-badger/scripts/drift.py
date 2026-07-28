@@ -158,12 +158,16 @@ def _load_script(relpath: str, base: Path):
 
 
 def detect_new_items(root: Path, manifest: Dict[str, Any],
-                     stacks: Union[str, List[str], None] = None) -> List[Dict[str, Any]]:
+                     stacks: Union[str, List[str], None] = None,
+                     exclude: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Find catalog items in index.json that are not in the manifest.
 
     `stacks` is what a re-scaffold would deliver — `badger_lib.resolve_stacks(config)`, not
     `config.stacks`, which never names the always-on `common` stack. A bare string is one
-    stack name, not five letters. Returns {name, feature, stack, path} per unscaffolded item.
+    stack name, not five letters. `exclude` is the project's own `config.exclude`: a declined
+    item is absent from the manifest by design and must not be reported as new, or every
+    refresh nags to install what the project said no to. Returns {name, feature, stack, path}
+    per unscaffolded item.
     """
     index_path = root / "index.json"
     if not index_path.exists():
@@ -180,6 +184,7 @@ def detect_new_items(root: Path, manifest: Dict[str, Any],
         manifest_keys.add((entry.get("stack"), entry.get("feature"), entry.get("name")))
 
     check_stacks = {stacks} if isinstance(stacks, str) else set(stacks or ())
+    declined = exclude or {}
     new_items: List[Dict[str, Any]] = []
 
     for stack_name, stack_data in index.get("stacks", {}).items():
@@ -189,6 +194,8 @@ def detect_new_items(root: Path, manifest: Dict[str, Any],
         for feature in bl.DRIFT_NEW_FEATURES:
             items = stack_data.get(feature, [])
             for item in items:
+                if item.get("name") in (declined.get(feature) or ()):
+                    continue
                 key = (stack_name, feature, item.get("name"))
                 if key not in manifest_keys:
                     new_items.append({
@@ -233,6 +240,23 @@ def detect_new_stacks(target: Path, root: Path,
     return [s for s in detected if s in known and s not in current and s not in ignored]
 
 
+def project_exclusions(target: Optional[Path]) -> Dict[str, Any]:
+    """What a scaffolded project's own config.json declines; empty when there is none to read.
+
+    Read from the target rather than passed in, so every caller of `compare` reports the
+    project's declarations without having to know they exist.
+    """
+    if target is None:
+        return {}
+    config_path = target / ".ai-badger" / "config.json"
+    if not config_path.is_file():
+        return {}
+    try:
+        return bl.exclusions(bl.load_json(config_path))
+    except (ValueError, OSError):
+        return {}
+
+
 def _within(parent: Path, candidate: Path) -> bool:
     """True when `candidate` resolves to `parent` itself or something inside it."""
     try:
@@ -253,7 +277,8 @@ def compare(root: Path, manifest: Dict[str, Any],
     Falls back to hashing the framework source when ``target`` is None or the
     target path doesn't exist.
 
-    When ``stacks`` is provided, also detects new items via index.json.
+    When ``stacks`` is provided, also detects new items via index.json — minus whatever the
+    project's own config.json declines in ``exclude``.
     """
     changed: List[str] = []
     removed: List[str] = []
@@ -318,7 +343,8 @@ def compare(root: Path, manifest: Dict[str, Any],
         "notes": notes,
     }
     if stacks is not None:
-        result["newItems"] = detect_new_items(root, manifest, stacks)
+        result["newItems"] = detect_new_items(root, manifest, stacks,
+                                              exclude=project_exclusions(target))
     return result
 
 
