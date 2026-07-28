@@ -371,11 +371,11 @@ def test_compare_passes_unchanged_dir(tmp_path, load_script):
     assert "features/common/skills/my-skill" not in result.get("skipped", [])
 
 
-def test_drift_hashes_target_not_source(tmp_path, load_script):
-    """Drift should compare the scaffolded target hash, not the framework source hash.
-    This is the core of #60: scaffold records a hash of the target dir (excluding
-    extensions/), so drift must also hash the target — not the source — or any skill
-    with extensions reports false drift.
+def test_an_extension_pruned_from_the_project_is_not_drift(tmp_path, load_script):
+    """#60: extensions/ is config-gated, so a project that pruned one has not drifted.
+
+    Both hashes exclude it — the source hash that answers the framework question (#110)
+    and the target hash that answers the local one.
     """
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     bl = load_script("engine/badger_lib.py")
@@ -398,10 +398,10 @@ def test_drift_hashes_target_not_source(tmp_path, load_script):
     (skill_tgt / "SKILL.md").write_text("# task skill\n")
     (skill_tgt / "scripts" / "tracker.py").write_text("print('track')\n")
 
-    # Manifest records hash of the TARGET (matching scaffold.record() behavior)
-    fingerprint = bl.dir_content_hash(
-        skill_tgt, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
-    )
+    # Manifest records both hashes, as scaffold.record() does
+    exclude = bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
+    fingerprint = bl.dir_content_hash(skill_tgt, exclude=exclude)
+    source_print = bl.dir_content_hash(skill_src, exclude=exclude)
     manifest = {
         "frameworkVersion": "0.3.0",
         "entries": [{
@@ -413,12 +413,18 @@ def test_drift_hashes_target_not_source(tmp_path, load_script):
                 "file_count": fingerprint["file_count"],
                 "dir_count": fingerprint["dir_count"],
             },
+            "sourceHash": source_print["content_hash"],
+            "sourceMeta": {
+                "file_count": source_print["file_count"],
+                "dir_count": source_print["dir_count"],
+            },
         }],
     }
 
     result = drift.compare(fw, manifest, target=target)
-    # Should NOT report task as changed — the target content hasn't drifted
+
     assert "features/common/skills/task" not in result["changed"]
+    assert "features/common/skills/task" not in result["locallyModified"]
 
 
 def test_real_scaffold_with_retained_extensions_has_no_drift(tmp_path, load_script, root):
