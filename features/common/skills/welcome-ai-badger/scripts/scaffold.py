@@ -296,12 +296,19 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
 
 
 # Import mixin classes from domain modules
+from scaffold_context import ScaffoldContext  # noqa: E402
 from hook_wiring import HookWiringMixin, merge_hooks  # noqa: E402
 from template_rendering import TemplateRenderingMixin  # noqa: E402
 from agent_files import AgentFilesMixin  # noqa: E402
 from extensions import ExtensionsMixin  # noqa: E402
 from mcp_tools import McpToolsMixin  # noqa: E402
 from statusline_wiring import StatusLineWiringMixin  # noqa: E402
+
+
+def _ctx_property(name: str) -> property:
+    """A read/write `Scaffolder` attribute backed by the shared `ScaffoldContext`."""
+    return property(lambda self: getattr(self.ctx, name),
+                    lambda self, value: setattr(self.ctx, name, value))
 
 
 class Scaffolder(
@@ -314,29 +321,40 @@ class Scaffolder(
 ):
     """Materializes a target repo's .ai-badger/ scaffold from a validated config.json."""
 
+    # Everything a collaborator reads or writes lives on self.ctx; these keep `s.notes`,
+    # `s.target` and the rest addressable on the Scaffolder itself.
+    root = _ctx_property("root")
+    target = _ctx_property("target")
+    aib = _ctx_property("aib")
+    config = _ctx_property("config")
+    index = _ctx_property("index")
+    stacks = _ctx_property("stacks")
+    skills = _ctx_property("skills")
+    excluded = _ctx_property("excluded")
+    overwrite = _ctx_property("overwrite")
+    notes = _ctx_property("notes")
+    _merged_external_tools = _ctx_property("merged_external_tools")
+    _external_tools_merged = _ctx_property("external_tools_merged")
+
     def __init__(self, root: Path, target: Path, config: Dict[str, Any],
                  skills: List[str], install: bool, overwrite: bool = False,
                  reset_seed_files: bool = False, execute: bool = False):
-        self.root = root
-        self.target = target
-        self.config = config
         # The one enforcement point for config.exclude: every consumer reads self.skills or
         # self.items(), so welcome-ai-badger and den-refresh cannot disagree about what a
         # project declined (docs/research/2026-07-27-skill-removal-semantics.md §2).
-        self.excluded = bl.exclusions(config)
-        self.skills = [s for s in skills if s not in self.excluded["skills"]]
+        excluded = bl.exclusions(config)
+        self.ctx = ScaffoldContext(
+            root=root, target=target, aib=target / ".ai-badger", config=config,
+            index=bl.read_index(root), stacks=bl.resolve_stacks(config),
+            skills=[s for s in skills if s not in excluded["skills"]],
+            excluded=excluded, overwrite=overwrite,
+            record_template=self.record_template,
+        )
         self.install = install
-        self.overwrite = overwrite
         self.reset_seed_files = reset_seed_files
         self.execute = execute
-        self.index = bl.read_index(root)
         self.commit, self.dirty = git_provenance(root)
-        self.aib = target / ".ai-badger"
         self.entries: List[Dict[str, Any]] = []
-        self.stacks: List[str] = bl.resolve_stacks(config)
-        self.notes: List[str] = []
-        self._merged_external_tools: List[Dict[str, Any]] = []
-        self._external_tools_merged = False
         self._completed_steps: List[str] = []
         self._note_exclusions()
 
