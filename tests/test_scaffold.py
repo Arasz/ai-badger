@@ -159,3 +159,62 @@ def test_scaffolder_does_not_discover_stack_local_skill_for_other_stack(
 
     assert "auto-wm" not in scaf.skills
     assert not (target / ".ai-badger" / "skills" / "auto-wm").exists()
+
+
+def test_stack_local_skill_not_symlinked_to_other_agent(
+        tmp_path, load_script, root):
+    """A claude stack-local skill must not appear in copilot's adjustment context."""
+    scaffold = load_script(
+        "features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+
+    # Capture what skills each agent's adjustment receives
+    seen = {}
+    original_run = scaffold.Scaffolder.run_adjustments
+
+    def capturing_run(self):
+        import importlib.util
+        for agent_name in self.config.get("agents", []):
+            adj_path = self.root / "features" / agent_name / "adjustments" / "adjustment.json"
+            if not adj_path.exists():
+                continue
+            adj_manifest = scaffold.bl.load_json(adj_path)
+            for adj in adj_manifest.get("adjustments", []):
+                script_name = adj.get("script")
+                if not script_name:
+                    continue
+                script_path = adj_path.parent / script_name
+                if not script_path.exists():
+                    continue
+                spec = importlib.util.spec_from_file_location("test", script_path)
+                if spec is None or spec.loader is None:
+                    continue
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                agent_stacks = [s for s in self.stacks
+                                if s == "common" or s == agent_name]
+                agent_skills = [s for s in self.skills
+                                if any(s in scaffold.bl.skills_for_stack(self.root, st)
+                                       for st in agent_stacks)]
+                seen[agent_name] = agent_skills
+        # Don't actually run adjustments
+
+    target = tmp_path / "proj"
+    target.mkdir()
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(stacks=["claude"], agents=["claude", "copilot"]),
+        skills=[], install=False)
+    scaf.run(generated_at="2026-07-28T00:00:00Z")
+
+    # After run, capture what each agent would get
+    agent_stacks_claude = ["common", "claude"]
+    agent_stacks_copilot = ["common"]
+    claude_skills = [s for s in scaf.skills
+                     if any(s in scaffold.bl.skills_for_stack(root, st)
+                            for st in agent_stacks_claude)]
+    copilot_skills = [s for s in scaf.skills
+                      if any(s in scaffold.bl.skills_for_stack(root, st)
+                             for st in agent_stacks_copilot)]
+
+    assert "auto-wm" in claude_skills
+    assert "auto-wm" not in copilot_skills

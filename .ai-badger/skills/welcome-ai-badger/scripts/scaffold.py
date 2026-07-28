@@ -712,13 +712,20 @@ class Scaffolder(
                     mod = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(mod)
 
+                    # Filter skills to those relevant to this agent: universal
+                    # defaults (common stack) plus the agent's own stack-local skills.
+                    agent_stacks = [s for s in self.stacks if s in ("common", agent_name)]
+                    agent_skills = [s for s in self.skills
+                                    if any(s in bl.skills_for_stack(self.root, st)
+                                           for st in agent_stacks)]
+
                     context = {
                         "framework_root": self.root,
                         "config": self.config,
                         "feature_dir": self.root / "features" / agent_name / "adjustments",
                         "target_dir": self.aib,
                         "target": self.target,
-                        "skills": self.skills,
+                        "skills": agent_skills,
                         "index": self.index,
                     }
                     result = mod.adjust(context)
