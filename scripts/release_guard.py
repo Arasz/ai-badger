@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail CI if the shipped surface changed since the last release without a VERSION bump.
+"""Fail CI if a release went out untagged, or the shipped surface changed without a bump.
 
 Kept as its own script rather than a mode on version_sync.py: it is git-shaped (tags, diffs)
 rather than JSON-shaped, has its own failure mode unrelated to the three version literals, and
@@ -10,9 +10,13 @@ Logic (see docs/adr/0001-versioning-and-release-model.md, decision 2):
   1. Find the last release tag matching `ai-badger--v*`, by highest SEMVER — not latest by
      date, not lexicographic string order (`ai-badger--v0.10.0` must beat `ai-badger--v0.9.0`).
   2. No such tag -> PASS. A fresh clone or a repo before its first release is not blocked.
-  3. Diff the working tree against that tag, limited to the shipped surface: skills/,
+  3. Every version with a changelog entry strictly between that tag and VERSION must itself be
+     tagged, or this fails. Checked before the diff, and independently of it: a release that
+     shipped untagged stays wrong on every later push, including docs-only ones. The version in
+     VERSION is exempt — one release in flight is the model (RELEASING.md).
+  4. Diff the working tree against that tag, limited to the shipped surface: skills/,
      features/, scripts/, schemas/, index.json.
-  4. If anything there changed, VERSION must differ from the tag's version, or this fails.
+  5. If anything there changed, VERSION must differ from the tag's version, or this fails.
 
 Compared against the LAST RELEASE TAG, never the previous commit — load-bearing per the ADR,
 so several PRs can land at one unreleased version without inflating it each time.
@@ -122,14 +126,19 @@ def check(root: Path) -> int:
         return 1
 
 
-def _report_skipped(root: Path, released_version: str, current_version: str) -> None:
+def _report_skipped(root: Path, released_version: str, current_version: str) -> bool:
+    """Print any documented-but-untagged versions; True when at least one exists."""
     skipped = skipped_versions(root, released_version, current_version)
     if not skipped:
-        return
+        return False
     print(f"UNTAGGED RELEASES: {len(skipped)} version(s) have a changelog entry but no "
           f"ai-badger--v* tag: {', '.join(skipped)}")
     print("each denotes no commit, so no bug report can be pinned to it "
           "(see docs/incidents/2026-07-27-untagged-releases.md)")
+    print("tag them at the commit that carried each VERSION, then push the tags:")
+    for version in skipped:
+        print(f"    git tag -a ai-badger--v{version} <commit> -m 'ai-badger {version}'")
+    return True
 
 
 def _check(root: Path) -> int:
@@ -142,16 +151,20 @@ def _check(root: Path) -> int:
         return 0
 
     released_version = tag_version(tag)
+    current_version = (root / "VERSION").read_text(encoding="utf-8").strip()
+    # Checked before the diff: an untagged release is a fact about the repo, not about
+    # whether this particular push touched the shipped surface.
+    if _report_skipped(root, released_version, current_version):
+        return 1
+
     changed = changed_shipped_paths(root, tag)
     if not changed:
         print(f"no shipped-surface changes since {tag} — PASS")
         return 0
 
-    current_version = (root / "VERSION").read_text(encoding="utf-8").strip()
     if current_version != released_version:
         print(f"shipped surface changed since {tag} and VERSION was bumped "
               f"({released_version} -> {current_version}) — PASS")
-        _report_skipped(root, released_version, current_version)
         return 0
 
     print(f"shipped surface changed since {tag} but VERSION is still {current_version}:")

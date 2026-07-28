@@ -215,7 +215,7 @@ def _changelog(repo, *versions):
         (repo / "docs" / "changelog" / f"{version}-slug.md").write_text("x\n", encoding="utf-8")
 
 
-def test_versions_documented_but_never_tagged_are_reported(tmp_path, load_script, capsys):
+def test_versions_documented_but_never_tagged_fail_the_guard(tmp_path, load_script, capsys):
     release_guard = load_script("scripts/release_guard.py")
     repo = _released_repo(tmp_path)
     _changelog(repo, "0.1.0", "0.2.0", "0.3.0", "0.4.0")
@@ -226,10 +226,43 @@ def test_versions_documented_but_never_tagged_are_reported(tmp_path, load_script
     rc = release_guard.main(["--root", str(repo)])
 
     out = capsys.readouterr().out
-    assert rc == 0  # informational: the bump itself is correct
+    assert rc == 1
     assert "UNTAGGED RELEASES" in out
     assert "0.2.0" in out and "0.3.0" in out
     assert "0.4.0" not in out.split("UNTAGGED RELEASES")[1]  # in flight, not skipped
+
+
+def test_an_untagged_release_fails_even_when_the_shipped_surface_is_unchanged(
+    tmp_path, load_script, capsys,
+):
+    """The shape that let 0.35.0-0.35.2 ship untagged: a docs-only push after a release."""
+    release_guard = load_script("scripts/release_guard.py")
+    repo = _released_repo(tmp_path)
+    _changelog(repo, "0.1.0", "0.2.0", "0.3.0")
+    (repo / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _commit_all(repo, "docs-only follow-up; skills/ untouched since 0.1.0")
+
+    rc = release_guard.main(["--root", str(repo)])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "UNTAGGED RELEASES" in out
+    assert "0.2.0" in out
+
+
+def test_a_changelog_entry_for_the_tagged_version_is_not_reported(tmp_path, load_script, capsys):
+    """`low < version` is strict: the last released version is tagged, by definition."""
+    release_guard = load_script("scripts/release_guard.py")
+    repo = _released_repo(tmp_path)
+    _changelog(repo, "0.1.0", "0.2.0")
+    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _commit_all(repo, "one release in flight, its predecessor tagged")
+
+    rc = release_guard.main(["--root", str(repo)])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "UNTAGGED RELEASES" not in out
 
 
 def test_the_version_in_flight_alone_is_not_reported_as_untagged(tmp_path, load_script, capsys):
