@@ -21,6 +21,7 @@ held two files numbered 0002. That collision was resolved in 0.22.0. One number,
 | [0007](0007-no-python-distribution.md) | ai-badger ships as files, not as a Python distribution | Accepted (2026-07-27) | Why packaging `badger_lib` is declined against all four deployment shapes; what Waves 7, 16 and 17 should therefore do |
 | [0008](0008-plugin-skills-live-at-the-plugin-skill-path.md) | Plugin skills live at the plugin skill path, and only there | Accepted (2026-07-27) | Why the plugin's skills moved from `.claude/skills/` to `skills/`, what the loader actually scans, and what two same-named skills do |
 | [0009](0009-one-framework-root-resolution.md) | One framework root, resolved rather than searched | Accepted (2026-07-27) | The single root predicate, why a declared root refuses while a discovered one falls through, `--root` read from `sys.argv` before argparse, and `frameworkRoot` as a validated manifest hint. Amended 2026-07-27 (decisions 6-8): the working directory is not an input, the ancestor walk outranks `$AI_BADGER`, and `--root` is read only when the file is the program |
+| [0010](0010-stack-local-skill-discovery.md) | Stack-local skill discovery | Accepted (2026-07-28) | `SKILL_SCOPES` is for universal skills only; stack-specific skills (e.g. auto-wm from claude) are discovered from their stack directory. `scaffold_skills()` searches all configured stacks. `stack_local_skills()` shared helper |
 
 ## Writing a new one
 

@@ -507,7 +507,6 @@ SKILL_SCOPE_OPT_IN = "optIn"
 # plugin's per-stack ship lists both derive from this. See ADR-0005 for why the
 # declaration lives here rather than in SKILL.md frontmatter.
 SKILL_SCOPES: Dict[str, str] = {
-    "auto-wm": SKILL_SCOPE_DEFAULT,
     "call-behaviorist": SKILL_SCOPE_DEFAULT,
     "code-review-checklist": SKILL_SCOPE_DEFAULT,
     "commit-reminder": SKILL_SCOPE_DEFAULT,
@@ -553,6 +552,50 @@ def default_skills_in(skills_dir: Path) -> List[str]:
         if d.is_dir() and (d / "SKILL.md").exists()
         and SKILL_SCOPES.get(d.name) == SKILL_SCOPE_DEFAULT
     )
+
+
+def stack_local_skills(skills_dir: Path) -> List[str]:
+    """Skills in a stack directory that are NOT in the universal SKILL_SCOPES.
+
+    These are stack-specific skills (e.g. auto-wm from claude) — included
+    automatically when the project uses that stack.
+    """
+    if not skills_dir.is_dir():
+        return []
+    return sorted(
+        d.name for d in skills_dir.iterdir()
+        if d.is_dir() and (d / "SKILL.md").exists()
+        and d.name not in SKILL_SCOPES
+    )
+
+
+def skills_for_stack(root: Path, stack: str) -> List[str]:
+    """Shippable skills for one stack, combining universal defaults and stack-local.
+
+    For the common stack: universal default-scope skills only.
+    For any other stack: stack-local skills (not in SKILL_SCOPES).
+    This is the single place both scaffold.py and sync_plugin_skills.py derive from.
+    """
+    skills_dir = root / "features" / stack / "skills"
+    if stack in DEFAULT_COMMON_STACKS:
+        return default_skills_in(skills_dir)
+    return stack_local_skills(skills_dir)
+
+
+def feature_items(index: Dict[str, Any], stack: str, feature: str) -> List[Dict[str, Any]]:
+    """Return the index items for one stack's feature bucket (personas, skills, ...)."""
+    return index.get("stacks", {}).get(stack, {}).get(feature, [])
+
+
+def find_skill_in_stacks(index: Dict[str, Any], stacks: List[str],
+                         skill_name: str) -> Tuple[Optional[Dict[str, Any]], str]:
+    """Locate a skill by name across the given stacks. Returns (item, stack) or (None, '')."""
+    for stack in stacks:
+        hit = next((s for s in feature_items(index, stack, "skills")
+                    if s["name"] == skill_name), None)
+        if hit is not None:
+            return hit, stack
+    return None, ""
 
 
 # ------------------------------------------------------------------------ catalog access

@@ -7,10 +7,16 @@ description: Use when the user wants Claude to auto-approve tool calls — "enab
 
 ## Overview
 
-Two modes, both auto-approving every tool call via a `PreToolUse` hook and logging each decision to an audit log. They differ on whether the user is around to be asked something, and on whether the mode expires:
+Two modes, both auto-approving most tool calls via a `PreToolUse` hook and logging each decision to an audit log. They differ only on whether the user is around to be asked something:
 
-- **partner** (default) — you're at the keyboard: available for questions, brainstorming, feedback, hints. Tool calls auto-approve; `AskUserQuestion` is left completely alone, same as a session with no hooks. No expiry — stays on until you switch to away or disable it.
-- **away** — you're not around. Same auto-approval, but `AskUserQuestion` is denied (nothing to gain from asking) and the window expires on wall-clock time (default **4h**), checked by the hooks on every event — no cron or session timer needed.
+- **partner** (default) — you're at the keyboard: available for questions, brainstorming, feedback, hints. Tool calls auto-approve; `AskUserQuestion` is left completely alone, same as a session with no hooks. Window defaults to **8h**.
+- **away** — you're not around. Same auto-approval, but `AskUserQuestion` is denied (nothing to gain from asking). Window defaults to **4h**.
+
+Three guards bound both modes, re-checked by the hooks on every event — no cron or session timer needed:
+
+- **Wall-clock expiry.** No window is open-ended; anything longer than **12h** is capped to 12h. An elapsed window flips itself off and normal prompts resume.
+- **Project scope.** The state records the directory AWM was enabled in. A call whose `cwd` is outside that tree is never auto-approved — enabling AWM in one repo does not arm it machine-wide.
+- **Denylist.** Destructive shell commands (`rm -r`, `sudo`, force-pushes, piping the network into a shell, `crontab`, …), network egress (`WebFetch`, `WebSearch`), and writes outside the project are never auto-approved. They fall through to the normal permission prompt and are logged as `denylisted`.
 
 Partner only ever starts because you explicitly ran `auto-wm` (or `/auto-wm`) — a session where auto-wm is never invoked keeps Claude Code's normal per-tool prompts. Once started, `enable`/`partner` and `away` are just the two states that mode can be in; switching between them overwrites the current one.
 
@@ -20,26 +26,26 @@ All via `python3 ~/.claude/skills/auto-wm/scripts/awm.py`:
 
 | Command | Effect |
 |---|---|
-| `enable` / `partner` | Switch to partner mode: auto-approve, questions untouched, no expiry |
-| `away [DURATION]` | Switch to away mode: auto-approve, questions denied, expires (default 4h). Grammar: `Nh`, `Nm`, `NhMm`, or a bare number = hours (`4h`, `90m`, `1h30m`, `4`) |
+| `enable` / `partner` `[DURATION]` | Switch to partner mode: auto-approve, questions untouched, expires (default 8h) |
+| `away [DURATION]` | Switch to away mode: auto-approve, questions denied, expires (default 4h). Grammar: `Nh`, `Nm`, `NhMm`, or a bare number = hours (`4h`, `90m`, `1h30m`, `4`); anything over 12h is capped |
 | `disable` (or `off`, `stop`) | Turn AWM off entirely — normal per-tool prompts resume |
-| `status` | Which mode, since when, time remaining (away only) |
+| `status` | Which mode, since when, time remaining, and the project it is scoped to |
 | `decision "<what and why>"` | Register a judgment call in the audit log |
 
 ## Invocation
 
-`/auto-wm [away DURATION | off | status | partner]` — no argument means `partner` (indefinite, default). Away mode must be asked for explicitly, since it changes how questions are handled and has a clock running.
+`/auto-wm [away DURATION | off | status | partner DURATION]` — no argument means `partner` (8h, default). Away mode must be asked for explicitly, since it changes how questions are handled and has a clock running.
 
 1. Run the matching `awm.py` command and relay its output (partner/away both print what changed).
 2. On first enable (partner or away), smoke-test that the gate hook actually fires: run any trivial command (e.g. `true`), then `tail -2 ~/.claude/awm/decisions.jsonl` — a fresh `auto_approve` entry proves auto-approval is live. If no entry appears, check registration with `jq '.hooks.PreToolUse' ~/.claude/settings.json`; if missing, merge `~/.claude/skills/auto-wm/hooks/settings-snippet.json` into `~/.claude/settings.json` (preserve existing keys), then tell the user hooks load on `/hooks` or restart.
-3. In the same reply, warn once (either mode): every command will be auto-approved, including destructive ones — equivalent to `bypassPermissions` with an audit trail. For away mode, also note that questions get denied outright.
+3. In the same reply, warn once (either mode): tool calls will be auto-approved without asking — close to `bypassPermissions`, minus the denylist, and with an audit trail. Say which project it is scoped to and when the window expires. For away mode, also note that questions get denied outright.
 
 ## Files (all user-level)
 
 | File | Purpose |
 |---|---|
-| `~/.claude/awm/state.json` | Marker: `enabled`, `mode` (`partner`/`away`), `enabled_at`, `duration`, `expires_at` (null for partner) |
-| `~/.claude/awm/decisions.jsonl` | Audit log: `mode_enabled/disabled/expired`, `auto_approve`, `question_denied`, `decision` |
+| `~/.claude/awm/state.json` | Marker: `enabled`, `mode` (`partner`/`away`), `project`, `enabled_at`, `duration`, `expires_at` |
+| `~/.claude/awm/decisions.jsonl` | Audit log: `mode_enabled/disabled/expired`, `auto_approve`, `question_denied`, `denylisted`, `out_of_scope`, `decision` |
 | `~/.claude/skills/auto-wm/hooks/` | `awm_gate.py` (PreToolUse), `awm_context.py` (UserPromptSubmit) |
 
 ## While AWM is active (behavior contract)
@@ -55,16 +61,36 @@ All via `python3 ~/.claude/skills/auto-wm/scripts/awm.py`:
 
 ## Common mistakes
 
-- **Marker in the project** (`.claude/` in a repo, `CLAUDE.md` edits) — it's user-level state; project files pollute git. Use `~/.claude/awm/` only.
+- **State in the project** (`.claude/` in a repo, `CLAUDE.md` edits) — the *scripts* are scaffolded per project, but the *state* is user-level: enabled flag, window, decisions. Keep all of it in `~/.claude/awm/`; a state marker committed to a repo both leaks and misleads.
 - **Permission allowlist ≠ AWM.** Adding `permissions.allow` entries doesn't approve everything; only the PreToolUse hook does.
-- **Treating partner mode like away mode.** Partner mode does not deny `AskUserQuestion` and does not expire — don't apply away's "never ask, always log" contract when the state file says `mode: partner`.
-- **Session cron for away's expiry** — dies with the session. The hooks compare `expires_at` to wall-clock instead.
+- **Treating partner mode like away mode.** Partner mode does not deny `AskUserQuestion` — don't apply away's "never ask, always log" contract when the state file says `mode: partner`.
+- **Reading a fall-through as a failure.** A denylisted or out-of-scope call is not an error: the normal permission prompt reaches the user, exactly as if AWM were off. Don't retry it a different way to get around the gate — ask.
+- **Session cron for expiry** — dies with the session. The hooks compare `expires_at` to wall-clock instead.
 - **Editing state.json by hand** — always go through `awm.py` so changes land in the audit log.
 
 ## Installing from ai-badger
 
-This skill is user-level by design: its state (`~/.claude/awm/`) and hook scripts
-(`~/.claude/skills/auto-wm/`) live outside any project, so the same install covers every repo you
-work in. `welcome-ai-badger` copies this directory to `~/.claude/skills/auto-wm/` once (not into
-`.ai-badger/`) and merges `hooks/settings-snippet.json` into `~/.claude/settings.json`. Re-running
-`welcome-ai-badger` on another project does not reinstall it.
+Two things are user-level here, and one is not. Getting them mixed up is why this section used
+to describe an install that never happened (review F-42).
+
+**What `welcome-ai-badger` does:** it scaffolds this skill into `.ai-badger/skills/auto-wm/`
+like every other skill. It does **not** copy anything to `~/.claude/skills/`, and it does
+**not** merge `hooks/settings-snippet.json` into `~/.claude/settings.json`.
+
+**What you do once, by hand:** the gate only fires if its two hooks are registered in
+`~/.claude/settings.json`. Copy the hooks somewhere stable and merge the snippet:
+
+```bash
+mkdir -p ~/.claude/skills/auto-wm
+cp -R .ai-badger/skills/auto-wm/. ~/.claude/skills/auto-wm/
+# then merge hooks/settings-snippet.json into ~/.claude/settings.json, preserving existing keys
+```
+
+The snippet's commands point at `~/.claude/skills/auto-wm/hooks/`, so the registered hooks keep
+working in every repo — which is the point: **state is machine-wide** (`~/.claude/awm/`), and a
+window enabled in one project is scoped to that project by `state.json`, not by which copy of
+the scripts ran.
+
+**Why the skill files are per project anyway:** they are versioned with the framework, so a
+`den-refresh` updates them. Re-copy to `~/.claude/skills/auto-wm/` after an update that touches
+`hooks/` — nothing does it for you.

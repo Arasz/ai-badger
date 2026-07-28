@@ -279,10 +279,17 @@ class TestCatalogRouting:
     def test_every_catalog_skill_is_reachable_by_a_declared_route(self, root, load_script):
         bl = load_script("scripts/badger_lib.py")
 
-        undeclared = sorted(_catalog_skill_names(root) - set(bl.SKILL_SCOPES))
+        # Stack-local skills (no scope in SKILL_SCOPES) are reachable via their
+        # stack's index entry — the Scaffolder discovers them when the stack is
+        # configured.  Only common-stack skills must be in SKILL_SCOPES.
+        index = json.loads((root / "index.json").read_text())
+        common_skills = {
+            e["name"] for e in index.get("stacks", {}).get("common", {}).get("skills", [])
+        }
+        undeclared = sorted(common_skills - set(bl.SKILL_SCOPES))
 
         assert not undeclared, (
-            f"catalogued but routed nowhere: {undeclared}. Add each to "
+            f"common-stack skill(s) routed nowhere: {undeclared}. Add each to "
             "badger_lib.SKILL_SCOPES as 'default' (ships everywhere) or 'optIn'."
         )
 

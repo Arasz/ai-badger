@@ -111,3 +111,51 @@ def test_scaffold_execute_flag_handles_failure(tmp_path, load_script, root):
     if mock_run.called:
         failure_notes = [n for n in scaf.notes if "command failed" in n or "executed:" in n]
         assert len(failure_notes) > 0 or len(mock_run.call_args_list) == 0
+
+
+# ----------------------------------------------------------------- stack-local skills
+def test_auto_wm_is_not_a_universal_default(load_script):
+    """auto-wm is a claude stack-local skill, not in the universal SKILL_SCOPES."""
+    bl = load_script("scripts/badger_lib.py")
+    assert "auto-wm" not in bl.SKILL_SCOPES
+
+
+def test_scaffolder_discovers_stack_local_skill_for_configured_stack(
+        tmp_path, load_script, root):
+    """A stack-local skill is auto-discovered when its stack is configured."""
+    scaffold = load_script(
+        "features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+
+    target = tmp_path / "proj"
+    target.mkdir()
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(stacks=["claude"]),
+        skills=[], install=False)
+    result = scaf.run(generated_at="2026-07-28T00:00:00Z")
+
+    assert "auto-wm" in scaf.skills
+    assert (target / ".ai-badger" / "skills" / "auto-wm").is_dir()
+    skill_entries = [e for e in result["manifest"]["entries"]
+                     if e.get("feature") == "skills"
+                     and e.get("name") == "auto-wm"]
+    assert len(skill_entries) == 1
+    assert skill_entries[0]["stack"] == "claude"
+
+
+def test_scaffolder_does_not_discover_stack_local_skill_for_other_stack(
+        tmp_path, load_script, root):
+    """A stack-local skill is NOT included when its stack is not configured."""
+    scaffold = load_script(
+        "features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+
+    target = tmp_path / "proj"
+    target.mkdir()
+    scaf = scaffold.Scaffolder(
+        root=root, target=target,
+        config=_config(stacks=["dotnet"]),
+        skills=[], install=False)
+    scaf.run(generated_at="2026-07-28T00:00:00Z")
+
+    assert "auto-wm" not in scaf.skills
+    assert not (target / ".ai-badger" / "skills" / "auto-wm").exists()

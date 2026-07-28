@@ -26,8 +26,9 @@ TARGET = ROOT / "skills"
 
 # Which skills ship is declared once, in badger_lib.SKILL_SCOPES; each list is just that
 # decision filtered to the stack whose directory holds the skill.
-COMMON_SKILLS = bl.default_skills_in(ROOT / "features" / "common" / "skills")
-CLAUDE_SKILLS = bl.default_skills_in(ROOT / "features" / "claude" / "skills")
+# skills_for_stack() is the single place this decision lives.
+COMMON_SKILLS = bl.skills_for_stack(ROOT, "common")
+CLAUDE_SKILLS = bl.skills_for_stack(ROOT, "claude")
 
 # Files to skip when copying (test files, caches, evals). Shared with the hash used by
 # --check so a file that is never copied can never be reported as divergence.

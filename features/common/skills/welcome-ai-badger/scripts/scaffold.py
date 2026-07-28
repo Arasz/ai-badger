@@ -156,9 +156,7 @@ SEED_ONCE_SKILL_FILES: Dict[str, List[str]] = {
 
 
 # ---------------------------------------------------------------------- index lookups
-def feature_items(index: Dict[str, Any], stack: str, feature: str) -> List[Dict[str, Any]]:
-    """Return the index items for one stack's feature bucket (personas, skills, ...)."""
-    return index.get("stacks", {}).get(stack, {}).get(feature, [])
+# feature_items and find_skill_in_stacks live in badger_lib — single source of truth.
 
 
 def git_provenance(root: Path) -> Tuple[Optional[str], bool]:
@@ -346,7 +344,7 @@ class Scaffolder(
     def items(self, stack: str, feature: str) -> List[Dict[str, Any]]:
         """Index items for one stack's feature bucket, minus the ones config.exclude declines."""
         declined = self.excluded.get(feature, set())
-        return [i for i in feature_items(self.index, stack, feature)
+        return [i for i in bl.feature_items(self.index, stack, feature)
                 if i.get("name") not in declined]
 
     def _note_exclusions(self) -> None:
@@ -361,7 +359,7 @@ class Scaffolder(
             if not declined:
                 continue
             known = {i.get("name") for stack in self.stacks
-                     for i in feature_items(self.index, stack, feature)}
+                     for i in bl.feature_items(self.index, stack, feature)}
             singular = feature[:-1]
             for name in sorted(declined - known):
                 self.notes.append(
@@ -527,10 +525,9 @@ class Scaffolder(
     def scaffold_skills(self) -> None:
         """Copy each requested skill directory into .ai-badger/skills/, with its extensions."""
         for skill_name in self.skills:
-            item = next((s for s in feature_items(self.index, "common", "skills")
-                         if s["name"] == skill_name), None)
+            item, item_stack = bl.find_skill_in_stacks(self.index, self.stacks, skill_name)
             if item is None:
-                self.notes.append(f"skill '{skill_name}' not in index common.skills — skipped")
+                self.notes.append(f"skill '{skill_name}' not in any configured stack — skipped")
                 continue
             src = self.root / item["path"]
             dest = self.aib / "skills" / skill_name
@@ -543,7 +540,7 @@ class Scaffolder(
             self._merge_extensions(skill_name, dest)
             self._append_project_local(skill_name, dest)
             # hash includes embedded extensions
-            self.record("skills", "common", skill_name, src, dest)
+            self.record("skills", item_stack, skill_name, src, dest)
             # emit per-file entries for extension content so feed-badger can
             # detect user edits to extension files (#65)
             ext_dir = dest / "extensions"
@@ -551,7 +548,7 @@ class Scaffolder(
                 for f in sorted(ext_dir.rglob("*")):
                     if f.is_file():
                         ext_src = src / "extensions" / f.relative_to(ext_dir)
-                        self.record("skills", "common",
+                        self.record("skills", item_stack,
                                     f"{skill_name}/extensions/{f.relative_to(ext_dir).as_posix()}",
                                     ext_src if ext_src.exists() else f, f)
 
@@ -786,6 +783,13 @@ class Scaffolder(
         instr_paths = self.scaffold_instructions()
         invariants = self.collect_invariants()
         self._record_progress("personas-and-instructions")
+        # Discover stack-local skills (not in the universal SKILL_SCOPES) from
+        # configured stacks — e.g. auto-wm from claude. Universal defaults are
+        # already in self.skills from the caller.
+        for stack in self.stacks:
+            for name in bl.stack_local_skills(self.root / "features" / stack / "skills"):
+                if name not in self.skills and name not in self.excluded["skills"]:
+                    self.skills.append(name)
         self.scaffold_skills()
         self._record_progress("skills")
         self._outside_project("hermes skill symlinks", self.symlink_hermes_skills)
