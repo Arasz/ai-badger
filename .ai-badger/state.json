@@ -1,7 +1,13 @@
 {
-  "lastUpdated": "2026-07-27T00:25:00Z",
-  "next": "wave-2-shipped-features-must-actually-ship (docs/plans/2026-07-26-remediation-plan.md; WP6 first, WP7 before WP8)",
+  "lastUpdated": "2026-07-28T00:50:00Z",
+  "next": "stale pointer removed (wave-2 backlog reference predates 0.19.0->0.35.2 drift) - consult docs/plans/2026-07-27-session-checkpoint-3.md and docs/plans/2026-07-27-improvement-plan.md for current backlog before picking a next task",
   "completedTasks": [
+    {
+      "id": "hook-design",
+      "title": "Commit-reminder hook: advisory PostToolUse nudge for all three agents (0.35.0-0.35.2)",
+      "summary": "Built a common/ hook that watches live `git status --porcelain` uncommitted-file count after edit-shaped tool calls and nudges (never blocks/denies/gates - additionalContext only, honoring the 0.33.0 no-third-party-tool-call-interception precedent) once a threshold (default 5, AI_BADGER_COMMIT_REMINDER_THRESHOLD) crosses, with a ratchet-debounce that re-arms after every commit instead of latching forever (avoids the 'adjustments reported as drifted forever' bug class). Impact reason is pluggable: a pure file-count default (features/common/skills/commit-reminder/scripts/impact_estimator.py), extended by an opt-in (AI_BADGER_COMMIT_REMINDER_IMPACT=graph) code-review-graph CLI subprocess call for real blast-radius data, guarded so any failure/absence falls back silently and the ~15-20s call only runs once the cheap check already decided to fire. Shipped for all three agents from one shared commit_reminder.py/impact_estimator.py core: Claude+Copilot via the existing hooks-manifest.json/hooks.json PostToolUse wiring (fixed Copilot's adjust_hooks.py to also carry the matcher field through, previously dropped), Hermes via post_tool_observer stashing a pending reminder that pre_llm_inject_context surfaces on the next turn. Mid-task user feedback (f: marker) required instrumenting with the existing debug_log/call-behaviorist audit facility rather than shipping silently, under component name commit_reminder_hook; a follow-on continuation (0.35.1) generalized that same vendored-debug_log pattern to the 5 other framework hooks that had never called it. PR #105; 1366 tests passing at 0.35.2.",
+      "completedAt": "2026-07-28T00:50:00Z"
+    },
     {
       "id": "full-project-code-review",
       "title": "Full-project multi-agent code review + Wave 1 remediation (0.19.0)",
