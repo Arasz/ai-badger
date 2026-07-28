@@ -124,8 +124,8 @@ ENABLE_HINT = ("nothing observed yet — run `behaviorist.py on 4h`, work normal
                "then analyze again")
 
 
-def _read_records(project=None):
-    """Every parseable record, optionally narrowed to one project."""
+def _read_records():
+    """Every parseable record in the log, from every project."""
     try:
         lines = dl.AUDIT_FILE.read_text(encoding="utf-8").splitlines()
     except OSError:
@@ -133,13 +133,41 @@ def _read_records(project=None):
     records = []
     for line in lines:
         try:
-            rec = json.loads(line)
+            records.append(json.loads(line))
         except ValueError:
             continue
-        if project and rec.get(dl.KEY_PROJECT) not in (None, project):
-            continue
-        records.append(rec)
     return records
+
+
+def _resolved(path):
+    """`path` with symlinks collapsed, or the text itself when it cannot be resolved.
+
+    `$CLAUDE_PROJECT_DIR` and `Path.cwd()` can spell one directory two ways (/var and
+    /private/var on macOS); comparing only the text drops a project's own records.
+    """
+    try:
+        return str(Path(path).resolve())
+    except (OSError, ValueError):
+        return path
+
+
+def _for_project(records, project):
+    """Records belonging to `project`, how many named none, and which components those were.
+
+    A record that names no project cannot be shown to belong here. Admitting it into every
+    project's analysis is how one repo's hooks become another's `unexpected_component` and how
+    a third repo's version lands in this one's skew. Set aside and counted, never dropped.
+    """
+    target = _resolved(project)
+    mine, orphaned, unattributed = [], set(), 0
+    for rec in records:
+        origin = rec.get(dl.KEY_PROJECT)
+        if origin is None:
+            unattributed += 1
+            orphaned.add(rec.get(dl.KEY_COMPONENT) or "?")
+        elif origin == project or _resolved(origin) == target:
+            mine.append(rec)
+    return mine, unattributed, sorted(orphaned)
 
 
 def _evidence(records) -> list:
@@ -384,7 +412,7 @@ def analyze(project, expected=None) -> dict:
     """Compare what a project should do against what it was observed doing."""
     wired = _wired_hooks(project) if expected is None else {}
     expected = list(expected if expected is not None else sorted(wired))
-    records = _evidence(_read_records(project))
+    records, unattributed, orphaned = _for_project(_evidence(_read_records()), project)
     observed = _observed(records)
     keys = {name: _component_key(name, wired.get(name)) for name in expected}
     findings = []
@@ -436,6 +464,8 @@ def analyze(project, expected=None) -> dict:
         "health": health,
         "window": {
             "records": len(records),
+            "unattributed": unattributed,
+            "unattributed_components": orphaned,
             "from": min(stamps) if stamps else None,
             "to": max(stamps) if stamps else None,
         },
@@ -455,6 +485,9 @@ def cmd_analyze(project, as_json: bool) -> int:
           f"record(s) for {report['project']})")
     if report["hint"]:
         print(report["hint"])
+    if report["window"]["unattributed"]:
+        print(f"  {report['window']['unattributed']} record(s) named no project and were set "
+              f"aside: {', '.join(report['window']['unattributed_components'])}")
     for finding in report["findings"]:
         print(f"  [{finding['severity']}] {finding['kind']}: {finding['component']}")
         print(f"      {finding['detail']}")
