@@ -11,13 +11,24 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-DEBUG_DIR = Path.home() / ".ai-badger" / "debug"
-STATE_FILE = DEBUG_DIR / "state.json"
-AUDIT_FILE = DEBUG_DIR / "audit.jsonl"
-
 DEBUG_ENV = "AI_BADGER_DEBUG"
+DEBUG_DIR_ENV = "AI_BADGER_DEBUG_DIR"
 SCOPE_USER = "user"
 SCOPE_PROJECT = "project"
+
+
+def debug_dir() -> Path:
+    """Where state and records live: `$AI_BADGER_DEBUG_DIR`, else `~/.ai-badger/debug`.
+
+    The override exists so a test run redirects the sink instead of writing a real audit log.
+    """
+    override = os.environ.get(DEBUG_DIR_ENV)
+    return Path(override) if override else Path.home() / ".ai-badger" / "debug"
+
+
+DEBUG_DIR = debug_dir()
+STATE_FILE = DEBUG_DIR / "state.json"
+AUDIT_FILE = DEBUG_DIR / "audit.jsonl"
 
 # An unbounded audit log on someone's disk is its own defect.
 MAX_AUDIT_LINES = 5000
