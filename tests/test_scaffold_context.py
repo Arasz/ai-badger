@@ -25,10 +25,14 @@ COMPLETED_STEPS = [
 
 
 def _load(load_script, root, name):
-    """Load one welcome-ai-badger script with its siblings importable, as scaffold.py does."""
-    scripts_dir = str(root / SCRIPTS)
-    if scripts_dir not in sys.path:
-        sys.path.insert(0, scripts_dir)
+    """Load one welcome-ai-badger script with badger_lib and its siblings importable.
+
+    The same two sys.path entries scaffold.py's own bootstrap installs — deployment
+    plumbing, not a Scaffolder.
+    """
+    for entry in (str(root / SCRIPTS), str(root / "scripts")):
+        if entry not in sys.path:
+            sys.path.insert(0, entry)
     return load_script(f"{SCRIPTS}/{name}.py")
 
 
@@ -139,6 +143,20 @@ def test_statusline_wiring_is_built_from_a_context_alone(tmp_path, load_script, 
     statusline.unwire()
     assert "statusLine" not in json.loads(settings.read_text(encoding="utf-8"))
     assert "scaffold" not in _imported_modules(root, "statusline_wiring")
+
+
+def test_hook_wiring_is_built_from_a_context_alone(tmp_path, load_script, root):
+    target = tmp_path / "proj"
+    (target / ".claude").mkdir(parents=True)
+    ctx = _hand_built_context(load_script, root, target)
+    hooks = _load(load_script, root, "hook_wiring").HookWiring(ctx)
+
+    hooks.wire()
+
+    # Nothing is scaffolded under this target, so every framework hook is refused by name.
+    assert any("is not scaffolded" in note for note in ctx.notes)
+    assert not (target / ".claude" / "settings.json").exists()
+    assert "scaffold" not in _imported_modules(root, "hook_wiring")
 
 
 # ----------------------------------------------------------------- step-order golden master

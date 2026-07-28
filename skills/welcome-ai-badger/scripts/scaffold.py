@@ -297,7 +297,7 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
 
 # Import mixin classes from domain modules
 from scaffold_context import ScaffoldContext  # noqa: E402
-from hook_wiring import HookWiringMixin, merge_hooks  # noqa: E402
+from hook_wiring import HookWiring, merge_hooks  # noqa: E402
 from template_rendering import TemplateRenderingMixin  # noqa: E402
 from agent_files import AgentFilesMixin  # noqa: E402
 from extensions import Extensions  # noqa: E402
@@ -313,7 +313,6 @@ def _ctx_property(name: str) -> property:
 
 class Scaffolder(
     McpToolsMixin,
-    HookWiringMixin,
     TemplateRenderingMixin,
     AgentFilesMixin,
 ):
@@ -350,6 +349,7 @@ class Scaffolder(
         )
         self.extensions = Extensions(self.ctx)
         self.statusline = StatusLineWiring(self.ctx)
+        self.hooks = HookWiring(self.ctx)
         self.install = install
         self.reset_seed_files = reset_seed_files
         self.execute = execute
@@ -642,7 +642,11 @@ class Scaffolder(
             self.notes.append(f"skill install warning: {w}")
         return cmds
 
-    # -- statusline capture ---------------------------------------------------------
+    # -- hooks and statusline capture ------------------------------------------------
+    def wire_hooks(self) -> None:
+        """Merge the framework's hook registrations into the project's .claude/settings.json."""
+        self.hooks.wire()
+
     def wire_statusline_capture(self) -> None:
         """Wire the capture wrapper into .claude/settings.json, preserving the renderer."""
         self.statusline.wire()
