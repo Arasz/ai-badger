@@ -16,7 +16,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Set, Tuple
 
 import jsonschema  # scripts/requirements.txt: jsonschema>=4
 from jsonschema import Draft202012Validator
@@ -63,10 +63,31 @@ DRIFT_NEW_FEATURES: Tuple[str, ...] = tuple(
 
 _BY_NAME = {ft.name: ft for ft in FEATURE_TYPES}
 
+# The feature types a project may decline by index name in `config.exclude`. Same predicate
+# as drift's "new" report for the same reason: only these are recorded under the item's own
+# name, so only here does a name in config address one delivered artifact.
+EXCLUDABLE_FEATURES: Tuple[str, ...] = DRIFT_NEW_FEATURES
+
 
 def feature_type(name: str) -> FeatureType:
     """Look up a feature type by name; raises KeyError for anything not in the registry."""
     return _BY_NAME[name]
+
+
+def exclusions(config: Dict[str, Any]) -> Dict[str, Set[str]]:
+    """Names `config.exclude` declines, keyed by feature type — every key always present.
+
+    Tolerant of a malformed block on purpose: drift reads configs this library did not
+    validate, and a refusal there would convert a bad edit into a broken refresh.
+    """
+    declared = config.get("exclude")
+    if not isinstance(declared, dict):
+        declared = {}
+    return {
+        feature: {n for n in declared.get(feature) or [] if isinstance(n, str)}
+        for feature in EXCLUDABLE_FEATURES
+    }
+
 
 # Canonical agent list — keep in sync with schemas/agents.schema.json and
 # schemas/config.schema.json agents enum.

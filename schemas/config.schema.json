@@ -84,6 +84,33 @@
       "type": "object",
       "additionalProperties": { "type": "string" }
     },
+    "exclude": {
+      "type": "object",
+      "description": "Catalog items this project declines, by index name. Neither welcome-ai-badger nor den-refresh delivers them again, and the discovery links ai-badger placed for them are removed; the copy already under .ai-badger/ is left on disk. Only the four name-addressable feature types can be declined — templates, hooks and adjustments materialise outputs named otherwise. A name matching nothing in the catalog is reported, never fatal.",
+      "additionalProperties": false,
+      "properties": {
+        "skills": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Skill names not to scaffold into .ai-badger/skills/."
+        },
+        "personas": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Persona names not to scaffold into .ai-badger/agents/."
+        },
+        "invariants": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Invariant names not to scaffold into .ai-badger/invariants/ or render into the agent instruction files."
+        },
+        "instructions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Instruction names not to scaffold into .ai-badger/instructions/."
+        }
+      }
+    },
     "externalTools": {
       "type": "array",
       "description": "External MCP tools (e.g. code-review-graph) whose instructions are injected into CLAUDE.md/HERMES.md during scaffold.",

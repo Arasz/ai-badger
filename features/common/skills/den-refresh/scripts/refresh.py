@@ -198,7 +198,9 @@ def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
 
     The skill list is the manifest's own skills first — so extension-bearing ones keep their
     extensions — unioned with the catalog's default-scope skills, so a skill added upstream
-    after this project was scaffolded actually arrives (#104). Manifest absence is not opt-out.
+    after this project was scaffolded actually arrives (#104). Manifest absence is not opt-out;
+    `config.exclude` is, and the Scaffolder applies it — `refreshedSkills` reports what it
+    delivered, not what was offered.
     """
     scaffold_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py", root)
 
@@ -219,7 +221,7 @@ def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
         "entries": len(result["manifest"]["entries"]),
         "notes": result["notes"],
         "pluginCommands": result["pluginCommands"],
-        "refreshedSkills": skill_names,
+        "refreshedSkills": scaf.skills,
     }
 
 
