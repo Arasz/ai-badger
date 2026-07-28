@@ -66,7 +66,7 @@ def _bootstrap_lib() -> Path:
             )
         return root
 
-    def recorded(start):
+    def manifests(start):
         # Above this file only. A working directory belongs to whatever repo the user
         # opened, and no repo may steer the sys.path of a hook that runs on session start.
         for anc in [start, *start.parents]:
@@ -75,9 +75,15 @@ def _bootstrap_lib() -> Path:
             if not manifest.is_file():
                 continue
             try:
-                value = json.loads(manifest.read_text(encoding="utf-8")).get("frameworkRoot")
+                data = json.loads(manifest.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
+            if isinstance(data, dict):
+                yield manifest, data
+
+    def recorded(start):
+        for manifest, data in manifests(start):
+            value = data.get("frameworkRoot")
             if not value:
                 continue
             candidate = Path(value).expanduser()
@@ -86,6 +92,22 @@ def _bootstrap_lib() -> Path:
             if is_root(candidate):
                 return candidate.resolve()
         return None
+
+    def warn_on_cache_skew(root, start):
+        # The cache is last in the order and never updated in place, so its engine can be
+        # many releases behind the caller. Say so; never break a session over it.
+        if root.resolve() != cache.resolve():
+            return
+        try:
+            have = (cache / "VERSION").read_text(encoding="utf-8").strip()
+        except OSError:
+            return
+        want = next((d.get("frameworkVersion") for _, d in manifests(start)
+                     if d.get("frameworkVersion")), None)
+        if have and want and have != want:
+            print(f"ai-badger: {cache} is version {have}, but this project was scaffolded "
+                  f"by {want}. The cache is never updated in place — remove it, or pass "
+                  f"--root <framework checkout>.", file=sys.stderr)
 
     here = Path(__file__).resolve()
     cache = Path.home() / ".ai-badger" / "framework"
@@ -104,6 +126,7 @@ def _bootstrap_lib() -> Path:
             f"cache at {cache} — pass --root <framework> or clone "
             f"https://github.com/Arasz/ai-badger"
         )
+    warn_on_cache_skew(root, here)
     sys.path.insert(0, str(root / "scripts"))
     return root.resolve()
 

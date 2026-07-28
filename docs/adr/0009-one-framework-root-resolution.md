@@ -223,3 +223,38 @@ peeks only when they agree. Decision 3's purpose survives intact: a script invok
   rootless machine breaks its plugin load rather than degrading to silence. That predates this
   wave and is not fixed here: the module imports `badger_lib` at module scope throughout, so
   degrading properly means making the whole module lazy. It is worth its own change.
+
+---
+
+## Amendment — 2026-07-28: the cache reports its own version skew
+
+**Status:** Accepted. Discharges the liability the Consequences above left open.
+
+### 9. A resolved cache announces a version mismatch, and warns rather than refuses
+
+When `~/.ai-badger/framework` is what answered, its `VERSION` is compared against the
+`frameworkVersion` recorded in the nearest `.ai-badger/manifest.json` above the script — the
+same manifest chain the recorded root is read from, so the comparand is the version the caller
+was installed at. A mismatch prints one line to **stderr**; a match, an unversioned cache, or a
+caller with no recorded version prints nothing.
+
+**Warn, not refuse.** Decision 2's refusal semantics belong to operator declarations: `--root`
+and `$AI_BADGER` are things somebody typed, so a wrong one must be reported. The cache is
+discovery, and discovery falls through or degrades — it never raises. The concrete constraint is
+that this statement lives inside `_bootstrap_lib()`, one text shared verbatim by CLIs and by
+hooks that run on session start (decision 5). A hook degrades to silence and never breaks a
+session, so one shared text cannot refuse. Refusing would also re-break the shapes wave 7
+existed to fix on any machine where the cache is the only answer, trading a silent-stale engine
+for no engine at all. stderr is the right channel for both callers: it never contaminates a
+hook's stdout protocol, and the exit code is untouched.
+
+**Where it lives.** In the shim, and in `badger_lib.warn_on_cache_skew` — the same two-places
+duplication decision 5 already accepts, for the same reason, since a stale cache's own
+`badger_lib` is the one that would otherwise have to carry the check.
+`test_the_shim_and_badger_lib_state_one_cache_skew_warning` asserts the warning text is
+identical in both, as `test_the_shim_and_badger_lib_state_one_predicate` does for the predicate.
+The shim's manifest walk was factored into a `manifests()` generator so the recorded root and
+the recorded version are read by one traversal rather than two.
+
+The resolution **order is unchanged**, and so is decision 6: the comparand is read only from a
+manifest above the script, never above the working directory.
