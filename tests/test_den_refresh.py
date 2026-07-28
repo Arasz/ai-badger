@@ -357,12 +357,14 @@ def test_refresh_re_scaffolds_hermes_agent_files(tmp_path, load_script, root):
     assert "(v2)" in updated
 
 
-# ------------------------------------------------- version sync without drift
-def test_refresh_updates_framework_version_when_no_drift_but_version_bumped(
+# ------------------------------------------------- version-only drift
+def test_refresh_re_scaffolds_and_advances_both_stamps_when_only_the_version_moved(
     tmp_path, load_script, root
 ):
-    """When the framework VERSION is bumped but files haven't changed,
-    config.frameworkVersion must still be synced to the current version."""
+    """A version bump alone is drift: it is rendered into every generated file (#110).
+
+    config.frameworkVersion advances, and it advances because a re-scaffold rewrote the
+    manifest — never ahead of it, which is what made a stale scaffold read as green."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
     bl = load_script("engine/badger_lib.py")
 
@@ -402,11 +404,12 @@ def test_refresh_updates_framework_version_when_no_drift_but_version_bumped(
     rc = refresh.main(["--target", str(proj), "--root", str(fw)])
 
     assert rc == 0
-    # The key assertion: config.frameworkVersion must be updated to 0.4.0
     config = json.loads((proj / ".ai-badger" / "config.json").read_text(encoding="utf-8"))
-    assert config["frameworkVersion"] == "0.4.0", (
-        f"Expected frameworkVersion '0.4.0' but got '{config['frameworkVersion']}'. "
-        "Version sync should happen even when there is no file drift."
+    manifest = json.loads((proj / ".ai-badger" / "manifest.json").read_text(encoding="utf-8"))
+    assert config["frameworkVersion"] == "0.4.0"
+    assert manifest["frameworkVersion"] == config["frameworkVersion"], (
+        "config must never certify a version the manifest and the generated files "
+        "were not written by"
     )
 
 
@@ -547,6 +550,32 @@ def test_refresh_delivers_a_skill_added_to_the_catalog_after_the_project_was_sca
     assert (proj / ".ai-badger" / "skills" / "call-behaviorist" / "SKILL.md").exists()
     assert "call-behaviorist" in [i["name"] for i in report["drift"]["newItems"]]
     assert "call-behaviorist" in report["scaffold"]["refreshedSkills"]
+
+
+def test_refresh_delivers_a_skill_the_framework_changed_after_the_project_was_scaffolded(
+        tmp_path, load_script, root, capsys):
+    """End to end for #110: framework ahead → re-scaffold → the vendored copy matches it."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+
+    fw = tmp_path / "fw"
+    _mock_fw_with_skills(fw, root, ["task"])
+    proj = tmp_path / "proj"
+    config = _write_config(proj, frameworkVersion="0.3.0")
+    scaffold.Scaffolder(root=fw, target=proj, config=config,
+                        skills=["task"], install=False).run(generated_at="2026-07-22T00:00:00Z")
+
+    upstream = fw / "features" / "common" / "skills" / "task" / "SKILL.md"
+    upstream.write_text("# task\n\nupstream v2\n", encoding="utf-8")
+
+    rc = refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert "features/common/skills/task" in report["drift"]["changed"]
+    assert report["reScaffolded"]
+    vendored = proj / ".ai-badger" / "skills" / "task" / "SKILL.md"
+    assert vendored.read_text(encoding="utf-8") == upstream.read_text(encoding="utf-8")
 
 
 def test_refresh_reports_new_catalog_items_it_used_to_compute_and_discard(

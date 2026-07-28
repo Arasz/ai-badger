@@ -23,13 +23,15 @@ def test_scaffold_manifest_entries_have_expected_shape(tmp_path, load_script, ro
     assert entries, "expected at least one manifest entry"
     base_keys = {"feature", "stack", "name", "source", "target",
                  "frameworkVersion", "hash"}
+    dir_keys = {"dirMeta", "sourceHash", "sourceMeta"}
     for entry in entries:
-        # Directory entries (skills) also have dirMeta
-        allowed_keys = base_keys | ({"dirMeta"} if "dirMeta" in entry else set())
+        # Directory entries (skills) carry a second hash: the framework source's (#110)
+        allowed_keys = base_keys | (dir_keys if "dirMeta" in entry else set())
         assert set(entry.keys()) == allowed_keys
         assert entry["source"].startswith("features/")
-        assert len(entry["hash"]) == 64
-        int(entry["hash"], 16)  # must be valid hex
+        for key in ("hash", *(("sourceHash",) if "dirMeta" in entry else ())):
+            assert len(entry[key]) == 64
+            int(entry[key], 16)  # must be valid hex
         assert entry["frameworkVersion"] == result["manifest"]["frameworkVersion"]
 
     manifest_on_disk = (target / ".ai-badger" / "manifest.json")
