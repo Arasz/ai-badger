@@ -340,7 +340,8 @@ def _version_drift(root: Path, manifest: Dict[str, Any]) -> Optional[Dict[str, s
 
 def compare(root: Path, manifest: Dict[str, Any],
             stacks: Optional[List[str]] = None,
-            target: Optional[Path] = None) -> Dict[str, Any]:
+            target: Optional[Path] = None,
+            delivering: Optional[List[str]] = None) -> Dict[str, Any]:
     """Diff an already-parsed manifest against the framework's current catalog content.
 
     Framework drift — `changed`, `removed`, `versionChanged` — is always measured against
@@ -348,10 +349,13 @@ def compare(root: Path, manifest: Dict[str, Any],
     entry's `sourceHash`, never to the project's own copy (#110). The scaffolded copy
     answers a different question and is reported separately as `locallyModified`.
 
-    When ``stacks`` is provided, also detects what the project's own config changed: new items
-    via index.json — minus whatever ``exclude`` declines — and ``orphaned``, entries whose stack
-    the config no longer lists. Without it neither is reported, because neither can be inferred
-    from the framework alone.
+    When ``stacks`` is provided, also detects new items via index.json — minus whatever the
+    project's own config.json declines in ``exclude``.
+
+    ``delivering`` is `badger_lib.delivering_stacks(config)`: every stack the project draws
+    from, agents included. It drives ``orphaned`` only, and is separate from ``stacks`` because
+    an agent's catalog items are delivered without ever being new. Without it nothing is
+    reported as orphaned — a config edit cannot be inferred from the framework alone.
     """
     changed: List[str] = []
     removed: List[str] = []
@@ -366,7 +370,7 @@ def compare(root: Path, manifest: Dict[str, Any],
         if source_rel is None or entry_hash is None:
             invalid += 1
             continue
-        if stacks is not None and bl.is_orphaned(entry, stacks):
+        if delivering is not None and bl.is_orphaned(entry, delivering):
             # Leaving, so upstream drift on it is noise — the re-scaffold prunes it.
             orphaned.append(source_rel)
             continue

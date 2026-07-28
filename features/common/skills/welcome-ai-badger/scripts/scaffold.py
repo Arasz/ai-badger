@@ -399,7 +399,7 @@ class Scaffolder:
         feature, name = entry.get("feature"), entry.get("name")
         if name in self.excluded.get(feature, set()):
             return f"declined in config.exclude.{feature}"
-        if bl.is_orphaned(entry, self.stacks):
+        if bl.is_orphaned(entry, bl.delivering_stacks(self.config)):
             return f"stack '{entry.get('stack')}' is no longer in config.stacks"
         return None
 
