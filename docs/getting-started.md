@@ -582,7 +582,7 @@ explicitly. Lookup is pure — it never fetches anything as a side effect.
 Not a versioning bug in the framework — two installs are answering. The `SessionStart` drift
 notice fires once per tree that claims to be ai-badger, each comparing your scaffold against
 *its own* `VERSION`, so a machine carrying more than one tree gets one notice per tree. Since
-0.38.0 the notice names the path and version of every tree it can see, and says who owns each:
+0.39.0 the notice names the path and version of every tree it can see, and says who owns each:
 
 - **`~/.ai-badger/framework/`** — ai-badger's own fallback clone, made only when nothing else
   answers, and **never updated in place**: it can sit many releases behind indefinitely. It is

@@ -153,7 +153,7 @@ try:
 except RuntimeError:  # a hook degrades to silence; it never breaks a session
     FRAMEWORK_ROOT = None
 
-try:  # engine/framework_copies.py; a root older than 0.38.0 ships none, and that is not an error
+try:  # engine/framework_copies.py; a root older than 0.39.0 ships none, and that is not an error
     import framework_copies  # pylint: disable=wrong-import-position
 except ImportError:
     framework_copies = None
