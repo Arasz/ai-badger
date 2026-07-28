@@ -7,7 +7,7 @@ from scaffold_helpers import _config
 
 
 # ---------------------------------------------------------------------- hook wiring
-def test_scaffold_wires_claude_hooks_into_settings_json(root, make_scaffolder):
+def test_scaffold_wires_claude_hooks_into_settings_json(make_scaffolder):
     """Scaffolding with claude agent should wire hooks into .claude/settings.json."""
     target = make_scaffolder.target
 
@@ -52,7 +52,7 @@ def _wired_scripts(settings: dict, event: str) -> list:
             for h in entry.get("hooks", [])]
 
 
-def test_session_start_hook_is_the_wired_session_start_command(root, make_scaffolder):
+def test_session_start_hook_is_the_wired_session_start_command(make_scaffolder):
     """The scaffolded SessionStart hook must be session_start_hook.py itself (F-07).
 
     Asserting only that *some* SessionStart hook exists is what let a hook that cannot
@@ -68,7 +68,7 @@ def test_session_start_hook_is_the_wired_session_start_command(root, make_scaffo
     assert "session_start_hook.py" in scripts, scripts
 
 
-def test_consumer_settings_do_not_wire_the_plugin_only_drift_hook(root, make_scaffolder):
+def test_consumer_settings_do_not_wire_the_plugin_only_drift_hook(make_scaffolder):
     """Drift notice runs from the plugin's own hooks.json; a consumer copy can never
     locate the plugin root, so wiring it there only looks like the feature works (F-07)."""
     target = make_scaffolder.target
