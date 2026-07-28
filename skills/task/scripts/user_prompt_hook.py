@@ -37,10 +37,17 @@ except ImportError:  # pragma: no cover - a missing logger must never break a ho
 COMPONENT = "task_user_prompt_hook"
 
 
+# The hook payload, kept so every record can name the project it came from. An unattributed
+# record pools into every project's analysis; see `call-behaviorist`.
+_PAYLOAD: dict = {}
+
+
 def _debug(event: str, **fields) -> None:
     """Record that this hook ran. Silent when debug is off or the logger is unavailable."""
-    if debug_log is not None:
-        debug_log.log_event(COMPONENT, event, **fields)
+    if debug_log is None:
+        return
+    project = fields.pop("project", None) or debug_log.resolve_project_root(_PAYLOAD)
+    debug_log.log_event(COMPONENT, event, project=project, **fields)
 # Matches `/task <id>` (optionally `/task:something <id>`, or namespaced as a plugin skill —
 # `/<plugin>:task <id>` — the form Claude Code uses once this skill is installed via a
 # marketplace plugin) at the very start of the prompt. Kept local to this hook, rather than in
@@ -102,6 +109,7 @@ def main() -> int:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError:
         return 0
+    _PAYLOAD.update(payload)
     session_id = payload.get("session_id", "")
     transcript = payload.get("transcript_path", "")
     if session_id:

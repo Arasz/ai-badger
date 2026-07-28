@@ -230,21 +230,30 @@ class TestFailureHandling:
         assert "task_register" in capsys.readouterr().err
 
 
+class FakeDebugLog:
+    """Captures log_event calls and resolves a project the way debug_log really does."""
+
+    def __init__(self):
+        self.calls = []
+
+    def log_event(self, component, event, **fields):
+        self.calls.append((component, event, fields))
+
+    def resolve_project_root(self, payload=None):
+        return (payload or {}).get("cwd")
+
+
 def test_debug_logging_records_register_event(prompt_hook, monkeypatch):
     """Debug log fires a register event when a task is auto-registered."""
-    calls = []
+    fake = FakeDebugLog()
 
-    class FakeDebugLog:
-        def log_event(self, component, event, **fields):
-            calls.append((component, event, fields))
-
-    monkeypatch.setattr(prompt_hook, "debug_log", FakeDebugLog())
+    monkeypatch.setattr(prompt_hook, "debug_log", fake)
     _run(prompt_hook, monkeypatch, {
         "session_id": "sid-1", "transcript_path": "/tmp/t.jsonl",
         "prompt": "/task my-task",
     })
 
-    events = {e: (c, f) for c, e, f in calls}
+    events = {e: (c, f) for c, e, f in fake.calls}
     assert "register" in events
     assert events["register"][0] == "task_user_prompt_hook"
     assert events["register"][1]["task"] == "my-task"
@@ -258,3 +267,22 @@ def test_debug_logging_is_noop_when_unavailable(prompt_hook, monkeypatch):
         "prompt": "just a regular prompt",
     })
     assert rc == 0
+
+
+def test_the_skip_record_names_the_project(prompt_hook, monkeypatch):
+    """Most prompts are not `/task`; that skip is this hook's commonest record."""
+    fake = FakeDebugLog()
+    monkeypatch.setattr(prompt_hook, "debug_log", fake)
+
+    _run(prompt_hook, monkeypatch, {"prompt": "hello", "session_id": "sid-1", "cwd": "/repo"})
+
+    assert [(e, f.get("project")) for _, e, f in fake.calls] == [("skip", "/repo")]
+
+
+def test_the_register_record_names_the_project(prompt_hook, monkeypatch):
+    fake = FakeDebugLog()
+    monkeypatch.setattr(prompt_hook, "debug_log", fake)
+
+    _run(prompt_hook, monkeypatch, {"prompt": "/task 42", "session_id": "sid-1", "cwd": "/repo"})
+
+    assert [(e, f.get("project")) for _, e, f in fake.calls] == [("register", "/repo")]
