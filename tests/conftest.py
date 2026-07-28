@@ -58,6 +58,29 @@ def root() -> Path:
 
 
 @pytest.fixture
+def make_scaffolder(load_script, root, tmp_path):
+    """Build Scaffolders over one loaded module and one shared target.
+
+    Defaults match the shape the call sites spell out by hand; any keyword overrides it, and
+    unknown keywords reach the constructor. `.module` and `.target` expose what the factory built.
+    """
+    import scaffold_helpers
+
+    module = load_script(scaffold_helpers.SCAFFOLD_SCRIPT)
+    target = tmp_path / "proj"
+    target.mkdir(exist_ok=True)
+
+    def _make(**kwargs):
+        kwargs.setdefault("root", root)
+        kwargs.setdefault("target", target)
+        return scaffold_helpers.build_scaffolder(module, **kwargs)
+
+    _make.module = module
+    _make.target = target
+    return _make
+
+
+@pytest.fixture
 def load_script():
     """Return a loader that imports an ai-badger script by repo-relative path."""
     def _load(relpath: str):

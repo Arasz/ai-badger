@@ -1,5 +1,7 @@
-"""Shared config fixture body for the scaffold test modules."""
+"""Shared config body and Scaffolder factory for the scaffold test modules."""
 from __future__ import annotations
+
+SCAFFOLD_SCRIPT = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 
 
 def _config(stacks=None, source_control=None, commands=None, agents=None) -> dict:
@@ -16,3 +18,15 @@ def _config(stacks=None, source_control=None, commands=None, agents=None) -> dic
         "skillScope": "default",
         "docs": {},
     }
+
+
+def build_scaffolder(module, *, root, target, config=None, skills=None,
+                     install=False, **kwargs):
+    """Construct a Scaffolder with the suite's default keywords; kwargs reach the constructor."""
+    return module.Scaffolder(
+        root=root,
+        target=target,
+        config=_config() if config is None else config,
+        skills=[] if skills is None else skills,
+        install=install,
+        **kwargs)
