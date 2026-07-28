@@ -134,14 +134,13 @@ class TestDriftSeesASubtraction:
 class TestAnAgentIsNotAStackRemoval:
     """An agent's files are delivered by config.agents; the prune must not condemn them."""
 
-    def test_the_rescaffold_keeps_a_configured_agents_files(self, tmp_path, load_script, root):
-        scaffold = load_script(SCAFFOLD)
+    def test_the_rescaffold_keeps_a_configured_agents_files(self, make_scaffolder):
         config = _config(stacks=["python"], agents=["claude", "copilot"])
-        target, _ = _scaffolded(scaffold, root, tmp_path, config)
+        target, _ = _scaffolded(make_scaffolder, config)
         placed = target / ".github" / "copilot-instructions.md"
         assert placed.is_file()
 
-        _, result = _scaffolded(scaffold, root, tmp_path, config)
+        _, result = _scaffolded(make_scaffolder, config)
 
         assert placed.is_file()
         assert not [n for n in result["notes"] if "no longer in config.stacks" in n]
@@ -150,7 +149,7 @@ class TestAnAgentIsNotAStackRemoval:
 class TestTheReScaffoldPrunesTheOrphan:
     """Detection alone leaves the file; the prune is what makes the config edit converge."""
 
-    def test_dropping_a_stack_removes_the_file_it_placed(self, load_script, make_scaffolder):
+    def test_dropping_a_stack_removes_the_file_it_placed(self, make_scaffolder):
         target, _ = _scaffolded(make_scaffolder, _config(stacks=["python", "ts"]))
         assert (target / TS_INSTRUCTION).is_file()
 
@@ -158,7 +157,7 @@ class TestTheReScaffoldPrunesTheOrphan:
 
         assert not (target / TS_INSTRUCTION).exists()
 
-    def test_an_edited_orphan_is_left_in_place_and_reported(self, load_script, make_scaffolder):
+    def test_an_edited_orphan_is_left_in_place_and_reported(self, make_scaffolder):
         """Only what ai-badger placed and the project never touched may be removed."""
         target, _ = _scaffolded(make_scaffolder, _config(stacks=["python", "ts"]))
         edited = target / TS_INSTRUCTION
