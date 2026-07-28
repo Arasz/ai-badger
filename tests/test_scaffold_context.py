@@ -308,6 +308,23 @@ def test_the_scaffolder_delegates_only_what_has_a_caller(load_script, root):
     assert "wire_hooks" in vars(scaffold.Scaffolder)
 
 
+# Split so this file does not match its own search; see the assertion message.
+_CONSTRUCTION = "Scaffolder" + "("
+
+
+def test_the_suite_constructs_the_scaffolder_in_exactly_one_place(root):
+    """One construction site is what makes a constructor change a one-file edit (spec 003)."""
+    offenders = sorted(
+        path.name for path in (root / "tests").glob("*.py")
+        if _CONSTRUCTION in path.read_text(encoding="utf-8")
+        and path.name != "scaffold_helpers.py")
+
+    assert offenders == [], (
+        "Build scaffolders through the make_scaffolder fixture. Direct construction lives in "
+        f"tests/scaffold_helpers.py alone, so the constructor can change in one file; found "
+        f"in: {', '.join(offenders)}")
+
+
 # ----------------------------------------------------------------- step-order golden master
 def test_the_scaffold_runs_its_steps_in_the_recorded_order(
         load_script, root, monkeypatch, make_scaffolder):

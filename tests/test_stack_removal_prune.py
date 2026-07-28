@@ -11,7 +11,6 @@ import json
 from scaffold_helpers import _config
 
 DRIFT = "features/common/skills/welcome-ai-badger/scripts/drift.py"
-SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 TS_INSTRUCTION = ".ai-badger/instructions/typescript.instructions.md"
 
 
@@ -24,12 +23,9 @@ def _entry(stack, source, target, entry_hash="deadbeef", feature="instructions",
             "target": target, "frameworkVersion": "0.41.0", "hash": entry_hash}
 
 
-def _scaffolded(scaffold, root, tmp_path, config, skills=("task",)):
-    target = tmp_path / "proj"
-    target.mkdir(exist_ok=True)
-    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
-                               skills=list(skills), install=False)
-    return target, scaf.run(generated_at="2026-07-28T00:00:00Z")
+def _scaffolded(make_scaffolder, config, skills=("task",)):
+    scaf = make_scaffolder(config=config, skills=list(skills))
+    return make_scaffolder.target, scaf.run(generated_at="2026-07-28T00:00:00Z")
 
 
 class TestDriftSeesASubtraction:
@@ -112,32 +108,29 @@ class TestDriftSeesASubtraction:
 class TestTheReScaffoldPrunesTheOrphan:
     """Detection alone leaves the file; the prune is what makes the config edit converge."""
 
-    def test_dropping_a_stack_removes_the_file_it_placed(self, tmp_path, load_script, root):
-        scaffold = load_script(SCAFFOLD)
-        target, _ = _scaffolded(scaffold, root, tmp_path, _config(stacks=["python", "ts"]))
+    def test_dropping_a_stack_removes_the_file_it_placed(self, load_script, make_scaffolder):
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python", "ts"]))
         assert (target / TS_INSTRUCTION).is_file()
 
-        _scaffolded(scaffold, root, tmp_path, _config(stacks=["python"]))
+        _scaffolded(make_scaffolder, _config(stacks=["python"]))
 
         assert not (target / TS_INSTRUCTION).exists()
 
-    def test_an_edited_orphan_is_left_in_place_and_reported(self, tmp_path, load_script, root):
+    def test_an_edited_orphan_is_left_in_place_and_reported(self, load_script, make_scaffolder):
         """Only what ai-badger placed and the project never touched may be removed."""
-        scaffold = load_script(SCAFFOLD)
-        target, _ = _scaffolded(scaffold, root, tmp_path, _config(stacks=["python", "ts"]))
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python", "ts"]))
         edited = target / TS_INSTRUCTION
         edited.write_text("# ours now\n", encoding="utf-8")
 
-        _, result = _scaffolded(scaffold, root, tmp_path, _config(stacks=["python"]))
+        _, result = _scaffolded(make_scaffolder, _config(stacks=["python"]))
 
         assert edited.read_text(encoding="utf-8") == "# ours now\n"
         assert any("typescript" in n and "edited" in n for n in result["notes"])
 
-    def test_the_manifest_no_longer_claims_the_pruned_file(self, tmp_path, load_script, root):
-        scaffold = load_script(SCAFFOLD)
-        target, _ = _scaffolded(scaffold, root, tmp_path, _config(stacks=["python", "ts"]))
+    def test_the_manifest_no_longer_claims_the_pruned_file(self, load_script, make_scaffolder):
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python", "ts"]))
 
-        _scaffolded(scaffold, root, tmp_path, _config(stacks=["python"]))
+        _scaffolded(make_scaffolder, _config(stacks=["python"]))
 
         manifest = json.loads((target / ".ai-badger" / "manifest.json").read_text(
             encoding="utf-8"))
