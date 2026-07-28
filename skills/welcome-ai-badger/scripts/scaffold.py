@@ -295,11 +295,11 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
     return created
 
 
-# Import mixin classes from domain modules
+# The shared context and the six collaborators built from it
 from scaffold_context import ScaffoldContext  # noqa: E402
 from hook_wiring import HookWiring, merge_hooks  # noqa: E402
 from template_rendering import TemplateRendering  # noqa: E402
-from agent_files import AgentFilesMixin  # noqa: E402
+from agent_files import AgentFiles  # noqa: E402
 from extensions import Extensions  # noqa: E402
 from mcp_tools import McpTools  # noqa: E402
 from statusline_wiring import StatusLineWiring  # noqa: E402
@@ -320,9 +320,7 @@ def _mcp_delegate(name: str):
     return _forward
 
 
-class Scaffolder(
-    AgentFilesMixin,
-):
+class Scaffolder:
     """Materializes a target repo's .ai-badger/ scaffold from a validated config.json."""
 
     # Everything a collaborator reads or writes lives on self.ctx; these keep `s.notes`,
@@ -359,6 +357,7 @@ class Scaffolder(
         self.hooks = HookWiring(self.ctx)
         self.mcp = McpTools(self.ctx)
         self.rendering = TemplateRendering(self.ctx)
+        self.agent_files = AgentFiles(self.ctx, self.rendering)
         self.install = install
         self.reset_seed_files = reset_seed_files
         self.execute = execute
@@ -867,7 +866,7 @@ class Scaffolder(
         self.scaffold_templates()
         self.mcp.fill_merged_external_tools()
         doc = self.rendering.assemble_instructions_doc(invariants, instr_paths)
-        self.write_agent_files(doc, instr_paths, invariants)
+        self.agent_files.write_agent_files(doc, instr_paths, invariants)
         self._record_progress("agent-files")
         self.wire_hooks()
         self.statusline.wire()

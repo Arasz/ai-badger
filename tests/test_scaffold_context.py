@@ -61,8 +61,6 @@ def _hand_built_context(load_script, root, target):
 
 
 # ------------------------------------------------------------------ the Wave 6 entry point
-# Strict: the marker must be removed by the work package that composes the last collaborator.
-@pytest.mark.xfail(strict=True, reason="Wave 6 in flight — the mixins still need a Scaffolder")
 def test_each_collaborator_works_with_no_scaffolder_in_scope(tmp_path, load_script, root):
     """A collaborator takes a context and nothing else; today the mixins need a Scaffolder."""
     target = tmp_path / "proj"
@@ -215,6 +213,78 @@ def test_template_rendering_reads_the_external_tools_off_the_context(
     rendering = _load(load_script, root, "template_rendering").TemplateRendering(ctx)
 
     assert "Use the probe server." in rendering.assemble_instructions_doc([], [])
+
+
+def test_agent_files_is_built_from_a_context_and_its_one_collaborator(
+        tmp_path, load_script, root):
+    """Edge 2: the dependency on template rendering is a constructor argument, not `self`."""
+    target = tmp_path / "proj"
+    target.mkdir()
+    ctx = _hand_built_context(load_script, root, target)
+    rendering = _load(load_script, root, "template_rendering").TemplateRendering(ctx)
+    agent_files = _load(load_script, root, "agent_files").AgentFiles(ctx, rendering)
+
+    agent_files.write_agent_files("", [], [])
+
+    assert (target / "CLAUDE.md").is_file()
+    assert "probe" in (target / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "scaffold" not in _imported_modules(root, "agent_files")
+
+
+def test_agent_files_records_template_provenance_through_the_context(
+        tmp_path, load_script, root):
+    """Edge 3: record_template is manifest bookkeeping carried on the context."""
+    target = tmp_path / "proj"
+    target.mkdir()
+    recorded = []
+    ctx = _hand_built_context(load_script, root, target)
+    ctx.record_template = lambda source, dest: recorded.append((source.name, dest.name))
+    rendering = _load(load_script, root, "template_rendering").TemplateRendering(ctx)
+
+    _load(load_script, root, "agent_files").AgentFiles(ctx, rendering).write_agent_files(
+        "", [], [])
+
+    assert ("CLAUDE.md.tmpl", "CLAUDE.md") in recorded
+
+
+# ------------------------------------------------- the context is the only shared channel
+COLLABORATORS = ("extensions", "statusline_wiring", "hook_wiring", "mcp_tools",
+                 "template_rendering", "agent_files")
+
+# The two edges that are allowed, and why. Everything else has to go through the context.
+ALLOWED_EDGES = {
+    # Edge 2 (plan §3): AgentFiles takes its renderer as a constructor argument.
+    ("agent_files", "template_rendering"),
+    # Pre-existing and unrelated to state: two module-level helpers for reading a command.
+    ("statusline_wiring", "hook_wiring"),
+}
+
+
+def test_no_collaborator_reaches_another_through_self(root):
+    for name in COLLABORATORS:
+        reached = _imported_modules(root, name) & set(COLLABORATORS)
+        assert {(name, other) for other in reached} <= ALLOWED_EDGES, name
+
+
+def test_no_collaborator_imports_the_scaffolder(root):
+    for name in COLLABORATORS + ("scaffold_context",):
+        assert "scaffold" not in _imported_modules(root, name), name
+
+
+def test_the_scaffolder_is_a_plain_class_over_a_context_and_six_collaborators(
+        tmp_path, load_script, root):
+    scaffold = _load(load_script, root, "scaffold")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
+                               skills=[], install=False)
+
+    assert scaffold.Scaffolder.__bases__ == (object,)
+    assert scaf.ctx is scaf.extensions.ctx is scaf.statusline.ctx is scaf.hooks.ctx
+    assert scaf.ctx is scaf.mcp.ctx is scaf.rendering.ctx is scaf.agent_files.ctx
+    assert scaf.agent_files.rendering is scaf.rendering
+    assert "Mixin" not in (root / SCRIPTS / "scaffold.py").read_text(encoding="utf-8")
 
 
 # ----------------------------------------------------------------- step-order golden master
