@@ -18,6 +18,7 @@ The library every bootstrap shim imports, and the anchor of the framework-root p
 | Module | What it does |
 |--------|--------------|
 | `badger_lib.py` | Shared helpers: root discovery, atomic JSON write, sha256, index read. |
+| `framework_copies.py` | Every tree on the machine claiming to be ai-badger, the notice naming them, and the one prune allowed: `~/.ai-badger/framework`, on explicit request. Stdlib only and free of `badger_lib` — a SessionStart hook imports it and `badger_lib` requires `jsonschema`. |
 | `unsafe_literals.py` | Secret/unsafe-literal scanning, shared by feed-badger and the Hermes learned-skills sync. Moves with `badger_lib.py`: one `sys.path` entry serves both. |
 
 ## Catalog and release tooling (`tooling/`)

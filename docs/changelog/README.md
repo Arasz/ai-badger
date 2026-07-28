@@ -17,6 +17,7 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
+| 0.39.0 | [three trees claim to be ai-badger](0.39.0-three-trees-claim-to-be-ai-badger.md) |
 | 0.38.0 | [an upgrade is not version skew](0.38.0-an-upgrade-is-not-version-skew.md) |
 | 0.37.0 | [`scripts/` becomes `engine/` and `tooling/`](0.37.0-engine-and-tooling.md) · [Scaffolder's mixins become collaborators](0.37.0-scaffolder-collaborators.md) |
 | 0.36.2 | [the four repo gates move to `gates/`](0.36.2-the-gates-move-out-of-scripts.md) |

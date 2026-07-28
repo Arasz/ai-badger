@@ -637,6 +637,104 @@ def test_refresh_does_not_deliver_a_skill_the_project_excluded(
     assert "call-behaviorist" not in [i["name"] for i in report["drift"]["newItems"]]
 
 
+# ------------------------------------------------------- competing framework copies (#109)
+def _framework_tree(path, version):
+    """A directory the framework-root predicate accepts, carrying a VERSION."""
+    for name in ("schemas", "features", "engine"):
+        (path / name).mkdir(parents=True, exist_ok=True)
+    (path / "engine" / "badger_lib.py").write_text("", encoding="utf-8")
+    (path / "VERSION").write_text(version + "\n", encoding="utf-8")
+    return path
+
+
+def _scaffolded_project(tmp_path, load_script, root):
+    """A mock framework and a project already scaffolded from it, with no drift between them."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    fw = tmp_path / "fw"
+    _mock_fw_with_skills(fw, root, ["task"])
+    proj = tmp_path / "proj"
+    config = _write_config(proj, frameworkVersion="0.3.0")
+    scaffold.Scaffolder(root=fw, target=proj, config=config,
+                        skills=["task"], install=False).run(generated_at="2026-07-22T00:00:00Z")
+    return fw, proj
+
+
+def _competing_home(tmp_path, monkeypatch, cache_version=None, plugin_version=None):
+    """A `$HOME` holding ai-badger's own cache and/or Claude Code's plugin cache."""
+    home = tmp_path / "home"
+    home.mkdir(exist_ok=True)
+    monkeypatch.setenv("HOME", str(home))
+    made = {}
+    if cache_version:
+        made["cache"] = _framework_tree(home / ".ai-badger" / "framework", cache_version)
+    if plugin_version:
+        made["plugin"] = _framework_tree(
+            home / ".claude" / "plugins" / "cache" / "ai-badger" / "ai-badger" / plugin_version,
+            plugin_version)
+    return made
+
+
+def test_refresh_reports_a_competing_framework_cache_and_leaves_it_on_disk(
+        tmp_path, load_script, root, monkeypatch, capsys):
+    """Detect and report is the default: deleting from a home directory is not routine (#109)."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    fw, proj = _scaffolded_project(tmp_path, load_script, root)
+    made = _competing_home(tmp_path, monkeypatch, cache_version="0.13.0")
+
+    rc = refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    cache_report = report["frameworkCopies"]["cache"]
+    assert cache_report["status"] == "reported"
+    assert cache_report["path"] == str(made["cache"]) and cache_report["version"] == "0.13.0"
+    assert "--prune-cache" in cache_report["detail"]
+    assert (made["cache"] / "VERSION").is_file()
+
+
+def test_refresh_removes_the_cache_only_when_prune_cache_is_asked_for(
+        tmp_path, load_script, root, monkeypatch, capsys):
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    fw, proj = _scaffolded_project(tmp_path, load_script, root)
+    made = _competing_home(tmp_path, monkeypatch, cache_version="0.13.0")
+
+    rc = refresh.main(["--target", str(proj), "--root", str(fw), "--prune-cache"])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["frameworkCopies"]["cache"]["status"] == "removed"
+    assert not made["cache"].exists()
+
+
+def test_refresh_never_prunes_claude_codes_plugin_cache(
+        tmp_path, load_script, root, monkeypatch, capsys):
+    """ai-badger only ever reads that path; 76 MB of another tool's cache is not ours (#109)."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    fw, proj = _scaffolded_project(tmp_path, load_script, root)
+    made = _competing_home(tmp_path, monkeypatch, cache_version="0.13.0",
+                           plugin_version="0.36.2")
+
+    refresh.main(["--target", str(proj), "--root", str(fw), "--prune-cache"])
+    report = json.loads(capsys.readouterr().out)
+
+    assert (made["plugin"] / "VERSION").is_file()
+    competing = {c["path"]: c for c in report["frameworkCopies"]["competing"]}
+    assert competing[str(made["plugin"])]["owner"] == "claude-code"
+    assert competing[str(made["plugin"])]["prunable"] is False
+
+
+def test_refresh_says_nothing_about_copies_when_only_one_tree_exists(
+        tmp_path, load_script, root, monkeypatch, capsys):
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    fw, proj = _scaffolded_project(tmp_path, load_script, root)
+    _competing_home(tmp_path, monkeypatch)
+
+    refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert "frameworkCopies" not in report
+
+
 def test_refresh_re_delivers_a_skill_whose_exclusion_was_removed(
         tmp_path, load_script, root, capsys):
     """Un-excluding is deleting the line: the next refresh delivers the skill fresh."""

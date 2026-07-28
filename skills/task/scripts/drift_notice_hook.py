@@ -153,6 +153,11 @@ try:
 except RuntimeError:  # a hook degrades to silence; it never breaks a session
     FRAMEWORK_ROOT = None
 
+try:  # engine/framework_copies.py; a root older than 0.39.0 ships none, and that is not an error
+    import framework_copies  # pylint: disable=wrong-import-position
+except ImportError:
+    framework_copies = None
+
 
 def resolve_project_root(payload: Dict[str, Any]) -> Optional[Path]:
     """`CLAUDE_PROJECT_DIR` is present in a hook's environment (unlike `CLAUDE_PLUGIN_ROOT`) and
@@ -164,6 +169,25 @@ def resolve_project_root(payload: Dict[str, Any]) -> Optional[Path]:
     if cwd:
         return Path(cwd)
     return None
+
+
+def competing_copies_notice(drifted: bool) -> Optional[str]:
+    """Name every tree claiming to be ai-badger, when saying so explains what the user sees.
+
+    Attached to a drift notice (which can be printed once per tree, at a different version
+    each time), and emitted on its own when our own unused `~/.ai-badger/framework` disagrees
+    with the tree that is running. Claude Code's plugin cache keeping older versions is not
+    ours to nag about. Never raises: a hook degrades to silence (#109).
+    """
+    if framework_copies is None or FRAMEWORK_ROOT is None:
+        return None
+    try:
+        copies = framework_copies.discover(running_root=FRAMEWORK_ROOT)
+        if not drifted and not framework_copies.idle_cache_disagrees(copies):
+            return None
+        return framework_copies.competing_copies_notice(copies)
+    except OSError:
+        return None
 
 
 def main() -> int:
@@ -181,14 +205,15 @@ def main() -> int:
         return 0
 
     notice = drift_notice.scaffold_drift_notice(project_root, str(FRAMEWORK_ROOT))
-    if not notice:
+    parts = [part for part in (notice, competing_copies_notice(bool(notice))) if part]
+    if not parts:
         _debug("skip", reason="no_drift")
     else:
         _debug("fire", project=str(project_root))
         print(json.dumps({
             "hookSpecificOutput": {
                 "hookEventName": "SessionStart",
-                "additionalContext": notice,
+                "additionalContext": "\n".join(parts),
             }
         }))
     return 0

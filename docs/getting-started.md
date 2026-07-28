@@ -578,6 +578,32 @@ Raised by `badger_lib.find_root` when no ancestor of the script satisfies the ro
 not populated. Pass `--root <framework checkout>` explicitly. Lookup is pure — it never fetches
 anything as a side effect.
 
+### Two drift notices in one session, at two different versions
+
+Not a versioning bug in the framework — two installs are answering. The `SessionStart` drift
+notice fires once per tree that claims to be ai-badger, each comparing your scaffold against
+*its own* `VERSION`, so a machine carrying more than one tree gets one notice per tree. Since
+0.39.0 the notice names the path and version of every tree it can see, and says who owns each:
+
+- **`~/.ai-badger/framework/`** — ai-badger's own fallback clone, made only when nothing else
+  answers, and **never updated in place**: it can sit many releases behind indefinitely. It is
+  the one tree ai-badger created, so it is the one tree ai-badger will remove — on request:
+
+  ```bash
+  python3 "$AI_BADGER/features/common/skills/den-refresh/scripts/refresh.py" \
+    --target . --root "$AI_BADGER" --prune-cache
+  ```
+
+  Without the flag the refresh reports the path, its version and this command, and deletes
+  nothing. The flag refuses if that path is not a framework root, is a symlink or holds one
+  that leaves it, or is the root the run itself is using.
+
+- **`~/.claude/plugins/cache/ai-badger/ai-badger/<version>/`** — Claude Code's, one directory
+  per installed version. ai-badger only ever reads it and never deletes from it. Use Claude
+  Code's own plugin commands if you want old versions gone.
+
+- **A framework checkout** — yours, and out of scope for either tool.
+
 ### `... is not an ai-badger framework root (no schemas/ + features/ + scripts/badger_lib.py)`
 
 Your project was scaffolded before the release that split `scripts/` into `engine/` and

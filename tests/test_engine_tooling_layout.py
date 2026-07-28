@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-ENGINE_MODULES = ("badger_lib.py", "unsafe_literals.py")
+ENGINE_MODULES = ("badger_lib.py", "framework_copies.py", "unsafe_literals.py")
 TOOLING_SCRIPTS = ("index_build.py", "install_plugins.py", "sync_plugin_skills.py",
                    "validate.py", "version_sync.py")
 
@@ -30,13 +30,14 @@ def test_the_engine_holds_the_library_every_shim_imports(root):
         "scripts/ was split into engine/ and tooling/")
 
 
-def test_the_engines_two_modules_share_one_sys_path_entry(load_script):
-    """One sys.path entry serves both; splitting them fails the Hermes plugin load (ADR-0011)."""
-    lib = load_script("engine/badger_lib.py")
-    literals = load_script("engine/unsafe_literals.py")
+def test_the_engine_modules_share_one_sys_path_entry(load_script):
+    """One sys.path entry serves them all; splitting them fails the Hermes plugin load
+    (ADR-0011)."""
+    loaded = [load_script(f"engine/{name}") for name in ENGINE_MODULES]
 
-    assert Path(lib.__file__).parent == Path(literals.__file__).parent
-    assert Path(lib.__file__).parent.name == "engine"
+    parents = {Path(module.__file__).parent for module in loaded}
+    assert len(parents) == 1
+    assert parents.pop().name == "engine"
 
 
 def test_every_tooling_script_lives_in_the_tooling_directory(root):
