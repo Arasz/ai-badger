@@ -237,6 +237,9 @@ def test_debug_logging_records_fire_event(tmp_path, load_script, monkeypatch):
         def log_event(self, component, event, **fields):
             calls.append((component, event, fields))
 
+        def resolve_project_root(self, payload=None):
+            return (payload or {}).get("cwd")
+
     monkeypatch.setattr(hook, "debug_log", FakeDebugLog())
     _call_main(hook, monkeypatch, {"prompt": "h: check the cache", "cwd": str(tmp_path)})
 

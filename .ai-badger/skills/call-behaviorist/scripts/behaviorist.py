@@ -224,20 +224,39 @@ def is_instrumented(script_path) -> bool:
         return False
 
 
+DECLARED_COMPONENT = re.compile(r"""^COMPONENT\s*=\s*["']([^"']+)["']""", re.MULTILINE)
+
+
 def _component_stem(expected: str) -> str:
     """The name a wired script logs under: its filename stem, or the name as given."""
     return expected[:-len(".py")].rsplit("/", 1)[-1] if expected.endswith(".py") else expected
 
 
-def _matches(expected: str, component: str) -> bool:
-    """True when `component` is `expected`'s stem, or that stem qualified by a phase.
+def declared_component(script_path) -> str:
+    """The name the script logs under, read from its `COMPONENT = "..."`, or empty.
 
-    Observed names may be phase-qualified (`session_start_hook/drift`) while expected names are
-    script paths (`task/scripts/session_start_hook.py`). Matching is on the whole stem, not a
-    prefix fragment, so `hooks/alpha` never satisfies `hooks/never`.
+    A filename is not an identity: `prompt-markers/…/user_prompt_hook.py` logs as
+    `prompt_markers_hook`, and matching on the stem reports a live hook as never observed.
     """
-    stem = _component_stem(expected)
-    return component == stem or component.startswith(stem + "/")
+    try:
+        found = DECLARED_COMPONENT.search(Path(script_path).read_text(encoding="utf-8"))
+    except OSError:
+        return ""
+    return found.group(1) if found else ""
+
+
+def _component_key(expected: str, script_path=None) -> str:
+    """What `expected` is expected to log under — its declared name, else its filename stem."""
+    return (declared_component(script_path) if script_path else "") or _component_stem(expected)
+
+
+def _matches(key: str, component: str) -> bool:
+    """True when `component` is `key`, or `key` qualified by a phase.
+
+    Observed names may be phase-qualified (`session_start_hook/drift`). Matching is on the
+    whole key, not a prefix fragment, so `hooks/alpha` never satisfies `hooks/never`.
+    """
+    return component == key or component.startswith(key + "/")
 
 
 def _observed(records) -> dict:
@@ -269,9 +288,10 @@ def analyze(project, expected=None) -> dict:
     expected = list(expected if expected is not None else sorted(wired))
     records = _evidence(_read_records(project))
     observed = _observed(records)
+    keys = {name: _component_key(name, wired.get(name)) for name in expected}
     findings = []
     for name in expected:
-        if any(_matches(name, seen) for seen in observed):
+        if any(_matches(keys[name], seen) for seen in observed):
             continue
         script = wired.get(name)
         if script and not is_instrumented(script):
@@ -288,17 +308,21 @@ def analyze(project, expected=None) -> dict:
                 "it may never load or never fire",
             ))
     for name, entry in sorted(observed.items()):
-        if expected and not any(_matches(e, name) for e in expected):
+        if expected and not any(_matches(key, name) for key in keys.values()):
             findings.append(_finding(
                 "unexpected_component", name, "low",
                 "produced records but is not among the components this project wires",
             ))
-        if len(entry["versions"]) > 1:
+        # The sentinel means "no VERSION found above the code that ran" — an absent number,
+        # not a second one. Counting it as a version manufactures skew wherever a scaffolded
+        # project's records land in the log.
+        versions = [v for v in entry["versions"] if v != dl.VERSION_UNKNOWN]
+        if len(versions) > 1:
             findings.append(_finding(
                 "version_skew", name, "high",
                 "ran at more than one framework version — copies disagree "
                 "(plugin cache vs .ai-badger/ scaffold)",
-                versions=sorted(entry["versions"]),
+                versions=sorted(versions),
             ))
         starts = entry["events"].get("start", 0)
         skips = entry["events"].get("skip", 0)

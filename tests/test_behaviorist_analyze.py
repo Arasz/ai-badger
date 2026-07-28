@@ -47,6 +47,11 @@ QUIET = "print('no logging here')\n"
 LOUD = "import debug_log\ndebug_log.log_event\n"
 
 
+def _named(component):
+    """An instrumented hook that logs under a name of its own choosing."""
+    return f'import debug_log\nCOMPONENT = "{component}"\ndebug_log.log_event(COMPONENT, "x")\n'
+
+
 SETTINGS = ".claude/settings.json"
 HOOKS_JSON = ".ai-badger/hooks/hooks.json"
 
@@ -393,3 +398,88 @@ class TestTheToolsOwnEventsAreNotEvidence:
         silent = [f for f in report["findings"] if f["kind"] == "never_observed"]
         assert [f["component"] for f in silent] == ["hooks/never"]
         assert report["health"] == "degraded"
+
+
+class TestAHookIsNamedByWhatItLogs:
+    """`user_prompt_hook.py` logs as `prompt_markers_hook`; the filename is not the identity."""
+
+    SCRIPTS = {"markers/scripts/user_prompt_hook.py": _named("prompt_markers_hook")}
+
+    def test_a_hook_logging_under_its_declared_name_is_not_reported_silent(
+            self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = _register(tmp_path, self.SCRIPTS, config=HOOKS_JSON)
+        _write(beh, [_record("prompt_markers_hook", project=project)])
+
+        report = beh.analyze(project=project)
+
+        assert report["findings"] == [], report["findings"]
+
+    def test_it_is_not_reported_as_an_unexpected_component_either(self, load_script, tmp_path,
+                                                                  monkeypatch):
+        """The stem mismatch used to indict the same run twice, in contradictory ways."""
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = _register(tmp_path, self.SCRIPTS, config=HOOKS_JSON)
+        _write(beh, [_record("prompt_markers_hook", project=project)])
+
+        report = beh.analyze(project=project)
+
+        assert "unexpected_component" not in _kinds(report)
+
+    def test_a_declared_name_that_really_is_silent_is_still_a_finding(self, load_script, tmp_path,
+                                                                      monkeypatch):
+        """Matching on the declared name must not become a way to never be silent."""
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = _register(tmp_path, self.SCRIPTS, config=HOOKS_JSON)
+        _write(beh, [_record("something_else", project=project)])
+
+        report = beh.analyze(project=project)
+
+        assert _by_component(report)["markers/scripts/user_prompt_hook.py"] == "never_observed"
+
+    def test_a_hook_declaring_no_name_still_matches_on_its_filename(self, load_script, tmp_path,
+                                                                     monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = _register(tmp_path, {"skill/scripts/alpha_hook.py": LOUD}, config=HOOKS_JSON)
+        _write(beh, [_record("alpha_hook", project=project)])
+
+        report = beh.analyze(project=project)
+
+        assert report["findings"] == [], report["findings"]
+
+
+class TestAnUnknownVersionIsNotADisagreement:
+    """`unknown` is the logger's sentinel for "no VERSION found" — not a version."""
+
+    def test_the_sentinel_alongside_a_real_version_is_not_skew(self, load_script, tmp_path,
+                                                                monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha", version="0.35.2"),
+                     _record("hooks/alpha", version="unknown")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        assert "version_skew" not in _kinds(report)
+
+    def test_two_real_versions_are_still_skew_when_the_sentinel_is_present(
+            self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha", version="0.13.0"),
+                     _record("hooks/alpha", version="unknown"),
+                     _record("hooks/alpha", version="0.30.0")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        skew = [f for f in report["findings"] if f["kind"] == "version_skew"]
+        assert skew and sorted(skew[0]["versions"]) == ["0.13.0", "0.30.0"]
+
+    def test_the_sentinel_is_still_visible_in_what_was_observed(self, load_script, tmp_path,
+                                                                monkeypatch):
+        """Suppressing the finding must not amount to hiding the evidence."""
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/alpha", version="0.35.2"),
+                     _record("hooks/alpha", version="unknown")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/alpha"])
+
+        assert "unknown" in report["observed"]["hooks/alpha"]["versions"]

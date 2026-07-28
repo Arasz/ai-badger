@@ -16,8 +16,13 @@ STATE_FILE = DEBUG_DIR / "state.json"
 AUDIT_FILE = DEBUG_DIR / "audit.jsonl"
 
 DEBUG_ENV = "AI_BADGER_DEBUG"
+PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 SCOPE_USER = "user"
 SCOPE_PROJECT = "project"
+
+# Recorded when no VERSION file and no scaffold manifest sit above the code that ran.
+# Not a version: analysis must never read it as one copy disagreeing with another.
+VERSION_UNKNOWN = "unknown"
 
 # An unbounded audit log on someone's disk is its own defect.
 MAX_AUDIT_LINES = 5000
@@ -57,16 +62,50 @@ def iso(moment: datetime) -> str:
     return moment.isoformat(timespec="seconds")
 
 
-def framework_version() -> str:
-    """VERSION of the tree this file lives in — i.e. which copy of the code ran."""
-    here = Path(__file__).resolve()
+def _manifest_version(directory) -> str:
+    """The framework version recorded by a scaffold's manifest, or empty."""
+    try:
+        manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+        version = manifest.get("frameworkVersion")
+        return version if isinstance(version, str) and version else ""
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
+def framework_version(start=None) -> str:
+    """VERSION of the tree this file lives in — i.e. which copy of the code ran.
+
+    Nearest ancestor wins: a scaffold carries no VERSION but records the version that
+    materialised it in `.ai-badger/manifest.json`, and a host repo's own VERSION file
+    sits further up than that manifest — so it can never be mistaken for the framework's.
+    """
+    here = Path(start or __file__).resolve()
     for anc in [here, *here.parents]:
+        recorded = _manifest_version(anc)
+        if recorded:
+            return recorded
         version_file = anc / "VERSION"
         if version_file.is_file():
-            text = version_file.read_text(encoding="utf-8").strip()
+            try:
+                text = version_file.read_text(encoding="utf-8").strip()
+            except OSError:
+                text = ""
             if text:
                 return text
-    return "unknown"
+    return VERSION_UNKNOWN
+
+
+def resolve_project_root(payload=None):
+    """`$CLAUDE_PROJECT_DIR` first, else the payload's own `cwd`, else None — never a guess.
+
+    Shared so every hook attributes its records the same way: an unattributed record
+    pools into every project's analysis and skews all of them.
+    """
+    env_root = os.environ.get(PROJECT_DIR_ENV)
+    if env_root:
+        return env_root
+    cwd = (payload or {}).get("cwd")
+    return cwd if cwd else None
 
 
 NAME_USER_SCOPE = "user"

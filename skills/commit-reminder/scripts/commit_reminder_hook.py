@@ -34,10 +34,17 @@ DEFAULT_THRESHOLD = 5
 COMPONENT = "commit_reminder_hook"
 
 
+# The hook payload, kept so every record can name the project it came from. An unattributed
+# record pools into every project's analysis; see `call-behaviorist`.
+_PAYLOAD: Dict[str, Any] = {}
+
+
 def _debug(event: str, **fields: Any) -> None:
     """Record that this hook ran. Silent when debug is off or the logger is unavailable."""
-    if debug_log is not None:
-        debug_log.log_event(COMPONENT, event, **fields)
+    if debug_log is None:
+        return
+    project = fields.pop("project", None) or resolve_project_root(_PAYLOAD)
+    debug_log.log_event(COMPONENT, event, project=project, **fields)
 
 
 def resolve_project_root(payload: Dict[str, Any]) -> Optional[str]:
@@ -65,6 +72,7 @@ def main() -> int:
         return 0
     if not isinstance(payload, dict):
         return 0
+    _PAYLOAD.update(payload)
 
     tool_name = payload.get("tool_name") or payload.get("toolName") or ""
     if not commit_reminder.is_edit_tool(tool_name):
