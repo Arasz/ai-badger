@@ -7,7 +7,10 @@ The scripts are standalone files (not an installed package) that bootstrap ``bad
 from __future__ import annotations
 
 import importlib.util
+import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -17,21 +20,35 @@ ROOT = Path(__file__).resolve().parents[1]
 # The real home, captured before any test can redirect it.
 REAL_HOME = Path.home()
 
+# Hooks under test resolve their audit sink from this variable; without it the suite appends to
+# the developer's real ~/.ai-badger/debug log (features/common/hooks/debug_log.py). Set at import
+# time, not in a fixture: a module imported during collection reads it before fixtures run, and
+# a session fixture alone was measured still leaking 76 records into the real log.
+DEBUG_DIR_ENV = "AI_BADGER_DEBUG_DIR"
+os.environ.setdefault(DEBUG_DIR_ENV, tempfile.mkdtemp(prefix="ai-badger-debug-sink-"))
+
 
 @pytest.fixture(scope="session", autouse=True)
 def _home_off_limits(tmp_path_factory):
     """Point `$HOME` at a scratch directory for the whole session.
 
-    `debug_log` resolves its sink from `Path.home()` at import time, and scripts are loaded
-    by path — a fresh module object per call, each with its own unpatched globals. One test
-    that loads a copy without redirecting it writes to the user's real audit log. Moving
-    home once, before anything is imported, removes the possibility rather than the symptom.
+    A floor beneath the explicit sink override, and wider than it: the suite also writes
+    ~/.ai-badger/hook-errors.log and ~/.hermes/plugins/*.py, which no debug-sink variable
+    reaches. Copies loaded before this runs are covered by DEBUG_DIR_ENV above.
     """
     scratch = tmp_path_factory.mktemp("home")
     with pytest.MonkeyPatch.context() as patch:
         for var in ("HOME", "USERPROFILE"):
             patch.setenv(var, str(scratch))
         yield scratch
+
+
+@pytest.fixture(scope="session", autouse=True)
+def isolated_debug_sink():
+    """Remove the redirected debug sink once the run is over."""
+    sink = Path(os.environ[DEBUG_DIR_ENV])
+    yield sink
+    shutil.rmtree(sink, ignore_errors=True)
 
 
 @pytest.fixture

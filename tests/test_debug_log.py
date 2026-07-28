@@ -7,6 +7,8 @@ import os
 import stat
 from pathlib import Path
 
+import pytest
+
 
 def _load(load_script, tmp_path, monkeypatch):
     """Load debug_log with its user-level paths redirected under tmp_path."""
@@ -34,6 +36,35 @@ def _records(dl):
     if not dl.AUDIT_FILE.exists():
         return []
     return [json.loads(line) for line in dl.AUDIT_FILE.read_text(encoding="utf-8").splitlines()]
+
+
+class TestWhereTheLogLands:
+    """The sink is redirectable, so nothing under test writes into a real developer's log."""
+
+    def test_it_defaults_to_the_users_home_directory(self, load_script, monkeypatch):
+        monkeypatch.delenv("AI_BADGER_DEBUG_DIR", raising=False)
+
+        dl = load_script("features/common/hooks/debug_log.py")
+
+        assert dl.DEBUG_DIR == Path.home() / ".ai-badger" / "debug"
+        assert dl.STATE_FILE == dl.DEBUG_DIR / "state.json"
+        assert dl.AUDIT_FILE == dl.DEBUG_DIR / "audit.jsonl"
+
+    def test_an_env_override_moves_the_whole_sink(self, load_script, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_BADGER_DEBUG_DIR", str(tmp_path / "elsewhere"))
+
+        dl = load_script("features/common/hooks/debug_log.py")
+        _enable(dl)
+        dl.log_event("some/hook", "start")
+
+        assert dl.DEBUG_DIR == tmp_path / "elsewhere"
+        assert len(_records(dl)) == 1
+
+    def test_this_suite_never_resolves_the_real_users_sink(self, load_script):
+        """The whole run is redirected; a green suite that writes the real log is not green."""
+        dl = load_script("features/common/hooks/debug_log.py")
+
+        assert dl.DEBUG_DIR != Path.home() / ".ai-badger" / "debug"
 
 
 class TestOffByDefault:
@@ -331,26 +362,39 @@ class TestTheSuiteCannotWriteToTheRealLog:
             sink = load_script(relpath).AUDIT_FILE
             assert REAL_HOME not in sink.parents, f"{relpath} would write to {sink}"
 
-    def test_an_unredirected_write_lands_in_the_scratch_home(self, load_script, monkeypatch,
-                                                              _home_off_limits):
-        """The escape hatch is closed even with logging forced on and nothing patched."""
+    def test_an_unredirected_write_never_reaches_the_real_home(self, load_script, monkeypatch):
+        """The escape hatch is closed even with logging forced on and nothing patched.
+
+        Asserts the contract, not the destination: two isolations are in force and either
+        one satisfies it — `$AI_BADGER_DEBUG_DIR` wins, `$HOME` is the floor beneath it.
+        """
+        from conftest import REAL_HOME  # pylint: disable=import-outside-toplevel
+
         dl = load_script(self.COPIES[0])
         monkeypatch.setenv(dl.DEBUG_ENV, "1")
 
         dl.log_event("some/hook", "start")
 
         assert dl.AUDIT_FILE.exists(), "the write should have happened, just somewhere safe"
-        assert _home_off_limits in dl.AUDIT_FILE.parents
+        assert REAL_HOME not in dl.AUDIT_FILE.parents, f"leaked to {dl.AUDIT_FILE}"
 
 
-def test_the_vendored_copy_matches_the_canonical_one(root):
+VENDORED_COPIES = (
+    "features/common/skills/call-behaviorist/scripts/debug_log.py",
+    "features/common/skills/commit-reminder/scripts/debug_log.py",
+    "features/common/skills/prompt-markers/scripts/debug_log.py",
+    "features/common/skills/task/scripts/debug_log.py",
+)
+
+
+@pytest.mark.parametrize("relpath", VENDORED_COPIES)
+def test_the_vendored_copy_matches_the_canonical_one(root, relpath):
     """debug_log is duplicated because hooks import nothing; duplication must be checked."""
     canonical = (root / "features/common/hooks/debug_log.py").read_text(encoding="utf-8")
-    vendored = (root / "features/common/skills/call-behaviorist/scripts/debug_log.py"
-                ).read_text(encoding="utf-8")
+    vendored = (root / relpath).read_text(encoding="utf-8")
 
     assert canonical == vendored, (
-        "copy features/common/hooks/debug_log.py over the call-behaviorist copy"
+        f"copy features/common/hooks/debug_log.py over {relpath}"
     )
 
 

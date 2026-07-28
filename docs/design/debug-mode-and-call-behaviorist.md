@@ -77,6 +77,11 @@ Rejected alternatives: a project-side `.ai-badger/debug/` (git pollution, and un
 hooks firing outside a project) and a system temp dir (evaporates exactly when you want to read
 it after a crash).
 
+`AI_BADGER_DEBUG_DIR` relocates the whole directory — state file and audit log together — for
+callers that must not touch a real developer's log. This framework's own test suite sets it in
+`tests/conftest.py`; without it every hook exercised by a test appends to whoever ran it. Unset,
+the path is exactly `~/.ai-badger/debug`.
+
 ### Record shape
 
 Small and flat. Every record carries enough context to answer "which hook, where, under what":
