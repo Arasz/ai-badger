@@ -39,10 +39,17 @@ except ImportError:  # pragma: no cover - a missing logger must never break a ho
 COMPONENT = "drift_notice_hook"
 
 
+# The hook payload, kept so every record can name the project it came from. An unattributed
+# record pools into every project's analysis; see `call-behaviorist`.
+_PAYLOAD: Dict[str, Any] = {}
+
+
 def _debug(event: str, **fields) -> None:
     """Record that this hook ran. Silent when debug is off or the logger is unavailable."""
-    if debug_log is not None:
-        debug_log.log_event(COMPONENT, event, **fields)
+    if debug_log is None:
+        return
+    root = fields.pop("project", None) or resolve_project_root(_PAYLOAD)
+    debug_log.log_event(COMPONENT, event, project=str(root) if root else None, **fields)
 
 def _bootstrap_lib() -> Path:
     """Put the framework's engine/ and tooling/ on sys.path and return its root.
@@ -198,6 +205,7 @@ def main() -> int:
         return 0
     if not isinstance(payload, dict):
         return 0
+    _PAYLOAD.update(payload)
 
     project_root = resolve_project_root(payload)
     if FRAMEWORK_ROOT is None or project_root is None:

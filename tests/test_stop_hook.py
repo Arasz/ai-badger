@@ -190,18 +190,27 @@ def test_stop_hook_active_flag_suppresses_finished_task_enforcement(
     assert "stateJsonReminderSent" not in entry
 
 
+class FakeDebugLog:
+    """Captures log_event calls and resolves a project the way debug_log really does."""
+
+    def __init__(self):
+        self.calls = []
+
+    def log_event(self, component, event, **fields):
+        self.calls.append((component, event, fields))
+
+    def resolve_project_root(self, payload=None):
+        return (payload or {}).get("cwd")
+
+
 def test_debug_logging_records_checkpoint_event(stop_hook, monkeypatch):
     """Debug log fires a checkpoint event when stop completes normally."""
-    calls = []
+    fake = FakeDebugLog()
 
-    class FakeDebugLog:
-        def log_event(self, component, event, **fields):
-            calls.append((component, event, fields))
-
-    monkeypatch.setattr(stop_hook, "debug_log", FakeDebugLog())
+    monkeypatch.setattr(stop_hook, "debug_log", fake)
     _run_hook(stop_hook, monkeypatch, {"session_id": "sid-1", "transcript_path": ""})
 
-    events = {e: (c, f) for c, e, f in calls}
+    events = {e: (c, f) for c, e, f in fake.calls}
     assert "checkpoint" in events
     assert events["checkpoint"][0] == "stop_hook"
 
@@ -211,3 +220,24 @@ def test_debug_logging_is_noop_when_unavailable(stop_hook, monkeypatch):
     monkeypatch.setattr(stop_hook, "debug_log", None)
     rc = _run_hook(stop_hook, monkeypatch, {"session_id": "sid-1", "transcript_path": ""})
     assert rc == 0
+
+
+def test_the_checkpoint_record_names_the_project(stop_hook, monkeypatch):
+    """An unattributed record pools into every project's analysis; see call-behaviorist."""
+    fake = FakeDebugLog()
+    monkeypatch.setattr(stop_hook, "debug_log", fake)
+    _write_state(stop_hook)
+
+    _run_hook(stop_hook, monkeypatch, {"session_id": "sid-1", "cwd": "/repo"})
+
+    assert [f.get("project") for _, _, f in fake.calls] == ["/repo"]
+
+
+def test_the_skip_record_names_the_project_too(stop_hook, monkeypatch):
+    """The early exit is the commonest record of all; unattributed it is worse than useless."""
+    fake = FakeDebugLog()
+    monkeypatch.setattr(stop_hook, "debug_log", fake)
+
+    _run_hook(stop_hook, monkeypatch, {"cwd": "/repo"})
+
+    assert [(e, f.get("project")) for _, e, f in fake.calls] == [("skip", "/repo")]

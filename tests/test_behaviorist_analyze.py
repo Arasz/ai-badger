@@ -38,6 +38,13 @@ def _record(component, event="start", version="0.30.0", project="/repo", ts=DEFA
 beh_keys = {"t": "t", "c": "c", "e": "e", "v": "v", "p": "p"}
 
 
+def _unattributed(component, **extra):
+    """A record from a hook that could not name a project — the key is absent, not null."""
+    rec = _record(component, **extra)
+    del rec[beh_keys["p"]]
+    return rec
+
+
 def _kinds(report):
     return [f["kind"] for f in report["findings"]]
 
@@ -175,6 +182,72 @@ class TestScoping:
         report = beh.analyze(project="/repo", expected=["hooks/alpha"])
 
         assert "unexpected_component" in _kinds(report)
+
+
+class TestARecordNamingNoProjectBelongsToNoProject:
+    """A user-wide log holds every project; a record naming none belongs to none of them."""
+
+    def test_it_is_not_counted_among_this_project_s_components(self, load_script, tmp_path,
+                                                               monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_unattributed("hooks/elsewhere"), _record("hooks/beta")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/beta"])
+
+        assert set(report["observed"]) == {"hooks/beta"}
+
+    def test_it_does_not_become_an_unexpected_component(self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_unattributed("hooks/elsewhere"), _record("hooks/beta")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/beta"])
+
+        assert "unexpected_component" not in _kinds(report)
+
+    def test_its_version_does_not_pollute_this_project_s_versions(self, load_script, tmp_path,
+                                                                  monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/beta", version="0.40.0"),
+                     _unattributed("hooks/beta", version="0.37.0")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/beta"])
+
+        assert report["observed"]["hooks/beta"]["versions"] == ["0.40.0"]
+
+    def test_what_was_set_aside_is_counted_not_silently_dropped(self, load_script, tmp_path,
+                                                               monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_unattributed("hooks/elsewhere"), _unattributed("hooks/elsewhere"),
+                     _record("hooks/beta")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/beta"])
+
+        assert report["window"]["unattributed"] == 2
+        assert report["window"]["unattributed_components"] == ["hooks/elsewhere"]
+
+    def test_bookkeeping_is_not_reported_as_set_aside(self, load_script, tmp_path, monkeypatch):
+        """`enabled`/`cleared` name no project by design; they were never evidence."""
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_unattributed("call-behaviorist", event="cleared"), _record("hooks/beta")])
+
+        report = beh.analyze(project="/repo", expected=["hooks/beta"])
+
+        assert report["window"]["unattributed"] == 0
+        assert report["window"]["unattributed_components"] == []
+
+    def test_a_project_spelled_through_a_symlink_still_matches(self, load_script, tmp_path,
+                                                              monkeypatch):
+        """/var and /private/var name one directory; comparing the text alone loses records."""
+        real = tmp_path / "real"
+        real.mkdir()
+        link = tmp_path / "link"
+        link.symlink_to(real)
+        beh = _load(load_script, tmp_path, monkeypatch)
+        _write(beh, [_record("hooks/beta", project=str(link))])
+
+        report = beh.analyze(project=str(real), expected=["hooks/beta"])
+
+        assert set(report["observed"]) == {"hooks/beta"}
 
 
 class TestOutputIsMachineReadable:

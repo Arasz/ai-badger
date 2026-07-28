@@ -190,6 +190,46 @@ def test_hook_main_emits_notice_when_versions_differ(tmp_path, root, load_script
     assert "0.1.0" in context and plugin_version in context
 
 
+def test_the_no_drift_record_names_the_project(tmp_path, root, load_script, monkeypatch):
+    """A skip is evidence the hook ran; unattributed it lands in every project's report."""
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
+    project = tmp_path / "proj"
+    _write_manifest(project, (root / "VERSION").read_text(encoding="utf-8").strip())
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+    calls = []
+
+    class FakeDebugLog:
+        def log_event(self, component, event, **fields):
+            calls.append((event, fields))
+
+    monkeypatch.setattr(hook, "debug_log", FakeDebugLog())
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({
+        "session_id": "sid-1", "source": "startup", "cwd": str(project),
+    })))
+
+    hook.main()
+
+    assert calls == [("skip", {"reason": "no_drift", "project": str(project)})]
+
+
+def test_a_record_stays_unattributed_when_no_root_can_be_found(load_script, monkeypatch):
+    """Naming a project the hook could not determine would be a guess, not attribution."""
+    hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    calls = []
+
+    class FakeDebugLog:
+        def log_event(self, component, event, **fields):
+            calls.append((event, fields))
+
+    monkeypatch.setattr(hook, "debug_log", FakeDebugLog())
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"session_id": "sid-1"})))
+
+    hook.main()
+
+    assert calls == [("skip", {"reason": "no_root", "project": None})]
+
+
 def test_hook_main_silent_when_versions_match(tmp_path, root, load_script, monkeypatch, capsys):
     hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
     project = tmp_path / "proj"
