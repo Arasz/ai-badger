@@ -187,7 +187,7 @@ def test_a_failing_user_scope_write_degrades_to_a_note(tmp_path, load_script, ro
     def _explode(*_args, **_kwargs):
         raise OSError("read-only home directory")
 
-    scaf._scaffold_claude_mcp_user = _explode
+    scaf.mcp.scaffold_claude_mcp_user = _explode
 
     result = scaf.run(generated_at="2026-07-19T00:00:00Z")
 

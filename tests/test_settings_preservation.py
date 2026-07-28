@@ -104,7 +104,7 @@ def test_hermes_user_config_yaml_error_does_not_escape_run(tmp_path, load_script
     config_path.write_bytes(original)
 
     scaf = _scaf(scaffold, root, target, _config(agents=["hermes"]))
-    scaf._scaffold_hermes_mcp_user(
+    scaf.mcp.scaffold_hermes_mcp_user(
         {"srv": {"name": "srv", "command": "echo hi", "scope": "user"}}
     )
 
@@ -124,7 +124,7 @@ def test_yaml_parsing_to_a_list_does_not_raise(tmp_path, load_script, root, fake
     config_path.write_bytes(original)
 
     scaf = _scaf(scaffold, root, target, _config(agents=["hermes"]))
-    scaf._scaffold_hermes_mcp_user(
+    scaf.mcp.scaffold_hermes_mcp_user(
         {"srv": {"name": "srv", "command": "echo hi", "scope": "user"}}
     )
 
@@ -145,7 +145,7 @@ def test_valid_user_settings_survive_with_backup(tmp_path, load_script, root, fa
     settings_path.write_text(json.dumps(original, indent=2) + "\n", encoding="utf-8")
 
     scaf = _scaf(scaffold, root, target, _config(agents=["claude"]))
-    scaf._scaffold_claude_mcp_user(
+    scaf.mcp.scaffold_claude_mcp_user(
         {"srv": {"name": "srv", "command": "echo hi", "scope": "user"}}
     )
 
@@ -170,7 +170,7 @@ def test_unparseable_user_settings_are_never_rewritten(tmp_path, load_script, ro
     settings_path.write_bytes(original)
 
     scaf = _scaf(scaffold, root, target, _config(agents=["claude"]))
-    scaf._scaffold_claude_mcp_user(
+    scaf.mcp.scaffold_claude_mcp_user(
         {"srv": {"name": "srv", "command": "echo hi", "scope": "user"}}
     )
 
@@ -196,7 +196,7 @@ def test_unparseable_mcp_json_is_never_rewritten(tmp_path, load_script, root, fa
     mcp_path.write_bytes(original)
 
     scaf = _scaf(scaffold, tmp_path, target, _config(agents=["claude"]))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
 
     assert mcp_path.read_bytes() == original
     assert _mentions(scaf.notes, ".mcp.json", "refused")
@@ -213,7 +213,7 @@ def test_unparseable_copilot_mcp_config_is_never_rewritten(tmp_path, load_script
     config_path.write_bytes(original)
 
     scaf = _scaf(scaffold, tmp_path, target, _config(agents=["copilot"]))
-    scaf._generate_copilot_mcp_config(
+    scaf.mcp.generate_copilot_mcp_config(
         {"srv": {"name": "srv", "command": "echo hi"}}
     )
 

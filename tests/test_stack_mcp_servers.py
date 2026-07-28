@@ -77,7 +77,7 @@ def test_collect_from_common(tmp_path, load_script, root):
             {"name": "baseline", "command": "echo baseline"}
         ])
         scaf = _scaf(scaffold, root, target, _config())
-        result = scaf._collect_stack_mcp_servers()
+        result = scaf.mcp.collect_stack_mcp_servers()
         assert len(result) == 1
         assert result[0]["name"] == "baseline"
     finally:
@@ -99,7 +99,7 @@ def test_collect_from_multiple_stacks(tmp_path, load_script, root):
     _write_mcp_servers(gh_dir, [{"name": "github-mcp", "command": "npx -y @modelcontextprotocol/server-github"}])
 
     scaf = _scaf(scaffold, tmp_path, target, _config(stacks=["python", "github"]))
-    result = scaf._collect_stack_mcp_servers()
+    result = scaf.mcp.collect_stack_mcp_servers()
     names = [s["name"] for s in result]
     assert "pyright" in names
     assert "github-mcp" in names
@@ -117,7 +117,7 @@ def test_collect_cross_stack_dedup_last_writer_wins(tmp_path, load_script, root)
     _write_mcp_servers(gh_dir, [{"name": "shared", "command": "echo github-version"}])
 
     scaf = _scaf(scaffold, tmp_path, target, _config(stacks=["python", "github"]))
-    result = scaf._collect_stack_mcp_servers()
+    result = scaf.mcp.collect_stack_mcp_servers()
     assert len(result) == 1
     assert result[0]["command"] == "echo github-version"
 
@@ -132,7 +132,7 @@ def test_collect_missing_file_skipped(tmp_path, load_script, root):
     py_dir.mkdir(parents=True)
 
     scaf = _scaf(scaffold, tmp_path, target, _config(stacks=["python"]))
-    result = scaf._collect_stack_mcp_servers()
+    result = scaf.mcp.collect_stack_mcp_servers()
     assert result == []
 
 
@@ -146,7 +146,7 @@ def test_collect_empty_servers(tmp_path, load_script, root):
     _write_mcp_servers(py_dir, [])
 
     scaf = _scaf(scaffold, tmp_path, target, _config(stacks=["python"]))
-    result = scaf._collect_stack_mcp_servers()
+    result = scaf.mcp.collect_stack_mcp_servers()
     assert result == []
 
 
@@ -160,7 +160,7 @@ def test_merge_stack_only(tmp_path, load_script, root):
     scaf = _scaf(scaffold, root, target, _config())
 
     stack = [{"name": "pyright", "command": "uvx mcp-server-pyright"}]
-    merged = scaf._merge_mcp_servers(stack, [])
+    merged = scaf.mcp.merge_mcp_servers(stack, [])
     assert "pyright" in merged
     assert merged["pyright"]["command"] == "uvx mcp-server-pyright"
 
@@ -175,7 +175,7 @@ def test_merge_user_only(tmp_path, load_script, root):
     tools = [{"name": "crg", "package": "code-review-graph",
               "command": "uvx code-review-graph serve", "instructions": "x",
               "generate_mcp_json": True}]
-    merged = scaf._merge_mcp_servers([], tools)
+    merged = scaf.mcp.merge_mcp_servers([], tools)
     assert "crg" in merged
 
 
@@ -189,7 +189,7 @@ def test_merge_user_wins_on_conflict(tmp_path, load_script, root):
     stack = [{"name": "tool-x", "command": "echo stack"}]
     tools = [{"name": "tool-x", "package": "p", "command": "echo user",
               "instructions": "", "generate_mcp_json": True}]
-    merged = scaf._merge_mcp_servers(stack, tools)
+    merged = scaf.mcp.merge_mcp_servers(stack, tools)
     assert merged["tool-x"]["command"] == "echo user"
 
 
@@ -202,7 +202,7 @@ def test_merge_empty_stacks(tmp_path, load_script, root):
 
     tools = [{"name": "crg", "package": "p", "command": "echo crg",
               "instructions": "", "generate_mcp_json": True}]
-    merged = scaf._merge_mcp_servers([], tools)
+    merged = scaf.mcp.merge_mcp_servers([], tools)
     assert list(merged.keys()) == ["crg"]
 
 
@@ -214,7 +214,7 @@ def test_merge_empty_tools(tmp_path, load_script, root):
     scaf = _scaf(scaffold, root, target, _config())
 
     stack = [{"name": "pyright", "command": "uvx mcp-server-pyright"}]
-    merged = scaf._merge_mcp_servers(stack, [])
+    merged = scaf.mcp.merge_mcp_servers(stack, [])
     assert list(merged.keys()) == ["pyright"]
 
 
@@ -228,7 +228,7 @@ def test_split_default_scope_is_project(tmp_path, load_script, root):
     scaf = _scaf(scaffold, root, target, _config())
 
     servers = {"x": {"name": "x", "command": "echo"}}
-    project, user = scaf._split_servers_by_scope(servers)
+    project, user = scaf.mcp.split_servers_by_scope(servers)
     assert "x" in project
     assert "x" not in user
 
@@ -241,7 +241,7 @@ def test_split_project_scope(tmp_path, load_script, root):
     scaf = _scaf(scaffold, root, target, _config())
 
     servers = {"x": {"name": "x", "command": "echo", "scope": "project"}}
-    project, user = scaf._split_servers_by_scope(servers)
+    project, user = scaf.mcp.split_servers_by_scope(servers)
     assert "x" in project
     assert "x" not in user
 
@@ -254,7 +254,7 @@ def test_split_user_scope(tmp_path, load_script, root):
     scaf = _scaf(scaffold, root, target, _config())
 
     servers = {"x": {"name": "x", "command": "echo", "scope": "user"}}
-    project, user = scaf._split_servers_by_scope(servers)
+    project, user = scaf.mcp.split_servers_by_scope(servers)
     assert "x" not in project
     assert "x" in user
 
@@ -271,7 +271,7 @@ def test_split_mixed_scopes(tmp_path, load_script, root):
         "b": {"name": "b", "command": "echo", "scope": "user"},
         "c": {"name": "c", "command": "echo"},
     }
-    project, user = scaf._split_servers_by_scope(servers)
+    project, user = scaf.mcp.split_servers_by_scope(servers)
     assert set(project.keys()) == {"a", "c"}
     assert set(user.keys()) == {"b"}
 
@@ -290,7 +290,7 @@ def test_stack_mcp_generates_mcp_json(tmp_path, load_script, root):
     ])
 
     scaf = _scaf(scaffold, tmp_path, target, _config(stacks=["python"], agents=["claude"]))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
 
     mcp_path = target / ".mcp.json"
     assert mcp_path.exists()
@@ -318,7 +318,7 @@ def test_stack_and_external_tools_merge_in_mcp_json(tmp_path, load_script, root)
 
     scaf = _scaf(scaffold, tmp_path, target,
                   _config(stacks=["python"], agents=["claude"], external_tools=external))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
 
     mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
     assert "pyright" in mcp["mcpServers"]
@@ -338,7 +338,7 @@ def test_mcp_json_no_duplicate_from_two_stacks(tmp_path, load_script, root):
 
     scaf = _scaf(scaffold, tmp_path, target,
                   _config(stacks=["python", "github"], agents=["claude"]))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
 
     mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
     assert list(mcp["mcpServers"].keys()).count("shared") == 1
@@ -359,7 +359,7 @@ def test_mcp_json_merge_preserves_existing(tmp_path, load_script, root):
 
     scaf = _scaf(scaffold, tmp_path, target,
                   _config(stacks=["python"], agents=["claude"]))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
 
     mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
     assert "my-server" in mcp["mcpServers"]
@@ -380,7 +380,7 @@ def test_mcp_json_env_propagated(tmp_path, load_script, root):
 
     scaf = _scaf(scaffold, tmp_path, target,
                   _config(stacks=["python"], agents=["claude"]))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
 
     mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
     assert mcp["mcpServers"]["github"]["env"] == {"GITHUB_TOKEN": "test"}
@@ -403,7 +403,7 @@ def test_mcp_json_agent_override_applied(tmp_path, load_script, root):
 
     scaf = _scaf(scaffold, tmp_path, target,
                   _config(stacks=["python"], agents=["claude"]))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
 
     mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
     assert mcp["mcpServers"]["fs"]["command"] == "npx"
@@ -417,7 +417,7 @@ def test_mcp_json_not_created_when_empty(tmp_path, load_script, root):
     target.mkdir()
 
     scaf = _scaf(scaffold, tmp_path, target, _config(stacks=[], agents=["claude"]))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
 
     assert not (target / ".mcp.json").exists()
 
@@ -436,7 +436,7 @@ def test_hermes_user_server_writes_config_yaml(tmp_path, load_script, root):
     with patch("pathlib.Path.home", return_value=home):
         scaf = _scaf(scaffold, tmp_path, target,
                       _config(stacks=["python"], agents=["hermes"]))
-        scaf._scaffold_hermes_mcp_user(
+        scaf.mcp.scaffold_hermes_mcp_user(
             {"hermes-mcp": {"name": "hermes-mcp", "command": "hermes mcp serve", "scope": "user"}}
         )
 
@@ -464,7 +464,7 @@ def test_hermes_user_server_merge_preserves_existing(tmp_path, load_script, root
     with patch("pathlib.Path.home", return_value=home):
         scaf = _scaf(scaffold, tmp_path, target,
                       _config(stacks=["python"], agents=["hermes"]))
-        scaf._scaffold_hermes_mcp_user(
+        scaf.mcp.scaffold_hermes_mcp_user(
             {"new-server": {"name": "new-server", "command": "echo new", "scope": "user"}}
         )
 
@@ -485,7 +485,7 @@ def test_hermes_user_server_creates_config_if_missing(tmp_path, load_script, roo
     with patch("pathlib.Path.home", return_value=home):
         scaf = _scaf(scaffold, tmp_path, target,
                       _config(stacks=["python"], agents=["hermes"]))
-        scaf._scaffold_hermes_mcp_user(
+        scaf.mcp.scaffold_hermes_mcp_user(
             {"srv": {"name": "srv", "command": "echo", "scope": "user"}}
         )
 
@@ -504,7 +504,7 @@ def test_hermes_user_server_no_write_without_hermes_agent(tmp_path, load_script,
     with patch("pathlib.Path.home", return_value=home):
         scaf = _scaf(scaffold, tmp_path, target,
                       _config(stacks=["python"], agents=["claude"]))
-        scaf._scaffold_hermes_mcp_user(
+        scaf.mcp.scaffold_hermes_mcp_user(
             {"srv": {"name": "srv", "command": "echo", "scope": "user"}}
         )
 
@@ -524,7 +524,7 @@ def test_hermes_project_server_writes_mcp_json(tmp_path, load_script, root):
 
     scaf = _scaf(scaffold, tmp_path, target,
                   _config(stacks=["python"], agents=["hermes"]))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
 
     mcp_path = target / ".mcp.json"
     assert mcp_path.exists()
@@ -545,7 +545,7 @@ def test_claude_user_server_writes_settings_json(tmp_path, load_script, root):
     with patch("pathlib.Path.home", return_value=home):
         scaf = _scaf(scaffold, tmp_path, target,
                       _config(stacks=["python"], agents=["claude"]))
-        scaf._scaffold_claude_mcp_user(
+        scaf.mcp.scaffold_claude_mcp_user(
             {"srv": {"name": "srv", "command": "echo", "scope": "user"}}
         )
 
@@ -571,7 +571,7 @@ def test_claude_user_server_merge_preserves_existing(tmp_path, load_script, root
     with patch("pathlib.Path.home", return_value=home):
         scaf = _scaf(scaffold, tmp_path, target,
                       _config(stacks=["python"], agents=["claude"]))
-        scaf._scaffold_claude_mcp_user(
+        scaf.mcp.scaffold_claude_mcp_user(
             {"new": {"name": "new", "command": "echo new", "scope": "user"}}
         )
 
@@ -591,7 +591,7 @@ def test_claude_user_server_no_write_without_claude_agent(tmp_path, load_script,
     with patch("pathlib.Path.home", return_value=home):
         scaf = _scaf(scaffold, tmp_path, target,
                       _config(stacks=["python"], agents=["hermes"]))
-        scaf._scaffold_claude_mcp_user(
+        scaf.mcp.scaffold_claude_mcp_user(
             {"srv": {"name": "srv", "command": "echo", "scope": "user"}}
         )
 
@@ -609,7 +609,7 @@ def test_copilot_config_generated(tmp_path, load_script, root):
     scaf = _scaf(scaffold, tmp_path, target,
                   _config(stacks=["python"], agents=["copilot"]))
     servers = {"pyright": {"name": "pyright", "command": "uvx mcp-server-pyright"}}
-    scaf._generate_copilot_mcp_config(servers)
+    scaf.mcp.generate_copilot_mcp_config(servers)
 
     config_path = target / ".github" / "copilot" / "mcp-config.json"
     assert config_path.exists()
@@ -626,7 +626,7 @@ def test_copilot_config_not_created_for_claude_only(tmp_path, load_script, root)
     scaf = _scaf(scaffold, tmp_path, target,
                   _config(stacks=["python"], agents=["claude"]))
     servers = {"pyright": {"name": "pyright", "command": "uvx mcp-server-pyright"}}
-    scaf._generate_copilot_mcp_config(servers)
+    scaf.mcp.generate_copilot_mcp_config(servers)
 
     assert not (target / ".github" / "copilot" / "mcp-config.json").exists()
 
@@ -645,7 +645,7 @@ def test_copilot_config_merge_preserves_existing(tmp_path, load_script, root):
     scaf = _scaf(scaffold, tmp_path, target,
                   _config(stacks=["python"], agents=["copilot"]))
     servers = {"new": {"name": "new", "command": "echo new"}}
-    scaf._generate_copilot_mcp_config(servers)
+    scaf.mcp.generate_copilot_mcp_config(servers)
 
     cfg = json.loads((copilot_dir / "mcp-config.json").read_text(encoding="utf-8"))
     assert "old" in cfg["mcpServers"]
@@ -662,7 +662,7 @@ def test_copilot_env_propagated(tmp_path, load_script, root):
                   _config(stacks=["python"], agents=["copilot"]))
     servers = {"github": {"name": "github", "command": "npx -y @modelcontextprotocol/server-github",
                            "env": {"GITHUB_TOKEN": "test"}}}
-    scaf._generate_copilot_mcp_config(servers)
+    scaf.mcp.generate_copilot_mcp_config(servers)
 
     cfg = json.loads((target / ".github" / "copilot" / "mcp-config.json").read_text(encoding="utf-8"))
     assert cfg["mcpServers"]["github"]["env"] == {"GITHUB_TOKEN": "test"}
@@ -711,7 +711,7 @@ def test_existing_external_tools_still_work(tmp_path, load_script, root):
 
     scaf = _scaf(scaffold, root, target,
                   _config(stacks=[], agents=["claude"], external_tools=external))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
 
     mcp_path = target / ".mcp.json"
     assert mcp_path.exists()
@@ -726,7 +726,7 @@ def test_no_mcp_json_when_no_servers(tmp_path, load_script, root):
     target.mkdir()
 
     scaf = _scaf(scaffold, tmp_path, target, _config(stacks=[], agents=["claude"]))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
 
     assert not (target / ".mcp.json").exists()
 
@@ -753,7 +753,7 @@ def test_mcp_json_uses_claude_overrides_regardless_of_agent_order(tmp_path, load
 
     scaf = _scaf(scaffold, tmp_path, target,
                   _config(stacks=["python"], agents=["copilot", "claude"]))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
 
     mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
     assert mcp["mcpServers"]["fs"]["command"] == "claude-resolved"
@@ -767,7 +767,7 @@ def test_mcp_json_applies_no_override_when_claude_is_not_configured(tmp_path, lo
 
     scaf = _scaf(scaffold, tmp_path, target,
                   _config(stacks=["python"], agents=["copilot"]))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
 
     mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
     assert mcp["mcpServers"]["fs"]["command"] == "npx"
@@ -782,8 +782,8 @@ def test_copilot_config_uses_copilot_overrides(tmp_path, load_script, root):
 
     scaf = _scaf(scaffold, tmp_path, target,
                   _config(stacks=["python"], agents=["copilot", "claude"]))
-    servers = {s["name"]: s for s in scaf._collect_stack_mcp_servers()}
-    scaf._generate_copilot_mcp_config(servers)
+    servers = {s["name"]: s for s in scaf.mcp.collect_stack_mcp_servers()}
+    scaf.mcp.generate_copilot_mcp_config(servers)
 
     cfg = json.loads(
         (target / ".github" / "copilot" / "mcp-config.json").read_text(encoding="utf-8"))
@@ -810,10 +810,10 @@ def _render_everywhere(tmp_path, load_script, server, home):
     with patch("pathlib.Path.home", return_value=home):
         scaf = _scaf(scaffold, tmp_path, target,
                      _config(stacks=["python"], agents=["claude", "copilot", "hermes"]))
-        scaf._generate_mcp_json()
-        scaf._generate_copilot_mcp_config(by_name)
-        scaf._scaffold_claude_mcp_user(by_name)
-        scaf._scaffold_hermes_mcp_user(by_name)
+        scaf.mcp.generate_mcp_json()
+        scaf.mcp.generate_copilot_mcp_config(by_name)
+        scaf.mcp.scaffold_claude_mcp_user(by_name)
+        scaf.mcp.scaffold_hermes_mcp_user(by_name)
 
     name = server["name"]
 
@@ -871,7 +871,7 @@ def _scaffold_mcp_json_from(tmp_path, load_script, target, server):
     _write_mcp_servers(tmp_path / "features" / "python", [server])
     scaf = _scaf(scaffold, tmp_path, target,
                  _config(stacks=["python"], agents=["claude"]))
-    scaf._generate_mcp_json()
+    scaf.mcp.generate_mcp_json()
     return scaf
 
 

@@ -1,4 +1,4 @@
-"""Extension management for the Scaffolder.
+"""Extension management, one of the scaffold's collaborators.
 
 Parses, merges, and prunes skill extensions shipped at <skill>/extensions/<name>/ as they
 land in .ai-badger/skills/. See ADR-0006 for why this is the only mechanism.
@@ -9,7 +9,8 @@ import re
 import shutil
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List
+
+from scaffold_context import ScaffoldContext
 
 
 _SECTION_RE = re.compile(r'^##\s+(.+)$')
@@ -17,10 +18,14 @@ _AT_MARKER_RE = re.compile(r'^@([a-z][a-z0-9-]*):\s*(.*)$')
 _EXT_MARKER_RE = re.compile(r'<!--\s*EXT:([a-z][a-z0-9-]*)\s*-->')
 
 
-class ExtensionsMixin:
-    """Mixin providing extension parsing, merging, and embedding methods."""
+class Extensions:
+    """Parses, merges and prunes the extensions shipped inside a scaffolded skill."""
 
-    def _parse_extension_sections(self, ext_md: str):
+    def __init__(self, ctx: ScaffoldContext):
+        self.ctx = ctx
+
+    @staticmethod
+    def _parse_extension_sections(ext_md: str):
         """Split an extension.md into sections, each targeting a marker or the append bucket.
 
         Returns list of {"marker": "name" | None, "header": "## Title", "body": "..."}.
@@ -81,7 +86,7 @@ class ExtensionsMixin:
                     append_sections.append(rendered)
         return dict(by_marker), append_sections
 
-    def _merge_extensions(self, skill_name: str, dest: Path) -> None:
+    def merge_extensions(self, skill_name: str, dest: Path) -> None:
         """Route extension sections into SKILL.md at <!-- EXT:name --> markers.
 
         Only activates when SKILL.md contains the MERGE_EXTENSIONS sentinel.
@@ -108,7 +113,7 @@ class ExtensionsMixin:
         for marker_name, sections in by_marker.items():
             marker_tag = f"<!-- EXT:{marker_name} -->"
             if marker_tag not in content:
-                self.notes.append(
+                self.ctx.notes.append(
                     f"extension targets marker '{marker_name}' but SKILL.md has no "
                     f"<!-- EXT:{marker_name} --> — sections skipped"
                 )
@@ -127,14 +132,14 @@ class ExtensionsMixin:
 
         if ext_count:
             skill_md.write_text(content, encoding="utf-8")
-            self.notes.append(
+            self.ctx.notes.append(
                 f"merged {ext_count} extension section(s) into "
                 f".ai-badger/skills/{skill_name}/SKILL.md"
             )
         # Remove extensions/ dir — content is now in SKILL.md
         shutil.rmtree(ext_base)
 
-    def _append_project_local(self, skill_name: str, dest: Path) -> None:
+    def append_project_local(self, skill_name: str, dest: Path) -> None:
         """If project-local.md exists in the scaffolded skill dir, append its content to SKILL.md.
 
         This lets projects add project-specific checks (incident lessons, project conventions)
@@ -151,11 +156,11 @@ class ExtensionsMixin:
             return
         existing = skill_md.read_text(encoding="utf-8")
         skill_md.write_text(existing.rstrip() + "\n\n" + additions + "\n", encoding="utf-8")
-        self.notes.append(
+        self.ctx.notes.append(
             f"appended project-local.md to .ai-badger/skills/{skill_name}/SKILL.md"
         )
 
-    def _prune_inline_extensions(self, skill_name: str, dest: Path) -> None:
+    def prune_inline_extensions(self, skill_name: str, dest: Path) -> None:
         """Remove extensions shipped inside the skill directory whose requires aren't met.
 
         Extensions stored at <skill>/extensions/<ext>/ are copied by copytree before their
@@ -175,14 +180,14 @@ class ExtensionsMixin:
             if not descriptor.exists():
                 continue
             reqs = bl.load_json(descriptor).get("requires", [])
-            if all(requirement_met(self.config, r) for r in reqs):
-                self.notes.append(
+            if all(requirement_met(self.ctx.config, r) for r in reqs):
+                self.ctx.notes.append(
                     f"embedded extension '{ext_dir.name}' into skill "
                     f"'{skill_name}' (requirements met)"
                 )
             else:
                 shutil.rmtree(ext_dir)
-                self.notes.append(
+                self.ctx.notes.append(
                     f"extension '{ext_dir.name}' for '{skill_name}' "
                     "skipped (config requirements not met)"
                 )

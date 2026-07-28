@@ -296,48 +296,65 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
     return created
 
 
-# Import mixin classes from domain modules
-from hook_wiring import HookWiringMixin, merge_hooks  # noqa: E402
-from template_rendering import TemplateRenderingMixin  # noqa: E402
-from agent_files import AgentFilesMixin  # noqa: E402
-from extensions import ExtensionsMixin  # noqa: E402
-from mcp_tools import McpToolsMixin  # noqa: E402
-from statusline_wiring import StatusLineWiringMixin  # noqa: E402
+# The shared context and the six collaborators built from it
+from scaffold_context import ScaffoldContext  # noqa: E402
+from hook_wiring import HookWiring, merge_hooks  # noqa: E402
+from template_rendering import TemplateRendering  # noqa: E402
+from agent_files import AgentFiles  # noqa: E402
+from extensions import Extensions  # noqa: E402
+from mcp_tools import McpTools  # noqa: E402
+from statusline_wiring import StatusLineWiring  # noqa: E402
 
 
-class Scaffolder(
-    McpToolsMixin,
-    HookWiringMixin,
-    StatusLineWiringMixin,
-    TemplateRenderingMixin,
-    AgentFilesMixin,
-    ExtensionsMixin,
-):
+def _ctx_property(name: str) -> property:
+    """A read/write `Scaffolder` attribute backed by the shared `ScaffoldContext`."""
+    return property(lambda self: getattr(self.ctx, name),
+                    lambda self, value: setattr(self.ctx, name, value))
+
+
+class Scaffolder:
     """Materializes a target repo's .ai-badger/ scaffold from a validated config.json."""
+
+    # Everything a collaborator reads or writes lives on self.ctx; these keep `s.notes`,
+    # `s.target` and the rest addressable on the Scaffolder itself.
+    root = _ctx_property("root")
+    target = _ctx_property("target")
+    aib = _ctx_property("aib")
+    config = _ctx_property("config")
+    index = _ctx_property("index")
+    stacks = _ctx_property("stacks")
+    skills = _ctx_property("skills")
+    excluded = _ctx_property("excluded")
+    overwrite = _ctx_property("overwrite")
+    notes = _ctx_property("notes")
+    _merged_external_tools = _ctx_property("merged_external_tools")
+    _external_tools_merged = _ctx_property("external_tools_merged")
 
     def __init__(self, root: Path, target: Path, config: Dict[str, Any],
                  skills: List[str], install: bool, overwrite: bool = False,
                  reset_seed_files: bool = False, execute: bool = False):
-        self.root = root
-        self.target = target
-        self.config = config
         # The one enforcement point for config.exclude: every consumer reads self.skills or
         # self.items(), so welcome-ai-badger and den-refresh cannot disagree about what a
         # project declined (docs/research/2026-07-27-skill-removal-semantics.md §2).
-        self.excluded = bl.exclusions(config)
-        self.skills = [s for s in skills if s not in self.excluded["skills"]]
+        excluded = bl.exclusions(config)
+        self.ctx = ScaffoldContext(
+            root=root, target=target, aib=target / ".ai-badger", config=config,
+            index=bl.read_index(root), stacks=bl.resolve_stacks(config),
+            skills=[s for s in skills if s not in excluded["skills"]],
+            excluded=excluded, overwrite=overwrite,
+            record_template=self.record_template,
+        )
+        self.extensions = Extensions(self.ctx)
+        self.statusline = StatusLineWiring(self.ctx)
+        self.hooks = HookWiring(self.ctx)
+        self.mcp = McpTools(self.ctx)
+        self.rendering = TemplateRendering(self.ctx)
+        self.agent_files = AgentFiles(self.ctx, self.rendering)
         self.install = install
-        self.overwrite = overwrite
         self.reset_seed_files = reset_seed_files
         self.execute = execute
-        self.index = bl.read_index(root)
         self.commit, self.dirty = git_provenance(root)
-        self.aib = target / ".ai-badger"
         self.entries: List[Dict[str, Any]] = []
-        self.stacks: List[str] = bl.resolve_stacks(config)
-        self.notes: List[str] = []
-        self._merged_external_tools: List[Dict[str, Any]] = []
-        self._external_tools_merged = False
         self._completed_steps: List[str] = []
         self._note_exclusions()
 
@@ -537,9 +554,9 @@ class Scaffolder(
                 shutil.rmtree(dest)
             shutil.copytree(src, dest, ignore=_test_ignore)
             self._restore_seed_once_skill_files(skill_name, dest, stashed)
-            self._prune_inline_extensions(skill_name, dest)
-            self._merge_extensions(skill_name, dest)
-            self._append_project_local(skill_name, dest)
+            self.extensions.prune_inline_extensions(skill_name, dest)
+            self.extensions.merge_extensions(skill_name, dest)
+            self.extensions.append_project_local(skill_name, dest)
             # hash includes embedded extensions
             self.record("skills", item_stack, skill_name, src, dest)
             # emit per-file entries for extension content so feed-badger can
@@ -624,6 +641,28 @@ class Scaffolder(
         for w in result.get("warnings", []):
             self.notes.append(f"skill install warning: {w}")
         return cmds
+
+    # -- hooks and statusline capture ------------------------------------------------
+    def wire_hooks(self) -> None:
+        """Merge the framework's hook registrations into the project's .claude/settings.json."""
+        self.hooks.wire()
+
+    def wire_statusline_capture(self) -> None:
+        """Wire the capture wrapper into .claude/settings.json, preserving the renderer."""
+        self.statusline.wire()
+
+    def unwire_statusline_capture(self) -> None:
+        """Restore the displaced renderer, or drop statusLine when there was none."""
+        self.statusline.unwire()
+
+    # -- template rendering -----------------------------------------------------------
+    def assemble_instructions_doc(self, invariants: List[str], instr_paths: List[Path]) -> str:
+        """Render CLAUDE.md.tmpl with this config's project/commands/invariants."""
+        return self.rendering.assemble_instructions_doc(invariants, instr_paths)
+
+    def assemble_hermes_doc(self, invariants: List[str], instr_paths: List[Path]) -> str:
+        """Render HERMES.md.tmpl with this config's project/commands/invariants."""
+        return self.rendering.assemble_hermes_doc(invariants, instr_paths)
 
     # -- Hermes skill discovery ---------------------------------------------------
     def symlink_hermes_skills(self) -> None:
@@ -803,16 +842,12 @@ class Scaffolder(
         self._outside_project("hermes skill symlinks", self.symlink_hermes_skills)
         self.scaffold_agent_instructions()
         self.scaffold_templates()
-        self._merged_external_tools = self._merge_external_tools(
-            self._collect_external_tools(),
-            self.config.get("externalTools", []),
-        )
-        self._external_tools_merged = True
-        doc = self.assemble_instructions_doc(invariants, instr_paths)
-        self.write_agent_files(doc, instr_paths, invariants)
+        self.mcp.fill_merged_external_tools()
+        doc = self.rendering.assemble_instructions_doc(invariants, instr_paths)
+        self.agent_files.write_agent_files(doc, instr_paths, invariants)
         self._record_progress("agent-files")
         self.wire_hooks()
-        self.wire_statusline_capture()
+        self.statusline.wire()
         self.run_adjustments()
         self._record_progress("hooks")
         plugin_cmds = self.install_plugins()
@@ -827,18 +862,18 @@ class Scaffolder(
         bl.dump_json(self.aib / "config.json", written_config)
 
         # generate .mcp.json for external tools that request it
-        self._generate_mcp_json()
+        self.mcp.generate_mcp_json()
         self._record_progress("config-and-mcp")
 
         # scaffold user-scoped MCP servers into agent-specific config files
-        stack_servers = self._collect_stack_mcp_servers()
-        merged = self._merge_mcp_servers(stack_servers, self._merged_external_tools)
-        project_servers, user_servers = self._split_servers_by_scope(merged)
+        stack_servers = self.mcp.collect_stack_mcp_servers()
+        merged = self.mcp.merge_mcp_servers(stack_servers, self.ctx.merged_external_tools)
+        project_servers, user_servers = self.mcp.split_servers_by_scope(merged)
         self._outside_project("hermes user MCP config",
-                              lambda: self._scaffold_hermes_mcp_user(user_servers))
+                              lambda: self.mcp.scaffold_hermes_mcp_user(user_servers))
         self._outside_project("claude user MCP config",
-                              lambda: self._scaffold_claude_mcp_user(user_servers))
-        self._generate_copilot_mcp_config(project_servers)
+                              lambda: self.mcp.scaffold_claude_mcp_user(user_servers))
+        self.mcp.generate_copilot_mcp_config(project_servers)
 
         manifest = {
             "$schema": "../schemas/manifest.schema.json",

@@ -1,4 +1,4 @@
-"""Hook wiring for the Scaffolder.
+"""Hook wiring, one of the scaffold's collaborators.
 
 Reads hooks-manifest.json, generates project-specific hooks.json under
 .ai-badger/hooks/, and merges hook registrations into .claude/settings.json.
@@ -6,6 +6,8 @@ Reads hooks-manifest.json, generates project-specific hooks.json under
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Set
+
+from scaffold_context import ScaffoldContext
 
 # Hook commands must name their script through this placeholder, never an absolute path:
 # every checkout of a project (worktree, second clone, framework cache) spells the same
@@ -163,10 +165,13 @@ def merge_hooks(existing_hooks: Dict[str, Any], new_hooks: Dict[str, Any]) -> No
         existing_hooks[event] = existing_event_hooks
 
 
-class HookWiringMixin:
-    """Mixin providing hook wiring methods."""
+class HookWiring:
+    """Generates .ai-badger/hooks/hooks.json and merges its registrations into settings.json."""
 
-    def wire_hooks(self) -> None:
+    def __init__(self, ctx: ScaffoldContext):
+        self.ctx = ctx
+
+    def wire(self) -> None:
         """Wire framework hooks into .claude/settings.json for Claude Code projects.
 
         Reads hooks-manifest.json, generates a project-specific hooks.json under
@@ -176,10 +181,10 @@ class HookWiringMixin:
         import badger_lib as bl
         import config_guard as cg
 
-        if "claude" not in self.config.get("agents", []):
+        if "claude" not in self.ctx.config.get("agents", []):
             return
 
-        manifest_path = self.root / "features" / "common" / "hooks" / "hooks-manifest.json"
+        manifest_path = self.ctx.root / "features" / "common" / "hooks" / "hooks-manifest.json"
         if not manifest_path.exists():
             return
 
@@ -189,7 +194,7 @@ class HookWiringMixin:
             return
 
         # Source hooks.json (framework plugin version)
-        source_hooks_path = self.root / "features" / "common" / "hooks" / "hooks.json"
+        source_hooks_path = self.ctx.root / "features" / "common" / "hooks" / "hooks.json"
         source_hooks = {}
         if source_hooks_path.exists():
             try:
@@ -219,19 +224,19 @@ class HookWiringMixin:
             if not source_event_hooks:
                 # Generate a default hook entry for skills not in the framework hooks.json
                 hook_name = hook.get("name", "")
-                if hook_name in self.excluded["skills"]:
-                    self.notes.append(
+                if hook_name in self.ctx.excluded["skills"]:
+                    self.ctx.notes.append(
                         f"hook '{hook_name}': skill '{hook_name}' is declined in "
                         f"config.exclude — not wired"
                     )
                     continue
-                skill_hook_script = self.aib / "skills" / hook_name / "scripts"
+                skill_hook_script = self.ctx.aib / "skills" / hook_name / "scripts"
                 hook_scripts = list(skill_hook_script.glob("*_hook.py")) if skill_hook_script.exists() else []
                 if not hook_scripts:
-                    self.notes.append(f"hook '{hook_name}': no hook script found — skipped")
+                    self.ctx.notes.append(f"hook '{hook_name}': no hook script found — skipped")
                     continue
                 script_path = hook_scripts[0]
-                rel_path = script_path.relative_to(self.target).as_posix()
+                rel_path = script_path.relative_to(self.ctx.target).as_posix()
                 rewritten = [{
                     "hooks": [{
                         "type": "command",
@@ -240,7 +245,7 @@ class HookWiringMixin:
                 }]
             else:
                 # Rewrite paths from framework to scaffolded project
-                aib_rel = self.aib.relative_to(self.target).as_posix()
+                aib_rel = self.ctx.aib.relative_to(self.ctx.target).as_posix()
                 rewritten = []
                 for entry in source_event_hooks:
                     new_entry = dict(entry)
@@ -255,16 +260,16 @@ class HookWiringMixin:
                         # A rewritten path is only a claim about the project: a declined
                         # skill's copy may still sit on disk, and a partial scaffold leaves
                         # the script absent. Wiring either is worse than wiring nothing.
-                        skipped = declined_skill(cmd, self.excluded["skills"])
+                        skipped = declined_skill(cmd, self.ctx.excluded["skills"])
                         if skipped:
-                            self.notes.append(
+                            self.ctx.notes.append(
                                 f"hook '{hook.get('name', '')}': skill '{skipped}' is "
                                 f"declined in config.exclude — not wired"
                             )
                             continue
                         script = project_script(cmd)
-                        if script and not (self.target / script).is_file():
-                            self.notes.append(
+                        if script and not (self.ctx.target / script).is_file():
+                            self.ctx.notes.append(
                                 f"hook '{hook.get('name', '')}': {script} is not scaffolded "
                                 f"— skipped"
                             )
@@ -282,32 +287,32 @@ class HookWiringMixin:
             target_hooks["hooks"].setdefault(event, []).extend(rewritten)
             settings_hooks.setdefault(event, []).extend(rewritten)
 
-        settings_path = self.target / ".claude" / "settings.json"
+        settings_path = self.ctx.target / ".claude" / "settings.json"
         # Nothing to wire and nothing a previous run could have wired for a declined skill.
         if not target_hooks["hooks"] and not (
-                self.excluded["skills"] and settings_path.exists()):
+                self.ctx.excluded["skills"] and settings_path.exists()):
             return
 
         if target_hooks["hooks"]:
-            hooks_dir = self.aib / "hooks"
+            hooks_dir = self.ctx.aib / "hooks"
             hooks_dir.mkdir(parents=True, exist_ok=True)
             bl.dump_json(hooks_dir / "hooks.json", target_hooks)
 
         # Merge into .claude/settings.json — never over an unreadable file
         settings, note = cg.read_json_mapping(settings_path)
         if settings is None:
-            self.notes.append(f"{note} (hooks not wired)")
+            self.ctx.notes.append(f"{note} (hooks not wired)")
             return
 
         existing_hooks = settings.get("hooks", {})
-        unwired = drop_declined(existing_hooks, self.excluded["skills"])
+        unwired = drop_declined(existing_hooks, self.ctx.excluded["skills"])
         merge_hooks(existing_hooks, settings_hooks)
 
         settings["hooks"] = existing_hooks
         cg.write_json_with_backup(settings_path, settings)
         for script_id in unwired:
-            self.notes.append(
+            self.ctx.notes.append(
                 f"unwired {script_id} from .claude/settings.json — declined in config.exclude"
             )
         if settings_hooks:
-            self.notes.append(f"wired {len(settings_hooks)} hook(s) into .claude/settings.json")
+            self.ctx.notes.append(f"wired {len(settings_hooks)} hook(s) into .claude/settings.json")

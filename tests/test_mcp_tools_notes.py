@@ -7,53 +7,44 @@ exit — the scaffold just quietly lacked servers (review F-24).
 from __future__ import annotations
 
 import json
-import sys
+
+from test_scaffold_context import _hand_built_context, _load
 
 
-class _Collector:
-    """Minimal stand-in for the Scaffolder attributes the mixin reads."""
-
-    def __init__(self, root, stacks):
-        self.root = root
-        self.stacks = stacks
-        self.notes = []
-
-
-def _mixin(load_script, root, tmp_path, filename, body):
-    # mcp_tools imports its sibling config_guard the way scaffold.py puts it on the path.
-    sys.path.insert(0, str(root / "features/common/skills/welcome-ai-badger/scripts"))
-    mcp_tools = load_script("features/common/skills/welcome-ai-badger/scripts/mcp_tools.py")
+def _mcp_tools(load_script, root, tmp_path, filename, body):
+    """An McpTools built on a context whose framework root holds one catalog file."""
     fake_root = tmp_path / "framework"
     (fake_root / "features" / "python").mkdir(parents=True)
     (fake_root / "features" / "python" / filename).write_text(body, encoding="utf-8")
-    collector = _Collector(fake_root, ["python"])
-    collector.__class__ = type("Bound", (_Collector, mcp_tools.McpToolsMixin), {})
-    return collector
+    ctx = _hand_built_context(load_script, root, tmp_path / "proj")
+    ctx.root = fake_root
+    ctx.stacks = ["python"]
+    return _load(load_script, root, "mcp_tools").McpTools(ctx), ctx
 
 
 def test_unparseable_mcp_servers_json_is_noted(tmp_path, load_script, root):
-    collector = _mixin(load_script, root, tmp_path, "mcp-servers.json", '{"servers": [')
+    mcp, ctx = _mcp_tools(load_script, root, tmp_path, "mcp-servers.json", '{"servers": [')
 
-    servers = collector._collect_stack_mcp_servers()  # pylint: disable=protected-access
+    servers = mcp.collect_stack_mcp_servers()
 
     assert servers == []
-    assert any("mcp-servers.json" in note for note in collector.notes)
+    assert any("mcp-servers.json" in note for note in ctx.notes)
 
 
 def test_unparseable_external_tools_json_is_noted(tmp_path, load_script, root):
-    collector = _mixin(load_script, root, tmp_path, "external-tools.json", "not json at all")
+    mcp, ctx = _mcp_tools(load_script, root, tmp_path, "external-tools.json", "not json at all")
 
-    tools = collector._collect_external_tools()  # pylint: disable=protected-access
+    tools = mcp.collect_external_tools()
 
     assert tools == []
-    assert any("external-tools.json" in note for note in collector.notes)
+    assert any("external-tools.json" in note for note in ctx.notes)
 
 
 def test_a_readable_file_produces_no_note(tmp_path, load_script, root):
-    collector = _mixin(load_script, root, tmp_path, "mcp-servers.json",
-                       json.dumps({"servers": [{"name": "one"}]}))
+    mcp, ctx = _mcp_tools(load_script, root, tmp_path, "mcp-servers.json",
+                          json.dumps({"servers": [{"name": "one"}]}))
 
-    servers = collector._collect_stack_mcp_servers()  # pylint: disable=protected-access
+    servers = mcp.collect_stack_mcp_servers()
 
     assert [s["name"] for s in servers] == ["one"]
-    assert collector.notes == []
+    assert ctx.notes == []

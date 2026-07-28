@@ -83,7 +83,7 @@ def test_collect_external_tools_reads_common_catalog(tmp_path, load_script, root
         config=_config(agents=["claude"]),
         skills=["task"], install=False,
     )
-    tools = scaf._collect_external_tools()
+    tools = scaf.mcp.collect_external_tools()
     names = [t["name"] for t in tools]
     assert "code-review-graph" in names
 
@@ -118,7 +118,7 @@ def test_merge_external_tools_user_overrides_catalog(load_script):
     catalog = [{"name": "tool-a", "package": "p", "command": "c1", "instructions": "orig"}]
     user = [{"name": "tool-a", "package": "p", "command": "c2", "instructions": "override"}]
 
-    merged = scaffold.Scaffolder._merge_external_tools(catalog, user)
+    merged = scaffold.McpTools.merge_external_tools(catalog, user)
     assert len(merged) == 1
     assert merged[0]["command"] == "c2"
     assert merged[0]["instructions"] == "override"
