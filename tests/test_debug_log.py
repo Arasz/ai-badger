@@ -318,6 +318,31 @@ class TestEveryScaffoldedHookAttributesItsRecords:
             dl.AUDIT_FILE.unlink()
 
 
+class TestTheSuiteCannotWriteToTheRealLog:
+    """A test that forgets to redirect the sink must still not touch the user's own log."""
+
+    COPIES = ("features/common/hooks/debug_log.py",
+              "features/common/skills/call-behaviorist/scripts/debug_log.py")
+
+    def test_a_freshly_loaded_copy_points_away_from_the_real_home(self, load_script):
+        from conftest import REAL_HOME  # pylint: disable=import-outside-toplevel
+
+        for relpath in self.COPIES:
+            sink = load_script(relpath).AUDIT_FILE
+            assert REAL_HOME not in sink.parents, f"{relpath} would write to {sink}"
+
+    def test_an_unredirected_write_lands_in_the_scratch_home(self, load_script, monkeypatch,
+                                                              _home_off_limits):
+        """The escape hatch is closed even with logging forced on and nothing patched."""
+        dl = load_script(self.COPIES[0])
+        monkeypatch.setenv(dl.DEBUG_ENV, "1")
+
+        dl.log_event("some/hook", "start")
+
+        assert dl.AUDIT_FILE.exists(), "the write should have happened, just somewhere safe"
+        assert _home_off_limits in dl.AUDIT_FILE.parents
+
+
 def test_the_vendored_copy_matches_the_canonical_one(root):
     """debug_log is duplicated because hooks import nothing; duplication must be checked."""
     canonical = (root / "features/common/hooks/debug_log.py").read_text(encoding="utf-8")

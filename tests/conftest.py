@@ -14,6 +14,25 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# The real home, captured before any test can redirect it.
+REAL_HOME = Path.home()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _home_off_limits(tmp_path_factory):
+    """Point `$HOME` at a scratch directory for the whole session.
+
+    `debug_log` resolves its sink from `Path.home()` at import time, and scripts are loaded
+    by path — a fresh module object per call, each with its own unpatched globals. One test
+    that loads a copy without redirecting it writes to the user's real audit log. Moving
+    home once, before anything is imported, removes the possibility rather than the symptom.
+    """
+    scratch = tmp_path_factory.mktemp("home")
+    with pytest.MonkeyPatch.context() as patch:
+        for var in ("HOME", "USERPROFILE"):
+            patch.setenv(var, str(scratch))
+        yield scratch
+
 
 @pytest.fixture
 def root() -> Path:
