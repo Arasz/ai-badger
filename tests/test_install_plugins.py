@@ -1,4 +1,4 @@
-"""Tests for scripts/install_plugins.py — generic skill installation orchestrator."""
+"""Tests for tooling/install_plugins.py — generic skill installation orchestrator."""
 from __future__ import annotations
 
 import json
@@ -63,7 +63,7 @@ class TestInstallSkills:
         return tmp_path
 
     def test_generates_claude_commands(self, tmp_path, root, load_script):
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
         fw = self._setup_framework(tmp_path, root)
         config = {"agents": ["claude"], "stacks": ["common"], "skillScope": "default"}
 
@@ -74,7 +74,7 @@ class TestInstallSkills:
         assert any("skill-a" in c for c in cmds)
 
     def test_generates_hermes_commands(self, tmp_path, root, load_script):
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
         fw = self._setup_framework(tmp_path, root)
         config = {"agents": ["hermes"], "stacks": ["common"], "skillScope": "default"}
 
@@ -85,7 +85,7 @@ class TestInstallSkills:
         assert any("skill-b" in c for c in cmds)
 
     def test_common_source_for_all_agents(self, tmp_path, root, load_script):
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
         fw = self._setup_framework(tmp_path, root)
         config = {"agents": ["claude", "hermes"], "stacks": ["common"],
                   "skillScope": "default"}
@@ -99,7 +99,7 @@ class TestInstallSkills:
 
     def test_skip_unsupported_agent(self, tmp_path, root, load_script):
         """Source with support=['hermes'] is silently skipped for Claude."""
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
         fw = self._setup_framework(tmp_path, root)
         config = {"agents": ["claude"], "stacks": ["common"], "skillScope": "default"}
 
@@ -110,7 +110,7 @@ class TestInstallSkills:
         assert not any("skill-b" in c for c in result["commands"])
 
     def test_local_scope_overrides_entry_scope(self, tmp_path, root, load_script):
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
         fw = self._setup_framework(tmp_path, root)
         config = {"agents": ["claude"], "stacks": ["common"], "skillScope": "local"}
 
@@ -123,7 +123,7 @@ class TestInstallSkills:
             assert "--scope local" in cmd
 
     def test_dry_run_no_execution(self, tmp_path, root, load_script):
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
         fw = self._setup_framework(tmp_path, root)
         config = {"agents": ["claude"], "stacks": ["common"], "skillScope": "default"}
 
@@ -133,7 +133,7 @@ class TestInstallSkills:
         assert len(result["commands"]) > 0
 
     def test_empty_skills_returns_empty(self, tmp_path, root, load_script):
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
         features = tmp_path / "features" / "common" / "skills"
         features.mkdir(parents=True)
         (tmp_path / "features" / "common" / "skills-source.json").write_text(
@@ -149,7 +149,7 @@ class TestInstallSkills:
 
     def test_warns_on_unknown_source(self, tmp_path, root, load_script):
         """Skill referencing a source not in skills-source.json generates warning."""
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
         features = tmp_path / "features" / "common"
         features.mkdir(parents=True)
         (features / "skills").mkdir(parents=True)
@@ -169,7 +169,7 @@ class TestInstallSkills:
 
     def test_warns_on_missing_instruction(self, tmp_path, root, load_script):
         """Agent with no instruction for a source type generates warning."""
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
         features = tmp_path / "features" / "common"
         features.mkdir(parents=True)
         (features / "skills").mkdir(parents=True)
@@ -208,7 +208,7 @@ class TestRealCatalog:
         return names
 
     def test_real_catalog_emits_an_install_command_per_declared_skill(self, root, load_script):
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
 
         result = ip.install_skills(root, self._real_config(), dry_run=True)
 
@@ -221,21 +221,21 @@ class TestRealCatalog:
     def test_common_stack_is_always_resolved(self, root, load_script):
         """config.stacks may not contain 'common' (the schema forbids it), so the resolver
         must add it — otherwise features/common/skills.json is dead catalog data."""
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
 
         result = ip.install_skills(root, self._real_config(), dry_run=True)
 
         assert any("superpowers" in ip.printable(cmd) for cmd in result["commands"]), result["commands"]
 
     def test_real_catalog_emits_no_warnings(self, root, load_script):
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
 
         result = ip.install_skills(root, self._real_config(), dry_run=True)
 
         assert result["warnings"] == []
 
     def test_duplicate_stacks_do_not_duplicate_commands(self, root, load_script):
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
         config = {"agents": ["claude"], "stacks": ["common", "python", "python"],
                   "skillScope": "default"}
 
@@ -266,7 +266,7 @@ class TestMissingNameTemplate:
         return tmp_path
 
     def test_warns_instead_of_repeating_the_source_command(self, tmp_path, root, load_script):
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
         fw = self._framework(tmp_path, root)
         config = {"agents": ["claude"], "stacks": [], "skillScope": "default"}
 
@@ -302,7 +302,7 @@ class TestConfigDrivenCommonStack:
         return tmp_path
 
     def test_named_common_stack_is_resolved(self, tmp_path, root, load_script):
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
         fw = self._framework(tmp_path, root, "house")
         config = {"agents": ["claude"], "commonStacks": "house", "stacks": []}
 
@@ -315,7 +315,7 @@ class TestNoShellInterpretation:
     """Install commands are argv lists: a skill name is data, never shell syntax (security I2)."""
 
     def test_a_command_with_a_shell_metacharacter_is_not_interpreted(self, tmp_path, load_script):
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
         argv = ip._build_command(  # pylint: disable=protected-access
             "claude plugin install {name}@{sourceName}", "https://example.test",
             "evil; touch pwned", "default", "src")
@@ -325,14 +325,14 @@ class TestNoShellInterpretation:
         assert not any(tok == ";" for tok in argv)
 
     def test_a_source_url_with_a_space_stays_one_argument(self, load_script):
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
         argv = ip._build_command(  # pylint: disable=protected-access
             "claude plugin marketplace add {source}", "https://example.test/a b")
 
         assert argv == ["claude", "plugin", "marketplace", "add", "https://example.test/a b"]
 
     def test_printable_round_trips_for_display(self, load_script):
-        ip = load_script("scripts/install_plugins.py")
+        ip = load_script("tooling/install_plugins.py")
 
         text = ip.printable(["claude", "plugin", "install", "a b"])
 

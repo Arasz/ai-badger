@@ -116,7 +116,7 @@ def test_scaffold_execute_flag_handles_failure(tmp_path, load_script, root):
 # ----------------------------------------------------------------- stack-local skills
 def test_auto_wm_is_not_a_universal_default(load_script):
     """auto-wm is a claude stack-local skill, not in the universal SKILL_SCOPES."""
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     assert "auto-wm" not in bl.SKILL_SCOPES
 
 

@@ -13,8 +13,8 @@ import pytest
 def _repo(tmp_path, version="1.2.3"):
     """A minimal tree the guard considers clean: one changelog entry, indexed, at VERSION."""
     (tmp_path / "VERSION").write_text(f"{version}\n", encoding="utf-8")
-    (tmp_path / "scripts").mkdir()
-    (tmp_path / "scripts" / "real.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "tooling").mkdir()
+    (tmp_path / "tooling" / "real.py").write_text("x = 1\n", encoding="utf-8")
     # Present so `.ai-badger/…` proves the framework-surface whitelist, not mere absence.
     (tmp_path / ".ai-badger").mkdir()
     changelog = tmp_path / "docs" / "changelog"
@@ -99,30 +99,30 @@ def test_a_link_whose_text_is_a_code_span_is_still_checked(tmp_path, guard, caps
 
 def test_a_code_span_naming_a_real_path_passes(tmp_path, guard):
     repo = _repo(tmp_path)
-    _doc(repo, "docs/index.md", "run `scripts/real.py` to do the thing\n")
+    _doc(repo, "docs/index.md", "run `tooling/real.py` to do the thing\n")
 
     assert guard.main(["--root", str(repo)]) == 0
 
 
 def test_a_code_span_naming_a_missing_path_fails(tmp_path, guard, capsys):
     repo = _repo(tmp_path)
-    _doc(repo, "docs/index.md", "run\n`scripts/does_not_exist.py`\n")
+    _doc(repo, "docs/index.md", "run\n`tooling/does_not_exist.py`\n")
 
     rc = guard.main(["--root", str(repo)])
 
     out = capsys.readouterr().out
     assert rc == 1
     assert "docs/index.md:2" in out
-    assert "scripts/does_not_exist.py" in out
+    assert "tooling/does_not_exist.py" in out
 
 
 @pytest.mark.parametrize("span", [
-    "scripts/<name>.py",
-    "scripts/{version}-{slug}.md",
-    "scripts/*.py",
-    "scripts/**/*.md",
-    "scripts/$NAME.py",
-    "scripts/some file.py",
+    "tooling/<name>.py",
+    "tooling/{version}-{slug}.md",
+    "tooling/*.py",
+    "tooling/**/*.md",
+    "tooling/$NAME.py",
+    "tooling/some file.py",
     "not-a-repo-root/thing.py",
     ".ai-badger/config.json",
     "docs/changelog",
@@ -138,36 +138,36 @@ def test_a_placeholder_or_glob_span_is_never_flagged(tmp_path, guard, span):
 def test_paths_inside_fenced_code_blocks_are_ignored(tmp_path, guard):
     repo = _repo(tmp_path)
     _doc(repo, "docs/index.md",
-         "example:\n\n```\ncp scripts/does_not_exist.py .\n[gone](nowhere.md)\n```\n")
+         "example:\n\n```\ncp tooling/does_not_exist.py .\n[gone](nowhere.md)\n```\n")
 
     assert guard.main(["--root", str(repo)]) == 0
 
 
 def test_an_exempted_path_is_not_flagged(tmp_path, guard):
     repo = _repo(tmp_path)
-    _doc(repo, "docs/index.md", "`scripts/does_not_exist.py` and [gone](gone.md)\n")
+    _doc(repo, "docs/index.md", "`tooling/does_not_exist.py` and [gone](gone.md)\n")
     (repo / ".docs-guard-ignore").write_text(
-        "# deliberately absent\nscripts/does_not_exist.py\ndocs/gone.md\n", encoding="utf-8")
+        "# deliberately absent\ntooling/does_not_exist.py\ndocs/gone.md\n", encoding="utf-8")
 
     assert guard.main(["--root", str(repo)]) == 0
 
 
 def test_an_exempted_document_is_not_scanned(tmp_path, guard):
     repo = _repo(tmp_path)
-    _doc(repo, "docs/archive/old.md", "[gone](../nowhere.md) and `scripts/gone.py`\n")
+    _doc(repo, "docs/archive/old.md", "[gone](../nowhere.md) and `tooling/gone.py`\n")
 
     assert guard.main(["--root", str(repo)]) == 0
 
 
 def test_a_record_document_keeps_link_checking_but_not_path_checking(tmp_path, guard, capsys):
     repo = _repo(tmp_path)
-    _doc(repo, "docs/plans/plan.md", "build `scripts/not_yet.py`\nsee [design](gone.md)\n")
+    _doc(repo, "docs/plans/plan.md", "build `tooling/not_yet.py`\nsee [design](gone.md)\n")
 
     rc = guard.main(["--root", str(repo)])
 
     out = capsys.readouterr().out
     assert rc == 1
-    assert "scripts/not_yet.py" not in out
+    assert "tooling/not_yet.py" not in out
     assert "docs/plans/plan.md:2" in out
 
 

@@ -291,7 +291,7 @@ def test_unwiring_leaves_a_statusline_of_the_wrong_shape_alone(target, load_scri
 def test_config_schema_accepts_the_statusline_capture_key(tmp_path, root, load_script, capsys):
     import shutil  # pylint: disable=import-outside-toplevel
 
-    validate = load_script("scripts/validate.py")
+    validate = load_script("tooling/validate.py")
     (tmp_path / "features").mkdir()
     shutil.copytree(root / "schemas", tmp_path / "schemas")
     instance = tmp_path / "config.json"

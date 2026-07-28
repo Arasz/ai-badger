@@ -7,7 +7,7 @@ from __future__ import annotations
 def test_detect_new_items_finds_catalog_items_not_in_manifest(tmp_path, load_script):
     """An item in the framework catalog but not in the manifest should be reported as new."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     # Framework has two invariants
     fw = tmp_path / "fw"
@@ -52,7 +52,7 @@ def test_detect_new_items_finds_catalog_items_not_in_manifest(tmp_path, load_scr
 def test_detect_new_items_empty_when_manifest_is_current(tmp_path, load_script):
     """When manifest covers everything, no new items should be reported."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
@@ -84,7 +84,7 @@ def test_detect_new_items_empty_when_manifest_is_current(tmp_path, load_script):
 def test_detect_new_items_only_checks_configured_stacks(tmp_path, load_script):
     """New items in stacks not in the project's config should be ignored."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
@@ -116,7 +116,7 @@ def test_detect_new_items_only_checks_configured_stacks(tmp_path, load_script):
 def test_a_new_template_is_not_reported_as_a_new_item(tmp_path, load_script):
     """Templates are scaffolder machinery, not a menu: reporting them would never clear."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "templates").mkdir(parents=True)
@@ -141,7 +141,7 @@ def test_common_stacks_given_as_a_bare_string_is_not_split_into_characters(
         tmp_path, load_script):
     """config.commonStacks may be a string; `set("house")` would scan five letter-stacks."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     fw = tmp_path / "fw"
     (fw / "features" / "house" / "invariants").mkdir(parents=True)
@@ -165,7 +165,7 @@ def test_drift_reports_a_new_common_item_although_config_stacks_omits_common(
         tmp_path, load_script, capsys):
     """`common` is a commonStacks entry, never in config.stacks — drift must resolve it."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "skills" / "fresh-skill").mkdir(parents=True)
@@ -198,7 +198,7 @@ def test_drift_reports_a_new_common_item_although_config_stacks_omits_common(
 def test_compare_includes_new_items(tmp_path, load_script):
     """compare() should include new items in its result when index and stacks are provided."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
@@ -239,7 +239,7 @@ def test_detect_new_stacks_finds_stack_not_in_config(tmp_path, load_script):
         },
     }
     fw.mkdir(parents=True, exist_ok=True)
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     bl.dump_json(fw / "index.json", idx)
 
     # Target has hermes signals but config only knows about python
@@ -266,7 +266,7 @@ def test_detect_new_stacks_empty_when_config_is_complete(tmp_path, load_script):
         },
     }
     fw.mkdir(parents=True, exist_ok=True)
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     bl.dump_json(fw / "index.json", idx)
 
     target = tmp_path / "proj"
@@ -293,7 +293,7 @@ def test_detect_new_stacks_ignores_stacks_not_in_index(tmp_path, load_script):
         },
     }
     fw.mkdir(parents=True, exist_ok=True)
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     bl.dump_json(fw / "index.json", idx)
 
     # Target has hermes signals but hermes is not in the index
@@ -326,7 +326,7 @@ def test_detect_new_stacks_includes_expanded_requires(tmp_path, load_script):
         },
     }
     fw.mkdir(parents=True, exist_ok=True)
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     bl.dump_json(fw / "index.json", idx)
 
     # Target has tsx files → react detected → requires ts
@@ -357,7 +357,7 @@ def test_detect_new_stacks_respects_ignore_list(tmp_path, load_script):
         },
     }
     fw.mkdir(parents=True, exist_ok=True)
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     bl.dump_json(fw / "index.json", idx)
 
     target = tmp_path / "proj"

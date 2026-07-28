@@ -4,7 +4,7 @@ Deterministic and offline (Python 3.8+, the floor CI tests): scripts must be run
 the plugin is
 installed. `ensure_root(allow_network=True)` is the single exception and the only function
 here that may reach the network; it is opt-in and pinned to a release tag. JSON Schema
-validation uses the audited `jsonschema` library (see scripts/requirements.txt) rather than
+validation uses the audited `jsonschema` library (see engine/requirements.txt) rather than
 a hand-rolled validator.
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Set, Tuple
 
-import jsonschema  # scripts/requirements.txt: jsonschema>=4
+import jsonschema  # engine/requirements.txt: jsonschema>=4
 from jsonschema import Draft202012Validator
 
 class FeatureType(NamedTuple):
@@ -154,13 +154,13 @@ class FrameworkRootNotFound(RuntimeError):
 
 
 def is_framework_root(path: Path) -> bool:
-    """The one predicate: a framework root holds schemas/, features/ and scripts/badger_lib.py.
+    """The one predicate: a framework root holds schemas/, features/ and engine/badger_lib.py.
 
     Stated here once. The bootstrap shims repeat it verbatim because they run before this
     module can be imported — that is the bootstrap problem, not a second definition (ADR-0007).
     """
     return ((path / "schemas").is_dir() and (path / "features").is_dir()
-            and (path / "scripts" / "badger_lib.py").is_file())
+            and (path / "engine" / "badger_lib.py").is_file())
 
 
 def _manifest_candidates(start: Path) -> List[Path]:
@@ -241,7 +241,7 @@ def _declared_root(value, source: str) -> Path:
     if not is_framework_root(candidate):
         raise FrameworkRootNotFound(
             f"{source} is {candidate}, which is not an ai-badger framework root "
-            f"(no schemas/ + features/ + scripts/badger_lib.py)."
+            f"(no schemas/ + features/ + engine/badger_lib.py)."
         )
     return candidate.resolve()
 
@@ -358,7 +358,7 @@ def _clone_pinned(version: str) -> Path:
     if not is_framework_root(FRAMEWORK_CACHE):
         raise FrameworkRootNotFound(
             f"cloned {tag} into {FRAMEWORK_CACHE} but it is not a framework root "
-            f"(no schemas/ + features/ + scripts/badger_lib.py)"
+            f"(no schemas/ + features/ + engine/badger_lib.py)"
         )
     return FRAMEWORK_CACHE
 

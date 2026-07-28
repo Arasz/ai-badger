@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Fail when shipped code imports a third-party module `scripts/requirements.txt` never declared.
+"""Fail when shipped code imports a third-party module `engine/requirements.txt` never declared.
 
 CONTRIBUTING.md's "do not add a third runtime dependency without a very good reason" had no
 mechanical backing, and an undeclared import is invisible until it crashes in a consumer repo.
-The gate parses every `*.py` under scripts/, features/ and gates/ with `ast` — it never imports the
+The gate parses every `*.py` under engine/, tooling/, features/ and gates/ with `ast` — it never imports the
 module, so a file with a top-level side effect is read, not run — and sorts each imported
 top-level name into one of three buckets:
 
   * FIRST-PARTY — a module this repo ships. Skill scripts and hooks `sys.path.insert` their own
-    directory and then import a sibling or a scripts/ module by bare name, so first-party is
+    directory and then import a sibling or an engine/ module by bare name, so first-party is
     decided by what exists in the tree, before any resolution is attempted.
   * STDLIB — resolvable, and coming from the interpreter's own library.
   * THIRD-PARTY — everything else, INCLUDING a name that resolves nowhere. An absent module is
@@ -41,12 +41,12 @@ import sysconfig
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Sequence, Set, Tuple
 
-# The engine stays in scripts/: is_framework_root anchors on scripts/badger_lib.py.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+# The engine lives in engine/: is_framework_root anchors on engine/badger_lib.py (ADR-0011).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
 import badger_lib as bl
 
-CODE_ROOTS = ("scripts", "features", "gates")
-REQUIREMENTS = "scripts/requirements.txt"
+CODE_ROOTS = ("engine", "tooling", "features", "gates")
+REQUIREMENTS = "engine/requirements.txt"
 SITE_DIRS = ("site-packages", "dist-packages")
 RESOLUTION_ERRORS = (ImportError, AttributeError, OSError, TypeError, ValueError)
 

@@ -35,7 +35,7 @@ pulls generalizable improvements back out.
   `.ai-badger/` plus copies at conventional paths. They are meant to be committed.
 
 Requirements: **Python 3.8+** (CI floor) and the two dependencies in
-[`scripts/requirements.txt`](../scripts/requirements.txt).
+[`engine/requirements.txt`](../engine/requirements.txt).
 
 ---
 
@@ -49,7 +49,7 @@ flowchart TD
   C --> E["/plugin install ai-badger@ai-badger"]
   E --> F["Skills load automatically<br/>+ SessionStart drift hook"]
   D --> G["export AI_BADGER=path/to/clone"]
-  G --> H["pip install -r scripts/requirements.txt"]
+  G --> H["pip install -r engine/requirements.txt"]
   H --> I["index_build.py --check"]
   F --> J["cd into the project to scaffold"]
   I --> J
@@ -70,8 +70,8 @@ flowchart TD
 
 The marketplace is [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json); its
 single plugin entry has `"source": "./"`, so **the installed plugin is a full copy of this
-repository** — `features/`, `scripts/`, `schemas/`, `index.json`, `VERSION` and all. On a Mac it
-lands at `~/.claude/plugins/cache/ai-badger/ai-badger/<version>/`.
+repository** — `features/`, `engine/`, `tooling/`, `schemas/`, `index.json`, `VERSION` and all.
+On a Mac it lands at `~/.claude/plugins/cache/ai-badger/ai-badger/<version>/`.
 
 What that buys you:
 
@@ -95,8 +95,8 @@ What that buys you:
 git clone https://github.com/Arasz/ai-badger
 cd ai-badger
 export AI_BADGER="$PWD"
-python3 -m pip install -r scripts/requirements.txt
-python3 scripts/index_build.py --check
+python3 -m pip install -r engine/requirements.txt
+python3 tooling/index_build.py --check
 ```
 
 What that buys you:
@@ -118,7 +118,7 @@ nearest `.ai-badger/manifest.json` **above the script**, then an already-populat
 `~/.ai-badger/framework/` (`badger_lib.resolve_framework_root`,
 [ADR-0007](adr/0007-no-python-distribution.md),
 [ADR-0009](adr/0009-one-framework-root-resolution.md)). A root is a directory holding
-`schemas/`, `features/` and `scripts/badger_lib.py`.
+`schemas/`, `features/` and `engine/badger_lib.py`.
 
 Two consequences worth knowing:
 
@@ -146,7 +146,7 @@ checkout or the plugin install directory.
 ### Step 0 — dependencies
 
 ```bash
-python3 -m pip install -r "$AI_BADGER/scripts/requirements.txt"
+python3 -m pip install -r "$AI_BADGER/engine/requirements.txt"
 ```
 
 Two packages: `jsonschema` and `pyyaml`. Skipping this is the single most common failure — see
@@ -208,7 +208,7 @@ The full contract is [`schemas/config.schema.json`](../schemas/config.schema.jso
 ### Step 3 — validate
 
 ```bash
-python3 "$AI_BADGER/scripts/validate.py" --kind config /tmp/ai-badger-config.json
+python3 "$AI_BADGER/tooling/validate.py" --kind config /tmp/ai-badger-config.json
 ```
 
 ```
@@ -503,8 +503,8 @@ PR/review-loop behaviour activates only when `sourceControl.platform == "github"
 ### `ModuleNotFoundError: No module named 'jsonschema'`
 
 ```
-  File ".../scripts/badger_lib.py", line 20, in <module>
-    import jsonschema  # scripts/requirements.txt: jsonschema>=4
+  File ".../engine/badger_lib.py", line 20, in <module>
+    import jsonschema  # engine/requirements.txt: jsonschema>=4
 ModuleNotFoundError: No module named 'jsonschema'
 ```
 
@@ -513,13 +513,13 @@ guard. Missing it is a traceback and a non-zero exit from `detect.py`, `validate
 `scaffold.py`, and `refresh.py` alike — not a degraded run.
 
 ```bash
-python3 -m pip install -r "$AI_BADGER/scripts/requirements.txt"
+python3 -m pip install -r "$AI_BADGER/engine/requirements.txt"
 ```
 
 The other dependency, **`pyyaml`, is guarded and degrades to a note**: without it the scaffold
 prints `note: yaml not available — skipping hermes user MCP config` and continues, and
 `mcp-index` prints `mcp-index needs PyYAML: pip install pyyaml (it is in
-scripts/requirements.txt)`. Install both anyway.
+engine/requirements.txt)`. Install both anyway.
 
 If you are running the scripts with a system interpreter that has neither, use a virtualenv and
 call its `python3` explicitly.
@@ -535,7 +535,7 @@ simply absent from the output, **silently**. Reproduced by adding a throwaway in
 Detect it:
 
 ```bash
-python3 "$AI_BADGER/scripts/index_build.py" --check
+python3 "$AI_BADGER/tooling/index_build.py" --check
 ```
 
 ```
@@ -576,6 +576,23 @@ this error, you are on 0.28.2 or older, or following a stale copy of a `SKILL.md
 Raised by `badger_lib.find_root` when no ancestor of the script holds both `schemas/` and
 `features/` and `~/.ai-badger/framework/` is not populated. Pass `--root <framework checkout>`
 explicitly. Lookup is pure — it never fetches anything as a side effect.
+
+### `... is not an ai-badger framework root (no schemas/ + features/ + scripts/badger_lib.py)`
+
+Your project was scaffolded before the release that split `scripts/` into `engine/` and
+`tooling/` (ADR-0011), so the entry points vendored into `.ai-badger/` still look for
+`scripts/badger_lib.py`. **`--root`, `$AI_BADGER`, `PYTHONPATH` and `~/.ai-badger/framework`
+all fail here** — the stale copy validates them with the old predicate — so the repair has to
+come from the framework, not from the project. Run this once, from the project directory:
+
+```bash
+python3 "$AI_BADGER/features/common/skills/den-refresh/scripts/refresh.py" --target . --root "$AI_BADGER"
+```
+
+`$AI_BADGER` is a current framework checkout or the installed plugin
+(`~/.claude/plugins/cache/ai-badger/ai-badger/<version>/`) — no clone needed if you have the
+plugin. It backs `.ai-badger/` up, re-scaffolds every vendored entry point, and re-copies
+`~/.hermes/plugins/`.
 
 ### `validate.py` says `Additional properties are not allowed`
 

@@ -4,22 +4,31 @@ All scripts are plain Python 3.8+ standalone files (no install step). The framew
 JSON against `schemas/` with `jsonschema`, so install that once:
 
 ```bash
-python3 -m pip install -r scripts/requirements.txt   # jsonschema
+python3 -m pip install -r engine/requirements.txt   # jsonschema
 ```
 
 `$AI_BADGER` below is this repo's root (the directory containing `index.json`, `schemas/`,
 `features/`).
 
-## Core scripts (`scripts/`)
+## The engine (`engine/`)
+
+The library every bootstrap shim imports, and the anchor of the framework-root predicate
+(`engine/badger_lib.py`, ADR-0011). Not run directly.
+
+| Module | What it does |
+|--------|--------------|
+| `badger_lib.py` | Shared helpers: root discovery, atomic JSON write, sha256, index read. |
+| `unsafe_literals.py` | Secret/unsafe-literal scanning, shared by feed-badger and the Hermes learned-skills sync. Moves with `badger_lib.py`: one `sys.path` entry serves both. |
+
+## Catalog and release tooling (`tooling/`)
 
 | Script | What it does | Run |
 |--------|--------------|-----|
-| `index_build.py` | Rebuild `index.json` from the `features/` catalog (source of truth). | `python3 scripts/index_build.py` — add `--check` to fail if stale (CI). |
-| `validate.py` | Validate config / catalog JSON against `schemas/`. | `python3 scripts/validate.py --all` or `--kind config <file>`. |
-| `badger_lib.py` | Shared helpers (root discovery, atomic JSON write, sha256, index read). Imported by the other scripts; not run directly. | — |
-| `version_sync.py` | Propagate `VERSION` into `plugin.json`, `marketplace.json`, `index.json`. | `python3 scripts/version_sync.py` — `--check` fails CI on mismatch. |
-| `sync_plugin_skills.py` | Refresh the published `skills/` copy from `features/`. | `python3 scripts/sync_plugin_skills.py` — `--check` fails on divergence. |
-| `install_plugins.py` | Resolve per-agent skill install commands from `plugins-instructions.json`. Print-only; `scaffold.py --execute` runs them. | `python3 scripts/install_plugins.py --config <config.json>` |
+| `index_build.py` | Rebuild `index.json` from the `features/` catalog (source of truth). | `python3 tooling/index_build.py` — add `--check` to fail if stale (CI). |
+| `validate.py` | Validate config / catalog JSON against `schemas/`. | `python3 tooling/validate.py --all` or `--kind config <file>`. |
+| `version_sync.py` | Propagate `VERSION` into `plugin.json`, `marketplace.json`, `index.json`. | `python3 tooling/version_sync.py` — `--check` fails CI on mismatch. |
+| `sync_plugin_skills.py` | Refresh the published `skills/` copy from `features/`. | `python3 tooling/sync_plugin_skills.py` — `--check` fails on divergence. |
+| `install_plugins.py` | Resolve per-agent skill install commands from `plugins-instructions.json`. Print-only; `scaffold.py --execute` runs them. | `python3 tooling/install_plugins.py --config <config.json>` |
 | `drift.py` (in `welcome-ai-badger`) | Compare a scaffold against the framework's current content. | See den-refresh. |
 
 ## Repo gates (`gates/`)
@@ -32,8 +41,8 @@ not require a `VERSION` bump.
 |--------|--------------|-----|
 | `release_guard.py` | Fail if the shipped surface changed since the last release tag without a `VERSION` bump. | `python3 gates/release_guard.py` (needs `fetch-depth: 0` in CI). |
 | `docs_guard.py` | Fail if a relative link or a backticked repo path in the docs no longer resolves, or a changelog entry is missing from its index. | `python3 gates/docs_guard.py`; exempt a path in `.docs-guard-ignore`. |
-| `deps_guard.py` | Fail if any `*.py` under `scripts/`, `features/` or `gates/` imports a third-party module that `scripts/requirements.txt` does not declare. Imports inside functions and `try:` blocks count. | `python3 gates/deps_guard.py` |
-| `tdd_guard.py` | Fail if `.py`/`.mjs` under `scripts/`, `features/` or `gates/` changed since `--base` and nothing under `tests/` did. | `python3 gates/tdd_guard.py --base origin/main` |
+| `deps_guard.py` | Fail if any `*.py` under `engine/`, `tooling/`, `features/` or `gates/` imports a third-party module that `engine/requirements.txt` does not declare. Imports inside functions and `try:` blocks count. | `python3 gates/deps_guard.py` |
+| `tdd_guard.py` | Fail if `.py`/`.mjs` under `engine/`, `tooling/`, `features/` or `gates/` changed since `--base` and nothing under `tests/` did. | `python3 gates/tdd_guard.py --base origin/main` |
 
 ## welcome-ai-badger (`features/common/skills/welcome-ai-badger/scripts/`)
 
@@ -43,7 +52,7 @@ Bootstraps a target repo. See that skill's `SKILL.md` for the full flow.
 # 1. propose a config for the target repo
 python3 "$AI_BADGER/features/common/skills/welcome-ai-badger/scripts/detect.py" --target . --root "$AI_BADGER" > /tmp/config.json
 # 2. (agent authors/refines config.json, then) validate it
-python3 "$AI_BADGER/scripts/validate.py" --kind config /tmp/config.json
+python3 "$AI_BADGER/tooling/validate.py" --kind config /tmp/config.json
 # 3. scaffold .ai-badger/ into the target
 python3 "$AI_BADGER/features/common/skills/welcome-ai-badger/scripts/scaffold.py" \
     --config /tmp/config.json --target . --root "$AI_BADGER" \
@@ -93,5 +102,5 @@ Lint (CI runs this on Python 3.8/3.9/3.10, tests excluded — they keep their ow
 
 ```bash
 python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')
-python3 scripts/index_build.py --check && python3 scripts/validate.py --all
+python3 tooling/index_build.py --check && python3 tooling/validate.py --all
 ```

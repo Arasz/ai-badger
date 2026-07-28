@@ -56,7 +56,7 @@ paths.
 
 ### `index.json` — the source of truth
 
-`index.json` at the repo root is **script-generated** by `scripts/index_build.py`, which scans
+`index.json` at the repo root is **script-generated** by `tooling/index_build.py`, which scans
 the tree above and never accepts hand edits. It is regenerated after *any* framework content
 change and is the one thing `welcome-ai-badger` and `feed-badger` read to know what exists and
 where:
@@ -83,7 +83,7 @@ and their `path` points at `features/common/skills/`.
 
 Because it's derived, `index.json` can never drift from the tree by construction — as long as
 you remember to regenerate it (see [`authoring-a-feature.md`](authoring-a-feature.md)).
-`scripts/validate.py --all` checks it against `schemas/index.schema.json` along with every other
+`tooling/validate.py --all` checks it against `schemas/index.schema.json` along with every other
 model in the repo.
 
 ## 2. The two contracts

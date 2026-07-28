@@ -47,7 +47,7 @@ class TestPluginExposesItsSkills:
     """Regression: 0.31.1 shipped every skill outside the one path Claude Code scans."""
 
     def test_every_default_scope_skill_ships_at_the_plugin_skill_path(self, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
 
         missing = [name for name in bl.default_skill_names()
                    if not (root / PLUGIN_SKILLS_DIR / name / "SKILL.md").is_file()]
@@ -55,11 +55,11 @@ class TestPluginExposesItsSkills:
         assert not missing, (
             f"{missing} are scoped 'default' but absent from {PLUGIN_SKILLS_DIR}/ — "
             "Claude Code loads plugin skills from there and nowhere else, so the plugin "
-            "contributes them to nobody. Run: python3 scripts/sync_plugin_skills.py"
+            "contributes them to nobody. Run: python3 tooling/sync_plugin_skills.py"
         )
 
     def test_every_skill_the_plugin_advertises_is_actually_shipped(self, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         blurb = _manifest(root)["description"] + " " + _marketplace_entry(root)["description"]
         advertised = [name for name in bl.default_skill_names() if name in blurb]
 
@@ -70,12 +70,12 @@ class TestPluginExposesItsSkills:
             )
 
     def test_the_sync_script_targets_the_plugin_skill_path(self, root, load_script):
-        sps = load_script("scripts/sync_plugin_skills.py")
+        sps = load_script("tooling/sync_plugin_skills.py")
 
         assert sps.TARGET == root / PLUGIN_SKILLS_DIR
 
     def test_the_shipped_skills_are_tracked_and_not_ignored(self, root, load_script):
-        bl = load_script("scripts/badger_lib.py")
+        bl = load_script("engine/badger_lib.py")
         paths = [f"{PLUGIN_SKILLS_DIR}/{name}/SKILL.md" for name in bl.default_skill_names()]
 
         ignored = subprocess.run(["git", "check-ignore", "--stdin"], input="\n".join(paths),

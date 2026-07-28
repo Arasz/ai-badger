@@ -38,8 +38,8 @@ back to `ai-badger` as a **draft PR** for human review.
 3. **Place into an ai-badger checkout.** Clone or reuse a checkout of `Arasz/ai-badger`, write
    each generalized file to its `{stack}/{feature}/` path, then regenerate the index:
    ```bash
-   python3 "<checkout>/scripts/index_build.py"
-   python3 "<checkout>/scripts/validate.py" --all
+   python3 "<checkout>/tooling/index_build.py"
+   python3 "<checkout>/tooling/validate.py" --all
    ```
 
 4. **Open a draft PR.** Write a PR body summarizing each contribution and why it is agnostic,

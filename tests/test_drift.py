@@ -32,7 +32,7 @@ def _manifest_with_entry(target, source_rel, target_rel, entry_hash):
 
 def test_compare_reports_changed_when_framework_source_differs(tmp_path, load_script):
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
     src = fw / "features" / "common" / "invariants" / "x.md"
@@ -52,7 +52,7 @@ def test_compare_reports_changed_when_framework_source_differs(tmp_path, load_sc
 
 def test_compare_silent_when_source_unchanged(tmp_path, load_script):
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
     src = fw / "features" / "common" / "invariants" / "x.md"
@@ -85,7 +85,7 @@ def test_compare_reports_removed_when_source_gone(tmp_path, load_script):
 def test_compare_reports_directory_entry_as_skipped_not_changed(tmp_path, load_script):
     """Directory entries with matching content hash are not flagged as changed."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     fw = tmp_path / "fw"
     skill_dir = fw / "features" / "common" / "skills" / "task"
     skill_dir.mkdir(parents=True)
@@ -133,7 +133,7 @@ def test_compare_reports_removed_directory_entry_as_removed_not_skipped(tmp_path
 def test_compare_changed_file_entry_does_not_appear_in_skipped(tmp_path, load_script):
     """File entries are unaffected by the directory-skip path."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
     src = fw / "features" / "common" / "invariants" / "x.md"
@@ -154,7 +154,7 @@ def test_compare_changed_file_entry_does_not_appear_in_skipped(tmp_path, load_sc
 def test_main_exits_zero_when_only_skipped_entries(tmp_path, load_script, capsys):
     """Skipped-only drift is informational, not actionable -- exit 0, not 1."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
     fw = tmp_path / "fw"
     skill_dir = fw / "features" / "common" / "skills" / "task"
     skill_dir.mkdir(parents=True)
@@ -324,7 +324,7 @@ def test_compare_detects_changed_dir_by_hash(tmp_path, load_script):
 def test_compare_passes_unchanged_dir(tmp_path, load_script):
     """A directory entry with same content should not be reported as changed."""
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     fw = tmp_path / "fw"
     skill_dir = fw / "features" / "common" / "skills" / "my-skill"
@@ -359,7 +359,7 @@ def test_drift_hashes_target_not_source(tmp_path, load_script):
     with extensions reports false drift.
     """
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("scripts/badger_lib.py")
+    bl = load_script("engine/badger_lib.py")
 
     fw = tmp_path / "fw"
     fw.mkdir()

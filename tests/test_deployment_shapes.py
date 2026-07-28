@@ -20,8 +20,8 @@ from scaffold_helpers import _config
 ROOT = Path(__file__).resolve().parents[1]
 
 # A framework tree: everything the root predicates and a scaffold run read.
-_FRAMEWORK_TREE = ("features", "schemas", "scripts", "hooks", "skills", ".claude-plugin",
-                   "VERSION", "index.json", "BREAKING_VERSIONS")
+_FRAMEWORK_TREE = ("features", "schemas", "engine", "tooling", "hooks", "skills",
+                   ".claude-plugin", "VERSION", "index.json", "BREAKING_VERSIONS")
 
 # Every entry point that must resolve a framework root before it can do anything, keyed by
 # name and given as a path relative to a framework root.
@@ -323,8 +323,8 @@ def test_the_shim_and_badger_lib_state_one_predicate(root):
         return " ".join(text.split())
 
     predicate = normalise('(path / "schemas").is_dir() and (path / "features").is_dir() '
-                          'and (path / "scripts" / "badger_lib.py").is_file()')
-    lib = normalise((root / "scripts" / "badger_lib.py").read_text(encoding="utf-8"))
+                          'and (path / "engine" / "badger_lib.py").is_file()')
+    lib = normalise((root / "engine" / "badger_lib.py").read_text(encoding="utf-8"))
     shim = normalise(_shim_text(root / ENTRY_POINTS["scaffold"]))
 
     assert predicate in lib
@@ -349,7 +349,7 @@ def test_the_shim_and_badger_lib_state_one_cache_skew_warning(root):
         'print(f"ai-badger: {cache} is version {have}, but this project was scaffolded "\n'
         '      f"by {want}. The cache is never updated in place — remove it, or pass "\n'
         '      f"--root <framework checkout>.", file=sys.stderr)')
-    lib = normalise((root / "scripts" / "badger_lib.py").read_text(encoding="utf-8"))
+    lib = normalise((root / "engine" / "badger_lib.py").read_text(encoding="utf-8"))
     shim = normalise(_shim_text(root / ENTRY_POINTS["scaffold"]))
 
     assert warning in lib
@@ -397,12 +397,12 @@ def _hostile_repo(base: Path) -> Path:
     """A cloned repo whose tracked manifest points at a tree of its own, holding a payload."""
     repo = base / "hostile"
     (repo / ".ai-badger").mkdir(parents=True)
-    for name in ("schemas", "features", "scripts"):
+    for name in ("schemas", "features", "engine"):
         (repo / "vendor" / name).mkdir(parents=True)
     (repo / ".ai-badger" / "manifest.json").write_text(
         json.dumps({"frameworkVersion": "0.33.0", "frameworkRoot": "vendor", "entries": []}),
         encoding="utf-8")
-    (repo / "vendor" / "scripts" / "badger_lib.py").write_text(
+    (repo / "vendor" / "engine" / "badger_lib.py").write_text(
         "from pathlib import Path\n"
         f"Path({str(base / 'PWNED')!r}).write_text('x', encoding='utf-8')\n", encoding="utf-8")
     return repo
@@ -457,3 +457,41 @@ def test_a_host_processes_own_argv_is_not_read_as_a_root(shapes, name, tmp_path)
 
     assert proc.returncode == 0, f"{name} broke on the host's argv:\n{proc.stderr}"
     assert reported not in (None, "__missing__")
+
+
+# The hooks a stranded project still loads; a raise here is a broken session, not a degraded one.
+DEGRADING_HOOKS = ("drift_notice_hook", "mcp_index", "ai_badger_hooks", "learned_skills_sync")
+
+
+def _stranded_shim(source: Path, dest: Path) -> Path:
+    """A vendored copy carrying the pre-ADR-0011 predicate, which resolves nothing today.
+
+    The whole source directory comes along: an entry point imports its siblings by bare name.
+    """
+    shutil.copytree(source.parent, dest.parent,
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    text = source.read_text(encoding="utf-8")
+    start = text.index("def _bootstrap_lib()")
+    end = text.index("    return root.resolve()", start)
+    block = text[start:end].replace('"engine"', '"scripts"').replace(
+        '    sys.path.insert(0, str(root / "tooling"))\n', "")
+    dest.write_text(text[:start] + block + text[end:], encoding="utf-8")
+    return dest
+
+
+@pytest.mark.parametrize("name", DEGRADING_HOOKS)
+def test_a_stale_vendored_shim_degrades_rather_than_raising_in_a_hook(name, tmp_path):
+    """ADR-0011 ships a breaking predicate; the hooks must go quiet, never break a session."""
+    home = tmp_path / "home"
+    home.mkdir()
+    entry = _stranded_shim(ROOT / ENTRY_POINTS[name],
+                           tmp_path / "consumer" / ".ai-badger" / name / f"{name}.py")
+
+    probe = tmp_path / "probe.py"
+    probe.write_text(_PROBE, encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(probe), str(entry)], capture_output=True,
+                          text=True, cwd=str(tmp_path / "consumer"), env=_env(home), check=False)
+
+    assert proc.returncode == 0, f"{name} raised instead of degrading:\n{proc.stderr}"
+    lines = [ln for ln in proc.stdout.splitlines() if ln.startswith("AIB_ROOT=")]
+    assert lines and json.loads(lines[-1][len("AIB_ROOT="):]) is None

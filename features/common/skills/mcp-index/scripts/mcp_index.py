@@ -30,7 +30,7 @@ except ImportError:  # pragma: no cover - exercised via a patched __import__
     yaml = None
 
 YAML_MISSING_HINT = (
-    "mcp-index needs PyYAML: pip install pyyaml (it is in scripts/requirements.txt)"
+    "mcp-index needs PyYAML: pip install pyyaml (it is in engine/requirements.txt)"
 )
 
 # ── Tag taxonomy (loaded from features/common/mcp-tags.json or fallback) ──
@@ -68,17 +68,17 @@ def _load_taxonomy(fw_root: Optional[Path] = None) -> dict[str, Any]:
 
 
 def _bootstrap_lib() -> Path:
-    """Put the framework's scripts/ on sys.path and return its root.
+    """Put the framework's engine/ and tooling/ on sys.path and return its root.
 
     One predicate, shared with badger_lib.is_framework_root: schemas/ + features/ +
-    scripts/badger_lib.py. Ordered inputs: --root, an ancestor walk, $AI_BADGER, the root
+    engine/badger_lib.py. Ordered inputs: --root, an ancestor walk, $AI_BADGER, the root
     recorded in a .ai-badger/manifest.json above this file, then ~/.ai-badger/framework
     (ADR-0009). Duplicated verbatim in every entry point because locating badger_lib is
     what it is for.
     """
     def is_root(path):
         return ((path / "schemas").is_dir() and (path / "features").is_dir()
-                and (path / "scripts" / "badger_lib.py").is_file())
+                and (path / "engine" / "badger_lib.py").is_file())
 
     def argv_root():
         # sys.argv is ours only when this file is the program being run; these modules are
@@ -101,7 +101,7 @@ def _bootstrap_lib() -> Path:
         if not is_root(root):
             raise RuntimeError(
                 f"{source} is {root}, which is not an ai-badger framework root "
-                f"(no schemas/ + features/ + scripts/badger_lib.py)"
+                f"(no schemas/ + features/ + engine/badger_lib.py)"
             )
         return root
 
@@ -166,7 +166,8 @@ def _bootstrap_lib() -> Path:
             f"https://github.com/Arasz/ai-badger"
         )
     warn_on_cache_skew(root, here)
-    sys.path.insert(0, str(root / "scripts"))
+    sys.path.insert(0, str(root / "tooling"))
+    sys.path.insert(0, str(root / "engine"))
     return root.resolve()
 
 
