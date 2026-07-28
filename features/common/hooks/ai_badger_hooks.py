@@ -435,7 +435,6 @@ def tags_for_display(tool_name: str, index: dict[str, Any]) -> list[str]:
 
 # ---------------------------------------------------------------------------
 # Learned-skill sync — wiring only; logic lives in learned_skills_sync.py
-# (docs/design/hermes-learned-skills-sync-impl-plan.md, stage 4)
 # ---------------------------------------------------------------------------
 
 SKILL_MANAGE_TOOL = "skill_manage"

@@ -9,16 +9,17 @@ Newly-added catalog items are found by `detect_new_items`, which walks index.jso
 stacks a re-scaffold would actually deliver (`badger_lib.resolve_stacks`, so the always-on
 `common` stack is included).
 
-Known limitations, accepted rather than solved: an upstream rename reads as "removed",
-because a manifest entry's source is a path with no forwarding record; and
-directory-valued entries (skills scaffold as directories) are not compared per-entry,
-because the recorded hash covers the scaffolded copy -- produced with tests/evals stripped
-and extensions embedded -- which is not a comparable artifact to the framework's source
-tree. Such entries are reported as "skipped" rather than silently omitted or falsely
-flagged as changed.
+Directory-valued entries (every skill) are compared source-to-source, against the
+`sourceHash` scaffold recorded — the scaffolded copy is rendered output and answers only
+whether the project edited it, which is reported apart as "locallyModified" (#110). A
+manifest written before `sourceHash` existed is reported as "skipped": it has no recorded
+source to compare against.
 
-Exit code 0 == no drift, 1 == drift found, 2 == usage error. Skipped entries alone do not
-count as drift.
+Known limitation, accepted rather than solved: an upstream rename reads as "removed",
+because a manifest entry's source is a path with no forwarding record.
+
+Exit code 0 == no drift, 1 == drift found, 2 == usage error. Skipped and locally-modified
+entries alone do not count as drift.
 """
 from __future__ import annotations
 
@@ -28,7 +29,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 def _bootstrap_lib() -> Path:
@@ -267,16 +268,85 @@ def _within(parent: Path, candidate: Path) -> bool:
     return True
 
 
+def _project_copy(target: Optional[Path], entry: Dict[str, Any], source_rel: str,
+                  notes: List[str]) -> Optional[Path]:
+    """The project's own copy of a directory entry, or None when there is none to hash.
+
+    `Path("/a") / "/etc"` is `/etc`: a crafted manifest target must never steer the hasher
+    out of the project (security I1), so a target that escapes is refused and noted.
+    """
+    if target is None:
+        return None
+    target_rel = entry.get("target")
+    if not target_rel:
+        return None
+    target_path = target / target_rel
+    if not _within(target, target_path):
+        notes.append(
+            f"manifest entry {source_rel}: target resolves outside the project — "
+            f"the project's copy was not hashed"
+        )
+        return None
+    return target_path if target_path.is_dir() else None
+
+
+def _differs(fingerprint: Dict[str, Any], entry_hash: Optional[str],
+             meta: Optional[Dict[str, Any]]) -> bool:
+    """True when a directory fingerprint disagrees with a recorded hash + structural meta."""
+    if meta and (fingerprint["file_count"] != meta.get("file_count")
+                 or fingerprint["dir_count"] != meta.get("dir_count")):
+        return True
+    return fingerprint["content_hash"] != entry_hash
+
+
+def _dir_entry_verdict(source: Path, entry: Dict[str, Any],
+                       project_copy: Optional[Path]) -> Tuple[Optional[bool], bool]:
+    """(has the framework moved ahead?, has the project edited its copy?) for a skill.
+
+    The first is None when the manifest predates `sourceHash`: nothing recorded what the
+    framework looked like, so the question is unanswerable rather than answered "no" (#110).
+    """
+    exclude = bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
+    source_hash = entry.get("sourceHash")
+    if source_hash is None:
+        if project_copy is not None:
+            return None, False
+        # Nothing scaffolded to hash, so the recorded hash is read as the source's own.
+        return _differs(bl.dir_content_hash(source, exclude=bl.SKILL_EXCLUDE_PATTERNS),
+                        entry.get("hash"), entry.get("dirMeta")), False
+    moved = _differs(bl.dir_content_hash(source, exclude=exclude), source_hash,
+                     entry.get("sourceMeta"))
+    edited = project_copy is not None and _differs(
+        bl.dir_content_hash(project_copy, exclude=exclude), entry.get("hash"),
+        entry.get("dirMeta"))
+    return moved, edited
+
+
+def _version_drift(root: Path, manifest: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    """Report a frameworkVersion difference; None when it matches or cannot be read.
+
+    Version-only movement is real drift: it is rendered into manifest.json and the
+    `Scaffolded by ai-badger X` stamp of every generated agent file (#110).
+    """
+    scaffolded = manifest.get("frameworkVersion")
+    try:
+        current = (root / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not scaffolded or not current or scaffolded == current:
+        return None
+    return {"scaffolded": scaffolded, "current": current}
+
+
 def compare(root: Path, manifest: Dict[str, Any],
             stacks: Optional[List[str]] = None,
             target: Optional[Path] = None) -> Dict[str, Any]:
     """Diff an already-parsed manifest against the framework's current catalog content.
 
-    When ``target`` is provided, directory entries (skills) are hashed from the
-    scaffolded output directory — matching what ``scaffold.record()`` wrote into
-    the manifest.  This avoids false drift when extensions are pruned by config.
-    Falls back to hashing the framework source when ``target`` is None or the
-    target path doesn't exist.
+    Framework drift — `changed`, `removed`, `versionChanged` — is always measured against
+    the framework: directory entries (skills) re-hash the source and compare it to the
+    entry's `sourceHash`, never to the project's own copy (#110). The scaffolded copy
+    answers a different question and is reported separately as `locallyModified`.
 
     When ``stacks`` is provided, also detects new items via index.json — minus whatever the
     project's own config.json declines in ``exclude``.
@@ -284,6 +354,7 @@ def compare(root: Path, manifest: Dict[str, Any],
     changed: List[str] = []
     removed: List[str] = []
     skipped: List[str] = []
+    locally_modified: List[str] = []
     notes: List[str] = []
     invalid = 0
     for entry in manifest.get("entries", []):
@@ -297,40 +368,23 @@ def compare(root: Path, manifest: Dict[str, Any],
             removed.append(source_rel)
             continue
         if source.is_dir():
-            # Directory entry — hash from the scaffolded target when available,
-            # matching scaffold.record() which hashes the target with extensions excluded.
-            hash_dir = source
-            exclude = bl.SKILL_EXCLUDE_PATTERNS
-            if target is not None:
-                target_rel = entry.get("target")
-                if target_rel:
-                    target_path = target / target_rel
-                    if not _within(target, target_path):
-                        # `Path("/a") / "/etc"` is `/etc`: an absolute or traversing manifest
-                        # target would steer the hasher out of the project (security I1).
-                        notes.append(
-                            f"manifest entry {source_rel}: target resolves outside the "
-                            f"project — hashing the framework source instead"
-                        )
-                    elif target_path.is_dir():
-                        hash_dir = target_path
-                        exclude = bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
             try:
-                fingerprint = bl.dir_content_hash(hash_dir, exclude=exclude)
+                moved, edited = _dir_entry_verdict(
+                    source, entry, _project_copy(target, entry, source_rel, notes)
+                )
             except (ValueError, OSError):
                 skipped.append(source_rel)
                 continue
-            dir_meta = entry.get("dirMeta")
-            if dir_meta:
-                # Phase 1: structural pre-check (cheap)
-                if (fingerprint["file_count"] != dir_meta.get("file_count")
-                        or fingerprint["dir_count"] != dir_meta.get("dir_count")):
-                    changed.append(source_rel)
-                    continue
-            # Phase 2: content hash comparison
-            if fingerprint["content_hash"] != entry_hash:
+            if moved is None:
+                skipped.append(source_rel)
+                notes.append(
+                    f"manifest entry {source_rel}: recorded before source hashing — "
+                    f"re-scaffold to make it comparable to the framework"
+                )
+            elif moved:
                 changed.append(source_rel)
-            # If hashes match, no drift — don't add to skipped
+            if edited:
+                locally_modified.append(source_rel)
             continue
         if bl.sha256_file(source) != entry_hash:
             changed.append(source_rel)
@@ -340,6 +394,8 @@ def compare(root: Path, manifest: Dict[str, Any],
         "changed": sorted(set(changed)),
         "removed": sorted(set(removed)),
         "skipped": sorted(set(skipped)),
+        "locallyModified": sorted(set(locally_modified)),
+        "versionChanged": _version_drift(root, manifest),
         "invalid": invalid,
         "notes": notes,
     }
@@ -390,9 +446,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     if result.get("newItems"):
         for item in result["newItems"]:
             print(f"  new      {item['stack']}/{item['feature']}/{item['name']}")
+    if result["locallyModified"]:
+        print("locally modified: this project edited its own copy — a re-scaffold overwrites "
+              "these; move anything worth keeping into project-local.md first")
+        for path in result["locallyModified"]:
+            print(f"  local    {path}")
     if result["skipped"]:
-        print("skipped entries are directory-valued: the recorded hash covers the scaffolded "
-              "copy, which excludes tests/evals — not comparable to the source tree")
+        print("skipped entries are directory-valued and predate source hashing: nothing "
+              "records what the framework looked like, so they cannot be compared to it")
         for path in result["skipped"]:
             print(f"  skipped  {path}")
     if result["invalid"]:
@@ -400,7 +461,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"  invalid  {n} manifest entr{'y' if n == 1 else 'ies'} missing source/hash "
               "— not checked")
 
-    has_drift = bool(result["changed"] or result["removed"] or result.get("newItems"))
+    if result["versionChanged"]:
+        print(f"  version  {scaffold_version} → {current_version} is stamped into "
+              f"manifest.json and every generated agent file")
+
+    has_drift = bool(result["changed"] or result["removed"] or result.get("newItems")
+                     or result["versionChanged"])
     if not has_drift:
         if result["skipped"]:
             n = len(result["skipped"])

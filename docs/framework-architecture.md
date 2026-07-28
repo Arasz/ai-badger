@@ -171,6 +171,16 @@ for the genuinely creative decisions.
   (§5 below), wire hooks into agent settings, run agent-specific adjustments (e.g. Copilot
   hooks/skills/agents), install skills per scope via `install_plugins.py`, and write
   `manifest.json`.
+
+  Internally it is one `Scaffolder` holding a `ScaffoldContext` — a dataclass carrying root,
+  target, config, index, stacks, skills, exclusions and notes — plus six collaborators
+  (`McpTools`, `Extensions`, `HookWiring`, `AgentFiles`, `TemplateRendering`,
+  `StatusLineWiring`), five of them constructible from a context alone. Shared state lives on the
+  context, never on a sibling: `McpTools` fills `ctx.merged_external_tools` and
+  `TemplateRendering` reads it, and manifest bookkeeping goes through `ctx.record_template`.
+  The one collaborator-to-collaborator dependency is an explicit constructor argument —
+  `AgentFiles(ctx, template_rendering)` — because a real dependency should be visible rather
+  than reachable through `self`.
 - `detect_additions.py` (feed) — diff `.ai-badger/manifest.json` against the current project
   `.ai-badger/` tree → candidate additions.
 - `open_pr.py` (feed) — branch/commit/`gh pr create --draft` against `ai-badger`.
@@ -282,8 +292,12 @@ This copy requirement is also why `scaffold.py` must be **idempotent**: re-runni
 `.ai-badger/` source changes without clobbering project-specific edits made outside the
 manifest's tracked entries.
 
-A follow-up spike, not yet built, proposes replacing the full copies with thin delegating
-"proxy files" — see [`proxy-files-spike.md`](proxy-files-spike.md).
+Replacing the copies with thin delegating "proxy files" — a stub at the conventional path
+pointing the agent at `.ai-badger/` — was investigated and **dropped, not deferred**. Copilot's
+CLI does not follow a reference, symlinks do not survive Windows checkouts, and an agent that
+reads the stub literally loses its instructions silently rather than noisily. `agent_files.py`
+renders each agent's template and writes a full copy with a managed header; no proxy, stub or
+`@import` mechanism exists anywhere in the scaffolder.
 
 **Agent detection** (`detect.py`): an agent counts as "present" if the repo *or* the user scope
 shows its traces — `claude`: `CLAUDE.md` or `~/.claude`; `copilot`:
@@ -327,7 +341,5 @@ flowchart TD
 
 - [`authoring-a-feature.md`](authoring-a-feature.md) — how to add a stack, persona, invariant,
   instruction, plugin entry, or skill, and the two commands you must run afterward.
-- [`proxy-files-spike.md`](proxy-files-spike.md) — the documented-but-not-built plan to replace
-  full agent-file copies with thin proxies.
-- [`ai-badger-framework-design.md`](ai-badger-framework-design.md) — the original design doc
-  this repo implements, including the full decision log and risk list.
+- [`adr/`](adr/README.md) — the decisions behind the shapes described here, one file each,
+  never edited after acceptance.

@@ -352,8 +352,7 @@ def _clone_pinned(version: str) -> Path:
     if result.returncode != 0:
         raise FrameworkRootNotFound(
             f"failed to clone {FRAMEWORK_REPO} at {tag}: {result.stderr.strip()}. "
-            f"Releases before 0.20.0 carry no tag "
-            f"(docs/incidents/2026-07-27-untagged-releases.md)."
+            f"Releases before 0.20.0 carry no tag."
         )
     if not is_framework_root(FRAMEWORK_CACHE):
         raise FrameworkRootNotFound(

@@ -23,6 +23,10 @@ How ai-badger's concepts map to each supported agent's native terminology.
 | **Tool call hook** | `PostToolUse` / `PreToolUse` | `post_tool_call` / `pre_tool_call` | `postToolUse` / `preToolUse` | N/A |
 | **Hooks manifest** (`hooks-manifest.json`) | Inline in `hooks.json` | Plugin `register()` function | Copilot entries in manifest → `adjust_hooks.py` | N/A |
 
+A Copilot hook entry accepts both `bash` and `powershell`, but Copilot's cloud agent runs in a
+Linux sandbox and honours only `bash` — which is why `adjust_hooks.py` emits `bash` alone and
+Windows-only hook commands have no path into a scaffolded repo.
+
 ## Instructions
 
 | ai-badger | Claude Code | Hermes Agent | GitHub Copilot | JetBrains Junie |

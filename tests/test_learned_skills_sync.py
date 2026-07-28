@@ -1,7 +1,4 @@
-"""Tests for features/common/hooks/learned_skills_sync.py (Hermes learned-skill sync).
-
-Stages 1-3 of docs/design/hermes-learned-skills-sync-impl-plan.md.
-"""
+"""Tests for features/common/hooks/learned_skills_sync.py (Hermes learned-skill sync)."""
 # pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 import importlib.util
 import json

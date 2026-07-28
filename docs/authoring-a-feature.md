@@ -34,7 +34,15 @@ python3 -m pip install -r engine/requirements.txt   # jsonschema
 | `instructions`              | file        | any `*.md` in `features/<stack>/instructions/` (excluding `README.md`); name = filename stem                   |
 | `plugins`                   | single file | the `plugins` array inside `features/<stack>/plugins/plugins.json`, if present (at most one per stack)         |
 | `templates` (`common` only) | file/dir    | every top-level entry under `features/common/templates/`                                                       |
-| `external-tools`            | file        | `features/{common,stack}/external-tools.json` (`schemas/external-tools.schema.json`); last-writer-wins on name |
+
+Two catalog files are deliberately **not** in that table, because `index_build.py` does not index
+them and they have no entry in `index.json` — the scaffold reads them directly, so adding one
+needs no index rebuild:
+
+| file | rule |
+|---|---|
+| `external-tools` | `features/{common,stack}/external-tools.json` (`schemas/external-tools.schema.json`); last-writer-wins on name |
+| `mcp-servers` | `features/{common,stack}/mcp-servers.json` (`schemas/mcp-servers.schema.json`); last-writer-wins on name |
 
 Skill **extensions** use a directory-naming convention rather than a manifest field: a directory
 at `features/<stack>/skills/<base>-extensions/<ext>/` attaches `<ext>` to the skill named
@@ -110,6 +118,23 @@ most one `features/<stack>/skills-source.json` and one `features/<stack>/skills.
 Scope semantics: `"default"` means "whatever scope the project chose at scaffold time";
 `"local"` and `"user"` force that specific scope. Use `{"skills": []}` for extension-only
 stacks that have no external skills.
+
+## Adding a stack-recommended MCP server
+
+An external tool injects *instructions*; an `mcp-servers.json` entry declares only a server a
+stack recommends. Add `features/<stack>/mcp-servers.json`
+(`schemas/mcp-servers.schema.json`) with `{"servers": [{"name": …, "command": …}]}`; optional
+keys are `description`, `env`, `agentOverrides` (per-agent `command`/`args`) and
+`scope` (`project`, the default, or `user`).
+
+The scaffold reads common first, then stacks in `config.json` order, last-writer-wins on name;
+a `config.externalTools` entry with `generate_mcp_json: true` overrides a stack entry of the
+same name. Project-scoped servers land in `.mcp.json` (Claude and Hermes read it; Junie is
+assumed to, never verified) and in `.github/copilot/mcp-config.json`; user-scoped ones are
+written to the agent's own user config. No `index_build.py` run is needed — these files are read at scaffold time.
+
+`targetAgents` validates against the schema but is **not read by any production code**: a
+server scoped to one agent is still scaffolded for every active agent.
 
 ## Adding external tools
 

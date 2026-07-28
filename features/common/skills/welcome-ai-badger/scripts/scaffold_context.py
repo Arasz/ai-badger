@@ -1,7 +1,7 @@
 """The state a scaffold run shares between its collaborators.
 
 One context object is the only channel between them: no collaborator reaches another
-through `self` (docs/plans/2026-07-28-wave-6-scaffold-collaborators.md).
+through `self`.
 """
 from __future__ import annotations
 

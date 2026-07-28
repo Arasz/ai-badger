@@ -90,8 +90,9 @@ If `index.json` is missing or stale, run `python3 "$AI_BADGER/tooling/index_buil
   re-run after editing `config.json`.
 - **Copy-vs-reference:** essential agent files (CLAUDE.md, HERMES.md, copilot-instructions, junie AGENTS.md)
   are *copied* to their conventional locations with a header pointing at `.ai-badger/` as the
-  source of truth, because agent CLIs discover them by convention. See
-  `docs/proxy-files-spike.md` for the planned thin-proxy alternative.
+  source of truth, because agent CLIs discover them by convention. A thin-proxy (symlink)
+  alternative was considered and dropped: symlinks break on Windows, and Copilot does not
+  follow references.
 - **Preserve-by-default (mature repos):** a discovery file that already exists and does *not* carry
   the ai-badger managed header is treated as hand-authored and left untouched — its `.ai-badger/`
   source copy is still written, and the scaffold emits a `preserved …` note. Framework-written

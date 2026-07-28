@@ -239,3 +239,28 @@ What the framework ships and where:
 | Statusline capture | `statusline_capture.py` | `/usage` + `pre_llm_call` enrichment in task extension |
 | Background poller | `poll_limit.py` | Not needed; documented removal in task extension |
 | User statusline | `statusline.sh` (~/.claude/) | TUI status bar + `/statusbar` + `display.show_cost` |
+
+### Learned-skill sync
+
+Hermes can author skills at runtime; ai-badger's plugin captures them into the project. The
+`post_tool_call` hook fires only on a successful `skill_manage` call whose action creates, edits
+or deletes a skill, and only when the working directory holds a `.ai-badger/manifest.json`. The skill
+is copied to `.ai-badger/skills/learned/<category>/<name>/` — `uncategorized` when Hermes
+declares none — and recorded in `.ai-badger/skills-data/hermes/learned.json`, deliberately
+separate from `manifest.json`: the manifest means "the framework placed this and owns it",
+which a learned skill is not.
+
+Writes are one-way, confined and additive. The sync refuses rather than resolves: a name or
+category containing `/`, `\` or `..`; a skill whose name is framework-owned; a destination
+resolving outside `learned/`; a symlink anywhere under the source directory *or* on any path
+segment above it; and any file matching `engine/unsafe_literals.py` — reported as
+`{file, pattern}` from a closed vocabulary, never as the matched text, and never as a partial
+copy. A destination that exists but is absent from `learned.json` is left alone and reported as
+a conflict. Deleting a skill in Hermes does not delete it here; the record is marked `orphaned`
+and the files stay. Re-syncing an unchanged skill is a no-op, decided by `sourceHash`.
+
+Reconciliation is opt-in and never automatic:
+
+```bash
+python3 "$AI_BADGER/features/common/hooks/learned_skills_sync.py" --reconcile --target . [--dry-run]
+```

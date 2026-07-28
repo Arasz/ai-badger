@@ -2,7 +2,6 @@
 
 Copies the framework hook modules into the project's .ai-badger/hooks/ and — because
 Hermes loads plugins only from ~/.hermes/plugins/ — into that user-scope directory too.
-Rationale: docs/research/hermes-learned-skills-sync.md correction C5.
 """
 from __future__ import annotations
 

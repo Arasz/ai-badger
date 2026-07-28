@@ -32,8 +32,7 @@ and the advisory stays private until a fixed version is tagged.
 
 Only the **latest tagged release** is supported. Releases are tagged `ai-badger--v{version}`;
 the baseline restarts at `ai-badger--v0.20.0` (versions `0.3.0`–`0.19.0` carry no tag and never
-will — see [`RELEASING.md`](RELEASING.md) and
-[`docs/incidents/2026-07-27-untagged-releases.md`](docs/incidents/2026-07-27-untagged-releases.md)).
+will — see [`RELEASING.md`](RELEASING.md)).
 
 Fixes ship forward. There are no backports to older minors.
 
@@ -81,6 +80,9 @@ From [0.25.0 — the hardening pass](docs/changelog/0.25.0-hardening.md):
   1 MB, and report the refusal through the normal error path.
 - **User-scope state is owner-only.** `~/.claude/awm/state.json`, `decisions.jsonl`, and the
   prompt-marker state are `0600` (directory `0700`); the decision log is capped at 5,000 lines.
+  The `call-behaviorist` audit log at `~/.ai-badger/debug/` gets the same treatment and the same
+  cap — it records project paths, session ids and working directories, so it says where someone
+  works and what ran, and it logs no tool input and no prompt text at all.
 - **Path containment is asserted, not assumed.** `project.name` cannot escape
   `~/.hermes/skills/<name>`, and a manifest `target` cannot steer the drift hasher out of the
   project (an absolute right-hand side no longer wins the `pathlib` join).
@@ -126,11 +128,9 @@ omission, and both candidates were looked at:
   stops there.
 - **`engine/unsafe_literals.py` as a local hook.** It is offline and stdlib-only, but it is a
   five-pattern guard on content *leaving* a repository, not a history scanner — a different
-  door on purpose. It also matches three tracked files on deliberately fake fixture values
-  ([`docs/design/hermes-learned-skills-sync-impl-plan.md`](docs/design/hermes-learned-skills-sync-impl-plan.md),
-  [`docs/reviews/2026-07-26-full-project-review.md`](docs/reviews/2026-07-26-full-project-review.md),
-  [`tests/test_learned_skills_sync.py`](tests/test_learned_skills_sync.py)), so it would ship
-  with a permanent exception list from its first run. A permanently-baselined scanner is
+  door on purpose. It also matches a tracked file on a deliberately fake fixture value
+  ([`tests/test_learned_skills_sync.py`](tests/test_learned_skills_sync.py)), so it would ship
+  with a permanent exception from its first run. A permanently-baselined scanner is
   theatre, and a five-pattern one advertised as secret scanning is worse than none: it buys
   false confidence.
 

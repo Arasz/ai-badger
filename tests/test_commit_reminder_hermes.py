@@ -2,7 +2,7 @@
 
 Hermes' post_tool_call has no return channel into the model's context, so
 post_tool_observer stashes a pending reminder and pre_llm_inject_context surfaces it on
-the very next turn, then clears it. See docs/design/ for the sibling Claude/Copilot hook.
+the very next turn, then clears it.
 """
 # pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations

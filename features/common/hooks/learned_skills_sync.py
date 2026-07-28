@@ -3,7 +3,6 @@
 
 One-way, event-scoped, confined: every write lands under .ai-badger/skills/learned/ and is
 recorded in .ai-badger/skills-data/hermes/learned.json.
-Design: docs/design/hermes-learned-skills-sync-impl-plan.md (stages 1-3).
 """
 from __future__ import annotations
 

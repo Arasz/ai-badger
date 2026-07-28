@@ -296,9 +296,7 @@ claude plugin tag --push     # creates ai-badger--v{version}
 
 Until that runs, the version denotes no commit and `release_guard.py` still compares against the
 *previous* tag — which silently disables the guard. That is exactly how this project accumulated
-a 32-release gap; the post-mortem is
-[`docs/incidents/2026-07-27-untagged-releases.md`](docs/incidents/2026-07-27-untagged-releases.md).
-Never skip a tag.
+a 32-release gap. Never skip a tag.
 
 Then verify the release shipped by checking **content**, not the CLI's own output — see the
 mandatory verification section in [`RELEASING.md`](RELEASING.md).

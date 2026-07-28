@@ -336,7 +336,7 @@ class Scaffolder:
                  reset_seed_files: bool = False, execute: bool = False):
         # The one enforcement point for config.exclude: every consumer reads self.skills or
         # self.items(), so welcome-ai-badger and den-refresh cannot disagree about what a
-        # project declined (docs/research/2026-07-27-skill-removal-semantics.md §2).
+        # project declined.
         excluded = bl.exclusions(config)
         self.ctx = ScaffoldContext(
             root=root, target=target, aib=target / ".ai-badger", config=config,
@@ -440,10 +440,12 @@ class Scaffolder:
             "frameworkVersion": self.index["frameworkVersion"],
         }
         if source.is_dir():
-            # Directory entry (skills): hash the TARGET dir, excluding extensions/ — which
-            # config gating keeps or prunes per project, so it is not part of the skill's own
-            # identity. Consumers (feed-badger's detect_additions) must exclude it the same way
-            # or every project that retains an extension reads as permanently "changed".
+            # Directory entry (skills): two hashes, two questions (#110). `hash` covers the
+            # TARGET dir and answers "did this project edit its copy?"; `sourceHash` covers the
+            # framework SOURCE and is the only one that can answer "has the framework moved
+            # ahead?", because the target is rendered output the source is not comparable to.
+            # Both exclude extensions/, which config gating keeps or prunes per project and so
+            # is not part of the skill's own identity; extension files carry their own entries.
             fingerprint = bl.dir_content_hash(
                 target, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
             )
@@ -451,6 +453,14 @@ class Scaffolder:
             entry["dirMeta"] = {
                 "file_count": fingerprint["file_count"],
                 "dir_count": fingerprint["dir_count"],
+            }
+            source_print = bl.dir_content_hash(
+                source, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
+            )
+            entry["sourceHash"] = source_print["content_hash"]
+            entry["sourceMeta"] = {
+                "file_count": source_print["file_count"],
+                "dir_count": source_print["dir_count"],
             }
         else:
             hash_from = source if bl.feature_type(feature).hashes_source else target

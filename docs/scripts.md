@@ -87,6 +87,20 @@ points at an executable**, runs it with the same stdin and prints its output —
 statusline keeps working. Unset (the default), that step is skipped. The `task` skill declares
 `platforms: [linux, macos]`: `fcntl` and `crontab` make it POSIX-only.
 
+`call-behaviorist` (`features/common/skills/call-behaviorist/scripts/behaviorist.py`) switches
+on ai-badger's own audit log — `on [DURATION] [--project]`, `off`, `status`, `tail`, `analyze`,
+`clear`. **Off by default**: nothing is written and no directory is created until you enable it,
+and every enablement expires (4h default, 24h cap). State and records live at
+`~/.ai-badger/debug/{state.json,audit.jsonl}`, relocatable together via `AI_BADGER_DEBUG_DIR` —
+which is what this repo's own `tests/conftest.py` sets, at import time, so a test run cannot
+append to a real developer's log. `AI_BADGER_DEBUG=1` forces logging on regardless of stored
+state. A record is one JSON object per line with single-letter keys (`t` timestamp, `c`
+component, `e` event, `v` the version of the copy of the code that ran, `p` project, `n` project
+name, `s` session): the keys are a budget, not cosmetics, because a record must stay under
+`PIPE_BUF` for concurrent `O_APPEND` writes to be atomic. Hooks reach the logger through a
+`debug_log.py` vendored beside each hook group — they import nothing from the framework — and a
+logging failure never breaks the hook it observes.
+
 ## Running the test suite
 
 Framework tests live **only** in the top-level `tests/` directory. They are never part of any

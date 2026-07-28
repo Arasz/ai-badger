@@ -1,7 +1,7 @@
 """Guard tests: mcp_index_hook must never execute code found in a project tree.
 
 The hook module is loaded at user scope, so any script it resolves from a cwd-derived
-path is foreign content. See docs/reviews/2026-07-26-full-project-review.md F-03.
+path is foreign content.
 """
 
 from __future__ import annotations

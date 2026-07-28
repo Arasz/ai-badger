@@ -50,14 +50,23 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
    config/manifest, invalid config).
 
 2. **Review the report.** The JSON output includes:
-   - `frameworkVersion` — what version the project was scaffolded with vs. current
-   - `drift.changed` — framework files that differ from the scaffolded copies
+   - `frameworkVersion` — the version in config.json vs. the framework's, plus the version
+     that actually wrote `manifest.json`. config.json advances only when a re-scaffold ran
+   - `drift.changed` — framework sources that have moved ahead of what this project holds
    - `drift.removed` — scaffolded files whose framework source no longer exists
-   - `drift.skipped` — directory-valued entries (skills) that can't be hash-compared
+   - `drift.versionChanged` — the version alone moved; it is stamped into manifest.json and
+     every generated agent file, so those are stale even when no content changed
+   - `drift.locallyModified` — skills this project edited in place. Not framework drift, but
+     a re-scaffold overwrites them; move anything worth keeping into `project-local.md`
+   - `drift.skipped` — directory entries from a manifest written before source hashing
+     existed. Nothing records what the framework looked like, so they cannot be compared;
+     a re-scaffold makes them comparable
    - `drift.newItems` — catalog items the project has never scaffolded, including ones
      added to the framework's always-on `common` stack after this project was set up
    - `newStacks` — stacks detectable in the target but missing from config
    - `reScaffolded` — whether a re-scaffold was performed
+   - `note` — present only when config.json and the framework disagree on the version and no
+     re-scaffold ran; the generated files were not rewritten, so say so rather than reporting green
    - `scaffold` — if re-scaffolded: entry count, refreshed skill names, notes
    - `frameworkCopies` — present only when more than one tree on the machine claims to be
      ai-badger, or when `~/.ai-badger/framework` exists. `competing` names the path, version

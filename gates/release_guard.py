@@ -135,8 +135,7 @@ def _report_skipped(root: Path, released_version: str, current_version: str) -> 
         return False
     print(f"UNTAGGED RELEASES: {len(skipped)} version(s) have a changelog entry but no "
           f"ai-badger--v* tag: {', '.join(skipped)}")
-    print("each denotes no commit, so no bug report can be pinned to it "
-          "(see docs/incidents/2026-07-27-untagged-releases.md)")
+    print("each denotes no commit, so no bug report can be pinned to it")
     print("tag them at the commit that carried each VERSION, then push the tags:")
     for version in skipped:
         print(f"    git tag -a ai-badger--v{version} <commit> -m 'ai-badger {version}'")
