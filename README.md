@@ -144,6 +144,7 @@ ai-badger/
   skills/                        # What the plugin exposes to Claude Code (generated from features/)
   schemas/                       # JSON Schema for every *.json model
   scripts/                       # Mechanical Python scripts (no LLM, no network)
+  gates/                         # Repo quality gates, run only by CI and the pre-push hook
   docs/                          # Architecture, authoring guides, ADRs
   features/
     common/
@@ -215,7 +216,7 @@ python3 -m pip install -r scripts/requirements.txt   # jsonschema
 Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first — it covers setup, the failing-test-first
 workflow this repo actually enforces, and every gate CI runs. The short version: branch (never
 push to `main`), write the failing test before the code, one task per PR, and let
-`scripts/release_guard.py` tell you whether a `VERSION` bump and a `docs/changelog/` entry are
+`gates/release_guard.py` tell you whether a `VERSION` bump and a `docs/changelog/` entry are
 due.
 
 Releases are a separate, deliberate step — [`RELEASING.md`](RELEASING.md). Decisions that would

@@ -102,7 +102,7 @@ Every release must:
 4. Run `python3 scripts/version_sync.py` to propagate the version into `plugin.json`,
    `marketplace.json` and `index.json`.
 
-Whether a change *is* a release is decided by `scripts/release_guard.py`, not by judgement: if it
+Whether a change *is* a release is decided by `gates/release_guard.py`, not by judgement: if it
 reports no shipped-surface change since the last release tag, do not bump and do not add an entry.
 
 ### Why one file per version

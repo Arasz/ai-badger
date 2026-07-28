@@ -21,13 +21,13 @@ repos:
         pass_filenames: false
       - id: docs-guard
         name: docs-guard
-        entry: python3 scripts/docs_guard.py
+        entry: python3 gates/docs_guard.py
         language: system
         always_run: true
         pass_filenames: false
       - id: deps-guard
         name: deps-guard
-        entry: python3 scripts/deps_guard.py
+        entry: python3 gates/deps_guard.py
         language: system
         always_run: true
         pass_filenames: false

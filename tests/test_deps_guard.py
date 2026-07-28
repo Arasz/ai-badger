@@ -1,4 +1,4 @@
-"""Tests for scripts/deps_guard.py: no third-party import that requirements.txt does not declare.
+"""Tests for gates/deps_guard.py: no third-party import that requirements.txt does not declare.
 
 CONTRIBUTING says "do not add a third runtime dependency without a very good reason" and nothing
 enforced it — which is how the docs came to claim every third-party import was guarded while
@@ -33,7 +33,7 @@ def _module(repo, relpath, source):
 
 @pytest.fixture(name="guard")
 def _guard(load_script):
-    return load_script("scripts/deps_guard.py")
+    return load_script("gates/deps_guard.py")
 
 
 class TestClassification:

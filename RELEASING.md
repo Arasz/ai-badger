@@ -22,7 +22,7 @@ Pre-1.0, the minor slot is the breaking slot. The number tracks blast radius, no
 1. Edit `VERSION`.
 2. Add `docs/changelog/{version}-{slug}.md` describing what changed.
 3. `python3 scripts/version_sync.py` — propagates version to `plugin.json`, `marketplace.json`, and `index.json`.
-4. `python3 scripts/version_sync.py --check && python3 scripts/release_guard.py` — both must pass.
+4. `python3 scripts/version_sync.py --check && python3 gates/release_guard.py` — both must pass.
 5. `python3 -m pytest tests/ -q` and `python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')`.
 6. Open a PR; CI runs the same gates.
 7. **This step is the release.** After merge, from `main`: `claude plugin tag --push` — creates

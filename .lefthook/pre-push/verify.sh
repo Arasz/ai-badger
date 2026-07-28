@@ -94,9 +94,9 @@ lane_cmd() {
         version-sync)  "$PY" scripts/version_sync.py --check ;;
         index)         "$PY" scripts/index_build.py --check ;;
         plugin-skills) "$PY" scripts/sync_plugin_skills.py --check ;;
-        deps)          "$PY" scripts/deps_guard.py ;;
-        docs)          "$PY" scripts/docs_guard.py ;;
-        release)       "$PY" scripts/release_guard.py ;;
+        deps)          "$PY" gates/deps_guard.py ;;
+        docs)          "$PY" gates/docs_guard.py ;;
+        release)       "$PY" gates/release_guard.py ;;
         validate)      "$PY" scripts/validate.py --all ;;
         tdd)           lane_tdd ;;
         js)            lane_js ;;
@@ -137,7 +137,7 @@ lane_tdd() {
         printf 'base ref %s is missing; fetch it before running the tdd lane\n' "$BASE_REF" >&2
         return 1
     }
-    "$PY" scripts/tdd_guard.py --base "$BASE_REF"
+    "$PY" gates/tdd_guard.py --base "$BASE_REF"
 }
 
 # Runs one lane, captures its log, and prints the failure block. Returns the lane's verdict.

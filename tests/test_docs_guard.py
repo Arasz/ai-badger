@@ -1,4 +1,4 @@
-"""Tests for scripts/docs_guard.py: documentation that still points at the tree it describes.
+"""Tests for gates/docs_guard.py: documentation that still points at the tree it describes.
 
 The docs refactor of 2026-07-27 moved files and broke links that no gate could catch, because
 no gate existed (deferred-work plan, Wave 19). The guard checks the three things a machine can
@@ -35,7 +35,7 @@ def _doc(repo, relpath, text):
 
 @pytest.fixture(name="guard")
 def _guard(load_script):
-    return load_script("scripts/docs_guard.py")
+    return load_script("gates/docs_guard.py")
 
 
 def test_a_clean_tree_passes(tmp_path, guard, capsys):

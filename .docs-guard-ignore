@@ -1,4 +1,4 @@
-# Paths scripts/docs_guard.py must not check, one repo-relative prefix per line.
+# Paths gates/docs_guard.py must not check, one repo-relative prefix per line.
 # An entry matches both a document (which is then not scanned) and a referenced path
 # (which is then never reported missing). Add one only when the absence is correct.
 
