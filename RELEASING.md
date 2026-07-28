@@ -28,7 +28,7 @@ Pre-1.0, the minor slot is the breaking slot. The number tracks blast radius, no
 7. **This step is the release.** After merge, from `main`: `claude plugin tag --push` — creates
    `ai-badger--v{version}`. Until it runs, the version denotes no commit and `release_guard.py`
    still compares against the *previous* tag. Skipping it is invisible on a green PR; it was
-   skipped 32 times (see [the incident report](docs/incidents/2026-07-27-untagged-releases.md)).
+   skipped 32 times.
 8. **Verify content, not just metadata** (fixes #27):
 
 ### Verification (mandatory)
@@ -79,4 +79,6 @@ Tags are **not** cut in batches. `0.3.0`–`0.19.0` carry no tag and never will:
 
 `release_guard.py` compares against the last release *tag*, not the previous commit. Multiple PRs may land at one unreleased version; tag once when the set is complete.
 
-*One* unreleased version in flight is this model working. Two or more means a tag was skipped, and the guard now prints `UNTAGGED RELEASES` naming them. That line is informational — it does not fail CI — but it is the only signal that the release model has stopped being operated.
+*One* unreleased version in flight is this model working. Two or more means a tag was skipped, and the guard prints `UNTAGGED RELEASES` naming them and **exits 1** — checked before the diff, because an untagged release is a fact about the repo rather than about what this push touched.
+
+The check earns that severity: `release_guard.py` derives its baseline from the last tag, so between 2026-07-19 and 2026-07-27 it compared against an 18-minor-stale `ai-badger--v0.2.0`, found changes and a differing `VERSION` every run, and passed 32 times without ever being capable of failing. When a check's authority comes from the artefact it is checking, its silence carries no information.

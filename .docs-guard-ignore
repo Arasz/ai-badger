@@ -2,7 +2,21 @@
 # An entry matches both a document (which is then not scanned) and a referenced path
 # (which is then never reported missing). Add one only when the absence is correct.
 
-# Frozen pre-0.7.0 design document, kept for its decision log. It names the
-# plugins.json/marketplaces.json mechanism 0.7.0 deleted; rewriting it would falsify
-# the record. Same rationale as docs/archive/, which is exempt by construction.
+# Retired working documents. docs/ describes the product; the plans, session checkpoints,
+# reviews, audits, incident post-mortems, research passes and superseded designs that produced
+# it now live in the gitignored .tmp/ and in git history. Their conclusions were folded into
+# the documents that remain.
+#
+# These prefixes are here as *referenced* paths, not as scanned documents: ADRs and changelog
+# entries still cite them, and both are records that may not be rewritten — an ADR is
+# append-only by ADR-0001, and editing a changelog entry falsifies what that release said.
+# The absence is correct, so the citation stays and the guard stops looking.
+docs/plans/
+docs/reviews/
+docs/research/
+docs/specs/
+docs/incidents/
+docs/design/
 docs/ai-badger-framework-design.md
+docs/proxy-files-spike.md
+docs/audit-symlink-hermes-skills.md
