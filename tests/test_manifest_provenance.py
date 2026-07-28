@@ -100,19 +100,16 @@ def test_git_provenance_non_repo_returns_null_and_not_dirty(tmp_path, load_scrip
     assert dirty is False
 
 
-def test_scaffold_stamps_provenance_into_manifest(tmp_path, load_script, root):
+def test_scaffold_stamps_provenance_into_manifest(load_script, make_scaffolder):
     """The scaffolder records which framework state produced the scaffold."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     config = {
         "frameworkVersion": "0.2.0",
         "project": {"name": "p", "summary": "s", "domain": "d"},
         "stacks": [], "agents": ["claude"],
     }
 
-    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
-                               skills=[], install=False)
+    scaf = make_scaffolder(config=config)
     result = scaf.run(generated_at="2026-07-19T00:00:00Z")
 
     manifest = result["manifest"]
@@ -125,8 +122,7 @@ def test_scaffold_stamps_provenance_into_manifest(tmp_path, load_script, root):
     assert written["frameworkDirty"] == manifest["frameworkDirty"]
 
 
-def test_scaffolded_manifest_validates_against_schema(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+def test_scaffolded_manifest_validates_against_schema(tmp_path, load_script, root, make_scaffolder):
     bl = load_script("engine/badger_lib.py")
     target = tmp_path / "proj2"
     target.mkdir()
@@ -136,8 +132,7 @@ def test_scaffolded_manifest_validates_against_schema(tmp_path, load_script, roo
         "stacks": [], "agents": ["claude"],
     }
 
-    scaffold.Scaffolder(root=root, target=target, config=config,
-                        skills=[], install=False).run(generated_at=None)
+    make_scaffolder(target=target, config=config).run(generated_at=None)
 
     errors = bl.validate_file(target / ".ai-badger" / "manifest.json",
                               root / "schemas" / "manifest.schema.json")

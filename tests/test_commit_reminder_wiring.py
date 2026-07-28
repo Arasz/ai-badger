@@ -14,16 +14,10 @@ from scaffold_helpers import _config
 COMMIT_REMINDER_MATCHER = "Edit|Write|MultiEdit|NotebookEdit"
 
 
-def test_scaffold_wires_commit_reminder_posttooluse_with_matcher(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_scaffold_wires_commit_reminder_posttooluse_with_matcher(make_scaffolder):
+    target = make_scaffolder.target
 
-    scaf = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(agents=["claude"]),
-        skills=["commit-reminder"], install=False,
-    )
+    scaf = make_scaffolder(config=_config(agents=["claude"]), skills=["commit-reminder"])
     scaf.run(generated_at="2026-07-24T00:00:00Z")
 
     settings = json.loads(
@@ -41,17 +35,11 @@ def test_scaffold_wires_commit_reminder_posttooluse_with_matcher(tmp_path, load_
     assert "${CLAUDE_PLUGIN_ROOT}" not in command
 
 
-def test_scaffold_commit_reminder_wiring_is_idempotent(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_scaffold_commit_reminder_wiring_is_idempotent(make_scaffolder):
+    target = make_scaffolder.target
 
     for _ in range(2):
-        scaf = scaffold.Scaffolder(
-            root=root, target=target,
-            config=_config(agents=["claude"]),
-            skills=["commit-reminder"], install=False,
-        )
+        scaf = make_scaffolder(config=_config(agents=["claude"]), skills=["commit-reminder"])
         scaf.run(generated_at="2026-07-24T00:00:00Z")
 
     settings = json.loads(

@@ -21,11 +21,9 @@ def _excluding(**kinds) -> dict:
     return config
 
 
-def _scaffold(scaffold, root, tmp_path, config, skills=("task",)):
-    target = tmp_path / "proj"
-    target.mkdir(exist_ok=True)
-    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
-                               skills=list(skills), install=False)
+def _scaffold(make_scaffolder, config, skills=("task",)):
+    target = make_scaffolder.target
+    scaf = make_scaffolder(config=config, skills=list(skills))
     result = scaf.run(generated_at="2026-07-28T00:00:00Z")
     return target, result
 
@@ -65,11 +63,8 @@ def test_excludable_features_are_the_name_addressable_ones(load_script):
 
 
 # --------------------------------------------------------------------------- delivery
-def test_an_excluded_skill_is_not_delivered(tmp_path, load_script, root):
-    scaffold = load_script(SCAFFOLD)
-
-    target, result = _scaffold(scaffold, root, tmp_path,
-                               _excluding(skills=["call-behaviorist"]),
+def test_an_excluded_skill_is_not_delivered(make_scaffolder):
+    target, result = _scaffold(make_scaffolder, _excluding(skills=["call-behaviorist"]),
                                skills=["task", "call-behaviorist"])
 
     assert not (target / ".ai-badger" / "skills" / "call-behaviorist").exists()
@@ -78,94 +73,81 @@ def test_an_excluded_skill_is_not_delivered(tmp_path, load_script, root):
     assert "call-behaviorist" not in names
 
 
-def test_an_excluded_invariant_is_neither_copied_nor_rendered(tmp_path, load_script, root):
-    scaffold = load_script(SCAFFOLD)
-
-    target, _ = _scaffold(scaffold, root, tmp_path, _excluding(invariants=["tdd-mandatory"]))
+def test_an_excluded_invariant_is_neither_copied_nor_rendered(make_scaffolder):
+    target, _ = _scaffold(make_scaffolder, _excluding(invariants=["tdd-mandatory"]))
 
     assert not (target / ".ai-badger" / "invariants" / "tdd-mandatory.md").exists()
     assert "TDD is mandatory" not in (target / "CLAUDE.md").read_text(encoding="utf-8")
     assert (target / ".ai-badger" / "invariants" / "minimal-comments.md").exists()
 
 
-def test_an_excluded_persona_is_not_copied(tmp_path, load_script, root):
-    scaffold = load_script(SCAFFOLD)
-
-    target, _ = _scaffold(scaffold, root, tmp_path, _excluding(personas=["architect"]))
+def test_an_excluded_persona_is_not_copied(make_scaffolder):
+    target, _ = _scaffold(make_scaffolder, _excluding(personas=["architect"]))
 
     assert not (target / ".ai-badger" / "agents" / "architect.md").exists()
     assert (target / ".ai-badger" / "agents" / "code-reviewer.md").exists()
 
 
-def test_an_excluded_instruction_is_not_copied(tmp_path, load_script, root):
-    scaffold = load_script(SCAFFOLD)
+def test_an_excluded_instruction_is_not_copied(make_scaffolder):
     config = _excluding(instructions=["csharp.instructions"])
     config["stacks"] = ["dotnet"]
 
-    target, _ = _scaffold(scaffold, root, tmp_path, config)
+    target, _ = _scaffold(make_scaffolder, config)
 
     assert not (target / ".ai-badger" / "instructions" / "csharp.instructions.md").exists()
     assert (target / ".ai-badger" / "instructions" / "documentation.instructions.md").exists()
 
 
-def test_an_exclusion_matching_no_catalog_item_is_reported_and_not_fatal(
-        tmp_path, load_script, root):
+def test_an_exclusion_matching_no_catalog_item_is_reported_and_not_fatal(make_scaffolder):
     """An upstream deletion must not break the next refresh — §4.2 of the research."""
-    scaffold = load_script(SCAFFOLD)
 
-    target, result = _scaffold(scaffold, root, tmp_path, _excluding(skills=["no-such-skill"]))
+    target, result = _scaffold(make_scaffolder, _excluding(skills=["no-such-skill"]))
 
     assert (target / ".ai-badger" / "manifest.json").exists()
     assert any("no-such-skill" in n and "matches no catalog" in n for n in result["notes"])
 
 
-def test_an_excluded_skill_left_on_disk_is_reported(tmp_path, load_script, root):
+def test_an_excluded_skill_left_on_disk_is_reported(make_scaffolder):
     """An exclusion stops delivery; it never deletes project-visible content silently."""
-    scaffold = load_script(SCAFFOLD)
-    target, _ = _scaffold(scaffold, root, tmp_path, _config(agents=["claude"]),
+    target, _ = _scaffold(make_scaffolder, _config(agents=["claude"]),
                           skills=["task", "call-behaviorist"])
 
-    _, result = _scaffold(scaffold, root, tmp_path, _excluding(skills=["call-behaviorist"]),
+    _, result = _scaffold(make_scaffolder, _excluding(skills=["call-behaviorist"]),
                           skills=["task", "call-behaviorist"])
 
     assert (target / ".ai-badger" / "skills" / "call-behaviorist").is_dir()
     assert any("call-behaviorist" in n and "left on disk" in n for n in result["notes"])
 
 
-def test_excluding_an_invariant_removes_the_copy_a_previous_run_placed(
-        tmp_path, load_script, root):
+def test_excluding_an_invariant_removes_the_copy_a_previous_run_placed(make_scaffolder):
     """Otherwise feed-badger reads the orphan as a project addition to contribute back."""
-    scaffold = load_script(SCAFFOLD)
-    target, _ = _scaffold(scaffold, root, tmp_path, _config(agents=["claude"]))
+    target, _ = _scaffold(make_scaffolder, _config(agents=["claude"]))
     assert (target / ".ai-badger" / "invariants" / "tdd-mandatory.md").is_file()
 
-    _scaffold(scaffold, root, tmp_path, _excluding(invariants=["tdd-mandatory"]))
+    _scaffold(make_scaffolder, _excluding(invariants=["tdd-mandatory"]))
 
     assert not (target / ".ai-badger" / "invariants" / "tdd-mandatory.md").exists()
 
 
-def test_an_edited_copy_of_a_declined_invariant_is_left_in_place(tmp_path, load_script, root):
+def test_an_edited_copy_of_a_declined_invariant_is_left_in_place(make_scaffolder):
     """Only what ai-badger placed and the project never touched may be removed."""
-    scaffold = load_script(SCAFFOLD)
-    target, _ = _scaffold(scaffold, root, tmp_path, _config(agents=["claude"]))
+    target, _ = _scaffold(make_scaffolder, _config(agents=["claude"]))
     edited = target / ".ai-badger" / "invariants" / "tdd-mandatory.md"
     edited.write_text("# ours now\n", encoding="utf-8")
 
-    _, result = _scaffold(scaffold, root, tmp_path, _excluding(invariants=["tdd-mandatory"]))
+    _, result = _scaffold(make_scaffolder, _excluding(invariants=["tdd-mandatory"]))
 
     assert edited.read_text(encoding="utf-8") == "# ours now\n"
     assert any("tdd-mandatory" in n and "edited" in n for n in result["notes"])
 
 
 # ------------------------------------------------------------------------ discovery links
-def test_excluding_a_skill_prunes_the_claude_link_a_previous_run_placed(
-        tmp_path, load_script, root):
-    scaffold = load_script(SCAFFOLD)
-    target, _ = _scaffold(scaffold, root, tmp_path, _config(agents=["claude"]),
+def test_excluding_a_skill_prunes_the_claude_link_a_previous_run_placed(make_scaffolder):
+    target, _ = _scaffold(make_scaffolder, _config(agents=["claude"]),
                           skills=["task", "call-behaviorist"])
     assert (target / ".claude" / "skills" / "call-behaviorist").is_symlink()
 
-    _scaffold(scaffold, root, tmp_path, _excluding(skills=["call-behaviorist"]),
+    _scaffold(make_scaffolder, _excluding(skills=["call-behaviorist"]),
               skills=["task", "call-behaviorist"])
 
     assert not (target / ".claude" / "skills" / "call-behaviorist").exists()
@@ -173,17 +155,12 @@ def test_excluding_a_skill_prunes_the_claude_link_a_previous_run_placed(
     assert (target / ".claude" / "skills" / "task").is_symlink()
 
 
-def test_an_excluded_skill_is_not_linked_into_the_hermes_namespace(
-        tmp_path, load_script, root):
-    scaffold = load_script(SCAFFOLD)
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_an_excluded_skill_is_not_linked_into_the_hermes_namespace(tmp_path, make_scaffolder):
     home = tmp_path / "home"
     home.mkdir()
     config = _excluding(skills=["call-behaviorist"])
     config["agents"] = ["hermes"]
-    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
-                               skills=["task", "call-behaviorist"], install=False)
+    scaf = make_scaffolder(config=config, skills=["task", "call-behaviorist"])
     with patch("pathlib.Path.home", return_value=home):
         scaf.run(generated_at="2026-07-28T00:00:00Z")
 
@@ -211,12 +188,10 @@ def test_a_skill_directory_still_on_disk_is_not_relinked_for_hermes(
 
 
 # ------------------------------------------------------------------------- hook wiring
-def test_excluding_the_task_skill_wires_no_hook_at_a_missing_script(
-        tmp_path, load_script, root):
+def test_excluding_the_task_skill_wires_no_hook_at_a_missing_script(make_scaffolder):
     """Rewritten commands name a scaffolded script; an absent one is skipped, not wired."""
-    scaffold = load_script(SCAFFOLD)
 
-    target, result = _scaffold(scaffold, root, tmp_path, _excluding(skills=["task"]),
+    target, result = _scaffold(make_scaffolder, _excluding(skills=["task"]),
                                skills=["task", "prompt-markers", "commit-reminder"])
 
     settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
@@ -230,13 +205,10 @@ def test_excluding_the_task_skill_wires_no_hook_at_a_missing_script(
     assert any("task" in n and "not wired" in n for n in result["notes"])
 
 
-def test_a_hook_whose_script_was_never_scaffolded_is_skipped(tmp_path, load_script, root):
+def test_a_hook_whose_script_was_never_scaffolded_is_skipped(make_scaffolder):
     """A partial scaffold must not leave settings.json pointing at a missing script."""
-    scaffold = load_script(SCAFFOLD)
-    target = tmp_path / "proj"
-    target.mkdir()
-    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(agents=["claude"]),
-                               skills=[], install=False)
+    target = make_scaffolder.target
+    scaf = make_scaffolder(config=_config(agents=["claude"]))
 
     scaf.wire_hooks()
 
@@ -244,16 +216,14 @@ def test_a_hook_whose_script_was_never_scaffolded_is_skipped(tmp_path, load_scri
     assert any("session_start_hook.py" in n and "not scaffolded" in n for n in scaf.notes)
 
 
-def test_excluding_a_skill_unwires_the_hook_a_previous_run_registered(
-        tmp_path, load_script, root):
+def test_excluding_a_skill_unwires_the_hook_a_previous_run_registered(make_scaffolder):
     """The skill's copy stays on disk, so only the declaration can stop its hook."""
-    scaffold = load_script(SCAFFOLD)
-    target, _ = _scaffold(scaffold, root, tmp_path, _config(agents=["claude"]),
+    target, _ = _scaffold(make_scaffolder, _config(agents=["claude"]),
                           skills=["task", "prompt-markers"])
     settings_path = target / ".claude" / "settings.json"
     assert "session_start_hook.py" in settings_path.read_text(encoding="utf-8")
 
-    _scaffold(scaffold, root, tmp_path, _excluding(skills=["task"]),
+    _scaffold(make_scaffolder, _excluding(skills=["task"]),
               skills=["task", "prompt-markers"])
 
     settings = settings_path.read_text(encoding="utf-8")
@@ -272,10 +242,10 @@ def test_default_skills_are_the_common_catalog_not_every_declared_scope(load_scr
     assert "auto-wm" not in scaffold.DEFAULT_SKILLS
 
 
-def test_a_default_scaffold_reports_no_unresolvable_skill(tmp_path, load_script, root):
+def test_a_default_scaffold_reports_no_unresolvable_skill(load_script, make_scaffolder):
     scaffold = load_script(SCAFFOLD)
 
-    _, result = _scaffold(scaffold, root, tmp_path, _config(agents=["claude"]),
+    _, result = _scaffold(make_scaffolder, _config(agents=["claude"]),
                           skills=scaffold.DEFAULT_SKILLS)
 
     assert not [n for n in result["notes"] if "not in index common.skills" in n]
@@ -283,11 +253,10 @@ def test_a_default_scaffold_reports_no_unresolvable_skill(tmp_path, load_script,
 
 # ------------------------------------------------------------------------------- drift
 @pytest.fixture(name="excluded_project")
-def _excluded_project(tmp_path, load_script, root):
+def _excluded_project(make_scaffolder):
     """A project scaffolded with `call-behaviorist` excluded, plus its manifest."""
-    scaffold = load_script(SCAFFOLD)
     config = _excluding(skills=["call-behaviorist"])
-    target, result = _scaffold(scaffold, root, tmp_path, config,
+    target, result = _scaffold(make_scaffolder, config,
                                skills=["task", "call-behaviorist"])
     (target / ".ai-badger" / "config.json").write_text(json.dumps(config), encoding="utf-8")
     return target, result["manifest"]

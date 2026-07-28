@@ -47,15 +47,11 @@ def _framework_hook(root, name):
     return (root / "features" / "common" / "hooks" / name).read_text(encoding="utf-8")
 
 
-def test_scaffold_installs_hermes_plugin_to_user_dir(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_scaffold_installs_hermes_plugin_to_user_dir(tmp_path, root, make_scaffolder):
     home = tmp_path / "home"
     home.mkdir()
 
-    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(["hermes"]),
-                               skills=["task"], install=False)
+    scaf = make_scaffolder(config=_config(["hermes"]), skills=["task"])
     with patch("pathlib.Path.home", return_value=home):
         result = scaf.run(generated_at="2026-07-26T00:00:00Z")
 
@@ -68,18 +64,14 @@ def test_scaffold_installs_hermes_plugin_to_user_dir(tmp_path, load_script, root
     assert not any("failed" in n.lower() for n in hook_notes), hook_notes
 
 
-def test_scaffold_refreshes_stale_hermes_plugin(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_scaffold_refreshes_stale_hermes_plugin(tmp_path, root, make_scaffolder):
     home = tmp_path / "home"
     plugins = home / ".hermes" / "plugins"
     plugins.mkdir(parents=True)
     for name in PLUGIN_FILES:
         (plugins / name).write_text("# stale copy\n", encoding="utf-8")
 
-    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(["hermes"]),
-                               skills=["task"], install=False)
+    scaf = make_scaffolder(config=_config(["hermes"]), skills=["task"])
     with patch("pathlib.Path.home", return_value=home):
         scaf.run(generated_at="2026-07-26T00:00:00Z")
 
@@ -87,15 +79,11 @@ def test_scaffold_refreshes_stale_hermes_plugin(tmp_path, load_script, root):
         assert (plugins / name).read_text(encoding="utf-8") == _framework_hook(root, name)
 
 
-def test_scaffold_skips_hermes_plugin_when_hermes_not_an_agent(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_scaffold_skips_hermes_plugin_when_hermes_not_an_agent(tmp_path, make_scaffolder):
     home = tmp_path / "home"
     home.mkdir()
 
-    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(["claude"]),
-                               skills=["task"], install=False)
+    scaf = make_scaffolder(config=_config(["claude"]), skills=["task"])
     with patch("pathlib.Path.home", return_value=home):
         scaf.run(generated_at="2026-07-26T00:00:00Z")
 

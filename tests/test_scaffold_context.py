@@ -99,9 +99,8 @@ def test_each_collaborator_works_with_no_scaffolder_in_scope(tmp_path, load_scri
 
 
 # ----------------------------------------------------------- per-collaborator construction
-def test_extensions_is_built_from_a_context_alone(tmp_path, load_script, root):
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_extensions_is_built_from_a_context_alone(load_script, root, make_scaffolder):
+    target = make_scaffolder.target
     ctx = _hand_built_context(load_script, root, target)
     extensions = _load(load_script, root, "extensions").Extensions(ctx)
 
@@ -157,9 +156,8 @@ def test_hook_wiring_is_built_from_a_context_alone(tmp_path, load_script, root):
     assert "scaffold" not in _imported_modules(root, "hook_wiring")
 
 
-def test_mcp_tools_is_built_from_a_context_alone(tmp_path, load_script, root):
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_mcp_tools_is_built_from_a_context_alone(load_script, root, make_scaffolder):
+    target = make_scaffolder.target
     ctx = _hand_built_context(load_script, root, target)
     ctx.config["externalTools"] = [{"name": "probe", "command": "probe-server",
                                     "generate_mcp_json": True}]
@@ -174,10 +172,10 @@ def test_mcp_tools_is_built_from_a_context_alone(tmp_path, load_script, root):
     assert "scaffold" not in _imported_modules(root, "mcp_tools")
 
 
-def test_mcp_tools_fills_the_cache_the_template_rendering_reads(tmp_path, load_script, root):
+def test_mcp_tools_fills_the_cache_the_template_rendering_reads(
+        load_script, root, make_scaffolder):
     """The one shared cache lives on the context — neither collaborator names the other."""
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     ctx = _hand_built_context(load_script, root, target)
     mcp = _load(load_script, root, "mcp_tools").McpTools(ctx)
 
@@ -189,9 +187,8 @@ def test_mcp_tools_fills_the_cache_the_template_rendering_reads(tmp_path, load_s
     assert ctx.merged_external_tools == first, "filling twice must not re-read the config"
 
 
-def test_template_rendering_is_built_from_a_context_alone(tmp_path, load_script, root):
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_template_rendering_is_built_from_a_context_alone(load_script, root, make_scaffolder):
+    target = make_scaffolder.target
     ctx = _hand_built_context(load_script, root, target)
     rendering = _load(load_script, root, "template_rendering").TemplateRendering(ctx)
 
@@ -203,10 +200,9 @@ def test_template_rendering_is_built_from_a_context_alone(tmp_path, load_script,
 
 
 def test_template_rendering_reads_the_external_tools_off_the_context(
-        tmp_path, load_script, root):
+        load_script, root, make_scaffolder):
     """Edge 1: it must not reach into McpTools for the merged externalTools."""
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     ctx = _hand_built_context(load_script, root, target)
     ctx.merged_external_tools = [{"name": "probe", "instructions": "Use the probe server."}]
     ctx.external_tools_merged = True
@@ -216,10 +212,9 @@ def test_template_rendering_reads_the_external_tools_off_the_context(
 
 
 def test_agent_files_is_built_from_a_context_and_its_one_collaborator(
-        tmp_path, load_script, root):
+        load_script, root, make_scaffolder):
     """Edge 2: the dependency on template rendering is a constructor argument, not `self`."""
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     ctx = _hand_built_context(load_script, root, target)
     rendering = _load(load_script, root, "template_rendering").TemplateRendering(ctx)
     agent_files = _load(load_script, root, "agent_files").AgentFiles(ctx, rendering)
@@ -232,10 +227,9 @@ def test_agent_files_is_built_from_a_context_and_its_one_collaborator(
 
 
 def test_agent_files_records_template_provenance_through_the_context(
-        tmp_path, load_script, root):
+        load_script, root, make_scaffolder):
     """Edge 3: record_template is manifest bookkeeping carried on the context."""
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     recorded = []
     ctx = _hand_built_context(load_script, root, target)
     ctx.record_template = lambda source, dest: recorded.append((source.name, dest.name))
@@ -272,13 +266,10 @@ def test_no_collaborator_imports_the_scaffolder(root):
 
 
 def test_the_scaffolder_is_a_plain_class_over_a_context_and_six_collaborators(
-        tmp_path, load_script, root):
+        load_script, root, make_scaffolder):
     scaffold = _load(load_script, root, "scaffold")
-    target = tmp_path / "proj"
-    target.mkdir()
 
-    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
-                               skills=[], install=False)
+    scaf = make_scaffolder(config=_config())
 
     assert scaffold.Scaffolder.__bases__ == (object,)
     assert scaf.ctx is scaf.extensions.ctx is scaf.statusline.ctx is scaf.hooks.ctx
@@ -304,11 +295,10 @@ def test_the_scaffolder_keeps_no_private_shims_for_its_collaborators(load_script
 
 # ----------------------------------------------------------------- step-order golden master
 def test_the_scaffold_runs_its_steps_in_the_recorded_order(
-        tmp_path, load_script, root, monkeypatch):
+        load_script, root, monkeypatch, make_scaffolder):
     """Composition must not reorder run(); completedSteps is the contract."""
     scaffold = _load(load_script, root, "scaffold")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     recorded = []
     original = scaffold.bl.dump_json
@@ -319,9 +309,7 @@ def test_the_scaffold_runs_its_steps_in_the_recorded_order(
         original(path, data)
 
     monkeypatch.setattr(scaffold.bl, "dump_json", _spy)
-    scaf = scaffold.Scaffolder(root=root, target=target,
-                               config=_config(stacks=["python"], agents=["claude"]),
-                               skills=["task"], install=False)
+    scaf = make_scaffolder(config=_config(stacks=["python"], agents=["claude"]), skills=["task"])
     scaf.run(generated_at="2026-07-19T00:00:00Z")
 
     assert [steps[-1] for steps in recorded] == COMPLETED_STEPS
@@ -331,14 +319,10 @@ def test_the_scaffold_runs_its_steps_in_the_recorded_order(
 
 @pytest.mark.parametrize("agents", [["claude"], ["claude", "copilot", "hermes"]])
 def test_the_step_order_does_not_depend_on_which_agents_are_configured(
-        tmp_path, load_script, root, agents):
-    scaffold = _load(load_script, root, "scaffold")
-    target = tmp_path / "proj"
-    target.mkdir()
+        load_script, root, agents, make_scaffolder):
 
-    scaf = scaffold.Scaffolder(root=root, target=target,
-                               config=_config(stacks=["python"], agents=agents),
-                               skills=["task", "prompt-markers"], install=False)
+    scaf = make_scaffolder(config=_config(stacks=["python"], agents=agents),
+                           skills=["task", "prompt-markers"])
     scaf.run(generated_at="2026-07-19T00:00:00Z")
 
     assert scaf._completed_steps == COMPLETED_STEPS

@@ -5,13 +5,11 @@ Issue #65: extension content edits must be visible to detect_additions.
 import json
 
 
-def test_extension_content_edit_detected_as_candidate(tmp_path, load_script, root, capsys):
+def test_extension_content_edit_detected_as_candidate(load_script, root, capsys, make_scaffolder):
     """Editing an extension file should produce a feed-badger candidate (#65)."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     detect = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
 
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     # Scaffold with github extension
     config = {
@@ -19,10 +17,7 @@ def test_extension_content_edit_detected_as_candidate(tmp_path, load_script, roo
         "stacks": ["python"],
         "sourceControl": {"platform": "github", "repoUrl": "https://example.com/repo"},
     }
-    scaf = scaffold.Scaffolder(
-        root=root, target=target, config=config,
-        skills=["task"], install=False,
-    )
+    scaf = make_scaffolder(config=config, skills=["task"])
     scaf.run(generated_at="2026-07-26T00:00:00Z")
 
     # Verify extension was scaffolded

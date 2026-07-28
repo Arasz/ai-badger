@@ -57,7 +57,6 @@ def test_scaffold_user_external_tools_override_catalog(make_scaffolder):
 
 def test_collect_external_tools_reads_common_catalog(make_scaffolder):
     """_collect_external_tools reads features/common/external-tools.json."""
-    target = make_scaffolder.target
 
     scaf = make_scaffolder(config=_config(agents=["claude"]), skills=["task"])
     tools = scaf.mcp.collect_external_tools()
@@ -70,7 +69,6 @@ def test_check_dependencies_surfaces_optional_hints_as_notes(make_scaffolder):
     so the user is told about silently-degraded semantic search, not left to discover it later."""
     dependency_check = importlib.import_module("dependency_check")
 
-    target = make_scaffolder.target
 
     hint = "code-review-graph-embeddings: not installed. Install with: /venv/bin/python3 -m pip install ..."
 
