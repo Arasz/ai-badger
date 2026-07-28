@@ -318,8 +318,7 @@ def test_the_scaffold_runs_its_steps_in_the_recorded_order(
 
 
 @pytest.mark.parametrize("agents", [["claude"], ["claude", "copilot", "hermes"]])
-def test_the_step_order_does_not_depend_on_which_agents_are_configured(
-        load_script, root, agents, make_scaffolder):
+def test_the_step_order_does_not_depend_on_which_agents_are_configured(agents, make_scaffolder):
 
     scaf = make_scaffolder(config=_config(stacks=["python"], agents=agents),
                            skills=["task", "prompt-markers"])

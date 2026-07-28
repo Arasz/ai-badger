@@ -72,6 +72,7 @@ def _place_hook_scripts(root, target):
 
 # ── project .claude/settings.json (hook_wiring) ───────────────────────────────
 
+@pytest.mark.usefixtures("fake_home")
 def test_wire_hooks_aborts_on_unparseable_settings(tmp_path, root, make_scaffolder):
     """An unparseable project settings.json is left byte-identical and reported."""
     target = tmp_path / "proj"
@@ -170,6 +171,7 @@ def test_unparseable_user_settings_are_never_rewritten(root, fake_home, make_sca
 
 # ── project .mcp.json and .github/copilot/mcp-config.json (mcp_tools) ─────────
 
+@pytest.mark.usefixtures("fake_home")
 def test_unparseable_mcp_json_is_never_rewritten(tmp_path, make_scaffolder):
     """An unparseable .mcp.json is left byte-identical and reported."""
     target = make_scaffolder.target
@@ -190,6 +192,7 @@ def test_unparseable_mcp_json_is_never_rewritten(tmp_path, make_scaffolder):
     assert _mentions(scaf.notes, ".mcp.json", "refused")
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_unparseable_copilot_mcp_config_is_never_rewritten(tmp_path, make_scaffolder):
     """An unparseable .github/copilot/mcp-config.json is left byte-identical."""
     target = make_scaffolder.target

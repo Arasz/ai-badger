@@ -100,7 +100,7 @@ def test_git_provenance_non_repo_returns_null_and_not_dirty(tmp_path, load_scrip
     assert dirty is False
 
 
-def test_scaffold_stamps_provenance_into_manifest(load_script, make_scaffolder):
+def test_scaffold_stamps_provenance_into_manifest(make_scaffolder):
     """The scaffolder records which framework state produced the scaffold."""
     target = make_scaffolder.target
     config = {

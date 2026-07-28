@@ -61,6 +61,7 @@ def target(make_scaffolder):
     return make_scaffolder.target
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_statusline_is_not_wired_when_the_config_key_is_absent(target, make_scaffolder):
     """statusLine is a personal setting: an unasked-for project override is a clobber."""
     _run(make_scaffolder, _config(stacks=["python"]))
@@ -69,12 +70,14 @@ def test_statusline_is_not_wired_when_the_config_key_is_absent(target, make_scaf
     assert _delegate(target) is None
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_statusline_is_not_wired_when_capture_is_disabled(target, make_scaffolder):
     _run(make_scaffolder, _capture_config(enabled=False))
 
     assert "statusLine" not in _settings(target)
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_enabling_wires_the_capture_script_through_the_project_dir_placeholder(
         target, make_scaffolder):
     """The wired command must survive a second checkout, so no absolute path (F-hooks)."""
@@ -87,6 +90,7 @@ def test_enabling_wires_the_capture_script_through_the_project_dir_placeholder(
     assert str(target) not in entry["command"]
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_an_existing_project_statusline_becomes_the_delegate(target, make_scaffolder):
     _write_settings(target, {"statusLine": {"type": "command", "command": "my-renderer.sh"}})
 
@@ -121,12 +125,14 @@ def test_an_unreadable_user_settings_file_is_reported_not_silently_ignored(
     assert any("refused" in n and ".claude/settings.json" in n for n in notes), notes
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_no_delegate_is_recorded_when_nothing_rendered_a_statusline(target, make_scaffolder):
     _run(make_scaffolder, _capture_config())
 
     assert _delegate(target)["command"] is None
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_enabling_twice_never_chains_the_capture_to_itself(target, make_scaffolder):
     """Recording ai-badger's own wrapper as its delegate is an infinite statusline loop."""
     _write_settings(target, {"statusLine": {"type": "command", "command": "my-renderer.sh"}})
@@ -139,6 +145,7 @@ def test_enabling_twice_never_chains_the_capture_to_itself(target, make_scaffold
     assert _settings(target)["statusLine"]["command"].count(CAPTURE) == 1
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_a_capture_command_from_another_checkout_is_replaced_not_chained(target, make_scaffolder):
     _write_settings(target, {"statusLine": {
         "type": "command",
@@ -153,6 +160,7 @@ def test_a_capture_command_from_another_checkout_is_replaced_not_chained(target,
     assert _delegate(target) is None, "the wrapper was recorded as its own delegate"
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_display_options_of_the_replaced_statusline_are_preserved(target, make_scaffolder):
     _write_settings(target, {"statusLine": {
         "type": "command", "command": "my-renderer.sh", "padding": 1, "refreshInterval": 5,
@@ -165,6 +173,7 @@ def test_display_options_of_the_replaced_statusline_are_preserved(target, make_s
     assert entry["refreshInterval"] == 5
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_an_unreadable_settings_file_is_refused_with_a_note(target, make_scaffolder):
     path = _write_settings(target, {})
     path.write_text("{ not json", encoding="utf-8")
@@ -175,6 +184,7 @@ def test_an_unreadable_settings_file_is_refused_with_a_note(target, make_scaffol
     assert any("refused" in n and "statusline" in n.lower() for n in notes), notes
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_a_statusline_of_the_wrong_shape_is_refused_with_a_note(target, make_scaffolder):
     _write_settings(target, {"statusLine": "not-a-mapping"})
 
@@ -184,12 +194,14 @@ def test_a_statusline_of_the_wrong_shape_is_refused_with_a_note(target, make_sca
     assert any("refused" in n and "statusline" in n.lower() for n in notes), notes
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_statusline_is_not_wired_when_claude_is_not_a_configured_agent(target, make_scaffolder):
     _run(make_scaffolder, _capture_config(agents=["copilot"]))
 
     assert "statusLine" not in _settings(target)
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_statusline_is_not_wired_when_the_capture_script_was_not_scaffolded(
         target, make_scaffolder):
     """Pointing statusLine at a script that is not there replaces the renderer with nothing."""
@@ -202,6 +214,7 @@ def test_statusline_is_not_wired_when_the_capture_script_was_not_scaffolded(
     assert any("statusline capture" in n and "task" in n for n in notes), notes
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_disabling_capture_restores_the_renderer_it_displaced(target, make_scaffolder):
     """Turning the flag off must give the user their own status line back."""
     _write_settings(target, {"statusLine": {"type": "command", "command": "my-renderer.sh"}})
@@ -212,6 +225,7 @@ def test_disabling_capture_restores_the_renderer_it_displaced(target, make_scaff
     assert _settings(target)["statusLine"]["command"] == "my-renderer.sh"
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_disabling_capture_preserves_the_display_options_of_the_restored_renderer(
         target, make_scaffolder):
     _write_settings(target, {"statusLine": {
@@ -226,6 +240,7 @@ def test_disabling_capture_preserves_the_display_options_of_the_restored_rendere
     assert entry["padding"] == 1
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_disabling_capture_removes_the_statusline_when_it_displaced_nothing(
         target, make_scaffolder):
     _run(make_scaffolder, _capture_config())
@@ -235,6 +250,7 @@ def test_disabling_capture_removes_the_statusline_when_it_displaced_nothing(
     assert "statusLine" not in _settings(target)
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_disabling_capture_never_removes_a_statusline_ai_badger_did_not_place(
         target, make_scaffolder):
     """Refuse-to-clobber: a renderer we never displaced is not ours to remove."""
@@ -245,6 +261,7 @@ def test_disabling_capture_never_removes_a_statusline_ai_badger_did_not_place(
     assert _settings(target)["statusLine"]["command"] == "my-renderer.sh"
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_dropping_claude_from_the_agents_unwires_the_capture(target, make_scaffolder):
     _write_settings(target, {"statusLine": {"type": "command", "command": "my-renderer.sh"}})
     _run(make_scaffolder, _capture_config())
@@ -254,6 +271,7 @@ def test_dropping_claude_from_the_agents_unwires_the_capture(target, make_scaffo
     assert _settings(target)["statusLine"]["command"] == "my-renderer.sh"
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_unwiring_refuses_an_unreadable_settings_file_with_a_note(target, make_scaffolder):
     _run(make_scaffolder, _capture_config())
     path = target / ".claude" / "settings.json"
@@ -265,6 +283,7 @@ def test_unwiring_refuses_an_unreadable_settings_file_with_a_note(target, make_s
     assert any("refused" in n and "statusline" in n.lower() for n in notes), notes
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_unwiring_leaves_a_statusline_of_the_wrong_shape_alone(target, make_scaffolder):
     _write_settings(target, {"statusLine": "not-a-mapping"})
 

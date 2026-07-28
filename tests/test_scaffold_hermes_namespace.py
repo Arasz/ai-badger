@@ -83,7 +83,7 @@ def test_scaffold_preserves_foreign_dirs_in_namespace(tmp_path, make_scaffolder)
     assert (foreign / "SKILL.md").read_text(encoding="utf-8") == "# hermes-authored\n"
 
 
-def test_scaffold_removes_stale_managed_symlinks(tmp_path, load_script, make_scaffolder):
+def test_scaffold_removes_stale_managed_symlinks(tmp_path, make_scaffolder):
     """A link for a skill no longer scaffolded is unlinked on re-scaffold."""
     _, home = _hermes_case(tmp_path, make_scaffolder)
 
