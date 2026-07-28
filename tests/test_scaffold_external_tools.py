@@ -10,34 +10,22 @@ from scaffold_helpers import _config
 
 
 # ---------------------------------------------------------------------- external tools catalog
-def test_scaffold_injects_catalog_external_tool_into_claude_md(tmp_path, load_script, root):
+def test_scaffold_injects_catalog_external_tool_into_claude_md(make_scaffolder):
     """External tools from features/common/external-tools.json are auto-injected."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
-    scaf = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(agents=["claude"]),
-        skills=["task"], install=False,
-    )
+    scaf = make_scaffolder(config=_config(agents=["claude"]), skills=["task"])
     scaf.run(generated_at="2026-07-24T00:00:00Z")
 
     claude_md = (target / "CLAUDE.md").read_text(encoding="utf-8")
     assert "code-review-graph" in claude_md, "Catalog tool not injected into CLAUDE.md"
 
 
-def test_scaffold_catalog_tool_generates_mcp_json(tmp_path, load_script, root):
+def test_scaffold_catalog_tool_generates_mcp_json(make_scaffolder):
     """Catalog tools with generate_mcp_json produce .mcp.json entries."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
-    scaf = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(agents=["claude"]),
-        skills=["task"], install=False,
-    )
+    scaf = make_scaffolder(config=_config(agents=["claude"]), skills=["task"])
     scaf.run(generated_at="2026-07-24T00:00:00Z")
 
     mcp_json = target / ".mcp.json"
@@ -46,11 +34,9 @@ def test_scaffold_catalog_tool_generates_mcp_json(tmp_path, load_script, root):
     assert "code-review-graph" in mcp.get("mcpServers", {})
 
 
-def test_scaffold_user_external_tools_override_catalog(tmp_path, load_script, root):
+def test_scaffold_user_external_tools_override_catalog(make_scaffolder):
     """config.externalTools overrides catalog tools on name conflict."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     config = _config(agents=["claude"])
     config["externalTools"] = [{
@@ -61,10 +47,7 @@ def test_scaffold_user_external_tools_override_catalog(tmp_path, load_script, ro
         "generate_mcp_json": True,
     }]
 
-    scaf = scaffold.Scaffolder(
-        root=root, target=target, config=config,
-        skills=["task"], install=False,
-    )
+    scaf = make_scaffolder(config=config, skills=["task"])
     scaf.run(generated_at="2026-07-24T00:00:00Z")
 
     claude_md = (target / "CLAUDE.md").read_text(encoding="utf-8")
@@ -72,30 +55,22 @@ def test_scaffold_user_external_tools_override_catalog(tmp_path, load_script, ro
     assert "MCP Tools: code-review-graph" not in claude_md, "Catalog instructions not overridden"
 
 
-def test_collect_external_tools_reads_common_catalog(tmp_path, load_script, root):
+def test_collect_external_tools_reads_common_catalog(make_scaffolder):
     """_collect_external_tools reads features/common/external-tools.json."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
-    scaf = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(agents=["claude"]),
-        skills=["task"], install=False,
-    )
+    scaf = make_scaffolder(config=_config(agents=["claude"]), skills=["task"])
     tools = scaf.mcp.collect_external_tools()
     names = [t["name"] for t in tools]
     assert "code-review-graph" in names
 
 
-def test_check_dependencies_surfaces_optional_hints_as_notes(tmp_path, load_script, root):
+def test_check_dependencies_surfaces_optional_hints_as_notes(make_scaffolder):
     """Optional-dependency hints (e.g. code-review-graph[embeddings]) must reach scaffold notes
     so the user is told about silently-degraded semantic search, not left to discover it later."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     dependency_check = importlib.import_module("dependency_check")
 
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     hint = "code-review-graph-embeddings: not installed. Install with: /venv/bin/python3 -m pip install ..."
 
@@ -104,8 +79,7 @@ def test_check_dependencies_surfaces_optional_hints_as_notes(tmp_path, load_scri
 
     with patch.object(dependency_check, "run_dependency_check", side_effect=fake_run_dependency_check), \
          patch.object(dependency_check, "get_venv_python", return_value=None):
-        scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
-                                    skills=["code-review-graph"], install=False)
+        scaf = make_scaffolder(config=_config(), skills=["code-review-graph"])
         scaf._check_dependencies()
 
     assert any(hint in n for n in scaf.notes)

@@ -7,16 +7,13 @@ from scaffold_helpers import _config
 
 
 # ------------------------------------------------------------------- github extension gate
-def test_scaffold_github_extension_embedded_when_platform_github(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_scaffold_github_extension_embedded_when_platform_github(make_scaffolder):
+    target = make_scaffolder.target
     config = _config(source_control={
         "platform": "github", "repoUrl": "https://github.com/foo/bar", "projectUrl": None,
     })
 
-    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
-                                skills=["task"], install=False)
+    scaf = make_scaffolder(config=config, skills=["task"])
     result = scaf.run(generated_at="2026-07-19T00:00:00Z")
 
     ext_dir = target / ".ai-badger" / "skills" / "task" / "extensions" / "github"
@@ -24,14 +21,11 @@ def test_scaffold_github_extension_embedded_when_platform_github(tmp_path, load_
     assert any("embedded extension 'github'" in n for n in result["notes"])
 
 
-def test_scaffold_github_extension_not_embedded_when_platform_none(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_scaffold_github_extension_not_embedded_when_platform_none(make_scaffolder):
+    target = make_scaffolder.target
     config = _config(source_control={"platform": "none", "repoUrl": None, "projectUrl": None})
 
-    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
-                                skills=["task"], install=False)
+    scaf = make_scaffolder(config=config, skills=["task"])
     result = scaf.run(generated_at="2026-07-19T00:00:00Z")
 
     ext_dir = target / ".ai-badger" / "skills" / "task" / "extensions" / "github"
@@ -86,7 +80,7 @@ def test_requirement_met_presence(load_script, root):
 
 
 # --------------------------------------------------------- round-trip: generic + extensions + project-local → original
-def test_code_review_checklist_roundtrip_reconstructs_original(tmp_path, load_script, root):
+def test_code_review_checklist_roundtrip_reconstructs_original(make_scaffolder):
     """Given a project with all stacks + project-local.md, the scaffolded SKILL.md
     should contain every checklist item from the original project-specific skill.
 
@@ -94,17 +88,14 @@ def test_code_review_checklist_roundtrip_reconstructs_original(tmp_path, load_sc
     GENERIC base + stack extensions + project-local additions. After scaffold,
     reassembling them must produce equivalent coverage.
     """
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     # Config with every stack that has an extension
     config = _config(stacks=["dotnet", "react", "ts", "cosmos", "azure", "mcp"])
     skill_name = "code-review-checklist"
 
     # First scaffold — creates the skill with all extensions
-    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
-                                skills=[skill_name], install=False)
+    scaf = make_scaffolder(config=config, skills=[skill_name])
     scaf.run(generated_at="2026-07-24T00:00:00Z")
 
     # Write project-local.md with the incident lessons from the original skill
@@ -142,8 +133,7 @@ Spec contained a C# record with two properties both named `Errors`.
 """)
 
     # Re-scaffold — project-local.md should be preserved and appended
-    scaf2 = scaffold.Scaffolder(root=root, target=target, config=config,
-                                 skills=[skill_name], install=False)
+    scaf2 = make_scaffolder(config=config, skills=[skill_name])
     result = scaf2.run(generated_at="2026-07-24T00:00:00Z")
 
     skill_md = target / ".ai-badger" / "skills" / skill_name / "SKILL.md"
@@ -257,16 +247,13 @@ Spec contained a C# record with two properties both named `Errors`.
 
 
 # --------------------------------------------------------- extension marker routing
-def test_extension_marker_routing_positions_items_correctly(tmp_path, load_script, root):
+def test_extension_marker_routing_positions_items_correctly(make_scaffolder):
     """Extension sections with @marker headers are inserted at the matching
     <!-- EXT:name --> position, not appended at the end."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     config = _config(stacks=["dotnet", "react", "ts", "cosmos", "azure", "mcp"])
-    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
-                                skills=["code-review-checklist"], install=False)
+    scaf = make_scaffolder(config=config, skills=["code-review-checklist"])
     scaf.run(generated_at="2026-07-24T00:00:00Z")
 
     content = (target / ".ai-badger" / "skills" / "code-review-checklist" / "SKILL.md").read_text()

@@ -7,17 +7,11 @@ from scaffold_helpers import _config
 
 
 # ---------------------------------------------------------------------- hook wiring
-def test_scaffold_wires_claude_hooks_into_settings_json(tmp_path, load_script, root):
+def test_scaffold_wires_claude_hooks_into_settings_json(make_scaffolder):
     """Scaffolding with claude agent should wire hooks into .claude/settings.json."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
-    scaf = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(agents=["claude"]),
-        skills=["task", "prompt-markers"], install=False,
-    )
+    scaf = make_scaffolder(config=_config(agents=["claude"]), skills=["task", "prompt-markers"])
     scaf.run(generated_at="2026-07-24T00:00:00Z")
 
     # .claude/settings.json should exist with hooks
@@ -58,33 +52,29 @@ def _wired_scripts(settings: dict, event: str) -> list:
             for h in entry.get("hooks", [])]
 
 
-def test_session_start_hook_is_the_wired_session_start_command(tmp_path, load_script, root):
+def test_session_start_hook_is_the_wired_session_start_command(make_scaffolder):
     """The scaffolded SessionStart hook must be session_start_hook.py itself (F-07).
 
     Asserting only that *some* SessionStart hook exists is what let a hook that cannot
     resolve its plugin root in a consumer pass as the session-recording feature.
     """
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
-    scaffold.Scaffolder(root=root, target=target, config=_config(agents=["claude"]),
-                        skills=["task"], install=False).run(generated_at="2026-07-24T00:00:00Z")
+    make_scaffolder(config=_config(agents=["claude"]), skills=["task"]).run(
+        generated_at="2026-07-24T00:00:00Z")
 
     settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
     scripts = _wired_scripts(settings, "SessionStart")
     assert "session_start_hook.py" in scripts, scripts
 
 
-def test_consumer_settings_do_not_wire_the_plugin_only_drift_hook(tmp_path, load_script, root):
+def test_consumer_settings_do_not_wire_the_plugin_only_drift_hook(make_scaffolder):
     """Drift notice runs from the plugin's own hooks.json; a consumer copy can never
     locate the plugin root, so wiring it there only looks like the feature works (F-07)."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
-    scaffold.Scaffolder(root=root, target=target, config=_config(agents=["claude"]),
-                        skills=["task"], install=False).run(generated_at="2026-07-24T00:00:00Z")
+    make_scaffolder(config=_config(agents=["claude"]), skills=["task"]).run(
+        generated_at="2026-07-24T00:00:00Z")
 
     settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
     assert "drift_notice_hook.py" not in _wired_scripts(settings, "SessionStart")
@@ -101,18 +91,13 @@ def test_plugin_registers_drift_notice_from_its_own_hooks_json(root):
                for cmd in commands), commands
 
 
-def test_scaffold_hook_wiring_is_idempotent(tmp_path, load_script, root):
+def test_scaffold_hook_wiring_is_idempotent(make_scaffolder):
     """Running scaffold twice should not duplicate hooks in settings.json."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     for _ in range(2):
-        scaf = scaffold.Scaffolder(
-            root=root, target=target,
-            config=_config(agents=["claude"]),
-            skills=["task", "prompt-markers"], install=False,
-        )
+        scaf = make_scaffolder(config=_config(agents=["claude"]),
+                               skills=["task", "prompt-markers"])
         scaf.run(generated_at="2026-07-24T00:00:00Z")
 
     settings_path = target / ".claude" / "settings.json"
@@ -169,19 +154,18 @@ def _all_commands(settings: dict) -> list:
             for h in entry.get("hooks", [])]
 
 
-def _scaffold(scaffold, root, target, skills=("task", "prompt-markers")):
+def _scaffold(make_scaffolder, target, skills=("task", "prompt-markers")):
     target.mkdir(parents=True, exist_ok=True)
-    scaffold.Scaffolder(root=root, target=target, config=_config(agents=["claude"]),
-                        skills=list(skills), install=False).run(generated_at="2026-07-24T00:00:00Z")
+    make_scaffolder(target=target, config=_config(agents=["claude"]),
+                    skills=list(skills)).run(generated_at="2026-07-24T00:00:00Z")
     return json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
 
 
-def test_wired_hook_commands_carry_no_absolute_checkout_path(tmp_path, load_script, root):
+def test_wired_hook_commands_carry_no_absolute_checkout_path(tmp_path, root, make_scaffolder):
     """A wired command must survive being read from another checkout of the same project."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     target = tmp_path / "proj"
 
-    settings = _scaffold(scaffold, root, target)
+    settings = _scaffold(make_scaffolder, target)
 
     commands = _all_commands(settings)
     assert commands
@@ -191,18 +175,17 @@ def test_wired_hook_commands_carry_no_absolute_checkout_path(tmp_path, load_scri
         assert "CLAUDE_PROJECT_DIR" in cmd, cmd
 
 
-def test_wiring_from_a_second_checkout_does_not_append_a_duplicate(tmp_path, load_script, root):
+def test_wiring_from_a_second_checkout_does_not_append_a_duplicate(tmp_path, make_scaffolder):
     """The same project scaffolded from two checkouts must leave one command per hook."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     first = tmp_path / "main-checkout"
     second = tmp_path / "worktree-checkout"
 
-    first_settings = _scaffold(scaffold, root, first)
+    first_settings = _scaffold(make_scaffolder, first)
     (second / ".claude").mkdir(parents=True)
     (second / ".claude" / "settings.json").write_text(
         json.dumps(first_settings), encoding="utf-8")
 
-    commands = _all_commands(_scaffold(scaffold, root, second))
+    commands = _all_commands(_scaffold(make_scaffolder, second))
     assert len(commands) == len(set(commands)), commands
     assert len(commands) == len(_all_commands(first_settings)), commands
 
@@ -293,17 +276,11 @@ def test_merge_keeps_distinct_scripts_of_the_same_skill(load_script):
     assert commands == [drift, session], commands
 
 
-def test_scaffold_no_hooks_without_claude_agent(tmp_path, load_script, root):
+def test_scaffold_no_hooks_without_claude_agent(make_scaffolder):
     """Scaffolding without claude agent should not create hooks."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
-    scaf = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(agents=["hermes"]),
-        skills=["task"], install=False,
-    )
+    scaf = make_scaffolder(config=_config(agents=["hermes"]), skills=["task"])
     scaf.run(generated_at="2026-07-24T00:00:00Z")
 
     settings_path = target / ".claude" / "settings.json"
