@@ -6,8 +6,27 @@ additions live in test_drift_new_items.py.
 from __future__ import annotations
 
 import json
+import shutil
+from pathlib import Path
 
 from scaffold_helpers import _config
+
+# Enough of a framework to scaffold from and safe to mutate — the shared checkout is not.
+_FRAMEWORK_TREE = ("features", "schemas", "engine", "tooling", "hooks", "skills",
+                   ".claude-plugin", "VERSION", "index.json", "BREAKING_VERSIONS")
+
+
+def _copy_framework(source: Path, dest: Path) -> Path:
+    """Copy the framework tree to `dest` so a test may move it ahead of a scaffolded project."""
+    dest.mkdir(parents=True, exist_ok=True)
+    ignore = shutil.ignore_patterns("__pycache__", "*.pyc")
+    for name in _FRAMEWORK_TREE:
+        src = source / name
+        if src.is_dir():
+            shutil.copytree(src, dest / name, ignore=ignore)
+        elif src.is_file():
+            shutil.copy2(src, dest / name)
+    return dest
 
 
 def _manifest_with_entry(target, source_rel, target_rel, entry_hash):
@@ -484,6 +503,81 @@ def test_freshly_scaffolded_project_reports_nothing_changed(tmp_path, load_scrip
     compared = drift.compare(root, result["manifest"], target=target)
 
     assert compared["changed"] == []
+
+
+def test_a_skill_changed_in_the_framework_is_reported_as_drift(tmp_path, load_script, root):
+    """The question den-refresh exists to answer; the scaffolded copy cannot answer it."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    fw = _copy_framework(root, tmp_path / "fw")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    result = scaffold.Scaffolder(
+        root=fw, target=target, config=_config(stacks=["python"]),
+        skills=["task"], install=False,
+    ).run(generated_at="2026-07-28T00:00:00Z")
+
+    moved = fw / "features" / "common" / "skills" / "task" / "scripts" / "task_tracker.py"
+    moved.write_text(moved.read_text(encoding="utf-8") + "# upstream moved on\n",
+                     encoding="utf-8")
+
+    compared = drift.compare(fw, result["manifest"], target=target)
+
+    assert "features/common/skills/task" in compared["changed"]
+
+
+def test_a_project_edit_to_its_own_copy_is_not_framework_drift(tmp_path, load_script, root):
+    """Editing the vendored copy is a local modification, reported apart from framework drift."""
+    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    fw = _copy_framework(root, tmp_path / "fw")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    result = scaffold.Scaffolder(
+        root=fw, target=target, config=_config(stacks=["python"]),
+        skills=["task"], install=False,
+    ).run(generated_at="2026-07-28T00:00:00Z")
+
+    edited = target / ".ai-badger" / "skills" / "task" / "scripts" / "task_tracker.py"
+    edited.write_text(edited.read_text(encoding="utf-8") + "# ours\n", encoding="utf-8")
+
+    compared = drift.compare(fw, result["manifest"], target=target)
+
+    assert compared["changed"] == []
+    assert "features/common/skills/task" in compared["locallyModified"]
+
+
+def test_a_version_only_difference_is_drift(tmp_path, load_script):
+    """The version is rendered into manifest.json and every agent file, so it goes stale alone."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+    (fw / "VERSION").write_text("0.4.0\n", encoding="utf-8")
+
+    result = drift.compare(fw, {"frameworkVersion": "0.3.0", "entries": []})
+
+    assert result["versionChanged"] == {"scaffolded": "0.3.0", "current": "0.4.0"}
+
+
+def test_main_reports_drift_when_only_the_version_moved(tmp_path, load_script, capsys):
+    """Exit 1, not 0: the rendered stamps are stale even with every entry byte-identical."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+    (fw / "VERSION").write_text("0.4.0\n", encoding="utf-8")
+    proj = tmp_path / "proj"
+    (proj / ".ai-badger").mkdir(parents=True)
+    (proj / ".ai-badger" / "manifest.json").write_text(json.dumps({
+        "frameworkVersion": "0.3.0", "frameworkCommit": None, "frameworkDirty": False,
+        "agents": ["claude"], "entries": [],
+    }), encoding="utf-8")
+
+    rc = drift.main(["--root", str(fw), "--target", str(proj)])
+
+    assert rc == 1
+    assert "0.3.0" in capsys.readouterr().out
 
 
 def test_one_changed_source_is_reported_once_however_many_entries_share_it(
