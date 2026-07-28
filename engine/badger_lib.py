@@ -621,6 +621,16 @@ def resolve_stacks(config: Dict[str, Any]) -> List[str]:
             if not (s in seen or seen.add(s))]
 
 
+def is_orphaned(entry: Dict[str, Any], stacks: List[str]) -> bool:
+    """True when a manifest entry's stack is no longer one this project configures.
+
+    The one place that decides it, so drift and the re-scaffold cannot disagree about what a
+    dropped stack leaves behind (#116). `stacks` is `resolve_stacks(config)`, which always
+    carries the always-on common stack.
+    """
+    return entry.get("stack") not in stacks
+
+
 def iter_feature_dirs(root: Path) -> List[Tuple[str, str, Path]]:
     """Yield (stack, feature, dir) for every features/<stack>/<feature> directory present.
 

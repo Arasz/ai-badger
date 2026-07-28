@@ -54,6 +54,9 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
      that actually wrote `manifest.json`. config.json advances only when a re-scaffold ran
    - `drift.changed` — framework sources that have moved ahead of what this project holds
    - `drift.removed` — scaffolded files whose framework source no longer exists
+   - `drift.orphaned` — entries whose stack this project no longer lists in `config.stacks`.
+     The framework still ships them; this project stopped asking. The re-scaffold prunes them,
+     leaving anything edited in place with a note
    - `drift.versionChanged` — the version alone moved; it is stamped into manifest.json and
      every generated agent file, so those are stale even when no content changed
    - `drift.locallyModified` — skills this project edited in place. Not framework drift, but
@@ -145,6 +148,10 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
   declaration. To decline one for good, add its name to `exclude` in `config.json`
   (`{"skills": ["mcp-index"]}`); the refresh then stops delivering it and removes the
   discovery symlinks ai-badger placed for it.
+- **Dropping a stack from `config.stacks` is the other way to stop asking**, and it now
+  converges the same way: the entries that stack delivered are reported as `drift.orphaned` and
+  pruned by the re-scaffold. Before 0.42.0 the removal was invisible and the files were left
+  behind (#116).
 
 ## Error Recovery
 

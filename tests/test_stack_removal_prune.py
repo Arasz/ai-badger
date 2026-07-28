@@ -1,0 +1,144 @@
+"""Dropping a stack from config must converge: drift sees it, and the re-scaffold prunes it.
+
+Drift detected additions (#104) and modifications (#110) but never subtractions, so a removed
+stack left its files on disk — and a re-scaffold triggered by anything else dropped the entry
+from the manifest, putting the file beyond the reach of every later check (#116).
+"""
+from __future__ import annotations
+
+import json
+
+from scaffold_helpers import _config
+
+DRIFT = "features/common/skills/welcome-ai-badger/scripts/drift.py"
+SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
+TS_INSTRUCTION = ".ai-badger/instructions/typescript.instructions.md"
+
+
+def _manifest(entries):
+    return {"frameworkVersion": "0.41.0", "agents": ["claude"], "entries": entries}
+
+
+def _entry(stack, source, target, entry_hash="deadbeef", feature="instructions", name="n"):
+    return {"feature": feature, "stack": stack, "name": name, "source": source,
+            "target": target, "frameworkVersion": "0.41.0", "hash": entry_hash}
+
+
+def _scaffolded(scaffold, root, tmp_path, config, skills=("task",)):
+    target = tmp_path / "proj"
+    target.mkdir(exist_ok=True)
+    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
+                               skills=list(skills), install=False)
+    return target, scaf.run(generated_at="2026-07-28T00:00:00Z")
+
+
+class TestDriftSeesASubtraction:
+    """An entry whose stack is no longer configured is drift, the same as one whose source moved."""
+
+    def test_an_entry_whose_stack_left_the_config_is_orphaned(self, tmp_path, load_script):
+        drift = load_script(DRIFT)
+        fw = tmp_path / "fw"
+        (fw / "features" / "ts" / "instructions").mkdir(parents=True)
+        (fw / "features" / "ts" / "instructions" / "typescript.instructions.md").write_text(
+            "ts\n", encoding="utf-8")
+        manifest = _manifest([_entry("ts", "features/ts/instructions/typescript.instructions.md",
+                                     TS_INSTRUCTION)])
+
+        result = drift.compare(fw, manifest, stacks=["common", "python"], target=tmp_path / "p")
+
+        assert result["orphaned"] == ["features/ts/instructions/typescript.instructions.md"]
+
+    def test_a_configured_stack_is_not_orphaned(self, tmp_path, load_script):
+        drift = load_script(DRIFT)
+        fw = tmp_path / "fw"
+        (fw / "features" / "ts" / "instructions").mkdir(parents=True)
+        src = fw / "features" / "ts" / "instructions" / "typescript.instructions.md"
+        src.write_text("ts\n", encoding="utf-8")
+        bl = load_script("engine/badger_lib.py")
+        manifest = _manifest([_entry("ts", "features/ts/instructions/typescript.instructions.md",
+                                     TS_INSTRUCTION, bl.sha256_file(src))])
+
+        result = drift.compare(fw, manifest, stacks=["common", "ts"], target=tmp_path / "p")
+
+        assert result["orphaned"] == []
+
+    def test_the_always_on_common_stack_is_never_orphaned(self, tmp_path, load_script):
+        """`resolve_stacks` always prepends it; treating it as removed would delete everything."""
+        drift = load_script(DRIFT)
+        fw = tmp_path / "fw"
+        (fw / "features" / "common" / "invariants").mkdir(parents=True)
+        src = fw / "features" / "common" / "invariants" / "x.md"
+        src.write_text("inv\n", encoding="utf-8")
+        bl = load_script("engine/badger_lib.py")
+        manifest = _manifest([_entry("common", "features/common/invariants/x.md",
+                                     ".ai-badger/invariants/x.md", bl.sha256_file(src),
+                                     feature="invariants")])
+
+        result = drift.compare(fw, manifest, stacks=["common"], target=tmp_path / "p")
+
+        assert result["orphaned"] == []
+
+    def test_an_orphaned_entry_is_not_also_reported_changed(self, tmp_path, load_script):
+        """It is leaving; reporting it as upstream drift too is noise."""
+        drift = load_script(DRIFT)
+        fw = tmp_path / "fw"
+        (fw / "features" / "ts" / "instructions").mkdir(parents=True)
+        (fw / "features" / "ts" / "instructions" / "typescript.instructions.md").write_text(
+            "moved on\n", encoding="utf-8")
+        manifest = _manifest([_entry("ts", "features/ts/instructions/typescript.instructions.md",
+                                     TS_INSTRUCTION, "stale-hash")])
+
+        result = drift.compare(fw, manifest, stacks=["common"], target=tmp_path / "p")
+
+        assert result["changed"] == []
+        assert result["orphaned"] == ["features/ts/instructions/typescript.instructions.md"]
+
+    def test_without_a_stack_list_nothing_is_orphaned(self, tmp_path, load_script):
+        """`compare()` is also called with no config in hand; it must not guess."""
+        drift = load_script(DRIFT)
+        fw = tmp_path / "fw"
+        (fw / "features" / "ts" / "instructions").mkdir(parents=True)
+        src = fw / "features" / "ts" / "instructions" / "typescript.instructions.md"
+        src.write_text("ts\n", encoding="utf-8")
+        bl = load_script("engine/badger_lib.py")
+        manifest = _manifest([_entry("ts", "features/ts/instructions/typescript.instructions.md",
+                                     TS_INSTRUCTION, bl.sha256_file(src))])
+
+        result = drift.compare(fw, manifest)
+
+        assert result["orphaned"] == []
+
+
+class TestTheReScaffoldPrunesTheOrphan:
+    """Detection alone leaves the file; the prune is what makes the config edit converge."""
+
+    def test_dropping_a_stack_removes_the_file_it_placed(self, tmp_path, load_script, root):
+        scaffold = load_script(SCAFFOLD)
+        target, _ = _scaffolded(scaffold, root, tmp_path, _config(stacks=["python", "ts"]))
+        assert (target / TS_INSTRUCTION).is_file()
+
+        _scaffolded(scaffold, root, tmp_path, _config(stacks=["python"]))
+
+        assert not (target / TS_INSTRUCTION).exists()
+
+    def test_an_edited_orphan_is_left_in_place_and_reported(self, tmp_path, load_script, root):
+        """Only what ai-badger placed and the project never touched may be removed."""
+        scaffold = load_script(SCAFFOLD)
+        target, _ = _scaffolded(scaffold, root, tmp_path, _config(stacks=["python", "ts"]))
+        edited = target / TS_INSTRUCTION
+        edited.write_text("# ours now\n", encoding="utf-8")
+
+        _, result = _scaffolded(scaffold, root, tmp_path, _config(stacks=["python"]))
+
+        assert edited.read_text(encoding="utf-8") == "# ours now\n"
+        assert any("typescript" in n and "edited" in n for n in result["notes"])
+
+    def test_the_manifest_no_longer_claims_the_pruned_file(self, tmp_path, load_script, root):
+        scaffold = load_script(SCAFFOLD)
+        target, _ = _scaffolded(scaffold, root, tmp_path, _config(stacks=["python", "ts"]))
+
+        _scaffolded(scaffold, root, tmp_path, _config(stacks=["python"]))
+
+        manifest = json.loads((target / ".ai-badger" / "manifest.json").read_text(
+            encoding="utf-8"))
+        assert [e for e in manifest["entries"] if e.get("stack") == "ts"] == []
