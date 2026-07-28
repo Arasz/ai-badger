@@ -326,6 +326,59 @@ def test_hermes_drift_notice_has_a_version_to_compare(shapes, tmp_path):
     assert (Path(reported) / "VERSION").is_file()
 
 
+def test_the_shim_and_badger_lib_state_one_cache_skew_warning(root):
+    """One warning text, in two places only because the shim runs before badger_lib exists."""
+    def normalise(text: str) -> str:
+        return " ".join(text.split())
+
+    warning = normalise(
+        'print(f"ai-badger: {cache} is version {have}, but this project was scaffolded "\n'
+        '      f"by {want}. The cache is never updated in place — remove it, or pass "\n'
+        '      f"--root <framework checkout>.", file=sys.stderr)')
+    lib = normalise((root / "scripts" / "badger_lib.py").read_text(encoding="utf-8"))
+    shim = normalise(_shim_text(root / ENTRY_POINTS["scaffold"]))
+
+    assert warning in lib
+    assert warning in shim
+
+
+def _stale_cache_shape(base: Path, tmp_path: Path) -> tuple:
+    """A home whose only framework is a cache one version behind, and a scaffold that reached it.
+
+    The scaffold's recorded root is gone, so the cache is what answers — the shape the
+    maintainer's own machine has been in since 0.13.0.
+    """
+    home = base / "home"
+    cache = _copy_framework(home / ".ai-badger" / "framework")
+    (cache / "VERSION").write_text("0.13.0\n", encoding="utf-8")
+
+    consumer = base / "consumer"
+    aib = consumer / ".ai-badger"
+    aib.mkdir(parents=True)
+    (aib / "manifest.json").write_text(
+        json.dumps({"frameworkVersion": "0.35.2", "frameworkRoot": str(tmp_path / "gone")}),
+        encoding="utf-8")
+    entry = aib / "skills" / "welcome-ai-badger" / "scripts" / "detect.py"
+    entry.parent.mkdir(parents=True)
+    shutil.copy2(ROOT / ENTRY_POINTS["detect"], entry)
+    return home, cache, entry
+
+
+def test_a_stale_cache_announces_itself_to_the_entry_point_that_reached_for_it(tmp_path):
+    """The shim, not badger_lib, is what a scaffolded copy runs before any import happens."""
+    home, cache, entry = _stale_cache_shape(tmp_path / "shape", tmp_path)
+
+    probe = tmp_path / "probe.py"
+    probe.write_text(_PROBE, encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(probe), str(entry)], capture_output=True,
+                          text=True, cwd=str(tmp_path), env=_env(home), check=False)
+
+    assert proc.returncode == 0, proc.stderr
+    lines = [ln for ln in proc.stdout.splitlines() if ln.startswith("AIB_ROOT=")]
+    assert json.loads(lines[-1][len("AIB_ROOT="):]) == str(cache.resolve())
+    assert "0.13.0" in proc.stderr and "0.35.2" in proc.stderr
+
+
 def _hostile_repo(base: Path) -> Path:
     """A cloned repo whose tracked manifest points at a tree of its own, holding a payload."""
     repo = base / "hostile"

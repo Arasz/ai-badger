@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
@@ -124,6 +125,7 @@ ROOT_ENV_VAR = "AI_BADGER"
 SCAFFOLD_DIR = ".ai-badger"
 MANIFEST_NAME = "manifest.json"
 MANIFEST_ROOT_KEY = "frameworkRoot"
+MANIFEST_VERSION_KEY = "frameworkVersion"
 
 
 class FrameworkRootNotFound(RuntimeError):
@@ -174,6 +176,44 @@ def recorded_root(start: Path) -> Optional[Path]:
     return None
 
 
+def recorded_version(start: Path) -> Optional[str]:
+    """Framework version recorded in the nearest readable manifest above `start`, or None.
+
+    What the caller was installed at, which is what a resolved cache has to agree with.
+    """
+    for manifest in _manifest_candidates(start):
+        if not manifest.is_file():
+            continue
+        try:
+            recorded = load_json(manifest).get(MANIFEST_VERSION_KEY)
+        except (OSError, ValueError, AttributeError):
+            continue
+        if recorded:
+            return str(recorded)
+    return None
+
+
+def warn_on_cache_skew(root: Path, start: Path) -> None:
+    """Say so when the cache answered with an engine older than the caller it is serving.
+
+    Last in the resolution order and never updated in place, so it can be many releases
+    behind (ADR-0009). A warning, not a refusal: discovery inputs never raise, and the same
+    statement runs inside session-start hooks. Silent unless both versions are known.
+    """
+    cache = FRAMEWORK_CACHE
+    if root.resolve() != cache.resolve():
+        return
+    try:
+        have = (cache / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        return
+    want = recorded_version(start)
+    if have and want and have != want:
+        print(f"ai-badger: {cache} is version {have}, but this project was scaffolded "
+              f"by {want}. The cache is never updated in place — remove it, or pass "
+              f"--root <framework checkout>.", file=sys.stderr)
+
+
 def _declared_root(value, source: str) -> Path:
     """Accept an operator-supplied root, or refuse loudly: a wrong pointer is not a fallback."""
     candidate = Path(value).expanduser()
@@ -196,7 +236,7 @@ def resolve_framework_root(explicit=None, start: Optional[Path] = None) -> Path:
     3. `$AI_BADGER` — the checkout documented in getting-started.md Route B; refuses rather
        than falls through when it names a non-root.
     4. `frameworkRoot` recorded in the nearest `.ai-badger/manifest.json` above `start`.
-    5. `~/.ai-badger/framework`, the cache.
+    5. `~/.ai-badger/framework`, the cache — which reports its own version skew when it wins.
 
     Four deployment shapes (ADR-0007): a framework checkout and the Claude plugin cache are
     answered by (2); a `.ai-badger/` scaffold and `~/.hermes/plugins/` hold no framework
@@ -219,6 +259,7 @@ def resolve_framework_root(explicit=None, start: Optional[Path] = None) -> Path:
         return recorded
 
     if is_framework_root(FRAMEWORK_CACHE):
+        warn_on_cache_skew(FRAMEWORK_CACHE, origin)
         return FRAMEWORK_CACHE
 
     raise FrameworkRootNotFound(

@@ -238,6 +238,91 @@ def test_the_ancestor_walk_outranks_a_recorded_root(tmp_path, load_script, monke
     assert bl.resolve_framework_root(start=ancestor / ".ai-badger") == ancestor.resolve()
 
 
+# ------------------------------------------- the cache reports its own version skew (ADR-0009)
+def _scaffold_recording_version(project, version, framework_root=None):
+    """A .ai-badger/ scaffold that records the framework version it was written by."""
+    aib = project / ".ai-badger"
+    aib.mkdir(parents=True, exist_ok=True)
+    record = {"frameworkVersion": version}
+    if framework_root is not None:
+        record["frameworkRoot"] = str(framework_root)
+    (aib / "manifest.json").write_text(json.dumps(record), encoding="utf-8")
+    return aib
+
+
+def test_a_stale_cache_names_both_versions_when_it_is_what_answered(
+        tmp_path, load_script, monkeypatch, capsys):
+    """The cache is never updated in place, so it can be many releases behind the scaffold."""
+    bl = load_script("scripts/badger_lib.py")
+    cache = _make_root(tmp_path / "cache", version="0.13.0")
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", cache)
+    aib = _scaffold_recording_version(tmp_path / "consumer", "0.35.2")
+
+    assert bl.resolve_framework_root(start=aib) == cache
+
+    warning = capsys.readouterr().err
+    assert "0.13.0" in warning and "0.35.2" in warning and str(cache) in warning
+
+
+def test_a_stale_cache_warns_rather_than_refuses(tmp_path, load_script, monkeypatch, capsys):
+    """This statement also runs inside session-start hooks, which must never break a session."""
+    bl = load_script("scripts/badger_lib.py")
+    cache = _make_root(tmp_path / "cache", version="0.13.0")
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", cache)
+    aib = _scaffold_recording_version(tmp_path / "consumer", "0.35.2")
+
+    resolved = bl.resolve_framework_root(start=aib)
+
+    assert resolved == cache
+    assert capsys.readouterr().err.strip()
+
+
+def test_a_cache_that_matches_the_scaffold_says_nothing(
+        tmp_path, load_script, monkeypatch, capsys):
+    bl = load_script("scripts/badger_lib.py")
+    cache = _make_root(tmp_path / "cache", version="0.35.2")
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", cache)
+    aib = _scaffold_recording_version(tmp_path / "consumer", "0.35.2")
+
+    assert bl.resolve_framework_root(start=aib) == cache
+    assert capsys.readouterr().err == ""
+
+
+def test_a_root_the_cache_did_not_answer_is_never_compared_against_it(
+        tmp_path, load_script, monkeypatch, capsys):
+    """A stale cache on the machine is irrelevant when something above the script answered."""
+    bl = load_script("scripts/badger_lib.py")
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", _make_root(tmp_path / "cache", version="0.13.0"))
+    ancestor = _make_root(tmp_path / "ancestor", version="0.35.2")
+
+    assert bl.resolve_framework_root(start=ancestor) == ancestor.resolve()
+    assert capsys.readouterr().err == ""
+
+
+def test_a_scaffold_that_records_no_version_leaves_the_cache_unjudged(
+        tmp_path, load_script, monkeypatch, capsys):
+    """With nothing to compare against there is no skew to report, and silence is correct."""
+    bl = load_script("scripts/badger_lib.py")
+    cache = _make_root(tmp_path / "cache", version="0.13.0")
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", cache)
+    plugins = tmp_path / "home" / ".hermes" / "plugins"
+    _make_scaffold(plugins, tmp_path / "gone")
+
+    assert bl.resolve_framework_root(start=plugins / "ai_badger_hooks.py") == cache
+    assert capsys.readouterr().err == ""
+
+
+def test_a_cache_without_a_version_file_is_left_unjudged(
+        tmp_path, load_script, monkeypatch, capsys):
+    bl = load_script("scripts/badger_lib.py")
+    cache = _make_root(tmp_path / "cache")
+    monkeypatch.setattr(bl, "FRAMEWORK_CACHE", cache)
+    aib = _scaffold_recording_version(tmp_path / "consumer", "0.35.2")
+
+    assert bl.resolve_framework_root(start=aib) == cache
+    assert capsys.readouterr().err == ""
+
+
 class TestEnsureFrameworkCache:
     """ensure_root() is the only path allowed to reach the network, and only when pinned."""
 
