@@ -120,13 +120,17 @@ it lands in `not_instrumented` because it cannot report on itself. A hook whose 
 |---|---|---|
 | `never_observed` | high | Registered **and** instrumented, but produced no record while the log holds records from elsewhere. It may never load, or never fire. This is the failure the tool exists to catch. |
 | `not_instrumented` | low | Registered but calls no debug logger, so it *cannot* produce records. Its silence says nothing about health — do not report it as broken. |
-| `version_skew` | high | One component ran at more than one framework version. Copies disagree — typically a plugin cache against a `.ai-badger/` scaffold. |
+| `version_skew` | high | Two versions' observed time ranges **overlap**: two copies were live at once — typically a plugin cache against a `.ai-badger/` scaffold. The finding names each version with the range it was seen in. |
 | `always_skipped` | medium | Fired every time and exited early every time. Live, but doing nothing. |
 | `unexpected_component` | low | Produced records but is not registered by this project. Often legitimate (a plugin-side hook); worth a glance. |
+| `version_unresolvable` | low | Records carry the `unknown` sentinel: the copy that ran has no VERSION and no manifest above it, so it predates 0.35.4 and needs re-scaffolding. |
+| `version_progression` | info | Ran at several versions whose ranges are **disjoint** — an upgrade in sequence. Context, not a fault. |
 
 `health` is `ok`, `warn`, `degraded`, or **`unknown`**. Treat `unknown` as *nobody looked* — it
 means there is no evidence, not that everything is fine. Say so plainly in the report rather
-than implying health.
+than implying health. An `info` finding never moves the verdict: during a release train every
+component legitimately runs at several versions in turn, and a severity that fires on every
+ordinary upgrade teaches the reader to skip the one instance that is real.
 
 **Evidence is not the same as lines in the log.** This tool records its own `enabled`,
 `disabled` and `cleared` events; those prove the log exists and nothing more. They are excluded
@@ -142,7 +146,9 @@ trivially silent, and reporting that as a high-severity failure would be crying 
 2. Lead with what is *wrong*, not with counts. "Two wired hooks never fire" beats "5 findings".
 3. Include the observation window and record count, so a reader knows how much evidence there
    is. A `degraded` verdict from three records deserves that caveat.
-4. Name the versions involved for any `version_skew` — that is the actionable part.
+4. Name the versions involved for any `version_skew`, **with the ranges they were observed in**
+   — that is the actionable part, and it is what says which copy to remove. Do not report a
+   `version_progression` as a fault; mention it only as the release train it is.
 
 ### Filing it
 
