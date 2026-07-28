@@ -11,15 +11,11 @@ from scaffold_helpers import _config
 
 
 # ------------------------------------------------------------------------- new-file creation
-def test_scaffold_creates_new_skill_dir_on_first_run(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_scaffold_creates_new_skill_dir_on_first_run(make_scaffolder):
+    target = make_scaffolder.target
     assert not (target / ".ai-badger").exists()
 
-    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(),
-                                skills=["task"], install=False)
-    result = scaf.run(generated_at="2026-07-19T00:00:00Z")
+    result = make_scaffolder(skills=["task"]).run(generated_at="2026-07-19T00:00:00Z")
 
     assert (target / ".ai-badger" / "skills" / "task").is_dir()
     skill_entries = [e for e in result["manifest"]["entries"]
@@ -28,16 +24,10 @@ def test_scaffold_creates_new_skill_dir_on_first_run(tmp_path, load_script, root
 
 
 # ------------------------------------------------------------------------------- no leakage
-def test_scaffold_no_stack_leakage(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_scaffold_no_stack_leakage(make_scaffolder):
+    make_scaffolder(config=_config(stacks=["dotnet"])).run(generated_at="2026-07-19T00:00:00Z")
 
-    scaf = scaffold.Scaffolder(root=root, target=target, config=_config(stacks=["dotnet"]),
-                                skills=[], install=False)
-    scaf.run(generated_at="2026-07-19T00:00:00Z")
-
-    aib = target / ".ai-badger"
+    aib = make_scaffolder.target / ".ai-badger"
     assert (aib / "instructions" / "csharp.instructions.md").exists()
     assert (aib / "agents" / "dotnet-engineer.md").exists()  # personas land under agents/
 
@@ -49,35 +39,23 @@ def test_scaffold_no_stack_leakage(tmp_path, load_script, root):
     assert "frontend-engineer.md" not in all_persona_names
 
 
-def test_scaffold_no_stack_leakage_react_excludes_dotnet(tmp_path, load_script, root):
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+def test_scaffold_no_stack_leakage_react_excludes_dotnet(make_scaffolder):
+    make_scaffolder(config=_config(stacks=["react", "ts", "node"])).run(
+        generated_at="2026-07-19T00:00:00Z")
 
-    scaf = scaffold.Scaffolder(root=root, target=target,
-                                config=_config(stacks=["react", "ts", "node"]),
-                                skills=[], install=False)
-    scaf.run(generated_at="2026-07-19T00:00:00Z")
-
-    aib = target / ".ai-badger"
+    aib = make_scaffolder.target / ".ai-badger"
     assert (aib / "agents" / "frontend-engineer.md").exists()
     all_persona_names = {p.name for p in (aib / "agents").glob("*")}
     assert "dotnet-engineer.md" not in all_persona_names
 
 
 # ---------------------------------------------------------------------- --execute flag
-def test_scaffold_execute_flag_runs_commands(tmp_path, load_script, root):
+def test_scaffold_execute_flag_runs_commands(make_scaffolder):
     """--execute flag should execute install commands and log results."""
     import unittest.mock
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
 
-    scaf = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(agents=["claude"]),
-        skills=["task"], install=True, execute=True,
-    )
+    scaf = make_scaffolder(config=_config(agents=["claude"]),
+                           skills=["task"], install=True, execute=True)
 
     # Mock subprocess.run to capture calls without actually running them
     with unittest.mock.patch("subprocess.run") as mock_run:
@@ -92,18 +70,12 @@ def test_scaffold_execute_flag_runs_commands(tmp_path, load_script, root):
         assert not call[1].get("shell"), f"ran through a shell: {cmd!r}"
 
 
-def test_scaffold_execute_flag_handles_failure(tmp_path, load_script, root):
+def test_scaffold_execute_flag_handles_failure(make_scaffolder):
     """--execute flag should log failures without crashing."""
     import unittest.mock
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
 
-    scaf = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(agents=["claude"]),
-        skills=["task"], install=True, execute=True,
-    )
+    scaf = make_scaffolder(config=_config(agents=["claude"]),
+                           skills=["task"], install=True, execute=True)
 
     with unittest.mock.patch("subprocess.run") as mock_run:
         mock_run.return_value = unittest.mock.MagicMock(returncode=1, stderr="not found")
@@ -122,22 +94,13 @@ def test_auto_wm_is_not_a_universal_default(load_script):
     assert "auto-wm" not in bl.SKILL_SCOPES
 
 
-def test_scaffolder_discovers_stack_local_skill_for_configured_stack(
-        tmp_path, load_script, root):
+def test_scaffolder_discovers_stack_local_skill_for_configured_stack(make_scaffolder):
     """A stack-local skill is auto-discovered when its stack is configured."""
-    scaffold = load_script(
-        "features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-
-    target = tmp_path / "proj"
-    target.mkdir()
-    scaf = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(stacks=["claude"]),
-        skills=[], install=False)
+    scaf = make_scaffolder(config=_config(stacks=["claude"]))
     result = scaf.run(generated_at="2026-07-28T00:00:00Z")
 
     assert "auto-wm" in scaf.skills
-    assert (target / ".ai-badger" / "skills" / "auto-wm").is_dir()
+    assert (make_scaffolder.target / ".ai-badger" / "skills" / "auto-wm").is_dir()
     skill_entries = [e for e in result["manifest"]["entries"]
                      if e.get("feature") == "skills"
                      and e.get("name") == "auto-wm"]
@@ -145,29 +108,18 @@ def test_scaffolder_discovers_stack_local_skill_for_configured_stack(
     assert skill_entries[0]["stack"] == "claude"
 
 
-def test_scaffolder_does_not_discover_stack_local_skill_for_other_stack(
-        tmp_path, load_script, root):
+def test_scaffolder_does_not_discover_stack_local_skill_for_other_stack(make_scaffolder):
     """A stack-local skill is NOT included when its stack is not configured."""
-    scaffold = load_script(
-        "features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-
-    target = tmp_path / "proj"
-    target.mkdir()
-    scaf = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(stacks=["dotnet"]),
-        skills=[], install=False)
+    scaf = make_scaffolder(config=_config(stacks=["dotnet"]))
     scaf.run(generated_at="2026-07-28T00:00:00Z")
 
     assert "auto-wm" not in scaf.skills
-    assert not (target / ".ai-badger" / "skills" / "auto-wm").exists()
+    assert not (make_scaffolder.target / ".ai-badger" / "skills" / "auto-wm").exists()
 
 
-def test_stack_local_skill_not_symlinked_to_other_agent(
-        tmp_path, load_script, root):
+def test_stack_local_skill_not_symlinked_to_other_agent(root, make_scaffolder):
     """A claude stack-local skill must not appear in copilot's adjustment context."""
-    scaffold = load_script(
-        "features/common/skills/welcome-ai-badger/scripts/scaffold.py")
+    scaffold = make_scaffolder.module
 
     # Capture what skills each agent's adjustment receives
     seen = {}
@@ -200,12 +152,7 @@ def test_stack_local_skill_not_symlinked_to_other_agent(
                 seen[agent_name] = agent_skills
         # Don't actually run adjustments
 
-    target = tmp_path / "proj"
-    target.mkdir()
-    scaf = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(stacks=["claude"], agents=["claude", "copilot"]),
-        skills=[], install=False)
+    scaf = make_scaffolder(config=_config(stacks=["claude"], agents=["claude", "copilot"]))
     scaf.run(generated_at="2026-07-28T00:00:00Z")
 
     # After run, capture what each agent would get

@@ -126,22 +126,19 @@ def test_scaffolding_schema_validates_example_instance(root, load_script):
 
 # --- Integration tests ---
 
-def test_scaffolder_reads_scaffolding_json_for_agent(tmp_path, root, load_script):
+def test_scaffolder_reads_scaffolding_json_for_agent(tmp_path, root, make_scaffolder):
     """When features/<agent>/scaffolding.json exists, the scaffolder should use it
     to write the declared files."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     fw = _make_test_framework(tmp_path, root, scaffolding_json={
         "agent": "test-agent",
         "files": [
             {"source": "templates/hello.md", "target": "HELLO.md", "managed": True}
         ],
     })
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     config = _minimal_config(agents=["test-agent"])
-    scaf = scaffold.Scaffolder(root=fw, target=target, config=config,
-                                skills=[], install=False)
+    scaf = make_scaffolder(root=fw, config=config)
     result = scaf.run(generated_at=None)
 
     hello_file = target / "HELLO.md"
@@ -151,18 +148,15 @@ def test_scaffolder_reads_scaffolding_json_for_agent(tmp_path, root, load_script
     assert "Managed by ai-badger" in content
 
 
-def test_scaffolder_skips_agent_without_scaffolding_json(tmp_path, root, load_script):
+def test_scaffolder_skips_agent_without_scaffolding_json(make_scaffolder):
     """When an agent has no scaffolding.json, the scaffolder logs a note and skips it
     without crashing."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
 
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     # "unknown-agent" has no features/unknown-agent/scaffolding.json in the real repo
     config = _minimal_config(agents=["unknown-agent"])
-    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
-                                skills=[], install=False)
+    scaf = make_scaffolder(config=config)
     result = scaf.run(generated_at=None)
 
     # Should not crash — just skip the agent with a note
@@ -170,10 +164,9 @@ def test_scaffolder_skips_agent_without_scaffolding_json(tmp_path, root, load_sc
     assert any("no scaffolding.json" in n for n in result["notes"])
 
 
-def test_scaffolder_template_flag_renders_source(tmp_path, root, load_script):
+def test_scaffolder_template_flag_renders_source(tmp_path, root, make_scaffolder):
     """When template=True, the scaffolder should render the .tmpl source with
     standard slots (PROJECT_NAME, etc.) instead of copying it verbatim."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     fw = _make_test_framework(tmp_path, root, scaffolding_json={
         "agent": "test-agent",
         "files": [{
@@ -181,12 +174,10 @@ def test_scaffolder_template_flag_renders_source(tmp_path, root, load_script):
             "managed": True, "template": True,
         }],
     })
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     config = _minimal_config(agents=["test-agent"])
-    scaf = scaffold.Scaffolder(root=fw, target=target, config=config,
-                                skills=[], install=False)
+    scaf = make_scaffolder(root=fw, config=config)
     result = scaf.run(generated_at=None)
 
     hello_file = target / "HELLO.md"
@@ -197,10 +188,10 @@ def test_scaffolder_template_flag_renders_source(tmp_path, root, load_script):
     assert "{{PROJECT_NAME}}" not in content
 
 
-def test_scaffolder_template_with_managed_false_writes_rendered_content(tmp_path, root, load_script):
+def test_scaffolder_template_with_managed_false_writes_rendered_content(
+        tmp_path, root, make_scaffolder):
     """When template=True and managed=False, the scaffolder should write the
     RENDERED content, not the raw .tmpl source file. This is the latent bug fix."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     fw = _make_test_framework(tmp_path, root, scaffolding_json={
         "agent": "test-agent",
         "files": [{
@@ -208,12 +199,10 @@ def test_scaffolder_template_with_managed_false_writes_rendered_content(tmp_path
             "managed": False, "template": True,
         }],
     })
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     config = _minimal_config(agents=["test-agent"])
-    scaf = scaffold.Scaffolder(root=fw, target=target, config=config,
-                                skills=[], install=False)
+    scaf = make_scaffolder(root=fw, config=config)
     result = scaf.run(generated_at=None)
 
     hello_file = target / "HELLO.md"
@@ -226,10 +215,9 @@ def test_scaffolder_template_with_managed_false_writes_rendered_content(tmp_path
     assert "Managed by ai-badger" not in content
 
 
-def test_scaffolder_also_target_writes_second_copy(tmp_path, root, load_script):
+def test_scaffolder_also_target_writes_second_copy(tmp_path, root, make_scaffolder):
     """When alsoTarget is set, the scaffolder should write the same content to
     both the primary target and the also-target."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     fw = _make_test_framework(tmp_path, root, scaffolding_json={
         "agent": "test-agent",
         "files": [{
@@ -237,12 +225,10 @@ def test_scaffolder_also_target_writes_second_copy(tmp_path, root, load_script):
             "managed": True, "alsoTarget": ".hello.md",
         }],
     })
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     config = _minimal_config(agents=["test-agent"])
-    scaf = scaffold.Scaffolder(root=fw, target=target, config=config,
-                                skills=[], install=False)
+    scaf = make_scaffolder(root=fw, config=config)
     result = scaf.run(generated_at=None)
 
     # Primary target
@@ -253,10 +239,9 @@ def test_scaffolder_also_target_writes_second_copy(tmp_path, root, load_script):
     assert "Hello from test-agent" in (target / ".hello.md").read_text(encoding="utf-8")
 
 
-def test_scaffolder_aib_copy_writes_source_of_truth(tmp_path, root, load_script):
+def test_scaffolder_aib_copy_writes_source_of_truth(tmp_path, root, make_scaffolder):
     """When aibCopy is set, the scaffolder should write a source-of-truth copy
     under .ai-badger/."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     fw = _make_test_framework(tmp_path, root, scaffolding_json={
         "agent": "test-agent",
         "files": [{
@@ -264,12 +249,10 @@ def test_scaffolder_aib_copy_writes_source_of_truth(tmp_path, root, load_script)
             "managed": True, "template": True, "aibCopy": "HELLO.md",
         }],
     })
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
     config = _minimal_config(agents=["test-agent"])
-    scaf = scaffold.Scaffolder(root=fw, target=target, config=config,
-                                skills=[], install=False)
+    scaf = make_scaffolder(root=fw, config=config)
     result = scaf.run(generated_at=None)
 
     # Source of truth under .ai-badger/
@@ -280,10 +263,9 @@ def test_scaffolder_aib_copy_writes_source_of_truth(tmp_path, root, load_script)
     assert "test-proj" in content
 
 
-def test_scaffolder_seed_once_preserves_existing_file(tmp_path, root, load_script):
+def test_scaffolder_seed_once_preserves_existing_file(tmp_path, root, make_scaffolder):
     """When seedOnce=True and target already exists, the scaffolder should
     preserve the existing file."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     fw = _make_test_framework(tmp_path, root, scaffolding_json={
         "agent": "test-agent",
         "files": [{
@@ -291,14 +273,12 @@ def test_scaffolder_seed_once_preserves_existing_file(tmp_path, root, load_scrip
             "managed": True, "seedOnce": True,
         }],
     })
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     # Pre-existing file
     (target / "HELLO.md").write_text("my custom content\n", encoding="utf-8")
 
     config = _minimal_config(agents=["test-agent"])
-    scaf = scaffold.Scaffolder(root=fw, target=target, config=config,
-                                skills=[], install=False)
+    scaf = make_scaffolder(root=fw, config=config)
     result = scaf.run(generated_at=None)
 
     # Should preserve existing content
