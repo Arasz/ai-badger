@@ -348,11 +348,14 @@ def compare(root: Path, manifest: Dict[str, Any],
     entry's `sourceHash`, never to the project's own copy (#110). The scaffolded copy
     answers a different question and is reported separately as `locallyModified`.
 
-    When ``stacks`` is provided, also detects new items via index.json — minus whatever the
-    project's own config.json declines in ``exclude``.
+    When ``stacks`` is provided, also detects what the project's own config changed: new items
+    via index.json — minus whatever ``exclude`` declines — and ``orphaned``, entries whose stack
+    the config no longer lists. Without it neither is reported, because neither can be inferred
+    from the framework alone.
     """
     changed: List[str] = []
     removed: List[str] = []
+    orphaned: List[str] = []
     skipped: List[str] = []
     locally_modified: List[str] = []
     notes: List[str] = []
@@ -362,6 +365,10 @@ def compare(root: Path, manifest: Dict[str, Any],
         entry_hash = entry.get("hash")
         if source_rel is None or entry_hash is None:
             invalid += 1
+            continue
+        if stacks is not None and bl.is_orphaned(entry, stacks):
+            # Leaving, so upstream drift on it is noise — the re-scaffold prunes it.
+            orphaned.append(source_rel)
             continue
         source = root / source_rel
         if not source.exists():
@@ -393,6 +400,7 @@ def compare(root: Path, manifest: Dict[str, Any],
     result = {
         "changed": sorted(set(changed)),
         "removed": sorted(set(removed)),
+        "orphaned": sorted(set(orphaned)),
         "skipped": sorted(set(skipped)),
         "locallyModified": sorted(set(locally_modified)),
         "versionChanged": _version_drift(root, manifest),
