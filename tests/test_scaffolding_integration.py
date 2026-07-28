@@ -152,7 +152,6 @@ def test_scaffolder_skips_agent_without_scaffolding_json(make_scaffolder):
     """When an agent has no scaffolding.json, the scaffolder logs a note and skips it
     without crashing."""
 
-    target = make_scaffolder.target
 
     # "unknown-agent" has no features/unknown-agent/scaffolding.json in the real repo
     config = _minimal_config(agents=["unknown-agent"])

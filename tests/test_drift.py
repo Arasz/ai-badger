@@ -427,18 +427,16 @@ def test_an_extension_pruned_from_the_project_is_not_drift(tmp_path, load_script
     assert "features/common/skills/task" not in result["locallyModified"]
 
 
-def test_real_scaffold_with_retained_extensions_has_no_drift(tmp_path, load_script, root):
+def test_real_scaffold_with_retained_extensions_has_no_drift(load_script, root, make_scaffolder):
     """Round-trip guard: scaffold.record() and drift.compare() must hash alike.
 
     The other dir-entry tests hand-build their manifest, so they cannot catch the two sides
     diverging on which directory they hash or which patterns they exclude. This one scaffolds
     for real with every extension retained, which is the case where a mismatch shows up.
     """
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
 
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     config = {
         "frameworkVersion": "0.1.0",
         "project": {"name": "p", "summary": "s", "domain": "d"},
@@ -449,9 +447,7 @@ def test_real_scaffold_with_retained_extensions_has_no_drift(tmp_path, load_scri
         },
         "commands": {}, "personaRouting": [], "skillScope": "default", "docs": {},
     }
-    scaffold.Scaffolder(
-        root=root, target=target, config=config, skills=["task"], install=False,
-    ).run(generated_at="2026-07-19T00:00:00Z")
+    make_scaffolder(config=config, skills=["task"]).run(generated_at="2026-07-19T00:00:00Z")
 
     kept = sorted(
         p.name for p in (target / ".ai-badger/skills/task/extensions").iterdir() if p.is_dir()
@@ -490,18 +486,13 @@ def test_a_manifest_target_outside_the_project_is_not_hashed(tmp_path, load_scri
     assert any("outside the project" in note for note in result.get("notes", []))
 
 
-def test_freshly_scaffolded_project_reports_nothing_changed(tmp_path, load_script, root):
+def test_freshly_scaffolded_project_reports_nothing_changed(load_script, root, make_scaffolder):
     """A project scaffolded from this framework and left untouched must report no drift."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
-    result = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(stacks=["python"], agents=["claude", "copilot"]),
-        skills=["task"], install=False,
-    ).run(generated_at="2026-07-19T00:00:00Z")
+    result = make_scaffolder(config=_config(stacks=["python"], agents=["claude", "copilot"]),
+                             skills=["task"]).run(generated_at="2026-07-19T00:00:00Z")
 
     assert any(e["feature"] == "adjustments" for e in result["manifest"]["entries"]), \
         "expected adjustment entries so this exercises the reported defect"
@@ -513,18 +504,15 @@ def test_freshly_scaffolded_project_reports_nothing_changed(tmp_path, load_scrip
     assert compared["skipped"] == []
 
 
-def test_a_skill_changed_in_the_framework_is_reported_as_drift(tmp_path, load_script, root):
+def test_a_skill_changed_in_the_framework_is_reported_as_drift(
+        tmp_path, load_script, root, make_scaffolder):
     """The question den-refresh exists to answer; the scaffolded copy cannot answer it."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = _copy_framework(root, tmp_path / "fw")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
-    result = scaffold.Scaffolder(
-        root=fw, target=target, config=_config(stacks=["python"]),
-        skills=["task"], install=False,
-    ).run(generated_at="2026-07-28T00:00:00Z")
+    result = make_scaffolder(root=fw, config=_config(stacks=["python"]),
+                             skills=["task"]).run(generated_at="2026-07-28T00:00:00Z")
 
     moved = fw / "features" / "common" / "skills" / "task" / "scripts" / "task_tracker.py"
     moved.write_text(moved.read_text(encoding="utf-8") + "# upstream moved on\n",
@@ -535,18 +523,15 @@ def test_a_skill_changed_in_the_framework_is_reported_as_drift(tmp_path, load_sc
     assert "features/common/skills/task" in compared["changed"]
 
 
-def test_a_project_edit_to_its_own_copy_is_not_framework_drift(tmp_path, load_script, root):
+def test_a_project_edit_to_its_own_copy_is_not_framework_drift(
+        tmp_path, load_script, root, make_scaffolder):
     """Editing the vendored copy is a local modification, reported apart from framework drift."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = _copy_framework(root, tmp_path / "fw")
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
 
-    result = scaffold.Scaffolder(
-        root=fw, target=target, config=_config(stacks=["python"]),
-        skills=["task"], install=False,
-    ).run(generated_at="2026-07-28T00:00:00Z")
+    result = make_scaffolder(root=fw, config=_config(stacks=["python"]),
+                             skills=["task"]).run(generated_at="2026-07-28T00:00:00Z")
 
     edited = target / ".ai-badger" / "skills" / "task" / "scripts" / "task_tracker.py"
     edited.write_text(edited.read_text(encoding="utf-8") + "# ours\n", encoding="utf-8")

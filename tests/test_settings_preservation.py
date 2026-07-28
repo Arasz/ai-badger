@@ -43,14 +43,13 @@ def fake_home(tmp_path, monkeypatch):
     return home
 
 
-def _scaf(scaffold, root, target, config):
+def _scaf(make_scaffolder, root, target, config):
     index_path = root / "index.json"
     if not index_path.exists():
         index_path.write_text(
             json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8"
         )
-    return scaffold.Scaffolder(root=root, target=target, config=config,
-                               skills=[], install=False)
+    return make_scaffolder(root=root, target=target, config=config)
 
 
 def _mentions(notes, *fragments):
@@ -73,9 +72,9 @@ def _place_hook_scripts(root, target):
 
 # ── project .claude/settings.json (hook_wiring) ───────────────────────────────
 
-def test_wire_hooks_aborts_on_unparseable_settings(tmp_path, load_script, root, fake_home):
+@pytest.mark.usefixtures("fake_home")
+def test_wire_hooks_aborts_on_unparseable_settings(tmp_path, root, make_scaffolder):
     """An unparseable project settings.json is left byte-identical and reported."""
-    scaffold = load_script(SCAFFOLD)
     target = tmp_path / "proj"
     (target / ".claude").mkdir(parents=True)
     settings_path = target / ".claude" / "settings.json"
@@ -83,7 +82,7 @@ def test_wire_hooks_aborts_on_unparseable_settings(tmp_path, load_script, root, 
     settings_path.write_bytes(original)
     _place_hook_scripts(root, target)
 
-    scaf = _scaf(scaffold, root, target, _config(agents=["claude"]))
+    scaf = _scaf(make_scaffolder, root, target, _config(agents=["claude"]))
     scaf.wire_hooks()
 
     assert settings_path.read_bytes() == original
@@ -92,18 +91,16 @@ def test_wire_hooks_aborts_on_unparseable_settings(tmp_path, load_script, root, 
 
 # ── ~/.hermes/config.yaml (mcp_tools) ─────────────────────────────────────────
 
-def test_hermes_user_config_yaml_error_does_not_escape_run(tmp_path, load_script, root, fake_home):
+def test_hermes_user_config_yaml_error_does_not_escape_run(root, fake_home, make_scaffolder):
     """A malformed ~/.hermes/config.yaml yields a note, not a YAMLError."""
     pytest.importorskip("yaml")
-    scaffold = load_script(SCAFFOLD)
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     config_path = fake_home / ".hermes" / "config.yaml"
     config_path.parent.mkdir(parents=True)
     original = b"mcp:\n  servers: {broken: [\n"
     config_path.write_bytes(original)
 
-    scaf = _scaf(scaffold, root, target, _config(agents=["hermes"]))
+    scaf = _scaf(make_scaffolder, root, target, _config(agents=["hermes"]))
     scaf.mcp.scaffold_hermes_mcp_user(
         {"srv": {"name": "srv", "command": "echo hi", "scope": "user"}}
     )
@@ -112,18 +109,16 @@ def test_hermes_user_config_yaml_error_does_not_escape_run(tmp_path, load_script
     assert _mentions(scaf.notes, "config.yaml", "refused")
 
 
-def test_yaml_parsing_to_a_list_does_not_raise(tmp_path, load_script, root, fake_home):
+def test_yaml_parsing_to_a_list_does_not_raise(root, fake_home, make_scaffolder):
     """A config.yaml whose top level is a list is refused, not AttributeError'd."""
     pytest.importorskip("yaml")
-    scaffold = load_script(SCAFFOLD)
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     config_path = fake_home / ".hermes" / "config.yaml"
     config_path.parent.mkdir(parents=True)
     original = b"- one\n- two\n"
     config_path.write_bytes(original)
 
-    scaf = _scaf(scaffold, root, target, _config(agents=["hermes"]))
+    scaf = _scaf(make_scaffolder, root, target, _config(agents=["hermes"]))
     scaf.mcp.scaffold_hermes_mcp_user(
         {"srv": {"name": "srv", "command": "echo hi", "scope": "user"}}
     )
@@ -134,17 +129,15 @@ def test_yaml_parsing_to_a_list_does_not_raise(tmp_path, load_script, root, fake
 
 # ── ~/.claude/settings.json (mcp_tools) ───────────────────────────────────────
 
-def test_valid_user_settings_survive_with_backup(tmp_path, load_script, root, fake_home):
+def test_valid_user_settings_survive_with_backup(root, fake_home, make_scaffolder):
     """A parseable ~/.claude/settings.json keeps its keys and is backed up first."""
-    scaffold = load_script(SCAFFOLD)
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     settings_path = fake_home / ".claude" / "settings.json"
     settings_path.parent.mkdir(parents=True)
     original = {"permissions": {"deny": ["Bash(rm:*)"]}, "env": {"FOO": "bar"}}
     settings_path.write_text(json.dumps(original, indent=2) + "\n", encoding="utf-8")
 
-    scaf = _scaf(scaffold, root, target, _config(agents=["claude"]))
+    scaf = _scaf(make_scaffolder, root, target, _config(agents=["claude"]))
     scaf.mcp.scaffold_claude_mcp_user(
         {"srv": {"name": "srv", "command": "echo hi", "scope": "user"}}
     )
@@ -159,17 +152,15 @@ def test_valid_user_settings_survive_with_backup(tmp_path, load_script, root, fa
     assert json.loads(backups[0].read_text(encoding="utf-8")) == original
 
 
-def test_unparseable_user_settings_are_never_rewritten(tmp_path, load_script, root, fake_home):
+def test_unparseable_user_settings_are_never_rewritten(root, fake_home, make_scaffolder):
     """An unparseable ~/.claude/settings.json is left byte-identical and reported."""
-    scaffold = load_script(SCAFFOLD)
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     settings_path = fake_home / ".claude" / "settings.json"
     settings_path.parent.mkdir(parents=True)
     original = b'{"permissions":{"deny":["Bash"]}},,,'
     settings_path.write_bytes(original)
 
-    scaf = _scaf(scaffold, root, target, _config(agents=["claude"]))
+    scaf = _scaf(make_scaffolder, root, target, _config(agents=["claude"]))
     scaf.mcp.scaffold_claude_mcp_user(
         {"srv": {"name": "srv", "command": "echo hi", "scope": "user"}}
     )
@@ -180,11 +171,10 @@ def test_unparseable_user_settings_are_never_rewritten(tmp_path, load_script, ro
 
 # ── project .mcp.json and .github/copilot/mcp-config.json (mcp_tools) ─────────
 
-def test_unparseable_mcp_json_is_never_rewritten(tmp_path, load_script, root, fake_home):
+@pytest.mark.usefixtures("fake_home")
+def test_unparseable_mcp_json_is_never_rewritten(tmp_path, make_scaffolder):
     """An unparseable .mcp.json is left byte-identical and reported."""
-    scaffold = load_script(SCAFFOLD)
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     stack_dir = tmp_path / "features" / "python"
     stack_dir.mkdir(parents=True)
     (stack_dir / "mcp-servers.json").write_text(
@@ -195,24 +185,23 @@ def test_unparseable_mcp_json_is_never_rewritten(tmp_path, load_script, root, fa
     original = b'{"mcpServers": {"mine": {"command": "x"}},,,'
     mcp_path.write_bytes(original)
 
-    scaf = _scaf(scaffold, tmp_path, target, _config(agents=["claude"]))
+    scaf = _scaf(make_scaffolder, tmp_path, target, _config(agents=["claude"]))
     scaf.mcp.generate_mcp_json()
 
     assert mcp_path.read_bytes() == original
     assert _mentions(scaf.notes, ".mcp.json", "refused")
 
 
-def test_unparseable_copilot_mcp_config_is_never_rewritten(tmp_path, load_script, root, fake_home):
+@pytest.mark.usefixtures("fake_home")
+def test_unparseable_copilot_mcp_config_is_never_rewritten(tmp_path, make_scaffolder):
     """An unparseable .github/copilot/mcp-config.json is left byte-identical."""
-    scaffold = load_script(SCAFFOLD)
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     config_path = target / ".github" / "copilot" / "mcp-config.json"
     config_path.parent.mkdir(parents=True)
     original = b'{"mcpServers": {"mine": {"command": "x"}},,,'
     config_path.write_bytes(original)
 
-    scaf = _scaf(scaffold, tmp_path, target, _config(agents=["copilot"]))
+    scaf = _scaf(make_scaffolder, tmp_path, target, _config(agents=["copilot"]))
     scaf.mcp.generate_copilot_mcp_config(
         {"srv": {"name": "srv", "command": "echo hi"}}
     )

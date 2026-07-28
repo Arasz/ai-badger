@@ -32,10 +32,8 @@ def _capture_config(enabled=True, agents=None):
     return config
 
 
-def _run(load_script, root, target, config, skills=("task",)):
-    scaffold = load_script(SCAFFOLD)
-    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
-                               skills=list(skills), install=False)
+def _run(make_scaffolder, config, skills=("task",)):
+    scaf = make_scaffolder(config=config, skills=list(skills))
     result = scaf.run(generated_at="2026-07-27T00:00:00Z")
     return result["notes"]
 
@@ -58,31 +56,32 @@ def _write_settings(target, data):
 
 
 @pytest.fixture
-def target(tmp_path):
-    proj = tmp_path / "proj"
-    proj.mkdir()
-    return proj
+def target(make_scaffolder):
+    """The factory's shared target; the scaffolder writes here."""
+    return make_scaffolder.target
 
 
-def test_statusline_is_not_wired_when_the_config_key_is_absent(target, load_script, root,
-                                                               fake_home):
+@pytest.mark.usefixtures("fake_home")
+def test_statusline_is_not_wired_when_the_config_key_is_absent(target, make_scaffolder):
     """statusLine is a personal setting: an unasked-for project override is a clobber."""
-    _run(load_script, root, target, _config(stacks=["python"]))
+    _run(make_scaffolder, _config(stacks=["python"]))
 
     assert "statusLine" not in _settings(target)
     assert _delegate(target) is None
 
 
-def test_statusline_is_not_wired_when_capture_is_disabled(target, load_script, root, fake_home):
-    _run(load_script, root, target, _capture_config(enabled=False))
+@pytest.mark.usefixtures("fake_home")
+def test_statusline_is_not_wired_when_capture_is_disabled(target, make_scaffolder):
+    _run(make_scaffolder, _capture_config(enabled=False))
 
     assert "statusLine" not in _settings(target)
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_enabling_wires_the_capture_script_through_the_project_dir_placeholder(
-        target, load_script, root, fake_home):
+        target, make_scaffolder):
     """The wired command must survive a second checkout, so no absolute path (F-hooks)."""
-    _run(load_script, root, target, _capture_config())
+    _run(make_scaffolder, _capture_config())
 
     entry = _settings(target)["statusLine"]
     assert entry["type"] == "command"
@@ -91,68 +90,69 @@ def test_enabling_wires_the_capture_script_through_the_project_dir_placeholder(
     assert str(target) not in entry["command"]
 
 
-def test_an_existing_project_statusline_becomes_the_delegate(target, load_script, root,
-                                                             fake_home):
+@pytest.mark.usefixtures("fake_home")
+def test_an_existing_project_statusline_becomes_the_delegate(target, make_scaffolder):
     _write_settings(target, {"statusLine": {"type": "command", "command": "my-renderer.sh"}})
 
-    _run(load_script, root, target, _capture_config())
+    _run(make_scaffolder, _capture_config())
 
     assert _delegate(target)["command"] == "my-renderer.sh"
     assert CAPTURE in _settings(target)["statusLine"]["command"]
 
 
 def test_the_user_level_statusline_becomes_the_delegate_when_the_project_has_none(
-        target, load_script, root, fake_home):
+        target, fake_home, make_scaffolder):
     user_settings = fake_home / ".claude" / "settings.json"
     user_settings.parent.mkdir(parents=True, exist_ok=True)
     user_settings.write_text(
         json.dumps({"statusLine": {"type": "command", "command": "~/.claude/statusline.sh"}}),
         encoding="utf-8")
 
-    _run(load_script, root, target, _capture_config())
+    _run(make_scaffolder, _capture_config())
 
     assert _delegate(target)["command"] == "~/.claude/statusline.sh"
 
 
 def test_an_unreadable_user_settings_file_is_reported_not_silently_ignored(
-        target, load_script, root, fake_home):
+        fake_home, make_scaffolder):
     """Reading no delegate out of a broken file would drop the user's renderer without a word."""
     user_settings = fake_home / ".claude" / "settings.json"
     user_settings.parent.mkdir(parents=True, exist_ok=True)
     user_settings.write_text("{ not json", encoding="utf-8")
 
-    notes = _run(load_script, root, target, _capture_config())
+    notes = _run(make_scaffolder, _capture_config())
 
     assert any("refused" in n and ".claude/settings.json" in n for n in notes), notes
 
 
-def test_no_delegate_is_recorded_when_nothing_rendered_a_statusline(target, load_script, root,
-                                                                    fake_home):
-    _run(load_script, root, target, _capture_config())
+@pytest.mark.usefixtures("fake_home")
+def test_no_delegate_is_recorded_when_nothing_rendered_a_statusline(target, make_scaffolder):
+    _run(make_scaffolder, _capture_config())
 
     assert _delegate(target)["command"] is None
 
 
-def test_enabling_twice_never_chains_the_capture_to_itself(target, load_script, root, fake_home):
+@pytest.mark.usefixtures("fake_home")
+def test_enabling_twice_never_chains_the_capture_to_itself(target, make_scaffolder):
     """Recording ai-badger's own wrapper as its delegate is an infinite statusline loop."""
     _write_settings(target, {"statusLine": {"type": "command", "command": "my-renderer.sh"}})
     config = _capture_config()
 
-    _run(load_script, root, target, config)
-    _run(load_script, root, target, config)
+    _run(make_scaffolder, config)
+    _run(make_scaffolder, config)
 
     assert _delegate(target)["command"] == "my-renderer.sh"
     assert _settings(target)["statusLine"]["command"].count(CAPTURE) == 1
 
 
-def test_a_capture_command_from_another_checkout_is_replaced_not_chained(target, load_script,
-                                                                        root, fake_home):
+@pytest.mark.usefixtures("fake_home")
+def test_a_capture_command_from_another_checkout_is_replaced_not_chained(target, make_scaffolder):
     _write_settings(target, {"statusLine": {
         "type": "command",
         "command": 'python3 "/elsewhere/.ai-badger/skills/task/scripts/statusline_capture.py"',
     }})
 
-    _run(load_script, root, target, _capture_config())
+    _run(make_scaffolder, _capture_config())
 
     entry = _settings(target)["statusLine"]
     assert entry["command"].count(CAPTURE) == 1
@@ -160,130 +160,134 @@ def test_a_capture_command_from_another_checkout_is_replaced_not_chained(target,
     assert _delegate(target) is None, "the wrapper was recorded as its own delegate"
 
 
-def test_display_options_of_the_replaced_statusline_are_preserved(target, load_script, root,
-                                                                  fake_home):
+@pytest.mark.usefixtures("fake_home")
+def test_display_options_of_the_replaced_statusline_are_preserved(target, make_scaffolder):
     _write_settings(target, {"statusLine": {
         "type": "command", "command": "my-renderer.sh", "padding": 1, "refreshInterval": 5,
     }})
 
-    _run(load_script, root, target, _capture_config())
+    _run(make_scaffolder, _capture_config())
 
     entry = _settings(target)["statusLine"]
     assert entry["padding"] == 1
     assert entry["refreshInterval"] == 5
 
 
-def test_an_unreadable_settings_file_is_refused_with_a_note(target, load_script, root,
-                                                            fake_home):
+@pytest.mark.usefixtures("fake_home")
+def test_an_unreadable_settings_file_is_refused_with_a_note(target, make_scaffolder):
     path = _write_settings(target, {})
     path.write_text("{ not json", encoding="utf-8")
 
-    notes = _run(load_script, root, target, _capture_config())
+    notes = _run(make_scaffolder, _capture_config())
 
     assert path.read_text(encoding="utf-8") == "{ not json"
     assert any("refused" in n and "statusline" in n.lower() for n in notes), notes
 
 
-def test_a_statusline_of_the_wrong_shape_is_refused_with_a_note(target, load_script, root,
-                                                                fake_home):
+@pytest.mark.usefixtures("fake_home")
+def test_a_statusline_of_the_wrong_shape_is_refused_with_a_note(target, make_scaffolder):
     _write_settings(target, {"statusLine": "not-a-mapping"})
 
-    notes = _run(load_script, root, target, _capture_config())
+    notes = _run(make_scaffolder, _capture_config())
 
     assert _settings(target)["statusLine"] == "not-a-mapping"
     assert any("refused" in n and "statusline" in n.lower() for n in notes), notes
 
 
-def test_statusline_is_not_wired_when_claude_is_not_a_configured_agent(target, load_script,
-                                                                       root, fake_home):
-    _run(load_script, root, target, _capture_config(agents=["copilot"]))
+@pytest.mark.usefixtures("fake_home")
+def test_statusline_is_not_wired_when_claude_is_not_a_configured_agent(target, make_scaffolder):
+    _run(make_scaffolder, _capture_config(agents=["copilot"]))
 
     assert "statusLine" not in _settings(target)
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_statusline_is_not_wired_when_the_capture_script_was_not_scaffolded(
-        target, load_script, root, fake_home):
+        target, make_scaffolder):
     """Pointing statusLine at a script that is not there replaces the renderer with nothing."""
     _write_settings(target, {"statusLine": {"type": "command", "command": "my-renderer.sh"}})
 
-    notes = _run(load_script, root, target, _capture_config(), skills=["prompt-markers"])
+    notes = _run(make_scaffolder, _capture_config(), skills=["prompt-markers"])
 
     assert _settings(target)["statusLine"]["command"] == "my-renderer.sh"
     assert _delegate(target) is None
     assert any("statusline capture" in n and "task" in n for n in notes), notes
 
 
-def test_disabling_capture_restores_the_renderer_it_displaced(target, load_script, root,
-                                                              fake_home):
+@pytest.mark.usefixtures("fake_home")
+def test_disabling_capture_restores_the_renderer_it_displaced(target, make_scaffolder):
     """Turning the flag off must give the user their own status line back."""
     _write_settings(target, {"statusLine": {"type": "command", "command": "my-renderer.sh"}})
-    _run(load_script, root, target, _capture_config())
+    _run(make_scaffolder, _capture_config())
 
-    _run(load_script, root, target, _capture_config(enabled=False))
+    _run(make_scaffolder, _capture_config(enabled=False))
 
     assert _settings(target)["statusLine"]["command"] == "my-renderer.sh"
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_disabling_capture_preserves_the_display_options_of_the_restored_renderer(
-        target, load_script, root, fake_home):
+        target, make_scaffolder):
     _write_settings(target, {"statusLine": {
         "type": "command", "command": "my-renderer.sh", "padding": 1,
     }})
-    _run(load_script, root, target, _capture_config())
+    _run(make_scaffolder, _capture_config())
 
-    _run(load_script, root, target, _capture_config(enabled=False))
+    _run(make_scaffolder, _capture_config(enabled=False))
 
     entry = _settings(target)["statusLine"]
     assert entry["command"] == "my-renderer.sh"
     assert entry["padding"] == 1
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_disabling_capture_removes_the_statusline_when_it_displaced_nothing(
-        target, load_script, root, fake_home):
-    _run(load_script, root, target, _capture_config())
+        target, make_scaffolder):
+    _run(make_scaffolder, _capture_config())
 
-    _run(load_script, root, target, _capture_config(enabled=False))
+    _run(make_scaffolder, _capture_config(enabled=False))
 
     assert "statusLine" not in _settings(target)
 
 
+@pytest.mark.usefixtures("fake_home")
 def test_disabling_capture_never_removes_a_statusline_ai_badger_did_not_place(
-        target, load_script, root, fake_home):
+        target, make_scaffolder):
     """Refuse-to-clobber: a renderer we never displaced is not ours to remove."""
     _write_settings(target, {"statusLine": {"type": "command", "command": "my-renderer.sh"}})
 
-    _run(load_script, root, target, _capture_config(enabled=False))
+    _run(make_scaffolder, _capture_config(enabled=False))
 
     assert _settings(target)["statusLine"]["command"] == "my-renderer.sh"
 
 
-def test_dropping_claude_from_the_agents_unwires_the_capture(target, load_script, root,
-                                                             fake_home):
+@pytest.mark.usefixtures("fake_home")
+def test_dropping_claude_from_the_agents_unwires_the_capture(target, make_scaffolder):
     _write_settings(target, {"statusLine": {"type": "command", "command": "my-renderer.sh"}})
-    _run(load_script, root, target, _capture_config())
+    _run(make_scaffolder, _capture_config())
 
-    _run(load_script, root, target, _capture_config(agents=["copilot"]))
+    _run(make_scaffolder, _capture_config(agents=["copilot"]))
 
     assert _settings(target)["statusLine"]["command"] == "my-renderer.sh"
 
 
-def test_unwiring_refuses_an_unreadable_settings_file_with_a_note(target, load_script, root,
-                                                                 fake_home):
-    _run(load_script, root, target, _capture_config())
+@pytest.mark.usefixtures("fake_home")
+def test_unwiring_refuses_an_unreadable_settings_file_with_a_note(target, make_scaffolder):
+    _run(make_scaffolder, _capture_config())
     path = target / ".claude" / "settings.json"
     path.write_text("{ not json", encoding="utf-8")
 
-    notes = _run(load_script, root, target, _capture_config(enabled=False))
+    notes = _run(make_scaffolder, _capture_config(enabled=False))
 
     assert path.read_text(encoding="utf-8") == "{ not json"
     assert any("refused" in n and "statusline" in n.lower() for n in notes), notes
 
 
-def test_unwiring_leaves_a_statusline_of_the_wrong_shape_alone(target, load_script, root,
-                                                              fake_home):
+@pytest.mark.usefixtures("fake_home")
+def test_unwiring_leaves_a_statusline_of_the_wrong_shape_alone(target, make_scaffolder):
     _write_settings(target, {"statusLine": "not-a-mapping"})
 
-    _run(load_script, root, target, _capture_config(enabled=False))
+    _run(make_scaffolder, _capture_config(enabled=False))
 
     assert _settings(target)["statusLine"] == "not-a-mapping"
 

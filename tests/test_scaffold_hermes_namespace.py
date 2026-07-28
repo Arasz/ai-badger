@@ -8,32 +8,27 @@ from scaffold_helpers import _config
 
 
 # ---------------------------------------------------------------------- hermes skill symlinks
-def _hermes_scaffold(scaffold, root, target, home, skills, agents=("hermes",)):
+def _hermes_scaffold(make_scaffolder, home, skills, agents=("hermes",)):
     """Scaffold with Path.home patched to *home*; return the hermes namespace dir."""
-    scaf = scaffold.Scaffolder(
-        root=root, target=target, config=_config(agents=list(agents)),
-        skills=list(skills), install=False,
-    )
+    scaf = make_scaffolder(config=_config(agents=list(agents)), skills=list(skills))
     with patch("pathlib.Path.home", return_value=home):
         scaf.run(generated_at="2026-07-22T00:00:00Z")
     return home / ".hermes" / "skills" / "probe"
 
 
-def _hermes_case(tmp_path):
+def _hermes_case(tmp_path, make_scaffolder):
     """Return (target, home) directories for a hermes symlink test."""
-    target = tmp_path / "proj"
-    target.mkdir()
+    target = make_scaffolder.target
     home = tmp_path / "hermes-home"
     home.mkdir()
     return target, home
 
 
-def test_scaffold_creates_hermes_skill_symlinks(tmp_path, load_script, root):
+def test_scaffold_creates_hermes_skill_symlinks(tmp_path, make_scaffolder):
     """Each scaffolded skill is symlinked into ~/.hermes/skills/<project>/ (ADR 0003)."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target, home = _hermes_case(tmp_path)
+    _, home = _hermes_case(tmp_path, make_scaffolder)
 
-    namespace = _hermes_scaffold(scaffold, root, target, home, ["task", "prompt-markers"])
+    namespace = _hermes_scaffold(make_scaffolder, home, ["task", "prompt-markers"])
 
     assert namespace.is_dir() and not namespace.is_symlink()
     for name in ("task", "prompt-markers"):
@@ -42,76 +37,70 @@ def test_scaffold_creates_hermes_skill_symlinks(tmp_path, load_script, root):
         assert (link.resolve() / "SKILL.md").exists()
 
 
-def test_scaffold_hermes_symlinks_are_relative(tmp_path, load_script, root):
+def test_scaffold_hermes_symlinks_are_relative(tmp_path, make_scaffolder):
     """Links are relative so no absolute home path is baked into the namespace."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target, home = _hermes_case(tmp_path)
+    _, home = _hermes_case(tmp_path, make_scaffolder)
 
-    namespace = _hermes_scaffold(scaffold, root, target, home, ["task"])
+    namespace = _hermes_scaffold(make_scaffolder, home, ["task"])
 
     raw = os.readlink(str(namespace / "task"))
     assert not os.path.isabs(raw)
 
 
-def test_scaffold_no_symlinks_without_hermes_agent(tmp_path, load_script, root):
+def test_scaffold_no_symlinks_without_hermes_agent(tmp_path, make_scaffolder):
     """Scaffolding without hermes should not create ~/.hermes/skills/<project>/."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target, home = _hermes_case(tmp_path)
+    _, home = _hermes_case(tmp_path, make_scaffolder)
 
-    namespace = _hermes_scaffold(scaffold, root, target, home, ["task"], agents=("claude",))
+    namespace = _hermes_scaffold(make_scaffolder, home, ["task"], agents=("claude",))
 
     assert not namespace.exists()
 
 
-def test_rescaffold_recreates_hermes_symlinks(tmp_path, load_script, root):
+def test_rescaffold_recreates_hermes_symlinks(tmp_path, make_scaffolder):
     """Re-scaffold leaves the namespace with a working link for every skill."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target, home = _hermes_case(tmp_path)
+    _, home = _hermes_case(tmp_path, make_scaffolder)
 
-    namespace = _hermes_scaffold(scaffold, root, target, home, ["task"])
+    namespace = _hermes_scaffold(make_scaffolder, home, ["task"])
     first_target = (namespace / "task").resolve()
-    _hermes_scaffold(scaffold, root, target, home, ["task"])
+    _hermes_scaffold(make_scaffolder, home, ["task"])
 
     assert (namespace / "task").is_symlink()
     assert (namespace / "task").resolve() == first_target
 
 
-def test_scaffold_preserves_foreign_dirs_in_namespace(tmp_path, load_script, root):
+def test_scaffold_preserves_foreign_dirs_in_namespace(tmp_path, make_scaffolder):
     """A real directory ai-badger did not place survives a re-scaffold byte-identical."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target, home = _hermes_case(tmp_path)
+    _, home = _hermes_case(tmp_path, make_scaffolder)
 
-    namespace = _hermes_scaffold(scaffold, root, target, home, ["task"])
+    namespace = _hermes_scaffold(make_scaffolder, home, ["task"])
     foreign = namespace / "agent-skill-discovery"
     foreign.mkdir()
     (foreign / "SKILL.md").write_text("# hermes-authored\n", encoding="utf-8")
 
-    _hermes_scaffold(scaffold, root, target, home, ["task"])
+    _hermes_scaffold(make_scaffolder, home, ["task"])
 
     assert foreign.is_dir() and not foreign.is_symlink()
     assert (foreign / "SKILL.md").read_text(encoding="utf-8") == "# hermes-authored\n"
 
 
-def test_scaffold_removes_stale_managed_symlinks(tmp_path, load_script, root):
+def test_scaffold_removes_stale_managed_symlinks(tmp_path, make_scaffolder):
     """A link for a skill no longer scaffolded is unlinked on re-scaffold."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target, home = _hermes_case(tmp_path)
+    _, home = _hermes_case(tmp_path, make_scaffolder)
 
-    namespace = _hermes_scaffold(scaffold, root, target, home, ["task", "prompt-markers"])
+    namespace = _hermes_scaffold(make_scaffolder, home, ["task", "prompt-markers"])
     assert (namespace / "prompt-markers").is_symlink()
 
-    _hermes_scaffold(scaffold, root, target, home, ["task"])
+    _hermes_scaffold(make_scaffolder, home, ["task"])
 
     assert not (namespace / "prompt-markers").is_symlink()
     assert (namespace / "task").is_symlink()
 
 
-def test_scaffold_replaces_broken_symlink(tmp_path, load_script, root):
+def test_scaffold_replaces_broken_symlink(tmp_path, make_scaffolder):
     """A dangling managed link is relinked rather than left broken."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target, home = _hermes_case(tmp_path)
+    target, home = _hermes_case(tmp_path, make_scaffolder)
 
-    namespace = _hermes_scaffold(scaffold, root, target, home, ["task"])
+    namespace = _hermes_scaffold(make_scaffolder, home, ["task"])
     link = namespace / "task"
     link.unlink()
     link.symlink_to(
@@ -119,20 +108,19 @@ def test_scaffold_replaces_broken_symlink(tmp_path, load_script, root):
     )
     assert not link.exists()
 
-    _hermes_scaffold(scaffold, root, target, home, ["task"])
+    _hermes_scaffold(make_scaffolder, home, ["task"])
 
     assert link.is_symlink() and (link.resolve() / "SKILL.md").exists()
 
 
-def test_scaffold_symlinks_learned_skills_dir(tmp_path, load_script, root):
+def test_scaffold_symlinks_learned_skills_dir(tmp_path, make_scaffolder):
     """The learned/ tree is reachable through the namespace (one link covers it)."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target, home = _hermes_case(tmp_path)
+    target, home = _hermes_case(tmp_path, make_scaffolder)
     learned = target / ".ai-badger" / "skills" / "learned" / "apple" / "apple-notes"
     learned.mkdir(parents=True)
     (learned / "SKILL.md").write_text("# apple-notes\n", encoding="utf-8")
 
-    namespace = _hermes_scaffold(scaffold, root, target, home, ["task"])
+    namespace = _hermes_scaffold(make_scaffolder, home, ["task"])
 
     link = namespace / "learned"
     assert link.is_symlink()
@@ -140,17 +128,10 @@ def test_scaffold_symlinks_learned_skills_dir(tmp_path, load_script, root):
 
 
 # ------------------------------------------------------------------- hermes adjustment path
-def test_scaffold_hermes_adjust_task_does_not_fail_with_absolute_path(tmp_path, load_script, root):
+def test_scaffold_hermes_adjust_task_does_not_fail_with_absolute_path(make_scaffolder):
     """adjust_task.py must not pass absolute paths to record() — causes ValueError."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-    target = tmp_path / "proj"
-    target.mkdir()
 
-    scaf = scaffold.Scaffolder(
-        root=root, target=target,
-        config=_config(agents=["hermes"]),
-        skills=["task"], install=False,
-    )
+    scaf = make_scaffolder(config=_config(agents=["hermes"]), skills=["task"])
     result = scaf.run(generated_at="2026-07-24T00:00:00Z")
 
     # The adjustment should succeed without raising ValueError
@@ -164,21 +145,17 @@ def test_scaffold_hermes_adjust_task_does_not_fail_with_absolute_path(tmp_path, 
 
 
 # --------------------------------------------------------- containment (security I1)
-def test_a_traversing_project_name_cannot_escape_the_hermes_namespace(tmp_path, load_script,
-                                                                       root, monkeypatch):
+def test_a_traversing_project_name_cannot_escape_the_hermes_namespace(
+        tmp_path, monkeypatch, make_scaffolder):
     """project.name is interpolated into ~/.hermes/skills/<name> and the schema allows
     any non-empty string, so containment has to be asserted at the join (WP41)."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     home = tmp_path / "home"
     (home / ".hermes" / "skills").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
-    target = tmp_path / "proj"
-    target.mkdir()
     config = _config(agents=["hermes"])
     config["project"]["name"] = "../../escaped"
 
-    scaf = scaffold.Scaffolder(root=root, target=target, config=config,
-                                skills=["task"], install=False)
+    scaf = make_scaffolder(config=config, skills=["task"])
     result = scaf.run(generated_at="2026-07-27T00:00:00Z")
 
     assert not (tmp_path / "home" / "escaped").exists()
