@@ -54,15 +54,59 @@ nothing to bind to. Including `invariants` also closes the false promise in
 `getting-started.md` ("Delete the ones you do not want before committing" — a refresh restores
 them) in the same change. **Reversible**: narrowing to skills-only later is a schema edit.
 
-## In flight — three worktree-isolated agents
+## All three agents landed
 
-| Branch | Work |
+| Branch | Released as |
 |---|---|
-| `feat/config-exclude` | Group I. Enforced once in `Scaffolder.__init__`; must handle `hook_wiring.py` wiring hooks for an excluded `task` skill without checking the file exists, and must prune what an earlier run installed |
-| `fix/debug-log-test-isolation` | The audit log is written by ai-badger's own test suite. Acceptance: full suite runs, real `audit.jsonl` gains zero entries |
-| `fix/framework-cache-version-skew` | `~/.ai-badger/framework` (0.13.0 here) is silent about skew when selected as last-resort root |
+| `fix/framework-cache-version-skew` | **0.35.6** — warns on stderr, never refuses: the check lives in `_bootstrap_lib()`, which ADR-0009 decision 5 requires to be one text shared by CLIs *and* session-start hooks. Mirrored into all ten shims because a stale cache imports its own `badger_lib` |
+| `fix/debug-log-test-isolation` | **0.36.0** — see below; 0.35.5 had claimed this already |
+| `feat/config-exclude` | **0.36.0** — Group I |
 
-None bumps `VERSION` or writes a changelog; the release is cut centrally.
+### 0.35.5 said the leak was fixed. It was not.
+
+0.35.5 (cut by a parallel session) moved `$HOME` in a session-scoped autouse fixture.
+**Measured on `main`, a full suite run still added 76 test-signature records** to the real
+`~/.ai-badger/debug/audit.jsonl` — `commit_reminder_hook` 37, `ai_badger_hooks/commit_reminder`
+24, `prompt_markers_hook` 6, `session_start` 6, `drift_notice` 2, `session_start_hook` 1.
+
+A session fixture runs **after collection**, and a module imported during collection has already
+resolved `Path.home()`. The agent had found this independently and been overruled by a release
+it never saw. Same run after merging its `$AI_BADGER_DEBUG_DIR` override, set at conftest
+*import* time: **0 records**. Both isolations kept — the `$HOME` move is the wider floor, since
+the suite also writes `~/.ai-badger/hook-errors.log` and `~/.hermes/plugins/*.py`.
+
+The merge needed hand resolution in five files; the two mechanisms collided semantically in one
+test, noted in the release entry.
+
+### Group I verified independently of the agent's own probe
+
+Scaffolding a throwaway project with `exclude.skills=[mcp-index]` and
+`exclude.invariants=[tdd-mandatory]`: neither delivered, both noted, and a typo'd key
+(`"skils"`) is a schema validation error rather than a silent no-op. The invariant case is what
+closes the false `getting-started.md` promise.
+
+## Tags
+
+`0.35.0`–`0.35.3` backfilled at session start; `0.35.6` and `0.36.0` cut and tagged here;
+`0.35.4`/`0.35.5` were already tagged by the parallel session. Remote now carries an unbroken
+run `0.35.0 … 0.36.0`, and `release_guard` reports clean.
+
+## Still open
+
+- **Wave 2 E** (Wave 6 — `Scaffolder`'s five mixins → composed collaborators) and **F**
+  (Wave 16 — rename top-level `scripts/`). **Wave 3 H** (split `badger_lib.py`) needs both.
+  Group I has landed, so these are now unblocked.
+- **No ADR for `exclude`.** The research proposed `0009-…`, but that number is taken, so it
+  would be 0010 — and the wording is the maintainer's call. Reasoning currently lives only in
+  the changelog and the research doc.
+- **Shape D (`~/.hermes/plugins/`) is unjudged for version skew.** `adjust_hooks` records
+  `frameworkRoot` but no `frameworkVersion`, so there is nothing to compare.
+- **An excluded skill's `.ai-badger/skills/<name>/` is left on disk** by design, so
+  `feed-badger`'s `detect_additions` can read it as a project addition.
+- Real-home pollution beyond the audit log: `~/.ai-badger/hook-errors.log` and
+  `~/.hermes/plugins/*.py` are still written by the suite.
+- Unscheduled items 1 (instructions carry no preserved regions) and 2 (Junie gets no root
+  `AGENTS.md`) touch `scaffold.py`; item 5: 13 merged remote branches could be pruned.
 
 ## Still open
 
