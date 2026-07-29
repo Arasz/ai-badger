@@ -21,7 +21,9 @@ leave out — how we can tell whether it is working at all.
 ## 1. The problem
 
 A project that connects a handful of MCP servers can easily reach a hundred tools. In this
-repository's own index there are **98 tools across 9 sources**. Each one carries a name, a
+repository's own index there are **98 tools**, spread very unevenly across 9 configured
+sources — four of them carry all 98 (41, 30, 24 and 3), and five carry none at all. Each one
+carries a name, a
 description, and a schema; all of it is loaded whether or not the conversation will ever touch
 it. The same pressure applies to skills, where hosts have started shipping explicit budgets — a
 listing that overflows gets silently truncated rather than prioritised.
@@ -43,7 +45,7 @@ able to prove afterwards which of those silences were correct.
 ```mermaid
 flowchart LR
     subgraph project["The project"]
-        idx[".ai-badger/mcp-tools.yaml<br/>98 tools · 9 sources"]
+        idx[".ai-badger/mcp-tools.yaml<br/>98 tools · 4 sources that carry any"]
     end
 
     subgraph retrieval["features/common/retrieval/"]
@@ -92,11 +94,11 @@ scaffolded by an older version keep working instead of crashing on an import.
 flowchart TD
     A["Turn begins<br/>user's message"] --> B{"index on disk?"}
     B -- no --> E1["event: absent"]
-    B -- yes --> C["tokenize the query"]
+    B -- yes --> F["fuse each tool into one document<br/>name ×3 · tags ×2 · intent ×1"]
+    F --> C["tokenize the query"]
     C --> D{"any usable terms?"}
-    D -- no --> E2["event: no_terms<br/>no threshold was applied"]
-    D -- yes --> F["fuse each tool into one document<br/>name ×3 · tags ×2 · intent ×1"]
-    F --> G["BM25 rank all 98"]
+    D -- no --> E2["event: no_terms<br/>nothing was scored at all"]
+    D -- yes --> G["BM25 rank all 98"]
     G --> H{"coverage ≥ 0.20<br/>and ≥1 matched term?"}
     H -- no --> E3["event: gate<br/>scored, and deliberately silent"]
     H -- yes --> I["take top 3"]
@@ -113,7 +115,7 @@ Four terminal states, four distinct records. That is not bookkeeping pedantry �
 
 ### Tokenizing
 
-`tokenize()` lowercases, splits on non-alphanumerics, drops ~80 function words and any token
+`tokenize()` lowercases, splits on non-alphanumerics, drops 109 function words and any token
 under two characters, then folds a small set of suffixes (`ies → y`, then `ing|ed|es|s` when at
 least three characters remain).
 
@@ -136,11 +138,12 @@ documents[full_name] = fuse_document([
 ```
 
 A token from the tool's own name contributes 3 to the term count instead of 1. This is a
-deliberately cheap approximation of BM25F: we measured real BM25F, with per-field length
-normalisation, and it scored *worse* — 0.884 top-1 against 0.907. The reason is corpus shape.
-These documents have a median of nine distinct tokens; an `intent` runs about six. There is
-nothing to length-normalise. Field-weighted fusion captures what matters here and BM25F's extra
-machinery only adds variance.
+deliberately cheap approximation of BM25F, which would score each field as its own sub-document
+with its own length normalisation. The approximation is chosen on corpus shape: these documents
+have a median of **nine** distinct tokens and an `intent` a median of **six**. There is
+essentially nothing to length-normalise, so the machinery BM25F adds has almost no signal to
+work with here. That is an argument from the corpus, not a measurement — we have not run a
+controlled BM25F comparison on this index, and this document does not claim one.
 
 Curated `tags` were kept, not thrown away. They stopped being a lookup key and became a weighted
 field — which means the human curation still pays, but a query that misses every tag can still
@@ -172,26 +175,45 @@ $$\text{coverage} = \frac{\sum \text{idf}(\text{matched terms})}{\sum \text{idf}
 
 "What fraction of this query's *information* did the best document actually account for?" — a
 number between 0 and 1, on the same scale whatever the corpus size. A document clears the gate at
-**0.20**, and must additionally match at least one query term, so a single rare-but-irrelevant
-token cannot carry a match alone.
+**0.20**. The code also requires at least one matched term, which is worth flagging as
+decoration rather than a safeguard: coverage is a sum over matched terms, so it is provably 0
+when nothing matched, and the threshold already excludes that case.
 
-Two honest caveats we measured rather than assumed:
+It emphatically does **not** stop a single term from carrying a match on its own. All four false
+fires in our eval set are single-term matches, and they are the kind of thing a reader should see
+rather than take on trust:
+
+| Query that should return nothing | What fired | Terms matched |
+|---|---|---|
+| "write a poem about autumn" | `rider:apply_patch`, `rider:replace_text_in_file`, `rider:create_new_file` | 1 — *write* |
+| "how many days until new year" | `rider:create_new_file` | 1 — *new* |
+| "scaffold this repo" | `code-review-graph:list_repos_tool` | 1 — *repo* |
+| "start task 12" | `code-review-graph:get_minimal_context_tool` | 1 — *task* |
+
+A rare enough term clears a 0.20 coverage bar by itself, and "write" against a corpus of
+file-editing tools is exactly that. This is the layer's most visible weakness.
+
+Two further caveats, measured rather than assumed:
 
 - **0.20 is a ceiling, not a comfortable setting.** It is the highest value at which
-  zero-result-on-positives stays at 0 for our fixture set. On a 98-tool corpus the margin to the
-  first failure is **0.0089**; on a 43-tool one it is **0.0010**. Consumer indexes of 30–50 tools
-  are the common case, which makes this the tightest part of the design.
-- **No scalar threshold cleanly separates good from bad here.** Eight of 43 true positives score
-  below the worst false fire. Driving false fires to zero costs nine positives — recall 0.79. We
-  chose to keep the positives and accept that some turns get a suggestion they did not need.
+  zero-result-on-positives stays at 0 for our fixture set. On this 98-tool corpus the margin to
+  the first failure is **0.0089** — the tightest true positive and a false fire sit at the same
+  coverage to four decimal places. Because `idf` depends on the corpus size `N`, that margin is a
+  property of *this* index and not a constant; a smaller consumer index is a different
+  measurement, and we have not made it.
+- **No scalar threshold cleanly separates good from bad here.** Driving false fires to zero costs
+  true positives. We chose to keep the positives and accept that some turns get a suggestion they
+  did not need.
 
-Also worth knowing: field weights **cannot** change the false-fire rate. Coverage is a ratio of
-`idf` sums, `idf` depends only on document frequency, and `fuse_document` scales term counts
-without ever making a present term absent. Sweeping 42 weight settings and 25 `k1`/`b` settings
-changed the ranking order and left `false_fire = 0.2667` untouched every time. The one exception
-is at the boundary — dropping the `tags` field entirely changes which terms exist at all, and
-moves false fire from 0.267 to 0.200. Knobs inside the interior are theatre; the fields
-themselves are not.
+Also worth knowing: field weights **cannot** change the false-fire rate, and this is structural
+rather than empirical. Coverage is a ratio of `idf` sums; `idf` depends only on document
+frequency; and `fuse_document` scales term counts without ever making a present term absent or an
+absent term present. Sweeping all 343 combinations of `{0.5, 1, 1.5, 2, 3, 4, 5}` across the three
+field weights leaves `false_fire` at exactly 0.2667 in every one, as the algebra says it must.
+
+The one thing that *does* move it is changing which fields exist at all: dropping `tags`
+entirely takes false fire from 0.267 to 0.200, because it removes terms from the corpus rather
+than reweighting them. Knobs in the interior are theatre; the field set is not.
 
 ## 5. Falsifiability
 
@@ -210,23 +232,25 @@ Current standing, and we publish the unflattering ones on purpose:
 | coverage margin at the threshold | 0.0089 |
 
 The fixture set is **saturated**: recall@3 is already 1.000, so no reranking technique can
-improve it, and the remaining top-1 headroom is roughly one query once duplicate-tool annotation
-defects are excluded. Mean query↔document token overlap is 0.781 — our fixtures are written in
-the vocabulary of the documents they are meant to find, which is exactly the bias a fixture set
-written by the author of the index would have. Holding out low-overlap queries drops top-1 to
-0.714 while recall@3 stays 1.000.
+improve it, and the remaining top-1 headroom is four queries out of 43.
+
+It is also biased, in a way worth stating plainly because every hand-written eval set has this
+problem. Mean token overlap between a query and the tool it is supposed to find is **0.781**, and
+40 of 43 fixtures sit at 0.50 or above: the fixtures are written in the vocabulary of the
+documents they are meant to find, by the same person who wrote the documents. A retrieval system
+scored only against such a set is being asked the easy version of the question.
 
 Two conclusions follow, and they point in opposite directions:
 
-1. Further matcher tuning is not worth doing against these fixtures. Any gain is inside the noise
-   floor — the 95% CI on top-1 is [0.814, 0.977], a width of 0.163 against a total achievable
-   spread of 0.07.
+1. Further matcher tuning is not worth doing against these fixtures. With 39 of 43 correct at
+   rank 1, the Wilson 95% interval is [0.784, 0.963] — wide enough to swallow any tuning gain
+   whole. Improvements smaller than the measurement error are not improvements.
 2. Harder fixtures — paraphrases with zero lexical overlap, user-voice queries, near-duplicate
    tools — would tell us something the current set cannot. That work is tracked, and it is
    deliberately *not* framed as "improve the matcher", because we do not yet know that the
    matcher is what is wrong.
 
-## 6. Telemetry, and why silence needs four names
+## 6. Telemetry, and why silence needs more than one name
 
 A retrieval layer that recommends nothing looks identical, from the outside, to one that is not
 running. This is the failure mode that hides itself: everything appears fine, forever.
@@ -240,14 +264,22 @@ So every terminal state writes a record under the `ai_badger_hooks/mcp_retrieval
 | `no_terms` | The query tokenized to nothing, so **no candidate was ever compared to the threshold** | Reporting a tokenizer miss as a threshold miss — misattributing the exact failure the telemetry exists to count |
 | `absent` | There is no index to search | Reading "no index" as "no match" |
 
+Two more events, `known` and `unknown`, share the same component name: they come from a separate
+after-the-fact check of whether a tool the agent actually called was one the index knew about.
+Worth knowing before you tail the log and wonder where the extra names came from.
+
 The `gate`/`no_terms` split was not designed in; it came out of reviewing the first version, where
 a query that produced no terms was recorded as `gate` with a threshold field attached — a record
-that asserted a comparison which never happened. `no_terms` carries the top candidates but no
-threshold, because none was applied.
+that asserted a comparison which never happened.
 
-Each record also carries the query, the extracted terms, the candidate count, the top three
-scored candidates as `name:score:coverage`, and the threshold in force — so a later threshold
-change is attributable rather than mysterious.
+A `gate` record carries the query, the extracted terms, the candidate count, the top three scored
+candidates as `name:score:coverage`, and the threshold in force — so a later threshold change is
+attributable rather than mysterious. A `no_terms` record carries neither the threshold nor any
+candidates, and the reason is worth following: scoring needs query terms, and `no_terms` is
+precisely the case where there are none. There is no "suppressed top scorer" to show. That is a
+real difference from the keyword-map era this event was designed in, when a query could produce
+no *tags* while still being perfectly rankable — under BM25, no terms means nothing was ever
+scored, full stop.
 
 ```mermaid
 sequenceDiagram
@@ -272,10 +304,13 @@ sequenceDiagram
     H-->>U: turn proceeds, with or without a hint
 ```
 
-Note the `alt`. The near-miss scoring exists only for telemetry, and an early version computed it
-unconditionally — **1.96× the cost of the retrieval itself, paid on every turn, to fill a log
-nobody had switched on.** It is now behind the enabled check. An observability feature that taxes
-the thing it observes gets switched off, and then observes nothing.
+Note the `alt`. The near-miss scoring exists only for telemetry, and it is not cheap: to show you
+the candidates that *didn't* make it, it rebuilds the corpus and re-ranks everything the gated
+retrieval just ranked. An early version did that unconditionally. Measured over the 58 eval
+queries on this index, the instrumented path costs **about 1.6× the retrieval alone** — paid on
+every turn, to fill a log nobody had switched on. It is now behind the enabled check. An
+observability feature that taxes the thing it observes gets switched off, and then observes
+nothing.
 
 ### The query field, and the redaction flag
 
@@ -307,11 +342,18 @@ confidently-wrong matches. Making the gate a coverage ratio made the threshold p
 corpus sizes. Shipping an eval fixture set meant the next change to the matcher has to argue with
 data rather than with taste.
 
-**The part that did not.** For a while, this ran nowhere. The context-enrichment path is a Hermes
-plugin hook; on Claude Code, `mcp_matcher.py` was not present in the scaffolded hooks directory
-at all. Debug logging is what surfaced it — **501 records, zero of them `mcp_retrieval`.** A
-feature that was implemented, tested, documented and released, and had never executed a single
-query on the host most of its users run.
+**The part that did not — and still does not.** This runs nowhere on Claude Code. The
+context-enrichment path is a Hermes plugin hook, gated on `hermes` being a configured agent;
+`mcp_matcher.py`, `bm25.py` and `tokenizer.py` are not copied into the scaffolded hooks
+directory, and the `context-enrichment` entry in `hooks-manifest.json` has no `claude` key at
+all. Debug logging is what surfaced it — **501 records, zero of them `mcp_retrieval`.** A feature
+implemented, tested, documented and released, that has never executed a single query on the host
+this project is distributed as a plugin for.
+
+**That gap is open as of this writing**, tracked as issue #147. Everything above describes a
+mechanism that is real and correct and, on one of its two target hosts, unreached. It would be
+easy to write this section in the past tense and let a reader assume the discovery implies a
+fix. It does not yet.
 
 That is the same defect shape three times over in this repository's history: a component that is
 built, covered by tests, copied into place by the scaffolder, and **registered nowhere**. Tests
@@ -330,8 +372,9 @@ answer was no.
 
 - [ADR-0012](adr/0012-bm25-retrieval-with-a-falsifiable-eval.md) — the decision, the sweep tables,
   and what was rejected.
-- [ADR-0004](adr/0004-mcp-tool-index.md) — the index itself: where it comes from, how it is
-  curated, what `status: removed` means.
+- [ADR-0004](adr/0004-mcp-tool-index.md) — the index itself: why it exists and where it comes
+  from. The curation commands, and what `status: removed` means, are in
+  [`mcp-index/SKILL.md`](../features/common/skills/mcp-index/SKILL.md).
 - [`call-behaviorist`](../features/common/skills/call-behaviorist/SKILL.md) — switching the log
   on, reading it, and producing a health report from it.
 - [`framework-architecture.md`](framework-architecture.md) — where retrieval sits in the wider
