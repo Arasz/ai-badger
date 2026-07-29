@@ -38,7 +38,9 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
    ```bash
    python3 "$AI_BADGER/features/common/skills/den-refresh/scripts/refresh.py" --target . --root "$AI_BADGER"
    ```
-   Add `--prune-cache` only when the user has asked for it (see step 3).
+   Add `--prune-cache` only when the user has asked for it (see step 3). Add `--force` only
+   as recovery (see Error Recovery) — it re-scaffolds unconditionally, bypassing every drift
+   signal.
    This:
    - Validates that config.json and manifest.json exist
    - Reads the manifest to extract scaffolded skill names
@@ -66,6 +68,10 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
      a re-scaffold makes them comparable
    - `drift.newItems` — catalog items the project has never scaffolded, including ones
      added to the framework's always-on `common` stack after this project was set up
+   - `drift.configChanged` — `null` unless config.json itself no longer matches what the
+     last scaffold was built from (an `exclude`, `commands`, `stacks`, `agents` or
+     `personaRouting` edit). Present as `{"recorded": ..., "current": ...}`; `recorded: null`
+     means this manifest predates the field and self-heals on this one re-scaffold
    - `newStacks` — stacks detectable in the target but missing from config
    - `reScaffolded` — whether a re-scaffold was performed
    - `note` — present only when config.json and the framework disagree on the version and no
@@ -146,8 +152,10 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
   an existing config.
 - A deleted skill, persona, invariant or instruction comes back: absence is not a
   declaration. To decline one for good, add its name to `exclude` in `config.json`
-  (`{"skills": ["mcp-index"]}`); the refresh then stops delivering it and removes the
-  discovery symlinks ai-badger placed for it.
+  (`{"skills": ["mcp-index"]}`) and re-run den-refresh — the edit is self-executing
+  (`drift.configChanged`, #128), so no separate step is needed. The refresh then stops
+  delivering it and removes the discovery symlinks ai-badger placed for it. The same applies
+  to any other config-only edit: `commands`, `personaRouting`, `agents`, `stacks`.
 - **Dropping a stack from `config.stacks` is the other way to stop asking**, and it now
   converges the same way: the entries that stack delivered are reported as `drift.orphaned` and
   pruned by the re-scaffold. Before 0.42.0 the removal was invisible and the files were left
@@ -172,6 +180,7 @@ recovery before surfacing the failure to the user.
    | `frameworkVersion` mismatch between config and framework | Update `frameworkVersion` in config.json to match `cat "$AI_BADGER/VERSION"` |
    | Scaffold script raised an exception (file-permission, encoding) | Fix the file/permission issue, retry once |
    | Python dependency missing (`jsonschema`) | `python3 -m pip install -r "$AI_BADGER/engine/requirements.txt"` |
+   | Scaffold and config disagree with `reScaffolded: false` and no drift signal explains why | Re-run with `--force` — re-scaffolds unconditionally and reports `"forced": true` |
 
    After applying a fix, **re-run the refresh**. If it succeeds, report what was
    fixed and continue with the normal flow (review diff, commit).

@@ -277,6 +277,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="Delete ~/.ai-badger/framework, the clone ai-badger makes when it "
                              "has no other root and never updates in place. Default reports it "
                              "and deletes nothing. Claude Code's plugin cache is never touched.")
+    parser.add_argument("--force", action="store_true",
+                        help="Re-scaffold even when no drift signal fired. The documented "
+                             "recovery path for a scaffold/config disagreement no signal "
+                             "models yet — stays inside den-refresh instead of calling "
+                             "scaffold.py by hand.")
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve() if args.root else bl.find_root()
@@ -339,11 +344,12 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     has_drift = bool(drift_result.get("changed") or drift_result.get("removed")
                      or drift_result.get("orphaned") or drift_result.get("newItems")
-                     or drift_result.get("versionChanged") or new_stacks)
+                     or drift_result.get("versionChanged") or drift_result.get("configChanged")
+                     or new_stacks)
 
-    # 7. Re-scaffold if drift detected (or breaking change forces full re-scaffold)
+    # 7. Re-scaffold if drift detected, a breaking change forces it, or --force was asked for
     scaffold_result = None
-    if has_drift or breaking_result["isBreaking"]:
+    if has_drift or breaking_result["isBreaking"] or args.force:
         scaffold_result = re_scaffold(root, target, config, manifest,
                                        generated_at=args.generated_at)
 
@@ -375,12 +381,15 @@ def main(argv: Optional[List[str]] = None) -> int:
             "skipped": drift_result.get("skipped", []),
             "locallyModified": drift_result.get("locallyModified", []),
             "versionChanged": drift_result.get("versionChanged"),
+            "configChanged": drift_result.get("configChanged"),
             "invalid": drift_result.get("invalid", 0),
             "newItems": drift_result.get("newItems", []),
         },
         "newStacks": new_stacks,
-        "reScaffolded": has_drift or breaking_result["isBreaking"],
+        "reScaffolded": has_drift or breaking_result["isBreaking"] or args.force,
     }
+    if args.force:
+        report["forced"] = True
     if report_note:
         report["note"] = report_note
     if scaffold_result:
