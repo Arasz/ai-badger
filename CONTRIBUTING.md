@@ -320,7 +320,7 @@ force a `VERSION` bump for a tool nothing ships.
 
 **What it covers:** `features/common/retrieval/` (`bm25.py`, `mcp_matcher.py`, `tokenizer.py`) —
 the BM25 ranking and MCP-tool matching logic. Nothing else. That module is where a live run
-demonstrably paid: 235 LOC, no subprocess, no repo-tree reads, a 197-mutant run in about 15
+demonstrably paid: 235 LOC, no subprocess, no repo-tree reads, a 190-mutant run in about 15
 seconds.
 
 **What it deliberately does not cover:** everything else. `gates/`, `engine/`, `tooling/` and
@@ -340,11 +340,26 @@ actionable, and it does not guide testing." Treat a run's summary as a lead, not
 
 **What to do with a survivor:** read it. Each one is either a real gap — write the test that
 kills it — or genuine noise, in which case add a `# pragma: no mutate: <one-line reason>`
-comment on that line rather than leaving it to resurface on every run. `[tool.mutmut]` in
-[`pyproject.toml`](pyproject.toml) already suppresses categories of noise this repo has (docstrings,
-exception message text, `@dataclass(frozen=True)`, `pylint:` comments); this pragma is for the
-one-off case a pattern would over-suppress. There is no third option — a survivor that is neither
-tested nor annotated is exactly what the next run will report again.
+comment on that line rather than leaving it to resurface on every run (the trailing `: reason`
+does not break the match — verified against `mutmut.mutation.pragma_handling` directly).
+`[tool.mutmut]` in [`pyproject.toml`](pyproject.toml) already suppresses categories of noise
+this repo has (docstrings, exception message text, `@dataclass(frozen=True)`, `pylint:`
+comments); the pragma is for the one-off case a pattern would over-suppress. There is no third
+option — a survivor that is neither tested nor annotated is exactly what the next run will
+report again.
+
+The pragma comment has one sharp edge: mutmut's CST scan only recognizes a trailing `# pragma:
+no mutate` on a statement's *own* line. A line buried inside a multi-line call (a list literal
+spanning several lines, for instance) is invisible to it — `do_not_mutate_patterns`' regex is
+the only mechanism that reaches those, one entry per confirmed-equivalent mutant, each
+commented with why (see the last entry in `[tool.mutmut]` for a worked example).
+
+The first scoped run surfaced 44 survivors: 41 were real gaps, fixed with tests that pin exact
+values rather than loose orderings; 1 was confirmed equivalent and annotated as above; 1 is a
+real gap deferred to a follow-up issue because a clean test needs a hand-tuned corpus that ties
+two documents' scores exactly while their coverage differs — disproportionate effort for one
+line. **Adopting the harness and not reading its first output is how it becomes a tool nobody
+runs** — reading every survivor at least once is not optional the first time.
 
 **Review it after about a month** against one falsifiable question: did any survivor here lead
 to a test that would have caught a real defect? If not, delete the config — a tool that finds
