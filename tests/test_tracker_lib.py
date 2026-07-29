@@ -851,9 +851,19 @@ def test_a_malformed_override_does_not_silently_disable_the_gate(load_script, tm
     for payload in ('{"agentDocs": {"maxLines": "lots"}}',
                     '{"agentDocs": {"maxLines": 0}}',
                     '{"agentDocs": {"maxLines": -1}}',
+                    '{"agentDocs": {"maxLines": true}}',
                     '{"agentDocs": []}',
                     '{"agentDocs": null}',
                     "not json at all"):
+        tl = _load(load_script, tmp_path)
+        _write_config(tl, payload)
+
+        assert tl.doc_budget() == (tl.CLAUDE_MD_MAX_CHARS, tl.CLAUDE_MD_MAX_LINES), payload
+
+
+def test_a_config_that_is_not_an_object_leaves_the_budget_alone(load_script, tmp_path):
+    """load_config returns whatever parses, so a non-object config must not reach .get()."""
+    for payload in ("[1, 2, 3]", '"a string"', "42", "null"):
         tl = _load(load_script, tmp_path)
         _write_config(tl, payload)
 
