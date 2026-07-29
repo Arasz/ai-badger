@@ -241,3 +241,33 @@ def test_tie_break_is_deterministic_across_insertion_order(bm25):
     reversed_order = [r.doc_id for r in corpus_reversed.rank(["build", "solution"])]
 
     assert forward_order == reversed_order == ["alpha", "zeta"]
+
+
+def test_coverage_breaks_an_exact_score_tie_toward_higher_coverage(bm25):
+    """When two documents' BM25 scores land on the exact same float, the higher-coverage one
+    must sort first (issue #154): otherwise nothing distinguishes `-r.coverage` from
+    `+r.coverage` in the sort key, and a mutant flipping that sign survives untested.
+
+    "doc_a" matches only "term_a", "doc_b" only "term_b", each on a document of equal weighted
+    length (so `length_norm` is identical for both and drops out). "doc_c" exists only to make
+    "term_a" the rarer term (df 2 vs. 1), so idf(term_a) != idf(term_b) and coverage differs.
+    "doc_b"'s term frequency (0.6244807405101783) is solved so that, run through the exact same
+    BM25 expression, its score equals "doc_a"'s bit-for-bit — verified below via `==`, not
+    `approx`, because an approximate tie would let the primary `-r.score` key decide the order
+    and never exercise the coverage tie-break at all.
+    """
+    fuse = bm25.fuse_document
+    corpus = bm25.Bm25Corpus({
+        "doc_a": fuse([(["term_a"], 3.0)]),
+        "doc_b": fuse([(["term_b"], 0.6244807405101783), (["filler_b"], 2.375519259489822)]),
+        "doc_c": fuse([(["term_a"], 1.0), (["filler_c"], 2.0)]),
+    })
+    ranked = corpus.rank(["term_a", "term_b"])
+    by_id = {r.doc_id: r for r in ranked}
+
+    assert by_id["doc_a"].score == by_id["doc_b"].score  # exact tie, not merely close
+    assert by_id["doc_a"].coverage != by_id["doc_b"].coverage
+    assert by_id["doc_b"].coverage > by_id["doc_a"].coverage
+
+    order = [r.doc_id for r in ranked if r.doc_id in ("doc_a", "doc_b")]
+    assert order == ["doc_b", "doc_a"]
