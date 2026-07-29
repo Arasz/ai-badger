@@ -208,12 +208,9 @@ def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
     """
     scaffold_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py", root)
 
-    # Manifest skill entries include per-file `<skill>/extensions/<file>` rows; those are
-    # provenance for a skill already named here, not skills the Scaffolder can resolve.
-    scaffolded = [e["name"] for e in manifest.get("entries", [])
-                  if e.get("feature") == "skills" and "/" not in e["name"]]
     skill_names = list(dict.fromkeys(
-        scaffolded + bl.default_skills_in(root / "features" / "common" / "skills")
+        bl.scaffolded_skill_names(manifest)
+        + bl.default_skills_in(root / "features" / "common" / "skills")
     ))
 
     scaf = scaffold_mod.Scaffolder(
