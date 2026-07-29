@@ -3,6 +3,7 @@
 A generic BM25 corpus over fused per-document term-frequency maps: no knowledge of
 skills or MCP tools (docs/adr/0012-bm25-retrieval-with-a-falsifiable-eval.md).
 """
+# pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations
 
 from collections import Counter
