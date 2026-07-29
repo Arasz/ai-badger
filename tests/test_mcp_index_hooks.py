@@ -1,8 +1,11 @@
 """Tests for MCP index integration in ai_badger_hooks.py.
 
 Covers:
-- _load_mcp_index: discovering and parsing .ai-badger/mcp-tools.yaml, and degrading
-  to None (not crashing) when pyyaml is absent
+- _load_mcp_index: discovering and parsing .ai-badger/mcp-tools.json. JSON-only by
+  design (docs/adr/0012 §4, issue #145) — a dual-format reader here would keep
+  `import yaml` on this hook's path permanently, which is the whole point of removing
+  it. A project still on the legacy mcp-tools.yaml gets no recommendations, the same
+  silence a missing index already produces.
 - _find_relevant_tools: delegates to features/common/retrieval/mcp_matcher.py
   (docs/adr/0012) rather than containing the ranking itself
 - pre_llm_inject_context: injecting tool recommendations based on user message
@@ -15,21 +18,21 @@ tests/test_mcp_matcher.py — this file only covers the hook's wiring to it.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 def _write_mcp_index(project: Path, data: dict) -> Path:
-    """Write .ai-badger/mcp-tools.yaml to a project directory."""
+    """Write .ai-badger/mcp-tools.json to a project directory."""
     aib = project / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
-    path = aib / "mcp-tools.yaml"
-    path.write_text(yaml.dump(data, sort_keys=False), encoding="utf-8")
+    path = aib / "mcp-tools.json"
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     return path
 
 
@@ -115,12 +118,42 @@ def test_load_index_when_cwd_is_empty(hooks):
     assert hooks._load_mcp_index("") is None
 
 
-def test_load_index_degrades_to_none_without_pyyaml(hooks, tmp_path, monkeypatch):
-    """An absent pyyaml must degrade the index to None, not crash the hook (issue #136)."""
-    _write_mcp_index(tmp_path, _sample_index())
-    monkeypatch.setattr(hooks, "yaml", None)
+def test_load_index_ignores_a_legacy_yaml_only_project(hooks, tmp_path):
+    """JSON-only by design (issue #145): a legacy mcp-tools.yaml with no JSON is silence,
+    not a fallback read — the same outcome a missing index already produces."""
+    aib = tmp_path / ".ai-badger"
+    aib.mkdir(parents=True)
+    (aib / "mcp-tools.yaml").write_text("sources: []\n", encoding="utf-8")
 
     assert hooks._load_mcp_index(str(tmp_path)) is None
+
+
+def test_load_index_degrades_to_none_on_malformed_json(hooks, tmp_path):
+    """A corrupt mcp-tools.json degrades to None rather than raising."""
+    aib = tmp_path / ".ai-badger"
+    aib.mkdir(parents=True)
+    (aib / "mcp-tools.json").write_text("{not valid json", encoding="utf-8")
+
+    assert hooks._load_mcp_index(str(tmp_path)) is None
+
+
+def test_hooks_module_has_no_yaml_dependency(load_script):
+    """Static guard: the module must never re-acquire a yaml import (issue #145).
+
+    Replaces the dynamic ImportError-simulation in the now-deleted
+    tests/test_ai_badger_hooks_missing_yaml.py — that test exercised a guarded
+    `import yaml` this module no longer has at all, so the regression it protected
+    against (issue #136, taking four hooks down together) can no longer occur here;
+    this pins the module to staying that way.
+    """
+    hooks_path = (Path(__file__).resolve().parents[1] / "features" / "common" / "hooks"
+                  / "ai_badger_hooks.py")
+    code_lines = [line.strip() for line in hooks_path.read_text(encoding="utf-8").splitlines()]
+    assert not any(line.startswith("import yaml") or line.startswith("from yaml")
+                   for line in code_lines)
+    assert "yaml.safe_load" not in hooks_path.read_text(encoding="utf-8")
+    module = load_script("features/common/hooks/ai_badger_hooks.py")
+    assert not hasattr(module, "yaml")
 
 
 # ── _find_relevant_tools delegates to the BM25 matcher ─────────────────────

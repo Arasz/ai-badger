@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Arasz/ai-badger/schemas/mcp-tools.schema.json",
   "title": "MCP Tool Index",
-  "description": "Maps every MCP server tool to tags (for categorical filtering) and intent (for semantic matching). Lives at .ai-badger/mcp-tools.yaml in scaffolded projects.",
+  "description": "Maps every MCP server tool to tags (for categorical filtering) and intent (for semantic matching). Lives at .ai-badger/mcp-tools.json in scaffolded projects (a legacy .ai-badger/mcp-tools.yaml is migrated automatically the first time a write command runs).",
   "type": "object",
   "required": [
     "version",

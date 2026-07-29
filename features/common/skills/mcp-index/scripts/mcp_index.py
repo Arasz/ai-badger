@@ -2,7 +2,7 @@
 """mcp-index: manage the MCP tool index for ai-badger projects.
 
 Reads Hermes's MCP tool list (hermes mcp list --json) and produces
-.ai-badger/mcp-tools.yaml with auto-assigned tags and intents.
+.ai-badger/mcp-tools.json with auto-assigned tags and intents.
 
 Commands:
   init     — create index from MCP tool list
@@ -11,6 +11,10 @@ Commands:
   tag      — set tags for a specific tool
   intent   — set intent for a specific tool
   list     — display all tools, optionally filtered by tag
+  migrate  — one-shot: convert a legacy mcp-tools.yaml into mcp-tools.json
+
+JSON is the format going forward (docs/adr/0012 §4, issue #145); mcp-tools.yaml is read
+for backward compatibility and migrated to JSON the first time any write command runs.
 """
 
 from __future__ import annotations
@@ -292,28 +296,158 @@ def _fetch_mcp_tools(from_json: Optional[str] = None) -> list[dict[str, Any]]:
 
 # ── Index file operations ────────────────────────────────────────────────────
 
+# legacy_yaml_subset.py sits beside this file in every deployment shape (sync_plugin_skills.py
+# and the scaffold's skill installer both copy a skill's scripts/ directory whole).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from legacy_yaml_subset import parse_legacy_yaml_subset as _parse_legacy_yaml_subset  # noqa: E402  pylint: disable=wrong-import-position,import-error
+
+class McpIndexError(RuntimeError):
+    """Base for _read_index/_write_index failures the CLI dispatch turns into an exit code."""
+
+
+class LegacyYamlUnreadable(McpIndexError):
+    """A legacy mcp-tools.yaml exists but cannot be safely read."""
+
+
+class IndexInvalid(McpIndexError):
+    """The index failed schema validation."""
+
+
+class ValidationUnavailable(McpIndexError):
+    """Schema validation could not run at all (no framework root, or no jsonschema)."""
+
+
+VALIDATION_UNAVAILABLE_HINT = (
+    "cannot validate against schemas/mcp-tools.schema.json: pass --root <framework "
+    "checkout> if the framework isn't reachable, and `pip install jsonschema` if it "
+    "isn't installed (engine/requirements.txt)."
+)
+
+
 def _index_path(target: str) -> Path:
-    """Return the path to .ai-badger/mcp-tools.yaml for a project."""
+    """Return the path to .ai-badger/mcp-tools.json for a project."""
+    return Path(target) / ".ai-badger" / "mcp-tools.json"
+
+
+def _legacy_index_path(target: str) -> Path:
+    """Return the path to a project's legacy .ai-badger/mcp-tools.yaml, if any."""
     return Path(target) / ".ai-badger" / "mcp-tools.yaml"
 
 
+def _read_legacy_yaml(path: Path) -> dict:
+    """Read a legacy mcp-tools.yaml: pyyaml when present, else the verified subset parser."""
+    text = path.read_text(encoding="utf-8")
+    if yaml is not None:
+        return yaml.safe_load(text)
+    parsed = _parse_legacy_yaml_subset(text)
+    if parsed is not None:
+        return parsed
+    raise LegacyYamlUnreadable(
+        f"{path} is a legacy YAML index and PyYAML is not installed, so it cannot be "
+        "safely read (it fell outside the subset this script can verify).\n"
+        f"  Remedy 1: {YAML_MISSING_HINT}, then re-run.\n"
+        "  Remedy 2: regenerate — `mcp-index init --target <project> --from-json "
+        "<hermes mcp list --json output>`. This LOSES curated tags and intents."
+    )
+
+
 def _read_index(target: str) -> Optional[dict[str, Any]]:
-    """Read the existing index, or None if it doesn't exist."""
-    path = _index_path(target)
-    if not path.exists():
+    """Read the index: the JSON file wins when both it and a legacy YAML file exist."""
+    json_path = _index_path(target)
+    if json_path.exists():
+        return json.loads(json_path.read_text(encoding="utf-8"))
+    legacy_path = _legacy_index_path(target)
+    if not legacy_path.exists():
         return None
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+    return _read_legacy_yaml(legacy_path)
 
 
-def _write_index(target: str, data: dict[str, Any]) -> None:
-    """Write the index file atomically — it holds hand-curated tags a partial write loses.
+def _read_index_safe(target: str) -> tuple[Optional[dict[str, Any]], Optional[str]]:
+    """`_read_index`, turning a LegacyYamlUnreadable refusal into a message instead of a raise."""
+    try:
+        return _read_index(target), None
+    except LegacyYamlUnreadable as exc:
+        return None, str(exc)
+
+
+def _drop_empty_sources(data: dict[str, Any]) -> list[str]:
+    """Remove sources with no tools (the schema requires tools.minProperties: 1).
+
+    Returns the dropped server names. A zero-tool server is one hermes reports as enabled
+    but which exposes no callable tools (e.g. a skill-only or config-only server) — nothing
+    for the index to recommend, and nothing BM25 retrieval can score.
+    """
+    sources = data.get("sources", [])
+    kept, dropped = [], []
+    for source in sources:
+        if source.get("tools"):
+            kept.append(source)
+        else:
+            dropped.append(source.get("name", "?"))
+    data["sources"] = kept
+    return dropped
+
+
+def _try_import_badger_lib():
+    """Return the badger_lib module, or None when validation cannot run at all.
+
+    Covers both causes uniformly: FRAMEWORK_ROOT is None (nothing on sys.path to import
+    from), or badger_lib itself fails to import (it imports jsonschema unguarded).
+    """
+    if FRAMEWORK_ROOT is None:
+        return None
+    try:
+        import badger_lib as bl  # pylint: disable=import-outside-toplevel,import-error
+    except ImportError:
+        return None
+    return bl
+
+
+def _validate_against_schema(data: dict[str, Any]) -> Optional[list[str]]:
+    """Errors from schemas/mcp-tools.schema.json, or None when validation is unavailable."""
+    bl = _try_import_badger_lib()
+    if bl is None:
+        return None
+    schema_path = FRAMEWORK_ROOT / "schemas" / "mcp-tools.schema.json"
+    if not schema_path.is_file():
+        return None
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    return bl.validate(data, schema)
+
+
+def _write_index(target: str, data: dict[str, Any], *, require_validation: bool) -> list[str]:
+    """Drop zero-tool sources, validate, write JSON, migrate a legacy YAML file if present.
+
+    `require_validation` splits the write choke point in two, because this local copy of
+    `atomic_write_text` exists precisely so this script runs in projects with no framework
+    on sys.path (see below) — a hard requirement on FRAMEWORK_ROOT + jsonschema would
+    contradict that for every command, not just the bulk ones:
+      * True  (init/update): refuse outright when validation can't run, or when it finds
+        errors. These commands overwrite most or all of the file from a fetched tool list,
+        where an undetected schema violation is most likely and most costly.
+      * False (tag/intent): best-effort. tag/intent already enforce the two fields the
+        schema constrains for a single tool (tag taxonomy membership, intent length) without
+        jsonschema at all; a missing framework root or jsonschema degrades to a printed note
+        rather than stranding a curation edit that has nowhere else to happen.
 
     Local copy of `badger_lib.atomic_write_text`: this script is scaffolded into projects
     that need not have the framework on sys.path.
     """
+    dropped = _drop_empty_sources(data)
+    errors = _validate_against_schema(data)
+    if errors is None:
+        if require_validation:
+            raise ValidationUnavailable(VALIDATION_UNAVAILABLE_HINT)
+        print(f"NOTE: wrote unvalidated — {VALIDATION_UNAVAILABLE_HINT}", file=sys.stderr)
+    elif errors:
+        message = "index failed schema validation:\n" + "\n".join(f"  - {e}" for e in errors)
+        if require_validation:
+            raise IndexInvalid(message)
+        print(f"WARNING: {message}", file=sys.stderr)
+
     path = _index_path(target)
     path.parent.mkdir(parents=True, exist_ok=True)
-    text = yaml.dump(data, sort_keys=False, default_flow_style=False)
+    text = json.dumps(data, indent=2, sort_keys=False, ensure_ascii=False) + "\n"
     handle, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".tmp")
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as fh:
@@ -322,6 +456,17 @@ def _write_index(target: str, data: dict[str, Any]) -> None:
     finally:
         if os.path.exists(tmp):
             os.unlink(tmp)
+
+    legacy_path = _legacy_index_path(target)
+    if legacy_path.exists():
+        migrated_path = legacy_path.with_name(legacy_path.name + ".migrated")
+        legacy_path.replace(migrated_path)
+        print(f"Migrated legacy {legacy_path.name} -> {migrated_path.name}.", file=sys.stderr)
+
+    if dropped:
+        print(f"Dropped {len(dropped)} server(s) with no tools: {', '.join(dropped)}.")
+
+    return dropped
 
 
 # ── Commands ─────────────────────────────────────────────────────────────────
@@ -352,13 +497,18 @@ def cmd_init(target: str, from_json: Optional[str] = None) -> int:
         "sources": sources,
     }
 
-    _write_index(target, index)
-    tool_count = sum(len(s["tools"]) for s in sources)
+    try:
+        _write_index(target, index, require_validation=True)
+    except McpIndexError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    tool_count = sum(len(s["tools"]) for s in index["sources"])
     general_count = sum(
-        1 for s in sources
+        1 for s in index["sources"]
         for t in s["tools"].values() if t["tags"] == ["general"]
     )
-    print(f"Indexed {tool_count} tools across {len(sources)} server(s).")
+    print(f"Indexed {tool_count} tools across {len(index['sources'])} server(s).")
     if general_count:
         print(
             f"  {general_count} tool(s) tagged as 'general' — "
@@ -369,10 +519,13 @@ def cmd_init(target: str, from_json: Optional[str] = None) -> int:
 
 def cmd_validate(target: str) -> int:
     """Validate the index: all tools have non-general, non-empty tags and intents."""
-    index = _read_index(target)
+    index, err = _read_index_safe(target)
+    if err:
+        print(f"ERROR: {err}", file=sys.stderr)
+        return 1
     if index is None:
         print(
-            "ERROR: .ai-badger/mcp-tools.yaml not found. "
+            "ERROR: .ai-badger/mcp-tools.json not found. "
             "Run 'mcp-index init' first.",
             file=sys.stderr,
         )
@@ -421,7 +574,10 @@ def cmd_validate(target: str) -> int:
 
 def cmd_update(target: str, from_json: Optional[str] = None) -> int:
     """Update index: add new tools, mark removed ones, preserve manual tags."""
-    index = _read_index(target)
+    index, err = _read_index_safe(target)
+    if err:
+        print(f"ERROR: {err}", file=sys.stderr)
+        return 1
     if index is None:
         print("No existing index. Running init instead.", file=sys.stderr)
         return cmd_init(target, from_json)
@@ -485,7 +641,11 @@ def cmd_update(target: str, from_json: Optional[str] = None) -> int:
     if changes:
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         index["generated_at"] = ts
-        _write_index(target, index)
+        try:
+            _write_index(target, index, require_validation=True)
+        except McpIndexError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
         print(f"Updated: {changes} change(s) applied.")
     else:
         print("No changes — index is up to date.")
@@ -509,7 +669,10 @@ def cmd_tag(target: str, tool_ref: str, tags: list[str]) -> int:
         )
         return 1
 
-    index = _read_index(target)
+    index, err = _read_index_safe(target)
+    if err:
+        print(f"ERROR: {err}", file=sys.stderr)
+        return 1
     if index is None:
         print("ERROR: index not found.", file=sys.stderr)
         return 1
@@ -526,7 +689,11 @@ def cmd_tag(target: str, tool_ref: str, tags: list[str]) -> int:
         if source["name"] == server_name:
             if tool_name in source["tools"]:
                 source["tools"][tool_name]["tags"] = sorted(tags)
-                _write_index(target, index)
+                try:
+                    _write_index(target, index, require_validation=False)
+                except McpIndexError as exc:  # pragma: no cover - best-effort never raises
+                    print(f"ERROR: {exc}", file=sys.stderr)
+                    return 1
                 print(f"Tags for {tool_ref} set to: {tags}")
                 return 0
             print(
@@ -550,7 +717,10 @@ def cmd_intent(target: str, tool_ref: str, intent: str) -> int:
         )
         return 1
 
-    index = _read_index(target)
+    index, err = _read_index_safe(target)
+    if err:
+        print(f"ERROR: {err}", file=sys.stderr)
+        return 1
     if index is None:
         print("ERROR: index not found.", file=sys.stderr)
         return 1
@@ -567,7 +737,11 @@ def cmd_intent(target: str, tool_ref: str, intent: str) -> int:
         if source["name"] == server_name:
             if tool_name in source["tools"]:
                 source["tools"][tool_name]["intent"] = intent
-                _write_index(target, index)
+                try:
+                    _write_index(target, index, require_validation=False)
+                except McpIndexError as exc:  # pragma: no cover - best-effort never raises
+                    print(f"ERROR: {exc}", file=sys.stderr)
+                    return 1
                 print(f"Intent for {tool_ref} set.")
                 return 0
             print(
@@ -585,7 +759,10 @@ def cmd_list(
     target: str, tag: Optional[str] = None, untagged: bool = False
 ) -> int:
     """List tools, optionally filtered."""
-    index = _read_index(target)
+    index, err = _read_index_safe(target)
+    if err:
+        print(f"ERROR: {err}", file=sys.stderr)
+        return 1
     if index is None:
         print("ERROR: index not found.", file=sys.stderr)
         return 1
@@ -621,6 +798,46 @@ def cmd_list(
     elif untagged:
         filter_desc = " (untagged only)"
     print(f"\n{total} tool(s){filter_desc}")
+    return 0
+
+
+def cmd_migrate(target: str) -> int:
+    """One-shot: convert a legacy mcp-tools.yaml into mcp-tools.json.
+
+    Read + write through `_read_index`/`_write_index`, the same functions every other
+    command uses — no second conversion implementation to keep in sync (issue #145).
+    """
+    json_path = _index_path(target)
+    legacy_path = _legacy_index_path(target)
+
+    if json_path.exists():
+        print(f"{json_path} already exists — nothing to migrate.")
+        return 0
+    if not legacy_path.exists():
+        print(
+            "ERROR: no mcp-tools.yaml or mcp-tools.json found. "
+            "Run 'mcp-index init' first.",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        data = _read_legacy_yaml(legacy_path)
+    except LegacyYamlUnreadable as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        _write_index(target, data, require_validation=True)
+    except McpIndexError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    tool_count = sum(len(s.get("tools", {})) for s in data.get("sources", []))
+    print(
+        f"Migrated {legacy_path.name} -> {json_path.name}: "
+        f"{tool_count} tool(s) across {len(data.get('sources', []))} server(s)."
+    )
     return 0
 
 
@@ -670,10 +887,6 @@ def main(argv: Optional[list[str]] = None) -> int:
     if not argv:
         return _usage()
 
-    if yaml is None:
-        print(YAML_MISSING_HINT, file=sys.stderr)
-        return 1
-
     cmd = argv[0]
     target, remaining = _parse_target_and_remaining(argv)
 
@@ -697,6 +910,9 @@ def main(argv: Optional[list[str]] = None) -> int:
             ji = remaining.index("--from-json")
             from_json = remaining[ji + 1]
         return cmd_update(target, from_json)
+
+    if cmd == "migrate":
+        return cmd_migrate(target)
 
     if cmd == "tag":
         clean_args = _extract_clean_args(remaining[1:])

@@ -80,6 +80,6 @@ Windows-only hook commands have no path into a scaffolded repo.
 
 | ai-badger | Claude Code | Hermes Agent |
 |---|---|---|
-| `mcp-tools.yaml` | N/A | `pre_llm_call` hook injection |
+| `mcp-tools.json` | N/A | `pre_llm_call` hook injection |
 | `mcp-index` skill | N/A | Skill for manual index management |
 | `mcp_index_hook.py` | PostToolUse hook (planned) | `post_tool_call` plugin hook |

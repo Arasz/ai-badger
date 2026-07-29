@@ -9,23 +9,33 @@ import json
 import textwrap
 from pathlib import Path
 
+import pytest
 import yaml
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 def _write_index(project: Path, data: dict) -> Path:
-    """Write .ai-badger/mcp-tools.yaml to a project directory."""
+    """Write .ai-badger/mcp-tools.json (the current format) to a project directory."""
     aib = project / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
-    path = aib / "mcp-tools.yaml"
-    path.write_text(yaml.dump(data, sort_keys=False), encoding="utf-8")
+    path = aib / "mcp-tools.json"
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     return path
 
 
 def _read_index(project: Path) -> dict:
-    """Read .ai-badger/mcp-tools.yaml from a project directory."""
-    return yaml.safe_load((project / ".ai-badger" / "mcp-tools.yaml").read_text(encoding="utf-8"))
+    """Read .ai-badger/mcp-tools.json from a project directory."""
+    return json.loads((project / ".ai-badger" / "mcp-tools.json").read_text(encoding="utf-8"))
+
+
+def _write_legacy_yaml(project: Path, data: dict) -> Path:
+    """Write a legacy .ai-badger/mcp-tools.yaml, as a pre-migration project would have."""
+    aib = project / ".ai-badger"
+    aib.mkdir(parents=True, exist_ok=True)
+    path = aib / "mcp-tools.yaml"
+    path.write_text(yaml.dump(data, sort_keys=False, default_flow_style=False), encoding="utf-8")
+    return path
 
 
 def _mock_mcp_list_json() -> str:
@@ -78,7 +88,7 @@ def _all_valid_tags(taxonomy: dict) -> set[str]:
 # ── init ───────────────────────────────────────────────────────────────────
 
 def test_init_creates_index(tmp_path, load_script):
-    """init with --from-json should create .ai-badger/mcp-tools.yaml."""
+    """init with --from-json should create .ai-badger/mcp-tools.json."""
     mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["init", "--target", str(tmp_path), "--from-json", _mock_mcp_list_json()])
     assert rc == 0
@@ -319,7 +329,7 @@ def test_update_adds_new_tools(tmp_path, load_script):
         "sources": [{
             "name": "rider",
             "tools": {
-                "build_solution": {"tags": ["dotnet", "build"], "intent": "Compile"},
+                "build_solution": {"tags": ["dotnet", "build"], "intent": "Compile the solution"},
             },
         }],
     })
@@ -330,7 +340,7 @@ def test_update_adds_new_tools(tmp_path, load_script):
         "servers": [{
             "name": "rider",
             "tools": [
-                {"name": "build_solution", "description": "Compile"},
+                {"name": "build_solution", "description": "Compile the solution"},
                 {"name": "get_file_problems", "description": "Check errors"},
                 {"name": "search_symbol", "description": "Search symbols"},
             ],
@@ -582,3 +592,291 @@ def test_missing_yaml_degrades_with_a_message(load_script, monkeypatch):
 
     assert mcp_index.yaml is None
     assert "pyyaml" in mcp_index.YAML_MISSING_HINT.lower()
+
+
+# ── JSON is the format going forward (issue #145) ───────────────────────────
+
+def _valid_index(intent="A perfectly valid intent sentence") -> dict:
+    return {
+        "version": "0.1.0",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "sources": [{
+            "name": "rider",
+            "tools": {"build_solution": {"tags": ["dotnet", "build"], "intent": intent}},
+        }],
+    }
+
+
+def test_init_writes_json_not_yaml(tmp_path, load_script):
+    """init writes .ai-badger/mcp-tools.json; the legacy .yaml path is never created."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    rc = mod.main(["init", "--target", str(tmp_path), "--from-json",
+                   json.dumps({"servers": [{"name": "s", "tools": [
+                       {"name": "t", "description": "Does something useful"}]}]})])
+    assert rc == 0
+    assert (tmp_path / ".ai-badger" / "mcp-tools.json").exists()
+    assert not (tmp_path / ".ai-badger" / "mcp-tools.yaml").exists()
+
+
+def test_read_index_prefers_json_when_both_exist(tmp_path, load_script):
+    """A project mid-migration (both files present) is read from JSON, not YAML."""
+    _write_legacy_yaml(tmp_path, _valid_index(intent="from the legacy YAML file"))
+    _write_index(tmp_path, _valid_index(intent="from the current JSON file"))
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+
+    rc = mod.main(["list", "--target", str(tmp_path)])
+    assert rc == 0
+
+
+def test_cmd_list_falls_back_to_legacy_yaml_when_no_json_exists(tmp_path, load_script, capsys):
+    """A project that never migrated still works via the dual-format reader."""
+    _write_legacy_yaml(tmp_path, _valid_index(intent="Compile the whole solution now"))
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+
+    rc = mod.main(["list", "--target", str(tmp_path)])
+    assert rc == 0
+    assert "rider:build_solution" in capsys.readouterr().out
+
+
+def test_write_index_migrates_legacy_yaml_to_migrated_suffix(tmp_path, load_script):
+    """Any write command renames a legacy mcp-tools.yaml to mcp-tools.yaml.migrated."""
+    _write_legacy_yaml(tmp_path, _valid_index())
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+
+    rc = mod.main(["tag", "rider:build_solution", "dotnet", "build", "--target", str(tmp_path)])
+    assert rc == 0
+    assert (tmp_path / ".ai-badger" / "mcp-tools.json").exists()
+    assert (tmp_path / ".ai-badger" / "mcp-tools.yaml.migrated").exists()
+    assert not (tmp_path / ".ai-badger" / "mcp-tools.yaml").exists()
+
+
+def test_write_index_drops_zero_tool_servers_and_reports_them(tmp_path, load_script, capsys):
+    """Servers with no tools violate the schema's minProperties:1 and are dropped, loudly."""
+    data = _valid_index()
+    data["sources"].append({"name": "empty-server", "tools": {}})
+    _write_index(tmp_path, data)
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+
+    rc = mod.main(["tag", "rider:build_solution", "dotnet", "build", "--target", str(tmp_path)])
+    assert rc == 0
+
+    index = _read_index(tmp_path)
+    names = [s["name"] for s in index["sources"]]
+    assert "empty-server" not in names
+    assert "rider" in names
+    assert "Dropped 1 server(s) with no tools: empty-server" in capsys.readouterr().out
+
+
+def test_write_index_refuses_invalid_data_on_init(tmp_path, load_script):
+    """init/update hard-refuse rather than persist a schema-invalid index."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    # An intent under 10 chars fails schemas/mcp-tools.schema.json.
+    bad_json = json.dumps({"servers": [{"name": "s", "tools": [
+        {"name": "t", "description": "short"}]}]})
+    rc = mod.main(["init", "--target", str(tmp_path), "--from-json", bad_json])
+    assert rc == 1
+    assert not (tmp_path / ".ai-badger" / "mcp-tools.json").exists()
+
+
+def test_write_index_refuses_when_validation_unavailable_on_init(tmp_path, load_script,
+                                                                  monkeypatch):
+    """init refuses rather than write unvalidated, and names --root / pip install jsonschema."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    monkeypatch.setattr(mod, "FRAMEWORK_ROOT", None)
+
+    rc = mod.main(["init", "--target", str(tmp_path), "--from-json",
+                   json.dumps({"servers": [{"name": "s", "tools": [
+                       {"name": "t", "description": "Does something useful"}]}]})])
+
+    assert rc == 1
+    assert not (tmp_path / ".ai-badger" / "mcp-tools.json").exists()
+
+
+def test_tag_writes_unvalidated_with_a_loud_note_when_root_unreachable(tmp_path, load_script,
+                                                                       monkeypatch, capsys):
+    """tag/intent must not strand a curation edit just because the framework isn't reachable."""
+    _write_index(tmp_path, _valid_index())
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    monkeypatch.setattr(mod, "FRAMEWORK_ROOT", None)
+
+    rc = mod.main(["tag", "rider:build_solution", "diagnostic", "--target", str(tmp_path)])
+
+    assert rc == 0
+    index = _read_index(tmp_path)
+    assert index["sources"][0]["tools"]["build_solution"]["tags"] == ["diagnostic"]
+    err = capsys.readouterr().err
+    assert "--root" in err and "jsonschema" in err
+
+
+def test_validation_unavailable_hint_names_root_and_jsonschema(load_script):
+    """The hard-refusal message must name the two remedies verbatim (reviewer requirement)."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    assert "--root" in mod.VALIDATION_UNAVAILABLE_HINT
+    assert "pip install jsonschema" in mod.VALIDATION_UNAVAILABLE_HINT
+
+
+# ── mcp-index migrate ────────────────────────────────────────────────────────
+
+def test_cmd_migrate_converts_legacy_yaml_preserving_curated_tags(tmp_path, load_script):
+    """migrate reads the legacy YAML and writes JSON with curated tags intact."""
+    _write_legacy_yaml(tmp_path, {
+        "version": "0.1.0",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "sources": [{
+            "name": "rider",
+            "tools": {
+                "build_solution": {
+                    "tags": ["dotnet", "build", "csharp"],
+                    "intent": "Compile the solution and report errors back",
+                },
+            },
+        }],
+    })
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+
+    rc = mod.main(["migrate", "--target", str(tmp_path)])
+
+    assert rc == 0
+    assert (tmp_path / ".ai-badger" / "mcp-tools.yaml.migrated").exists()
+    assert not (tmp_path / ".ai-badger" / "mcp-tools.yaml").exists()
+    index = _read_index(tmp_path)
+    tool = index["sources"][0]["tools"]["build_solution"]
+    assert set(tool["tags"]) == {"dotnet", "build", "csharp"}
+    assert tool["intent"] == "Compile the solution and report errors back"
+
+
+def test_cmd_migrate_is_noop_when_json_already_exists(tmp_path, load_script):
+    """migrate on an already-migrated project reports success without touching anything."""
+    _write_index(tmp_path, _valid_index())
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+
+    rc = mod.main(["migrate", "--target", str(tmp_path)])
+    assert rc == 0
+
+
+def test_cmd_migrate_fails_when_no_index_present(tmp_path, load_script):
+    """migrate on a project with neither file present is an error, not a silent no-op."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    rc = mod.main(["migrate", "--target", str(tmp_path)])
+    assert rc == 1
+
+
+def test_cmd_migrate_refuses_without_pyyaml_when_content_is_unparseable(tmp_path, load_script,
+                                                                        monkeypatch):
+    """The crux failure mode: legacy YAML + no pyyaml + content outside the subset parser."""
+    aib = tmp_path / ".ai-badger"
+    aib.mkdir(parents=True)
+    # A construct outside the subset this parser understands (a YAML flow-style list).
+    (aib / "mcp-tools.yaml").write_text(
+        "version: 0.1.0\ngenerated_at: '2026-01-01T00:00:00Z'\nsources: [1, 2, 3]\n",
+        encoding="utf-8",
+    )
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    monkeypatch.setattr(mod, "yaml", None)
+
+    rc = mod.main(["migrate", "--target", str(tmp_path)])
+
+    assert rc == 1
+    assert not (tmp_path / ".ai-badger" / "mcp-tools.json").exists()
+    assert (tmp_path / ".ai-badger" / "mcp-tools.yaml").exists()  # untouched
+
+
+def test_cmd_migrate_refusal_message_names_both_remedies(tmp_path, load_script, monkeypatch,
+                                                          capsys):
+    aib = tmp_path / ".ai-badger"
+    aib.mkdir(parents=True)
+    (aib / "mcp-tools.yaml").write_text("sources: [1, 2, 3]\n", encoding="utf-8")
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    monkeypatch.setattr(mod, "yaml", None)
+
+    mod.main(["migrate", "--target", str(tmp_path)])
+
+    err = capsys.readouterr().err
+    assert "pip install pyyaml" in err
+    assert "mcp-index init" in err
+    assert "LOSES curated tags" in err
+
+
+def test_cmd_migrate_succeeds_without_pyyaml_via_the_verified_subset_parser(tmp_path, load_script,
+                                                                            monkeypatch):
+    """A legacy YAML file within the recognized subset migrates even with no pyyaml at all."""
+    _write_legacy_yaml(tmp_path, {
+        "version": "0.1.0",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "sources": [{
+            "name": "rider",
+            "tools": {
+                "build_solution": {
+                    "tags": ["dotnet", "build"],
+                    "intent": "Compile the solution and report errors back",
+                },
+            },
+        }],
+    })
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    monkeypatch.setattr(mod, "yaml", None)
+
+    rc = mod.main(["migrate", "--target", str(tmp_path)])
+
+    assert rc == 0
+    index = _read_index(tmp_path)
+    assert index["sources"][0]["tools"]["build_solution"]["tags"] == ["dotnet", "build"]
+
+
+# ── Legacy YAML subset parser: round-trip verified, never silently wrong ────
+
+def test_subset_parser_reads_this_repos_real_mcp_tools_index(load_script, root):
+    """The strongest real-world proof: this repo's own pre-migration index round-trips.
+
+    `.ai-badger/mcp-tools.yaml.migrated` is what `mcp-index migrate` renamed this repo's
+    real, hand-curated legacy index to (issue #145) — never deleted, so it doubles as a
+    real-world fixture for the parser that reads legacy indexes when pyyaml is absent.
+    """
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    fixture = root / ".ai-badger" / "mcp-tools.yaml.migrated"
+    if not fixture.exists():
+        pytest.skip("no migrated legacy index in this checkout")
+    text = fixture.read_text(encoding="utf-8")
+
+    parsed = mod._parse_legacy_yaml_subset(text)
+
+    assert parsed is not None
+    assert yaml.safe_load(text) == parsed
+
+
+def test_subset_parser_returns_none_never_raises_on_malformed_input(load_script):
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    for bad in ("not: valid: yaml: at: all: :::\n", "", "just a scalar\n",
+                "sources:\n- name: rider\n    bad indent here\n"):
+        assert mod._parse_legacy_yaml_subset(bad) is None
+
+
+def test_subset_parser_handles_wrapped_unicode_and_special_characters(load_script):
+    """Round-trips content pyyaml would double-quote-escape or line-wrap."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    data = {
+        "version": "0.1.0",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "sources": [{
+            "name": "rider",
+            "tools": {
+                "t1": {"tags": ["build"], "intent": "Café, naïve, and colons: work fine"},
+                "t2": {"tags": ["build"],
+                       "intent": "word " * 20 + "wraps past pyyaml's eighty column width"},
+            },
+        }],
+    }
+    text = yaml.dump(data, sort_keys=False, default_flow_style=False)
+
+    parsed = mod._parse_legacy_yaml_subset(text)
+
+    assert parsed == data
+
+
+def test_subset_parser_refuses_rather_than_corrupt_on_unrecognized_shapes(load_script):
+    """A 2000-trial randomized fuzz (see PR description) never produced a wrong parse; this
+    pins the two concrete shapes it legitimately falls outside of."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    # Flow-style collections are not in the subset.
+    assert mod._parse_legacy_yaml_subset("a: {b: 1}\n") is None
+    assert mod._parse_legacy_yaml_subset("a: [1, 2]\n") is None

@@ -665,3 +665,47 @@ def test_one_changed_source_is_reported_once_however_many_entries_share_it(
     result = drift.compare(fw, manifest)
 
     assert result["changed"] == [source_rel]
+
+
+# ── mcp-tools.yaml migration: reported, never converted (issue #145) ───────
+
+def test_compare_notes_a_not_yet_migrated_legacy_mcp_index(tmp_path, load_script):
+    """den-refresh reports the legacy file; it never writes mcp-tools.yaml/json itself —
+    that file is project-owned, same precedent as a config edit being drift, not silence."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+    proj = tmp_path / "proj"
+    (proj / ".ai-badger").mkdir(parents=True)
+    (proj / ".ai-badger" / "mcp-tools.yaml").write_text("sources: []\n", encoding="utf-8")
+
+    result = drift.compare(fw, {"entries": []}, target=proj)
+
+    assert any("mcp-tools.yaml" in note and "mcp-index migrate" in note
+               for note in result["notes"])
+
+
+def test_compare_is_silent_once_migrated_to_json(tmp_path, load_script):
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+    proj = tmp_path / "proj"
+    (proj / ".ai-badger").mkdir(parents=True)
+    (proj / ".ai-badger" / "mcp-tools.json").write_text("{}", encoding="utf-8")
+
+    result = drift.compare(fw, {"entries": []}, target=proj)
+
+    assert not any("mcp-tools" in note for note in result["notes"])
+
+
+def test_compare_is_silent_with_no_target_or_no_index_at_all(tmp_path, load_script):
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+
+    assert drift.compare(fw, {"entries": []})["notes"] == []
+
+    proj = tmp_path / "proj"
+    (proj / ".ai-badger").mkdir(parents=True)
+    result = drift.compare(fw, {"entries": []}, target=proj)
+    assert not any("mcp-tools" in note for note in result["notes"])

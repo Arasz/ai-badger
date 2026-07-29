@@ -45,7 +45,7 @@ able to prove afterwards which of those silences were correct.
 ```mermaid
 flowchart LR
     subgraph project["The project"]
-        idx[".ai-badger/mcp-tools.yaml<br/>98 tools · 4 sources that carry any"]
+        idx[".ai-badger/mcp-tools.json<br/>98 tools · 4 sources that carry any"]
     end
 
     subgraph retrieval["features/common/retrieval/"]
@@ -263,10 +263,16 @@ So every terminal state writes a record under the `ai_badger_hooks/mcp_retrieval
 | `gate` | Everything was scored; nothing cleared the threshold | Reading a correct, frequent silence as a fault |
 | `no_terms` | The query tokenized to nothing, so **no candidate was ever compared to the threshold** | Reporting a tokenizer miss as a threshold miss — misattributing the exact failure the telemetry exists to count |
 | `absent` | There is no index to search | Reading "no index" as "no match" |
+| `legacy` | There *is* an index, in the pre-0.48.0 YAML format this path no longer reads | Reading "not migrated yet" as "never had one" |
 
 Two more events, `known` and `unknown`, share the same component name: they come from a separate
 after-the-fact check of whether a tool the agent actually called was one the index knew about.
 Worth knowing before you tail the log and wonder where the extra names came from.
+
+`legacy` is the newest of these and arrived the way the others did — from someone noticing a
+silence with two meanings. Moving the index from YAML to JSON in 0.48.0 made the reader
+JSON-only, which quietly gave `absent` a second sense: "no index" and "an index I no longer
+read" became the same record. The rule that produced `gate` and `no_terms` produced this one too.
 
 The `gate`/`no_terms` split was not designed in; it came out of reviewing the first version, where
 a query that produced no terms was recorded as `gate` with a threshold field attached — a record
@@ -342,13 +348,16 @@ confidently-wrong matches. Making the gate a coverage ratio made the threshold p
 corpus sizes. Shipping an eval fixture set meant the next change to the matcher has to argue with
 data rather than with taste.
 
-**The part that did not — and still does not.** This runs nowhere on Claude Code. The
-context-enrichment path is a Hermes plugin hook, gated on `hermes` being a configured agent;
-`mcp_matcher.py`, `bm25.py` and `tokenizer.py` are not copied into the scaffolded hooks
-directory, and the `context-enrichment` entry in `hooks-manifest.json` has no `claude` key at
-all. Debug logging is what surfaced it — **501 records, zero of them `mcp_retrieval`.** A feature
-implemented, tested, documented and released, that has never executed a single query on the host
-this project is distributed as a plugin for.
+**The part that did not — and still does not.** This runs nowhere on Claude Code. Debug logging
+is what surfaced it — **501 records, zero of them `mcp_retrieval`.** A feature implemented,
+tested, documented and released, that has never executed a single query on the host this project
+is distributed as a plugin for.
+
+The cause has narrowed but not closed. `mcp_matcher.py`, `bm25.py` and `tokenizer.py` *are* now
+copied into the scaffolded hooks directory — that half was fixed in passing by the 0.48.0 index
+migration. What remains is the registration: `context-enrichment` in `hooks-manifest.json`
+declares an agent entry for `hermes` and for nothing else, so on Claude Code the code is present,
+importable, correct, and never called.
 
 **That gap is open as of this writing**, tracked as issue #147. Everything above describes a
 mechanism that is real and correct and, on one of its two target hosts, unreached. It would be
