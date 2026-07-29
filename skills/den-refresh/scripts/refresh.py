@@ -229,17 +229,18 @@ def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
     }
 
 
-def relink_hermes_skills(root: Path, target: Path, config: Dict[str, Any]) -> List[str]:
+def relink_hermes_skills(root: Path, target: Path, config: Dict[str, Any]) -> Dict[str, List[str]]:
     """Re-link the project's skills into ~/.hermes/skills/<project>/ after a refresh.
 
     Reads the skill names from disk so added skills are linked and removed ones are dropped;
-    a no-op unless hermes is a configured agent.
+    a no-op unless hermes is a configured agent. Returns {"created": [...], "removed": [...]}.
     """
+    no_op: Dict[str, List[str]] = {"created": [], "removed": []}
     if "hermes" not in config.get("agents", []):
-        return []
+        return no_op
     skills_dir = target / ".ai-badger" / "skills"
     if not skills_dir.is_dir():
-        return []
+        return no_op
     names = sorted(p.name for p in skills_dir.iterdir() if p.is_dir())
     scaffold_mod = _load_script(
         "features/common/skills/welcome-ai-badger/scripts/scaffold.py", root
@@ -387,7 +388,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         report["note"] = report_note
     if scaffold_result:
         report["scaffold"] = scaffold_result
-    if hermes_links:
+    if hermes_links["created"] or hermes_links["removed"]:
         report["hermesSkillLinks"] = hermes_links
     copies = report_framework_copies(root, args.prune_cache)
     if copies:

@@ -182,9 +182,9 @@ def test_a_skill_directory_still_on_disk_is_not_relinked_for_hermes(
     config = _excluding(skills=["call-behaviorist"])
 
     with patch("pathlib.Path.home", return_value=home):
-        created = scaffold.relink_hermes_skills(target, config, ["task", "call-behaviorist"])
+        result = scaffold.relink_hermes_skills(target, config, ["task", "call-behaviorist"])
 
-    assert created == ["task"]
+    assert result["created"] == ["task"]
 
 
 # ------------------------------------------------------------------------- hook wiring

@@ -4,7 +4,13 @@ from __future__ import annotations
 import os
 from unittest.mock import patch
 
-from scaffold_helpers import _config
+from scaffold_helpers import _config, SCAFFOLD_SCRIPT
+
+
+def _hermes_skill(target, name):
+    skill = target / ".ai-badger" / "skills" / name
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(f"# {name}\n", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------- hermes skill symlinks
@@ -161,3 +167,54 @@ def test_a_traversing_project_name_cannot_escape_the_hermes_namespace(
     assert not (tmp_path / "home" / "escaped").exists()
     assert not (home / ".hermes" / "escaped").exists()
     assert any("project name" in n for n in result["notes"])
+
+
+# ------------------------------------------------------------ empty skill list guard (#129)
+def test_an_empty_skill_list_leaves_the_hermes_namespace_intact(tmp_path, load_script, root):
+    """An empty list is not evidence the project stopped wanting its skills — see adjust_skills."""
+    scaffold = load_script(SCAFFOLD_SCRIPT)
+    target = tmp_path / "proj"
+    for name in ("task", "prompt-markers"):
+        _hermes_skill(target, name)
+    home = tmp_path / "home"
+    home.mkdir()
+    config = _config(agents=["hermes"])
+
+    with patch("pathlib.Path.home", return_value=home):
+        scaffold.relink_hermes_skills(target, config, ["task", "prompt-markers"])
+        scaffold.relink_hermes_skills(target, config, [])
+
+    namespace = home / ".hermes" / "skills" / "probe"
+    assert (namespace / "task").is_symlink()
+    assert (namespace / "prompt-markers").is_symlink()
+
+
+def test_removed_hermes_links_are_reported(tmp_path, load_script, root):
+    scaffold = load_script(SCAFFOLD_SCRIPT)
+    target = tmp_path / "proj"
+    for name in ("task", "prompt-markers"):
+        _hermes_skill(target, name)
+    home = tmp_path / "home"
+    home.mkdir()
+    config = _config(agents=["hermes"])
+
+    with patch("pathlib.Path.home", return_value=home):
+        scaffold.relink_hermes_skills(target, config, ["task", "prompt-markers"])
+        result = scaffold.relink_hermes_skills(target, config, ["task"])
+
+    assert result["removed"] == ["prompt-markers"]
+
+
+def test_a_scaffolder_run_reports_a_hermes_link_removal(tmp_path, make_scaffolder):
+    """The same transition through the full Scaffolder puts a removal line in notes."""
+    home = tmp_path / "hermes-home"
+    home.mkdir()
+    config = _config(agents=["hermes"])
+
+    with patch("pathlib.Path.home", return_value=home):
+        make_scaffolder(config=config, skills=["task", "prompt-markers"]).run(
+            generated_at="2026-07-29T00:00:00Z")
+        result = make_scaffolder(config=config, skills=["task"]).run(
+            generated_at="2026-07-29T00:01:00Z")
+
+    assert any("prompt-markers" in n for n in result["notes"])

@@ -248,12 +248,13 @@ def demote_headings(text: str, levels: int = 2) -> str:
 
 
 def relink_hermes_skills(target: Path, config: Dict[str, Any],
-                         skills: List[str]) -> List[str]:
+                         skills: List[str]) -> Dict[str, List[str]]:
     """Rebuild ~/.hermes/skills/<project>/ so it links exactly *skills* plus learned/.
 
     Only symlinks resolving into <target>/.ai-badger/skills/ are removed; every other entry
     is left exactly as found (docs/adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md).
-    Returns the link names created.
+    An empty *skills* is not evidence the project stopped wanting them (#129), so it leaves
+    the namespace untouched. Returns {"created": [...], "removed": [...]}.
     """
     project_name = config.get("project", {}).get("name", "unknown")
     skills_root = target / ".ai-badger" / "skills"
@@ -264,8 +265,11 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
             f"project name {project_name!r} does not resolve to a directory inside "
             f"{hermes_skills} — refusing to create it"
         )
+    no_op: Dict[str, List[str]] = {"created": [], "removed": []}
     if namespace_dir.is_symlink() and not _owns_link(namespace_dir, skills_root):
-        return []
+        return no_op
+    if not skills:
+        return no_op
 
     # Declined skills are filtered here too: den-refresh re-links from the names on disk,
     # where an excluded skill's copy is deliberately left behind.
@@ -275,14 +279,17 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
     if (skills_root / LEARNED_SKILLS_DIR).is_dir() and LEARNED_SKILLS_DIR not in wanted:
         wanted.append(LEARNED_SKILLS_DIR)
 
+    removed: List[str] = []
     if namespace_dir.is_symlink():
         namespace_dir.unlink()
     elif namespace_dir.is_dir():
         for entry in sorted(namespace_dir.iterdir()):
             if _owns_link(entry, skills_root):
+                if entry.name not in wanted:
+                    removed.append(entry.name)
                 entry.unlink()
     if not wanted:
-        return []
+        return {"created": [], "removed": removed}
 
     namespace_dir.mkdir(parents=True, exist_ok=True)
     # Resolve both ends before computing the relative link, so a symlinked home or project
@@ -298,7 +305,7 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
             continue  # foreign real entry — never clobber
         link.symlink_to(os.path.relpath(skills_base / name, link_base))
         created.append(name)
-    return created
+    return {"created": created, "removed": removed}
 
 
 # The shared context and the six collaborators built from it
@@ -686,8 +693,13 @@ class Scaffolder:
             # A refusal the user can act on: it names their project name as the cause.
             self.notes.append(f"hermes skill links skipped — {exc}")
             return
-        if links:
-            self.notes.append(f"hermes skill links: {', '.join(links)}")
+        if links["created"]:
+            self.notes.append(f"hermes skill links: {', '.join(links['created'])}")
+        if links["removed"]:
+            self.notes.append(
+                f"hermes skill links removed: {', '.join(links['removed'])} — no longer "
+                f"delivered to this project"
+            )
 
     # -- dependency checking ---------------------------------------------------------
     def _check_dependencies(self) -> Dict[str, Any]:
