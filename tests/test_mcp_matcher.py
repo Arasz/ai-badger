@@ -152,6 +152,70 @@ def test_tags_only_match_outranks_intent_only_match(mcp_matcher):
     assert results[0].tool == "rider:alpha_tool"
 
 
+def test_gate_admits_at_exact_threshold_boundary(mcp_matcher):
+    """The gate is `coverage >= threshold`, not `>` — a result exactly at the boundary
+    must still clear it. Computed from a real match rather than a hand-picked number, so
+    it exercises the true boundary regardless of how the corpus changes."""
+    baseline = mcp_matcher.find_relevant_tools("build the solution", SAMPLE_INDEX, threshold=0.0)
+    exact = next(r for r in baseline if r.tool == "rider:build_solution")
+    results = mcp_matcher.find_relevant_tools(
+        "build the solution", SAMPLE_INDEX, threshold=exact.coverage
+    )
+    assert any(r.tool == "rider:build_solution" for r in results)
+
+
+def test_result_score_and_coverage_are_populated(mcp_matcher):
+    """Neither field is ever asserted elsewhere in this file — issue #148's own finding."""
+    results = mcp_matcher.find_relevant_tools("build the solution", SAMPLE_INDEX, threshold=0.0)
+    top = results[0]
+    assert isinstance(top.score, float) and top.score > 0
+    assert isinstance(top.coverage, float) and top.coverage > 0
+
+
+def test_iter_tools_defaults_missing_sources_to_empty(mcp_matcher):
+    assert not list(mcp_matcher._iter_tools({}))  # pylint: disable=protected-access
+
+
+def test_iter_tools_defaults_missing_name_to_empty_string(mcp_matcher):
+    index = {"sources": [{"tools": {"solo_tool": {"tags": [], "intent": "does a thing"}}}]}
+    names = [full for full, _tags, _intent in mcp_matcher._iter_tools(index)]  # pylint: disable=protected-access
+    assert names == [":solo_tool"]
+
+
+def test_iter_tools_defaults_missing_tools_to_empty(mcp_matcher):
+    index = {"sources": [{"name": "rider"}]}
+    assert not list(mcp_matcher._iter_tools(index))  # pylint: disable=protected-access
+
+
+def test_iter_tools_skips_only_the_removed_tool(mcp_matcher):
+    """A `break` instead of `continue` on a removed tool would silently drop every tool
+    that follows it in iteration order — put one after the removed entry to prove it."""
+    index = {
+        "sources": [{
+            "name": "rider",
+            "tools": {
+                "before_removed": {"tags": [], "intent": "runs first"},
+                "removed_tool": {"tags": [], "intent": "gone", "status": "removed"},
+                "after_removed": {"tags": [], "intent": "runs last"},
+            },
+        }],
+    }
+    names = {full for full, _tags, _intent in mcp_matcher._iter_tools(index)}  # pylint: disable=protected-access
+    assert names == {"rider:before_removed", "rider:after_removed"}
+
+
+def test_iter_tools_defaults_missing_tags_to_empty_list(mcp_matcher):
+    index = {"sources": [{"name": "rider", "tools": {"solo_tool": {"intent": "does a thing"}}}]}
+    _full, tags, _intent = next(mcp_matcher._iter_tools(index))  # pylint: disable=protected-access
+    assert tags == []
+
+
+def test_iter_tools_defaults_missing_intent_to_empty_string(mcp_matcher):
+    index = {"sources": [{"name": "rider", "tools": {"solo_tool": {"tags": []}}}]}
+    _full, _tags, intent = next(mcp_matcher._iter_tools(index))  # pylint: disable=protected-access
+    assert intent == ""
+
+
 def test_name_match_outweighs_equivalent_intent_match(mcp_matcher):
     """A name-field hit (NAME_WEIGHT=3.0) must outrank an equal-length intent-field hit
     (INTENT_WEIGHT=1.0) — both tools have identical total document length (13 tokens
