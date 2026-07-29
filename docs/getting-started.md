@@ -197,6 +197,10 @@ script. Fill in:
   GitHub PR/issue extension at scaffold time.
 - `skillScope` — `"default"` honours each skill's declared scope; `"local"` forces every install
   to project scope.
+- `agentDocs` — `{"maxChars": N, "maxLines": N}`, raising the size budget the `task` skill's stop
+  hook enforces on the generated discovery files. Set it when the breach comes from content the
+  framework renders and the project cannot shorten without declining policy. A non-positive or
+  non-integer value is ignored, so a typo cannot silently disable the check.
 - `exclude` — what this project declines, by catalog name:
   `{"skills": ["mcp-index"], "invariants": ["pr-per-task"]}`. Keys are `skills`, `personas`,
   `invariants` and `instructions`; anything else is a validation error, so a typo cannot become

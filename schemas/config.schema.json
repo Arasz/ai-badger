@@ -161,6 +161,25 @@
         }
       }
     },
+    "agentDocs": {
+      "type": "object",
+      "description": "Size budget for the generated agent discovery files (CLAUDE.md, AGENTS.md, HERMES.md, .hermes.md, copilot-instructions.md), enforced by the task skill's stop hook. Omit for the defaults. Raise it when the breach comes from framework-rendered content the project cannot shorten without declining policy: these files are regenerated in full, so editing them does not reduce their size past the next re-scaffold. A non-positive or non-integer value is ignored and the default applies, so a typo cannot silently disable the gate.",
+      "additionalProperties": false,
+      "properties": {
+        "maxChars": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 12000,
+          "description": "Character budget per agent discovery file."
+        },
+        "maxLines": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 110,
+          "description": "Line budget per agent discovery file."
+        }
+      }
+    },
     "statusLineCapture": {
       "type": "object",
       "description": "Capture Claude Code's statusLine payload so the task skill can read its rate-limit metadata instead of spending a probe. When enabled, scaffolding points .claude/settings.json statusLine at ai-badger's capture wrapper and records the renderer it replaced as the wrapper's delegate, so the existing status line keeps rendering.",
