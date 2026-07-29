@@ -12,6 +12,9 @@ from pathlib import Path
 
 DEBUG_ENV = "AI_BADGER_DEBUG"
 DEBUG_DIR_ENV = "AI_BADGER_DEBUG_DIR"
+# Drops the query field only, at the point of writing — a redacted record must never have
+# contained the text, so this is checked inside log_event itself, never as a post-process.
+REDACT_ENV = "AI_BADGER_DEBUG_REDACT"
 PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 SCOPE_USER = "user"
 SCOPE_PROJECT = "project"
@@ -48,6 +51,15 @@ KEY_PROJECT = "p"
 KEY_SESSION = "s"
 KEY_NAME = "n"
 
+# Retrieval-telemetry payload keys (mcp-retrieval hit/gate/absent, and the tool-index check).
+KEY_QUERY = "q"
+KEY_TERMS = "g"
+KEY_CANDIDATES = "d"
+KEY_TOP = "o"
+KEY_RETURNED = "r"
+KEY_THRESHOLD = "h"
+KEY_TOOL = "l"
+
 # The legend `tail` and any reader needs to expand a record.
 KEY_NAMES = {
     KEY_TS: "ts",
@@ -57,6 +69,13 @@ KEY_NAMES = {
     KEY_PROJECT: "project",
     KEY_SESSION: "session",
     KEY_NAME: "name",
+    KEY_QUERY: "query",
+    KEY_TERMS: "terms",
+    KEY_CANDIDATES: "candidates",
+    KEY_TOP: "top",
+    KEY_RETURNED: "returned",
+    KEY_THRESHOLD: "threshold",
+    KEY_TOOL: "tool",
 }
 
 # project dir -> name, resolved once per process: a config read on every hook event is a real
@@ -242,7 +261,10 @@ def log_event(component: str, event: str, project=None, session=None, **fields) 
                 record[KEY_NAME] = _clip(name)
         if session:
             record[KEY_SESSION] = _clip(session)
+        redact_query = bool(os.environ.get(REDACT_ENV))
         for key, value in fields.items():
+            if redact_query and key == KEY_QUERY:
+                continue
             if value is not None:
                 record[key] = _clip(value)
 

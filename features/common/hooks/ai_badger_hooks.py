@@ -322,19 +322,33 @@ def _extract_query_tags(query: str) -> Counter[str]:
     return tags
 
 
-def _find_relevant_tools(
-    query: str, index: dict[str, Any], top_n: int = 5
-) -> list[tuple[str, float]]:
-    """Rank all tools in the index by relevance to the query.
+# A scored tool must exceed this to be considered a match — the "bar" hit/gate telemetry
+# refers to. Named so a later change is attributable instead of a silent re-tune.
+_MCP_MATCH_THRESHOLD = 0.0
 
-    Returns list of (full_tool_name, score) sorted by descending score.
+# The component new retrieval events log under — reusing the file's existing component
+# name, not inventing one behaviorist.py's orphaned-wiring check would flag as unexpected.
+_MCP_RETRIEVAL_COMPONENT = "ai_badger_hooks/mcp_retrieval"
+
+# Wire keys for retrieval telemetry, registered in debug_log.KEY_NAMES; the words live there.
+_KEY_QUERY = "q"
+_KEY_TERMS = "g"
+_KEY_CANDIDATES = "d"
+_KEY_TOP = "o"
+_KEY_RETURNED = "r"
+_KEY_THRESHOLD = "h"
+_KEY_TOOL = "l"
+
+
+def _score_all_tools(query: str, index: dict[str, Any]) -> list[tuple[str, float]]:
+    """Every non-removed tool in the index, scored against `query`, sorted descending.
+
+    Unfiltered by threshold: gate telemetry needs the near-misses, not just the winners.
     """
     query_tags = _extract_query_tags(query)
-    if not query_tags:
-        return []
-
-    scored: list[tuple[str, float]] = []
     lower_query = query.lower()
+    query_words = set(lower_query.split())
+    scored: list[tuple[str, float]] = []
 
     for server in index.get("sources", []):
         sname = server["name"]
@@ -354,7 +368,6 @@ def _find_relevant_tools(
                 score += query_tags.get(tag, 0) * 1.0
 
             # Intent word overlap: raw query words appearing in intent text
-            query_words = set(lower_query.split())
             intent_lower = intent.lower()
             for word in query_words:
                 if len(word) > 2 and word in intent_lower:
@@ -365,11 +378,73 @@ def _find_relevant_tools(
                 if tag in query_tags:
                     score += 0.3
 
-            if score > 0:
-                scored.append((full_name, score))
+            scored.append((full_name, score))
 
     scored.sort(key=lambda x: -x[1])
+    return scored
+
+
+def _find_relevant_tools(
+    query: str, index: dict[str, Any], top_n: int = 5
+) -> list[tuple[str, float]]:
+    """Rank all tools in the index by relevance to the query.
+
+    Returns list of (full_tool_name, score) sorted by descending score.
+    """
+    if not _extract_query_tags(query):
+        return []
+    scored = [(name, score) for name, score in _score_all_tools(query, index)
+              if score > _MCP_MATCH_THRESHOLD]
     return scored[:top_n]
+
+
+def _index_tool_count(index: dict[str, Any]) -> int:
+    """Count of non-removed tools across every source in the index."""
+    return sum(
+        1
+        for server in index.get("sources", [])
+        for tool in server.get("tools", {}).values()
+        if tool.get("status") != "removed"
+    )
+
+
+def _format_top_candidates(scored: list[tuple[str, float]], limit: int = 3) -> str:
+    """`name:score` for the `limit` highest-scoring candidates, comma-joined.
+
+    Capped at 3, not 5: three triples fit the 200-char per-field budget, five do not.
+    """
+    return ",".join(f"{name}:{score:.2f}" for name, score in scored[:limit])
+
+
+def _record_retrieval(project, query: str, index: dict, ranked: list) -> None:
+    """Record what the retrieval did. Costs nothing when debug is off.
+
+    `no_terms` is not `gate`: the keyword map can return nothing, in which case no
+    candidate is ever compared to the threshold, and the top scorer is often a correct
+    match the map suppressed. Reporting that as a threshold miss would misattribute the
+    very failure this telemetry exists to count.
+    """
+    if debug_log is None or not debug_log.enabled_for(project):
+        return
+    terms = _extract_query_tags(query)
+    scored = _score_all_tools(query, index)
+    common = {
+        _KEY_QUERY: query,
+        _KEY_CANDIDATES: _index_tool_count(index),
+        _KEY_TOP: _format_top_candidates(scored),
+    }
+    if not terms:
+        _debug(_MCP_RETRIEVAL_COMPONENT, "no_terms", project=project,
+               **{**common, _KEY_RETURNED: ""})
+        return
+    scoring = {**common, _KEY_TERMS: ",".join(sorted(terms)),
+               _KEY_THRESHOLD: _MCP_MATCH_THRESHOLD}
+    if ranked:
+        _debug(_MCP_RETRIEVAL_COMPONENT, "hit", project=project,
+               **{**scoring, _KEY_RETURNED: ", ".join(name for name, _ in ranked)})
+    else:
+        _debug(_MCP_RETRIEVAL_COMPONENT, "gate", project=project,
+               **{**scoring, _KEY_RETURNED: ""})
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +498,10 @@ def pre_llm_inject_context(
     # MCP tool index recommendations
     if prompt:
         index = _load_mcp_index(project)
-        if index:
+        if index is None:
+            _debug(_MCP_RETRIEVAL_COMPONENT, "absent", project=project,
+                   **{_KEY_QUERY: prompt})
+        else:
             ranked = _find_relevant_tools(prompt, index, top_n=5)
             if ranked:
                 tools_str = ", ".join(
@@ -439,6 +517,7 @@ def pre_llm_inject_context(
                     )
                     hint = f"[ai-badger] Relevant MCP tools: {tools_str_short}"
                 parts.append(hint)
+            _record_retrieval(project, prompt, index, ranked)
 
     if not parts:
         return None
@@ -683,7 +762,8 @@ def post_tool_observer(tool_name: str = "", result: str = "",
 
     # Log index hit/miss metrics if the index is available
     if tool_name:
-        index = _load_mcp_index(_project_cwd(cwd))
+        project = _project_cwd(cwd)
+        index = _load_mcp_index(project)
         if index:
             # Check if this tool exists in the index
             sname, _, tname = tool_name.partition(":") if ":" in tool_name else ("", "", tool_name)
@@ -692,7 +772,8 @@ def post_tool_observer(tool_name: str = "", result: str = "",
             for server in index.get("sources", []):
                 if server["name"] == sname:
                     known = tname in server.get("tools", {}) if tname else False
-                    logger.debug("mcp_index_hit=%s tool=%s", known, tool_name)
+                    _debug(_MCP_RETRIEVAL_COMPONENT, "known" if known else "unknown",
+                           project=project, **{_KEY_TOOL: tool_name})
                     break
 
 

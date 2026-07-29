@@ -95,11 +95,25 @@ def test_pre_llm_reads_the_user_message_kwarg_hermes_sends(tmp_path, monkeypatch
 
 
 def test_post_tool_observer_finds_the_index_when_hermes_sends_no_cwd(
-        tmp_path, monkeypatch, caplog, hooks):
+        tmp_path, monkeypatch, hooks):
+    """Was asserted via `caplog` against a bare logger with no configured handler anywhere —
+    that assertion passed while nobody could ever have read the line it checked for. Rewritten
+    to assert through `debug_log`, the mechanism that actually reaches a record now (#137)."""
     project = _with_index(_scaffolded_project(tmp_path))
     monkeypatch.chdir(project)
+    dl = hooks.debug_log
+    for attr, name in (("DEBUG_DIR", "debug"), ("STATE_FILE", "debug/state.json"),
+                       ("AUDIT_FILE", "debug/audit.jsonl")):
+        monkeypatch.setattr(dl, attr, tmp_path / name)
+    dl.DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+    dl.STATE_FILE.write_text(json.dumps({
+        "enabled": True, "scope": "user", "project": None,
+        "expires_at": dl.iso(dl.now() + dl.timedelta(seconds=3600)),
+    }), encoding="utf-8")
+    monkeypatch.delenv(dl.DEBUG_ENV, raising=False)
 
-    with caplog.at_level("DEBUG", logger="ai_badger_hooks"):
-        hooks.post_tool_observer(tool_name="rider", result="ok", duration_ms=3)
+    hooks.post_tool_observer(tool_name="rider:build_solution", result="ok", duration_ms=3)
 
-    assert any("mcp_index_hit" in r.message for r in caplog.records)
+    records = [json.loads(line) for line in dl.AUDIT_FILE.read_text(encoding="utf-8").splitlines()]
+    assert any(r[dl.KEY_COMPONENT] == "ai_badger_hooks/mcp_retrieval" and r[dl.KEY_EVENT] == "known"
+               for r in records)
