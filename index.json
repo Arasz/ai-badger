@@ -279,6 +279,12 @@
           "name": "mcp_index_hook",
           "path": "features/common/hooks/mcp_index_hook.py"
         }
+      ],
+      "mcp": [
+        {
+          "name": "code-review-graph",
+          "path": "features/common/mcp/code-review-graph"
+        }
       ]
     },
     "copilot": {

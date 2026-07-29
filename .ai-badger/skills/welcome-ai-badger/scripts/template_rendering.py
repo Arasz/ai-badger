@@ -18,16 +18,25 @@ class TemplateRendering:
         self.ctx = ctx
 
     @staticmethod
-    def _render_external_mcp_instructions(external_tools: list) -> str:
-        """Render externalTools instructions blocks from config."""
-        if not external_tools:
-            return ""
-        blocks = []
-        for tool in external_tools:
-            instr = tool.get("instructions", "").strip()
-            if instr:
-                blocks.append(instr)
+    def _render_instruction_blocks(entries: list) -> str:
+        """Join each entry's `instructions` into one slot value, or '' when none has any."""
+        blocks = [instr for instr in
+                  ((e.get("instructions") or "").strip() for e in entries) if instr]
         return "\n\n".join(blocks) + "\n\n" if blocks else ""
+
+    def _mcp_instruction_slots(self) -> tuple:
+        """`(MCP_INSTRUCTIONS, EXTERNAL_MCP_INSTRUCTIONS)` — one server, one block, one source.
+
+        Precedence: the project's own `config.externalTools` entry wins, then the mcp catalog,
+        then the legacy `external-tools.json` (ADR-0014). The two slots sit adjacent in the
+        templates, so which of them carries a block never moves a byte.
+        """
+        user_named = {t.get("name") for t in self.ctx.config.get("externalTools") or []}
+        catalog = [s for s in self.ctx.mcp_described if s.get("name") not in user_named]
+        covered = {s.get("name") for s in catalog}
+        legacy = [t for t in self.ctx.merged_external_tools if t.get("name") not in covered]
+        return (self._render_instruction_blocks(catalog),
+                self._render_instruction_blocks(legacy))
 
     def compute_doc_slots(self, invariants: List[str], instr_paths: List[Path],
                             source_of_truth: str = "CLAUDE.md") -> Dict[str, str]:
@@ -49,9 +58,7 @@ class TemplateRendering:
         instr_md = "\n".join(
             f"- `{p.name}` → `.ai-badger/instructions/{p.name}`" for p in instr_paths
         ) or "_None._"
-        ext_mcp_md = self._render_external_mcp_instructions(
-            self.ctx.merged_external_tools
-        )
+        mcp_md, ext_mcp_md = self._mcp_instruction_slots()
         return {
             "PROJECT_NAME": project.get("name", ""),
             "PROJECT_SUMMARY": project.get("summary", ""),
@@ -61,6 +68,7 @@ class TemplateRendering:
             "COMMANDS": cmd_md,
             "PERSONA_ROUTING": route_md,
             "PATH_INSTRUCTIONS": instr_md,
+            "MCP_INSTRUCTIONS": mcp_md,
             "EXTERNAL_MCP_INSTRUCTIONS": ext_mcp_md,
             "FRAMEWORK_VERSION": self.ctx.index["frameworkVersion"],
             "SOURCE_OF_TRUTH": source_of_truth,

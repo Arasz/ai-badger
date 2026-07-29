@@ -1,0 +1,31 @@
+{
+  "$schema": "../../../../schemas/mcp-server-tools.schema.json",
+  "server": "code-review-graph",
+  "tools": [
+    {
+      "name": "semantic_search_nodes_tool",
+      "intent": "Find code by describing what it does, when you do not know the file or symbol name. The entry point for 'where is X handled?'.",
+      "tags": ["search", "semantic"]
+    },
+    {
+      "name": "query_graph_tool",
+      "intent": "Trace a known symbol's callers, callees, imports or covering tests — the structural answer a text search cannot give.",
+      "tags": ["navigation", "search"]
+    },
+    {
+      "name": "detect_changes_tool",
+      "intent": "List what changed since the last graph update, as the starting point of a review rather than a git diff.",
+      "tags": ["diagnostic", "navigation"]
+    },
+    {
+      "name": "get_impact_radius_tool",
+      "intent": "Blast radius of editing a symbol: everything downstream that a change to it can reach.",
+      "tags": ["diagnostic", "navigation"]
+    },
+    {
+      "name": "get_architecture_overview_tool",
+      "intent": "Orientation in an unfamiliar repository — its structure and major components — before reading any single file.",
+      "tags": ["navigation", "read"]
+    }
+  ]
+}

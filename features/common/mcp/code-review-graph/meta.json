@@ -1,0 +1,6 @@
+{
+  "$schema": "../../../../schemas/mcp-server.schema.json",
+  "name": "code-review-graph",
+  "package": "code-review-graph",
+  "description": "Persistent incremental knowledge graph over a repository: Tree-sitter parsing, structural queries (callers, dependents, tests), change detection and impact analysis. Language-agnostic, so it is declared by the common stack rather than any one technology's."
+}

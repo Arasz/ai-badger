@@ -32,5 +32,9 @@ class ScaffoldContext:
     # collaborator has to know the other exists.
     merged_external_tools: List[Dict[str, Any]] = field(default_factory=list)
     external_tools_merged: bool = False
+    # The mcp catalog's side of the same channel: every server a stack's stack-mcp.json names,
+    # carrying the `instructions` its features/<stack>/mcp/<name>/server.md holds (ADR-0014).
+    mcp_described: List[Dict[str, Any]] = field(default_factory=list)
+    mcp_described_filled: bool = False
     # Manifest bookkeeping: shared state, not Scaffolder behaviour.
     record_template: Callable[[Path, Path], None] = _discard_template_record

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Arasz/ai-badger/schemas/mcp-server.schema.json",
+  "title": "MCP server catalog entry",
+  "description": "features/<stack>/mcp/<server>/meta.json — the server's identity, and the marker index_build.py keys the mcp discovery rule on. Its prose lives beside it in server.md and its curated tool intents in tools.json. Which stacks want the server is NOT recorded here: that is what features/<stack>/stack-mcp.json says, by being the file that names it (ADR-0014).",
+  "type": "object",
+  "required": ["name"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The server name, matching the directory name and the name stack-mcp.json declares."
+    },
+    "package": {
+      "type": "string",
+      "description": "Distribution name for install reference (PyPI, npm). A property of the server, which is why it lives here rather than in one stack's declaration."
+    },
+    "description": {
+      "type": "string",
+      "description": "What the server is, for a human reading the catalog. Never injected into an agent file — server.md is what reaches a session."
+    },
+    "homepage": {
+      "type": "string",
+      "description": "Where the server is documented."
+    }
+  }
+}

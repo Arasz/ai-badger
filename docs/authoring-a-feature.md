@@ -34,7 +34,7 @@ python3 -m pip install -r engine/requirements.txt   # jsonschema
 | `instructions`              | file        | any `*.md` in `features/<stack>/instructions/` (excluding `README.md`); name = filename stem                   |
 | `plugins`                   | single file | the `plugins` array inside `features/<stack>/plugins/plugins.json`, if present (at most one per stack)         |
 | `templates` (`common` only) | file/dir    | every top-level entry under `features/common/templates/`                                                       |
-| `mcp`                       | directory   | any subdir of `features/<stack>/mcp/` containing a `meta.json`; one MCP server each                             |
+| `mcp`                       | directory   | any subdir of `features/<stack>/mcp/` containing a `meta.json`; one MCP server each. `server.md` beside it is injected into every agent file; `tools.json` carries curated tool intents |
 
 Two catalog files are deliberately **not** in that table, because `index_build.py` does not index
 them and they have no entry in `index.json` — the scaffold reads them directly, so adding one

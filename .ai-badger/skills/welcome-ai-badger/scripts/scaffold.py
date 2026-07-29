@@ -861,6 +861,7 @@ class Scaffolder:
         self.scaffold_agent_instructions()
         self.scaffold_templates()
         self.mcp.fill_merged_external_tools()
+        self.mcp.fill_mcp_described()
         doc = self.rendering.assemble_instructions_doc(invariants, instr_paths)
         self.agent_files.write_agent_files(doc, instr_paths, invariants)
         self._record_progress("agent-files")
