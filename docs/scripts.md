@@ -43,6 +43,7 @@ not require a `VERSION` bump.
 | `release_guard.py` | Fail if the shipped surface changed since the last release tag without a `VERSION` bump. | `python3 gates/release_guard.py` (needs `fetch-depth: 0` in CI). |
 | `docs_guard.py` | Fail if a relative link or a backticked repo path in the docs no longer resolves, or a changelog entry is missing from its index. | `python3 gates/docs_guard.py`; exempt a path in `.docs-guard-ignore`. |
 | `deps_guard.py` | Fail if any `*.py` under `engine/`, `tooling/`, `features/` or `gates/` imports a third-party module that `engine/requirements.txt` does not declare. Imports inside functions and `try:` blocks count. | `python3 gates/deps_guard.py` |
+| `shipped_paths_guard.py` | Fail if a machine-specific absolute path (`/Users/…`, `/home/…`, `C:\Users\…`) appears in a tracked file outside `docs/`, root `*.md` and `tests/`. | `python3 gates/shipped_paths_guard.py`; exempt a path in `.shipped-paths-guard-ignore`. |
 | `tdd_guard.py` | Fail if `.py`/`.mjs` under `engine/`, `tooling/`, `features/` or `gates/` changed since `--base` and nothing under `tests/` did. | `python3 gates/tdd_guard.py --base origin/main` |
 
 ## welcome-ai-badger (`features/common/skills/welcome-ai-badger/scripts/`)

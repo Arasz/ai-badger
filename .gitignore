@@ -22,3 +22,11 @@ logs/
 .tmp/
 # mutmut's working copy of the mutated tree (.lefthook/pre-push/verify.sh mutation lane)
 mutants/
+# machine-specific: cwd is an absolute path to THIS checkout, and ${CLAUDE_PROJECT_DIR} does
+# not expand there (docs/changelog/0.32.0-defects-found-by-a-real-refresh.md). Tracking it
+# shipped two permanently-broken user-global MCP servers to every plugin installer (issue
+# #173, ADR-0014 decision 6). Copy .mcp.json.example and fill in your own cwd.
+.mcp.json
+# config_guard.write_with_backup's safety copy before a merge (config_guard.py); one of these
+# was committed by accident and shipped the same absolute path .mcp.json did (issue #173).
+.claude/*.bak-*
