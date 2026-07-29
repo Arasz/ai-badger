@@ -1,8 +1,8 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.48.0",
-  "frameworkCommit": "0adad650b365e43bb6cdf284d6a2a30779b7294b",
-  "frameworkDirty": true,
+  "frameworkCommit": "07745baf355e5ec4d65b87e4f03341e1c77374ae",
+  "frameworkDirty": false,
   "frameworkRoot": ".",
   "generatedAt": null,
   "agents": [
@@ -633,7 +633,7 @@
       "source": "features/copilot/adjustments/adjust_hooks.py",
       "target": ".github/hooks/ai-badger-hooks.json",
       "frameworkVersion": "0.48.0",
-      "hash": "bf23131dcc1d76137a68d2234790f8ae4dac386726c87aa70bc2b3b7b04f79de"
+      "hash": "aa8924987cff215e55aa7df8220287f4e333cea92985ff9eefd82fe850fda3c2"
     },
     {
       "feature": "adjustments",
