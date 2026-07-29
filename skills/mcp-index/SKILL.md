@@ -3,7 +3,7 @@ name: mcp-index
 description: >-
   Use when MCP tool selection needs help — the agent keeps picking the wrong tool, server tool
   definitions are bloating the prompt, or MCP servers were just added or removed. Manages
-  .ai-badger/mcp-tools.yaml: tags, intent descriptions, and the hook that recommends tools per
+  .ai-badger/mcp-tools.json: tags, intent descriptions, and the hook that recommends tools per
   turn.
 version: 0.1.0
 author: ai-badger
@@ -19,13 +19,15 @@ metadata:
 
 ## Prerequisites
 
-The scripts here need PyYAML:
+The index itself is JSON — no dependency needed to read, tag, intent, or list it. PyYAML is
+only needed to read a project's not-yet-migrated legacy `mcp-tools.yaml`:
 ```bash
 python3 -m pip install pyyaml   # also in $AI_BADGER/engine/requirements.txt
 ```
-Without it every command exits 1 with that hint rather than a traceback.
+Without it, a legacy-YAML-only project falls back to a stricter built-in parser and, if that
+can't safely read the file, refuses with a hint rather than a traceback (see `migrate` below).
 
-Manage `.ai-badger/mcp-tools.yaml` — a machine-readable index that maps every MCP server tool to tags (for filtering) and intent (for semantic matching). The index feeds the `ai_badger_hooks.py` plugin's `pre_llm_call` hook, which injects relevant tool recommendations into every LLM turn.
+Manage `.ai-badger/mcp-tools.json` — a machine-readable index that maps every MCP server tool to tags (for filtering) and intent (for semantic matching). The index feeds the `ai_badger_hooks.py` plugin's `pre_llm_call` hook, which injects relevant tool recommendations into every LLM turn.
 
 ## Overview
 
@@ -63,9 +65,9 @@ Tools auto-tagged as `[general]` need manual curation.
 python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py init --target <project-root>
 ```
 
-Reads `hermes mcp list --json` (or `--from-json` for testing), auto-tags tools by name heuristics, and writes `.ai-badger/mcp-tools.yaml`. Reports how many tools were tagged as `general`.
+Reads `hermes mcp list --json` (or `--from-json` for testing), auto-tags tools by name heuristics, and writes `.ai-badger/mcp-tools.json`. Reports how many tools were tagged as `general`.
 
-**Completion criterion:** `.ai-badger/mcp-tools.yaml` exists with all current MCP tools indexed.
+**Completion criterion:** `.ai-badger/mcp-tools.json` exists with all current MCP tools indexed.
 
 ### `update` — sync index with current MCP state
 
@@ -117,6 +119,27 @@ python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py list --untagged --targe
 
 **Completion criterion:** All matching tools are displayed with server, tags, and intent.
 
+### `migrate` — one-shot legacy YAML to JSON conversion
+
+```bash
+python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py migrate --target <project-root>
+```
+
+Converts a legacy `.ai-badger/mcp-tools.yaml` to `.ai-badger/mcp-tools.json`, preserving every
+curated tag and intent. A no-op (exit 0) if the project already has `mcp-tools.json`. Any other
+write command (`init`/`update`/`tag`/`intent`) migrates a legacy file the same way as a side
+effect — `migrate` exists for a project that only wants the conversion, without also running
+`init`/`update` against a live MCP source. The old file is renamed to `mcp-tools.yaml.migrated`,
+never deleted.
+
+If PyYAML is absent and the legacy file falls outside the built-in parser's verified subset,
+`migrate` refuses rather than risk a silently wrong conversion, and prints two remedies:
+install PyYAML and re-run, or regenerate via `mcp-index init --from-json` (which loses curated
+tags and intents — stated so the cost is explicit before choosing it).
+
+**Completion criterion:** `.ai-badger/mcp-tools.json` exists with the same tools, tags, and
+intents the legacy file had; `.ai-badger/mcp-tools.yaml.migrated` exists.
+
 ## Auto-tagging Heuristics
 
 | Tool name pattern | Assigned tags |
@@ -144,9 +167,9 @@ python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py list --untagged --targe
 
 ## Verification Checklist
 
-- [ ] `mcp-index init` produces `.ai-badger/mcp-tools.yaml` with all current MCP servers
+- [ ] `mcp-index init` produces `.ai-badger/mcp-tools.json` with all current MCP servers
 - [ ] `mcp-index validate` exits 0
 - [ ] No tools are tagged `[general]` (all manually curated)
 - [ ] Every tool has a meaningful intent (≥10 chars, describes what it does)
 - [ ] `mcp-index list` shows all expected tools
-- [ ] All 23 tests pass: `python3 -m pytest tests/test_mcp_index.py -q`
+- [ ] All tests pass: `python3 -m pytest tests/test_mcp_index.py -q`

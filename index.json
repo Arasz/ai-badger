@@ -246,10 +246,6 @@
           "path": "features/common/templates/agent-instructions"
         },
         {
-          "name": "mcp-tools.yaml.tmpl",
-          "path": "features/common/templates/mcp-tools.yaml.tmpl"
-        },
-        {
           "name": "state.json",
           "path": "features/common/templates/state.json"
         }

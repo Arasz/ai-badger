@@ -152,11 +152,11 @@
         "enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Generate and maintain .ai-badger/mcp-tools.yaml during scaffold/refresh."
+          "description": "Generate and maintain .ai-badger/mcp-tools.json during scaffold/refresh."
         },
         "path": {
           "type": "string",
-          "default": ".ai-badger/mcp-tools.yaml",
+          "default": ".ai-badger/mcp-tools.json",
           "description": "Relative path to the index file within the project."
         }
       }
