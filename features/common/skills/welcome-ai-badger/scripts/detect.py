@@ -126,15 +126,12 @@ FRAMEWORK_ROOT = _bootstrap_lib()
 import badger_lib as bl
 
 
-# vendored / build / agent-tooling directories whose contents must not trigger stack detection.
-# `.claude` holds agent tooling (e.g. the task skill's Python hook scripts), and `.ai-badger`
-# holds the framework's own scaffolded output (e.g. .ai-badger/skills/task/scripts/) written by
-# scaffold.py — both are framework machinery, not the target project's stack, so neither must
-# ever propose a stack like `python`. `.ai-badger` matters especially here: without it, detect.py
-# would re-propose `python` from ai-badger's own output after every scaffold, a self-inflicted
-# false positive that gets worse on every re-scaffold.
+# vendored / build / framework-owned directories whose contents must not trigger stack
+# detection: `.claude` and `.ai-badger` are the framework's own scaffolded output, and
+# `bl.BACKUP_DIR_NAME` is den-refresh's backup of `.ai-badger` (#134) — none of the three is
+# the target project's stack, so none may ever propose one.
 _IGNORE_DIRS = {"node_modules", ".git", ".venv", "venv", "__pycache__", ".terraform", "dist",
-                ".claude", ".ai-badger"}
+                ".claude", ".ai-badger", bl.BACKUP_DIR_NAME}
 
 
 def _has(target: Path, *globs: str) -> bool:

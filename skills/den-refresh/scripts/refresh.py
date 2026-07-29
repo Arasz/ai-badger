@@ -168,7 +168,7 @@ def check_breaking_and_backup(root: Path, target: Path) -> Dict[str, Any]:
 
     # Back up .ai-badger/ to .ai-badger.bckp/
     import shutil
-    bckp = target / ".ai-badger.bckp"
+    bckp = target / bl.BACKUP_DIR_NAME
     if bckp.exists():
         shutil.rmtree(bckp)
     shutil.copytree(aib, bckp)
@@ -339,13 +339,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         except (ValueError, OSError):
             pass
     new_stacks = drift_mod.detect_new_stacks(
-        target, root, config_stacks=config.get("stacks", []), ignore=stack_ignore
+        target, root, config_stacks=bl.delivering_stacks(config), ignore=stack_ignore
     )
 
+    # newStacks is report-only (#134): a re-scaffold runs the *same* config and cannot
+    # deliver a stack the config does not name, so it must not gate the re-scaffold.
     has_drift = bool(drift_result.get("changed") or drift_result.get("removed")
                      or drift_result.get("orphaned") or drift_result.get("newItems")
-                     or drift_result.get("versionChanged") or drift_result.get("configChanged")
-                     or new_stacks)
+                     or drift_result.get("versionChanged") or drift_result.get("configChanged"))
 
     # 7. Re-scaffold if drift detected, a breaking change forces it, or --force was asked for
     scaffold_result = None
