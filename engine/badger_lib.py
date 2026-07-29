@@ -138,6 +138,47 @@ def is_breaking_transition(from_version: str, to_version: str, root: Path) -> bo
     return False
 
 
+# ------------------------------------------------------------------- copy skew (Shape D)
+COPY_SKEW_OK = "ok"
+COPY_SKEW_WARN = "warn"
+COPY_SKEW_REFUSE = "refuse"
+
+
+def copy_skew(copies_dir: Path, root: Path) -> Tuple[str, Optional[str]]:
+    """Judge install-time plugin copies against the framework root they resolve.
+
+    Returns `(verdict, message)`. Skew is material — `COPY_SKEW_REFUSE` — when a
+    BREAKING_VERSIONS entry lies between the two versions in either direction; a downgrade
+    across a boundary is as dangerous as an upgrade. Anything absent, unreadable or
+    unorderable is not judged, because absence is not evidence of staleness.
+    """
+    copies_dir, root = Path(copies_dir), Path(root)
+    try:
+        record = json.loads(
+            (copies_dir / ".ai-badger" / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return COPY_SKEW_OK, None
+    recorded = record.get("copiedFromVersion") if isinstance(record, dict) else None
+    if not isinstance(recorded, str) or not recorded:
+        return COPY_SKEW_OK, None
+    try:
+        current = (root / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        return COPY_SKEW_OK, None
+    if not current or current == recorded:
+        return COPY_SKEW_OK, None
+    try:
+        low, high = sorted((recorded, current), key=_parse_semver)
+    except (ValueError, IndexError):
+        return COPY_SKEW_OK, None
+    message = (f"the Hermes plugin copies in {copies_dir} were installed from ai-badger "
+               f"{recorded}, but {root} is now {current} — re-run welcome-ai-badger to "
+               f"refresh them")
+    if is_breaking_transition(low, high, root):
+        return COPY_SKEW_REFUSE, message
+    return COPY_SKEW_WARN, message
+
+
 # --------------------------------------------------------------------------- roots / io
 FRAMEWORK_REPO = "https://github.com/Arasz/ai-badger"
 FRAMEWORK_CACHE = Path.home() / ".ai-badger" / "framework"

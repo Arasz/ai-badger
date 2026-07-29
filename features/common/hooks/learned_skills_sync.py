@@ -150,6 +150,28 @@ DELETE_ACTIONS = frozenset({"delete"})
 
 NO_FRAMEWORK = "no ai-badger framework root resolved"
 
+
+def _copy_skew_refusal() -> Optional[str]:
+    """Why these copies must not sync, or None. Warns in passing when the skew is not material.
+
+    Shape D only: any other deployment has no installer record beside this file, so
+    `badger_lib.copy_skew` returns OK.
+    """
+    if bl is None or FRAMEWORK_ROOT is None:
+        return None
+    try:
+        verdict, message = bl.copy_skew(Path(__file__).resolve().parent, FRAMEWORK_ROOT)
+    except (AttributeError, ImportError, OSError, ValueError):
+        return None  # a staleness check never decides whether the module loads
+    if verdict == bl.COPY_SKEW_REFUSE:
+        return message
+    if verdict == bl.COPY_SKEW_WARN:
+        print(f"ai-badger: {message}", file=sys.stderr)
+    return None
+
+
+COPY_SKEW_REFUSAL: Optional[str] = _copy_skew_refusal()
+
 # The scanner is shared with feed-badger's outbound PR path; see engine/unsafe_literals.py.
 UNSAFE_LITERAL_PATTERNS = ul.UNSAFE_LITERAL_PATTERNS if ul else ()
 LITERAL_SCAN_MAX_BYTES = ul.LITERAL_SCAN_MAX_BYTES if ul else 0
@@ -300,6 +322,8 @@ def sync_skill(project: Path, source_dir: Path, name: str, category: Optional[st
     if bl is None or ul is None:
         # Without the scanner there is no evidence a skill is safe to copy.
         return _refused(NO_FRAMEWORK)
+    if COPY_SKEW_REFUSAL:
+        return _refused(COPY_SKEW_REFUSAL)
     if _is_unsafe_segment(name or ""):
         return _refused("unsafe name")
     if category is not None and category != "" and _is_unsafe_segment(category):
@@ -392,7 +416,7 @@ def _mark_orphaned(project: Path, name: str, category: str, now: str) -> Dict[st
 def on_skill_manage(args: Dict[str, Any], status: str, cwd: str, *, skills_root: Path,
                     now: str, tool_name: str = "skill_manage") -> Optional[Dict[str, Any]]:
     """Hook entry point: sync the one skill a successful skill_manage call named."""
-    if bl is None or ul is None:
+    if bl is None or ul is None or COPY_SKEW_REFUSAL:
         return None
     if tool_name != "skill_manage" or status != "ok" or not isinstance(args, dict):
         return None
@@ -491,6 +515,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     if bl is None or ul is None:
         # A CLI says why it did nothing; only the hook path is allowed to be silent.
         print(json.dumps({"error": NO_FRAMEWORK, "target": args.target}))
+        return 1
+    if COPY_SKEW_REFUSAL:
+        print(json.dumps({"error": COPY_SKEW_REFUSAL, "target": args.target}))
         return 1
 
     project = target_project(args.target)
