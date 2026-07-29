@@ -14,6 +14,10 @@ Usage:
   --reset-seed-files       reseed SEED-ONCE files, discarding project-owned edits
   --execute                actually run skill install commands (default: print them)
 
+An omitted or explicitly empty --skills means "the set already scaffolded", not "none": it is
+recovered from <target>/.ai-badger/manifest.json rather than treated as an instruction to
+unlink every discovery symlink (#129).
+
 Outputs under <target>/.ai-badger/ plus copied agent-discovery files (CLAUDE.md, copilot,
 junie) per config.agents, and <target>/.ai-badger/manifest.json.
 """
@@ -938,6 +942,22 @@ def main(argv=None) -> int:
 
     config = bl.load_json(config_path)
     skills = [s for s in args.skills.split(",") if s]
+    cli_notes: List[str] = []
+    if not skills:
+        # An explicitly empty --skills means "unchanged", not "none" (#129): recover the
+        # set already scaffolded rather than treating it as an instruction to unlink every
+        # discovery symlink. A fresh target has no manifest to recover from, so it proceeds
+        # scaffolding no skills — nothing to destroy there.
+        manifest_path = target / ".ai-badger" / "manifest.json"
+        if manifest_path.is_file():
+            try:
+                skills = bl.scaffolded_skill_names(bl.load_json(manifest_path))
+            except (ValueError, OSError):
+                skills = []
+            cli_notes.append(
+                f"--skills was empty — reused {len(skills)} skill(s) already scaffolded, "
+                f"from the manifest at {manifest_path}"
+            )
     scaf = Scaffolder(root, target, config, skills, install=not args.no_install,
                       overwrite=args.overwrite_agent_files,
                       reset_seed_files=args.reset_seed_files,
@@ -945,7 +965,7 @@ def main(argv=None) -> int:
     result = scaf.run(generated_at=args.generated_at)
 
     print(f"scaffolded {len(result['manifest']['entries'])} entries into {scaf.aib}")
-    for n in result["notes"]:
+    for n in cli_notes + result["notes"]:
         print(f"  note: {n}")
     if result["pluginCommands"]:
         import install_plugins as ip_lib  # pylint: disable=import-outside-toplevel

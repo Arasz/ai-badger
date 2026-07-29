@@ -789,3 +789,15 @@ class TestResolveStacks:
         bl = load_script("engine/badger_lib.py")
 
         assert bl.resolve_stacks({"commonStacks": [], "stacks": ["python"]}) == ["python"]
+
+
+def test_scaffolded_skill_names_ignores_extension_provenance_rows(load_script):
+    """A manifest row naming `<skill>/extensions/...` is provenance, not a distinct skill."""
+    bl = load_script("engine/badger_lib.py")
+    manifest = {"entries": [
+        {"feature": "skills", "name": "task"},
+        {"feature": "skills", "name": "task/extensions/claude/extension.md"},
+        {"feature": "personas", "name": "architect"},
+    ]}
+
+    assert bl.scaffolded_skill_names(manifest) == ["task"]
