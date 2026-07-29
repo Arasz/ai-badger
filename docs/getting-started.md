@@ -368,8 +368,9 @@ next scaffold or refresh puts it back. The supported way to say no is a line in
 ```
 
 - **What can be declined:** `skills`, `personas`, `invariants`, `instructions` — the catalog items
-  addressed by their own name. Templates, hooks and adjustments cannot: they materialise output
-  under names of their own, so an index name has nothing to point at there.
+  addressed by their own name. Templates, hooks, adjustments and mcp cannot: they materialise
+  output under names of their own — or, for `mcp`, no per-item output at all — so an index name
+  has nothing to point at there.
 - **What an exclusion does.** Neither `welcome-ai-badger` nor `den-refresh` delivers the item
   again, an excluded invariant stops being rendered into `CLAUDE.md`, and the discovery symlinks
   ai-badger placed for an excluded skill (`.claude/skills/`, `.github/skills/`,
@@ -423,7 +424,8 @@ The three moving parts:
 
 1. **The catalog** — `features/{stack|common}/{feature}/`. A *stack* is a technology (`python`,
    `dotnet`, `react`, …, plus `common` for stack-agnostic content); a *feature* is a kind of asset
-   (`personas`, `invariants`, `instructions`, `skills`, `hooks`, `adjustments`, `templates`).
+   (`personas`, `invariants`, `instructions`, `skills`, `hooks`, `adjustments`, `templates`,
+   `mcp`).
 2. **`index.json`** — script-generated from that tree by `index_build.py`, and the only thing the
    scaffolder reads to find catalog items. Never hand-edited. If it is stale, items that exist on
    disk are invisible to the scaffold (see [Troubleshooting](#7-troubleshooting)).

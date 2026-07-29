@@ -41,6 +41,7 @@ SCHEMA_INSTANCES = {
     "adjustment.schema.json": ["features/*/adjustments/adjustment.json"],
     "plugins-instructions.schema.json": ["features/*/plugins-instructions.json"],
     "mcp-servers.schema.json": ["features/*/mcp-servers.json"],
+    "stack-mcp.schema.json": ["features/*/stack-mcp.json"],
     "external-tools.schema.json": ["features/*/external-tools.json"],
     "stack.schema.json": ["features/*/stack.json"],
     "dependencies.schema.json": ["features/*/dependencies.json"],

@@ -95,7 +95,7 @@ file again.
 
 ```
 features/{stack|common}/{feature}/   the catalog — skills, personas, invariants, instructions,
-                                     hooks, adjustments, templates
+                                     hooks, adjustments, templates, mcp
 engine/                              the library every bootstrap shim imports: badger_lib,
                                      unsafe_literals (and requirements.txt)
 tooling/                             maintainer catalog and release tooling: index_build,

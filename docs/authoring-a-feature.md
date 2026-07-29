@@ -34,6 +34,7 @@ python3 -m pip install -r engine/requirements.txt   # jsonschema
 | `instructions`              | file        | any `*.md` in `features/<stack>/instructions/` (excluding `README.md`); name = filename stem                   |
 | `plugins`                   | single file | the `plugins` array inside `features/<stack>/plugins/plugins.json`, if present (at most one per stack)         |
 | `templates` (`common` only) | file/dir    | every top-level entry under `features/common/templates/`                                                       |
+| `mcp`                       | directory   | any subdir of `features/<stack>/mcp/` containing a `meta.json`; one MCP server each                             |
 
 Two catalog files are deliberately **not** in that table, because `index_build.py` does not index
 them and they have no entry in `index.json` — the scaffold reads them directly, so adding one
@@ -43,6 +44,7 @@ needs no index rebuild:
 |---|---|
 | `external-tools` | `features/{common,stack}/external-tools.json` (`schemas/external-tools.schema.json`); last-writer-wins on name |
 | `mcp-servers` | `features/{common,stack}/mcp-servers.json` (`schemas/mcp-servers.schema.json`); last-writer-wins on name |
+| `stack-mcp` | `features/{common,stack}/stack-mcp.json` (`schemas/stack-mcp.schema.json`); last-writer-wins on name. Which servers a stack wants; the servers themselves are indexed catalog items under `features/<stack>/mcp/`. Supersedes the two rows above (ADR-0014) |
 
 Skill **extensions** use a directory-naming convention rather than a manifest field: a directory
 at `features/<stack>/skills/<base>-extensions/<ext>/` attaches `<ext>` to the skill named

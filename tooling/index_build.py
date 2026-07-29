@@ -11,6 +11,7 @@ Feature discovery rules per <stack>/<feature>/:
   hooks         -> all files in features/<stack>/hooks/
   adjustments   -> all files in features/<agent>/adjustments/
   templates     -> each top-level file/dir (common only)
+  mcp           -> each subdir containing meta.json (one MCP server per subdir)
 
 Common skills live at features/common/skills/ and are discovered by iter_feature_dirs
 like any other stack feature.
@@ -84,6 +85,13 @@ def _adjustments_items(fdir: Path, root: Path):
     return items
 
 
+def _mcp_items(fdir: Path, root: Path):
+    """Index items for the mcp feature: each subdir carrying a meta.json is one server."""
+    return [{"name": d.name, "path": d.relative_to(root).as_posix()}
+            for d in sorted(p for p in fdir.iterdir() if p.is_dir())
+            if (d / "meta.json").exists()]
+
+
 def _template_items(fdir: Path, root: Path):
     return [{"name": p.name, "path": p.relative_to(root).as_posix()}
             for p in sorted(fdir.iterdir()) if p.name != "README.md"]
@@ -96,6 +104,7 @@ _RULES = {
     "templates": _template_items,
     "hooks": _hooks_items,
     "adjustments": _adjustments_items,
+    "mcp": _mcp_items,
 }
 
 LEGACY_EXT_SUFFIX = "-extensions"

@@ -53,6 +53,11 @@ FEATURE_TYPES: Tuple[FeatureType, ...] = (
     FeatureType("templates", "templates", False, hashes_source=True),
     FeatureType("hooks", "hooks", False),
     FeatureType("adjustments", "adjustments", False, hashes_source=True),
+    # An mcp item describes a server; nothing per-item is written into the scaffold at all —
+    # its content reaches a project through document slots and generated agent config. So no
+    # manifest entry is keyed by an mcp item's name either, for a different reason than the
+    # three above (ADR-0014).
+    FeatureType("mcp", "mcp", False),
 )
 
 FEATURES = [ft.name for ft in FEATURE_TYPES]

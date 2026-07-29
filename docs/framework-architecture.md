@@ -13,7 +13,7 @@ The framework repo is organized as **stack × feature**, rooted under `features/
 - **stack** — a technology: `dotnet`, `azure`, `cosmos`, `terraform`, `mcp`, `node`, `js`, `ts`,
   `react`, `css`, `github`, `angular`, … plus **`common`** for stack-agnostic content.
 - **feature** — a kind of framework asset: `personas`, `invariants`, `instructions`, `skills`, `hooks`, `adjustments`,
-  `skills`, and — `common`-only — `templates`. Stack-scoped skill *extensions* also live here,
+  `mcp`, and — `common`-only — `templates`. Stack-scoped skill *extensions* also live here,
   nested under a stack's `skills/` directory (§5).
 
 ```
@@ -30,6 +30,7 @@ Each feature item is a small, self-describing unit:
 | `skills` (external) | `skills-source.json` + `skills.json` | at most one pair per stack |
 | `hooks` | `hooks-manifest.json` + hook files | at most one manifest per stack |
 | `adjustments` | `adjustment.json` + scripts | per-agent, at most one descriptor |
+| `mcp` | directory | any subdir of `features/<stack>/mcp/` containing a `meta.json`; one MCP server each |
 | `templates` (`common` only) | file/dir | every top-level entry |
 | `skills` (extensions only, e.g. `github`) | directory | `<base>-extensions/<ext>/` containing a manifest, attached by directory convention (§5) |
 

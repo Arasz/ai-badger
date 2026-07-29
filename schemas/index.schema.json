@@ -33,7 +33,8 @@
           "instructions": { "$ref": "#/$defs/featureList" },
           "templates": { "$ref": "#/$defs/featureList" },
           "hooks": { "$ref": "#/$defs/featureList" },
-          "adjustments": { "$ref": "#/$defs/featureList" }
+          "adjustments": { "$ref": "#/$defs/featureList" },
+          "mcp": { "$ref": "#/$defs/featureList" }
         }
       }
     }
