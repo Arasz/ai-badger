@@ -2,7 +2,9 @@
 """mcp-index: manage the MCP tool index for ai-badger projects.
 
 Reads Hermes's MCP tool list (hermes mcp list --json) and produces
-.ai-badger/mcp-tools.json with auto-assigned tags and intents.
+.ai-badger/mcp-tools.json: the mcp catalog's curated tags and intents for every tool it
+describes, name heuristics for the rest, and a per-server `status` for the ones that
+reported no tools at all (ADR-0014 decision 7).
 
 Commands:
   init     — create index from MCP tool list
@@ -37,38 +39,13 @@ YAML_MISSING_HINT = (
     "mcp-index needs PyYAML: pip install pyyaml (it is in engine/requirements.txt)"
 )
 
-# ── Tag taxonomy (loaded from features/common/mcp-tags.json or fallback) ──
-_DEFAULT_TAXONOMY: dict[str, Any] = {
-    "categories": {
-        "language": {
-            "tags": ["csharp", "typescript", "javascript", "python", "sql", "css", "html"],
-        },
-        "action": {
-            "tags": [
-                "navigation", "diagnostic", "build", "run", "refactoring",
-                "search", "read", "write", "terminal",
-            ],
-        },
-        "domain": {
-            "tags": [
-                "database", "tracing", "opentelemetry", "browser",
-                "dotnet", "semantic", "files",
-            ],
-        },
-        "meta": {"tags": ["batch", "slow", "unsafe"]},
-    },
-}
+# legacy_yaml_subset.py and tool_descriptions.py sit beside this file in every deployment shape
+# (sync_plugin_skills.py and the scaffold's skill installer both copy a skill's scripts/ whole).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import tool_descriptions as td  # noqa: E402  pylint: disable=wrong-import-position,import-error
+from legacy_yaml_subset import parse_legacy_yaml_subset as _parse_legacy_yaml_subset  # noqa: E402  pylint: disable=wrong-import-position,import-error
 
-
-def _load_taxonomy(fw_root: Optional[Path] = None) -> dict[str, Any]:
-    """Load tag taxonomy, falling back to the built-in default."""
-    if fw_root is None:
-        fw_root = FRAMEWORK_ROOT
-    if fw_root:
-        tax_path = fw_root / "features" / "common" / "mcp-tags.json"
-        if tax_path.exists():
-            return json.loads(tax_path.read_text(encoding="utf-8"))
-    return _DEFAULT_TAXONOMY
+MANUAL, OK, ABSENT = td.MANUAL, td.OK, td.ABSENT
 
 
 def _bootstrap_lib() -> Path:
@@ -181,74 +158,48 @@ except RuntimeError:  # the built-in taxonomy is the fallback; a missing root is
     FRAMEWORK_ROOT = None
 
 
-def _all_valid_tags(taxonomy: dict[str, Any]) -> set[str]:
-    """Flatten all valid tags from the taxonomy."""
-    return {t for cat in taxonomy["categories"].values() for t in cat["tags"]}
+def _valid_tags() -> set[str]:
+    """The closed tag vocabulary, from the framework's mcp-tags.json when it is reachable."""
+    return td.all_valid_tags(td.load_taxonomy(FRAMEWORK_ROOT))
 
-
-# ── Auto-tagging heuristics ──────────────────────────────────────────────────
 
 def _auto_tags(tool_name: str, server_name: str = "") -> list[str]:
-    """Assign tags based on tool name heuristics.
+    """Heuristic tags for one tool name (`tool_descriptions.auto_tags`)."""
+    return td.auto_tags(tool_name, server_name, _valid_tags())
 
-    Returns a list of tag strings. Falls back to ["general"] if no
-    heuristics match.
-    """
-    name = tool_name.lower()
-    tags: set[str] = set()
 
-    # Server-level heuristics
-    if "playwright" in server_name.lower() or "browser" in server_name.lower():
-        tags.add("browser")
+def load_catalog(fw_root: Optional[Path]) -> td.Catalog:
+    """The mcp catalog keyed by server then tool name (`tool_descriptions.load_catalog`)."""
+    return td.load_catalog(fw_root)
 
-    # Name-based heuristics (order matters — more specific first).
-    # A name substring may infer an *action* (build, search, read, ...); never a
-    # *technology* (dotnet, sql, opentelemetry) — see issue #171 for the false positives
-    # that drove this split.
-    if any(kw in name for kw in ("database", "schema", "db")):
-        tags.add("database")
-    if "sql" in name:
-        tags.update(["sql", "database"])
-    if "build" in name:
-        tags.add("build")
-    if "run" in name or "execute" in name:
-        tags.add("run")
-    if "search" in name or "find" in name:
-        tags.add("search")
-    if any(kw in name for kw in ("refactor", "rename", "reformat", "move_type")):
-        tags.add("refactoring")
-    if "symbol" in name:
-        tags.update(["semantic", "search"])
-    if any(kw in name for kw in ("problem", "error", "diagnostic")):
-        tags.add("diagnostic")
-    if "span" in name or "otel" in name or "service_map" in name:
-        tags.update(["tracing", "opentelemetry"])
-    if any(kw in name for kw in ("browser", "navigate", "screenshot", "click")):
-        tags.add("browser")
-    if any(kw in name for kw in ("file", "directory", "tree", "glob")):
-        tags.add("files")
-    if "editor" in name or "open_" in name:
-        tags.add("navigation")
-    if "navigate" in name:
-        tags.add("navigation")
-    if "read" in name:
-        tags.add("read")
-    if any(kw in name for kw in ("write", "create", "patch", "replace")):
-        tags.add("write")
-    if "terminal" in name or "shell" in name:
-        tags.add("terminal")
 
-    # Restrict to valid taxonomy tags
-    all_tags = _all_valid_tags(_load_taxonomy())
-    valid = sorted(tags & all_tags)
+def describe_tool(server: str, name: str, description: str,
+                  catalog: td.Catalog) -> dict[str, Any]:
+    """Tags, intent and origin for one tool, against the reachable taxonomy."""
+    return td.describe_tool(server, name, description, catalog, _valid_tags())
 
-    return valid if valid else ["general"]
+
+def _quiet_sources(index: dict[str, Any]) -> list[str]:
+    """`name (status)` for every source whose status is not `ok`, for the human to act on."""
+    return [f"{s['name']} ({s['status']})" for s in index.get("sources", [])
+            if s.get("status") not in (None, OK)]
+
+
+def _report_quiet_sources(index: dict[str, Any]) -> None:
+    """Print the non-ok sources; each status has its own remedy, so each is named."""
+    quiet = _quiet_sources(index)
+    if quiet:
+        print(f"  {len(quiet)} server(s) reporting no tools: {', '.join(quiet)}.")
 
 
 # ── MCP tool discovery ──────────────────────────────────────────────────────
 
 def _parse_mcp_list_text(stdout: str) -> list[dict[str, Any]]:
-    """Parse the text table from 'hermes mcp list' into server dicts."""
+    """Parse the text table from 'hermes mcp list' into server dicts.
+
+    The table's Tools column reads `all`, never the tool names — so `tools_known` is False
+    and a caller must not read the empty list as "this server exposes nothing".
+    """
     servers = []
     for line in stdout.splitlines():
         line = line.strip()
@@ -257,7 +208,8 @@ def _parse_mcp_list_text(stdout: str) -> list[dict[str, Any]]:
         parts = line.split()
         if len(parts) >= 4 and ("enabled" in line or "disabled" in line):
             name = parts[0]
-            servers.append({"name": name, "tools": []})
+            servers.append({"name": name, "tools": [], "tools_known": False,
+                            "enabled": "disabled" not in line})
     return servers
 
 
@@ -295,11 +247,6 @@ def _fetch_mcp_tools(from_json: Optional[str] = None) -> list[dict[str, Any]]:
 
 
 # ── Index file operations ────────────────────────────────────────────────────
-
-# legacy_yaml_subset.py sits beside this file in every deployment shape (sync_plugin_skills.py
-# and the scaffold's skill installer both copy a skill's scripts/ directory whole).
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from legacy_yaml_subset import parse_legacy_yaml_subset as _parse_legacy_yaml_subset  # noqa: E402  pylint: disable=wrong-import-position,import-error
 
 class McpIndexError(RuntimeError):
     """Base for _read_index/_write_index failures the CLI dispatch turns into an exit code."""
@@ -370,24 +317,6 @@ def _read_index_safe(target: str) -> tuple[Optional[dict[str, Any]], Optional[st
         return None, str(exc)
 
 
-def _drop_empty_sources(data: dict[str, Any]) -> list[str]:
-    """Remove sources with no tools (the schema requires tools.minProperties: 1).
-
-    Returns the dropped server names. A zero-tool server is one hermes reports as enabled
-    but which exposes no callable tools (e.g. a skill-only or config-only server) — nothing
-    for the index to recommend, and nothing BM25 retrieval can score.
-    """
-    sources = data.get("sources", [])
-    kept, dropped = [], []
-    for source in sources:
-        if source.get("tools"):
-            kept.append(source)
-        else:
-            dropped.append(source.get("name", "?"))
-    data["sources"] = kept
-    return dropped
-
-
 def _try_import_badger_lib():
     """Return the badger_lib module, or None when validation cannot run at all.
 
@@ -415,8 +344,11 @@ def _validate_against_schema(data: dict[str, Any]) -> Optional[list[str]]:
     return bl.validate(data, schema)
 
 
-def _write_index(target: str, data: dict[str, Any], *, require_validation: bool) -> list[str]:
-    """Drop zero-tool sources, validate, write JSON, migrate a legacy YAML file if present.
+def _write_index(target: str, data: dict[str, Any], *, require_validation: bool) -> None:
+    """Validate, write JSON, and migrate a legacy YAML file if one is present.
+
+    A source with no tools is written, not dropped: its `status` is the whole point (ADR-0014
+    decision 7), and dropping it made "switched off" and "running but silent" indistinguishable.
 
     `require_validation` splits the write choke point in two, because this local copy of
     `atomic_write_text` exists precisely so this script runs in projects with no framework
@@ -433,7 +365,6 @@ def _write_index(target: str, data: dict[str, Any], *, require_validation: bool)
     Local copy of `badger_lib.atomic_write_text`: this script is scaffolded into projects
     that need not have the framework on sys.path.
     """
-    dropped = _drop_empty_sources(data)
     errors = _validate_against_schema(data)
     if errors is None:
         if require_validation:
@@ -463,38 +394,40 @@ def _write_index(target: str, data: dict[str, Any], *, require_validation: bool)
         legacy_path.replace(migrated_path)
         print(f"Migrated legacy {legacy_path.name} -> {migrated_path.name}.", file=sys.stderr)
 
-    if dropped:
-        print(f"Dropped {len(dropped)} server(s) with no tools: {', '.join(dropped)}.")
-
-    return dropped
-
 
 # ── Commands ─────────────────────────────────────────────────────────────────
+
+def _index_source(server: dict[str, Any],
+                  catalog: dict[str, dict[str, dict[str, Any]]]) -> dict[str, Any]:
+    """One `sources[]` entry for a freshly listed server: its status and its described tools."""
+    name = server.get("name", "")
+    entry: dict[str, Any] = {"name": name, "status": td.server_status(server)}
+    if server.get("url"):
+        entry["url"] = server["url"]
+    entry["tools"] = {
+        tool["name"]: describe_tool(name, tool["name"], tool.get("description", ""), catalog)
+        for tool in server.get("tools", [])
+    }
+    return entry
+
+
+def _note_missing_catalog(catalog: dict[str, dict[str, dict[str, Any]]]) -> None:
+    """Say so when no catalog was reachable — otherwise "no curated tags" is silent."""
+    if not catalog:
+        print("NOTE: no mcp catalog found under the framework root — tags and intents come "
+              "from name heuristics only.", file=sys.stderr)
+
 
 def cmd_init(target: str, from_json: Optional[str] = None) -> int:
     """Create a new index from the current MCP tool list."""
     servers = _fetch_mcp_tools(from_json)
-
-    sources = []
-    for server in servers:
-        tools: dict[str, dict[str, Any]] = {}
-        for tool in server.get("tools", []):
-            name = tool["name"]
-            tools[name] = {
-                "tags": _auto_tags(name, server.get("name", "")),
-                "intent": tool.get(
-                    "description", f"TODO: describe what {name} does"
-                ),
-            }
-        entry: dict[str, Any] = {"name": server["name"], "tools": tools}
-        if server.get("url"):
-            entry["url"] = server["url"]
-        sources.append(entry)
+    catalog = load_catalog(FRAMEWORK_ROOT)
+    _note_missing_catalog(catalog)
 
     index = {
         "version": "0.1.0",
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "sources": sources,
+        "sources": [_index_source(s, catalog) for s in servers],
     }
 
     try:
@@ -514,6 +447,7 @@ def cmd_init(target: str, from_json: Optional[str] = None) -> int:
             f"  {general_count} tool(s) tagged as 'general' — "
             "run 'mcp-index tag <tool> <tags...>' to curate."
         )
+    _report_quiet_sources(index)
     return 0
 
 
@@ -532,7 +466,7 @@ def cmd_validate(target: str) -> int:
         return 1
 
     errors: list[str] = []
-    all_tags = _all_valid_tags(_load_taxonomy())
+    all_tags = _valid_tags()
 
     for source in index.get("sources", []):
         sname = source["name"]
@@ -569,11 +503,77 @@ def cmd_validate(target: str) -> int:
 
     total = sum(len(s["tools"]) for s in index.get("sources", []))
     print(f"OK: {total} tool(s) validated")
+    _report_quiet_sources(index)
     return 0
 
 
+def _mark_removed(tools: dict[str, dict[str, Any]], names: list[str]) -> int:
+    """Mark each named tool removed, keeping its curation; return how many changed."""
+    changes = 0
+    for name in names:
+        if tools[name].get("status") != "removed":
+            tools[name]["status"] = "removed"
+            changes += 1
+    return changes
+
+
+def _sync_tools(source: dict[str, Any], server: Optional[dict[str, Any]],
+                catalog: dict[str, dict[str, dict[str, Any]]]) -> int:
+    """Add newly listed tools and mark vanished ones; return the change count.
+
+    A server the host listed without tool detail (`tools_known` False — the text-table
+    fallback) is left alone entirely: "not asked" must not be read as "exposes nothing",
+    which would mark every tool in the index removed.
+    """
+    tools = source.setdefault("tools", {})
+    if server is None:
+        return _mark_removed(tools, sorted(tools))
+    if not server.get("tools_known", True):
+        return 0
+    current = {t["name"]: t.get("description", "") for t in server.get("tools", [])}
+    changes = _mark_removed(tools, sorted(set(tools) - set(current)))
+    for name in sorted(set(current) - set(tools)):
+        tools[name] = describe_tool(source["name"], name, current[name], catalog)
+        changes += 1
+    return changes
+
+
+def _redescribe_from_catalog(source: dict[str, Any],
+                             catalog: dict[str, dict[str, dict[str, Any]]]) -> list[str]:
+    """Re-describe every non-manual tool the catalog knows; return the `server:tool` names."""
+    changed = []
+    for name, tool in source.get("tools", {}).items():
+        if tool.get("origin") == MANUAL or name not in catalog.get(source["name"], {}):
+            continue
+        described = describe_tool(source["name"], name, tool.get("intent", ""), catalog)
+        if all(tool.get(key) == value for key, value in described.items()):
+            continue
+        tool.update(described)
+        changed.append(f"{source['name']}:{name}")
+    return changed
+
+
+def _reorder_source(source: dict[str, Any]) -> None:
+    """name, status, url, tools — a status behind a 40-entry tools object is unreadable."""
+    ordered = {key: source[key] for key in ("name", "status", "url", "tools") if key in source}
+    ordered.update({key: value for key, value in source.items() if key not in ordered})
+    source.clear()
+    source.update(ordered)
+
+
+def _update_source(source: dict[str, Any], server: Optional[dict[str, Any]],
+                   catalog: dict[str, dict[str, dict[str, Any]]]) -> tuple[int, list[str]]:
+    """Restate one source's status and sync its tools; return (changes, re-described tools)."""
+    was = source.get("status")
+    source["status"] = ABSENT if server is None else td.server_status(server)
+    changes = _sync_tools(source, server, catalog) + (1 if source["status"] != was else 0)
+    redescribed = _redescribe_from_catalog(source, catalog)
+    _reorder_source(source)
+    return changes + len(redescribed), redescribed
+
+
 def cmd_update(target: str, from_json: Optional[str] = None) -> int:
-    """Update index: add new tools, mark removed ones, preserve manual tags."""
+    """Update index: add new tools, mark removed ones, restate status, preserve manual tags."""
     index, err = _read_index_safe(target)
     if err:
         print(f"ERROR: {err}", file=sys.stderr)
@@ -583,59 +583,22 @@ def cmd_update(target: str, from_json: Optional[str] = None) -> int:
         return cmd_init(target, from_json)
 
     servers = _fetch_mcp_tools(from_json)
-
-    # Build set of current tool names per server
-    current_tools: dict[str, set[str]] = {}
-    for server in servers:
-        current_tools[server["name"]] = {
-            t["name"] for t in server.get("tools", [])
-        }
+    catalog = load_catalog(FRAMEWORK_ROOT)
+    _note_missing_catalog(catalog)
+    listed = {s.get("name", ""): s for s in servers}
 
     changes = 0
+    redescribed: list[str] = []
     for source in index.get("sources", []):
-        sname = source["name"]
-        current = current_tools.get(sname, set())
-        existing = set(source.get("tools", {}).keys())
+        source_changes, source_redescribed = _update_source(
+            source, listed.get(source["name"]), catalog)
+        changes += source_changes
+        redescribed.extend(source_redescribed)
 
-        # Mark removed tools
-        for name in (existing - current):
-            source["tools"][name]["status"] = "removed"
-            changes += 1
-
-        # Add new tools
-        server_data = next(
-            (s for s in servers if s["name"] == sname), None
-        )
-        for name in (current - existing):
-            desc = ""
-            if server_data:
-                for t in server_data.get("tools", []):
-                    if t["name"] == name:
-                        desc = t.get("description", "")
-                        break
-            source["tools"][name] = {
-                "tags": _auto_tags(name, sname),
-                "intent": desc or f"TODO: describe what {name} does",
-            }
-            changes += 1
-
-    # Add entirely new servers
     existing_names = {s["name"] for s in index["sources"]}
     for server in servers:
-        if server["name"] not in existing_names:
-            tools = {}
-            for tool in server.get("tools", []):
-                tools[tool["name"]] = {
-                    "tags": _auto_tags(tool["name"], server["name"]),
-                    "intent": tool.get(
-                        "description",
-                        f"TODO: describe what {tool['name']} does",
-                    ),
-                }
-            entry = {"name": server["name"], "tools": tools}
-            if server.get("url"):
-                entry["url"] = server["url"]
-            index["sources"].append(entry)
+        if server.get("name") not in existing_names:
+            index["sources"].append(_index_source(server, catalog))
             changes += 1
 
     if changes:
@@ -647,6 +610,10 @@ def cmd_update(target: str, from_json: Optional[str] = None) -> int:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 1
         print(f"Updated: {changes} change(s) applied.")
+        if redescribed:
+            print(f"  {len(redescribed)} tool(s) re-described from the mcp catalog: "
+                  f"{', '.join(redescribed)}.")
+        _report_quiet_sources(index)
     else:
         print("No changes — index is up to date.")
 
@@ -659,7 +626,7 @@ def cmd_tag(target: str, tool_ref: str, tags: list[str]) -> int:
         print("ERROR: at least one tag is required.", file=sys.stderr)
         return 2
 
-    all_tags = _all_valid_tags(_load_taxonomy())
+    all_tags = _valid_tags()
     invalid = [t for t in tags if t not in all_tags]
     if invalid:
         print(
@@ -689,6 +656,7 @@ def cmd_tag(target: str, tool_ref: str, tags: list[str]) -> int:
         if source["name"] == server_name:
             if tool_name in source["tools"]:
                 source["tools"][tool_name]["tags"] = sorted(tags)
+                source["tools"][tool_name]["origin"] = MANUAL
                 try:
                     _write_index(target, index, require_validation=False)
                 except McpIndexError as exc:  # pragma: no cover - best-effort never raises
@@ -737,6 +705,7 @@ def cmd_intent(target: str, tool_ref: str, intent: str) -> int:
         if source["name"] == server_name:
             if tool_name in source["tools"]:
                 source["tools"][tool_name]["intent"] = intent
+                source["tools"][tool_name]["origin"] = MANUAL
                 try:
                     _write_index(target, index, require_validation=False)
                 except McpIndexError as exc:  # pragma: no cover - best-effort never raises

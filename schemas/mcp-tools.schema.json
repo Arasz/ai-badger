@@ -49,9 +49,18 @@
           "type": "string",
           "description": "MCP server endpoint URL (for HTTP/SSE servers)."
         },
+        "status": {
+          "enum": [
+            "ok",
+            "disabled",
+            "empty",
+            "unknown",
+            "absent"
+          ],
+          "description": "What the host's last listing said about this server: 'ok' (tools reported), 'disabled' (the host says it is switched off), 'empty' (enabled, asked, exposed nothing), 'unknown' (the listing carried no tool detail — the `hermes mcp list` text table), 'absent' (the host no longer lists it; its tools are marked removed). Each has a different remedy, which is why a zero-tool server is recorded rather than dropped (ADR-0014 decision 7)."
+        },
         "tools": {
           "type": "object",
-          "minProperties": 1,
           "additionalProperties": {
             "$ref": "#/$defs/toolEntry"
           }
@@ -88,6 +97,14 @@
           ],
           "default": "active",
           "description": "Set to 'removed' when the MCP server no longer exposes this tool (preserves manual tags for later re-addition)."
+        },
+        "origin": {
+          "enum": [
+            "catalog",
+            "heuristic",
+            "manual"
+          ],
+          "description": "Where this entry's tags and intent came from: 'catalog' (features/<stack>/mcp/<server>/tools.json), 'heuristic' (_auto_tags guessing from the tool name), 'manual' (mcp-index tag/intent). Per tool, not per server: a catalog-described server also exposes tools the catalog does not describe. Only 'manual' survives a later `mcp-index update`."
         }
       }
     }

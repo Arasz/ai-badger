@@ -37,6 +37,19 @@ MCP servers expose 40+ tools per server. Agents scan ALL tool definitions in the
 2. **Intent description** for semantic disambiguation ("Compile the solution" vs "List project run configs")
 3. **Hook-driven recommendation** — the `pre_llm_call` hook loads the index, extracts domain keywords from the user's message, and injects top-N matching tools as a context hint
 
+Tags and intents come from three places, in descending authority — and each entry records which
+one spoke, in an `origin` field:
+
+| `origin` | source | survives `update`? |
+|---|---|---|
+| `manual` | you, via `mcp-index tag` / `mcp-index intent` | **yes** — a human outranks both |
+| `catalog` | `features/<stack>/mcp/<server>/tools.json` in the framework | refreshed from the catalog |
+| `heuristic` | `_auto_tags` guessing from the tool name | replaced as soon as the catalog covers the tool |
+
+The catalog is a curation library, not a completeness claim: it applies to a server however that
+server arrived (project `.mcp.json`, user-global config, a plugin, a cloud connector), and the
+heuristics are the last resort for the servers it does not know.
+
 ## When to Use
 
 - **After `hermes mcp add`** — run `mcp-index update` to index new tools
@@ -65,7 +78,10 @@ Tools auto-tagged as `[general]` need manual curation.
 python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py init --target <project-root>
 ```
 
-Reads `hermes mcp list --json` (or `--from-json` for testing), auto-tags tools by name heuristics, and writes `.ai-badger/mcp-tools.json`. Reports how many tools were tagged as `general`.
+Reads `hermes mcp list --json` (or `--from-json` for testing), describes each tool from the
+catalog where it can and by name heuristics otherwise, records each server's `status`, and writes
+`.ai-badger/mcp-tools.json`. Reports how many tools were tagged as `general` and which servers
+reported no tools.
 
 **Completion criterion:** `.ai-badger/mcp-tools.json` exists with all current MCP tools indexed.
 
@@ -75,7 +91,10 @@ Reads `hermes mcp list --json` (or `--from-json` for testing), auto-tags tools b
 python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py update --target <project-root>
 ```
 
-Adds new tools (auto-tagged), marks removed tools with `status: removed` (preserving manual tags), and adds new MCP servers. **Preserves manually-set tags and intents on existing tools.**
+Adds new tools, marks vanished ones with `status: removed` (preserving their curation), adds new
+MCP servers, and restates every server's `status`. **Preserves manually-set tags and intents on
+existing tools**; a tool the catalog describes is re-described from it unless `origin` is `manual`,
+and the tools that changed are printed by name.
 
 **Completion criterion:** All current MCP tools appear in the index; removed tools have `status: removed`.
 
@@ -140,7 +159,32 @@ tags and intents — stated so the cost is explicit before choosing it).
 **Completion criterion:** `.ai-badger/mcp-tools.json` exists with the same tools, tags, and
 intents the legacy file had; `.ai-badger/mcp-tools.yaml.migrated` exists.
 
+## Server status — why a silent server is still in the index
+
+Each `sources[]` entry records what the host's last listing supported. A zero-tool server used to
+be dropped at write time, which made "switched off" and "running but exposing nothing" the same
+absence with opposite remedies (ADR-0014 decision 7).
+
+| `status` | what the listing said | remedy |
+|---|---|---|
+| `ok` | the server reported tools | none |
+| `disabled` | the host says the server is switched off | enable it (`hermes mcp configure`) |
+| `empty` | enabled, asked, exposed nothing | check the server actually starts |
+| `unknown` | the listing carried no tool detail at all | see below |
+| `absent` | the host no longer lists the server; its tools are marked `removed` | re-add it, or accept the removal |
+
+`unknown` is the `hermes mcp list` text table: its Tools column reads `all`, never the tool names.
+An `update` over such a listing restates statuses and **does not** mark anything removed — "not
+asked" is not "exposes nothing".
+
+There is deliberately no `unreachable`: no `hermes mcp list` mode reports a connection failure
+distinctly from an empty tool list, so the index does not claim a distinction its input cannot
+support. (`claude mcp list` does distinguish Connected / Needs authentication / Failed to connect /
+Connection error / Pending approval / Rejected — ingesting it is not wired up.)
+
 ## Auto-tagging Heuristics
+
+These are the **last resort** — they run only where the catalog has nothing to say about a tool.
 
 A name substring may infer an *action*; it must never guess a *technology* (issue #171 found
 `build` implying `dotnet`, and `log` matching inside `dialog` to imply `opentelemetry`). Only a
@@ -163,12 +207,13 @@ tight, unambiguous alias earns a technology tag.
 
 ## Common Pitfalls
 
-1. **Auto-tagging covers only ~60% of tools.** Expect 10-20 tools tagged as `[general]` after `init`. Curate them with `mcp-index tag`.
-2. **Index goes stale after adding MCP servers.** Run `mcp-index update` after every `hermes mcp add` or `hermes mcp remove`.
-3. **Tags aren't free-form.** Use only tags from the taxonomy. `mcp-index tag` rejects unknown tags.
-4. **Intent field is for disambiguation, not documentation.** A 10-30 word sentence beats a paragraph. Write it to answer: "why would I pick this tool over a sibling with the same tags?"
-5. **The `list` filter uses substring matching on tool names.** Avoid naming tools with names that are substrings of each other in tests.
-6. **`--target` is required.** The script does not default to `.` — always pass `--target <path>`.
+1. **Auto-tagging covers only ~60% of tools.** Expect 10-20 tools tagged as `[general]` after `init`. Curate them with `mcp-index tag`, or — better, if the server is worth describing for every project — add its `tools.json` to the framework's mcp catalog.
+2. **The first `update` after upgrading rewrites heuristic tags.** Any tool the catalog describes gets the curated tags and intent, because an entry with no `origin` cannot be told apart from a guess. Tools curated with `mcp-index tag`/`intent` from now on are marked `manual` and left alone.
+3. **Index goes stale after adding MCP servers.** Run `mcp-index update` after every `hermes mcp add` or `hermes mcp remove`.
+4. **Tags aren't free-form.** Use only tags from the taxonomy. `mcp-index tag` rejects unknown tags.
+5. **Intent field is for disambiguation, not documentation.** A 10-30 word sentence beats a paragraph. Write it to answer: "why would I pick this tool over a sibling with the same tags?"
+6. **The `list` filter uses substring matching on tool names.** Avoid naming tools with names that are substrings of each other in tests.
+7. **`--target` is required.** The script does not default to `.` — always pass `--target <path>`.
 
 ## Verification Checklist
 
