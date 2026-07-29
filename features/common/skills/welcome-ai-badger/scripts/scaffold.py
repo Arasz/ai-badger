@@ -407,21 +407,21 @@ class Scaffolder:
 
     def _superseded_reason(self, entry: Dict[str, Any]) -> Optional[str]:
         """Why this config no longer asks for a file a previous run placed, or None to keep it."""
-        feature, name = entry.get("feature"), entry.get("name")
+        feature, name, source = entry.get("feature"), entry.get("name"), entry.get("source")
         if name in self.excluded.get(feature, set()):
             return f"declined in config.exclude.{feature}"
         if bl.is_orphaned(entry, bl.delivering_stacks(self.config)):
             return f"stack '{entry.get('stack')}' is no longer in config.stacks"
+        if feature in bl.EXCLUDABLE_FEATURES and source and not (self.root / source).exists():
+            return "no longer in the framework catalog"
         return None
 
     def prune_superseded(self) -> None:
         """Delete the files a previous run placed that this config no longer asks for.
 
-        Two ways to stop asking: decline the item in `config.exclude`, or drop the stack that
-        delivered it (#116). Ownership is the previous manifest: the recorded target, still
-        carrying its recorded hash. An edited copy is the project's own and is reported instead
-        of removed. Skill directories are left on disk — they may hold project-local files, and
-        a config edit that rm -rf's a directory is a trap (research §2).
+        Three ways to stop asking: decline via `config.exclude`, the delivering stack leaving
+        (#116), or the catalog source disappearing (#130). An edited copy is reported, not
+        removed; skill directories stay on disk regardless (research §2).
         """
         manifest_path = self.aib / "manifest.json"
         if not manifest_path.is_file():

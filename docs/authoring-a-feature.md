@@ -66,7 +66,10 @@ against `schemas/stack.schema.json`, and folded into `index.json.stacks[stack].m
 ## Adding a new persona, invariant, or instruction
 
 1. Pick the owning stack (or `common` if it's genuinely stack-agnostic — see the generalization
-   test in the design doc: no project-specific paths, no domain-coupled models).
+   test in the design doc: no project-specific paths, no domain-coupled models). An invariant
+   that asserts a concrete file layout exists in the target repo belongs in an evidence-gated
+   stack, never `common` — `features/changelog/` (detected from a `docs/changelog/*.md` tree,
+   #130) is the worked example.
 2. Add a single `*.md` file under `features/<stack>/personas/`, `features/<stack>/invariants/`,
    or `features/<stack>/instructions/`. The filename stem becomes its `name` in `index.json` — choose it
    deliberately, it's a stable public identifier consumed by `config.json.personaRouting` and by

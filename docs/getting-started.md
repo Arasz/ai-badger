@@ -335,7 +335,9 @@ and the scaffold reports `note: carried preserved regions into <file>`. The rule
 - **`.ai-badger/config.json`** — the summary and domain are yours; the rest is what you approved.
 - **Invariants** under `.ai-badger/invariants/` — these are non-negotiable rules you are agreeing
   to. Decline the ones you do not want by name in `config.exclude.invariants` and re-scaffold;
-  deleting the file only lasts until the next refresh (see below).
+  deleting the file only lasts until the next refresh (see below). Some arrive with every
+  project (from `common`); others arrive only when a stack's evidence is detected — e.g. the
+  concrete changelog-file convention ships with the `changelog` stack, not always-on.
 - **`.claude/settings.json` and `.mcp.json`** — hooks and MCP servers were wired in. If your repo
   already had these files, check the merge.
 - **The printed plugin-setup commands** — these were *not* run. Run them yourself, or re-scaffold

@@ -3,8 +3,8 @@
 Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. Stdlib-only except two declared dependencies (engine/requirements.txt): jsonschema is required — validation refuses rather than silently passing — and pyyaml is optional, guarded, and degrades to a printed note. Two .mjs helper scripts under skills/maintain-agent-instructions/.
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
-> Stacks: python, js, github, claude, hermes, ts, node
-> Scaffolded by ai-badger 0.45.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
+> Stacks: python, js, github, claude, hermes, ts, node, changelog
+> Scaffolded by ai-badger 0.46.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
 ## Non-negotiable invariants
 
@@ -46,6 +46,10 @@ Commit one coherent work package at a time and push often. Open a draft PR from 
 ### TDD is mandatory
 
 Write a failing, behavior-focused test before any production code change. No production code without a test that demanded it — implementation follows the test, never the other way around.
+
+### Releases are traceable
+
+Every release records the version it went out at and what changed in it, using whatever version marker and release notes this project already keeps. Do not invent a versioning scheme or a release-notes tree for a project that has none — if there is no release process here, there is nothing to record.
 
 ### Always bump VERSION and add changelog entry
 

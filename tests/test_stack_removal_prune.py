@@ -176,3 +176,69 @@ class TestTheReScaffoldPrunesTheOrphan:
         manifest = json.loads((target / ".ai-badger" / "manifest.json").read_text(
             encoding="utf-8"))
         assert [e for e in manifest["entries"] if e.get("stack") == "ts"] == []
+
+
+def _inject_entry(target, entry):
+    """Append `entry` to the on-disk manifest a prior run left, as if that run had placed it."""
+    manifest_path = target / ".ai-badger" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["entries"].append(entry)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+class TestTheFrameworkDroppedTheItem:
+    """A manifest entry whose catalog `source` no longer exists: the framework moved the
+    item, not the project — distinct from a stack leaving `config.stacks` (#130)."""
+
+    def test_a_copy_whose_catalog_source_is_gone_is_removed(self, load_script, make_scaffolder):
+        bl = load_script("engine/badger_lib.py")
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python"]))
+        gone = target / ".ai-badger" / "invariants" / "gone.md"
+        gone.write_text("# Gone\n\nNo longer in the catalog.\n", encoding="utf-8")
+        _inject_entry(target, _entry(
+            "common", "features/common/invariants/gone.md", ".ai-badger/invariants/gone.md",
+            entry_hash=bl.sha256_file(gone), feature="invariants", name="gone"))
+
+        _, result = _scaffolded(make_scaffolder, _config(stacks=["python"]))
+
+        assert not gone.exists()
+        assert any("no longer in the framework catalog" in n for n in result["notes"])
+
+    def test_an_edited_copy_of_a_dropped_item_is_left_in_place(self, load_script, make_scaffolder):
+        bl = load_script("engine/badger_lib.py")
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python"]))
+        gone = target / ".ai-badger" / "invariants" / "gone.md"
+        gone.write_text("# Gone\n\nNo longer in the catalog.\n", encoding="utf-8")
+        _inject_entry(target, _entry(
+            "common", "features/common/invariants/gone.md", ".ai-badger/invariants/gone.md",
+            entry_hash=bl.sha256_file(gone), feature="invariants", name="gone"))
+        gone.write_text("# Gone\n\nEdited by the project.\n", encoding="utf-8")
+
+        _, result = _scaffolded(make_scaffolder, _config(stacks=["python"]))
+
+        assert gone.read_text(encoding="utf-8") == "# Gone\n\nEdited by the project.\n"
+        assert any("edited" in n for n in result["notes"])
+
+    def test_an_item_still_in_the_catalog_is_never_pruned(self, make_scaffolder):
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python"]))
+
+        _, result = _scaffolded(make_scaffolder, _config(stacks=["python"]))
+
+        assert (target / ".ai-badger" / "invariants" / "tdd-mandatory.md").is_file()
+        assert not [n for n in result["notes"] if "no longer in the framework catalog" in n]
+
+    def test_a_template_whose_source_is_gone_is_not_reported_as_edited(self, make_scaffolder):
+        """`templates`/`adjustments` record the SOURCE hash, not the target's (scaffold.py's
+        `record`) — unscoped, a vanished source would always mismatch and misreport an
+        untouched CLAUDE.md as edited here."""
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python"]))
+        _inject_entry(target, _entry(
+            "common", "features/common/templates/gone.md.tmpl", "CLAUDE.md",
+            entry_hash="deadbeef", feature="templates", name="templates/gone.md.tmpl"))
+
+        _, result = _scaffolded(make_scaffolder, _config(stacks=["python"]))
+
+        assert not [n for n in result["notes"]
+                   if "CLAUDE.md" in n and ("no longer in the framework catalog" in n
+                                            or "was edited here" in n)]
+        assert (target / "CLAUDE.md").is_file()

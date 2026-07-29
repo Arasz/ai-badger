@@ -1,0 +1,5 @@
+{
+  "name": "changelog",
+  "description": "Releases are recorded one file per version under docs/changelog/, alongside a VERSION file at the repo root.",
+  "detectionSignals": ["docs/changelog/*.md"]
+}

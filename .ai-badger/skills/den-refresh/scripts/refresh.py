@@ -208,12 +208,9 @@ def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
     """
     scaffold_mod = _load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py", root)
 
-    # Manifest skill entries include per-file `<skill>/extensions/<file>` rows; those are
-    # provenance for a skill already named here, not skills the Scaffolder can resolve.
-    scaffolded = [e["name"] for e in manifest.get("entries", [])
-                  if e.get("feature") == "skills" and "/" not in e["name"]]
     skill_names = list(dict.fromkeys(
-        scaffolded + bl.default_skills_in(root / "features" / "common" / "skills")
+        bl.scaffolded_skill_names(manifest)
+        + bl.default_skills_in(root / "features" / "common" / "skills")
     ))
 
     scaf = scaffold_mod.Scaffolder(
@@ -229,17 +226,18 @@ def re_scaffold(root: Path, target: Path, config: Dict[str, Any],
     }
 
 
-def relink_hermes_skills(root: Path, target: Path, config: Dict[str, Any]) -> List[str]:
+def relink_hermes_skills(root: Path, target: Path, config: Dict[str, Any]) -> Dict[str, List[str]]:
     """Re-link the project's skills into ~/.hermes/skills/<project>/ after a refresh.
 
     Reads the skill names from disk so added skills are linked and removed ones are dropped;
-    a no-op unless hermes is a configured agent.
+    a no-op unless hermes is a configured agent. Returns {"created": [...], "removed": [...]}.
     """
+    no_op: Dict[str, List[str]] = {"created": [], "removed": []}
     if "hermes" not in config.get("agents", []):
-        return []
+        return no_op
     skills_dir = target / ".ai-badger" / "skills"
     if not skills_dir.is_dir():
-        return []
+        return no_op
     names = sorted(p.name for p in skills_dir.iterdir() if p.is_dir())
     scaffold_mod = _load_script(
         "features/common/skills/welcome-ai-badger/scripts/scaffold.py", root
@@ -279,6 +277,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="Delete ~/.ai-badger/framework, the clone ai-badger makes when it "
                              "has no other root and never updates in place. Default reports it "
                              "and deletes nothing. Claude Code's plugin cache is never touched.")
+    parser.add_argument("--force", action="store_true",
+                        help="Re-scaffold even when no drift signal fired. The documented "
+                             "recovery path for a scaffold/config disagreement no signal "
+                             "models yet — stays inside den-refresh instead of calling "
+                             "scaffold.py by hand.")
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve() if args.root else bl.find_root()
@@ -341,11 +344,12 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     has_drift = bool(drift_result.get("changed") or drift_result.get("removed")
                      or drift_result.get("orphaned") or drift_result.get("newItems")
-                     or drift_result.get("versionChanged") or new_stacks)
+                     or drift_result.get("versionChanged") or drift_result.get("configChanged")
+                     or new_stacks)
 
-    # 7. Re-scaffold if drift detected (or breaking change forces full re-scaffold)
+    # 7. Re-scaffold if drift detected, a breaking change forces it, or --force was asked for
     scaffold_result = None
-    if has_drift or breaking_result["isBreaking"]:
+    if has_drift or breaking_result["isBreaking"] or args.force:
         scaffold_result = re_scaffold(root, target, config, manifest,
                                        generated_at=args.generated_at)
 
@@ -377,17 +381,22 @@ def main(argv: Optional[List[str]] = None) -> int:
             "skipped": drift_result.get("skipped", []),
             "locallyModified": drift_result.get("locallyModified", []),
             "versionChanged": drift_result.get("versionChanged"),
+            "configChanged": drift_result.get("configChanged"),
             "invalid": drift_result.get("invalid", 0),
             "newItems": drift_result.get("newItems", []),
         },
         "newStacks": new_stacks,
-        "reScaffolded": has_drift or breaking_result["isBreaking"],
+        # Derived, never recomputed: a second copy of the gate condition can disagree with
+        # the gate, and did — reporting a re-scaffold that never ran.
+        "reScaffolded": scaffold_result is not None,
     }
+    if args.force:
+        report["forced"] = True
     if report_note:
         report["note"] = report_note
     if scaffold_result:
         report["scaffold"] = scaffold_result
-    if hermes_links:
+    if hermes_links["created"] or hermes_links["removed"]:
         report["hermesSkillLinks"] = hermes_links
     copies = report_framework_copies(root, args.prune_cache)
     if copies:

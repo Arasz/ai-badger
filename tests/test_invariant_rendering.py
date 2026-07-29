@@ -62,3 +62,20 @@ def test_every_invariant_source_leads_with_a_single_h1(root):
         f"invariant sources must start with '# ': {offenders}. "
         "Mixed levels render unevenly once embedded under '## Non-negotiable invariants'."
     )
+
+
+def test_no_common_invariant_asserts_a_repo_file_layout(root):
+    """`common` invariants must hold for every project; a literal path is ai-badger's own
+    layout, not a fact about the target repo (docs/authoring-a-feature.md's generalization
+    test). Concrete conventions belong behind an evidence-gated stack instead."""
+    tokens = ("docs/changelog", "CHANGELOG.md", "`VERSION`")
+    offenders = {}
+    for path in sorted(root.glob("features/common/invariants/*.md")):
+        text = path.read_text(encoding="utf-8")
+        hits = [t for t in tokens if t in text]
+        if hits:
+            offenders[path.name] = hits
+    assert not offenders, (
+        f"a common invariant names a project-specific path: {offenders}. "
+        "Move it behind an evidence-gated stack (see docs/authoring-a-feature.md)."
+    )
