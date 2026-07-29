@@ -77,8 +77,11 @@ cluster of related steps (amortises the cold start), and use `/rewind` rather th
 backtrack within a task (rewind reuses the cached prefix; compact pays for a fresh summary
 write). Compact only at task boundaries (Phase 0). `token-usage.json` records a main-session
 `cacheEfficiency` (cache_read ÷ (cache_read + cache_creation)); a low ratio means the prefix is
-churning. Per-subagent cache split isn't available — the completion notification exposes only
-`total_tokens`.
+churning. A **main-vs-sidechain** split is available and cheap — `parse_transcript_usage`
+already reads each message's `cache_read_input_tokens` and branches on `isSidechain`. A
+**per-subagent** split is not: attributing a sidechain message to the dispatch that produced it
+means chasing `parentUuid` through the transcript, which nothing here implements, and the
+completion notification itself exposes only `total_tokens`.
 
 **If you cannot spawn subagents** (you are running as a subagent yourself, or the Agent tool is
 unavailable), do the work directly in-session at whatever model is available — the workflow's

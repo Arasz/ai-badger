@@ -59,6 +59,26 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\""
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\""
+          }
+        ]
+      }
     ]
   }
 }

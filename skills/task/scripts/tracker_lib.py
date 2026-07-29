@@ -377,9 +377,11 @@ def compute_usage(start_cp: dict, finish_cp: dict, subagents: list) -> dict:
     cache_read_d = delta("cacheReadTokens")
     cache_creation_d = delta("cacheCreationTokens")
     # Main-session cache health: fraction of cacheable input served from cache (~0.1x) vs.
-    # freshly written (~1.25x). None when nothing cacheable ran. Subagent caches are separate
-    # and their split isn't exposed to the orchestrator (only totalTokens), so this is
-    # main-session only.
+    # freshly written (~1.25x). None when nothing cacheable ran. Main-session only because the
+    # deltas above come from checkpoints, whose `cumulative` sums sidechains in; a
+    # main-vs-sidechain split is available from parse_transcript_usage (it branches on
+    # isSidechain already), but a per-subagent one is not — that needs parentUuid attribution
+    # nothing here implements, and the completion notification carries only totalTokens.
     cacheable = cache_read_d + cache_creation_d
     cache_efficiency = round(cache_read_d / cacheable, 3) if cacheable else None
     return {

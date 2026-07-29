@@ -123,6 +123,21 @@ class TestExemptionReasonsAreMeaningful:
         for reason in per_agent.values():
             assert "claude" in reason.lower()
 
+    def test_task_checkpoint_exemptions_name_the_claude_only_machinery_they_depend_on(
+        self, load_script
+    ):
+        """Both checkpoint entries read and write the /task skill's tracked-task ledger, which
+        only session-start-tracking (itself Claude-only) ever populates. The reason has to say
+        so, not merely assert Claude-onlyness."""
+        validate = load_script("tooling/validate.py")
+        for hook in ("task-checkpoint", "task-checkpoint-session-end"):
+            per_agent = validate.HOOKS_MANIFEST_AGENT_EXEMPTIONS[hook]
+            assert set(per_agent) == {"hermes", "copilot"}, hook
+            for agent, reason in per_agent.items():
+                assert "session-start-tracking" in reason or "transcript" in reason, (
+                    f"{hook}/{agent}: {reason!r}"
+                )
+
     def test_prompt_markers_exemption_is_framed_as_an_acknowledged_gap_not_a_design_limit(
         self, load_script
     ):
