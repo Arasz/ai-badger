@@ -194,3 +194,22 @@ def test_junie_adjustment_is_registered(root):
 
     assert manifest["agent"] == "junie"
     assert any(a["script"] == "adjust_skills.py" for a in manifest["adjustments"])
+
+
+def test_unrelated_third_party_skills_survive(tmp_path, load_script, root):
+    """A hand-made skill the project owns must survive an ordinary re-scaffold.
+
+    The prune path is the one that deletes, and it is only safe because of the ownership
+    check. Without a foreign entry whose name is *not* in the delivered set, every other
+    test short-circuits before reaching that check.
+    """
+    adjust_skills = load_script(SCRIPT)
+    target = _project(tmp_path)
+    foreign = target / ".junie" / "skills" / "explore-codebase"
+    foreign.mkdir(parents=True)
+    (foreign / "SKILL.md").write_text("# code-review-graph\n", encoding="utf-8")
+
+    adjust_skills.adjust(_context(root, target))
+
+    assert foreign.is_dir() and not foreign.is_symlink()
+    assert (foreign / "SKILL.md").read_text(encoding="utf-8") == "# code-review-graph\n"

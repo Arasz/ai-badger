@@ -373,7 +373,7 @@ next scaffold or refresh puts it back. The supported way to say no is a line in
 - **What an exclusion does.** Neither `welcome-ai-badger` nor `den-refresh` delivers the item
   again, an excluded invariant stops being rendered into `CLAUDE.md`, and the discovery symlinks
   ai-badger placed for an excluded skill (`.claude/skills/`, `.github/skills/`,
-  `~/.hermes/skills/<project>/`) are removed. Its hooks are not wired, and one an earlier run
+  `.junie/skills/`, `~/.hermes/skills/<project>/`) are removed. Its hooks are not wired, and one an earlier run
   already put in `.claude/settings.json` is taken out again. An excluded `*.md` item that a
   previous run copied under `.ai-badger/` is deleted — unless you edited it, in which case it is
   yours and the scaffold says so.
