@@ -13,8 +13,9 @@ _MIN_TOKEN_LEN = 2
 _FOLD_SUFFIXES = ("ing", "ed", "es", "s")
 _FOLD_MIN_REMAINDER = 3
 
-# ~80 common English function words. Not a stemmer's stopword list — just words
-# frequent enough in natural-language queries to add no retrieval signal.
+# Common English function words, frequent enough in natural-language queries to add no
+# retrieval signal — not a stemmer's stopword list. STOPWORD_COUNT must equal len(STOPWORDS).
+STOPWORD_COUNT = 109
 STOPWORDS = frozenset({
     "a", "an", "the", "and", "or", "but", "if", "then", "else", "of", "to", "in",
     "on", "at", "by", "for", "with", "from", "as", "is", "are", "was", "were",

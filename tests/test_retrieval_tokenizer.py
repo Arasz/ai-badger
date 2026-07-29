@@ -80,3 +80,9 @@ def test_suffix_folding_strips_exactly_three_char_remainder_s(load_script):
 def test_tokenize_empty_string(load_script):
     tokenizer = load_script("features/common/retrieval/tokenizer.py")
     assert tokenizer.tokenize("") == []
+
+
+def test_stopword_count_matches_documented_count(load_script):
+    """STOPWORD_COUNT documents len(STOPWORDS); pins them together (issue #156)."""
+    tokenizer = load_script("features/common/retrieval/tokenizer.py")
+    assert tokenizer.STOPWORD_COUNT == len(tokenizer.STOPWORDS)
