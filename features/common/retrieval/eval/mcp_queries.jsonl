@@ -7,7 +7,7 @@
 {"query": "find the symbol at this cursor position", "expect": ["rider:get_symbol_info"]}
 {"query": "search for a class or method by name", "expect": ["rider:search_symbol"]}
 {"query": "search project files for a text substring", "expect": ["rider:search_text"]}
-{"query": "search using a regex pattern across files", "expect": ["rider:search_regex"]}
+{"query": "search using a regex pattern across files", "expect": ["rider:search_regex", "rider:search_in_files_by_regex"]}
 {"query": "find files matching a glob pattern", "expect": ["rider:find_files_by_glob", "rider:search_file"]}
 {"query": "rename this variable everywhere it's used", "expect": ["rider:rename_refactoring"]}
 {"query": "move this type to another namespace", "expect": ["rider:move_type_to_namespace"]}
