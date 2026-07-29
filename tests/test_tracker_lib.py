@@ -803,3 +803,58 @@ def test_over_budget_docs_ignores_files_that_do_not_exist(load_script, tmp_path)
     tl = _load(load_script, tmp_path)
 
     assert tl.over_budget_docs() == []
+
+
+# ---------------------------------------------------------------------------
+# doc_budget — the budget a project can raise, because it does not author the
+# content being measured (the generated agent files are rendered by scaffold)
+# ---------------------------------------------------------------------------
+
+def _write_config(tl, payload):
+    tl.CONFIG_JSON.parent.mkdir(parents=True, exist_ok=True)
+    tl.CONFIG_JSON.write_text(payload, encoding="utf-8")
+
+
+def test_doc_budget_falls_back_to_the_constants_without_config(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+
+    assert tl.doc_budget() == (tl.CLAUDE_MD_MAX_CHARS, tl.CLAUDE_MD_MAX_LINES)
+
+
+def test_doc_budget_reads_an_override_from_config(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    _write_config(tl, json.dumps({"agentDocs": {"maxChars": 20000, "maxLines": 200}}))
+
+    assert tl.doc_budget() == (20000, 200)
+
+
+def test_an_override_lifts_a_file_that_was_over_budget(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    tl.CLAUDE_MD.write_text("x\n" * (tl.CLAUDE_MD_MAX_LINES + 14), encoding="utf-8")
+    assert tl.over_budget_docs(), "fixture must start over the default budget"
+
+    _write_config(tl, json.dumps({"agentDocs": {"maxLines": 200}}))
+
+    assert tl.over_budget_docs() == []
+    assert tl.claude_md_stats()["maxLines"] == 200
+
+
+def test_a_partial_override_keeps_the_other_default(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    _write_config(tl, json.dumps({"agentDocs": {"maxLines": 200}}))
+
+    assert tl.doc_budget() == (tl.CLAUDE_MD_MAX_CHARS, 200)
+
+
+def test_a_malformed_override_does_not_silently_disable_the_gate(load_script, tmp_path):
+    """A typo must fail safe. Silently unlimited is the one outcome worse than too strict."""
+    for payload in ('{"agentDocs": {"maxLines": "lots"}}',
+                    '{"agentDocs": {"maxLines": 0}}',
+                    '{"agentDocs": {"maxLines": -1}}',
+                    '{"agentDocs": []}',
+                    '{"agentDocs": null}',
+                    "not json at all"):
+        tl = _load(load_script, tmp_path)
+        _write_config(tl, payload)
+
+        assert tl.doc_budget() == (tl.CLAUDE_MD_MAX_CHARS, tl.CLAUDE_MD_MAX_LINES), payload

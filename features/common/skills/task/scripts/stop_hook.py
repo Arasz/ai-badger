@@ -96,7 +96,11 @@ def main() -> int:
                         f"{len(over)} agent instruction file(s) over the size budget "
                         f"({over[0]['maxChars']} chars / {over[0]['maxLines']} lines): {listed}. "
                         "Compact them: drop anything derivable from code/git/docs — per-task "
-                        "state belongs in .ai-badger/state.json, not here."
+                        "state belongs in .ai-badger/state.json, not here. These files are "
+                        "generated, so edits to them are lost on the next re-scaffold: shorten "
+                        "the source in .ai-badger/, decline catalog items via exclude in "
+                        "config.json, or raise the budget there with "
+                        '"agentDocs": {"maxChars": N, "maxLines": N}.'
                     )
 
         if tasks_dirty:
