@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/brand/proposal-a-circuit-badger.svg" width="128" alt="ai-badger">
+  <img src="docs/brand/logo.svg" width="128" alt="ai-badger">
 </p>
 
 # ai-badger
@@ -218,17 +218,11 @@ python3 -m pip install -r engine/requirements.txt   # jsonschema
 
 ## Logo
 
-Three propositions are on the table and **none has been chosen yet** — the mark at the top of this
-file is proposition A, standing in until someone picks. All three are hand-drawn SVG, so no
-third-party image licence is attached to any of them.
-
-| A — Circuit Badger | B — Terminal Badger | C — Glyph Badger |
-|---|---|---|
-| <img src="docs/brand/proposal-a-circuit-badger.svg" width="110" alt="Circuit Badger"> | <img src="docs/brand/proposal-b-terminal-badger.svg" width="110" alt="Terminal Badger"> | <img src="docs/brand/proposal-c-glyph-badger.svg" width="110" alt="Glyph Badger"> |
-| The stripes are circuit traces — badger and technology in one mark. | The badger peeks over a terminal, paws on the edge: "digs into your repo", drawn. | Flat geometry with a neural chain down the blaze; still legible at 16 px. |
-
-[`docs/brand/`](docs/brand/README.md) has the trade-offs, the usage rules, and what still needs
-doing once a direction is picked.
+The mark at the top of this file is a badger whose stripes are circuit traces, peeking over a
+terminal with its paws on the edge — the name and the "digs into your repo" line, drawn. It is
+hand-authored SVG, so no third-party image licence attaches to it.
+[`docs/brand/`](docs/brand/README.md) has the palette, the usage rules, and the variants not yet
+drawn.
 
 ## Contributing
 
