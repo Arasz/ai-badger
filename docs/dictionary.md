@@ -6,11 +6,11 @@ How ai-badger's concepts map to each supported agent's native terminology.
 
 | ai-badger | Claude Code | Hermes Agent | GitHub Copilot | JetBrains Junie |
 |---|---|---|---|---|
-| **Skill** (in-repo, `SKILL.md`) | Plugin skill | Skill (`~/.hermes/skills/`) | `.github/skills/*/SKILL.md` | N/A (inline instructions) |
+| **Skill** (in-repo, `SKILL.md`) | Plugin skill | Skill (`~/.hermes/skills/`) | `.github/skills/*/SKILL.md` | `.junie/skills/<name>/SKILL.md` (project scope; `description` optional, falls back to first body paragraph) |
 | **External skill** (`skills.json`) | Plugin from marketplace | Hub skill / tap skill / URL skill | N/A | N/A |
 | **Skill source** (`skills-source.json`) | Plugin marketplace | Skills Hub / GitHub tap / well-known endpoint | N/A | N/A |
 | **Skill installation** (`plugins-instructions.json`) | `claude plugin install` | `hermes skills install` / `hermes skills tap add` | N/A | N/A |
-| **Skill scope** (`skillScope`) | `default` / `local` / `user` | Profile-level (`~/.hermes/skills/`) or external dir | N/A | N/A |
+| **Skill scope** (`skillScope`) | `default` / `local` / `user` | Profile-level (`~/.hermes/skills/`) or external dir | N/A | Project (`.junie/skills/`) + user (`~/.junie/skills/`); project wins on a name collision |
 | **Skill extension** (`<skill>/extensions/<name>/`) | Plugin override | Skill patch | N/A | N/A |
 
 ## Hooks

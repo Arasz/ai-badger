@@ -251,8 +251,9 @@
         },
         "skills": {
           "supported": true,
-          "mechanism": "SKILL.md format",
-          "aiBadgerSupport": true
+          "mechanism": ".junie/skills/<name>/SKILL.md (project scope; ~/.junie/skills/ user scope, not scaffolded); project wins on a name collision; description is optional and falls back to the first body paragraph",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "junie/adjustments/adjust_skills.py — symlinks into .junie/skills/"
         },
         "customAgents": {
           "supported": false,
