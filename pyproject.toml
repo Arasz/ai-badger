@@ -162,4 +162,13 @@ do_not_mutate_patterns = [
     # Module-level docs/ and docs/adr/ citations inside comments (e.g. "see docs/adr/0012"):
     # prose pointing a reader elsewhere, not a value anything computes from.
     '#.*\bdocs/',
+    # One confirmed-equivalent mutant, not a category: mcp_matcher.build_corpus replaces
+    # ":" with " " before tokenizing a tool's full name. tokenizer._SPLIT_RE
+    # (r"[^a-z0-9]+") already treats ":" as a separator on its own, so mutating the
+    # replaced/replacement string here changes no observable output for any input. A
+    # `# pragma: no mutate` trailing comment can't reach this line — it sits inside a
+    # multi-line fuse_document([...]) call, and mutmut's CST pragma scan only recognizes
+    # a trailing comment on a statement's own line, not one nested inside a call's
+    # argument list (verified against mutmut.mutation.pragma_handling directly).
+    'full_name\.replace\(":", " "\)',
 ]
