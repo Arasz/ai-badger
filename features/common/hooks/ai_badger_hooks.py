@@ -159,6 +159,29 @@ except RuntimeError:  # a hook degrades to silence; it never breaks a session
     FRAMEWORK_ROOT = None
 
 
+def _copy_skew_refusal() -> Optional[str]:
+    """Why these copies must not run, or None. Warns in passing when the skew is not material.
+
+    Shape D only: any other deployment has no installer record beside this file, so
+    `badger_lib.copy_skew` returns OK and this costs one missing-file stat.
+    """
+    if FRAMEWORK_ROOT is None:
+        return None
+    try:
+        import badger_lib as bl  # pylint: disable=import-outside-toplevel  # needs the bootstrap
+        verdict, message = bl.copy_skew(Path(__file__).resolve().parent, FRAMEWORK_ROOT)
+    except (ImportError, OSError, ValueError):
+        return None  # a staleness check never decides whether the plugin loads
+    if verdict == bl.COPY_SKEW_REFUSE:
+        return message
+    if verdict == bl.COPY_SKEW_WARN:
+        print(f"ai-badger: {message}", file=sys.stderr)
+    return None
+
+
+COPY_SKEW_REFUSAL: Optional[str] = _copy_skew_refusal()
+
+
 # ---------------------------------------------------------------------------
 # Drift notice — equivalent to Claude's SessionStart drift_notice_hook.py
 # ---------------------------------------------------------------------------
@@ -683,7 +706,14 @@ def register(ctx: Any) -> None:
     The `ctx` object provides ctx.register_hook(name, callback).
     All callbacks accept **kwargs for forward compatibility — new
     parameters added in future Hermes versions won't break this plugin.
+
+    Stale copies register nothing: the plugin still loads, so the session is unaffected, and
+    the agent runs with ai-badger's hooks absent rather than wrong.
     """
+    if COPY_SKEW_REFUSAL:
+        print(f"ai-badger: hooks not registered — {COPY_SKEW_REFUSAL}", file=sys.stderr)
+        logger.warning("ai-badger hooks not registered: %s", COPY_SKEW_REFUSAL)
+        return
     ctx.register_hook("on_session_start", on_session_start_drift_notice)
     ctx.register_hook("pre_llm_call", pre_llm_inject_context)
     ctx.register_hook("post_tool_call", post_tool_observer)

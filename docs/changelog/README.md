@@ -17,6 +17,7 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
+| 0.44.0 | [Shape D refuses to run stale plugin copies](0.44.0-shape-d-refuses-stale-copies.md) |
 | 0.43.1 | [an agent is a catalog stack too](0.43.1-an-agent-is-a-catalog-stack-too.md) |
 | 0.43.0 | [the delegations nothing called](0.43.0-the-delegations-nothing-called.md) |
 | 0.42.0 | [drift sees a subtraction](0.42.0-drift-sees-a-subtraction.md) |

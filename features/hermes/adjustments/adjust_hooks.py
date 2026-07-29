@@ -30,16 +30,21 @@ def _shared_skill_module_src(framework_root: Path, skill_name: str, filename: st
 
 
 def _record_framework_root(plugins_dir: Path, framework_root: Path) -> None:
-    """Record where these copies came from, beside them and outside any repo.
+    """Record where these copies came from and at which version, beside them and outside any repo.
 
     ~/.hermes/plugins/ has no framework above it, so only a recorded pointer can answer it —
-    and it must be one no cloned repo can write (ADR-0009 decision 6).
+    and it must be one no cloned repo can write (ADR-0009 decision 6). The version stamps the
+    copies so a later run can tell they have gone stale against a root that moved on.
     """
+    root = Path(framework_root).resolve()
+    record = {"frameworkRoot": str(root)}
+    try:
+        record["copiedFromVersion"] = (root / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        pass  # an unreadable VERSION leaves the copies unjudged, never unwritten
     manifest = plugins_dir / ".ai-badger" / "manifest.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
-    manifest.write_text(
-        json.dumps({"frameworkRoot": str(Path(framework_root).resolve())}, indent=2) + "\n",
-        encoding="utf-8")
+    manifest.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
 
 
 def _install_user_plugins(hooks_dir: Path, framework_root: Path) -> List[str]:
