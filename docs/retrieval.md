@@ -265,8 +265,7 @@ with 40 of 43 fixtures at 0.50 or above. The fixtures are written in the vocabul
 documents they are meant to find, by the same person who wrote those documents.
 
 **So we wrote the harder set, and it moved the answer from "no headroom" to "we were measuring
-the wrong thing."** Broken out by class, the collapse is not uniform — it is entirely about
-vocabulary:
+the wrong thing."** Broken out by class, the collapse is not uniform:
 
 | Class | recall@1 | recall@3 | mean overlap |
 |---|---|---|---|
@@ -282,8 +281,49 @@ question that shares no words with the answer:
 > The tool is `rider:rename_refactoring`, whose document says "rename", "refactoring", "symbol".
 
 Zero of seventeen paraphrases retrieved anything at rank 3. That is not a tuning problem, and no
-weight sweep or threshold change will touch it — the terms are not in the corpus. It points at
-vocabulary: synonyms, query expansion, or a second non-lexical signal.
+weight sweep or threshold change will touch it — the terms are not in the corpus.
+
+### It looked like a vocabulary problem. It is an answerability problem.
+
+The obvious reading of the table above is that the matcher lacks vocabulary, and the obvious fix
+is to supply some: synonyms, query expansion, or a semantic signal that does not care about
+words at all. All three were measured. The reading is wrong.
+
+Sentence embeddings do close the vocabulary gap, and by a lot. Ranked without the gate, a 7.6 MB
+static embedding table takes recall@3 from 0.481 to **0.731** and the paraphrase class from 0.000
+to **0.47**; a BM25-plus-cosine hybrid reaches 0.750. It retrieves `rider:rename_refactoring` for
+the "swap in a new label" query above. Capacity is not the constraint either — the 7.6 MB static
+table matches a 33 M-parameter contextual encoder, because a document here is a median of nine
+tokens and there is little for a bigger model to use.
+
+Then the gate takes it all back. Sweeping ~1,000 operating points per model, the best setting
+that does not raise the false-fire rate returns the paraphrase class to **0.000–0.059**. Buying
+paraphrase@3 of 0.47 costs firing on 93% of the easy set's negatives.
+
+The reason is the finding, and it is not about words:
+
+> **Every one of the 17 paraphrase positives scores at or below the best adjacent negative** —
+> for a static encoder and a contextual one alike. Ranked by semantic similarity, the area under
+> the curve for separating "paraphrase we should answer" from "adjacent query we must not" is
+> **0.196** for one model and **0.520** for another: no better than chance, and for one of them
+> actively inverted.
+
+*"which routines have grown way past a reasonable length"* is answerable — `find_large_functions`
+exists. *"profile this code to find performance bottlenecks"* is not — no profiler is in this
+index. The two sit at the same distance from a corpus of developer tools, because they are about
+equally *similar* to it. Nothing in a similarity function encodes which of them the index can
+serve, since that is a fact about the index's contents rather than about the language.
+
+So the gap is **answerability**, not vocabulary. That is worth stating plainly because it
+redirects the work: a better similarity signal — any of them — improves ranking among things
+worth returning, and does nothing for the decision of whether to return anything at all. The gate
+is doing that job on a scalar that provably cannot separate the two classes here.
+
+And the tempting shortcut is a trap. Fitting a probe on our own 43 easy positives reaches
+**recall@1 of 1.000** in-sample, and **0.070–0.256** under leave-one-out — worse than the
+untrained baseline on the hard set. With ~100 documents and ~900 content tokens in total, a
+"perfect matcher" trained on our own descriptions is memorising the vocabulary of whoever wrote
+them, which is the exact bias the hard set exists to expose.
 
 The honest summary is that **the first fixture set was measuring the matcher's strongest case and
 reporting it as the whole picture.** The saturation was real; the conclusion drawn from it —
