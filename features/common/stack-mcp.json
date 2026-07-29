@@ -1,0 +1,10 @@
+{
+  "$schema": "../../schemas/stack-mcp.schema.json",
+  "servers": [
+    {
+      "name": "code-review-graph",
+      "command": "python3 -m code_review_graph serve",
+      "declare": true
+    }
+  ]
+}

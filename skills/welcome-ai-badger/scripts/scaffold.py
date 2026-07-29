@@ -860,7 +860,7 @@ class Scaffolder:
         self._outside_project("hermes skill symlinks", self.symlink_hermes_skills)
         self.scaffold_agent_instructions()
         self.scaffold_templates()
-        self.mcp.fill_merged_external_tools()
+        self.mcp.fill_instruction_sources()
         doc = self.rendering.assemble_instructions_doc(invariants, instr_paths)
         self.agent_files.write_agent_files(doc, instr_paths, invariants)
         self._record_progress("agent-files")

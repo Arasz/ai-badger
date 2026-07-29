@@ -42,6 +42,8 @@ SCHEMA_INSTANCES = {
     "plugins-instructions.schema.json": ["features/*/plugins-instructions.json"],
     "mcp-servers.schema.json": ["features/*/mcp-servers.json"],
     "stack-mcp.schema.json": ["features/*/stack-mcp.json"],
+    "mcp-server.schema.json": ["features/*/mcp/*/meta.json"],
+    "mcp-server-tools.schema.json": ["features/*/mcp/*/tools.json"],
     "external-tools.schema.json": ["features/*/external-tools.json"],
     "stack.schema.json": ["features/*/stack.json"],
     "dependencies.schema.json": ["features/*/dependencies.json"],

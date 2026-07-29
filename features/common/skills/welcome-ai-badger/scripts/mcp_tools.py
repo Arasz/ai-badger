@@ -112,6 +112,74 @@ class McpTools:
                 result.append(srv)
         return result
 
+    # -- the mcp catalog ---------------------------------------------------------------
+
+    def collect_catalog_mcp_servers(self) -> List[Dict[str, Any]]:
+        """Read stack-mcp.json from features/common/ and each active stack.
+
+        Same merge as :meth:`collect_stack_mcp_servers` — common first, then stacks in config
+        order, last writer wins on name.
+        """
+        result = []  # type: List[Dict[str, Any]]
+        for stack in self.ctx.stacks:
+            path = self.ctx.root / "features" / stack / "stack-mcp.json"
+            if not path.exists():
+                continue
+            try:
+                data = _json.loads(path.read_text(encoding="utf-8"))
+            except (ValueError, OSError) as exc:
+                self.ctx.notes.append(
+                    f"features/{stack}/stack-mcp.json is unreadable "
+                    f"({type(exc).__name__}) — its entries were not scaffolded"
+                )
+                continue
+            for srv in data.get("servers", []):
+                result = [s for s in result if s.get("name") != srv.get("name")]
+                result.append(srv)
+        return result
+
+    def _server_instructions(self, name: str) -> str:
+        """`server.md` for a catalog server, found through the index, or '' when there is none."""
+        import badger_lib as bl
+
+        for stack in self.ctx.stacks:
+            for item in bl.feature_items(self.ctx.index, stack, "mcp"):
+                if item.get("name") != name:
+                    continue
+                doc = self.ctx.root / item.get("path", "") / "server.md"
+                if doc.is_file():
+                    return doc.read_text(encoding="utf-8")
+                return ""
+        return ""
+
+    def fill_mcp_described(self) -> None:
+        """Fill ``ctx.mcp_described`` once: each declared server plus its ``server.md`` prose.
+
+        A declaration naming no catalog directory is reported rather than silently dropped —
+        the name is the join between the two files and a typo in it is invisible otherwise.
+        """
+        if self.ctx.mcp_described_filled:
+            return
+        described = []  # type: List[Dict[str, Any]]
+        for srv in self.collect_catalog_mcp_servers():
+            name = srv.get("name")
+            instructions = self._server_instructions(name) if name else ""
+            if not instructions:
+                self.ctx.notes.append(
+                    f"stack-mcp.json declares '{name}', which names no mcp catalog entry with a "
+                    f"server.md — no instructions were injected for it"
+                )
+            entry = dict(srv)
+            entry["instructions"] = instructions
+            described.append(entry)
+        self.ctx.mcp_described = described
+        self.ctx.mcp_described_filled = True
+
+    def fill_instruction_sources(self) -> None:
+        """Fill both instruction caches the document slots read — catalog and legacy."""
+        self.fill_merged_external_tools()
+        self.fill_mcp_described()
+
     def collect_external_tools(self) -> List[Dict[str, Any]]:
         """Read external-tools.json from features/common/ and each active stack.
 
