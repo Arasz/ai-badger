@@ -255,6 +255,18 @@ def _deps_guard(work: Path, provoked: bool) -> Outcome:
     return _run_gate("gates/deps_guard.py", "--root", str(root))
 
 
+# --------------------------------------------------------------- gates/shipped_paths_guard.py
+
+
+def _shipped_paths_guard(work: Path, provoked: bool) -> Outcome:
+    """A tracked file outside docs/ and tests/ carrying a real machine-specific path."""
+    repo = _repo(work / "repo")
+    value = "/Users/arasz/RiderProjects/ai-badger" if provoked else "${CLAUDE_PROJECT_DIR}"
+    _write(repo / ".mcp.json", f'{{"cwd": "{value}"}}\n')
+    _commit(repo, "mcp config")
+    return _run_gate("gates/shipped_paths_guard.py", "--root", str(repo))
+
+
 # ------------------------------------------------------------------- gates/tdd_guard.py
 
 
@@ -487,6 +499,9 @@ REGISTRY: Tuple[Provocation, ...] = (
                 Signal(exit_code=1, contains="no row in docs/changelog/README.md")),
     Provocation("gates/deps_guard.py", "an import no requirements file declares",
                 _deps_guard, Signal(exit_code=1, contains="undeclared third-party import")),
+    Provocation("gates/shipped_paths_guard.py", "a tracked file carrying a real machine path",
+                _shipped_paths_guard,
+                Signal(exit_code=1, contains="machine-specific absolute path")),
     Provocation("gates/tdd_guard.py", "shipped code changed with no test change",
                 _tdd_guard, Signal(exit_code=1, contains="Write the failing test first")),
     Provocation("tooling/index_build.py --check", "a feature added after index.json was built",
