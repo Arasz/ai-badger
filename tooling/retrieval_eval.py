@@ -153,7 +153,7 @@ def _coverage_margin(
         terms = tokenize(fixture["query"])
         if not terms:
             continue
-        ranked = corpus.rank(terms)
+        ranked = corpus.rank(terms, coverage_cap=mcp_matcher.COVERAGE_TERM_CAP)
         gated = [r for r in ranked if r.matched_terms >= 1 and r.coverage >= threshold]
         top = gated[:top_n]
         expect = fixture.get("expect", [])
