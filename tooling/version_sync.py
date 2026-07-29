@@ -27,6 +27,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
+# Its own directory too: `index_build` is a sibling, and a bare import of one resolves only
+# when something else has already put `tooling/` on the path. Running the script does that
+# implicitly; importing it does not.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import badger_lib as bl
 import index_build
 
