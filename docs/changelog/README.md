@@ -17,7 +17,7 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
-| 0.50.0 | [context-enrichment reaches Claude and Copilot, unconditionally](0.50.0-context-enrichment-reaches-claude-and-copilot.md) |
+| 0.50.0 | [context-enrichment reaches Claude and Copilot, unconditionally](0.50.0-context-enrichment-reaches-claude-and-copilot.md) · [the gap is answerability, not vocabulary](0.50.0-the-gap-is-answerability-not-vocabulary.md) |
 | 0.49.0 | [a harder retrieval fixture set, and a runner to measure it](0.49.0-a-harder-retrieval-fixture-set-and-a-runner-to-measure-it.md) · [the easy fixtures were hiding the answer](0.49.0-the-easy-fixtures-were-hiding-the-answer.md) |
 | 0.48.0 | [a Copilot hook event stops overwriting its neighbour](0.48.0-a-copilot-hook-event-stops-overwriting-its-neighbour.md) · [the MCP tool index becomes JSON, and the hook stops importing yaml](0.48.0-mcp-tools-json.md) · [the Claude hook wiring stops adopting a neighbour's script](0.48.0-the-claude-hook-wiring-stops-adopting-a-neighbours-script.md) · [the BM25 coverage tie-break's direction is now tested](0.48.0-bm25-coverage-tie-break-direction-is-now-tested.md) · [how retrieval works, written down](0.48.0-how-retrieval-works-written-down.md) |
 | 0.47.0 | [the scaffold detects itself](0.47.0-the-scaffold-detects-itself.md) · [Junie can finally see the skills ai-badger claimed to give it](0.47.0-junie-can-see-skills.md) · [retrieval tells you what it did, and a redact switch for the query](0.47.0-retrieval-tells-you-what-it-did.md) · [the MCP recommender ranks by BM25, and its accuracy can now fail a test](0.47.0-retrieval-that-can-fail.md) · [a missing package stops taking four hooks with it](0.47.0-a-missing-package-stops-taking-four-hooks-with-it.md) |
