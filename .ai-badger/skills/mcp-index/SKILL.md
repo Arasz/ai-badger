@@ -33,7 +33,7 @@ Manage `.ai-badger/mcp-tools.json` — a machine-readable index that maps every 
 
 MCP servers expose 40+ tools per server. Agents scan ALL tool definitions in the system prompt, wasting tokens and sometimes picking the wrong tool (e.g., `search_text` when `search_in_files_by_text` is faster). The index solves this by:
 
-1. **Tagging** each tool with category labels (`[dotnet, build]`, `[database, sql]`, `[diagnostic]`)
+1. **Tagging** each tool with category labels (`[build]`, `[database, sql]`, `[diagnostic]`)
 2. **Intent description** for semantic disambiguation ("Compile the solution" vs "List project run configs")
 3. **Hook-driven recommendation** — the `pre_llm_call` hook loads the index, extracts domain keywords from the user's message, and injects top-N matching tools as a context hint
 
@@ -142,14 +142,19 @@ intents the legacy file had; `.ai-badger/mcp-tools.yaml.migrated` exists.
 
 ## Auto-tagging Heuristics
 
+A name substring may infer an *action*; it must never guess a *technology* (issue #171 found
+`build` implying `dotnet`, and `log` matching inside `dialog` to imply `opentelemetry`). Only a
+tight, unambiguous alias earns a technology tag.
+
 | Tool name pattern | Assigned tags |
 |---|---|
-| Contains `sql`, `database`, `schema`, `db` | `[database, sql]` |
-| Contains `build`, `solution` | `[dotnet, build]` |
+| Contains `database`, `schema`, `db` | `[database]` |
+| Contains `sql` | `[database, sql]` |
+| Contains `build` | `[build]` |
 | Contains `search`, `find` | `[search]` |
 | Contains `symbol` | `[semantic, search]` |
 | Contains `problem`, `error`, `diagnostic` | `[diagnostic]` |
-| Contains `span`, `trace`, `log`, `service` | `[tracing, opentelemetry]` |
+| Contains `span`, `otel`, or the compound `service_map` | `[tracing, opentelemetry]` |
 | Contains `browser`, `navigate`, `screenshot` | `[browser]` |
 | Contains `run`, `execute` | `[run]` |
 | Contains `refactor`, `rename`, `reformat` | `[refactoring]` |

@@ -54,6 +54,9 @@ def _mock_mcp_list_json() -> str:
                     {"name": "get_services", "description": "List OTel services"},
                     {"name": "get_spans", "description": "Query tracing spans"},
                     {"name": "weird_unknown_tool", "description": "Does something obscure"},
+                    {"name": "get_solution_projects", "description": "List projects in the solution"},
+                    {"name": "list_database_connections", "description": "List configured DB connections"},
+                    {"name": "get_log_records", "description": "Fetch IDE log records"},
                 ],
             },
             {
@@ -62,6 +65,15 @@ def _mock_mcp_list_json() -> str:
                 "tools": [
                     {"name": "browser_navigate", "description": "Navigate to a URL"},
                     {"name": "browser_snapshot", "description": "Capture page snapshot"},
+                    {"name": "browser_handle_dialog", "description": "Accept or dismiss a dialog"},
+                ],
+            },
+            {
+                "name": "code-review-graph",
+                "enabled": True,
+                "tools": [
+                    {"name": "build_or_update_graph_tool",
+                     "description": "Build or update the knowledge graph for this repo"},
                 ],
             },
         ],
@@ -95,10 +107,10 @@ def test_init_creates_index(tmp_path, load_script):
 
     index = _read_index(tmp_path)
     assert index["version"] == "0.1.0"
-    assert len(index["sources"]) == 2
+    assert len(index["sources"]) == 3
 
     rider = next(s for s in index["sources"] if s["name"] == "rider")
-    assert len(rider["tools"]) == 7
+    assert len(rider["tools"]) == 10
 
 
 def test_init_auto_tags_known_tools(tmp_path, load_script):
@@ -110,9 +122,9 @@ def test_init_auto_tags_known_tools(tmp_path, load_script):
     index = _read_index(tmp_path)
     rider = next(s for s in index["sources"] if s["name"] == "rider")
 
-    # build_solution → [dotnet, build] (name contains "build" + "solution")
-    assert "dotnet" in rider["tools"]["build_solution"]["tags"]
+    # build_solution → [build] (name contains "build"; no technology guessed — issue #171)
     assert "build" in rider["tools"]["build_solution"]["tags"]
+    assert "dotnet" not in rider["tools"]["build_solution"]["tags"]
 
     # get_file_problems → [diagnostic] (name contains "problem")
     assert "diagnostic" in rider["tools"]["get_file_problems"]["tags"]
@@ -121,7 +133,7 @@ def test_init_auto_tags_known_tools(tmp_path, load_script):
     assert "search" in rider["tools"]["search_symbol"]["tags"]
     assert "semantic" in rider["tools"]["search_symbol"]["tags"]
 
-    # execute_sql_query → [database, sql] (name contains "sql")
+    # execute_sql_query → [database, sql] (name contains "sql", a tight alias)
     assert "database" in rider["tools"]["execute_sql_query"]["tags"]
     assert "sql" in rider["tools"]["execute_sql_query"]["tags"]
 
@@ -129,6 +141,54 @@ def test_init_auto_tags_known_tools(tmp_path, load_script):
     pw = next(s for s in index["sources"] if s["name"] == "playwright")
     assert "browser" in pw["tools"]["browser_navigate"]["tags"]
     assert "navigation" in pw["tools"]["browser_navigate"]["tags"]
+
+
+def test_init_auto_tags_do_not_infer_technology_from_name_substrings(tmp_path, load_script):
+    """issue #171: a name substring may tell you an *action*, never a *technology*.
+
+    Each case here previously got a technology tag it does not deserve, and each is a real
+    tool name from this repo's own index (see the PR description for the before/after diff).
+    """
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    rc = mod.main(["init", "--target", str(tmp_path), "--from-json", _mock_mcp_list_json()])
+    assert rc == 0
+    index = _read_index(tmp_path)
+    rider = next(s for s in index["sources"] if s["name"] == "rider")
+    crg = next(s for s in index["sources"] if s["name"] == "code-review-graph")
+    pw = next(s for s in index["sources"] if s["name"] == "playwright")
+
+    # A knowledge-graph builder for Python/JS is not .NET just because its name contains "build".
+    graph_tags = crg["tools"]["build_or_update_graph_tool"]["tags"]
+    assert "build" in graph_tags
+    assert "dotnet" not in graph_tags
+
+    # Listing a solution's projects doesn't build anything, and isn't dotnet-specific either.
+    solution_tags = rider["tools"]["get_solution_projects"]["tags"]
+    assert "build" not in solution_tags
+    assert "dotnet" not in solution_tags
+
+    # Rider's database tool covers more than SQL engines; "database" substrings alone must not
+    # imply the "sql" language tag — only a literal "sql" in the name earns it.
+    db_tags = rider["tools"]["list_database_connections"]["tags"]
+    assert "database" in db_tags
+    assert "sql" not in db_tags
+
+    # "log" inside a name is not OpenTelemetry — it misfired on this repo's own
+    # playwright:browser_handle_dialog ("log" inside "dialog") and rider:get_log_records.
+    dialog_tags = pw["tools"]["browser_handle_dialog"]["tags"]
+    assert "opentelemetry" not in dialog_tags
+    assert "tracing" not in dialog_tags
+    assert "browser" in dialog_tags  # the server-level rule is unaffected
+
+    log_tags = rider["tools"]["get_log_records"]["tags"]
+    assert "opentelemetry" not in log_tags
+    assert "tracing" not in log_tags
+
+    # A bare "service" is too generic to mean OpenTelemetry (a DI service, a web service, ...);
+    # "span" and the "service_map" compound are precise enough to keep.
+    assert "opentelemetry" not in rider["tools"]["get_services"]["tags"]
+    assert "opentelemetry" in rider["tools"]["get_spans"]["tags"]
+    assert "tracing" in rider["tools"]["get_spans"]["tags"]
 
 
 def test_init_fallback_to_general(tmp_path, load_script):
@@ -162,7 +222,7 @@ def test_init_overwrites_existing(tmp_path, load_script):
 
     index = _read_index(tmp_path)
     assert index["version"] == "0.1.0"
-    assert len(index["sources"]) == 2
+    assert len(index["sources"]) == 3
 
 
 # ── validate ───────────────────────────────────────────────────────────────

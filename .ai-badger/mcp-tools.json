@@ -7,8 +7,7 @@
       "tools": {
         "build_or_update_graph_tool": {
           "tags": [
-            "build",
-            "dotnet"
+            "build"
           ],
           "intent": "Build or incrementally update the code knowledge graph"
         },
@@ -369,8 +368,7 @@
         },
         "get_solution_projects": {
           "tags": [
-            "build",
-            "dotnet"
+            "read"
           ],
           "intent": "List all projects in the currently opened solution"
         },
@@ -398,29 +396,25 @@
         },
         "list_database_connections": {
           "tags": [
-            "database",
-            "sql"
+            "database"
           ],
           "intent": "Retrieves a list of configured database connections or data sources"
         },
         "list_database_schemas": {
           "tags": [
-            "database",
-            "sql"
+            "database"
           ],
           "intent": "Retrieves a list of database schemas in the specified database connection"
         },
         "list_schema_objects": {
           "tags": [
-            "database",
-            "sql"
+            "database"
           ],
           "intent": "Retrieves a list of database objects within the given schema"
         },
         "get_database_object_description": {
           "tags": [
-            "database",
-            "sql"
+            "database"
           ],
           "intent": "Retrieves the structure of a database object"
         },
@@ -433,8 +427,7 @@
         },
         "list_schema_object_kinds": {
           "tags": [
-            "database",
-            "sql"
+            "database"
           ],
           "intent": "Retrieves supported schema object kinds for a connection"
         },
@@ -461,6 +454,7 @@
         },
         "get_log_records": {
           "tags": [
+            "diagnostic",
             "opentelemetry",
             "tracing"
           ],
@@ -598,9 +592,7 @@
         },
         "browser_handle_dialog": {
           "tags": [
-            "browser",
-            "opentelemetry",
-            "tracing"
+            "browser"
           ],
           "intent": "Handle a dialog"
         },
