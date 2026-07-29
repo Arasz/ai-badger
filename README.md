@@ -80,7 +80,8 @@ native terminology, or [`docs/changelog/`](docs/changelog/) for version history.
 ## The 3-layer model: `features/{stack | common}/{feature}`
 
 Everything in the catalog is filed under a **stack** (a technology) and a **feature** (a kind
-of asset: `personas`, `invariants`, `instructions`, `skills`, `hooks`, `adjustments`, `templates`).
+of asset: `personas`, `invariants`, `instructions`, `skills`, `hooks`, `adjustments`, `templates`,
+`mcp`).
 
 ```
 features/<stack>/<feature>/<item>
@@ -97,6 +98,10 @@ features/<stack>/<feature>/<item>
 - **hooks** — Claude Code and Hermes Agent hook scripts at `features/common/hooks/` with a
   `hooks-manifest.json` mapping hooks to agents.
 - **adjustments** — per-agent scaffold adjustments at `features/{agent}/adjustments/`.
+- **mcp** — one directory per MCP server at `features/{stack}/mcp/{server}/`, each carrying a
+  `meta.json`. What a server is *for* travels with the catalog whatever route the server itself
+  arrived by; `features/{stack}/stack-mcp.json` separately declares the ones ai-badger may
+  launch (see [ADR-0014](docs/adr/0014-mcp-support-is-configuration-not-retrieval.md)).
 
 A script-generated `index.json` at the repo root scans this tree and is the single source of
 truth the scaffolder and feed tooling read — see
