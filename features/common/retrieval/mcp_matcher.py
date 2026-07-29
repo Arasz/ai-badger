@@ -27,11 +27,13 @@ INTENT_WEIGHT = 1.0
 
 # Derived by sweeping this module's coverage gate against
 # features/common/retrieval/eval/mcp_queries.jsonl over the real
-# .ai-badger/mcp-tools.yaml corpus in this repo (98 tools) — see the PR for the
+# .ai-badger/mcp-tools.yaml corpus in this repo (98 tools) — see docs/adr/0012 for the
 # sweep table. NOT the 0.30 value from the skill-index spec: that was derived on
 # a 13-document corpus, and IDF behaves differently at this corpus size. 0.21 is
-# where zero-result-on-positives first goes above 0 on this fixture set, so 0.20
-# is the highest value with a safety margin against that hard-fail bar.
+# where zero-result-on-positives first goes above 0 on this fixture set, so 0.20 is
+# the highest value that keeps it at 0 — a 0.009 margin, not a comfortable one: the
+# tightest true positive and a false fire on this fixture set sit at the same coverage
+# (0.2089) to four decimal places.
 DEFAULT_COVERAGE_THRESHOLD = 0.20
 TOP_N = 3
 

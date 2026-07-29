@@ -16,7 +16,6 @@ tests/test_mcp_matcher.py — this file only covers the hook's wiring to it.
 from __future__ import annotations
 
 import sys
-import types
 from pathlib import Path
 
 import pytest

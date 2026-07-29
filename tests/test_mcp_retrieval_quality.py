@@ -14,6 +14,11 @@ Bars sit with margin around measured performance on this fixture set
 than at the skill-index spec's own numbers, which were derived on a different,
 13-document corpus — copying them here would repeat exactly the mistake the
 task calls out for the coverage threshold itself.
+
+This suite is coupled to the live `.ai-badger/mcp-tools.yaml` in this repo, not a frozen
+fixture: adding or removing an MCP server shifts all four metrics (the corpus size changes
+every IDF), and false-fire (0.267 measured against a 0.30 bar) has the least headroom of
+the four — the first one worth checking if this suite starts failing after an index change.
 """
 # pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations

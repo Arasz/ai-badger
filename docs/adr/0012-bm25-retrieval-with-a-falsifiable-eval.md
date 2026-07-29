@@ -18,10 +18,17 @@ scoring ever ran. Measured on 15 realistic queries against this repo's real
 `"refresh ai-badger"`, `"scaffold this repo"`, `"start task 12"`, `"take a screenshot of the
 page"`, `"navigate the browser to a url"`, `"what's in the architecture overview"`, `"fill out
 the signup form"` — and the substring test fired `typescript` inside *tests* and `log` inside
-*login* (see the PR for the reproduction script and full output). Four of those eight are
-genuinely outside the MCP corpus's domain and stay negative under the new matcher too; the other
-four are real tools the old gate never reached because it bailed out before intent-word overlap
-ever ran.
+*login* (see the PR for the reproduction script and full output). Of those eight, **two**
+(`"commit and push"`, `"refresh ai-badger"`) are genuinely outside the MCP corpus's domain and
+stay negative under the new matcher too; **four** (the screenshot, browser-navigate,
+architecture-overview, and signup-form queries) are real tools the old gate never reached because
+it bailed out before intent-word overlap ever ran, and the new matcher recovers them cleanly. The
+remaining **two** (`"scaffold this repo"`, `"start task 12"`) do not stay negative, but they also
+aren't recoveries: the new matcher now fires on them, on the wrong tool
+(`code-review-graph:list_repos_tool` and `code-review-graph:get_minimal_context_tool`
+respectively) — a false-fire the coverage gate lets through on a single shared content word
+(`repo`, `task`). "No longer silent" and "recovered" are not the same claim, and this ADR keeps
+them distinct rather than letting the second borrow the first's credibility.
 
 Two further things about ADR-0004 turned out not to hold up:
 
@@ -74,13 +81,28 @@ differently at that size. Sweeping thresholds against
 |---|---|---|---|---|
 | 0.05 – 0.205 | 1.000 | 0.907 | 0.267 | 0/43 |
 | 0.21 – 0.22 | 0.977 | 0.884 | 0.200 | 1/43 |
+| 0.23 – 0.24 | 0.977 | 0.884 | 0.133 | 1/43 |
 | 0.25 – 0.28 | 0.953 | 0.860 | 0.133 | 2/43 |
 | 0.30 – 0.35 | 0.953 | 0.860–0.884 | 0.067 | 2/43 |
-| 0.40 | 0.837 | 0.814 | 0.067 | 5/43 |
+| 0.39 – 0.405 | 0.837 | 0.814 | 0.067 | 5/43 |
+
+An earlier version of this table had a `0.40` row carrying the last line's numbers; re-run
+independently, threshold `0.40` reproduces identically to `0.39` (both give 0.837/0.814/0.067,
+5/43) — the row's numbers were real, but its label wasn't the whole story. The next break, to
+0.814/0.814/0.067 at 6/43, does not arrive until ~0.41, past this sweep's granularity.
 
 Zero-result-on-positive is treated as a hard constraint (it is the old matcher's defining bug),
-so the threshold is chosen from the range that keeps it at 0, with margin against the 0.21
-cliff: **`DEFAULT_COVERAGE_THRESHOLD = 0.20`** in `mcp_matcher.py`.
+so the threshold is chosen from the range that keeps it at 0. The 0.21–0.24 band already gets
+false-fire under 0.15 (0.133) — better than this section used to claim was reachable — but at
+the cost of exactly one zero-result positive, which is disqualifying under the hard constraint
+above. **`DEFAULT_COVERAGE_THRESHOLD = 0.20`**, the highest value in `mcp_matcher.py` that still
+keeps zero-result-on-positive at 0, is chosen instead. The margin between 0.20 and the 0.21 point
+where that constraint first breaks is **0.009** — not the comfortable cushion "safety margin"
+implies. The tightest true positive at this threshold, `"rename this variable everywhere it's
+used"` (coverage 0.2089), and a false fire, `"how many days until new year"` (coverage 0.2089),
+sit at the *same* coverage value to four decimal places; 0.20 separates them only because BM25
+scores don't tie in the fifth digit, not because of any margin the two queries' content actually
+supports. `mcp_matcher.py`'s own comment is corrected to match.
 
 **A finding worth recording plainly: false-fire does not fall below ~0.13–0.27 anywhere
 zero-result-on-positive stays at 0, on this fixture set.** Inspecting the false fires shows why —
@@ -90,9 +112,16 @@ get non-trivial coverage from that single term, because BM25's idf does not grow
 relative to a query's other, wholly-absent terms to suppress it. The skill-index spec names this
 exact tradeoff (§3 Phase 3): *"Requiring ≥2 terms gives a clean negative sheet but loses three
 legitimate short queries; recommendations are advisory, so favour recall."* This ADR makes the
-same choice for the same reason. The false-fire bar below is therefore set from this corpus's own
-measurement, not copied from the skill-index spec's 11%/15% figures — copying it would repeat
-exactly the mistake this ADR just corrected for the coverage threshold itself.
+same choice for the same reason, though at a different price on this corpus: requiring
+`matched_terms >= 2` here measures at false-fire 0.000, recall 0.977, top-1 0.884, and exactly
+one zero-result positive (the same `"rename this variable everywhere it's used"` query above,
+whose only matched term is a single word) — not three lost queries, one. Favouring recall was
+still the right call: that one query has a real, single-word-match answer that `>= 2` throws
+away outright, and the corpus is small enough that a human or agent can absorb one occasional
+irrelevant suggestion more easily than a real tool going permanently unfindable. The false-fire
+bar below is therefore set from this corpus's own measurement, not copied from the skill-index
+spec's 11%/15% figures — copying it would repeat exactly the mistake this ADR just corrected for
+the coverage threshold itself.
 
 ### 3. The eval harness is the deliverable ADR-0004 never had
 
@@ -140,17 +169,20 @@ remaining argument for YAML, and the costs were already on record:
 its premise no longer holds is a stronger record than one made because it turned out expensive,
 which is why this section leads with the withdrawal rather than the cost list.
 
-**Scope decision for this PR: the import is guarded now; the format migration is deferred.**
+**Scope decision for this PR: the import is guarded here too; the format migration is deferred.**
 `import yaml` in `ai_badger_hooks.py` is changed to a guarded `try/except ImportError` (matching
-the existing `debug_log` pattern), so an absent pyyaml degrades `_load_mcp_index` to `None`
-instead of taking the module down — issue #136's actual failure mode is fixed in this PR. The
-larger migration — a dual-format reader so an existing project's `mcp-tools.yaml` is never
-stranded, `mcp_index.py`'s `_write_index` emitting JSON, a `mcp-index migrate` command, and
-`tooling/validate.py`'s exemption removed — is **not** done here: this PR's primary deliverable
-is the matcher and its eval harness, and folding a format migration into it would risk both. This
-is recorded as a decided-but-not-yet-implemented gap, not a silent omission: **issue #136 stays
-open**, retitled to track the JSON migration specifically, and whoever picks it up should read
-this section first.
+the existing `debug_log` pattern) as part of this PR's own changes to that file, so an absent
+pyyaml degrades `_load_mcp_index` to `None` instead of taking the module down. The guard for
+issue #136 itself shipped separately, as its own dedicated PR (**#142**), which closes #136 on
+the import guard specifically — this PR's guard lands the same fix incidentally, because it
+already touches the same import. The larger migration — a dual-format reader so an existing
+project's `mcp-tools.yaml` is never stranded, `mcp_index.py`'s `_write_index` emitting JSON, a
+`mcp-index migrate` command, and `tooling/validate.py`'s exemption removed — is **not** done
+here: this PR's primary deliverable is the matcher and its eval harness, and folding a format
+migration into it would risk both. This is recorded as a decided-but-not-yet-implemented gap, not
+a silent omission: **issue #145** tracks the JSON migration specifically, filed fresh rather than
+retitling #136 — #136 is scoped to the import guard and is closed by #142, not by this decision —
+and whoever picks up the migration should read this section first.
 
 ### 5. Embeddings remain rejected (re-affirms B, with evidence)
 
@@ -176,8 +208,8 @@ by what was actually measured here, not by re-citing the original argument.
 - False-fire (26.7%) is higher than the skill-index spec's own figure on a different corpus
   (11%). This is disclosed above as a real, measured property of short queries against a 98-tool
   lexical corpus, not hidden behind a borrowed number.
-- The JSON migration is decided but not implemented; `mcp-tools.yaml` and its unexempted-in-name
-  YAML validation gap persist until that follow-up lands.
+- The JSON migration is decided but not implemented (tracked in #145); `mcp-tools.yaml` and its
+  unexempted-in-name YAML validation gap persist until that follow-up lands.
 - Fixtures are author-written, biasing all four eval numbers upward until real usage (via the
   debug log, per the skill-index spec's Phase 0) supplies independent queries.
 
@@ -185,7 +217,8 @@ by what was actually measured here, not by re-citing the original argument.
 
 - `features/common/retrieval/eval/mcp_queries.jsonl` — the fixture set
 - `tests/test_mcp_retrieval_quality.py` — the four gated metrics
-- Issue #136 — `import yaml` unguarded (fixed here) / JSON migration (deferred, retitled)
+- Issue #136 — `import yaml` unguarded; also guarded here, closed by the dedicated #142
+- Issue #145 — the JSON migration this ADR decides and defers, not yet implemented
 - The skill discovery/measurement/retrieval-index spec (§2 D5, §3 Phase 3) supplied to this PR's
   author — not tracked in this repo, but the source of the threshold-re-derivation and
   false-fire/recall tradeoff reasoning this ADR follows
