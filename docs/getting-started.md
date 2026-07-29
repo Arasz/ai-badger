@@ -465,7 +465,8 @@ python3 "$AI_BADGER/features/common/skills/den-refresh/scripts/refresh.py" --tar
 
 Runs drift detection, backs up `.ai-badger/` to `.ai-badger.bckp`, re-scaffolds from your existing
 `config.json` — no re-detection, no questions — and prints a JSON report (`frameworkVersion`,
-`drift.changed`, `drift.removed`, `newStacks`, `reScaffolded`, `scaffold`). Seed-once files
+`drift.changed`, `drift.removed`, `newStacks` (advisory, never gates the re-scaffold),
+`reScaffolded`, `scaffold`). Seed-once files
 (`state.json`, `markers-context.json`, `model.json`) survive. Review `git diff` before committing.
 Why this is a separate skill rather than a mode of `welcome-ai-badger`:
 [ADR-0002](adr/0002-den-refresh-skill.md). Versions that *require* a re-scaffold are listed in
@@ -560,18 +561,6 @@ index.json is missing or stale — run index_build.py
 Expected, not an error. `auto-wm` lives under `features/claude/skills/`, and the scaffold only
 resolves the stacks in your config plus `common` — `claude` is an agent, not a stack. `auto-wm`
 reaches you through the Claude Code plugin, not through `.ai-badger/skills/`.
-
-### `den-refresh` reports `newStacks: ["claude", "hermes", …]` right after a scaffold
-
-The scaffold's own output is a detection signal: a root `CLAUDE.md` means the `claude` stack,
-`.hermes.md` means `hermes`. Suppress the false positives with a project-owned
-`.ai-badger/stack-ignore.json`:
-
-```json
-{ "ignore": ["claude", "hermes"] }
-```
-
-It is never overwritten by a re-scaffold.
 
 ### `can't open file '.../skills/welcome-ai-badger/scripts/detect.py'`
 
