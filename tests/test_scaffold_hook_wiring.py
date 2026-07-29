@@ -175,8 +175,19 @@ def test_wired_hook_commands_carry_no_absolute_checkout_path(tmp_path, root, mak
         assert "CLAUDE_PROJECT_DIR" in cmd, cmd
 
 
+def _commands_by_event(settings: dict) -> dict:
+    return {event: [h.get("command", "") for entry in event_hooks
+                    for h in entry.get("hooks", [])]
+            for event, event_hooks in settings.get("hooks", {}).items()}
+
+
 def test_wiring_from_a_second_checkout_does_not_append_a_duplicate(tmp_path, make_scaffolder):
-    """The same project scaffolded from two checkouts must leave one command per hook."""
+    """The same project scaffolded from two checkouts must leave one command per hook.
+
+    Uniqueness is per event, not global: since #141 `stop_hook.py` is deliberately wired on
+    both `Stop` and `SessionEnd`, so the same command string appearing twice across events is
+    the feature, and only a repeat *within* one event is the duplication this pins.
+    """
     first = tmp_path / "main-checkout"
     second = tmp_path / "worktree-checkout"
 
@@ -185,9 +196,10 @@ def test_wiring_from_a_second_checkout_does_not_append_a_duplicate(tmp_path, mak
     (second / ".claude" / "settings.json").write_text(
         json.dumps(first_settings), encoding="utf-8")
 
-    commands = _all_commands(_scaffold(make_scaffolder, second))
-    assert len(commands) == len(set(commands)), commands
-    assert len(commands) == len(_all_commands(first_settings)), commands
+    by_event = _commands_by_event(_scaffold(make_scaffolder, second))
+    for event, commands in by_event.items():
+        assert len(commands) == len(set(commands)), (event, commands)
+    assert by_event == _commands_by_event(first_settings)
 
 
 def test_merge_collapses_a_pre_existing_absolute_command(load_script):

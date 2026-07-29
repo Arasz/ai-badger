@@ -61,7 +61,8 @@ SCHEMAS_WITHOUT_LOCAL_INSTANCES = {
 
 # Agents capable of every hook event family this framework wires: SessionStart/on_session_start/
 # sessionStart, UserPromptSubmit/pre_llm_call/userPromptSubmitted, PostToolUse-PreToolUse/
-# post_tool_call-pre_tool_call/postToolUse-preToolUse (docs/dictionary.md "Hooks"). A hooks-
+# post_tool_call-pre_tool_call/postToolUse-preToolUse, and Stop-SessionEnd/on_session_end/
+# agentStop-sessionEnd (docs/dictionary.md "Hooks"). A hooks-
 # manifest.json entry missing one of these must say why (see HOOKS_MANIFEST_AGENT_EXEMPTIONS)
 # instead of silently never reaching it — issue #147 was the third occurrence of exactly that.
 HOOK_CAPABLE_AGENTS = ("claude", "hermes", "copilot")
@@ -87,6 +88,26 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                   "analogue to wire onto.",
         "copilot": "Claude-only by design, same reasoning as the hermes exemption above: "
                    "nothing here maps onto a Copilot concept either.",
+    },
+    "task-checkpoint": {
+        "hermes": "Claude-only for the same reason session-start-tracking is: the tracked-task "
+                  "record this hook refreshes only ever exists because session-start-tracking "
+                  "wrote a Claude session id onto it, and the numbers come from parsing that "
+                  "session's Claude transcript JSONL, which Hermes does not produce. Wired onto "
+                  "on_session_end it would match no task and measure nothing.",
+        "copilot": "Claude-only, same reasoning as the hermes exemption above, plus a second "
+                   "wall: Copilot has an agentStop event but keeps its usage in "
+                   "~/.copilot/session-store.db rather than a transcript JSONL, and its hook "
+                   "protocol has no block-with-reason channel for the enforcement half to use.",
+    },
+    "task-checkpoint-session-end": {
+        "hermes": "Inherits the task-checkpoint exemption verbatim — same script, same "
+                  "Claude-only tracked-task ledger and transcript JSONL, only a different "
+                  "event. Hermes' on_session_end carries completed/interrupted booleans and "
+                  "neither a session id nor a transcript path to checkpoint from.",
+        "copilot": "Inherits the task-checkpoint exemption verbatim — same script, same "
+                   "Claude-only tracked-task ledger and transcript JSONL. Copilot's sessionEnd "
+                   "would fire correctly and find nothing to write.",
     },
     "prompt-markers": {
         "hermes": "Acknowledged gap, not a design limit: marker detection (h:/f:/e:) has no "

@@ -17,6 +17,20 @@
       }
     },
     {
+      "name": "task-checkpoint",
+      "description": "Checkpoint a tracked task's token usage at the end of every assistant turn, and block once when a finished task left state.json or the agent docs unattended",
+      "agents": {
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "Stop", "script": "stop_hook.py" }
+      }
+    },
+    {
+      "name": "task-checkpoint-session-end",
+      "description": "Flush the tracked task's token checkpoint when the session ends, catching the interrupted final turn Stop never fires for",
+      "agents": {
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "SessionEnd", "script": "stop_hook.py" }
+      }
+    },
+    {
       "name": "context-enrichment",
       "description": "Inject framework context, including MCP tool recommendations, into every LLM turn",
       "agents": {

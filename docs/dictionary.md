@@ -21,7 +21,14 @@ How ai-badger's concepts map to each supported agent's native terminology.
 | **Session start hook** | `SessionStart` event | `on_session_start` plugin hook | `sessionStart` event | N/A |
 | **Context injection** | `UserPromptSubmit` event | `pre_llm_call` plugin hook | `userPromptSubmitted` event | N/A |
 | **Tool call hook** | `PostToolUse` / `PreToolUse` | `post_tool_call` / `pre_tool_call` | `postToolUse` / `preToolUse` | N/A |
+| **Turn stop hook** | `Stop` event | `on_session_end` (session-scoped, not per-turn) | `agentStop` event | N/A |
+| **Session end hook** | `SessionEnd` event | `on_session_end` plugin hook | `sessionEnd` event | N/A |
 | **Hooks manifest** (`hooks-manifest.json`) | Inline in `hooks.json` | Plugin `register()` function | Copilot entries in manifest → `adjust_hooks.py` | N/A |
+
+Only Claude Code's `Stop` reaches the model: its stdout is read as
+`{"decision": "block", "reason": "..."}` and by no other route. `SessionEnd` has no decision
+control and its JSON output is ignored, so anything wired there must be disk-side work only —
+which is why ai-badger runs the same script on both events and lets it block on one of them.
 
 A Copilot hook entry accepts both `bash` and `powershell`, but Copilot's cloud agent runs in a
 Linux sandbox and honours only `bash` — which is why `adjust_hooks.py` emits `bash` alone and
