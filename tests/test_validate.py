@@ -166,3 +166,12 @@ def test_every_schema_has_a_coverage_decision(root, load_script):
     decided = set(validate.SCHEMA_INSTANCES) | set(validate.SCHEMAS_WITHOUT_LOCAL_INSTANCES)
 
     assert shipped == decided
+
+
+def test_mcp_tools_exemption_reason_is_honest_not_that_the_format_is_yaml(root, load_script):
+    """mcp-tools.json is JSON now (issue #145) — the exemption is "consumer-owned", like
+    config/manifest/learned-skills, not "the instance is YAML"."""
+    validate = load_script("tooling/validate.py")
+    reason = validate.SCHEMAS_WITHOUT_LOCAL_INSTANCES["mcp-tools.schema.json"]
+    assert "yaml" not in reason.lower()
+    assert "instances live in consumer projects" in reason

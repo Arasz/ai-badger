@@ -12,7 +12,6 @@ import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 HOOKS_PATH = ROOT / "features" / "common" / "hooks" / "ai_badger_hooks.py"
@@ -46,14 +45,14 @@ def _scaffolded_project(tmp_path: Path, framework_version: str = "0.0.1") -> Pat
 
 
 def _with_index(project: Path) -> Path:
-    (project / ".ai-badger" / "mcp-tools.yaml").write_text(yaml.dump({
+    (project / ".ai-badger" / "mcp-tools.json").write_text(json.dumps({
         "version": "0.1.0",
         "sources": [{
             "name": "rider",
             "tools": {"build_solution": {"tags": ["dotnet", "build"],
                                          "intent": "Compile the solution"}},
         }],
-    }, sort_keys=False), encoding="utf-8")
+    }), encoding="utf-8")
     return project
 
 

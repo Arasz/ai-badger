@@ -218,6 +218,10 @@ def detect_new_stacks(target: Path, root: Path,
     Reuses detect.py's detection logic against the framework index, then returns
     only stacks that are in the index but not in the project's current config.
     Stacks in the ignore list are excluded from results.
+
+    `config_stacks` must be `badger_lib.delivering_stacks(config)`, not `config.get("stacks")`
+    alone — an agent name is a catalog stack too (see `is_orphaned`), and a caller that passes
+    `config.stacks` reports every configured agent as a false-positive new stack (#134).
     """
     index_path = root / "index.json"
     if not index_path.exists():
@@ -360,6 +364,26 @@ def _config_drift(target: Optional[Path],
     return {"recorded": recorded, "current": current}
 
 
+def _mcp_index_migration_note(target: Optional[Path]) -> Optional[str]:
+    """Note a not-yet-migrated legacy mcp-tools.yaml — never converted here (issue #145).
+
+    `.ai-badger/mcp-tools.yaml`/`.json` is project-owned, same precedent as a config edit
+    being drift rather than silence (0.46.0): silently rewriting it during a refresh is
+    exactly what the seed-once machinery exists to prevent. Silent once the JSON file
+    exists, whichever produced it.
+    """
+    if target is None:
+        return None
+    aib = target / ".ai-badger"
+    if (aib / "mcp-tools.json").exists() or not (aib / "mcp-tools.yaml").exists():
+        return None
+    return (
+        "mcp-tools.yaml is a legacy MCP tool index — run `mcp-index migrate` (or any "
+        "mcp-index write command) to convert it to mcp-tools.json. den-refresh does not "
+        "convert it: the index is project-owned."
+    )
+
+
 def compare(root: Path, manifest: Dict[str, Any],
             stacks: Optional[List[str]] = None,
             target: Optional[Path] = None,
@@ -421,6 +445,9 @@ def compare(root: Path, manifest: Dict[str, Any],
             continue
         if bl.sha256_file(source) != entry_hash:
             changed.append(source_rel)
+    mcp_note = _mcp_index_migration_note(target)
+    if mcp_note:
+        notes.append(mcp_note)
     # De-duplicated: adjustments record one entry per written file, all naming one source
     # script, so a single upstream edit would otherwise print the same line ten times.
     result = {

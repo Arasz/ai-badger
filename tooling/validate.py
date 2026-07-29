@@ -55,7 +55,7 @@ SCHEMAS_WITHOUT_LOCAL_INSTANCES = {
     "manifest.schema.json": "instances live in consumer projects (.ai-badger/manifest.json)",
     "learned-skills.schema.json": "instances live in consumer projects (skills-data/)",
     "agents.schema.json": "vocabulary schema, referenced by others; no standalone instance",
-    "mcp-tools.schema.json": "instances are YAML (mcp-tools.yaml); not JSON-validated here",
+    "mcp-tools.schema.json": "instances live in consumer projects (.ai-badger/mcp-tools.json)",
 }
 
 PROVENANCE_KEYS = ("frameworkCommit", "frameworkDirty")

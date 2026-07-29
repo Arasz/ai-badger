@@ -20,3 +20,5 @@ logs/
 # working documents retired from docs/: plans, reviews, designs, specs, research, incidents.
 # Kept on disk for reference; git history holds them for anyone who needs the record.
 .tmp/
+# mutmut's working copy of the mutated tree (.lefthook/pre-push/verify.sh mutation lane)
+mutants/

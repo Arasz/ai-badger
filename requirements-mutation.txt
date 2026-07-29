@@ -1,0 +1,17 @@
+# Dev-only dependency for the mutation-testing lane (.lefthook/pre-push/verify.sh mutation),
+# scoped hard to features/common/retrieval/ — see [tool.mutmut] in pyproject.toml and
+# CONTRIBUTING.md's "Mutation testing" section.
+#
+# Deliberately NOT engine/requirements-dev.txt: that file is under engine/, one of
+# gates/release_guard.py's SHIPPED_PATHS, so touching it would force a VERSION bump for a
+# dev-only tool nothing ships. This file lives at the repo root instead, next to
+# pyproject.toml, outside every SHIPPED_PATHS entry.
+#
+# Also NOT pyproject.toml's [project.optional-dependencies]: that requires a [project] table,
+# which setuptools refuses to read without a "version" key (PEP 621) the moment anything runs
+# `pip install -e .` against it — verified against pip 24 / setuptools locally. A requirements
+# file needs no build backend and installs with a plain `-r`.
+#
+# Install:
+#   python3 -m pip install -r requirements-mutation.txt
+mutmut>=3.6,<4

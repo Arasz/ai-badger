@@ -83,3 +83,92 @@ disable = [
 # Framework tests live ONLY in the top-level tests/ dir — never under features/ or skills/ — so
 # scaffold.py never copies them into a target repo's .ai-badger/. See docs/scripts.md.
 testpaths = ["tests"]
+
+[tool.mutmut]
+# mutmut itself is a dev-only dependency, declared in requirements-mutation.txt at the repo
+# root (`pip install -r requirements-mutation.txt`) — not here as [project.optional-
+# dependencies], which needs a [project] table with a "version" setuptools enforces on any
+# `pip install -e .`; not engine/requirements-dev.txt either, since engine/ is one of
+# gates/release_guard.py's SHIPPED_PATHS and touching it would force a VERSION bump for a tool
+# nothing ships. Nothing under engine/tooling/features/gates imports mutmut (it is invoked as
+# a CLI), so gates/deps_guard.py — which scans exactly those roots — has nothing to flag.
+#
+# Scoped hard to the one place mutation testing has demonstrably paid (issue #148): newest
+# retrieval module, pure logic, no subprocess, no repo-tree reads, ~15s for the whole run.
+# Deliberately NOT gates/, engine/, tooling/, features/**/scripts/ or features/common/hooks/ —
+# those are subprocess-heavy (28 of 101 test files spawn scripts) and mutmut's trampoline
+# crashes when a mutated script is run as a subprocess from a temp dir.
+source_paths = ["features/common/retrieval"]
+
+# Files outside source_paths and tests/ that the test selection below needs to import or read.
+# Kept to the minimum each test actually touches — this repo's fuller gates/ run needed 31
+# top-level entries; scoping to one module's tests needs two. mutmut only creates parent
+# directories for a directory entry (shutil.copytree), not a lone file (shutil.copy2), so
+# `.lefthook/pre-push/verify.sh mutation` mkdir's mutants/.ai-badger/ before invoking mutmut.
+also_copy = [
+    # test_mcp_retrieval_quality.py is coupled to the live index on purpose (see its own
+    # docstring): it is the falsifiable accuracy gate, not a frozen fixture.
+    ".ai-badger/mcp-tools.yaml",
+    # ai_badger_hooks.py: two of the six test files below load the Hermes hook module itself
+    # to test its delegation to mcp_matcher.py, not just the matcher in isolation. The whole
+    # directory (not just that one file) so its guarded sibling import of debug_log.py
+    # resolves too — copied, never mutated, since source_paths above stops at retrieval/.
+    "features/common/hooks",
+]
+
+# Narrows the stats/mutant test run to exactly the six files that exercise
+# features/common/retrieval/ — the full 101-file suite would still pass against every mutant
+# (nothing else imports this module), so running it would only spend time, not signal.
+# Replaces the deprecated tests_dir.
+#
+# tests/test_hook_cwd_resolution.py is deliberately NOT here even though it does load
+# mcp_matcher.py: its whole point is calling the hook from a cwd other than the mutants/ copy
+# (Hermes never passes one), and mutmut's trampoline resolves source_paths cwd-relatively with
+# no override (record_trampoline_hit, mutmut/__main__.py) — so it crashes the stats phase the
+# same way the subprocess-executed scripts do (issue #148, friction 3), just without a literal
+# subprocess. test_mcp_index_hooks.py covers the same real-matcher delegation from a cwd that
+# doesn't move, so nothing here goes untested — only the cwd-independence property itself,
+# which is orthogonal to retrieval correctness.
+pytest_add_cli_args_test_selection = [
+    "tests/test_retrieval_tokenizer.py",
+    "tests/test_retrieval_bm25.py",
+    "tests/test_mcp_matcher.py",
+    "tests/test_mcp_retrieval_quality.py",
+    "tests/test_mcp_retrieval_telemetry.py",
+    "tests/test_mcp_index_hooks.py",
+]
+
+# Noise suppression: regex against each mutated source LINE (mutmut.mutation.pragma_handling),
+# not the AST. Each one targets a category of mutant that is syntactically real but never
+# behaviorally observable by anything in the test selection above — equivalent mutants are
+# 25-45% of survivors (issue #148's own citation), which is where they cost reading time, not
+# runtime.
+do_not_mutate_patterns = [
+    # Docstrings and comments: never executed, so mutmut's string/comment-adjacent operators
+    # on them cannot change behavior. LibCST still visits triple-quoted string statements the
+    # AST cannot distinguish from behaviorally-meaningful strings.
+    '^\s*"""',
+    # raise/ValueError message text: every message here is human-facing prose, never matched
+    # by a test (none of the seven test files assert on exception text), so mutating the
+    # string content is a mutant no test could ever kill on purpose.
+    'raise \w+Error\(',
+    # dataclass(frozen=True): nothing in the test selection constructs a ScoredDoc or
+    # MatchResult and then attempts a mutation to prove immutability, so flipping this flag is
+    # equivalent from the suite's point of view, not a gap in it.
+    'dataclass\(frozen=True\)',
+    # pylint inline directives: comments, not code — LibCST's pragma scan can still pick a
+    # trailing "pylint: disable=..." comment up as content on a mutated line.
+    '#\s*pylint:',
+    # Module-level docs/ and docs/adr/ citations inside comments (e.g. "see docs/adr/0012"):
+    # prose pointing a reader elsewhere, not a value anything computes from.
+    '#.*\bdocs/',
+    # One confirmed-equivalent mutant, not a category: mcp_matcher.build_corpus replaces
+    # ":" with " " before tokenizing a tool's full name. tokenizer._SPLIT_RE
+    # (r"[^a-z0-9]+") already treats ":" as a separator on its own, so mutating the
+    # replaced/replacement string here changes no observable output for any input. A
+    # `# pragma: no mutate` trailing comment can't reach this line — it sits inside a
+    # multi-line fuse_document([...]) call, and mutmut's CST pragma scan only recognizes
+    # a trailing comment on a statement's own line, not one nested inside a call's
+    # argument list (verified against mutmut.mutation.pragma_handling directly).
+    'full_name\.replace\(":", " "\)',
+]
