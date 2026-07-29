@@ -26,7 +26,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import yaml  # pylint: disable=import-error
+try:
+    import yaml  # pylint: disable=import-error
+except ImportError:  # pragma: no cover - pyyaml is optional; the MCP index path goes quiet
+    yaml = None
 
 # debug_log sits beside this file in every deployment shape; it is a no-op unless the
 # call-behaviorist skill has switched debug on.
@@ -299,8 +302,12 @@ _KEYWORD_TAG_MAP: dict[str, list[str]] = {
 
 
 def _load_mcp_index(cwd: Optional[str]) -> Optional[dict[str, Any]]:
-    """Load .ai-badger/mcp-tools.yaml from the project, or None."""
-    if not cwd:
+    """Load .ai-badger/mcp-tools.yaml from the project, or None.
+
+    None without pyyaml too: the MCP tool recommendation degrades to silence like every
+    other yaml-dependent path (issue #136), the same contract `debug_log` models above.
+    """
+    if yaml is None or not cwd:
         return None
     index_path = Path(cwd) / ".ai-badger" / "mcp-tools.yaml"
     if not index_path.exists():
