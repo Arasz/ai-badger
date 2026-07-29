@@ -416,6 +416,37 @@ def _format_top_candidates(scored: list[tuple[str, float]], limit: int = 3) -> s
     return ",".join(f"{name}:{score:.2f}" for name, score in scored[:limit])
 
 
+def _record_retrieval(project, query: str, index: dict, ranked: list) -> None:
+    """Record what the retrieval did. Costs nothing when debug is off.
+
+    `no_terms` is not `gate`: the keyword map can return nothing, in which case no
+    candidate is ever compared to the threshold, and the top scorer is often a correct
+    match the map suppressed. Reporting that as a threshold miss would misattribute the
+    very failure this telemetry exists to count.
+    """
+    if debug_log is None or not debug_log.enabled_for(project):
+        return
+    terms = _extract_query_tags(query)
+    scored = _score_all_tools(query, index)
+    common = {
+        _KEY_QUERY: query,
+        _KEY_CANDIDATES: _index_tool_count(index),
+        _KEY_TOP: _format_top_candidates(scored),
+    }
+    if not terms:
+        _debug(_MCP_RETRIEVAL_COMPONENT, "no_terms", project=project,
+               **{**common, _KEY_RETURNED: ""})
+        return
+    scoring = {**common, _KEY_TERMS: ",".join(sorted(terms)),
+               _KEY_THRESHOLD: _MCP_MATCH_THRESHOLD}
+    if ranked:
+        _debug(_MCP_RETRIEVAL_COMPONENT, "hit", project=project,
+               **{**scoring, _KEY_RETURNED: ", ".join(name for name, _ in ranked)})
+    else:
+        _debug(_MCP_RETRIEVAL_COMPONENT, "gate", project=project,
+               **{**scoring, _KEY_RETURNED: ""})
+
+
 # ---------------------------------------------------------------------------
 # Context enrichment — equivalent to Claude's UserPromptSubmit hook
 # ---------------------------------------------------------------------------
@@ -472,14 +503,6 @@ def pre_llm_inject_context(
                    **{_KEY_QUERY: prompt})
         else:
             ranked = _find_relevant_tools(prompt, index, top_n=5)
-            scored = _score_all_tools(prompt, index)
-            telemetry = {
-                _KEY_QUERY: prompt,
-                _KEY_TERMS: ",".join(sorted(_extract_query_tags(prompt))),
-                _KEY_CANDIDATES: _index_tool_count(index),
-                _KEY_TOP: _format_top_candidates(scored),
-                _KEY_THRESHOLD: _MCP_MATCH_THRESHOLD,
-            }
             if ranked:
                 tools_str = ", ".join(
                     f"{name} ({', '.join(tags_for_display(name, index))})"
@@ -494,11 +517,7 @@ def pre_llm_inject_context(
                     )
                     hint = f"[ai-badger] Relevant MCP tools: {tools_str_short}"
                 parts.append(hint)
-                _debug(_MCP_RETRIEVAL_COMPONENT, "hit", project=project,
-                       **{**telemetry, _KEY_RETURNED: ", ".join(name for name, _ in ranked)})
-            else:
-                _debug(_MCP_RETRIEVAL_COMPONENT, "gate", project=project,
-                       **{**telemetry, _KEY_RETURNED: ""})
+            _record_retrieval(project, prompt, index, ranked)
 
     if not parts:
         return None

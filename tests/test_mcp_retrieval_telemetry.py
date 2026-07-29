@@ -89,21 +89,49 @@ class TestHitGateAbsentAreDistinguishable:
         assert "rider:build_solution" in record[dl.KEY_RETURNED]
         assert record[dl.KEY_THRESHOLD]
 
-    def test_a_query_that_scores_nothing_emits_a_gate_record(self, hooks, tmp_path, monkeypatch):
-        """Every eleven realistic purposes measured, 8 produced zero tags — this is that case."""
+    def test_a_query_that_scores_below_the_bar_emits_a_gate_record(self, hooks, tmp_path,
+                                                                  monkeypatch):
+        """`gate` means scored-and-rejected, so the query must actually reach the scorer."""
         dl = hooks.debug_log
         _enable(dl, tmp_path, monkeypatch)
         project = tmp_path / "proj"
         _write_index(project, _sample_index())
 
-        hooks.pre_llm_inject_context(cwd=str(project), message="philosophical question about life")
+        hooks.pre_llm_inject_context(cwd=str(project), message="csharp")
 
         records = _retrieval_records(dl)
         assert records and records[-1][dl.KEY_EVENT] == "gate"
         record = records[-1]
-        assert record[dl.KEY_TERMS] == ""
+        assert record[dl.KEY_TERMS] == "csharp", "a gate record must name the terms it scored"
         assert record[dl.KEY_CANDIDATES] == "2"
         assert record[dl.KEY_RETURNED] == ""
+        assert dl.KEY_THRESHOLD in record, "gate claims a threshold comparison; record it"
+
+    def test_a_query_the_keyword_map_cannot_read_emits_no_terms_not_gate(self, hooks, tmp_path,
+                                                                        monkeypatch):
+        """8 of 11 realistic purposes produce zero tags. That is not a threshold miss.
+
+        `_find_relevant_tools` returns early when no term is extracted, so nothing is ever
+        compared to the bar — and the top scorer is often a correct match the map suppressed.
+        Filing it as `gate` would misattribute the failure this telemetry exists to count.
+        """
+        dl = hooks.debug_log
+        _enable(dl, tmp_path, monkeypatch)
+        project = tmp_path / "proj"
+        _write_index(project, _sample_index())
+
+        hooks.pre_llm_inject_context(cwd=str(project), message="take a screenshot of the page")
+
+        records = _retrieval_records(dl)
+        assert records and records[-1][dl.KEY_EVENT] == "no_terms"
+        record = records[-1]
+        assert record[dl.KEY_RETURNED] == ""
+        assert dl.KEY_THRESHOLD not in record, (
+            "no candidate was compared to the threshold, so the record must not claim one"
+        )
+        assert record[dl.KEY_TOP], (
+            "the suppressed candidates are the point of this record — keep them"
+        )
 
     def test_no_index_file_emits_an_absent_record(self, hooks, tmp_path, monkeypatch):
         dl = hooks.debug_log
