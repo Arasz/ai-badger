@@ -130,6 +130,32 @@ class TestHitGateNoTermsAbsentAreDistinguishable:
         assert dl.KEY_THRESHOLD in record, "gate claims a threshold comparison; record it"
         assert record[dl.KEY_TOP], "the near-misses are the point of a gate record"
 
+    def test_logged_near_miss_coverage_is_the_coverage_the_gate_compared(self, hooks, tmp_path,
+                                                                          monkeypatch,
+                                                                          real_mcp_matcher):
+        """A `gate` record puts the near-misses and the threshold side by side, so the two
+        must be on the same scale. The near-miss ranker is a second, ungated call into the
+        corpus; normalising coverage differently there (issue #165) would print a number
+        that was never compared to the threshold beside it.
+        """
+        dl = hooks.debug_log
+        _enable(dl, tmp_path, monkeypatch)
+        project = tmp_path / "proj"
+        _write_index(project, _sample_index())
+        query = ("I pulled main this morning and there are new files everywhere, please "
+                 "build the solution before I start on the ticket later today")
+
+        hooks.pre_llm_inject_context(cwd=str(project), message=query)
+
+        record = _retrieval_records(dl)[-1]
+        logged = {
+            part.rsplit(":", 2)[0]: float(part.rsplit(":", 2)[2])
+            for part in record[dl.KEY_TOP].split(",")
+        }
+        index = json.loads((project / ".ai-badger" / "mcp-tools.json").read_text())
+        for result in real_mcp_matcher.find_relevant_tools(query, index, threshold=0.0):
+            assert logged[result.tool] == pytest.approx(round(result.coverage, 2), abs=0.01)
+
     def test_a_query_that_tokenizes_to_nothing_emits_no_terms_not_gate(self, hooks, tmp_path,
                                                                         monkeypatch,
                                                                         real_mcp_matcher):

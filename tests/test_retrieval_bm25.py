@@ -271,3 +271,85 @@ def test_coverage_breaks_an_exact_score_tie_toward_higher_coverage(bm25):
 
     order = [r.doc_id for r in ranked if r.doc_id in ("doc_a", "doc_b")]
     assert order == ["doc_b", "doc_a"]
+
+
+# ── the coverage denominator cap (issue #165) ────────────────────────────────
+#
+# `coverage = sum(idf(matched)) / sum(idf(every query term))` falls roughly as 1/len(query),
+# so a sentence-length prompt cannot clear a gate tuned on keyword-length ones. Capping the
+# denominator at the `coverage_cap` most informative terms makes the ratio length-invariant.
+
+def _cap_corpus(bm25):
+    """Two documents plus filler, so a query can be lengthened with terms nothing contains."""
+    return bm25.Bm25Corpus({
+        "target": _tf("screenshot", "screenshot", "page", "browser"),
+        "other": _tf("database", "query", "sql"),
+        "filler": _tf("browser", "page"),
+    })
+
+
+def test_coverage_cap_leaves_a_short_query_untouched(bm25):
+    """At or below the cap the top-`n` terms *are* every term, so the denominator is the
+    same sum as before — the control fixture set can therefore never move."""
+    corpus = _cap_corpus(bm25)
+    uncapped = {r.doc_id: r.coverage for r in corpus.rank(["screenshot", "page"])}
+    capped = {r.doc_id: r.coverage for r in corpus.rank(["screenshot", "page"], coverage_cap=6)}
+    assert capped == uncapped
+
+
+def test_coverage_cap_makes_coverage_invariant_to_further_padding(bm25):
+    """The property the cap actually buys, and the one issue #165 needs: once a query has
+    at least `coverage_cap` terms, appending more that nothing matches cannot move coverage.
+
+    Uncapped, each appended term adds to the denominator and to nothing else, so coverage
+    decays as roughly 1/len(query) however good the match is.
+    """
+    corpus = _cap_corpus(bm25)
+    base = ["screenshot", "page"]
+    # Every junk term is absent from the corpus, and an absent term carries the *highest*
+    # idf, so once `coverage_cap` of them are present they alone fix the denominator.
+    junk = ["login", "compare", "design", "later", "share", "team",
+            "ticket", "morning", "sprint", "budget"]
+
+    counts = (6, 8, 10)
+    capped = [corpus.rank(base + junk[:n], coverage_cap=6)[0].coverage for n in counts]
+    uncapped = [corpus.rank(base + junk[:n])[0].coverage for n in counts]
+
+    assert len(set(capped)) == 1, capped                 # flat past the cap
+    assert uncapped == sorted(uncapped, reverse=True)    # monotonically diluted
+    assert uncapped[-1] < uncapped[0]
+
+
+def test_coverage_cap_uses_the_highest_idf_terms_not_the_first_ones(bm25):
+    """"Most informative" is an idf ordering; taking the query's leading terms instead would
+    make the gate depend on word order."""
+    corpus = _cap_corpus(bm25)
+    # "browser" (df 2) is commoner than "screenshot" (df 1), and comes first in the query.
+    ranked = corpus.rank(["browser", "screenshot"], coverage_cap=1)
+    by_id = {r.doc_id: r for r in ranked}
+    assert by_id["target"].coverage == pytest.approx(1.0)
+    # "filler" holds only the low-idf term, so it cannot account for the capped denominator.
+    assert by_id["filler"].coverage < 1.0
+
+
+def test_coverage_cap_clips_at_one(bm25):
+    """The numerator still sums every matched term, so it can exceed a capped denominator;
+    a coverage above 1.0 would be meaningless against a [0, 1] threshold."""
+    corpus = _cap_corpus(bm25)
+    ranked = corpus.rank(["screenshot", "page", "browser"], coverage_cap=1)
+    assert max(r.coverage for r in ranked) == pytest.approx(1.0)
+
+
+def test_coverage_cap_of_none_is_the_uncapped_denominator(bm25):
+    corpus = _cap_corpus(bm25)
+    padded = ["screenshot", "page", "login", "compare"]
+    assert ({r.doc_id: r.coverage for r in corpus.rank(padded, coverage_cap=None)}
+            == {r.doc_id: r.coverage for r in corpus.rank(padded)})
+
+
+def test_coverage_cap_does_not_change_the_bm25_scores(bm25):
+    """Ranking is untouched — issue #165 is a gate defect, not a ranking one."""
+    corpus = _cap_corpus(bm25)
+    padded = ["screenshot", "page", "login", "compare", "design", "later", "team"]
+    assert ([(r.doc_id, r.score) for r in corpus.rank(padded)]
+            == [(r.doc_id, r.score) for r in corpus.rank(padded, coverage_cap=6)])
