@@ -159,3 +159,20 @@ def test_sync_only_writes_matching_marketplace_entries_by_name(tmp_path, root, l
     by_name = {p["name"]: p["version"] for p in mdata["plugins"]}
     assert by_name["ai-badger"] == "0.5.0"
     assert by_name["other-plugin"] == "9.9.9"
+
+
+def test_version_sync_loads_without_tooling_already_on_sys_path(load_script, monkeypatch, root):
+    """The script must reach its own sibling `index_build`, not rely on another test.
+
+    Loading it in isolation failed with ModuleNotFoundError until it put its own directory
+    on sys.path: it inserted `engine/` for badger_lib and nothing for the sibling. The whole
+    file then passed only inside the full suite, where test_index_build.py sorts earlier and
+    had already done it — six tests that could not pass on their own.
+    """
+    import sys as _sys
+    tooling_dir = str((root / "tooling").resolve())
+    monkeypatch.setattr(_sys, "path", [p for p in _sys.path if p != tooling_dir])
+    monkeypatch.delitem(_sys.modules, "index_build", raising=False)
+    monkeypatch.delitem(_sys.modules, "tooling.version_sync", raising=False)
+
+    assert load_script("tooling/version_sync.py") is not None
