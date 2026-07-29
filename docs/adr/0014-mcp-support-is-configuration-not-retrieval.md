@@ -9,6 +9,14 @@ is **false on current Claude Code**, and the ordering it derived from that premi
 below. [ADR-0012](0012-bm25-retrieval-with-a-falsifiable-eval.md) is untouched: BM25 remains the
 matcher for the per-turn path, which survives.
 
+> **Correction (2026-07-29, same day).** Context §5 below describes `mcp-tags.json` as documenting
+> "the closed taxonomy ADR-0012 reversed". That is wrong. [ADR-0012](0012-bm25-retrieval-with-a-falsifiable-eval.md)
+> line 63 exempts it in as many words — *"`mcp-tags.json` is unaffected"* — and the file is live in
+> `_auto_tags`, `cmd_validate` and `cmd_tag`. Only its own `description` field is stale. Decision
+> point 4 stands unchanged; the reason given for it did not. Recorded here rather than edited into
+> the text above, per `README.md`: the value of the record is that it says what was believed at the
+> time. See [`docs/changelog/0.50.0-mcp-support-is-configuration-not-retrieval.md`](../changelog/0.50.0-mcp-support-is-configuration-not-retrieval.md).
+
 ## Context
 
 ADR-0013 scoped this feature to three purposes and ranked ranking quality last. It reasoned from
