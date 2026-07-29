@@ -459,6 +459,31 @@ class TestAZeroCheckpointNeverOverwritesAGoodOne:
 
         assert stop_hook.lib.load_usage()["tasks"][0]["checkpoints"]["latest"] == self.GOOD
 
+    def test_the_exact_degenerate_shape_seen_downstream_is_refused(
+        self, stop_hook, monkeypatch, tmp_path
+    ):
+        """`contextTokens: 0, assistantMessages: 3`, all-zero cumulative — a message count
+        with no tokens behind it measures nothing, so it must not count as data."""
+        transcript = tmp_path / "t.jsonl"
+        empty_usage = {"input_tokens": 0, "output_tokens": 0,
+                       "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}
+        transcript.write_text("\n".join(
+            json.dumps({"type": "assistant", "message": {"usage": empty_usage}})
+            for _ in range(3)
+        ) + "\n", encoding="utf-8")
+        _write_state(
+            stop_hook,
+            tasks=[{"taskId": "T01", "sessionId": "sid-1", "state": "IN_PROGRESS",
+                    "startedAt": stop_hook.lib.now_iso()}],
+            usage=[{"taskId": "T01", "checkpoints": {"latest": dict(self.GOOD)}}],
+        )
+
+        _run_hook(stop_hook, monkeypatch, {
+            "session_id": "sid-1", "transcript_path": str(transcript),
+        })
+
+        assert stop_hook.lib.load_usage()["tasks"][0]["checkpoints"]["latest"] == self.GOOD
+
     def test_a_zero_checkpoint_is_still_written_when_there_is_none_yet(
         self, stop_hook, monkeypatch, tmp_path
     ):

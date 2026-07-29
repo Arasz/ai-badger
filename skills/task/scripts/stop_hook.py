@@ -72,10 +72,15 @@ def field(payload: dict, *names, default=""):
 
 
 def is_empty_checkpoint(checkpoint) -> bool:
-    """True when a checkpoint carries no measurement at all."""
+    """True when a checkpoint carries no measurement at all.
+
+    `assistantMessages` is deliberately not consulted: the degenerate records downstream read
+    `contextTokens: 0, assistantMessages: 3` with an all-zero `cumulative`, and a message count
+    with no tokens behind it measures nothing.
+    """
     if not isinstance(checkpoint, dict):
         return True
-    if checkpoint.get("contextTokens") or checkpoint.get("assistantMessages"):
+    if checkpoint.get("contextTokens"):
         return False
     return not any((checkpoint.get("cumulative") or {}).values())
 
