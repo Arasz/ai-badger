@@ -1,0 +1,10 @@
+{
+  "agent": "junie",
+  "adjustments": [
+    {
+      "feature": "skills",
+      "description": "Symlink ai-badger skills into .junie/skills/ for Junie project-scope discovery",
+      "script": "adjust_skills.py"
+    }
+  ]
+}
