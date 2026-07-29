@@ -84,21 +84,15 @@ disable = [
 # scaffold.py never copies them into a target repo's .ai-badger/. See docs/scripts.md.
 testpaths = ["tests"]
 
-[project]
-# Exists only so [project.optional-dependencies] below has somewhere to live — no
-# [build-system] backend reads this table and this repo is not published as a package. No
-# "version" key: VERSION is the single source of truth (ADR-0001), and this table
-# deliberately does not add a fourth version literal.
-name = "ai-badger"
-
-[project.optional-dependencies]
-# mutmut is dev-only mutation testing, scoped hard to features/common/retrieval/ (see
-# [tool.mutmut] below and issue #148). Nothing under engine/tooling/features/gates imports it
-# (gates/deps_guard.py scans exactly those roots, not pyproject.toml or tests/), so it needs no
-# entry in engine/requirements.txt.
-dev = ["mutmut>=3.6,<4"]
-
 [tool.mutmut]
+# mutmut itself is a dev-only dependency, declared in requirements-mutation.txt at the repo
+# root (`pip install -r requirements-mutation.txt`) — not here as [project.optional-
+# dependencies], which needs a [project] table with a "version" setuptools enforces on any
+# `pip install -e .`; not engine/requirements-dev.txt either, since engine/ is one of
+# gates/release_guard.py's SHIPPED_PATHS and touching it would force a VERSION bump for a tool
+# nothing ships. Nothing under engine/tooling/features/gates imports mutmut (it is invoked as
+# a CLI), so gates/deps_guard.py — which scans exactly those roots — has nothing to flag.
+#
 # Scoped hard to the one place mutation testing has demonstrably paid (issue #148): newest
 # retrieval module, pure logic, no subprocess, no repo-tree reads, ~15s for the whole run.
 # Deliberately NOT gates/, engine/, tooling/, features/**/scripts/ or features/common/hooks/ —

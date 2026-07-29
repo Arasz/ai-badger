@@ -139,7 +139,7 @@ lane_js() {
 # mutant survived.
 lane_mutation() {
     "$PY" -c "import mutmut" >/dev/null 2>&1 || {
-        printf 'mutmut not installed: %s -m pip install -e ".[dev]"\n' "$PY" >&2
+        printf 'mutmut not installed: %s -m pip install -r requirements-mutation.txt\n' "$PY" >&2
         return 1
     }
     # also_copy in [tool.mutmut] copies a lone file (.ai-badger/mcp-tools.yaml); mutmut only

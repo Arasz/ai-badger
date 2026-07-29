@@ -303,13 +303,20 @@ mandatory verification section in [`RELEASING.md`](RELEASING.md).
 
 ## Mutation testing (`features/common/retrieval/` only)
 
-[`mutmut`](https://mutmut.readthedocs.io/) is available as a dev extra, scoped hard to one
+[`mutmut`](https://mutmut.readthedocs.io/) is a dev-only dependency, scoped hard to one
 directory:
 
 ```bash
-.venv/bin/python3 -m pip install -e ".[dev]"
+.venv/bin/python3 -m pip install -r requirements-mutation.txt
 .lefthook/pre-push/verify.sh mutation
 ```
+
+Declared in [`requirements-mutation.txt`](requirements-mutation.txt) at the repo root, not
+`pyproject.toml`'s `[project.optional-dependencies]` — that needs a `[project]` table with a
+`version` key, which setuptools refuses to build without (verified: `pip install -e ".[dev]"`
+fails against a `[project]` table that has no `version`, PEP 621) — and not
+`engine/requirements-dev.txt` either, since `engine/` is a shipped path and touching it would
+force a `VERSION` bump for a tool nothing ships.
 
 **What it covers:** `features/common/retrieval/` (`bm25.py`, `mcp_matcher.py`, `tokenizer.py`) —
 the BM25 ranking and MCP-tool matching logic. Nothing else. That module is where a live run
