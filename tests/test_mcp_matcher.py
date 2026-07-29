@@ -238,3 +238,40 @@ def test_name_match_outweighs_equivalent_intent_match(mcp_matcher):
     }
     results = mcp_matcher.find_relevant_tools("widget", index, threshold=0.0)
     assert results[0].tool == "rider:widget_tool"
+
+
+# ── the gate stops scaling with query length (issue #165) ────────────────────
+#
+# The *behavioural* bars live in tests/test_mcp_retrieval_long_quality.py, against the real
+# 98-tool index: the cap trades against corpus size (idf(df=1)/idf(df=0) is 0.52 at N=4 but
+# 0.79 at N=98), so a four-tool sample cannot say whether 6 is the right cap. What is
+# corpus-independent is asserted here.
+
+SHORT_QUERY = "build the solution"
+
+
+def test_padding_a_query_cannot_lower_its_top_coverage(mcp_matcher):
+    """Length invariance: past the cap, extra unmatched words stop moving coverage at all."""
+    over_the_cap = SHORT_QUERY + " compare yesterday design later share team"
+    padded = over_the_cap + " ticket morning sprint budget roadmap"
+
+    before = mcp_matcher.find_relevant_tools(over_the_cap, SAMPLE_INDEX, threshold=0.0)
+    after = mcp_matcher.find_relevant_tools(padded, SAMPLE_INDEX, threshold=0.0)
+
+    assert after[0].coverage == pytest.approx(before[0].coverage)
+
+
+def test_the_coverage_term_cap_is_at_least_the_longest_control_fixture(mcp_matcher):
+    """6 is the longest query in the set 0.20 was derived on; below it the cap would start
+    reinterpreting the very fixtures that fixed the threshold."""
+    assert mcp_matcher.COVERAGE_TERM_CAP >= 6
+
+
+def test_a_long_query_about_nothing_in_the_index_still_returns_nothing(mcp_matcher):
+    """Length invariance must not become "everything fires" — the negative half of #165."""
+    results = mcp_matcher.find_relevant_tools(
+        "my daughter has decided that she wants to be an astronaut when she grows up and I "
+        "have absolutely no idea how I am supposed to help her with that",
+        SAMPLE_INDEX,
+    )
+    assert results == []

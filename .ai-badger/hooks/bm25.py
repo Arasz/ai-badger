@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from collections import Counter
 from dataclasses import dataclass
-from typing import Iterable, List, Mapping, Sequence, Tuple
+from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
 
 K1 = 1.2
 B = 0.75
@@ -59,10 +59,30 @@ class Bm25Corpus:
         df = self._df.get(term, 0)
         return math.log(1 + (self._n - df + 0.5) / (df + 0.5))
 
-    def rank(self, query_terms: Sequence[str]) -> List[ScoredDoc]:
-        """Score every document against `query_terms`, sorted (-score, -coverage, doc_id)."""
+    def coverage_denominator(
+        self, query_terms: Sequence[str], coverage_cap: Optional[int] = None
+    ) -> float:
+        """Summed idf of the query's `coverage_cap` most informative terms, or of all of them.
+
+        Capping is what stops coverage falling as roughly 1/len(query) (issue #165): without
+        it every extra word enlarges the denominator and can only ever be matched by a
+        document that happens to contain it. At or below the cap this is the same sum as
+        before, so short queries keep exactly the coverage they had.
+        """
+        distinct = set(query_terms)
+        if coverage_cap is not None and len(distinct) > coverage_cap:
+            distinct = set(sorted(distinct, key=lambda t: (-self.idf(t), t))[:coverage_cap])
+        return sum(self.idf(t) for t in distinct)
+
+    def rank(
+        self, query_terms: Sequence[str], coverage_cap: Optional[int] = None
+    ) -> List[ScoredDoc]:
+        """Score every document against `query_terms`, sorted (-score, -coverage, doc_id).
+
+        `coverage_cap` bounds the coverage denominator only; scores are untouched.
+        """
         query_counts = Counter(query_terms)
-        total_idf = sum(self.idf(t) for t in query_counts)
+        total_idf = self.coverage_denominator(query_terms, coverage_cap)
         results = []
         for doc_id, tf in self._term_freqs.items():
             dl = self._doc_len[doc_id]
@@ -78,7 +98,9 @@ class Bm25Corpus:
                 idf = self.idf(term)
                 matched_idf += idf
                 score += idf * (freq * (K1 + 1)) / (freq + K1 * length_norm)
-            coverage = matched_idf / total_idf if total_idf > 0 else 0.0
+            # min(): the numerator sums every matched term, so it can exceed a capped
+            # denominator, and a coverage above 1.0 means nothing against a [0, 1] threshold.
+            coverage = min(1.0, matched_idf / total_idf) if total_idf > 0 else 0.0
             results.append(ScoredDoc(doc_id, score, coverage, matched_terms))
         results.sort(key=lambda r: (-r.score, -r.coverage, r.doc_id))
         return results

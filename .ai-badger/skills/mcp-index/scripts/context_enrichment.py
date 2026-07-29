@@ -20,6 +20,7 @@ _SIBLING_DIR = str(Path(__file__).resolve().parent)
 if _SIBLING_DIR not in sys.path:
     sys.path.insert(0, _SIBLING_DIR)
 from mcp_matcher import (  # noqa: E402  pylint: disable=wrong-import-position
+    COVERAGE_TERM_CAP,
     DEFAULT_COVERAGE_THRESHOLD,
     build_corpus,
     tokenize,
@@ -33,6 +34,7 @@ MAX_HINT_CHARS = 300
 MAX_TOP_CANDIDATES_CHARS = 200
 
 __all__ = [
+    "COVERAGE_TERM_CAP",
     "DEFAULT_COVERAGE_THRESHOLD",
     "TOP_N",
     "find_relevant_tools",
@@ -93,7 +95,8 @@ def score_all_tools(query: str, index: Dict[str, Any]) -> List[Any]:
 
     For near-miss telemetry: gated `find_relevant_tools` only returns winners, and a `gate`
     record needs the candidates that almost made it. `[]` when the index has no tools or the
-    query tokenizes to nothing.
+    query tokenizes to nothing. Normalises coverage exactly as the gate does, so a logged
+    near-miss is comparable to the threshold beside it in the record.
     """
     corpus = build_corpus(index)
     if corpus is None:
@@ -101,7 +104,7 @@ def score_all_tools(query: str, index: Dict[str, Any]) -> List[Any]:
     query_terms = tokenize(query)
     if not query_terms:
         return []
-    return corpus.rank(query_terms)
+    return corpus.rank(query_terms, coverage_cap=COVERAGE_TERM_CAP)
 
 
 def index_tool_count(index: Dict[str, Any]) -> int:

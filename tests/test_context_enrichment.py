@@ -105,6 +105,20 @@ class TestScoreAllToolsAndCounting:
     def test_index_tool_count_excludes_removed(self, ce):
         assert ce.index_tool_count(_sample_index()) == 2
 
+    def test_score_all_tools_reports_the_coverage_the_gate_actually_used(self, ce, load_script):
+        """Near-miss telemetry that normalises differently from the gate would write a
+        `gate` record asserting a comparison that never happened (issue #165, docs §6)."""
+        matcher = load_script("features/common/retrieval/mcp_matcher.py")
+        index = _sample_index()
+        query = ("I pulled main this morning and there are new files everywhere, please "
+                 "build the solution before I start on the ticket later today")
+
+        scored = {r.doc_id: r.coverage for r in ce.score_all_tools(query, index)}
+        gated = matcher.find_relevant_tools(query, index, threshold=0.0)
+
+        for result in gated:
+            assert scored[result.tool] == pytest.approx(result.coverage)
+
 
 class TestFormatTopCandidates:
     def test_empty_scored_is_empty_string(self, ce):

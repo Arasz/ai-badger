@@ -140,6 +140,75 @@ def test_evaluate_with_no_fixtures_of_a_kind_reports_none_not_a_crash(retrieval_
     assert report.false_fire_rate == 0.0
 
 
+# ── query-length breakdown (issue #165) ──────────────────────────────────────
+#
+# The runner reported one recall number over a whole fixture set, so a gate that worked at
+# 4 tokens and failed at 15 looked identical to one that worked everywhere. Bucketing by
+# tokenized query length is what makes that visible.
+
+LENGTH_FIXTURES = [
+    {"query": "create widget", "expect": ["widget:make"]},                       # 2 tokens
+    {"query": "please create a brand new widget from the standard template today",
+     "expect": ["widget:make"]},                                                 # 8 tokens
+    {"query": "sing me a song", "expect": []},                                   # 2 tokens
+]
+
+
+def test_by_query_length_buckets_every_fixture(retrieval_eval):
+    report = retrieval_eval.evaluate(LENGTH_FIXTURES, SYNTHETIC_INDEX)
+
+    buckets = report.by_query_length
+    assert sum(stats["n"] for stats in buckets.values()) == len(LENGTH_FIXTURES)
+
+
+def test_by_query_length_separates_short_from_long(retrieval_eval):
+    report = retrieval_eval.evaluate(LENGTH_FIXTURES, SYNTHETIC_INDEX)
+
+    buckets = report.by_query_length
+    assert len(buckets) >= 2, buckets
+    # Each bucket carries the same shape as by_class, so a reader can compare them.
+    for stats in buckets.values():
+        assert set(stats) >= {"n", "recall_at_1", "recall_at_3", "false_fire_rate"}
+
+
+def test_by_query_length_reports_mean_tokens_per_bucket(retrieval_eval):
+    """Without the mean, a bucket label alone cannot say where its fixtures actually sit."""
+    report = retrieval_eval.evaluate(LENGTH_FIXTURES, SYNTHETIC_INDEX)
+
+    for stats in report.by_query_length.values():
+        assert stats["mean_tokens"] > 0
+
+
+def test_by_query_length_buckets_are_ordered_shortest_first(retrieval_eval):
+    report = retrieval_eval.evaluate(LENGTH_FIXTURES, SYNTHETIC_INDEX)
+
+    means = [stats["mean_tokens"] for stats in report.by_query_length.values()]
+    assert means == sorted(means)
+
+
+def test_format_report_shows_the_length_breakdown(retrieval_eval):
+    report = retrieval_eval.evaluate(LENGTH_FIXTURES, SYNTHETIC_INDEX)
+
+    text = retrieval_eval.format_report(report)
+
+    assert "by query length" in text
+
+
+def test_report_to_json_carries_the_length_breakdown(retrieval_eval):
+    report = retrieval_eval.evaluate(LENGTH_FIXTURES, SYNTHETIC_INDEX)
+
+    payload = json.loads(json.dumps(retrieval_eval.report_to_json(report)))
+
+    assert payload["by_query_length"]
+
+
+def test_rows_record_each_query_token_count(retrieval_eval):
+    report = retrieval_eval.evaluate(LENGTH_FIXTURES, SYNTHETIC_INDEX)
+
+    by_query = {r.query: r.tokens for r in report.rows}
+    assert by_query["create widget"] < by_query[LENGTH_FIXTURES[1]["query"]]
+
+
 # ── coverage margin ───────────────────────────────────────────────────────────
 
 def test_coverage_margin_is_tightest_true_positive_minus_worst_false_fire(retrieval_eval):

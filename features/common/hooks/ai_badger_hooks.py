@@ -366,7 +366,7 @@ def _score_all_tools(query: str, index: dict[str, Any]) -> list[Any]:
     query_terms = matcher.tokenize(query)
     if not query_terms:
         return []
-    return corpus.rank(query_terms)
+    return corpus.rank(query_terms, coverage_cap=matcher.COVERAGE_TERM_CAP)
 
 
 def _index_tool_count(index: dict[str, Any]) -> int:

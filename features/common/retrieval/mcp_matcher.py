@@ -37,6 +37,14 @@ INTENT_WEIGHT = 1.0
 DEFAULT_COVERAGE_THRESHOLD = 0.20
 TOP_N = 3
 
+# Coverage divides by the summed idf of the query's most informative terms, capped here
+# rather than running over every term: uncapped, a sentence-length prompt diluted coverage
+# to roughly 1/len(query) and the gate suppressed correct matches the ranker had already put
+# first (issue #165). 6 is the longest query in the fixture set 0.20 was derived on, so every
+# control fixture keeps its exact previous coverage; the sweep behind both numbers is in
+# docs/changelog/0.50.0-the-coverage-gate-stops-scaling-with-query-length.md.
+COVERAGE_TERM_CAP = 6
+
 
 @dataclass(frozen=True)
 class MatchResult:
@@ -91,6 +99,6 @@ def find_relevant_tools(
     query_terms = tokenize(query)
     if not query_terms:
         return []
-    ranked = corpus.rank(query_terms)
+    ranked = corpus.rank(query_terms, coverage_cap=COVERAGE_TERM_CAP)
     gated = [r for r in ranked if r.matched_terms >= 1 and r.coverage >= threshold]
     return [MatchResult(r.doc_id, r.score, r.coverage) for r in gated[:top_n]]
