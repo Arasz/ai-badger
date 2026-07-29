@@ -1,4 +1,4 @@
-"""BM25 matching over the MCP tool index (`.ai-badger/mcp-tools.yaml`).
+"""BM25 matching over the MCP tool index (`.ai-badger/mcp-tools.json`).
 
 Replaces `_KEYWORD_TAG_MAP` and its all-or-nothing gate (docs/adr/0012). Existing
 tool `tags` are not discarded — they become a weighted field alongside `name` and
@@ -27,7 +27,7 @@ INTENT_WEIGHT = 1.0
 
 # Derived by sweeping this module's coverage gate against
 # features/common/retrieval/eval/mcp_queries.jsonl over the real
-# .ai-badger/mcp-tools.yaml corpus in this repo (98 tools) — see docs/adr/0012 for the
+# .ai-badger/mcp-tools.json corpus in this repo (98 tools) — see docs/adr/0012 for the
 # sweep table. NOT the 0.30 value from the skill-index spec: that was derived on
 # a 13-document corpus, and IDF behaves differently at this corpus size. 0.21 is
 # where zero-result-on-positives first goes above 0 on this fixture set, so 0.20 is

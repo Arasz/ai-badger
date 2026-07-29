@@ -83,7 +83,7 @@ The MCP tool index's retrieval path (`_find_relevant_tools` / `_extract_query_ta
 | `hit` | At least one candidate cleared the match threshold — something was recommended. |
 | `gate` | Candidates were scored and **all** fell below the threshold. A correct, frequent outcome, not a failure — but previously indistinguishable from `absent`. |
 | `no_terms` | The keyword map read nothing from the query, so **no candidate was ever scored against the threshold**. Distinct from `gate`: the record carries the top candidates but no threshold, because none was applied. The suppressed top scorer is often a correct match. |
-| `absent` | No `.ai-badger/mcp-tools.yaml` to search. |
+| `absent` | No `.ai-badger/mcp-tools.json` to search. |
 | `known` / `unknown` | A tool call was checked against the index after the fact — was it a tool the index knows about? |
 
 A "no match" that reads identically to "no index" is a bug that hides itself; that is why these

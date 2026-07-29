@@ -1,7 +1,7 @@
 """Falsifiable accuracy gate for the MCP BM25 matcher (docs/adr/0012).
 
 Runs features/common/retrieval/mcp_matcher.py against the real
-.ai-badger/mcp-tools.yaml corpus in this repo and a hand-authored fixture set,
+.ai-badger/mcp-tools.json corpus in this repo and a hand-authored fixture set,
 features/common/retrieval/eval/mcp_queries.jsonl. `expect: []` is a first-class
 negative fixture: the assertion is that the gate fires and nothing comes back.
 
@@ -15,7 +15,7 @@ than at the skill-index spec's own numbers, which were derived on a different,
 13-document corpus — copying them here would repeat exactly the mistake the
 task calls out for the coverage threshold itself.
 
-This suite is coupled to the live `.ai-badger/mcp-tools.yaml` in this repo, not a frozen
+This suite is coupled to the live `.ai-badger/mcp-tools.json` in this repo, not a frozen
 fixture: adding or removing an MCP server shifts all four metrics (the corpus size changes
 every IDF), and false-fire (0.267 measured against a 0.30 bar) has the least headroom of
 the four — the first one worth checking if this suite starts failing after an index change.
@@ -27,11 +27,10 @@ import json
 from pathlib import Path
 
 import pytest
-import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES_PATH = ROOT / "features" / "common" / "retrieval" / "eval" / "mcp_queries.jsonl"
-INDEX_PATH = ROOT / ".ai-badger" / "mcp-tools.yaml"
+INDEX_PATH = ROOT / ".ai-badger" / "mcp-tools.json"
 
 RECALL_AT_3_MIN = 0.90
 TOP_1_MIN = 0.75
@@ -45,7 +44,7 @@ def _load_fixtures() -> list[dict]:
 
 
 def _load_index() -> dict:
-    return yaml.safe_load(INDEX_PATH.read_text(encoding="utf-8"))
+    return json.loads(INDEX_PATH.read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")

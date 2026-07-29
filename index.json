@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.47.0",
+  "frameworkVersion": "0.48.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -244,10 +244,6 @@
         {
           "name": "agent-instructions",
           "path": "features/common/templates/agent-instructions"
-        },
-        {
-          "name": "mcp-tools.yaml.tmpl",
-          "path": "features/common/templates/mcp-tools.yaml.tmpl"
         },
         {
           "name": "state.json",

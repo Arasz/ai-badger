@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 COMPONENT = "ai_badger_hooks/mcp_retrieval"
 
@@ -25,7 +24,7 @@ COMPONENT = "ai_badger_hooks/mcp_retrieval"
 def _write_index(project: Path, data: dict) -> None:
     aib = project / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
-    (aib / "mcp-tools.yaml").write_text(yaml.dump(data), encoding="utf-8")
+    (aib / "mcp-tools.json").write_text(json.dumps(data), encoding="utf-8")
 
 
 def _sample_index() -> dict:
@@ -234,7 +233,7 @@ class TestRecordCompleteness:
         hooks.pre_llm_inject_context(cwd=str(project), message="!!! ---")
         hooks.post_tool_observer(tool_name="rider:build_solution", result="{}", cwd=str(project))
         hooks.post_tool_observer(tool_name="rider:no_such_tool", result="{}", cwd=str(project))
-        (project / ".ai-badger" / "mcp-tools.yaml").unlink()
+        (project / ".ai-badger" / "mcp-tools.json").unlink()
         hooks.pre_llm_inject_context(cwd=str(project), message="build the solution")
 
         records = _retrieval_records(dl)

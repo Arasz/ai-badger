@@ -25,14 +25,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-# pyyaml is a declared-but-optional dependency (engine/requirements.txt); an unguarded
-# import here was a single point of failure for every hook in this module when it was
-# absent (issue #136) — guarded like debug_log below, degrading to no MCP index instead.
-try:
-    import yaml  # pylint: disable=import-error
-except ImportError:  # pragma: no cover - degrades _load_mcp_index to None, not a crash
-    yaml = None
-
 # debug_log sits beside this file in every deployment shape; it is a no-op unless the
 # call-behaviorist skill has switched debug on.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -294,15 +286,23 @@ def _load_mcp_matcher() -> Optional[Any]:
 
 
 def _load_mcp_index(cwd: Optional[str]) -> Optional[dict[str, Any]]:
-    """Load .ai-badger/mcp-tools.yaml from the project, or None."""
-    if not cwd or yaml is None:
+    """Load .ai-badger/mcp-tools.json from the project, or None.
+
+    JSON-only by design (docs/adr/0012 §4, issue #145): a dual-format reader here would
+    keep `import yaml` on this hook's path permanently, which is the whole point of
+    removing it. A project still on the legacy `mcp-tools.yaml` gets no MCP recommendations
+    — the same silence a missing index already produces — until `mcp-index migrate` (or
+    any write command) upgrades it; `mcp_index.py`'s reader stays dual-format for exactly
+    that migration.
+    """
+    if not cwd:
         return None
-    index_path = Path(cwd) / ".ai-badger" / "mcp-tools.yaml"
+    index_path = Path(cwd) / ".ai-badger" / "mcp-tools.json"
     if not index_path.exists():
         return None
     try:
-        return yaml.safe_load(index_path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError):
+        return json.loads(index_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
         return None
 
 
@@ -429,7 +429,7 @@ def pre_llm_inject_context(
     - Framework version info (so the agent knows which ai-badger features are available)
     - Drift notice if the project is behind
     - Hermes-specific usage hints (/usage, hermes insights, session_search)
-    - MCP tool index recommendations (when .ai-badger/mcp-tools.yaml exists)
+    - MCP tool index recommendations (when .ai-badger/mcp-tools.json exists)
     - A pending commit-reminder nudge stashed by post_tool_observer, surfaced once
     """
     parts: list[str] = []
