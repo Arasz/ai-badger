@@ -168,3 +168,41 @@ def test_adjust_hooks_still_copies_project_hooks_alongside_shared_skill_modules(
     assert set(SHARED_SKILL_FILES).issubset({
         f.rsplit("/", 1)[-1] for f in result["files"]
     })
+
+
+RETRIEVAL_FILES = ("tokenizer.py", "bm25.py", "mcp_matcher.py")
+
+
+def _retrieval_module(root, name):
+    return (root / "features" / "common" / "retrieval" / name).read_text(encoding="utf-8")
+
+
+def test_adjust_hooks_copies_retrieval_modules_to_project_hooks_dir(
+        tmp_path, load_script, root):
+    """The BM25 matcher (docs/adr/0012) must land beside ai_badger_hooks.py's own copy."""
+    adjust_hooks = load_script("features/hermes/adjustments/adjust_hooks.py")
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    home.mkdir()
+
+    with patch("pathlib.Path.home", return_value=home):
+        adjust_hooks.adjust(_adjust_context(root, target, ["hermes"]))
+
+    for name in RETRIEVAL_FILES:
+        dst = target / ".ai-badger" / "hooks" / name
+        assert dst.read_text(encoding="utf-8") == _retrieval_module(root, name)
+
+
+def test_adjust_hooks_copies_retrieval_modules_to_user_plugins_dir(
+        tmp_path, load_script, root):
+    adjust_hooks = load_script("features/hermes/adjustments/adjust_hooks.py")
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    home.mkdir()
+
+    with patch("pathlib.Path.home", return_value=home):
+        adjust_hooks.adjust(_adjust_context(root, target, ["hermes"]))
+
+    for name in RETRIEVAL_FILES:
+        dst = home / ".hermes" / "plugins" / name
+        assert dst.read_text(encoding="utf-8") == _retrieval_module(root, name)
