@@ -11,9 +11,10 @@ Exit code 0 == valid, 1 == invalid, 2 == usage error. Mechanical; no LLM, no net
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
 import badger_lib as bl
@@ -58,6 +59,43 @@ SCHEMAS_WITHOUT_LOCAL_INSTANCES = {
     "mcp-tools.schema.json": "instances live in consumer projects (.ai-badger/mcp-tools.json)",
 }
 
+# Agents capable of every hook event family this framework wires: SessionStart/on_session_start/
+# sessionStart, UserPromptSubmit/pre_llm_call/userPromptSubmitted, PostToolUse-PreToolUse/
+# post_tool_call-pre_tool_call/postToolUse-preToolUse (docs/dictionary.md "Hooks"). A hooks-
+# manifest.json entry missing one of these must say why (see HOOKS_MANIFEST_AGENT_EXEMPTIONS)
+# instead of silently never reaching it — issue #147 was the third occurrence of exactly that.
+HOOK_CAPABLE_AGENTS = ("claude", "hermes", "copilot")
+
+# Junie is deliberately absent from HOOK_CAPABLE_AGENTS, not merely unlisted per hook: its own
+# config ignores project-local hooks entirely (docs/dictionary.md "Hooks" — every Junie column
+# reads N/A), a platform limit rather than a per-hook decision. Recorded here, not just in a
+# comment, so a test can assert the reason is not empty (test_hooks_manifest_agent_coverage.py).
+JUNIE_HOOK_EXEMPTION = (
+    "Junie's own configuration ignores project-local hooks entirely — a platform limit, not a "
+    "per-hook decision, so it never appears in HOOK_CAPABLE_AGENTS or in any hook's agents map."
+)
+
+# hook name -> {agent: reason} for a hook that deliberately does not reach one of
+# HOOK_CAPABLE_AGENTS. Every reason is asserted non-trivial by
+# tests/test_hooks_manifest_agent_coverage.py (the #145 review finding: an untested reason
+# string is not a reason, only a key that happens to exist).
+HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
+    "session-start-tracking": {
+        "hermes": "Claude-only by design: recording the session id/transcript path, surfacing "
+                  "unfinished tracked tasks, and starting the usage-limit poller are all Claude "
+                  "Code concepts (transcript files, Claude's own usage limits) with no Hermes "
+                  "analogue to wire onto.",
+        "copilot": "Claude-only by design, same reasoning as the hermes exemption above: "
+                   "nothing here maps onto a Copilot concept either.",
+    },
+    "prompt-markers": {
+        "hermes": "Acknowledged gap, not a design limit: marker detection (h:/f:/e:) has no "
+                  "Hermes-side implementation yet, unlike session-start-tracking's Claude-only "
+                  "design or Junie's platform limit — wiring it on Hermes is possible and simply "
+                  "has not been done.",
+    },
+}
+
 PROVENANCE_KEYS = ("frameworkCommit", "frameworkDirty")
 
 PROVENANCE_HINT = (
@@ -98,6 +136,36 @@ def undecided_schemas(root: Path) -> List[str]:
     return sorted(shipped - decided)
 
 
+def hooks_manifest_agent_gaps(root: Path) -> List[str]:
+    """Every (hook, agent) pair reaching neither a manifest entry nor a recorded exemption.
+
+    Walks every `hooks-manifest.json` this framework ships (currently exactly one,
+    features/common/hooks/hooks-manifest.json) and checks each hook's `agents` map against
+    HOOK_CAPABLE_AGENTS. A hook naming an agent is covered; a hook naming neither the agent nor
+    an exemption in HOOKS_MANIFEST_AGENT_EXEMPTIONS is a gap — the shape issue #147 was the third
+    occurrence of.
+    """
+    gaps: List[str] = []
+    for manifest_path in sorted(root.glob("features/*/hooks/hooks-manifest.json")):
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        rel = manifest_path.relative_to(root)
+        for hook in manifest.get("hooks", []):
+            name = hook.get("name", "<unnamed>")
+            agents = hook.get("agents", {})
+            exemptions = HOOKS_MANIFEST_AGENT_EXEMPTIONS.get(name, {})
+            for agent in HOOK_CAPABLE_AGENTS:
+                if agent in agents or agent in exemptions:
+                    continue
+                gaps.append(
+                    f"{rel}: hook '{name}' has no '{agent}' entry and no recorded exemption in "
+                    f"HOOKS_MANIFEST_AGENT_EXEMPTIONS"
+                )
+    return gaps
+
+
 def validate_all(root: Path) -> int:
     """Validate every catalog file SCHEMA_INSTANCES maps, plus the schemas themselves."""
     ok = True
@@ -118,6 +186,10 @@ def validate_all(root: Path) -> int:
             for instance in sorted(root.glob(pattern)):
                 ok &= _report(str(instance.relative_to(root)),
                               bl.validate_file(instance, schema_path))
+
+    gaps = hooks_manifest_agent_gaps(root)
+    if gaps:
+        ok &= _report("hooks-manifest agent coverage", gaps)
     return 0 if ok else 1
 
 

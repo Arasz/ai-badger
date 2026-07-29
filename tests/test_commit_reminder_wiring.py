@@ -70,7 +70,7 @@ def test_copilot_wires_commit_reminder_with_matcher(tmp_path, load_script, root)
     post_tool_use = hooks["hooks"]["postToolUse"]
     assert len(post_tool_use) == 1
     entry = post_tool_use[0]
-    assert entry["bash"].rsplit("/", 1)[-1] == "commit_reminder_hook.py"
+    assert entry["bash"].rstrip('"').rsplit("/", 1)[-1] == "commit_reminder_hook.py"
     assert entry.get("matcher") == COMMIT_REMINDER_MATCHER
 
 

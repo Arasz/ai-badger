@@ -55,7 +55,7 @@ Windows-only hook commands have no path into a scaffolded repo.
 | **Scaffolding** (`scaffolding.json`) | Plugin install + file copies | Skill symlink + file copies | File copies to `.github/` | File copies to `.junie/` |
 | **Manifest** (`manifest.json`) | Plugin provenance | Same | Same | Same |
 | **Config** (`config.json`) | Project profile | Same | Same | Same |
-| **Adjustment** (`adjustments/`) | N/A (Claude is the "native" agent) | Agent-specific scaffold tweaks | Hooks, skills, agents via adjustments | N/A |
+| **Adjustment** (`adjustments/`) | Skill discovery symlinks, retrieval module delivery | Agent-specific scaffold tweaks | Hooks, skills, agents, retrieval module delivery via adjustments | N/A |
 
 ## Task Orchestration
 
@@ -78,8 +78,8 @@ Windows-only hook commands have no path into a scaffolded repo.
 
 ## MCP Tool Index
 
-| ai-badger | Claude Code | Hermes Agent |
-|---|---|---|
-| `mcp-tools.json` | N/A | `pre_llm_call` hook injection |
-| `mcp-index` skill | N/A | Skill for manual index management |
-| `mcp_index_hook.py` | PostToolUse hook (planned) | `post_tool_call` plugin hook |
+| ai-badger | Claude Code | Hermes Agent | GitHub Copilot |
+|---|---|---|---|
+| `mcp-tools.json` | `context_enrichment_hook.py` (`UserPromptSubmit`) | `pre_llm_call` hook injection | `context_enrichment_hook.py` (`userPromptSubmitted`) |
+| `mcp-index` skill | Skill for manual index management, ships the hook's retrieval modules | Skill for manual index management | Skill for manual index management, ships the hook's retrieval modules |
+| `mcp_index_hook.py` | PostToolUse hook (planned) | `post_tool_call` plugin hook | PostToolUse hook (planned) |

@@ -18,9 +18,11 @@
     },
     {
       "name": "context-enrichment",
-      "description": "Inject framework context into every LLM turn",
+      "description": "Inject framework context, including MCP tool recommendations, into every LLM turn",
       "agents": {
-        "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "pre_llm_call" }
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "UserPromptSubmit", "script": "context_enrichment_hook.py" },
+        "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "pre_llm_call" },
+        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "userPromptSubmitted", "script": "context_enrichment_hook.py" }
       }
     },
     {
@@ -36,6 +38,7 @@
       "description": "Nudge toward smaller, more frequent commits once uncommitted file count crosses a threshold",
       "agents": {
         "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PostToolUse", "script": "commit_reminder_hook.py" },
+        "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "post_tool_call" },
         "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "postToolUse", "script": "commit_reminder_hook.py" }
       }
     }

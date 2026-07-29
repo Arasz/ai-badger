@@ -1,6 +1,16 @@
 {
   "description": "Command shapes for hooks that get rewritten into an agent's own config (.claude/settings.json, .github/hooks/). Paths under ${CLAUDE_PLUGIN_ROOT}/features/common/skills/ are rewritten to the project's .ai-badger/skills/ copy. Each manifest entry selects its command here by its `script` name — Claude deliberately skips drift_notice_hook.py, which is plugin-provided via hooks/hooks.json at the repo root and needs a ${CLAUDE_PLUGIN_ROOT} only the plugin loader substitutes.",
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/mcp-index/scripts/context_enrichment_hook.py\""
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "startup|resume",

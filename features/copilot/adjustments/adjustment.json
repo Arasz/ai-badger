@@ -15,6 +15,11 @@
       "feature": "agents",
       "description": "Map ai-badger personas to Copilot custom agents (.github/agents/*.agent.md)",
       "script": "adjust_agents.py"
+    },
+    {
+      "feature": "retrieval",
+      "description": "Copy the BM25 retrieval modules beside the mcp-index skill's context-enrichment hook",
+      "script": "adjust_retrieval.py"
     }
   ]
 }

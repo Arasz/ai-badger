@@ -53,7 +53,7 @@ def test_copilot_session_start_wires_drift_notice_not_session_tracking(tmp_path,
     hooks = json.loads(
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     commands = [h["bash"] for h in hooks["hooks"]["sessionStart"]]
-    assert [c.rsplit("/", 1)[-1] for c in commands] == ["drift_notice_hook.py"]
+    assert [c.rstrip('"').rsplit("/", 1)[-1] for c in commands] == ["drift_notice_hook.py"]
 
 
 def test_two_manifest_entries_on_one_event_both_survive(tmp_path, load_script):
@@ -82,7 +82,7 @@ def test_two_manifest_entries_on_one_event_both_survive(tmp_path, load_script):
     hooks = json.loads(
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     commands = [h["bash"] for h in hooks["hooks"]["userPromptSubmitted"]]
-    names = sorted(c.rsplit("/", 1)[-1] for c in commands)
+    names = sorted(c.rstrip('"').rsplit("/", 1)[-1] for c in commands)
     assert names == ["context_enrichment_hook.py", "prompt_markers_hook.py"]
 
 
@@ -126,7 +126,7 @@ def test_two_source_hooks_json_entries_on_one_event_both_survive(tmp_path, load_
     hooks = json.loads(
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     commands = [h["bash"] for h in hooks["hooks"]["userPromptSubmitted"]]
-    names = sorted(c.rsplit("/", 1)[-1] for c in commands)
+    names = sorted(c.rstrip('"').rsplit("/", 1)[-1] for c in commands)
     assert names == ["context_enrichment_hook.py", "prompt_markers_hook.py"]
 
 
@@ -155,6 +155,44 @@ def test_manifest_script_name_is_honoured_in_multi_script_skill(tmp_path, load_s
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     commands = [h["bash"] for h in hooks["hooks"]["stop"]]
     assert [c.rsplit("/", 1)[-1] for c in commands] == ["stop_hook.py"]
+
+
+def test_a_quoted_source_command_keeps_balanced_quotes_not_a_dangling_one(tmp_path, load_script,
+                                                                          root):
+    """The real shape every primary-path command actually has: `python3 "<path>"`, quoted for
+    shell-safety against spaces. `cmd.strip('"')` strips only the trailing quote here (the
+    string's first character is `p`, not `"`, so nothing is removed from the front), producing
+    an unterminated-quote bash command that would fail at execution — exactly what this repo's
+    own committed `.github/hooks/ai-badger-hooks.json` shipped with, unnoticed, because no
+    existing test asserted the command string itself rather than its trailing filename."""
+    adjust_hooks = load_script("features/copilot/adjustments/adjust_hooks.py")
+    target = tmp_path / "proj"
+    (target / ".ai-badger").mkdir(parents=True)
+
+    manifest_hooks = [
+        {"name": "task",
+         "agents": {"copilot": {"type": "hooks-json", "entry": "hooks.json",
+                                 "event": "sessionStart", "script": "drift_notice_hook.py"}}},
+    ]
+    source_hooks = {
+        "SessionStart": [
+            {"matcher": "startup|resume", "hooks": [
+                {"type": "command",
+                 "command": ('python3 "${CLAUDE_PLUGIN_ROOT}/features/common/skills/'
+                              'task/scripts/drift_notice_hook.py"')},
+            ]},
+        ],
+    }
+    fw_root = _fake_framework(tmp_path, manifest_hooks, source_hooks=source_hooks)
+
+    result = adjust_hooks.adjust(_context(fw_root, target))
+
+    assert result["applied"]
+    hooks = json.loads(
+        (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
+    bash = hooks["hooks"]["sessionStart"][0]["bash"]
+    assert bash == 'python3 ".ai-badger/skills/task/scripts/drift_notice_hook.py"', bash
+    assert bash.count('"') % 2 == 0, f"unbalanced quotes: {bash!r}"
 
 
 def test_ambiguous_glob_fallback_refuses_naming_candidates(tmp_path, load_script):
