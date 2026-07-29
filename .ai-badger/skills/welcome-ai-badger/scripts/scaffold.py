@@ -14,6 +14,10 @@ Usage:
   --reset-seed-files       reseed SEED-ONCE files, discarding project-owned edits
   --execute                actually run skill install commands (default: print them)
 
+An explicitly empty --skills means "the set already scaffolded", not "none": it is recovered
+from <target>/.ai-badger/manifest.json rather than treated as an instruction to unlink every
+discovery symlink (#129). Omitting --skills scaffolds the catalog defaults.
+
 Outputs under <target>/.ai-badger/ plus copied agent-discovery files (CLAUDE.md, copilot,
 junie) per config.agents, and <target>/.ai-badger/manifest.json.
 """
@@ -244,12 +248,13 @@ def demote_headings(text: str, levels: int = 2) -> str:
 
 
 def relink_hermes_skills(target: Path, config: Dict[str, Any],
-                         skills: List[str]) -> List[str]:
+                         skills: List[str]) -> Dict[str, List[str]]:
     """Rebuild ~/.hermes/skills/<project>/ so it links exactly *skills* plus learned/.
 
     Only symlinks resolving into <target>/.ai-badger/skills/ are removed; every other entry
     is left exactly as found (docs/adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md).
-    Returns the link names created.
+    An empty *skills* is not evidence the project stopped wanting them (#129), so it leaves
+    the namespace untouched. Returns {"created": [...], "removed": [...]}.
     """
     project_name = config.get("project", {}).get("name", "unknown")
     skills_root = target / ".ai-badger" / "skills"
@@ -260,8 +265,11 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
             f"project name {project_name!r} does not resolve to a directory inside "
             f"{hermes_skills} — refusing to create it"
         )
+    no_op: Dict[str, List[str]] = {"created": [], "removed": []}
     if namespace_dir.is_symlink() and not _owns_link(namespace_dir, skills_root):
-        return []
+        return no_op
+    if not skills:
+        return no_op
 
     # Declined skills are filtered here too: den-refresh re-links from the names on disk,
     # where an excluded skill's copy is deliberately left behind.
@@ -271,14 +279,17 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
     if (skills_root / LEARNED_SKILLS_DIR).is_dir() and LEARNED_SKILLS_DIR not in wanted:
         wanted.append(LEARNED_SKILLS_DIR)
 
+    removed: List[str] = []
     if namespace_dir.is_symlink():
         namespace_dir.unlink()
     elif namespace_dir.is_dir():
         for entry in sorted(namespace_dir.iterdir()):
             if _owns_link(entry, skills_root):
+                if entry.name not in wanted:
+                    removed.append(entry.name)
                 entry.unlink()
     if not wanted:
-        return []
+        return {"created": [], "removed": removed}
 
     namespace_dir.mkdir(parents=True, exist_ok=True)
     # Resolve both ends before computing the relative link, so a symlinked home or project
@@ -294,7 +305,7 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
             continue  # foreign real entry — never clobber
         link.symlink_to(os.path.relpath(skills_base / name, link_base))
         created.append(name)
-    return created
+    return {"created": created, "removed": removed}
 
 
 # The shared context and the six collaborators built from it
@@ -396,21 +407,21 @@ class Scaffolder:
 
     def _superseded_reason(self, entry: Dict[str, Any]) -> Optional[str]:
         """Why this config no longer asks for a file a previous run placed, or None to keep it."""
-        feature, name = entry.get("feature"), entry.get("name")
+        feature, name, source = entry.get("feature"), entry.get("name"), entry.get("source")
         if name in self.excluded.get(feature, set()):
             return f"declined in config.exclude.{feature}"
         if bl.is_orphaned(entry, bl.delivering_stacks(self.config)):
             return f"stack '{entry.get('stack')}' is no longer in config.stacks"
+        if feature in bl.EXCLUDABLE_FEATURES and source and not (self.root / source).exists():
+            return "no longer in the framework catalog"
         return None
 
     def prune_superseded(self) -> None:
         """Delete the files a previous run placed that this config no longer asks for.
 
-        Two ways to stop asking: decline the item in `config.exclude`, or drop the stack that
-        delivered it (#116). Ownership is the previous manifest: the recorded target, still
-        carrying its recorded hash. An edited copy is the project's own and is reported instead
-        of removed. Skill directories are left on disk — they may hold project-local files, and
-        a config edit that rm -rf's a directory is a trap (research §2).
+        Three ways to stop asking: decline via `config.exclude`, the delivering stack leaving
+        (#116), or the catalog source disappearing (#130). An edited copy is reported, not
+        removed; skill directories stay on disk regardless (research §2).
         """
         manifest_path = self.aib / "manifest.json"
         if not manifest_path.is_file():
@@ -682,8 +693,13 @@ class Scaffolder:
             # A refusal the user can act on: it names their project name as the cause.
             self.notes.append(f"hermes skill links skipped — {exc}")
             return
-        if links:
-            self.notes.append(f"hermes skill links: {', '.join(links)}")
+        if links["created"]:
+            self.notes.append(f"hermes skill links: {', '.join(links['created'])}")
+        if links["removed"]:
+            self.notes.append(
+                f"hermes skill links removed: {', '.join(links['removed'])} — no longer "
+                f"delivered to this project"
+            )
 
     # -- dependency checking ---------------------------------------------------------
     def _check_dependencies(self) -> Dict[str, Any]:
@@ -887,6 +903,7 @@ class Scaffolder:
             "agents": self.config.get("agents", []),
             "skillScope": self.config.get("skillScope", self.config.get("pluginScope", "default")),
             "pluginScope": self.config.get("skillScope", self.config.get("pluginScope", "default")),  # compat
+            "configHash": bl.config_hash(written_config),
             "entries": self.entries,
         }
         bl.dump_json(self.aib / "manifest.json", manifest)
@@ -938,6 +955,24 @@ def main(argv=None) -> int:
 
     config = bl.load_json(config_path)
     skills = [s for s in args.skills.split(",") if s]
+    cli_notes: List[str] = []
+    if not skills:
+        # An explicitly empty --skills means "unchanged", not "none" (#129). A fresh target
+        # has no manifest to recover from and scaffolds no skills — nothing to destroy.
+        manifest_path = target / ".ai-badger" / "manifest.json"
+        if manifest_path.is_file():
+            try:
+                skills = bl.scaffolded_skill_names(bl.load_json(manifest_path))
+                cli_notes.append(
+                    f"--skills was empty — reused {len(skills)} skill(s) already scaffolded, "
+                    f"from the manifest at {manifest_path}"
+                )
+            except (ValueError, OSError) as exc:
+                skills = []
+                cli_notes.append(
+                    f"--skills was empty and the manifest at {manifest_path} could not be read "
+                    f"({exc}) — scaffolding no skills; nothing already linked was removed"
+                )
     scaf = Scaffolder(root, target, config, skills, install=not args.no_install,
                       overwrite=args.overwrite_agent_files,
                       reset_seed_files=args.reset_seed_files,
@@ -945,7 +980,7 @@ def main(argv=None) -> int:
     result = scaf.run(generated_at=args.generated_at)
 
     print(f"scaffolded {len(result['manifest']['entries'])} entries into {scaf.aib}")
-    for n in result["notes"]:
+    for n in cli_notes + result["notes"]:
         print(f"  note: {n}")
     if result["pluginCommands"]:
         import install_plugins as ip_lib  # pylint: disable=import-outside-toplevel

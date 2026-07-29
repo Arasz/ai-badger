@@ -419,13 +419,19 @@ def doc_budget() -> tuple:
             _positive_int(override.get("maxLines"), CLAUDE_MD_MAX_LINES))
 
 
-def doc_stats(path) -> dict:
-    """Size + budget verdict for one agent discovery file."""
+def doc_stats(path, max_chars=None, max_lines=None) -> dict:
+    """Size + budget verdict for one agent discovery file.
+
+    `max_chars`/`max_lines`, when given, win over `doc_budget()` — an explicit caller
+    (e.g. a CLI flag) must be able to override a project's own `agentDocs` config.
+    """
     try:
         text = Path(path).read_text(encoding="utf-8")
     except (FileNotFoundError, IsADirectoryError):
         text = ""
-    max_chars, max_lines = doc_budget()
+    budget_chars, budget_lines = doc_budget()
+    max_chars = budget_chars if max_chars is None else max_chars
+    max_lines = budget_lines if max_lines is None else max_lines
     chars = len(text)
     lines = text.count("\n") + (1 if text and not text.endswith("\n") else 0)
     return {
@@ -438,8 +444,8 @@ def doc_stats(path) -> dict:
     }
 
 
-def claude_md_stats() -> dict:
-    return doc_stats(CLAUDE_MD)
+def claude_md_stats(max_chars=None, max_lines=None) -> dict:
+    return doc_stats(CLAUDE_MD, max_chars, max_lines)
 
 
 def over_budget_docs() -> list:
