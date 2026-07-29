@@ -27,12 +27,10 @@ class TemplateRendering:
     def _mcp_instruction_slots(self) -> tuple:
         """`(MCP_INSTRUCTIONS, EXTERNAL_MCP_INSTRUCTIONS)` — one server, one block, one source.
 
-        Precedence: the project's own `config.externalTools` entry wins, then the mcp catalog,
-        then the legacy `external-tools.json` (ADR-0014). The two slots sit adjacent in the
-        templates, so which of them carries a block never moves a byte.
+        The mcp catalog wins over the legacy `external-tools.json` reader (ADR-0014). The two
+        slots sit adjacent in the templates, so which of them carries a block never moves a byte.
         """
-        user_named = {t.get("name") for t in self.ctx.config.get("externalTools") or []}
-        catalog = [s for s in self.ctx.mcp_described if s.get("name") not in user_named]
+        catalog = list(self.ctx.mcp_described)
         covered = {s.get("name") for s in catalog}
         legacy = [t for t in self.ctx.merged_external_tools if t.get("name") not in covered]
         return (self._render_instruction_blocks(catalog),

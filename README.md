@@ -129,17 +129,18 @@ the schema.
 | **code-review-checklist** | Aviation-style preflight checks for a PR or diff |
 | **call-behaviorist** | Debug audit log for ai-badger's own hooks, and a health report |
 
-## Bundled tools
+## Bundled MCP servers
 
-In addition to skills, ai-badger bundles external MCP tools that are auto-scaffolded into
+In addition to skills, ai-badger bundles MCP servers that are auto-scaffolded into
 your project during `welcome-ai-badger` or `den-refresh`:
 
-| Tool | What it does |
+| Server | What it does |
 |---|---|
 | [**code-review-graph**](https://github.com/tirth8205/code-review-graph) | Local-first code intelligence graph for MCP. Builds a persistent map of your codebase so AI coding tools read only what matters — used for code review, impact analysis, and architecture exploration. |
 
-External tools are declared in `features/common/external-tools.json` and merged into
-`.mcp.json` during scaffold.
+Each server is a catalog item under `features/<stack>/mcp/<server>/`, carrying the prose
+injected into every agent file. `features/common/stack-mcp.json` says which servers a stack
+wants and which of them are written into `.mcp.json` during scaffold (ADR-0014).
 
 ## Architecture overview
 
@@ -168,7 +169,8 @@ ai-badger/
       hooks/                     # Claude + Hermes hooks with hooks-manifest.json
       skills-source.json         # External skill sources
       skills.json                # External skills to install
-      external-tools.json        # External MCP tools (code-review-graph, …)
+      mcp/                       # MCP server catalog (code-review-graph, …)
+      stack-mcp.json             # Which MCP servers this stack wants, and how to launch them
       templates/                 # CLAUDE.md.tmpl, HERMES.md.tmpl, state.json, agent-instructions
     dotnet/ azure/ cosmos/ terraform/ mcp/ changelog/  {personas,invariants,instructions}/…
     github/    (stack-specific features; extensions now inline in skills/)
@@ -192,13 +194,13 @@ flowchart TB
     end
     SKILLSDIR["features/common/skills/\nwelcome · feed · task · maintain · prompt-markers\n· den-refresh · mcp-index · code-review-checklist · call-behaviorist"]
     CLAUDESKILLS["features/claude/skills/\nauto-wm"]
-    EXTOOLS["external-tools.json\ncode-review-graph (MCP)"]
+    MCPCAT["features/*/mcp/ + stack-mcp.json\ncode-review-graph (MCP)"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]
   end
   IDXbuild["index_build.py"] -->|scans features/| IDX
   CAT --> IDXbuild
   SKILLSDIR --> IDXbuild
-  EXTOOLS --> IDXbuild
+  MCPCAT --> IDXbuild
   MKT -->|/plugin install| SKILLS["installed skills"]
   IDX -. read .-> SKILLS
   CAT -. copied features .-> PROJ

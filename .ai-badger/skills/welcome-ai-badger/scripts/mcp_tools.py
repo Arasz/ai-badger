@@ -1,7 +1,7 @@
-"""MCP servers and external tools, one of the scaffold's collaborators.
+"""MCP servers, one of the scaffold's collaborators.
 
-Collects stack-declared MCP servers and external tools, merges them with
-user config, and scaffolds into agent-specific config files (.mcp.json,
+Collects the servers the catalog declares (plus the two legacy readers ADR-0014 step 8
+removes) and scaffolds them into agent-specific config files (.mcp.json,
 ~/.hermes/config.yaml, ~/.claude/settings.json, .github/copilot/mcp-config.json).
 """
 from __future__ import annotations
@@ -204,52 +204,31 @@ class McpTools:
                 result.append(tool)
         return result
 
-    @staticmethod
-    def merge_external_tools(
-        catalog_tools: List[Dict[str, Any]],
-        user_tools: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        """Merge catalog-declared tools with config.externalTools.
-
-        Catalog tools are added first; user tools override on name conflict.
-        Returns a list of tool dicts.
-        """
-        by_name = {}  # type: Dict[str, Dict[str, Any]]
-        for tool in catalog_tools:
-            by_name[tool["name"]] = dict(tool)
-        for tool in user_tools:
-            by_name[tool["name"]] = dict(tool)
-        return list(by_name.values())
-
     def fill_merged_external_tools(self) -> None:
         """Fill ``ctx.merged_external_tools`` once, so template rendering can read it.
 
         The cache lives on the context rather than on either collaborator: whoever renders
-        the externalTools instructions must not have to know who collected them.
+        the legacy external-tools instructions must not have to know who collected them.
         """
         if self.ctx.external_tools_merged:
             return
-        self.ctx.merged_external_tools = self.merge_external_tools(
-            self.collect_external_tools(),
-            self.ctx.config.get("externalTools", []),
-        )
+        self.ctx.merged_external_tools = self.collect_external_tools()
         self.ctx.external_tools_merged = True
 
     def merge_mcp_servers(
         self,
         stack_servers: List[Dict[str, Any]],
-        user_tools: List[Dict[str, Any]],
+        external_tools: List[Dict[str, Any]],
     ) -> Dict[str, Dict[str, Any]]:
-        """Merge stack-declared servers with externalTools.
+        """Merge legacy ``mcp-servers.json`` entries with legacy ``external-tools.json`` ones.
 
-        Stack servers are added first; externalTools with
-        ``generate_mcp_json=True`` override on name conflict (user wins).
-        Returns a dict keyed by server name.
+        Stack servers are added first; external tools with ``generate_mcp_json=True``
+        override on name conflict.  Returns a dict keyed by server name.
         """
         merged = {}  # type: Dict[str, Dict[str, Any]]
         for srv in stack_servers:
             merged[srv["name"]] = dict(srv)
-        for tool in user_tools:
+        for tool in external_tools:
             if not tool.get("generate_mcp_json"):
                 continue
             name = tool["name"]
@@ -261,17 +240,14 @@ class McpTools:
 
         Three readers in ascending precedence — legacy ``mcp-servers.json``, legacy
         ``external-tools.json`` (``generate_mcp_json``), then ``stack-mcp.json`` (``declare``):
-        legacy loses on conflict (ADR-0014). A project's own ``config.externalTools`` entry
-        outranks all three — including by its *silence*: an entry that does not ask for
-        ``generate_mcp_json`` is how a project declines a declaration, so a catalog entry it
-        names is skipped rather than reasserted. Same rule as the instructions slot.
+        legacy loses on conflict (ADR-0014). Neither legacy file ships in this framework any
+        more (step 4); both readers stay one release for a stack that still has one.
         """
         self.fill_merged_external_tools()
         merged = self.merge_mcp_servers(self.collect_stack_mcp_servers(),
                                         self.ctx.merged_external_tools)
-        user_named = {t.get("name") for t in self.ctx.config.get("externalTools") or []}
         for srv in self.collect_catalog_mcp_servers():
-            if srv.get("declare") and srv.get("name") not in user_named:
+            if srv.get("declare"):
                 merged[srv["name"]] = dict(srv)
         return merged
 

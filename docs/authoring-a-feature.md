@@ -36,15 +36,14 @@ python3 -m pip install -r engine/requirements.txt   # jsonschema
 | `templates` (`common` only) | file/dir    | every top-level entry under `features/common/templates/`                                                       |
 | `mcp`                       | directory   | any subdir of `features/<stack>/mcp/` containing a `meta.json`; one MCP server each. `server.md` beside it is injected into every agent file; `tools.json` carries curated tool intents |
 
-Two catalog files are deliberately **not** in that table, because `index_build.py` does not index
+These catalog files are deliberately **not** in that table, because `index_build.py` does not index
 them and they have no entry in `index.json` — the scaffold reads them directly, so adding one
 needs no index rebuild:
 
 | file | rule |
 |---|---|
-| `external-tools` | `features/{common,stack}/external-tools.json` (`schemas/external-tools.schema.json`); last-writer-wins on name |
-| `mcp-servers` | `features/{common,stack}/mcp-servers.json` (`schemas/mcp-servers.schema.json`); last-writer-wins on name |
-| `stack-mcp` | `features/{common,stack}/stack-mcp.json` (`schemas/stack-mcp.schema.json`); last-writer-wins on name. Which servers a stack wants; the servers themselves are indexed catalog items under `features/<stack>/mcp/`. Supersedes the two rows above and beats them on conflict (ADR-0014) |
+| `stack-mcp` | `features/{common,stack}/stack-mcp.json` (`schemas/stack-mcp.schema.json`); last-writer-wins on name. Which servers a stack wants; the servers themselves are indexed catalog items under `features/<stack>/mcp/` |
+| `mcp-servers` | `features/{common,stack}/mcp-servers.json` (`schemas/mcp-servers.schema.json`); last-writer-wins on name. **Deprecated** — superseded by `stack-mcp.json`, which beats it on conflict. No stack ships one any more and the reader goes in ADR-0014 step 8; do not author a new one |
 
 Skill **extensions** use a directory-naming convention rather than a manifest field: a directory
 at `features/<stack>/skills/<base>-extensions/<ext>/` attaches `<ext>` to the skill named
@@ -126,45 +125,35 @@ stacks that have no external skills.
 
 ## Adding a stack-recommended MCP server
 
-An external tool injects *instructions*; an `mcp-servers.json` entry declares only a server a
-stack recommends. Add `features/<stack>/mcp-servers.json`
-(`schemas/mcp-servers.schema.json`) with `{"servers": [{"name": …, "command": …}]}`; optional
-keys are `description`, `env`, `agentOverrides` (per-agent `command`/`args`) and
-`scope` (`project`, the default, or `user`).
+A server is two files. The **catalog directory** says what it is for; the **declaration** says
+whether ai-badger may launch it (ADR-0014).
 
-The scaffold reads common first, then stacks in `config.json` order, last-writer-wins on name;
-a `config.externalTools` entry with `generate_mcp_json: true` overrides a stack entry of the
-same name. Project-scoped servers land in `.mcp.json` (Claude and Hermes read it; Junie is
-assumed to, never verified) and in `.github/copilot/mcp-config.json`; user-scoped ones are
-written to the agent's own user config. No `index_build.py` run is needed — these files are read at scaffold time.
-
-`targetAgents` validates against the schema but is **not read by any production code**: a
-server scoped to one agent is still scaffolded for every active agent.
-
-## Adding external tools
-
-External tools are MCP servers whose **instructions** are injected into agent instruction
-files (CLAUDE.md, HERMES.md) and whose **MCP server entries** are written to `.mcp.json`.
-They follow the same common → stack → user merge pattern as `mcp-servers.json`.
-
-1. Open (or create) `features/<stack>/external-tools.json`
-   (`schemas/external-tools.schema.json`) and add a tool:
+1. Create `features/<stack>/mcp/<server>/meta.json` (`schemas/mcp-server.schema.json`), plus
+   `server.md` for the prose injected into every agent file and `tools.json`
+   (`schemas/mcp-server-tools.schema.json`) for curated per-tool intents and tags. Keep
+   `server.md` under 15 lines — it lands verbatim in every agent file, every session.
+2. Add the server to `features/<stack>/stack-mcp.json` (`schemas/stack-mcp.schema.json`):
    ```jsonc
    {
-     "tools": [
+     "servers": [
        {
-         "name": "my-tool",
-         "package": "my-tool-pypi-name",
-         "command": "python3 -m my_tool serve",
-         "instructions": "<!-- my-tool MCP tools -->\n## MCP Tools: my-tool\n\n...",
-         "generate_mcp_json": true
+         "name": "my-server",              // must name a features/*/mcp/<name>/ directory
+         "command": "python3 -m my_server serve",
+         "declare": true,                   // false (the default) = describe only
+         "scope": "project",                // or "user"
+         "env": { },
+         "agentOverrides": { "hermes": { "command": "…" } }
        }
      ]
    }
    ```
-2. The scaffold auto-merges: common first, then stacks (last-writer-wins on name),
-   then `config.externalTools` from the consumer repo (user overrides).
-3. No `index_build.py` run needed — these files are read at scaffold time, not indexed.
+3. Run `index_build.py` (the catalog directory is indexed) then `validate.py --all`.
+
+Naming a server without `declare` says only that it is relevant to the stack; writing its launch
+config is the louder claim and must be opted into. The scaffold reads common first, then stacks in
+`config.json` order, last-writer-wins on name. Project-scoped servers land in `.mcp.json` (Claude
+and Hermes read it; Junie is assumed to, never verified) and in
+`.github/copilot/mcp-config.json`; user-scoped ones are written to the agent's own user config.
 
 ## Adding a new skill (or a `task` extension)
 

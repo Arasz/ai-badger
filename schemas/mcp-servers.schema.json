@@ -48,11 +48,6 @@
             "enum": ["project", "user"],
             "default": "project",
             "description": "project = repo-level config (.mcp.json, .github/). user = user-level config (~/.hermes/config.yaml, ~/.claude/settings.json). User-scoped servers are written directly to agent-specific user configs by the scaffold."
-          },
-          "targetAgents": {
-            "type": "array",
-            "items": { "enum": ["claude", "hermes", "copilot", "junie"] },
-            "description": "If set, only scaffold for these agents. Omit to scaffold for all active agents."
           }
         }
       }
