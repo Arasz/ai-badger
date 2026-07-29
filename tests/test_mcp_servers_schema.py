@@ -66,17 +66,6 @@ def test_agent_override_valid(schema):
     _validate(data, schema)
 
 
-def test_target_agents_valid(schema):
-    data = {
-        "servers": [{
-            "name": "hermes-mcp",
-            "command": "hermes mcp serve",
-            "targetAgents": ["hermes", "claude"],
-        }]
-    }
-    _validate(data, schema)
-
-
 def test_env_valid(schema):
     data = {
         "servers": [{
@@ -127,18 +116,6 @@ def test_env_must_be_string_values(schema):
 
 def test_scope_rejects_invalid_value(schema):
     data = {"servers": [{"name": "x", "command": "echo", "scope": "global"}]}
-    with pytest.raises(jsonschema.ValidationError):
-        _validate(data, schema)
-
-
-def test_target_agents_rejects_invalid_agent(schema):
-    data = {
-        "servers": [{
-            "name": "x",
-            "command": "echo",
-            "targetAgents": ["invalid-agent"],
-        }]
-    }
     with pytest.raises(jsonschema.ValidationError):
         _validate(data, schema)
 

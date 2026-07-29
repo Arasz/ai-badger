@@ -38,8 +38,8 @@ GOLDEN_MCP_REGION = (
 )
 
 
-def _config(stacks=None, agents=None, external_tools=None) -> dict:
-    cfg = {
+def _config(stacks=None, agents=None) -> dict:
+    return {
         "$schema": "./schemas/config.schema.json",
         "frameworkVersion": "0.1.0",
         "project": {"name": "probe", "summary": "s", "domain": "d"},
@@ -51,9 +51,6 @@ def _config(stacks=None, agents=None, external_tools=None) -> dict:
         "skillScope": "default",
         "docs": {},
     }
-    if external_tools is not None:
-        cfg["externalTools"] = external_tools
-    return cfg
 
 
 def _render(make_scaffolder, **kwargs):
@@ -70,38 +67,17 @@ def _render(make_scaffolder, **kwargs):
     }
 
 
-def _legacy_only(monkeypatch, module):
-    """Silence the catalog, leaving exactly the pre-step-2 code path behind."""
-    monkeypatch.setattr(module.McpTools, "collect_catalog_mcp_servers", lambda self: [])
-
-
-# ── byte identity, whole document ────────────────────────────────────────────
-
-@pytest.mark.parametrize("document", ["CLAUDE.md", "HERMES.md"])
-def test_the_rendered_document_is_byte_identical_to_the_legacy_path(make_scaffolder,
-                                                                     monkeypatch, document):
-    """Catalog-sourced and external-tools-sourced renders must not differ by one byte."""
-    after = _render(make_scaffolder)[document]
-
-    _legacy_only(monkeypatch, make_scaffolder.module)
-    before = _render(make_scaffolder)[document]
-
-    assert after == before
-
-
-def test_the_generated_mcp_json_is_byte_identical_to_the_legacy_path(make_scaffolder,
-                                                                     monkeypatch):
-    """Step 2 moves the prose only; the launch declaration still comes from the legacy reader."""
-    after = _render(make_scaffolder)[".mcp.json"]
-
-    _legacy_only(monkeypatch, make_scaffolder.module)
-    before = _render(make_scaffolder)[".mcp.json"]
-
-    assert after == before
-    assert CATALOG_SERVER in json.loads(after)["mcpServers"]
-
-
 # ── byte identity, against the frozen golden ─────────────────────────────────
+
+def test_the_generated_mcp_json_still_carries_the_one_declared_server(make_scaffolder):
+    """The legacy source is deleted (step 4), so the frozen entry is the only comparison left."""
+    rendered = json.loads(_render(make_scaffolder)[".mcp.json"])["mcpServers"]
+
+    assert rendered == {CATALOG_SERVER: {
+        "command": "python3",
+        "args": ["-m", "code_review_graph", "serve"],
+        "cwd": str(make_scaffolder.target),
+    }}
 
 @pytest.mark.parametrize("document", ["CLAUDE.md", "HERMES.md"])
 def test_the_mcp_region_matches_the_bytes_captured_before_the_migration(make_scaffolder,
@@ -137,22 +113,6 @@ def test_the_prose_is_read_from_the_catalog_and_the_legacy_block_stops_rendering
     assert CATALOG_SERVER in described
     assert "knowledge graph" in described[CATALOG_SERVER]["instructions"]
     assert result["CLAUDE.md"].count("## MCP Tools: code-review-graph") == 1
-
-
-def test_a_projects_own_external_tools_entry_still_overrides_the_catalog(make_scaffolder):
-    """config.externalTools is the user's word and outranks anything the catalog ships."""
-    tools = [{
-        "name": CATALOG_SERVER,
-        "package": CATALOG_SERVER,
-        "command": "uvx code-review-graph serve",
-        "instructions": "## MCP Tools: code-review-graph\n\nProject-specific wording.\n",
-    }]
-
-    rendered = _render(make_scaffolder, config=_config(external_tools=tools))["CLAUDE.md"]
-
-    assert "Project-specific wording." in rendered
-    assert "This project has a knowledge graph" not in rendered
-    assert rendered.count("## MCP Tools: code-review-graph") == 1
 
 
 def test_a_declared_server_the_catalog_does_not_describe_is_reported(make_scaffolder,
