@@ -31,6 +31,12 @@ repos:
         language: system
         always_run: true
         pass_filenames: false
+      - id: shipped-paths-guard
+        name: shipped-paths-guard
+        entry: python3 gates/shipped_paths_guard.py
+        language: system
+        always_run: true
+        pass_filenames: false
       - id: pylint
         name: pylint
         entry: pylint

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Arasz/ai-badger/features/common/mcp-tags.json",
   "title": "MCP Tool Tag Taxonomy",
-  "description": "Closed set of tags for categorizing MCP server tools. Tags are assigned to tools in .ai-badger/mcp-tools.json and used by the mcp-index skill and pre_llm_call hooks for tool recommendation.",
+  "description": "Closed set of tags for categorizing MCP server tools. Tags are assigned to tools in .ai-badger/mcp-tools.json and used by the mcp-index skill as vocabulary for grouping, display, and stack inference — a weighted BM25 field (ADR-0012), never a matching key on their own (ADR-0014 §4).",
   "version": "0.1.0",
   "categories": {
     "language": {

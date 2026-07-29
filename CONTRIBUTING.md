@@ -57,20 +57,39 @@ reason**; if you must, decide deliberately which of these two shapes it takes an
 `engine/`, `tooling/`, `features/` and `gates/` and fails on a third-party import — including one
 hidden inside a function or a `try:` block — that `engine/requirements.txt` does not declare.
 
-Optionally install the pre-commit hooks, which run six of the gates locally:
+Optionally install the pre-commit hooks, which run seven of the gates locally:
 
 ```bash
 .venv/bin/python3 -m pip install pre-commit
 pre-commit install
 ```
 
-They are `version-sync`, `index-build`, `plugin-skills-sync`, `docs-guard`, `deps-guard`, and
-`pylint` — see
+They are `version-sync`, `index-build`, `plugin-skills-sync`, `docs-guard`, `deps-guard`,
+`shipped-paths-guard`, and `pylint` — see
 [`.pre-commit-config.yaml`](.pre-commit-config.yaml).
 
 Separately, lefthook runs **every** gate on `git push`. That one is worth installing — it is what
 stops an unbumped `VERSION` or a failing test from reaching CI. See
 [Automating the gates](#automating-the-gates-lefthook).
+
+### Local MCP servers (`code-review-graph`, `hermes`)
+
+`.mcp.json` is **not tracked**. It used to be, and that shipped two permanently-broken
+user-global MCP servers to every plugin installer — Claude Code loads a plugin's `.mcp.json` at
+*user* scope, and the file's `cwd` only ever resolved on the machine that committed it (issue
+#173, [ADR-0014](docs/adr/0014-mcp-support-is-configuration-not-retrieval.md) decision 6).
+
+If you want `code-review-graph` and `hermes` available in this checkout, copy the example and
+fill in your own path:
+
+```bash
+cp .mcp.json.example .mcp.json
+```
+
+Then replace the placeholder `cwd` with the absolute path to this checkout. `.mcp.json` is
+gitignored, so the copy stays local — `gates/shipped_paths_guard.py` fails the build if a
+machine-specific absolute path (`/Users/…`, `/home/…`, `C:\Users\…`) ever ships in a tracked
+file again.
 
 ## How the repository is laid out
 
@@ -83,7 +102,7 @@ tooling/                             maintainer catalog and release tooling: ind
                                      validate, version_sync, sync_plugin_skills,
                                      install_plugins
 gates/                               repo gates CI and the pre-push hook run: release_guard,
-                                     tdd_guard, docs_guard, deps_guard
+                                     tdd_guard, docs_guard, deps_guard, shipped_paths_guard
 schemas/                             a JSON Schema per *.json model
 index.json                           SCRIPT-GENERATED. Never hand-edit it.
 tests/                               pytest; tests/js/ holds the node --test suites
@@ -203,6 +222,7 @@ green local run means a green build:
 .venv/bin/python3 gates/docs_guard.py
 .venv/bin/python3 gates/deps_guard.py
 .venv/bin/python3 gates/release_guard.py
+.venv/bin/python3 gates/shipped_paths_guard.py
 .venv/bin/python3 gates/tdd_guard.py --base origin/main
 node --test "tests/js/*.test.mjs"
 ```
@@ -220,6 +240,7 @@ What each one is for:
 | `docs_guard.py` | A relative link or a backticked repo path in the docs no longer resolves, or a changelog entry is missing from `docs/changelog/README.md`. |
 | `deps_guard.py` | Code imports a third-party module that `engine/requirements.txt` does not declare. |
 | `release_guard.py` | The shipped surface changed since the last release tag without a `VERSION` bump. |
+| `shipped_paths_guard.py` | A machine-specific absolute path (`/Users/…`, `/home/…`, `C:\Users\…`) ships in a tracked file outside `docs/` and `tests/`. |
 | `tdd_guard.py` | Code changed and no test changed with it. Runs on branches, not on `main`. |
 | `node --test` | A `.mjs` gate script's tests fail. |
 
