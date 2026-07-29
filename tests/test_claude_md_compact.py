@@ -11,6 +11,7 @@ calling main(). main() unconditionally reassigns those two globals from its argp
 module unless something restores it — without the snapshot, a custom --max-chars in one test
 would leak into whichever test (in this file or another) runs next.
 """
+# pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations
 
 import json
@@ -25,6 +26,7 @@ def compact(tmp_path, load_script, monkeypatch):
     monkeypatch.setattr(module.lib, "CLAUDE_MD", tmp_path / "CLAUDE.md")
     monkeypatch.setattr(module.lib, "CLAUDE_MD_MAX_CHARS", module.lib.CLAUDE_MD_MAX_CHARS)
     monkeypatch.setattr(module.lib, "CLAUDE_MD_MAX_LINES", module.lib.CLAUDE_MD_MAX_LINES)
+    monkeypatch.setattr(module.lib, "CONFIG_JSON", tmp_path / ".ai-badger" / "config.json")
     return module
 
 
@@ -100,3 +102,19 @@ def test_custom_max_lines_override_raises_the_budget(compact, monkeypatch, capsy
     assert rc == 0
     assert stats["maxLines"] == 500
     assert stats["overBudget"] is False
+
+
+def test_a_cli_budget_beats_the_projects_agentDocs_override(compact, monkeypatch, capsys,
+                                                             tmp_path):
+    # A project's own agentDocs.maxLines (120) must not shadow an explicit CLI override (500).
+    text = "\n".join(f"line {i}" for i in range(200))
+    (tmp_path / "CLAUDE.md").write_text(text, encoding="utf-8")
+    (tmp_path / ".ai-badger").mkdir()
+    (tmp_path / ".ai-badger" / "config.json").write_text(
+        json.dumps({"agentDocs": {"maxLines": 120}}), encoding="utf-8")
+
+    rc = _run(compact, monkeypatch, ["--max-lines", "500"])
+
+    stats = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert stats["maxLines"] == 500

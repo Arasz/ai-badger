@@ -24,13 +24,11 @@ import tracker_lib as lib
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--max-chars", type=int, default=lib.CLAUDE_MD_MAX_CHARS)
-    parser.add_argument("--max-lines", type=int, default=lib.CLAUDE_MD_MAX_LINES)
+    parser.add_argument("--max-chars", type=int, default=None)
+    parser.add_argument("--max-lines", type=int, default=None)
     args = parser.parse_args()
 
-    lib.CLAUDE_MD_MAX_CHARS = args.max_chars
-    lib.CLAUDE_MD_MAX_LINES = args.max_lines
-    stats = lib.claude_md_stats()
+    stats = lib.claude_md_stats(args.max_chars, args.max_lines)
     print(json.dumps(stats, indent=2))
     return 1 if stats["overBudget"] else 0
 
