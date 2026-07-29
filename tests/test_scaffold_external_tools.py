@@ -1,4 +1,8 @@
-"""External tools: catalog injection into CLAUDE.md, .mcp.json generation, user overrides."""
+"""The declared MCP server reaching CLAUDE.md and .mcp.json, and the deprecated reader.
+
+`external-tools.json` was deleted from the framework in step 4 of the MCP rebuild (ADR-0014),
+so what these tests exercise now is the catalog path plus the legacy reader's survival.
+"""
 # pylint: disable=protected-access  # exercises Scaffolder internals directly; see pyproject.toml
 from __future__ import annotations
 
@@ -9,9 +13,9 @@ from unittest.mock import patch
 from scaffold_helpers import _config
 
 
-# ---------------------------------------------------------------------- external tools catalog
-def test_scaffold_injects_catalog_external_tool_into_claude_md(make_scaffolder):
-    """External tools from features/common/external-tools.json are auto-injected."""
+# ---------------------------------------------------------------------- the declared server
+def test_scaffold_injects_the_declared_server_into_claude_md(make_scaffolder):
+    """The server the mcp catalog declares is auto-injected."""
     target = make_scaffolder.target
 
     scaf = make_scaffolder(config=_config(agents=["claude"]), skills=["task"])
@@ -22,7 +26,7 @@ def test_scaffold_injects_catalog_external_tool_into_claude_md(make_scaffolder):
 
 
 def test_scaffold_catalog_tool_generates_mcp_json(make_scaffolder):
-    """Catalog tools with generate_mcp_json produce .mcp.json entries."""
+    """A catalog server with `declare: true` produces a .mcp.json entry."""
     target = make_scaffolder.target
 
     scaf = make_scaffolder(config=_config(agents=["claude"]), skills=["task"])
@@ -34,34 +38,20 @@ def test_scaffold_catalog_tool_generates_mcp_json(make_scaffolder):
     assert "code-review-graph" in mcp.get("mcpServers", {})
 
 
-def test_scaffold_user_external_tools_override_catalog(make_scaffolder):
-    """config.externalTools overrides catalog tools on name conflict."""
-    target = make_scaffolder.target
+def test_collect_external_tools_still_reads_a_stack_that_ships_one(make_scaffolder, tmp_path):
+    """The reader outlives its input file by one release (ADR-0014 step 8 removes it)."""
+    (tmp_path / "index.json").write_text(
+        json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8")
+    stack = tmp_path / "features" / "python"
+    stack.mkdir(parents=True)
+    (stack / "external-tools.json").write_text(json.dumps({"tools": [{
+        "name": "legacy-tool", "package": "p", "command": "echo legacy",
+        "instructions": "x",
+    }]}), encoding="utf-8")
 
-    config = _config(agents=["claude"])
-    config["externalTools"] = [{
-        "name": "code-review-graph",
-        "package": "code-review-graph",
-        "command": "custom-command",
-        "instructions": "CUSTOM INSTRUCTIONS",
-        "generate_mcp_json": True,
-    }]
+    scaf = make_scaffolder(root=tmp_path, config=_config(stacks=["python"], agents=["claude"]))
 
-    scaf = make_scaffolder(config=config, skills=["task"])
-    scaf.run(generated_at="2026-07-24T00:00:00Z")
-
-    claude_md = (target / "CLAUDE.md").read_text(encoding="utf-8")
-    assert "CUSTOM INSTRUCTIONS" in claude_md, "User override not applied"
-    assert "MCP Tools: code-review-graph" not in claude_md, "Catalog instructions not overridden"
-
-
-def test_collect_external_tools_reads_common_catalog(make_scaffolder):
-    """_collect_external_tools reads features/common/external-tools.json."""
-
-    scaf = make_scaffolder(config=_config(agents=["claude"]), skills=["task"])
-    tools = scaf.mcp.collect_external_tools()
-    names = [t["name"] for t in tools]
-    assert "code-review-graph" in names
+    assert [t["name"] for t in scaf.mcp.collect_external_tools()] == ["legacy-tool"]
 
 
 def test_check_dependencies_surfaces_optional_hints_as_notes(make_scaffolder):
@@ -81,16 +71,3 @@ def test_check_dependencies_surfaces_optional_hints_as_notes(make_scaffolder):
         scaf._check_dependencies()
 
     assert any(hint in n for n in scaf.notes)
-
-
-def test_merge_external_tools_user_overrides_catalog(load_script):
-    """_merge_external_tools: user tools override catalog on name conflict."""
-    scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
-
-    catalog = [{"name": "tool-a", "package": "p", "command": "c1", "instructions": "orig"}]
-    user = [{"name": "tool-a", "package": "p", "command": "c2", "instructions": "override"}]
-
-    merged = scaffold.McpTools.merge_external_tools(catalog, user)
-    assert len(merged) == 1
-    assert merged[0]["command"] == "c2"
-    assert merged[0]["instructions"] == "override"

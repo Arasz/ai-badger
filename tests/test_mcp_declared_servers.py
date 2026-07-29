@@ -1,10 +1,11 @@
 """One launch declaration, three readers, and legacy losing on conflict.
 
 Step 3 of the MCP rebuild (ADR-0014). `stack-mcp.json`'s `declare: true` joins the legacy
-`mcp-servers.json` and `external-tools.json` readers; a catalog declaration beats both, and a
-project's own `config.externalTools` entry still beats all three. `collect_stack_mcp_servers`
-and `merge_mcp_servers` keep working untouched from the outside — the ~60 tests in
-tests/test_stack_mcp_servers.py are the check on that.
+`mcp-servers.json` and `external-tools.json` readers, and a catalog declaration beats both.
+Step 4 deleted both legacy files from this framework and the `config.externalTools` key that
+outranked all three; the readers themselves stay until step 8, so they are still exercised
+here from a fake root. `collect_stack_mcp_servers` and `merge_mcp_servers` keep working
+untouched from the outside — the ~60 tests in tests/test_stack_mcp_servers.py check that.
 """
 from __future__ import annotations
 
@@ -13,8 +14,8 @@ import json
 CATALOG_SERVER = "code-review-graph"
 
 
-def _config(stacks=None, agents=None, external_tools=None):
-    cfg = {
+def _config(stacks=None, agents=None):
+    return {
         "$schema": "./schemas/config.schema.json",
         "frameworkVersion": "0.1.0",
         "project": {"name": "probe", "summary": "s", "domain": "d"},
@@ -26,9 +27,6 @@ def _config(stacks=None, agents=None, external_tools=None):
         "skillScope": "default",
         "docs": {},
     }
-    if external_tools is not None:
-        cfg["externalTools"] = external_tools
-    return cfg
 
 
 def _fake_root(tmp_path):
@@ -173,32 +171,6 @@ def test_the_catalog_beats_a_legacy_external_tool_on_the_same_name(make_scaffold
     assert _mcp_json(make_scaffolder, tmp_path)["shared"]["command"] == "echo catalog"
 
 
-def test_a_projects_own_external_tools_entry_beats_the_catalog(make_scaffolder, tmp_path):
-    """The user's word is the last one — the same precedence the instructions slot uses."""
-    _declare(tmp_path, "python", {"name": "shared", "command": "echo catalog",
-                                  "declare": True})
-    user = [{"name": "shared", "package": "p", "command": "echo user",
-             "instructions": "", "generate_mcp_json": True}]
-
-    servers = _mcp_json(make_scaffolder, tmp_path, _config(external_tools=user))
-
-    assert servers["shared"]["command"] == "echo user"
-
-
-def test_a_projects_entry_declining_mcp_json_silences_the_catalog_too(make_scaffolder,
-                                                                      tmp_path):
-    """Omitting generate_mcp_json is how a project opts out — the pre-step-3 behaviour, kept.
-
-    Reasserting the catalog's declaration over that silence would have been a consumer-visible
-    break in an additive step (tests/test_external_mcp_tools.py pins the same rule).
-    """
-    _declare(tmp_path, "python", {"name": "shared", "command": "echo catalog",
-                                  "declare": True})
-    user = [{"name": "shared", "package": "p", "command": "echo user", "instructions": ""}]
-
-    assert _mcp_json(make_scaffolder, tmp_path, _config(external_tools=user)) == {}
-
-
 # ── the real catalog: byte identity ──────────────────────────────────────────
 
 def _real_mcp_json(make_scaffolder):
@@ -207,14 +179,11 @@ def _real_mcp_json(make_scaffolder):
     return (make_scaffolder.target / ".mcp.json").read_text(encoding="utf-8")
 
 
-def test_the_generated_mcp_json_is_byte_identical_to_the_legacy_path(make_scaffolder,
-                                                                     monkeypatch):
-    """The one server the catalog declares must land exactly where external-tools.json put it."""
-    after = _real_mcp_json(make_scaffolder)
-
-    monkeypatch.setattr(make_scaffolder.module.McpTools, "collect_catalog_mcp_servers",
-                        lambda self: [])
+def test_the_generated_mcp_json_is_byte_identical_across_two_renders(make_scaffolder):
+    """`.mcp.json` is untracked, so a double render is what byte-identity means for it."""
     before = _real_mcp_json(make_scaffolder)
+
+    after = _real_mcp_json(make_scaffolder)
 
     assert after == before
     assert CATALOG_SERVER in json.loads(after)["mcpServers"]

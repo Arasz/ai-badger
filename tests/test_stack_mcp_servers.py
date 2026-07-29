@@ -1,8 +1,8 @@
 """Tests for stack-declared MCP server scaffolding.
 
-Verifies that mcp-servers.json files in feature directories are collected,
-merged with externalTools, split by scope, and scaffolded into agent-specific
-config files (.mcp.json, ~/.hermes/config.yaml, ~/.claude/settings.json,
+Verifies that mcp-servers.json files in feature directories are collected, merged with the
+legacy external-tools.json entries, split by scope, and scaffolded into agent-specific config
+files (.mcp.json, ~/.hermes/config.yaml, ~/.claude/settings.json,
 .github/copilot/mcp-config.json).
 """
 # pylint: disable=protected-access  # exercises the Scaffolder MCP mixin directly; see pyproject.toml
@@ -18,8 +18,8 @@ import pytest
 SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 
 
-def _config(stacks=None, agents=None, external_tools=None):
-    cfg = {
+def _config(stacks=None, agents=None):
+    return {
         "$schema": "./schemas/config.schema.json",
         "frameworkVersion": "0.1.0",
         "project": {"name": "probe", "summary": "s", "domain": "d"},
@@ -31,9 +31,6 @@ def _config(stacks=None, agents=None, external_tools=None):
         "skillScope": "default",
         "docs": {},
     }
-    if external_tools is not None:
-        cfg["externalTools"] = external_tools
-    return cfg
 
 
 def _scaf(make_scaffolder, root, target, config):
@@ -165,7 +162,7 @@ def test_merge_user_only(root, make_scaffolder):
 
 
 def test_merge_user_wins_on_conflict(root, make_scaffolder):
-    """Same name in both -> externalTools entry is used."""
+    """Same name in both -> the external-tools.json entry is used."""
     target = make_scaffolder.target
     scaf = _scaf(make_scaffolder, root, target, _config())
 
@@ -177,7 +174,7 @@ def test_merge_user_wins_on_conflict(root, make_scaffolder):
 
 
 def test_merge_empty_stacks(root, make_scaffolder):
-    """No stack servers -> only externalTools in result."""
+    """No stack servers -> only external tools in result."""
     target = make_scaffolder.target
     scaf = _scaf(make_scaffolder, root, target, _config())
 
@@ -188,7 +185,7 @@ def test_merge_empty_stacks(root, make_scaffolder):
 
 
 def test_merge_empty_tools(root, make_scaffolder):
-    """No externalTools -> only stack servers in result."""
+    """No external tools -> only stack servers in result."""
     target = make_scaffolder.target
     scaf = _scaf(make_scaffolder, root, target, _config())
 
@@ -269,7 +266,7 @@ def test_stack_mcp_generates_mcp_json(tmp_path, make_scaffolder):
 
 
 def test_stack_and_external_tools_merge_in_mcp_json(tmp_path, make_scaffolder):
-    """Both sources appear in .mcp.json; user wins on conflict."""
+    """Both legacy readers appear in .mcp.json; external-tools.json wins on conflict."""
     target = make_scaffolder.target
 
     py_dir = tmp_path / "features" / "python"
@@ -277,14 +274,13 @@ def test_stack_and_external_tools_merge_in_mcp_json(tmp_path, make_scaffolder):
         {"name": "pyright", "command": "uvx mcp-server-pyright"},
         {"name": "shared", "command": "echo stack"},
     ])
-
-    external = [{
+    (py_dir / "external-tools.json").write_text(json.dumps({"tools": [{
         "name": "shared", "package": "p", "command": "echo user",
         "instructions": "", "generate_mcp_json": True,
-    }]
+    }]}), encoding="utf-8")
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
-                  _config(stacks=["python"], agents=["claude"], external_tools=external))
+                  _config(stacks=["python"], agents=["claude"]))
     scaf.mcp.generate_mcp_json()
 
     mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
@@ -626,20 +622,11 @@ def test_full_scaffold_with_stack_mcp(tmp_path, make_scaffolder):
     assert "pyright" in mcp["mcpServers"]
 
 
-def test_existing_external_tools_still_work(root, make_scaffolder):
-    """Regression: code-review-graph from externalTools still generates .mcp.json."""
+def test_the_shipped_catalog_declaration_still_works(root, make_scaffolder):
+    """Regression: code-review-graph still generates .mcp.json, now from the mcp catalog."""
     target = make_scaffolder.target
 
-    external = [{
-        "name": "code-review-graph",
-        "package": "code-review-graph",
-        "command": "uvx code-review-graph serve",
-        "instructions": "## CRG\nUse graph tools.",
-        "generate_mcp_json": True,
-    }]
-
-    scaf = _scaf(make_scaffolder, root, target,
-                  _config(stacks=[], agents=["claude"], external_tools=external))
+    scaf = _scaf(make_scaffolder, root, target, _config(stacks=[], agents=["claude"]))
     scaf.mcp.generate_mcp_json()
 
     mcp_path = target / ".mcp.json"
@@ -649,7 +636,7 @@ def test_existing_external_tools_still_work(root, make_scaffolder):
 
 
 def test_no_mcp_json_when_no_servers(tmp_path, make_scaffolder):
-    """No stack servers + no externalTools -> no .mcp.json."""
+    """No stack servers + no external tools -> no .mcp.json."""
     target = make_scaffolder.target
 
     scaf = _scaf(make_scaffolder, tmp_path, target, _config(stacks=[], agents=["claude"]))
