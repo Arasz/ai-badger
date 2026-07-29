@@ -58,7 +58,9 @@ On disk they are compact, one JSON object per line:
 
 The single-letter keys are a budget, not cosmetics: a record must stay under `PIPE_BUF`
 (4096 bytes) for concurrent appends to be atomic, and the fixed keys repeat on every line.
-Fields a caller adds keep their full names — they are the payload, and they do not repeat.
+Fields a caller adds usually keep their full names — they are the payload, and they do not
+repeat. The MCP-retrieval fields below are the exception: that event can fire on every turn, so
+they are compacted the same way the fixed keys are.
 
 - **`version` is on every record** — it is the VERSION of the *copy of the code that ran*. This
   is what makes a stale plugin running against a newer scaffold visible rather than something
@@ -67,7 +69,44 @@ Fields a caller adds keep their full names — they are the payload, and they do
   distinguishable from one that never fired. That distinction is the whole point.
 - `project` is recorded whenever it can be determined.
 
-No tool input, prompt text, or file content is ever recorded.
+No tool input or file content is ever recorded. The one exception is the MCP-retrieval `query`
+field below, which is recorded by default and has its own opt-out — see "Retrieval telemetry".
+
+## Retrieval telemetry
+
+The MCP tool index's retrieval path (`_find_relevant_tools` / `_extract_query_tags`, consumed by
+`pre_llm_inject_context`) and its post-call tool-index check both log under the
+`ai_badger_hooks/mcp_retrieval` component:
+
+| Event | Means |
+|---|---|
+| `hit` | At least one candidate cleared the match threshold — something was recommended. |
+| `gate` | Candidates were scored and **all** fell below the threshold. A correct, frequent outcome, not a failure — but previously indistinguishable from `absent`. |
+| `no_terms` | The keyword map read nothing from the query, so **no candidate was ever scored against the threshold**. Distinct from `gate`: the record carries the top candidates but no threshold, because none was applied. The suppressed top scorer is often a correct match. |
+| `absent` | No `.ai-badger/mcp-tools.json` to search. |
+| `known` / `unknown` | A tool call was checked against the index after the fact — was it a tool the index knows about? |
+
+A "no match" that reads identically to "no index" is a bug that hides itself; that is why these
+are three separate events rather than one silent no-op.
+
+| Key | Meaning |
+|---|---|
+| `q` | the query — the user's message that drove retrieval |
+| `g` | terms/tags extracted from the query, comma-joined |
+| `d` | how many tools in the index were considered |
+| `o` | the top 3 scored candidates as `name:score`, comma-joined |
+| `r` | what was actually returned (empty on `gate` and `absent`) |
+| `h` | the match threshold in force, so a later threshold change is attributable |
+| `l` | the tool name, for the `known`/`unknown` check |
+
+### The query field, and redacting it
+
+`q` is the one field carrying user content — indispensable for diagnosing a miss or turning a
+record into an eval fixture, and the one thing someone may not want recorded. It is recorded by
+default. Setting `AI_BADGER_DEBUG_REDACT` in the environment drops that field only from every
+record written afterward, leaving every other field intact so the log stays useful for counting.
+The drop happens inside `debug_log.log_event` itself, at the point of writing — a redacted
+record never contains the text, so there is nothing to scrub after the fact.
 
 ## Where things live
 
