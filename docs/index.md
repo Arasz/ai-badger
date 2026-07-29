@@ -38,7 +38,7 @@ Everything written down about this project, grouped by what you came here to do.
 skill-extension mechanism · `0007` ai-badger ships as files, not a Python distribution ·
 `0008` plugin skills live at the plugin skill path · `0009` one framework root, resolved rather
 than searched · `0010` stack-local skill discovery · `0011` `engine/`, `tooling/` and `gates/` ·
-`0012` BM25 retrieval with a falsifiable eval.
+`0012` BM25 retrieval with a falsifiable eval · `0013` what the MCP tool index is for.
 
 ## I want to know what changed
 
