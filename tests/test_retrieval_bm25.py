@@ -6,6 +6,7 @@ skills or MCP tools (docs/adr/0012-bm25-retrieval-with-a-falsifiable-eval.md).
 # pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations
 
+import math
 from collections import Counter
 
 import pytest
@@ -18,6 +19,24 @@ def bm25(load_script):
 
 def _tf(*words: str) -> Counter:
     return Counter(words)
+
+
+def test_fuse_document_applies_the_given_weight(bm25):
+    fused = bm25.fuse_document([(["build"], 3.0)])
+    assert fused["build"] == 3.0
+
+
+def test_fuse_document_sums_when_two_fields_share_a_token(bm25):
+    """Two fields carrying the same token must accumulate, not overwrite — this is the
+    whole point of fusing name/tags/intent into one weighted document."""
+    fused = bm25.fuse_document([(["build"], 3.0), (["build"], 2.0)])
+    assert fused["build"] == 5.0
+
+
+def test_fuse_document_empty_field_contributes_nothing(bm25):
+    fused = bm25.fuse_document([([], 3.0), (["solution"], 1.0)])
+    assert fused["solution"] == 1.0
+    assert "build" not in fused
 
 
 def test_idf_is_higher_for_a_rarer_term(bm25):
@@ -115,6 +134,97 @@ def test_coverage_is_idf_weighted_not_a_plain_term_fraction(bm25):
     assert expected != pytest.approx(0.5)
 
 
+def test_avgdl_is_mean_document_length_not_product(bm25):
+    """avgdl = sum(doc lengths) / n. A construction bug swapping division for
+    multiplication distorts every length_norm, but the existing length-normalization test's
+    huge length gap (2 tokens vs 16) survives that distortion by coincidence."""
+    corpus = bm25.Bm25Corpus({
+        "a": _tf("build", "solution"),           # length 2
+        "b": _tf("build", "solution", "run"),    # length 3
+    })
+    assert corpus._avgdl == pytest.approx(2.5)  # pylint: disable=protected-access
+
+
+def test_idf_for_a_term_absent_from_every_document(bm25):
+    """A query term with zero document frequency must use df=0 in the formula, not None
+    (crashes) or 1 (wrong value) — a real query condition (typos, novel words) the
+    existing relative-ordering test never exercises."""
+    corpus = bm25.Bm25Corpus({"a": _tf("build"), "b": _tf("solution")})
+    expected = math.log(1 + (2 - 0 + 0.5) / (0 + 0.5))
+    assert corpus.idf("nonexistent") == pytest.approx(expected)
+
+
+def test_idf_formula_uses_minus_document_frequency(bm25):
+    """Pins df=2 (n=3) against the hand-computed formula so a sign flip on `df`, or either
+    `+0.5` becoming `-0.5`/`+1.5`, or the division becoming a multiply, all fail — the
+    existing rarer-term comparison stays true under several of these because it only checks
+    relative order, not the value."""
+    corpus = bm25.Bm25Corpus({"a": _tf("build"), "b": _tf("build"), "c": _tf("solution")})
+    expected = math.log(1 + (3 - 2 + 0.5) / (2 + 0.5))
+    assert corpus.idf("build") == pytest.approx(expected)
+
+
+def test_rank_score_matches_the_bm25_formula_exactly(bm25):
+    """Pins score, matched_terms and coverage to hand-computed values (k1=1.2, b=0.75, per
+    this module's own docstring) so every arithmetic operator in the scoring loop —
+    length_norm's sign and factor, the two multiplies, the final divide, and the
+    matched_terms/score accumulators — has something that fails if it changes. The
+    existing length-normalization test only compares which document ranks first, which
+    several of these mutations still get right by accident.
+    """
+    k1, b = 1.2, 0.75
+    corpus = bm25.Bm25Corpus({
+        "a": _tf("build", "solution"),
+        "b": _tf("build"),
+    })
+    # n=2, avgdl=(2+1)/2=1.5; df(build)=2 (both docs), df(solution)=1 (doc "a" only)
+    idf_build = math.log(1 + (2 - 2 + 0.5) / (2 + 0.5))
+    idf_solution = math.log(1 + (2 - 1 + 0.5) / (1 + 0.5))
+    length_norm_a = 1 - b + b * (2 / 1.5)
+    expected_score_a = (
+        idf_build * (1 * (k1 + 1)) / (1 + k1 * length_norm_a)
+        + idf_solution * (1 * (k1 + 1)) / (1 + k1 * length_norm_a)
+    )
+    ranked = corpus.rank(["build", "solution"])
+    by_id = {r.doc_id: r for r in ranked}
+    assert by_id["a"].score == pytest.approx(expected_score_a)
+    assert by_id["a"].matched_terms == 2
+    assert by_id["a"].coverage == pytest.approx(1.0)
+
+
+def test_length_norm_falls_back_to_one_when_avgdl_is_zero(bm25):
+    """`dl / self._avgdl if self._avgdl else 1.0` guards the zero-avgdl case explicitly, so
+    it is reachable and worth pinning: a term-frequency map is only required to be a
+    `Counter` (no non-negative constraint), so a doc whose weighted counts sum to zero
+    while still matching a query term is valid input, not a contrived one.
+    """
+    corpus = bm25.Bm25Corpus({
+        "a": Counter({"build": 5, "junk": -5}),   # doc_len sums to 0
+        "b": Counter({"other": 3, "junk2": -3}),  # doc_len sums to 0 -> avgdl == 0
+    })
+    ranked = corpus.rank(["build"])
+    by_id = {r.doc_id: r for r in ranked}
+    k1, b = 1.2, 0.75
+    length_norm = 1 - b + b * 1.0  # the documented fallback, not some other constant
+    idf_build = math.log(1 + (2 - 1 + 0.5) / (1 + 0.5))
+    expected_score = idf_build * (5 * (k1 + 1)) / (5 + k1 * length_norm)
+    assert by_id["a"].score == pytest.approx(expected_score)
+
+
+def test_rank_skips_only_the_zero_freq_term_not_the_rest(bm25):
+    """A zero-frequency query term must `continue` to the next term, not `break` out of
+    the loop — confirmed by putting the zero-freq term first, so a `break` would also
+    skip a later term this document genuinely matches."""
+    corpus = bm25.Bm25Corpus({
+        "a": _tf("build", "solution"),
+        "b": _tf("build"),
+    })
+    ranked = corpus.rank(["solution", "build"])  # "solution" first; absent from doc "b"
+    by_id = {r.doc_id: r for r in ranked}
+    assert by_id["b"].matched_terms == 1
+    assert by_id["b"].score > 0
+
+
 def test_tie_break_is_deterministic_across_insertion_order(bm25):
     """A sort key reduced to `(-score,)` lets ties fall back to insertion order, not `doc_id`.
 
@@ -131,3 +241,33 @@ def test_tie_break_is_deterministic_across_insertion_order(bm25):
     reversed_order = [r.doc_id for r in corpus_reversed.rank(["build", "solution"])]
 
     assert forward_order == reversed_order == ["alpha", "zeta"]
+
+
+def test_coverage_breaks_an_exact_score_tie_toward_higher_coverage(bm25):
+    """When two documents' BM25 scores land on the exact same float, the higher-coverage one
+    must sort first (issue #154): otherwise nothing distinguishes `-r.coverage` from
+    `+r.coverage` in the sort key, and a mutant flipping that sign survives untested.
+
+    "doc_a" matches only "term_a", "doc_b" only "term_b", each on a document of equal weighted
+    length (so `length_norm` is identical for both and drops out). "doc_c" exists only to make
+    "term_a" the rarer term (df 2 vs. 1), so idf(term_a) != idf(term_b) and coverage differs.
+    "doc_b"'s term frequency (0.6244807405101783) is solved so that, run through the exact same
+    BM25 expression, its score equals "doc_a"'s bit-for-bit — verified below via `==`, not
+    `approx`, because an approximate tie would let the primary `-r.score` key decide the order
+    and never exercise the coverage tie-break at all.
+    """
+    fuse = bm25.fuse_document
+    corpus = bm25.Bm25Corpus({
+        "doc_a": fuse([(["term_a"], 3.0)]),
+        "doc_b": fuse([(["term_b"], 0.6244807405101783), (["filler_b"], 2.375519259489822)]),
+        "doc_c": fuse([(["term_a"], 1.0), (["filler_c"], 2.0)]),
+    })
+    ranked = corpus.rank(["term_a", "term_b"])
+    by_id = {r.doc_id: r for r in ranked}
+
+    assert by_id["doc_a"].score == by_id["doc_b"].score  # exact tie, not merely close
+    assert by_id["doc_a"].coverage != by_id["doc_b"].coverage
+    assert by_id["doc_b"].coverage > by_id["doc_a"].coverage
+
+    order = [r.doc_id for r in ranked if r.doc_id in ("doc_a", "doc_b")]
+    assert order == ["doc_b", "doc_a"]

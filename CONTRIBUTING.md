@@ -301,6 +301,83 @@ a 32-release gap. Never skip a tag.
 Then verify the release shipped by checking **content**, not the CLI's own output — see the
 mandatory verification section in [`RELEASING.md`](RELEASING.md).
 
+## Mutation testing (`features/common/retrieval/` only)
+
+[`mutmut`](https://mutmut.readthedocs.io/) is a dev-only dependency, scoped hard to one
+directory:
+
+```bash
+.venv/bin/python3 -m pip install -r requirements-mutation.txt
+.lefthook/pre-push/verify.sh mutation
+```
+
+Declared in [`requirements-mutation.txt`](requirements-mutation.txt) at the repo root, not
+`pyproject.toml`'s `[project.optional-dependencies]` — that needs a `[project]` table with a
+`version` key, which setuptools refuses to build without (verified: `pip install -e ".[dev]"`
+fails against a `[project]` table that has no `version`, PEP 621) — and not
+`engine/requirements-dev.txt` either, since `engine/` is a shipped path and touching it would
+force a `VERSION` bump for a tool nothing ships.
+
+**What it covers:** `features/common/retrieval/` (`bm25.py`, `mcp_matcher.py`, `tokenizer.py`) —
+the BM25 ranking and MCP-tool matching logic. Nothing else. That module is where a live run
+demonstrably paid: 235 LOC, no subprocess, no repo-tree reads, a 190-mutant run in about 15
+seconds.
+
+**What it deliberately does not cover:** everything else. `gates/`, `engine/`, `tooling/` and
+`features/**/scripts/` are not configured for mutation at all, and `features/common/hooks/` is
+structurally blocked — 28 of this repo's 101 test files spawn a script as a subprocess, and
+mutmut's trampoline resolves its config cwd-relatively with no override, so it crashes the
+moment a mutated script runs as a subprocess from a temp directory. Scoping around that
+destroys the score anyway: `scaffold.py` alone scored 39% with 136 "no tests" purely because its
+tests live in 40 *other* files — an artefact of the harness, not a gap in the tests.
+
+**No threshold, no score, no CI job, and it is not in `$LANES`** — `verify.sh mutation` never
+runs on push or in CI, and nothing here can fail a build. mutmut's own maintainer has said teams
+that put it in CI eventually "throw it all away as it's useless," and this repo's floor
+(Python 3.8) predates mutmut's own floor (3.10) regardless. A mutation *score* is not reported
+either, matching Google's public reasoning for not publishing one: "it is neither concrete nor
+actionable, and it does not guide testing." Treat a run's summary as a lead, not a grade.
+
+**What to do with a survivor:** read it. Each one is either a real gap — write the test that
+kills it — or genuine noise, in which case add a `# pragma: no mutate: <one-line reason>`
+comment on that line rather than leaving it to resurface on every run (the trailing `: reason`
+does not break the match — verified against `mutmut.mutation.pragma_handling` directly).
+`[tool.mutmut]` in [`pyproject.toml`](pyproject.toml) already suppresses categories of noise
+this repo has (docstrings, exception message text, `@dataclass(frozen=True)`, `pylint:`
+comments); the pragma is for the one-off case a pattern would over-suppress. There is no third
+option — a survivor that is neither tested nor annotated is exactly what the next run will
+report again.
+
+**`no tests` is not an exemption from that rule — it is the same finding stated differently.**
+A `survived` mutant means a test ran against it and didn't notice; a `no tests` mutant means
+mutmut could not attribute *any* test to the function at all, which is a gap of its own, not a
+harness quirk to set aside. If `grep -rn "<function name>" tests/` comes back empty, that is
+the reason mutmut says `no tests` — the function is only exercised indirectly through a caller,
+and it still needs a test named after *it*.
+
+The pragma comment has one sharp edge: mutmut's CST scan only recognizes a trailing `# pragma:
+no mutate` on a statement's *own* line. A line buried inside a multi-line call (a list literal
+spanning several lines, for instance) is invisible to it — `do_not_mutate_patterns`' regex is
+the only mechanism that reaches those, one entry per confirmed-equivalent mutant, each
+commented with why (see the last entry in `[tool.mutmut]` for a worked example).
+
+The first scoped run surfaced 44 `survived` mutants and 3 `no tests` ones. Of the 44: 41 were
+real gaps, fixed with tests that pin exact values rather than loose orderings; 1 was confirmed
+equivalent and annotated as above; 1 is a real gap deferred to a follow-up issue because a clean
+test needs a hand-tuned corpus that ties two documents' scores exactly while their coverage
+differs — disproportionate effort for one line. The 3 `no tests` mutants were all
+`bm25.fuse_document` — a `grep` for the function name across `tests/` returned nothing; it was
+only exercised indirectly through `mcp_matcher.build_corpus`, and it is the field-weighting
+mechanism (`name ×3, tags ×2, intent ×1`) the whole retrieval design rests on. Fixed with three
+direct tests (a weight actually applied, two fields' tokens summing rather than overwriting, an
+empty field contributing nothing) rather than set aside as unrelated. **Adopting the harness and
+not reading its first output — all of it, `no tests` included — is how it becomes a tool nobody
+runs.**
+
+**Review it after about a month** against one falsifiable question: did any survivor here lead
+to a test that would have caught a real defect? If not, delete the config — a tool that finds
+nothing worth acting on is not worth carrying.
+
 ## Conventions worth knowing
 
 The full list of non-negotiable invariants is in [`CLAUDE.md`](CLAUDE.md). The ones that most

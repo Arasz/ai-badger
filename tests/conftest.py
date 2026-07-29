@@ -11,7 +11,7 @@ import os
 import shutil
 import sys
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 
@@ -82,10 +82,18 @@ def make_scaffolder(load_script, root, tmp_path):
 
 @pytest.fixture
 def load_script():
-    """Return a loader that imports an ai-badger script by repo-relative path."""
+    """Return a loader that imports an ai-badger script by repo-relative path.
+
+    Named by dotted repo-relative path (``features.common.retrieval.bm25``), not an
+    ``aib_`` prefix: mutmut's trampoline dispatches a mutant by matching a function's
+    ``__module__`` against exactly this dotted form (see
+    ``mutmut.utils.format_utils.get_mutant_name``). Renaming this back to ``aib_`` breaks
+    mutation testing silently — every mutant reports "no tests" and the run measures
+    0.00 mutations/second, a symptom that points at mutmut, not at this fixture.
+    """
     def _load(relpath: str):
         path = ROOT / relpath
-        name = "aib_" + path.stem
+        name = PurePosixPath(relpath).with_suffix("").as_posix().replace("/", ".")
         spec = importlib.util.spec_from_file_location(name, path)
         module = importlib.util.module_from_spec(spec)
         sys.modules[name] = module

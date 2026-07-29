@@ -27,8 +27,8 @@
       "name": "prompt-markers",
       "description": "Detect prompt markers (h:, f:, e:) and inject behavior context",
       "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "UserPromptSubmit" },
-        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "userPromptSubmitted" }
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "UserPromptSubmit", "script": "user_prompt_hook.py" },
+        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "userPromptSubmitted", "script": "user_prompt_hook.py" }
       }
     },
     {

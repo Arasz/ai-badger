@@ -65,6 +65,18 @@ def test_suffix_folding_requires_three_char_remainder(load_script):
     assert tokenizer.tokenize("gas") == ["gas"]
 
 
+def test_suffix_folding_strips_exactly_three_char_remainder_ies(load_script):
+    """The boundary itself: a remainder of exactly 3 chars must still fold (`>=`, not `>`)."""
+    tokenizer = load_script("features/common/retrieval/tokenizer.py")
+    assert tokenizer.tokenize("ladies") == ["lady"]
+
+
+def test_suffix_folding_strips_exactly_three_char_remainder_s(load_script):
+    """Same boundary for the general ing/ed/es/s branch, not the ies-specific one."""
+    tokenizer = load_script("features/common/retrieval/tokenizer.py")
+    assert tokenizer.tokenize("cats") == ["cat"]
+
+
 def test_tokenize_empty_string(load_script):
     tokenizer = load_script("features/common/retrieval/tokenizer.py")
     assert tokenizer.tokenize("") == []
