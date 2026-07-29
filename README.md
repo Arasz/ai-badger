@@ -165,7 +165,7 @@ ai-badger/
       skills.json                # External skills to install
       external-tools.json        # External MCP tools (code-review-graph, …)
       templates/                 # CLAUDE.md.tmpl, HERMES.md.tmpl, state.json, agent-instructions
-    dotnet/ azure/ cosmos/ terraform/ mcp/  {personas,invariants,instructions}/…
+    dotnet/ azure/ cosmos/ terraform/ mcp/ changelog/  {personas,invariants,instructions}/…
     github/    (stack-specific features; extensions now inline in skills/)
     claude/    skills/auto-wm/, adjustments/   # agent-specific, not common
     hermes/ copilot/ junie/   adjustments/     # per-agent scaffolding tweaks

@@ -146,6 +146,29 @@ def test_detect_stacks_dotnet_via_csproj(tmp_path, load_script, root):
     assert "python" not in stacks
 
 
+def test_detect_stacks_changelog_via_versioned_changelog_tree(tmp_path, load_script, root):
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
+    index = detect.bl.read_index(root)
+
+    (tmp_path / "docs" / "changelog").mkdir(parents=True)
+    (tmp_path / "docs" / "changelog" / "0.1.0-x.md").write_text("x\n", encoding="utf-8")
+
+    stacks = detect.detect_stacks(tmp_path, index)
+
+    assert "changelog" in stacks
+
+
+def test_detect_stacks_no_changelog_without_the_tree(tmp_path, load_script, root):
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
+    index = detect.bl.read_index(root)
+
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
+
+    stacks = detect.detect_stacks(tmp_path, index)
+
+    assert "changelog" not in stacks
+
+
 # --------------------------------------------------------------------- dependency-based stacks
 def test_detect_stacks_react_via_package_json_dependency(tmp_path, load_script, root):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
