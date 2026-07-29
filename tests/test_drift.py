@@ -573,6 +573,79 @@ def test_main_reports_drift_when_only_the_version_moved(tmp_path, load_script, c
     assert "0.3.0" in capsys.readouterr().out
 
 
+def _write_project_config(target, config):
+    aib = target / ".ai-badger"
+    aib.mkdir(parents=True, exist_ok=True)
+    (aib / "config.json").write_text(json.dumps(config), encoding="utf-8")
+
+
+def test_a_config_edit_since_the_scaffold_is_drift(tmp_path, load_script):
+    """Issue #128: the whole bug — a config-only edit must be reported as drift."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("engine/badger_lib.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+    proj = tmp_path / "proj"
+    config = {"stacks": ["python"], "agents": ["claude"]}
+    recorded = bl.config_hash(config)
+    _write_project_config(proj, config)
+    # the project declines an invariant after the scaffold was built
+    config["exclude"] = {"invariants": ["tdd-mandatory"]}
+    _write_project_config(proj, config)
+
+    result = drift.compare(fw, {"entries": [], "configHash": recorded}, target=proj)
+
+    assert result["configChanged"] == {"recorded": recorded, "current": bl.config_hash(config)}
+
+
+def test_a_byte_identical_config_is_not_drift(tmp_path, load_script):
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("engine/badger_lib.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+    proj = tmp_path / "proj"
+    config = {"stacks": ["python"], "agents": ["claude"]}
+    _write_project_config(proj, config)
+
+    result = drift.compare(fw, {"entries": [], "configHash": bl.config_hash(config)}, target=proj)
+
+    assert result["configChanged"] is None
+
+
+def test_a_reformatted_config_is_not_drift(tmp_path, load_script):
+    """Whitespace/key-order churn must never read as a config edit."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("engine/badger_lib.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+    proj = tmp_path / "proj"
+    config = {"stacks": ["python"], "agents": ["claude"]}
+    recorded = bl.config_hash(config)
+    aib = proj / ".ai-badger"
+    aib.mkdir(parents=True)
+    reformatted = dict(reversed(list(config.items())))
+    (aib / "config.json").write_text(json.dumps(reformatted, indent=4), encoding="utf-8")
+
+    result = drift.compare(fw, {"entries": [], "configHash": recorded}, target=proj)
+
+    assert result["configChanged"] is None
+
+
+def test_a_manifest_with_no_recorded_config_hash_reports_no_baseline(tmp_path, load_script):
+    """Migration: a manifest written before 0.46.0 has no configHash to compare against."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("engine/badger_lib.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+    proj = tmp_path / "proj"
+    config = {"stacks": ["python"], "agents": ["claude"]}
+    _write_project_config(proj, config)
+
+    result = drift.compare(fw, {"entries": []}, target=proj)
+
+    assert result["configChanged"] == {"recorded": None, "current": bl.config_hash(config)}
+
+
 def test_one_changed_source_is_reported_once_however_many_entries_share_it(
         tmp_path, load_script):
     """Adjustments record an entry per written file, all sharing one source script."""

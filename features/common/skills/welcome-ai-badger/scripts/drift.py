@@ -338,6 +338,29 @@ def _version_drift(root: Path, manifest: Dict[str, Any]) -> Optional[Dict[str, s
     return {"scaffolded": scaffolded, "current": current}
 
 
+def _config_drift(target: Optional[Path],
+                  manifest: Dict[str, Any]) -> Optional[Dict[str, Optional[str]]]:
+    """Report a config.json that no longer matches the one the scaffold was built from.
+
+    None when there is no target config to read (`config_path.is_file()` guards that) — never
+    remove this guard, or `drift.main()` starts exiting 1 for every manifest that predates
+    `configHash`, target or not.
+    """
+    if target is None:
+        return None
+    config_path = target / ".ai-badger" / "config.json"
+    if not config_path.is_file():
+        return None
+    try:
+        current = bl.config_hash(bl.load_json(config_path))
+    except (ValueError, OSError):
+        return None
+    recorded = manifest.get("configHash")
+    if recorded == current:
+        return None
+    return {"recorded": recorded, "current": current}
+
+
 def compare(root: Path, manifest: Dict[str, Any],
             stacks: Optional[List[str]] = None,
             target: Optional[Path] = None,
@@ -408,6 +431,7 @@ def compare(root: Path, manifest: Dict[str, Any],
         "skipped": sorted(set(skipped)),
         "locallyModified": sorted(set(locally_modified)),
         "versionChanged": _version_drift(root, manifest),
+        "configChanged": _config_drift(target, manifest),
         "invalid": invalid,
         "notes": notes,
     }
@@ -477,8 +501,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"  version  {scaffold_version} → {current_version} is stamped into "
               f"manifest.json and every generated agent file")
 
+    if result["configChanged"]:
+        print("  config   .ai-badger/config.json declares something this scaffold does not "
+              "have — re-scaffold to apply it")
+
     has_drift = bool(result["changed"] or result["removed"] or result.get("newItems")
-                     or result["versionChanged"])
+                     or result["versionChanged"] or result["configChanged"])
     if not has_drift:
         if result["skipped"]:
             n = len(result["skipped"])
