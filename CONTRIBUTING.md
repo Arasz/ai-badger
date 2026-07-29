@@ -348,18 +348,31 @@ comments); the pragma is for the one-off case a pattern would over-suppress. The
 option — a survivor that is neither tested nor annotated is exactly what the next run will
 report again.
 
+**`no tests` is not an exemption from that rule — it is the same finding stated differently.**
+A `survived` mutant means a test ran against it and didn't notice; a `no tests` mutant means
+mutmut could not attribute *any* test to the function at all, which is a gap of its own, not a
+harness quirk to set aside. If `grep -rn "<function name>" tests/` comes back empty, that is
+the reason mutmut says `no tests` — the function is only exercised indirectly through a caller,
+and it still needs a test named after *it*.
+
 The pragma comment has one sharp edge: mutmut's CST scan only recognizes a trailing `# pragma:
 no mutate` on a statement's *own* line. A line buried inside a multi-line call (a list literal
 spanning several lines, for instance) is invisible to it — `do_not_mutate_patterns`' regex is
 the only mechanism that reaches those, one entry per confirmed-equivalent mutant, each
 commented with why (see the last entry in `[tool.mutmut]` for a worked example).
 
-The first scoped run surfaced 44 survivors: 41 were real gaps, fixed with tests that pin exact
-values rather than loose orderings; 1 was confirmed equivalent and annotated as above; 1 is a
-real gap deferred to a follow-up issue because a clean test needs a hand-tuned corpus that ties
-two documents' scores exactly while their coverage differs — disproportionate effort for one
-line. **Adopting the harness and not reading its first output is how it becomes a tool nobody
-runs** — reading every survivor at least once is not optional the first time.
+The first scoped run surfaced 44 `survived` mutants and 3 `no tests` ones. Of the 44: 41 were
+real gaps, fixed with tests that pin exact values rather than loose orderings; 1 was confirmed
+equivalent and annotated as above; 1 is a real gap deferred to a follow-up issue because a clean
+test needs a hand-tuned corpus that ties two documents' scores exactly while their coverage
+differs — disproportionate effort for one line. The 3 `no tests` mutants were all
+`bm25.fuse_document` — a `grep` for the function name across `tests/` returned nothing; it was
+only exercised indirectly through `mcp_matcher.build_corpus`, and it is the field-weighting
+mechanism (`name ×3, tags ×2, intent ×1`) the whole retrieval design rests on. Fixed with three
+direct tests (a weight actually applied, two fields' tokens summing rather than overwriting, an
+empty field contributing nothing) rather than set aside as unrelated. **Adopting the harness and
+not reading its first output — all of it, `no tests` included — is how it becomes a tool nobody
+runs.**
 
 **Review it after about a month** against one falsifiable question: did any survivor here lead
 to a test that would have caught a real defect? If not, delete the config — a tool that finds

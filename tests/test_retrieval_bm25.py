@@ -21,6 +21,24 @@ def _tf(*words: str) -> Counter:
     return Counter(words)
 
 
+def test_fuse_document_applies_the_given_weight(bm25):
+    fused = bm25.fuse_document([(["build"], 3.0)])
+    assert fused["build"] == 3.0
+
+
+def test_fuse_document_sums_when_two_fields_share_a_token(bm25):
+    """Two fields carrying the same token must accumulate, not overwrite — this is the
+    whole point of fusing name/tags/intent into one weighted document."""
+    fused = bm25.fuse_document([(["build"], 3.0), (["build"], 2.0)])
+    assert fused["build"] == 5.0
+
+
+def test_fuse_document_empty_field_contributes_nothing(bm25):
+    fused = bm25.fuse_document([([], 3.0), (["solution"], 1.0)])
+    assert fused["solution"] == 1.0
+    assert "build" not in fused
+
+
 def test_idf_is_higher_for_a_rarer_term(bm25):
     corpus = bm25.Bm25Corpus({
         "a": _tf("build", "solution"),
