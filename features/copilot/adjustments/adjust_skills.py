@@ -61,6 +61,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         linked.append(skill_name)
 
     pruned = _prune(github_skills, skills, skills_root, owned_targets)
+    left = _owned_entries(github_skills, skills_root, owned_targets) if not skills else []
 
     notes = []
     if linked:
@@ -69,6 +70,12 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         notes.append(
             f"removed {', '.join('.github/skills/' + n for n in pruned)} — no longer "
             f"delivered to this project"
+        )
+    if left:
+        notes.append(
+            f"skills is empty — left {len(left)} link(s) untouched "
+            f"({', '.join('.github/skills/' + n for n in left)}); to stop delivering a "
+            f"skill use config.exclude.skills instead"
         )
     if refused:
         notes.append(
@@ -82,12 +89,22 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _owned_entries(discovery_dir: Path, skills_root: Path, owned_targets: set) -> list:
+    """Names of entries in `discovery_dir` that ai-badger placed."""
+    return [e.name for e in sorted(discovery_dir.iterdir())
+            if _ours(e, skills_root, owned_targets)]
+
+
 def _prune(discovery_dir: Path, skills, skills_root: Path, owned_targets: set) -> list:
     """Remove links ai-badger placed for skills it no longer delivers, and only those.
 
     A skill the project declined, or one deleted upstream, otherwise leaves a symlink to
     nothing; ownership is the same test the link path applies before replacing anything.
+    An empty `skills` is not evidence the project stopped wanting them — only
+    `config.exclude.skills` is (#129) — so an empty list prunes nothing owned.
     """
+    if not skills:
+        return []
     pruned = []
     for entry in sorted(discovery_dir.iterdir()):
         if entry.name in skills or not _ours(entry, skills_root, owned_targets):
