@@ -386,7 +386,9 @@ def main(argv: Optional[List[str]] = None) -> int:
             "newItems": drift_result.get("newItems", []),
         },
         "newStacks": new_stacks,
-        "reScaffolded": has_drift or breaking_result["isBreaking"] or args.force,
+        # Derived, never recomputed: a second copy of the gate condition can disagree with
+        # the gate, and did — reporting a re-scaffold that never ran.
+        "reScaffolded": scaffold_result is not None,
     }
     if args.force:
         report["forced"] = True
