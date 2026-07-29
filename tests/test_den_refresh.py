@@ -820,13 +820,27 @@ def _suppress_new_stack_noise(target, root, keep=("dotnet",)):
     (aib / "stack-ignore.json").write_text(json.dumps({"ignore": ignore}), encoding="utf-8")
 
 
+
+def _only_config_changed(report):
+    """Every drift signal that predates #128 must be quiet, or the assertion proves nothing."""
+    assert report["drift"]["newItems"] == []
+    assert report["drift"]["changed"] == []
+    assert report["drift"]["removed"] == []
+    assert report["drift"]["orphaned"] == []
+    assert report["drift"]["versionChanged"] is None
+    assert report["newStacks"] == []
+    assert report["breakingChange"]["isBreaking"] is False
+
+
 def test_refresh_applies_an_exclusion_added_after_the_last_refresh(
         load_script, root, make_scaffolder, capsys):
     """The issue's own reproduction: an exclusion added after the fact must be self-executing."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    bl = load_script("engine/badger_lib.py")
     target = make_scaffolder.target
-    make_scaffolder(config=_config(agents=["claude"]),
-                    skills=["task", "call-behaviorist"]).run(generated_at="2026-07-28T00:00:00Z")
+    skills = bl.default_skills_in(root / "features" / "common" / "skills")
+    make_scaffolder(config=_config(agents=["claude"]), skills=skills).run(
+        generated_at="2026-07-28T00:00:00Z")
     assert (target / ".ai-badger" / "skills" / "call-behaviorist").is_dir()
     assert (target / ".claude" / "skills" / "call-behaviorist").is_symlink()
     _suppress_new_stack_noise(target, root)
@@ -837,8 +851,9 @@ def test_refresh_applies_an_exclusion_added_after_the_last_refresh(
     report = json.loads(capsys.readouterr().out)
 
     assert rc == 0
-    assert report["reScaffolded"] is True
+    _only_config_changed(report)
     assert report["drift"]["configChanged"] is not None
+    assert report["reScaffolded"] is True
     assert "call-behaviorist" not in report["scaffold"]["refreshedSkills"]
     assert not (target / ".claude" / "skills" / "call-behaviorist").exists()
 
@@ -847,8 +862,11 @@ def test_refresh_applies_an_invariant_exclusion_and_stops_rendering_it(
         load_script, root, make_scaffolder, capsys):
     """A declined invariant must disappear from disk and from the rendered CLAUDE.md."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    bl = load_script("engine/badger_lib.py")
     target = make_scaffolder.target
-    make_scaffolder(config=_config(agents=["claude"])).run(generated_at="2026-07-28T00:00:00Z")
+    skills = bl.default_skills_in(root / "features" / "common" / "skills")
+    make_scaffolder(config=_config(agents=["claude"]), skills=skills).run(
+        generated_at="2026-07-28T00:00:00Z")
     assert (target / ".ai-badger" / "invariants" / "tdd-mandatory.md").is_file()
     assert "TDD is mandatory" in (target / "CLAUDE.md").read_text(encoding="utf-8")
     _suppress_new_stack_noise(target, root)
@@ -859,6 +877,8 @@ def test_refresh_applies_an_invariant_exclusion_and_stops_rendering_it(
     report = json.loads(capsys.readouterr().out)
 
     assert rc == 0
+    _only_config_changed(report)
+    assert report["drift"]["configChanged"] is not None
     assert report["reScaffolded"] is True
     assert not (target / ".ai-badger" / "invariants" / "tdd-mandatory.md").exists()
     assert "TDD is mandatory" not in (target / "CLAUDE.md").read_text(encoding="utf-8")
@@ -868,8 +888,10 @@ def test_refresh_applies_a_commands_only_config_edit(load_script, root, make_sca
     """Not `exclude`-shaped: any config-only edit — here `commands` — must self-execute."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
     target = make_scaffolder.target
+    bl = load_script("engine/badger_lib.py")
     config = _config(agents=["claude"], commands={"test": "pytest"})
-    make_scaffolder(config=config).run(generated_at="2026-07-28T00:00:00Z")
+    skills = bl.default_skills_in(root / "features" / "common" / "skills")
+    make_scaffolder(config=config, skills=skills).run(generated_at="2026-07-28T00:00:00Z")
     assert "pytest -q" not in (target / "CLAUDE.md").read_text(encoding="utf-8")
     _suppress_new_stack_noise(target, root)
 
@@ -879,6 +901,8 @@ def test_refresh_applies_a_commands_only_config_edit(load_script, root, make_sca
     report = json.loads(capsys.readouterr().out)
 
     assert rc == 0
+    _only_config_changed(report)
+    assert report["drift"]["configChanged"] is not None
     assert report["reScaffolded"] is True
     assert "pytest -q" in (target / "CLAUDE.md").read_text(encoding="utf-8")
 
@@ -908,8 +932,11 @@ def test_refresh_re_scaffolds_once_when_the_manifest_predates_the_config_hash(
         load_script, root, make_scaffolder, capsys):
     """Migration (§3): an absent configHash is drift exactly once, then self-limiting."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    bl = load_script("engine/badger_lib.py")
     target = make_scaffolder.target
-    make_scaffolder(config=_config(agents=["claude"])).run(generated_at="2026-07-28T00:00:00Z")
+    skills = bl.default_skills_in(root / "features" / "common" / "skills")
+    make_scaffolder(config=_config(agents=["claude"]), skills=skills).run(
+        generated_at="2026-07-28T00:00:00Z")
     _suppress_new_stack_noise(target, root)
 
     manifest_path = target / ".ai-badger" / "manifest.json"
@@ -920,8 +947,9 @@ def test_refresh_re_scaffolds_once_when_the_manifest_predates_the_config_hash(
     rc = refresh.main(["--target", str(target), "--root", str(root)])
     first = json.loads(capsys.readouterr().out)
     assert rc == 0
-    assert first["reScaffolded"] is True
+    _only_config_changed(first)
     assert first["drift"]["configChanged"]["recorded"] is None
+    assert first["reScaffolded"] is True
 
     refresh.main(["--target", str(target), "--root", str(root)])
     second = json.loads(capsys.readouterr().out)
@@ -931,14 +959,21 @@ def test_refresh_re_scaffolds_once_when_the_manifest_predates_the_config_hash(
 def test_refresh_force_re_scaffolds_when_nothing_has_changed(load_script, root, make_scaffolder, capsys):
     """`--force` keeps the documented recovery path inside den-refresh."""
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    bl = load_script("engine/badger_lib.py")
     target = make_scaffolder.target
-    make_scaffolder(config=_config(agents=["claude"])).run(generated_at="2026-07-28T00:00:00Z")
+    skills = bl.default_skills_in(root / "features" / "common" / "skills")
+    make_scaffolder(config=_config(agents=["claude"]), skills=skills).run(
+        generated_at="2026-07-28T00:00:00Z")
     _suppress_new_stack_noise(target, root)
 
     rc = refresh.main(["--target", str(target), "--root", str(root), "--force"])
     report = json.loads(capsys.readouterr().out)
 
     assert rc == 0
+    _only_config_changed(report)
     assert report["drift"]["configChanged"] is None
-    assert report["reScaffolded"] is True
     assert report["forced"] is True
+    # The observable: a re-scaffold actually ran. reScaffolded alone would pass even if
+    # --force never reached the gate.
+    assert "scaffold" in report
+    assert report["reScaffolded"] is True

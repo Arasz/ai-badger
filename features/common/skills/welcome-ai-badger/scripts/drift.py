@@ -342,9 +342,8 @@ def _config_drift(target: Optional[Path],
                   manifest: Dict[str, Any]) -> Optional[Dict[str, Optional[str]]]:
     """Report a config.json that no longer matches the one the scaffold was built from.
 
-    None when there is no target config to read (`config_path.is_file()` guards that) — never
-    remove this guard, or `drift.main()` starts exiting 1 for every manifest that predates
-    `configHash`, target or not.
+    Unreadable or unparseable is not drift: the `except` below is what makes a missing config
+    safe, and `is_file()` only spares it the exception.
     """
     if target is None:
         return None
@@ -502,8 +501,12 @@ def main(argv: Optional[List[str]] = None) -> int:
               f"manifest.json and every generated agent file")
 
     if result["configChanged"]:
-        print("  config   .ai-badger/config.json declares something this scaffold does not "
-              "have — re-scaffold to apply it")
+        if result["configChanged"]["recorded"] is None:
+            print("  config   this scaffold predates the recorded config hash — one "
+                  "re-scaffold records a baseline")
+        else:
+            print("  config   .ai-badger/config.json declares something this scaffold does "
+                  "not have — re-scaffold to apply it")
 
     has_drift = bool(result["changed"] or result["removed"] or result.get("newItems")
                      or result["versionChanged"] or result["configChanged"])
