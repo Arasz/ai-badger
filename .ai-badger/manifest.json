@@ -1,8 +1,8 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.46.0",
-  "frameworkCommit": "022eeb8a7e83405026c3ced8ba8becec6157682a",
-  "frameworkDirty": true,
+  "frameworkCommit": "03b63a74c6128f7fba1d199568186671141875f0",
+  "frameworkDirty": false,
   "frameworkRoot": ".",
   "generatedAt": null,
   "agents": [
@@ -264,12 +264,12 @@
       "source": "features/common/skills/den-refresh",
       "target": ".ai-badger/skills/den-refresh",
       "frameworkVersion": "0.46.0",
-      "hash": "ef9df95c7b00bad9f7fbd91544e141b360cc2659b46ff53141cc4bd2eca49b2c",
+      "hash": "9a0681ed984523723ddfa5222327e98a25e1e852a782855ea24fb965166040be",
       "dirMeta": {
         "file_count": 2,
         "dir_count": 1
       },
-      "sourceHash": "ef9df95c7b00bad9f7fbd91544e141b360cc2659b46ff53141cc4bd2eca49b2c",
+      "sourceHash": "9a0681ed984523723ddfa5222327e98a25e1e852a782855ea24fb965166040be",
       "sourceMeta": {
         "file_count": 2,
         "dir_count": 1
@@ -444,12 +444,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.46.0",
-      "hash": "8e14d477653df1cbc589106a430691cf2ed0fde298a4831ba57804ece596a1f2",
+      "hash": "cf92666e79acebec8e556c84c3c18fca36fd4f35fd2e377292e5e8da2709ec01",
       "dirMeta": {
         "file_count": 15,
         "dir_count": 2
       },
-      "sourceHash": "8e14d477653df1cbc589106a430691cf2ed0fde298a4831ba57804ece596a1f2",
+      "sourceHash": "cf92666e79acebec8e556c84c3c18fca36fd4f35fd2e377292e5e8da2709ec01",
       "sourceMeta": {
         "file_count": 15,
         "dir_count": 2

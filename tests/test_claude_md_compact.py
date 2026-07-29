@@ -5,13 +5,11 @@ budget, over budget (chars or lines), and --max-chars/--max-lines overrides.
 
 tracker_lib is cached in sys.modules and shared across every loaded script in the whole test
 session (load_script only re-executes the requested script, not its `import tracker_lib`
-dependency), so every test here snapshots lib.CLAUDE_MD_MAX_CHARS/LINES via monkeypatch before
-calling main(). main() unconditionally reassigns those two globals from its argparse defaults
-(`lib.CLAUDE_MD_MAX_CHARS = args.max_chars`), which is a *permanent* mutation of the shared
-module unless something restores it — without the snapshot, a custom --max-chars in one test
-would leak into whichever test (in this file or another) runs next.
+dependency), so the fixture redirects lib.CLAUDE_MD and lib.CONFIG_JSON at tmp_path. CONFIG_JSON
+matters because doc_budget() reads a project's agentDocs override from it — left pointing at
+this repo's own config, these tests would assert against whatever budget ai-badger happens to
+declare.
 """
-# pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations
 
 import json
@@ -24,8 +22,6 @@ import pytest
 def compact(tmp_path, load_script, monkeypatch):
     module = load_script("features/common/skills/task/scripts/claude_md_compact.py")
     monkeypatch.setattr(module.lib, "CLAUDE_MD", tmp_path / "CLAUDE.md")
-    monkeypatch.setattr(module.lib, "CLAUDE_MD_MAX_CHARS", module.lib.CLAUDE_MD_MAX_CHARS)
-    monkeypatch.setattr(module.lib, "CLAUDE_MD_MAX_LINES", module.lib.CLAUDE_MD_MAX_LINES)
     monkeypatch.setattr(module.lib, "CONFIG_JSON", tmp_path / ".ai-badger" / "config.json")
     return module
 

@@ -1,7 +1,6 @@
 """The concrete release-changelog convention ships only behind evidence of a changelog stack;
 every project gets the generic, path-free release-traceability principle instead (#130).
 """
-# pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations
 
 from scaffold_helpers import _config
