@@ -810,3 +810,39 @@ def test_scaffolded_skill_names_refuses_a_manifest_that_is_not_an_object(load_sc
     assert bl.scaffolded_skill_names([1, 2, 3]) == []
     assert bl.scaffolded_skill_names({"entries": "not-a-list"}) == []
     assert bl.scaffolded_skill_names({"entries": [{"feature": "skills"}]}) == []
+
+
+class TestConfigHash:
+    """Issue #128: a config-only edit must be detectable, without formatting noise."""
+
+    def _config(self, **overrides):
+        base = {
+            "$schema": "./schemas/config.schema.json",
+            "frameworkVersion": "0.45.0",
+            "project": {"name": "p", "summary": "s", "domain": "d"},
+            "stacks": ["python"],
+            "agents": ["claude"],
+        }
+        base.update(overrides)
+        return base
+
+    def test_config_hash_is_stable_across_key_order_and_whitespace(self, load_script):
+        bl = load_script("engine/badger_lib.py")
+        config = self._config()
+        reordered = dict(reversed(list(config.items())))
+
+        assert bl.config_hash(config) == bl.config_hash(reordered)
+
+    def test_config_hash_ignores_the_framework_version_stamp(self, load_script):
+        bl = load_script("engine/badger_lib.py")
+        at_0_45 = self._config(frameworkVersion="0.45.0")
+        at_0_46 = self._config(frameworkVersion="0.46.0")
+
+        assert bl.config_hash(at_0_45) == bl.config_hash(at_0_46)
+
+    def test_config_hash_changes_when_an_exclusion_is_added(self, load_script):
+        bl = load_script("engine/badger_lib.py")
+        before = self._config()
+        after = self._config(exclude={"invariants": ["tdd-mandatory"]})
+
+        assert bl.config_hash(before) != bl.config_hash(after)

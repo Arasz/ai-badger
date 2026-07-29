@@ -139,6 +139,7 @@ additions.
   "generatedAt": "…",
   "agents": ["claude", "copilot"],
   "skillScope": "default",
+  "configHash": "…",
   "entries": [
     { "feature": "skills",  "stack": "common", "name": "task",             "source": "features/common/skills/task",       "target": ".ai-badger/skills/task",               "frameworkVersion": "0.1.0", "hash": "…" },
     { "feature": "personas","stack": "react",  "name": "frontend-engineer","source": "react/personas/frontend-engineer.md","target": ".ai-badger/agents/frontend-engineer.md","frameworkVersion": "0.1.0", "hash": "…" }

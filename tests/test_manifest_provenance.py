@@ -47,6 +47,17 @@ def test_manifest_dirty_must_be_boolean(load_script, root):
     assert _errors(load_script, root, _manifest(frameworkDirty="yes")) != []
 
 
+def test_manifest_accepts_a_config_hash(load_script, root):
+    """Issue #128: manifest.json gains a configHash the schema must allow."""
+    instance = _manifest(configHash="a" * 64)
+    assert _errors(load_script, root, instance) == []
+
+
+def test_manifest_without_a_config_hash_is_still_valid(load_script, root):
+    """Optional, not required: a manifest written before 0.46.0 must keep validating."""
+    assert _errors(load_script, root, _manifest()) == []
+
+
 import subprocess
 
 

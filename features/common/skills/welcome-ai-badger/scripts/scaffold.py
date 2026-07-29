@@ -903,6 +903,7 @@ class Scaffolder:
             "agents": self.config.get("agents", []),
             "skillScope": self.config.get("skillScope", self.config.get("pluginScope", "default")),
             "pluginScope": self.config.get("skillScope", self.config.get("pluginScope", "default")),  # compat
+            "configHash": bl.config_hash(written_config),
             "entries": self.entries,
         }
         bl.dump_json(self.aib / "manifest.json", manifest)
