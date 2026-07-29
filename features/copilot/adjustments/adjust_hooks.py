@@ -101,20 +101,31 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
                     if matcher:
                         hook_entry["matcher"] = matcher
                     entries.append(hook_entry)
-            copilot_hooks["hooks"][copilot_event] = entries
+            copilot_hooks["hooks"].setdefault(copilot_event, []).extend(entries)
         else:
             # Generate from skill name (e.g., prompt-markers)
             hook_name = hook.get("name", "")
             skill_dir = target_dir / "skills" / hook_name / "scripts"
             if skill_dir.exists():
-                hook_scripts = list(skill_dir.glob("*_hook.py"))
+                if script:
+                    script_path = skill_dir / script
+                    hook_scripts = [script_path] if script_path.exists() else []
+                else:
+                    hook_scripts = sorted(skill_dir.glob("*_hook.py"))
+                    if len(hook_scripts) > 1:
+                        names = ", ".join(p.name for p in hook_scripts)
+                        raise ValueError(
+                            f"hook '{hook_name}': manifest names no script and "
+                            f"{skill_dir} has more than one candidate ({names}) — "
+                            f"refusing to guess"
+                        )
                 if hook_scripts:
                     rel_path = hook_scripts[0].relative_to(target)
-                    copilot_hooks["hooks"][copilot_event] = [{
+                    copilot_hooks["hooks"].setdefault(copilot_event, []).append({
                         "type": "command",
                         "bash": f"python3 {rel_path.as_posix()}",
                         "timeoutSec": 5,
-                    }]
+                    })
 
     if not copilot_hooks["hooks"]:
         return {"applied": False, "files": [], "notes": "No Copilot hooks to wire"}
