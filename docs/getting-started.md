@@ -373,7 +373,7 @@ next scaffold or refresh puts it back. The supported way to say no is a line in
 - **What an exclusion does.** Neither `welcome-ai-badger` nor `den-refresh` delivers the item
   again, an excluded invariant stops being rendered into `CLAUDE.md`, and the discovery symlinks
   ai-badger placed for an excluded skill (`.claude/skills/`, `.github/skills/`,
-  `~/.hermes/skills/<project>/`) are removed. Its hooks are not wired, and one an earlier run
+  `.junie/skills/`, `~/.hermes/skills/<project>/`) are removed. Its hooks are not wired, and one an earlier run
   already put in `.claude/settings.json` is taken out again. An excluded `*.md` item that a
   previous run copied under `.ai-badger/` is deleted — unless you edited it, in which case it is
   yours and the scaffold says so.
@@ -464,8 +464,8 @@ python3 "$AI_BADGER/features/common/skills/den-refresh/scripts/refresh.py" --tar
 ```
 
 Runs drift detection, backs up `.ai-badger/` to `.ai-badger.bckp`, re-scaffolds from your existing
-`config.json` — no re-detection, no questions — and prints a JSON report (`frameworkVersion`,
-`drift.changed`, `drift.removed`, `newStacks`, `reScaffolded`, `scaffold`). Seed-once files
+`config.json` — no re-detection, no questions — and prints a JSON report: `frameworkVersion`,
+`drift.changed`, `drift.removed`, `newStacks`, `reScaffolded`, `scaffold`. Seed-once files
 (`state.json`, `markers-context.json`, `model.json`) survive. Review `git diff` before committing.
 Why this is a separate skill rather than a mode of `welcome-ai-badger`:
 [ADR-0002](adr/0002-den-refresh-skill.md). Versions that *require* a re-scaffold are listed in
@@ -561,18 +561,6 @@ Expected, not an error. `auto-wm` lives under `features/claude/skills/`, and the
 resolves the stacks in your config plus `common` — `claude` is an agent, not a stack. `auto-wm`
 reaches you through the Claude Code plugin, not through `.ai-badger/skills/`.
 
-### `den-refresh` reports `newStacks: ["claude", "hermes", …]` right after a scaffold
-
-The scaffold's own output is a detection signal: a root `CLAUDE.md` means the `claude` stack,
-`.hermes.md` means `hermes`. Suppress the false positives with a project-owned
-`.ai-badger/stack-ignore.json`:
-
-```json
-{ "ignore": ["claude", "hermes"] }
-```
-
-It is never overwritten by a re-scaffold.
-
 ### `can't open file '.../skills/welcome-ai-badger/scripts/detect.py'`
 
 **Fixed in 0.28.3.** Before that release, the skill files spelled their script paths as
@@ -580,6 +568,22 @@ It is never overwritten by a re-scaffold.
 checkout's root** — the catalog path is `features/common/skills/<skill>/scripts/…`. If you see
 this error, you are on 0.28.2 or older, or following a stale copy of a `SKILL.md`: insert
 `features/common/` into the path, and update.
+
+### `den-refresh` reports `newStacks` but does not re-scaffold
+
+Expected, not a contradiction. `newStacks` is advisory: a re-scaffold runs your existing
+`config.json`, so it cannot deliver a stack the config does not name. Two paths, depending on
+whether the detection is right:
+
+- **Accept it** — add the stack to `config.stacks` and run `den-refresh` again. The edit is
+  self-executing: the config change is itself drift, so the next run re-scaffolds and delivers the
+  stack's instructions.
+- **Decline it** — add the stack name to `.ai-badger/stack-ignore.json`. That file is project-owned
+  and no re-scaffold ever rewrites it. Use it for stacks that exist in your tree as a transitive or
+  tool dependency rather than as something you write.
+
+If `newStacks` names a stack you never introduced — an agent you configured, or something that
+looks like the scaffold's own output — that was a bug fixed in 0.47.0; upgrade.
 
 ### `ai-badger framework root not found above …`
 

@@ -17,7 +17,7 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
-| 0.47.0 | [the MCP recommender ranks by BM25, and its accuracy can now fail a test](0.47.0-retrieval-that-can-fail.md) |
+| 0.47.0 | [the scaffold detects itself](0.47.0-the-scaffold-detects-itself.md) · [Junie can finally see the skills ai-badger claimed to give it](0.47.0-junie-can-see-skills.md) · [retrieval tells you what it did, and a redact switch for the query](0.47.0-retrieval-tells-you-what-it-did.md) · [the MCP recommender ranks by BM25, and its accuracy can now fail a test](0.47.0-retrieval-that-can-fail.md) |
 | 0.46.0 | [an empty skill list is not an instruction](0.46.0-an-empty-skill-list-is-not-an-instruction.md) · [a config edit is drift](0.46.0-a-config-edit-is-drift.md) · [an invariant must be true](0.46.0-an-invariant-must-be-true.md) |
 | 0.45.0 | [a budget the project cannot meet, on content it did not write](0.45.0-agent-doc-budget-override.md) |
 | 0.44.0 | [Shape D refuses to run stale plugin copies](0.44.0-shape-d-refuses-stale-copies.md) |

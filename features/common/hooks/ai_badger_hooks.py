@@ -321,6 +321,97 @@ def _find_relevant_tools(
     return [(r.tool, r.score) for r in matcher.find_relevant_tools(query, index, top_n=top_n)]
 
 
+# The component retrieval events log under — reusing the file's existing component name,
+# not inventing one behaviorist.py's orphaned-wiring check would flag as unexpected.
+_MCP_RETRIEVAL_COMPONENT = "ai_badger_hooks/mcp_retrieval"
+
+# Wire keys for retrieval telemetry, registered in debug_log.KEY_NAMES; the words live there.
+_KEY_QUERY = "q"
+_KEY_TERMS = "g"
+_KEY_CANDIDATES = "d"
+_KEY_TOP = "o"
+_KEY_RETURNED = "r"
+_KEY_THRESHOLD = "h"
+_KEY_TOOL = "l"
+
+
+def _score_all_tools(query: str, index: dict[str, Any]) -> list[Any]:
+    """Every non-removed tool in the index, BM25-ranked against `query`.
+
+    Unfiltered by the coverage gate: gate telemetry needs the near-misses, not just the
+    winners. Returns `bm25.ScoredDoc` (`.doc_id`, `.score`, `.coverage`, `.matched_terms`);
+    `[]` when the matcher is unavailable, the index has no tools, or the query tokenizes
+    to nothing.
+    """
+    matcher = _load_mcp_matcher()
+    if matcher is None:
+        return []
+    corpus = matcher.build_corpus(index)
+    if corpus is None:
+        return []
+    query_terms = matcher.tokenize(query)
+    if not query_terms:
+        return []
+    return corpus.rank(query_terms)
+
+
+def _index_tool_count(index: dict[str, Any]) -> int:
+    """Count of non-removed tools across every source in the index."""
+    return sum(
+        1
+        for server in index.get("sources", [])
+        for tool in server.get("tools", {}).values()
+        if tool.get("status") != "removed"
+    )
+
+
+def _format_top_candidates(scored: list[Any], limit: int = 3) -> str:
+    """`name:score:coverage` for the top candidates, or `name:score` if the triples don't
+    fit debug_log's 200-char field clip.
+
+    Capped at 3: enough triples to be useful without truncating a candidate's name
+    mid-string when the coverage field has to be dropped to stay under the clip.
+    """
+    top = scored[:limit]
+    with_coverage = ",".join(f"{r.doc_id}:{r.score:.2f}:{r.coverage:.2f}" for r in top)
+    if len(with_coverage) <= 200:
+        return with_coverage
+    return ",".join(f"{r.doc_id}:{r.score:.2f}" for r in top)
+
+
+def _record_retrieval(project, query: str, index: dict, ranked: list) -> None:
+    """Record what the BM25 retrieval did. Costs nothing when debug is off.
+
+    `no_terms` is not `gate`: when the tokenizer yields no usable terms, no candidate is
+    ever scored against the coverage threshold. Reporting that as a threshold miss would
+    misattribute the very failure this telemetry exists to count, and it carries no
+    threshold field for the same reason — none was applied.
+    """
+    if debug_log is None or not debug_log.enabled_for(project):
+        return
+    matcher = _load_mcp_matcher()
+    query_terms = matcher.tokenize(query) if matcher is not None else []
+    scored = _score_all_tools(query, index)
+    common = {
+        _KEY_QUERY: query,
+        _KEY_CANDIDATES: _index_tool_count(index),
+        _KEY_TOP: _format_top_candidates(scored),
+    }
+    if not query_terms:
+        _debug(_MCP_RETRIEVAL_COMPONENT, "no_terms", project=project,
+               **{**common, _KEY_RETURNED: ""})
+        return
+    threshold = matcher.DEFAULT_COVERAGE_THRESHOLD if matcher is not None else None
+    scoring = {**common, _KEY_TERMS: ",".join(sorted(set(query_terms))),
+               _KEY_THRESHOLD: threshold}
+    if ranked:
+        _debug(_MCP_RETRIEVAL_COMPONENT, "hit", project=project,
+               **{**scoring, _KEY_RETURNED: ", ".join(name for name, _ in ranked)})
+    else:
+        _debug(_MCP_RETRIEVAL_COMPONENT, "gate", project=project,
+               **{**scoring, _KEY_RETURNED: ""})
+
+
 # ---------------------------------------------------------------------------
 # Context enrichment — equivalent to Claude's UserPromptSubmit hook
 # ---------------------------------------------------------------------------
@@ -372,7 +463,10 @@ def pre_llm_inject_context(
     # MCP tool index recommendations
     if prompt:
         index = _load_mcp_index(project)
-        if index:
+        if index is None:
+            _debug(_MCP_RETRIEVAL_COMPONENT, "absent", project=project,
+                   **{_KEY_QUERY: prompt})
+        else:
             ranked = _find_relevant_tools(prompt, index, top_n=3)
             if ranked:
                 tools_str = ", ".join(
@@ -382,12 +476,14 @@ def pre_llm_inject_context(
                 # Keep under 300 chars to avoid prompt bloat
                 hint = f"[ai-badger] Relevant MCP tools: {tools_str}"
                 if len(hint) > 300:
-                    # Truncate to top 3
+                    # Both branches above are already top-3; this fallback only strips
+                    # the per-tool tags parenthetical to fit the budget.
                     tools_str_short = ", ".join(
                         f"{name}" for name, _ in ranked[:3]
                     )
                     hint = f"[ai-badger] Relevant MCP tools: {tools_str_short}"
                 parts.append(hint)
+            _record_retrieval(project, prompt, index, ranked)
 
     if not parts:
         return None
@@ -632,7 +728,8 @@ def post_tool_observer(tool_name: str = "", result: str = "",
 
     # Log index hit/miss metrics if the index is available
     if tool_name:
-        index = _load_mcp_index(_project_cwd(cwd))
+        project = _project_cwd(cwd)
+        index = _load_mcp_index(project)
         if index:
             # Check if this tool exists in the index
             sname, _, tname = tool_name.partition(":") if ":" in tool_name else ("", "", tool_name)
@@ -641,7 +738,8 @@ def post_tool_observer(tool_name: str = "", result: str = "",
             for server in index.get("sources", []):
                 if server["name"] == sname:
                     known = tname in server.get("tools", {}) if tname else False
-                    logger.debug("mcp_index_hit=%s tool=%s", known, tool_name)
+                    _debug(_MCP_RETRIEVAL_COMPONENT, "known" if known else "unknown",
+                           project=project, **{_KEY_TOOL: tool_name})
                     break
 
 
