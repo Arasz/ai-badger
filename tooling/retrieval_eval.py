@@ -34,6 +34,24 @@ from tokenizer import tokenize  # pylint: disable=wrong-import-position
 DEFAULT_FIXTURES = Path("features/common/retrieval/eval/mcp_queries.jsonl")
 DEFAULT_INDEX = Path(".ai-badger/mcp-tools.json")
 
+# Tokenized-length buckets, shortest first. Issue #165: the coverage gate's denominator ran
+# over every query term, so it worked on keyword-shaped queries and suppressed correct matches
+# on sentence-shaped ones — and a single recall number over a whole fixture set cannot show
+# that. The boundaries separate the three fixture sets' regimes: keyword (both older sets
+# average 3.8 and 4.8), short sentence, and real user message (the long set averages 15.3).
+LENGTH_BUCKETS = ((0, 4), (5, 9), (10, 19), (20, None))
+
+
+def bucket_label(tokens: int) -> str:
+    """The `LENGTH_BUCKETS` label a query of `tokens` terms falls in."""
+    for low, high in LENGTH_BUCKETS:
+        if high is None:
+            if tokens >= low:
+                return f"{low}+"
+        elif low <= tokens <= high:
+            return f"{low}-{high}"
+    return f"{LENGTH_BUCKETS[-1][0]}+"
+
 
 def load_fixtures(path: Path) -> List[Dict[str, Any]]:
     """One JSON object per line; blank lines are skipped."""
@@ -49,6 +67,7 @@ class FixtureRow:
     expect: List[str]
     cls: Optional[str]
     returned: List[str]
+    tokens: int = 0
 
     @property
     def is_positive(self) -> bool:
@@ -69,6 +88,18 @@ class FixtureRow:
 
 def _rate(hits: int, total: int) -> Optional[float]:
     return hits / total if total else None
+
+
+def _group_stats(rows: Sequence["FixtureRow"]) -> Dict[str, Any]:
+    """The four headline numbers for one subset of fixtures."""
+    positives = [r for r in rows if r.is_positive]
+    negatives = [r for r in rows if not r.is_positive]
+    return {
+        "n": len(rows),
+        "recall_at_1": _rate(sum(1 for r in positives if r.hit_at_1), len(positives)),
+        "recall_at_3": _rate(sum(1 for r in positives if r.hit_at_3), len(positives)),
+        "false_fire_rate": _rate(sum(1 for r in negatives if r.fired), len(negatives)),
+    }
 
 
 @dataclass(frozen=True)
@@ -118,16 +149,24 @@ class EvalReport:
             if row.cls is None:
                 continue
             classes.setdefault(row.cls, []).append(row)
+        return {cls: _group_stats(rows) for cls, rows in classes.items()}
+
+    @property
+    def by_query_length(self) -> Dict[str, Dict[str, Any]]:
+        """Per-length-bucket breakdown, shortest bucket first (issue #165).
+
+        The metric that could not see the defect this exists for: recall held at 1.000 on
+        4-token fixtures while half of all 15-token ones returned nothing.
+        """
+        buckets: Dict[str, List[FixtureRow]] = {}
+        for row in self.rows:
+            buckets.setdefault(bucket_label(row.tokens), []).append(row)
+        ordered = sorted(buckets.items(), key=lambda kv: min(r.tokens for r in kv[1]))
         out = {}
-        for cls, rows in classes.items():
-            positives = [r for r in rows if r.is_positive]
-            negatives = [r for r in rows if not r.is_positive]
-            out[cls] = {
-                "n": len(rows),
-                "recall_at_1": _rate(sum(1 for r in positives if r.hit_at_1), len(positives)),
-                "recall_at_3": _rate(sum(1 for r in positives if r.hit_at_3), len(positives)),
-                "false_fire_rate": _rate(sum(1 for r in negatives if r.fired), len(negatives)),
-            }
+        for label, rows in ordered:
+            stats = _group_stats(rows)
+            stats["mean_tokens"] = sum(r.tokens for r in rows) / len(rows)
+            out[label] = stats
         return out
 
 
@@ -185,6 +224,7 @@ def evaluate(
             expect=fixture.get("expect", []),
             cls=fixture.get("class"),
             returned=[r.tool for r in results],
+            tokens=len(tokenize(fixture["query"])),
         ))
     margin = _coverage_margin(fixtures, index, top_n, threshold)
     return EvalReport(rows=rows, coverage_margin=margin)
@@ -259,6 +299,15 @@ def format_report(report: EvalReport, title: str = "") -> str:
                 f"  {cls:20s} n={stats['n']:<4d} recall@1={r1} recall@3={r3} false_fire={ff}"
             )
     lines.append("")
+    lines.append("by query length (tokens):")
+    for label, stats in report.by_query_length.items():
+        r1, r3 = _fmt(stats["recall_at_1"]), _fmt(stats["recall_at_3"])
+        ff = _fmt(stats["false_fire_rate"])
+        lines.append(
+            f"  {label:20s} n={stats['n']:<4d} recall@1={r1} recall@3={r3} false_fire={ff}"
+            f" mean={stats['mean_tokens']:.1f}"
+        )
+    lines.append("")
     lines.append("per-fixture:")
     for row in report.rows:
         outcome = _row_outcome(row)
@@ -291,12 +340,14 @@ def report_to_json(report: EvalReport) -> Dict[str, Any]:
         "false_fire_rate": report.false_fire_rate,
         "coverage_margin": report.coverage_margin,
         "by_class": report.by_class,
+        "by_query_length": report.by_query_length,
         "rows": [
             {
                 "query": r.query,
                 "expect": r.expect,
                 "class": r.cls,
                 "returned": r.returned,
+                "tokens": r.tokens,
                 "hit_at_1": r.hit_at_1,
                 "hit_at_3": r.hit_at_3,
                 "fired": r.fired,
