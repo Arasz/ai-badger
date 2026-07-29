@@ -1,18 +1,24 @@
 """Tests for MCP index integration in ai_badger_hooks.py.
 
 Covers:
-- _load_mcp_index: discovering and parsing .ai-badger/mcp-tools.yaml
+- _load_mcp_index: discovering and parsing .ai-badger/mcp-tools.yaml, and degrading
+  to None (not crashing) when pyyaml is absent
+- _find_relevant_tools: delegates to features/common/retrieval/mcp_matcher.py
+  (docs/adr/0012) rather than containing the ranking itself
 - pre_llm_inject_context: injecting tool recommendations based on user message
-- Keyword extraction and tag matching
+
+The BM25 algorithm itself (tokenizer, scoring, gate) is covered by
+tests/test_retrieval_tokenizer.py, tests/test_retrieval_bm25.py and
+tests/test_mcp_matcher.py — this file only covers the hook's wiring to it.
 """
 # pylint: disable=protected-access,redefined-outer-name  # hook internals + local module handle; see pyproject.toml
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 
@@ -66,25 +72,29 @@ def _sample_index() -> dict:
     }
 
 
-# Import the hooks module
-HOOKS_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "features" / "common" / "hooks" / "ai_badger_hooks.py"
-)
+@pytest.fixture
+def hooks(load_script):
+    """Load a fresh copy of the Hermes plugin module."""
+    return load_script("features/common/hooks/ai_badger_hooks.py")
 
-# Must add parent dir to sys.path so the module can be imported
-sys.path.insert(0, str(HOOKS_PATH.parent))
 
-import importlib.util
+@pytest.fixture
+def real_mcp_matcher(hooks, load_script, monkeypatch):
+    """Inject the real mcp_matcher module, matching the fake_commit_reminder pattern.
 
-_spec = importlib.util.spec_from_file_location("ai_badger_hooks", HOOKS_PATH)
-hooks = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(hooks)
+    In the dev tree mcp_matcher.py isn't copied beside ai_badger_hooks.py yet (that
+    only happens at scaffold time), so _load_mcp_matcher's sibling-file lookup
+    would return None here without this — mirrors how test_commit_reminder_hermes.py
+    injects its sibling module via sys.modules.
+    """
+    module = load_script("features/common/retrieval/mcp_matcher.py")
+    monkeypatch.setitem(sys.modules, hooks.MCP_MATCHER_MODULE_NAME, module)
+    return module
 
 
 # ── _load_mcp_index ────────────────────────────────────────────────────────
 
-def test_load_index_when_present(tmp_path):
+def test_load_index_when_present(hooks, tmp_path):
     """Should return parsed index when .ai-badger/mcp-tools.yaml exists."""
     index_data = _sample_index()
     _write_mcp_index(tmp_path, index_data)
@@ -95,145 +105,79 @@ def test_load_index_when_present(tmp_path):
     assert len(result["sources"]) == 1
 
 
-def test_load_index_when_missing(tmp_path):
+def test_load_index_when_missing(hooks, tmp_path):
     """Should return None when .ai-badger/mcp-tools.yaml doesn't exist."""
-    result = hooks._load_mcp_index(str(tmp_path))
-    assert result is None
+    assert hooks._load_mcp_index(str(tmp_path)) is None
 
 
-def test_load_index_when_cwd_is_empty():
+def test_load_index_when_cwd_is_empty(hooks):
     """Should return None when cwd is empty/None."""
-    result = hooks._load_mcp_index("")
-    assert result is None
+    assert hooks._load_mcp_index("") is None
 
 
-# ── keyword extraction ─────────────────────────────────────────────────────
-
-def test_extract_tags_build():
-    """'build the solution' should extract [build, dotnet, csharp]."""
-    tags = hooks._extract_query_tags("build the solution")
-    assert "build" in tags
-    assert "dotnet" in tags
-    assert "csharp" in tags
-
-
-def test_extract_tags_database():
-    """'show me the database tables' should extract [database, sql]."""
-    tags = hooks._extract_query_tags("show me the database tables")
-    assert "database" in tags
-    assert "sql" in tags
-
-
-def test_extract_tags_debug():
-    """'debug the error' should extract [diagnostic]."""
-    tags = hooks._extract_query_tags("debug the error in the pipeline")
-    assert "diagnostic" in tags
-
-
-def test_extract_tags_run_test():
-    """'run the tests' should extract [run]."""
-    tags = hooks._extract_query_tags("run the unit tests")
-    assert "run" in tags
-
-
-def test_extract_tags_empty():
-    """Empty query should return empty tags."""
-    tags = hooks._extract_query_tags("")
-    assert tags == {}
-
-
-def test_extract_tags_unknown():
-    """Query with no known keywords should return empty tags."""
-    tags = hooks._extract_query_tags("hello world how are you")
-    assert tags == {}
-
-
-# ── _find_relevant_tools ───────────────────────────────────────────────────
-
-def test_find_relevant_tools_build(tmp_path):
-    """'build' query should rank build_solution first."""
+def test_load_index_degrades_to_none_without_pyyaml(hooks, tmp_path, monkeypatch):
+    """An absent pyyaml must degrade the index to None, not crash the hook (issue #136)."""
     _write_mcp_index(tmp_path, _sample_index())
-    index = yaml.safe_load(
-        (tmp_path / ".ai-badger" / "mcp-tools.yaml").read_text(encoding="utf-8")
-    )
+    monkeypatch.setattr(hooks, "yaml", None)
+
+    assert hooks._load_mcp_index(str(tmp_path)) is None
+
+
+# ── _find_relevant_tools delegates to the BM25 matcher ─────────────────────
+
+def test_find_relevant_tools_is_inert_without_the_matcher_module(hooks, tmp_path):
+    """No mcp_matcher.py beside the hook (older scaffold) -> [], not an exception."""
+    index = _sample_index()
+    assert hooks._find_relevant_tools("build the solution", index) == []
+
+
+def test_find_relevant_tools_delegates_to_the_real_matcher(hooks, real_mcp_matcher):
+    """With the matcher available, a build query ranks build_solution first."""
+    index = _sample_index()
     ranked = hooks._find_relevant_tools("build the solution", index, top_n=3)
 
-    assert len(ranked) <= 3
+    assert ranked
     assert ranked[0][0] == "rider:build_solution"
 
 
-def test_find_relevant_tools_database(tmp_path):
-    """'database' query should rank execute_sql_query first."""
-    _write_mcp_index(tmp_path, _sample_index())
-    index = yaml.safe_load(
-        (tmp_path / ".ai-badger" / "mcp-tools.yaml").read_text(encoding="utf-8")
-    )
-    ranked = hooks._find_relevant_tools("list all database connections", index, top_n=3)
-
-    assert len(ranked) >= 1
-    assert "sql" in ranked[0][0] or "database" in ranked[0][0]
-
-
-def test_find_relevant_tools_diagnostic(tmp_path):
-    """'check for errors' should rank get_file_problems high."""
-    _write_mcp_index(tmp_path, _sample_index())
-    index = yaml.safe_load(
-        (tmp_path / ".ai-badger" / "mcp-tools.yaml").read_text(encoding="utf-8")
-    )
-    ranked = hooks._find_relevant_tools("check this file for errors", index, top_n=5)
-
-    tools_in_top = {name for name, _ in ranked}
-    assert "rider:get_file_problems" in tools_in_top
-
-
-def test_find_relevant_tools_empty_query(tmp_path):
-    """Empty query should return empty list."""
-    _write_mcp_index(tmp_path, _sample_index())
-    index = yaml.safe_load(
-        (tmp_path / ".ai-badger" / "mcp-tools.yaml").read_text(encoding="utf-8")
-    )
-    ranked = hooks._find_relevant_tools("", index)
+def test_find_relevant_tools_uses_the_matchers_coverage_gate(hooks, real_mcp_matcher):
+    """An unrelated query must return [] — the gate, not a keyword miss, decides this now."""
+    index = _sample_index()
+    ranked = hooks._find_relevant_tools("philosophical question about life", index)
     assert ranked == []
 
 
-def test_find_relevant_tools_no_match(tmp_path):
-    """Query with no matching tags should return empty list."""
-    _write_mcp_index(tmp_path, _sample_index())
-    index = yaml.safe_load(
-        (tmp_path / ".ai-badger" / "mcp-tools.yaml").read_text(encoding="utf-8")
-    )
-    ranked = hooks._find_relevant_tools("philosophical question about life", index)
+def test_find_relevant_tools_fixes_the_ts_inside_tests_bug(hooks, real_mcp_matcher):
+    """'ts' must not match 'typescript' via substring anymore (the old defect)."""
+    index = _sample_index()
+    ranked = hooks._find_relevant_tools("ts", index)
     assert ranked == []
 
 
 # ── pre_llm_inject_context with index ──────────────────────────────────────
 
-def test_pre_llm_inject_no_index():
+def test_pre_llm_inject_no_index(hooks):
     """Without an index, should still return context (usage hints)."""
-    hooks.reset_session_hints()  # the usage hint is once per session (F-37)
+    hooks.reset_session_hints()
     result = hooks.pre_llm_inject_context(cwd="/nonexistent/path")
     assert result is not None
     assert "context" in result
-    # Should still have usage hints
     assert "/usage" in result["context"] or "session_search" in result["context"]
 
 
-def test_pre_llm_inject_with_index_build_query(tmp_path):
-    """With an index and a build query, should recommend build_solution."""
+def test_pre_llm_inject_with_index_build_query_recommends_a_tool(
+        hooks, real_mcp_matcher, tmp_path):
+    """With the matcher available and a build query, the hint names build_solution."""
     _write_mcp_index(tmp_path, _sample_index())
-    hooks.reset_session_hints()  # the usage hint is once per session (F-37)
+    hooks.reset_session_hints()
 
-    # This test verifies the hook CAN read the index. The actual user message
-    # injection is handled by Hermes at runtime — we test that the helper
-    # functions work correctly and the hook gracefully handles the index path.
-    result = hooks.pre_llm_inject_context(cwd=str(tmp_path))
+    result = hooks.pre_llm_inject_context(cwd=str(tmp_path), message="build the solution")
+
     assert result is not None
-    assert "context" in result
-    # The context should at minimum contain usage hints
-    assert "/usage" in result["context"] or "session_search" in result["context"]
+    assert "rider:build_solution" in result["context"]
 
 
-def test_pre_llm_inject_without_a_message_recommends_no_tools(tmp_path):
+def test_pre_llm_inject_without_a_message_recommends_no_tools(hooks, real_mcp_matcher, tmp_path):
     """Tool hints come from keywords in the user message; with no message there are none.
 
     Previously named ..._no_double_injection and asserted only `result is not None`,
@@ -253,21 +197,17 @@ def test_pre_llm_inject_without_a_message_recommends_no_tools(tmp_path):
 
 # ── post_tool_observer with index ──────────────────────────────────────────
 
-def test_post_tool_observer_noop():
+def test_post_tool_observer_noop(hooks):
     """post_tool_observer should not crash with or without index data."""
-    # Should run without exception
     hooks.post_tool_observer(
         tool_name="rider:get_file_problems",
         result='{"errors": []}',
         duration_ms=42,
     )
-    # post_tool_observer is a no-op observer — it logs at DEBUG level.
-    # The test passes if no exception is raised.
 
 
-def test_usage_hint_is_injected_once_per_session(load_script, tmp_path):
+def test_usage_hint_is_injected_once_per_session(hooks, tmp_path):
     """A line repeated every turn is a line the agent stops reading (F-37)."""
-    hooks = load_script("features/common/hooks/ai_badger_hooks.py")
     hooks.reset_session_hints()
 
     first = hooks.pre_llm_inject_context(cwd=str(tmp_path), message="hello")
@@ -277,8 +217,7 @@ def test_usage_hint_is_injected_once_per_session(load_script, tmp_path):
     assert "/usage" not in (second or {}).get("context", "")
 
 
-def test_usage_hint_returns_after_a_session_reset(load_script, tmp_path):
-    hooks = load_script("features/common/hooks/ai_badger_hooks.py")
+def test_usage_hint_returns_after_a_session_reset(hooks, tmp_path):
     hooks.reset_session_hints()
     hooks.pre_llm_inject_context(cwd=str(tmp_path), message="hello")
 

@@ -1,0 +1,59 @@
+{"query": "build the solution", "expect": ["rider:build_solution"]}
+{"query": "compile the currently opened project", "expect": ["rider:build_solution"]}
+{"query": "run the currently configured run configuration", "expect": ["rider:execute_run_configuration"]}
+{"query": "show me all open editor tabs", "expect": ["rider:get_all_open_file_paths"]}
+{"query": "open this file in the ide editor", "expect": ["rider:open_file_in_editor"]}
+{"query": "check this file for typescript errors", "expect": ["rider:get_file_problems"]}
+{"query": "find the symbol at this cursor position", "expect": ["rider:get_symbol_info"]}
+{"query": "search for a class or method by name", "expect": ["rider:search_symbol"]}
+{"query": "search project files for a text substring", "expect": ["rider:search_text"]}
+{"query": "search using a regex pattern across files", "expect": ["rider:search_regex"]}
+{"query": "find files matching a glob pattern", "expect": ["rider:find_files_by_glob", "rider:search_file"]}
+{"query": "rename this variable everywhere it's used", "expect": ["rider:rename_refactoring"]}
+{"query": "move this type to another namespace", "expect": ["rider:move_type_to_namespace"]}
+{"query": "reformat this file to match code style", "expect": ["rider:reformat_file"]}
+{"query": "replace text in this file", "expect": ["rider:replace_text_in_file"]}
+{"query": "apply this git patch to the file", "expect": ["rider:apply_patch"]}
+{"query": "create a new file in the project", "expect": ["rider:create_new_file"]}
+{"query": "read the contents of this file", "expect": ["rider:read_file"]}
+{"query": "show the directory tree for this folder", "expect": ["rider:list_directory_tree"]}
+{"query": "list all projects in the solution", "expect": ["rider:get_solution_projects"]}
+{"query": "run a shell command in the terminal", "expect": ["rider:execute_terminal_command"]}
+{"query": "run a sql query against the database", "expect": ["rider:execute_sql_query"]}
+{"query": "list database connections", "expect": ["rider:list_database_connections"]}
+{"query": "list schemas in this database connection", "expect": ["rider:list_database_schemas"]}
+{"query": "preview data in this table", "expect": ["rider:preview_table_data"]}
+{"query": "show opentelemetry spans for this service", "expect": ["rider:get_spans"]}
+{"query": "generate a service map from tracing data", "expect": ["rider:get_service_map"]}
+{"query": "cancel a running sql query", "expect": ["rider:cancel_sql_query"]}
+{"query": "search microsoft docs for this api", "expect": ["microsoft-docs:microsoft_docs_search"]}
+{"query": "fetch this microsoft learn page as markdown", "expect": ["microsoft-docs:microsoft_docs_fetch"]}
+{"query": "find a code sample for this azure sdk method", "expect": ["microsoft-docs:microsoft_code_sample_search"]}
+{"query": "navigate the browser to a url", "expect": ["playwright:browser_navigate"]}
+{"query": "take a screenshot of the current page", "expect": ["playwright:browser_take_screenshot"]}
+{"query": "click this element on the page", "expect": ["playwright:browser_click"]}
+{"query": "fill out the signup form", "expect": ["playwright:browser_fill_form"]}
+{"query": "wait for this text to appear on the page", "expect": ["playwright:browser_wait_for"]}
+{"query": "list console messages from the browser", "expect": ["playwright:browser_console_messages"]}
+{"query": "check the network requests made by the page", "expect": ["playwright:browser_network_requests"]}
+{"query": "what's in the architecture overview", "expect": ["code-review-graph:get_architecture_overview_tool"]}
+{"query": "find the blast radius of these changed files", "expect": ["code-review-graph:get_impact_radius_tool"]}
+{"query": "search the codebase for a function by name", "expect": ["code-review-graph:semantic_search_nodes_tool"]}
+{"query": "find the most connected nodes in the codebase", "expect": ["code-review-graph:get_hub_nodes_tool"]}
+{"query": "detect risky changes and produce review guidance", "expect": ["code-review-graph:detect_changes_tool"]}
+{"query": "commit and push", "expect": []}
+{"query": "refresh ai-badger", "expect": []}
+{"query": "scaffold this repo", "expect": []}
+{"query": "start task 12", "expect": []}
+{"query": "what's the weather today", "expect": []}
+{"query": "write a poem about autumn", "expect": []}
+{"query": "explain quantum entanglement", "expect": []}
+{"query": "summarize this meeting's action items", "expect": []}
+{"query": "translate this sentence to french", "expect": []}
+{"query": "recommend a good pizza place nearby", "expect": []}
+{"query": "how many days until new year", "expect": []}
+{"query": "tell me a joke", "expect": []}
+{"query": "book a flight to lisbon", "expect": []}
+{"query": "what is the capital of australia", "expect": []}
+{"query": "draft an email to my manager", "expect": []}
+

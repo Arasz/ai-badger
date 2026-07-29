@@ -5,6 +5,10 @@
 **Author:** Rafał Araszkiewicz (Arasz) with Hermes Agent
 **Supersedes:** None
 
+**Superseded by:** [ADR-0012](0012-bm25-retrieval-with-a-falsifiable-eval.md) (2026-07-29) — DD-2
+(closed tag taxonomy as the matching mechanism) and DD-3 (YAML for hand-editability) are
+reversed. DD-1, DD-4, DD-5, DD-6 and the rejection of embeddings (Alternatives B) stand.
+
 ## Context
 
 MCP servers expose 40+ tools per server (Rider has 42, Playwright 24, dotnet-sdk 12). All tool definitions are injected into the LLM's system prompt every turn. This causes two problems:

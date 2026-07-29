@@ -21,12 +21,17 @@ import json
 import logging
 import os
 import sys
-from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import yaml  # pylint: disable=import-error
+# pyyaml is a declared-but-optional dependency (engine/requirements.txt); an unguarded
+# import here was a single point of failure for every hook in this module when it was
+# absent (issue #136) — guarded like debug_log below, degrading to no MCP index instead.
+try:
+    import yaml  # pylint: disable=import-error
+except ImportError:  # pragma: no cover - degrades _load_mcp_index to None, not a crash
+    yaml = None
 
 # debug_log sits beside this file in every deployment shape; it is a no-op unless the
 # call-behaviorist skill has switched debug on.
@@ -258,49 +263,39 @@ def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
 # MCP Tool Index integration
 # ---------------------------------------------------------------------------
 
-# Keyword → tag mapping for extracting domain tags from natural-language queries.
-# Mirrors the heuristics in the Phase 0.2 spike (scripts/spike_mcp_match.py).
-_KEYWORD_TAG_MAP: dict[str, list[str]] = {
-    # Language keywords
-    "c#": ["csharp"], ".net": ["dotnet", "csharp"], "dotnet": ["dotnet", "csharp"],
-    "csharp": ["csharp"], "typescript": ["typescript"], "ts": ["typescript"],
-    "sql": ["sql", "database"], "javascript": ["javascript"], "python": ["python"],
+MCP_MATCHER_MODULE_NAME = "ai_badger_mcp_matcher"
 
-    # Action keywords
-    "build": ["build", "dotnet"], "compile": ["build", "dotnet"],
-    "run": ["run"], "execute": ["run"], "test": ["run"],
-    "refactor": ["refactoring"], "rename": ["refactoring"],
-    "format": ["refactoring"],
-    "search": ["search"], "find": ["search"], "look for": ["search"],
-    "grep": ["search"], "regex": ["search"],
-    "read": ["read"], "show": ["read"], "display": ["read"],
-    "write": ["write"], "create": ["write"], "make": ["write"],
-    "edit": ["write"], "patch": ["write"], "replace": ["write"],
 
-    # Domain keywords
-    "database": ["database", "sql"], "db": ["database", "sql"],
-    "table": ["database", "sql"], "schema": ["database", "sql"],
-    "column": ["database", "sql"], "columns": ["database", "sql"],
-    "query": ["database", "sql"], "connection": ["database", "sql"],
-    "error": ["diagnostic"], "problem": ["diagnostic"], "warning": ["diagnostic"],
-    "bug": ["diagnostic"], "debug": ["diagnostic"],
-    "inspect": ["diagnostic"], "check": ["diagnostic"], "diagnostic": ["diagnostic"],
-    "trace": ["tracing", "opentelemetry"], "span": ["tracing", "opentelemetry"],
-    "log": ["tracing", "opentelemetry"], "opentelemetry": ["tracing", "opentelemetry"],
-    "service": ["tracing", "opentelemetry"],
-    "file": ["files"], "directory": ["files"], "folder": ["files"],
-    "tree": ["files", "navigation"], "structure": ["files", "navigation"],
-    "project": ["files", "dotnet"], "solution": ["dotnet", "csharp"],
-    "class": ["semantic", "csharp"], "method": ["semantic", "csharp"],
-    "symbol": ["semantic"], "reference": ["semantic"],
-    "open": ["navigation"], "editor": ["navigation"], "tab": ["navigation"],
-    "terminal": ["terminal"], "shell": ["terminal"], "command": ["terminal"],
-}
+def _load_mcp_matcher() -> Optional[Any]:
+    """Import the sibling BM25 matcher lazily; None when an older scaffold lacks it.
+
+    The tokenizer, scoring, gate and document construction all live in
+    features/common/retrieval/mcp_matcher.py (docs/adr/0012) — this hook only
+    calls it. Mirrors _load_commit_reminder's lazy sibling-import.
+    """
+    cached = sys.modules.get(MCP_MATCHER_MODULE_NAME)
+    if cached is not None:
+        return cached
+    path = Path(__file__).resolve().parent / "mcp_matcher.py"
+    if not path.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location(MCP_MATCHER_MODULE_NAME, path)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[MCP_MATCHER_MODULE_NAME] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:  # pylint: disable=broad-exception-caught
+        sys.modules.pop(MCP_MATCHER_MODULE_NAME, None)
+        logger.warning("mcp_matcher could not be loaded from %s", path, exc_info=True)
+        return None
+    return module
 
 
 def _load_mcp_index(cwd: Optional[str]) -> Optional[dict[str, Any]]:
     """Load .ai-badger/mcp-tools.yaml from the project, or None."""
-    if not cwd:
+    if not cwd or yaml is None:
         return None
     index_path = Path(cwd) / ".ai-badger" / "mcp-tools.yaml"
     if not index_path.exists():
@@ -311,23 +306,23 @@ def _load_mcp_index(cwd: Optional[str]) -> Optional[dict[str, Any]]:
         return None
 
 
-def _extract_query_tags(query: str) -> Counter[str]:
-    """Extract tags from a natural-language query using keyword matching."""
-    lower = query.lower()
-    tags: Counter[str] = Counter()
-    for keyword, tag_list in _KEYWORD_TAG_MAP.items():
-        if keyword in lower:
-            for tag in tag_list:
-                tags[tag] += 1
-    return tags
+def _find_relevant_tools(
+    query: str, index: dict[str, Any], top_n: int = 3
+) -> list[tuple[str, float]]:
+    """Rank tools in the index by relevance to the query via the BM25 matcher.
+
+    Returns list of (full_tool_name, score) sorted by descending score, gated by
+    coverage rather than an all-or-nothing tag lookup (docs/adr/0012). `[]` when
+    the matcher module isn't available (older scaffold) or nothing clears the gate.
+    """
+    matcher = _load_mcp_matcher()
+    if matcher is None:
+        return []
+    return [(r.tool, r.score) for r in matcher.find_relevant_tools(query, index, top_n=top_n)]
 
 
-# A scored tool must exceed this to be considered a match — the "bar" hit/gate telemetry
-# refers to. Named so a later change is attributable instead of a silent re-tune.
-_MCP_MATCH_THRESHOLD = 0.0
-
-# The component new retrieval events log under — reusing the file's existing component
-# name, not inventing one behaviorist.py's orphaned-wiring check would flag as unexpected.
+# The component retrieval events log under — reusing the file's existing component name,
+# not inventing one behaviorist.py's orphaned-wiring check would flag as unexpected.
 _MCP_RETRIEVAL_COMPONENT = "ai_badger_hooks/mcp_retrieval"
 
 # Wire keys for retrieval telemetry, registered in debug_log.KEY_NAMES; the words live there.
@@ -340,62 +335,24 @@ _KEY_THRESHOLD = "h"
 _KEY_TOOL = "l"
 
 
-def _score_all_tools(query: str, index: dict[str, Any]) -> list[tuple[str, float]]:
-    """Every non-removed tool in the index, scored against `query`, sorted descending.
+def _score_all_tools(query: str, index: dict[str, Any]) -> list[Any]:
+    """Every non-removed tool in the index, BM25-ranked against `query`.
 
-    Unfiltered by threshold: gate telemetry needs the near-misses, not just the winners.
+    Unfiltered by the coverage gate: gate telemetry needs the near-misses, not just the
+    winners. Returns `bm25.ScoredDoc` (`.doc_id`, `.score`, `.coverage`, `.matched_terms`);
+    `[]` when the matcher is unavailable, the index has no tools, or the query tokenizes
+    to nothing.
     """
-    query_tags = _extract_query_tags(query)
-    lower_query = query.lower()
-    query_words = set(lower_query.split())
-    scored: list[tuple[str, float]] = []
-
-    for server in index.get("sources", []):
-        sname = server["name"]
-        for tname, tool in server.get("tools", {}).items():
-            # Skip removed tools
-            if tool.get("status") == "removed":
-                continue
-
-            full_name = f"{sname}:{tname}"
-            tool_tags = tool.get("tags", [])
-            intent = tool.get("intent", "")
-
-            score = 0.0
-
-            # Tag intersection: weighted by keyword frequency
-            for tag in tool_tags:
-                score += query_tags.get(tag, 0) * 1.0
-
-            # Intent word overlap: raw query words appearing in intent text
-            intent_lower = intent.lower()
-            for word in query_words:
-                if len(word) > 2 and word in intent_lower:
-                    score += 0.4
-
-            # Bonus for direct keyword→tag mapping
-            for tag in tool_tags:
-                if tag in query_tags:
-                    score += 0.3
-
-            scored.append((full_name, score))
-
-    scored.sort(key=lambda x: -x[1])
-    return scored
-
-
-def _find_relevant_tools(
-    query: str, index: dict[str, Any], top_n: int = 5
-) -> list[tuple[str, float]]:
-    """Rank all tools in the index by relevance to the query.
-
-    Returns list of (full_tool_name, score) sorted by descending score.
-    """
-    if not _extract_query_tags(query):
+    matcher = _load_mcp_matcher()
+    if matcher is None:
         return []
-    scored = [(name, score) for name, score in _score_all_tools(query, index)
-              if score > _MCP_MATCH_THRESHOLD]
-    return scored[:top_n]
+    corpus = matcher.build_corpus(index)
+    if corpus is None:
+        return []
+    query_terms = matcher.tokenize(query)
+    if not query_terms:
+        return []
+    return corpus.rank(query_terms)
 
 
 def _index_tool_count(index: dict[str, Any]) -> int:
@@ -408,37 +365,45 @@ def _index_tool_count(index: dict[str, Any]) -> int:
     )
 
 
-def _format_top_candidates(scored: list[tuple[str, float]], limit: int = 3) -> str:
-    """`name:score` for the `limit` highest-scoring candidates, comma-joined.
+def _format_top_candidates(scored: list[Any], limit: int = 3) -> str:
+    """`name:score:coverage` for the top candidates, or `name:score` if the triples don't
+    fit debug_log's 200-char field clip.
 
-    Capped at 3, not 5: three triples fit the 200-char per-field budget, five do not.
+    Capped at 3: enough triples to be useful without truncating a candidate's name
+    mid-string when the coverage field has to be dropped to stay under the clip.
     """
-    return ",".join(f"{name}:{score:.2f}" for name, score in scored[:limit])
+    top = scored[:limit]
+    with_coverage = ",".join(f"{r.doc_id}:{r.score:.2f}:{r.coverage:.2f}" for r in top)
+    if len(with_coverage) <= 200:
+        return with_coverage
+    return ",".join(f"{r.doc_id}:{r.score:.2f}" for r in top)
 
 
 def _record_retrieval(project, query: str, index: dict, ranked: list) -> None:
-    """Record what the retrieval did. Costs nothing when debug is off.
+    """Record what the BM25 retrieval did. Costs nothing when debug is off.
 
-    `no_terms` is not `gate`: the keyword map can return nothing, in which case no
-    candidate is ever compared to the threshold, and the top scorer is often a correct
-    match the map suppressed. Reporting that as a threshold miss would misattribute the
-    very failure this telemetry exists to count.
+    `no_terms` is not `gate`: when the tokenizer yields no usable terms, no candidate is
+    ever scored against the coverage threshold. Reporting that as a threshold miss would
+    misattribute the very failure this telemetry exists to count, and it carries no
+    threshold field for the same reason — none was applied.
     """
     if debug_log is None or not debug_log.enabled_for(project):
         return
-    terms = _extract_query_tags(query)
+    matcher = _load_mcp_matcher()
+    query_terms = matcher.tokenize(query) if matcher is not None else []
     scored = _score_all_tools(query, index)
     common = {
         _KEY_QUERY: query,
         _KEY_CANDIDATES: _index_tool_count(index),
         _KEY_TOP: _format_top_candidates(scored),
     }
-    if not terms:
+    if not query_terms:
         _debug(_MCP_RETRIEVAL_COMPONENT, "no_terms", project=project,
                **{**common, _KEY_RETURNED: ""})
         return
-    scoring = {**common, _KEY_TERMS: ",".join(sorted(terms)),
-               _KEY_THRESHOLD: _MCP_MATCH_THRESHOLD}
+    threshold = matcher.DEFAULT_COVERAGE_THRESHOLD if matcher is not None else None
+    scoring = {**common, _KEY_TERMS: ",".join(sorted(set(query_terms))),
+               _KEY_THRESHOLD: threshold}
     if ranked:
         _debug(_MCP_RETRIEVAL_COMPONENT, "hit", project=project,
                **{**scoring, _KEY_RETURNED: ", ".join(name for name, _ in ranked)})
@@ -502,16 +467,17 @@ def pre_llm_inject_context(
             _debug(_MCP_RETRIEVAL_COMPONENT, "absent", project=project,
                    **{_KEY_QUERY: prompt})
         else:
-            ranked = _find_relevant_tools(prompt, index, top_n=5)
+            ranked = _find_relevant_tools(prompt, index, top_n=3)
             if ranked:
                 tools_str = ", ".join(
                     f"{name} ({', '.join(tags_for_display(name, index))})"
-                    for name, _ in ranked[:5]
+                    for name, _ in ranked[:3]
                 )
                 # Keep under 300 chars to avoid prompt bloat
                 hint = f"[ai-badger] Relevant MCP tools: {tools_str}"
                 if len(hint) > 300:
-                    # Truncate to top 3
+                    # Both branches above are already top-3; this fallback only strips
+                    # the per-tool tags parenthetical to fit the budget.
                     tools_str_short = ", ".join(
                         f"{name}" for name, _ in ranked[:3]
                     )

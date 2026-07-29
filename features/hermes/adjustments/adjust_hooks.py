@@ -23,10 +23,19 @@ SHARED_SKILL_MODULES = (
     ("commit-reminder", "impact_estimator.py"),
 )
 
+# The BM25 MCP matcher (docs/adr/0012): tokenizer, scoring, gate and document
+# construction live here, not in ai_badger_hooks.py, so they need their own copy
+# beside it in every deployment shape — same reasoning as SHARED_SKILL_MODULES.
+RETRIEVAL_MODULES = ("tokenizer.py", "bm25.py", "mcp_matcher.py")
+
 
 def _shared_skill_module_src(framework_root: Path, skill_name: str, filename: str) -> Path:
     return (framework_root / "features" / "common" / "skills" / skill_name / "scripts"
             / filename)
+
+
+def _retrieval_module_src(framework_root: Path, filename: str) -> Path:
+    return framework_root / "features" / "common" / "retrieval" / filename
 
 
 def _record_framework_root(plugins_dir: Path, framework_root: Path) -> None:
@@ -60,6 +69,13 @@ def _install_user_plugins(hooks_dir: Path, framework_root: Path) -> List[str]:
         installed.append(name)
     for skill_name, filename in SHARED_SKILL_MODULES:
         src = _shared_skill_module_src(framework_root, skill_name, filename)
+        if not src.is_file():
+            continue
+        plugins_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, plugins_dir / filename)
+        installed.append(filename)
+    for filename in RETRIEVAL_MODULES:
+        src = _retrieval_module_src(framework_root, filename)
         if not src.is_file():
             continue
         plugins_dir.mkdir(parents=True, exist_ok=True)
@@ -101,6 +117,13 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
             files.append(str(dst.relative_to(target_dir.parent)))
     for skill_name, filename in SHARED_SKILL_MODULES:
         src = _shared_skill_module_src(framework_root, skill_name, filename)
+        if src.exists():
+            dst = target_dir / "hooks" / filename
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            files.append(str(dst.relative_to(target_dir.parent)))
+    for filename in RETRIEVAL_MODULES:
+        src = _retrieval_module_src(framework_root, filename)
         if src.exists():
             dst = target_dir / "hooks" / filename
             dst.parent.mkdir(parents=True, exist_ok=True)

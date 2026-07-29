@@ -28,6 +28,14 @@ def hooks():
     return module
 
 
+@pytest.fixture
+def real_mcp_matcher(hooks, load_script, monkeypatch):
+    """Inject the real BM25 matcher, as scaffolding would copy beside the hook."""
+    module = load_script("features/common/retrieval/mcp_matcher.py")
+    monkeypatch.setitem(sys.modules, hooks.MCP_MATCHER_MODULE_NAME, module)
+    return module
+
+
 def _scaffolded_project(tmp_path: Path, framework_version: str = "0.0.1") -> Path:
     project = tmp_path / "proj"
     aib = project / ".ai-badger"
@@ -82,7 +90,8 @@ def test_pre_llm_injects_drift_when_hermes_sends_no_cwd(tmp_path, monkeypatch, h
     assert "Run den-refresh to update." in result["context"]
 
 
-def test_pre_llm_reads_the_user_message_kwarg_hermes_sends(tmp_path, monkeypatch, hooks):
+def test_pre_llm_reads_the_user_message_kwarg_hermes_sends(
+        tmp_path, monkeypatch, hooks, real_mcp_matcher):
     """Hermes names the prompt `user_message`; `message` is never sent."""
     project = _with_index(_scaffolded_project(tmp_path))
     monkeypatch.chdir(project)
