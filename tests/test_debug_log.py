@@ -419,6 +419,7 @@ class TestTheSuiteCannotWriteToTheRealLog:
 VENDORED_COPIES = (
     "features/common/skills/call-behaviorist/scripts/debug_log.py",
     "features/common/skills/commit-reminder/scripts/debug_log.py",
+    "features/common/skills/mcp-index/scripts/debug_log.py",
     "features/common/skills/prompt-markers/scripts/debug_log.py",
     "features/common/skills/task/scripts/debug_log.py",
 )

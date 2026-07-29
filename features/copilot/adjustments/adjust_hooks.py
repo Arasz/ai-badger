@@ -91,8 +91,6 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
                         "${CLAUDE_PLUGIN_ROOT}/features/common/skills/",
                         ".ai-badger/skills/"
                     )
-                    # Remove surrounding quotes if present
-                    cmd = cmd.strip('"')
                     hook_entry = {
                         "type": "command",
                         "bash": cmd,

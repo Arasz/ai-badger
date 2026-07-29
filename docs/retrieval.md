@@ -10,7 +10,7 @@ built out of BM25 rather than the two more obvious alternatives, and — the par
 leave out — how we can tell whether it is working at all.
 
 - **The pieces:** [`features/common/retrieval/`](../features/common/retrieval) — `tokenizer.py`,
-  `bm25.py`, `mcp_matcher.py`, and two eval fixture sets; the runner is
+  `bm25.py`, `mcp_matcher.py`, `context_enrichment.py`, and two eval fixture sets; the runner is
   [`tooling/retrieval_eval.py`](../tooling/retrieval_eval.py).
 - **The decisions:** [ADR-0004](adr/0004-mcp-tool-index.md) introduced the tool index;
   [ADR-0012](adr/0012-bm25-retrieval-with-a-falsifiable-eval.md) replaced its keyword matcher.
@@ -55,9 +55,10 @@ flowchart LR
         mm["mcp_matcher.py<br/>field weights · coverage gate"]
     end
 
-    subgraph hook["features/common/hooks/ai_badger_hooks.py"]
-        enrich["pre_llm_inject_context"]
-        rec["_record_retrieval"]
+    subgraph hook["The caller — one per agent"]
+        enrich["Hermes: ai_badger_hooks.py<br/>pre_llm_inject_context"]
+        enrich2["Claude / Copilot: mcp-index skill<br/>context_enrichment_hook.py"]
+        rec["_record_retrieval<br/>(same shape, both sides)"]
     end
 
     subgraph obs["Observability"]
@@ -70,9 +71,13 @@ flowchart LR
     tok --> mm
     bm --> mm
     enrich -- "user's message" --> mm
+    enrich2 -- "user's message" --> mm
     mm -- "top 3, or nothing" --> enrich
+    mm -- "top 3, or nothing" --> enrich2
     enrich -- "hint prepended to the turn" --> agent(["The agent"])
+    enrich2 -- "hint prepended to the turn" --> agent
     enrich --> rec --> dl --> audit --> beh
+    enrich2 --> rec
 
     style bm fill:#eef,stroke:#557
     style mm fill:#efe,stroke:#575
@@ -85,9 +90,11 @@ term-frequency `Counter` and returns scores. That is the whole interface. Anythi
 and an id — tools today, skills next — can be ranked by it without the ranker growing a special
 case.
 
-**The hook only calls; it does not score.** `ai_badger_hooks.py` loads the matcher lazily by
-path and degrades to "no recommendations" when it is missing, which is what lets a project
-scaffolded by an older version keep working instead of crashing on an import.
+**The hook only calls; it does not score.** `ai_badger_hooks.py` (Hermes) and
+`context_enrichment_hook.py` (Claude/Copilot) each load the matcher lazily by path and degrade to
+"no recommendations" when it is missing, which is what lets a project scaffolded by an older
+version — or one where the retrieval-module copy step has not run yet — keep working instead of
+crashing on an import.
 
 ## 3. One query, end to end
 
@@ -382,32 +389,42 @@ confidently-wrong matches. Making the gate a coverage ratio made the threshold p
 corpus sizes. Shipping an eval fixture set meant the next change to the matcher has to argue with
 data rather than with taste.
 
-**The part that did not — and still does not.** This runs nowhere on Claude Code. Debug logging
-is what surfaced it — **501 records, zero of them `mcp_retrieval`.** A feature implemented,
-tested, documented and released, that has never executed a single query on the host this project
-is distributed as a plugin for.
+**The part that did not, for two releases.** This ran nowhere on Claude Code. Debug logging is
+what surfaced it — **501 records, zero of them `mcp_retrieval`.** A feature implemented, tested,
+documented and released, that had never executed a single query on the host this project is
+distributed as a plugin for.
 
-The cause has narrowed but not closed. `mcp_matcher.py`, `bm25.py` and `tokenizer.py` *are* now
-copied into the scaffolded hooks directory — that half was fixed in passing by the 0.48.0 index
-migration. What remains is the registration: `context-enrichment` in `hooks-manifest.json`
-declares an agent entry for `hermes` and for nothing else, so on Claude Code the code is present,
-importable, correct, and never called.
+The cause narrowed in two steps before it closed. `mcp_matcher.py`, `bm25.py` and `tokenizer.py`
+were copied into the *Hermes* deployment shape by the 0.48.0 index migration, but that copy is
+gated on `"hermes" in config.agents` (`features/hermes/adjustments/adjust_hooks.py`) and writes
+to `.ai-badger/hooks/` — a directory Claude's own hook wiring never reads. A Claude-only project
+had none of the three files anywhere, confirmed by scaffolding one fresh rather than reasoning
+from this repository's own tree (which configures both agents, and so had them by that
+coincidence alone). And even with the modules present, `context-enrichment` in
+`hooks-manifest.json` named only `hermes`, so the code was present, importable, correct, and
+never called.
 
-**That gap is open as of this writing**, tracked as issue #147. Everything above describes a
-mechanism that is real and correct and, on one of its two target hosts, unreached. It would be
-easy to write this section in the past tense and let a reader assume the discovery implies a
-fix. It does not yet.
+**Issue #147 closed both halves.** `context_enrichment_hook.py` (mcp-index skill) is the
+Claude/Copilot adapter — same telemetry component, same event names, same hint format as the
+Hermes path — wired via `hooks-manifest.json`'s now-three-agent `context-enrichment` entry, with
+`features/claude/adjustments/adjust_retrieval.py` and its Copilot twin delivering the retrieval
+modules to `.ai-badger/skills/mcp-index/scripts/`, where Claude's and Copilot's own hook wiring
+actually look. A structural test
+(`tests/test_hooks_manifest_agent_coverage.py`, backed by `tooling/validate.py`'s
+`hooks_manifest_agent_gaps`) now asserts every hook in the manifest names every agent capable of
+its event, or records why it deliberately does not — the test the issue itself asked for, so a
+fourth occurrence of this shape fails the build instead of waiting to be found by accident.
 
-That is the same defect shape three times over in this repository's history: a component that is
+That was the same defect shape three times over in this repository's history: a component that is
 built, covered by tests, copied into place by the scaffolder, and **registered nowhere**. Tests
-pass because they call the code directly. The scaffold looks right because the file is there. The
-only thing missing is the line that causes it to run, and nothing in the pipeline was watching
-for that.
+passed because they called the code directly. The scaffold looked right because the file was
+there. The only thing missing was the line that caused it to run, and nothing in the pipeline was
+watching for that until this issue's own structural test.
 
 The generalisable lesson is not "write more tests". It is that **shipped and running are
 different claims, and only one of them was ever being checked.** The telemetry above exists
-because we could not answer the second question, and the first time we could answer it, the
-answer was no.
+because we could not answer the second question, and the first time we could answer it on Claude
+Code, the answer was no. It is now yes.
 
 ---
 

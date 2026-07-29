@@ -136,6 +136,7 @@ pytest_add_cli_args_test_selection = [
     "tests/test_mcp_retrieval_quality.py",
     "tests/test_mcp_retrieval_telemetry.py",
     "tests/test_mcp_index_hooks.py",
+    "tests/test_context_enrichment.py",
 ]
 
 # Noise suppression: regex against each mutated source LINE (mutmut.mutation.pragma_handling),

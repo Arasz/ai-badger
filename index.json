@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.49.0",
+  "frameworkVersion": "0.50.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -102,6 +102,10 @@
         }
       ],
       "adjustments": [
+        {
+          "name": "adjust_retrieval",
+          "path": "features/claude/adjustments/adjust_retrieval.py"
+        },
         {
           "name": "adjust_skills",
           "path": "features/claude/adjustments/adjust_skills.py"
@@ -292,6 +296,10 @@
         {
           "name": "adjust_hooks",
           "path": "features/copilot/adjustments/adjust_hooks.py"
+        },
+        {
+          "name": "adjust_retrieval",
+          "path": "features/copilot/adjustments/adjust_retrieval.py"
         },
         {
           "name": "adjust_skills",
