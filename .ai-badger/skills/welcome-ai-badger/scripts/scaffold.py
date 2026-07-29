@@ -884,9 +884,8 @@ class Scaffolder:
         self._record_progress("config-and-mcp")
 
         # scaffold user-scoped MCP servers into agent-specific config files
-        stack_servers = self.mcp.collect_stack_mcp_servers()
-        merged = self.mcp.merge_mcp_servers(stack_servers, self.ctx.merged_external_tools)
-        project_servers, user_servers = self.mcp.split_servers_by_scope(merged)
+        project_servers, user_servers = self.mcp.split_servers_by_scope(
+            self.mcp.declared_servers())
         self._outside_project("hermes user MCP config",
                               lambda: self.mcp.scaffold_hermes_mcp_user(user_servers))
         self._outside_project("claude user MCP config",

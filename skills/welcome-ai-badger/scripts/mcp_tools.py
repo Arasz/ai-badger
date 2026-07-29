@@ -256,6 +256,25 @@ class McpTools:
             merged[name] = dict(tool)
         return merged
 
+    def declared_servers(self) -> Dict[str, Dict[str, Any]]:
+        """Every server whose launch config ai-badger writes, keyed by name.
+
+        Three readers in ascending precedence — legacy ``mcp-servers.json``, legacy
+        ``external-tools.json`` (``generate_mcp_json``), then ``stack-mcp.json`` (``declare``):
+        legacy loses on conflict (ADR-0014). A project's own ``config.externalTools`` entry
+        outranks all three — including by its *silence*: an entry that does not ask for
+        ``generate_mcp_json`` is how a project declines a declaration, so a catalog entry it
+        names is skipped rather than reasserted. Same rule as the instructions slot.
+        """
+        self.fill_merged_external_tools()
+        merged = self.merge_mcp_servers(self.collect_stack_mcp_servers(),
+                                        self.ctx.merged_external_tools)
+        user_named = {t.get("name") for t in self.ctx.config.get("externalTools") or []}
+        for srv in self.collect_catalog_mcp_servers():
+            if srv.get("declare") and srv.get("name") not in user_named:
+                merged[srv["name"]] = dict(srv)
+        return merged
+
     def split_servers_by_scope(
         self, servers: Dict[str, Dict[str, Any]]
     ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
@@ -477,17 +496,12 @@ class McpTools:
     # -- orchestrate ----------------------------------------------------------------
 
     def generate_mcp_json(self) -> None:
-        """Generate .mcp.json for merged stack + external tool MCP servers.
+        """Generate .mcp.json for every declared MCP server (:meth:`declared_servers`).
 
         Commands stay portable — no absolute paths; a bare executable found in a user tool
         directory is emitted ``${HOME}``-relative.  Only project-scoped servers are written.
         """
-        self.fill_merged_external_tools()
-
-        # Collect from stacks and external tools
-        stack_servers = self.collect_stack_mcp_servers()
-        merged = self.merge_mcp_servers(stack_servers, self.ctx.merged_external_tools)
-        project_servers, _ = self.split_servers_by_scope(merged)
+        project_servers, _ = self.split_servers_by_scope(self.declared_servers())
 
         if not self._destination_applies(MCP_JSON, project_servers):
             return
@@ -498,5 +512,5 @@ class McpTools:
         )
         if written:
             self.ctx.notes.append(
-                f"generated .mcp.json with {len(mcp_servers)} external tool(s)"
+                f"generated .mcp.json with {len(mcp_servers)} MCP server(s)"
             )
