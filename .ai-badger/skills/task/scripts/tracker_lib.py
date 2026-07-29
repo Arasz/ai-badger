@@ -397,21 +397,44 @@ def compute_usage(start_cp: dict, finish_cp: dict, subagents: list) -> dict:
     }
 
 
+def _positive_int(value, fallback: int) -> int:
+    """A budget override is only honoured when it is a positive int. Typos fail safe."""
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        return fallback
+    return value
+
+
+def doc_budget() -> tuple:
+    """The (chars, lines) budget for agent discovery files.
+
+    Overridable per project via `agentDocs` in config.json, because the files being measured
+    are generated: a project that selects many invariants pays lines it did not author and
+    cannot shorten without dropping policy.
+    """
+    config = load_config()
+    override = config.get("agentDocs") if isinstance(config, dict) else None
+    if not isinstance(override, dict):
+        return CLAUDE_MD_MAX_CHARS, CLAUDE_MD_MAX_LINES
+    return (_positive_int(override.get("maxChars"), CLAUDE_MD_MAX_CHARS),
+            _positive_int(override.get("maxLines"), CLAUDE_MD_MAX_LINES))
+
+
 def doc_stats(path) -> dict:
     """Size + budget verdict for one agent discovery file."""
     try:
         text = Path(path).read_text(encoding="utf-8")
     except (FileNotFoundError, IsADirectoryError):
         text = ""
+    max_chars, max_lines = doc_budget()
     chars = len(text)
     lines = text.count("\n") + (1 if text and not text.endswith("\n") else 0)
     return {
         "path": str(path),
         "chars": chars,
         "lines": lines,
-        "maxChars": CLAUDE_MD_MAX_CHARS,
-        "maxLines": CLAUDE_MD_MAX_LINES,
-        "overBudget": chars > CLAUDE_MD_MAX_CHARS or lines > CLAUDE_MD_MAX_LINES,
+        "maxChars": max_chars,
+        "maxLines": max_lines,
+        "overBudget": chars > max_chars or lines > max_lines,
     }
 
 
