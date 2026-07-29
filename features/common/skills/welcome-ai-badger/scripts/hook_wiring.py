@@ -113,13 +113,13 @@ def _prune(event_hooks: List[Any], superseded: set) -> List[Any]:
 
 
 def select_hooks(source_event_hooks, script):
-    """Keep only the commands belonging to *script*, dropping now-empty entries.
+    """Commands belonging to *script* — never a whole event's worth for an unnamed one.
 
-    An event carries one command per hook that registers for it, so a manifest entry
-    must take its own command and no one else's.
+    A manifest entry naming no script cannot tell which registered command is its own, so
+    it gets none here and resolves its own script by convention instead (see `wire()`).
     """
     if not script:
-        return list(source_event_hooks)
+        return []
     selected = []
     for entry in source_event_hooks:
         matching = [h for h in entry.get("hooks", [])
@@ -231,7 +231,21 @@ class HookWiring:
                     )
                     continue
                 skill_hook_script = self.ctx.aib / "skills" / hook_name / "scripts"
-                hook_scripts = list(skill_hook_script.glob("*_hook.py")) if skill_hook_script.exists() else []
+                script_name = claude_entry.get("script")
+                if script_name:
+                    named = skill_hook_script / script_name
+                    hook_scripts = [named] if named.is_file() else []
+                else:
+                    hook_scripts = (sorted(skill_hook_script.glob("*_hook.py"))
+                                     if skill_hook_script.exists() else [])
+                    if len(hook_scripts) > 1:
+                        names = ", ".join(p.name for p in hook_scripts)
+                        self.ctx.notes.append(
+                            f"hook '{hook_name}': manifest names no script and "
+                            f"{skill_hook_script} has more than one candidate ({names}) — "
+                            f"refusing to guess, not wired"
+                        )
+                        continue
                 if not hook_scripts:
                     self.ctx.notes.append(f"hook '{hook_name}': no hook script found — skipped")
                     continue
