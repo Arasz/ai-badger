@@ -107,7 +107,7 @@ flowchart TD
     C --> D{"any usable terms?"}
     D -- no --> E2["event: no_terms<br/>nothing was scored at all"]
     D -- yes --> G["BM25 rank all 98"]
-    G --> H{"coverage ≥ 0.20<br/>and ≥1 matched term?"}
+    G --> H{"coverage ≥ 0.20<br/>(denominator capped at the<br/>6 highest-idf terms)<br/>and ≥1 matched term?"}
     H -- no --> E3["event: gate<br/>scored, and deliberately silent"]
     H -- yes --> I["take top 3"]
     I --> J["prepend<br/>'[ai-badger] Relevant MCP tools: …'"]
@@ -179,13 +179,61 @@ meaningless on the other.
 
 So the gate is a ratio instead:
 
-$$\text{coverage} = \frac{\sum \text{idf}(\text{matched terms})}{\sum \text{idf}(\text{all query terms})}$$
+$$\text{coverage} = \min\left(1, \frac{\sum \text{idf}(\text{matched terms})}{\sum \text{idf}(\text{the } k \text{ highest-idf query terms})}\right) \qquad k = 6$$
 
 "What fraction of this query's *information* did the best document actually account for?" — a
 number between 0 and 1, on the same scale whatever the corpus size. A document clears the gate at
 **0.20**. The code also requires at least one matched term, which is worth flagging as
 decoration rather than a safeguard: coverage is a sum over matched terms, so it is provably 0
 when nothing matched, and the threshold already excludes that case.
+
+### Why the denominator is capped (and what it cost to find out)
+
+That denominator originally ran over **every** query term, and for two releases that looked
+fine — because every fixture we owned was a keyword phrase. It is not fine on a sentence. Each
+word a real message carries that no tool document contains adds to the denominator and to
+nothing else, so coverage falls as roughly $1/\text{len}(\text{query})$ *however good the match
+is*. The ranking never wavered; only the gate did:
+
+| query | terms | top result | coverage | fires? |
+|---|---|---|---|---|
+| "take a screenshot of the page" | 3 | `playwright:browser_take_screenshot` | 1.000 | yes |
+| the same request inside a 19-term sentence | 19 | `playwright:browser_take_screenshot` | **0.1435** | **no** |
+
+Since the hook passes the entire user message, that is most real turns. Capping the denominator
+at the six most informative terms makes it length-invariant: past six terms, further padding
+cannot move coverage at all. The same query above scores **0.3855** capped, and stays at 0.3855
+with twenty more junk words appended, where uncapped it decays 0.1435 → 0.0640.
+
+**Six is not a tuning knob, it is the control set's longest query.** At or below the cap the
+top-six terms *are* every term, so the denominator is the same sum as before and short queries
+keep the coverage they always had — the 58-fixture regression set is bit-identical under this
+change, not one float moved. That is an algebraic guarantee rather than a measurement, and it is
+what lets the 0.20 threshold survive a change to what coverage means. Either side of six is
+worse, measured on the long-query set at threshold 0.20:
+
+| cap | long recall@3 | long false fire | positives returning nothing |
+|---|---|---|---|
+| 4 | 1.000 | 0.250 | 0 |
+| 5 | 0.969 | 0.125 | 0 |
+| **6** | **0.969** | **0.000** | **0** |
+| 7 | 0.938 | 0.000 | 2 |
+| 10 | 0.844 | 0.000 | 5 |
+
+One caveat, because it is the same trap as the threshold's: the cap trades against corpus size.
+An out-of-vocabulary term takes the *maximum* idf, and a matched term's share of that maximum
+grows with $N$ — `idf(df=1)/idf(df=0)` is 0.52 at 4 documents but 0.79 at 98. Six is derived on
+*this* index. A much smaller consumer index is a different measurement, and we have not made it.
+
+**The obvious version of this fix is degenerate, and it is worth knowing why.** "Normalise over
+the top-k highest-idf query terms" — restricting numerator *and* denominator to those terms —
+sounds strictly better and scores **0.000** on every long positive at every threshold. Because
+$\text{idf}(t) = \log(1 + (N - \text{df} + 0.5)/(\text{df} + 0.5))$, a term the corpus has never
+seen has the *highest* idf of all: 5.2883 here, against 4.1897 for the rarest term that actually
+exists. The "most informative" terms of a long sentence are therefore precisely the ones no
+document can contain, and a numerator restricted to them is empty by construction. Capping only
+the denominator is what dodges this — the numerator still sums every matched term against a
+fixed budget.
 
 It emphatically does **not** stop a single term from carrying a match on its own. All four false
 fires in our eval set are single-term matches, and they are the kind of thing a reader should see
@@ -209,6 +257,13 @@ Two further caveats, measured rather than assumed:
   disappears. Because `idf` depends on the corpus size `N`, that margin is a property of *this*
   index and not a constant; a smaller consumer index is a different measurement, and we have not
   made it.
+
+  That figure is unchanged by the denominator cap above, and the reason is the cap's whole
+  design: every query in the set the margin is measured on is at or below six terms, so their
+  coverages are bit-identical either way and the ceiling re-derives to the same 0.2089. A
+  threshold whose derivation survives a change to the metric it thresholds is the exception, not
+  the rule — it survived here only because the change was built to be a no-op on the derivation
+  set.
 
   **Two different numbers are called a "margin" here, and they disagree in sign on purpose.**
   The 0.0089 above is *threshold headroom*: how far the gate can move before it costs a positive.
@@ -234,8 +289,8 @@ than reweighting them. Knobs in the interior are theatre; the field set is not.
 
 ## 5. Falsifiability
 
-The matcher ships with two fixture sets, deliberately kept apart so neither is silently
-reinterpreted as the other.
+The matcher ships with three fixture sets, deliberately kept apart so none is silently
+reinterpreted as another.
 
 [`eval/mcp_queries.jsonl`](../features/common/retrieval/eval/mcp_queries.jsonl) is the regression
 gate: **58 fixtures — 43 queries with an expected tool, 15 that must return nothing.** A test runs
@@ -247,16 +302,29 @@ instrument, not a gate: **70 fixtures** across five classes, and nothing asserts
 against it. It exists to say where the matcher actually stands, which a gate cannot do — a gate
 you can always pass tells you only that you have not regressed.
 
-Both sets are run by a checked-in runner, [`tooling/retrieval_eval.py`](../tooling/retrieval_eval.py),
+[`eval/mcp_queries_long.jsonl`](../features/common/retrieval/eval/mcp_queries_long.jsonl) is
+the one both of those were blind to: **48 fixtures at a mean of 15.3 tokens** (30.6 raw words),
+32 of them a request embedded in surrounding context and 16 negatives of the same length. Both
+older sets average under five tokens, which is why every bar in them stayed green while the gate
+suppressed half of all sentence-length matches. It was written and committed *before* any
+candidate fix was evaluated, precisely so it could not be shaped into a set the fix passes.
+
+All three sets are run by a checked-in runner, [`tooling/retrieval_eval.py`](../tooling/retrieval_eval.py),
 against a named fixture file and a named index. That matters more than it sounds: ADR-0004 once
 claimed "100% accuracy on a 16-query spike suite" whose script lived in another repository, could
 not be run, and could not fail. A number nobody can reproduce is not a measurement.
 
-| Metric | Easy set (58) | Hard set (70) |
-|---|---|---|
-| recall@1 | 0.930 | **0.442** |
-| recall@3 | 1.000 | **0.481** |
-| false fire on negatives | 0.267 | 0.333 |
+| Metric | Easy set (58) | Hard set (70) | Long set (48) |
+|---|---|---|---|
+| mean query tokens | 3.8 | 4.8 | **15.3** |
+| recall@1 | 0.930 | **0.442** | 0.938 |
+| recall@3 | 1.000 | **0.481** | 0.969 |
+| false fire on negatives | 0.267 | 0.333 | 0.000 |
+
+The runner also breaks every metric down **by query length**, which is the part of this that
+generalises. The defect above was invisible for two releases not because it was subtle but
+because nothing in the instrument was bucketed by the variable it depended on; a single recall
+number averaged it away. A per-bucket report cannot make that mistake silently again.
 
 The easy set is **saturated** — recall@3 of 1.000 leaves nothing for a reranking technique to
 improve — and it is biased in a way worth stating plainly, because every hand-written eval set
