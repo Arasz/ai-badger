@@ -440,6 +440,17 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+# Keys a scaffold rewrites or that only point at a schema: not the project's declaration.
+CONFIG_HASH_IGNORED = ("$schema", "frameworkVersion")
+
+
+def config_hash(config: Dict[str, Any]) -> str:
+    """SHA-256 of a config's declarations, canonicalized so formatting is not drift."""
+    subset = {k: v for k, v in config.items() if k not in CONFIG_HASH_IGNORED}
+    return sha256_text(json.dumps(subset, sort_keys=True, separators=(",", ":"),
+                                  ensure_ascii=False))
+
+
 def sha256_file(path: Path) -> str:
     """Return the hex SHA-256 digest of a file's bytes, or of a dir's tree (name + content)."""
     h = hashlib.sha256()
