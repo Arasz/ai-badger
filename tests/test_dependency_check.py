@@ -62,12 +62,22 @@ def test_missing_file(load_script, tmp_path):
 
 
 def test_venv_created_for_python_dep(load_script, dep_root, dep_target):
+    """Venv creation is real; the pip install it would trigger is not.
+
+    Installing `code-review-graph` for real took 46s — 30% of the whole suite — and reached
+    the network, to prove a directory exists. `_install_python` is patched so `_ensure_venv`
+    still runs unmocked, which is the behaviour these assertions are about.
+    """
     dc = load_script(SCRIPT)
     dep_target.mkdir(parents=True)
-    dc.run_dependency_check(dep_root, dep_target, allow_install=True, features=["code-review-graph"])
+    with patch.object(dc, "_install_python", return_value=[]) as install:
+        dc.run_dependency_check(
+            dep_root, dep_target, allow_install=True, features=["code-review-graph"]
+        )
     venv_path = dep_target / ".venv"
     assert venv_path.exists()
     assert (venv_path / "bin" / "python3").exists() or (venv_path / "Scripts").exists()
+    assert install.called, "the install step must still be reached, only not executed"
 
 
 def test_venv_not_created_when_already_exists(load_script, dep_root, dep_target):
