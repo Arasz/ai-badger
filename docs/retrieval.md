@@ -10,7 +10,8 @@ built out of BM25 rather than the two more obvious alternatives, and — the par
 leave out — how we can tell whether it is working at all.
 
 - **The pieces:** [`features/common/retrieval/`](../features/common/retrieval) — `tokenizer.py`,
-  `bm25.py`, `mcp_matcher.py`, and an eval fixture set.
+  `bm25.py`, `mcp_matcher.py`, and two eval fixture sets; the runner is
+  [`tooling/retrieval_eval.py`](../tooling/retrieval_eval.py).
 - **The decisions:** [ADR-0004](adr/0004-mcp-tool-index.md) introduced the tool index;
   [ADR-0012](adr/0012-bm25-retrieval-with-a-falsifiable-eval.md) replaced its keyword matcher.
 - **The releases:** [`0.47.0-retrieval-that-can-fail.md`](changelog/0.47.0-retrieval-that-can-fail.md)
@@ -197,10 +198,19 @@ Two further caveats, measured rather than assumed:
 
 - **0.20 is a ceiling, not a comfortable setting.** It is the highest value at which
   zero-result-on-positives stays at 0 for our fixture set. On this 98-tool corpus the margin to
-  the first failure is **0.0089** — the tightest true positive and a false fire sit at the same
-  coverage to four decimal places. Because `idf` depends on the corpus size `N`, that margin is a
-  property of *this* index and not a constant; a smaller consumer index is a different
-  measurement, and we have not made it.
+  the first failure is **0.0089** — raise the threshold by one hundredth and a true positive
+  disappears. Because `idf` depends on the corpus size `N`, that margin is a property of *this*
+  index and not a constant; a smaller consumer index is a different measurement, and we have not
+  made it.
+
+  **Two different numbers are called a "margin" here, and they disagree in sign on purpose.**
+  The 0.0089 above is *threshold headroom*: how far the gate can move before it costs a positive.
+  The `coverage_margin` that [`tooling/retrieval_eval.py`](../tooling/retrieval_eval.py) reports
+  is *class separation*: the tightest true positive's coverage minus the worst false fire's. That
+  one is **negative** — −0.201 on the easy set — because a false fire ("scaffold this repo",
+  coverage 0.410) sits well above the tightest true positive. Both are true. The first says the
+  threshold is finely balanced; the second says no threshold, anywhere, cleanly separates the two
+  classes, which is the point below.
 - **No scalar threshold cleanly separates good from bad here.** Driving false fires to zero costs
   true positives. We chose to keep the positives and accept that some turns get a suggestion they
   did not need.
@@ -217,38 +227,62 @@ than reweighting them. Knobs in the interior are theatre; the field set is not.
 
 ## 5. Falsifiability
 
-The matcher ships with [`eval/mcp_queries.jsonl`](../features/common/retrieval/eval/mcp_queries.jsonl):
-**58 fixtures — 43 queries with an expected tool, 15 that must return nothing.** A test runs them
-against the repository's real index on every suite run, so a change that improves top-1 by
+The matcher ships with two fixture sets, deliberately kept apart so neither is silently
+reinterpreted as the other.
+
+[`eval/mcp_queries.jsonl`](../features/common/retrieval/eval/mcp_queries.jsonl) is the regression
+gate: **58 fixtures — 43 queries with an expected tool, 15 that must return nothing.** A test runs
+it against the repository's real index on every suite run, so a change that improves top-1 by
 wrecking silence fails immediately.
 
-Current standing, and we publish the unflattering ones on purpose:
+[`eval/mcp_queries_hard.jsonl`](../features/common/retrieval/eval/mcp_queries_hard.jsonl) is the
+instrument, not a gate: **70 fixtures** across five classes, and nothing asserts a recall bar
+against it. It exists to say where the matcher actually stands, which a gate cannot do — a gate
+you can always pass tells you only that you have not regressed.
 
-| Metric | Value |
-|---|---|
-| recall@3 | 1.000 |
-| recall@1 | 0.907 |
-| false fire on negatives | 0.267 |
-| coverage margin at the threshold | 0.0089 |
+Both sets are run by a checked-in runner, [`tooling/retrieval_eval.py`](../tooling/retrieval_eval.py),
+against a named fixture file and a named index. That matters more than it sounds: ADR-0004 once
+claimed "100% accuracy on a 16-query spike suite" whose script lived in another repository, could
+not be run, and could not fail. A number nobody can reproduce is not a measurement.
 
-The fixture set is **saturated**: recall@3 is already 1.000, so no reranking technique can
-improve it, and the remaining top-1 headroom is four queries out of 43.
+| Metric | Easy set (58) | Hard set (70) |
+|---|---|---|
+| recall@1 | 0.930 | **0.442** |
+| recall@3 | 1.000 | **0.481** |
+| false fire on negatives | 0.267 | 0.333 |
 
-It is also biased, in a way worth stating plainly because every hand-written eval set has this
-problem. Mean token overlap between a query and the tool it is supposed to find is **0.781**, and
-40 of 43 fixtures sit at 0.50 or above: the fixtures are written in the vocabulary of the
-documents they are meant to find, by the same person who wrote the documents. A retrieval system
-scored only against such a set is being asked the easy version of the question.
+The easy set is **saturated** — recall@3 of 1.000 leaves nothing for a reranking technique to
+improve — and it is biased in a way worth stating plainly, because every hand-written eval set
+has this problem. Mean token overlap between a query and the tool it should find is **0.781**,
+with 40 of 43 fixtures at 0.50 or above. The fixtures are written in the vocabulary of the
+documents they are meant to find, by the same person who wrote those documents.
 
-Two conclusions follow, and they point in opposite directions:
+**So we wrote the harder set, and it moved the answer from "no headroom" to "we were measuring
+the wrong thing."** Broken out by class, the collapse is not uniform — it is entirely about
+vocabulary:
 
-1. Further matcher tuning is not worth doing against these fixtures. With 39 of 43 correct at
-   rank 1, the Wilson 95% interval is [0.784, 0.963] — wide enough to swallow any tuning gain
-   whole. Improvements smaller than the measurement error are not improvements.
-2. Harder fixtures — paraphrases with zero lexical overlap, user-voice queries, near-duplicate
-   tools — would tell us something the current set cannot. That work is tracked, and it is
-   deliberately *not* framed as "improve the matcher", because we do not yet know that the
-   matcher is what is wrong.
+| Class | recall@1 | recall@3 | mean overlap |
+|---|---|---|---|
+| near-dup — real near-duplicate tools to disambiguate | 1.000 | 1.000 | 0.783 |
+| user-voice — how a person asks, not how the implementer wrote it | 0.200 | 0.333 | 0.229 |
+| paraphrase — zero lexical overlap, mechanically enforced | **0.000** | **0.000** | 0.000 |
+
+BM25 is not ranking badly. On `near-dup` — the class designed to be hard — it is perfect, because
+precise vocabulary is exactly what lexical retrieval is good at. It simply cannot answer a
+question that shares no words with the answer:
+
+> *"everywhere this identifier appears, swap in a new label instead"* → **nothing returned**.
+> The tool is `rider:rename_refactoring`, whose document says "rename", "refactoring", "symbol".
+
+Zero of seventeen paraphrases retrieved anything at rank 3. That is not a tuning problem, and no
+weight sweep or threshold change will touch it — the terms are not in the corpus. It points at
+vocabulary: synonyms, query expansion, or a second non-lexical signal.
+
+The honest summary is that **the first fixture set was measuring the matcher's strongest case and
+reporting it as the whole picture.** The saturation was real; the conclusion drawn from it —
+"there is no headroom" — was an artefact of the instrument. Sample sizes are small on both sides
+(Wilson 95% on the easy set's 40/43 is [0.814, 0.976]; on the hard set's 23/52, [0.316, 0.577]),
+so treat the gap between them as the finding, not the third decimal of either.
 
 ## 6. Telemetry, and why silence needs more than one name
 
