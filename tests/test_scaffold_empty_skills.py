@@ -50,7 +50,7 @@ def test_reusing_the_manifest_set_is_stated_on_stdout(tmp_path, load_script, roo
     out = capsys.readouterr().out
     assert "--skills" in out
     assert "manifest" in out
-    assert "2" in out
+    assert "reused 2 skill(s)" in out
 
 
 def test_an_empty_skills_flag_on_a_fresh_target_still_exits_zero(
@@ -64,3 +64,25 @@ def test_an_empty_skills_flag_on_a_fresh_target_still_exits_zero(
 
     assert _run(scaffold, config_path, target, root, "") == 0
     assert not (target / ".ai-badger" / "skills").exists()
+
+
+def test_an_unreadable_manifest_is_reported_and_destroys_nothing(
+        tmp_path, load_script, root, capsys):
+    """A manifest that cannot be parsed must not read as "reused 0 skill(s)"."""
+    scaffold = load_script(SCRIPT)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(_config()), encoding="utf-8")
+    target = tmp_path / "proj"
+    target.mkdir()
+
+    assert _run(scaffold, config_path, target, root, "task,prompt-markers") == 0
+    (target / ".ai-badger" / "manifest.json").write_text("{not json", encoding="utf-8")
+    capsys.readouterr()
+
+    assert _run(scaffold, config_path, target, root, "") == 0
+
+    out = capsys.readouterr().out
+    assert "could not be read" in out
+    assert "reused" not in out
+    for name in ("task", "prompt-markers"):
+        assert (target / ".claude" / "skills" / name).is_symlink()
