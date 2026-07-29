@@ -1,7 +1,8 @@
 """MCP index status notices for Hermes Agent.
 
-Advisory only: these hooks report a missing .ai-badger/mcp-tools.yaml and never
-execute anything resolved from the project tree.
+Advisory only: these hooks report a missing .ai-badger/mcp-tools.json (or a not-yet-
+migrated .ai-badger/mcp-tools.yaml) and never execute anything resolved from the
+project tree.
 """
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ from typing import Any, Optional
 logger = logging.getLogger("mcp_index_hook")
 
 _MISSING_INDEX_NOTICE = (
-    "MCP index not found at %s/.ai-badger/mcp-tools.yaml; run the mcp-index skill to build it"
+    "MCP index not found at %s/.ai-badger/mcp-tools.json; run the mcp-index skill to build it"
 )
 
 
@@ -26,8 +27,13 @@ def _find_project_root(cwd: Optional[str] = None) -> Optional[Path]:
 
 
 def _has_mcp_index(project_root: Path) -> bool:
-    """Check if MCP tool index exists."""
-    return (project_root / ".ai-badger" / "mcp-tools.yaml").exists()
+    """Check if an MCP tool index exists, current (.json) or not-yet-migrated (.yaml).
+
+    A curated project mid-migration (issue #145) must never be told to run `init` —
+    `mcp_index.py`'s own reader is dual-format for the same reason.
+    """
+    aib = project_root / ".ai-badger"
+    return (aib / "mcp-tools.json").exists() or (aib / "mcp-tools.yaml").exists()
 
 
 def _notice_if_index_missing(cwd: Optional[str]) -> None:

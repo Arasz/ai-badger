@@ -72,7 +72,9 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
      last scaffold was built from (an `exclude`, `commands`, `stacks`, `agents` or
      `personaRouting` edit). Present as `{"recorded": ..., "current": ...}`; `recorded: null`
      means this manifest predates the field and self-heals on this one re-scaffold
-   - `newStacks` — stacks detectable in the target but missing from config
+   - `newStacks` — stacks detectable in the target but missing from config. Advisory only:
+     it never triggers a re-scaffold, so non-empty `newStacks` alongside `reScaffolded: false`
+     is the expected shape, not a contradiction
    - `reScaffolded` — whether a re-scaffold was performed
    - `note` — present only when config.json and the framework disagree on the version and no
      re-scaffold ran; the generated files were not rewritten, so say so rather than reporting green
@@ -112,10 +114,13 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
 
 - **Never re-detect.** den-refresh uses the project's existing config.json as-is.
   If the config needs updating (new stacks, changed commands), edit it first,
-  then run den-refresh. **Exception:** den-refresh now detects stacks that have
-  signals in the target but are missing from config, and reports them as
-  `newStacks` in the JSON output. The agent should offer to add them to the
-  config and re-run.
+  then run den-refresh. **Exception:** den-refresh detects stacks that have signals
+  in the target but are missing from config, and reports them as `newStacks` —
+  advisory only, it never gates the re-scaffold (#134). Two paths from there, both
+  project-owned: **accept** — add the stack to `config.stacks` and re-run; the edit
+  itself is drift (`configChanged`, #128), so the re-scaffold that delivers it is
+  self-executing. **Decline** — add it to `.ai-badger/stack-ignore.json`; never
+  overwritten by a re-scaffold.
 - **Seed-once files survive.** `state.json`, `markers-context.json`, and
   `model.json` are seed-once and preserved across re-scaffolds.
 - **Preserved regions survive.** Managed agent files (`CLAUDE.md`,
