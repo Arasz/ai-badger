@@ -35,6 +35,18 @@ def test_scaffold_manifest_entries_have_expected_shape(make_scaffolder):
     assert manifest_on_disk.exists()
 
 
+def test_the_manifest_records_the_hash_of_the_config_it_wrote(load_script, make_scaffolder):
+    """Issue #128: the recorded hash must match the config.json the scaffold actually wrote."""
+    bl = load_script("engine/badger_lib.py")
+    target = make_scaffolder.target
+
+    scaf = make_scaffolder(config=_config(stacks=["dotnet"]), skills=["task"])
+    result = scaf.run(generated_at="2026-07-19T00:00:00Z")
+
+    written_config = json.loads((target / ".ai-badger" / "config.json").read_text(encoding="utf-8"))
+    assert result["manifest"]["configHash"] == bl.config_hash(written_config)
+
+
 @pytest.mark.parametrize("stacks,agents", [
     (["dotnet"], ["claude"]),
     (["python", "js"], ["claude", "copilot"]),
