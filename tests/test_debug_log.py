@@ -119,6 +119,43 @@ class TestUserScopeIsTheDefault:
         assert [r[dl.KEY_PROJECT] for r in _records(dl)] == ["/work/mine"]
 
 
+class TestRedactMode:
+    """The query is the one field carrying user content; redaction drops only that field."""
+
+    def test_the_query_field_is_recorded_by_default(self, load_script, tmp_path, monkeypatch):
+        dl = _load(load_script, tmp_path, monkeypatch)
+        _enable(dl)
+        monkeypatch.delenv(dl.REDACT_ENV, raising=False)
+
+        dl.log_event("h", "hit", **{dl.KEY_QUERY: "sensitive text", "count": 3})
+
+        record = _records(dl)[0]
+        assert record[dl.KEY_QUERY] == "sensitive text"
+        assert record["count"] == "3"
+
+    def test_redact_drops_only_the_query_field(self, load_script, tmp_path, monkeypatch):
+        dl = _load(load_script, tmp_path, monkeypatch)
+        _enable(dl)
+        monkeypatch.setenv(dl.REDACT_ENV, "1")
+
+        dl.log_event("h", "hit", **{dl.KEY_QUERY: "sensitive text", "count": 3})
+
+        record = _records(dl)[0]
+        assert dl.KEY_QUERY not in record
+        assert record["count"] == "3"
+
+    def test_the_redacted_text_never_touches_disk(self, load_script, tmp_path, monkeypatch):
+        """Redaction happens at the point of writing, never as a post-process."""
+        dl = _load(load_script, tmp_path, monkeypatch)
+        _enable(dl)
+        monkeypatch.setenv(dl.REDACT_ENV, "1")
+
+        dl.log_event("h", "hit", **{dl.KEY_QUERY: "super secret query text"})
+
+        raw = dl.AUDIT_FILE.read_text(encoding="utf-8")
+        assert "super secret" not in raw
+
+
 class TestRecordContents:
     """Every record must answer: which code, which copy, where, doing what."""
 

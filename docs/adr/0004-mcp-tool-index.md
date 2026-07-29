@@ -83,7 +83,12 @@ Rejected. A closed taxonomy enables validation (`mcp-index validate` catches unk
 - **Reduced tool-selection errors:** The agent gets a ranked shortlist instead of scanning 40+ tool definitions
 - **Faster tool discovery:** `mcp-index list --tag diagnostic` surfaces all diagnostic tools across all MCP servers
 - **Index portability:** The YAML file is committed to the project repo and shared across all agents (Hermes, Claude, Copilot)
-- **Observability:** The `post_tool_observer` hook logs index hit/miss metrics
+- **Observability:** `post_tool_observer` and `pre_llm_inject_context` route retrieval outcomes
+  (`known`/`unknown` tool checks, and `hit`/`gate`/`absent` recommendation outcomes) through
+  `debug_log`, readable via `call-behaviorist tail` (0.47.0). Before that release this line
+  described a `logger.debug` call on a bare logger with no configured handler in any shipped
+  deployment shape — the claim was aspirational, not observed; see
+  `docs/changelog/0.47.0-retrieval-tells-you-what-it-did.md`.
 
 ### Negative
 
