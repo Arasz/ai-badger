@@ -769,3 +769,26 @@ def test_refresh_re_delivers_a_skill_whose_exclusion_was_removed(
 
     assert (proj / ".ai-badger" / "skills" / "call-behaviorist" / "SKILL.md").exists()
     assert "call-behaviorist" in report["scaffold"]["refreshedSkills"]
+
+
+def test_a_project_without_hermes_gets_no_hermes_link_report(
+        tmp_path, load_script, root, capsys, make_scaffolder):
+    """The report names hermes links only when there are some (#129 return-shape change)."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+
+    fw = tmp_path / "fw"
+    _mock_fw_with_skills(fw, root, ["task"])
+    proj = tmp_path / "proj"
+    config = _write_config(proj, frameworkVersion="0.3.0")
+    make_scaffolder(root=fw, target=proj, config=config, skills=["task"]).run(
+        generated_at="2026-07-22T00:00:00Z")
+    _mock_fw_with_skills(fw, root, ["task", "call-behaviorist"])
+
+    rc = refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert "call-behaviorist" in report["scaffold"]["refreshedSkills"]
+    assert "hermesSkillLinks" not in report, (
+        "a claude-only project has no hermes namespace, so the report must not carry the key"
+    )

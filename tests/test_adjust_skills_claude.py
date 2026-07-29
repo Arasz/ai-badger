@@ -184,6 +184,39 @@ def test_a_link_to_a_skill_no_longer_delivered_is_pruned(tmp_path, load_script, 
     assert not link.exists() and not link.is_symlink()
     assert (target / ".claude" / "skills" / "task").is_symlink()
     assert "call-behaviorist" in result["notes"]
+    # Lock: a legitimate prune must stay loud — see the empty-list guard below.
+    assert "removed" in result["notes"]
+
+
+def test_an_empty_skill_list_prunes_nothing(tmp_path, load_script, root):
+    """An empty skill list is not evidence the project stopped wanting its skills (#129)."""
+    adjust_skills = load_script(SCRIPT)
+    target = _project(tmp_path, skills=("task", "den-refresh"))
+    adjust_skills.adjust(_context(root, target, skills=("task", "den-refresh")))
+
+    result = adjust_skills.adjust(_context(root, target, skills=()))
+
+    claude_skills = target / ".claude" / "skills"
+    assert (claude_skills / "task").is_symlink()
+    assert (claude_skills / "den-refresh").is_symlink()
+    assert not result["applied"]
+    assert "config.exclude.skills" in result["notes"]
+    assert "2" in result["notes"]
+
+
+def test_a_foreign_entry_survives_an_empty_skill_list(tmp_path, load_script, root):
+    adjust_skills = load_script(SCRIPT)
+    target = _project(tmp_path, skills=("task",))
+    adjust_skills.adjust(_context(root, target, skills=("task",)))
+    foreign = target / ".claude" / "skills" / "explore-codebase"
+    foreign.mkdir(parents=True)
+    (foreign / "SKILL.md").write_text("# code-review-graph\n", encoding="utf-8")
+
+    adjust_skills.adjust(_context(root, target, skills=()))
+
+    assert foreign.is_dir() and not foreign.is_symlink()
+    assert (foreign / "SKILL.md").read_text(encoding="utf-8") == "# code-review-graph\n"
+    assert (target / ".claude" / "skills" / "task").is_symlink()
 
 
 def test_a_dangling_link_we_placed_is_pruned(tmp_path, load_script, root):

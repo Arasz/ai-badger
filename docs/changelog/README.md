@@ -17,6 +17,7 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
+| 0.46.0 | [an empty skill list is not an instruction](0.46.0-an-empty-skill-list-is-not-an-instruction.md) |
 | 0.45.0 | [a budget the project cannot meet, on content it did not write](0.45.0-agent-doc-budget-override.md) |
 | 0.44.0 | [Shape D refuses to run stale plugin copies](0.44.0-shape-d-refuses-stale-copies.md) |
 | 0.43.1 | [an agent is a catalog stack too](0.43.1-an-agent-is-a-catalog-stack-too.md) |

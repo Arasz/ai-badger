@@ -594,6 +594,22 @@ def default_skills_in(skills_dir: Path) -> List[str]:
     )
 
 
+def scaffolded_skill_names(manifest: Dict[str, Any]) -> List[str]:
+    """Skill names a manifest records as scaffolded, ignoring per-file provenance rows.
+
+    A row like `<skill>/extensions/<agent>/extension.md` is provenance for a skill already
+    named by its own row, not a distinct skill. This is the one home for that rule.
+    """
+    if not isinstance(manifest, dict):
+        return []
+    entries = manifest.get("entries")
+    if not isinstance(entries, list):
+        return []
+    return [e["name"] for e in entries
+            if isinstance(e, dict) and e.get("feature") == "skills"
+            and isinstance(e.get("name"), str) and "/" not in e["name"]]
+
+
 def stack_local_skills(skills_dir: Path) -> List[str]:
     """Skills in a stack directory that are NOT in the universal SKILL_SCOPES.
 

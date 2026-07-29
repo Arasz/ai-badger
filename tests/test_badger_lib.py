@@ -789,3 +789,24 @@ class TestResolveStacks:
         bl = load_script("engine/badger_lib.py")
 
         assert bl.resolve_stacks({"commonStacks": [], "stacks": ["python"]}) == ["python"]
+
+
+def test_scaffolded_skill_names_ignores_extension_provenance_rows(load_script):
+    """A manifest row naming `<skill>/extensions/...` is provenance, not a distinct skill."""
+    bl = load_script("engine/badger_lib.py")
+    manifest = {"entries": [
+        {"feature": "skills", "name": "task"},
+        {"feature": "skills", "name": "task/extensions/claude/extension.md"},
+        {"feature": "personas", "name": "architect"},
+    ]}
+
+    assert bl.scaffolded_skill_names(manifest) == ["task"]
+
+
+def test_scaffolded_skill_names_refuses_a_manifest_that_is_not_an_object(load_script):
+    """A corrupt manifest yields no skills rather than an AttributeError."""
+    bl = load_script("engine/badger_lib.py")
+
+    assert bl.scaffolded_skill_names([1, 2, 3]) == []
+    assert bl.scaffolded_skill_names({"entries": "not-a-list"}) == []
+    assert bl.scaffolded_skill_names({"entries": [{"feature": "skills"}]}) == []
