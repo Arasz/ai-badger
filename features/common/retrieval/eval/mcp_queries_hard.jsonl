@@ -1,0 +1,70 @@
+{"query": "get this codebase into a runnable state", "expect": ["rider:build_solution"], "class": "paraphrase"}
+{"query": "type an instruction and let the machine actually carry it out", "expect": ["rider:execute_terminal_command"], "class": "paraphrase"}
+{"query": "everywhere this identifier appears, swap in a new label instead", "expect": ["rider:rename_refactoring"], "class": "paraphrase"}
+{"query": "which documents am i currently looking at right now", "expect": ["rider:get_all_open_file_paths"], "class": "paraphrase"}
+{"query": "draw me a map of everything nested under this folder", "expect": ["rider:list_directory_tree"], "class": "paraphrase"}
+{"query": "make that slow, still-open request to the data store go away", "expect": ["rider:cancel_sql_query"], "class": "paraphrase"}
+{"query": "pull the timing breakdown for each step a request went through", "expect": ["rider:get_spans"], "class": "paraphrase"}
+{"query": "capture an image of what's currently visible on screen", "expect": ["playwright:browser_take_screenshot"], "class": "paraphrase"}
+{"query": "populate every input on this webpage at once", "expect": ["playwright:browser_fill_form"], "class": "paraphrase"}
+{"query": "what has the webpage been logging silently", "expect": ["playwright:browser_console_messages"], "class": "paraphrase"}
+{"query": "if i touch these lines what else might break downstream", "expect": ["code-review-graph:get_impact_radius_tool"], "class": "paraphrase"}
+{"query": "which pieces does nearly everything else depend on", "expect": ["code-review-graph:get_hub_nodes_tool"], "class": "paraphrase"}
+{"query": "turn what you learned about this project into readable pages", "expect": ["code-review-graph:generate_wiki_tool"], "class": "paraphrase"}
+{"query": "look up how this cloud platform's api is supposed to behave", "expect": ["microsoft-docs:microsoft_docs_search"], "class": "paraphrase"}
+{"query": "take this set of proposed line edits and make them real", "expect": ["rider:apply_patch"], "class": "paraphrase"}
+{"query": "peek at a handful of rows before running anything heavier", "expect": ["rider:preview_table_data"], "class": "paraphrase"}
+{"query": "which routines have grown way past a reasonable length", "expect": ["code-review-graph:find_large_functions_tool"], "class": "paraphrase"}
+{"query": "why is this file complaining, what's broken in it", "expect": ["rider:get_file_problems"], "class": "user-voice"}
+{"query": "where's the definition of this method", "expect": ["rider:search_symbol"], "class": "user-voice"}
+{"query": "clean up the formatting in this file", "expect": ["rider:reformat_file"], "class": "user-voice"}
+{"query": "run this against the database and show me what comes back", "expect": ["rider:execute_sql_query"], "class": "user-voice"}
+{"query": "what databases am I even connected to", "expect": ["rider:list_database_connections"], "class": "user-voice"}
+{"query": "what does the whole system topology look like from tracing", "expect": ["rider:get_service_map"], "class": "user-voice"}
+{"query": "hang on until this text shows up on the page", "expect": ["playwright:browser_wait_for"], "class": "user-voice"}
+{"query": "click that button for me", "expect": ["playwright:browser_click"], "class": "user-voice"}
+{"query": "what calls did the page make over the network", "expect": ["playwright:browser_network_requests"], "class": "user-voice"}
+{"query": "find where this is defined somewhere in the repo", "expect": ["code-review-graph:semantic_search_nodes_tool"], "class": "user-voice"}
+{"query": "give me the big picture of how this thing is put together", "expect": ["code-review-graph:get_architecture_overview_tool"], "class": "user-voice"}
+{"query": "what did I just break with this diff", "expect": ["code-review-graph:detect_changes_tool"], "class": "user-voice"}
+{"query": "got an example of using this azure sdk call", "expect": ["microsoft-docs:microsoft_code_sample_search"], "class": "user-voice"}
+{"query": "what does this project pull in", "expect": ["rider:get_project_dependencies"], "class": "user-voice"}
+{"query": "move this class somewhere else in the folder structure", "expect": ["rider:move_type_to_namespace"], "class": "user-voice"}
+{"query": "show me the full details of a single network request", "expect": ["playwright:browser_network_request"], "class": "near-dup"}
+{"query": "list all the network requests the page made", "expect": ["playwright:browser_network_requests"], "class": "near-dup"}
+{"query": "go back to the previous page in the browser", "expect": ["playwright:browser_navigate_back"], "class": "near-dup"}
+{"query": "navigate the browser to a brand new url", "expect": ["playwright:browser_navigate"], "class": "near-dup"}
+{"query": "find architectural chokepoints that would split the system if removed", "expect": ["code-review-graph:get_bridge_nodes_tool"], "class": "near-dup"}
+{"query": "find the most connected hotspots in the codebase", "expect": ["code-review-graph:get_hub_nodes_tool"], "class": "near-dup"}
+{"query": "find unexpected connections between unrelated parts of the codebase", "expect": ["code-review-graph:get_surprising_connections_tool"], "class": "near-dup"}
+{"query": "show me the details of this one execution flow", "expect": ["code-review-graph:get_flow_tool"], "class": "near-dup"}
+{"query": "list all execution flows sorted by how critical they are", "expect": ["code-review-graph:list_flows_tool"], "class": "near-dup"}
+{"query": "get detailed information about a single code community", "expect": ["code-review-graph:get_community_tool"], "class": "near-dup"}
+{"query": "list every community detected in the codebase", "expect": ["code-review-graph:list_communities_tool"], "class": "near-dup"}
+{"query": "get the wiki page for this community", "expect": ["code-review-graph:get_wiki_page_tool"], "class": "near-dup"}
+{"query": "get a specific section from the documentation reference", "expect": ["code-review-graph:get_docs_section_tool"], "class": "near-dup"}
+{"query": "find files whose name contains this keyword", "expect": ["rider:find_files_by_name_keyword"], "class": "near-dup"}
+{"query": "find files matching this glob pattern", "expect": ["rider:find_files_by_glob", "rider:search_file"], "class": "near-dup"}
+{"query": "give me the smallest possible context for this task", "expect": ["code-review-graph:get_minimal_context_tool"], "class": "near-dup"}
+{"query": "generate a full review context for these code changes", "expect": ["code-review-graph:get_review_context_tool"], "class": "near-dup"}
+{"query": "search using a regex pattern within all project files", "expect": ["rider:search_regex", "rider:search_in_files_by_regex"], "class": "near-dup"}
+{"query": "search for a text substring across all project files", "expect": ["rider:search_text", "rider:search_in_files_by_text"], "class": "near-dup"}
+{"query": "read this file even though it's not part of my own project, it's a dependency", "expect": ["rider:read_file", "rider:get_file_text_by_path"], "class": "near-dup"}
+{"query": "set a breakpoint and step through this code line by line", "expect": [], "class": "adjacent-negative"}
+{"query": "deploy this application to production right now", "expect": [], "class": "adjacent-negative"}
+{"query": "install a new package from the registry", "expect": [], "class": "adjacent-negative"}
+{"query": "merge this feature branch into main", "expect": [], "class": "adjacent-negative"}
+{"query": "profile this code to find performance bottlenecks", "expect": [], "class": "adjacent-negative"}
+{"query": "generate unit tests for this class", "expect": [], "class": "adjacent-negative"}
+{"query": "undo my last change and go back to how it was", "expect": [], "class": "adjacent-negative"}
+{"query": "add a new migration for this database schema change", "expect": [], "class": "adjacent-negative"}
+{"query": "check code coverage for this project", "expect": [], "class": "adjacent-negative"}
+{"query": "look up python's standard library documentation", "expect": [], "class": "adjacent-negative"}
+{"query": "encrypt this file before committing it", "expect": [], "class": "adjacent-negative"}
+{"query": "translate this function from python into typescript", "expect": [], "class": "adjacent-negative"}
+{"query": "what's a good recipe for banana bread", "expect": [], "class": "inert-negative"}
+{"query": "who won the world cup in 2018", "expect": [], "class": "inert-negative"}
+{"query": "recommend a movie for tonight", "expect": [], "class": "inert-negative"}
+{"query": "how do I tie a bowline knot", "expect": [], "class": "inert-negative"}
+{"query": "what's the tallest mountain in the world", "expect": [], "class": "inert-negative"}
+{"query": "write a haiku about the ocean", "expect": [], "class": "inert-negative"}

@@ -88,6 +88,29 @@ def test_fixtures_have_at_least_one_positive(fixtures):
     assert any(f["expect"] for f in fixtures)
 
 
+# ── known-duplicate-tool annotation defects (issue #140) ────────────────────
+#
+# rider:search_regex and rider:search_in_files_by_regex are the same capability exposed
+# twice by the rider MCP server. A fixture whose expect names only one of them is a
+# single-answer annotation on a two-answer question — the matcher is not wrong when it
+# picks the other one, the fixture is. Each entry below is a pair the corpus makes
+# genuinely interchangeable; any fixture matching one member must accept both.
+DUPLICATE_TOOL_PAIRS = [
+    frozenset({"rider:search_regex", "rider:search_in_files_by_regex"}),
+]
+
+
+def test_known_duplicate_tools_are_annotated_together(fixtures):
+    for fixture in fixtures:
+        expect = set(fixture["expect"])
+        for pair in DUPLICATE_TOOL_PAIRS:
+            if expect & pair and not pair <= expect:
+                raise AssertionError(
+                    f"query {fixture['query']!r} expects {sorted(expect)!r}, a subset of "
+                    f"the duplicate pair {sorted(pair)!r} — annotate both or neither"
+                )
+
+
 # ── the four gated metrics ───────────────────────────────────────────────────
 
 def _run(mcp_matcher, index, fixtures):
