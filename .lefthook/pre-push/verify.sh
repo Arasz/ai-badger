@@ -102,6 +102,7 @@ lane_cmd() {
         js)            lane_js ;;
         pylint)        lane_pylint ;;
         pytest)        "$PY" -m pytest -q ;;
+        mutation)      lane_mutation ;;
         *)             printf 'unknown lane: %s\n' "$1" >&2; return 2 ;;
     esac
 }
@@ -129,6 +130,26 @@ lane_js() {
     fi
     # shellcheck disable=SC2086
     node --test $files
+}
+
+# Mutation testing over features/common/retrieval/ only (see [tool.mutmut] in pyproject.toml
+# and CONTRIBUTING.md). Deliberately not in $LANES: no score, no threshold, nothing here can
+# fail a push — it is a review aid, run by hand as `verify.sh mutation`. `mutmut run` itself
+# exits 0 with survivors still on the board; a non-zero exit means setup broke, not that a
+# mutant survived.
+lane_mutation() {
+    "$PY" -c "import mutmut" >/dev/null 2>&1 || {
+        printf 'mutmut not installed: %s -m pip install -e ".[dev]"\n' "$PY" >&2
+        return 1
+    }
+    # also_copy in [tool.mutmut] copies a lone file (.ai-badger/mcp-tools.yaml); mutmut only
+    # creates parent directories for a directory also_copy entry (shutil.copytree), not a file
+    # one (shutil.copy2), so the one file entry needs its directory made ahead of time.
+    mkdir -p mutants/.ai-badger
+    "$PY" -m mutmut run
+    local rc=$?
+    "$PY" -m mutmut results
+    return "$rc"
 }
 
 # tdd_guard compares against the base branch, so that ref must exist locally.
@@ -347,7 +368,8 @@ usage() {
     printf '  lanes        print what pre-push would run, without running it\n'
     printf '  all          every lane, no change detection\n'
     printf '  doctor       environment and hook integrity\n'
-    printf '  <lane>       one of: %s\n\n' "$LANES"
+    printf '  <lane>       one of: %s\n' "$LANES"
+    printf '  mutation     features/common/retrieval/ only; never in the lanes above, run by hand\n\n'
     printf '  env: VERIFY_SKIP=lane[,lane]  SKIP_VERIFY=1  VERIFY_BASE=<ref>  AIB_PYTHON=<path>\n'
 }
 
@@ -382,7 +404,9 @@ main() {
             _log_summary "pre-push" "$lanes" "$([ $rc -eq 0 ] && echo PASS || echo FAIL)" "$(( $(date +%s) - start ))" "$_FAILED_LANES"
             return $rc ;;
         *)
-            case " $LANES " in
+            # "mutation" is invocable by hand without joining $LANES (and therefore without
+            # ever running via `all` or `pre-push`) — see lane_mutation above.
+            case " $LANES mutation " in
                 *" $cmd "*)
                     local rc start
                     start=$(date +%s)

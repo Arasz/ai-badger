@@ -301,6 +301,48 @@ a 32-release gap. Never skip a tag.
 Then verify the release shipped by checking **content**, not the CLI's own output — see the
 mandatory verification section in [`RELEASING.md`](RELEASING.md).
 
+## Mutation testing (`features/common/retrieval/` only)
+
+[`mutmut`](https://mutmut.readthedocs.io/) is available as a dev extra, scoped hard to one
+directory:
+
+```bash
+.venv/bin/python3 -m pip install -e ".[dev]"
+.lefthook/pre-push/verify.sh mutation
+```
+
+**What it covers:** `features/common/retrieval/` (`bm25.py`, `mcp_matcher.py`, `tokenizer.py`) —
+the BM25 ranking and MCP-tool matching logic. Nothing else. That module is where a live run
+demonstrably paid: 235 LOC, no subprocess, no repo-tree reads, a 197-mutant run in about 15
+seconds.
+
+**What it deliberately does not cover:** everything else. `gates/`, `engine/`, `tooling/` and
+`features/**/scripts/` are not configured for mutation at all, and `features/common/hooks/` is
+structurally blocked — 28 of this repo's 101 test files spawn a script as a subprocess, and
+mutmut's trampoline resolves its config cwd-relatively with no override, so it crashes the
+moment a mutated script runs as a subprocess from a temp directory. Scoping around that
+destroys the score anyway: `scaffold.py` alone scored 39% with 136 "no tests" purely because its
+tests live in 40 *other* files — an artefact of the harness, not a gap in the tests.
+
+**No threshold, no score, no CI job, and it is not in `$LANES`** — `verify.sh mutation` never
+runs on push or in CI, and nothing here can fail a build. mutmut's own maintainer has said teams
+that put it in CI eventually "throw it all away as it's useless," and this repo's floor
+(Python 3.8) predates mutmut's own floor (3.10) regardless. A mutation *score* is not reported
+either, matching Google's public reasoning for not publishing one: "it is neither concrete nor
+actionable, and it does not guide testing." Treat a run's summary as a lead, not a grade.
+
+**What to do with a survivor:** read it. Each one is either a real gap — write the test that
+kills it — or genuine noise, in which case add a `# pragma: no mutate: <one-line reason>`
+comment on that line rather than leaving it to resurface on every run. `[tool.mutmut]` in
+[`pyproject.toml`](pyproject.toml) already suppresses categories of noise this repo has (docstrings,
+exception message text, `@dataclass(frozen=True)`, `pylint:` comments); this pragma is for the
+one-off case a pattern would over-suppress. There is no third option — a survivor that is neither
+tested nor annotated is exactly what the next run will report again.
+
+**Review it after about a month** against one falsifiable question: did any survivor here lead
+to a test that would have caught a real defect? If not, delete the config — a tool that finds
+nothing worth acting on is not worth carrying.
+
 ## Conventions worth knowing
 
 The full list of non-negotiable invariants is in [`CLAUDE.md`](CLAUDE.md). The ones that most
