@@ -257,9 +257,11 @@ Read the notes. They are the honest record of what was skipped and why.
 
 Useful flags: `--overwrite-agent-files` (replace hand-authored discovery files instead of
 preserving them), `--execute` (actually run the printed plugin-install commands),
-`--no-install`, `--reset-seed-files`, `--skills <a,b,c>`. An omitted or explicitly empty
-`--skills` means "the set already scaffolded", read from `.ai-badger/manifest.json` — not
-"none" — so re-running the command never silently unlinks every skill discovery symlink.
+`--no-install`, `--reset-seed-files`, `--skills <a,b,c>`. An explicitly empty `--skills`
+means "the set already scaffolded", read from `.ai-badger/manifest.json` — not "none" — so
+`--skills ""` never silently unlinks every skill discovery symlink. Omitting `--skills`
+altogether is different: it scaffolds the catalog defaults, which for a project that has
+narrowed its set will both add skills back and prune the ones outside the defaults.
 
 ### What appears on disk
 

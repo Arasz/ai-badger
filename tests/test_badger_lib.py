@@ -801,3 +801,12 @@ def test_scaffolded_skill_names_ignores_extension_provenance_rows(load_script):
     ]}
 
     assert bl.scaffolded_skill_names(manifest) == ["task"]
+
+
+def test_scaffolded_skill_names_refuses_a_manifest_that_is_not_an_object(load_script):
+    """A corrupt manifest yields no skills rather than an AttributeError."""
+    bl = load_script("engine/badger_lib.py")
+
+    assert bl.scaffolded_skill_names([1, 2, 3]) == []
+    assert bl.scaffolded_skill_names({"entries": "not-a-list"}) == []
+    assert bl.scaffolded_skill_names({"entries": [{"feature": "skills"}]}) == []

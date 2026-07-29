@@ -14,9 +14,9 @@ Usage:
   --reset-seed-files       reseed SEED-ONCE files, discarding project-owned edits
   --execute                actually run skill install commands (default: print them)
 
-An omitted or explicitly empty --skills means "the set already scaffolded", not "none": it is
-recovered from <target>/.ai-badger/manifest.json rather than treated as an instruction to
-unlink every discovery symlink (#129).
+An explicitly empty --skills means "the set already scaffolded", not "none": it is recovered
+from <target>/.ai-badger/manifest.json rather than treated as an instruction to unlink every
+discovery symlink (#129). Omitting --skills scaffolds the catalog defaults.
 
 Outputs under <target>/.ai-badger/ plus copied agent-discovery files (CLAUDE.md, copilot,
 junie) per config.agents, and <target>/.ai-badger/manifest.json.
@@ -956,20 +956,22 @@ def main(argv=None) -> int:
     skills = [s for s in args.skills.split(",") if s]
     cli_notes: List[str] = []
     if not skills:
-        # An explicitly empty --skills means "unchanged", not "none" (#129): recover the
-        # set already scaffolded rather than treating it as an instruction to unlink every
-        # discovery symlink. A fresh target has no manifest to recover from, so it proceeds
-        # scaffolding no skills — nothing to destroy there.
+        # An explicitly empty --skills means "unchanged", not "none" (#129). A fresh target
+        # has no manifest to recover from and scaffolds no skills — nothing to destroy.
         manifest_path = target / ".ai-badger" / "manifest.json"
         if manifest_path.is_file():
             try:
                 skills = bl.scaffolded_skill_names(bl.load_json(manifest_path))
-            except (ValueError, OSError):
+                cli_notes.append(
+                    f"--skills was empty — reused {len(skills)} skill(s) already scaffolded, "
+                    f"from the manifest at {manifest_path}"
+                )
+            except (ValueError, OSError) as exc:
                 skills = []
-            cli_notes.append(
-                f"--skills was empty — reused {len(skills)} skill(s) already scaffolded, "
-                f"from the manifest at {manifest_path}"
-            )
+                cli_notes.append(
+                    f"--skills was empty and the manifest at {manifest_path} could not be read "
+                    f"({exc}) — scaffolding no skills; nothing already linked was removed"
+                )
     scaf = Scaffolder(root, target, config, skills, install=not args.no_install,
                       overwrite=args.overwrite_agent_files,
                       reset_seed_files=args.reset_seed_files,
