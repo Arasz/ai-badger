@@ -161,7 +161,7 @@ def _copy_skew_refusal() -> Optional[str]:
         return None
     try:
         verdict, message = bl.copy_skew(Path(__file__).resolve().parent, FRAMEWORK_ROOT)
-    except (OSError, ValueError):
+    except (AttributeError, ImportError, OSError, ValueError):
         return None  # a staleness check never decides whether the module loads
     if verdict == bl.COPY_SKEW_REFUSE:
         return message

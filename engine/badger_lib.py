@@ -159,7 +159,7 @@ def copy_skew(copies_dir: Path, root: Path) -> Tuple[str, Optional[str]]:
     except (OSError, ValueError):
         return COPY_SKEW_OK, None
     recorded = record.get("copiedFromVersion") if isinstance(record, dict) else None
-    if not recorded:
+    if not isinstance(recorded, str) or not recorded:
         return COPY_SKEW_OK, None
     try:
         current = (root / "VERSION").read_text(encoding="utf-8").strip()

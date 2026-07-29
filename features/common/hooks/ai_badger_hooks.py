@@ -170,7 +170,7 @@ def _copy_skew_refusal() -> Optional[str]:
     try:
         import badger_lib as bl  # pylint: disable=import-outside-toplevel  # needs the bootstrap
         verdict, message = bl.copy_skew(Path(__file__).resolve().parent, FRAMEWORK_ROOT)
-    except (ImportError, OSError, ValueError):
+    except (AttributeError, ImportError, OSError, ValueError):
         return None  # a staleness check never decides whether the plugin loads
     if verdict == bl.COPY_SKEW_REFUSE:
         return message
