@@ -201,11 +201,16 @@ def _auto_tags(tool_name: str, server_name: str = "") -> list[str]:
     if "playwright" in server_name.lower() or "browser" in server_name.lower():
         tags.add("browser")
 
-    # Name-based heuristics (order matters — more specific first)
-    if any(kw in name for kw in ("sql", "database", "schema", "db")):
-        tags.update(["database", "sql"])
-    if "build" in name or "solution" in name:
-        tags.update(["dotnet", "build"])
+    # Name-based heuristics (order matters — more specific first).
+    # A name substring may infer an *action* (build, search, read, ...); never a
+    # *technology* (dotnet, sql, opentelemetry) — see issue #171 for the false positives
+    # that drove this split.
+    if any(kw in name for kw in ("database", "schema", "db")):
+        tags.add("database")
+    if "sql" in name:
+        tags.update(["sql", "database"])
+    if "build" in name:
+        tags.add("build")
     if "run" in name or "execute" in name:
         tags.add("run")
     if "search" in name or "find" in name:
@@ -216,12 +221,7 @@ def _auto_tags(tool_name: str, server_name: str = "") -> list[str]:
         tags.update(["semantic", "search"])
     if any(kw in name for kw in ("problem", "error", "diagnostic")):
         tags.add("diagnostic")
-    _is_otel = any(
-        kw in name for kw in ("span", "trace", "log", "otel")
-    ) or ("service" in name and "map" not in name)
-    if _is_otel:
-        tags.update(["tracing", "opentelemetry"])
-    if "service_map" in name:
+    if "span" in name or "otel" in name or "service_map" in name:
         tags.update(["tracing", "opentelemetry"])
     if any(kw in name for kw in ("browser", "navigate", "screenshot", "click")):
         tags.add("browser")
