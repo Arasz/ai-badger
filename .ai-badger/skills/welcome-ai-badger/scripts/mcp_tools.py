@@ -175,6 +175,11 @@ class McpTools:
         self.ctx.mcp_described = described
         self.ctx.mcp_described_filled = True
 
+    def fill_instruction_sources(self) -> None:
+        """Fill both instruction caches the document slots read — catalog and legacy."""
+        self.fill_merged_external_tools()
+        self.fill_mcp_described()
+
     def collect_external_tools(self) -> List[Dict[str, Any]]:
         """Read external-tools.json from features/common/ and each active stack.
 
