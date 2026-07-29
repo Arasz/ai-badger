@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/brand/logo.svg" width="128" alt="ai-badger">
+</p>
+
 # ai-badger
 
 **ai-badger** is the source of truth for custom coding agent skills, personas, invariants, and
@@ -211,6 +215,14 @@ mechanical Python with one dependency:
 ```bash
 python3 -m pip install -r engine/requirements.txt   # jsonschema
 ```
+
+## Logo
+
+The mark at the top of this file is a badger whose stripes are circuit traces, peeking over a
+terminal with its paws on the edge — the name and the "digs into your repo" line, drawn. It is
+hand-authored SVG, so no third-party image licence attaches to it.
+[`docs/brand/`](docs/brand/README.md) has the palette, the usage rules, and the variants not yet
+drawn.
 
 ## Contributing
 

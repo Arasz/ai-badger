@@ -1,7 +1,14 @@
 {
-  "lastUpdated": "2026-07-28T00:50:00Z",
-  "next": "stale pointer removed (wave-2 backlog reference predates 0.19.0->0.35.2 drift) - consult docs/plans/2026-07-27-session-checkpoint-3.md and docs/plans/2026-07-27-improvement-plan.md for current backlog before picking a next task",
+  "lastUpdated": "2026-07-29",
+  "next": "Pick one of the three logo propositions in docs/brand/ (PR #125) - the README hero is proposition A standing in until then, and the wordmark lockup / monochrome variant / PNG exports are all blocked on that choice. Separately, task 'clean-up-docs' is still open in task-tracking; consult docs/plans/2026-07-27-session-checkpoint-3.md and docs/plans/2026-07-27-improvement-plan.md for the current backlog.",
   "completedTasks": [
+    {
+      "id": "badger-framework-mascot-and-logo",
+      "title": "Badger mascot + logo: four propositions, D chosen as the mark",
+      "summary": "The project had no mark. Drew four hand-authored SVG propositions (A circuit-striped head on slate; B amber terminal mascot peeking over a window; C flat 16px-legible glyph with a neural chain; D a cross of A and B on one teal palette). D was chosen and promoted to docs/brand/logo.svg as the README hero; A, B and C were deleted and survive only in the history of PR #125. Hand-drawn rather than photo-traced so no third-party image licence attaches to the primary mark; each was rasterised with qlmanage and reviewed by eye at 420px and 16px while drawing. docs/brand/README.md carries the palette spec, clear-space and usage rules, and the variants still undrawn (wordmark lockup with outlined letterforms, monochrome, a simplified head-only mark for favicon sizes, PNG exports). No VERSION bump or changelog entry: gates/release_guard.py reported no shipped-surface change and CONTRIBUTING.md defers that call to it, so the 'always bump VERSION' invariant does not fire for a docs/assets-only change.",
+      "date": "2026-07-29",
+      "pr": "https://github.com/Arasz/ai-badger/pull/125"
+    },
     {
       "id": "hook-design",
       "title": "Commit-reminder hook: advisory PostToolUse nudge for all three agents (0.35.0-0.35.2)",
@@ -17,7 +24,7 @@
     {
       "id": "hermes-skills-sync",
       "title": "Hermes learned-skills sync (#67) + reverse #58 + plugin-hook cwd fix (#76)",
-      "summary": "Reviewed docs/research/hermes-learned-skills-sync.md and corrected four load-bearing claims: external_dirs was already tried and reverted (#58/v0.7.1); the ~/.hermes/skills/ symlinks still exist on disk so a naive scan re-imports framework skills; NOTHING distributed .ai-badger/skills/ to any agent; and the hook mechanism is the Python plugin this repo already ships, not ~/.hermes/hooks/. Wrote a staged TDD plan with acceptance criteria, then implemented it: learned_skills_sync.py (5 gates, learned.json provenance, opt-in --reconcile, unsafe-literal refusal), feed-badger per-skill grouping, post_tool_call wiring + ~/.hermes/plugins install, and the #58 reversal restoring namespaced symlinks without the original rmtree data-loss hazard. Key discovery beyond scope: Hermes passes NO cwd to any plugin hook, and names the prompt kwarg user_message not message \u2014 so the drift notice, the pre_llm drift line, and the MCP index logging had never fired (#76, fixed). CodeQL's clear-text-logging alert was name-heuristic, not flow-based: Copilot autofix traded alert 13 for 14 and cost CLI output, so it was reverted and the identifiers renamed to unsafe-literal terms, which cleared it. PRs #73/#74/#75 + recovery #77; 683 tests green at 0.18.0.",
+      "summary": "Reviewed docs/research/hermes-learned-skills-sync.md and corrected four load-bearing claims: external_dirs was already tried and reverted (#58/v0.7.1); the ~/.hermes/skills/ symlinks still exist on disk so a naive scan re-imports framework skills; NOTHING distributed .ai-badger/skills/ to any agent; and the hook mechanism is the Python plugin this repo already ships, not ~/.hermes/hooks/. Wrote a staged TDD plan with acceptance criteria, then implemented it: learned_skills_sync.py (5 gates, learned.json provenance, opt-in --reconcile, unsafe-literal refusal), feed-badger per-skill grouping, post_tool_call wiring + ~/.hermes/plugins install, and the #58 reversal restoring namespaced symlinks without the original rmtree data-loss hazard. Key discovery beyond scope: Hermes passes NO cwd to any plugin hook, and names the prompt kwarg user_message not message — so the drift notice, the pre_llm drift line, and the MCP index logging had never fired (#76, fixed). CodeQL's clear-text-logging alert was name-heuristic, not flow-based: Copilot autofix traded alert 13 for 14 and cost CLI output, so it was reverted and the identifiers renamed to unsafe-literal terms, which cleared it. PRs #73/#74/#75 + recovery #77; 683 tests green at 0.18.0.",
       "completedAt": "2026-07-26T21:20:00Z"
     },
     {
