@@ -55,9 +55,15 @@ def test_removed_tools_are_excluded(mcp_matcher):
     assert all(r.tool != "rider:removed_tool" for r in results)
 
 
-def test_top_n_defaults_to_three(mcp_matcher):
+def test_top_n_defaults_to_exactly_three_given_more_qualifying_candidates(mcp_matcher):
+    """`<= 3` is also satisfied by `TOP_N = 1`; pin the exact count with >=3 real qualifiers.
+
+    Three tools in SAMPLE_INDEX carry the "csharp" tag (build_solution, get_file_problems,
+    search_symbol) and none others do, so a single-term query for it clears the gate with
+    exactly three candidates.
+    """
     results = mcp_matcher.find_relevant_tools("csharp", SAMPLE_INDEX, threshold=0.0)
-    assert len(results) <= 3
+    assert len(results) == 3
 
 
 def test_gate_returns_nothing_below_threshold(mcp_matcher):
@@ -118,3 +124,53 @@ def test_diagnostic_query_finds_get_file_problems(mcp_matcher):
     )
     tools = {r.tool for r in results}
     assert "rider:get_file_problems" in tools
+
+
+def test_tags_only_match_outranks_intent_only_match(mcp_matcher):
+    """ADR-0012: existing tool tags are not discarded, they become a weighted field.
+
+    Both tools have symmetric name tokens and equal total document length (13 vs 13
+    tokens once weighted) so length normalization cancels out; the only difference is
+    which field carries "widget" — tags (TAGS_WEIGHT=2.0) vs intent (INTENT_WEIGHT=1.0).
+    """
+    index = {
+        "sources": [{
+            "name": "rider",
+            "tools": {
+                "alpha_tool": {
+                    "tags": ["widget"],
+                    "intent": "filler words here another",
+                },
+                "beta_tool": {
+                    "tags": [],
+                    "intent": "widget filler words here",
+                },
+            },
+        }],
+    }
+    results = mcp_matcher.find_relevant_tools("widget", index, threshold=0.0)
+    assert results[0].tool == "rider:alpha_tool"
+
+
+def test_name_match_outweighs_equivalent_intent_match(mcp_matcher):
+    """A name-field hit (NAME_WEIGHT=3.0) must outrank an equal-length intent-field hit
+    (INTENT_WEIGHT=1.0) — both tools have identical total document length (13 tokens
+    weighted), so length normalization cancels and only NAME_WEIGHT can explain the order.
+    """
+    index = {
+        "sources": [{
+            "name": "rider",
+            "tools": {
+                "widget_tool": {
+                    "tags": [],
+                    "intent": "filler words here another",
+                },
+                "other_tool": {
+                    "tags": [],
+                    "intent": "widget filler words here",
+                },
+            },
+        }],
+    }
+    results = mcp_matcher.find_relevant_tools("widget", index, threshold=0.0)
+    assert results[0].tool == "rider:widget_tool"

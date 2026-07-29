@@ -15,7 +15,9 @@ from typing import Any, Dict, Iterator, List, Tuple
 
 # Sibling-import convention shared with ai_badger_hooks.py's own lazy loaders:
 # these modules are copied flat, beside each other, at scaffold time.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_SIBLING_DIR = str(Path(__file__).resolve().parent)
+if _SIBLING_DIR not in sys.path:
+    sys.path.insert(0, _SIBLING_DIR)
 from bm25 import Bm25Corpus, fuse_document  # pylint: disable=wrong-import-position
 from tokenizer import tokenize  # pylint: disable=wrong-import-position
 

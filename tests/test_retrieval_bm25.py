@@ -92,3 +92,42 @@ def test_rank_is_deterministic_across_runs(bm25):
     first = [(r.doc_id, r.score) for r in corpus.rank(["build", "solution"])]
     second = [(r.doc_id, r.score) for r in corpus.rank(["build", "solution"])]
     assert first == second
+
+
+def test_coverage_is_idf_weighted_not_a_plain_term_fraction(bm25):
+    """ADR-0012's central claim: coverage weighs matched terms by IDF, not by plain count.
+
+    "build" (df=3) and "solution" (df=1) have unequal document frequency, so
+    `matched_idf / total_idf` and `matched_terms / len(query_terms)` diverge numerically
+    for doc "a"'s partial match — pinning the exact value is what a loose
+    `0.0 < coverage < 1.0` bound (both formulations satisfy it) cannot do.
+    """
+    corpus = bm25.Bm25Corpus({
+        "a": _tf("build"),
+        "b": _tf("build", "solution"),
+        "c": _tf("build", "solution"),
+    })
+    ranked = corpus.rank(["build", "solution"])
+    by_id = {r.doc_id: r for r in ranked}
+    expected = corpus.idf("build") / (corpus.idf("build") + corpus.idf("solution"))
+    assert by_id["a"].coverage == pytest.approx(expected)
+    # A plain term-count fraction would give 1/2 regardless of idf; confirm it doesn't.
+    assert expected != pytest.approx(0.5)
+
+
+def test_tie_break_is_deterministic_across_insertion_order(bm25):
+    """A sort key reduced to `(-score,)` lets ties fall back to insertion order, not `doc_id`.
+
+    Both docs get identical term frequencies so they tie exactly on score and coverage;
+    only `doc_id` in the sort key makes the order independent of how the corpus was built.
+    Calling the same corpus twice (as a same-process determinism test does) can't see this,
+    since ties would then just repeat whatever order the first build already fixed.
+    """
+    docs = {"zeta": _tf("build", "solution"), "alpha": _tf("build", "solution")}
+    corpus_forward = bm25.Bm25Corpus(docs)
+    corpus_reversed = bm25.Bm25Corpus(dict(reversed(list(docs.items()))))
+
+    forward_order = [r.doc_id for r in corpus_forward.rank(["build", "solution"])]
+    reversed_order = [r.doc_id for r in corpus_reversed.rank(["build", "solution"])]
+
+    assert forward_order == reversed_order == ["alpha", "zeta"]
