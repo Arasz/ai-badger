@@ -306,6 +306,20 @@ def _load_mcp_index(cwd: Optional[str]) -> Optional[dict[str, Any]]:
         return None
 
 
+def _has_legacy_unmigrated_index(cwd: Optional[str]) -> bool:
+    """True when the project has a not-yet-migrated legacy mcp-tools.yaml.
+
+    `_load_mcp_index` returns None both for this and for a genuinely missing index — this
+    is what lets a caller tell the two apart before logging, so `absent` in the retrieval
+    telemetry keeps meaning "no index" rather than conflating it with "not migrated yet"
+    (issue #145 review finding).
+    """
+    if not cwd:
+        return False
+    aib = Path(cwd) / ".ai-badger"
+    return (aib / "mcp-tools.yaml").exists() and not (aib / "mcp-tools.json").exists()
+
+
 def _find_relevant_tools(
     query: str, index: dict[str, Any], top_n: int = 3
 ) -> list[tuple[str, float]]:
@@ -464,7 +478,8 @@ def pre_llm_inject_context(
     if prompt:
         index = _load_mcp_index(project)
         if index is None:
-            _debug(_MCP_RETRIEVAL_COMPONENT, "absent", project=project,
+            event = "legacy" if _has_legacy_unmigrated_index(project) else "absent"
+            _debug(_MCP_RETRIEVAL_COMPONENT, event, project=project,
                    **{_KEY_QUERY: prompt})
         else:
             ranked = _find_relevant_tools(prompt, index, top_n=3)

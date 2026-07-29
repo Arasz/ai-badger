@@ -171,6 +171,56 @@ class TestHitGateNoTermsAbsentAreDistinguishable:
         assert dl.KEY_CANDIDATES not in record, "absent means there was nothing to count"
 
 
+class TestLegacyIndexIsDistinguishableFromAbsent:
+    """A project mid-migration (mcp-tools.yaml, no mcp-tools.json yet) is not "no index" —
+    `_load_mcp_index` returns None for both (issue #145, JSON-only hook reader), so telemetry
+    must tell them apart before they collapse into the same `absent` record (review finding).
+    """
+
+    def test_a_not_yet_migrated_legacy_index_emits_legacy_not_absent(self, hooks, tmp_path,
+                                                                     monkeypatch):
+        dl = hooks.debug_log
+        _enable(dl, tmp_path, monkeypatch)
+        project = tmp_path / "proj"
+        aib = project / ".ai-badger"
+        aib.mkdir(parents=True)
+        (aib / "mcp-tools.yaml").write_text("sources: []\n", encoding="utf-8")
+
+        hooks.pre_llm_inject_context(cwd=str(project), message="build the solution")
+
+        records = _retrieval_records(dl)
+        assert records and records[-1][dl.KEY_EVENT] == "legacy"
+        record = records[-1]
+        assert record[dl.KEY_QUERY] == "build the solution"
+        assert dl.KEY_CANDIDATES not in record, "legacy means nothing was read, same as absent"
+
+    def test_no_index_at_all_still_emits_absent(self, hooks, tmp_path, monkeypatch):
+        """The genuinely-missing case must not regress to `legacy` once that event exists."""
+        dl = hooks.debug_log
+        _enable(dl, tmp_path, monkeypatch)
+        project = tmp_path / "proj"
+        project.mkdir(parents=True, exist_ok=True)
+
+        hooks.pre_llm_inject_context(cwd=str(project), message="build the solution")
+
+        records = _retrieval_records(dl)
+        assert records and records[-1][dl.KEY_EVENT] == "absent"
+
+    def test_once_migrated_the_same_project_reads_normally_not_legacy(self, hooks, tmp_path,
+                                                                       monkeypatch,
+                                                                       real_mcp_matcher):
+        """A JSON file present (even alongside a lingering .migrated rename) is not `legacy`."""
+        dl = hooks.debug_log
+        _enable(dl, tmp_path, monkeypatch)
+        project = tmp_path / "proj"
+        _write_index(project, _sample_index())
+
+        hooks.pre_llm_inject_context(cwd=str(project), message="build the solution")
+
+        records = _retrieval_records(dl)
+        assert records and records[-1][dl.KEY_EVENT] == "hit"
+
+
 class TestRedactModeDropsOnlyTheQuery:
     def test_redaction_removes_the_query_but_keeps_the_rest(self, hooks, tmp_path, monkeypatch,
                                                              real_mcp_matcher):

@@ -1,12 +1,33 @@
 #!/usr/bin/env python3
-"""Read a legacy `mcp-tools.yaml` without PyYAML — verified, never silently wrong.
+"""Read a legacy `mcp-tools.yaml` without PyYAML — verified against its own folded source.
 
 Not a general YAML parser: scoped to exactly the shape mcp-index itself writes
 (schemas/mcp-tools.schema.json — version/generated_at/sources[].name/url/tools{name:
 {tags/intent/status}}). `parse_legacy_yaml_subset` is never trusted on its own — it only
-returns a value once re-emitting it reproduces the source, so a construct outside this
-subset (or a misread escape) refuses rather than silently returning a wrong parse
-(docs/adr/0012 open question, issue #145).
+returns a value once re-emitting it reproduces a *canonical* rendering of the source, so a
+construct outside this subset (or a misread escape) refuses rather than silently returning
+a wrong parse (docs/adr/0012 open question, issue #145).
+
+**What the round-trip guard actually proves.** The comparison is `_emit_mapping(parsed) ==
+canonical_source`, where `canonical_source` is rebuilt from `_logical_lines(text)` — text
+already folded (wrapped continuations joined) and stripped of comments/blank lines. That is
+not the same claim as "the parse reproduces the file": both sides of the comparison inherit
+whatever `_logical_lines` decided about *where a fold happens*, so a line wrongly joined to
+its predecessor (or wrongly left standalone) would round-trip perfectly and still return a
+wrong value — the guard cannot see its own lexer's mistake, only errors made after lexing
+(scalar typing, quote/escape handling, structural nesting).
+
+The lexer's one judgment call — is physical line N a continuation of line N-1's scalar? — is
+narrow enough to argue directly rather than merely fuzz: pyyaml wraps a plain scalar only
+onto a line at exactly `prev_indent + 2`, and a `- ` sequence item or `key:` mapping entry
+can never legitimately appear at that exact offset relative to a scalar (nesting in this
+schema always follows a *bare* `key:` with no inline value, never a scalar-holding one). So
+"indent == prev_indent + 2, and not `- `/`key:` shaped" is not a heuristic that happens to
+work on realistic content — it is the only shape left once those two literal cases are
+excluded, given what this schema can produce. `tests/test_legacy_yaml_subset.py` pins that
+boundary directly: a continuation at the wrong indent, a continuation at the right indent, a
+`key:` line placed at that same +2 offset (never folded in), and the everyday version of that
+last case (a nested mapping key genuinely at +2 under a bare `key:` line).
 
 Plain scalars longer than pyyaml's default 80-column width wrap onto a continuation line
 indented two past the `key:` that introduced them (pyyaml's line-folding, which is defined
@@ -19,7 +40,9 @@ character) that ALSO wraps uses YAML's escaped-line-break join instead (no inser
 which this parser does not attempt to unfold — it falls outside the subset and refuses,
 rather than risk joining two words together. A 2000-trial randomized check (non-ASCII
 content, every YAML indicator character, timestamp/bool/int-shaped text) never produced a
-wrong parse — every input outside the subset returned None, never a corrupted value.
+wrong parse — every input outside the subset returned None, never a corrupted value. That
+fuzz is evidence about *content* (scalars, quoting, escapes); it rarely exercises the fold
+boundary itself, which is why that boundary is pinned directly rather than left to chance.
 """
 from __future__ import annotations
 
@@ -296,7 +319,8 @@ def parse_legacy_yaml_subset(text: str) -> Optional[dict]:
     """Parse legacy YAML without pyyaml, trusting the result only if it round-trips.
 
     Returns None (never raises) whenever the text falls outside the recognized subset, or
-    whenever re-emitting the parsed structure does not reproduce the source — the caller
+    whenever re-emitting the parsed structure does not reproduce the *folded* source (see
+    the module docstring for exactly what that guard does and does not cover) — the caller
     treats both the same way: refuse, rather than risk a silently wrong parse.
     """
     try:

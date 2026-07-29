@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.48.0",
-  "frameworkCommit": "69f748c0fbe3ce938579ab2857c74fca3def2acc",
+  "frameworkCommit": "0adad650b365e43bb6cdf284d6a2a30779b7294b",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -210,12 +210,12 @@
       "source": "features/common/skills/call-behaviorist",
       "target": ".ai-badger/skills/call-behaviorist",
       "frameworkVersion": "0.48.0",
-      "hash": "9f16579e7002bd837e5d732b281a92d96f8e29200e4865ef1e7b62276b2f86b7",
+      "hash": "4d71e8eb7c6c6b5c81e33b2c2228a7dba8ae1c07cbddcc56105a25203e20ffc6",
       "dirMeta": {
         "file_count": 3,
         "dir_count": 1
       },
-      "sourceHash": "9f16579e7002bd837e5d732b281a92d96f8e29200e4865ef1e7b62276b2f86b7",
+      "sourceHash": "4d71e8eb7c6c6b5c81e33b2c2228a7dba8ae1c07cbddcc56105a25203e20ffc6",
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 1
@@ -318,12 +318,12 @@
       "source": "features/common/skills/mcp-index",
       "target": ".ai-badger/skills/mcp-index",
       "frameworkVersion": "0.48.0",
-      "hash": "314f4e3c0c46dc5c7f2a0d046f595fdfaeee1f3bf1964a68e2e9805cb21a8fcc",
+      "hash": "8b569bddc8a5793c58ab7e154d4c914e170c925c6ebcbf1cd713ac213d8b9137",
       "dirMeta": {
         "file_count": 3,
         "dir_count": 1
       },
-      "sourceHash": "314f4e3c0c46dc5c7f2a0d046f595fdfaeee1f3bf1964a68e2e9805cb21a8fcc",
+      "sourceHash": "8b569bddc8a5793c58ab7e154d4c914e170c925c6ebcbf1cd713ac213d8b9137",
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 1
