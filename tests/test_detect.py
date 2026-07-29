@@ -91,6 +91,24 @@ def test_detect_stacks_ignores_ai_badger_dir_python_scripts(tmp_path, load_scrip
     assert "python" not in stacks
 
 
+def test_detect_stacks_ignores_the_refresh_backup_directory(tmp_path, load_script, root):
+    """den-refresh copies .ai-badger/ to .ai-badger.bckp/ before detection runs, so that
+    backup must be ignored too or the framework's own last scaffold self-detects."""
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
+    index = detect.bl.read_index(root)
+
+    bckp_scripts = tmp_path / ".ai-badger.bckp" / "skills" / "maintain-agent-instructions" / "scripts"
+    bckp_scripts.mkdir(parents=True)
+    (bckp_scripts / "check-agent-drift.mjs").write_text("// agent tooling\n", encoding="utf-8")
+    bckp_py = tmp_path / ".ai-badger.bckp" / "skills" / "task" / "scripts"
+    bckp_py.mkdir(parents=True)
+    (bckp_py / "tracker_lib.py").write_text("# agent tooling\n", encoding="utf-8")
+
+    stacks = detect.detect_stacks(tmp_path, index)
+
+    assert "js" not in stacks and "python" not in stacks
+
+
 def test_detect_stacks_ignores_node_modules_and_venv_contents(tmp_path, load_script, root):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)

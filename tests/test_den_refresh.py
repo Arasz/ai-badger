@@ -799,10 +799,7 @@ def test_a_project_without_hermes_gets_no_hermes_link_report(
 # ------------------------------------------------------- issue #128: a config edit is drift
 # These tests scaffold from the real framework (the `root` fixture), the same way
 # tests/test_config_exclude.py does, so the exclusion/rendering machinery under test is the
-# real thing rather than a hand-built mock. `_suppress_new_stack_noise` writes a
-# stack-ignore.json naming every catalog stack but the one the project actually configured —
-# otherwise the scaffold's own CLAUDE.md / .claude/ / *.py output would self-detect as
-# `newStacks` drift, a real but unrelated signal that would mask the one under test.
+# real thing rather than a hand-built mock.
 def _edit_config(target, **updates):
     """Patch target/.ai-badger/config.json in place — a hand edit, not a re-scaffold."""
     config_path = target / ".ai-badger" / "config.json"
@@ -810,15 +807,6 @@ def _edit_config(target, **updates):
     on_disk.update(updates)
     config_path.write_text(json.dumps(on_disk), encoding="utf-8")
     return on_disk
-
-
-def _suppress_new_stack_noise(target, root, keep=("dotnet",)):
-    index = json.loads((root / "index.json").read_text(encoding="utf-8"))
-    ignore = [s for s in index.get("stacks", {}) if s not in keep and s != "common"]
-    aib = target / ".ai-badger"
-    aib.mkdir(parents=True, exist_ok=True)
-    (aib / "stack-ignore.json").write_text(json.dumps({"ignore": ignore}), encoding="utf-8")
-
 
 
 def _only_config_changed(report):
@@ -843,7 +831,6 @@ def test_refresh_applies_an_exclusion_added_after_the_last_refresh(
         generated_at="2026-07-28T00:00:00Z")
     assert (target / ".ai-badger" / "skills" / "call-behaviorist").is_dir()
     assert (target / ".claude" / "skills" / "call-behaviorist").is_symlink()
-    _suppress_new_stack_noise(target, root)
 
     _edit_config(target, exclude={"skills": ["call-behaviorist"]})
 
@@ -869,7 +856,6 @@ def test_refresh_applies_an_invariant_exclusion_and_stops_rendering_it(
         generated_at="2026-07-28T00:00:00Z")
     assert (target / ".ai-badger" / "invariants" / "tdd-mandatory.md").is_file()
     assert "TDD is mandatory" in (target / "CLAUDE.md").read_text(encoding="utf-8")
-    _suppress_new_stack_noise(target, root)
 
     _edit_config(target, exclude={"invariants": ["tdd-mandatory"]})
 
@@ -893,7 +879,6 @@ def test_refresh_applies_a_commands_only_config_edit(load_script, root, make_sca
     skills = bl.default_skills_in(root / "features" / "common" / "skills")
     make_scaffolder(config=config, skills=skills).run(generated_at="2026-07-28T00:00:00Z")
     assert "pytest -q" not in (target / "CLAUDE.md").read_text(encoding="utf-8")
-    _suppress_new_stack_noise(target, root)
 
     _edit_config(target, commands={"test": "pytest -q"})
 
@@ -917,7 +902,6 @@ def test_refresh_does_not_re_scaffold_when_nothing_changed(load_script, root, ma
     skills = bl.default_skills_in(root / "features" / "common" / "skills")
     make_scaffolder(config=_config(agents=["claude"]), skills=skills).run(
         generated_at="2026-07-28T00:00:00Z")
-    _suppress_new_stack_noise(target, root)
 
     refresh.main(["--target", str(target), "--root", str(root)])
     first = json.loads(capsys.readouterr().out)
@@ -937,7 +921,6 @@ def test_refresh_re_scaffolds_once_when_the_manifest_predates_the_config_hash(
     skills = bl.default_skills_in(root / "features" / "common" / "skills")
     make_scaffolder(config=_config(agents=["claude"]), skills=skills).run(
         generated_at="2026-07-28T00:00:00Z")
-    _suppress_new_stack_noise(target, root)
 
     manifest_path = target / ".ai-badger" / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -964,7 +947,6 @@ def test_refresh_force_re_scaffolds_when_nothing_has_changed(load_script, root, 
     skills = bl.default_skills_in(root / "features" / "common" / "skills")
     make_scaffolder(config=_config(agents=["claude"]), skills=skills).run(
         generated_at="2026-07-28T00:00:00Z")
-    _suppress_new_stack_noise(target, root)
 
     rc = refresh.main(["--target", str(target), "--root", str(root), "--force"])
     report = json.loads(capsys.readouterr().out)
@@ -977,3 +959,92 @@ def test_refresh_force_re_scaffolds_when_nothing_has_changed(load_script, root, 
     # --force never reached the gate.
     assert "scaffold" in report
     assert report["reScaffolded"] is True
+
+
+# ------------------------------------------------------- issue #134: the scaffold detects itself
+def test_refresh_does_not_report_a_configured_agent_as_a_new_stack(
+        load_script, root, make_scaffolder, capsys):
+    """`config.agents` names a catalog stack too (#119); the caller must consult it, not just
+    `config.stacks`, or a project that declared `claude` is told `claude` is new."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    bl = load_script("engine/badger_lib.py")
+    target = make_scaffolder.target
+    skills = bl.default_skills_in(root / "features" / "common" / "skills")
+    make_scaffolder(config=_config(stacks=["python"], agents=["claude"]), skills=skills).run(
+        generated_at="2026-07-28T00:00:00Z")
+
+    rc = refresh.main(["--target", str(target), "--root", str(root)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["newStacks"] == []
+
+
+def test_refresh_reports_no_drift_on_a_freshly_scaffolded_project(
+        load_script, root, make_scaffolder, capsys):
+    """The headline regression: a project fresh off the scaffold must not re-scaffold forever —
+    its own output (CLAUDE.md, the framework's .mjs/.py scripts) must not self-detect."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    bl = load_script("engine/badger_lib.py")
+    target = make_scaffolder.target
+    skills = bl.default_skills_in(root / "features" / "common" / "skills")
+    make_scaffolder(config=_config(stacks=["python"], agents=["claude"]), skills=skills).run(
+        generated_at="2026-07-28T00:00:00Z")
+
+    rc = refresh.main(["--target", str(target), "--root", str(root)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["newStacks"] == []
+    assert report["reScaffolded"] is False
+
+
+def test_refresh_stays_quiet_across_three_consecutive_refreshes(
+        load_script, root, make_scaffolder, capsys):
+    """Three refreshes in a row on an untouched project must all be quiet — the backup exists
+    (so this proves the backup is ignored, not merely absent) and never forces re-scaffolding."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    bl = load_script("engine/badger_lib.py")
+    target = make_scaffolder.target
+    skills = bl.default_skills_in(root / "features" / "common" / "skills")
+    make_scaffolder(config=_config(stacks=["python"], agents=["claude"]), skills=skills).run(
+        generated_at="2026-07-28T00:00:00Z")
+
+    reports = []
+    for _ in range(3):
+        refresh.main(["--target", str(target), "--root", str(root)])
+        reports.append(json.loads(capsys.readouterr().out))
+
+    assert (target / ".ai-badger.bckp").is_dir()
+    assert [r["reScaffolded"] for r in reports] == [False, False, False]
+    assert [r["newStacks"] for r in reports] == [[], [], []]
+
+
+def test_refresh_reports_a_hand_authored_stack_but_does_not_re_scaffold_for_it(
+        load_script, root, make_scaffolder, capsys):
+    """A genuine unconfigured stack is still reported — `newStacks` stays useful — but it must
+    not force a re-scaffold: the re-scaffold would run the same config and deliver nothing new."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    bl = load_script("engine/badger_lib.py")
+    target = make_scaffolder.target
+    skills = bl.default_skills_in(root / "features" / "common" / "skills")
+    make_scaffolder(config=_config(stacks=["python"], agents=["claude"]), skills=skills).run(
+        generated_at="2026-07-28T00:00:00Z")
+
+    (target / "tsconfig.json").write_text("{}\n", encoding="utf-8")
+    src = target / "src"
+    src.mkdir()
+    (src / "app.ts").write_text("export {};\n", encoding="utf-8")
+
+    rc = refresh.main(["--target", str(target), "--root", str(root)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert sorted(report["newStacks"]) == ["node", "ts"]
+    assert report["reScaffolded"] is False
+    assert report["drift"]["newItems"] == []
+    assert report["drift"]["changed"] == []
+    assert report["drift"]["removed"] == []
+    assert report["drift"]["orphaned"] == []
+    assert report["drift"]["versionChanged"] is None
+    assert report["breakingChange"]["isBreaking"] is False
