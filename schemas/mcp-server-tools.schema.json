@@ -29,7 +29,8 @@
           "intent": {
             "type": "string",
             "minLength": 1,
-            "description": "When to reach for this tool — the thing a model cannot derive from the name alone."
+            "maxLength": 200,
+            "description": "When to reach for this tool — the thing a model cannot derive from the name alone. The generated index copies this verbatim, so it is bound by that schema's own 200-character limit."
           },
           "tags": {
             "type": "array",

@@ -710,10 +710,15 @@ def test_write_index_migrates_legacy_yaml_to_migrated_suffix(tmp_path, load_scri
     assert not (tmp_path / ".ai-badger" / "mcp-tools.yaml").exists()
 
 
-def test_write_index_drops_zero_tool_servers_and_reports_them(tmp_path, load_script, capsys):
-    """Servers with no tools violate the schema's minProperties:1 and are dropped, loudly."""
+def test_write_index_keeps_zero_tool_servers_rather_than_dropping_them(tmp_path, load_script):
+    """A server with no tools survives a write: its status is the payload (ADR-0014 §7).
+
+    Rewritten from test_write_index_drops_zero_tool_servers_and_reports_them, which pinned the
+    #145 behaviour this change reverses — dropping made "switched off" and "running but
+    silent" the same absence.
+    """
     data = _valid_index()
-    data["sources"].append({"name": "empty-server", "tools": {}})
+    data["sources"].append({"name": "empty-server", "status": "empty", "tools": {}})
     _write_index(tmp_path, data)
     mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
 
@@ -721,10 +726,8 @@ def test_write_index_drops_zero_tool_servers_and_reports_them(tmp_path, load_scr
     assert rc == 0
 
     index = _read_index(tmp_path)
-    names = [s["name"] for s in index["sources"]]
-    assert "empty-server" not in names
-    assert "rider" in names
-    assert "Dropped 1 server(s) with no tools: empty-server" in capsys.readouterr().out
+    assert [s["name"] for s in index["sources"]] == ["rider", "empty-server"]
+    assert next(s for s in index["sources"] if s["name"] == "empty-server")["status"] == "empty"
 
 
 def test_write_index_refuses_invalid_data_on_init(tmp_path, load_script):
