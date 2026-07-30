@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 # ── Tag taxonomy (loaded from features/common/mcp-tags.json or fallback) ──
 DEFAULT_TAXONOMY: dict[str, Any] = {
@@ -106,7 +106,7 @@ def auto_tags(tool_name: str, server_name: str, valid_tags: set[str]) -> list[st
 
 CATALOG, HEURISTIC, MANUAL = "catalog", "heuristic", "manual"
 
-Catalog = dict[str, dict[str, dict[str, Any]]]
+Catalog = Dict[str, Dict[str, Dict[str, Any]]]
 
 
 def load_catalog(fw_root: Optional[Path]) -> Catalog:
