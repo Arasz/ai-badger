@@ -152,14 +152,34 @@ def describe_tool(server: str, name: str, description: str,
 # ── Server status: opposite remedies must not share one silence ──────────────
 
 OK, DISABLED, EMPTY, UNKNOWN, ABSENT = "ok", "disabled", "empty", "unknown", "absent"
+UNREACHABLE, UNAUTHENTICATED = "unreachable", "unauthenticated"
+PENDING_APPROVAL = "pending_approval"
+
+ALL_STATUSES = {OK, DISABLED, EMPTY, UNKNOWN, ABSENT,
+                UNREACHABLE, UNAUTHENTICATED, PENDING_APPROVAL}
+
+# `claude mcp list`'s phrase -> our status. Only phrases seen first-hand are here: the first
+# three were measured on a 2026-07 install, the fourth is quoted in `claude mcp list --help`
+# ("shown as ⏸ Pending approval and not connected to"). Its other documented phrases stay out
+# until someone captures them — an unmapped phrase degrades to `unknown` (issue #188).
+HOST_STATUS_PHRASES = {
+    "connected": None,  # reachable, but the listing still carries no tool detail
+    "needs authentication": UNAUTHENTICATED,
+    "failed to connect": UNREACHABLE,
+    "pending approval": PENDING_APPROVAL,
+}
 
 
 def server_status(server: dict[str, Any]) -> str:
     """The status a host listing actually supports for one server (ADR-0014 decision 7).
 
-    `unreachable` is not produced: no `hermes mcp list` mode reports a connection failure
-    distinctly from an empty tool list, and a status nothing can set is not a status.
+    A `host_status` phrase from `claude mcp list` outranks the inference, because it reports a
+    connection failure distinctly from an empty tool list; every other listing has to infer.
     """
+    phrase = str(server.get("host_status") or "").strip().lower()
+    reported = HOST_STATUS_PHRASES.get(phrase)
+    if reported:
+        return reported
     if server.get("enabled") is False:
         return DISABLED
     if not server.get("tools_known", True):

@@ -76,12 +76,13 @@ Tools auto-tagged as `[general]` need manual curation.
 
 ```bash
 python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py init --target <project-root>
+python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py init --target <project-root> --host hermes
 ```
 
-Reads `hermes mcp list --json` (or `--from-json` for testing), describes each tool from the
-catalog where it can and by name heuristics otherwise, records each server's `status`, and writes
-`.ai-badger/mcp-tools.json`. Reports how many tools were tagged as `general` and which servers
-reported no tools.
+Asks the host CLIs for their MCP servers (see *Where the server list comes from* below), describes
+each tool from the catalog where it can and by name heuristics otherwise, records each server's
+`status`, and writes `.ai-badger/mcp-tools.json`. Prints which listing answered and which sources
+were skipped, then how many tools were tagged as `general` and which servers reported no tools.
 
 **Completion criterion:** `.ai-badger/mcp-tools.json` exists with all current MCP tools indexed.
 
@@ -94,7 +95,12 @@ python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py update --target <projec
 Adds new tools, marks vanished ones with `status: removed` (preserving their curation), adds new
 MCP servers, and restates every server's `status`. **Preserves manually-set tags and intents on
 existing tools**; a tool the catalog describes is re-described from it unless `origin` is `manual`,
-and the tools that changed are printed by name.
+and the tools that changed are printed by name. Takes `--host` like `init`.
+
+A listing that carries **no tool detail at all** (every source but `hermes mcp list --json`) cannot
+tell "this server is gone" from "this is another host's listing", so a source it does not name is
+**left untouched** — same status, same tools — and named in the output. Only a listing that carries
+tools can move a source to `absent` and its tools to `removed`.
 
 **Completion criterion:** All current MCP tools appear in the index; removed tools have `status: removed`.
 
@@ -159,6 +165,25 @@ tags and intents — stated so the cost is explicit before choosing it).
 **Completion criterion:** `.ai-badger/mcp-tools.json` exists with the same tools, tags, and
 intents the legacy file had; `.ai-badger/mcp-tools.yaml.migrated` exists.
 
+## Where the server list comes from
+
+`hermes mcp list --json` — the source this skill was built on — **no longer exists**: the installed
+hermes answers `error: unrecognized arguments: --json` (measured 2026-07, issue #188). `init` and
+`update` therefore ask three sources in order and take the first that lists a server:
+
+| order | source | what it carries |
+|---|---|---|
+| 1 | `hermes mcp list --json` | server names **and their tools** — the only source that can |
+| 2 | `claude mcp list` | every server, plus a reachability phrase per server; no tools. Health-checks each server first (~14s for 17) |
+| 3 | `hermes mcp list` | server names and an enabled flag, from the text table; no tools |
+
+`--host hermes` or `--host claude` restricts the chain to one CLI — use it when the other is slow,
+noisy, or listing the wrong project's servers. `--from-json <document>` skips the hosts entirely and
+reads a saved `hermes mcp list --json` document.
+
+If no source answers, both commands **refuse** and print what each one said — a missing CLI, a
+non-zero exit with its error line, or an empty listing. They never write a half-index.
+
 ## Server status — why a silent server is still in the index
 
 Each `sources[]` entry records what the host's last listing supported. A zero-tool server used to
@@ -172,15 +197,20 @@ absence with opposite remedies (ADR-0014 decision 7).
 | `empty` | enabled, asked, exposed nothing | check the server actually starts |
 | `unknown` | the listing carried no tool detail at all | see below |
 | `absent` | the host no longer lists the server; its tools are marked `removed` | re-add it, or accept the removal |
+| `unauthenticated` | `claude mcp list` said `! Needs authentication` | `claude mcp login <server>` |
+| `unreachable` | `claude mcp list` said `✘ Failed to connect` | fix the endpoint or the credentials it names |
+| `pending_approval` | `claude mcp list` said `⏸ Pending approval` — an unapproved `.mcp.json` server, not connected to | approve it in the host |
 
-`unknown` is the `hermes mcp list` text table: its Tools column reads `all`, never the tool names.
-An `update` over such a listing restates statuses and **does not** mark anything removed — "not
-asked" is not "exposes nothing".
+`unknown` is the honest reading of a listing with no tool detail: the `hermes mcp list` text table
+(its Tools column reads `all`, never the tool names) and a `claude mcp list` server that is merely
+`✔ Connected`. An `update` over such a listing restates statuses and **does not** mark anything
+removed — "not asked" is not "exposes nothing".
 
-There is deliberately no `unreachable`: no `hermes mcp list` mode reports a connection failure
-distinctly from an empty tool list, so the index does not claim a distinction its input cannot
-support. (`claude mcp list` does distinguish Connected / Needs authentication / Failed to connect /
-Connection error / Pending approval / Rejected — ingesting it is not wired up.)
+The status enum is additive, and a status is added only once a host CLI is *observed* reporting it:
+the four phrases above are what `claude mcp list` produced on a 2026-07 install and what its own
+`--help` documents. Its other documented phrases (`Connection error`, `Rejected`, `not configured`)
+are not mapped, and a phrase this release does not know reads as `unknown` rather than inventing a
+distinction the data cannot support.
 
 ## Auto-tagging Heuristics
 
@@ -214,6 +244,12 @@ tight, unambiguous alias earns a technology tag.
 5. **Intent field is for disambiguation, not documentation.** A 10-30 word sentence beats a paragraph. Write it to answer: "why would I pick this tool over a sibling with the same tags?"
 6. **The `list` filter uses substring matching on tool names.** Avoid naming tools with names that are substrings of each other in tests.
 7. **`--target` is required.** The script does not default to `.` — always pass `--target <path>`.
+8. **The two hosts name the same server differently.** `claude mcp list` prefixes a plugin-provided
+   server (`plugin:ai-badger:code-review-graph`) where `hermes mcp list` does not
+   (`code-review-graph`), so a source indexed from one host does not match the other's name — and the
+   mcp catalog, keyed on the bare name, does not reach the prefixed one. Switching `--host` adds
+   sources rather than renaming them; the sources the new listing cannot speak for are left
+   untouched, not removed.
 
 ## Verification Checklist
 
