@@ -84,21 +84,14 @@ def test_every_declared_server_gets_the_full_tool_allowlist(make_scaffolder, tmp
     assert _written(target)["mcpServers"]["pyright"]["tools"] == ["*"]
 
 
-def test_no_other_destination_grows_a_tools_array(make_scaffolder, tmp_path):
-    """`.mcp.json` is Claude Code's schema and has no `tools` key to grow."""
-    target = make_scaffolder.target
-    stack = tmp_path / "features" / "python"
-    stack.mkdir(parents=True)
-    (stack / "stack-mcp.json").write_text(
-        json.dumps({"servers": [{"name": "pyright", "command": "uvx mcp-server-pyright",
-                                 "declare": True}]}),
-        encoding="utf-8")
+def test_the_claude_user_proposal_grows_no_tools_array(make_scaffolder, tmp_path):
+    """The allowlist follows the Copilot CLI, and the Copilot CLI never reads ~/.claude."""
     scaf = _scaf(make_scaffolder, tmp_path, _config(agents=["claude"]))
 
-    scaf.mcp.generate_mcp_json()
+    scaf.mcp.propose_claude_mcp_user(_servers(scope="user"))
 
-    entry = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["pyright"]
-    assert "tools" not in entry
+    proposal = next(n for n in scaf.notes if "~/.claude/settings.json" in n)
+    assert '"tools"' not in proposal
 
 
 def test_nothing_is_written_without_the_copilot_agent(make_scaffolder, tmp_path):
@@ -135,9 +128,13 @@ def test_env_still_reaches_the_entry(make_scaffolder, tmp_path):
 
 
 def test_the_copilot_overrides_are_the_ones_applied(make_scaffolder, tmp_path):
-    """One file, one reading agent, its overrides (F-22)."""
+    """One file, one reading agent, its overrides (F-22).
+
+    With Claude configured as well, `.mcp.json` resolves for Claude and the same server is
+    declared once rather than twice over — tests/test_one_declaration_per_server.py (#193).
+    """
     target = make_scaffolder.target
-    scaf = _scaf(make_scaffolder, tmp_path, _config(agents=["copilot", "claude"]))
+    scaf = _scaf(make_scaffolder, tmp_path, _config(agents=["copilot"]))
 
     scaf.mcp.generate_copilot_mcp_json(_servers(agentOverrides={
         "claude": {"command": "claude-resolved"},

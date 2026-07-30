@@ -7,6 +7,12 @@ user-global destination is proposed and never written (ADR-0014 decision 6) —
 `~/.claude/settings.json` here, `~/.hermes/config.yaml` in the Hermes adjustment. A server
 named by `config.mcp.decline` is not declared at all, and is removed from either file if an
 earlier run wrote it (#186).
+
+The Copilot CLI reads **both** project files — `.github/mcp.json` and `.mcp.json`, looked up
+from the cwd upward — and their precedence is undocumented, so one server described twice has
+no knowable configuration. The two entries are therefore identical apart from `cwd`, and a
+server whose two renderings cannot be reconciled is declared once, in `.mcp.json`, and named
+in a note (#193).
 """
 from __future__ import annotations
 
@@ -14,7 +20,7 @@ import json as _json
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 import config_guard as cg
 from scaffold_context import ScaffoldContext
@@ -61,54 +67,50 @@ def only_generated_entries(data: Dict[str, Any]) -> bool:
 
 
 def split_on_whitespace(command: str) -> Tuple[str, List[str]]:
-    """Split *command* into ``(executable, args)``: every word after the first is an argument."""
-    parts = command.split()
-    return parts[0], parts[1:]
+    """Split *command* into ``(executable, args)``: every word after the first is an argument.
 
-
-def split_package_args(command: str) -> Tuple[str, List[str]]:
-    """Split *command* only when an argument looks like a package name (``-``, ``@``, ``/``).
-
-    Keeps ``echo v2`` whole while parsing ``uvx mcp-server-pyright`` into executable + args.
+    The one splitter every destination uses: both hosts' schemas describe an executable plus an
+    ``args`` array, and two files that split a command differently declare different servers
+    (#193). A declaration that spells out ``args`` is never split at all.
     """
     parts = command.split()
-    if len(parts) >= 2 and any("-" in p or "@" in p or "/" in p for p in parts[1:]):
-        return parts[0], parts[1:]
-    return command, []
+    if not parts:
+        return command, []
+    return parts[0], parts[1:]
 
 
 class McpDestination(NamedTuple):
     """One generated MCP config file — these columns are the only differences between them."""
 
     label: str
-    owner: str  # the one agent that reads the file; its agentOverrides are the ones applied (F-22)
-    requires_owner: bool  # written only for that agent, vs written whether or not it is configured
+    # The agents that read this file, most authoritative first: the first one that is
+    # configured supplies the agentOverrides applied here (F-22).
+    readers: Tuple[str, ...]
+    requires_reader: bool  # written only for a configured reader, vs written regardless
     pin_cwd: bool
-    split_command: Callable[[str], Tuple[str, List[str]]]
     expand_home: bool  # rewrite a user-tool-dir command to ``${HOME}`` form
-    all_tools: bool  # carry the per-server ``tools`` allowlist — Copilot's schema alone has one
+    all_tools: bool  # carry the per-server ``tools`` allowlist — Copilot's field, inert for Claude
     consequence: str  # what a refusal to write costs, for the note
 
 
-# ``.mcp.json`` alone expands ``${VAR}`` (documented by Claude Code) and alone pins ``cwd``;
-# it also keeps a command whole unless an argument looks like a package name.  Every other
-# destination splits on whitespace and writes the command bare.  The asymmetry is deliberate:
-# docs/changelog/0.28.0-mcp-user-tool-paths.md.
+# ``.mcp.json`` alone expands ``${VAR}`` (documented by Claude Code) and alone pins ``cwd``.
+# The Copilot CLI reads it too, by cwd-upward lookup, which is why it carries the ``tools``
+# allowlist and why its overrides fall back to Copilot's when Claude is not configured (#193).
 MCP_JSON = McpDestination(
-    label=".mcp.json", owner="claude", requires_owner=False, pin_cwd=True,
-    split_command=split_package_args, expand_home=True, all_tools=False,
+    label=".mcp.json", readers=("claude", "copilot"), requires_reader=False, pin_cwd=True,
+    expand_home=True, all_tools=True,
     consequence=".mcp.json not updated",
 )
-# The Copilot CLI's repo-committed config, and the only schema here with a per-server ``tools``
-# array: ``["*"]`` is every tool, and pruning happens at registration (#189).
+# The Copilot CLI's repo-committed config (#189): the same entry ``.mcp.json`` carries, minus
+# the ``cwd`` pin Copilot does not document.
 COPILOT_MCP_JSON = McpDestination(
-    label=".github/mcp.json", owner="copilot", requires_owner=True, pin_cwd=False,
-    split_command=split_on_whitespace, expand_home=False, all_tools=True,
+    label=".github/mcp.json", readers=("copilot",), requires_reader=True, pin_cwd=False,
+    expand_home=False, all_tools=True,
     consequence="copilot MCP config not updated",
 )
 CLAUDE_USER_SETTINGS = McpDestination(
-    label="~/.claude/settings.json", owner="claude", requires_owner=True, pin_cwd=False,
-    split_command=split_on_whitespace, expand_home=False, all_tools=False,
+    label="~/.claude/settings.json", readers=("claude",), requires_reader=True, pin_cwd=False,
+    expand_home=False, all_tools=False,
     consequence="claude user MCP servers not proposed",
 )
 
@@ -252,31 +254,40 @@ class McpTools:
         self, dest: McpDestination, servers: Dict[str, Dict[str, Any]],
         declined: Sequence[str] = (),
     ) -> bool:
-        """Whether *dest* is touched at all: it needs something to say, and may need its owner.
+        """Whether *dest* is touched at all: it needs something to say, and may need a reader.
 
         A run with nothing left to declare still has something to say when a server was
         declined — the entry an earlier run wrote has to come back out (#186).
         """
         if not servers and not declined:
             return False
-        return not dest.requires_owner or dest.owner in self.ctx.config.get("agents", [])
+        return not dest.requires_reader or self._configured_reader(dest) is not None
 
-    def _override_owner(
+    def _configured_reader(self, dest: McpDestination) -> Optional[str]:
+        """*dest*'s most authoritative reading agent that this project configures, or None."""
+        agents = self.ctx.config.get("agents", [])
+        for reader in dest.readers:
+            if reader in agents:
+                return reader
+        return None
+
+    def _override_reader(
         self, dest: McpDestination, servers: Dict[str, Dict[str, Any]]
     ) -> Optional[str]:
-        """Return *dest*'s owner if it is a configured agent, else None + a note if overrides drop.
+        """Return *dest*'s configured reader, else None + a note if overrides drop.
 
-        Each generated file has exactly one reading agent, so its overrides are that
-        agent's — never whichever agent happens to come first in config.agents (F-22).
+        A generated file's overrides are its reading agent's — never whichever agent happens
+        to come first in config.agents (F-22). Where two hosts read one file, the first
+        configured reader in :attr:`McpDestination.readers` wins.
         """
-        owner = dest.owner
-        if owner in self.ctx.config.get("agents", []):
-            return owner
+        reader = self._configured_reader(dest)
+        if reader is not None:
+            return reader
         dropped = sorted(name for name, srv in servers.items() if srv.get("agentOverrides"))
         if dropped:
             self.ctx.notes.append(
-                f"{dest.label} written without agent overrides ({', '.join(dropped)}) — "
-                f"'{owner}' is not in config.agents and the file is read by {owner}"
+                f"{dest.label} written without agent overrides ({', '.join(dropped)}) — it is "
+                f"read by {' and '.join(dest.readers)}, and config.agents names none of them"
             )
         return None
 
@@ -295,16 +306,31 @@ class McpTools:
     def _render_entries(
         self, servers: Dict[str, Dict[str, Any]], dest: McpDestination
     ) -> Dict[str, Dict[str, Any]]:
-        """Render *servers* as *dest*'s config entries, resolved for its owning agent."""
-        owner = self._override_owner(dest, servers)
+        """Render *servers* as *dest*'s config entries, resolved for its reading agent."""
+        reader = self._override_reader(dest, servers)
         entries = {
             name: self._render_entry(
-                self._resolve_server_for_agent(srv, owner) if owner else dict(srv), dest)
+                self._resolve_server_for_agent(srv, reader) if reader else dict(srv), dest)
             for name, srv in servers.items()
         }
         if dest.expand_home:
             self._home_relative_commands(entries)
         return entries
+
+    def _render_without_notes(
+        self, servers: Dict[str, Dict[str, Any]], dest: McpDestination
+    ) -> Dict[str, Dict[str, Any]]:
+        """Render *servers* for *dest* to compare against, without repeating its notes.
+
+        The destination that owns the write has already said whatever there was to say about
+        these servers; a second render exists only to be compared with (#193).
+        """
+        spoken = self.ctx.notes
+        self.ctx.notes = []
+        try:
+            return self._render_entries(servers, dest)
+        finally:
+            self.ctx.notes = spoken
 
     def _render_entry(self, srv: Dict[str, Any], dest: McpDestination) -> Dict[str, Any]:
         """Render one resolved server declaration as one *dest* entry."""
@@ -313,7 +339,7 @@ class McpTools:
             entry["command"] = srv.get("command", "")
             entry["args"] = srv["args"]
         else:
-            exe, args = dest.split_command(srv.get("command", ""))
+            exe, args = split_on_whitespace(srv.get("command", ""))
             entry["command"] = exe
             if args:
                 entry["args"] = args
@@ -377,11 +403,13 @@ class McpTools:
         entries: Dict[str, Dict[str, Any]],
         dest: McpDestination,
         declined: Sequence[str] = (),
+        elsewhere: Sequence[str] = (),
     ) -> bool:
         """Merge rendered *entries* into the ``mcpServers`` object of the JSON file at *path*.
 
         *declined* names come back out of the section, so a decline reaches a file an earlier
-        run already wrote.  Returns False without writing when the existing file is not a
+        run already wrote; so do *elsewhere* names, the servers another file declares
+        differently (#193).  Returns False without writing when the existing file is not a
         readable mapping, or when there is neither an entry to add nor a file to clean.
         """
         if not entries and not path.exists():
@@ -396,21 +424,38 @@ class McpTools:
             self._carry_live_cwd(section, entries)
         section.update(entries)
         self._drop_declined(section, declined, dest)
+        self._drop_declared_elsewhere(section, elsewhere, dest)
         cg.write_json_with_backup(path, existing)
         self.ctx.record_generated_config(path, dest.label)
         return True
+
+    @staticmethod
+    def _drop_servers(section: Dict[str, Any], names: Sequence[str]) -> List[str]:
+        """Remove every named server from *section* and return the ones that were there."""
+        removed = [name for name in names if name in section]
+        for name in removed:
+            section.pop(name)
+        return removed
 
     def _drop_declined(
         self, section: Dict[str, Any], declined: Sequence[str], dest: McpDestination
     ) -> None:
         """Remove every declined server from *section*, reporting what left (#186)."""
-        removed = [name for name in declined if name in section]
-        for name in removed:
-            section.pop(name)
+        removed = self._drop_servers(section, declined)
         if removed:
             self.ctx.notes.append(
                 f"{dest.label}: removed declined MCP server(s) {', '.join(removed)} — "
                 f"config.mcp.decline names them")
+
+    def _drop_declared_elsewhere(
+        self, section: Dict[str, Any], names: Sequence[str], dest: McpDestination
+    ) -> None:
+        """Remove servers an earlier run declared here as well as in ``.mcp.json`` (#193)."""
+        removed = self._drop_servers(section, names)
+        if removed:
+            self.ctx.notes.append(
+                f"{dest.label}: removed MCP server(s) {', '.join(removed)} that an earlier run "
+                f"declared here as well as in {MCP_JSON.label} — one server, one declaration")
 
     def propose_claude_mcp_user(
         self, user_servers: Dict[str, Dict[str, Any]]
@@ -436,8 +481,9 @@ class McpTools:
     ) -> None:
         """Generate ``.github/mcp.json`` — the config the Copilot CLI actually reads (#189).
 
-        Merge-only, plus the per-server ``tools`` allowlist.  Gated on ``"copilot"`` in
-        ``config.agents``; the dead path it replaces is retired either way.
+        Merge-only.  Gated on ``"copilot"`` in ``config.agents``; the dead path it replaces is
+        retired either way.  A server ``.mcp.json`` declares differently is left out and named
+        instead, because the Copilot CLI reads that file too (#193).
         """
         self._retire_copilot_mcp_config()
         declined = self.declined_servers()
@@ -445,12 +491,44 @@ class McpTools:
         if not self._destination_applies(COPILOT_MCP_JSON, wanted, declined):
             return
 
+        entries = self._render_entries(wanted, COPILOT_MCP_JSON)
+        elsewhere = self._declared_differently_in_mcp_json(wanted, entries)
+        for name in elsewhere:
+            entries.pop(name)
         self._merge_mcp_servers_json(
             self.ctx.target / ".github" / "mcp.json",
-            self._render_entries(wanted, COPILOT_MCP_JSON),
+            entries,
             COPILOT_MCP_JSON,
             declined,
+            elsewhere,
         )
+
+    def _declared_differently_in_mcp_json(
+        self, servers: Dict[str, Dict[str, Any]], entries: Dict[str, Dict[str, Any]]
+    ) -> List[str]:
+        """Names whose ``.mcp.json`` entry differs from *entries*, the ``cwd`` pin aside (#193).
+
+        The Copilot CLI reads both files with no documented precedence, so a server the two
+        describe differently has no knowable configuration.  It is declared once — in
+        ``.mcp.json``, the file both hosts read — and named here for the note.
+        """
+        if not self._destination_applies(MCP_JSON, servers):
+            return []
+        theirs = self._render_without_notes(servers, MCP_JSON)
+        elsewhere = []  # type: List[str]
+        for name, entry in entries.items():
+            counterpart = {key: value for key, value in theirs.get(name, {}).items()
+                           if key != "cwd"}
+            if name not in theirs or counterpart == entry:
+                continue
+            differing = sorted(key for key in set(counterpart) | set(entry)
+                               if counterpart.get(key) != entry.get(key))
+            elsewhere.append(name)
+            self.ctx.notes.append(
+                f"MCP server '{name}' is declared only in {MCP_JSON.label}: the entry "
+                f"{COPILOT_MCP_JSON.label} would carry differs from it ({', '.join(differing)}), "
+                f"and Copilot CLI reads both files with no documented precedence (issue #193)")
+        return elsewhere
 
     def _retire_copilot_mcp_config(self) -> None:
         """Retire ``.github/copilot/mcp-config.json`` — no Copilot surface reads it (#189).

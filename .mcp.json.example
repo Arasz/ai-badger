@@ -3,11 +3,13 @@
     "code-review-graph": {
       "command": "python3",
       "args": ["-m", "code_review_graph", "serve"],
-      "cwd": "/absolute/path/to/your/checkout/of/ai-badger"
+      "cwd": "/absolute/path/to/your/checkout/of/ai-badger",
+      "tools": ["*"]
     },
     "hermes": {
       "command": "hermes",
-      "args": ["mcp", "serve"]
+      "args": ["mcp", "serve"],
+      "tools": ["*"]
     }
   }
 }

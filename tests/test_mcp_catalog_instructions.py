@@ -77,6 +77,7 @@ def test_the_generated_mcp_json_still_carries_the_one_declared_server(make_scaff
         "command": "python3",
         "args": ["-m", "code_review_graph", "serve"],
         "cwd": str(make_scaffolder.target),
+        "tools": ["*"],
     }}
 
 @pytest.mark.parametrize("document", ["CLAUDE.md", "HERMES.md"])
