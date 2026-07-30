@@ -166,9 +166,10 @@ def test_args_are_preserved_through_the_rewrite(
 
 # ── scope of the rewrite ─────────────────────────────────────────────────────
 
-def test_the_copilot_mcp_json_keeps_the_bare_command(
+def test_a_rewritten_command_leaves_the_copilot_file_undeclared(
         tmp_path, monkeypatch, load_script, make_scaffolder):
-    """Copilot's MCP config uses ${input:}/${env:} syntax — a bare ${HOME} would not expand."""
+    """`${HOME}` is documented for `.mcp.json` and for nothing Copilot reads, and Copilot reads
+    `.mcp.json` — so the rewrite makes this the one file that declares the server (#193)."""
     dotnet, _ = _fake_tool_dirs(monkeypatch, load_script, tmp_path)
     _install(dotnet, "cwm-roslyn-navigator")
     target = tmp_path / "proj"
@@ -178,8 +179,8 @@ def test_the_copilot_mcp_json_keeps_the_bare_command(
     scaf.mcp.generate_copilot_mcp_json(
         {"roslyn": {"name": "roslyn", "command": "cwm-roslyn-navigator"}})
 
-    cfg = json.loads((target / ".github" / "mcp.json").read_text(encoding="utf-8"))
-    assert cfg["mcpServers"]["roslyn"]["command"] == "cwm-roslyn-navigator"
+    assert not (target / ".github" / "mcp.json").exists()
+    assert any("roslyn" in note and "193" in note for note in scaf.notes)
 
 
 def test_the_claude_user_proposal_keeps_the_bare_command(

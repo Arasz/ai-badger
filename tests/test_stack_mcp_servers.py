@@ -266,7 +266,7 @@ def test_two_declarations_in_one_stack_both_reach_mcp_json(tmp_path, make_scaffo
 
     mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
     assert "pyright" in mcp["mcpServers"]
-    assert mcp["mcpServers"]["shared"]["command"] == "echo shared"
+    assert mcp["mcpServers"]["shared"]["args"] == ["shared"]
 
 
 def test_mcp_json_no_duplicate_from_two_stacks(tmp_path, make_scaffolder):
@@ -284,7 +284,7 @@ def test_mcp_json_no_duplicate_from_two_stacks(tmp_path, make_scaffolder):
 
     mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
     assert list(mcp["mcpServers"].keys()).count("shared") == 1
-    assert mcp["mcpServers"]["shared"]["command"] == "echo v2"
+    assert mcp["mcpServers"]["shared"]["args"] == ["v2"]
 
 
 def test_mcp_json_merge_preserves_existing(tmp_path, make_scaffolder):
@@ -585,7 +585,8 @@ def test_mcp_json_uses_claude_overrides_regardless_of_agent_order(tmp_path, make
     assert mcp["mcpServers"]["fs"]["command"] == "claude-resolved"
 
 
-def test_mcp_json_applies_no_override_when_claude_is_not_configured(tmp_path, make_scaffolder):
+def test_mcp_json_uses_copilot_overrides_when_claude_is_not_configured(tmp_path, make_scaffolder):
+    """Copilot CLI reads `.mcp.json` too, so with no Claude configured it is Copilot's (#193)."""
     target = make_scaffolder.target
     _write_mcp_servers(tmp_path / "features" / "python", _both_agents_server())
 
@@ -594,16 +595,32 @@ def test_mcp_json_applies_no_override_when_claude_is_not_configured(tmp_path, ma
     scaf.mcp.generate_mcp_json()
 
     mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
+    assert mcp["mcpServers"]["fs"]["command"] == "copilot-resolved"
+
+
+def test_mcp_json_applies_no_override_when_neither_reader_is_configured(tmp_path,
+                                                                       make_scaffolder):
+    """Its readers are Claude Code and the Copilot CLI; a Hermes-only project has neither."""
+    target = make_scaffolder.target
+    _write_mcp_servers(tmp_path / "features" / "python", _both_agents_server())
+
+    scaf = _scaf(make_scaffolder, tmp_path, target,
+                  _config(stacks=["python"], agents=["hermes"]))
+    scaf.mcp.generate_mcp_json()
+
+    mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
     assert mcp["mcpServers"]["fs"]["command"] == "npx"
     assert any(".mcp.json" in note for note in scaf.notes)
 
 
 def test_copilot_mcp_json_uses_copilot_overrides(tmp_path, make_scaffolder):
+    """With Claude also configured, `.mcp.json` resolves for Claude and this file is skipped
+    instead of contradicting it (#193) — tests/test_one_declaration_per_server.py."""
     target = make_scaffolder.target
     _write_mcp_servers(tmp_path / "features" / "python", _both_agents_server())
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
-                  _config(stacks=["python"], agents=["copilot", "claude"]))
+                  _config(stacks=["python"], agents=["copilot"]))
     scaf.mcp.generate_copilot_mcp_json(scaf.mcp.declared_servers())
 
     cfg = json.loads((target / ".github" / "mcp.json").read_text(encoding="utf-8"))
@@ -623,8 +640,8 @@ def _render_everywhere(make_scaffolder, tmp_path, server, home):
 
     The Claude user destination is a proposal note rather than a file (ADR-0014 decision 6),
     so its entry is read back out of the note — the rendering it characterises is the same.
-    The Copilot entry's `tools` allowlist is dropped: it is the one field with no counterpart
-    anywhere else, and these cases characterise command splitting, cwd and env.
+    The `tools` allowlist is dropped from the two project files: it belongs to the hosts that
+    read them, and these cases characterise command splitting, cwd and env.
     """
     target = tmp_path / "proj"
     target.mkdir(exist_ok=True)
@@ -645,38 +662,32 @@ def _render_everywhere(make_scaffolder, tmp_path, server, home):
 
     copilot = _json_entry(target / ".github" / "mcp.json")
     assert copilot.pop("tools") == ["*"]
+    mcp_json = _json_entry(target / ".mcp.json")
+    assert mcp_json.pop("tools") == ["*"]
     proposal = next(n for n in scaf.notes if "~/.claude/settings.json" in n)
     return {
-        "mcp_json": _json_entry(target / ".mcp.json"),
+        "mcp_json": mcp_json,
         "copilot": copilot,
         "claude_user": json.loads(proposal.split("yourself: ", 1)[1])["mcpServers"][name],
     }
 
 
 _SPLIT_CASES = [
-    # command, .mcp.json entry (minus cwd), entry in every other destination
-    ("uvx mcp-server-pyright",
-     {"command": "uvx", "args": ["mcp-server-pyright"]},
-     {"command": "uvx", "args": ["mcp-server-pyright"]}),
+    # command, the entry every destination renders for it
+    ("uvx mcp-server-pyright", {"command": "uvx", "args": ["mcp-server-pyright"]}),
     ("npx -y @modelcontextprotocol/server-github",
-     {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"]},
      {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"]}),
-    ("node /opt/mcp/server.js",
-     {"command": "node", "args": ["/opt/mcp/server.js"]},
-     {"command": "node", "args": ["/opt/mcp/server.js"]}),
-    # No package-shaped argument: .mcp.json keeps the whole string, the others split it.
-    ("echo v2", {"command": "echo v2"}, {"command": "echo", "args": ["v2"]}),
-    ("hermes mcp serve",
-     {"command": "hermes mcp serve"},
-     {"command": "hermes", "args": ["mcp", "serve"]}),
-    ("pyright-mcp", {"command": "pyright-mcp"}, {"command": "pyright-mcp"}),
+    ("node /opt/mcp/server.js", {"command": "node", "args": ["/opt/mcp/server.js"]}),
+    ("echo v2", {"command": "echo", "args": ["v2"]}),
+    ("hermes mcp serve", {"command": "hermes", "args": ["mcp", "serve"]}),
+    ("pyright-mcp", {"command": "pyright-mcp"}),
 ]
 
 
-@pytest.mark.parametrize("command,in_mcp_json,elsewhere", _SPLIT_CASES)
-def test_the_two_command_splitters_agree_or_are_documented_to_differ(
-        command, in_mcp_json, elsewhere, tmp_path, monkeypatch, load_script, make_scaffolder):
-    """.mcp.json splits a command only on package-shaped args; every other destination splits on whitespace."""
+@pytest.mark.parametrize("command,everywhere", _SPLIT_CASES)
+def test_one_splitter_renders_the_same_executable_everywhere(
+        command, everywhere, tmp_path, monkeypatch, load_script, make_scaffolder):
+    """Two files that split a command differently declare different servers (#193)."""
     _no_user_tool_dirs(monkeypatch, load_script)
     home = tmp_path / "home"
     home.mkdir()
@@ -684,9 +695,9 @@ def test_the_two_command_splitters_agree_or_are_documented_to_differ(
     entries = _render_everywhere(
         make_scaffolder, tmp_path, {"name": "srv", "command": command}, home)
 
-    assert {k: v for k, v in entries.pop("mcp_json").items() if k != "cwd"} == in_mcp_json
+    entries["mcp_json"].pop("cwd")
     for destination, entry in entries.items():
-        assert entry == elsewhere, destination
+        assert entry == everywhere, destination
 
 
 def _scaffold_mcp_json_from(make_scaffolder, tmp_path, target, server):

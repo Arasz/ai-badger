@@ -108,7 +108,7 @@ def test_a_later_stack_wins_over_an_earlier_one(make_scaffolder, tmp_path):
     servers = _mcp_json(make_scaffolder, tmp_path,
                         _config(stacks=["python", "github"]))
 
-    assert servers["shared"]["command"] == "echo github"
+    assert servers["shared"]["args"] == ["github"]
 
 
 # ── one collector, and only one ──────────────────────────────────────────────
