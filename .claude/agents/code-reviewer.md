@@ -12,6 +12,8 @@ description: >
 disallowedTools: Write, Edit, MultiEdit, NotebookEdit
 ---
 
+<!-- Managed by ai-badger. Source of truth: .ai-badger/agents/code-reviewer.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
+
 # Code Reviewer
 
 ## Step 0 — targeted review plan

@@ -103,6 +103,10 @@
       ],
       "adjustments": [
         {
+          "name": "adjust_agents",
+          "path": "features/claude/adjustments/adjust_agents.py"
+        },
+        {
           "name": "adjust_mcp",
           "path": "features/claude/adjustments/adjust_mcp.py"
         },

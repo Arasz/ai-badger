@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.53.0",
-  "frameworkCommit": "22251244bcfc6bc0718a4da9d67fe17335174d52",
+  "frameworkCommit": "5c98179191eb3a67303d1fb20045b398aec966c7",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -38,7 +38,7 @@
       "source": "features/common/personas/architect.md",
       "target": ".ai-badger/agents/architect.md",
       "frameworkVersion": "0.53.0",
-      "hash": "4614d118464b9bc9db87b3a7075b7a8d71c3e3b2f09faea4bd8a630f5a8349ac"
+      "hash": "1cf7aecd0d10c0bfd76a809b918dc29af12f7ce69f90d2de6ab1f1e692f90916"
     },
     {
       "feature": "personas",
@@ -47,7 +47,7 @@
       "source": "features/common/personas/code-reviewer.md",
       "target": ".ai-badger/agents/code-reviewer.md",
       "frameworkVersion": "0.53.0",
-      "hash": "e49eedc6c6cb3a14de19f86e50adc232aa008db62c2c061029fe371202f4e849"
+      "hash": "c7d03b9bad8ef068c6cfe99c0a49c9a4ebad6f723e1b9468af3b1e66bfd86041"
     },
     {
       "feature": "personas",
@@ -543,6 +543,51 @@
       "target": "HERMES.md",
       "frameworkVersion": "0.53.0",
       "hash": "ee6963598723de51e69932934269f04fb2d96a4468047b4a52afd46be89617e0"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/agents/api-engineer.md",
+      "source": "features/claude/adjustments/adjust_agents.py",
+      "target": ".claude/agents/api-engineer.md",
+      "frameworkVersion": "0.53.0",
+      "hash": "0c0a6bcadfbee4dfe31b973156403d2589e2afd7c1397a67230d021e3ed28f8f"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/agents/architect.md",
+      "source": "features/claude/adjustments/adjust_agents.py",
+      "target": ".claude/agents/architect.md",
+      "frameworkVersion": "0.53.0",
+      "hash": "0c0a6bcadfbee4dfe31b973156403d2589e2afd7c1397a67230d021e3ed28f8f"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/agents/code-reviewer.md",
+      "source": "features/claude/adjustments/adjust_agents.py",
+      "target": ".claude/agents/code-reviewer.md",
+      "frameworkVersion": "0.53.0",
+      "hash": "0c0a6bcadfbee4dfe31b973156403d2589e2afd7c1397a67230d021e3ed28f8f"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/agents/hermes-agent-author.md",
+      "source": "features/claude/adjustments/adjust_agents.py",
+      "target": ".claude/agents/hermes-agent-author.md",
+      "frameworkVersion": "0.53.0",
+      "hash": "0c0a6bcadfbee4dfe31b973156403d2589e2afd7c1397a67230d021e3ed28f8f"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/agents/test-engineer.md",
+      "source": "features/claude/adjustments/adjust_agents.py",
+      "target": ".claude/agents/test-engineer.md",
+      "frameworkVersion": "0.53.0",
+      "hash": "0c0a6bcadfbee4dfe31b973156403d2589e2afd7c1397a67230d021e3ed28f8f"
     },
     {
       "feature": "adjustments",
