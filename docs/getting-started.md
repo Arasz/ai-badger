@@ -283,6 +283,7 @@ your-repo/
   .github/instructions/*.md         # COPY per scoped instruction
   .github/agents/*.agent.md         # personas as Copilot custom agents
   .github/skills/*                  # symlinks into .ai-badger/skills/
+  .claude/agents/*.md               # personas as Claude Code subagents
   .claude/settings.json             # hooks wired
   .mcp.json                         # external MCP tools merged in
 ```
