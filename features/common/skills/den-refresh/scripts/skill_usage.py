@@ -120,7 +120,7 @@ def _invoked_names(record: Dict[str, Any]) -> List[str]:
         if block.get("name") == SKILL_TOOL:
             names.append(str(payload.get("skill") or ""))
         elif block.get("name") == SLASH_TOOL:
-            command = str(payload.get("command") or "").lstrip("/").split(" ")[0]
+            command = str(payload.get("command") or "").lstrip("/").split(" ", maxsplit=1)[0]
             names.append(command)
     text = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
     names.extend(COMMAND_NAME_RE.findall(text))
