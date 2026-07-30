@@ -426,6 +426,27 @@ def _record_retrieval(project, query: str, index: dict, ranked: list) -> None:
                **{**scoring, _KEY_RETURNED: ""})
 
 
+def _record_tool_index_check(project, tool_name: str, index: dict[str, Any]) -> None:
+    """Record whether a called MCP tool was one the index knew — server absence included.
+
+    `server_unindexed` is not `unknown` (issue #170): an unknown tool on an indexed server
+    wants `mcp-index update`, a server no source names wants indexing at all. A server
+    carrying `status: empty`/`unknown` is present, so it answers `unknown`. Unqualified
+    tool names are built-ins, not MCP tools, and are not recorded.
+    """
+    sname, _, tname = tool_name.partition(":")
+    if not tname:
+        return
+    for server in index.get("sources", []):
+        if server.get("name") != sname:
+            continue
+        event = "known" if tname in server.get("tools", {}) else "unknown"
+        _debug(_MCP_RETRIEVAL_COMPONENT, event, project=project, **{_KEY_TOOL: tool_name})
+        return
+    _debug(_MCP_RETRIEVAL_COMPONENT, "server_unindexed", project=project,
+           **{_KEY_TOOL: tool_name})
+
+
 # ---------------------------------------------------------------------------
 # Context enrichment — equivalent to Claude's UserPromptSubmit hook
 # ---------------------------------------------------------------------------
@@ -746,16 +767,7 @@ def post_tool_observer(tool_name: str = "", result: str = "",
         project = _project_cwd(cwd)
         index = _load_mcp_index(project)
         if index:
-            # Check if this tool exists in the index
-            sname, _, tname = tool_name.partition(":") if ":" in tool_name else ("", "", tool_name)
-            if not sname:
-                sname = tool_name
-            for server in index.get("sources", []):
-                if server["name"] == sname:
-                    known = tname in server.get("tools", {}) if tname else False
-                    _debug(_MCP_RETRIEVAL_COMPONENT, "known" if known else "unknown",
-                           project=project, **{_KEY_TOOL: tool_name})
-                    break
+            _record_tool_index_check(project, tool_name, index)
 
 
 # ---------------------------------------------------------------------------
