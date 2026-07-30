@@ -87,6 +87,65 @@ def test_init_falls_back_to_heuristics_for_a_server_the_catalog_does_not_know(
     assert "build" in entry["tags"]
 
 
+# ── the name the host chose (issue #203) ─────────────────────────────────────
+
+# Verbatim shape from `claude mcp list`, which prefixes a plugin-provided server.
+CLAUDE_LISTED = "plugin:ai-badger:code-review-graph"
+
+
+def _plugin_prefixed_list() -> str:
+    """The same server, named the way `claude mcp list` names it when a plugin provides it."""
+    return json.dumps({"servers": [
+        {"name": CLAUDE_LISTED, "enabled": True, "tools": [
+            {"name": CURATED_TOOL, "description": "Search graph nodes semantically."},
+        ]},
+    ]})
+
+
+def test_init_reaches_the_catalog_through_a_plugin_prefixed_server_name(
+        tmp_path, load_script, root):
+    """The overlay's flagship server, listed by Claude Code, still gets its curated entries."""
+    mod = load_script(SCRIPT)
+    assert mod.main(["init", "--target", str(tmp_path),
+                     "--from-json", _plugin_prefixed_list()]) == 0
+
+    curated = _catalog_entry(root, "code-review-graph", CURATED_TOOL)
+    entry = _tool(_read_index(tmp_path), CLAUDE_LISTED, CURATED_TOOL)
+    assert entry["intent"] == curated["intent"]
+    assert entry["tags"] == curated["tags"]
+    assert entry["origin"] == "catalog"
+
+
+def test_init_records_the_source_under_the_name_the_host_used(tmp_path, load_script):
+    """Curation reaching the source must not rename it: the next `update` matches the host."""
+    mod = load_script(SCRIPT)
+    assert mod.main(["init", "--target", str(tmp_path),
+                     "--from-json", _plugin_prefixed_list()]) == 0
+
+    assert [s["name"] for s in _read_index(tmp_path)["sources"]] == [CLAUDE_LISTED]
+
+
+def test_update_redescribes_a_plugin_prefixed_source_from_the_catalog(
+        tmp_path, load_script, root, capsys):
+    """An index built from the Claude listing catches up on curation at the next update."""
+    _write_index(tmp_path, {
+        "version": "0.1.0",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "sources": [{"name": CLAUDE_LISTED, "tools": {
+            CURATED_TOOL: {"tags": ["search"], "intent": "Search graph nodes."}}}],
+    })
+    mod = load_script(SCRIPT)
+
+    assert mod.main(["update", "--target", str(tmp_path),
+                     "--from-json", _plugin_prefixed_list()]) == 0
+
+    curated = _catalog_entry(root, "code-review-graph", CURATED_TOOL)
+    entry = _tool(_read_index(tmp_path), CLAUDE_LISTED, CURATED_TOOL)
+    assert entry["intent"] == curated["intent"]
+    assert entry["origin"] == "catalog"
+    assert f"{CLAUDE_LISTED}:{CURATED_TOOL}" in capsys.readouterr().out
+
+
 # ── update ───────────────────────────────────────────────────────────────────
 
 def _index_with(tool_entry: dict) -> dict:

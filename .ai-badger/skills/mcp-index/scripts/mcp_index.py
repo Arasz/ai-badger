@@ -524,8 +524,9 @@ def _redescribe_from_catalog(source: dict[str, Any],
                              catalog: dict[str, dict[str, dict[str, Any]]]) -> list[str]:
     """Re-describe every non-manual tool the catalog knows; return the `server:tool` names."""
     changed = []
+    curated = td.catalog_tools(catalog, source["name"])
     for name, tool in source.get("tools", {}).items():
-        if tool.get("origin") == MANUAL or name not in catalog.get(source["name"], {}):
+        if tool.get("origin") == MANUAL or name not in curated:
             continue
         described = describe_tool(source["name"], name, tool.get("intent", ""), catalog)
         if all(tool.get(key) == value for key, value in described.items()):

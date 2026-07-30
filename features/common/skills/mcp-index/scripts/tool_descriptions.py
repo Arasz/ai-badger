@@ -10,8 +10,9 @@ decision 7. Imported by mcp_index.py, which owns the index file and the CLI.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 # ── Tag taxonomy (loaded from features/common/mcp-tags.json or fallback) ──
 DEFAULT_TAXONOMY: dict[str, Any] = {
@@ -132,10 +133,50 @@ def load_catalog(fw_root: Optional[Path]) -> Catalog:
     return catalog
 
 
+# A host decorates a server name with where it routes the server from: `claude mcp list` prints
+# `plugin:<plugin>:<server>` for a plugin-provided server and `claude.ai <Name>` for a connector,
+# where `hermes mcp list` prints the bare name. Captured 2026-07-30: plugin:github:github,
+# plugin:microsoft-docs:microsoft-learn, plugin:dotnet-claude-kit:cwm-roslyn-navigator,
+# claude.ai Google Drive, rider. Issue #203.
+_PLUGIN_PREFIX = re.compile(r"^plugin:[^:]+:(?P<server>.+)$")
+_CONNECTOR_PREFIX = re.compile(r"^claude\.ai (?P<server>.+)$")
+
+
+def catalog_keys(listing_name: str) -> List[str]:
+    """The catalog keys one host listing name may match, most specific first.
+
+    The decorated name leads, so a catalog naming a plugin explicitly outranks the bare server:
+    two plugins may ship same-named servers, making the prefix identity rather than noise (#203).
+    """
+    keys = [listing_name]
+    for pattern in (_PLUGIN_PREFIX, _CONNECTOR_PREFIX):
+        match = pattern.match(listing_name)
+        if not match:
+            continue
+        server = match.group("server")
+        keys.append(server)
+        slug = server.lower().replace(" ", "-")
+        if slug != server:
+            keys.append(slug)
+    return keys
+
+
+def catalog_tools(catalog: Catalog, server: str) -> Dict[str, Dict[str, Any]]:
+    """The curated entries for a host listing name: the first `catalog_keys` match, else none.
+
+    Matching widens the *listing* name only — a bare `foo` never borrows `plugin:a:foo`'s curation.
+    """
+    for key in catalog_keys(server):
+        curated = catalog.get(key)
+        if curated:
+            return curated
+    return {}
+
+
 def describe_tool(server: str, name: str, description: str,
                   catalog: Catalog, valid_tags: set[str]) -> dict[str, Any]:
     """Tags, intent and origin for one tool — the catalog when it knows it, else heuristics."""
-    curated = catalog.get(server, {}).get(name)
+    curated = catalog_tools(catalog, server).get(name)
     if curated:
         return {
             "tags": list(curated.get("tags") or auto_tags(name, server, valid_tags)),
