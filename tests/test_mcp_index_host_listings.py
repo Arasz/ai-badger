@@ -42,8 +42,12 @@ HERMES_TEXT_LISTING = """\
   code-review-graph /opt/badger/venv/bin/python    all          ✓ enabled
 """
 
+# Captured: stderr of `hermes mcp list --json`, exit 2 — the defect in issue #188. Its usage block
+# is ten lines of top-level hermes syntax (elided here); the last line is the only useful one.
 HERMES_NO_JSON_FLAG = (
-    "usage: hermes mcp list [-h]\nhermes mcp list: error: unrecognized arguments: --json\n"
+    "usage: hermes [-h] [--version] [-z PROMPT] [--usage-file PATH] [-m MODEL]\n"
+    "              [--provider PROVIDER] [-t TOOLSETS] [--resume SESSION]\n"
+    "hermes: error: unrecognized arguments: --json\n"
 )
 
 
@@ -131,6 +135,13 @@ def test_hermes_text_listing_carries_the_enabled_flag_and_no_tool_detail(load_sc
     assert [s["name"] for s in servers] == ["dotnet-sdk", "llmstudio", "code-review-graph"]
     assert [s["enabled"] for s in servers] == [True, False, True]
     assert all(s["tools_known"] is False for s in servers)
+
+
+def test_hermes_text_listing_of_a_header_only_table_is_empty(load_script):
+    mod = load_script(SCRIPT)
+    text = "MCP Servers:\n\n  Name             Transport\n  ──────────────── ─────────\n"
+
+    assert mod.parse_hermes_text_listing(text) == []
 
 
 def test_hermes_json_listing_is_the_only_source_that_carries_tools(load_script):
@@ -229,6 +240,14 @@ def test_discover_treats_unreadable_json_as_a_source_that_did_not_answer(load_sc
 
     assert listing.label == "hermes mcp list"
     assert any("unreadable" in note for note in listing.notes)
+
+
+def test_the_note_quotes_the_error_line_not_the_usage_banner(load_script):
+    """Verbatim stderr of `hermes mcp list --json` on the install that produced issue #188."""
+    mod = load_script(SCRIPT)
+
+    assert mod._refusal_line(HERMES_NO_JSON_FLAG) == \
+        "hermes: error: unrecognized arguments: --json"
 
 
 def test_run_cli_reports_a_missing_binary_instead_of_raising(load_script):

@@ -152,11 +152,15 @@ def test_the_status_vocabulary_maps_only_phrases_this_release_has_seen(load_scri
     """An unrecognised phrase degrades to `unknown` rather than inventing a distinction."""
     mod = load_script("features/common/skills/mcp-index/scripts/tool_descriptions.py")
 
-    assert mod.server_status({"host_status": "Connected", "tools_known": False}) == "unknown"
-    assert mod.server_status({"host_status": "Needs authentication"}) == "unauthenticated"
-    assert mod.server_status({"host_status": "Failed to connect"}) == "unreachable"
-    assert mod.server_status({"host_status": "Pending approval"}) == "pending_approval"
-    assert mod.server_status({"host_status": "Reticulating splines"}) == "unknown"
+    def listed(phrase):
+        # The shape parse_claude_listing produces: a phrase, and never any tool detail.
+        return {"name": "x", "tools": [], "tools_known": False, "host_status": phrase}
+
+    assert mod.server_status(listed("Connected")) == "unknown"
+    assert mod.server_status(listed("Needs authentication")) == "unauthenticated"
+    assert mod.server_status(listed("Failed to connect")) == "unreachable"
+    assert mod.server_status(listed("Pending approval")) == "pending_approval"
+    assert mod.server_status(listed("Reticulating splines")) == "unknown"
 
 
 def test_a_tool_less_listing_leaves_a_server_it_never_names_alone(

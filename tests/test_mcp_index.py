@@ -595,32 +595,8 @@ def test_tag_without_tags(tmp_path, load_script):
 
 
 # ── text parsing fallback ────────────────────────────────────────────────────
-
-def test_parse_mcp_list_text(load_script):
-    """_parse_mcp_list_text extracts server names from hermes mcp list output."""
-    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
-    text = """\
-MCP Servers:
-
-  Name             Transport                      Tools        Status
-  ──────────────── ────────────────────────────── ──────────── ──────────
-  dotnet-sdk       dotnet-mcp                     all          ✓ enabled
-  code-review-graph /Users/foo/.venv/bin/python    all          ✓ enabled
-  llmstudio        http://127.0.0.1:1235          all          ✗ disabled
-"""
-    servers = mod._parse_mcp_list_text(text)
-    names = [s["name"] for s in servers]
-    assert names == ["dotnet-sdk", "code-review-graph", "llmstudio"]
-    # All should have empty tools (text output has no tool detail)
-    assert all(s["tools"] == [] for s in servers)
-
-
-def test_parse_mcp_list_text_empty(load_script):
-    """_parse_mcp_list_text returns empty list for header-only output."""
-    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
-    text = "MCP Servers:\n\n  Name             Transport\n  ──────────────── ─────────\n"
-    assert mod._parse_mcp_list_text(text) == []
-
+# The parsers moved to host_listings.py with issue #188; their tests moved with them, to
+# tests/test_mcp_index_host_listings.py.
 
 def test_init_with_from_json(tmp_path, load_script):
     """init --from-json creates index from provided JSON (bypasses hermes CLI)."""

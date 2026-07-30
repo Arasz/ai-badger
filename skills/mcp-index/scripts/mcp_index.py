@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """mcp-index: manage the MCP tool index for ai-badger projects.
 
-Reads Hermes's MCP tool list (hermes mcp list --json) and produces
-.ai-badger/mcp-tools.json: the mcp catalog's curated tags and intents for every tool it
-describes, name heuristics for the rest, and a per-server `status` for the ones that
-reported no tools at all (ADR-0014 decision 7).
+Reads whichever host CLI still lists MCP servers (`host_listings.py` owns the chain and its
+measured output shapes) and produces .ai-badger/mcp-tools.json: the mcp catalog's curated tags
+and intents for every tool it describes, name heuristics for the rest, and a per-server
+`status` for the ones that reported no tools at all (ADR-0014 decision 7).
 
 Commands:
   init     — create index from MCP tool list
@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -39,9 +38,11 @@ YAML_MISSING_HINT = (
     "mcp-index needs PyYAML: pip install pyyaml (it is in engine/requirements.txt)"
 )
 
-# legacy_yaml_subset.py and tool_descriptions.py sit beside this file in every deployment shape
-# (sync_plugin_skills.py and the scaffold's skill installer both copy a skill's scripts/ whole).
+# host_listings.py, legacy_yaml_subset.py and tool_descriptions.py sit beside this file in every
+# deployment shape (sync_plugin_skills.py and the scaffold's skill installer both copy a skill's
+# scripts/ whole).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import host_listings as hl  # noqa: E402  pylint: disable=wrong-import-position,import-error
 import tool_descriptions as td  # noqa: E402  pylint: disable=wrong-import-position,import-error
 from legacy_yaml_subset import parse_legacy_yaml_subset as _parse_legacy_yaml_subset  # noqa: E402  pylint: disable=wrong-import-position,import-error
 
@@ -185,6 +186,13 @@ def _quiet_sources(index: dict[str, Any]) -> list[str]:
             if s.get("status") not in (None, OK)]
 
 
+def _report_untouched(names: list[str]) -> None:
+    """Say which sources this listing could not speak for, so silence never reads as removal."""
+    if names:
+        print(f"  {len(names)} source(s) left untouched — this listing carries no tool detail, "
+              f"so a server it does not name is not evidence of removal: {', '.join(names)}.")
+
+
 def _report_quiet_sources(index: dict[str, Any]) -> None:
     """Print the non-ok sources; each status has its own remedy, so each is named."""
     quiet = _quiet_sources(index)
@@ -194,56 +202,29 @@ def _report_quiet_sources(index: dict[str, Any]) -> None:
 
 # ── MCP tool discovery ──────────────────────────────────────────────────────
 
-def _parse_mcp_list_text(stdout: str) -> list[dict[str, Any]]:
-    """Parse the text table from 'hermes mcp list' into server dicts.
+def _fetch_mcp_tools(from_json: Optional[str] = None,
+                     host: Optional[str] = None) -> list[dict[str, Any]]:
+    """The servers a host CLI reports, or a refusal naming every source that was asked.
 
-    The table's Tools column reads `all`, never the tool names — so `tools_known` is False
-    and a caller must not read the empty list as "this server exposes nothing".
-    """
-    servers = []
-    for line in stdout.splitlines():
-        line = line.strip()
-        if not line or line.startswith("MCP Servers") or line.startswith("─") or line.startswith("Name"):
-            continue
-        parts = line.split()
-        if len(parts) >= 4 and ("enabled" in line or "disabled" in line):
-            name = parts[0]
-            servers.append({"name": name, "tools": [], "tools_known": False,
-                            "enabled": "disabled" not in line})
-    return servers
-
-
-def _fetch_mcp_tools(from_json: Optional[str] = None) -> list[dict[str, Any]]:
-    """Get MCP tool list.
-
-    If from_json is provided, parse it directly (for testing).
-    Otherwise, call `hermes mcp list --json` (falling back to text parsing).
+    `from_json` reads a saved `hermes mcp list --json` document instead of asking anyone.
+    Otherwise `host_listings.discover` walks the source chain; if none of them answers there is
+    nothing to index, and saying which ones were tried is the whole remedy (issue #188).
     """
     if from_json is not None:
-        data = json.loads(from_json)
-        return data.get("servers", [])
+        return hl.parse_hermes_json_listing(from_json)
 
-    # Try JSON first
-    result = subprocess.run(
-        ["hermes", "mcp", "list", "--json"],
-        capture_output=True, text=True, timeout=30, check=False,
-    )
-    if result.returncode == 0:
-        data = json.loads(result.stdout)
-        return data.get("servers", [])
-
-    # Fallback: parse text table
-    result = subprocess.run(
-        ["hermes", "mcp", "list"],
-        capture_output=True, text=True, timeout=30, check=False,
-    )
-    if result.returncode != 0:
-        print(
-            f"ERROR: hermes mcp list failed: {result.stderr}",
-            file=sys.stderr,
-        )
+    listing = hl.discover(host)
+    if not listing.servers:
+        tried = "".join(f"\n  - {note}" for note in listing.notes)
+        print(f"ERROR: no host CLI listed any MCP server.{tried}\n"
+              "  Install or fix one of the above, pass --host to pick one, or pass "
+              "--from-json <listing> to index a saved `hermes mcp list --json` document.",
+              file=sys.stderr)
         sys.exit(1)
-    return _parse_mcp_list_text(result.stdout)
+    print(f"Listed {len(listing.servers)} server(s) via `{listing.label}`.", file=sys.stderr)
+    for note in listing.notes:
+        print(f"  (skipped {note})", file=sys.stderr)
+    return listing.servers
 
 
 # ── Index file operations ────────────────────────────────────────────────────
@@ -418,9 +399,10 @@ def _note_missing_catalog(catalog: dict[str, dict[str, dict[str, Any]]]) -> None
               "from name heuristics only.", file=sys.stderr)
 
 
-def cmd_init(target: str, from_json: Optional[str] = None) -> int:
+def cmd_init(target: str, from_json: Optional[str] = None,
+             host: Optional[str] = None) -> int:
     """Create a new index from the current MCP tool list."""
-    servers = _fetch_mcp_tools(from_json)
+    servers = _fetch_mcp_tools(from_json, host)
     catalog = load_catalog(FRAMEWORK_ROOT)
     _note_missing_catalog(catalog)
 
@@ -572,7 +554,8 @@ def _update_source(source: dict[str, Any], server: Optional[dict[str, Any]],
     return changes + len(redescribed), redescribed
 
 
-def cmd_update(target: str, from_json: Optional[str] = None) -> int:
+def cmd_update(target: str, from_json: Optional[str] = None,
+               host: Optional[str] = None) -> int:
     """Update index: add new tools, mark removed ones, restate status, preserve manual tags."""
     index, err = _read_index_safe(target)
     if err:
@@ -580,20 +563,28 @@ def cmd_update(target: str, from_json: Optional[str] = None) -> int:
         return 1
     if index is None:
         print("No existing index. Running init instead.", file=sys.stderr)
-        return cmd_init(target, from_json)
+        return cmd_init(target, from_json, host)
 
-    servers = _fetch_mcp_tools(from_json)
+    servers = _fetch_mcp_tools(from_json, host)
     catalog = load_catalog(FRAMEWORK_ROOT)
     _note_missing_catalog(catalog)
     listed = {s.get("name", ""): s for s in servers}
+    # A listing with no tool detail cannot tell "this server is gone" from "this is a different
+    # host's listing", and calling it gone marks every tool in the source removed (issue #188).
+    absence_is_evidence = hl.carries_tool_detail(servers)
 
     changes = 0
     redescribed: list[str] = []
+    untouched: list[str] = []
     for source in index.get("sources", []):
-        source_changes, source_redescribed = _update_source(
-            source, listed.get(source["name"]), catalog)
+        server = listed.get(source["name"])
+        if server is None and not absence_is_evidence:
+            untouched.append(source["name"])
+            continue
+        source_changes, source_redescribed = _update_source(source, server, catalog)
         changes += source_changes
         redescribed.extend(source_redescribed)
+    _report_untouched(untouched)
 
     existing_names = {s["name"] for s in index["sources"]}
     for server in servers:
@@ -848,6 +839,22 @@ def _extract_clean_args(args: list[str]) -> list[str]:
     return clean
 
 
+def _flag_value(args: list[str], flag: str) -> Optional[str]:
+    """The value following `flag`, or None when it is absent or has nothing after it."""
+    if flag not in args:
+        return None
+    index = args.index(flag)
+    return args[index + 1] if index + 1 < len(args) else None
+
+
+def _requested_host(args: list[str]) -> tuple[Optional[str], bool]:
+    """(host, ok): which host CLI to ask, and whether the name is one this script knows."""
+    host = _flag_value(args, "--host")
+    if host is None:
+        return None, "--host" not in args
+    return host, host in hl.HOSTS
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     """Dispatch to the appropriate subcommand."""
     if argv is None:
@@ -863,22 +870,18 @@ def main(argv: Optional[list[str]] = None) -> int:
         print("ERROR: --target <path> is required.", file=sys.stderr)
         return 2
 
-    if cmd == "init":
-        from_json = None
-        if "--from-json" in remaining:
-            ji = remaining.index("--from-json")
-            from_json = remaining[ji + 1]
-        return cmd_init(target, from_json)
+    if cmd in ("init", "update"):
+        host, ok = _requested_host(remaining)
+        if not ok:
+            print(f"ERROR: unknown --host {host!r}. Choose one of: "
+                  f"{', '.join(sorted(hl.HOSTS))}.", file=sys.stderr)
+            return 2
+        from_json = _flag_value(remaining, "--from-json")
+        run = cmd_init if cmd == "init" else cmd_update
+        return run(target, from_json, host)
 
     if cmd == "validate":
         return cmd_validate(target)
-
-    if cmd == "update":
-        from_json = None
-        if "--from-json" in remaining:
-            ji = remaining.index("--from-json")
-            from_json = remaining[ji + 1]
-        return cmd_update(target, from_json)
 
     if cmd == "migrate":
         return cmd_migrate(target)
