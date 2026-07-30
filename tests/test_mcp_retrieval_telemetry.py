@@ -1,4 +1,5 @@
-"""Telemetry for the MCP retrieval path: hit/gate/no_terms/absent, and the tool-index check.
+"""Telemetry for the MCP retrieval path: hit/gate/no_terms/absent, and the tool-index check
+(known/unknown/server_unindexed).
 
 Before this, the only observation point was a bare `logger.debug(...)` with no configured
 handler in any shipped deployment shape — nobody ever read one. These tests assert a record
@@ -294,6 +295,72 @@ class TestTheToolIndexHitCheckIsNoLongerSilent:
         assert records and records[-1][dl.KEY_EVENT] == "unknown"
 
 
+class TestAnUnindexedServerIsItsOwnEvent:
+    """Issue #170: the strongest "the index is stale" signal used to emit nothing at all.
+
+    An unknown tool on an indexed server wants `mcp-index update`; a server the index has
+    never heard of wants the server indexed. Different remedies, so different events.
+    """
+
+    def test_a_call_to_a_server_absent_from_the_index_produces_a_record(self, hooks, tmp_path,
+                                                                         monkeypatch):
+        dl = hooks.debug_log
+        _enable(dl, tmp_path, monkeypatch)
+        project = tmp_path / "proj"
+        _write_index(project, _sample_index())
+
+        hooks.post_tool_observer(tool_name="chrome:navigate", result="{}",
+                                  duration_ms=1, cwd=str(project))
+
+        records = _retrieval_records(dl)
+        assert records, "a call to an unindexed server produced no record at all"
+        assert records[-1][dl.KEY_EVENT] == "server_unindexed"
+        assert records[-1][dl.KEY_TOOL] == "chrome:navigate"
+
+    def test_a_server_recorded_with_no_tools_is_present_not_unindexed(self, hooks, tmp_path,
+                                                                       monkeypatch):
+        """ADR-0014 keeps zero-tool servers in the index with a `status`; those are present."""
+        dl = hooks.debug_log
+        _enable(dl, tmp_path, monkeypatch)
+        project = tmp_path / "proj"
+        index = _sample_index()
+        index["sources"].append({"name": "chrome", "status": "empty", "tools": {}})
+        _write_index(project, index)
+
+        hooks.post_tool_observer(tool_name="chrome:navigate", result="{}",
+                                  duration_ms=1, cwd=str(project))
+
+        records = _retrieval_records(dl)
+        assert records and records[-1][dl.KEY_EVENT] == "unknown"
+
+    def test_a_source_missing_its_name_does_not_raise_in_the_hook(self, hooks, tmp_path,
+                                                                   monkeypatch):
+        """The schema requires `name`; a hook that raises on a malformed index is still worse."""
+        dl = hooks.debug_log
+        _enable(dl, tmp_path, monkeypatch)
+        project = tmp_path / "proj"
+        _write_index(project, {"sources": [{"tools": {"navigate": {}}}]})
+
+        hooks.post_tool_observer(tool_name="chrome:navigate", result="{}",
+                                  duration_ms=1, cwd=str(project))
+
+        records = _retrieval_records(dl)
+        assert records and records[-1][dl.KEY_EVENT] == "server_unindexed"
+
+    def test_a_tool_with_no_server_qualifier_stays_silent(self, hooks, tmp_path, monkeypatch):
+        """A built-in tool is not an MCP tool: counting `write_file` as an unindexed server
+        would make the new event's count meaningless."""
+        dl = hooks.debug_log
+        _enable(dl, tmp_path, monkeypatch)
+        project = tmp_path / "proj"
+        _write_index(project, _sample_index())
+
+        hooks.post_tool_observer(tool_name="write_file", result="{}",
+                                  duration_ms=1, cwd=str(project))
+
+        assert _retrieval_records(dl) == []
+
+
 class TestRecordCompleteness:
     """A field added to a record without a matching legend entry renders as a raw letter."""
 
@@ -309,10 +376,11 @@ class TestRecordCompleteness:
         hooks.pre_llm_inject_context(cwd=str(project), message="!!! ---")
         hooks.post_tool_observer(tool_name="rider:build_solution", result="{}", cwd=str(project))
         hooks.post_tool_observer(tool_name="rider:no_such_tool", result="{}", cwd=str(project))
+        hooks.post_tool_observer(tool_name="chrome:navigate", result="{}", cwd=str(project))
         (project / ".ai-badger" / "mcp-tools.json").unlink()
         hooks.pre_llm_inject_context(cwd=str(project), message="build the solution")
 
         records = _retrieval_records(dl)
-        assert len(records) == 6
+        assert len(records) == 7
         for record in records:
             assert set(record.keys()) <= set(dl.KEY_NAMES), record
