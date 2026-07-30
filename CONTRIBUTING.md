@@ -102,7 +102,8 @@ tooling/                             maintainer catalog and release tooling: ind
                                      validate, version_sync, sync_plugin_skills,
                                      install_plugins
 gates/                               repo gates CI and the pre-push hook run: release_guard,
-                                     tdd_guard, docs_guard, deps_guard, shipped_paths_guard
+                                     tdd_guard, docs_guard, deps_guard, shipped_paths_guard,
+                                     scaffold_freshness_guard
 schemas/                             a JSON Schema per *.json model
 index.json                           SCRIPT-GENERATED. Never hand-edit it.
 tests/                               pytest; tests/js/ holds the node --test suites
@@ -226,6 +227,7 @@ green local run means a green build:
 .venv/bin/python3 gates/deps_guard.py
 .venv/bin/python3 gates/release_guard.py
 .venv/bin/python3 gates/shipped_paths_guard.py
+.venv/bin/python3 gates/scaffold_freshness_guard.py
 .venv/bin/python3 gates/tdd_guard.py --base origin/main
 node --test "tests/js/*.test.mjs"
 ```
@@ -245,6 +247,7 @@ What each one is for:
 | `deps_guard.py` | Code imports a third-party module that `engine/requirements.txt` does not declare. |
 | `release_guard.py` | The shipped surface changed since the last release tag without a `VERSION` bump. |
 | `shipped_paths_guard.py` | A machine-specific absolute path (`/Users/…`, `/home/…`, `C:\Users\…`) ships in a tracked file outside `docs/` and `tests/`. |
+| `scaffold_freshness_guard.py` | Re-scaffolding this repo against itself would change something other than a version stamp — a `features/**` edit that never reached `.ai-badger/`. |
 | `tdd_guard.py` | Code changed and no test changed with it. Runs on branches, not on `main`. |
 | `node --test` | A `.mjs` gate script's tests fail. |
 
@@ -276,7 +279,7 @@ YAML, so it stays runnable by hand, in CI and by an agent:
 | `verify.sh doctor` | Environment and hook integrity. |
 
 Only `pre-push` is wired. `pre-commit` deliberately stays with the pre-commit framework: it
-already runs six of these gates and chains to code-review-graph, and `lefthook install` renames
+already runs eight of these gates and chains to code-review-graph, and `lefthook install` renames
 a hook it conflicts with to `.old` and never runs it again. Configuring both would silently kill
 that chain.
 

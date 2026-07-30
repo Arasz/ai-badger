@@ -52,6 +52,9 @@ jobs:
     - name: Shipped-paths guard - no machine-specific absolute path in a tracked file
       run: |
         python3 gates/shipped_paths_guard.py
+    - name: Scaffold-freshness guard - re-scaffolding this repo changes nothing but stamps
+      run: |
+        python3 gates/scaffold_freshness_guard.py
     - name: Dependency guard - every third-party import is declared in engine/requirements.txt
       run: |
         python3 gates/deps_guard.py
