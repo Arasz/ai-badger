@@ -244,12 +244,16 @@ tight, unambiguous alias earns a technology tag.
 5. **Intent field is for disambiguation, not documentation.** A 10-30 word sentence beats a paragraph. Write it to answer: "why would I pick this tool over a sibling with the same tags?"
 6. **The `list` filter uses substring matching on tool names.** Avoid naming tools with names that are substrings of each other in tests.
 7. **`--target` is required.** The script does not default to `.` — always pass `--target <path>`.
-8. **The two hosts name the same server differently.** `claude mcp list` prefixes a plugin-provided
-   server (`plugin:ai-badger:code-review-graph`) where `hermes mcp list` does not
-   (`code-review-graph`), so a source indexed from one host does not match the other's name — and the
-   mcp catalog, keyed on the bare name, does not reach the prefixed one. Switching `--host` adds
-   sources rather than renaming them; the sources the new listing cannot speak for are left
-   untouched, not removed.
+8. **The two hosts name the same server differently.** `claude mcp list` decorates a server with
+   where it routes it from — `plugin:<plugin>:<server>` for a plugin-provided server,
+   `claude.ai <Name>` for a connector — where `hermes mcp list` prints the bare name. A source keeps
+   whatever the host called it, so switching `--host` adds sources rather than renaming them, and the
+   sources the new listing cannot speak for are left untouched rather than removed. The **mcp
+   catalog** does reach through the decoration: a listing name is matched against the decorated name
+   first and the undecorated server second, so `plugin:ai-badger:code-review-graph` picks up
+   `features/common/mcp/code-review-graph/tools.json`. Curating a specific plugin's copy is possible
+   — set `"server": "plugin:<plugin>:<server>"` in its `tools.json` and the exact key wins — because
+   two plugins may ship same-named servers, which is also why the bare name is never rewritten.
 
 ## Verification Checklist
 
