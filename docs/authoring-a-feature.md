@@ -162,7 +162,7 @@ decision 6):
 | host | ai-badger writes | ai-badger proposes |
 |---|---|---|
 | Claude Code | `.mcp.json`, plus approvals in `.claude/settings.json` | `~/.claude/settings.json` for a `scope: user` server |
-| Copilot CLI | `.github/mcp.json`, each server with `"tools": ["*"]` | — |
+| Copilot CLI | `.github/mcp.json` — and `.mcp.json`, which it reads too | — |
 | Copilot coding agent | nothing — its config lives in the repository settings UI | the JSON snippet, with `COPILOT_MCP_*` secret references |
 | Hermes | nothing — `~/.hermes/config.yaml` is user-global and there is no project route | the `mcp_servers:` YAML snippet |
 | Junie | nothing (`.junie/mcp/mcp.json` is documented, never verified) | — |
