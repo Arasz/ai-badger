@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.54.0 | [personas reach Claude Code](0.54.0-personas-reach-claude-agents.md) |
 | 0.53.0 | [the index row stops being hand-written](0.53.0-the-index-row-stops-being-hand-written.md) · [the skills nobody here uses](0.53.0-the-skills-nobody-here-uses.md) |
 | 0.52.1 | [curation reaches the name the host chose](0.52.1-curation-reaches-the-name-the-host-chose.md) |
 | 0.52.0 | [discovery comes back, from the host that still answers](0.52.0-discovery-comes-back-from-the-host-that-answers.md) · [the manifest records what it does not own](0.52.0-the-manifest-records-what-it-does-not-own.md) |
