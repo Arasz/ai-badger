@@ -475,63 +475,54 @@ def test_hermes_project_server_writes_mcp_json(tmp_path, make_scaffolder):
     assert "pyright" in mcp["mcpServers"]
 
 
-# ── Claude user-scoped ───────────────────────────────────────────────────────
+# ── Claude user-scoped: proposed, never written (ADR-0014 decision 6) ────────
 
-def test_claude_user_server_writes_settings_json(tmp_path, make_scaffolder):
-    """scope: user server written to ~/.claude/settings.json mcpServers."""
+def _claude_user_proposal(tmp_path, make_scaffolder, servers, agents=("claude",)):
+    """Propose *servers* for ~/.claude/settings.json; return (home, matching notes)."""
     target = make_scaffolder.target
     home = tmp_path / "home"
-    home.mkdir()
+    home.mkdir(exist_ok=True)
 
     with patch("pathlib.Path.home", return_value=home):
         scaf = _scaf(make_scaffolder, tmp_path, target,
-                      _config(stacks=["python"], agents=["claude"]))
-        scaf.mcp.scaffold_claude_mcp_user(
-            {"srv": {"name": "srv", "command": "echo", "scope": "user"}}
-        )
+                     _config(stacks=["python"], agents=list(agents)))
+        scaf.mcp.propose_claude_mcp_user(servers)
 
-    settings_path = home / ".claude" / "settings.json"
-    assert settings_path.exists()
-    settings = json.loads(settings_path.read_text(encoding="utf-8"))
-    assert "srv" in settings["mcpServers"]
+    return home, [n for n in scaf.notes if "~/.claude/settings.json" in n]
 
 
-def test_claude_user_server_merge_preserves_existing(tmp_path, make_scaffolder):
-    """Existing mcpServers entries preserved."""
-    target = make_scaffolder.target
+def test_claude_user_server_is_proposed_not_written(tmp_path, make_scaffolder):
+    """scope: user server reaches the operator as a note; the file is never created."""
+    home, proposal = _claude_user_proposal(
+        tmp_path, make_scaffolder, {"srv": {"name": "srv", "command": "echo", "scope": "user"}})
+
+    assert len(proposal) == 1
+    assert '"srv"' in proposal[0]
+    assert not (home / ".claude" / "settings.json").exists()
+
+
+def test_claude_user_proposal_does_not_touch_an_existing_file(tmp_path, make_scaffolder):
+    """The user's own mcpServers are neither read nor rewritten to add ours."""
     home = tmp_path / "home"
-    home.mkdir()
-    claude_dir = home / ".claude"
-    claude_dir.mkdir()
+    (home / ".claude").mkdir(parents=True)
+    existing = json.dumps({"mcpServers": {"old": {"command": "echo old"}}})
+    (home / ".claude" / "settings.json").write_text(existing, encoding="utf-8")
 
-    existing = {"mcpServers": {"old": {"command": "echo old"}}}
-    (claude_dir / "settings.json").write_text(json.dumps(existing), encoding="utf-8")
+    _, proposal = _claude_user_proposal(
+        tmp_path, make_scaffolder, {"new": {"name": "new", "command": "echo new",
+                                            "scope": "user"}})
 
-    with patch("pathlib.Path.home", return_value=home):
-        scaf = _scaf(make_scaffolder, tmp_path, target,
-                      _config(stacks=["python"], agents=["claude"]))
-        scaf.mcp.scaffold_claude_mcp_user(
-            {"new": {"name": "new", "command": "echo new", "scope": "user"}}
-        )
-
-    settings = json.loads((claude_dir / "settings.json").read_text(encoding="utf-8"))
-    assert "old" in settings["mcpServers"]
-    assert "new" in settings["mcpServers"]
+    assert (home / ".claude" / "settings.json").read_text(encoding="utf-8") == existing
+    assert '"new"' in proposal[0]
 
 
-def test_claude_user_server_no_write_without_claude_agent(tmp_path, make_scaffolder):
-    """If claude not in agents, no settings.json write."""
-    target = make_scaffolder.target
-    home = tmp_path / "home"
-    home.mkdir()
+def test_claude_user_server_not_proposed_without_claude_agent(tmp_path, make_scaffolder):
+    """If claude not in agents, no proposal and no file."""
+    home, proposal = _claude_user_proposal(
+        tmp_path, make_scaffolder,
+        {"srv": {"name": "srv", "command": "echo", "scope": "user"}}, agents=("hermes",))
 
-    with patch("pathlib.Path.home", return_value=home):
-        scaf = _scaf(make_scaffolder, tmp_path, target,
-                      _config(stacks=["python"], agents=["hermes"]))
-        scaf.mcp.scaffold_claude_mcp_user(
-            {"srv": {"name": "srv", "command": "echo", "scope": "user"}}
-        )
-
+    assert proposal == []
     assert not (home / ".claude" / "settings.json").exists()
 
 
@@ -707,7 +698,11 @@ def _no_user_tool_dirs(monkeypatch, load_script):
 
 
 def _render_everywhere(make_scaffolder, tmp_path, server, home):
-    """Render *server* into all four destinations; return their entries for it."""
+    """Render *server* into all four destinations; return their entries for it.
+
+    The Claude user destination is a proposal note rather than a file (ADR-0014 decision 6),
+    so its entry is read back out of the note — the rendering it characterises is the same.
+    """
     yaml = pytest.importorskip("yaml")
     target = tmp_path / "proj"
     target.mkdir(exist_ok=True)
@@ -719,7 +714,7 @@ def _render_everywhere(make_scaffolder, tmp_path, server, home):
                      _config(stacks=["python"], agents=["claude", "copilot", "hermes"]))
         scaf.mcp.generate_mcp_json()
         scaf.mcp.generate_copilot_mcp_config(by_name)
-        scaf.mcp.scaffold_claude_mcp_user(by_name)
+        scaf.mcp.propose_claude_mcp_user(by_name)
         scaf.mcp.scaffold_hermes_mcp_user(by_name)
 
     name = server["name"]
@@ -727,10 +722,11 @@ def _render_everywhere(make_scaffolder, tmp_path, server, home):
     def _json_entry(path):
         return json.loads(path.read_text(encoding="utf-8"))["mcpServers"][name]
 
+    proposal = next(n for n in scaf.notes if "~/.claude/settings.json" in n)
     return {
         "mcp_json": _json_entry(target / ".mcp.json"),
         "copilot": _json_entry(target / ".github" / "copilot" / "mcp-config.json"),
-        "claude_user": _json_entry(home / ".claude" / "settings.json"),
+        "claude_user": json.loads(proposal.split("yourself: ", 1)[1])["mcpServers"][name],
         "hermes_user": yaml.safe_load(
             (home / ".hermes" / "config.yaml").read_text(encoding="utf-8"))["mcp"]["servers"][name],
     }

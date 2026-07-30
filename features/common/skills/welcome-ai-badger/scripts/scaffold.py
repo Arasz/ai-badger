@@ -735,6 +735,8 @@ class Scaffolder:
         receives the framework root, config, and target directory, and returns
         {'applied': bool, 'files': list, 'notes': str}.
         """
+        # An adjustment cannot resolve stack-mcp.json itself; the names travel with the context.
+        declared_mcp = sorted(self.mcp.split_servers_by_scope(self.mcp.declared_servers())[0])
         for agent_name in self.config.get("agents", []):
             adj_path = self.root / "features" / agent_name / "adjustments" / "adjustment.json"
             if not adj_path.exists():
@@ -785,6 +787,7 @@ class Scaffolder:
                         "target": self.target,
                         "skills": agent_skills,
                         "index": self.index,
+                        "mcp_servers": declared_mcp,
                     }
                     result = mod.adjust(context)
                     if result.get("applied"):
@@ -879,17 +882,14 @@ class Scaffolder:
         written_config["frameworkVersion"] = self.index["frameworkVersion"]
         bl.dump_json(self.aib / "config.json", written_config)
 
-        # generate .mcp.json for external tools that request it
         self.mcp.generate_mcp_json()
         self._record_progress("config-and-mcp")
 
-        # scaffold user-scoped MCP servers into agent-specific config files
         project_servers, user_servers = self.mcp.split_servers_by_scope(
             self.mcp.declared_servers())
         self._outside_project("hermes user MCP config",
                               lambda: self.mcp.scaffold_hermes_mcp_user(user_servers))
-        self._outside_project("claude user MCP config",
-                              lambda: self.mcp.scaffold_claude_mcp_user(user_servers))
+        self.mcp.propose_claude_mcp_user(user_servers)
         self.mcp.generate_copilot_mcp_config(project_servers)
 
         manifest = {

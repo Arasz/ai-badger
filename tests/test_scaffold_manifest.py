@@ -171,7 +171,8 @@ def test_a_failing_user_scope_write_degrades_to_a_note(make_scaffolder):
     def _explode(*_args, **_kwargs):
         raise OSError("read-only home directory")
 
-    scaf.mcp.scaffold_claude_mcp_user = _explode
+    # Hermes is the only user-scope *write* left: Claude's is a proposal now (ADR-0014 #6).
+    scaf.mcp.scaffold_hermes_mcp_user = _explode
 
     result = scaf.run(generated_at="2026-07-19T00:00:00Z")
 

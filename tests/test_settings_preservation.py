@@ -129,31 +129,13 @@ def test_yaml_parsing_to_a_list_does_not_raise(root, fake_home, make_scaffolder)
 
 # ── ~/.claude/settings.json (mcp_tools) ───────────────────────────────────────
 
-def test_valid_user_settings_survive_with_backup(root, fake_home, make_scaffolder):
-    """A parseable ~/.claude/settings.json keeps its keys and is backed up first."""
-    target = make_scaffolder.target
-    settings_path = fake_home / ".claude" / "settings.json"
-    settings_path.parent.mkdir(parents=True)
-    original = {"permissions": {"deny": ["Bash(rm:*)"]}, "env": {"FOO": "bar"}}
-    settings_path.write_text(json.dumps(original, indent=2) + "\n", encoding="utf-8")
+def test_user_settings_are_neither_read_nor_written(root, fake_home, make_scaffolder):
+    """The strongest form of the F-02 guard: a user-scoped server never opens the file.
 
-    scaf = _scaf(make_scaffolder, root, target, _config(agents=["claude"]))
-    scaf.mcp.scaffold_claude_mcp_user(
-        {"srv": {"name": "srv", "command": "echo hi", "scope": "user"}}
-    )
-
-    written = json.loads(settings_path.read_text(encoding="utf-8"))
-    assert written["permissions"] == original["permissions"]
-    assert written["env"] == original["env"]
-    assert "srv" in written["mcpServers"]
-
-    backups = list(settings_path.parent.glob("settings.json.bak-*"))
-    assert len(backups) == 1
-    assert json.loads(backups[0].read_text(encoding="utf-8")) == original
-
-
-def test_unparseable_user_settings_are_never_rewritten(root, fake_home, make_scaffolder):
-    """An unparseable ~/.claude/settings.json is left byte-identical and reported."""
+    Until ADR-0014 decision 6 this merged into ~/.claude/settings.json and backed it up.
+    An unparseable file proves the new contract — a merge would have had to parse it, and a
+    refusal note would have had to read it; neither happens, and the proposal still lands.
+    """
     target = make_scaffolder.target
     settings_path = fake_home / ".claude" / "settings.json"
     settings_path.parent.mkdir(parents=True)
@@ -161,12 +143,14 @@ def test_unparseable_user_settings_are_never_rewritten(root, fake_home, make_sca
     settings_path.write_bytes(original)
 
     scaf = _scaf(make_scaffolder, root, target, _config(agents=["claude"]))
-    scaf.mcp.scaffold_claude_mcp_user(
+    scaf.mcp.propose_claude_mcp_user(
         {"srv": {"name": "srv", "command": "echo hi", "scope": "user"}}
     )
 
     assert settings_path.read_bytes() == original
-    assert _mentions(scaf.notes, "settings.json", "refused")
+    assert list(settings_path.parent.glob("settings.json.bak-*")) == []
+    assert not _mentions(scaf.notes, "settings.json", "refused")
+    assert _mentions(scaf.notes, "~/.claude/settings.json", "never writes")
 
 
 # ── project .mcp.json and .github/copilot/mcp-config.json (mcp_tools) ─────────

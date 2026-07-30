@@ -111,6 +111,23 @@
         }
       }
     },
+    "mcp": {
+      "type": "object",
+      "description": "What this project wants done about the MCP servers the catalog declares (ADR-0014). Not the same concern as mcpToolIndex, which curates whatever servers arrive; this decides which of them the agent may call. Only the Claude host has a project-scoped route for either statement (features/claude/adjustments/adjust_mcp.py).",
+      "additionalProperties": false,
+      "properties": {
+        "approve": {
+          "type": "boolean",
+          "default": true,
+          "description": "Pre-approve the servers ai-badger declares into this project's .mcp.json, so their tools do not prompt: Claude Code's enabledMcpjsonServers plus a permissions.allow rule per server. Set false to keep the prompt for a project that declares a server but wants each call confirmed."
+        },
+        "decline": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Server names whose tools this project refuses, by name, whatever route the server arrived by — catalog declaration, plugin, user-global config or CLI. Lands as Claude Code's disabledMcpjsonServers plus a permissions.deny rule, and deny beats allow. This is the decline route config.externalTools' silence used to carry (issue #186)."
+        }
+      }
+    },
     "mcpToolIndex": {
       "type": "object",
       "description": "MCP tool index configuration. When enabled, the mcp-index skill and ai_badger_hooks plugin use index-based tool recommendations.",

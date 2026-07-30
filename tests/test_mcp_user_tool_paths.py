@@ -196,26 +196,29 @@ def _user_scoped_roslyn(make_scaffolder, tmp_path, monkeypatch, load_script, age
     with patch("pathlib.Path.home", return_value=home):
         scaf = _scaf(make_scaffolder, tmp_path, target, _config(agents=[agent]))
         if agent == "claude":
-            scaf.mcp.scaffold_claude_mcp_user(server)
+            scaf.mcp.propose_claude_mcp_user(server)
         else:
             scaf.mcp.scaffold_hermes_mcp_user(server)
-    return home
+    return home, scaf.notes
 
 
-def test_claude_user_settings_keep_the_bare_command(
+def test_the_claude_user_proposal_keeps_the_bare_command(
         tmp_path, monkeypatch, load_script, make_scaffolder):
-    """Only .mcp.json documents ${VAR} expansion — ~/.claude/settings.json gets the bare command."""
-    home = _user_scoped_roslyn(make_scaffolder, tmp_path, monkeypatch, load_script, "claude")
+    """Only .mcp.json documents ${VAR} expansion — the ~/.claude proposal names the command bare."""
+    home, notes = _user_scoped_roslyn(
+        make_scaffolder, tmp_path, monkeypatch, load_script, "claude")
 
-    settings = json.loads((home / ".claude" / "settings.json").read_text(encoding="utf-8"))
-    assert settings["mcpServers"]["roslyn"]["command"] == "cwm-roslyn-navigator"
+    proposal = [n for n in notes if "~/.claude/settings.json" in n]
+    assert len(proposal) == 1
+    assert '"command": "cwm-roslyn-navigator"' in proposal[0]
+    assert not (home / ".claude").exists()
 
 
 def test_hermes_user_config_keeps_the_bare_command(
         tmp_path, monkeypatch, load_script, make_scaffolder):
     """~/.hermes/config.yaml has no documented ${VAR} expansion either."""
     yaml = pytest.importorskip("yaml")
-    home = _user_scoped_roslyn(make_scaffolder, tmp_path, monkeypatch, load_script, "hermes")
+    home, _ = _user_scoped_roslyn(make_scaffolder, tmp_path, monkeypatch, load_script, "hermes")
 
     cfg = yaml.safe_load((home / ".hermes" / "config.yaml").read_text(encoding="utf-8"))
     assert cfg["mcp"]["servers"]["roslyn"]["command"] == "cwm-roslyn-navigator"
