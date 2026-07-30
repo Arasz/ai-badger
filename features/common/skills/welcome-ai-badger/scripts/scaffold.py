@@ -339,8 +339,6 @@ class Scaffolder:
     excluded = _ctx_property("excluded")
     overwrite = _ctx_property("overwrite")
     notes = _ctx_property("notes")
-    _merged_external_tools = _ctx_property("merged_external_tools")
-    _external_tools_merged = _ctx_property("external_tools_merged")
 
     def __init__(self, root: Path, target: Path, config: Dict[str, Any],
                  skills: List[str], install: bool, overwrite: bool = False,
@@ -865,7 +863,7 @@ class Scaffolder:
         self._outside_project("hermes skill symlinks", self.symlink_hermes_skills)
         self.scaffold_agent_instructions()
         self.scaffold_templates()
-        self.mcp.fill_instruction_sources()
+        self.mcp.fill_mcp_described()
         doc = self.rendering.assemble_instructions_doc(invariants, instr_paths)
         self.agent_files.write_agent_files(doc, instr_paths, invariants)
         self._record_progress("agent-files")

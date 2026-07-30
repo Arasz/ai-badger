@@ -135,14 +135,18 @@ def test_the_real_catalog_reports_no_missing_server_directory(make_scaffolder):
 
 # ── the templates ────────────────────────────────────────────────────────────
 
-def test_both_slots_sit_adjacent_in_every_template(root):
-    """Adjacent on one line is what lets an empty new slot render byte-identically."""
+def test_one_mcp_slot_stands_alone_on_its_line_in_every_template(root):
+    """Step 2 put the new slot adjacent to the legacy one; step 8 left it holding the line.
+
+    Adjacency is what made the retired slot's removal free: it rendered '' throughout, so
+    deleting it moved no byte — GOLDEN_MCP_REGION above is the proof.
+    """
     templates = sorted((root / "features").glob("*/templates/*.tmpl"))
     assert templates, "no agent templates found"
 
     for tmpl in templates:
         text = tmpl.read_text(encoding="utf-8")
-        assert "{{MCP_INSTRUCTIONS}}{{EXTERNAL_MCP_INSTRUCTIONS}}" in text, tmpl
+        assert "\n{{MCP_INSTRUCTIONS}}\n" in text, tmpl
 
 
 def test_the_new_slot_is_computed_so_no_literal_placeholder_survives(make_scaffolder):
@@ -228,6 +232,13 @@ class TestMcpServerSchemas:
         bl, schema = self._schema(root, load_script, "mcp-server.schema.json")
 
         assert bl.validate({"name": "x", "instructions": "y"}, schema) != []
+
+    def test_meta_carries_the_human_description_the_retired_schema_held(self, root,
+                                                                       load_script):
+        """`mcp-servers.json`'s doc-only `description` is a server property, so it lives here."""
+        bl, schema = self._schema(root, load_script, "mcp-server.schema.json")
+
+        assert bl.validate({"name": "x", "description": "Python type checking"}, schema) == []
 
     def test_tools_requires_a_name_and_an_intent_per_tool(self, root, load_script):
         bl, schema = self._schema(root, load_script, "mcp-server-tools.schema.json")

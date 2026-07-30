@@ -69,8 +69,8 @@ def _mcp_json_for(make_scaffolder, tmp_path, servers, agents=None):
     target.mkdir(exist_ok=True)
     py_dir = tmp_path / "features" / "python"
     py_dir.mkdir(parents=True, exist_ok=True)
-    (py_dir / "mcp-servers.json").write_text(
-        json.dumps({"servers": servers}), encoding="utf-8")
+    (py_dir / "stack-mcp.json").write_text(
+        json.dumps({"servers": [dict(s, declare=True) for s in servers]}), encoding="utf-8")
 
     scaf = _scaf(make_scaffolder, tmp_path, target, _config(agents))
     scaf.mcp.generate_mcp_json()

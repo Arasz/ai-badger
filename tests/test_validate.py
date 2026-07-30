@@ -118,18 +118,18 @@ def test_all_flag_skips_index_json_when_absent(tmp_path, root, load_script, caps
     assert "index.json" not in out
 
 
-def test_all_validates_mcp_servers_and_stack_json(tmp_path, root, load_script, capsys):
+def test_all_validates_stack_mcp_and_stack_json(tmp_path, root, load_script, capsys):
     validate = load_script("tooling/validate.py")
     fake_root = _copy_real_schemas(tmp_path, root)
     (fake_root / "features" / "dotnet").mkdir(parents=True)
-    (fake_root / "features" / "dotnet" / "mcp-servers.json").write_text(
+    (fake_root / "features" / "dotnet" / "stack-mcp.json").write_text(
         json.dumps({"servers": "not a list"}), encoding="utf-8")
 
     rc = validate.main(["--all", "--root", str(fake_root)])
 
     out = capsys.readouterr().out
     assert rc == 1
-    assert "mcp-servers.json" in out
+    assert "stack-mcp.json" in out
 
 
 def test_all_validates_the_agent_capability_matrix(tmp_path, root, load_script, capsys):

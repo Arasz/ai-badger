@@ -88,9 +88,9 @@ def test_each_collaborator_works_with_no_scaffolder_in_scope(tmp_path, load_scri
     hooks.wire()
     assert any("is not scaffolded" in n for n in ctx.notes)
 
-    assert mcp.collect_stack_mcp_servers() == mcp.collect_stack_mcp_servers()
-    mcp.fill_merged_external_tools()
-    assert ctx.external_tools_merged
+    assert mcp.collect_catalog_mcp_servers() == mcp.collect_catalog_mcp_servers()
+    mcp.fill_mcp_described()
+    assert ctx.mcp_described_filled
 
     assert "# probe" in rendering.assemble_instructions_doc([], [])
 
@@ -160,13 +160,12 @@ def test_mcp_tools_is_built_from_a_context_alone(load_script, root, make_scaffol
     target = make_scaffolder.target
     ctx = _hand_built_context(load_script, root, target)
     mcp = _load(load_script, root, "mcp_tools").McpTools(ctx)
-    probe = [{"name": "probe", "command": "probe-server", "generate_mcp_json": True}]
 
-    mcp.fill_merged_external_tools()
+    mcp.fill_mcp_described()
 
-    assert ctx.external_tools_merged
-    merged = mcp.merge_mcp_servers(mcp.collect_stack_mcp_servers(), probe)
-    assert "probe" in mcp.split_servers_by_scope(merged)[0]
+    assert ctx.mcp_described_filled
+    declared = mcp.declared_servers()
+    assert "code-review-graph" in mcp.split_servers_by_scope(declared)[0]
     assert "scaffold" not in _imported_modules(root, "mcp_tools")
 
 
@@ -177,11 +176,11 @@ def test_mcp_tools_fills_the_cache_the_template_rendering_reads(
     ctx = _hand_built_context(load_script, root, target)
     mcp = _load(load_script, root, "mcp_tools").McpTools(ctx)
 
-    mcp.fill_merged_external_tools()
-    ctx.merged_external_tools = [{"name": "already-filled"}]
-    mcp.fill_merged_external_tools()
+    mcp.fill_mcp_described()
+    ctx.mcp_described = [{"name": "already-filled"}]
+    mcp.fill_mcp_described()
 
-    assert [t["name"] for t in ctx.merged_external_tools] == ["already-filled"], (
+    assert [s["name"] for s in ctx.mcp_described] == ["already-filled"], (
         "filling twice must not re-read the catalog")
 
 
@@ -197,13 +196,13 @@ def test_template_rendering_is_built_from_a_context_alone(load_script, root, mak
     assert "mcp_tools" not in _imported_modules(root, "template_rendering")
 
 
-def test_template_rendering_reads_the_external_tools_off_the_context(
+def test_template_rendering_reads_the_described_servers_off_the_context(
         load_script, root, make_scaffolder):
-    """Edge 1: it must not reach into McpTools for the merged external tools."""
+    """Edge 1: it must not reach into McpTools for the described MCP servers."""
     target = make_scaffolder.target
     ctx = _hand_built_context(load_script, root, target)
-    ctx.merged_external_tools = [{"name": "probe", "instructions": "Use the probe server."}]
-    ctx.external_tools_merged = True
+    ctx.mcp_described = [{"name": "probe", "instructions": "Use the probe server."}]
+    ctx.mcp_described_filled = True
     rendering = _load(load_script, root, "template_rendering").TemplateRendering(ctx)
 
     assert "Use the probe server." in rendering.assemble_instructions_doc([], [])
@@ -276,11 +275,13 @@ def test_the_scaffolder_is_a_plain_class_over_a_context_and_six_collaborators(
     assert "Mixin" not in (root / SCRIPTS / "scaffold.py").read_text(encoding="utf-8")
 
 
-# The nine McpTools methods Scaffolder used to re-expose under a private name.
+# The nine McpTools methods Scaffolder used to re-expose under a private name, plus the two
+# context caches it forwarded until the external-tools reader went (ADR-0014 step 8).
 _RETIRED_MCP_SHIMS = {
     "_collect_stack_mcp_servers", "_collect_external_tools", "_merge_external_tools",
     "_merge_mcp_servers", "_split_servers_by_scope", "_scaffold_hermes_mcp_user",
     "_scaffold_claude_mcp_user", "_generate_copilot_mcp_config", "_generate_mcp_json",
+    "_merged_external_tools", "_external_tools_merged",
 }
 
 
