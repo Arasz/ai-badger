@@ -148,7 +148,7 @@ if _SCRIPT_DIR not in sys.path:
 
 from _shared import (  # noqa: E402 — re-exported for backward compatibility
     _test_ignore, PROJECT_LOCAL_FILE, MANAGED_HEADER, _MANAGED_PREFIX,
-    cfg_get, requirement_met, _condition_met,
+    cfg_get, requirement_met, _condition_met, _within,
 )
 
 # Declared once in badger_lib.SKILL_SCOPES so the scaffold and the plugin ship list cannot
@@ -156,9 +156,6 @@ from _shared import (  # noqa: E402 — re-exported for backward compatibility
 # scaffold_skills actually reads, so a default-scope skill shipped from another stack is
 # not offered here and then reported as missing.
 DEFAULT_SKILLS = bl.default_skills_in(FRAMEWORK_ROOT / "features" / "common" / "skills")
-SEED_ONCE_SKILL_FILES: Dict[str, List[str]] = {
-    "prompt-markers": ["markers-context.json"],
-}
 
 
 # ---------------------------------------------------------------------- index lookups
@@ -188,36 +185,9 @@ def git_provenance(root: Path) -> Tuple[Optional[str], bool]:
     return (sha or None), bool(status)
 
 
-# -- Hermes skill discovery ---------------------------------------------------------
-LEARNED_SKILLS_DIR = "learned"
-
 # Progress marker for a run in flight. Present after a crash, absent after success:
 # den-refresh and feed-badger read its absence as "never fully scaffolded" (F-25).
 PARTIAL_MANIFEST = "manifest.json.partial"
-
-
-def _within(parent: Path, candidate: Path) -> bool:
-    """True when `candidate` resolves to `parent` itself or something inside it.
-
-    `project.name` reaches this from config.json, which constrains it to a non-empty string
-    and nothing more — so containment is asserted here, not assumed upstream (security I1).
-    """
-    try:
-        candidate.resolve().relative_to(parent.resolve())
-    except (ValueError, OSError):
-        return False
-    return True
-
-
-def _owns_link(entry: Path, skills_root: Path) -> bool:
-    """True if *entry* is a symlink resolving inside *skills_root* — i.e. ai-badger placed it."""
-    if not entry.is_symlink():
-        return False
-    try:
-        entry.resolve().relative_to(skills_root.resolve())
-    except (ValueError, OSError):
-        return False
-    return True
 
 
 def demote_headings(text: str, levels: int = 2) -> str:
@@ -247,68 +217,7 @@ def demote_headings(text: str, levels: int = 2) -> str:
     return "".join(out)
 
 
-def relink_hermes_skills(target: Path, config: Dict[str, Any],
-                         skills: List[str]) -> Dict[str, List[str]]:
-    """Rebuild ~/.hermes/skills/<project>/ so it links exactly *skills* plus learned/.
-
-    Only symlinks resolving into <target>/.ai-badger/skills/ are removed; every other entry
-    is left exactly as found (docs/adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md).
-    An empty *skills* is not evidence the project stopped wanting them (#129), so it leaves
-    the namespace untouched. Returns {"created": [...], "removed": [...]}.
-    """
-    project_name = config.get("project", {}).get("name", "unknown")
-    skills_root = target / ".ai-badger" / "skills"
-    hermes_skills = Path.home() / ".hermes" / "skills"
-    namespace_dir = hermes_skills / project_name
-    if not _within(hermes_skills, namespace_dir):
-        raise ValueError(
-            f"project name {project_name!r} does not resolve to a directory inside "
-            f"{hermes_skills} — refusing to create it"
-        )
-    no_op: Dict[str, List[str]] = {"created": [], "removed": []}
-    if namespace_dir.is_symlink() and not _owns_link(namespace_dir, skills_root):
-        return no_op
-    if not skills:
-        return no_op
-
-    # Declined skills are filtered here too: den-refresh re-links from the names on disk,
-    # where an excluded skill's copy is deliberately left behind.
-    declined = bl.exclusions(config)["skills"]
-    wanted = [n for n in dict.fromkeys(skills)
-              if n not in declined and (skills_root / n).is_dir()]
-    if (skills_root / LEARNED_SKILLS_DIR).is_dir() and LEARNED_SKILLS_DIR not in wanted:
-        wanted.append(LEARNED_SKILLS_DIR)
-
-    removed: List[str] = []
-    if namespace_dir.is_symlink():
-        namespace_dir.unlink()
-    elif namespace_dir.is_dir():
-        for entry in sorted(namespace_dir.iterdir()):
-            if _owns_link(entry, skills_root):
-                if entry.name not in wanted:
-                    removed.append(entry.name)
-                entry.unlink()
-    if not wanted:
-        return {"created": [], "removed": removed}
-
-    namespace_dir.mkdir(parents=True, exist_ok=True)
-    # Resolve both ends before computing the relative link, so a symlinked home or project
-    # path does not produce a link with the wrong number of `..` segments.
-    link_base = namespace_dir.resolve()
-    skills_base = skills_root.resolve()
-    created: List[str] = []
-    for name in wanted:
-        link = namespace_dir / name
-        if link.is_symlink():
-            link.unlink()
-        elif link.exists():
-            continue  # foreign real entry — never clobber
-        link.symlink_to(os.path.relpath(skills_base / name, link_base))
-        created.append(name)
-    return {"created": created, "removed": removed}
-
-
-# The shared context and the six collaborators built from it
+# The shared context and the seven collaborators built from it
 from scaffold_context import ScaffoldContext  # noqa: E402
 from hook_wiring import HookWiring, merge_hooks  # noqa: E402
 from template_rendering import TemplateRendering  # noqa: E402
@@ -316,6 +225,8 @@ from agent_files import AgentFiles  # noqa: E402
 from extensions import Extensions  # noqa: E402
 from mcp_tools import McpTools  # noqa: E402
 from statusline_wiring import StatusLineWiring  # noqa: E402
+# relink_hermes_skills is re-exported: den-refresh's refresh.py calls it on this module.
+from skill_delivery import SkillDelivery, relink_hermes_skills  # noqa: E402
 
 
 def _ctx_property(name: str) -> property:
@@ -338,6 +249,7 @@ class Scaffolder:
     skills = _ctx_property("skills")
     excluded = _ctx_property("excluded")
     overwrite = _ctx_property("overwrite")
+    reset_seed_files = _ctx_property("reset_seed_files")
     notes = _ctx_property("notes")
 
     def __init__(self, root: Path, target: Path, config: Dict[str, Any],
@@ -351,8 +263,8 @@ class Scaffolder:
             root=root, target=target, aib=target / ".ai-badger", config=config,
             index=bl.read_index(root), stacks=bl.resolve_stacks(config),
             skills=[s for s in skills if s not in excluded["skills"]],
-            excluded=excluded, overwrite=overwrite,
-            record_template=self.record_template,
+            excluded=excluded, overwrite=overwrite, reset_seed_files=reset_seed_files,
+            record_template=self.record_template, record=self.record,
         )
         self.extensions = Extensions(self.ctx)
         self.statusline = StatusLineWiring(self.ctx)
@@ -360,8 +272,8 @@ class Scaffolder:
         self.mcp = McpTools(self.ctx)
         self.rendering = TemplateRendering(self.ctx)
         self.agent_files = AgentFiles(self.ctx, self.rendering)
+        self.skill_delivery = SkillDelivery(self.ctx, self.extensions)
         self.install = install
-        self.reset_seed_files = reset_seed_files
         self.execute = execute
         self.commit, self.dirty = git_provenance(root)
         self.entries: List[Dict[str, Any]] = []
@@ -514,35 +426,6 @@ class Scaffolder:
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src, dest)
 
-    def _stash_seed_once_skill_files(self, skill_name: str, dest: Path) -> Dict[str, bytes]:
-        """Read the current content of any seed-once files inside a skill dir before it is
-        rmtree'd, so they can be restored after the fresh copytree. Empty on first scaffold
-        (dest doesn't exist yet) or when --reset-seed-files is requested."""
-        if self.reset_seed_files:
-            return {}
-        stashed: Dict[str, bytes] = {}
-        for relpath in SEED_ONCE_SKILL_FILES.get(skill_name, []):
-            p = dest / relpath
-            if p.exists():
-                stashed[relpath] = p.read_bytes()
-        # Also stash project-local.md (generic: any skill may carry one)
-        pl = dest / PROJECT_LOCAL_FILE
-        if pl.exists():
-            stashed[PROJECT_LOCAL_FILE] = pl.read_bytes()
-        return stashed
-
-    def _restore_seed_once_skill_files(self, skill_name: str, dest: Path,
-                                        stashed: Dict[str, bytes]) -> None:
-        """Write back stashed seed-once file content after the skill dir's fresh copytree."""
-        for relpath, content in stashed.items():
-            p = dest / relpath
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_bytes(content)
-            self.notes.append(
-                f"preserved seed-once .ai-badger/skills/{skill_name}/{relpath} "
-                "(already existed; not re-seeded; pass --reset-seed-files to reset)"
-            )
-
     # -- features -------------------------------------------------------------------
     def scaffold_personas(self) -> None:
         """Copy every applicable stack's persona files into .ai-badger/agents/."""
@@ -567,36 +450,6 @@ class Scaffolder:
                 text = dest.read_text(encoding="utf-8").strip()
                 rendered.append(demote_headings(text))
         return rendered
-
-    def scaffold_skills(self) -> None:
-        """Copy each requested skill directory into .ai-badger/skills/, with its extensions."""
-        for skill_name in self.skills:
-            item, item_stack = bl.find_skill_in_stacks(self.index, self.stacks, skill_name)
-            if item is None:
-                self.notes.append(f"skill '{skill_name}' not in any configured stack — skipped")
-                continue
-            src = self.root / item["path"]
-            dest = self.aib / "skills" / skill_name
-            stashed = self._stash_seed_once_skill_files(skill_name, dest)
-            if dest.exists():
-                shutil.rmtree(dest)
-            shutil.copytree(src, dest, ignore=_test_ignore)
-            self._restore_seed_once_skill_files(skill_name, dest, stashed)
-            self.extensions.prune_inline_extensions(skill_name, dest)
-            self.extensions.merge_extensions(skill_name, dest)
-            self.extensions.append_project_local(skill_name, dest)
-            # hash includes embedded extensions
-            self.record("skills", item_stack, skill_name, src, dest)
-            # emit per-file entries for extension content so feed-badger can
-            # detect user edits to extension files (#65)
-            ext_dir = dest / "extensions"
-            if ext_dir.is_dir():
-                for f in sorted(ext_dir.rglob("*")):
-                    if f.is_file():
-                        ext_src = src / "extensions" / f.relative_to(ext_dir)
-                        self.record("skills", item_stack,
-                                    f"{skill_name}/extensions/{f.relative_to(ext_dir).as_posix()}",
-                                    ext_src if ext_src.exists() else f, f)
 
     def scaffold_agent_instructions(self) -> None:
         """Copy the agent-instructions schema/model template into .ai-badger/agent-instructions/."""
@@ -677,27 +530,8 @@ class Scaffolder:
 
     # -- Hermes skill discovery ---------------------------------------------------
     def symlink_hermes_skills(self) -> None:
-        """Link this project's skills into ~/.hermes/skills/<project>/ when hermes is an agent.
-
-        Hermes resolves skills from ~/.hermes/skills/ plus skills.external_dirs only; the
-        per-project namespace directory avoids the cross-project name collisions that made
-        external_dirs unusable (docs/adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md).
-        """
-        if "hermes" not in self.config.get("agents", []):
-            return
-        try:
-            links = relink_hermes_skills(self.target, self.config, self.skills)
-        except ValueError as exc:
-            # A refusal the user can act on: it names their project name as the cause.
-            self.notes.append(f"hermes skill links skipped — {exc}")
-            return
-        if links["created"]:
-            self.notes.append(f"hermes skill links: {', '.join(links['created'])}")
-        if links["removed"]:
-            self.notes.append(
-                f"hermes skill links removed: {', '.join(links['removed'])} — no longer "
-                f"delivered to this project"
-            )
+        """Publish this project's skills in the Hermes namespace, through `skill_delivery`."""
+        self.skill_delivery.symlink_hermes_skills()
 
     # -- dependency checking ---------------------------------------------------------
     def _check_dependencies(self) -> Dict[str, Any]:
@@ -851,14 +685,8 @@ class Scaffolder:
         instr_paths = self.scaffold_instructions()
         invariants = self.collect_invariants()
         self._record_progress("personas-and-instructions")
-        # Discover stack-local skills (not in the universal SKILL_SCOPES) from
-        # configured stacks — e.g. auto-wm from claude. Universal defaults are
-        # already in self.skills from the caller.
-        for stack in self.stacks:
-            for name in bl.stack_local_skills(self.root / "features" / stack / "skills"):
-                if name not in self.skills and name not in self.excluded["skills"]:
-                    self.skills.append(name)
-        self.scaffold_skills()
+        self.skill_delivery.discover_stack_local()
+        self.skill_delivery.scaffold_skills()
         self._record_progress("skills")
         self._outside_project("hermes skill symlinks", self.symlink_hermes_skills)
         self.scaffold_agent_instructions()

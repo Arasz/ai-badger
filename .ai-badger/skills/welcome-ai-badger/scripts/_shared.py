@@ -7,7 +7,21 @@ from __future__ import annotations
 
 import re
 import shutil
+from pathlib import Path
 from typing import Any, Dict, List
+
+
+def _within(parent: Path, candidate: Path) -> bool:
+    """True when `candidate` resolves to `parent` itself or something inside it.
+
+    Read by every join a config value reaches — `project.name` arrives as any non-empty
+    string, so containment is asserted at the join, not assumed upstream (security I1).
+    """
+    try:
+        candidate.resolve().relative_to(parent.resolve())
+    except (ValueError, OSError):
+        return False
+    return True
 
 # Test files and eval suites — applied to every copytree to keep framework-only
 # content out of scaffolded repos.
