@@ -89,8 +89,9 @@ def test_no_other_destination_grows_a_tools_array(make_scaffolder, tmp_path):
     target = make_scaffolder.target
     stack = tmp_path / "features" / "python"
     stack.mkdir(parents=True)
-    (stack / "mcp-servers.json").write_text(
-        json.dumps({"servers": [{"name": "pyright", "command": "uvx mcp-server-pyright"}]}),
+    (stack / "stack-mcp.json").write_text(
+        json.dumps({"servers": [{"name": "pyright", "command": "uvx mcp-server-pyright",
+                                 "declare": True}]}),
         encoding="utf-8")
     scaf = _scaf(make_scaffolder, tmp_path, _config(agents=["claude"]))
 

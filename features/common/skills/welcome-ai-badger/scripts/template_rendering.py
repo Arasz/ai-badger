@@ -24,18 +24,6 @@ class TemplateRendering:
                   ((e.get("instructions") or "").strip() for e in entries) if instr]
         return "\n\n".join(blocks) + "\n\n" if blocks else ""
 
-    def _mcp_instruction_slots(self) -> tuple:
-        """`(MCP_INSTRUCTIONS, EXTERNAL_MCP_INSTRUCTIONS)` — one server, one block, one source.
-
-        The mcp catalog wins over the legacy `external-tools.json` reader (ADR-0014). The two
-        slots sit adjacent in the templates, so which of them carries a block never moves a byte.
-        """
-        catalog = list(self.ctx.mcp_described)
-        covered = {s.get("name") for s in catalog}
-        legacy = [t for t in self.ctx.merged_external_tools if t.get("name") not in covered]
-        return (self._render_instruction_blocks(catalog),
-                self._render_instruction_blocks(legacy))
-
     def compute_doc_slots(self, invariants: List[str], instr_paths: List[Path],
                             source_of_truth: str = "CLAUDE.md") -> Dict[str, str]:
         """Compute the template slots shared by CLAUDE.md and HERMES.md assembly.
@@ -56,7 +44,6 @@ class TemplateRendering:
         instr_md = "\n".join(
             f"- `{p.name}` → `.ai-badger/instructions/{p.name}`" for p in instr_paths
         ) or "_None._"
-        mcp_md, ext_mcp_md = self._mcp_instruction_slots()
         return {
             "PROJECT_NAME": project.get("name", ""),
             "PROJECT_SUMMARY": project.get("summary", ""),
@@ -66,8 +53,7 @@ class TemplateRendering:
             "COMMANDS": cmd_md,
             "PERSONA_ROUTING": route_md,
             "PATH_INSTRUCTIONS": instr_md,
-            "MCP_INSTRUCTIONS": mcp_md,
-            "EXTERNAL_MCP_INSTRUCTIONS": ext_mcp_md,
+            "MCP_INSTRUCTIONS": self._render_instruction_blocks(self.ctx.mcp_described),
             "FRAMEWORK_VERSION": self.ctx.index["frameworkVersion"],
             "SOURCE_OF_TRUTH": source_of_truth,
         }

@@ -1,9 +1,11 @@
 """Tests for stack-declared MCP server scaffolding.
 
-Verifies that mcp-servers.json files in feature directories are collected, merged with the
-legacy external-tools.json entries, split by scope, and scaffolded into the two config files
-ai-badger owns (.mcp.json and .github/mcp.json). The user-global destinations are proposals:
-~/.claude/settings.json here, ~/.hermes/config.yaml in tests/test_adjust_mcp_hermes.py.
+Verifies that `stack-mcp.json` files in feature directories are collected, resolved into one
+declaration set, split by scope, and scaffolded into the two config files ai-badger owns
+(.mcp.json and .github/mcp.json). Every case here was written against the retired
+`mcp-servers.json` reader and migrated onto the catalog declaration in ADR-0014 step 8. The
+user-global destinations are proposals: ~/.claude/settings.json here, ~/.hermes/config.yaml in
+tests/test_adjust_mcp_hermes.py.
 """
 # pylint: disable=protected-access  # exercises the Scaffolder MCP mixin directly; see pyproject.toml
 from __future__ import annotations
@@ -49,29 +51,33 @@ def _scaf(make_scaffolder, root, target, config):
 
 
 def _write_mcp_servers(stack_dir, servers):
-    """Write a mcp-servers.json file in a stack directory."""
+    """Declare *servers* in a stack's stack-mcp.json, every one of them with `declare: true`.
+
+    The describe-only half of the same file — a name with no `declare` — is
+    tests/test_mcp_declared_servers.py's `test_a_describe_only_declaration_is_not_written`.
+    """
     stack_dir.mkdir(parents=True, exist_ok=True)
-    data = {"servers": servers}
-    (stack_dir / "mcp-servers.json").write_text(
+    data = {"servers": [dict(srv, declare=True) for srv in servers]}
+    (stack_dir / "stack-mcp.json").write_text(
         json.dumps(data, indent=2), encoding="utf-8"
     )
 
 
-# ── _collect_stack_mcp_servers ────────────────────────────────────────────────
+# ── collect_catalog_mcp_servers ───────────────────────────────────────────────
 
 def test_collect_from_common(root, make_scaffolder):
-    """Common mcp-servers.json is read."""
+    """Common stack-mcp.json is read."""
     target = make_scaffolder.target
 
     common_dir = root / "features" / "common"
-    common_file = common_dir / "mcp-servers.json"
+    common_file = common_dir / "stack-mcp.json"
     original = common_file.read_text(encoding="utf-8") if common_file.exists() else None
     try:
         _write_mcp_servers(common_dir, [
             {"name": "baseline", "command": "echo baseline"}
         ])
         scaf = _scaf(make_scaffolder, root, target, _config())
-        result = scaf.mcp.collect_stack_mcp_servers()
+        result = scaf.mcp.collect_catalog_mcp_servers()
         assert len(result) == 1
         assert result[0]["name"] == "baseline"
     finally:
@@ -91,7 +97,7 @@ def test_collect_from_multiple_stacks(tmp_path, make_scaffolder):
     _write_mcp_servers(gh_dir, [{"name": "github-mcp", "command": "npx -y @modelcontextprotocol/server-github"}])
 
     scaf = _scaf(make_scaffolder, tmp_path, target, _config(stacks=["python", "github"]))
-    result = scaf.mcp.collect_stack_mcp_servers()
+    result = scaf.mcp.collect_catalog_mcp_servers()
     names = [s["name"] for s in result]
     assert "pyright" in names
     assert "github-mcp" in names
@@ -107,20 +113,20 @@ def test_collect_cross_stack_dedup_last_writer_wins(tmp_path, make_scaffolder):
     _write_mcp_servers(gh_dir, [{"name": "shared", "command": "echo github-version"}])
 
     scaf = _scaf(make_scaffolder, tmp_path, target, _config(stacks=["python", "github"]))
-    result = scaf.mcp.collect_stack_mcp_servers()
+    result = scaf.mcp.collect_catalog_mcp_servers()
     assert len(result) == 1
     assert result[0]["command"] == "echo github-version"
 
 
 def test_collect_missing_file_skipped(tmp_path, make_scaffolder):
-    """Stack without mcp-servers.json is silently skipped."""
+    """Stack without stack-mcp.json is silently skipped."""
     target = make_scaffolder.target
 
     py_dir = tmp_path / "features" / "python"
     py_dir.mkdir(parents=True)
 
     scaf = _scaf(make_scaffolder, tmp_path, target, _config(stacks=["python"]))
-    result = scaf.mcp.collect_stack_mcp_servers()
+    result = scaf.mcp.collect_catalog_mcp_servers()
     assert result == []
 
 
@@ -132,66 +138,46 @@ def test_collect_empty_servers(tmp_path, make_scaffolder):
     _write_mcp_servers(py_dir, [])
 
     scaf = _scaf(make_scaffolder, tmp_path, target, _config(stacks=["python"]))
-    result = scaf.mcp.collect_stack_mcp_servers()
+    result = scaf.mcp.collect_catalog_mcp_servers()
     assert result == []
 
 
-# ── _merge_mcp_servers ────────────────────────────────────────────────────────
+# ── declared_servers ──────────────────────────────────────────────────────────
 
-def test_merge_stack_only(root, make_scaffolder):
-    """Stack server with no externalTool appears in merged dict."""
+def test_one_declaration_becomes_one_entry_keyed_by_name(tmp_path, make_scaffolder):
+    """The merge the retired `merge_mcp_servers` did: a list in, a dict by name out."""
     target = make_scaffolder.target
-    scaf = _scaf(make_scaffolder, root, target, _config())
+    _write_mcp_servers(tmp_path / "features" / "python",
+                       [{"name": "pyright", "command": "uvx mcp-server-pyright"}])
 
-    stack = [{"name": "pyright", "command": "uvx mcp-server-pyright"}]
-    merged = scaf.mcp.merge_mcp_servers(stack, [])
-    assert "pyright" in merged
-    assert merged["pyright"]["command"] == "uvx mcp-server-pyright"
+    declared = _scaf(make_scaffolder, tmp_path, target,
+                      _config(stacks=["python"])).mcp.declared_servers()
+
+    assert list(declared) == ["pyright"]
+    assert declared["pyright"]["command"] == "uvx mcp-server-pyright"
 
 
-def test_merge_user_only(root, make_scaffolder):
-    """ExternalTool with no stack server appears in merged dict."""
+def test_no_declaration_at_all_declares_nothing(tmp_path, make_scaffolder):
     target = make_scaffolder.target
-    scaf = _scaf(make_scaffolder, root, target, _config())
 
-    tools = [{"name": "crg", "package": "code-review-graph",
-              "command": "uvx code-review-graph serve", "instructions": "x",
-              "generate_mcp_json": True}]
-    merged = scaf.mcp.merge_mcp_servers([], tools)
-    assert "crg" in merged
+    scaf = _scaf(make_scaffolder, tmp_path, target, _config(stacks=["python"]))
+
+    assert scaf.mcp.declared_servers() == {}
 
 
-def test_merge_user_wins_on_conflict(root, make_scaffolder):
-    """Same name in both -> the external-tools.json entry is used."""
+def test_the_same_name_in_two_stacks_resolves_to_one_declaration(tmp_path, make_scaffolder):
+    """The conflict the two retired readers resolved between themselves is now one file's."""
     target = make_scaffolder.target
-    scaf = _scaf(make_scaffolder, root, target, _config())
+    _write_mcp_servers(tmp_path / "features" / "python",
+                       [{"name": "tool-x", "command": "echo python"}])
+    _write_mcp_servers(tmp_path / "features" / "github",
+                       [{"name": "tool-x", "command": "echo github"}])
 
-    stack = [{"name": "tool-x", "command": "echo stack"}]
-    tools = [{"name": "tool-x", "package": "p", "command": "echo user",
-              "instructions": "", "generate_mcp_json": True}]
-    merged = scaf.mcp.merge_mcp_servers(stack, tools)
-    assert merged["tool-x"]["command"] == "echo user"
+    declared = _scaf(make_scaffolder, tmp_path, target,
+                      _config(stacks=["python", "github"])).mcp.declared_servers()
 
-
-def test_merge_empty_stacks(root, make_scaffolder):
-    """No stack servers -> only external tools in result."""
-    target = make_scaffolder.target
-    scaf = _scaf(make_scaffolder, root, target, _config())
-
-    tools = [{"name": "crg", "package": "p", "command": "echo crg",
-              "instructions": "", "generate_mcp_json": True}]
-    merged = scaf.mcp.merge_mcp_servers([], tools)
-    assert list(merged.keys()) == ["crg"]
-
-
-def test_merge_empty_tools(root, make_scaffolder):
-    """No external tools -> only stack servers in result."""
-    target = make_scaffolder.target
-    scaf = _scaf(make_scaffolder, root, target, _config())
-
-    stack = [{"name": "pyright", "command": "uvx mcp-server-pyright"}]
-    merged = scaf.mcp.merge_mcp_servers(stack, [])
-    assert list(merged.keys()) == ["pyright"]
+    assert list(declared) == ["tool-x"]
+    assert declared["tool-x"]["command"] == "echo github"
 
 
 # ── _split_servers_by_scope ──────────────────────────────────────────────────
@@ -265,19 +251,14 @@ def test_stack_mcp_generates_mcp_json(tmp_path, make_scaffolder):
     assert mcp["mcpServers"]["pyright"]["command"] == "uvx"
 
 
-def test_stack_and_external_tools_merge_in_mcp_json(tmp_path, make_scaffolder):
-    """Both legacy readers appear in .mcp.json; external-tools.json wins on conflict."""
+def test_two_declarations_in_one_stack_both_reach_mcp_json(tmp_path, make_scaffolder):
+    """One file declaring two servers writes two entries — the retired two-reader merge's job."""
     target = make_scaffolder.target
 
-    py_dir = tmp_path / "features" / "python"
-    _write_mcp_servers(py_dir, [
+    _write_mcp_servers(tmp_path / "features" / "python", [
         {"name": "pyright", "command": "uvx mcp-server-pyright"},
-        {"name": "shared", "command": "echo stack"},
+        {"name": "shared", "command": "echo shared"},
     ])
-    (py_dir / "external-tools.json").write_text(json.dumps({"tools": [{
-        "name": "shared", "package": "p", "command": "echo user",
-        "instructions": "", "generate_mcp_json": True,
-    }]}), encoding="utf-8")
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
                   _config(stacks=["python"], agents=["claude"]))
@@ -285,7 +266,7 @@ def test_stack_and_external_tools_merge_in_mcp_json(tmp_path, make_scaffolder):
 
     mcp = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
     assert "pyright" in mcp["mcpServers"]
-    assert mcp["mcpServers"]["shared"]["command"] == "echo user"
+    assert mcp["mcpServers"]["shared"]["command"] == "echo shared"
 
 
 def test_mcp_json_no_duplicate_from_two_stacks(tmp_path, make_scaffolder):
@@ -569,7 +550,7 @@ def test_the_shipped_catalog_declaration_still_works(root, make_scaffolder):
 
 
 def test_no_mcp_json_when_no_servers(tmp_path, make_scaffolder):
-    """No stack servers + no external tools -> no .mcp.json."""
+    """Nothing declared anywhere -> no .mcp.json."""
     target = make_scaffolder.target
 
     scaf = _scaf(make_scaffolder, tmp_path, target, _config(stacks=[], agents=["claude"]))
@@ -623,8 +604,7 @@ def test_copilot_mcp_json_uses_copilot_overrides(tmp_path, make_scaffolder):
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
                   _config(stacks=["python"], agents=["copilot", "claude"]))
-    servers = {s["name"]: s for s in scaf.mcp.collect_stack_mcp_servers()}
-    scaf.mcp.generate_copilot_mcp_json(servers)
+    scaf.mcp.generate_copilot_mcp_json(scaf.mcp.declared_servers())
 
     cfg = json.loads((target / ".github" / "mcp.json").read_text(encoding="utf-8"))
     assert cfg["mcpServers"]["fs"]["command"] == "copilot-resolved"

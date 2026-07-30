@@ -1,11 +1,8 @@
-"""One launch declaration, three readers, and legacy losing on conflict.
+"""One launch declaration, one reader.
 
-Step 3 of the MCP rebuild (ADR-0014). `stack-mcp.json`'s `declare: true` joins the legacy
-`mcp-servers.json` and `external-tools.json` readers, and a catalog declaration beats both.
-Step 4 deleted both legacy files from this framework and the `config.externalTools` key that
-outranked all three; the readers themselves stay until step 8, so they are still exercised
-here from a fake root. `collect_stack_mcp_servers` and `merge_mcp_servers` keep working
-untouched from the outside — the ~60 tests in tests/test_stack_mcp_servers.py check that.
+Steps 3 and 8 of the MCP rebuild (ADR-0014). `stack-mcp.json`'s `declare: true` joined two
+legacy readers in step 3, outranked both in step 4, and is the only one left after step 8 —
+tests/test_mcp_legacy_files_removed.py owns what a stack still shipping a retired file gets.
 """
 from __future__ import annotations
 
@@ -44,14 +41,6 @@ def _write(tmp_path, stack, filename, payload):
 
 def _declare(tmp_path, stack, *servers):
     _write(tmp_path, stack, "stack-mcp.json", {"servers": list(servers)})
-
-
-def _legacy_servers(tmp_path, stack, *servers):
-    _write(tmp_path, stack, "mcp-servers.json", {"servers": list(servers)})
-
-
-def _legacy_tools(tmp_path, stack, *tools):
-    _write(tmp_path, stack, "external-tools.json", {"tools": list(tools)})
 
 
 def _scaf(make_scaffolder, tmp_path, config=None):
@@ -122,53 +111,17 @@ def test_a_later_stack_wins_over_an_earlier_one(make_scaffolder, tmp_path):
     assert servers["shared"]["command"] == "echo github"
 
 
-# ── the legacy readers, still working ────────────────────────────────────────
+# ── one collector, and only one ──────────────────────────────────────────────
 
-def test_a_legacy_mcp_servers_declaration_still_reaches_mcp_json(make_scaffolder, tmp_path):
-    _legacy_servers(tmp_path, "python", {"name": "pyright", "command": "uvx mcp-server-pyright"})
-
-    assert "pyright" in _mcp_json(make_scaffolder, tmp_path)
-
-
-def test_a_legacy_external_tools_declaration_still_reaches_mcp_json(make_scaffolder, tmp_path):
-    _legacy_tools(tmp_path, "python", {
-        "name": "legacy-tool", "package": "p", "command": "echo legacy",
-        "instructions": "x", "generate_mcp_json": True,
-    })
-
-    assert "legacy-tool" in _mcp_json(make_scaffolder, tmp_path)
-
-
-def test_the_two_collectors_stay_separate(make_scaffolder, tmp_path):
-    """Neither legacy collector learns about stack-mcp.json; composition happens above them."""
-    _legacy_servers(tmp_path, "python", {"name": "old", "command": "echo old"})
-    _declare(tmp_path, "python", {"name": "new", "command": "echo new", "declare": True})
+def test_the_catalog_collector_is_the_whole_of_the_declaration_set(make_scaffolder, tmp_path):
+    """Step 8: what `declared_servers` returns is what one `stack-mcp.json` reader found."""
+    _declare(tmp_path, "python", {"name": "new", "command": "echo new", "declare": True},
+             {"name": "described-only"})
     scaf = _scaf(make_scaffolder, tmp_path)
 
-    assert [s["name"] for s in scaf.mcp.collect_stack_mcp_servers()] == ["old"]
-    assert [s["name"] for s in scaf.mcp.collect_catalog_mcp_servers()] == ["new"]
-    assert set(scaf.mcp.declared_servers()) == {"old", "new"}
-
-
-# ── precedence ───────────────────────────────────────────────────────────────
-
-def test_the_catalog_beats_legacy_mcp_servers_on_the_same_name(make_scaffolder, tmp_path):
-    _legacy_servers(tmp_path, "python", {"name": "shared", "command": "echo legacy"})
-    _declare(tmp_path, "python", {"name": "shared", "command": "echo catalog",
-                                  "declare": True})
-
-    assert _mcp_json(make_scaffolder, tmp_path)["shared"]["command"] == "echo catalog"
-
-
-def test_the_catalog_beats_a_legacy_external_tool_on_the_same_name(make_scaffolder, tmp_path):
-    _legacy_tools(tmp_path, "python", {
-        "name": "shared", "package": "p", "command": "echo legacy",
-        "instructions": "x", "generate_mcp_json": True,
-    })
-    _declare(tmp_path, "python", {"name": "shared", "command": "echo catalog",
-                                  "declare": True})
-
-    assert _mcp_json(make_scaffolder, tmp_path)["shared"]["command"] == "echo catalog"
+    assert [s["name"] for s in scaf.mcp.collect_catalog_mcp_servers()] == ["new",
+                                                                          "described-only"]
+    assert set(scaf.mcp.declared_servers()) == {"new"}
 
 
 # ── the real catalog: byte identity ──────────────────────────────────────────

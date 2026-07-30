@@ -40,7 +40,6 @@ SCHEMA_INSTANCES = {
     "hooks-manifest.schema.json": ["features/*/hooks/hooks-manifest.json"],
     "adjustment.schema.json": ["features/*/adjustments/adjustment.json"],
     "plugins-instructions.schema.json": ["features/*/plugins-instructions.json"],
-    "mcp-servers.schema.json": ["features/*/mcp-servers.json"],
     "stack-mcp.schema.json": ["features/*/stack-mcp.json"],
     "mcp-server.schema.json": ["features/*/mcp/*/meta.json"],
     "mcp-server-tools.schema.json": ["features/*/mcp/*/tools.json"],

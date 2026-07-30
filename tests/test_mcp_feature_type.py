@@ -200,10 +200,21 @@ class TestStackMcpSchema:
         instance = {"servers": [{"name": "x", "targetAgents": ["claude"]}]}
         assert bl.validate(instance, schema) != []
 
+    def test_the_user_scope_is_accepted(self, root, load_script):
+        """The one scope ai-badger proposes rather than writes (ADR-0014 decision 6)."""
+        bl, schema = self._schema(root, load_script)
+
+        assert bl.validate({"servers": [{"name": "x", "scope": "user"}]}, schema) == []
+
     def test_an_unknown_scope_is_refused(self, root, load_script):
         bl, schema = self._schema(root, load_script)
 
         assert bl.validate({"servers": [{"name": "x", "scope": "global"}]}, schema) != []
+
+    def test_an_env_value_that_is_not_a_string_is_refused(self, root, load_script):
+        bl, schema = self._schema(root, load_script)
+
+        assert bl.validate({"servers": [{"name": "x", "env": {"KEY": 123}}]}, schema) != []
 
     def test_a_missing_servers_key_is_refused(self, root, load_script):
         bl, schema = self._schema(root, load_script)

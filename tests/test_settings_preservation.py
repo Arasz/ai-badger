@@ -145,8 +145,9 @@ def test_unparseable_mcp_json_is_never_rewritten(tmp_path, make_scaffolder):
     target = make_scaffolder.target
     stack_dir = tmp_path / "features" / "python"
     stack_dir.mkdir(parents=True)
-    (stack_dir / "mcp-servers.json").write_text(
-        json.dumps({"servers": [{"name": "pyright", "command": "uvx mcp-server-pyright"}]}),
+    (stack_dir / "stack-mcp.json").write_text(
+        json.dumps({"servers": [{"name": "pyright", "command": "uvx mcp-server-pyright",
+                                 "declare": True}]}),
         encoding="utf-8",
     )
     mcp_path = target / ".mcp.json"

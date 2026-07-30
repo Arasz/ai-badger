@@ -1,7 +1,7 @@
-"""The declared MCP server reaching CLAUDE.md and .mcp.json, and the deprecated reader.
+"""The declared MCP server reaching CLAUDE.md and .mcp.json.
 
-`external-tools.json` was deleted from the framework in step 4 of the MCP rebuild (ADR-0014),
-so what these tests exercise now is the catalog path plus the legacy reader's survival.
+`external-tools.json` was deleted from the framework in step 4 of the MCP rebuild (ADR-0014)
+and its reader in step 8, so what these tests exercise is the catalog path alone.
 """
 # pylint: disable=protected-access  # exercises Scaffolder internals directly; see pyproject.toml
 from __future__ import annotations
@@ -38,20 +38,20 @@ def test_scaffold_catalog_tool_generates_mcp_json(make_scaffolder):
     assert "code-review-graph" in mcp.get("mcpServers", {})
 
 
-def test_collect_external_tools_still_reads_a_stack_that_ships_one(make_scaffolder, tmp_path):
-    """The reader outlives its input file by one release (ADR-0014 step 8 removes it)."""
+def test_the_catalog_declaration_is_what_reaches_a_stack_scoped_scaffold(make_scaffolder,
+                                                                         tmp_path):
+    """What `collect_external_tools` used to do for a stack, `stack-mcp.json` does now."""
     (tmp_path / "index.json").write_text(
         json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8")
     stack = tmp_path / "features" / "python"
     stack.mkdir(parents=True)
-    (stack / "external-tools.json").write_text(json.dumps({"tools": [{
-        "name": "legacy-tool", "package": "p", "command": "echo legacy",
-        "instructions": "x",
+    (stack / "stack-mcp.json").write_text(json.dumps({"servers": [{
+        "name": "stack-tool", "command": "echo stack-tool", "declare": True,
     }]}), encoding="utf-8")
 
     scaf = make_scaffolder(root=tmp_path, config=_config(stacks=["python"], agents=["claude"]))
 
-    assert [t["name"] for t in scaf.mcp.collect_external_tools()] == ["legacy-tool"]
+    assert [s["name"] for s in scaf.mcp.collect_catalog_mcp_servers()] == ["stack-tool"]
 
 
 def test_check_dependencies_surfaces_optional_hints_as_notes(make_scaffolder):

@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.51.0",
-  "frameworkCommit": "419504d2e999ad1a349d80480bf93f9b5fe9447e",
+  "frameworkCommit": "d05d35dcdc9cad9d438ba07b574d0bd37688e596",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -444,12 +444,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.51.0",
-      "hash": "3f6fb7df169261df54f35d0f835ae3004e1ccb7f50cb79cf2febbda76be209bf",
+      "hash": "adbe1f5fcaeab00819d6c961cbfc5fe895485d1435d717f2722d26ae385565aa",
       "dirMeta": {
         "file_count": 15,
         "dir_count": 2
       },
-      "sourceHash": "3f6fb7df169261df54f35d0f835ae3004e1ccb7f50cb79cf2febbda76be209bf",
+      "sourceHash": "adbe1f5fcaeab00819d6c961cbfc5fe895485d1435d717f2722d26ae385565aa",
       "sourceMeta": {
         "file_count": 15,
         "dir_count": 2
@@ -507,7 +507,7 @@
       "source": "features/claude/templates/CLAUDE.md.tmpl",
       "target": "CLAUDE.md",
       "frameworkVersion": "0.51.0",
-      "hash": "799293f39f08791991db0ce821d51606cb85dfbfc96a93ddebb2f5fc53937f3e"
+      "hash": "13ed81fe2d0f6af7b7dfde5b5e97f72f995cfdfbbb72b0a1a4d5bfa9351eaa96"
     },
     {
       "feature": "templates",
@@ -516,7 +516,7 @@
       "source": "features/copilot/templates/copilot-instructions.md.tmpl",
       "target": ".github/copilot-instructions.md",
       "frameworkVersion": "0.51.0",
-      "hash": "799293f39f08791991db0ce821d51606cb85dfbfc96a93ddebb2f5fc53937f3e"
+      "hash": "13ed81fe2d0f6af7b7dfde5b5e97f72f995cfdfbbb72b0a1a4d5bfa9351eaa96"
     },
     {
       "feature": "templates",
@@ -525,7 +525,7 @@
       "source": "features/hermes/templates/HERMES.md.tmpl",
       "target": "HERMES.md",
       "frameworkVersion": "0.51.0",
-      "hash": "09b8c7421463f090b7904356da147bd0d9c44251635d3c22bdb7e04d36bf12b7"
+      "hash": "ee6963598723de51e69932934269f04fb2d96a4468047b4a52afd46be89617e0"
     },
     {
       "feature": "adjustments",

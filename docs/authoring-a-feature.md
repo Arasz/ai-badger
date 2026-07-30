@@ -43,7 +43,10 @@ needs no index rebuild:
 | file | rule |
 |---|---|
 | `stack-mcp` | `features/{common,stack}/stack-mcp.json` (`schemas/stack-mcp.schema.json`); last-writer-wins on name. Which servers a stack wants; the servers themselves are indexed catalog items under `features/<stack>/mcp/` |
-| `mcp-servers` | `features/{common,stack}/mcp-servers.json` (`schemas/mcp-servers.schema.json`); last-writer-wins on name. **Deprecated** — superseded by `stack-mcp.json`, which beats it on conflict. No stack ships one any more and the reader goes in ADR-0014 step 8; do not author a new one |
+
+The retired `mcp-servers.json` and `external-tools.json` are read by nothing (ADR-0014 step 8).
+A stack still shipping either one gets a scaffold note naming it and pointing at
+`stack-mcp.json`; its servers are not declared.
 
 Skill **extensions** use a directory-naming convention rather than a manifest field: a directory
 at `features/<stack>/skills/<base>-extensions/<ext>/` attaches `<ext>` to the skill named

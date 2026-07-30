@@ -1,11 +1,12 @@
 """MCP servers, one of the scaffold's collaborators.
 
-Collects the servers the catalog declares (plus the two legacy readers ADR-0014 step 8
-removes) and writes them into the two project config files ai-badger owns: `.mcp.json` and
-`.github/mcp.json`, the Copilot CLI's repo-committed config (#189). Every user-global
-destination is proposed and never written (ADR-0014 decision 6) — `~/.claude/settings.json`
-here, `~/.hermes/config.yaml` in the Hermes adjustment. A server named by `config.mcp.decline`
-is not declared at all, and is removed from either file if an earlier run wrote it (#186).
+Collects the servers the mcp catalog declares — `stack-mcp.json` and nothing else since
+ADR-0014 step 8 — and writes them into the two project config files ai-badger owns:
+`.mcp.json` and `.github/mcp.json`, the Copilot CLI's repo-committed config (#189). Every
+user-global destination is proposed and never written (ADR-0014 decision 6) —
+`~/.claude/settings.json` here, `~/.hermes/config.yaml` in the Hermes adjustment. A server
+named by `config.mcp.decline` is not declared at all, and is removed from either file if an
+earlier run wrote it (#186).
 """
 from __future__ import annotations
 
@@ -32,6 +33,11 @@ GENERATED_ENTRY_KEYS = frozenset({"command", "args", "cwd", "env", "tools"})
 
 # Written until 0.51.0 and read by no Copilot surface (#189); retired on the next scaffold.
 LEGACY_COPILOT_MCP_CONFIG = (".github", "copilot", "mcp-config.json")
+
+# The two per-stack declaration files ADR-0014 replaced with `stack-mcp.json`. No reader
+# consults them any more, so a stack that still ships one is named in a note: an overlay
+# whose servers silently stopped being declared is the failure this list exists to prevent.
+RETIRED_DECLARATION_FILES = ("mcp-servers.json", "external-tools.json")
 
 
 def only_generated_entries(data: Dict[str, Any]) -> bool:
@@ -109,40 +115,13 @@ class McpTools:
     def __init__(self, ctx: ScaffoldContext):
         self.ctx = ctx
 
-    # -- MCP stack declarations -------------------------------------------------------
-
-    def collect_stack_mcp_servers(self) -> List[Dict[str, Any]]:
-        """Read mcp-servers.json from features/common/ and each active stack.
-
-        Common first, then stacks in config order.  The last writer wins on name
-        conflict (later stack overrides earlier).
-        """
-        result = []  # type: List[Dict[str, Any]]
-        for stack in self.ctx.stacks:
-            mcp_path = self.ctx.root / "features" / stack / "mcp-servers.json"
-            if not mcp_path.exists():
-                continue
-            try:
-                data = _json.loads(mcp_path.read_text(encoding="utf-8"))
-            except (ValueError, OSError) as exc:
-                self.ctx.notes.append(
-                    f"features/{stack}/mcp-servers.json is unreadable "
-                    f"({type(exc).__name__}) — its entries were not scaffolded"
-                )
-                continue
-            for srv in data.get("servers", []):
-                # Last writer wins: remove any earlier entry with the same name
-                result = [s for s in result if s.get("name") != srv.get("name")]
-                result.append(srv)
-        return result
-
     # -- the mcp catalog ---------------------------------------------------------------
 
     def collect_catalog_mcp_servers(self) -> List[Dict[str, Any]]:
         """Read stack-mcp.json from features/common/ and each active stack.
 
-        Same merge as :meth:`collect_stack_mcp_servers` — common first, then stacks in config
-        order, last writer wins on name.
+        Common first, then stacks in config order, last writer wins on name (a later stack
+        overrides an earlier one).
         """
         result = []  # type: List[Dict[str, Any]]
         for stack in self.ctx.stacks:
@@ -199,65 +178,24 @@ class McpTools:
         self.ctx.mcp_described = described
         self.ctx.mcp_described_filled = True
 
-    def fill_instruction_sources(self) -> None:
-        """Fill both instruction caches the document slots read — catalog and legacy."""
-        self.fill_merged_external_tools()
-        self.fill_mcp_described()
+    def note_retired_declaration_files(self) -> None:
+        """Name a stack still shipping a :data:`RETIRED_DECLARATION_FILES` file, once per run.
 
-    def collect_external_tools(self) -> List[Dict[str, Any]]:
-        """Read external-tools.json from features/common/ and each active stack.
-
-        Common first, then stacks in config order.  The last writer wins on name
-        conflict (later stack overrides earlier).  Mirrors _collect_stack_mcp_servers.
+        Presence is the whole test: the file is never parsed, so a stale overlay hears that
+        its servers stopped being declared instead of discovering it from an empty `.mcp.json`.
         """
-        result = []  # type: List[Dict[str, Any]]
-        for stack in self.ctx.stacks:
-            tools_path = self.ctx.root / "features" / stack / "external-tools.json"
-            if not tools_path.exists():
-                continue
-            try:
-                data = _json.loads(tools_path.read_text(encoding="utf-8"))
-            except (ValueError, OSError) as exc:
-                self.ctx.notes.append(
-                    f"features/{stack}/external-tools.json is unreadable "
-                    f"({type(exc).__name__}) — its entries were not scaffolded"
-                )
-                continue
-            for tool in data.get("tools", []):
-                result = [t for t in result if t.get("name") != tool.get("name")]
-                result.append(tool)
-        return result
-
-    def fill_merged_external_tools(self) -> None:
-        """Fill ``ctx.merged_external_tools`` once, so template rendering can read it.
-
-        The cache lives on the context rather than on either collaborator: whoever renders
-        the legacy external-tools instructions must not have to know who collected them.
-        """
-        if self.ctx.external_tools_merged:
+        if self.ctx.mcp_retired_files_noted:
             return
-        self.ctx.merged_external_tools = self.collect_external_tools()
-        self.ctx.external_tools_merged = True
-
-    def merge_mcp_servers(
-        self,
-        stack_servers: List[Dict[str, Any]],
-        external_tools: List[Dict[str, Any]],
-    ) -> Dict[str, Dict[str, Any]]:
-        """Merge legacy ``mcp-servers.json`` entries with legacy ``external-tools.json`` ones.
-
-        Stack servers are added first; external tools with ``generate_mcp_json=True``
-        override on name conflict.  Returns a dict keyed by server name.
-        """
-        merged = {}  # type: Dict[str, Dict[str, Any]]
-        for srv in stack_servers:
-            merged[srv["name"]] = dict(srv)
-        for tool in external_tools:
-            if not tool.get("generate_mcp_json"):
-                continue
-            name = tool["name"]
-            merged[name] = dict(tool)
-        return merged
+        self.ctx.mcp_retired_files_noted = True
+        for stack in self.ctx.stacks:
+            for filename in RETIRED_DECLARATION_FILES:
+                if not (self.ctx.root / "features" / stack / filename).exists():
+                    continue
+                self.ctx.notes.append(
+                    f"features/{stack}/{filename} is no longer read (ADR-0014 step 8) — move "
+                    f"the servers it declared into features/{stack}/stack-mcp.json, where "
+                    f"'declare: true' is what writes a launch config now"
+                )
 
     def declined_servers(self) -> List[str]:
         """Server names ``config.mcp.decline`` refuses, in order, blanks dropped (#186)."""
@@ -267,23 +205,18 @@ class McpTools:
     def declared_servers(self) -> Dict[str, Dict[str, Any]]:
         """Every server whose launch config ai-badger writes, keyed by name.
 
-        Three readers in ascending precedence — legacy ``mcp-servers.json``, legacy
-        ``external-tools.json`` (``generate_mcp_json``), then ``stack-mcp.json`` (``declare``):
-        legacy loses on conflict (ADR-0014). Neither legacy file ships in this framework any
-        more (step 4); both readers stay one release for a stack that still has one.
+        One reader: ``stack-mcp.json``'s ``declare: true`` (ADR-0014 step 8 removed the two
+        legacy ones; :meth:`note_retired_declaration_files` reports what they left behind).
 
         A name in ``config.mcp.decline`` is dropped: declining a server ai-badger declared in
         the same run is a contradiction the generated files should not carry (#186).
         """
-        self.fill_merged_external_tools()
-        merged = self.merge_mcp_servers(self.collect_stack_mcp_servers(),
-                                        self.ctx.merged_external_tools)
-        for srv in self.collect_catalog_mcp_servers():
-            if srv.get("declare"):
-                merged[srv["name"]] = dict(srv)
+        self.note_retired_declaration_files()
+        declared = {srv["name"]: dict(srv) for srv in self.collect_catalog_mcp_servers()
+                    if srv.get("declare")}
         for name in self.declined_servers():
-            merged.pop(name, None)
-        return merged
+            declared.pop(name, None)
+        return declared
 
     def declarations_for_agent(self, agent: str) -> Dict[str, Dict[str, Any]]:
         """Declared servers resolved for *agent*'s own ``agentOverrides``, keyed by name.

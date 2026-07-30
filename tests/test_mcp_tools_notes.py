@@ -1,8 +1,9 @@
 """An unparseable catalog file must produce a note, never a silently smaller scaffold.
 
-`mcp-servers.json` and `external-tools.json` decide which MCP servers a project gets. A
-typo in either used to `continue` past the parse error with no note, no warning and a zero
-exit — the scaffold just quietly lacked servers (review F-24).
+`stack-mcp.json` decides which MCP servers a project gets. A typo in it used to `continue`
+past the parse error with no note, no warning and a zero exit — the scaffold just quietly
+lacked servers (review F-24). The two retired files this case was first written against are
+now reported on sight, without being parsed at all (ADR-0014 step 8).
 """
 from __future__ import annotations
 
@@ -22,29 +23,31 @@ def _mcp_tools(load_script, root, tmp_path, filename, body):
     return _load(load_script, root, "mcp_tools").McpTools(ctx), ctx
 
 
-def test_unparseable_mcp_servers_json_is_noted(tmp_path, load_script, root):
-    mcp, ctx = _mcp_tools(load_script, root, tmp_path, "mcp-servers.json", '{"servers": [')
+def test_unparseable_stack_mcp_json_is_noted(tmp_path, load_script, root):
+    mcp, ctx = _mcp_tools(load_script, root, tmp_path, "stack-mcp.json", '{"servers": [')
 
-    servers = mcp.collect_stack_mcp_servers()
+    servers = mcp.collect_catalog_mcp_servers()
 
     assert servers == []
-    assert any("mcp-servers.json" in note for note in ctx.notes)
+    assert any("stack-mcp.json" in note for note in ctx.notes)
 
 
-def test_unparseable_external_tools_json_is_noted(tmp_path, load_script, root):
-    mcp, ctx = _mcp_tools(load_script, root, tmp_path, "external-tools.json", "not json at all")
+def test_a_retired_external_tools_json_is_named_rather_than_parsed(tmp_path, load_script, root):
+    """Its reader is gone, so `not json at all` is reported for existing, not for parsing."""
+    mcp, ctx = _mcp_tools(load_script, root, tmp_path, "external-tools.json",
+                          "not json at all")
 
-    tools = mcp.collect_external_tools()
+    declared = mcp.declared_servers()
 
-    assert tools == []
+    assert declared == {}
     assert any("external-tools.json" in note for note in ctx.notes)
 
 
 def test_a_readable_file_produces_no_note(tmp_path, load_script, root):
-    mcp, ctx = _mcp_tools(load_script, root, tmp_path, "mcp-servers.json",
+    mcp, ctx = _mcp_tools(load_script, root, tmp_path, "stack-mcp.json",
                           json.dumps({"servers": [{"name": "one"}]}))
 
-    servers = mcp.collect_stack_mcp_servers()
+    servers = mcp.collect_catalog_mcp_servers()
 
     assert [s["name"] for s in servers] == ["one"]
     assert ctx.notes == []
