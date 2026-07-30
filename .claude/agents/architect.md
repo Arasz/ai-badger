@@ -14,6 +14,8 @@ description: >
 disallowedTools: Edit, MultiEdit, NotebookEdit
 ---
 
+<!-- Managed by ai-badger. Source of truth: .ai-badger/agents/architect.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
+
 # Architect
 
 ## Mandatory gates

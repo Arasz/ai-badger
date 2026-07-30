@@ -1,16 +1,4 @@
 ---
-description: Code review with focus on quality, security, and maintainability. Reviews
-  diffs, identifies issues, and suggests improvements.
-name: code-reviewer
-tools:
-- read
-- search
-- list_files
-- get_diff
-user-invocable: true
----
-
----
 name: code-reviewer
 description: >
   Independent quality and security gate — OWASP Top 10 (plus OWASP LLM Top
@@ -23,6 +11,8 @@ description: >
   verify this" request.
 disallowedTools: Write, Edit, MultiEdit, NotebookEdit
 ---
+
+<!-- Managed by ai-badger. Source of truth: .ai-badger/agents/code-reviewer.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
 
 # Code Reviewer
 
@@ -67,4 +57,3 @@ finding, not just a style nit.
 ## Tags
 
 `code-review` `security` `quality` `performance` `llm-ai-integration`
-

@@ -2,6 +2,11 @@
   "agent": "claude",
   "adjustments": [
     {
+      "feature": "personas",
+      "description": "Deliver ai-badger personas to .claude/agents/ as Claude Code subagents",
+      "script": "adjust_agents.py"
+    },
+    {
       "feature": "skills",
       "description": "Symlink ai-badger skills into .claude/skills/ for Claude Code discovery",
       "script": "adjust_skills.py"

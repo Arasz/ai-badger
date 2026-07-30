@@ -46,8 +46,9 @@ Windows-only hook commands have no path into a scaffolded repo.
 
 | ai-badger | Claude Code | Hermes Agent | GitHub Copilot | JetBrains Junie |
 |---|---|---|---|---|
-| **Persona** (`personas/*.md`) | Custom slash command / subagent persona | Skill or delegate_task `role` | `.github/agents/*.agent.md` (custom agents) | Inline in instructions |
-| **Persona routing** (`config.json`) | Task delegation model | `delegate_task` role routing | Custom agent invocation (`/agent-name`) | N/A |
+| **Persona** (`personas/*.md`) | `.claude/agents/*.md` (subagents) | Skill or delegate_task `role` | `.github/agents/*.agent.md` (custom agents) | Inline in instructions |
+| **Persona routing** (`config.json`) | Agent tool dispatch (`subagent_type`) | `delegate_task` role routing | Custom agent invocation (`/agent-name`) | N/A |
+| **Read-only persona** | `disallowedTools:` denylist (keeps Bash and MCP) | Role prompt | `tools:` list | N/A |
 
 ## Invariants
 
