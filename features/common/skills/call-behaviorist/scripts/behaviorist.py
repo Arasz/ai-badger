@@ -408,6 +408,47 @@ def _version_findings(component, ranges) -> list:
     return findings
 
 
+SKILLS_DIR_SEGMENT = "skills"
+
+
+def _skill_of(script: str) -> str:
+    """The skill a wired hook belongs to: the directory under `skills/` in its path, or empty.
+
+    Both deployment shapes spell it the same way — `.ai-badger/skills/<skill>/scripts/…` in a
+    project, `features/common/skills/<skill>/scripts/…` from a plugin root.
+    """
+    parts = script.split("/")
+    for index, part in enumerate(parts[:-2]):
+        if part == SKILLS_DIR_SEGMENT:
+            return parts[index + 1]
+    return ""
+
+
+def hook_activity(project) -> dict:
+    """What the log can say about this project's *skills*, for a reader deciding what to prune.
+
+    {"records": <records attributed to this project>,
+     "skills": {skill: {"hooks": [...], "instrumented": bool, "records": int}}} — hook-shipping
+    skills only. Records prove a skill is doing work here; silence proves nothing, since a
+    skill that wires no hook can never appear in the log at all.
+    """
+    wired = _wired_hooks(project)
+    records, _, _ = _for_project(_evidence(_read_records()), project)
+    observed = _observed(records)
+    skills: dict = {}
+    for script, path in sorted(wired.items()):
+        skill = _skill_of(script)
+        if not skill:
+            continue
+        entry = skills.setdefault(skill, {"hooks": [], "instrumented": False, "records": 0})
+        entry["hooks"].append(script)
+        entry["instrumented"] = entry["instrumented"] or is_instrumented(path)
+        key = _component_key(script, path)
+        entry["records"] += sum(seen["count"] for name, seen in observed.items()
+                                if _matches(key, name))
+    return {"records": len(records), "skills": skills}
+
+
 def analyze(project, expected=None) -> dict:
     """Compare what a project should do against what it was observed doing."""
     wired = _wired_hooks(project) if expected is None else {}
