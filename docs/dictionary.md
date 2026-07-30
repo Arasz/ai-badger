@@ -62,7 +62,7 @@ Windows-only hook commands have no path into a scaffolded repo.
 | **Scaffolding** (`scaffolding.json`) | Plugin install + file copies | Skill symlink + file copies | File copies to `.github/` | File copies to `.junie/` |
 | **Manifest** (`manifest.json`) | Plugin provenance | Same | Same | Same |
 | **Config** (`config.json`) | Project profile | Same | Same | Same |
-| **Adjustment** (`adjustments/`) | Skill discovery symlinks, retrieval module delivery | Agent-specific scaffold tweaks | Hooks, skills, agents, retrieval module delivery via adjustments | N/A |
+| **Adjustment** (`adjustments/`) | Skill discovery symlinks, retrieval module delivery, MCP server approval/denial in `.claude/settings.json` | Agent-specific scaffold tweaks | Hooks, skills, agents, retrieval module delivery via adjustments | N/A |
 
 ## Task Orchestration
 

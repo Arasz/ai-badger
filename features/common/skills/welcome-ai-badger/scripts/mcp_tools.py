@@ -1,8 +1,9 @@
 """MCP servers, one of the scaffold's collaborators.
 
 Collects the servers the catalog declares (plus the two legacy readers ADR-0014 step 8
-removes) and scaffolds them into agent-specific config files (.mcp.json,
-~/.hermes/config.yaml, ~/.claude/settings.json, .github/copilot/mcp-config.json).
+removes) and writes them into the project config files ai-badger owns (.mcp.json,
+.github/copilot/mcp-config.json). A user-global destination is proposed, never written
+(ADR-0014 decision 6): ~/.claude/settings.json already is, ~/.hermes/config.yaml at step 7.
 """
 from __future__ import annotations
 
@@ -70,7 +71,7 @@ COPILOT_MCP_CONFIG = McpDestination(
 CLAUDE_USER_SETTINGS = McpDestination(
     label="~/.claude/settings.json", owner="claude", requires_owner=True, pin_cwd=False,
     split_command=split_on_whitespace, expand_home=False,
-    consequence="claude user MCP servers not registered",
+    consequence="claude user MCP servers not proposed",
 )
 HERMES_USER_CONFIG = McpDestination(
     label="~/.hermes/config.yaml", owner="hermes", requires_owner=True, pin_cwd=False,
@@ -437,20 +438,23 @@ class McpTools:
             config_path, yaml.safe_dump(existing, default_flow_style=False)
         )
 
-    def scaffold_claude_mcp_user(
+    def propose_claude_mcp_user(
         self, user_servers: Dict[str, Dict[str, Any]]
     ) -> None:
-        """Write scope:user servers into ``~/.claude/settings.json`` mcpServers.
+        """Print the ``~/.claude/settings.json`` snippet for scope:user servers; never write it.
 
-        JSON merge-only.  Gated on ``"claude"`` in ``config.agents``.
+        ADR-0014 decision 6: ai-badger proposes user-global configuration and writes only the
+        project-scoped files it owns.  Gated on ``"claude"`` in ``config.agents``.
         """
         if not self._destination_applies(CLAUDE_USER_SETTINGS, user_servers):
             return
 
-        self._merge_mcp_servers_json(
-            Path.home() / ".claude" / "settings.json",
-            self._render_entries(user_servers, CLAUDE_USER_SETTINGS),
-            CLAUDE_USER_SETTINGS,
+        entries = self._render_entries(user_servers, CLAUDE_USER_SETTINGS)
+        self.ctx.notes.append(
+            f"{len(entries)} MCP server(s) are declared scope:user — ai-badger never writes "
+            f"user-global agent configuration (ADR-0014 decision 6). To register them, merge "
+            f"this into ~/.claude/settings.json yourself: "
+            f"{_json.dumps({'mcpServers': entries}, ensure_ascii=False, sort_keys=True)}"
         )
 
     def generate_copilot_mcp_config(

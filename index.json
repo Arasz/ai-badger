@@ -103,6 +103,10 @@
       ],
       "adjustments": [
         {
+          "name": "adjust_mcp",
+          "path": "features/claude/adjustments/adjust_mcp.py"
+        },
+        {
           "name": "adjust_retrieval",
           "path": "features/claude/adjustments/adjust_retrieval.py"
         },

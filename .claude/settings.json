@@ -80,5 +80,13 @@
         ]
       }
     ]
-  }
+  },
+  "permissions": {
+    "allow": [
+      "mcp__code-review-graph__*"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "code-review-graph"
+  ]
 }
