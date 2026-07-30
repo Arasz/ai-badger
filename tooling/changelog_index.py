@@ -48,7 +48,9 @@ HEADER = ("| Version | Entry |", "|---|---|")
 JOINER = " · "
 
 ENTRY_RE = re.compile(r"^(\d+\.\d+\.\d+)-[A-Za-z0-9._-]+\.md$")
-NOTE_RE = re.compile(r"<!--\s*index-note:\s*(.+?)\s*-->")
+# A note must be the whole line: an entry that documents the marker inside a code span (0.53.0's
+# does) is writing prose about the mechanism, not declaring a note.
+NOTE_RE = re.compile(r"^<!--\s*index-note:\s*(.+?)\s*-->\s*$", re.MULTILINE)
 
 
 class Entry(NamedTuple):

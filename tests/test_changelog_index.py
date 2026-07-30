@@ -122,6 +122,19 @@ def test_an_index_note_in_an_entry_is_appended_to_its_link(changelog_index, tmp_
                   "see [ADR-0003](../adr/0003.md)*")]
 
 
+def test_an_index_note_written_about_in_prose_is_not_a_declaration(changelog_index, tmp_path):
+    """Found by firing it in anger: 0.53.0's own entry documents the marker in a code span."""
+    root = _tree(tmp_path)
+    directory = root / "docs" / "changelog"
+    _entry(directory, "0.1.0-a-thing.md", "0.1.0 — a thing",
+           "- **`<!-- index-note: … -->`** — an optional line in an entry.\n")
+
+    changelog_index.main(["--root", str(root)])
+
+    assert _rows((directory / "README.md").read_text("utf-8")) == [
+        ("0.1.0", "[a thing](0.1.0-a-thing.md)")]
+
+
 def test_a_pipe_in_a_title_cannot_break_the_table(changelog_index, tmp_path):
     """An unescaped `|` would silently split the row into extra columns."""
     root = _tree(tmp_path)
