@@ -21,15 +21,16 @@ Pre-1.0, the minor slot is the breaking slot. The number tracks blast radius, no
 
 1. Edit `VERSION`.
 2. Add `docs/changelog/{version}-{slug}.md` describing what changed.
-3. `python3 tooling/version_sync.py` — propagates version to `plugin.json`, `marketplace.json`, and `index.json`.
-4. `python3 tooling/version_sync.py --check && python3 gates/release_guard.py` — both must pass.
-5. `python3 -m pytest tests/ -q` and `python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')`.
-6. Open a PR; CI runs the same gates.
-7. **This step is the release.** After merge, from `main`: `claude plugin tag --push` — creates
+3. `python3 tooling/changelog_index.py` — regenerates the release table in `docs/changelog/README.md` from the entry files. Never hand-edit that table (issue #160).
+4. `python3 tooling/version_sync.py` — propagates version to `plugin.json`, `marketplace.json`, and `index.json`.
+5. `python3 tooling/version_sync.py --check && python3 tooling/changelog_index.py --check && python3 gates/release_guard.py` — all three must pass.
+6. `python3 -m pytest tests/ -q` and `python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')`.
+7. Open a PR; CI runs the same gates.
+8. **This step is the release.** After merge, from `main`: `claude plugin tag --push` — creates
    `ai-badger--v{version}`. Until it runs, the version denotes no commit and `release_guard.py`
    still compares against the *previous* tag. Skipping it is invisible on a green PR; it was
    skipped 32 times.
-8. **Verify content, not just metadata** (fixes #27):
+9. **Verify content, not just metadata** (fixes #27):
 
 ### Verification (mandatory)
 

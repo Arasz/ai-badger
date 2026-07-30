@@ -95,7 +95,7 @@ lane_cmd() {
         index)         "$PY" tooling/index_build.py --check ;;
         plugin-skills) "$PY" tooling/sync_plugin_skills.py --check ;;
         deps)          "$PY" gates/deps_guard.py ;;
-        docs)          "$PY" gates/docs_guard.py ;;
+        docs)          lane_docs ;;
         release)       "$PY" gates/release_guard.py ;;
         paths)         "$PY" gates/shipped_paths_guard.py ;;
         validate)      "$PY" tooling/validate.py --all ;;
@@ -106,6 +106,16 @@ lane_cmd() {
         mutation)      lane_mutation ;;
         *)             printf 'unknown lane: %s\n' "$1" >&2; return 2 ;;
     esac
+}
+
+# Two checks, one concern: the docs must describe the tree they ship with. docs_guard answers
+# "does every reference resolve", changelog_index --check answers "is the generated release table
+# still the one the entry files imply" (issue #160). Both run; the lane fails if either does.
+lane_docs() {
+    local rc=0
+    "$PY" gates/docs_guard.py || rc=1
+    "$PY" tooling/changelog_index.py --check || rc=1
+    return "$rc"
 }
 
 # Mirrors CI: non-test Python only, 10.00 required. An empty file list means the index is
