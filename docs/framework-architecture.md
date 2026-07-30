@@ -175,14 +175,14 @@ for the genuinely creative decisions.
   `manifest.json`.
 
   Internally it is one `Scaffolder` holding a `ScaffoldContext` — a dataclass carrying root,
-  target, config, index, stacks, skills, exclusions and notes — plus six collaborators
+  target, config, index, stacks, skills, exclusions and notes — plus seven collaborators
   (`McpTools`, `Extensions`, `HookWiring`, `AgentFiles`, `TemplateRendering`,
-  `StatusLineWiring`), five of them constructible from a context alone. Shared state lives on the
-  context, never on a sibling: `McpTools` fills `ctx.merged_external_tools` and
-  `TemplateRendering` reads it, and manifest bookkeeping goes through `ctx.record_template`.
-  The one collaborator-to-collaborator dependency is an explicit constructor argument —
-  `AgentFiles(ctx, template_rendering)` — because a real dependency should be visible rather
-  than reachable through `self`.
+  `StatusLineWiring`, `SkillDelivery`), five of them constructible from a context alone. Shared
+  state lives on the context, never on a sibling: `McpTools` fills `ctx.mcp_described` and
+  `TemplateRendering` reads it, and manifest bookkeeping goes through `ctx.record_template` and
+  `ctx.record`. The two collaborator-to-collaborator dependencies are explicit constructor
+  arguments — `AgentFiles(ctx, template_rendering)` and `SkillDelivery(ctx, extensions)` —
+  because a real dependency should be visible rather than reachable through `self`.
 - `detect_additions.py` (feed) — diff `.ai-badger/manifest.json` against the current project
   `.ai-badger/` tree → candidate additions.
 - `open_pr.py` (feed) — branch/commit/`gh pr create --draft` against `ai-badger`.
