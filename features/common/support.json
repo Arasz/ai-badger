@@ -120,9 +120,9 @@
         },
         "mcpServers": {
           "supported": true,
-          "mechanism": ".mcp.json (project-scoped) + ~/.hermes/config.yaml (user-scoped)",
-          "aiBadgerSupport": true,
-          "scaffoldedBy": "scaffold.py _generate_mcp_json() + _scaffold_hermes_mcp_user()"
+          "mechanism": "~/.hermes/config.yaml mcp_servers (user-global; no project route), with per-server tools include/exclude globs applied at registration",
+          "aiBadgerSupport": false,
+          "scaffoldedBy": "nothing is scaffolded: hermes/adjustments/adjust_mcp.py prints the mcp_servers snippet for the operator to merge (ADR-0014 decision 6)"
         },
         "cacheAwareDispatch": {
           "supported": true,
@@ -203,9 +203,9 @@
         },
         "mcpServers": {
           "supported": true,
-          "mechanism": ".github/copilot/mcp-config.json",
+          "mechanism": "CLI: .github/mcp.json (repo-committed) or ~/.copilot/mcp-config.json (user-global), each server carrying a tools allowlist. Coding agent: repository settings UI only",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "scaffold.py _generate_copilot_mcp_config()"
+          "scaffoldedBy": "mcp_tools.generate_copilot_mcp_json() writes .github/mcp.json; copilot/adjustments/adjust_mcp.py proposes the coding agent's snippet"
         },
         "cacheAwareDispatch": {
           "supported": false,

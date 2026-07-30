@@ -20,6 +20,11 @@
       "feature": "retrieval",
       "description": "Copy the BM25 retrieval modules beside the mcp-index skill's context-enrichment hook",
       "script": "adjust_retrieval.py"
+    },
+    {
+      "feature": "mcp",
+      "description": "Propose the Copilot coding agent's MCP configuration — the repository settings UI is the only surface that reads it",
+      "script": "adjust_mcp.py"
     }
   ]
 }

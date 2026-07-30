@@ -1,9 +1,11 @@
 """MCP servers, one of the scaffold's collaborators.
 
 Collects the servers the catalog declares (plus the two legacy readers ADR-0014 step 8
-removes) and writes them into the project config files ai-badger owns (.mcp.json,
-.github/copilot/mcp-config.json). A user-global destination is proposed, never written
-(ADR-0014 decision 6): ~/.claude/settings.json already is, ~/.hermes/config.yaml at step 7.
+removes) and writes them into the two project config files ai-badger owns: `.mcp.json` and
+`.github/mcp.json`, the Copilot CLI's repo-committed config (#189). Every user-global
+destination is proposed and never written (ADR-0014 decision 6) — `~/.claude/settings.json`
+here, `~/.hermes/config.yaml` in the Hermes adjustment. A server named by `config.mcp.decline`
+is not declared at all, and is removed from either file if an earlier run wrote it (#186).
 """
 from __future__ import annotations
 
@@ -11,7 +13,7 @@ import json as _json
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 import config_guard as cg
 from scaffold_context import ScaffoldContext
@@ -23,6 +25,29 @@ USER_TOOL_DIRS = (
     (Path.home() / ".dotnet" / "tools", "${HOME}/.dotnet/tools"),
     (Path.home() / ".local" / "bin", "${HOME}/.local/bin"),
 )
+
+# The keys the renderer below emits into an MCP entry, and the authorship test for a file
+# ai-badger is about to retire: anything else in it came from a hand (:func:`only_generated_entries`).
+GENERATED_ENTRY_KEYS = frozenset({"command", "args", "cwd", "env", "tools"})
+
+# Written until 0.51.0 and read by no Copilot surface (#189); retired on the next scaffold.
+LEGACY_COPILOT_MCP_CONFIG = (".github", "copilot", "mcp-config.json")
+
+
+def only_generated_entries(data: Dict[str, Any]) -> bool:
+    """Whether *data* is exactly the shape this module's writer produces, and nothing more.
+
+    The test behind retiring a generated config file: a top level of `mcpServers` alone, and
+    entries carrying only :data:`GENERATED_ENTRY_KEYS`. A `type`, `url` or `inputs` key is
+    valid Copilot configuration that ai-badger has never written, so the file is someone's own.
+    """
+    if set(data) - {"mcpServers"}:
+        return False
+    section = data.get("mcpServers", {})
+    if not isinstance(section, dict):
+        return False
+    return all(isinstance(entry, dict) and not set(entry) - GENERATED_ENTRY_KEYS
+               for entry in section.values())
 
 
 def split_on_whitespace(command: str) -> Tuple[str, List[str]]:
@@ -51,6 +76,7 @@ class McpDestination(NamedTuple):
     pin_cwd: bool
     split_command: Callable[[str], Tuple[str, List[str]]]
     expand_home: bool  # rewrite a user-tool-dir command to ``${HOME}`` form
+    all_tools: bool  # carry the per-server ``tools`` allowlist — Copilot's schema alone has one
     consequence: str  # what a refusal to write costs, for the note
 
 
@@ -60,23 +86,20 @@ class McpDestination(NamedTuple):
 # docs/changelog/0.28.0-mcp-user-tool-paths.md.
 MCP_JSON = McpDestination(
     label=".mcp.json", owner="claude", requires_owner=False, pin_cwd=True,
-    split_command=split_package_args, expand_home=True,
+    split_command=split_package_args, expand_home=True, all_tools=False,
     consequence=".mcp.json not updated",
 )
-COPILOT_MCP_CONFIG = McpDestination(
-    label=".github/copilot/mcp-config.json", owner="copilot", requires_owner=True, pin_cwd=False,
-    split_command=split_on_whitespace, expand_home=False,
+# The Copilot CLI's repo-committed config, and the only schema here with a per-server ``tools``
+# array: ``["*"]`` is every tool, and pruning happens at registration (#189).
+COPILOT_MCP_JSON = McpDestination(
+    label=".github/mcp.json", owner="copilot", requires_owner=True, pin_cwd=False,
+    split_command=split_on_whitespace, expand_home=False, all_tools=True,
     consequence="copilot MCP config not updated",
 )
 CLAUDE_USER_SETTINGS = McpDestination(
     label="~/.claude/settings.json", owner="claude", requires_owner=True, pin_cwd=False,
-    split_command=split_on_whitespace, expand_home=False,
+    split_command=split_on_whitespace, expand_home=False, all_tools=False,
     consequence="claude user MCP servers not proposed",
-)
-HERMES_USER_CONFIG = McpDestination(
-    label="~/.hermes/config.yaml", owner="hermes", requires_owner=True, pin_cwd=False,
-    split_command=split_on_whitespace, expand_home=False,
-    consequence="hermes user MCP servers not registered",
 )
 
 
@@ -236,6 +259,11 @@ class McpTools:
             merged[name] = dict(tool)
         return merged
 
+    def declined_servers(self) -> List[str]:
+        """Server names ``config.mcp.decline`` refuses, in order, blanks dropped (#186)."""
+        mcp = self.ctx.config.get("mcp") or {}
+        return [name for name in (mcp.get("decline") or []) if name]
+
     def declared_servers(self) -> Dict[str, Dict[str, Any]]:
         """Every server whose launch config ai-badger writes, keyed by name.
 
@@ -243,6 +271,9 @@ class McpTools:
         ``external-tools.json`` (``generate_mcp_json``), then ``stack-mcp.json`` (``declare``):
         legacy loses on conflict (ADR-0014). Neither legacy file ships in this framework any
         more (step 4); both readers stay one release for a stack that still has one.
+
+        A name in ``config.mcp.decline`` is dropped: declining a server ai-badger declared in
+        the same run is a contradiction the generated files should not carry (#186).
         """
         self.fill_merged_external_tools()
         merged = self.merge_mcp_servers(self.collect_stack_mcp_servers(),
@@ -250,7 +281,19 @@ class McpTools:
         for srv in self.collect_catalog_mcp_servers():
             if srv.get("declare"):
                 merged[srv["name"]] = dict(srv)
+        for name in self.declined_servers():
+            merged.pop(name, None)
         return merged
+
+    def declarations_for_agent(self, agent: str) -> Dict[str, Dict[str, Any]]:
+        """Declared servers resolved for *agent*'s own ``agentOverrides``, keyed by name.
+
+        What an adjustment is handed: it is loaded by path and cannot resolve
+        ``stack-mcp.json`` itself. Scope does not filter — the two hosts that only ever
+        receive a *proposal* have no project route for scope to select between.
+        """
+        return {name: self._resolve_server_for_agent(srv, agent)
+                for name, srv in self.declared_servers().items()}
 
     def split_servers_by_scope(
         self, servers: Dict[str, Dict[str, Any]]
@@ -269,10 +312,15 @@ class McpTools:
         return project, user
 
     def _destination_applies(
-        self, dest: McpDestination, servers: Dict[str, Dict[str, Any]]
+        self, dest: McpDestination, servers: Dict[str, Dict[str, Any]],
+        declined: Sequence[str] = (),
     ) -> bool:
-        """Whether *dest* is written at all: it needs servers, and may need its owner configured."""
-        if not servers:
+        """Whether *dest* is touched at all: it needs something to say, and may need its owner.
+
+        A run with nothing left to declare still has something to say when a server was
+        declined — the entry an earlier run wrote has to come back out (#186).
+        """
+        if not servers and not declined:
             return False
         return not dest.requires_owner or dest.owner in self.ctx.config.get("agents", [])
 
@@ -336,6 +384,8 @@ class McpTools:
             entry["cwd"] = str(self.ctx.target)
         if "env" in srv:
             entry["env"] = srv["env"]
+        if dest.all_tools:
+            entry["tools"] = ["*"]
         return entry
 
     def _home_relative_command(self, name: str, command: str) -> str:
@@ -389,11 +439,16 @@ class McpTools:
         path: Path,
         entries: Dict[str, Dict[str, Any]],
         dest: McpDestination,
+        declined: Sequence[str] = (),
     ) -> bool:
         """Merge rendered *entries* into the ``mcpServers`` object of the JSON file at *path*.
 
-        Returns False without writing when the existing file is not a readable mapping.
+        *declined* names come back out of the section, so a decline reaches a file an earlier
+        run already wrote.  Returns False without writing when the existing file is not a
+        readable mapping, or when there is neither an entry to add nor a file to clean.
         """
+        if not entries and not path.exists():
+            return False
         existing, note = cg.read_json_mapping(path)
         section = cg.mapping_section(existing, "mcpServers") if existing is not None else None
         if section is None:
@@ -403,40 +458,21 @@ class McpTools:
         if dest.pin_cwd:
             self._carry_live_cwd(section, entries)
         section.update(entries)
+        self._drop_declined(section, declined, dest)
         cg.write_json_with_backup(path, existing)
         return True
 
-    def scaffold_hermes_mcp_user(
-        self, user_servers: Dict[str, Dict[str, Any]]
+    def _drop_declined(
+        self, section: Dict[str, Any], declined: Sequence[str], dest: McpDestination
     ) -> None:
-        """Write scope:user servers into ``~/.hermes/config.yaml`` mcp.servers.
-
-        Merge-only (never overwrites existing entries).  Gated on ``"hermes"``
-        being present in ``config.agents``.
-        """
-        if not self._destination_applies(HERMES_USER_CONFIG, user_servers):
-            return
-        try:
-            import yaml  # type: ignore
-        except ImportError:
-            self.ctx.notes.append("yaml not available — skipping hermes user MCP config")
-            return
-
-        config_path = Path.home() / ".hermes" / "config.yaml"
-        existing, note = cg.read_mergeable_mapping(
-            config_path, yaml.safe_load, (yaml.YAMLError, ValueError)
-        )
-        section = cg.mapping_section(existing, "mcp", "servers") if existing is not None else None
-        if section is None:
-            note = note or cg.refusal(config_path, "mcp.servers is not a mapping")
-            self.ctx.notes.append(f"{note} ({HERMES_USER_CONFIG.consequence})")
-            return
-
-        section.update(self._render_entries(user_servers, HERMES_USER_CONFIG))
-
-        cg.write_with_backup(
-            config_path, yaml.safe_dump(existing, default_flow_style=False)
-        )
+        """Remove every declined server from *section*, reporting what left (#186)."""
+        removed = [name for name in declined if name in section]
+        for name in removed:
+            section.pop(name)
+        if removed:
+            self.ctx.notes.append(
+                f"{dest.label}: removed declined MCP server(s) {', '.join(removed)} — "
+                f"config.mcp.decline names them")
 
     def propose_claude_mcp_user(
         self, user_servers: Dict[str, Dict[str, Any]]
@@ -457,21 +493,47 @@ class McpTools:
             f"{_json.dumps({'mcpServers': entries}, ensure_ascii=False, sort_keys=True)}"
         )
 
-    def generate_copilot_mcp_config(
+    def generate_copilot_mcp_json(
         self, servers: Dict[str, Dict[str, Any]]
     ) -> None:
-        """Generate ``.github/copilot/mcp-config.json``.
+        """Generate ``.github/mcp.json`` — the config the Copilot CLI actually reads (#189).
 
-        Merge-only.  Gated on ``"copilot"`` in ``config.agents``.
+        Merge-only, plus the per-server ``tools`` allowlist.  Gated on ``"copilot"`` in
+        ``config.agents``; the dead path it replaces is retired either way.
         """
-        if not self._destination_applies(COPILOT_MCP_CONFIG, servers):
+        self._retire_copilot_mcp_config()
+        declined = self.declined_servers()
+        wanted = {name: srv for name, srv in servers.items() if name not in declined}
+        if not self._destination_applies(COPILOT_MCP_JSON, wanted, declined):
             return
 
         self._merge_mcp_servers_json(
-            self.ctx.target / ".github" / "copilot" / "mcp-config.json",
-            self._render_entries(servers, COPILOT_MCP_CONFIG),
-            COPILOT_MCP_CONFIG,
+            self.ctx.target / ".github" / "mcp.json",
+            self._render_entries(wanted, COPILOT_MCP_JSON),
+            COPILOT_MCP_JSON,
+            declined,
         )
+
+    def _retire_copilot_mcp_config(self) -> None:
+        """Retire ``.github/copilot/mcp-config.json`` — no Copilot surface reads it (#189).
+
+        Removed with a backup when it is the shape ai-badger's own writer produced; anything
+        else is someone's own file and is reported, never deleted.
+        """
+        path = self.ctx.target.joinpath(*LEGACY_COPILOT_MCP_CONFIG)
+        if not path.exists():
+            return
+        data, refusal = cg.read_json_mapping(path)
+        if data is None or not only_generated_entries(data):
+            self.ctx.notes.append(
+                f"{path} is read by no Copilot surface (issue #189), and was not written by "
+                f"ai-badger ({refusal or 'it carries keys ai-badger never writes'}) — left in "
+                f"place; move anything you need into .github/mcp.json and delete it yourself")
+            return
+        backup = cg.remove_with_backup(path)
+        self.ctx.notes.append(
+            f"removed {path} — no Copilot surface reads it (issue #189); the servers it "
+            f"declared are in .github/mcp.json now, and a copy is at {backup.name}")
 
     # -- orchestrate ----------------------------------------------------------------
 
@@ -482,13 +544,14 @@ class McpTools:
         directory is emitted ``${HOME}``-relative.  Only project-scoped servers are written.
         """
         project_servers, _ = self.split_servers_by_scope(self.declared_servers())
+        declined = self.declined_servers()
 
-        if not self._destination_applies(MCP_JSON, project_servers):
+        if not self._destination_applies(MCP_JSON, project_servers, declined):
             return
 
         mcp_servers = self._render_entries(project_servers, MCP_JSON)
         written = self._merge_mcp_servers_json(
-            self.ctx.target / ".mcp.json", mcp_servers, MCP_JSON
+            self.ctx.target / ".mcp.json", mcp_servers, MCP_JSON, declined
         )
         if written:
             self.ctx.notes.append(
