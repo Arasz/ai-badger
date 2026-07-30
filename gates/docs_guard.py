@@ -10,6 +10,12 @@ offline and without a toolchain — no prose linter, no markdown linter, no netw
   3. Every `docs/changelog/*.md` is reachable from that directory's README index, and VERSION
      has an entry.
 
+Check 3's first half now overlaps `tooling/changelog_index.py --check` on purpose, and is the
+weaker of the two: since issue #160 the index table is generated, so a missing row cannot
+survive that check. It is kept because this gate is pointed at trees the generator is not (a
+`--root` with no marked region still gets check 3), and because the VERSION half has no other
+owner. If the two ever disagree, the generator is right.
+
 Check 2 is deliberately timid: a noisy gate gets disabled, so a span is only considered a repo
 path when it has no whitespace, no glob or placeholder character, a known file extension, and a
 first segment naming this framework's own tracked surface (CHECKED_ROOTS). `.ai-badger/…` is
