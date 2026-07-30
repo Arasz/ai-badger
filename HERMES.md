@@ -6,7 +6,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scr
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.51.1. Source of truth for this file: `.ai-badger/HERMES.md`.
+> Scaffolded by ai-badger 0.51.2. Source of truth for this file: `.ai-badger/HERMES.md`.
 
 ## Non-negotiable invariants
 
@@ -65,7 +65,7 @@ This ensures every change is traceable and users can see what changed between ve
 ## Commands
 
 - `test`: `python3 -m pytest -q`
-- `lint`: `python3 -m pylint engine tooling features gates`
+- `lint`: `python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')`
 - `build`: `python3 tooling/index_build.py --check`
 
 ## Path-specific instructions

@@ -114,7 +114,10 @@ python3 -m pytest -q                 # runs tests/ (configured via pyproject tes
 python3 -m pytest tests/test_scaffold_no_test_leak.py -q   # a single test
 ```
 
-Lint (CI runs this on Python 3.8/3.9/3.10, tests excluded — they keep their own conventions):
+Lint (CI runs this on Python 3.8/3.9/3.10, tests excluded — they keep their own conventions).
+The file selection below is the *only* one: CI, the lefthook `pylint` lane and the `lint` command
+in [`CLAUDE.md`](../CLAUDE.md) all share it, so a green local run means a green build. Naming
+directories instead would silently skip the `.ai-badger/` and `skills/` mirror trees (issue #183).
 
 ```bash
 python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')
