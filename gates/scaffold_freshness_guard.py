@@ -14,10 +14,10 @@ Stamp churn is exempt because it is not staleness: `frameworkVersion`, `framewor
 `frameworkDirty`, `generatedAt` and `configHash` in JSON, and the `Scaffolded by ai-badger
 <version>` line in the agent-discovery markdown. A version bump alone must not fail this.
 
-Each finding is classified, resolving the ambiguity drift.py cannot (issue #206): the
-manifest records what the last scaffold wrote, so a target still matching that record means
-the framework source moved ahead (stale), and a target that no longer matches it was edited
-in place here.
+Each finding is classified, resolving the ambiguity drift.py cannot (issue #206): a source
+that no longer hashes to what the manifest recorded means the framework moved ahead of the
+mirror (stale), and one that still matches it would re-scaffold to what the last run wrote,
+so the difference was made in the target here (hand-edited).
 
 Usage: scaffold_freshness_guard.py [--root <dir>]
 """
@@ -254,13 +254,13 @@ def collect(root: Path) -> Tuple[List[Finding], int]:
         copy_into(root, present, work)
         rescaffold(work)
         after = files_under(work)
-        findings = compare(root, work, manifest, before, after)
+        findings = differences(root, work, manifest, before, after)
     finally:
         shutil.rmtree(holder, ignore_errors=True)
     return findings, len(set(before) | set(after))
 
 
-def compare(root: Path, work: Path, manifest: Dict[str, Any],
+def differences(root: Path, work: Path, manifest: Dict[str, Any],
             before: Sequence[str], after: Sequence[str]) -> List[Finding]:
     """Diff the tree against its re-scaffolded copy, path by path."""
     kept, produced = set(before), set(after)
