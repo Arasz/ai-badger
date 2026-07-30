@@ -43,7 +43,7 @@
         "name": {
           "type": "string",
           "minLength": 1,
-          "description": "MCP server name as it appears in hermes mcp list."
+          "description": "MCP server name as the host CLI that listed it prints it (`hermes mcp list`, `claude mcp list`)."
         },
         "url": {
           "type": "string",
@@ -55,9 +55,12 @@
             "disabled",
             "empty",
             "unknown",
-            "absent"
+            "absent",
+            "unreachable",
+            "unauthenticated",
+            "pending_approval"
           ],
-          "description": "What the host's last listing said about this server: 'ok' (tools reported), 'disabled' (the host says it is switched off), 'empty' (enabled, asked, exposed nothing), 'unknown' (the listing carried no tool detail — the `hermes mcp list` text table), 'absent' (the host no longer lists it; its tools are marked removed). Each has a different remedy, which is why a zero-tool server is recorded rather than dropped (ADR-0014 decision 7)."
+          "description": "What the host's last listing said about this server: 'ok' (tools reported), 'disabled' (the host says it is switched off), 'empty' (enabled, asked, exposed nothing), 'unknown' (the listing carried no tool detail — the `hermes mcp list` text table, or a `claude mcp list` server that is merely Connected), 'absent' (the host no longer lists it; its tools are marked removed), 'unreachable' / 'unauthenticated' / 'pending_approval' (`claude mcp list` reports these distinctly: Failed to connect, Needs authentication, Pending approval). Each has a different remedy, which is why a zero-tool server is recorded rather than dropped (ADR-0014 decision 7). The enum is additive: a status is added only once some host CLI is observed reporting it."
         },
         "tools": {
           "type": "object",
