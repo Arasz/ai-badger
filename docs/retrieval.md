@@ -414,9 +414,14 @@ So every terminal state writes a record under the `ai_badger_hooks/mcp_retrieval
 | `absent` | There is no index to search | Reading "no index" as "no match" |
 | `legacy` | There *is* an index, in the pre-0.48.0 YAML format this path no longer reads | Reading "not migrated yet" as "never had one" |
 
-Two more events, `known` and `unknown`, share the same component name: they come from a separate
-after-the-fact check of whether a tool the agent actually called was one the index knew about.
-Worth knowing before you tail the log and wonder where the extra names came from.
+Three more events — `known`, `unknown` and `server_unindexed` — share the same component name:
+they come from a separate after-the-fact check of whether a tool the agent actually called was one
+the index knew about. Worth knowing before you tail the log and wonder where the extra names came
+from. `server_unindexed` (0.51.1, issue #170) is the newest application of the rule above: that
+check emitted only from inside its match loop, so a call to a server no source names — the
+strongest "the index is stale" signal there is — fell off the end of the loop and recorded
+nothing, indistinguishable from the hook not running. An unknown tool on an indexed server wants
+`mcp-index update`; an unindexed server wants indexing. Different remedies, so different events.
 
 `legacy` is the newest of these and arrived the way the others did — from someone noticing a
 silence with two meanings. Moving the index from YAML to JSON in 0.48.0 made the reader
