@@ -20,7 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.53.0 | [one declaration per server, per host](0.53.0-one-declaration-per-server-per-host.md) · [the index row stops being hand-written](0.53.0-the-index-row-stops-being-hand-written.md) · [the skills nobody here uses](0.53.0-the-skills-nobody-here-uses.md) |
+| 0.53.0 | [one declaration per server, per host](0.53.0-one-declaration-per-server-per-host.md) · [one frontmatter block, and the configured stacks' personas](0.53.0-one-frontmatter-block-and-the-configured-personas.md) · [the index row stops being hand-written](0.53.0-the-index-row-stops-being-hand-written.md) · [the skills nobody here uses](0.53.0-the-skills-nobody-here-uses.md) |
 | 0.52.1 | [curation reaches the name the host chose](0.52.1-curation-reaches-the-name-the-host-chose.md) |
 | 0.52.0 | [discovery comes back, from the host that still answers](0.52.0-discovery-comes-back-from-the-host-that-answers.md) · [the manifest records what it does not own](0.52.0-the-manifest-records-what-it-does-not-own.md) |
 | 0.51.2 | [one lint behaviour, not two](0.51.2-one-lint-behaviour.md) · [the skill that could not import on the floor](0.51.2-the-skill-that-could-not-import-on-the-floor.md) · [the skills tree gets its own collaborator](0.51.2-the-skills-tree-gets-its-own-collaborator.md) |

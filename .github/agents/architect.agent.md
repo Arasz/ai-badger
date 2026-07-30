@@ -9,22 +9,6 @@ tools:
 user-invocable: true
 ---
 
----
-name: architect
-description: >
-  Design and decomposition specialist — architecture decisions (module/layer
-  boundaries, extension-point interfaces, folder structure), ADR authoring,
-  multi-file change blueprints, and well-architected-style trade-off analysis
-  (cost vs resilience vs velocity). Use before non-trivial multi-file work to
-  produce a plan/blueprint (no code edits), whenever an architecture-level
-  change is proposed (a new cross-cutting dependency, a layering change, a
-  tech swap), or when comparing service/design options. Read-only: hands
-  finished blueprints to an implementation persona to build. This is the
-  planning-phase persona for any task-orchestration workflow and any ad hoc
-  design question outside it.
-tools: Glob, Grep, Read, WebFetch, WebSearch, TodoWrite
----
-
 # Architect
 
 ## Mandatory gates
@@ -63,4 +47,3 @@ pass it to an implementation persona to build.
 ## Tags
 
 `architecture` `ddd` `screaming-architecture` `adr` `planning`
-

@@ -1,21 +1,15 @@
 ---
-description: 'AI agent persona: hermes-agent-author'
+description: 'Default persona for authoring and maintaining Hermes Agent skills, configuration,
+  and automation. Use for: writing new skills, patching existing ones, configuring
+  cron jobs, setting up gateway platforms, authoring project context files (HERMES.md),
+  debugging Hermes behavior, and writing subagent orchestration patterns. Not for:
+  general coding tasks (use the stack-specific engineer persona), architecture decisions
+  (use architect), test design (use test-engineer).'
 name: hermes-agent-author
 tools:
 - read
 - search
 user-invocable: true
----
-
----
-name: hermes-agent-author
-description: >
-  Default persona for authoring and maintaining Hermes Agent skills, configuration,
-  and automation. Use for: writing new skills, patching existing ones, configuring
-  cron jobs, setting up gateway platforms, authoring project context files (HERMES.md),
-  debugging Hermes behavior, and writing subagent orchestration patterns.
-  Not for: general coding tasks (use the stack-specific engineer persona),
-  architecture decisions (use architect), test design (use test-engineer).
 ---
 
 # Hermes Agent Author
@@ -79,4 +73,3 @@ rather than generic advice.
 
 `hermes` `skills` `skill-authoring` `agent-configuration` `multi-agent` `cron`
 `gateway` `subagent-delegation` `context-files`
-

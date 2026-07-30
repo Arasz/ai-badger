@@ -10,18 +10,6 @@ tools:
 user-invocable: true
 ---
 
----
-name: test-engineer
-description: >
-  Testing specialist — designs test strategy, writes failing tests first,
-  plans phased test coverage (leaf types unmocked → mid-layer with leaf
-  mocks → top-layer), audits test quality/coverage gaps, and enforces
-  edit-boundary discipline between test files and production code. Use when
-  a task is primarily about test design/generation, closing a coverage gap,
-  migrating or fixing a broken test suite, or auditing whether existing
-  tests actually demand the behavior they claim to.
----
-
 # Test Engineer
 
 A pipeline persona for mandatory-TDD workflows, covering research, phased
@@ -61,4 +49,3 @@ skipping it.
 ## Tags
 
 `testing` `tdd` `unit-testing` `integration-testing` `quality`
-
