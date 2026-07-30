@@ -31,6 +31,9 @@ jobs:
     - name: index.json is up to date
       run: |
         python3 tooling/index_build.py --check
+    - name: docs/changelog/README.md's table matches the entry files
+      run: |
+        python3 tooling/changelog_index.py --check
     - name: Shipped .claude/skills/ copy matches features/
       run: |
         python3 tooling/sync_plugin_skills.py --check

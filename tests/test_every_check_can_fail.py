@@ -347,6 +347,21 @@ def _sync_plugin_skills_check(work: Path, provoked: bool) -> Outcome:
     return _run([str(root / "tooling" / "sync_plugin_skills.py"), "--check"])
 
 
+def _changelog_index_check(work: Path, provoked: bool) -> Outcome:
+    """A changelog entry added after the index table in the README was generated (issue #160)."""
+    root = work / "tree"
+    directory = root / "docs" / "changelog"
+    _write(directory / "README.md",
+           "# Changelog\n\n<!-- changelog-index:start -->\n<!-- changelog-index:end -->\n")
+    _write(directory / "0.1.0-first.md", "# 0.1.0 — first\n")
+    built = _run([str(ROOT / "tooling" / "changelog_index.py"), "--root", str(root)])
+    assert built.exit_code == 0, f"fixture setup failed:\n{built.output}"
+
+    if provoked:
+        _write(directory / "0.1.0-second.md", "# 0.1.0 — second\n")
+    return _run([str(ROOT / "tooling" / "changelog_index.py"), "--root", str(root), "--check"])
+
+
 # ------------------------------------------------------- call-behaviorist analyze findings
 
 
@@ -510,6 +525,8 @@ REGISTRY: Tuple[Provocation, ...] = (
                 _version_sync_check, Signal(exit_code=1, contains="disagree with VERSION")),
     Provocation("tooling/sync_plugin_skills.py --check", "a shipped skill copy that diverged",
                 _sync_plugin_skills_check, Signal(exit_code=1, contains="diverged")),
+    Provocation("tooling/changelog_index.py --check", "an entry added after the index was built",
+                _changelog_index_check, Signal(exit_code=1, contains="stale")),
     Provocation(_behaviorist("not_instrumented"), "a wired hook that calls no logger",
                 _not_instrumented, _finding("not_instrumented", "low")),
     Provocation(_behaviorist("never_observed"), "an instrumented hook that never logged",

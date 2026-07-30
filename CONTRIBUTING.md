@@ -192,9 +192,11 @@ Run the release guard. It compares the shipped surface (`features/`, `engine/`, 
   2. Add `docs/changelog/{version}-{slug}.md` describing what changed. **One file per version —
      this repo does not keep a single root `CHANGELOG.md`.** See
      [`docs/changelog/README.md`](docs/changelog/README.md).
-  3. Add the version to [`BREAKING_VERSIONS`](BREAKING_VERSIONS) if a re-scaffold is *required*,
+  3. `.venv/bin/python3 tooling/changelog_index.py` — regenerates that README's table from the
+     entry files. The table is generated; hand-editing it is what issue #160 removed.
+  4. Add the version to [`BREAKING_VERSIONS`](BREAKING_VERSIONS) if a re-scaffold is *required*,
      not merely recommended.
-  4. `.venv/bin/python3 tooling/version_sync.py` — propagates the version into `plugin.json`,
+  5. `.venv/bin/python3 tooling/version_sync.py` — propagates the version into `plugin.json`,
      `marketplace.json` and `index.json`.
 
 Full detail, including the semver-for-a-catalog rules, is in [`RELEASING.md`](RELEASING.md).
@@ -216,6 +218,7 @@ green local run means a green build:
 .venv/bin/python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')   # 10.00 required
 .venv/bin/python3 -m pytest -q
 .venv/bin/python3 tooling/index_build.py --check
+.venv/bin/python3 tooling/changelog_index.py --check
 .venv/bin/python3 tooling/sync_plugin_skills.py --check
 .venv/bin/python3 tooling/validate.py --all
 .venv/bin/python3 tooling/version_sync.py --check
@@ -234,6 +237,7 @@ What each one is for:
 | `pylint` | Anything below 10.00 on non-test Python. Tests keep their own conventions and are excluded. The `lint` command in [`CLAUDE.md`](CLAUDE.md) is this same invocation — one lint behaviour everywhere. |
 | `pytest -q` | Any test fails. |
 | `index_build.py --check` | `index.json` does not match the catalog on disk. |
+| `changelog_index.py --check` | The generated table in `docs/changelog/README.md` does not match the entry files. Re-run without `--check`; never hand-edit the table. |
 | `sync_plugin_skills.py --check` | The shipped `skills/` copy has drifted from `features/`. |
 | `validate.py --all` | Any catalog JSON violates its schema in `schemas/`. |
 | `version_sync.py --check` | `plugin.json`, `marketplace.json` or `index.json` disagree with `VERSION`. |
