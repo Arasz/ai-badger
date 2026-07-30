@@ -147,8 +147,10 @@ def _load_script(relpath: str, base: Path):
 
 
 FRAMEWORK_ROOT = _bootstrap_lib()
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import badger_lib as bl  # pylint: disable=wrong-import-position
 import framework_copies as fc  # pylint: disable=wrong-import-position
+import skill_usage as su  # pylint: disable=wrong-import-position
 
 
 def check_breaking_and_backup(root: Path, target: Path) -> Dict[str, Any]:
@@ -243,6 +245,14 @@ def relink_hermes_skills(root: Path, target: Path, config: Dict[str, Any]) -> Di
         "features/common/skills/welcome-ai-badger/scripts/scaffold.py", root
     )
     return scaffold_mod.relink_hermes_skills(target, config, names)
+
+
+def delivered_skills(manifest: Dict[str, Any],
+                     scaffold_result: Optional[Dict[str, Any]]) -> List[str]:
+    """The skills this project holds right now: what the re-scaffold delivered, else the manifest."""
+    if scaffold_result:
+        return list(scaffold_result.get("refreshedSkills") or [])
+    return bl.scaffolded_skill_names(manifest)
 
 
 def report_framework_copies(root: Path, prune: bool) -> Optional[Dict[str, Any]]:
@@ -399,6 +409,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         report["scaffold"] = scaffold_result
     if hermes_links["created"] or hermes_links["removed"]:
         report["hermesSkillLinks"] = hermes_links
+    # Report-only, like newStacks: the listing budget a never-invoked skill spends is real, but
+    # config.json is project-owned and a refresh does not rewrite it (#172).
+    usage = su.report(target, delivered_skills(manifest, scaffold_result))
+    if usage:
+        report["skillUsage"] = usage
     copies = report_framework_copies(root, args.prune_cache)
     if copies:
         report["frameworkCopies"] = copies

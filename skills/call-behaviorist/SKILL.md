@@ -183,6 +183,15 @@ from the record count, from `observed`, and from the health verdict. With no evi
 `never_observed` is withheld too — when nothing at all was observed, every component is
 trivially silent, and reporting that as a high-severity failure would be crying wolf.
 
+### What the log says about a *skill*
+
+`hook_activity(project)` (a library call, not a subcommand) rolls the same records up per skill,
+for the reader deciding what to prune: `{skill: {hooks, instrumented, records}}` over the
+hook-shipping skills only, plus the project's total record count. den-refresh consumes it
+(#172). The asymmetry is the point — records prove a skill is doing work here, and silence
+proves nothing at all, because a skill that wires no hook can never appear in this log. Anything
+built on it must never read absence as disuse.
+
 **A record that names no project belongs to no project.** The log is user-wide, and a hook that
 could not determine its project emits a record no analysis can place. Those are excluded from
 `observed`, from the record count and from the verdict, and reported as `window.unattributed`
