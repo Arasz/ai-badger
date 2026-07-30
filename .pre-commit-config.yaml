@@ -13,6 +13,12 @@ repos:
         language: system
         always_run: true
         pass_filenames: false
+      - id: changelog-index
+        name: changelog-index
+        entry: python3 tooling/changelog_index.py --check
+        language: system
+        always_run: true
+        pass_filenames: false
       - id: plugin-skills-sync
         name: plugin-skills-sync
         entry: python3 tooling/sync_plugin_skills.py --check
