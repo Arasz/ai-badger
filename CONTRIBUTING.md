@@ -231,7 +231,7 @@ What each one is for:
 
 | Gate | Fails when |
 |---|---|
-| `pylint` | Anything below 10.00 on non-test Python. Tests keep their own conventions and are excluded. |
+| `pylint` | Anything below 10.00 on non-test Python. Tests keep their own conventions and are excluded. The `lint` command in [`CLAUDE.md`](CLAUDE.md) is this same invocation — one lint behaviour everywhere. |
 | `pytest -q` | Any test fails. |
 | `index_build.py --check` | `index.json` does not match the catalog on disk. |
 | `sync_plugin_skills.py --check` | The shipped `skills/` copy has drifted from `features/`. |
