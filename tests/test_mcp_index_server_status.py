@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 SCRIPT = "features/common/skills/mcp-index/scripts/mcp_index.py"
+LISTINGS = "features/common/skills/mcp-index/scripts/host_listings.py"
 
 TEXT_LISTING = """\
   MCP Servers:
@@ -19,6 +20,15 @@ TEXT_LISTING = """\
   ──────────────── ────────────────────────────── ──────────── ──────────
   rider            http://127.0.0.1:64342/st...   all          ✓ enabled
   llmstudio        http://127.0.0.1:1235          all          ✗ disabled
+"""
+
+# Captured verbatim from `claude mcp list` (see tests/test_mcp_index_host_listings.py).
+CLAUDE_LISTING = """\
+Checking MCP server health…
+
+rider: http://127.0.0.1:64482/stream (HTTP) - ✔ Connected
+claude.ai Microsoft 365: https://microsoft365.mcp.claude.com/mcp - ! Needs authentication
+plugin:github:github: https://api.githubcopilot.com/mcp/ (HTTP) - ✘ Failed to connect — HTTP 400
 """
 
 
@@ -88,21 +98,13 @@ def test_init_records_disabled_when_the_host_says_the_server_is_off(tmp_path, lo
 
 # ── the text-table fallback knows the servers but not their tools ────────────
 
-def test_text_listing_carries_the_enabled_flag_and_admits_tools_are_unknown(load_script):
-    """`hermes mcp list` (no --json) prints a Tools column of 'all' — no tool detail at all."""
-    mod = load_script(SCRIPT)
-    servers = mod._parse_mcp_list_text(TEXT_LISTING)
-
-    assert [s["name"] for s in servers] == ["rider", "llmstudio"]
-    assert [s["enabled"] for s in servers] == [True, False]
-    assert all(s["tools_known"] is False for s in servers)
-
-
 def test_init_over_a_text_listing_records_unknown_not_empty(tmp_path, load_script, monkeypatch):
     """Never asked is not the same as asked and got nothing."""
     mod = load_script(SCRIPT)
+    listings = load_script(LISTINGS)
     monkeypatch.setattr(mod, "_fetch_mcp_tools",
-                        lambda from_json=None: mod._parse_mcp_list_text(TEXT_LISTING))
+                        lambda from_json=None, host=None:
+                        listings.parse_hermes_text_listing(TEXT_LISTING))
 
     assert mod.main(["init", "--target", str(tmp_path)]) == 0
 
@@ -116,14 +118,66 @@ def test_update_over_a_text_listing_does_not_mark_every_tool_removed(
     """A listing with no tool detail must not wipe the curation of a whole index."""
     _write_index(tmp_path, _existing_index())
     mod = load_script(SCRIPT)
+    listings = load_script(LISTINGS)
     monkeypatch.setattr(mod, "_fetch_mcp_tools",
-                        lambda from_json=None: mod._parse_mcp_list_text(TEXT_LISTING))
+                        lambda from_json=None, host=None:
+                        listings.parse_hermes_text_listing(TEXT_LISTING))
 
     assert mod.main(["update", "--target", str(tmp_path)]) == 0
 
     rider = _source(_read_index(tmp_path), "rider")
     assert rider["status"] == "unknown"
     assert "status" not in rider["tools"]["build_solution"]
+
+
+# ── `claude mcp list` says more than "no tools": it says why ─────────────────
+
+def test_a_server_needing_authentication_is_not_merely_unknown(tmp_path, load_script, monkeypatch):
+    """Log in is a different remedy from "the listing carried no tool detail" (issue #188)."""
+    mod = load_script(SCRIPT)
+    listings = load_script(LISTINGS)
+    monkeypatch.setattr(mod, "_fetch_mcp_tools",
+                        lambda from_json=None, host=None:
+                        listings.parse_claude_listing(CLAUDE_LISTING))
+
+    assert mod.main(["init", "--target", str(tmp_path)]) == 0
+
+    index = _read_index(tmp_path)
+    assert _source(index, "claude.ai Microsoft 365")["status"] == "unauthenticated"
+    assert _source(index, "plugin:github:github")["status"] == "unreachable"
+    assert _source(index, "rider")["status"] == "unknown"
+
+
+def test_the_status_vocabulary_maps_only_phrases_this_release_has_seen(load_script):
+    """An unrecognised phrase degrades to `unknown` rather than inventing a distinction."""
+    mod = load_script("features/common/skills/mcp-index/scripts/tool_descriptions.py")
+
+    assert mod.server_status({"host_status": "Connected", "tools_known": False}) == "unknown"
+    assert mod.server_status({"host_status": "Needs authentication"}) == "unauthenticated"
+    assert mod.server_status({"host_status": "Failed to connect"}) == "unreachable"
+    assert mod.server_status({"host_status": "Pending approval"}) == "pending_approval"
+    assert mod.server_status({"host_status": "Reticulating splines"}) == "unknown"
+
+
+def test_a_tool_less_listing_leaves_a_server_it_never_names_alone(
+        tmp_path, load_script, monkeypatch, capsys):
+    """Switching host CLI must not read as "every hermes server was removed" (issue #188)."""
+    data = _existing_index()
+    data["sources"][0]["status"] = "ok"
+    _write_index(tmp_path, data)
+    mod = load_script(SCRIPT)
+    listings = load_script(LISTINGS)
+    monkeypatch.setattr(mod, "_fetch_mcp_tools",
+                        lambda from_json=None, host=None:
+                        listings.parse_claude_listing(
+                            "plugin:github:github: https://x/mcp (HTTP) - ✔ Connected\n"))
+
+    assert mod.main(["update", "--target", str(tmp_path)]) == 0
+
+    rider = _source(_read_index(tmp_path), "rider")
+    assert rider["status"] == "ok"
+    assert "status" not in rider["tools"]["build_solution"]
+    assert "left untouched" in capsys.readouterr().out
 
 
 # ── update ───────────────────────────────────────────────────────────────────
@@ -171,6 +225,18 @@ def test_schema_accepts_a_source_with_no_tools(root):
         "sources": [{"name": "llmstudio", "status": "disabled", "tools": {}}],
     }
     assert bl.validate(doc, schema) == []
+
+
+def test_schema_accepts_every_status_the_script_can_produce(root, load_script):
+    """The enum and the vocabulary are two writers of one decision; drift is silent."""
+    import badger_lib as bl  # pylint: disable=import-outside-toplevel
+
+    schema = json.loads((root / "schemas" / "mcp-tools.schema.json").read_text(encoding="utf-8"))
+    td = load_script("features/common/skills/mcp-index/scripts/tool_descriptions.py")
+    allowed = set(schema["$defs"]["mcpSource"]["properties"]["status"]["enum"])
+
+    assert td.ALL_STATUSES <= allowed
+    assert {"unreachable", "unauthenticated", "pending_approval"} <= td.ALL_STATUSES
 
 
 def test_validate_names_every_server_that_reported_no_tools(tmp_path, load_script, capsys):
