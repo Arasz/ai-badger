@@ -220,8 +220,8 @@ def test_the_copilot_config_is_written_from_the_same_declaration_set(make_scaffo
     scaf = _scaf(make_scaffolder, tmp_path, _config(agents=["copilot"]))
 
     project, _ = scaf.mcp.split_servers_by_scope(scaf.mcp.declared_servers())
-    scaf.mcp.generate_copilot_mcp_config(project)
+    scaf.mcp.generate_copilot_mcp_json(project)
 
-    config = json.loads((make_scaffolder.target / ".github" / "copilot" / "mcp-config.json")
+    config = json.loads((make_scaffolder.target / ".github" / "mcp.json")
                         .read_text(encoding="utf-8"))
     assert "pyright" in config["mcpServers"]

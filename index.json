@@ -308,6 +308,10 @@
           "path": "features/copilot/adjustments/adjust_hooks.py"
         },
         {
+          "name": "adjust_mcp",
+          "path": "features/copilot/adjustments/adjust_mcp.py"
+        },
+        {
           "name": "adjust_retrieval",
           "path": "features/copilot/adjustments/adjust_retrieval.py"
         },
@@ -427,6 +431,10 @@
         {
           "name": "adjust_hooks",
           "path": "features/hermes/adjustments/adjust_hooks.py"
+        },
+        {
+          "name": "adjust_mcp",
+          "path": "features/hermes/adjustments/adjust_mcp.py"
         },
         {
           "name": "adjust_task",

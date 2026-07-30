@@ -151,9 +151,24 @@ whether ai-badger may launch it (ADR-0014).
 
 Naming a server without `declare` says only that it is relevant to the stack; writing its launch
 config is the louder claim and must be opted into. The scaffold reads common first, then stacks in
-`config.json` order, last-writer-wins on name. Project-scoped servers land in `.mcp.json` (Claude
-and Hermes read it; Junie is assumed to, never verified) and in
-`.github/copilot/mcp-config.json`; user-scoped ones are written to the agent's own user config.
+`config.json` order, last-writer-wins on name.
+
+**Where a declared server lands.** ai-badger writes two files and proposes the rest (ADR-0014
+decision 6):
+
+| host | ai-badger writes | ai-badger proposes |
+|---|---|---|
+| Claude Code | `.mcp.json`, plus approvals in `.claude/settings.json` | `~/.claude/settings.json` for a `scope: user` server |
+| Copilot CLI | `.github/mcp.json`, each server with `"tools": ["*"]` | — |
+| Copilot coding agent | nothing — its config lives in the repository settings UI | the JSON snippet, with `COPILOT_MCP_*` secret references |
+| Hermes | nothing — `~/.hermes/config.yaml` is user-global and there is no project route | the `mcp_servers:` YAML snippet |
+| Junie | nothing (`.junie/mcp/mcp.json` is documented, never verified) | — |
+
+`.vscode/mcp.json` is VS Code Copilot Chat's own file and a different schema (top-level
+`servers`, `inputs`, no per-server `tools`); ai-badger does not write it.
+
+A server named in `config.mcp.decline` is not declared at all, and is removed from `.mcp.json`
+and `.github/mcp.json` if an earlier run wrote it.
 
 ## Adding a new skill (or a `task` extension)
 

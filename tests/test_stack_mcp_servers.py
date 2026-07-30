@@ -1,9 +1,9 @@
 """Tests for stack-declared MCP server scaffolding.
 
 Verifies that mcp-servers.json files in feature directories are collected, merged with the
-legacy external-tools.json entries, split by scope, and scaffolded into agent-specific config
-files (.mcp.json, ~/.hermes/config.yaml, ~/.claude/settings.json,
-.github/copilot/mcp-config.json).
+legacy external-tools.json entries, split by scope, and scaffolded into the two config files
+ai-badger owns (.mcp.json and .github/mcp.json). The user-global destinations are proposals:
+~/.claude/settings.json here, ~/.hermes/config.yaml in tests/test_adjust_mcp_hermes.py.
 """
 # pylint: disable=protected-access  # exercises the Scaffolder MCP mixin directly; see pyproject.toml
 from __future__ import annotations
@@ -375,85 +375,27 @@ def test_mcp_json_not_created_when_empty(tmp_path, make_scaffolder):
     assert not (target / ".mcp.json").exists()
 
 
-# ── Hermes user-scoped ───────────────────────────────────────────────────────
+# ── Hermes: no destination of its own (proposed by its adjustment, step 7) ───
 
-def test_hermes_user_server_writes_config_yaml(tmp_path, make_scaffolder):
-    """scope: user server is written to ~/.hermes/config.yaml mcp.servers."""
-    yaml = pytest.importorskip("yaml")
+def test_no_scaffold_step_writes_the_hermes_user_config(tmp_path, make_scaffolder):
+    """Hermes has no project route, so ADR-0014 decision 6 leaves nothing here to write.
+
+    The `mcp_servers:` snippet a Hermes project gets instead is
+    `features/hermes/adjustments/adjust_mcp.py` (tests/test_adjust_mcp_hermes.py).
+    """
     target = make_scaffolder.target
     home = tmp_path / "home"
     home.mkdir()
+    _write_mcp_servers(tmp_path / "features" / "python",
+                       [{"name": "srv", "command": "echo", "scope": "user"}])
 
     with patch("pathlib.Path.home", return_value=home):
         scaf = _scaf(make_scaffolder, tmp_path, target,
-                      _config(stacks=["python"], agents=["hermes"]))
-        scaf.mcp.scaffold_hermes_mcp_user(
-            {"hermes-mcp": {"name": "hermes-mcp", "command": "hermes mcp serve", "scope": "user"}}
-        )
-
-    config_path = home / ".hermes" / "config.yaml"
-    assert config_path.exists()
-    cfg = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    assert "mcp" in cfg
-    assert "hermes-mcp" in cfg["mcp"]["servers"]
-
-
-def test_hermes_user_server_merge_preserves_existing(tmp_path, make_scaffolder):
-    """Existing entries in config.yaml mcp.servers are preserved."""
-    yaml = pytest.importorskip("yaml")
-    target = make_scaffolder.target
-    home = tmp_path / "home"
-    home.mkdir()
-    hermes_dir = home / ".hermes"
-    hermes_dir.mkdir()
-
-    existing = {"mcp": {"servers": {"existing-server": {"command": "echo existing"}}}}
-    (hermes_dir / "config.yaml").write_text(yaml.safe_dump(existing), encoding="utf-8")
-
-    with patch("pathlib.Path.home", return_value=home):
-        scaf = _scaf(make_scaffolder, tmp_path, target,
-                      _config(stacks=["python"], agents=["hermes"]))
-        scaf.mcp.scaffold_hermes_mcp_user(
-            {"new-server": {"name": "new-server", "command": "echo new", "scope": "user"}}
-        )
-
-    cfg = yaml.safe_load((hermes_dir / "config.yaml").read_text(encoding="utf-8"))
-    assert "existing-server" in cfg["mcp"]["servers"]
-    assert "new-server" in cfg["mcp"]["servers"]
-
-
-def test_hermes_user_server_creates_config_if_missing(tmp_path, make_scaffolder):
-    """If ~/.hermes/config.yaml doesn't exist, it's created."""
-    pytest.importorskip("yaml")
-    target = make_scaffolder.target
-    home = tmp_path / "home"
-    home.mkdir()
-
-    with patch("pathlib.Path.home", return_value=home):
-        scaf = _scaf(make_scaffolder, tmp_path, target,
-                      _config(stacks=["python"], agents=["hermes"]))
-        scaf.mcp.scaffold_hermes_mcp_user(
-            {"srv": {"name": "srv", "command": "echo", "scope": "user"}}
-        )
-
-    config_path = home / ".hermes" / "config.yaml"
-    assert config_path.exists()
-
-
-def test_hermes_user_server_no_write_without_hermes_agent(tmp_path, make_scaffolder):
-    """If hermes not in config.agents, no config.yaml write."""
-    target = make_scaffolder.target
-    home = tmp_path / "home"
-    home.mkdir()
-
-    with patch("pathlib.Path.home", return_value=home):
-        scaf = _scaf(make_scaffolder, tmp_path, target,
-                      _config(stacks=["python"], agents=["claude"]))
-        scaf.mcp.scaffold_hermes_mcp_user(
-            {"srv": {"name": "srv", "command": "echo", "scope": "user"}}
-        )
+                     _config(stacks=["python"], agents=["hermes"]))
+        scaf.run(generated_at="2026-07-30T00:00:00Z")
 
     assert not (home / ".hermes" / "config.yaml").exists()
+    assert not hasattr(scaf.mcp, "scaffold_hermes_mcp_user")
 
 
 def test_hermes_project_server_writes_mcp_json(tmp_path, make_scaffolder):
@@ -526,50 +468,50 @@ def test_claude_user_server_not_proposed_without_claude_agent(tmp_path, make_sca
     assert not (home / ".claude" / "settings.json").exists()
 
 
-# ── Copilot ──────────────────────────────────────────────────────────────────
+# ── Copilot: .github/mcp.json, the file the CLI reads (#189) ─────────────────
 
-def test_copilot_config_generated(tmp_path, make_scaffolder):
-    """.github/copilot/mcp-config.json created when copilot in agents."""
+def test_copilot_mcp_json_generated(tmp_path, make_scaffolder):
+    """.github/mcp.json created when copilot in agents."""
     target = make_scaffolder.target
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
                   _config(stacks=["python"], agents=["copilot"]))
     servers = {"pyright": {"name": "pyright", "command": "uvx mcp-server-pyright"}}
-    scaf.mcp.generate_copilot_mcp_config(servers)
+    scaf.mcp.generate_copilot_mcp_json(servers)
 
-    config_path = target / ".github" / "copilot" / "mcp-config.json"
+    config_path = target / ".github" / "mcp.json"
     assert config_path.exists()
     cfg = json.loads(config_path.read_text(encoding="utf-8"))
     assert "pyright" in cfg["mcpServers"]
 
 
-def test_copilot_config_not_created_for_claude_only(tmp_path, make_scaffolder):
+def test_copilot_mcp_json_not_created_for_claude_only(tmp_path, make_scaffolder):
     """No copilot config if copilot not in agents."""
     target = make_scaffolder.target
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
                   _config(stacks=["python"], agents=["claude"]))
     servers = {"pyright": {"name": "pyright", "command": "uvx mcp-server-pyright"}}
-    scaf.mcp.generate_copilot_mcp_config(servers)
+    scaf.mcp.generate_copilot_mcp_json(servers)
 
-    assert not (target / ".github" / "copilot" / "mcp-config.json").exists()
+    assert not (target / ".github" / "mcp.json").exists()
 
 
-def test_copilot_config_merge_preserves_existing(tmp_path, make_scaffolder):
+def test_copilot_mcp_json_merge_preserves_existing(tmp_path, make_scaffolder):
     """Existing copilot config entries preserved."""
     target = make_scaffolder.target
-    copilot_dir = target / ".github" / "copilot"
-    copilot_dir.mkdir(parents=True)
+    github_dir = target / ".github"
+    github_dir.mkdir(parents=True)
 
     existing = {"mcpServers": {"old": {"command": "echo old"}}}
-    (copilot_dir / "mcp-config.json").write_text(json.dumps(existing), encoding="utf-8")
+    (github_dir / "mcp.json").write_text(json.dumps(existing), encoding="utf-8")
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
                   _config(stacks=["python"], agents=["copilot"]))
     servers = {"new": {"name": "new", "command": "echo new"}}
-    scaf.mcp.generate_copilot_mcp_config(servers)
+    scaf.mcp.generate_copilot_mcp_json(servers)
 
-    cfg = json.loads((copilot_dir / "mcp-config.json").read_text(encoding="utf-8"))
+    cfg = json.loads((github_dir / "mcp.json").read_text(encoding="utf-8"))
     assert "old" in cfg["mcpServers"]
     assert "new" in cfg["mcpServers"]
 
@@ -582,9 +524,9 @@ def test_copilot_env_propagated(tmp_path, make_scaffolder):
                   _config(stacks=["python"], agents=["copilot"]))
     servers = {"github": {"name": "github", "command": "npx -y @modelcontextprotocol/server-github",
                            "env": {"GITHUB_TOKEN": "test"}}}
-    scaf.mcp.generate_copilot_mcp_config(servers)
+    scaf.mcp.generate_copilot_mcp_json(servers)
 
-    cfg = json.loads((target / ".github" / "copilot" / "mcp-config.json").read_text(encoding="utf-8"))
+    cfg = json.loads((target / ".github" / "mcp.json").read_text(encoding="utf-8"))
     assert cfg["mcpServers"]["github"]["env"] == {"GITHUB_TOKEN": "test"}
 
 
@@ -675,17 +617,16 @@ def test_mcp_json_applies_no_override_when_claude_is_not_configured(tmp_path, ma
     assert any(".mcp.json" in note for note in scaf.notes)
 
 
-def test_copilot_config_uses_copilot_overrides(tmp_path, make_scaffolder):
+def test_copilot_mcp_json_uses_copilot_overrides(tmp_path, make_scaffolder):
     target = make_scaffolder.target
     _write_mcp_servers(tmp_path / "features" / "python", _both_agents_server())
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
                   _config(stacks=["python"], agents=["copilot", "claude"]))
     servers = {s["name"]: s for s in scaf.mcp.collect_stack_mcp_servers()}
-    scaf.mcp.generate_copilot_mcp_config(servers)
+    scaf.mcp.generate_copilot_mcp_json(servers)
 
-    cfg = json.loads(
-        (target / ".github" / "copilot" / "mcp-config.json").read_text(encoding="utf-8"))
+    cfg = json.loads((target / ".github" / "mcp.json").read_text(encoding="utf-8"))
     assert cfg["mcpServers"]["fs"]["command"] == "copilot-resolved"
 
 
@@ -698,12 +639,13 @@ def _no_user_tool_dirs(monkeypatch, load_script):
 
 
 def _render_everywhere(make_scaffolder, tmp_path, server, home):
-    """Render *server* into all four destinations; return their entries for it.
+    """Render *server* into all three destinations; return their entries for it.
 
     The Claude user destination is a proposal note rather than a file (ADR-0014 decision 6),
     so its entry is read back out of the note — the rendering it characterises is the same.
+    The Copilot entry's `tools` allowlist is dropped: it is the one field with no counterpart
+    anywhere else, and these cases characterise command splitting, cwd and env.
     """
-    yaml = pytest.importorskip("yaml")
     target = tmp_path / "proj"
     target.mkdir(exist_ok=True)
     _write_mcp_servers(tmp_path / "features" / "python", [server])
@@ -713,22 +655,21 @@ def _render_everywhere(make_scaffolder, tmp_path, server, home):
         scaf = _scaf(make_scaffolder, tmp_path, target,
                      _config(stacks=["python"], agents=["claude", "copilot", "hermes"]))
         scaf.mcp.generate_mcp_json()
-        scaf.mcp.generate_copilot_mcp_config(by_name)
+        scaf.mcp.generate_copilot_mcp_json(by_name)
         scaf.mcp.propose_claude_mcp_user(by_name)
-        scaf.mcp.scaffold_hermes_mcp_user(by_name)
 
     name = server["name"]
 
     def _json_entry(path):
         return json.loads(path.read_text(encoding="utf-8"))["mcpServers"][name]
 
+    copilot = _json_entry(target / ".github" / "mcp.json")
+    assert copilot.pop("tools") == ["*"]
     proposal = next(n for n in scaf.notes if "~/.claude/settings.json" in n)
     return {
         "mcp_json": _json_entry(target / ".mcp.json"),
-        "copilot": _json_entry(target / ".github" / "copilot" / "mcp-config.json"),
+        "copilot": copilot,
         "claude_user": json.loads(proposal.split("yourself: ", 1)[1])["mcpServers"][name],
-        "hermes_user": yaml.safe_load(
-            (home / ".hermes" / "config.yaml").read_text(encoding="utf-8"))["mcp"]["servers"][name],
     }
 
 

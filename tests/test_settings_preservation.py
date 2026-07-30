@@ -91,40 +91,24 @@ def test_wire_hooks_aborts_on_unparseable_settings(tmp_path, root, make_scaffold
 
 # ── ~/.hermes/config.yaml (mcp_tools) ─────────────────────────────────────────
 
-def test_hermes_user_config_yaml_error_does_not_escape_run(root, fake_home, make_scaffolder):
-    """A malformed ~/.hermes/config.yaml yields a note, not a YAMLError."""
-    pytest.importorskip("yaml")
-    target = make_scaffolder.target
+def test_the_hermes_user_config_is_neither_read_nor_written(root, fake_home, make_scaffolder):
+    """A whole scaffold run never opens ~/.hermes/config.yaml (ADR-0014 decision 6).
+
+    Until 0.51.0 this merged a `scope: user` server into it, backup and all. An unparseable
+    file proves the new contract, exactly as the Claude case below does: a merge would have had
+    to parse it, and a refusal note would have had to read it.
+    """
     config_path = fake_home / ".hermes" / "config.yaml"
     config_path.parent.mkdir(parents=True)
-    original = b"mcp:\n  servers: {broken: [\n"
+    original = b"mcp_servers: {broken: [\n"
     config_path.write_bytes(original)
 
-    scaf = _scaf(make_scaffolder, root, target, _config(agents=["hermes"]))
-    scaf.mcp.scaffold_hermes_mcp_user(
-        {"srv": {"name": "srv", "command": "echo hi", "scope": "user"}}
-    )
+    scaf = _scaf(make_scaffolder, root, make_scaffolder.target, _config(agents=["hermes"]))
+    scaf.run(generated_at="2026-07-30T00:00:00Z")
 
     assert config_path.read_bytes() == original
-    assert _mentions(scaf.notes, "config.yaml", "refused")
-
-
-def test_yaml_parsing_to_a_list_does_not_raise(root, fake_home, make_scaffolder):
-    """A config.yaml whose top level is a list is refused, not AttributeError'd."""
-    pytest.importorskip("yaml")
-    target = make_scaffolder.target
-    config_path = fake_home / ".hermes" / "config.yaml"
-    config_path.parent.mkdir(parents=True)
-    original = b"- one\n- two\n"
-    config_path.write_bytes(original)
-
-    scaf = _scaf(make_scaffolder, root, target, _config(agents=["hermes"]))
-    scaf.mcp.scaffold_hermes_mcp_user(
-        {"srv": {"name": "srv", "command": "echo hi", "scope": "user"}}
-    )
-
-    assert config_path.read_bytes() == original
-    assert _mentions(scaf.notes, "config.yaml", "refused")
+    assert list(config_path.parent.glob("config.yaml.bak-*")) == []
+    assert not _mentions(scaf.notes, "config.yaml", "refused")
 
 
 # ── ~/.claude/settings.json (mcp_tools) ───────────────────────────────────────
@@ -153,7 +137,7 @@ def test_user_settings_are_neither_read_nor_written(root, fake_home, make_scaffo
     assert _mentions(scaf.notes, "~/.claude/settings.json", "never writes")
 
 
-# ── project .mcp.json and .github/copilot/mcp-config.json (mcp_tools) ─────────
+# ── project .mcp.json and .github/mcp.json (mcp_tools) ────────────────────────
 
 @pytest.mark.usefixtures("fake_home")
 def test_unparseable_mcp_json_is_never_rewritten(tmp_path, make_scaffolder):
@@ -177,18 +161,18 @@ def test_unparseable_mcp_json_is_never_rewritten(tmp_path, make_scaffolder):
 
 
 @pytest.mark.usefixtures("fake_home")
-def test_unparseable_copilot_mcp_config_is_never_rewritten(tmp_path, make_scaffolder):
-    """An unparseable .github/copilot/mcp-config.json is left byte-identical."""
+def test_unparseable_copilot_mcp_json_is_never_rewritten(tmp_path, make_scaffolder):
+    """An unparseable .github/mcp.json is left byte-identical."""
     target = make_scaffolder.target
-    config_path = target / ".github" / "copilot" / "mcp-config.json"
+    config_path = target / ".github" / "mcp.json"
     config_path.parent.mkdir(parents=True)
     original = b'{"mcpServers": {"mine": {"command": "x"}},,,'
     config_path.write_bytes(original)
 
     scaf = _scaf(make_scaffolder, tmp_path, target, _config(agents=["copilot"]))
-    scaf.mcp.generate_copilot_mcp_config(
+    scaf.mcp.generate_copilot_mcp_json(
         {"srv": {"name": "srv", "command": "echo hi"}}
     )
 
     assert config_path.read_bytes() == original
-    assert _mentions(scaf.notes, "mcp-config.json", "refused")
+    assert _mentions(scaf.notes, "mcp.json", "refused")

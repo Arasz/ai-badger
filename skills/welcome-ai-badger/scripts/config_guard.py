@@ -76,10 +76,26 @@ def write_with_backup(path: Path, text: str) -> bool:
     if path.exists():
         if _reads_as(path, text):
             return False
-        backup = path.with_name(f"{path.name}.bak-{time.strftime('%Y%m%d-%H%M%S')}")
-        shutil.copy2(str(path), str(backup))
+        shutil.copy2(str(path), str(_backup_path(path)))
     _atomic_write(path, text)
     return True
+
+
+def remove_with_backup(path: Path) -> Path:
+    """Delete *path*, leaving a ``<name>.bak-<ts>`` copy beside it; return the backup.
+
+    Retiring a config file ai-badger wrote is still a destructive act on someone's repository,
+    so it leaves the same safety copy a merge does.
+    """
+    backup = _backup_path(path)
+    shutil.copy2(str(path), str(backup))
+    path.unlink()
+    return backup
+
+
+def _backup_path(path: Path) -> Path:
+    """The ``<name>.bak-<ts>`` sibling every destructive operation here copies to first."""
+    return path.with_name(f"{path.name}.bak-{time.strftime('%Y%m%d-%H%M%S')}")
 
 
 def write_json_with_backup(path: Path, data: Dict[str, Any]) -> bool:

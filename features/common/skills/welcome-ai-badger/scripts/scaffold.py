@@ -735,7 +735,7 @@ class Scaffolder:
         receives the framework root, config, and target directory, and returns
         {'applied': bool, 'files': list, 'notes': str}.
         """
-        # An adjustment cannot resolve stack-mcp.json itself; the names travel with the context.
+        # An adjustment is loaded by path: what it cannot resolve itself travels in the context.
         declared_mcp = sorted(self.mcp.split_servers_by_scope(self.mcp.declared_servers())[0])
         for agent_name in self.config.get("agents", []):
             adj_path = self.root / "features" / agent_name / "adjustments" / "adjustment.json"
@@ -788,6 +788,8 @@ class Scaffolder:
                         "skills": agent_skills,
                         "index": self.index,
                         "mcp_servers": declared_mcp,
+                        "mcp_declarations": self.mcp.declarations_for_agent(agent_name),
+                        "mcp_declined": self.mcp.declined_servers(),
                     }
                     result = mod.adjust(context)
                     if result.get("applied"):
@@ -887,10 +889,8 @@ class Scaffolder:
 
         project_servers, user_servers = self.mcp.split_servers_by_scope(
             self.mcp.declared_servers())
-        self._outside_project("hermes user MCP config",
-                              lambda: self.mcp.scaffold_hermes_mcp_user(user_servers))
         self.mcp.propose_claude_mcp_user(user_servers)
-        self.mcp.generate_copilot_mcp_config(project_servers)
+        self.mcp.generate_copilot_mcp_json(project_servers)
 
         manifest = {
             "$schema": "../schemas/manifest.schema.json",

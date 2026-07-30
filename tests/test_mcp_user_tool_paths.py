@@ -166,7 +166,7 @@ def test_args_are_preserved_through_the_rewrite(
 
 # ── scope of the rewrite ─────────────────────────────────────────────────────
 
-def test_copilot_config_keeps_the_bare_command(
+def test_the_copilot_mcp_json_keeps_the_bare_command(
         tmp_path, monkeypatch, load_script, make_scaffolder):
     """Copilot's MCP config uses ${input:}/${env:} syntax — a bare ${HOME} would not expand."""
     dotnet, _ = _fake_tool_dirs(monkeypatch, load_script, tmp_path)
@@ -175,50 +175,29 @@ def test_copilot_config_keeps_the_bare_command(
     target.mkdir(exist_ok=True)
 
     scaf = _scaf(make_scaffolder, tmp_path, target, _config(agents=["copilot"]))
-    scaf.mcp.generate_copilot_mcp_config(
+    scaf.mcp.generate_copilot_mcp_json(
         {"roslyn": {"name": "roslyn", "command": "cwm-roslyn-navigator"}})
 
-    cfg = json.loads(
-        (target / ".github" / "copilot" / "mcp-config.json").read_text(encoding="utf-8"))
+    cfg = json.loads((target / ".github" / "mcp.json").read_text(encoding="utf-8"))
     assert cfg["mcpServers"]["roslyn"]["command"] == "cwm-roslyn-navigator"
 
 
-def _user_scoped_roslyn(make_scaffolder, tmp_path, monkeypatch, load_script, agent):
-    """Install a user-tool-dir command, then scaffold it into *agent*'s user-level config."""
+def test_the_claude_user_proposal_keeps_the_bare_command(
+        tmp_path, monkeypatch, load_script, make_scaffolder):
+    """Only .mcp.json documents ${VAR} expansion — the ~/.claude proposal names the command bare."""
     dotnet, _ = _fake_tool_dirs(monkeypatch, load_script, tmp_path)
     _install(dotnet, "cwm-roslyn-navigator")
     target = tmp_path / "proj"
     target.mkdir(exist_ok=True)
     home = tmp_path / "home"
     home.mkdir()
-    server = {"roslyn": {"name": "roslyn", "command": "cwm-roslyn-navigator", "scope": "user"}}
 
     with patch("pathlib.Path.home", return_value=home):
-        scaf = _scaf(make_scaffolder, tmp_path, target, _config(agents=[agent]))
-        if agent == "claude":
-            scaf.mcp.propose_claude_mcp_user(server)
-        else:
-            scaf.mcp.scaffold_hermes_mcp_user(server)
-    return home, scaf.notes
+        scaf = _scaf(make_scaffolder, tmp_path, target, _config(agents=["claude"]))
+        scaf.mcp.propose_claude_mcp_user(
+            {"roslyn": {"name": "roslyn", "command": "cwm-roslyn-navigator", "scope": "user"}})
 
-
-def test_the_claude_user_proposal_keeps_the_bare_command(
-        tmp_path, monkeypatch, load_script, make_scaffolder):
-    """Only .mcp.json documents ${VAR} expansion — the ~/.claude proposal names the command bare."""
-    home, notes = _user_scoped_roslyn(
-        make_scaffolder, tmp_path, monkeypatch, load_script, "claude")
-
-    proposal = [n for n in notes if "~/.claude/settings.json" in n]
+    proposal = [n for n in scaf.notes if "~/.claude/settings.json" in n]
     assert len(proposal) == 1
     assert '"command": "cwm-roslyn-navigator"' in proposal[0]
     assert not (home / ".claude").exists()
-
-
-def test_hermes_user_config_keeps_the_bare_command(
-        tmp_path, monkeypatch, load_script, make_scaffolder):
-    """~/.hermes/config.yaml has no documented ${VAR} expansion either."""
-    yaml = pytest.importorskip("yaml")
-    home, _ = _user_scoped_roslyn(make_scaffolder, tmp_path, monkeypatch, load_script, "hermes")
-
-    cfg = yaml.safe_load((home / ".hermes" / "config.yaml").read_text(encoding="utf-8"))
-    assert cfg["mcp"]["servers"]["roslyn"]["command"] == "cwm-roslyn-navigator"

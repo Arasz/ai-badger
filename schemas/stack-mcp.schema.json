@@ -29,7 +29,7 @@
           "declare": {
             "type": "boolean",
             "default": false,
-            "description": "Write this server's launch config into the project files ai-badger owns (.mcp.json, the Copilot MCP config). Defaults to false: describing a server is the common case, declaring one is the exception."
+            "description": "Write this server's launch config into the project files ai-badger owns (.mcp.json and .github/mcp.json). Defaults to false: describing a server is the common case, declaring one is the exception."
           },
           "scope": {
             "enum": ["project", "user"],
