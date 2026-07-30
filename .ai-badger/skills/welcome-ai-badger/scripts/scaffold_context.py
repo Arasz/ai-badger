@@ -14,6 +14,10 @@ def _discard_template_record(source: Path, dest: Path) -> None:
     """Default provenance sink: a context with no manifest behind it records nothing."""
 
 
+def _discard_record(feature: str, stack: str, name: str, source: Path, dest: Path) -> None:
+    """Default provenance sink for a catalog item, for the same reason."""
+
+
 @dataclass
 class ScaffoldContext:
     """Every attribute a scaffold collaborator reads or writes, and nothing else."""
@@ -27,6 +31,8 @@ class ScaffoldContext:
     skills: List[str]
     excluded: Dict[str, Set[str]]
     overwrite: bool = False
+    # Reseed the SEED-ONCE files instead of preserving the project's copies (#15).
+    reset_seed_files: bool = False
     notes: List[str] = field(default_factory=list)
     # Filled by McpTools and read by TemplateRendering — the cache lives here so neither
     # collaborator has to know the other exists. Every server a stack's stack-mcp.json names,
@@ -37,3 +43,4 @@ class ScaffoldContext:
     mcp_retired_files_noted: bool = False
     # Manifest bookkeeping: shared state, not Scaffolder behaviour.
     record_template: Callable[[Path, Path], None] = _discard_template_record
+    record: Callable[[str, str, str, Path, Path], None] = _discard_record
