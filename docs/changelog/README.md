@@ -17,6 +17,7 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
+| 0.53.0 | [the skills nobody here uses](0.53.0-the-skills-nobody-here-uses.md) |
 | 0.52.1 | [curation reaches the name the host chose](0.52.1-curation-reaches-the-name-the-host-chose.md) |
 | 0.52.0 | [the manifest records what it does not own](0.52.0-the-manifest-records-what-it-does-not-own.md) · [discovery comes back, from the host that answers](0.52.0-discovery-comes-back-from-the-host-that-answers.md) |
 | 0.51.2 | [the skill that could not import on the floor](0.51.2-the-skill-that-could-not-import-on-the-floor.md) · [one lint behaviour, not two](0.51.2-one-lint-behaviour.md) · [the skills tree gets its own collaborator](0.51.2-the-skills-tree-gets-its-own-collaborator.md) |

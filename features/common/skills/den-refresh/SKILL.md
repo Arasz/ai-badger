@@ -83,6 +83,9 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
      ai-badger, or when `~/.ai-badger/framework` exists. `competing` names the path, version
      and owner of each; `cache` reports what happened to `~/.ai-badger/framework`
      (`reported` by default, `removed` with `--prune-cache`, `refused` with the reason)
+   - `skillUsage` — which delivered skills this project was observed using, so unused ones can
+     be pruned from the listing budget (see step 3b). `used` / `unused` / `cannotTell`, plus the
+     `window` the claim rests on, the `channels` that answered, and the `limits` of both
 
 3. **Surface competing copies.** When the report carries `frameworkCopies`, tell the user which
    trees exist and at what versions — a drift notice fires once per tree, so two contradictory
@@ -90,6 +93,26 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
    fallback clone and nothing updates it in place; offer to re-run with `--prune-cache` to
    remove it. **Never offer to delete `~/.claude/plugins/cache/`** — Claude Code owns that path
    and ai-badger only reads it.
+
+3b. **Offer the prune candidates — never prune them.** `skillUsage.unused` names skills this
+   project holds and nobody invoked over `skillUsage.window`. The payoff is the listing budget:
+   a host allots a fixed slice of context to skill descriptions and drops the least-invoked ones
+   first, so an unused skill crowds one somebody does use. Tell the user the candidates and how
+   to decline them — `exclude.skills` in `config.json`, which is self-executing on the next
+   refresh (`drift.configChanged`) — and stop there. **`config.json` is project-owned; never
+   edit it as part of a refresh.**
+
+   Report the rest of the section with the candidates, not instead of them:
+   - `used` carries `evidence` — `invocation` (someone ran it) or `hook` (nobody ran it, but a
+     hook it ships fired, so it is doing work every session). Both mean leave it alone
+   - `cannotTell` is the honest bucket, and it is not a weaker `unused`: a skill listed there
+     was never observable. Never propose pruning one
+   - `window.days` bounds every claim. A short window and a quarterly skill produce a
+     confident-sounding recommendation that is simply wrong — say the number out loud
+   - `limits` states what the channels cannot see. Repeat it; a recommendation without it is
+     the one the user will regret
+   - `hint`, when present, replaces the recommendation: nothing could be observed, and the fix
+     it names (`behaviorist.py on 4h`, then work normally) is the whole answer
 
 4. **Review the diff.** After re-scaffold, `git diff` shows exactly what
    changed. Seed-once files (state.json, markers-context.json, model.json) are
@@ -139,6 +162,14 @@ For initial setup use `welcome-ai-badger`; to contribute back use `feed-badger`.
 - **Managed files are overwritten.** Everything else under `.ai-badger/` that
   the framework originally placed is refreshed to the framework's current
   content. Review the diff before committing.
+- **Usage evidence has two sources and one of them cannot prove absence.** The invocation
+  channel reads Claude Code's own transcript store (`~/.claude/projects/<mangled cwd>/*.jsonl`,
+  this project's sessions and its worktrees) for `Skill` calls and slash commands — any skill,
+  but only on that host, and only as far back as Claude Code retains transcripts. The hook
+  channel reads call-behaviorist's audit log, which records hooks, so it can confirm a skill is
+  working and never that one is idle. Only the invocation channel produces a prune candidate;
+  with no transcript store, every skill lands in `cannotTell` and the report recommends nothing.
+  Neither channel reads message content — skill names and timestamps only.
 - **Only `~/.ai-badger/framework` is ever pruned, and only on request.** ai-badger created
   that clone, so it may remove it — never silently, only under `--prune-cache`, never when it
   is the root in use, and never when the path is a symlink or holds one that leaves it. Every
