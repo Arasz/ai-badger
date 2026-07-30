@@ -46,6 +46,10 @@ def only_generated_entries(data: Dict[str, Any]) -> bool:
     The test behind retiring a generated config file: a top level of `mcpServers` alone, and
     entries carrying only :data:`GENERATED_ENTRY_KEYS`. A `type`, `url` or `inputs` key is
     valid Copilot configuration that ai-badger has never written, so the file is someone's own.
+
+    Kept for the one migration that shipped before the record existed (#189). A new retirement
+    should read the manifest's `generatedConfig` instead: from 0.52.0 every destination write is
+    recorded there, so authorship is proven rather than inferred from key shape (#194).
     """
     if set(data) - {"mcpServers"}:
         return False
@@ -393,6 +397,7 @@ class McpTools:
         section.update(entries)
         self._drop_declined(section, declined, dest)
         cg.write_json_with_backup(path, existing)
+        self.ctx.record_generated_config(path, dest.label)
         return True
 
     def _drop_declined(

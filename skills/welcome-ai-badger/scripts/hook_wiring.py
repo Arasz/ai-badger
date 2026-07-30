@@ -324,6 +324,7 @@ class HookWiring:
 
         settings["hooks"] = existing_hooks
         cg.write_json_with_backup(settings_path, settings)
+        self.ctx.record_generated_config(settings_path, ".claude/settings.json")
         for script_id in unwired:
             self.ctx.notes.append(
                 f"unwired {script_id} from .claude/settings.json — declined in config.exclude"

@@ -217,8 +217,9 @@ def demote_headings(text: str, levels: int = 2) -> str:
     return "".join(out)
 
 
-# The shared context and the seven collaborators built from it
+# The shared context, the manifest's generated-config ledger, and the seven collaborators
 from scaffold_context import ScaffoldContext  # noqa: E402
+from generated_config import GeneratedConfigRecords  # noqa: E402
 from hook_wiring import HookWiring, merge_hooks  # noqa: E402
 from template_rendering import TemplateRendering  # noqa: E402
 from agent_files import AgentFiles  # noqa: E402
@@ -259,12 +260,15 @@ class Scaffolder:
         # self.items(), so welcome-ai-badger and den-refresh cannot disagree about what a
         # project declined.
         excluded = bl.exclusions(config)
+        index = bl.read_index(root)
+        self.generated_config = GeneratedConfigRecords(target, index["frameworkVersion"])
         self.ctx = ScaffoldContext(
             root=root, target=target, aib=target / ".ai-badger", config=config,
-            index=bl.read_index(root), stacks=bl.resolve_stacks(config),
+            index=index, stacks=bl.resolve_stacks(config),
             skills=[s for s in skills if s not in excluded["skills"]],
             excluded=excluded, overwrite=overwrite, reset_seed_files=reset_seed_files,
             record_template=self.record_template, record=self.record,
+            record_generated_config=self.generated_config.record,
         )
         self.extensions = Extensions(self.ctx)
         self.statusline = StatusLineWiring(self.ctx)
@@ -333,14 +337,7 @@ class Scaffolder:
         (#116), or the catalog source disappearing (#130). An edited copy is reported, not
         removed; skill directories stay on disk regardless (research §2).
         """
-        manifest_path = self.aib / "manifest.json"
-        if not manifest_path.is_file():
-            return
-        try:
-            entries = bl.load_json(manifest_path).get("entries", [])
-        except (ValueError, OSError):
-            return
-        for entry in entries:
+        for entry in self._prior_manifest().get("entries", []):
             reason = self._superseded_reason(entry)
             if reason is None:
                 continue
@@ -409,6 +406,21 @@ class Scaffolder:
         """Record a template's provenance, named by its path under the stack's templates dir."""
         rel = src.relative_to(self.root / "features").parts
         self.record("templates", rel[0], Path(*rel[2:]).as_posix(), src, dest)
+
+    def generated_config_records(self) -> List[Dict[str, Any]]:
+        """Every generated-but-not-owned config path the manifest should carry (#194)."""
+        return self.generated_config.all_records(
+            self._prior_manifest().get("generatedConfig", []))
+
+    def _prior_manifest(self) -> Dict[str, Any]:
+        """The manifest an earlier run left in place, or `{}` when there is none to read."""
+        path = self.aib / "manifest.json"
+        if not path.is_file():
+            return {}
+        try:
+            return bl.load_json(path)
+        except (ValueError, OSError):
+            return {}
 
     # -- seed-once (framework writes once, project owns thereafter; see #15) --------
     def _seed_once_copy(self, src: Path, dest: Path, label: str) -> None:
@@ -729,6 +741,9 @@ class Scaffolder:
             "skillScope": self.config.get("skillScope", self.config.get("pluginScope", "default")),
             "pluginScope": self.config.get("skillScope", self.config.get("pluginScope", "default")),  # compat
             "configHash": bl.config_hash(written_config),
+            # Read after every destination has written, and before the manifest replaces the
+            # one `generated_config_records` carries earlier runs' records forward from (#194).
+            "generatedConfig": self.generated_config_records(),
             "entries": self.entries,
         }
         bl.dump_json(self.aib / "manifest.json", manifest)
