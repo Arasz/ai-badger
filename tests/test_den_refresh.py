@@ -1048,3 +1048,54 @@ def test_refresh_reports_a_hand_authored_stack_but_does_not_re_scaffold_for_it(
     assert report["drift"]["orphaned"] == []
     assert report["drift"]["versionChanged"] is None
     assert report["breakingChange"]["isBreaking"] is False
+
+
+# -------------------------------------------------------------- skills nobody uses here (#172)
+def _transcript_store(home, project, records):
+    """A Claude Code transcript for `project` under a fake `$HOME`, holding `records`."""
+    mangled = "".join(c if c.isalnum() else "-" for c in str(project))
+    store = home / ".claude" / "projects" / mangled
+    store.mkdir(parents=True, exist_ok=True)
+    (store / "session.jsonl").write_text(
+        "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+    return store
+
+
+def _skill_invocation(skill, project):
+    return {"type": "assistant", "timestamp": "2026-07-20T10:00:00.000Z", "cwd": str(project),
+            "message": {"content": [{"type": "tool_use", "name": "Skill",
+                                     "input": {"skill": skill}}]}}
+
+
+def test_refresh_reports_which_delivered_skills_this_project_was_seen_using(
+        tmp_path, load_script, root, monkeypatch, capsys, make_scaffolder):
+    """The maintainer's own case: several skills scaffolded, one of them ever invoked."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    fw, proj = _scaffolded_project(tmp_path, root, make_scaffolder)
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    _transcript_store(home, proj, [_skill_invocation("task", proj)])
+
+    rc = refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    usage = report["skillUsage"]
+    assert [e["skill"] for e in usage["used"]] == ["task"]
+    assert usage["channels"]["invocation"] == "claude-transcripts"
+    assert usage["limits"]
+
+
+def test_refresh_recommends_nothing_when_no_channel_could_observe_a_skill(
+        tmp_path, load_script, root, monkeypatch, capsys, make_scaffolder):
+    """No transcript store and no audit records: say so, and propose no pruning."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    fw, proj = _scaffolded_project(tmp_path, root, make_scaffolder)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    rc = refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["skillUsage"]["unused"] == []
+    assert report["skillUsage"]["hint"]

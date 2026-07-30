@@ -706,3 +706,67 @@ class TestAnUnresolvableVersionNamesTheStaleScaffold:
         report = beh.analyze(project="/repo", expected=["hooks/alpha"])
 
         assert _kinds(report) == ["version_unresolvable"]
+
+
+class TestHookActivityPerSkill:
+    """What the log can say about a *skill*: its hooks ran, or it ships none that could speak."""
+
+    def test_records_are_attributed_to_the_skill_that_ships_the_hook(
+            self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = _register(tmp_path, {
+            ".ai-badger/skills/commit-reminder/scripts/commit_reminder_hook.py":
+                _named("commit_reminder_hook")})
+        _write(beh, [_record("commit_reminder_hook", project=project),
+                     _record("commit_reminder_hook", project=project)])
+
+        activity = beh.hook_activity(project)
+
+        assert activity["skills"]["commit-reminder"]["records"] == 2
+        assert activity["skills"]["commit-reminder"]["instrumented"] is True
+
+    def test_a_phase_qualified_component_still_counts_for_its_skill(
+            self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = _register(tmp_path, {
+            ".ai-badger/skills/task/scripts/session_start_hook.py":
+                _named("session_start_hook")})
+        _write(beh, [_record("session_start_hook/drift", project=project)])
+
+        assert beh.hook_activity(project)["skills"]["task"]["records"] == 1
+
+    def test_a_hook_that_calls_no_debug_logger_is_reported_uninstrumented(
+            self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = _register(tmp_path, {
+            ".ai-badger/skills/feed-badger/scripts/quiet_hook.py": QUIET})
+        _write(beh, [_record("something_else", project=project)])
+
+        entry = beh.hook_activity(project)["skills"]["feed-badger"]
+
+        assert entry["instrumented"] is False
+        assert entry["records"] == 0
+
+    def test_another_projects_records_are_not_this_projects_evidence(
+            self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = _register(tmp_path, {
+            ".ai-badger/skills/commit-reminder/scripts/commit_reminder_hook.py":
+                _named("commit_reminder_hook")})
+        _write(beh, [_record("commit_reminder_hook", project="/somewhere/else")])
+
+        activity = beh.hook_activity(project)
+
+        assert activity["records"] == 0
+        assert activity["skills"]["commit-reminder"]["records"] == 0
+
+    def test_a_project_wiring_no_skill_hooks_names_no_skills(
+            self, load_script, tmp_path, monkeypatch):
+        beh = _load(load_script, tmp_path, monkeypatch)
+        project = _register(tmp_path, {"tools/loose_hook.py": LOUD})
+        _write(beh, [_record("loose_hook", project=project)])
+
+        activity = beh.hook_activity(project)
+
+        assert activity["skills"] == {}
+        assert activity["records"] == 1
