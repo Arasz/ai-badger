@@ -141,6 +141,9 @@ additions.
   "agents": ["claude", "copilot"],
   "skillScope": "default",
   "configHash": "…",
+  "generatedConfig": [
+    { "path": ".mcp.json", "destination": ".mcp.json", "frameworkVersion": "0.52.0" }
+  ],
   "entries": [
     { "feature": "skills",  "stack": "common", "name": "task",             "source": "features/common/skills/task",       "target": ".ai-badger/skills/task",               "frameworkVersion": "0.1.0", "hash": "…" },
     { "feature": "personas","stack": "react",  "name": "frontend-engineer","source": "react/personas/frontend-engineer.md","target": ".ai-badger/agents/frontend-engineer.md","frameworkVersion": "0.1.0", "hash": "…" }
@@ -150,6 +153,14 @@ additions.
 
 `generatedAt` is stamped by the orchestrator after the run completes — `scaffold.py` itself
 avoids nondeterministic clocks so its output stays reproducible/diffable.
+
+`generatedConfig` is the other half of the provenance, and the opposite of `entries`: the config
+files a run *merged into* but does not own — `.mcp.json`, `.github/mcp.json`,
+`.claude/settings.json`. Each record is a path, the destination label it was written for, and the
+version that last wrote it. It is bookkeeping, so a retirement can prove ai-badger wrote a file
+instead of inferring it from key shape (issue #194) — never ownership: drift ignores these paths,
+nothing reads a record back to overwrite or delete a file, and a project's edits to one stay the
+project's. A record survives while its file is on disk and dies with the file.
 
 ## 3. Script vs. agent responsibility (hard split)
 

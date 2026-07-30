@@ -17,6 +17,7 @@ re-scaffold.
 
 | Version | Entry |
 |---|---|
+| 0.52.0 | [the manifest records what it does not own](0.52.0-the-manifest-records-what-it-does-not-own.md) |
 | 0.51.2 | [the skill that could not import on the floor](0.51.2-the-skill-that-could-not-import-on-the-floor.md) · [one lint behaviour, not two](0.51.2-one-lint-behaviour.md) · [the skills tree gets its own collaborator](0.51.2-the-skills-tree-gets-its-own-collaborator.md) |
 | 0.51.1 | [the observer emits when the index never heard of the server](0.51.1-the-observer-emits-on-an-unindexed-server.md) |
 | 0.51.0 | [six tests that could not pass alone](0.51.0-six-tests-that-could-not-pass-alone.md) · [a build is not a dotnet](0.51.0-a-build-is-not-a-dotnet.md) · [.mcp.json stops shipping](0.51.0-mcp-json-stops-shipping.md) · [`mcp` becomes a catalog feature type](0.51.0-mcp-becomes-a-catalog-feature-type.md) · [the MCP catalog carries the instructions](0.51.0-the-mcp-catalog-carries-the-instructions.md) · [one declaration set, three readers](0.51.0-one-declaration-set-three-readers.md) · [the legacy MCP registries are deleted](0.51.0-the-legacy-mcp-registries-are-deleted.md) · [the index records curation and status](0.51.0-the-index-records-curation-and-status.md) · [the Claude adjuster approves and declines](0.51.0-the-claude-adjuster-approves-and-declines.md) · [the file Copilot actually reads](0.51.0-the-file-copilot-actually-reads.md) · [the legacy MCP reader is gone](0.51.0-the-legacy-mcp-reader-is-gone.md) |

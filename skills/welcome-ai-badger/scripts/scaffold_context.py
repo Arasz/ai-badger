@@ -18,6 +18,10 @@ def _discard_record(feature: str, stack: str, name: str, source: Path, dest: Pat
     """Default provenance sink for a catalog item, for the same reason."""
 
 
+def _discard_generated_config(path: Path, destination: str) -> None:
+    """Default sink for a generated-but-not-owned config write, for the same reason."""
+
+
 @dataclass
 class ScaffoldContext:
     """Every attribute a scaffold collaborator reads or writes, and nothing else."""
@@ -44,3 +48,6 @@ class ScaffoldContext:
     # Manifest bookkeeping: shared state, not Scaffolder behaviour.
     record_template: Callable[[Path, Path], None] = _discard_template_record
     record: Callable[[str, str, str, Path, Path], None] = _discard_record
+    # Called with (path, destination label) by whoever writes a config file ai-badger merges
+    # into but does not own, so the manifest can answer "did ai-badger write here?" (#194).
+    record_generated_config: Callable[[Path, str], None] = _discard_generated_config

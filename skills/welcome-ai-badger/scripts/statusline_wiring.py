@@ -100,6 +100,7 @@ class StatusLineWiring:
         entry["command"] = capture_command(self.ctx.aib.relative_to(self.ctx.target).as_posix())
         settings["statusLine"] = entry
         cg.write_json_with_backup(settings_path, settings)
+        self.ctx.record_generated_config(settings_path, ".claude/settings.json")
         self.ctx.notes.append("wired statusline capture into .claude/settings.json")
 
     def unwire(self) -> None:

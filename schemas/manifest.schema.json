@@ -31,6 +31,29 @@
       "pattern": "^[0-9a-f]{64}$",
       "description": "sha256 of the config.json this scaffold was built from, canonicalized and minus $schema/frameworkVersion. Absent on manifests written before 0.46.0: refresh re-scaffolds once to record it."
     },
+    "generatedConfig": {
+      "type": "array",
+      "description": "Config files a scaffold run generated or merged into but does not own — `.mcp.json`, `.github/mcp.json`, `.claude/settings.json` (issue #194). Bookkeeping, not ownership: nothing reads a record back to overwrite, delete or drift-check the file, so a path listed here is still the project's to edit. A record outlives the run that wrote it while the file is on disk, and dies with the file; it says only \"ai-badger wrote here, at this version\". Absent on manifests written before 0.52.0, where authorship could only be inferred from key shape (mcp_tools.only_generated_entries).",
+      "items": {
+        "type": "object",
+        "required": ["path", "destination", "frameworkVersion"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path within the target repo, recorded whether or not the file is tracked: the record is of writes, not of version control."
+          },
+          "destination": {
+            "type": "string",
+            "description": "The label ai-badger knows the destination by — `mcp_tools.McpDestination.label` for the MCP configs, the file's own path for the rest. A destination whose label is not a project path is proposal-only (ADR-0014 decision 6) and is never recorded, because nothing is written."
+          },
+          "frameworkVersion": {
+            "type": "string",
+            "description": "The version that last wrote this path; carried forward unchanged from an earlier run's record when this run did not write the file."
+          }
+        }
+      }
+    },
     "entries": {
       "type": "array",
       "items": {
