@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/session_start_hook.py\""
+            "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/session_start_hook.py\" ] || python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/session_start_hook.py\""
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/mcp-index/scripts/context_enrichment_hook.py\""
+            "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/mcp-index/scripts/context_enrichment_hook.py\" ] || python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/mcp-index/scripts/context_enrichment_hook.py\""
           }
         ]
       },
@@ -34,7 +34,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\""
+            "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\" ] || python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\""
           }
         ]
       }
@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/commit-reminder/scripts/commit_reminder_hook.py\""
+            "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/commit-reminder/scripts/commit_reminder_hook.py\" ] || python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/commit-reminder/scripts/commit_reminder_hook.py\""
           }
         ]
       }
@@ -65,7 +65,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\""
+            "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\" ] || python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\""
           }
         ]
       }
@@ -75,7 +75,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\""
+            "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\" ] || python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\""
           }
         ]
       }
@@ -86,7 +86,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/dispatch_gate_hook.py\""
+            "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/dispatch_gate_hook.py\" ] || python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/dispatch_gate_hook.py\""
           }
         ]
       }

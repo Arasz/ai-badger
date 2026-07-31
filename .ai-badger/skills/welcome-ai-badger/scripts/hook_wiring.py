@@ -44,6 +44,18 @@ def project_script(command: str) -> Optional[str]:
     return rest or None
 
 
+def guarded(command: str) -> str:
+    """`command`, neutral (exit 0, no output) when its script is missing at runtime.
+
+    In a git worktree session ${CLAUDE_PROJECT_DIR} resolves to the main checkout, which may
+    not carry the script; a missing file BLOCKS the call a PreToolUse hook gates.
+    """
+    script = project_script(command)
+    if not script:
+        return command
+    return f'[ ! -f "{PROJECT_DIR_VAR}/{script}" ] || {command}'
+
+
 def declined_skill(command: str, declined: Set[str]) -> Optional[str]:
     """The declined skill a framework hook command belongs to, or None."""
     script_id = skill_script_id(command)
@@ -254,7 +266,7 @@ class HookWiring:
                 rewritten = [{
                     "hooks": [{
                         "type": "command",
-                        "command": f'python3 "{PROJECT_DIR_VAR}/{rel_path}"'
+                        "command": guarded(f'python3 "{PROJECT_DIR_VAR}/{rel_path}"')
                     }]
                 }]
             else:
@@ -288,7 +300,7 @@ class HookWiring:
                                 f"— skipped"
                             )
                             continue
-                        new_h["command"] = cmd
+                        new_h["command"] = guarded(cmd)
                         new_hooks_list.append(new_h)
                     if not new_hooks_list:
                         continue

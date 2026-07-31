@@ -96,6 +96,29 @@ def test_manifest_named_script_is_wired_not_whichever_glob_sorts_first(tmp_path,
     assert _wired_scripts(target, "Stop") == ["stop_hook.py"]
 
 
+def test_a_wired_command_is_neutral_when_its_script_is_missing_at_runtime(tmp_path, load_script,
+                                                                          root):
+    """In a git worktree session ${CLAUDE_PROJECT_DIR} resolves to the main checkout, which may
+    not carry the script — and a missing file BLOCKS the call a PreToolUse hook gates."""
+    target = tmp_path / "proj"
+    _skill_scripts(target, "task", "stop_hook.py")
+    manifest_hooks = [
+        {"name": "task",
+         "agents": {"claude": {"type": "hooks-json", "entry": "hooks.json",
+                                "event": "Stop", "script": "stop_hook.py"}}},
+    ]
+    fw_root = _fake_framework(tmp_path, manifest_hooks)
+    hooks, _ctx = _wiring(load_script, root, fw_root, target, manifest_hooks)
+
+    hooks.wire()
+
+    settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    commands = [h["command"] for entry in settings["hooks"]["Stop"] for h in entry["hooks"]]
+    rel = ".ai-badger/skills/task/scripts/stop_hook.py"
+    assert commands == [f'[ ! -f "${{CLAUDE_PROJECT_DIR}}/{rel}" ] || '
+                        f'python3 "${{CLAUDE_PROJECT_DIR}}/{rel}"']
+
+
 # ------------------------------------------------- test 2: the #147 regression, written first
 def test_script_less_entry_does_not_adopt_a_neighbours_hooks_json_command(tmp_path, load_script,
                                                                            root):
