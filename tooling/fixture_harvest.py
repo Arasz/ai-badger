@@ -40,6 +40,11 @@ from typing import Any, Dict, List, Optional, Sequence
 DEBUG_DIR_ENV = "AI_BADGER_DEBUG_DIR"
 REDACT_ENV = "AI_BADGER_DEBUG_REDACT"
 MAX_FIELD_CHARS = 200
+MAX_QUERY_CHARS = 2000
+# A query whose length is exactly a cap the writer applied is a prefix, not a question. 200 was
+# the cap for every field before #219 raised the query's share, and records written under it are
+# still in circulation — so both lengths stay unusable, and only both.
+CLIP_LENGTHS = (MAX_FIELD_CHARS, MAX_QUERY_CHARS)
 
 KEY_COMPONENT = "c"
 KEY_EVENT = "e"
@@ -156,7 +161,7 @@ def harvest(records: Sequence[Dict[str, Any]], harvested: str) -> Harvest:
         if not query:
             result.redacted += 1
             continue
-        if len(query) >= MAX_FIELD_CHARS:
+        if len(query) in CLIP_LENGTHS or len(query) > MAX_QUERY_CHARS:
             result.clipped += 1
             continue
         if is_machine_shaped(query):
@@ -219,7 +224,8 @@ def format_report(result: Harvest, log_path: str) -> str:
         )
     if result.clipped:
         lines.append(
-            f"{result.clipped} record(s) hit the {MAX_FIELD_CHARS}-char field clip: the stored"
+            f"{result.clipped} record(s) were stored at a field cap "
+            f"({', '.join(str(n) for n in CLIP_LENGTHS)} chars): the stored"
             " text is a prefix of what was typed, so it is not the query and is dropped."
         )
     lines.append("")

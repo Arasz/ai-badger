@@ -42,6 +42,13 @@ MAX_AUDIT_LINES = 5000
 # Records must stay under PIPE_BUF (4096) so concurrent O_APPEND writes cannot interleave.
 # Single-letter keys are part of that budget, not cosmetics.
 MAX_FIELD_CHARS = 200
+# The query is the one field a fixture can be built from, so it gets a larger share than the
+# rest: at 200 it kept a prefix, not the question (#219). Bounded by the record budget below.
+MAX_QUERY_CHARS = 2000
+# The budget itself, enforced rather than assumed. Every field is capped, but enough capped
+# fields still overflow PIPE_BUF, and a record that overflows is one a concurrent writer can
+# interleave with — corrupting both lines. `_fit` shrinks the longest field until it fits.
+PIPE_BUF_BYTES = 4096
 
 KEY_TS = "t"
 KEY_COMPONENT = "c"
@@ -223,9 +230,28 @@ def _own_only(path: Path) -> None:
         pass
 
 
-def _clip(value) -> str:
+def _clip(value, limit=None) -> str:
     text = str(value).replace("\n", " ").replace("\r", " ")
-    return text[:MAX_FIELD_CHARS]
+    return text[:MAX_FIELD_CHARS if limit is None else limit]
+
+
+def _encoded_len(record) -> int:
+    return len(json.dumps(record, ensure_ascii=False).encode("utf-8")) + 1
+
+
+def _fit(record):
+    """Shrink the longest field until one serialised record plus its newline fits PIPE_BUF.
+
+    Field caps alone do not bound the record: enough capped fields still overflow. Halving the
+    largest each pass converges in a few steps and takes the space from whichever field is
+    actually responsible, rather than from the query by default.
+    """
+    while _encoded_len(record) > PIPE_BUF_BYTES:
+        key = max(record, key=lambda k: len(record[k]))
+        if len(record[key]) <= 1:
+            return record
+        record[key] = record[key][:len(record[key]) // 2]
+    return record
 
 
 def _trim() -> None:
@@ -266,7 +292,8 @@ def log_event(component: str, event: str, project=None, session=None, **fields) 
             if redact_query and key == KEY_QUERY:
                 continue
             if value is not None:
-                record[key] = _clip(value)
+                record[key] = _clip(value, MAX_QUERY_CHARS if key == KEY_QUERY else None)
+        _fit(record)
 
         DEBUG_DIR.mkdir(parents=True, exist_ok=True)
         _own_only(DEBUG_DIR)
