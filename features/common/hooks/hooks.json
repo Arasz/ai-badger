@@ -46,6 +46,17 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/task/scripts/dispatch_gate_hook.py\""
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit",
