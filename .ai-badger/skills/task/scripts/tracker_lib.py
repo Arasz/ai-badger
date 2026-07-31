@@ -329,12 +329,13 @@ def parse_transcript_usage(transcript_path: str) -> dict:
         "cacheReadTokens": 0,
         "cacheCreationTokens": 0,
     }
+    by_model: dict = {}
     context_tokens = 0
     messages = 0
     path = Path(transcript_path) if transcript_path else None
     if path is None or not path.exists():
         return {
-            "contextTokens": 0, "assistantMessages": 0,
+            "contextTokens": 0, "assistantMessages": 0, "byModel": {},
             "cumulative": cumulative, "transcriptFound": False,
         }
 
@@ -361,12 +362,26 @@ def parse_transcript_usage(transcript_path: str) -> dict:
             cumulative["outputTokens"] += out
             cumulative["cacheReadTokens"] += cr
             cumulative["cacheCreationTokens"] += cc
+            # Sidechains included: a subagent's tokens are billed work, and the model it ran
+            # on is the choice under scrutiny. `<synthetic>` and absent both key as unknown so
+            # the split stays a partition of `cumulative` rather than a second opinion.
+            model = (record.get("message") or {}).get("model") or "unknown"
+            slot = by_model.setdefault(model, {
+                "inputTokens": 0, "outputTokens": 0,
+                "cacheReadTokens": 0, "cacheCreationTokens": 0, "assistantMessages": 0,
+            })
+            slot["inputTokens"] += inp
+            slot["outputTokens"] += out
+            slot["cacheReadTokens"] += cr
+            slot["cacheCreationTokens"] += cc
+            slot["assistantMessages"] += 1
             if not record.get("isSidechain"):
                 context_tokens = inp + cr + cc
 
     return {
         "contextTokens": context_tokens,
         "assistantMessages": messages,
+        "byModel": by_model,
         "cumulative": cumulative,
         "transcriptFound": True,
     }
@@ -378,6 +393,7 @@ def make_checkpoint(transcript_path: str) -> dict:
         "timestamp": now_iso(),
         "contextTokens": usage["contextTokens"],
         "assistantMessages": usage["assistantMessages"],
+        "byModel": usage["byModel"],
         "cumulative": usage["cumulative"],
     }
 
@@ -401,7 +417,22 @@ def compute_usage(start_cp: dict, finish_cp: dict, subagents: list) -> dict:
     # nothing here implements, and the completion notification carries only totalTokens.
     cacheable = cache_read_d + cache_creation_d
     cache_efficiency = round(cache_read_d / cacheable, 3) if cacheable else None
+    # Which model did this task's work. `cacheEfficiency` above sits at 0.98 on essentially
+    # every real session, so it cannot separate a cheap task from an expensive one; the model
+    # mix can, and it is the thing the skill's delegation policy actually steers. No prices
+    # here — they change, and output tokens per model is the durable half of the answer.
+    output_by_model = {}
+    for model, totals in (finish_cp.get("byModel") or {}).items():
+        was = ((start_cp.get("byModel") or {}).get(model) or {}).get("outputTokens", 0)
+        spent = max(0, totals.get("outputTokens", 0) - was)
+        if spent:
+            output_by_model[model] = spent
+    mix_total = sum(output_by_model.values())
+    model_mix = ({model: round(spent / mix_total, 3)
+                  for model, spent in output_by_model.items()} if mix_total else {})
     return {
+        "outputByModel": output_by_model,
+        "modelMix": model_mix,
         "inputTokens": input_d,
         "outputTokens": output_d,
         "cacheReadTokens": cache_read_d,

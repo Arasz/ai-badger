@@ -282,6 +282,14 @@ def cmd_reattach(args) -> int:
     return 0
 
 
+def _format_mix(model_mix) -> str:
+    """Shortest honest rendering of the model mix: the biggest share and its model."""
+    if not model_mix:
+        return "-"
+    model, share = max(model_mix.items(), key=lambda kv: kv[1])
+    return f"{model.replace('claude-', '')}:{share:.0%}"
+
+
 def cmd_status(_args) -> int:
     tasks = lib.load_tasks()["tasks"]
     usage = lib.load_usage()
@@ -299,6 +307,7 @@ def cmd_status(_args) -> int:
             f"started={entry.get('startedAt', '-')} finished={entry.get('finishedAt') or '-'} "
             f"tokens={totals if totals is not None else '-'} "
             f"cacheEff={cache_eff if cache_eff is not None else '-'} "
+            f"mix={_format_mix(usage_stats.get('modelMix'))} "
             f"grade={grade if grade is not None else '-'}"
         )
     return 0

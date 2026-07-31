@@ -677,3 +677,14 @@ def test_full_lifecycle_start_subagent_finish_grade(tt, monkeypatch, tmp_path, c
     status_out = capsys.readouterr().out
     assert "LIFECYCLE-1" in status_out
     assert "FINISHED" in status_out
+
+
+class TestTheStatusLineShowsTheModelMix:
+    """`cacheEff` measures ~0.98 on every real task; the mix is what a reader can act on."""
+
+    def test_the_dominant_model_and_its_share_are_shown(self, tt):
+        assert tt._format_mix({"claude-opus-5": 0.8, "claude-haiku-4-5": 0.2}) == "opus-5:80%"
+
+    def test_no_mix_renders_as_a_dash_rather_than_an_empty_column(self, tt):
+        assert tt._format_mix({}) == "-"
+        assert tt._format_mix(None) == "-"

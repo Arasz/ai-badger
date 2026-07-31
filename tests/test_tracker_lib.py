@@ -416,6 +416,7 @@ def test_parse_transcript_usage_missing_file_returns_zeroed_result(load_script, 
     assert result == {
         "contextTokens": 0,
         "assistantMessages": 0,
+        "byModel": {},
         "cumulative": {
             "inputTokens": 0, "outputTokens": 0, "cacheReadTokens": 0, "cacheCreationTokens": 0,
         },
