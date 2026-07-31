@@ -289,7 +289,7 @@ than reweighting them. Knobs in the interior are theatre; the field set is not.
 
 ## 5. Falsifiability
 
-The matcher ships with three fixture sets, deliberately kept apart so none is silently
+The matcher ships with four fixture sets, deliberately kept apart so none is silently
 reinterpreted as another.
 
 [`eval/mcp_queries.jsonl`](../features/common/retrieval/eval/mcp_queries.jsonl) is the regression
@@ -309,17 +309,70 @@ older sets average under five tokens, which is why every bar in them stayed gree
 suppressed half of all sentence-length matches. It was written and committed *before* any
 candidate fix was evaluated, precisely so it could not be shaped into a set the fix passes.
 
-All three sets are run by a checked-in runner, [`tooling/retrieval_eval.py`](../tooling/retrieval_eval.py),
+[`eval/mcp_queries_observed.jsonl`](../features/common/retrieval/eval/mcp_queries_observed.jsonl)
+is the only set nobody invented: **11 fixtures harvested from this repository's own retrieval
+telemetry** — 2 genuine requests and 9 turns addressed to the agent. It answers the bias the
+other three cannot, because their queries were written by the person who also wrote the
+descriptions being matched. What it measures is **false-fire rate on real conversational
+traffic**, which is the honest metric here: the hook fires on every user prompt, so most traffic
+is not retrieval traffic at all.
+
+Its measured verdict, at the shipped threshold: **recall 2/2, false fire 2/9 = 0.222.** The two
+are `"lets wait with #170 for now"` (matched on the word *wait*) and `"/auto-wm away 8h"` (a slash
+command invoking a local skill). Both are ≤4 tokens; no conversational turn above four tokens
+fires. A third harvested request, `"recommend some MCP tools for indexing the codebase"`, is
+carried **only in the telemetry log and not as a fixture** — deciding which tools *should* come
+back for it is a judgement, and this set records what happened rather than what someone wishes had.
+
+All four sets are run by a checked-in runner, [`tooling/retrieval_eval.py`](../tooling/retrieval_eval.py),
 against a named fixture file and a named index. That matters more than it sounds: ADR-0004 once
 claimed "100% accuracy on a 16-query spike suite" whose script lived in another repository, could
 not be run, and could not fail. A number nobody can reproduce is not a measurement.
 
-| Metric | Easy set (58) | Hard set (70) | Long set (48) |
-|---|---|---|---|
-| mean query tokens | 3.8 | 4.8 | **15.3** |
-| recall@1 | 0.930 | **0.442** | 0.938 |
-| recall@3 | 1.000 | **0.481** | 0.969 |
-| false fire on negatives | 0.267 | 0.333 | 0.000 |
+Re-measured at 0.54.4 against this repository's index (**98 tools across 4 servers**), because
+the previously published easy- and long-set figures no longer reproduce — see the note below
+the table.
+
+| Metric | Easy set (58) | Hard set (70) | Long set (48) | Observed set (11) |
+|---|---|---|---|---|
+| mean query tokens | 3.8 | 4.8 | **15.3** | 6.6 |
+| recall@1 | 0.907 | **0.442** | 0.969 | 1.000 |
+| recall@3 | 1.000 | **0.481** | 0.969 | 1.000 |
+| false fire on negatives | 0.267 | 0.333 | 0.062 | **0.222** |
+| coverage margin | −0.201 | −0.125 | +0.025 | +0.289 |
+
+Three cells moved since they were last written down: easy recall@1 (0.930 → 0.907), long
+recall@1 (0.938 → 0.969) and long false fire (0.000 → 0.062). Nothing in the matcher changed;
+the *index* did. Every number here is a function of a corpus that lives in
+`.ai-badger/mcp-tools.json` and changes whenever a server is added or its descriptions are
+edited — so a figure in this file is a reading taken on a date, not a constant. Reproduce with:
+
+```console
+$ python3 tooling/retrieval_eval.py --fixtures features/common/retrieval/eval/<set>.jsonl
+```
+
+That is the same standard this section applies to ADR-0004: a number nobody can reproduce is not
+a measurement, and one that silently stops reproducing is no better.
+
+### The coverage threshold cannot fix the false fires
+
+Worth recording before anyone reaches for the obvious knob. On the observed set the two false
+positives score **0.284** and **0.209**, and the weakest genuine request in the same telemetry
+(`"recommend some MCP tools for indexing the codebase"`) scores **0.204**. Sweeping the
+threshold:
+
+| Threshold | False positives firing | Weakest genuine request |
+|---|---|---|
+| **0.20** (shipped) | 2 | survives |
+| 0.21 | 1 | killed |
+| 0.30 | 0 | killed |
+
+**There is no threshold that removes a false positive without first destroying a real request.**
+The two populations overlap, which the authored sets already hinted at through a negative
+coverage margin (−0.201 easy, −0.125 hard) — a margin below zero *means* the bands overlap.
+Raising the bar is therefore ruled out by measurement, not by opinion. What survives as a lead:
+both false positives are ≤4 tokens and nothing longer fires, so query length separates these two
+cases where coverage does not.
 
 The runner also breaks every metric down **by query length**, which is the part of this that
 generalises. The defect above was invisible for two releases not because it was subtle but
@@ -495,11 +548,12 @@ on every line.
 
 ### From a record to a fixture
 
-The three eval fixture sets are author-written, and issue #140 named the bias in that plainly:
-the queries were invented by the person who also wrote the descriptions being matched, which
-lifts recall for a reason that has nothing to do with the matcher. Telemetry is the other source
-— queries people actually typed — and `tooling/fixture_harvest.py` is the mechanism for reading
-it without dragging user content into a public repository.
+Three of the four eval fixture sets are author-written, and issue #140 named the bias in that
+plainly: the queries were invented by the person who also wrote the descriptions being matched,
+which lifts recall for a reason that has nothing to do with the matcher. Telemetry is the other
+source — queries people actually typed — and `tooling/fixture_harvest.py` is the mechanism for
+reading it without dragging user content into a public repository. `mcp_queries_observed.jsonl`
+is the first set built that way.
 
 It classifies every record and proposes only what survives:
 
