@@ -276,3 +276,24 @@ def test_no_project_root_is_silent(load_script, monkeypatch, capsys):
 
     assert rc == 0
     assert capsys.readouterr().out == ""
+
+
+def test_three_unanswered_commands_escalate_through_main(load_script, monkeypatch, capsys):
+    """The escalation must be wired into the hook, not just correct in the logic module.
+
+    Without this, mutating the `fires` argument at the call site left the whole suite green.
+    """
+    hook = _load(load_script)
+    _stub_entry_store(hook, monkeypatch)
+
+    messages = []
+    for count in (5, 6, 7):
+        _stub_uncommitted_files(hook, monkeypatch, count)
+        _run_main(hook, monkeypatch, _payload())
+        messages.append(json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+                        ["additionalContext"])
+
+    assert messages[0].startswith("[ai-badger] Commit now")
+    assert messages[1].startswith("[ai-badger] Commit now")
+    assert "STOP AND COMMIT" in messages[2]
+    assert "after 3 commands" in messages[2], "the count reaching the message must be live"

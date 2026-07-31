@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.55.0",
-  "frameworkCommit": "7b787f2c1db6dba2e39cb0c8b741ebafec0c2d58",
+  "frameworkCommit": "4a0f9dc1e61dc4bc705dccb4607d3340fe548753",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -263,12 +263,12 @@
       "source": "features/common/skills/commit-reminder",
       "target": ".ai-badger/skills/commit-reminder",
       "frameworkVersion": "0.55.0",
-      "hash": "97dfba80bea313d86b5a52c2d1e0ad890783f8e64843583c4c84f22e494ad1a4",
+      "hash": "f6adcf48035968305439aee873db45f2a4909a904e7759b235506cc1da908c70",
       "dirMeta": {
         "file_count": 6,
         "dir_count": 1
       },
-      "sourceHash": "97dfba80bea313d86b5a52c2d1e0ad890783f8e64843583c4c84f22e494ad1a4",
+      "sourceHash": "f6adcf48035968305439aee873db45f2a4909a904e7759b235506cc1da908c70",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 1

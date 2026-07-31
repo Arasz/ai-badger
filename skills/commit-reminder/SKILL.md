@@ -50,11 +50,19 @@ the count drops on its own and the hook needs no cleanup step to notice.
 
 ## The debounce ratchet
 
-A per-project entry is persisted between calls. The hook fires once when the count first crosses
-the threshold, then stays silent on every subsequent call at the same or a higher count —
-otherwise it would nag on every single edit past the threshold. As soon as the count drops below
-the stored marker (a commit happened), the marker ratchets down immediately, so climbing back
-past the threshold later fires again. It is a re-arming debounce, not a one-time flag.
+A per-project entry is persisted between calls. The hook fires when the count first crosses the
+threshold and again each time it reaches a **new high**, staying silent while the count holds
+flat — otherwise it would repeat itself on every edit past the threshold. As soon as the count
+drops below the stored marker, the marker ratchets down immediately, so climbing back past the
+threshold later fires again. It is a re-arming debounce, not a one-time flag.
+
+Two consequences worth knowing, because they follow from the count being the only signal:
+
+- The escalation bar is three *new highs*, not three commands ignored over a span of time. An
+  agent that edits the same five files repeatedly is never asked twice.
+- Anything that lowers the count clears the unanswered counter, including `git stash` or a
+  cleaned build directory — not only a commit. The hook cannot tell those apart, and treating a
+  dropped count as progress is the same assumption the ratchet already makes.
 
 ## Escalation: an agent that never commits
 
@@ -77,8 +85,16 @@ leaves the work unrecoverable.
 the agent that triggered it; it has no channel to that agent's parent. So the hook records and
 the parent reads. Run `ensure_committed.py` when a subagent has been working a long time without
 landing anything — it names which project, which session, and how long, while there is still
-time to take over, commit, or stop it. It exits 0 even when work is at risk: reporting is not
-gating.
+time to take over, commit, or stop it. It exits 0 even when work is at risk — and on malformed
+state, which is a report a parent must still be able to read: crashing would be a worse failure
+than the one being reported.
+
+A project whose work has since been committed drops out of the report even if its entry has not
+been cleared yet, because the entry only clears on a later hook run in that project — otherwise
+a finished or deleted worktree would stay "at risk" forever.
+
+The Hermes hook shares the same entry. Both sides read and write it through `advance`, so an
+edit on one side cannot silently clear an escalation raised on the other.
 
 Entries are keyed by resolved project root, which separates parallel agents whenever they run in
 their own worktrees — the common case for this kind of fan-out.

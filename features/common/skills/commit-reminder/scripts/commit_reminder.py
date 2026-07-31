@@ -5,6 +5,7 @@ any scaffolded repo (a state file inside the measured repo would inflate its own
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -87,7 +88,10 @@ def advance(entry: Dict, count: int, threshold: int = 5, escalate_after: int = E
     updated = dict(entry)
     updated.update({"marker": new_marker, "fires": unanswered})
     if fires:
-        updated["since"] = now or entry.get("since", "")
+        # The *first* unanswered command, not the latest: a parent reads this as how long the
+        # work has been at risk, and refreshing it would understate the very risk it reports.
+        if unanswered == 1:
+            updated["since"] = now
         updated["session"] = session or entry.get("session", "")
     return fires, fires and unanswered >= escalate_after, updated
 
@@ -122,7 +126,7 @@ def load_state() -> Dict[str, int]:
     """Load the marker state file; `{}` on missing file, read error, or malformed JSON."""
     try:
         raw = STATE_FILE.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, ValueError):  # ValueError: a non-UTF-8 file raises UnicodeDecodeError
         return {}
     try:
         data = json.loads(raw)
@@ -132,9 +136,16 @@ def load_state() -> Dict[str, int]:
 
 
 def save_state(state: Dict[str, int]) -> None:
-    """Persist the marker state file, creating parent directories as needed."""
+    """Persist the state file atomically, creating parent directories as needed.
+
+    Parallel agents in separate worktrees share one file. The write is a rename so a reader
+    never sees a torn file: `load_state` degrades an unparseable read to `{}`, and the next
+    writer would then persist that — silently cancelling every other project's escalation.
+    """
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
+    tmp = STATE_FILE.with_name(f"{STATE_FILE.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(state), encoding="utf-8")
+    os.replace(tmp, STATE_FILE)
 
 
 def get_entry(root: str) -> Dict:
@@ -168,9 +179,9 @@ def at_risk_entries() -> Dict[str, Dict]:
     """
     found = {}
     for root, value in load_state().items():
-        entry = value if isinstance(value, dict) else {}
-        if entry.get("fires", 0) >= ESCALATE_AFTER:
-            found[root] = entry
+        fires = value.get("fires") if isinstance(value, dict) else None
+        if isinstance(fires, int) and not isinstance(fires, bool) and fires >= ESCALATE_AFTER:
+            found[root] = value
     return found
 
 
