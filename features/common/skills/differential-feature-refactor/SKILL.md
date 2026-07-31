@@ -6,6 +6,14 @@ description: >-
   scoped. Triggers: two parallel implementations of the same thing, code that reads as dead
   but may be a ratified extension point, an architecture nobody can tell from accumulated
   cruft, or a refactor about to be scoped off review documents instead of decisions.
+version: 1.0.0
+author: Hermes Agent
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [refactoring, architecture, decisions, design]
+    related_skills: [create-refinement-document]
 ---
 
 # Differential Feature Refactor
@@ -111,6 +119,9 @@ UNANSWERED
 
 Fallback-path checks (the form path reports its own counts and a `## Not answered` list):
 
+The commands below use POSIX shell features and are intended for macOS/Linux. On another
+platform, use equivalent finite commands that preserve the same checks.
+
 ```bash
 D=docs/designs/YYYY-MM-DD-<feature>-differential.md
 grep -c '^#### UP-' "$D"                                       # total points
@@ -153,7 +164,7 @@ feature already has answers in the tree, and the UP blocks are that questioning 
 differential. If the refactor turns out to require a genuinely new sub-feature with no existing
 code, hand that sub-feature to the spec skill rather than growing this document.
 
-## Red flags — STOP and go back to the authority set
+## Common Pitfalls — STOP and go back to the authority set
 
 - About to write "dead code", "unused", "legacy", or "safe to delete" without naming the decision
   that authorised the thing
@@ -165,6 +176,14 @@ code, hand that sub-feature to the spec skill rather than growing this document.
 - Reading only an answer's first line, or only a card's verdict
 - No Mermaid diagram for one of the four flow views
 - Treating the differential document as the deliverable
+
+## Verification Checklist
+
+- [ ] The authority set was collected before implementation code was read
+- [ ] Every current-state claim has a `path:line` citation or `[UNVERIFIED]`
+- [ ] Every undefined point has exactly three propositions and a delimited answer block
+- [ ] The generated review form uses a unique `CONFIG.storageKey` and finite watch
+- [ ] Every returned verdict and note was reconciled before brainstorming or planning
 
 ## Token efficiency
 
