@@ -81,7 +81,10 @@ Before editing matching files, read the applicable scoped instruction file:
 
 ## Agent delegation
 
-_None configured — work is not dispatched to a persona. Add entries to `personaRouting` in `.ai-badger/config.json` to route it._
+- Design, decomposition and ADRs — before any non-trivial multi-file change → `architect`
+- Test strategy, the failing test that precedes a change, and auditing whether an existing test can actually fail → `test-engineer`
+- Quality gate before merge, security review, and adversarially verifying a claim this session made about its own work → `code-reviewer`
+- Hermes skills, hooks and gateway configuration, and HERMES.md → `hermes-agent-author`
 
 ## Prompt markers
 
