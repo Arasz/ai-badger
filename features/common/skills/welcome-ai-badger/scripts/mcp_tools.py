@@ -234,6 +234,11 @@ class McpTools:
         return {name: self._resolve_server_for_agent(srv, agent)
                 for name, srv in self.declared_servers().items()}
 
+    def project_server_names(self) -> List[str]:
+        """The declared, project-scoped servers, sorted — what this project's own config gets."""
+        project, _ = self.split_servers_by_scope(self.declared_servers())
+        return sorted(project)
+
     def split_servers_by_scope(
         self, servers: Dict[str, Dict[str, Any]]
     ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
