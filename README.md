@@ -19,6 +19,63 @@ instructions used across projects. It is three things in one repo:
 Badger-themed name, professional-grade contents: the badger digs the framework into your repo
 and digs improvements back out.
 
+## Two things it does that instruction files don't
+
+### It measures where your tokens actually go
+
+Of 205 agent dispatches in this repository, **101 named no model** and silently inherited the
+session's — which is the expensive one. Nobody chose that. It simply was not recorded, so it
+was not visible.
+
+The `/task` skill now reads the session transcript, including `<session-id>/subagents/*.jsonl`
+where dispatched work actually lives, and records which model produced each task's output,
+how many dispatches ran, and how many declared a model. `task_tracker.py status` prints
+`mix=opus-5:69%`, so "delegate the mechanical work" stops being advice and becomes something
+you can check afterwards.
+
+The reason to track model mix rather than the obvious alternative: **cache efficiency is
+saturated.** Across 1250 sessions it measured 0.975–0.986 — on every single one, including
+the most expensive. It cannot separate a cheap task from a costly one. Model mix can.
+
+How much it matters, with the conditions attached, because a coefficient without them is
+decoration:
+
+```
+24 project-days, one developer's machine, three repositories, July 2026
+delegation ratio = share of output tokens on non-top-tier models
+
+    $/M output  ≈  237  −  188 × delegation_ratio        r = −0.813  (r² = 0.66)
+```
+
+So roughly $19 per million output tokens for every 10 points of delegation. That is a
+correlation over a small, single-source sample, and work type is an obvious confound — hard
+reasoning legitimately needs the expensive tier, so 100% is not the target. Treat it as a
+before/after instrument on comparable work, not a forecast.
+
+### Its gates refuse, rather than warn
+
+Agent-written changes fail quietly: a doc drifts from the code, a test stops being able to
+fail, a release ships untagged. ai-badger's gates run in CI and in the pre-push hook, and they
+exit non-zero.
+
+Every row below is a real refusal from one day of work on this repo — all of them catching an
+agent, several of them catching this framework's own maintainer:
+
+| Gate | What it caught |
+|---|---|
+| `index_build` | a `$schema` key in `stack.json`, which is folded wholesale into `index.json` |
+| `release_guard` | 0.58.0 had a changelog entry and no git tag |
+| `scaffold_freshness_guard` | a scaffolded script left stale by an edit to its source |
+| `docs_guard` | a documented command missing the path that makes it copy-pasteable |
+| MCP catalog tests | invented tool tags outside the closed vocabulary; a `server.md` 21 lines against a 15-line budget |
+| `tdd_guard` | shipped code changed with no test beside it |
+
+The budget one is the flavour of the whole thing. `server.md` lands verbatim in every agent
+file, every session, so it is capped at 15 lines — policy, not a manual.
+
+What none of this covers yet: the gates check the artefacts, not the reasoning. A confidently
+wrong claim in a PR body passes every one of them. That still needs a reviewer.
+
 ## Supported agents
 
 | Agent | Status | Notes |
@@ -30,8 +87,8 @@ and digs improvements back out.
 
 ## Supported stacks
 
-`angular`, `azure`, `cosmos`, `css`, `dotnet`, `github`, `hermes`, `js`, `mcp`, `node`,
-`python`, `react`, `terraform`, `ts` — plus **`common`** for stack-agnostic content and
+`angular`, `aspire`, `azure`, `cosmos`, `css`, `dotnet`, `github`, `hermes`, `js`, `mcp`,
+`node`, `python`, `react`, `terraform`, `ts` — plus **`common`** for stack-agnostic content and
 agent-specific stacks (`claude`, `copilot`, `junie`).
 
 ## Install
