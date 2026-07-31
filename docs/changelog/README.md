@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.56.0 | [a task records which model did the work](0.56.0-a-task-records-which-model-did-the-work.md) |
 | 0.55.0 | [commit now, and say when work is at risk](0.55.0-commit-now-and-say-when-work-is-at-risk.md) |
 | 0.54.4 | [the matcher answers conversational turns, and now we know how often](0.54.4-the-matcher-answers-conversational-turns.md) |
 | 0.54.3 | [a test run leaves nothing behind](0.54.3-a-test-run-leaves-nothing-behind.md) |

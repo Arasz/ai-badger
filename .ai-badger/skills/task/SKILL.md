@@ -75,13 +75,26 @@ roughly a tenth of the cost instead of a fresh write. Subagent caches are indepe
 on a ~5-minute TTL, so: prefer one multi-turn subagent over many one-shot dispatches for a
 cluster of related steps (amortises the cold start), and use `/rewind` rather than `/compact` to
 backtrack within a task (rewind reuses the cached prefix; compact pays for a fresh summary
-write). Compact only at task boundaries (Phase 0). `token-usage.json` records a main-session
-`cacheEfficiency` (cache_read ÷ (cache_read + cache_creation)); a low ratio means the prefix is
-churning. A **main-vs-sidechain** split is available and cheap — `parse_transcript_usage`
-already reads each message's `cache_read_input_tokens` and branches on `isSidechain`. A
-**per-subagent** split is not: attributing a sidechain message to the dispatch that produced it
-means chasing `parentUuid` through the transcript, which nothing here implements, and the
-completion notification itself exposes only `total_tokens`.
+write). Compact only at task boundaries (Phase 0). A **main-vs-sidechain** split is available and
+cheap — `parse_transcript_usage` already reads each message's `cache_read_input_tokens` and
+branches on `isSidechain`. A **per-subagent** split is not: attributing a sidechain message to
+the dispatch that produced it means chasing `parentUuid` through the transcript, which nothing
+here implements, and the completion notification itself exposes only `total_tokens`.
+
+**Judge a task by its model mix, not its cache efficiency.** `token-usage.json` records both.
+`cacheEfficiency` (cache_read ÷ (cache_read + cache_creation)) turns out not to discriminate:
+measured over 1250 real sessions it sits at 0.975-0.986 on every one, including the most
+expensive. It is worth watching only for a *collapse*, which means the prefix is churning.
+
+`modelMix` is the number that moves. Over those same sessions the expensive and mid tiers
+produced comparable output volume — 23.7M vs 20.6M tokens — at **3.1× the cost**, so which model
+did a task's output is the largest lever available, and it is precisely what the delegation
+policy above steers. `python3 .ai-badger/skills/task/scripts/task_tracker.py status` shows the
+dominant model and its share (`mix=opus-5:82%`); `outputByModel` carries the full split. A task
+whose mix is nearly all high-reasoning model did not delegate, whatever its plan said.
+
+No prices are recorded. They change, and a stale hardcoded rate would be a confidently wrong
+number; output tokens per model is the durable half, and a reader applies today's rates.
 
 **If you cannot spawn subagents** (you are running as a subagent yourself, or the Agent tool is
 unavailable), do the work directly in-session at whatever model is available — the workflow's
