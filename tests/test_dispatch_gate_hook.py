@@ -228,9 +228,9 @@ def test_the_deny_is_recorded_against_the_project_it_came_from(
                       {"subagentType": "architect"})], calls
 
 
-def test_the_legacy_task_tool_name_is_gated_too(hook, monkeypatch, capsys, tmp_path):
+def test_a_tool_name_the_matcher_never_sends_stays_ungated(hook, monkeypatch, capsys, tmp_path):
+    """Only `Agent` is registered; anything else reaching the script is a matcher change."""
     rc = _run(hook, monkeypatch, _dispatch(tmp_path, tool_name="Task"))
 
     assert rc == 0
-    out = json.loads(capsys.readouterr().out)
-    assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert capsys.readouterr().out == ""

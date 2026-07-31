@@ -19,6 +19,15 @@
             "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/session_start_hook.py\" ] || python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/session_start_hook.py\""
           }
         ]
+      },
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/session_start_hook.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/session_start_hook.py\"; elif [ -f \".ai-badger/skills/task/scripts/session_start_hook.py\" ]; then python3 \".ai-badger/skills/task/scripts/session_start_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/task/scripts/session_start_hook.py not found - hook skipped\"}'; fi"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -35,6 +44,22 @@
           {
             "type": "command",
             "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\" ] || python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\""
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/mcp-index/scripts/context_enrichment_hook.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/mcp-index/scripts/context_enrichment_hook.py\"; elif [ -f \".ai-badger/skills/mcp-index/scripts/context_enrichment_hook.py\" ]; then python3 \".ai-badger/skills/mcp-index/scripts/context_enrichment_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/mcp-index/scripts/context_enrichment_hook.py not found - hook skipped\"}'; fi"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\"; elif [ -f \".ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\" ]; then python3 \".ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py not found - hook skipped\"}'; fi"
           }
         ]
       }
@@ -58,6 +83,15 @@
             "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/commit-reminder/scripts/commit_reminder_hook.py\" ] || python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/commit-reminder/scripts/commit_reminder_hook.py\""
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/commit-reminder/scripts/commit_reminder_hook.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/commit-reminder/scripts/commit_reminder_hook.py\"; elif [ -f \".ai-badger/skills/commit-reminder/scripts/commit_reminder_hook.py\" ]; then python3 \".ai-badger/skills/commit-reminder/scripts/commit_reminder_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/commit-reminder/scripts/commit_reminder_hook.py not found - hook skipped\"}'; fi"
+          }
+        ]
       }
     ],
     "Stop": [
@@ -66,6 +100,14 @@
           {
             "type": "command",
             "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\" ] || python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\""
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\"; elif [ -f \".ai-badger/skills/task/scripts/stop_hook.py\" ]; then python3 \".ai-badger/skills/task/scripts/stop_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/task/scripts/stop_hook.py not found - hook skipped\"}'; fi"
           }
         ]
       }
@@ -78,6 +120,14 @@
             "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\" ] || python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\""
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/stop_hook.py\"; elif [ -f \".ai-badger/skills/task/scripts/stop_hook.py\" ]; then python3 \".ai-badger/skills/task/scripts/stop_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/task/scripts/stop_hook.py not found - hook skipped\"}'; fi"
+          }
+        ]
       }
     ],
     "PreToolUse": [
@@ -87,6 +137,15 @@
           {
             "type": "command",
             "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/dispatch_gate_hook.py\" ] || python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/dispatch_gate_hook.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/dispatch_gate_hook.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/dispatch_gate_hook.py\"; elif [ -f \".ai-badger/skills/task/scripts/dispatch_gate_hook.py\" ]; then python3 \".ai-badger/skills/task/scripts/dispatch_gate_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/task/scripts/dispatch_gate_hook.py not found - hook skipped\"}'; fi"
           }
         ]
       }

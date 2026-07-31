@@ -11,6 +11,7 @@ once (issue #152).
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -62,7 +63,7 @@ def _wired_scripts(target: Path, event: str) -> list:
     if not settings_path.exists():
         return []
     settings = json.loads(settings_path.read_text(encoding="utf-8"))
-    return [h.get("command", "").rstrip('"').rsplit("/", 1)[-1]
+    return [(re.search(r"([\w.-]+\.py)", h.get("command", "")) or [""])[0].rsplit("/", 1)[-1]
             for entry in settings.get("hooks", {}).get(event, [])
             for h in entry.get("hooks", [])]
 
@@ -96,10 +97,10 @@ def test_manifest_named_script_is_wired_not_whichever_glob_sorts_first(tmp_path,
     assert _wired_scripts(target, "Stop") == ["stop_hook.py"]
 
 
-def test_a_wired_command_is_neutral_when_its_script_is_missing_at_runtime(tmp_path, load_script,
-                                                                          root):
+def test_a_wired_command_survives_the_script_missing_at_runtime(tmp_path, load_script, root):
     """In a git worktree session ${CLAUDE_PROJECT_DIR} resolves to the main checkout, which may
-    not carry the script — and a missing file BLOCKS the call a PreToolUse hook gates."""
+    not carry the script — and a missing file BLOCKS the call a PreToolUse hook gates. The
+    wired command tries the project copy, then the session cwd's copy, then says it skipped."""
     target = tmp_path / "proj"
     _skill_scripts(target, "task", "stop_hook.py")
     manifest_hooks = [
@@ -115,8 +116,18 @@ def test_a_wired_command_is_neutral_when_its_script_is_missing_at_runtime(tmp_pa
     settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
     commands = [h["command"] for entry in settings["hooks"]["Stop"] for h in entry["hooks"]]
     rel = ".ai-badger/skills/task/scripts/stop_hook.py"
-    assert commands == [f'[ ! -f "${{CLAUDE_PROJECT_DIR}}/{rel}" ] || '
-                        f'python3 "${{CLAUDE_PROJECT_DIR}}/{rel}"']
+    assert commands == [
+        f'if [ -f "${{CLAUDE_PROJECT_DIR}}/{rel}" ]; then python3 "${{CLAUDE_PROJECT_DIR}}/{rel}"; '
+        f'elif [ -f "{rel}" ]; then python3 "{rel}"; '
+        f'else echo \'{{"systemMessage": "ai-badger: {rel} not found - hook skipped"}}\'; fi']
+
+
+def test_a_script_path_that_could_break_out_of_the_shell_string_is_not_guarded(load_script, root):
+    """The guard interpolates the path into a shell command — quotes and $() must not reach it."""
+    wiring = _load(load_script, root, "hook_wiring")
+    hostile = 'python3 "${CLAUDE_PROJECT_DIR}/.ai-badger/x$(rm -rf ~).py"'
+
+    assert wiring.guarded(hostile) == hostile
 
 
 # ------------------------------------------------- test 2: the #147 regression, written first

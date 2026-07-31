@@ -5,6 +5,8 @@ Reads hooks-manifest.json, generates project-specific hooks.json under
 """
 from __future__ import annotations
 
+import re
+
 from typing import Any, Dict, List, Optional, Set
 
 from scaffold_context import ScaffoldContext
@@ -44,16 +46,25 @@ def project_script(command: str) -> Optional[str]:
     return rest or None
 
 
+# The only characters a scaffolded script path may carry into a shell string (F4).
+_SHELL_SAFE_PATH = re.compile(r"[\w./-]+")
+
+
 def guarded(command: str) -> str:
-    """`command`, neutral (exit 0, no output) when its script is missing at runtime.
+    """`command`, still able to run — or saying it skipped — when its script is missing.
 
     In a git worktree session ${CLAUDE_PROJECT_DIR} resolves to the main checkout, which may
-    not carry the script; a missing file BLOCKS the call a PreToolUse hook gates.
+    not carry the script; a missing file BLOCKS the call a PreToolUse hook gates. Fall back
+    to the session cwd's copy, and report the skip rather than going silently inert (F1).
     """
     script = project_script(command)
-    if not script:
+    if not script or not _SHELL_SAFE_PATH.fullmatch(script):
         return command
-    return f'[ ! -f "{PROJECT_DIR_VAR}/{script}" ] || {command}'
+    relative = command.replace(f"{PROJECT_DIR_VAR}/", "")
+    return (f'if [ -f "{PROJECT_DIR_VAR}/{script}" ]; then {command}; '
+            f'elif [ -f "{script}" ]; then {relative}; '
+            f'else echo \'{{"systemMessage": "ai-badger: {script} not found - hook skipped"}}\'; '
+            f'fi')
 
 
 def declined_skill(command: str, declined: Set[str]) -> Optional[str]:

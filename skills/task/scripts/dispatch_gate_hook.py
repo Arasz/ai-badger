@@ -21,7 +21,7 @@ except ImportError:  # pragma: no cover - a missing logger must never break a ho
     debug_log = None
 
 COMPONENT = "dispatch_gate_hook"
-DISPATCH_TOOLS = ("Agent", "Task")
+DISPATCH_TOOLS = ("Agent",)
 FRONTMATTER_FENCE = "---"
 MODEL_KEY = "model:"
 
