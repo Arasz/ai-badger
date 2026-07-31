@@ -220,8 +220,14 @@
 
     var head = document.createElement("div");
     head.className = "d-head";
-    head.innerHTML = '<span class="did">' + esc(d.id) + '</span>' +
-                     '<span class="d-claim">' + (d.claim || "") + '</span>';
+    var idSpan = document.createElement("span");
+    idSpan.className = "did";
+    idSpan.textContent = d.id;
+    var claimSpan = document.createElement("span");
+    claimSpan.className = "d-claim";
+    claimSpan.textContent = d.claim || "";
+    head.appendChild(idSpan);
+    head.appendChild(claimSpan);
     card.appendChild(head);
 
     (d.detail || []).forEach(function (p) {
@@ -313,6 +319,10 @@
   }
 
   /* ---- markdown (see references/result-template.md) ---- */
+  function markdownNote(note) {
+    return note.split("\n").map(function (line) { return "> " + line; }).join("\n");
+  }
+
   function markdown() {
     var s = state();
     var lines = [];
@@ -335,7 +345,7 @@
       lines.push("");
       lines.push("**Notes:**");
       lines.push("");
-      lines.push(e.note ? e.note : "_(none)_");
+      lines.push(e.note ? markdownNote(e.note) : "_(none)_");
       lines.push("");
       lines.push("---");
       lines.push("");
@@ -349,7 +359,9 @@
         var e = s[c.dataset.id];
         lines.push("- " + c.dataset.id + " — " + c.querySelector(".d-claim").textContent.trim() +
                    (e && e.note ? " (note only, no verdict)" : ""));
-        if (e && e.note) { lines.push(""); lines.push("  " + e.note.split("\n").join("\n  ")); lines.push(""); }
+        if (e && e.note) { lines.push(""); lines.push(e.note.split("\n").map(function (line) {
+          return "  > " + line;
+        }).join("\n")); lines.push(""); }
       });
     } else {
       lines.push("_(none — every item has a verdict)_");
@@ -460,9 +472,10 @@
       a.click();
       a.remove();
       setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
-      report("warn", "Downloaded <code>" + esc(CONFIG.outName) + "</code> to your <b>browser's download folder</b> — " +
+      report("warn", "Download initiated for <code>" + esc(CONFIG.outName) + "</code> to your <b>browser's download folder</b> — " +
         "this is <b>not</b> next to this page." +
         (CONFIG.expectedDir ? " Move it to <code class=\"path\">" + esc(CONFIG.expectedDir) + "</code>, or tell the agent where it is." : ""));
+      revealText("The download was initiated. If it did not appear, copy this generated feedback manually.");
       return;
     } catch (err2) {
       report("warn", "Download failed (" + esc(err2 && err2.name) + "). Trying the clipboard…");

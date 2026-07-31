@@ -6,6 +6,14 @@ description: >-
   pasting a long document into chat and getting a wall of prose back, an answer that can't be
   matched to its question, a reviewer hand-editing answer slots in markdown, or a set of
   decisions that must each be approved, changed, rejected or deferred before work is scoped.
+version: 1.0.0
+author: Hermes Agent
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [review, decisions, design, feedback]
+    related_skills: [differential-feature-refactor]
 ---
 
 # Create a refinement document
@@ -33,9 +41,9 @@ you can watch — an artifact page has no filesystem and cannot write next to it
 
 1. **Write the form** from `references/form-template.html` to `<date>-<slug>-review.html`, beside
    the document it reviews — whatever directory that project keeps design and review documents in
-   (`docs/designs/` unless it keeps another). Fill the `DECISIONS` array and `OUT_NAME`, and set
-   `EXPECTED_PATH` to the absolute path the result should land at. Do not create a new doc home
-   for it.
+   (`docs/designs/` unless it keeps another). Fill the `DECISIONS` array and all per-review
+   `CONFIG` fields: `title`, `subtitle`, `source`, `outName`, `expectedDir`, and a unique
+   `storageKey` such as `refinement:<slug>:v1`. Do not create a new doc home for it.
 2. **Pre-create nothing that could read as a real answer.** Do not write a stub result file, do
    not seed `localStorage`, do not fill any verdict "as an example". A pre-created result file
    makes the watch fire instantly and gets ingested as a review that never happened.
@@ -60,6 +68,8 @@ for i in $(seq 1 720); do [ -f "$OUT" ] && break; sleep 5; done   # capped: 720 
 
 Run it with `run_in_background: true`. The cap is mandatory: a watch with no stopping condition
 is a loop nobody can answer "what ends this?" for, and it outlives the session that started it.
+The example uses POSIX shell syntax and is intended for macOS/Linux; on another platform, use an
+equivalent finite watcher and preserve the same one-hour cap.
 
 **Caveats.** It fires on file *creation*: a reviewer who saves twice produces one notification,
 not two, so the notification tells you a review exists, never that it is the final one — re-read
@@ -147,7 +157,7 @@ Each card carries exactly three things:
 Group cards under headings when the kinds differ (corrections / design / open items). Give every
 card a short stable id (`D1`, `C2`, `O4`) — it is the join key in the result file.
 
-## Red flags — STOP
+## Common Pitfalls — STOP
 
 - A result file that exists before the reviewer has opened the form
 - Reading only the verdict and skipping the note
@@ -157,6 +167,14 @@ card a short stable id (`D1`, `C2`, `O4`) — it is the join key in the result f
 - An uncapped watch loop
 - Claiming the save worked because the code path exists — the UI reports the outcome; believe the
   reported outcome, and if the reviewer says nothing, check the file
+
+## Verification Checklist
+
+- [ ] `CONFIG.storageKey` is unique to this review and does not retain the template example
+- [ ] `CONFIG.outName` and `CONFIG.expectedDir` match the watch path
+- [ ] No result file was pre-created and the watch has a finite stopping condition
+- [ ] The saved result ends with `<!-- end refinement feedback -->`
+- [ ] Every answered decision's verdict and complete note were read before reconciliation
 
 ## Files
 

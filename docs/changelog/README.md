@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.54.1 | [review forms preserve feedback safely](0.54.1-review-form-safety.md) |
 | 0.54.0 | [two skills for getting a decision out of a human](0.54.0-decision-collection-skills.md) |
 | 0.53.2 | [a directory entry is hashed over the files it owns](0.53.2-dir-entry-hashes-what-it-owns.md) |
 | 0.53.1 | [the query survives long enough to be a fixture](0.53.1-the-query-survives-long-enough-to-be-a-fixture.md) |

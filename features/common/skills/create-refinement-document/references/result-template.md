@@ -10,7 +10,7 @@ Exactly what `form-template.html` emits. Parse against this; do not guess.
 | `<!-- refinement-form: <storageKey> · saved <ISO> · answered <n>/<total> -->` | provenance; `answered` is the count with a verdict |
 | `## <id> — <claim>` | one per **answered** item, in form order. `<id>` is the join key back to the source document |
 | `**Verdict:** APPROVE\|CHANGE\|REJECT\|DEFER` | uppercase, exactly one of four |
-| `**Notes:**` then a blank line then free text | **multi-line, unbounded** — everything up to the `---` belongs to this decision |
+| `**Notes:**` then a blank line then blockquoted text | **multi-line, unbounded** — each note line is prefixed with `> `, so a note containing `---` cannot become the item separator. Strip the `> ` prefix when ingesting. |
 | `---` | ends each answered item |
 | `## Not answered` | always present, even when empty |
 | `<!-- end refinement feedback -->` | last line. **Absent ⇒ the file was read mid-write. Re-read it.** |
@@ -19,6 +19,8 @@ Exactly what `form-template.html` emits. Parse against this; do not guess.
 
 - The note runs to the `---`, not to the end of the line. A single-line read is the exact failure
   this format was built to remove.
+- Notes are blockquoted in the emitted form. Strip one leading `> ` from each note line while
+  preserving blank lines and all other content.
 - A note may be a counter-question. That is an answer, and it means the decision stays open.
 - Items under `## Not answered` are **open**, never agreed. An item can appear there *with* a note
   and no verdict — read that note, it is usually the reason the reviewer could not decide.
@@ -38,10 +40,10 @@ Source document: `docs/designs/2026-01-15-import-pipeline-design.md`
 
 **Notes:**
 
-200 chars is too tight — the boilerplate plain part on the rejection template is 240.
-Make it 400 and put the threshold in config, not a const.
+> 200 chars is too tight — the boilerplate plain part on the rejection template is 240.
+> Make it 400 and put the threshold in config, not a const.
 
-Second thing: record *both* parts' lengths in provenance, not just which one won.
+> Second thing: record *both* parts' lengths in provenance, not just which one won.
 
 ---
 
