@@ -212,7 +212,7 @@ See Hermes docs for the full handler example (posts to Telegram when iteration >
 
 | Claude Code | Hermes Agent |
 |---|---|
-| `/task` with model routing (Fable/Sonnet/Haiku) | `delegate_task(goal, context, role)` with leaf/orchestrator roles |
+| `/task` with model routing (Opus/Sonnet/Haiku) | `delegate_task(goal, context, role)` with leaf/orchestrator roles |
 | Model names are Anthropic-specific | Provider-agnostic: any model, any provider |
 | Single subagent per command | Batch mode: up to 3 parallel subagents |
 | Console output inline | Live transcripts at `cache/delegation/live/<id>/` |

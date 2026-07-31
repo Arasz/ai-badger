@@ -274,6 +274,7 @@ target-repo/
     AGENTS.md                # framework-managed junie source (if junie present)
     copilot-instructions.md  # framework-managed copilot source (if copilot present)
     agents/*.md              # scaffolded personas
+    delegation.md            # generated map: personas + lanes, routing, verifiers, MCP servers
     instructions/*.md        # scoped instructions
     invariants/*.md
     skills/…                 # embedded skills — real copies of features/*/skills/, not symlinks
