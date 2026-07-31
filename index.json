@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.59.0",
+  "frameworkVersion": "0.60.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -289,6 +289,10 @@
         {
           "name": "agent-instructions",
           "path": "features/common/templates/agent-instructions"
+        },
+        {
+          "name": "delegation.md.tmpl",
+          "path": "features/common/templates/delegation.md.tmpl"
         },
         {
           "name": "state.json",

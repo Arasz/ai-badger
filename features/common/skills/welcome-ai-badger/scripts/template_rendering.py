@@ -1,14 +1,56 @@
 """Template rendering, one of the scaffold's collaborators.
 
-Computes document slots for CLAUDE.md/HERMES.md templates, renders template
-files, and assembles agent discovery documents.
+Computes document slots for CLAUDE.md/HERMES.md/delegation.md templates, renders
+template files, and assembles agent discovery documents.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
 from scaffold_context import ScaffoldContext
+
+# A frontmatter key: at the start of its line, so an indented continuation is not one.
+_KEY_RE = re.compile(r"([A-Za-z][A-Za-z0-9_-]*):")
+
+# The lane a persona that names no `model:` runs in — whatever model the session already uses.
+SESSION_DEFAULT_LANE = "session default"
+
+DELEGATION_TEMPLATE = "delegation.md.tmpl"
+
+
+def frontmatter_fields(text: str) -> Dict[str, str]:
+    """Each top-level frontmatter key mapped to its value, a folded block joined into one line.
+
+    Line-based rather than YAML-parsed: pyyaml is optional here (ADR-0002).
+    """
+    if not text.startswith("---\n"):
+        return {}
+    block = text[4:].split("\n---", 1)[0]
+    fields: Dict[str, str] = {}
+    key = None
+    for line in block.splitlines():
+        match = _KEY_RE.match(line)
+        if match:
+            key = match.group(1)
+            fields[key] = line[match.end():].strip().lstrip(">|").strip()
+        elif key and line.strip():
+            fields[key] = (fields[key] + " " + line.strip()).strip()
+    return fields
+
+
+def first_sentence(text: str) -> str:
+    """The first sentence of *text*, markdown emphasis and the closing full stop removed."""
+    plain = text.replace("*", "").replace("`", "").strip()
+    return plain.split(". ", 1)[0].rstrip(".").strip()
+
+
+def prose_only(text: str) -> str:
+    """*text* with its headings and HTML comments dropped, the rest joined into one line."""
+    kept = [line.strip() for line in text.splitlines()
+            if line.strip() and not line.lstrip().startswith(("#", "<!--"))]
+    return " ".join(kept)
 
 
 class TemplateRendering:
@@ -80,6 +122,50 @@ class TemplateRendering:
         return self._render_template(
             "HERMES.md.tmpl",
             self.compute_doc_slots(invariants, instr_paths, source_of_truth="HERMES.md"))
+
+    # -- the delegation map ---------------------------------------------------------
+
+    def _persona_lines(self) -> str:
+        """One line per persona in `.ai-badger/agents/`: what it is for, and the lane it runs in.
+
+        Read from the scaffolded copies rather than the catalog, so a persona this project
+        added by hand is on the map too.
+        """
+        lines: List[str] = []
+        for path in sorted((self.ctx.aib / "agents").glob("*.md")):
+            fields = frontmatter_fields(path.read_text(encoding="utf-8", errors="ignore"))
+            name = fields.get("name") or path.stem
+            summary = first_sentence(fields.get("description", ""))
+            lane = fields.get("model") or SESSION_DEFAULT_LANE
+            lines.append(f"- `{name}`" + (f" — {summary}." if summary else " —")
+                         + f" Lane: {lane}.")
+        return "\n".join(lines) or "_None scaffolded._"
+
+    def _mcp_server_lines(self, names: Sequence[str]) -> str:
+        """One line per named server, blurbed from the `server.md` its catalog entry ships."""
+        blurbs = {entry.get("name"): first_sentence(prose_only(entry.get("instructions") or ""))
+                  for entry in self.ctx.mcp_described}
+        lines = [f"- `{name}`" + (f" — {blurbs.get(name)}" if blurbs.get(name) else "")
+                 for name in sorted(names)]
+        return "\n".join(lines) or "_None indexed._"
+
+    def write_delegation_map(self, invariants: List[str], instr_paths: List[Path],
+                               mcp_servers: Sequence[str]) -> None:
+        """Write `.ai-badger/delegation.md`: who this project can delegate to, and through what.
+
+        Called once the personas are scaffolded — their frontmatter is what names each lane.
+        """
+        src = self.ctx.root / "features" / "common" / "templates" / DELEGATION_TEMPLATE
+        if not src.is_file():
+            self.ctx.notes.append(f"common/templates/{DELEGATION_TEMPLATE} missing — skipped")
+            return
+        slots = self.compute_doc_slots(invariants, instr_paths, source_of_truth="delegation.md")
+        slots["PERSONAS"] = self._persona_lines()
+        slots["MCP_SERVERS"] = self._mcp_server_lines(mcp_servers)
+        dest = self.ctx.aib / "delegation.md"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(self._render_template(DELEGATION_TEMPLATE, slots), encoding="utf-8")
+        self.ctx.record_template(src, dest)
 
     # -- agent-discovery copies -----------------------------------------------------
 
