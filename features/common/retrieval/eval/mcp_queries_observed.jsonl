@@ -1,0 +1,11 @@
+{"query": "search the project files using a regex pattern", "expect": ["rider:search_regex", "rider:search_in_files_by_regex"], "class": "observed-request"}
+{"query": "take a screenshot of the current page", "expect": ["playwright:browser_take_screenshot"], "class": "observed-request"}
+{"query": "fix #165, its blocking everything else", "expect": [], "class": "observed-conversational"}
+{"query": "hi", "expect": [], "class": "observed-conversational"}
+{"query": "reply with the single word OK  ", "expect": [], "class": "observed-conversational"}
+{"query": "continue with the backlog first, then lets trigger a desing agent that will design refactor around our ideas for mcp index, but first lets go throu brainstorming", "expect": [], "class": "observed-conversational"}
+{"query": "what about using hook to build intent and tags for the model?", "expect": [], "class": "observed-conversational"}
+{"query": "lets wait with #170 for now", "expect": [], "class": "observed-conversational"}
+{"query": "so lets reduce mcp index just to telling what we know - so give the list of tools per stack, but we need first to movve mcp tools as a feature because right now there are not clearly defined", "expect": [], "class": "observed-conversational"}
+{"query": "/auto-wm away 8h", "expect": [], "class": "observed-conversational"}
+{"query": "kill the #173 agent", "expect": [], "class": "observed-conversational"}
