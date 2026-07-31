@@ -268,8 +268,11 @@ def main(argv=None) -> int:
         for f in sorted(base.rglob("*")):
             if not f.is_file():
                 continue
-            if bl.excluded_by_patterns(f.relative_to(base).as_posix(),
-                                       bl.ARTEFACT_EXCLUDE_PATTERNS):
+            # `.ai-badger/skills/` is a skill tree, so the authoring conventions apply there
+            # and nowhere else: elsewhere `tests`/`evals` name ordinary project content (#224).
+            patterns = (bl.SKILL_EXCLUDE_PATTERNS if subdir == "skills"
+                        else bl.ARTEFACT_EXCLUDE_PATTERNS)
+            if bl.excluded_by_patterns(f.relative_to(base).as_posix(), patterns):
                 continue  # an OS dropping or a build artefact is not a contribution (#224)
             rel = f.relative_to(target).as_posix()
             if rel in learned_covered:
