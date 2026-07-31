@@ -320,8 +320,12 @@ def parse_transcript_usage(transcript_path: str) -> dict:
 
     contextTokens  — context-window occupancy of the latest main-chain assistant
                      message (input + cache_read + cache_creation).
-    cumulative     — sums over every assistant message in the file (sidechains
-                     included: they are billed work too).
+    cumulative     — sums over every assistant message in the main transcript *and* in
+                     `<dir>/<session-id>/subagents/*.jsonl`, which is where Claude Code
+                     writes dispatched work. No record carries `isSidechain: true`, so a
+                     branch on it counted nothing (#235 follow-up).
+    dispatches     — count, agent types and how many named no model, read from the
+                     `agent-<id>.meta.json` beside each subagent transcript.
     """
     cumulative = {
         "inputTokens": 0,
@@ -332,56 +336,82 @@ def parse_transcript_usage(transcript_path: str) -> dict:
     by_model: dict = {}
     context_tokens = 0
     messages = 0
+    no_dispatches = {"count": 0, "undeclaredModel": 0, "byAgentType": {}}
     path = Path(transcript_path) if transcript_path else None
     if path is None or not path.exists():
         return {
             "contextTokens": 0, "assistantMessages": 0, "byModel": {},
+            "dispatches": no_dispatches,
             "cumulative": cumulative, "transcriptFound": False,
         }
 
-    with open(path, encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if record.get("type") != "assistant":
-                continue
-            usage = (record.get("message") or {}).get("usage")
-            if not isinstance(usage, dict):
-                continue
-            messages += 1
-            inp = usage.get("input_tokens") or 0
-            out = usage.get("output_tokens") or 0
-            cr = usage.get("cache_read_input_tokens") or 0
-            cc = usage.get("cache_creation_input_tokens") or 0
-            cumulative["inputTokens"] += inp
-            cumulative["outputTokens"] += out
-            cumulative["cacheReadTokens"] += cr
-            cumulative["cacheCreationTokens"] += cc
-            # Sidechains included: a subagent's tokens are billed work, and the model it ran
-            # on is the choice under scrutiny. `<synthetic>` and absent both key as unknown so
-            # the split stays a partition of `cumulative` rather than a second opinion.
-            model = (record.get("message") or {}).get("model") or "unknown"
-            slot = by_model.setdefault(model, {
-                "inputTokens": 0, "outputTokens": 0,
-                "cacheReadTokens": 0, "cacheCreationTokens": 0, "assistantMessages": 0,
-            })
-            slot["inputTokens"] += inp
-            slot["outputTokens"] += out
-            slot["cacheReadTokens"] += cr
-            slot["cacheCreationTokens"] += cc
-            slot["assistantMessages"] += 1
-            if not record.get("isSidechain"):
-                context_tokens = inp + cr + cc
+    def tally(source: Path, main_chain: bool) -> None:
+        """Fold one transcript's assistant messages into the running totals."""
+        nonlocal context_tokens, messages
+        with open(source, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if record.get("type") != "assistant":
+                    continue
+                usage = (record.get("message") or {}).get("usage")
+                if not isinstance(usage, dict):
+                    continue
+                messages += 1
+                inp = usage.get("input_tokens") or 0
+                out = usage.get("output_tokens") or 0
+                cr = usage.get("cache_read_input_tokens") or 0
+                cc = usage.get("cache_creation_input_tokens") or 0
+                cumulative["inputTokens"] += inp
+                cumulative["outputTokens"] += out
+                cumulative["cacheReadTokens"] += cr
+                cumulative["cacheCreationTokens"] += cc
+                # `<synthetic>` and absent both key as unknown, so the split stays a
+                # partition of `cumulative` rather than a second opinion.
+                model = (record.get("message") or {}).get("model") or "unknown"
+                slot = by_model.setdefault(model, {
+                    "inputTokens": 0, "outputTokens": 0,
+                    "cacheReadTokens": 0, "cacheCreationTokens": 0, "assistantMessages": 0,
+                })
+                slot["inputTokens"] += inp
+                slot["outputTokens"] += out
+                slot["cacheReadTokens"] += cr
+                slot["cacheCreationTokens"] += cc
+                slot["assistantMessages"] += 1
+                # Context occupancy is a property of the main conversation; a subagent has
+                # its own window and never occupies this one.
+                if main_chain:
+                    context_tokens = inp + cr + cc
+
+    tally(path, main_chain=True)
+
+    dispatches = {"count": 0, "undeclaredModel": 0, "byAgentType": {}}
+    for sub in sorted((path.parent / path.stem / "subagents").glob("*.jsonl")):
+        tally(sub, main_chain=False)
+        dispatches["count"] += 1
+        # meta.json is an undocumented CLI artefact: a format change must degrade to
+        # "unknown", never to a count of zero, or it reads as a delegation collapse.
+        try:
+            meta = json.loads(sub.with_suffix(".meta.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            meta = {}
+        if not isinstance(meta, dict):
+            meta = {}
+        agent_type = meta.get("agentType") or "unknown"
+        dispatches["byAgentType"][agent_type] = dispatches["byAgentType"].get(agent_type, 0) + 1
+        if not meta.get("model"):
+            dispatches["undeclaredModel"] += 1
 
     return {
         "contextTokens": context_tokens,
         "assistantMessages": messages,
         "byModel": by_model,
+        "dispatches": dispatches,
         "cumulative": cumulative,
         "transcriptFound": True,
     }
@@ -443,7 +473,10 @@ def compute_usage(start_cp: dict, finish_cp: dict, subagents: list) -> dict:
         "contextTokensAtFinish": finish_cp.get("contextTokens", 0),
         "contextGrowth": finish_cp.get("contextTokens", 0) - start_cp.get("contextTokens", 0),
         "mainSessionTotal": input_d + output_d + cache_read_d + cache_creation_d,
-        "grandTotal": input_d + output_d + cache_read_d + cache_creation_d + subagent_tokens,
+        # Not `+ subagent_tokens`: the transcript now reads `subagents/*.jsonl` directly, so
+        # the checkpoint delta already contains that work. `subagentTokens` stays reported —
+        # it is what dispatches said about themselves, useful to compare against.
+        "grandTotal": input_d + output_d + cache_read_d + cache_creation_d,
     }
 
 
