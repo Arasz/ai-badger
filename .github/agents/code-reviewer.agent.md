@@ -10,20 +10,6 @@ tools:
 user-invocable: true
 ---
 
----
-name: code-reviewer
-description: >
-  Independent quality and security gate — OWASP Top 10 (plus OWASP LLM Top
-  10 when an LLM-integration surface is present) review scoped to a targeted
-  plan (pick the 3-5 relevant risk categories for the diff, not a blanket
-  checklist), two-pass performance/anti-pattern analysis, and adversarial
-  verification of AI-generated claims. Read-only: reports findings
-  (file/line/severity/fix), never edits code. Use for a task-orchestration
-  quality gate, PR review rounds, or any "review this" / "did we actually
-  verify this" request.
-disallowedTools: Write, Edit, MultiEdit, NotebookEdit
----
-
 # Code Reviewer
 
 ## Step 0 — targeted review plan
@@ -67,4 +53,3 @@ finding, not just a style nit.
 ## Tags
 
 `code-review` `security` `quality` `performance` `llm-ai-integration`
-

@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.53.0",
-  "frameworkCommit": "dd507c3a71d583c169f1a5381b14e6b1f2015502",
+  "frameworkCommit": "5c98179191eb3a67303d1fb20045b398aec966c7",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -461,12 +461,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.53.0",
-      "hash": "742ccccdf87e55d9184f9339b5e04a33c29037ccc3e21d1be497a2028688802d",
+      "hash": "e169ae9ea4c3bc0fe19ddc9c8810820a1406ec5540c803f1281c768ce4cca853",
       "dirMeta": {
         "file_count": 17,
         "dir_count": 2
       },
-      "sourceHash": "742ccccdf87e55d9184f9339b5e04a33c29037ccc3e21d1be497a2028688802d",
+      "sourceHash": "e169ae9ea4c3bc0fe19ddc9c8810820a1406ec5540c803f1281c768ce4cca853",
       "sourceMeta": {
         "file_count": 17,
         "dir_count": 2
@@ -826,29 +826,11 @@
     {
       "feature": "adjustments",
       "stack": "copilot",
-      "name": "adjustments/.github/agents/angular-engineer.agent.md",
-      "source": "features/copilot/adjustments/adjust_agents.py",
-      "target": ".github/agents/angular-engineer.agent.md",
-      "frameworkVersion": "0.53.0",
-      "hash": "e93ebd9d0ba3906458461ee9988cb6410f9da56001e0f88b576695df7ee58097"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
-      "name": "adjustments/.github/agents/cloud-infra-engineer.agent.md",
-      "source": "features/copilot/adjustments/adjust_agents.py",
-      "target": ".github/agents/cloud-infra-engineer.agent.md",
-      "frameworkVersion": "0.53.0",
-      "hash": "e93ebd9d0ba3906458461ee9988cb6410f9da56001e0f88b576695df7ee58097"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
       "name": "adjustments/.github/agents/architect.agent.md",
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/architect.agent.md",
       "frameworkVersion": "0.53.0",
-      "hash": "e93ebd9d0ba3906458461ee9988cb6410f9da56001e0f88b576695df7ee58097"
+      "hash": "f185e2256bff3a92bc0e4fe34625327771756279ea99599d58537d746a31b0f7"
     },
     {
       "feature": "adjustments",
@@ -857,7 +839,7 @@
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/code-reviewer.agent.md",
       "frameworkVersion": "0.53.0",
-      "hash": "e93ebd9d0ba3906458461ee9988cb6410f9da56001e0f88b576695df7ee58097"
+      "hash": "f185e2256bff3a92bc0e4fe34625327771756279ea99599d58537d746a31b0f7"
     },
     {
       "feature": "adjustments",
@@ -866,16 +848,7 @@
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/test-engineer.agent.md",
       "frameworkVersion": "0.53.0",
-      "hash": "e93ebd9d0ba3906458461ee9988cb6410f9da56001e0f88b576695df7ee58097"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
-      "name": "adjustments/.github/agents/dotnet-engineer.agent.md",
-      "source": "features/copilot/adjustments/adjust_agents.py",
-      "target": ".github/agents/dotnet-engineer.agent.md",
-      "frameworkVersion": "0.53.0",
-      "hash": "e93ebd9d0ba3906458461ee9988cb6410f9da56001e0f88b576695df7ee58097"
+      "hash": "f185e2256bff3a92bc0e4fe34625327771756279ea99599d58537d746a31b0f7"
     },
     {
       "feature": "adjustments",
@@ -884,7 +857,7 @@
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/hermes-agent-author.agent.md",
       "frameworkVersion": "0.53.0",
-      "hash": "e93ebd9d0ba3906458461ee9988cb6410f9da56001e0f88b576695df7ee58097"
+      "hash": "f185e2256bff3a92bc0e4fe34625327771756279ea99599d58537d746a31b0f7"
     },
     {
       "feature": "adjustments",
@@ -893,16 +866,7 @@
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/api-engineer.agent.md",
       "frameworkVersion": "0.53.0",
-      "hash": "e93ebd9d0ba3906458461ee9988cb6410f9da56001e0f88b576695df7ee58097"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
-      "name": "adjustments/.github/agents/frontend-engineer.agent.md",
-      "source": "features/copilot/adjustments/adjust_agents.py",
-      "target": ".github/agents/frontend-engineer.agent.md",
-      "frameworkVersion": "0.53.0",
-      "hash": "e93ebd9d0ba3906458461ee9988cb6410f9da56001e0f88b576695df7ee58097"
+      "hash": "f185e2256bff3a92bc0e4fe34625327771756279ea99599d58537d746a31b0f7"
     },
     {
       "feature": "adjustments",

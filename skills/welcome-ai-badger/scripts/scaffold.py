@@ -440,10 +440,13 @@ class Scaffolder:
 
     # -- features -------------------------------------------------------------------
     def scaffold_personas(self) -> None:
-        """Copy every applicable stack's persona files into .ai-badger/agents/."""
-        for stack in self.stacks:
-            for item in self.items(stack, "personas"):
-                self.copy_file("personas", stack, item, self.aib / "agents")
+        """Copy every applicable stack's persona files into .ai-badger/agents/.
+
+        Reads `bl.applicable_feature_items` — the same rule the Copilot agent delivery
+        applies — so the two hosts deliver the same persona set (#210).
+        """
+        for stack, item in bl.applicable_feature_items(self.index, self.config, "personas"):
+            self.copy_file("personas", stack, item, self.aib / "agents")
 
     def scaffold_instructions(self) -> List[Path]:
         """Copy every applicable stack's instruction files into .ai-badger/instructions/."""
@@ -630,6 +633,8 @@ class Scaffolder:
                         "target_dir": self.aib,
                         "target": self.target,
                         "skills": agent_skills,
+                        "personas": [item for _stack, item in bl.applicable_feature_items(
+                            self.index, self.config, "personas")],
                         "index": self.index,
                         "mcp_servers": declared_mcp,
                         "mcp_declarations": self.mcp.declarations_for_agent(agent_name),

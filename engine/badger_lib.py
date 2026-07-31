@@ -707,6 +707,20 @@ def delivering_stacks(config: Dict[str, Any]) -> List[str]:
             if not (s in seen or seen.add(s))]
 
 
+def applicable_feature_items(index: Dict[str, Any], config: Dict[str, Any],
+                             feature: str) -> List[Tuple[str, Dict[str, Any]]]:
+    """(stack, item) pairs the resolved stacks deliver for `feature`, minus `config.exclude`.
+
+    The one stack-filtering rule — `scaffold_personas` and the Copilot agent delivery both
+    read it, so the two hosts cannot disagree about which personas a project gets (#210).
+    """
+    declined = exclusions(config).get(feature, set())
+    return [(stack, item)
+            for stack in resolve_stacks(config)
+            for item in feature_items(index, stack, feature)
+            if item.get("name") not in declined]
+
+
 def is_orphaned(entry: Dict[str, Any], delivering: List[str]) -> bool:
     """True when a manifest entry's stack is no longer one this project draws from.
 
