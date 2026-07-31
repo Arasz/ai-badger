@@ -46,6 +46,17 @@ def _sample_index() -> dict:
     }
 
 
+@pytest.fixture(autouse=True)
+def _project_comes_from_the_payload(monkeypatch):
+    """These tests hand the hook its project in the payload's `cwd`.
+
+    `resolve_project_root` reads `$CLAUDE_PROJECT_DIR` first, and the suite now points that at
+    a scratch directory so nothing writes into the real checkout (#222) — which would outrank
+    the payload and leave the hook looking for an index that is not there.
+    """
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+
+
 @pytest.fixture
 def hook(load_script):
     return load_script(HOOK_PATH)

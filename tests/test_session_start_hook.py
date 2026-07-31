@@ -13,14 +13,14 @@ The script does three things:
    hookSpecificOutput/additionalContext nudge listing them; otherwise prints nothing.
 
 save_current_session is mocked so no real .ai-badger/task-tracking file is ever touched outside
-tmp_path, and to assert the exact arguments the hook passes it. subprocess.Popen is mocked in the
-poller tests so no real background process is ever spawned.
+tmp_path, and to assert the exact arguments the hook passes it. `lib.spawn_detached` is mocked so
+no real background process is ever spawned — that one seam is where every detached launch goes,
+so how it detaches is asserted once, against tracker_lib, rather than at each call site (#222).
 """
 from __future__ import annotations
 
 import io
 import json
-import subprocess
 import sys
 
 import pytest
@@ -33,7 +33,7 @@ def session_start(tmp_path, load_script, monkeypatch):
     monkeypatch.setattr(module.lib, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(module.lib, "DATA_DIR", data_dir)
     monkeypatch.setattr(module.lib, "EXECUTED_TASKS", data_dir / "executed-tasks.json")
-    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: None)
+    monkeypatch.setattr(module.lib, "spawn_detached", lambda *a, **k: None)
     return module
 
 
@@ -128,7 +128,7 @@ def test_main_launches_poll_limit_detached_in_background(session_start, monkeypa
     monkeypatch.setattr(session_start.lib, "save_current_session", lambda *a, **k: None)
     calls = []
     monkeypatch.setattr(
-        subprocess, "Popen",
+        session_start.lib, "spawn_detached",
         lambda *args, **kwargs: calls.append((args, kwargs)),
     )
 
@@ -137,9 +137,8 @@ def test_main_launches_poll_limit_detached_in_background(session_start, monkeypa
     assert rc == 0
     assert len(calls) == 1
     (args, kwargs) = calls[0]
-    command = args[0]
-    assert str(session_start.lib.SCRIPT_DIR / "poll_limit.py") in command
-    assert kwargs["start_new_session"] is True
+    assert str(session_start.lib.SCRIPT_DIR / "poll_limit.py") in args[0]
+    assert kwargs["log_path"] == session_start.lib.DATA_DIR / "poll_limit.log"
 
 
 def test_poll_limit_launch_failure_does_not_propagate_out_of_hook(session_start, monkeypatch):
@@ -148,7 +147,7 @@ def test_poll_limit_launch_failure_does_not_propagate_out_of_hook(session_start,
     def _raise(*_args, **_kwargs):
         raise OSError("no such file or directory")
 
-    monkeypatch.setattr(subprocess, "Popen", _raise)
+    monkeypatch.setattr(session_start.lib, "spawn_detached", _raise)
 
     rc = _run(session_start, monkeypatch, {"session_id": "sid-1"})
 

@@ -125,6 +125,23 @@ def ensure_data_dir() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def spawn_detached(argv: list, cwd: Path | None = None, log_path: Path | None = None):
+    """Start a background process that deliberately outlives its parent.
+
+    The one place ai-badger detaches a child, so how detaching works is decided once and a
+    test has a single seam to patch instead of `subprocess.Popen` at each call site (#222).
+    Raises whatever Popen raises; callers decide whether a failed spawn is fatal.
+    """
+    cwd = PROJECT_ROOT if cwd is None else cwd
+    if log_path is None:
+        return subprocess.Popen(  # pylint: disable=consider-using-with
+            argv, cwd=str(cwd), start_new_session=True)
+    with open(log_path, "a", encoding="utf-8") as log_fh:
+        return subprocess.Popen(  # pylint: disable=consider-using-with
+            argv, cwd=str(cwd), stdout=log_fh, stderr=subprocess.STDOUT,
+            start_new_session=True)
+
+
 class locked_store:
     """Context manager: exclusive lock over the tracking data dir for read-modify-write."""
 

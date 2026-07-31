@@ -9,6 +9,8 @@ from __future__ import annotations
 import importlib.util
 import os
 import shutil
+import signal
+import subprocess
 import sys
 import tempfile
 from pathlib import Path, PurePosixPath
@@ -26,6 +28,76 @@ REAL_HOME = Path.home()
 # a session fixture alone was measured still leaking 76 records into the real log.
 DEBUG_DIR_ENV = "AI_BADGER_DEBUG_DIR"
 os.environ.setdefault(DEBUG_DIR_ENV, tempfile.mkdtemp(prefix="ai-badger-debug-sink-"))
+
+# The real repo root, captured before any test can redirect it.
+REAL_PROJECT_ROOT = ROOT
+
+# tracker_lib resolves <project-root>/.ai-badger/task-tracking/ from this variable, then by
+# walking up from the cwd for .ai-badger/config.json — which finds the real checkout even with
+# $HOME redirected, so the suite wrote phantom sessions into live state (#222). Assigned, not
+# setdefault: a run started from a Claude Code session inherits it already pointing at the real
+# project. Set at import time for the same reason DEBUG_DIR_ENV is — tracker_lib freezes its
+# path constants at module import, which happens during collection, before any fixture runs.
+PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
+SCRATCH_PROJECT = Path(tempfile.mkdtemp(prefix="ai-badger-project-"))
+(SCRATCH_PROJECT / ".ai-badger").mkdir(parents=True, exist_ok=True)
+# The marker `resolve_project_root` walks up looking for. Without it a *spawned* child —
+# which re-resolves in its own interpreter, where none of this isolation exists — finds no
+# marker and falls back to `script_dir.parents[3]`, landing in `<repo>/features` (#222).
+(SCRATCH_PROJECT / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+os.environ[PROJECT_DIR_ENV] = str(SCRATCH_PROJECT)
+
+# session_start_hook and poll_limit detach children with start_new_session=True, so they
+# outlive pytest — a run was measured leaving poll_limit.py orphaned at PPID 1, still writing
+# and still trying to resume fixture sessions. Production routes both through
+# tracker_lib.spawn_detached, but the floor wraps `subprocess.Popen` itself: that is the one
+# true singleton, where the module copies `load_script` hands out are fresh objects a
+# module-level patch would not reach.
+_DETACHED_CHILDREN: list = []
+
+
+class _TrackedPopen(subprocess.Popen):
+    """A Popen that remembers detached children, so the run can reap them."""
+
+    _tracks_detached_children = True
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if kwargs.get("start_new_session"):
+            _DETACHED_CHILDREN.append(self)
+
+
+# Installed once. A second conftest import would otherwise subclass the installed wrapper,
+# and a detached child would be recorded in both generations' lists.
+if not getattr(subprocess.Popen, "_tracks_detached_children", False):
+    subprocess.Popen = _TrackedPopen
+
+
+def detached_children() -> list:
+    """Every `start_new_session` child spawned so far this run."""
+    return list(_DETACHED_CHILDREN)
+
+
+def reap_detached_children() -> list:
+    """Kill every detached child still running; return the ones that had to be killed.
+
+    Kills the process *group*, not the leader. `start_new_session` makes each child a group
+    leader, and poll_limit shells out to `claude` — signalling only the leader leaves that
+    grandchild to reparent to PID 1 and survive, which is the leak this exists to stop (#222).
+    """
+    killed = []
+    for child in _DETACHED_CHILDREN:
+        if child.poll() is None:
+            try:
+                os.killpg(os.getpgid(child.pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):  # pragma: no cover - race with exit
+                child.kill()
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:  # pragma: no cover - kill(2) does not negotiate
+                pass
+            killed.append(child)
+    return killed
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -49,6 +121,55 @@ def isolated_debug_sink():
     sink = Path(os.environ[DEBUG_DIR_ENV])
     yield sink
     shutil.rmtree(sink, ignore_errors=True)
+
+
+def real_tracking_files() -> dict:
+    """Every task-tracking file in the real checkout, by path and mtime.
+
+    Checks the repo root and each first-level directory: the leak that got past a sentinel
+    landed in `features/.ai-badger/`, one directory over from the one being watched (#222).
+    """
+    found = {}
+    for base in (REAL_PROJECT_ROOT, *(p for p in REAL_PROJECT_ROOT.glob("*") if p.is_dir())):
+        tracking = base / ".ai-badger" / "task-tracking"
+        if tracking.is_dir():
+            found.update({p: p.stat().st_mtime_ns for p in tracking.rglob("*") if p.is_file()})
+    return found
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _real_tracking_state_is_untouched():
+    """No test may add or change a task-tracking file anywhere in the real checkout.
+
+    Wider than a sentinel in one directory, which is what let #222 be called fixed while a
+    spawned child was still writing into `features/.ai-badger/` — a path `.gitignore`'s
+    unanchored `task-tracking/` rule hides from `git status`.
+    """
+    def rel(paths) -> list:
+        return sorted(str(p.relative_to(REAL_PROJECT_ROOT)) for p in paths)
+
+    before = real_tracking_files()
+    yield
+    after = real_tracking_files()
+    added = rel(set(after) - set(before))
+    changed = rel(p for p in set(after) & set(before) if after[p] != before[p])
+
+    assert not added and not changed, (
+        f"the suite wrote into the real checkout's task-tracking state — "
+        f"added={added} changed={changed}")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _no_process_outlives_the_run():
+    """Reap detached children, then drop the scratch project root the suite wrote into."""
+    yield SCRATCH_PROJECT
+    killed = reap_detached_children()
+    shutil.rmtree(SCRATCH_PROJECT, ignore_errors=True)
+
+    assert not killed, (
+        f"{len(killed)} detached process(es) outlived the suite and had to be killed. "
+        "A test that reaches a spawn site must patch tracker_lib.spawn_detached; the reaper "
+        "is the floor, not the plan.")
 
 
 @pytest.fixture

@@ -48,17 +48,10 @@ def _debug(event: str, **fields) -> None:
 
 def start_poll_limit_background() -> None:
     script = lib.SCRIPT_DIR / "poll_limit.py"
-    log = lib.DATA_DIR / "poll_limit.log"
     try:
         lib.ensure_data_dir()
-        with open(log, "a", encoding="utf-8") as log_fh:
-            subprocess.Popen(  # pylint: disable=consider-using-with
-                ["python3", str(script)],
-                cwd=str(lib.PROJECT_ROOT),
-                stdout=log_fh,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
+        lib.spawn_detached(["python3", str(script)],
+                           log_path=lib.DATA_DIR / "poll_limit.log")
     except (OSError, subprocess.SubprocessError):
         pass
 
