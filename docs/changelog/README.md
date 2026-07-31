@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.54.0 | [two skills for getting a decision out of a human](0.54.0-decision-collection-skills.md) |
 | 0.53.2 | [a directory entry is hashed over the files it owns](0.53.2-dir-entry-hashes-what-it-owns.md) |
 | 0.53.1 | [the query survives long enough to be a fixture](0.53.1-the-query-survives-long-enough-to-be-a-fixture.md) |
 | 0.53.0 | [entry titles carry their casing and 0.51.0's build order](0.53.0-entry-titles-carry-their-meaning.md) · [fixtures people actually typed](0.53.0-fixtures-people-actually-typed.md) · [one declaration per server, per host](0.53.0-one-declaration-per-server-per-host.md) · [one frontmatter block, and the configured stacks' personas](0.53.0-one-frontmatter-block-and-the-configured-personas.md) · [personas reach Claude Code](0.53.0-personas-reach-claude-agents.md) · [the log a failing push cites tells the truth](0.53.0-the-cited-log-tells-the-truth.md) · [the index row stops being hand-written](0.53.0-the-index-row-stops-being-hand-written.md) · [the self-scaffold stops being taken on trust](0.53.0-the-self-scaffold-stops-being-taken-on-trust.md) · [the skills nobody here uses](0.53.0-the-skills-nobody-here-uses.md) |
