@@ -41,6 +41,10 @@ REAL_PROJECT_ROOT = ROOT
 PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 SCRATCH_PROJECT = Path(tempfile.mkdtemp(prefix="ai-badger-project-"))
 (SCRATCH_PROJECT / ".ai-badger").mkdir(parents=True, exist_ok=True)
+# The marker `resolve_project_root` walks up looking for. Without it a *spawned* child —
+# which re-resolves in its own interpreter, where none of this isolation exists — finds no
+# marker and falls back to `script_dir.parents[3]`, landing in `<repo>/features` (#222).
+(SCRATCH_PROJECT / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
 os.environ[PROJECT_DIR_ENV] = str(SCRATCH_PROJECT)
 
 # session_start_hook and poll_limit detach children with start_new_session=True, so they
@@ -119,12 +123,53 @@ def isolated_debug_sink():
     shutil.rmtree(sink, ignore_errors=True)
 
 
+def real_tracking_files() -> dict:
+    """Every task-tracking file in the real checkout, by path and mtime.
+
+    Checks the repo root and each first-level directory: the leak that got past a sentinel
+    landed in `features/.ai-badger/`, one directory over from the one being watched (#222).
+    """
+    found = {}
+    for base in (REAL_PROJECT_ROOT, *(p for p in REAL_PROJECT_ROOT.glob("*") if p.is_dir())):
+        tracking = base / ".ai-badger" / "task-tracking"
+        if tracking.is_dir():
+            found.update({p: p.stat().st_mtime_ns for p in tracking.rglob("*") if p.is_file()})
+    return found
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _real_tracking_state_is_untouched():
+    """No test may add or change a task-tracking file anywhere in the real checkout.
+
+    Wider than a sentinel in one directory, which is what let #222 be called fixed while a
+    spawned child was still writing into `features/.ai-badger/` — a path `.gitignore`'s
+    unanchored `task-tracking/` rule hides from `git status`.
+    """
+    def rel(paths) -> list:
+        return sorted(str(p.relative_to(REAL_PROJECT_ROOT)) for p in paths)
+
+    before = real_tracking_files()
+    yield
+    after = real_tracking_files()
+    added = rel(set(after) - set(before))
+    changed = rel(p for p in set(after) & set(before) if after[p] != before[p])
+
+    assert not added and not changed, (
+        f"the suite wrote into the real checkout's task-tracking state — "
+        f"added={added} changed={changed}")
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _no_process_outlives_the_run():
     """Reap detached children, then drop the scratch project root the suite wrote into."""
     yield SCRATCH_PROJECT
-    reap_detached_children()
+    killed = reap_detached_children()
     shutil.rmtree(SCRATCH_PROJECT, ignore_errors=True)
+
+    assert not killed, (
+        f"{len(killed)} detached process(es) outlived the suite and had to be killed. "
+        "A test that reaches a spawn site must patch tracker_lib.spawn_detached; the reaper "
+        "is the floor, not the plan.")
 
 
 @pytest.fixture

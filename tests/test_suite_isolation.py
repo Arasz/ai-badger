@@ -40,6 +40,24 @@ class TestTheSuiteCannotWriteToTheRealTrackingDir:
             assert REAL_PROJECT_ROOT not in data_dir.parents, \
                 f"{relpath} would write to {data_dir}"
 
+    def test_the_session_guard_looks_beyond_the_obvious_directory(self):
+        """`features/.ai-badger/` is where the leak went while a sentinel watched the root."""
+        from conftest import real_tracking_files  # pylint: disable=import-outside-toplevel
+
+        probe = REAL_PROJECT_ROOT / "features" / ".ai-badger" / "task-tracking" / "probe.tmp"
+        before = real_tracking_files()
+        probe.parent.mkdir(parents=True, exist_ok=True)
+        probe.write_text("probe", encoding="utf-8")
+        try:
+            assert probe not in before
+            assert probe in real_tracking_files(), \
+                "the guard does not look in features/.ai-badger, which is where #222 escaped"
+        finally:
+            probe.unlink()
+            for parent in (probe.parent, probe.parent.parent):
+                if not any(parent.iterdir()):
+                    parent.rmdir()
+
     def test_registering_a_session_lands_outside_the_real_project(self, load_script):
         """The end-to-end write, with nothing patched: it must happen, just somewhere safe."""
         tl = load_script(self.COPIES[1])

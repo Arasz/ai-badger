@@ -367,7 +367,16 @@ class TestEveryScaffoldedHookAttributesItsRecords:
             monkeypatch.setattr(dl, attr, value)
         _enable(dl)
         monkeypatch.delenv(dl.DEBUG_ENV, raising=False)
+        # The directory must exist: `tracker_lib.resolve_project_root` rejects a
+        # CLAUDE_PROJECT_DIR that is not a directory and walks up from the cwd instead,
+        # which finds the real checkout and writes a session into it (#222).
+        (tmp_path / "proj").mkdir(parents=True, exist_ok=True)
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path / "proj"))
+        # session_start_hook reaches a real spawn site, and the daemon it starts shells out to
+        # the `claude` CLI. Nothing here is testing that, so no process is born.
+        hook_lib = getattr(hook, "lib", None)
+        if hook_lib is not None and hasattr(hook_lib, "spawn_detached"):
+            monkeypatch.setattr(hook_lib, "spawn_detached", lambda *a, **k: None)
         monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({**payload,
                                                                  "cwd": str(tmp_path / "proj")})))
         try:
