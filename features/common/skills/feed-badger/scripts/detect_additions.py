@@ -238,11 +238,13 @@ def main(argv=None) -> int:
         dest_dir = target / rel
         if not dest_dir.is_dir():
             continue
-        # Use dir_content_hash with same exclusions as drift detection
-        # Also exclude extensions/ (config-driven, not project additions)
+        # Use dir_content_hash with same exclusions as drift detection.
+        # Also exclude extensions/ (config-driven, not project additions) and whatever
+        # another entry wrote in here — an adjustment's file is not a contribution (#224).
         try:
             fingerprint = bl.dir_content_hash(
-                dest_dir, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
+                dest_dir, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"],
+                exclude_rel=bl.nested_entry_targets(entries, rel),
             )
             dest_hash = fingerprint["content_hash"]
         except (ValueError, OSError):
@@ -266,6 +268,9 @@ def main(argv=None) -> int:
         for f in sorted(base.rglob("*")):
             if not f.is_file():
                 continue
+            if bl.excluded_by_patterns(f.relative_to(base).as_posix(),
+                                       bl.SKILL_EXCLUDE_PATTERNS):
+                continue  # an OS dropping or a build artefact is not a contribution (#224)
             rel = f.relative_to(target).as_posix()
             if rel in learned_covered:
                 continue  # part of a learned-skill dir — handled above

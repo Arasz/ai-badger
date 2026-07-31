@@ -709,3 +709,79 @@ def test_compare_is_silent_with_no_target_or_no_index_at_all(tmp_path, load_scri
     (proj / ".ai-badger").mkdir(parents=True)
     result = drift.compare(fw, {"entries": []}, target=proj)
     assert not any("mcp-tools" in note for note in result["notes"])
+
+
+def _mcp_index_shaped(tmp_path, bl):
+    """A skill scaffolded normally, then written into by an adjustment (issue #224).
+
+    Returns (framework root, project root, manifest) with the manifest recorded exactly as
+    `scaffold.record()` writes it: the skill's `hash` is taken before the adjustment runs.
+    """
+    fw = tmp_path / "fw"
+    skill_src = fw / "features" / "common" / "skills" / "mcp-index"
+    (skill_src / "scripts").mkdir(parents=True)
+    (skill_src / "SKILL.md").write_text("# mcp-index\n", encoding="utf-8")
+    (skill_src / "scripts" / "mcp_index.py").write_text("print('index')\n", encoding="utf-8")
+
+    proj = tmp_path / "proj"
+    skill_tgt = proj / ".ai-badger" / "skills" / "mcp-index"
+    (skill_tgt / "scripts").mkdir(parents=True)
+    (skill_tgt / "SKILL.md").write_text("# mcp-index\n", encoding="utf-8")
+    (skill_tgt / "scripts" / "mcp_index.py").write_text("print('index')\n", encoding="utf-8")
+
+    exclude = bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
+    tgt_print = bl.dir_content_hash(skill_tgt, exclude=exclude)
+    src_print = bl.dir_content_hash(skill_src, exclude=exclude)
+
+    # Only now does adjust_retrieval.py copy a shared module in beside the skill's own.
+    (skill_tgt / "scripts" / "bm25.py").write_text("# retrieval\n", encoding="utf-8")
+
+    manifest = {
+        "frameworkVersion": "0.53.1",
+        "entries": [
+            {
+                "feature": "skills", "stack": "common", "name": "mcp-index",
+                "source": "features/common/skills/mcp-index",
+                "target": ".ai-badger/skills/mcp-index",
+                "hash": tgt_print["content_hash"],
+                "dirMeta": {"file_count": tgt_print["file_count"],
+                            "dir_count": tgt_print["dir_count"]},
+                "sourceHash": src_print["content_hash"],
+                "sourceMeta": {"file_count": src_print["file_count"],
+                               "dir_count": src_print["dir_count"]},
+            },
+            {
+                "feature": "adjustments", "stack": "claude",
+                "name": "adjustments/.ai-badger/skills/mcp-index/scripts/bm25.py",
+                "source": "features/claude/adjustments/adjust_retrieval.py",
+                "target": ".ai-badger/skills/mcp-index/scripts/bm25.py",
+                "hash": "0" * 64,
+            },
+        ],
+    }
+    return fw, proj, manifest
+
+
+def test_a_file_another_entry_owns_is_not_a_local_modification(tmp_path, load_script):
+    """#224: an adjustment writes into a skill's directory; the skill itself is untouched."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("engine/badger_lib.py")
+    fw, proj, manifest = _mcp_index_shaped(tmp_path, bl)
+
+    result = drift.compare(fw, manifest, target=proj)
+
+    assert result["locallyModified"] == []
+    assert result["changed"] == []
+
+
+def test_editing_the_skill_itself_is_still_a_local_modification(tmp_path, load_script):
+    """The exclusion is scoped to the adjustment's own path, not to the directory."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("engine/badger_lib.py")
+    fw, proj, manifest = _mcp_index_shaped(tmp_path, bl)
+    edited = proj / ".ai-badger" / "skills" / "mcp-index" / "scripts" / "mcp_index.py"
+    edited.write_text("print('locally improved')\n", encoding="utf-8")
+
+    result = drift.compare(fw, manifest, target=proj)
+
+    assert result["locallyModified"] == ["features/common/skills/mcp-index"]

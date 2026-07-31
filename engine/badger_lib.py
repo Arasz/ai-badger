@@ -15,8 +15,8 @@ import os
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Optional, Set, Tuple
+from pathlib import Path, PurePosixPath
+from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Set, Tuple
 
 import jsonschema  # engine/requirements.txt: jsonschema>=4
 from jsonschema import Draft202012Validator
@@ -471,7 +471,10 @@ def sha256_file(path: Path) -> str:
 
 
 # Patterns matching scaffold.py's _test_ignore — files/dirs excluded from skill hashing.
-SKILL_EXCLUDE_PATTERNS = ["tests", "test_*.py", "*_test.py", "evals", "__pycache__", "*.pyc"]
+# `.DS_Store` is here because an OS dropping is not an edit, and a skill that hashed one
+# would report as locally modified until someone deleted a file they cannot see (#224).
+SKILL_EXCLUDE_PATTERNS = ["tests", "test_*.py", "*_test.py", "evals", "__pycache__", "*.pyc",
+                          ".DS_Store"]
 
 
 def _matches_exclude(name: str, patterns: List[str]) -> bool:
@@ -480,14 +483,35 @@ def _matches_exclude(name: str, patterns: List[str]) -> bool:
     return any(fnmatch.fnmatch(name, p) for p in patterns)
 
 
-def dir_content_hash(path: Path, exclude: Optional[List[str]] = None) -> Dict[str, Any]:
+def excluded_by_patterns(rel: str, patterns: List[str]) -> bool:
+    """True when any segment of a relative path matches one of the exclude patterns."""
+    return any(_matches_exclude(part, patterns) for part in PurePosixPath(rel).parts)
+
+
+def nested_entry_targets(entries: List[Dict[str, Any]], target: str) -> List[str]:
+    """Targets other manifest entries own strictly inside `target`, relative to it.
+
+    A directory entry must be hashed over the files it owns, not over everything that ends
+    up in its directory: adjustments write into a skill's own tree and carry their own
+    entries, so counting them makes the recorded hash unmatchable forever (#224).
+    """
+    prefix = target.rstrip("/") + "/"
+    nested = {t[len(prefix):] for t in (e.get("target") for e in entries)
+              if isinstance(t, str) and t.startswith(prefix)}
+    return sorted(nested)
+
+
+def dir_content_hash(path: Path, exclude: Optional[List[str]] = None,
+                     exclude_rel: Optional[Iterable[str]] = None) -> Dict[str, Any]:
     """Compute a structural fingerprint + content hash for a directory.
 
     Two-phase approach for efficiency:
     1. Structural: file_count + dir_count (cheap O(n) walk)
     2. Content: SHA-256 of sorted (relative_path + file_content) for each file
 
-    Files/dirs matching `exclude` glob patterns are skipped entirely.
+    Files/dirs matching `exclude` glob patterns are skipped entirely. `exclude_rel` skips
+    exact relative paths and their subtrees, for the cases where a name is not enough —
+    one file another manifest entry owns, not every file that shares its name (#224).
 
     Returns:
         {"file_count": int, "dir_count": int, "content_hash": str}
@@ -496,6 +520,7 @@ def dir_content_hash(path: Path, exclude: Optional[List[str]] = None) -> Dict[st
         raise ValueError(f"Not a directory: {path}")
 
     exclude = exclude or []
+    excluded_paths = {PurePosixPath(p) for p in (exclude_rel or ())}
     h = hashlib.sha256()
     file_count = 0
     dir_count = 0
@@ -504,13 +529,13 @@ def dir_content_hash(path: Path, exclude: Optional[List[str]] = None) -> Dict[st
         rel = item.relative_to(path)
         # name intentionally unused — rel carries the hash path
 
-        # Check if any ancestor in the relative path matches exclude
-        excluded = False
-        for part in rel.parts:
-            if _matches_exclude(part, exclude):
-                excluded = True
-                break
-        if excluded:
+        # Excluded when any ancestor segment matches a pattern, or the path itself (or an
+        # ancestor of it) is one another entry owns.
+        posix = PurePosixPath(rel.as_posix())
+        if excluded_by_patterns(rel.as_posix(), exclude):
+            continue
+        if excluded_paths and (posix in excluded_paths
+                               or any(p in excluded_paths for p in posix.parents)):
             continue
 
         if item.is_dir():
