@@ -1,9 +1,10 @@
-<!-- Managed by ai-badger. Source of truth: .ai-badger/instructions/javascript.instructions.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
-
 ---
 description: 'Plain JavaScript conventions.'
 applyTo: '**/*.js,**/*.mjs,**/*.cjs'
 ---
+
+<!-- Managed by ai-badger. Source of truth: .ai-badger/instructions/javascript.instructions.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
+
 
 # JavaScript
 

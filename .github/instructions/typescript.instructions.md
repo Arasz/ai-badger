@@ -1,9 +1,10 @@
-<!-- Managed by ai-badger. Source of truth: .ai-badger/instructions/typescript.instructions.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
-
 ---
 description: 'TypeScript language conventions.'
 applyTo: '**/*.ts,**/*.tsx,**/tsconfig.json'
 ---
+
+<!-- Managed by ai-badger. Source of truth: .ai-badger/instructions/typescript.instructions.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
+
 
 # TypeScript
 
