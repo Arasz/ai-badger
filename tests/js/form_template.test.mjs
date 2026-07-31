@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(import.meta.dirname, "../..", "features/common/skills");
-const form = readFileSync(join(root, "create-refinement-document/references/form-template.html"), "utf8");
-const skill = readFileSync(join(root, "create-refinement-document/SKILL.md"), "utf8");
-const result = readFileSync(join(root, "create-refinement-document/references/result-template.md"), "utf8");
+const form = readFileSync(join(root, "owner-gate-review/references/form-template.html"), "utf8");
+const skill = readFileSync(join(root, "owner-gate-review/SKILL.md"), "utf8");
+const result = readFileSync(join(root, "owner-gate-review/references/result-template.md"), "utf8");
 
  test("the agent protocol fills every per-review CONFIG field", () => {
   assert.match(skill, /CONFIG\.outName/);
@@ -29,7 +29,7 @@ test("note output cannot be mistaken for the item separator", () => {
 });
 
 test("both new skills expose authoring metadata and verification", () => {
-  for (const name of ["create-refinement-document", "differential-feature-refactor"]) {
+  for (const name of ["owner-gate-review", "differential-feature-refactor"]) {
     const content = readFileSync(join(root, name, "SKILL.md"), "utf8");
     assert.match(content, /^version:\s*1\.0\.0/m);
     assert.match(content, /^metadata:/m);

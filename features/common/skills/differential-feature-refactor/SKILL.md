@@ -13,7 +13,7 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [refactoring, architecture, decisions, design]
-    related_skills: [create-refinement-document]
+    related_skills: [owner-gate-review]
 ---
 
 # Differential Feature Refactor
@@ -62,7 +62,7 @@ no authorising decision, that is an undefined point for the human — not a find
    verify is marked `[UNVERIFIED]` inline.
 3. **Write the document** from `references/differential-template.md` to
    `docs/designs/YYYY-MM-DD-<feature>-differential.md`. Do not create a new directory.
-4. **Collect the rulings with a generated review form** — invoke `create-refinement-document`,
+4. **Collect the rulings with a generated review form** — invoke `owner-gate-review`,
    one card per undefined point. The reviewer clicks a verdict and types notes; the result lands
    as a markdown file the agent watches for, so nothing is hand-edited and nothing is pasted.
    Then **stop**. Do not proceed, do not answer your own undefined points, do not start planning.

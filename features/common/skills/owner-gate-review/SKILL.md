@@ -1,5 +1,5 @@
 ---
-name: create-refinement-document
+name: owner-gate-review
 description: >-
   Use when a design, refactor or review document needs a per-decision ruling from one human
   reviewer and the answers must come back attached to the decision they belong to. Triggers:
@@ -16,7 +16,7 @@ metadata:
     related_skills: [differential-feature-refactor]
 ---
 
-# Create a refinement document
+# Owner gate review
 
 Generate a **review form** — one card per decision, a verdict control and a notes box — that
 emits structured markdown. The reviewer clicks and types; the agent gets back a file where every

@@ -318,7 +318,7 @@ class TestCatalogRouting:
         bl = load_script("engine/badger_lib.py")
         sps = load_script("tooling/sync_plugin_skills.py")
 
-        for name in ("create-refinement-document", "differential-feature-refactor"):
+        for name in ("owner-gate-review", "differential-feature-refactor"):
             assert bl.skill_scope(name) == bl.SKILL_SCOPE_DEFAULT
             assert name in sps.COMMON_SKILLS
 

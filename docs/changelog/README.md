@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.58.0 | [the review-form skill is named for what it is](0.58.0-owner-gate-review.md) |
 | 0.57.0 | [usage accounting can see subagents](0.57.0-usage-accounting-can-see-subagents.md) |
 | 0.56.1 | [`dir_count` is not compared when it cannot be answered](0.56.1-dir-count-is-not-compared-when-it-cannot-be-answered.md) |
 | 0.56.0 | [a task records which model did the work](0.56.0-a-task-records-which-model-did-the-work.md) |
