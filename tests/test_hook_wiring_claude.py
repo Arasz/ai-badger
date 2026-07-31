@@ -122,6 +122,33 @@ def test_a_wired_command_survives_the_script_missing_at_runtime(tmp_path, load_s
         f'else echo \'{{"systemMessage": "ai-badger: {rel} not found - hook skipped"}}\'; fi']
 
 
+def test_rewiring_replaces_a_previously_wired_command_shape(tmp_path, load_script, root):
+    """A framework upgrade changes the wired command's shape — the old registration must be
+    superseded by script identity, not accumulate beside the new one."""
+    target = tmp_path / "proj"
+    _skill_scripts(target, "task", "stop_hook.py")
+    rel = ".ai-badger/skills/task/scripts/stop_hook.py"
+    _write_json(target / ".claude" / "settings.json", {"hooks": {"Stop": [
+        {"hooks": [{"type": "command",
+                    "command": f'[ ! -f "${{CLAUDE_PROJECT_DIR}}/{rel}" ] || '
+                               f'python3 "${{CLAUDE_PROJECT_DIR}}/{rel}"'}]},
+    ]}})
+    manifest_hooks = [
+        {"name": "task",
+         "agents": {"claude": {"type": "hooks-json", "entry": "hooks.json",
+                                "event": "Stop", "script": "stop_hook.py"}}},
+    ]
+    fw_root = _fake_framework(tmp_path, manifest_hooks)
+    hooks, _ctx = _wiring(load_script, root, fw_root, target, manifest_hooks)
+
+    hooks.wire()
+
+    settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    commands = [h["command"] for entry in settings["hooks"]["Stop"] for h in entry["hooks"]]
+    assert len(commands) == 1, commands
+    assert commands[0].startswith('if [ -f ')
+
+
 def test_a_script_path_that_could_break_out_of_the_shell_string_is_not_guarded(load_script, root):
     """The guard interpolates the path into a shell command — quotes and $() must not reach it."""
     wiring = _load(load_script, root, "hook_wiring")

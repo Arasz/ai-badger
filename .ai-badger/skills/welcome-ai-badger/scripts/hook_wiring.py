@@ -26,11 +26,19 @@ _SKILL_PATH_MARKERS = (
 
 
 def skill_script_id(command: str) -> Optional[str]:
-    """The skill-relative script path a command runs, or None if it is not ours."""
+    """The skill-relative script path a command runs, or None if it is not ours.
+
+    First occurrence, cut at the first closer: a guarded command repeats the path — and its
+    skip message quotes it in prose — so the last occurrence is not reliably a clean path.
+    """
     for marker in _SKILL_PATH_MARKERS:
-        idx = command.rfind(marker)
-        if idx != -1:
-            return command[idx + len(marker):].rstrip('"')
+        idx = command.find(marker)
+        if idx == -1:
+            continue
+        rest = command[idx + len(marker):]
+        for closer in ('"', "'", " "):
+            rest = rest.split(closer, 1)[0]
+        return rest or None
     return None
 
 
