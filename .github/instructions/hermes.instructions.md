@@ -1,9 +1,10 @@
-<!-- Managed by ai-badger. Source of truth: .ai-badger/instructions/hermes.instructions.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
-
 ---
 description: 'Hermes Agent conventions for authoring skills, configuration, and agent behavior.'
 applyTo: 'skills/**/SKILL.md,**/*.hermes.md,**/HERMES.md,.hermes/**'
 ---
+
+<!-- Managed by ai-badger. Source of truth: .ai-badger/instructions/hermes.instructions.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
+
 
 # Hermes Agent
 

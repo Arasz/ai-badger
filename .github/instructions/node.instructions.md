@@ -1,9 +1,10 @@
-<!-- Managed by ai-badger. Source of truth: .ai-badger/instructions/node.instructions.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
-
 ---
 description: 'Node.js/Bun runtime and package-management conventions.'
 applyTo: '**/package.json,**/bun.lock,**/*.mjs,**/*.cjs'
 ---
+
+<!-- Managed by ai-badger. Source of truth: .ai-badger/instructions/node.instructions.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
+
 
 # Node / Bun
 
