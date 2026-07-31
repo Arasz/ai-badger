@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # The keys Claude Code reads from a subagent file, in its own documented order. An allowlist:
 # a persona key Claude does not understand must not leak into a file it parses.
-CLAUDE_KEYS = ("name", "description", "tools", "disallowedTools")
+CLAUDE_KEYS = ("name", "description", "tools", "disallowedTools", "model")
 
 MANAGED_HEADER = (
     "<!-- Managed by ai-badger. Source of truth: .ai-badger/agents/{name}. "

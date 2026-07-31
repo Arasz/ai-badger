@@ -5,6 +5,7 @@ description: >
   ambiguous-schema questions asked before scaffolding) for a Node/TypeScript
   backend. Use for new or changed REST endpoints, their OpenAPI shape, or
   error-contract design.
+model: sonnet
 ---
 
 <!-- Managed by ai-badger. Source of truth: .ai-badger/agents/api-engineer.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->

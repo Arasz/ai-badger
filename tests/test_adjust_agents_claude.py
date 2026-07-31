@@ -182,6 +182,27 @@ def test_a_tools_allowlist_a_persona_does_declare_is_carried_through(tmp_path, r
     assert "tools: Read, Grep\n" in _frontmatter(_delivered(target, "narrow"))
 
 
+def test_the_model_a_persona_names_reaches_the_delivered_subagent(tmp_path, root, load_script):
+    """`model:` is documented subagent frontmatter — the lane a persona runs in must survive."""
+    adjust_agents = load_script(ADJUSTER)
+    target = _project(tmp_path)
+    _persona(target, "lane", "---\nname: lane\ndescription: d\nmodel: sonnet\n---\n\nBody\n")
+
+    adjust_agents.adjust(_context(root, target))
+
+    assert "model: sonnet\n" in _frontmatter(_delivered(target, "lane"))
+
+
+def test_a_persona_that_names_no_model_gets_no_model_line(tmp_path, root, load_script):
+    """Omitting `model:` is how a persona inherits the model of the session that called it."""
+    adjust_agents = load_script(ADJUSTER)
+    target = _project(tmp_path)
+
+    adjust_agents.adjust(_context(root, target))
+
+    assert "model:" not in _frontmatter(_delivered(target, "test-engineer"))
+
+
 def test_a_persona_key_claude_does_not_understand_is_not_re_emitted(tmp_path, root, load_script):
     """The re-emitted set is an allowlist: an ai-badger-only key must not leak into the file."""
     adjust_agents = load_script(ADJUSTER)
@@ -318,3 +339,32 @@ def test_a_read_only_catalog_persona_keeps_bash_and_mcp(root, persona, denied):
 
     assert "\ntools:" not in f"\n{front}"
     assert f"disallowedTools: {denied}\n" in front
+
+
+@pytest.mark.parametrize("persona,model", [
+    ("common/architect", "opus"),
+    ("common/code-reviewer", "opus"),
+    ("common/test-engineer", "sonnet"),
+    ("node/api-engineer", "sonnet"),
+    ("dotnet/dotnet-engineer", "sonnet"),
+    ("angular/angular-engineer", "sonnet"),
+    ("react/frontend-engineer", "sonnet"),
+    ("azure/cloud-infra-engineer", "sonnet"),
+    ("hermes/hermes-agent-author", "sonnet"),
+])
+def test_each_catalog_persona_names_the_model_it_runs_on(root, persona, model):
+    """Planning and review run on the deep model; the implementers run on the fast one."""
+    stack, name = persona.split("/")
+    front = _frontmatter((root / "features" / stack / "personas" / f"{name}.md")
+                         .read_text(encoding="utf-8"))
+
+    assert f"model: {model}\n" in front
+
+
+def test_no_catalog_persona_ships_without_a_model_lane(root):
+    """A lane-less persona silently inherits the session model — the leak ADR-0015 closes."""
+    laneless = [str(path.relative_to(root))
+                for path in sorted(root.glob("features/*/personas/*.md"))
+                if "\nmodel: " not in _frontmatter(path.read_text(encoding="utf-8"))]
+
+    assert laneless == []

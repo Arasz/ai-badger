@@ -7,6 +7,7 @@ description: >
   debugging Hermes behavior, and writing subagent orchestration patterns.
   Not for: general coding tasks (use the stack-specific engineer persona),
   architecture decisions (use architect), test design (use test-engineer).
+model: sonnet
 ---
 
 # Hermes Agent Author

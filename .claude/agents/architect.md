@@ -12,6 +12,7 @@ description: >
   planning-phase persona for any task-orchestration workflow and any ad hoc
   design question outside it.
 disallowedTools: Edit, MultiEdit, NotebookEdit
+model: opus
 ---
 
 <!-- Managed by ai-badger. Source of truth: .ai-badger/agents/architect.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->

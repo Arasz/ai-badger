@@ -6,6 +6,7 @@ cannot disagree. These tests assert the outcome at the target, not the mechanism
 from __future__ import annotations
 
 import json
+import re
 from unittest.mock import patch
 
 import pytest
@@ -200,7 +201,7 @@ def test_excluding_the_task_skill_wires_no_hook_at_a_missing_script(make_scaffol
              for entry in entries for h in entry.get("hooks", [])]
     assert wired, "the surviving skills' hooks must still be wired"
     for command in wired:
-        rel = command.split("${CLAUDE_PROJECT_DIR}/", 1)[1].rstrip('"')
+        rel = re.search(r'\$\{CLAUDE_PROJECT_DIR\}/([\w./-]+\.py)', command).group(1)
         assert (target / rel).is_file(), f"wired command names a missing script: {command}"
     assert any("task" in n and "not wired" in n for n in result["notes"])
 

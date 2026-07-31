@@ -10,6 +10,7 @@ tests/test_context_enrichment_wiring_end_to_end.py.
 from __future__ import annotations
 
 import json
+import re
 import sys
 
 from scaffold_helpers import _config
@@ -50,7 +51,7 @@ def _wired(tmp_path, load_script, root):
 
     settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
     return {
-        event: sorted(h.get("command", "").rstrip('"').rsplit("/", 1)[-1]
+        event: sorted((re.search(r"([\w.-]+\.py)", h.get("command", "")) or [""])[0]
                       for entry in entries for h in entry.get("hooks", []))
         for event, entries in settings.get("hooks", {}).items()
     }

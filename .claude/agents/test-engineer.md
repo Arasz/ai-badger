@@ -8,6 +8,7 @@ description: >
   a task is primarily about test design/generation, closing a coverage gap,
   migrating or fixing a broken test suite, or auditing whether existing
   tests actually demand the behavior they claim to.
+model: sonnet
 ---
 
 <!-- Managed by ai-badger. Source of truth: .ai-badger/agents/test-engineer.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
