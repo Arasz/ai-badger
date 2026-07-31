@@ -30,37 +30,34 @@ def pending_file(tmp_path, hooks, monkeypatch):
 
 
 @pytest.fixture
-def fake_commit_reminder(hooks, monkeypatch):
-    """Stub commit_reminder with an in-memory marker and controllable file list."""
+def fake_commit_reminder(hooks, monkeypatch, load_script):
+    """The real commit_reminder logic, with its state and `git status` held in memory.
+
+    Only the two things that touch the outside world are stubbed. The ratchet, the unanswered
+    counter and the message text come from the real module: a hand-written copy of them here
+    is what let the Hermes side keep calling a removed API and silently clear an escalation
+    the Claude side had raised.
+    """
+    real = load_script("features/common/skills/commit-reminder/scripts/commit_reminder.py")
     module = types.ModuleType(hooks.COMMIT_REMINDER_MODULE_NAME)
     module.files = []
-    module.marker = 0
-
-    def is_edit_tool(tool_name):
-        if not isinstance(tool_name, str):
-            return False
-        if tool_name != tool_name.lower():
-            return False
-        return any(s in tool_name for s in ("write", "edit", "patch", "replace"))
+    module.entry = {"marker": 0, "fires": 0}
 
     def uncommitted_files(root, timeout=5.0):  # pylint: disable=unused-argument
         return module.files  # pylint: disable=no-member
 
-    def get_marker(root):  # pylint: disable=unused-argument
-        return module.marker  # pylint: disable=no-member
+    def get_entry(root):  # pylint: disable=unused-argument
+        return dict(module.entry)  # pylint: disable=no-member
 
-    def set_marker(root, marker):  # pylint: disable=unused-argument
-        module.marker = marker
+    def set_entry(root, entry):  # pylint: disable=unused-argument
+        module.entry = dict(entry)
 
-    def should_remind(count, marker, threshold=5):
-        fires = count >= threshold and count > marker
-        return fires, (count if fires else marker)
-
-    module.is_edit_tool = is_edit_tool
     module.uncommitted_files = uncommitted_files
-    module.get_marker = get_marker
-    module.set_marker = set_marker
-    module.should_remind = should_remind
+    module.get_entry = get_entry
+    module.set_entry = set_entry
+    for name in ("is_edit_tool", "advance", "build_message", "should_remind",
+                 "ESCALATE_AFTER", "CONVENTION_URL", "COMMIT_FORM"):
+        setattr(module, name, getattr(real, name))
     monkeypatch.setitem(sys.modules, hooks.COMMIT_REMINDER_MODULE_NAME, module)
     return module
 
@@ -194,3 +191,39 @@ def test_garbage_threshold_env_var_falls_back_to_default(
     hooks.post_tool_observer(tool_name="write_file", result="ok", duration_ms=3)
 
     assert not pending_file.exists()
+
+
+def test_a_hermes_edit_never_clears_an_escalation_raised_elsewhere(
+        tmp_path, monkeypatch, hooks, pending_file, fake_commit_reminder,
+        fake_impact_estimator):
+    """Both hooks share one entry; writing a bare marker here would drop the count (#234).
+
+    A Hermes edit in a project where the Claude hook has already escalated must not silently
+    take the work off the at-risk list.
+    """
+    monkeypatch.chdir(tmp_path)
+    fake_commit_reminder.entry = {"marker": 9, "fires": 3, "since": "T0", "session": "s7"}
+    # Same count as the marker: the ratchet is silent, so nothing legitimately increments
+    # and any change to `fires` is the bug this pins.
+    fake_commit_reminder.files = [f"f{i}.py" for i in range(9)]
+
+    hooks.post_tool_observer(tool_name="write_file", result="ok", duration_ms=3)
+
+    entry = fake_commit_reminder.entry
+    assert entry["fires"] == 3, "the unanswered count must survive a Hermes edit"
+    assert entry["since"] == "T0", "and so must the clock a parent reads"
+
+
+def test_the_hermes_message_commands_and_names_the_convention(
+        tmp_path, monkeypatch, hooks, pending_file, fake_commit_reminder,
+        fake_impact_estimator):
+    """The two hooks must not disagree about what they ask for."""
+    monkeypatch.chdir(tmp_path)
+    fake_commit_reminder.files = [f"f{i}.py" for i in range(6)]
+
+    hooks.post_tool_observer(tool_name="write_file", result="ok", duration_ms=3)
+
+    message = json.loads(pending_file.read_text(encoding="utf-8"))[str(Path(tmp_path).resolve())]
+    assert "Commit now" in message
+    assert fake_commit_reminder.CONVENTION_URL in message
+    assert "Consider committing" not in message

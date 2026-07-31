@@ -602,8 +602,12 @@ def _sync_learned_skill(args: Dict[str, Any], status: str, cwd: str) -> None:
 COMMIT_REMINDER_MODULE_NAME = "ai_badger_commit_reminder"
 IMPACT_ESTIMATOR_MODULE_NAME = "ai_badger_impact_estimator"
 COMMIT_REMINDER_THRESHOLD_ENV = "AI_BADGER_COMMIT_REMINDER_THRESHOLD"
+COMMIT_ESCALATE_AFTER_ENV = "AI_BADGER_COMMIT_ESCALATE_AFTER"
 COMMIT_REMINDER_IMPACT_ENV = "AI_BADGER_COMMIT_REMINDER_IMPACT"
 DEFAULT_COMMIT_REMINDER_THRESHOLD = 5
+# Mirrors commit_reminder.ESCALATE_AFTER; kept as a literal because the module is
+# loaded lazily and may be absent, and a hook must not fail to read a default.
+DEFAULT_COMMIT_ESCALATE_AFTER = 3
 
 # Deliberately separate from commit_reminder.py's own STATE_FILE (the per-project marker
 # ratchet): a pending nudge is Hermes-only and clears the moment it is surfaced, a
@@ -664,6 +668,19 @@ def _commit_reminder_threshold() -> int:
         return DEFAULT_COMMIT_REMINDER_THRESHOLD
 
 
+def _commit_escalate_after() -> int:
+    """Unanswered commands before work is reported at risk; guarded int-parse."""
+    try:
+        return int(os.environ.get(COMMIT_ESCALATE_AFTER_ENV, ""))
+    except ValueError:
+        return DEFAULT_COMMIT_ESCALATE_AFTER
+
+
+def _now_iso() -> str:
+    """UTC timestamp for the moment a command first went unanswered."""
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _load_pending_reminders() -> Dict[str, str]:
     """Load the pending-reminder file; `{}` on missing file, read error, or malformed JSON."""
     try:
@@ -713,13 +730,17 @@ def _maybe_remind_commit(tool_name: str, cwd: str) -> None:
     project = _project_cwd(cwd)
     files = commit_reminder.uncommitted_files(project)
     count = len(files)
-    marker = commit_reminder.get_marker(project)
     threshold = _commit_reminder_threshold()
     _debug("ai_badger_hooks/commit_reminder", "checked", project=project,
            count=count, threshold=threshold)
 
-    fires, new_marker = commit_reminder.should_remind(count, marker, threshold=threshold)
-    commit_reminder.set_marker(project, new_marker)
+    # Same entry the Claude hook maintains: writing a bare marker here would drop the
+    # unanswered count and silently clear an escalation raised on the other side.
+    fires, at_risk, entry = commit_reminder.advance(
+        commit_reminder.get_entry(project), count, threshold,
+        _commit_escalate_after(), now=_now_iso(),
+    )
+    commit_reminder.set_entry(project, entry)
     if not fires:
         return
 
@@ -729,7 +750,7 @@ def _maybe_remind_commit(tool_name: str, cwd: str) -> None:
         impact = impact_estimator.estimate_impact(files, project, use_graph=use_graph)
     else:
         impact = f"{count} file(s) changed"
-    message = f"[ai-badger] {impact}. Consider committing your work."
+    message = commit_reminder.build_message(count, impact, entry["fires"], at_risk)
     _set_pending_reminder(project, message)
     _debug("ai_badger_hooks/commit_reminder", "fire", project=project,
            count=count, threshold=threshold)

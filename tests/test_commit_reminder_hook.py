@@ -28,18 +28,18 @@ def _payload(tool_name="Edit", cwd="/repo"):
     return {"tool_name": tool_name, "cwd": cwd, "tool_input": {"file_path": "/repo/a.py"}}
 
 
-def _stub_marker_store(module, monkeypatch):
-    """Replace persisted-marker I/O with an in-memory dict, keyed like the real functions."""
+def _stub_entry_store(module, monkeypatch):
+    """Replace persisted-entry I/O with an in-memory dict, keyed like the real functions."""
     store: dict = {}
 
-    def fake_get_marker(root):
-        return store.get(root, 0)
+    def fake_get_entry(root):
+        return dict(store.get(root, {"marker": 0, "fires": 0}))
 
-    def fake_set_marker(root, marker):
-        store[root] = marker
+    def fake_set_entry(root, entry):
+        store[root] = dict(entry)
 
-    monkeypatch.setattr(module.commit_reminder, "get_marker", fake_get_marker)
-    monkeypatch.setattr(module.commit_reminder, "set_marker", fake_set_marker)
+    monkeypatch.setattr(module.commit_reminder, "get_entry", fake_get_entry)
+    monkeypatch.setattr(module.commit_reminder, "set_entry", fake_set_entry)
     return store
 
 
@@ -78,7 +78,7 @@ def test_non_edit_tool_never_checks_git(load_script, monkeypatch, capsys):
 
 def test_below_threshold_is_silent(load_script, monkeypatch, capsys):
     hook = _load(load_script)
-    _stub_marker_store(hook, monkeypatch)
+    _stub_entry_store(hook, monkeypatch)
     _stub_uncommitted_files(hook, monkeypatch, 4)
 
     rc = _run_main(hook, monkeypatch, _payload())
@@ -89,7 +89,7 @@ def test_below_threshold_is_silent(load_script, monkeypatch, capsys):
 
 def test_crossing_threshold_fires_advisory_only(load_script, monkeypatch, capsys):
     hook = _load(load_script)
-    _stub_marker_store(hook, monkeypatch)
+    _stub_entry_store(hook, monkeypatch)
     _stub_uncommitted_files(hook, monkeypatch, 5)
 
     rc = _run_main(hook, monkeypatch, _payload())
@@ -106,7 +106,7 @@ def test_crossing_threshold_fires_advisory_only(load_script, monkeypatch, capsys
 
 def test_same_count_again_is_debounced(load_script, monkeypatch, capsys):
     hook = _load(load_script)
-    _stub_marker_store(hook, monkeypatch)
+    _stub_entry_store(hook, monkeypatch)
     _stub_uncommitted_files(hook, monkeypatch, 5)
 
     _run_main(hook, monkeypatch, _payload())
@@ -120,7 +120,7 @@ def test_same_count_again_is_debounced(load_script, monkeypatch, capsys):
 def test_ratchet_down_then_up_fires_again(load_script, monkeypatch, capsys):
     """The single most load-bearing case: a commit must re-arm the debounce, not trap it."""
     hook = _load(load_script)
-    _stub_marker_store(hook, monkeypatch)
+    _stub_entry_store(hook, monkeypatch)
 
     _stub_uncommitted_files(hook, monkeypatch, 5)
     _run_main(hook, monkeypatch, _payload())
@@ -160,7 +160,7 @@ def test_malformed_stdin_json_array_is_silent(load_script, monkeypatch, capsys):
 
 def test_tool_name_key_is_recognized(load_script, monkeypatch, capsys):
     hook = _load(load_script)
-    _stub_marker_store(hook, monkeypatch)
+    _stub_entry_store(hook, monkeypatch)
     _stub_uncommitted_files(hook, monkeypatch, 5)
 
     rc = _run_main(hook, monkeypatch, {"tool_name": "Edit", "cwd": "/repo"})
@@ -172,7 +172,7 @@ def test_tool_name_key_is_recognized(load_script, monkeypatch, capsys):
 
 def test_tool_name_camel_case_key_is_recognized(load_script, monkeypatch, capsys):
     hook = _load(load_script)
-    _stub_marker_store(hook, monkeypatch)
+    _stub_entry_store(hook, monkeypatch)
     _stub_uncommitted_files(hook, monkeypatch, 5)
 
     rc = _run_main(hook, monkeypatch, {"toolName": "Edit", "cwd": "/repo"})
@@ -201,7 +201,7 @@ def test_internal_error_is_recorded_somewhere(tmp_path, load_script, monkeypatch
 
 def test_debug_logging_checked_and_fire_events(load_script, monkeypatch, capsys):
     hook = _load(load_script)
-    _stub_marker_store(hook, monkeypatch)
+    _stub_entry_store(hook, monkeypatch)
     _stub_uncommitted_files(hook, monkeypatch, 5)
 
     calls = []
@@ -227,7 +227,7 @@ def test_debug_logging_checked_and_fire_events(load_script, monkeypatch, capsys)
 
 def test_debug_logging_is_a_true_noop_when_debug_log_unavailable(load_script, monkeypatch, capsys):
     hook = _load(load_script)
-    _stub_marker_store(hook, monkeypatch)
+    _stub_entry_store(hook, monkeypatch)
     _stub_uncommitted_files(hook, monkeypatch, 5)
     monkeypatch.setattr(hook, "debug_log", None)
 
@@ -240,7 +240,7 @@ def test_debug_logging_is_a_true_noop_when_debug_log_unavailable(load_script, mo
 
 def test_threshold_env_var_override_is_honored(load_script, monkeypatch, capsys):
     hook = _load(load_script)
-    _stub_marker_store(hook, monkeypatch)
+    _stub_entry_store(hook, monkeypatch)
     _stub_uncommitted_files(hook, monkeypatch, 2)
     monkeypatch.setenv("AI_BADGER_COMMIT_REMINDER_THRESHOLD", "2")
 
@@ -253,7 +253,7 @@ def test_threshold_env_var_override_is_honored(load_script, monkeypatch, capsys)
 
 def test_non_numeric_threshold_env_var_falls_back_to_default(load_script, monkeypatch, capsys):
     hook = _load(load_script)
-    _stub_marker_store(hook, monkeypatch)
+    _stub_entry_store(hook, monkeypatch)
     _stub_uncommitted_files(hook, monkeypatch, 4)
     monkeypatch.setenv("AI_BADGER_COMMIT_REMINDER_THRESHOLD", "not-a-number")
 
@@ -276,3 +276,24 @@ def test_no_project_root_is_silent(load_script, monkeypatch, capsys):
 
     assert rc == 0
     assert capsys.readouterr().out == ""
+
+
+def test_three_unanswered_commands_escalate_through_main(load_script, monkeypatch, capsys):
+    """The escalation must be wired into the hook, not just correct in the logic module.
+
+    Without this, mutating the `fires` argument at the call site left the whole suite green.
+    """
+    hook = _load(load_script)
+    _stub_entry_store(hook, monkeypatch)
+
+    messages = []
+    for count in (5, 6, 7):
+        _stub_uncommitted_files(hook, monkeypatch, count)
+        _run_main(hook, monkeypatch, _payload())
+        messages.append(json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+                        ["additionalContext"])
+
+    assert messages[0].startswith("[ai-badger] Commit now")
+    assert messages[1].startswith("[ai-badger] Commit now")
+    assert "STOP AND COMMIT" in messages[2]
+    assert "after 3 commands" in messages[2], "the count reaching the message must be live"

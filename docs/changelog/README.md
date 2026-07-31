@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.55.0 | [commit now, and say when work is at risk](0.55.0-commit-now-and-say-when-work-is-at-risk.md) |
 | 0.54.4 | [the matcher answers conversational turns, and now we know how often](0.54.4-the-matcher-answers-conversational-turns.md) |
 | 0.54.3 | [a test run leaves nothing behind](0.54.3-a-test-run-leaves-nothing-behind.md) |
 | 0.54.2 | [a skill's exclusions stop at the skill's edge](0.54.2-exclusions-stop-at-the-skills-edge.md) |
