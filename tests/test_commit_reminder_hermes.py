@@ -225,5 +225,5 @@ def test_the_hermes_message_commands_and_names_the_convention(
 
     message = json.loads(pending_file.read_text(encoding="utf-8"))[str(Path(tmp_path).resolve())]
     assert "Commit now" in message
-    assert "conventionalcommits.org" in message
+    assert fake_commit_reminder.CONVENTION_URL in message
     assert "Consider committing" not in message

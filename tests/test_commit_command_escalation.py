@@ -31,7 +31,7 @@ class TestTheMessageCommands:
         message = cr.build_message(count=7, reason="", fires=1)
 
         assert "<type>[optional scope]: <description>" in message
-        assert "conventionalcommits.org" in message
+        assert cr.CONVENTION_URL in message
 
     def test_the_message_still_carries_the_count_and_the_impact_reason(self, load_script):
         cr = load_script(SCRIPT)
