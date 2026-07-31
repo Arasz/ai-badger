@@ -313,6 +313,15 @@ class TestCatalogRouting:
         assert bl.skill_scope("code-review-checklist") == bl.SKILL_SCOPE_DEFAULT
         assert "code-review-checklist" in sps.COMMON_SKILLS
 
+    def test_decision_collection_skills_ship_with_every_project(self, load_script):
+        """The two common skills are universal and have shipped plugin copies."""
+        bl = load_script("engine/badger_lib.py")
+        sps = load_script("tooling/sync_plugin_skills.py")
+
+        for name in ("create-refinement-document", "differential-feature-refactor"):
+            assert bl.skill_scope(name) == bl.SKILL_SCOPE_DEFAULT
+            assert name in sps.COMMON_SKILLS
+
     def test_an_undeclared_skill_is_refused_rather_than_guessed(self, load_script):
         bl = load_script("engine/badger_lib.py")
 

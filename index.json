@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.53.2",
+  "frameworkVersion": "0.54.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -151,8 +151,18 @@
           "scope": "default"
         },
         {
+          "name": "create-refinement-document",
+          "path": "features/common/skills/create-refinement-document",
+          "scope": "default"
+        },
+        {
           "name": "den-refresh",
           "path": "features/common/skills/den-refresh",
+          "scope": "default"
+        },
+        {
+          "name": "differential-feature-refactor",
+          "path": "features/common/skills/differential-feature-refactor",
           "scope": "default"
         },
         {
