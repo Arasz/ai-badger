@@ -64,6 +64,20 @@ def _threshold() -> int:
         return DEFAULT_THRESHOLD
 
 
+def _escalate_after() -> int:
+    """`AI_BADGER_COMMIT_ESCALATE_AFTER`, falling back to the default on any bad value."""
+    try:
+        return int(os.environ.get("AI_BADGER_COMMIT_ESCALATE_AFTER",
+                                  str(commit_reminder.ESCALATE_AFTER)))
+    except (TypeError, ValueError):
+        return commit_reminder.ESCALATE_AFTER
+
+
+def _now_iso() -> str:
+    """UTC timestamp for the moment a command first went unanswered."""
+    return datetime.now(timezone.utc).isoformat()
+
+
 def main() -> int:
     """Read the hook payload from stdin; print additionalContext iff the debounce fires."""
     try:
@@ -86,10 +100,12 @@ def main() -> int:
 
     files = commit_reminder.uncommitted_files(root)
     count = len(files)
-    marker = commit_reminder.get_marker(root)
     threshold = _threshold()
-    fires, new_marker = commit_reminder.should_remind(count, marker, threshold)
-    commit_reminder.set_marker(root, new_marker)
+    fires, at_risk, entry = commit_reminder.advance(
+        commit_reminder.get_entry(root), count, threshold, _escalate_after(),
+        now=_now_iso(), session=str(payload.get("session_id") or ""),
+    )
+    commit_reminder.set_entry(root, entry)
     _debug("checked", project=root, count=count, threshold=threshold)
 
     if not fires:
@@ -97,9 +113,9 @@ def main() -> int:
 
     use_graph = os.environ.get("AI_BADGER_COMMIT_REMINDER_IMPACT") == "graph"
     reason = impact_estimator.estimate_impact(files, root, use_graph=use_graph)
-    message = f"[ai-badger] {count} uncommitted file(s) — consider committing. {reason}"
+    message = commit_reminder.build_message(count, reason, entry["fires"], at_risk)
 
-    _debug("fire", project=root, count=count)
+    _debug("fire", project=root, count=count, unanswered=entry["fires"], atRisk=at_risk)
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PostToolUse",

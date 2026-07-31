@@ -11,6 +11,12 @@ from typing import Dict, List, Tuple
 
 STATE_FILE = Path.home() / ".ai-badger" / "commit-reminder" / "state.json"
 
+# Unanswered commands before the work is reported as at risk of being lost.
+ESCALATE_AFTER = 3
+
+CONVENTION_URL = "https://www.conventionalcommits.org/en/v1.0.0/"
+COMMIT_FORM = "<type>[optional scope]: <description>"
+
 _EDIT_TOOL_NAMES = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
 _HERMES_EDIT_SUBSTRINGS = ("write", "edit", "patch", "replace")
 
@@ -61,6 +67,43 @@ def should_remind(count: int, marker: int, threshold: int = 5) -> Tuple[bool, in
     return fires, marker
 
 
+def advance(entry: Dict, count: int, threshold: int = 5, escalate_after: int = ESCALATE_AFTER,
+            now: str = "", session: str = "") -> Tuple[bool, bool, Dict]:
+    """Run the ratchet and the stuck-agent counter together.
+
+    Returns ``(fires, at_risk, entry)``. ``fires`` counts commands that went unanswered: a
+    dropped file count is the only evidence of a commit this hook has, so that is what clears
+    it. ``at_risk`` is the signal `ensure-work-is-committed` reports to a parent.
+    """
+    marker = entry.get("marker", 0)
+    unanswered = entry.get("fires", 0)
+    if count < marker:
+        unanswered = 0
+
+    fires, new_marker = should_remind(count, marker, threshold)
+    if fires:
+        unanswered += 1
+
+    updated = dict(entry)
+    updated.update({"marker": new_marker, "fires": unanswered})
+    if fires:
+        updated["since"] = now or entry.get("since", "")
+        updated["session"] = session or entry.get("session", "")
+    return fires, fires and unanswered >= escalate_after, updated
+
+
+def build_message(count: int, reason: str, fires: int, at_risk: bool = False) -> str:
+    """The text the hook emits. Imperative: a suggestion is what this replaces."""
+    convention = (f"Use Conventional Commits — {COMMIT_FORM} — see {CONVENTION_URL}")
+    if at_risk:
+        return (f"[ai-badger] STOP AND COMMIT — {count} uncommitted file(s) after {fires} "
+                f"commands with no commit in between. This work is at risk of being lost: "
+                f"an agent that ends here leaves it unrecoverable. Commit what works now, "
+                f"even as a WIP. {convention}. {reason}").strip()
+    return (f"[ai-badger] Commit now — {count} uncommitted file(s). "
+            f"{convention}. {reason}").strip()
+
+
 def uncommitted_files(root: str, timeout: float = 5.0) -> List[str]:
     """Run `git status --porcelain` in ``root``; `[]` on any failure, never raises."""
     try:
@@ -94,11 +137,46 @@ def save_state(state: Dict[str, int]) -> None:
     STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
 
 
+def get_entry(root: str) -> Dict:
+    """Return the persisted entry for ``root``, normalising the old marker-only form.
+
+    Every machine that ran the previous hook has `{root: <int>}` on disk, so a bare integer
+    reads as a marker with no unanswered commands rather than as corrupt state.
+    """
+    value = load_state().get(str(Path(root).resolve()), 0)
+    if isinstance(value, int):
+        return {"marker": value, "fires": 0}
+    if not isinstance(value, dict):
+        return {"marker": 0, "fires": 0}
+    entry = dict(value)
+    entry.setdefault("marker", 0)
+    entry.setdefault("fires", 0)
+    return entry
+
+
+def set_entry(root: str, entry: Dict) -> None:
+    """Persist ``entry`` for ``root``, keyed by its resolved absolute path."""
+    state = load_state()
+    state[str(Path(root).resolve())] = entry
+    save_state(state)
+
+
+def at_risk_entries() -> Dict[str, Dict]:
+    """Every project whose unanswered-command count has reached the escalation bar.
+
+    The read side of the hook's state: what `ensure-work-is-committed` reports to a parent.
+    """
+    found = {}
+    for root, value in load_state().items():
+        entry = value if isinstance(value, dict) else {}
+        if entry.get("fires", 0) >= ESCALATE_AFTER:
+            found[root] = entry
+    return found
+
+
 def get_marker(root: str) -> int:
     """Return the persisted marker for ``root``, or 0 if never seen."""
-    key = str(Path(root).resolve())
-    value = load_state().get(key, 0)
-    return value if isinstance(value, int) else 0
+    return get_entry(root)["marker"]
 
 
 def set_marker(root: str, marker: int) -> None:
