@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.54.2 | [a skill's exclusions stop at the skill's edge](0.54.2-exclusions-stop-at-the-skills-edge.md) |
 | 0.54.1 | [review forms preserve feedback safely](0.54.1-review-form-safety.md) |
 | 0.54.0 | [two skills for getting a decision out of a human](0.54.0-decision-collection-skills.md) |
 | 0.53.2 | [a directory entry is hashed over the files it owns](0.53.2-dir-entry-hashes-what-it-owns.md) |

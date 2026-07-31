@@ -165,6 +165,46 @@ def test_non_learned_new_files_still_yield_per_file_candidates(tmp_path, load_sc
     assert "origin" not in candidate
 
 
+def test_skill_only_excludes_do_not_hide_managed_instruction_files(
+        tmp_path, load_script, root, capsys):
+    """Skill test/eval exclusions must not suppress project instruction files."""
+    detect = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
+    target = tmp_path / "proj"
+    aib = _write_minimal_manifest(target)
+    instruction = aib / "instructions" / "evals" / "custom.md"
+    instruction.parent.mkdir(parents=True)
+    instruction.write_text("# project instruction\n", encoding="utf-8")
+
+    rc = detect.main(["--target", str(target), "--root", str(root)])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+
+    assert out["candidateCount"] == 1
+    assert out["candidates"][0]["path"] == ".ai-badger/instructions/evals/custom.md"
+
+
+def test_a_project_authored_skill_still_hides_its_own_tests_and_evals(
+        tmp_path, load_script, root, capsys):
+    """`.ai-badger/skills/` is a skill tree: the authoring conventions do apply there."""
+    detect = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
+    target = tmp_path / "proj"
+    aib = _write_minimal_manifest(target)
+    skill = aib / "skills" / "deploy-thing"
+    (skill / "tests").mkdir(parents=True)
+    (skill / "evals").mkdir(parents=True)
+    (skill / "SKILL.md").write_text("# deploy thing\n", encoding="utf-8")
+    (skill / "tests" / "test_deploy.py").write_text("def test_x(): pass\n", encoding="utf-8")
+    (skill / "evals" / "case1.md").write_text("# a case\n", encoding="utf-8")
+
+    rc = detect.main(["--target", str(target), "--root", str(root)])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+
+    paths = [c["path"] for c in out["candidates"]]
+    assert paths == [".ai-badger/skills/deploy-thing/SKILL.md"], \
+        f"a skill's own tests/evals are not contributions: {paths}"
+
+
 def test_source_hashed_entries_are_never_project_change_candidates(
         tmp_path, load_script, root, capsys):
     """An adjustment's hash describes the framework script, so no project file can match it."""
