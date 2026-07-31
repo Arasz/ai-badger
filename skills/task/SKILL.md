@@ -75,11 +75,16 @@ roughly a tenth of the cost instead of a fresh write. Subagent caches are indepe
 on a ~5-minute TTL, so: prefer one multi-turn subagent over many one-shot dispatches for a
 cluster of related steps (amortises the cold start), and use `/rewind` rather than `/compact` to
 backtrack within a task (rewind reuses the cached prefix; compact pays for a fresh summary
-write). Compact only at task boundaries (Phase 0). A **main-vs-sidechain** split is available and
-cheap — `parse_transcript_usage` already reads each message's `cache_read_input_tokens` and
-branches on `isSidechain`. A **per-subagent** split is not: attributing a sidechain message to
-the dispatch that produced it means chasing `parentUuid` through the transcript, which nothing
-here implements, and the completion notification itself exposes only `total_tokens`.
+write). Compact only at task boundaries (Phase 0).
+
+**Where subagent work actually lives.** Not in the main transcript: measured over 171 real
+transcripts, *no record carries `isSidechain: true`*. Claude Code writes each dispatch to
+`<transcript-dir>/<session-id>/subagents/agent-<id>.jsonl`, with a paired `agent-<id>.meta.json`
+naming its `agentType`, `description`, `spawnDepth` and `model`. `parse_transcript_usage` reads
+both, so a **per-dispatch** split is available — it needs no `parentUuid` chasing, and does not
+depend on the completion notification, which exposes only `total_tokens`. Treat `meta.json` as
+the undocumented CLI artefact it is: a format change must degrade to `unknown`, never to zero,
+or it reads as a delegation collapse that never happened.
 
 **Judge a task by its model mix, not its cache efficiency.** `token-usage.json` records both.
 `cacheEfficiency` (cache_read ÷ (cache_read + cache_creation)) turns out not to discriminate:
@@ -90,8 +95,15 @@ expensive. It is worth watching only for a *collapse*, which means the prefix is
 produced comparable output volume — 23.7M vs 20.6M tokens — at **3.1× the cost**, so which model
 did a task's output is the largest lever available, and it is precisely what the delegation
 policy above steers. `python3 .ai-badger/skills/task/scripts/task_tracker.py status` shows the
-dominant model and its share (`mix=opus-5:82%`); `outputByModel` carries the full split. A task
-whose mix is nearly all high-reasoning model did not delegate, whatever its plan said.
+dominant model and its share (`mix=opus-5:69%`); `outputByModel` carries the full split.
+
+Read it as the **delegation ratio** — the share produced by the mid and cheap tiers — over the
+main transcript *and* its subagents together. Those are different numbers and only the combined
+one means anything: on one real session the main thread alone reads 2.3% while the true figure
+is 23.8%. `dispatches` carries the other half of the picture: how many dispatches ran, how many
+named no model (they silently inherit the session's, which is the expensive one), and which
+agent types they went to. A run where most dispatches are `general-purpose` is not routing to
+the personas this project scaffolds, whatever `personaRouting` says.
 
 No prices are recorded. They change, and a stale hardcoded rate would be a confidently wrong
 number; output tokens per model is the durable half, and a reader applies today's rates.

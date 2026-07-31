@@ -21,6 +21,8 @@ re-scaffold.
 | Version | Entry |
 |---|---|
 | 0.58.0 | [the review-form skill is named for what it is](0.58.0-owner-gate-review.md) |
+| 0.57.0 | [usage accounting can see subagents](0.57.0-usage-accounting-can-see-subagents.md) |
+| 0.56.1 | [`dir_count` is not compared when it cannot be answered](0.56.1-dir-count-is-not-compared-when-it-cannot-be-answered.md) |
 | 0.56.0 | [a task records which model did the work](0.56.0-a-task-records-which-model-did-the-work.md) |
 | 0.55.0 | [commit now, and say when work is at risk](0.55.0-commit-now-and-say-when-work-is-at-risk.md) |
 | 0.54.4 | [the matcher answers conversational turns, and now we know how often](0.54.4-the-matcher-answers-conversational-turns.md) |

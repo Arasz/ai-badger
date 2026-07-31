@@ -417,6 +417,7 @@ def test_parse_transcript_usage_missing_file_returns_zeroed_result(load_script, 
         "contextTokens": 0,
         "assistantMessages": 0,
         "byModel": {},
+        "dispatches": {"count": 0, "undeclaredModel": 0, "byAgentType": {}},
         "cumulative": {
             "inputTokens": 0, "outputTokens": 0, "cacheReadTokens": 0, "cacheCreationTokens": 0,
         },
@@ -533,7 +534,9 @@ def test_compute_usage_computes_deltas_cache_efficiency_and_totals(load_script, 
     assert usage["contextTokensAtFinish"] == 150
     assert usage["contextGrowth"] == 50
     assert usage["mainSessionTotal"] == 640
-    assert usage["grandTotal"] == 1390
+    # Was 1390 (640 + the 750 reported by hand). The transcript now reads subagents/*.jsonl
+    # directly, so adding the self-report on top would count that work twice.
+    assert usage["grandTotal"] == 640
 
 
 def test_compute_usage_cache_efficiency_is_none_when_nothing_cacheable(load_script, tmp_path):
