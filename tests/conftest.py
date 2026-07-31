@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path, PurePosixPath
@@ -26,6 +27,59 @@ REAL_HOME = Path.home()
 # a session fixture alone was measured still leaking 76 records into the real log.
 DEBUG_DIR_ENV = "AI_BADGER_DEBUG_DIR"
 os.environ.setdefault(DEBUG_DIR_ENV, tempfile.mkdtemp(prefix="ai-badger-debug-sink-"))
+
+# The real repo root, captured before any test can redirect it.
+REAL_PROJECT_ROOT = ROOT
+
+# tracker_lib resolves <project-root>/.ai-badger/task-tracking/ from this variable, then by
+# walking up from the cwd for .ai-badger/config.json — which finds the real checkout even with
+# $HOME redirected, so the suite wrote phantom sessions into live state (#222). Assigned, not
+# setdefault: a run started from a Claude Code session inherits it already pointing at the real
+# project. Set at import time for the same reason DEBUG_DIR_ENV is — tracker_lib freezes its
+# path constants at module import, which happens during collection, before any fixture runs.
+PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
+SCRATCH_PROJECT = Path(tempfile.mkdtemp(prefix="ai-badger-project-"))
+(SCRATCH_PROJECT / ".ai-badger").mkdir(parents=True, exist_ok=True)
+os.environ[PROJECT_DIR_ENV] = str(SCRATCH_PROJECT)
+
+# session_start_hook and poll_limit detach children with start_new_session=True, so they
+# outlive pytest — a run was measured leaving poll_limit.py orphaned at PPID 1, still writing
+# and still trying to resume fixture sessions. Production routes both through
+# tracker_lib.spawn_detached, but the floor wraps `subprocess.Popen` itself: that is the one
+# true singleton, where the module copies `load_script` hands out are fresh objects a
+# module-level patch would not reach.
+_DETACHED_CHILDREN: list = []
+
+
+class _TrackedPopen(subprocess.Popen):
+    """A Popen that remembers detached children, so the run can reap them."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if kwargs.get("start_new_session"):
+            _DETACHED_CHILDREN.append(self)
+
+
+subprocess.Popen = _TrackedPopen
+
+
+def detached_children() -> list:
+    """Every `start_new_session` child spawned so far this run."""
+    return list(_DETACHED_CHILDREN)
+
+
+def reap_detached_children() -> list:
+    """Kill every detached child still running; return the ones that had to be killed."""
+    killed = []
+    for child in _DETACHED_CHILDREN:
+        if child.poll() is None:
+            child.kill()
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:  # pragma: no cover - kill(2) does not negotiate
+                pass
+            killed.append(child)
+    return killed
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -49,6 +103,14 @@ def isolated_debug_sink():
     sink = Path(os.environ[DEBUG_DIR_ENV])
     yield sink
     shutil.rmtree(sink, ignore_errors=True)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _no_process_outlives_the_run():
+    """Reap detached children, then drop the scratch project root the suite wrote into."""
+    yield SCRATCH_PROJECT
+    reap_detached_children()
+    shutil.rmtree(SCRATCH_PROJECT, ignore_errors=True)
 
 
 @pytest.fixture

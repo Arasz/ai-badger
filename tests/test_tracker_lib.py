@@ -868,3 +868,39 @@ def test_a_config_that_is_not_an_object_leaves_the_budget_alone(load_script, tmp
         _write_config(tl, payload)
 
         assert tl.doc_budget() == (tl.CLAUDE_MD_MAX_CHARS, tl.CLAUDE_MD_MAX_LINES), payload
+
+
+def test_spawn_detached_starts_a_new_session_in_the_project_root(
+        load_script, tmp_path, monkeypatch):
+    """Detaching is decided in one place, so it is asserted in one place (#222)."""
+    tl = _load(load_script, tmp_path)
+    calls = []
+    monkeypatch.setattr(tl.subprocess, "Popen", lambda *a, **k: calls.append((a, k)))
+
+    tl.spawn_detached(["echo", "hi"])
+
+    (args, kwargs) = calls[0]
+    assert args[0] == ["echo", "hi"]
+    assert kwargs["cwd"] == str(tmp_path)
+    assert kwargs["start_new_session"] is True
+    assert "stdout" not in kwargs, "with no log the child keeps the parent's streams"
+
+
+def test_spawn_detached_appends_child_output_to_the_log(load_script, tmp_path, monkeypatch):
+    """The poller's log must survive a relaunch, so the handle is opened for append."""
+    tl = _load(load_script, tmp_path)
+    log = tmp_path / "poll.log"
+    log.write_text("earlier\n", encoding="utf-8")
+    captured = {}
+
+    def _fake(*_args, **kwargs):
+        kwargs["stdout"].write("later\n")
+        captured.update(kwargs)
+
+    monkeypatch.setattr(tl.subprocess, "Popen", _fake)
+
+    tl.spawn_detached(["echo", "hi"], log_path=log)
+
+    assert captured["stderr"] == tl.subprocess.STDOUT
+    assert captured["start_new_session"] is True
+    assert log.read_text(encoding="utf-8") == "earlier\nlater\n"

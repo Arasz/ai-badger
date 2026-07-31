@@ -274,12 +274,8 @@ def resume_session(target: TargetSession) -> bool:
     task_suffix = f" task {target.task_id}" if target.task_id else ""
     log(f"Resuming session {target.session_id} ({target.source}{task_suffix})...")
     try:
-        subprocess.Popen(  # pylint: disable=consider-using-with
-            [CLAUDE_BIN, "--resume", target.session_id, "-p", prompt,
-             "--permission-mode", "acceptEdits"],
-            cwd=str(PROJECT_ROOT),
-            start_new_session=True,
-        )
+        lib.spawn_detached([CLAUDE_BIN, "--resume", target.session_id, "-p", prompt,
+                            "--permission-mode", "acceptEdits"])
         return True
     except (OSError, subprocess.SubprocessError) as exc:
         log(f"Failed to resume {target.session_id}: {exc}")
