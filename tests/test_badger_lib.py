@@ -791,20 +791,24 @@ def test_dir_content_hash_exclude_rel_skips_a_whole_subtree(tmp_path, load_scrip
     assert result["content_hash"] == bl.dir_content_hash(d, exclude=["extras"])["content_hash"]
 
 
-def test_dir_content_hash_exclude_rel_prunes_ancestors_owned_only_by_nested_entry(
-        tmp_path, load_script):
-    """Directories created only to hold an excluded nested entry are not structural drift."""
+def test_dir_content_hash_still_counts_a_directory_a_nested_entry_created(tmp_path, load_script):
+    """dir_count describes the tree on disk; the caller decides when it is comparable (#230).
+
+    Replaces a test that asserted the opposite. Pruning those directories tried to reconstruct
+    the recorded count and got it wrong in the other direction whenever the source skill had
+    shipped an empty directory, so the reconstruction was dropped and drift stopped comparing
+    the number instead.
+    """
     bl = load_script("engine/badger_lib.py")
     d = tmp_path / "skill"
-    d.mkdir()
-    (d / "SKILL.md").write_text("content\n")
     (d / "generated" / "newdir").mkdir(parents=True)
+    (d / "SKILL.md").write_text("content\n")
     (d / "generated" / "newdir" / "file.py").write_text("nested\n")
 
     result = bl.dir_content_hash(d, exclude_rel=["generated/newdir/file.py"])
 
-    assert result["file_count"] == 1
-    assert result["dir_count"] == 0
+    assert result["file_count"] == 1, "the owned file is still excluded"
+    assert result["dir_count"] == 2, "the directories are still on disk"
 
 
 def test_dir_content_hash_keeps_a_directory_that_also_holds_an_owned_file(tmp_path, load_script):

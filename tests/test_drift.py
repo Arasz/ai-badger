@@ -806,3 +806,40 @@ def test_nested_entry_does_not_make_new_parent_directories_local_modification(
     result = drift.compare(fw, manifest, target=proj)
 
     assert result["locallyModified"] == []
+
+
+def test_an_empty_directory_the_scaffolder_left_is_not_a_local_modification(
+        tmp_path, load_script):
+    """#230: `dir_count` is unanswerable once another entry owns part of the tree.
+
+    `scaffold.py` copies a source skill with `_test_ignore`, so a directory whose only content
+    is a `tests/` subtree lands in the target *empty* and is counted into `dirMeta` at record
+    time. An adjustment then writing beneath it makes the recorded and recomputed `dir_count`
+    disagree by construction — #224's false verdict with the opposite sign.
+    """
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    bl = load_script("engine/badger_lib.py")
+    fw, proj, manifest = _mcp_index_shaped(tmp_path, bl)
+    skill = proj / ".ai-badger" / "skills" / "mcp-index"
+
+    # What copytree leaves when a source directory held nothing but tests: counted at record
+    # time, because it is there before any adjustment runs.
+    (skill / "helpers").mkdir()
+    entry = next(e for e in manifest["entries"] if e["feature"] == "skills")
+    entry["dirMeta"]["dir_count"] += 1
+
+    # The adjustment now writes beneath it, so `helpers/` becomes an ancestor of a path
+    # another entry owns and holds no file this entry owns.
+    (skill / "helpers" / "gen").mkdir()
+    (skill / "helpers" / "gen" / "adj.py").write_text("# generated\n", encoding="utf-8")
+    manifest["entries"].append({
+        "feature": "adjustments", "stack": "claude",
+        "name": "adjustments/.ai-badger/skills/mcp-index/helpers/gen/adj.py",
+        "source": "features/claude/adjustments/adjust_retrieval.py",
+        "target": ".ai-badger/skills/mcp-index/helpers/gen/adj.py",
+        "hash": "0" * 64,
+    })
+
+    result = drift.compare(fw, manifest, target=proj)
+
+    assert result["locallyModified"] == []

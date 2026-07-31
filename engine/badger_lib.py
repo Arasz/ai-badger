@@ -517,8 +517,9 @@ def dir_content_hash(path: Path, exclude: Optional[List[str]] = None,
     Files/dirs matching `exclude` glob patterns are skipped entirely. `exclude_rel` skips
     exact relative paths and their subtrees, for the cases where a name is not enough —
     one file another manifest entry owns, not every file that shares its name (#224).
-    `dir_count` then also omits directories holding no included file that exist only as an
-    ancestor of an `exclude_rel` path, since those belong to the entry that owns it.
+    `dir_count` still counts every surviving directory: once another entry owns part of the
+    tree the number describes a different tree than the recorded one, so the caller stops
+    comparing it rather than this trying to reconstruct it (#230).
 
     Returns:
         {"file_count": int, "dir_count": int, "content_hash": str}
@@ -546,20 +547,11 @@ def dir_content_hash(path: Path, exclude: Optional[List[str]] = None,
                 or rel in excluded_paths
                 or any(p in excluded_paths for p in rel.parents))
 
-    # Every directory still holding a file this entry owns.
-    kept_dirs = {parent for item, rel in walked
-                 if item.is_file() and not skipped(rel)
-                 for parent in rel.parents}
-
     for item, rel in walked:
         if skipped(rel):
             continue
 
         if item.is_dir():
-            # A directory holding nothing this entry owns, that exists only to carry a path
-            # another entry does, is that entry's structure — not drift in this one (#224).
-            if rel not in kept_dirs and any(rel in owned.parents for owned in excluded_paths):
-                continue
             dir_count += 1
         elif item.is_file():
             file_count += 1

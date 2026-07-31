@@ -295,10 +295,17 @@ def _project_copy(target: Optional[Path], entry: Dict[str, Any], source_rel: str
 
 
 def _differs(fingerprint: Dict[str, Any], entry_hash: Optional[str],
-             meta: Optional[Dict[str, Any]]) -> bool:
-    """True when a directory fingerprint disagrees with a recorded hash + structural meta."""
-    if meta and (fingerprint["file_count"] != meta.get("file_count")
-                 or fingerprint["dir_count"] != meta.get("dir_count")):
+             meta: Optional[Dict[str, Any]], compare_dir_count: bool = True) -> bool:
+    """True when a directory fingerprint disagrees with a recorded hash + structural meta.
+
+    `compare_dir_count` is False once another entry owns part of the tree: the recorded count
+    was taken before that entry wrote, so the two describe different trees and the number is
+    unanswerable rather than wrong (#230). Nothing is lost — an added directory holding a file
+    moves `file_count` and `content_hash` anyway, and git cannot deliver an empty one.
+    """
+    if meta and fingerprint["file_count"] != meta.get("file_count"):
+        return True
+    if meta and compare_dir_count and fingerprint["dir_count"] != meta.get("dir_count"):
         return True
     return fingerprint["content_hash"] != entry_hash
 
@@ -328,7 +335,7 @@ def _dir_entry_verdict(source: Path, entry: Dict[str, Any], project_copy: Option
                      entry.get("sourceMeta"))
     edited = project_copy is not None and _differs(
         bl.dir_content_hash(project_copy, exclude=exclude, exclude_rel=owned_elsewhere),
-        entry.get("hash"), entry.get("dirMeta"))
+        entry.get("hash"), entry.get("dirMeta"), compare_dir_count=not owned_elsewhere)
     return moved, edited
 
 
