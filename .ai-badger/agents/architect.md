@@ -11,6 +11,7 @@ description: >
   finished blueprints to an implementation persona to build. This is the
   planning-phase persona for any task-orchestration workflow and any ad hoc
   design question outside it.
+model: opus
 disallowedTools: Edit, MultiEdit, NotebookEdit
 ---
 

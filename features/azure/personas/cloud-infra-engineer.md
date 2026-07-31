@@ -6,6 +6,7 @@ description: >
   orchestration design, and CI/CD or deployment-failure triage. Use for
   infra changes, orchestration fan-out/fan-in or retry-policy questions, or
   diagnosing a broken pipeline or deployment.
+model: sonnet
 ---
 
 # Cloud Infra Engineer
