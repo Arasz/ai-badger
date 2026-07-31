@@ -791,6 +791,22 @@ def test_dir_content_hash_exclude_rel_skips_a_whole_subtree(tmp_path, load_scrip
     assert result["content_hash"] == bl.dir_content_hash(d, exclude=["extras"])["content_hash"]
 
 
+def test_dir_content_hash_exclude_rel_prunes_ancestors_owned_only_by_nested_entry(
+        tmp_path, load_script):
+    """Directories created only to hold an excluded nested entry are not structural drift."""
+    bl = load_script("engine/badger_lib.py")
+    d = tmp_path / "skill"
+    d.mkdir()
+    (d / "SKILL.md").write_text("content\n")
+    (d / "generated" / "newdir").mkdir(parents=True)
+    (d / "generated" / "newdir" / "file.py").write_text("nested\n")
+
+    result = bl.dir_content_hash(d, exclude_rel=["generated/newdir/file.py"])
+
+    assert result["file_count"] == 1
+    assert result["dir_count"] == 0
+
+
 def test_skill_exclude_patterns_ignore_os_droppings(tmp_path, load_script):
     """A .DS_Store dropped beside a skill's files is not a change to the skill."""
     bl = load_script("engine/badger_lib.py")

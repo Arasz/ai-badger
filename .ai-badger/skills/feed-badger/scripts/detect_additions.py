@@ -269,7 +269,7 @@ def main(argv=None) -> int:
             if not f.is_file():
                 continue
             if bl.excluded_by_patterns(f.relative_to(base).as_posix(),
-                                       bl.SKILL_EXCLUDE_PATTERNS):
+                                       bl.ARTEFACT_EXCLUDE_PATTERNS):
                 continue  # an OS dropping or a build artefact is not a contribution (#224)
             rel = f.relative_to(target).as_posix()
             if rel in learned_covered:

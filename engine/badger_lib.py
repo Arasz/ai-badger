@@ -473,8 +473,13 @@ def sha256_file(path: Path) -> str:
 # Patterns matching scaffold.py's _test_ignore — files/dirs excluded from skill hashing.
 # `.DS_Store` is here because an OS dropping is not an edit, and a skill that hashed one
 # would report as locally modified until someone deleted a file they cannot see (#224).
-SKILL_EXCLUDE_PATTERNS = ["tests", "test_*.py", "*_test.py", "evals", "__pycache__", "*.pyc",
-                          ".DS_Store"]
+# Build artefacts and OS droppings: never authored, never a contribution, wherever they appear.
+ARTEFACT_EXCLUDE_PATTERNS = ["__pycache__", "*.pyc", ".DS_Store"]
+
+# Adds the skill-authoring conventions — tests and evals sit beside a skill and are not shipped.
+# Those two names are ordinary content anywhere else, so only skill trees may exclude them (#224).
+SKILL_EXCLUDE_PATTERNS = ["tests", "test_*.py", "*_test.py",
+                          "evals"] + ARTEFACT_EXCLUDE_PATTERNS
 
 
 def _matches_exclude(name: str, patterns: List[str]) -> bool:
@@ -525,24 +530,34 @@ def dir_content_hash(path: Path, exclude: Optional[List[str]] = None,
     file_count = 0
     dir_count = 0
 
-    for item in sorted(path.rglob("*")):
-        rel = item.relative_to(path)
-        # name intentionally unused — rel carries the hash path
+    # PurePosixPath throughout: a platform Path never compares equal to one on Windows.
+    walked = [(item, PurePosixPath(item.relative_to(path).as_posix()))
+              for item in sorted(path.rglob("*"))]
 
-        # Excluded when any ancestor segment matches a pattern, or the path itself (or an
-        # ancestor of it) is one another entry owns.
-        posix = PurePosixPath(rel.as_posix())
-        if excluded_by_patterns(rel.as_posix(), exclude):
-            continue
-        if excluded_paths and (posix in excluded_paths
-                               or any(p in excluded_paths for p in posix.parents)):
+    def skipped(rel: PurePosixPath) -> bool:
+        """Excluded by a name pattern, or owned by another entry — itself or via an ancestor."""
+        return (excluded_by_patterns(str(rel), exclude)
+                or rel in excluded_paths
+                or any(p in excluded_paths for p in rel.parents))
+
+    # Every directory still holding a file this entry owns.
+    kept_dirs = {parent for item, rel in walked
+                 if item.is_file() and not skipped(rel)
+                 for parent in rel.parents}
+
+    for item, rel in walked:
+        if skipped(rel):
             continue
 
         if item.is_dir():
+            # A directory holding nothing this entry owns, that exists only to carry a path
+            # another entry does, is that entry's structure — not drift in this one (#224).
+            if rel not in kept_dirs and any(rel in owned.parents for owned in excluded_paths):
+                continue
             dir_count += 1
         elif item.is_file():
             file_count += 1
-            h.update(rel.as_posix().encode("utf-8"))
+            h.update(str(rel).encode("utf-8"))
             h.update(item.read_bytes())
 
     return {
