@@ -79,6 +79,17 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/dispatch_gate_hook.py\""
+          }
+        ]
+      }
     ]
   },
   "permissions": {

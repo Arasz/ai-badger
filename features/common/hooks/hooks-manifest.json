@@ -48,6 +48,13 @@
       }
     },
     {
+      "name": "dispatch-gate",
+      "description": "Deny a subagent dispatch that names no model and whose subagent type has no model lane, so no delegation silently inherits the session model",
+      "agents": {
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PreToolUse", "script": "dispatch_gate_hook.py" }
+      }
+    },
+    {
       "name": "commit-reminder",
       "description": "Nudge toward smaller, more frequent commits once uncommitted file count crosses a threshold",
       "agents": {

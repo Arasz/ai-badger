@@ -1,8 +1,8 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.59.0",
-  "frameworkCommit": "6227d4fec924d1fbd2613e09df5cc2464277c2f4",
-  "frameworkDirty": false,
+  "frameworkCommit": "a72ddc26749b30ea3a289a29a8e4fa549888d05b",
+  "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
   "agents": [
@@ -380,14 +380,14 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.59.0",
-      "hash": "fa7d3ac5c3f3ef38dbf8c9c9d6e93ecad2fbb7ea2798ff53906354ca86da0536",
+      "hash": "2f80d519bbafa459c68a8bd7d8d103d341e4e5a18228a07c3442651ae116f406",
       "dirMeta": {
-        "file_count": 14,
+        "file_count": 15,
         "dir_count": 2
       },
-      "sourceHash": "fa7d3ac5c3f3ef38dbf8c9c9d6e93ecad2fbb7ea2798ff53906354ca86da0536",
+      "sourceHash": "2f80d519bbafa459c68a8bd7d8d103d341e4e5a18228a07c3442651ae116f406",
       "sourceMeta": {
-        "file_count": 14,
+        "file_count": 15,
         "dir_count": 2
       }
     },
