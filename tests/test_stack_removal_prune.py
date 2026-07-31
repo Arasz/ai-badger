@@ -7,6 +7,7 @@ from the manifest, putting the file beyond the reach of every later check (#116)
 from __future__ import annotations
 
 import json
+import shutil
 
 from scaffold_helpers import _config
 
@@ -242,3 +243,143 @@ class TestTheFrameworkDroppedTheItem:
                    if "CLAUDE.md" in n and ("no longer in the framework catalog" in n
                                             or "was edited here" in n)]
         assert (target / "CLAUDE.md").is_file()
+
+
+BEHAVIORIST = ".ai-badger/skills/call-behaviorist"
+
+
+def _catalog_dropped_skill(target, skill_name):
+    """Rewrite the manifest as if the framework had deleted `skill_name` from its catalog.
+
+    Every entry the skill placed — the directory and each extension file — points at a source
+    path that no longer exists, which is what an upstream deletion or rename leaves behind.
+    """
+    manifest_path = target / ".ai-badger" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    marker = f"/skills/{skill_name}"
+    for entry in manifest["entries"]:
+        source = entry.get("source", "")
+        if marker in source:
+            entry["source"] = source.replace(marker, f"{marker}-deleted-upstream")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+class TestARemovedSkillTakesItsDirectory:
+    """A skill the framework deleted must not leave a tree nothing claims or updates (#243)."""
+
+    def test_the_directory_of_a_dropped_skill_is_pruned(self, make_scaffolder):
+        config = _config(stacks=["python"])
+        target, _ = _scaffolded(make_scaffolder, config,
+                                skills=["task", "call-behaviorist"])
+        assert (target / BEHAVIORIST / "SKILL.md").is_file()
+        _catalog_dropped_skill(target, "call-behaviorist")
+
+        _, result = _scaffolded(make_scaffolder, config, skills=["task"])
+
+        assert not (target / BEHAVIORIST).exists()
+        assert any(BEHAVIORIST in n and "no longer in the framework catalog" in n
+                   for n in result["notes"])
+
+    def test_the_whole_subtree_goes_not_just_skill_md(self, make_scaffolder):
+        config = _config(stacks=["python"])
+        target, _ = _scaffolded(make_scaffolder, config,
+                                skills=["task", "call-behaviorist"])
+        assert (target / BEHAVIORIST / "scripts").is_dir()
+        _catalog_dropped_skill(target, "call-behaviorist")
+
+        _scaffolded(make_scaffolder, config, skills=["task"])
+
+        assert not (target / BEHAVIORIST / "scripts").exists()
+
+    def test_an_edited_skill_directory_is_left_in_place(self, make_scaffolder):
+        """Only what ai-badger placed and the project never touched may be removed."""
+        config = _config(stacks=["python"])
+        target, _ = _scaffolded(make_scaffolder, config,
+                                skills=["task", "call-behaviorist"])
+        edited = target / BEHAVIORIST / "SKILL.md"
+        edited.write_text("# ours now\n", encoding="utf-8")
+        _catalog_dropped_skill(target, "call-behaviorist")
+
+        _, result = _scaffolded(make_scaffolder, config, skills=["task"])
+
+        assert edited.read_text(encoding="utf-8") == "# ours now\n"
+        assert any(BEHAVIORIST in n and "edited" in n for n in result["notes"])
+
+    def test_a_rename_leaves_only_the_new_directory(self, make_scaffolder):
+        """The common shape of the bug: old name removed, new name delivered in one refresh."""
+        config = _config(stacks=["python"])
+        target, _ = _scaffolded(make_scaffolder, config, skills=["call-behaviorist"])
+        _catalog_dropped_skill(target, "call-behaviorist")
+
+        _scaffolded(make_scaffolder, config, skills=["mcp-index"])
+
+        assert not (target / BEHAVIORIST).exists()
+        assert (target / ".ai-badger" / "skills" / "mcp-index" / "SKILL.md").is_file()
+
+    def test_a_refresh_after_the_prune_is_a_no_op(self, make_scaffolder):
+        """`removed` fires once, against the manifest entry; the second run has nothing left."""
+        config = _config(stacks=["python"])
+        target, _ = _scaffolded(make_scaffolder, config,
+                                skills=["task", "call-behaviorist"])
+        _catalog_dropped_skill(target, "call-behaviorist")
+        _scaffolded(make_scaffolder, config, skills=["task"])
+
+        _, result = _scaffolded(make_scaffolder, config, skills=["task"])
+
+        assert not (target / BEHAVIORIST).exists()
+        assert not [n for n in result["notes"] if BEHAVIORIST in n]
+
+    def test_a_directory_deleted_by_hand_is_not_reported(self, make_scaffolder):
+        config = _config(stacks=["python"])
+        target, _ = _scaffolded(make_scaffolder, config,
+                                skills=["task", "call-behaviorist"])
+        _catalog_dropped_skill(target, "call-behaviorist")
+        shutil.rmtree(target / BEHAVIORIST)
+
+        _, result = _scaffolded(make_scaffolder, config, skills=["task"])
+
+        assert not [n for n in result["notes"] if BEHAVIORIST in n]
+
+    def test_a_project_owned_file_keeps_the_directory(self, make_scaffolder):
+        """project-local.md is content the framework never wrote and cannot put back (#15)."""
+        config = _config(stacks=["python"])
+        target, _ = _scaffolded(make_scaffolder, config,
+                                skills=["task", "call-behaviorist"])
+        local = target / BEHAVIORIST / "project-local.md"
+        local.write_text("## Ours\n\nProject rule.\n", encoding="utf-8")
+        # Re-scaffolded so the recorded hash covers it: an unrecorded file already reads as an
+        # edit, and this must hold for one the manifest knows about.
+        _scaffolded(make_scaffolder, config, skills=["task", "call-behaviorist"])
+        _catalog_dropped_skill(target, "call-behaviorist")
+
+        _, result = _scaffolded(make_scaffolder, config, skills=["task"])
+
+        assert local.is_file()
+        assert any(BEHAVIORIST in n and "project-local.md" in n for n in result["notes"])
+
+    def test_an_edited_extension_file_keeps_the_skill_directory(self, make_scaffolder):
+        """The directory entry owns its subtree, so an edit anywhere inside it stops the prune."""
+        config = _config(stacks=["python"], agents=["claude"])
+        target, _ = _scaffolded(make_scaffolder, config, skills=["task"])
+        extension = target / ".ai-badger" / "skills" / "task" / "extensions" / "claude" \
+            / "extension.md"
+        extension.write_text("# ours now\n", encoding="utf-8")
+        _catalog_dropped_skill(target, "task")
+
+        _scaffolded(make_scaffolder, config, skills=[])
+
+        assert extension.read_text(encoding="utf-8") == "# ours now\n"
+        assert (target / ".ai-badger" / "skills" / "task" / "SKILL.md").is_file()
+
+    def test_a_declined_skill_directory_still_stays(self, make_scaffolder):
+        """`config.exclude` declines a skill the framework still ships — unchanged by #243."""
+        config = _config(stacks=["python"])
+        target, _ = _scaffolded(make_scaffolder, config,
+                                skills=["task", "call-behaviorist"])
+        declining = dict(config, exclude={"skills": ["call-behaviorist"]})
+
+        _, result = _scaffolded(make_scaffolder, declining,
+                                skills=["task", "call-behaviorist"])
+
+        assert (target / BEHAVIORIST).is_dir()
+        assert any("call-behaviorist" in n and "left on disk" in n for n in result["notes"])

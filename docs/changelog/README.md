@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.59.2 | [a removed skill takes its directory with it](0.59.2-a-removed-skill-takes-its-directory.md) |
 | 0.59.1 | [the banner yields line 1 to frontmatter](0.59.1-the-banner-yields-line-one-to-frontmatter.md) |
 | 0.59.0 | [the aspire stack, and the MCP server the CLI already ships](0.59.0-the-aspire-stack-and-its-mcp-server.md) |
 | 0.58.0 | [the review-form skill is named for what it is](0.58.0-owner-gate-review.md) |

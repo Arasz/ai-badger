@@ -228,6 +228,7 @@ from mcp_tools import McpTools  # noqa: E402
 from statusline_wiring import StatusLineWiring  # noqa: E402
 # relink_hermes_skills is re-exported: den-refresh's refresh.py calls it on this module.
 from skill_delivery import SkillDelivery, relink_hermes_skills  # noqa: E402
+from superseded_prune import SupersededPrune  # noqa: E402
 
 
 def _ctx_property(name: str) -> property:
@@ -277,6 +278,7 @@ class Scaffolder:
         self.rendering = TemplateRendering(self.ctx)
         self.agent_files = AgentFiles(self.ctx, self.rendering)
         self.skill_delivery = SkillDelivery(self.ctx, self.extensions)
+        self.superseded = SupersededPrune(self.ctx, self.skill_delivery)
         self.install = install
         self.execute = execute
         self.commit, self.dirty = git_provenance(root)
@@ -318,38 +320,6 @@ class Scaffolder:
                     f"declined skill '{name}': .ai-badger/skills/{name} left on disk — "
                     f"delete it by hand"
                 )
-
-    def _superseded_reason(self, entry: Dict[str, Any]) -> Optional[str]:
-        """Why this config no longer asks for a file a previous run placed, or None to keep it."""
-        feature, name, source = entry.get("feature"), entry.get("name"), entry.get("source")
-        if name in self.excluded.get(feature, set()):
-            return f"declined in config.exclude.{feature}"
-        if bl.is_orphaned(entry, bl.delivering_stacks(self.config)):
-            return f"stack '{entry.get('stack')}' is no longer in config.stacks"
-        if feature in bl.EXCLUDABLE_FEATURES and source and not (self.root / source).exists():
-            return "no longer in the framework catalog"
-        return None
-
-    def prune_superseded(self) -> None:
-        """Delete the files a previous run placed that this config no longer asks for.
-
-        Three ways to stop asking: decline via `config.exclude`, the delivering stack leaving
-        (#116), or the catalog source disappearing (#130). An edited copy is reported, not
-        removed; skill directories stay on disk regardless (research §2).
-        """
-        for entry in self._prior_manifest().get("entries", []):
-            reason = self._superseded_reason(entry)
-            if reason is None:
-                continue
-            path = self.target / entry.get("target", "")
-            if not _within(self.target, path) or not path.is_file():
-                continue
-            rel = entry["target"]
-            if bl.sha256_file(path) != entry.get("hash"):
-                self.notes.append(f"{rel} was edited here — left in place ({reason})")
-                continue
-            path.unlink()
-            self.notes.append(f"removed {rel} — {reason}")
 
     # -- provenance -----------------------------------------------------------------
     def record(self, feature: str, stack: str, name: str, source: Path, target: Path) -> None:
@@ -697,7 +667,7 @@ class Scaffolder:
         self.aib.mkdir(parents=True, exist_ok=True)
         self._completed_steps = []
         self._record_progress("start")
-        self.prune_superseded()
+        self.superseded.prune(self._prior_manifest().get("entries", []))
         self.scaffold_personas()
         instr_paths = self.scaffold_instructions()
         invariants = self.collect_invariants()

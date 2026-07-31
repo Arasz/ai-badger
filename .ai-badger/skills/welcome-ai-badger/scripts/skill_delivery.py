@@ -152,6 +152,15 @@ class SkillDelivery:
                             ext_src if ext_src.exists() else f, f)
 
     # -- seed-once (framework writes once, project owns thereafter; see #15) ----------
+    def project_owned_files(self, dest: Path, skill_name: str) -> List[str]:
+        """Files inside a delivered skill directory the project owns, not the framework.
+
+        What the prune consults before removing a superseded skill tree: the framework never
+        wrote these and cannot put them back (#243).
+        """
+        candidates = [PROJECT_LOCAL_FILE] + SEED_ONCE_SKILL_FILES.get(skill_name, [])
+        return [name for name in candidates if (dest / name).exists()]
+
     def _stash_seed_once_files(self, skill_name: str, dest: Path) -> Dict[str, bytes]:
         """Read the current content of any seed-once files inside a skill dir before it is
         rmtree'd, so they can be restored after the fresh copytree. Empty on first scaffold
