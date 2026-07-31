@@ -1,16 +1,17 @@
 """Adjustment: map ai-badger personas to Copilot custom agents.
 
 Copilot discovers custom agents from .github/agents/*.agent.md with YAML
-frontmatter. This adjustment converts ai-badger personas into Copilot
-custom agent format.
+frontmatter. This adjustment converts the configured stacks' personas into
+Copilot custom agent format (issue #210).
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 
-# Map persona names to Copilot agent descriptions and tool access
+# Deliberate Copilot-specific overrides; they win over a persona's own frontmatter.
 PERSONA_MAP = {
     "architect": {
         "description": "System architecture and design decisions. Reviews patterns, evaluates trade-offs, and proposes structural improvements.",
@@ -29,9 +30,81 @@ PERSONA_MAP = {
     },
 }
 
+AGENTS_SUBDIR = Path(".github") / "agents"
+
+
+def _split_frontmatter(yaml_mod, text: str) -> Tuple[Dict[str, Any], str]:
+    """Split a leading `---` YAML block off `text`; ({}, text) when there is none."""
+    if not text.startswith("---\n"):
+        return {}, text
+    lines = text.split("\n")
+    for i, line in enumerate(lines[1:], start=1):
+        if line.strip() != "---":
+            continue
+        try:
+            data = yaml_mod.safe_load("\n".join(lines[1:i]))
+        except yaml_mod.YAMLError:
+            return {}, text
+        body = "\n".join(lines[i + 1:]).lstrip("\n")
+        return (data if isinstance(data, dict) else {}), body
+    return {}, text
+
+
+def _tool_list(value: Any) -> List[str]:
+    """Normalize a frontmatter `tools` value — YAML often carries it as one comma string."""
+    if isinstance(value, str):
+        return [t.strip() for t in value.split(",") if t.strip()]
+    if isinstance(value, list):
+        return [str(t) for t in value]
+    return []
+
+
+def _merged_frontmatter(name: str, source_meta: Dict[str, Any]) -> Dict[str, Any]:
+    """Defaults < the persona's own frontmatter < the Copilot-specific PERSONA_MAP."""
+    merged: Dict[str, Any] = {
+        "name": name,
+        "description": f"AI agent persona: {name}",
+        "tools": ["read", "search"],
+        "user-invocable": True,
+    }
+    if isinstance(source_meta.get("name"), str):
+        merged["name"] = source_meta["name"].strip()
+    if isinstance(source_meta.get("description"), str):
+        merged["description"] = source_meta["description"].strip()
+    if _tool_list(source_meta.get("tools")):
+        merged["tools"] = _tool_list(source_meta.get("tools"))
+    merged.update(PERSONA_MAP.get(name, {}))
+    return merged
+
+
+def _prune_stale(target: Path, target_dir: Path, keep: List[str]) -> List[str]:
+    """Delete `.github/agents/` files the prior manifest attributes to this adjuster.
+
+    `prune_superseded` never reaches these: their manifest entries carry feature
+    `adjustments` under the still-configured `copilot` stack, so only the adjuster
+    itself knows which of its own outputs this run no longer asks for (#210).
+    """
+    try:
+        entries = json.loads((target_dir / "manifest.json")
+                             .read_text(encoding="utf-8")).get("entries", [])
+    except (OSError, ValueError):
+        return []
+    removed = []
+    for entry in entries:
+        if entry.get("feature") != "adjustments" or entry.get("stack") != "copilot":
+            continue
+        rel = Path(entry.get("target", ""))
+        if rel.parent != AGENTS_SUBDIR or rel.suffix != ".md" or rel.name in keep:
+            continue
+        path = target / rel
+        if path.is_file():
+            path.unlink()
+            removed.append(rel.as_posix())
+    return removed
+
 
 def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
-    """Convert personas to Copilot custom agents.
+    """Convert the configured stacks' personas to Copilot custom agents.
 
     Args:
         context: {
@@ -39,7 +112,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
             'config': dict,
             'target_dir': Path,     # .ai-badger/
             'target': Path,         # project root
-            'index': dict,
+            'personas': list,       # index items the configured stacks deliver
         }
     Returns:
         {'applied': bool, 'files': list[str], 'notes': str}
@@ -56,55 +129,40 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
 
     framework_root = context["framework_root"]
     target = context["target"]
-    index = context.get("index", {})
 
-    # Find persona files in the index
-    personas: List[Dict[str, Any]] = []
-    for stack_name, stack_data in index.get("stacks", {}).items():
-        for persona in stack_data.get("personas", []):
-            personas.append(persona)
-
+    # Already filtered by the scaffolder to the configured stacks minus config.exclude:
+    # re-deriving a set here is how the two hosts came to disagree (#210).
+    personas = context.get("personas") or []
     if not personas:
-        return {"applied": False, "files": [], "notes": "No personas found in index"}
+        return {"applied": False, "files": [], "notes": "No personas configured"}
 
-    agents_dir = target / ".github" / "agents"
+    agents_dir = target / AGENTS_SUBDIR
     agents_dir.mkdir(parents=True, exist_ok=True)
 
     created = []
     for persona in personas:
         name = persona.get("name", "")
         persona_path = framework_root / persona.get("path", "")
-
         if not persona_path.exists():
             continue
 
-        # Read persona content
-        persona_content = persona_path.read_text(encoding="utf-8")
-
-        # Get agent config from map or use defaults
-        agent_config = PERSONA_MAP.get(name, {
-            "description": f"AI agent persona: {name}",
-            "tools": ["read", "search"],
-            "user-invocable": True,
-        })
-
-        # Generate Copilot custom agent format using proper YAML
-        frontmatter = {
-            "name": name,
-            "description": agent_config["description"],
-            "tools": agent_config["tools"],
-            "user-invocable": agent_config["user-invocable"],
-        }
+        source_meta, body = _split_frontmatter(yaml, persona_path.read_text(encoding="utf-8"))
+        frontmatter = _merged_frontmatter(name, source_meta)
         yaml_header = yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True).strip()
-        agent_md = f"---\n{yaml_header}\n---\n\n{persona_content}\n"
         agent_file = agents_dir / f"{name}.agent.md"
-        agent_file.write_text(agent_md, encoding="utf-8")
+        agent_file.write_text(f"---\n{yaml_header}\n---\n\n{body.strip()}\n", encoding="utf-8")
         created.append(name)
 
-    if created:
-        return {
-            "applied": True,
-            "files": [f".github/agents/{name}.agent.md" for name in created],
-            "notes": f"Created {len(created)} Copilot custom agent(s) from personas",
-        }
-    return {"applied": False, "files": [], "notes": "No persona files found to convert"}
+    removed = _prune_stale(target, context["target_dir"],
+                           [f"{name}.agent.md" for name in created])
+    if not created and not removed:
+        return {"applied": False, "files": [], "notes": "No persona files found to convert"}
+
+    notes = [f"Created {len(created)} Copilot custom agent(s) from personas"]
+    if removed:
+        notes.append(f"removed {len(removed)} stale agent file(s): {', '.join(sorted(removed))}")
+    return {
+        "applied": True,
+        "files": [f".github/agents/{name}.agent.md" for name in created],
+        "notes": "; ".join(notes),
+    }

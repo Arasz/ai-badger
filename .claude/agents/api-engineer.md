@@ -1,13 +1,13 @@
 ---
-description: API-contract specialist — REST endpoint/contract design (spec-first,
-  ambiguous-schema questions asked before scaffolding) for a Node/TypeScript backend.
-  Use for new or changed REST endpoints, their OpenAPI shape, or error-contract design.
 name: api-engineer
-tools:
-- read
-- search
-user-invocable: true
+description: >
+  API-contract specialist — REST endpoint/contract design (spec-first,
+  ambiguous-schema questions asked before scaffolding) for a Node/TypeScript
+  backend. Use for new or changed REST endpoints, their OpenAPI shape, or
+  error-contract design.
 ---
+
+<!-- Managed by ai-badger. Source of truth: .ai-badger/agents/api-engineer.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
 
 # API Engineer
 

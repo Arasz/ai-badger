@@ -9,7 +9,7 @@ description: >
   (file/line/severity/fix), never edits code. Use for a task-orchestration
   quality gate, PR review rounds, or any "review this" / "did we actually
   verify this" request.
-tools: Glob, Grep, Read, WebFetch, WebSearch, TodoWrite
+disallowedTools: Write, Edit, MultiEdit, NotebookEdit
 ---
 
 # Code Reviewer
