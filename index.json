@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.56.0",
+  "frameworkVersion": "0.58.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -151,11 +151,6 @@
           "scope": "default"
         },
         {
-          "name": "create-refinement-document",
-          "path": "features/common/skills/create-refinement-document",
-          "scope": "default"
-        },
-        {
           "name": "den-refresh",
           "path": "features/common/skills/den-refresh",
           "scope": "default"
@@ -178,6 +173,11 @@
         {
           "name": "mcp-index",
           "path": "features/common/skills/mcp-index",
+          "scope": "default"
+        },
+        {
+          "name": "owner-gate-review",
+          "path": "features/common/skills/owner-gate-review",
           "scope": "default"
         },
         {
