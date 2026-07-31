@@ -267,6 +267,41 @@ def _shipped_paths_guard(work: Path, provoked: bool) -> Outcome:
     return _run_gate("gates/shipped_paths_guard.py", "--root", str(repo))
 
 
+# ------------------------------------------------- gates/scaffold_freshness_guard.py
+
+
+def _self_scaffolded_repo(work: Path) -> Path:
+    """A git copy of this repo, scaffolded against itself so it is fresh by construction."""
+    repo = _repo(work / "repo")
+    out = subprocess.run(["git", "ls-files", "-co", "--exclude-standard", "-z"], cwd=str(ROOT),
+                         check=True, capture_output=True).stdout
+    for rel in (p.decode("utf-8") for p in out.split(b"\0") if p):
+        src, dst = ROOT / rel, repo / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if src.is_symlink():
+            os.symlink(os.readlink(str(src)), str(dst))
+        elif src.is_file():
+            shutil.copy2(src, dst)
+    _commit(repo, "baseline")
+    scaffolded = _run([
+        str(repo / "features/common/skills/welcome-ai-badger/scripts/scaffold.py"),
+        "--config", str(repo / ".ai-badger/config.json"),
+        "--target", str(repo), "--root", str(repo), "--no-install", "--skills", ""])
+    assert scaffolded.exit_code == 0, f"fixture setup failed:\n{scaffolded.output}"
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "self-scaffold")
+    return repo
+
+
+def _scaffold_freshness_guard(work: Path, provoked: bool) -> Outcome:
+    """A skill source that gained a file after the last self-scaffold — the #204 incident."""
+    repo = _self_scaffolded_repo(work)
+    if provoked:
+        _write(repo / "features" / "common" / "skills" / "welcome-ai-badger" / "scripts"
+               / "added_after_scaffold.py", '"""Added after the last self-scaffold."""\n')
+    return _run_gate("gates/scaffold_freshness_guard.py", "--root", str(repo))
+
+
 # ------------------------------------------------------------------- gates/tdd_guard.py
 
 
@@ -517,6 +552,10 @@ REGISTRY: Tuple[Provocation, ...] = (
     Provocation("gates/shipped_paths_guard.py", "a tracked file carrying a real machine path",
                 _shipped_paths_guard,
                 Signal(exit_code=1, contains="machine-specific absolute path")),
+    Provocation("gates/scaffold_freshness_guard.py",
+                "a skill source that gained a file, with no re-scaffold",
+                _scaffold_freshness_guard,
+                Signal(exit_code=1, contains="SCAFFOLD FRESHNESS GUARD FAILED")),
     Provocation("gates/tdd_guard.py", "shipped code changed with no test change",
                 _tdd_guard, Signal(exit_code=1, contains="Write the failing test first")),
     Provocation("tooling/index_build.py --check", "a feature added after index.json was built",

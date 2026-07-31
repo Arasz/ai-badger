@@ -88,7 +88,7 @@ def test_gate_own_files_route_to_every_lane():
     base = f"{last_gate}~1"
     selected = _run("lanes", stdin=f"refs/heads/x {head} refs/heads/x {base}\n").stdout.split()
     # Gate file changes must select every lane, or a broken gate hides silently.
-    for lane in ("pytest", "pylint", "js", "docs", "release", "paths", "validate"):
+    for lane in ("pytest", "pylint", "js", "docs", "release", "paths", "scaffold", "validate"):
         assert lane in selected
 
 
@@ -118,7 +118,8 @@ def test_docs_only_change_skips_the_expensive_lanes():
 
 
 @pytest.mark.parametrize("lane", ["version-sync", "index", "plugin-skills", "deps", "docs",
-                                  "release", "paths", "validate", "tdd", "js", "pylint", "pytest"])
+                                  "release", "paths", "scaffold", "validate", "tdd", "js",
+                                  "pylint", "pytest"])
 def test_every_advertised_lane_is_dispatchable(lane):
     """A lane named in usage but missing from the dispatch table would skip silently."""
     done = _run(lane, env={"VERIFY_SKIP": lane})
