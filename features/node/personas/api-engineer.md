@@ -5,6 +5,7 @@ description: >
   ambiguous-schema questions asked before scaffolding) for a Node/TypeScript
   backend. Use for new or changed REST endpoints, their OpenAPI shape, or
   error-contract design.
+model: sonnet
 ---
 
 # API Engineer

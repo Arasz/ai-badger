@@ -6,6 +6,7 @@ description: >
   boundaries), accessibility, and state management using the framework's
   own idioms. Use for frontend components/views, client-side data-fetching
   and state, and UI-behavior bug fixes.
+model: sonnet
 ---
 
 # Frontend Engineer

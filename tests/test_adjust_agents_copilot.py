@@ -115,6 +115,22 @@ def test_the_copilot_specific_mapping_still_wins_for_mapped_personas(tmp_path, l
     assert meta["tools"] == adjust_agents.PERSONA_MAP["architect"]["tools"]
 
 
+def test_the_personas_model_is_dropped_because_copilot_reads_other_model_names(
+        tmp_path, load_script):
+    """`model: sonnet` is a Claude alias; Copilot picks its own model, so the key is dropped."""
+    adjust_agents = load_script(ADJUSTER)
+    fw = tmp_path / "framework"
+    item = _persona(fw, "node", "api-engineer",
+                    "---\nname: api-engineer\ndescription: d\nmodel: sonnet\n---\n\nBody.\n")
+    target = _proj(tmp_path)
+
+    adjust_agents.adjust(_context(fw, target, [item]))
+
+    text = _agent_file(target, "api-engineer")
+    assert "model" not in _frontmatter(text)
+    assert "sonnet" not in text
+
+
 def test_a_persona_without_frontmatter_still_converts(tmp_path, load_script):
     adjust_agents = load_script(ADJUSTER)
     fw = tmp_path / "framework"

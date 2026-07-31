@@ -60,7 +60,11 @@ def _tool_list(value: Any) -> List[str]:
 
 
 def _merged_frontmatter(name: str, source_meta: Dict[str, Any]) -> Dict[str, Any]:
-    """Defaults < the persona's own frontmatter < the Copilot-specific PERSONA_MAP."""
+    """Defaults < the persona's own frontmatter < the Copilot-specific PERSONA_MAP.
+
+    An allowlist: `model` is deliberately dropped — Copilot picks its own model and would
+    not recognise a Claude alias like `sonnet`.
+    """
     merged: Dict[str, Any] = {
         "name": name,
         "description": f"AI agent persona: {name}",
