@@ -9,6 +9,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
+from _shared import MANAGED_HEADER, _MANAGED_PREFIX
 from scaffold_context import ScaffoldContext
 
 # A frontmatter key: at the start of its line, so an indented continuation is not one.
@@ -51,6 +52,44 @@ def prose_only(text: str) -> str:
     kept = [line.strip() for line in text.splitlines()
             if line.strip() and not line.lstrip().startswith(("#", "<!--"))]
     return " ".join(kept)
+
+
+# How far into a file the managed marker may sit: line 1, or just below a frontmatter block.
+# Bounded so a document that merely quotes the banner deep in its body is not read as managed.
+_MANAGED_SCAN_LINES = 10
+
+
+def _frontmatter_end(body: str) -> int:
+    """Offset just past the closing fence of `body`'s frontmatter, or -1 when it has none.
+
+    Only a fence at offset 0 counts — a `---` further down is a thematic break or code (#241).
+    """
+    for newline in ("\r\n", "\n"):
+        fence = "---" + newline
+        if not body.startswith(fence):
+            continue
+        end = body.find(newline + fence, len(fence) - len(newline))
+        return -1 if end == -1 else end + len(newline) + len(fence)
+    return -1
+
+
+def _with_managed_header(body: str, name: str) -> str:
+    """`body` with the managed banner on line 1, or below its frontmatter when it opens with one.
+
+    VS Code and Copilot parse an instruction file's frontmatter only at line 1 (#241).
+    """
+    header = MANAGED_HEADER.format(name=name)
+    close = _frontmatter_end(body)
+    if close == -1:
+        return header + body
+    newline = "\r\n" if body.startswith("---\r\n") else "\n"
+    return body[:close] + newline + header + body[close:]
+
+
+def _is_managed(text: str) -> bool:
+    """True when `text` carries the managed marker at line 1 or just below its frontmatter."""
+    head = text.lstrip().splitlines()[:_MANAGED_SCAN_LINES]
+    return any(line.startswith(_MANAGED_PREFIX) for line in head)
 
 
 class TemplateRendering:
@@ -198,11 +237,8 @@ class TemplateRendering:
 
     def copy_with_header(self, dest: Path, name: str, body: str) -> None:
         """Write body to dest with managed header, preserving hand-authored files."""
-        from _shared import _MANAGED_PREFIX, MANAGED_HEADER  # pylint: disable=import-outside-toplevel
-
         if (not self.ctx.overwrite and dest.exists()
-                and not dest.read_text(encoding="utf-8",
-                                       errors="ignore").lstrip().startswith(_MANAGED_PREFIX)):
+                and not _is_managed(dest.read_text(encoding="utf-8", errors="ignore"))):
             self.ctx.notes.append(
                 f"preserved hand-authored {dest.relative_to(self.ctx.target).as_posix()} "
                 "(source written to .ai-badger/; pass --overwrite-agent-files to replace)"
@@ -212,4 +248,4 @@ class TemplateRendering:
         if carried is None:
             return
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(MANAGED_HEADER.format(name=name) + carried, encoding="utf-8")
+        dest.write_text(_with_managed_header(carried, name), encoding="utf-8")

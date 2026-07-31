@@ -21,6 +21,7 @@ re-scaffold.
 | Version | Entry |
 |---|---|
 | 0.60.0 | [a map of who to delegate to](0.60.0-a-map-of-who-to-delegate-to.md) |
+| 0.59.1 | [the banner yields line 1 to frontmatter](0.59.1-the-banner-yields-line-one-to-frontmatter.md) |
 | 0.59.0 | [the aspire stack, and the MCP server the CLI already ships](0.59.0-the-aspire-stack-and-its-mcp-server.md) |
 | 0.58.0 | [the review-form skill is named for what it is](0.58.0-owner-gate-review.md) |
 | 0.57.0 | [usage accounting can see subagents](0.57.0-usage-accounting-can-see-subagents.md) |

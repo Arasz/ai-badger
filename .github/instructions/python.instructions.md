@@ -1,9 +1,10 @@
-<!-- Managed by ai-badger. Source of truth: .ai-badger/instructions/python.instructions.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
-
 ---
 description: 'Modern Python conventions.'
 applyTo: '**/*.py'
 ---
+
+<!-- Managed by ai-badger. Source of truth: .ai-badger/instructions/python.instructions.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
+
 
 # Python
 
