@@ -275,7 +275,7 @@ def resume_session(target: TargetSession) -> bool:
     log(f"Resuming session {target.session_id} ({target.source}{task_suffix})...")
     try:
         lib.spawn_detached([CLAUDE_BIN, "--resume", target.session_id, "-p", prompt,
-                            "--permission-mode", "acceptEdits"])
+                            "--permission-mode", "acceptEdits"], cwd=PROJECT_ROOT)
         return True
     except (OSError, subprocess.SubprocessError) as exc:
         log(f"Failed to resume {target.session_id}: {exc}")

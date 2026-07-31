@@ -6,9 +6,24 @@ that forgets to redirect must still be harmless (#222).
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import time
+from pathlib import Path
+
+# Self-derived, never imported from conftest: these two tests assert a property of the
+# environment, and importing the fix's own symbols would make them fail with ImportError
+# rather than with the leak, proving only that the symbol exists.
+REAL_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
 
 
 class TestTheSuiteCannotWriteToTheRealTrackingDir:
@@ -20,8 +35,6 @@ class TestTheSuiteCannotWriteToTheRealTrackingDir:
 
     def test_a_freshly_loaded_copy_points_away_from_the_real_project(self, load_script):
         """tracker_lib freezes its paths at import, so the redirect must already be in force."""
-        from conftest import REAL_PROJECT_ROOT  # pylint: disable=import-outside-toplevel
-
         for relpath in self.COPIES:
             data_dir = load_script(relpath).DATA_DIR
             assert REAL_PROJECT_ROOT not in data_dir.parents, \
@@ -29,8 +42,6 @@ class TestTheSuiteCannotWriteToTheRealTrackingDir:
 
     def test_registering_a_session_lands_outside_the_real_project(self, load_script):
         """The end-to-end write, with nothing patched: it must happen, just somewhere safe."""
-        from conftest import REAL_PROJECT_ROOT  # pylint: disable=import-outside-toplevel
-
         tl = load_script(self.COPIES[1])
         tl.ensure_data_dir()
         tl.save_current_session("isolation-probe", transcript_path="", cwd="")
@@ -66,6 +77,30 @@ class TestNoProcessOutlivesTheRun:
         subprocess.run([sys.executable, "-c", "pass"], check=True)
 
         assert len(detached_children()) == before
+
+    def test_reaping_kills_a_grandchild_too(self, tmp_path):
+        """poll_limit shells out to `claude`; killing only the leader reparents it to PID 1."""
+        from conftest import reap_detached_children  # pylint: disable=import-outside-toplevel
+
+        pidfile = tmp_path / "grandchild.pid"
+        code = ("import pathlib, subprocess, sys, time\n"
+                "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+                f"pathlib.Path({str(pidfile)!r}).write_text(str(g.pid))\n"
+                "time.sleep(60)\n")
+        child = subprocess.Popen(  # pylint: disable=consider-using-with
+            [sys.executable, "-c", code], start_new_session=True)
+        deadline = time.time() + 10
+        while not pidfile.exists() and time.time() < deadline:
+            time.sleep(0.05)
+        assert pidfile.exists(), "the child never reported its grandchild"
+        grandchild = int(pidfile.read_text())
+
+        reap_detached_children()
+
+        deadline = time.time() + 5
+        while _alive(grandchild) and time.time() < deadline:
+            time.sleep(0.05)
+        assert not _alive(grandchild), "the grandchild outlived the reaper"
 
     def test_reaping_kills_a_survivor(self):
         """What the session teardown does, asserted directly rather than trusted."""

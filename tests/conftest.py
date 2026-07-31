@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -74,11 +75,19 @@ def detached_children() -> list:
 
 
 def reap_detached_children() -> list:
-    """Kill every detached child still running; return the ones that had to be killed."""
+    """Kill every detached child still running; return the ones that had to be killed.
+
+    Kills the process *group*, not the leader. `start_new_session` makes each child a group
+    leader, and poll_limit shells out to `claude` — signalling only the leader leaves that
+    grandchild to reparent to PID 1 and survive, which is the leak this exists to stop (#222).
+    """
     killed = []
     for child in _DETACHED_CHILDREN:
         if child.poll() is None:
-            child.kill()
+            try:
+                os.killpg(os.getpgid(child.pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):  # pragma: no cover - race with exit
+                child.kill()
             try:
                 child.wait(timeout=5)
             except subprocess.TimeoutExpired:  # pragma: no cover - kill(2) does not negotiate
