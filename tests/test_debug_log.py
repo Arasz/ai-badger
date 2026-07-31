@@ -508,3 +508,40 @@ class TestUserScopeInstalls:
         dl = _load(load_script, tmp_path, monkeypatch)
 
         assert all(str(r).startswith(str(Path.home())) for r in dl.USER_INSTALL_ROOTS)
+
+
+class TestTheQueryFieldCarriesEnoughToBeAFixture:
+    """Issue #219: a 200-char cap dropped 77% of retrieval telemetry before it could be reused."""
+
+    def test_a_long_query_is_kept_past_the_general_field_cap(self, load_script, tmp_path,
+                                                             monkeypatch):
+        dl = _load(load_script, tmp_path, monkeypatch)
+        _enable(dl)
+        query = "which tool " + "x" * 800
+
+        dl.log_event("h", "hit", **{dl.KEY_QUERY: query})
+
+        assert len(_records(dl)[0][dl.KEY_QUERY]) > dl.MAX_FIELD_CHARS
+
+    def test_the_query_is_still_bounded(self, load_script, tmp_path, monkeypatch):
+        dl = _load(load_script, tmp_path, monkeypatch)
+        _enable(dl)
+
+        dl.log_event("h", "hit", **{dl.KEY_QUERY: "y" * 50_000})
+
+        assert len(_records(dl)[0][dl.KEY_QUERY]) <= dl.MAX_QUERY_CHARS
+
+    def test_a_record_with_every_field_at_its_cap_still_fits_one_atomic_write(
+            self, load_script, tmp_path, monkeypatch):
+        """A record over PIPE_BUF can interleave with a concurrent writer's, corrupting both."""
+        dl = _load(load_script, tmp_path, monkeypatch)
+        _enable(dl)
+        payload = {key: "z" * 50_000
+                   for key in (dl.KEY_QUERY, dl.KEY_TERMS, dl.KEY_CANDIDATES, dl.KEY_TOP,
+                               dl.KEY_RETURNED, dl.KEY_THRESHOLD, dl.KEY_TOOL)}
+
+        dl.log_event("a-component" * 20, "an-event" * 20, project="/p" * 200,
+                     session="s" * 500, **payload)
+
+        line = dl.AUDIT_FILE.read_text(encoding="utf-8").splitlines()[0]
+        assert len(line.encode("utf-8")) < dl.PIPE_BUF_BYTES

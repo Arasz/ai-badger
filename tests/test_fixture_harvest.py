@@ -196,3 +196,23 @@ def test_main_without_include_queries_writes_no_query_text(harvester, tmp_path):
     out = tmp_path / "candidates.jsonl"
     assert harvester.main(["--log", str(log), "--out", str(out)]) == 0
     assert "take a screenshot" not in out.read_text(encoding="utf-8")
+
+
+def test_a_query_at_the_legacy_cap_is_still_read_as_clipped(harvester):
+    """Records written before #219 were cut at 200; a prefix stays indistinguishable from one."""
+    result = harvester.harvest([_record(query="x" * 200)], "2026-07-31")
+    assert result.clipped == 1
+    assert result.candidates == []
+
+
+def test_a_query_longer_than_the_legacy_cap_is_harvestable(harvester):
+    """The point of raising the cap: 200-1999 chars is now a whole question, not a prefix."""
+    result = harvester.harvest([_record(query="which tool " + "y" * 500)], "2026-07-31")
+    assert result.clipped == 0
+    assert len(result.candidates) == 1
+
+
+def test_a_query_at_the_new_cap_is_read_as_clipped(harvester):
+    result = harvester.harvest([_record(query="z" * 2000)], "2026-07-31")
+    assert result.clipped == 1
+    assert result.candidates == []
