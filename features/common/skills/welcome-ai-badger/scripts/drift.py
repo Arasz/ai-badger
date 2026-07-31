@@ -303,12 +303,18 @@ def _differs(fingerprint: Dict[str, Any], entry_hash: Optional[str],
     return fingerprint["content_hash"] != entry_hash
 
 
-def _dir_entry_verdict(source: Path, entry: Dict[str, Any],
-                       project_copy: Optional[Path]) -> Tuple[Optional[bool], bool]:
+def _dir_entry_verdict(source: Path, entry: Dict[str, Any], project_copy: Optional[Path],
+                       owned_elsewhere: Optional[List[str]] = None
+                       ) -> Tuple[Optional[bool], bool]:
     """(has the framework moved ahead?, has the project edited its copy?) for a skill.
 
     The first is None when the manifest predates `sourceHash`: nothing recorded what the
     framework looked like, so the question is unanswerable rather than answered "no" (#110).
+
+    `owned_elsewhere` names paths inside the project's copy that other manifest entries
+    wrote. Only the local question excludes them: the framework source never received them,
+    and hashing them would answer "did the project edit this?" with the adjustments the
+    scaffolder itself ran (#224).
     """
     exclude = bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
     source_hash = entry.get("sourceHash")
@@ -321,8 +327,8 @@ def _dir_entry_verdict(source: Path, entry: Dict[str, Any],
     moved = _differs(bl.dir_content_hash(source, exclude=exclude), source_hash,
                      entry.get("sourceMeta"))
     edited = project_copy is not None and _differs(
-        bl.dir_content_hash(project_copy, exclude=exclude), entry.get("hash"),
-        entry.get("dirMeta"))
+        bl.dir_content_hash(project_copy, exclude=exclude, exclude_rel=owned_elsewhere),
+        entry.get("hash"), entry.get("dirMeta"))
     return moved, edited
 
 
@@ -427,7 +433,9 @@ def compare(root: Path, manifest: Dict[str, Any],
         if source.is_dir():
             try:
                 moved, edited = _dir_entry_verdict(
-                    source, entry, _project_copy(target, entry, source_rel, notes)
+                    source, entry, _project_copy(target, entry, source_rel, notes),
+                    bl.nested_entry_targets(manifest.get("entries", []),
+                                            entry.get("target") or ""),
                 )
             except (ValueError, OSError):
                 skipped.append(source_rel)

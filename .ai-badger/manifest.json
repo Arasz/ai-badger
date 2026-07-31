@@ -299,12 +299,12 @@
       "source": "features/common/skills/feed-badger",
       "target": ".ai-badger/skills/feed-badger",
       "frameworkVersion": "0.53.0",
-      "hash": "43cca73fb5e522368ff11f7e72a9da433f7de8a9462467d3a9a3cbb607bcf0e2",
+      "hash": "d3e6c635d7238c4bc6f59f7daff2e886e59e36ac3fdc253ba4b86f6fb0f333a8",
       "dirMeta": {
         "file_count": 3,
         "dir_count": 1
       },
-      "sourceHash": "43cca73fb5e522368ff11f7e72a9da433f7de8a9462467d3a9a3cbb607bcf0e2",
+      "sourceHash": "d3e6c635d7238c4bc6f59f7daff2e886e59e36ac3fdc253ba4b86f6fb0f333a8",
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 1
@@ -461,12 +461,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.53.0",
-      "hash": "e169ae9ea4c3bc0fe19ddc9c8810820a1406ec5540c803f1281c768ce4cca853",
+      "hash": "77ff9f03d28ec2013bde0d7d57139e6504fa4cd5a552f3ecfeacc419092f6793",
       "dirMeta": {
         "file_count": 17,
         "dir_count": 2
       },
-      "sourceHash": "e169ae9ea4c3bc0fe19ddc9c8810820a1406ec5540c803f1281c768ce4cca853",
+      "sourceHash": "77ff9f03d28ec2013bde0d7d57139e6504fa4cd5a552f3ecfeacc419092f6793",
       "sourceMeta": {
         "file_count": 17,
         "dir_count": 2

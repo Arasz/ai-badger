@@ -758,6 +758,80 @@ def test_dir_content_hash_same_when_excluded_files_differ(tmp_path, load_script)
 
     assert h1["content_hash"] == h2["content_hash"]
 
+
+def test_dir_content_hash_exclude_rel_skips_that_path_only(tmp_path, load_script):
+    """`exclude_rel` names one path, so a namesake elsewhere in the tree is still hashed."""
+    bl = load_script("engine/badger_lib.py")
+    d = tmp_path / "skill"
+    (d / "scripts").mkdir(parents=True)
+    (d / "vendor").mkdir()
+    (d / "SKILL.md").write_text("content\n")
+    (d / "scripts" / "bm25.py").write_text("placed by an adjustment\n")
+    (d / "vendor" / "bm25.py").write_text("the project's own\n")
+
+    result = bl.dir_content_hash(d, exclude_rel=["scripts/bm25.py"])
+
+    assert result["file_count"] == 2  # SKILL.md + vendor/bm25.py
+    (d / "scripts" / "bm25.py").write_text("a later framework version\n")
+    assert bl.dir_content_hash(d, exclude_rel=["scripts/bm25.py"]) == result
+
+
+def test_dir_content_hash_exclude_rel_skips_a_whole_subtree(tmp_path, load_script):
+    """Naming a directory in `exclude_rel` skips everything under it."""
+    bl = load_script("engine/badger_lib.py")
+    d = tmp_path / "skill"
+    (d / "extras" / "deep").mkdir(parents=True)
+    (d / "SKILL.md").write_text("content\n")
+    (d / "extras" / "one.py").write_text("1\n")
+    (d / "extras" / "deep" / "two.py").write_text("2\n")
+
+    result = bl.dir_content_hash(d, exclude_rel=["extras"])
+
+    assert result["file_count"] == 1
+    assert result["content_hash"] == bl.dir_content_hash(d, exclude=["extras"])["content_hash"]
+
+
+def test_skill_exclude_patterns_ignore_os_droppings(tmp_path, load_script):
+    """A .DS_Store dropped beside a skill's files is not a change to the skill."""
+    bl = load_script("engine/badger_lib.py")
+    d = tmp_path / "skill"
+    d.mkdir()
+    (d / "SKILL.md").write_text("content\n")
+    before = bl.dir_content_hash(d, exclude=bl.SKILL_EXCLUDE_PATTERNS)
+
+    (d / ".DS_Store").write_bytes(b"\x00\x01macos")
+
+    assert bl.dir_content_hash(d, exclude=bl.SKILL_EXCLUDE_PATTERNS) == before
+
+
+# ---------------------------------------------------------------- nested_entry_targets
+def test_nested_entry_targets_finds_what_another_entry_owns(load_script):
+    """Paths another manifest entry wrote inside this directory, relative to it."""
+    bl = load_script("engine/badger_lib.py")
+    entries = [
+        {"target": ".ai-badger/skills/mcp-index"},
+        {"target": ".ai-badger/skills/mcp-index/scripts/bm25.py"},
+        {"target": ".ai-badger/skills/task/SKILL.md"},
+    ]
+
+    assert bl.nested_entry_targets(entries, ".ai-badger/skills/mcp-index") == ["scripts/bm25.py"]
+
+
+def test_nested_entry_targets_is_not_fooled_by_a_shared_prefix(load_script):
+    """A sibling whose name merely starts with the directory's name is not inside it."""
+    bl = load_script("engine/badger_lib.py")
+    entries = [{"target": ".ai-badger/skills/mcp-index-extras/notes.md"}]
+
+    assert bl.nested_entry_targets(entries, ".ai-badger/skills/mcp-index") == []
+
+
+def test_nested_entry_targets_excludes_the_directory_itself(load_script):
+    """The entry that owns the directory must not exclude the directory from its own hash."""
+    bl = load_script("engine/badger_lib.py")
+    entries = [{"target": ".ai-badger/skills/mcp-index"}]
+
+    assert bl.nested_entry_targets(entries, ".ai-badger/skills/mcp-index") == []
+
 class TestResolveStacks:
     """The always-included catalog stack is config data, not a literal in each script."""
 

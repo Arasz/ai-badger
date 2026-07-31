@@ -192,3 +192,57 @@ def test_source_hashed_entries_are_never_project_change_candidates(
     out = json.loads(capsys.readouterr().out)
 
     assert [c for c in out["candidates"] if c["feature"] == "adjustments"] == []
+
+
+def test_a_file_another_entry_owns_is_not_a_changed_skill(tmp_path, load_script, root, capsys):
+    """#224: an adjustment's file inside a skill dir must not read as a project edit."""
+    detect = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
+    bl = load_script("engine/badger_lib.py")
+    target = tmp_path / "proj"
+    skill = target / ".ai-badger" / "skills" / "mcp-index"
+    (skill / "scripts").mkdir(parents=True)
+    (skill / "SKILL.md").write_text("# mcp-index\n", encoding="utf-8")
+
+    exclude = bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
+    fingerprint = bl.dir_content_hash(skill, exclude=exclude)
+    (skill / "scripts" / "bm25.py").write_text("# retrieval\n", encoding="utf-8")
+
+    (target / ".ai-badger" / "manifest.json").write_text(json.dumps({
+        "frameworkVersion": "0.53.1",
+        "entries": [
+            {"feature": "skills", "stack": "common", "name": "mcp-index",
+             "source": "features/common/skills/mcp-index",
+             "target": ".ai-badger/skills/mcp-index",
+             "hash": fingerprint["content_hash"],
+             "dirMeta": {"file_count": fingerprint["file_count"],
+                         "dir_count": fingerprint["dir_count"]}},
+            {"feature": "adjustments", "stack": "claude", "name": "adjustments/bm25.py",
+             "source": "features/claude/adjustments/adjust_retrieval.py",
+             "target": ".ai-badger/skills/mcp-index/scripts/bm25.py",
+             "hash": "0" * 64},
+        ],
+    }), encoding="utf-8")
+
+    rc = detect.main(["--target", str(target), "--root", str(root)])
+    assert rc == 0
+
+    assert json.loads(capsys.readouterr().out)["candidates"] == []
+
+
+def test_os_droppings_are_not_contribution_candidates(tmp_path, load_script, root, capsys):
+    """A .DS_Store in a managed directory is not something to contribute back."""
+    detect = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
+    target = tmp_path / "proj"
+    aib = target / ".ai-badger"
+    (aib / "skills").mkdir(parents=True)
+    (aib / "skills" / ".DS_Store").write_bytes(b"\x00\x01macos")
+    (aib / "skills" / "__pycache__").mkdir()
+    (aib / "skills" / "__pycache__" / "x.pyc").write_bytes(b"\x00")
+    (aib / "manifest.json").write_text(json.dumps({
+        "frameworkVersion": "0.53.1", "entries": [],
+    }), encoding="utf-8")
+
+    rc = detect.main(["--target", str(target), "--root", str(root)])
+    assert rc == 0
+
+    assert json.loads(capsys.readouterr().out)["candidates"] == []
