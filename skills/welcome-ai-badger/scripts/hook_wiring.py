@@ -5,6 +5,8 @@ Reads hooks-manifest.json, generates project-specific hooks.json under
 """
 from __future__ import annotations
 
+import re
+
 from typing import Any, Dict, List, Optional, Set
 
 from scaffold_context import ScaffoldContext
@@ -24,11 +26,19 @@ _SKILL_PATH_MARKERS = (
 
 
 def skill_script_id(command: str) -> Optional[str]:
-    """The skill-relative script path a command runs, or None if it is not ours."""
+    """The skill-relative script path a command runs, or None if it is not ours.
+
+    First occurrence, cut at the first closer: a guarded command repeats the path — and its
+    skip message quotes it in prose — so the last occurrence is not reliably a clean path.
+    """
     for marker in _SKILL_PATH_MARKERS:
-        idx = command.rfind(marker)
-        if idx != -1:
-            return command[idx + len(marker):].rstrip('"')
+        idx = command.find(marker)
+        if idx == -1:
+            continue
+        rest = command[idx + len(marker):]
+        for closer in ('"', "'", " "):
+            rest = rest.split(closer, 1)[0]
+        return rest or None
     return None
 
 
@@ -42,6 +52,27 @@ def project_script(command: str) -> Optional[str]:
     for closer in ('"', "'", " "):
         rest = rest.split(closer, 1)[0]
     return rest or None
+
+
+# The only characters a scaffolded script path may carry into a shell string (F4).
+_SHELL_SAFE_PATH = re.compile(r"[\w./-]+")
+
+
+def guarded(command: str) -> str:
+    """`command`, still able to run — or saying it skipped — when its script is missing.
+
+    In a git worktree session ${CLAUDE_PROJECT_DIR} resolves to the main checkout, which may
+    not carry the script; a missing file BLOCKS the call a PreToolUse hook gates. Fall back
+    to the session cwd's copy, and report the skip rather than going silently inert (F1).
+    """
+    script = project_script(command)
+    if not script or not _SHELL_SAFE_PATH.fullmatch(script):
+        return command
+    relative = command.replace(f"{PROJECT_DIR_VAR}/", "")
+    return (f'if [ -f "{PROJECT_DIR_VAR}/{script}" ]; then {command}; '
+            f'elif [ -f "{script}" ]; then {relative}; '
+            f'else echo \'{{"systemMessage": "ai-badger: {script} not found - hook skipped"}}\'; '
+            f'fi')
 
 
 def declined_skill(command: str, declined: Set[str]) -> Optional[str]:
@@ -254,7 +285,7 @@ class HookWiring:
                 rewritten = [{
                     "hooks": [{
                         "type": "command",
-                        "command": f'python3 "{PROJECT_DIR_VAR}/{rel_path}"'
+                        "command": guarded(f'python3 "{PROJECT_DIR_VAR}/{rel_path}"')
                     }]
                 }]
             else:
@@ -288,7 +319,7 @@ class HookWiring:
                                 f"— skipped"
                             )
                             continue
-                        new_h["command"] = cmd
+                        new_h["command"] = guarded(cmd)
                         new_hooks_list.append(new_h)
                     if not new_hooks_list:
                         continue

@@ -7,6 +7,7 @@ description: >
   debugging Hermes behavior, and writing subagent orchestration patterns.
   Not for: general coding tasks (use the stack-specific engineer persona),
   architecture decisions (use architect), test design (use test-engineer).
+model: sonnet
 ---
 
 <!-- Managed by ai-badger. Source of truth: .ai-badger/agents/hermes-agent-author.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->

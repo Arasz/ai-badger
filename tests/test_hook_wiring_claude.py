@@ -11,6 +11,7 @@ once (issue #152).
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -62,7 +63,7 @@ def _wired_scripts(target: Path, event: str) -> list:
     if not settings_path.exists():
         return []
     settings = json.loads(settings_path.read_text(encoding="utf-8"))
-    return [h.get("command", "").rstrip('"').rsplit("/", 1)[-1]
+    return [(re.search(r"([\w.-]+\.py)", h.get("command", "")) or [""])[0].rsplit("/", 1)[-1]
             for entry in settings.get("hooks", {}).get(event, [])
             for h in entry.get("hooks", [])]
 
@@ -94,6 +95,66 @@ def test_manifest_named_script_is_wired_not_whichever_glob_sorts_first(tmp_path,
     hooks.wire()
 
     assert _wired_scripts(target, "Stop") == ["stop_hook.py"]
+
+
+def test_a_wired_command_survives_the_script_missing_at_runtime(tmp_path, load_script, root):
+    """In a git worktree session ${CLAUDE_PROJECT_DIR} resolves to the main checkout, which may
+    not carry the script — and a missing file BLOCKS the call a PreToolUse hook gates. The
+    wired command tries the project copy, then the session cwd's copy, then says it skipped."""
+    target = tmp_path / "proj"
+    _skill_scripts(target, "task", "stop_hook.py")
+    manifest_hooks = [
+        {"name": "task",
+         "agents": {"claude": {"type": "hooks-json", "entry": "hooks.json",
+                                "event": "Stop", "script": "stop_hook.py"}}},
+    ]
+    fw_root = _fake_framework(tmp_path, manifest_hooks)
+    hooks, _ctx = _wiring(load_script, root, fw_root, target, manifest_hooks)
+
+    hooks.wire()
+
+    settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    commands = [h["command"] for entry in settings["hooks"]["Stop"] for h in entry["hooks"]]
+    rel = ".ai-badger/skills/task/scripts/stop_hook.py"
+    assert commands == [
+        f'if [ -f "${{CLAUDE_PROJECT_DIR}}/{rel}" ]; then python3 "${{CLAUDE_PROJECT_DIR}}/{rel}"; '
+        f'elif [ -f "{rel}" ]; then python3 "{rel}"; '
+        f'else echo \'{{"systemMessage": "ai-badger: {rel} not found - hook skipped"}}\'; fi']
+
+
+def test_rewiring_replaces_a_previously_wired_command_shape(tmp_path, load_script, root):
+    """A framework upgrade changes the wired command's shape — the old registration must be
+    superseded by script identity, not accumulate beside the new one."""
+    target = tmp_path / "proj"
+    _skill_scripts(target, "task", "stop_hook.py")
+    rel = ".ai-badger/skills/task/scripts/stop_hook.py"
+    _write_json(target / ".claude" / "settings.json", {"hooks": {"Stop": [
+        {"hooks": [{"type": "command",
+                    "command": f'[ ! -f "${{CLAUDE_PROJECT_DIR}}/{rel}" ] || '
+                               f'python3 "${{CLAUDE_PROJECT_DIR}}/{rel}"'}]},
+    ]}})
+    manifest_hooks = [
+        {"name": "task",
+         "agents": {"claude": {"type": "hooks-json", "entry": "hooks.json",
+                                "event": "Stop", "script": "stop_hook.py"}}},
+    ]
+    fw_root = _fake_framework(tmp_path, manifest_hooks)
+    hooks, _ctx = _wiring(load_script, root, fw_root, target, manifest_hooks)
+
+    hooks.wire()
+
+    settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    commands = [h["command"] for entry in settings["hooks"]["Stop"] for h in entry["hooks"]]
+    assert len(commands) == 1, commands
+    assert commands[0].startswith('if [ -f ')
+
+
+def test_a_script_path_that_could_break_out_of_the_shell_string_is_not_guarded(load_script, root):
+    """The guard interpolates the path into a shell command — quotes and $() must not reach it."""
+    wiring = _load(load_script, root, "hook_wiring")
+    hostile = 'python3 "${CLAUDE_PROJECT_DIR}/.ai-badger/x$(rm -rf ~).py"'
+
+    assert wiring.guarded(hostile) == hostile
 
 
 # ------------------------------------------------- test 2: the #147 regression, written first

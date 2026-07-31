@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from scaffold_helpers import _config
 
@@ -47,7 +48,7 @@ def _wired_scripts(settings: dict, event: str) -> list:
     command embeds an absolute path, and under pytest that path carries the test's
     own name.
     """
-    return [h.get("command", "").rstrip('"').rsplit("/", 1)[-1]
+    return [(re.search(r"([\w.-]+\.py)", h.get("command", "")) or [""])[0].rsplit("/", 1)[-1]
             for entry in settings.get("hooks", {}).get(event, [])
             for h in entry.get("hooks", [])]
 

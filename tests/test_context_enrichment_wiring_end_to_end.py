@@ -13,6 +13,7 @@ philosophy applied to skill copies.
 from __future__ import annotations
 
 import json
+import re
 import sys
 
 from scaffold_helpers import _config
@@ -51,7 +52,7 @@ def test_claude_wires_context_enrichment_and_prompt_markers_both(tmp_path, load_
     hook_wiring.HookWiring(ctx).wire()
 
     settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
-    wired = [h.get("command", "").rstrip('"').rsplit("/", 1)[-1]
+    wired = [(re.search(r"([\w.-]+\.py)", h.get("command", "")) or [""])[0]
              for entry in settings.get("hooks", {}).get("UserPromptSubmit", [])
              for h in entry.get("hooks", [])]
     assert sorted(wired) == ["context_enrichment_hook.py", "user_prompt_hook.py"], wired
@@ -75,5 +76,5 @@ def test_copilot_wires_context_enrichment_and_prompt_markers_both(tmp_path, load
     hooks = json.loads(
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     commands = [h["bash"] for h in hooks["hooks"]["userPromptSubmitted"]]
-    names = sorted(c.rstrip('"').rsplit("/", 1)[-1] for c in commands)
+    names = sorted((re.search(r"([\w.-]+\.py)", c) or [""])[0] for c in commands)
     assert names == ["context_enrichment_hook.py", "user_prompt_hook.py"], names

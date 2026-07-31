@@ -110,6 +110,17 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                    "Claude-only tracked-task ledger and transcript JSONL. Copilot's sessionEnd "
                    "would fire correctly and find nothing to write.",
     },
+    "dispatch-gate": {
+        "hermes": "Nothing to gate: Hermes has no custom-agent files (support.json customAgents "
+                  "supported=false), so a dispatch names no subagent type whose model lane could "
+                  "cover it, and its subagent roles (leaf/orchestrator) carry no per-dispatch "
+                  "model parameter for a hook to find missing.",
+        "copilot": "Acknowledged gap on the model-lane half, a wall on the enforcement half: "
+                   "Copilot does fire preToolUse and does keep a model in .github/agents/"
+                   "*.agent.md frontmatter, so reading the lane is possible and simply has not "
+                   "been done — but its hook protocol has no block-with-reason channel, and a "
+                   "deny with the fix in it is this hook's entire output.",
+    },
     "prompt-markers": {
         "hermes": "Acknowledged gap, not a design limit: marker detection (h:/f:/e:) has no "
                   "Hermes-side implementation yet, unlike session-start-tracking's Claude-only "

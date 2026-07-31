@@ -30,7 +30,7 @@ def test_scaffold_wires_commit_reminder_posttooluse_with_matcher(make_scaffolder
     commands = [h["command"] for h in entry["hooks"]]
     assert len(commands) == 1
     command = commands[0]
-    assert command.rstrip('"').endswith("commit_reminder_hook.py")
+    assert 'commit_reminder_hook.py"' in command
     assert "${CLAUDE_PROJECT_DIR}" in command
     assert "${CLAUDE_PLUGIN_ROOT}" not in command
 

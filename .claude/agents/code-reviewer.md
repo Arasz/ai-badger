@@ -10,6 +10,7 @@ description: >
   quality gate, PR review rounds, or any "review this" / "did we actually
   verify this" request.
 disallowedTools: Write, Edit, MultiEdit, NotebookEdit
+model: opus
 ---
 
 <!-- Managed by ai-badger. Source of truth: .ai-badger/agents/code-reviewer.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->

@@ -136,13 +136,16 @@ def test_the_real_catalog_reports_no_missing_server_directory(make_scaffolder):
 
 # ── the templates ────────────────────────────────────────────────────────────
 
-def test_one_mcp_slot_stands_alone_on_its_line_in_every_template(root):
+def test_one_mcp_slot_stands_alone_on_its_line_in_every_agent_template(root):
     """Step 2 put the new slot adjacent to the legacy one; step 8 left it holding the line.
 
     Adjacency is what made the retired slot's removal free: it rendered '' throughout, so
-    deleting it moved no byte — GOLDEN_MCP_REGION above is the proof.
+    deleting it moved no byte — GOLDEN_MCP_REGION above is the proof. An agent's instruction
+    file is the one that carries `{{INVARIANTS}}`; delegation.md.tmpl names its servers
+    instead of carrying their instructions, so it is not one.
     """
-    templates = sorted((root / "features").glob("*/templates/*.tmpl"))
+    templates = [t for t in sorted((root / "features").glob("*/templates/*.tmpl"))
+                 if "{{INVARIANTS}}" in t.read_text(encoding="utf-8")]
     assert templates, "no agent templates found"
 
     for tmpl in templates:

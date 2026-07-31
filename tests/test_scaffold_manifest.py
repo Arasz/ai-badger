@@ -77,6 +77,7 @@ def test_scaffolded_templates_are_recorded_in_the_manifest(make_scaffolder):
 
     assert {(e["stack"], e["name"]) for e in templates} == {
         ("common", "state.json"),
+        ("common", "delegation.md.tmpl"),
         ("common", "agent-instructions/schema.json"),
         ("common", "agent-instructions/model.template.json"),
         ("claude", "CLAUDE.md.tmpl"),

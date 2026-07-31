@@ -6,7 +6,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scr
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.59.2. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
+> Scaffolded by ai-badger 0.60.1. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
 ## Non-negotiable invariants
 
@@ -85,6 +85,8 @@ Before editing matching files, read the applicable scoped instruction file:
 - Test strategy, the failing test that precedes a change, and auditing whether an existing test can actually fail → `test-engineer`
 - Quality gate before merge, security review, and adversarially verifying a claim this session made about its own work → `code-reviewer`
 - Hermes skills, hooks and gateway configuration, and HERMES.md → `hermes-agent-author`
+- Long, multi-package or autonomous sessions — route work instead of doing it → `delegator`
+- Every dispatch names its `model` — the delegation map is `.ai-badger/delegation.md`.
 
 ## Prompt markers
 
