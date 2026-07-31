@@ -11,7 +11,7 @@ description: >
   finished blueprints to an implementation persona to build. This is the
   planning-phase persona for any task-orchestration workflow and any ad hoc
   design question outside it.
-tools: Glob, Grep, Read, WebFetch, WebSearch, TodoWrite
+disallowedTools: Edit, MultiEdit, NotebookEdit
 ---
 
 # Architect

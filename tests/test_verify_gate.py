@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -16,12 +17,17 @@ REPO = Path(__file__).resolve().parent.parent
 GATE = REPO / ".lefthook" / "pre-push" / "verify.sh"
 ZERO = "0" * 40
 
+# The gate keys its log directory by the checkout it runs in, so these tests — which run it in
+# the real repo — would write over the very log a failing push tells the user to read (#212).
+_LOG_DIR = tempfile.mkdtemp(prefix="verify-gate-tests-")
+
 
 def _run(*args, stdin="", env=None):
     """Invoke the gate under /bin/bash with a clean, non-skipping environment."""
     environ = dict(os.environ)
     environ.pop("VERIFY_SKIP", None)
     environ.pop("SKIP_VERIFY", None)
+    environ["VERIFY_LOG_DIR"] = _LOG_DIR
     environ.update(env or {})
     return subprocess.run(
         ["/bin/bash", str(GATE), *args],
@@ -167,6 +173,24 @@ def test_log_dir_is_per_checkout(tmp_path):
                            capture_output=True, text=True, check=False).stdout
     assert "refusing to report a pass" not in here
     assert "refusing to report a pass" in there
+
+
+def _cited_log_dir():
+    """The LOG_DIR verify.sh derives with no override: cksum of the repo path, under TMPDIR."""
+    key = subprocess.run(["cksum"], input=str(REPO), capture_output=True, text=True,
+                         check=True).stdout.split()[0]
+    return Path(os.environ.get("TMPDIR", "/tmp")) / "ai-badger-verify" / key
+
+
+def test_a_gate_run_does_not_clobber_the_log_a_real_push_cites():
+    """The pytest lane runs this suite, so its gate runs must not overwrite the cited log (#212)."""
+    cited = _cited_log_dir() / "release.log"
+    cited.parent.mkdir(parents=True, exist_ok=True)
+    sentinel = "the failure the outer push actually hit\n"
+    cited.write_text(sentinel, encoding="utf-8")
+    _run("release", env={"AIB_PYTHON": "/bin/false"})
+    assert cited.read_text(encoding="utf-8") == sentinel, \
+        "a gate run from the test suite overwrote the log path a failing push reports"
 
 
 def test_failing_lane_propagates_non_zero():

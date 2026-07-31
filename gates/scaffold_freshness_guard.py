@@ -177,14 +177,14 @@ def same_content(left: Path, right: Path) -> bool:
 
 def owning_entry(manifest: Dict[str, Any], rel: str) -> Optional[Dict[str, Any]]:
     """The manifest entry whose target is *rel* or the directory containing it."""
-    best = None
+    best: Optional[Dict[str, Any]] = None
+    best_len = -1
     for entry in manifest.get("entries", []):
         target = entry.get("target")
         if not target:
             continue
-        if rel == target or rel.startswith(target + "/"):
-            if best is None or len(target) > len(best["target"]):
-                best = entry
+        if (rel == target or rel.startswith(target + "/")) and len(target) > best_len:
+            best, best_len = entry, len(target)
     return best
 
 

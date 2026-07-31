@@ -1,14 +1,16 @@
 ---
-description: Test strategy and implementation. Writes failing tests first, implements
-  to pass, and ensures coverage.
 name: test-engineer
-tools:
-- read
-- search
-- list_files
-- run_command
-user-invocable: true
+description: >
+  Testing specialist — designs test strategy, writes failing tests first,
+  plans phased test coverage (leaf types unmocked → mid-layer with leaf
+  mocks → top-layer), audits test quality/coverage gaps, and enforces
+  edit-boundary discipline between test files and production code. Use when
+  a task is primarily about test design/generation, closing a coverage gap,
+  migrating or fixing a broken test suite, or auditing whether existing
+  tests actually demand the behavior they claim to.
 ---
+
+<!-- Managed by ai-badger. Source of truth: .ai-badger/agents/test-engineer.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
 
 # Test Engineer
 
