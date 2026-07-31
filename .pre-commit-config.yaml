@@ -43,6 +43,12 @@ repos:
         language: system
         always_run: true
         pass_filenames: false
+      - id: scaffold-freshness-guard
+        name: scaffold-freshness-guard
+        entry: python3 gates/scaffold_freshness_guard.py
+        language: system
+        always_run: true
+        pass_filenames: false
       - id: pylint
         name: pylint
         entry: pylint

@@ -23,7 +23,7 @@ readonly BASE_REF="${VERIFY_BASE:-origin/main}"
 readonly LOG_SUMMARY="logs/lefthook.log"
 
 # Cheap lanes first so a typo fails fast, before pylint and pytest.
-readonly LANES="version-sync index plugin-skills deps docs release paths validate tdd js pylint pytest"
+readonly LANES="version-sync index plugin-skills deps docs release paths validate scaffold tdd js pylint pytest"
 
 # --------------------------------------------------------------------------- python
 
@@ -99,6 +99,7 @@ lane_cmd() {
         release)       "$PY" gates/release_guard.py ;;
         paths)         "$PY" gates/shipped_paths_guard.py ;;
         validate)      "$PY" tooling/validate.py --all ;;
+        scaffold)      "$PY" gates/scaffold_freshness_guard.py ;;
         tdd)           lane_tdd ;;
         js)            lane_js ;;
         pylint)        lane_pylint ;;
@@ -271,7 +272,7 @@ _lanes_for() {
         return 0
     fi
     # The whole-tree guards are seconds each and catch cross-file breakage, so they always run.
-    local lanes="version-sync index plugin-skills deps docs release paths validate tdd"
+    local lanes="version-sync index plugin-skills deps docs release paths validate scaffold tdd"
     [ "$mjs" -eq 1 ] && lanes="$lanes js"
     [ "$py" -eq 1 ] && lanes="$lanes pylint pytest"
     [ "$json" -eq 1 ] && lanes="$lanes pytest"
