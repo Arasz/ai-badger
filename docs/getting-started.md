@@ -272,6 +272,7 @@ your-repo/
     manifest.json                   # provenance: frameworkVersion, commit, every entry written
     CLAUDE.md  HERMES.md  copilot-instructions.md
     agents/architect.md  agents/code-reviewer.md  agents/test-engineer.md
+    delegation.md                   # generated: personas + model lanes, routing, verifiers
     invariants/*.md                 # guard-clauses, tdd-mandatory, no-hardcoded-secrets, …
     instructions/*.instructions.md  # path-scoped instructions per stack
     skills/                         # real copies of the scaffolded skills, with scripts/

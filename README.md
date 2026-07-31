@@ -52,6 +52,11 @@ correlation over a small, single-source sample, and work type is an obvious conf
 reasoning legitimately needs the expensive tier, so 100% is not the target. Treat it as a
 before/after instrument on comparable work, not a forecast.
 
+Measuring the leak was the first half. Since 0.60.0 it is also closed up front: every persona
+in the catalog carries a `model:` lane, and a `PreToolUse` gate denies a dispatch that names
+neither a model of its own nor a persona that has one — see
+[ADR-0015](docs/adr/0015-delegation-needs-a-mechanism-not-more-prose.md).
+
 ### Its gates refuse, rather than warn
 
 Agent-written changes fail quietly: a doc drifts from the code, a test stops being able to
@@ -220,7 +225,7 @@ ai-badger/
         task/ welcome-ai-badger/ feed-badger/ den-refresh/
         maintain-agent-instructions/ prompt-markers/ mcp-index/
         code-review-checklist/ call-behaviorist/
-      personas/{architect, test-engineer, code-reviewer}.md
+      personas/{architect, test-engineer, code-reviewer, delegator}.md
       invariants/*.md            # Agnostic invariant snippets
       instructions/*.md          # Agnostic scoped instructions
       hooks/                     # Claude + Hermes hooks with hooks-manifest.json
@@ -228,7 +233,8 @@ ai-badger/
       skills.json                # External skills to install
       mcp/                       # MCP server catalog (code-review-graph, …)
       stack-mcp.json             # Which MCP servers this stack wants, and how to launch them
-      templates/                 # CLAUDE.md.tmpl, HERMES.md.tmpl, state.json, agent-instructions
+      templates/                 # CLAUDE.md.tmpl, HERMES.md.tmpl, delegation.md.tmpl,
+                                 # state.json, agent-instructions
     dotnet/ azure/ cosmos/ terraform/ mcp/ changelog/  {personas,invariants,instructions}/…
     github/    (stack-specific features; extensions now inline in skills/)
     claude/    skills/auto-wm/, adjustments/   # agent-specific, not common

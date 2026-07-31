@@ -49,6 +49,7 @@ Windows-only hook commands have no path into a scaffolded repo.
 | **Persona** (`personas/*.md`) | `.claude/agents/*.md` (subagents) | Skill or delegate_task `role` | `.github/agents/*.agent.md` (custom agents) | Inline in instructions |
 | **Persona routing** (`config.json`) | Agent tool dispatch (`subagent_type`) | `delegate_task` role routing | Custom agent invocation (`/agent-name`) | N/A |
 | **Read-only persona** | `disallowedTools:` denylist (keeps Bash and MCP) | Role prompt | `tools:` list | N/A |
+| **Model lane** (persona frontmatter `model:`) | `model:` in `.claude/agents/*.md` | N/A — no custom-agent files to carry a lane | Dropped — Copilot picks its own model | N/A |
 
 ## Invariants
 
@@ -72,7 +73,7 @@ Windows-only hook commands have no path into a scaffolded repo.
 | **Task skill** | `/task` with model dispatch | `delegate_task` with role routing | N/A | N/A |
 | **Task extension** (skill-level) | GitHub PR workflow | Delegation model docs | N/A | N/A |
 | **Task adjustment** (agent-level) | N/A | `adjust_task.py` — embed Hermes patterns | N/A | N/A |
-| **Plan phase** | Fable/Sonnet model dispatch | `delegate_task(role='orchestrator')` | N/A | N/A |
+| **Plan phase** | Opus model dispatch (`architect`) | `delegate_task(role='orchestrator')` | N/A | N/A |
 | **Implement phase** | Sonnet/Haiku dispatch | `delegate_task(role='leaf')` | N/A | N/A |
 | **Review phase** | Review-loop agent | `delegate_task(role='leaf')` for review | N/A | N/A |
 

@@ -101,9 +101,10 @@ Read it as the **delegation ratio** — the share produced by the mid and cheap 
 main transcript *and* its subagents together. Those are different numbers and only the combined
 one means anything: on one real session the main thread alone reads 2.3% while the true figure
 is 23.8%. `dispatches` carries the other half of the picture: how many dispatches ran, how many
-named no model (they silently inherit the session's, which is the expensive one), and which
-agent types they went to. A run where most dispatches are `general-purpose` is not routing to
-the personas this project scaffolds, whatever `personaRouting` says.
+named no model — one that names none takes the `model:` lane in its persona's frontmatter, and
+the dispatch gate denies one whose persona has no lane — and which agent types they went to. A
+run where most dispatches are `general-purpose` is not routing to the personas this project
+scaffolds, whatever `personaRouting` says.
 
 No prices are recorded. They change, and a stale hardcoded rate would be a confidently wrong
 number; output tokens per model is the durable half, and a reader applies today's rates.
