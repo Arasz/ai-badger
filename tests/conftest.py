@@ -54,13 +54,18 @@ _DETACHED_CHILDREN: list = []
 class _TrackedPopen(subprocess.Popen):
     """A Popen that remembers detached children, so the run can reap them."""
 
+    _tracks_detached_children = True
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if kwargs.get("start_new_session"):
             _DETACHED_CHILDREN.append(self)
 
 
-subprocess.Popen = _TrackedPopen
+# Installed once. A second conftest import would otherwise subclass the installed wrapper,
+# and a detached child would be recorded in both generations' lists.
+if not getattr(subprocess.Popen, "_tracks_detached_children", False):
+    subprocess.Popen = _TrackedPopen
 
 
 def detached_children() -> list:
