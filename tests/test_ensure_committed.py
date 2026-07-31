@@ -19,9 +19,17 @@ def _state(tmp_path, payload) -> "Path":
     return path
 
 
-def _run(load_script, monkeypatch, state_file, argv=None):
+def _run(load_script, monkeypatch, state_file, argv=None, uncommitted=("a.py",)):
+    """Run the reporter against a state file.
+
+    `uncommitted` stands in for `git status` at the recorded roots, which are fixture paths
+    with no repository behind them. It defaults to "still dirty" so a test says what it means:
+    the report also drops any project whose work has since been committed.
+    """
     module = load_script(SCRIPT)
     monkeypatch.setattr(module.commit_reminder, "STATE_FILE", state_file)
+    monkeypatch.setattr(module.commit_reminder, "uncommitted_files",
+                        lambda root: list(uncommitted))
     return module, module.main(argv or [])
 
 
@@ -103,3 +111,48 @@ class TestItNeverBlocks:
 
         assert rc == 0
         assert json.loads(capsys.readouterr().out)["atRisk"] == []
+
+
+class TestItSurvivesMalformedState:
+    """A parent runs this to find out if it is losing work; crashing is the worse failure."""
+
+    def test_a_non_utf8_state_file_reports_nothing_rather_than_exiting_non_zero(
+            self, load_script, monkeypatch, tmp_path, capsys):
+        state = tmp_path / "state.json"
+        state.write_bytes(b"\xff\xfe not utf-8 at all")
+
+        _, rc = _run(load_script, monkeypatch, state)
+
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["atRisk"] == []
+
+    def test_a_non_integer_fires_value_is_skipped_rather_than_raising(
+            self, load_script, monkeypatch, tmp_path, capsys):
+        state = _state(tmp_path, {"/repo": {"marker": 9, "fires": "3"}})
+
+        _, rc = _run(load_script, monkeypatch, state)
+
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["atRisk"] == []
+
+
+class TestFinishedWorkStopsBeingAtRisk:
+    """The entry only clears on a later hook run, so a done worktree would stay at risk."""
+
+    def test_a_project_with_nothing_uncommitted_is_not_reported(
+            self, load_script, monkeypatch, tmp_path, capsys):
+        state = _state(tmp_path, {"/repo": {"marker": 9, "fires": 4}})
+
+        _, rc = _run(load_script, monkeypatch, state, uncommitted=())
+
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["atRisk"] == []
+
+    def test_a_project_that_still_has_uncommitted_work_is_reported(
+            self, load_script, monkeypatch, tmp_path, capsys):
+        state = _state(tmp_path, {"/repo": {"marker": 9, "fires": 4}})
+
+        _, rc = _run(load_script, monkeypatch, state, uncommitted=("a.py",))
+
+        assert rc == 0
+        assert [e["project"] for e in json.loads(capsys.readouterr().out)["atRisk"]] == ["/repo"]

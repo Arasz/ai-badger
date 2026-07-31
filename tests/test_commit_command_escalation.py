@@ -144,3 +144,51 @@ class TestOldStateStillLoads:
         cr.set_entry(str(tmp_path), {"marker": 6, "fires": 2, "since": "t", "session": "s"})
 
         assert cr.get_entry(str(tmp_path))["fires"] == 2
+
+
+class TestSinceIsWhenItStarted:
+    """A parent reads this as how long the work has been at risk."""
+
+    def test_since_records_the_first_unanswered_command_not_the_latest(self, load_script):
+        cr = load_script(SCRIPT)
+        entry = {"marker": 0, "fires": 0}
+
+        _, _, entry = cr.advance(entry, count=6, threshold=5, now="T0-first")
+        _, _, entry = cr.advance(entry, count=7, threshold=5, now="T1")
+        _, _, entry = cr.advance(entry, count=8, threshold=5, now="T2-latest")
+
+        assert entry["since"] == "T0-first", "refreshing it understates the risk it reports"
+
+    def test_a_commit_then_a_new_crossing_starts_a_fresh_clock(self, load_script):
+        cr = load_script(SCRIPT)
+        entry = {"marker": 0, "fires": 0}
+        _, _, entry = cr.advance(entry, count=6, threshold=5, now="T0")
+        _, _, entry = cr.advance(entry, count=0, threshold=5, now="T1")  # committed
+
+        _, _, entry = cr.advance(entry, count=6, threshold=5, now="T2-new")
+
+        assert entry["since"] == "T2-new"
+
+
+class TestTheStateFileSurvivesConcurrency:
+    """Parallel agents in separate worktrees share one file."""
+
+    def test_a_write_is_atomic_so_a_reader_never_sees_a_torn_file(self, load_script, tmp_path,
+                                                                 monkeypatch):
+        cr = load_script(SCRIPT)
+        state = tmp_path / "state.json"
+        monkeypatch.setattr(cr, "STATE_FILE", state)
+        seen = []
+
+        real_replace = cr.os.replace
+
+        def spy(src, dst):
+            seen.append(cr.load_state())  # what a concurrent reader would get mid-write
+            real_replace(src, dst)
+
+        monkeypatch.setattr(cr.os, "replace", spy)
+        cr.set_entry(str(tmp_path), {"marker": 6, "fires": 2})
+        cr.set_entry(str(tmp_path), {"marker": 7, "fires": 3})
+
+        assert seen[1] != {}, "a reader mid-write must still see the previous complete state"
+        assert seen[1][str(tmp_path.resolve())]["fires"] == 2

@@ -23,7 +23,12 @@ import commit_reminder  # pylint: disable=wrong-import-position
 
 
 def at_risk_report() -> dict:
-    """Every project at or past the escalation bar, newest-stuck first."""
+    """Every project at or past the escalation bar that still has uncommitted work.
+
+    The entry only clears on a later hook run in that project, so a finished or deleted
+    worktree would stay "at risk" forever. `git status` is the live answer; a vanished
+    worktree reports nothing uncommitted and drops out for the same reason.
+    """
     entries = [
         {
             "project": root,
@@ -32,6 +37,7 @@ def at_risk_report() -> dict:
             "since": entry.get("since", ""),
         }
         for root, entry in commit_reminder.at_risk_entries().items()
+        if commit_reminder.uncommitted_files(root)
     ]
     entries.sort(key=lambda e: (-e["unanswered"], e["project"]))
     return {"atRisk": entries, "escalateAfter": commit_reminder.ESCALATE_AFTER}
@@ -61,7 +67,13 @@ def main(argv=None) -> int:
                         help="print JSON only, without the human-readable summary")
     args = parser.parse_args(argv)
 
-    report = at_risk_report()
+    # A parent runs this to find out whether it is about to lose work. Crashing on malformed
+    # state would be a worse failure than the one being reported, so nothing propagates.
+    try:
+        report = at_risk_report()
+    except Exception:  # pylint: disable=broad-except
+        report = {"atRisk": [], "escalateAfter": commit_reminder.ESCALATE_AFTER,
+                  "error": "state unreadable"}
     if not args.quiet:
         print(format_report(report), file=sys.stderr)
     print(json.dumps(report, indent=2))
