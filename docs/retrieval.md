@@ -493,6 +493,49 @@ The log itself is user-level and `0600`, capped at 5000 records, and every recor
 is why the keys are single letters, with the legend in `debug_log.KEY_NAMES` rather than repeated
 on every line.
 
+### From a record to a fixture
+
+The three eval fixture sets are author-written, and issue #140 named the bias in that plainly:
+the queries were invented by the person who also wrote the descriptions being matched, which
+lifts recall for a reason that has nothing to do with the matcher. Telemetry is the other source
+— queries people actually typed — and `tooling/fixture_harvest.py` is the mechanism for reading
+it without dragging user content into a public repository.
+
+It classifies every record and proposes only what survives:
+
+| Bucket | What it means |
+|---|---|
+| non-retrieval | Another component's record. Counted, never read. |
+| tool check | `known` / `unknown` / `server_unindexed` — about a call, not a query. Carries no `q`. |
+| redacted | `AI_BADGER_DEBUG_REDACT` was set at write time. The text was never on disk. |
+| clipped | The stored text hit the 200-char field cap, so it is a prefix, not the query. |
+| machine | Tag-shaped (`<system-reminder>`, `<task-notification>`) — a harness turn, not a person. |
+| harvestable | Everything else, deduplicated, with a `seen` count. |
+
+A candidate carries the **observed** outcome (`hit`/`gate` and what was returned) and never an
+`expect` field. That is the whole discipline: telemetry records what happened, and what *should*
+have happened is a judgement a human makes. That review is also the privacy gate — a real query
+is user content, and nothing reaches a fixture file without someone reading it first.
+
+Three levels of redaction, strongest first: the write-time flag above; the default output, which
+replaces the query with its SHA-256 so runs can be joined and counted with the text never leaving
+the machine; and `--include-queries`, which writes the text for the reviewer. The `project` field
+is always a 12-character digest of the project path — a path names a client.
+
+**What the first real run showed.** Against a 1269-record log: 74 retrieval records, 0 redacted,
+0 machine-shaped, and **57 clipped** — 77% of real retrieval traffic is longer than the 200-char
+field cap. The obstacle to harvesting is not the redaction switch anyone worried about; it is
+that real messages are long and the log stores a prefix of them. Twelve distinct queries survived.
+
+That number also answers, in the only honest way available, the question of what proportion of
+the fixture corpus should be observed rather than authored: **a proportion is the wrong target.**
+The longest authored set averages 15.3 tokens; the traffic that gets clipped is several times
+that, and it is exactly the regime where the coverage-gate defect of issue #165 did its damage.
+Until the observed subset reaches that regime at all, no percentage of observed fixtures makes
+the distribution right. Raising the query cap — the record budget is `PIPE_BUF` at 4096 bytes, and
+one 200-char field is nowhere near it — is the prerequisite, and it is a change to `debug_log.py`
+in every deployment shape, not to the harvester.
+
 ## 7. What this has cost, and what it has taught
 
 The honest summary of the first two releases of this layer:
