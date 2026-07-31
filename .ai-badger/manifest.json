@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.59.0",
-  "frameworkCommit": "51ca8a6857335d4ae0105a574b2812aa4cfd14d9",
+  "frameworkCommit": "c6a1f8d64c47a59674ea45b87550da2b05149646",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -48,6 +48,15 @@
       "target": ".ai-badger/agents/code-reviewer.md",
       "frameworkVersion": "0.59.0",
       "hash": "c7d03b9bad8ef068c6cfe99c0a49c9a4ebad6f723e1b9468af3b1e66bfd86041"
+    },
+    {
+      "feature": "personas",
+      "stack": "common",
+      "name": "delegator",
+      "source": "features/common/personas/delegator.md",
+      "target": ".ai-badger/agents/delegator.md",
+      "frameworkVersion": "0.59.0",
+      "hash": "ab8f4b5dbe72c43ce81c0709b64825cf7c1740a9f258b3d21e5a8b905e3ab95b"
     },
     {
       "feature": "personas",
@@ -574,6 +583,15 @@
     {
       "feature": "adjustments",
       "stack": "claude",
+      "name": "adjustments/.claude/agents/delegator.md",
+      "source": "features/claude/adjustments/adjust_agents.py",
+      "target": ".claude/agents/delegator.md",
+      "frameworkVersion": "0.59.0",
+      "hash": "0c0a6bcadfbee4dfe31b973156403d2589e2afd7c1397a67230d021e3ed28f8f"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
       "name": "adjustments/.claude/agents/hermes-agent-author.md",
       "source": "features/claude/adjustments/adjust_agents.py",
       "target": ".claude/agents/hermes-agent-author.md",
@@ -838,6 +856,15 @@
       "name": "adjustments/.github/agents/code-reviewer.agent.md",
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/code-reviewer.agent.md",
+      "frameworkVersion": "0.59.0",
+      "hash": "f185e2256bff3a92bc0e4fe34625327771756279ea99599d58537d746a31b0f7"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/agents/delegator.agent.md",
+      "source": "features/copilot/adjustments/adjust_agents.py",
+      "target": ".github/agents/delegator.agent.md",
       "frameworkVersion": "0.59.0",
       "hash": "f185e2256bff3a92bc0e4fe34625327771756279ea99599d58537d746a31b0f7"
     },

@@ -229,6 +229,10 @@
           "path": "features/common/personas/code-reviewer.md"
         },
         {
+          "name": "delegator",
+          "path": "features/common/personas/delegator.md"
+        },
+        {
           "name": "test-engineer",
           "path": "features/common/personas/test-engineer.md"
         }
