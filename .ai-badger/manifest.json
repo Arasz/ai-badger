@@ -1,8 +1,8 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.59.0",
-  "frameworkCommit": "c6a1f8d64c47a59674ea45b87550da2b05149646",
-  "frameworkDirty": true,
+  "frameworkCommit": "6227d4fec924d1fbd2613e09df5cc2464277c2f4",
+  "frameworkDirty": false,
   "frameworkRoot": ".",
   "generatedAt": null,
   "agents": [
@@ -587,7 +587,7 @@
       "source": "features/claude/adjustments/adjust_agents.py",
       "target": ".claude/agents/delegator.md",
       "frameworkVersion": "0.59.0",
-      "hash": "0c0a6bcadfbee4dfe31b973156403d2589e2afd7c1397a67230d021e3ed28f8f"
+      "hash": "5268e72297b81fcd4d675be4c26a0f9bf598bff5bdcbc3b805d0c614a19dd1c9"
     },
     {
       "feature": "adjustments",
@@ -866,7 +866,7 @@
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/delegator.agent.md",
       "frameworkVersion": "0.59.0",
-      "hash": "f185e2256bff3a92bc0e4fe34625327771756279ea99599d58537d746a31b0f7"
+      "hash": "40212966d9efd49e034fe88c1b664b41447a4911804c22a4434b5ecf33fe8e05"
     },
     {
       "feature": "adjustments",

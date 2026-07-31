@@ -10,6 +10,7 @@ description: >
   dispatch the matching specialist persona directly instead. Every dispatch it
   makes names its model and its verifier; if it is writing the code itself, it
   has already failed.
+model: opus
 ---
 
 <!-- Managed by ai-badger. Source of truth: .ai-badger/agents/delegator.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->

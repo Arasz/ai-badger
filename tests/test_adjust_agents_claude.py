@@ -359,3 +359,12 @@ def test_each_catalog_persona_names_the_model_it_runs_on(root, persona, model):
                          .read_text(encoding="utf-8"))
 
     assert f"model: {model}\n" in front
+
+
+def test_no_catalog_persona_ships_without_a_model_lane(root):
+    """A lane-less persona silently inherits the session model — the leak ADR-0015 closes."""
+    laneless = [str(path.relative_to(root))
+                for path in sorted(root.glob("features/*/personas/*.md"))
+                if "\nmodel: " not in _frontmatter(path.read_text(encoding="utf-8"))]
+
+    assert laneless == []
