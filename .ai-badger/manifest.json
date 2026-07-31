@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.60.0",
-  "frameworkCommit": "4a580e3aad0032a8e6cfc46581fc34e54180c52f",
+  "frameworkCommit": "59c0ecb300b5e46220d9bbc6d26b4d634c2fc547",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -12,7 +12,7 @@
   ],
   "skillScope": "default",
   "pluginScope": "default",
-  "configHash": "b99ce7d8a0eaf7a342381766ab2127bf2f1142749805c62d9d91c344fe82442a",
+  "configHash": "c97112e2c12116cea6121f0a3d88e997c922088c3c55d74d5ad478615e073b10",
   "generatedConfig": [
     {
       "path": ".claude/settings.json",
@@ -380,12 +380,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.60.0",
-      "hash": "2f80d519bbafa459c68a8bd7d8d103d341e4e5a18228a07c3442651ae116f406",
+      "hash": "3022d28d540ab6e541d297cd4431b68574eb09da5c7db5e61c154b80cd2e1000",
       "dirMeta": {
         "file_count": 15,
         "dir_count": 2
       },
-      "sourceHash": "2f80d519bbafa459c68a8bd7d8d103d341e4e5a18228a07c3442651ae116f406",
+      "sourceHash": "3022d28d540ab6e541d297cd4431b68574eb09da5c7db5e61c154b80cd2e1000",
       "sourceMeta": {
         "file_count": 15,
         "dir_count": 2
@@ -542,7 +542,7 @@
       "source": "features/claude/templates/CLAUDE.md.tmpl",
       "target": "CLAUDE.md",
       "frameworkVersion": "0.60.0",
-      "hash": "13ed81fe2d0f6af7b7dfde5b5e97f72f995cfdfbbb72b0a1a4d5bfa9351eaa96"
+      "hash": "11d0ada78825b9da340b8844e6ec5d8c47970cccd1488be72c14d4259fe496be"
     },
     {
       "feature": "templates",
@@ -551,7 +551,7 @@
       "source": "features/copilot/templates/copilot-instructions.md.tmpl",
       "target": ".github/copilot-instructions.md",
       "frameworkVersion": "0.60.0",
-      "hash": "13ed81fe2d0f6af7b7dfde5b5e97f72f995cfdfbbb72b0a1a4d5bfa9351eaa96"
+      "hash": "11d0ada78825b9da340b8844e6ec5d8c47970cccd1488be72c14d4259fe496be"
     },
     {
       "feature": "templates",
@@ -560,7 +560,7 @@
       "source": "features/hermes/templates/HERMES.md.tmpl",
       "target": "HERMES.md",
       "frameworkVersion": "0.60.0",
-      "hash": "ee6963598723de51e69932934269f04fb2d96a4468047b4a52afd46be89617e0"
+      "hash": "8df5436cac88bcf0cd525a1b5e9e37d48eb84546941198820bf1126141f2cf2e"
     },
     {
       "feature": "adjustments",

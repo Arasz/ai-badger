@@ -28,7 +28,7 @@ MODEL_KEY = "model:"
 DENY_REASON = (
     "Dispatch declares no model and subagent type '{subagent_type}' has no model lane. "
     "Pass model explicitly ('haiku' for mechanical work, 'sonnet' for spec-driven work, "
-    "'opus' for derivation) — see the 'Agent delegation' section of CLAUDE.md."
+    "'opus' for derivation) — see .ai-badger/delegation.md."
 )
 
 

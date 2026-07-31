@@ -48,6 +48,10 @@
     {
       "work": "Hermes skills, hooks and gateway configuration, and HERMES.md",
       "agent": "hermes-agent-author"
+    },
+    {
+      "work": "Long, multi-package or autonomous sessions — route work instead of doing it",
+      "agent": "delegator"
     }
   ],
   "skillScope": "default",

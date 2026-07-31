@@ -86,9 +86,16 @@ def test_a_persona_lane_comes_from_its_model_frontmatter(make_scaffolder):
 
 
 def test_a_persona_without_a_model_runs_on_the_session_default(make_scaffolder):
+    # An explicit lane-less probe: since WP-A every catalog persona names a lane, so the
+    # degrade path can no longer be observed on a shipped persona.
+    agents = make_scaffolder.target / ".ai-badger" / "agents"
+    agents.mkdir(parents=True, exist_ok=True)
+    laneless = PERSONA_WITH_LANE.replace("model: opus\n", "").replace("lane-probe", "no-lane-probe")
+    (agents / "no-lane-probe.md").write_text(laneless, encoding="utf-8")
+
     doc = _delegation(make_scaffolder, _routed_config())
 
-    assert _line_for(doc, "architect").endswith("Lane: session default.")
+    assert _line_for(doc, "no-lane-probe").endswith("Lane: session default.")
 
 
 # --------------------------------------------------------------------------- degrading

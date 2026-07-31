@@ -21,6 +21,7 @@ python, js, github, claude, hermes, ts, node, changelog
 - Test strategy, the failing test that precedes a change, and auditing whether an existing test can actually fail → `test-engineer`
 - Quality gate before merge, security review, and adversarially verifying a claim this session made about its own work → `code-reviewer`
 - Hermes skills, hooks and gateway configuration, and HERMES.md → `hermes-agent-author`
+- Long, multi-package or autonomous sessions — route work instead of doing it → `delegator`
 
 ## Verifiers
 

@@ -85,6 +85,8 @@ Before editing matching files, read the applicable scoped instruction file:
 - Test strategy, the failing test that precedes a change, and auditing whether an existing test can actually fail → `test-engineer`
 - Quality gate before merge, security review, and adversarially verifying a claim this session made about its own work → `code-reviewer`
 - Hermes skills, hooks and gateway configuration, and HERMES.md → `hermes-agent-author`
+- Long, multi-package or autonomous sessions — route work instead of doing it → `delegator`
+- Every dispatch names its `model` — the delegation map is `.ai-badger/delegation.md`.
 
 ## Hermes-specific guidance
 

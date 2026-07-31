@@ -79,6 +79,7 @@ def test_no_model_and_no_lane_is_denied_with_a_reason_that_names_the_fix(
     assert "architect" in reason
     for alias in ("haiku", "sonnet", "opus"):
         assert alias in reason, reason
+    assert ".ai-badger/delegation.md" in reason
 
 
 def test_the_deny_uses_no_deprecated_or_auto_approving_field(

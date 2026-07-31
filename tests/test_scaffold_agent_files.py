@@ -239,6 +239,15 @@ def test_stray_keep_end_leaves_the_file_untouched(make_scaffolder):
     assert any("keep-end" in n and "CLAUDE.md" in n for n in result["notes"])
 
 
+def test_agent_docs_point_at_the_delegation_map_and_the_declare_model_rule(make_scaffolder):
+    """One line, budgeted against HERMES.md's maxLines headroom (ADR-0015)."""
+    make_scaffolder().run(generated_at="2026-07-19T00:00:00Z")
+
+    content = (make_scaffolder.target / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "- Every dispatch names its `model` — the delegation map is " \
+           "`.ai-badger/delegation.md`." in content
+
+
 def test_empty_persona_routing_renders_as_absent_not_as_a_policy(make_scaffolder):
     """`_Default routing._` read like a configured policy; there is no such policy (F-38)."""
     make_scaffolder().run(generated_at="2026-07-19T00:00:00Z")
