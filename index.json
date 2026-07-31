@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.58.0",
+  "frameworkVersion": "0.59.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -36,6 +36,29 @@
           "test": "ng test --watch=false",
           "lint": "ng lint",
           "run": "ng serve"
+        }
+      }
+    },
+    "aspire": {
+      "mcp": [
+        {
+          "name": "aspire",
+          "path": "features/aspire/mcp/aspire"
+        }
+      ],
+      "meta": {
+        "description": "Aspire: orchestration for distributed .NET apps — an AppHost describes the resources a solution runs, and the CLI runs, inspects and publishes them.",
+        "detectionSignals": [
+          "apphost.cs",
+          "AppHost.cs",
+          "AppHost.csproj",
+          "*.AppHost.csproj"
+        ],
+        "requires": [
+          "dotnet"
+        ],
+        "commands": {
+          "run": "aspire start"
         }
       }
     },

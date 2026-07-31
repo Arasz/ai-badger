@@ -1,0 +1,10 @@
+{
+  "$schema": "../../schemas/stack-mcp.schema.json",
+  "servers": [
+    {
+      "name": "aspire",
+      "command": "aspire agent mcp",
+      "declare": true
+    }
+  ]
+}

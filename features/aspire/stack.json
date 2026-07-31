@@ -1,0 +1,16 @@
+{
+  "name": "aspire",
+  "description": "Aspire: orchestration for distributed .NET apps \u2014 an AppHost describes the resources a solution runs, and the CLI runs, inspects and publishes them.",
+  "detectionSignals": [
+    "apphost.cs",
+    "AppHost.cs",
+    "AppHost.csproj",
+    "*.AppHost.csproj"
+  ],
+  "requires": [
+    "dotnet"
+  ],
+  "commands": {
+    "run": "aspire start"
+  }
+}
