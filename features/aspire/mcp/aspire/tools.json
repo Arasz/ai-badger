@@ -1,0 +1,110 @@
+{
+  "$schema": "../../../../schemas/mcp-server-tools.schema.json",
+  "server": "aspire",
+  "tools": [
+    {
+      "name": "list_resources",
+      "intent": "What the running AppHost is actually running: every resource with its state, health, endpoints and available commands. The orientation call before any other.",
+      "tags": [
+        "diagnostic",
+        "read"
+      ]
+    },
+    {
+      "name": "list_console_logs",
+      "intent": "Read one resource's console output \u2014 the first place to look when a service starts and immediately dies.",
+      "tags": [
+        "diagnostic",
+        "read"
+      ]
+    },
+    {
+      "name": "list_structured_logs",
+      "intent": "Structured log records across the app, filterable to one resource, when console output is too noisy to read.",
+      "tags": [
+        "diagnostic",
+        "read"
+      ]
+    },
+    {
+      "name": "list_traces",
+      "intent": "Distributed traces across resources: which hop in a request was slow or threw, without adding instrumentation.",
+      "tags": [
+        "diagnostic",
+        "tracing",
+        "opentelemetry"
+      ]
+    },
+    {
+      "name": "list_trace_structured_logs",
+      "intent": "The log records belonging to one trace, to read a single failing request end to end.",
+      "tags": [
+        "diagnostic",
+        "tracing"
+      ]
+    },
+    {
+      "name": "execute_resource_command",
+      "intent": "Start, stop or restart a resource \u2014 the write call, so name the resource deliberately.",
+      "tags": [
+        "run",
+        "write",
+        "unsafe"
+      ]
+    },
+    {
+      "name": "list_apphosts",
+      "intent": "Which AppHosts are detected and in scope, when more than one solution is running.",
+      "tags": [
+        "diagnostic",
+        "read"
+      ]
+    },
+    {
+      "name": "select_apphost",
+      "intent": "Choose which AppHost the other calls address; required before them when several run at once.",
+      "tags": [
+        "run"
+      ]
+    },
+    {
+      "name": "list_integrations",
+      "intent": "Which Aspire hosting integration packages exist, when wiring a new dependency into the AppHost.",
+      "tags": [
+        "search",
+        "read",
+        "dotnet"
+      ]
+    },
+    {
+      "name": "get_integration_docs",
+      "intent": "Documentation for one integration package, rather than guessing its builder API from memory.",
+      "tags": [
+        "read",
+        "dotnet"
+      ]
+    },
+    {
+      "name": "search_docs",
+      "intent": "Search aspire.dev by keyword \u2014 the entry point when the question is 'how does Aspire do X'.",
+      "tags": [
+        "search",
+        "read"
+      ]
+    },
+    {
+      "name": "get_doc",
+      "intent": "Fetch one documentation page in full once search has named it.",
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "name": "doctor",
+      "intent": "Diagnose the local Aspire environment when a command fails for reasons that are not the code.",
+      "tags": [
+        "diagnostic"
+      ]
+    }
+  ]
+}
