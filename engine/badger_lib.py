@@ -826,6 +826,27 @@ def skills_for_stack(root: Path, stack: str) -> List[str]:
     return stack_local_skills(skills_dir)
 
 
+def catalog_skills_for_stack(root: Path, stack: str) -> List[str]:
+    """Every skill a stack's directory holds, whatever its scope.
+
+    `skills_for_stack` answers "what does this stack ship by default", which is the right
+    question when deciding what to deliver. It is the wrong question when deciding which
+    already-delivered skills belong to an agent: an `optIn` skill a project asked for is in
+    the delivered set and not in that answer, so filtering through it dropped the skill on the
+    floor — delivered to `.ai-badger/skills/` and linked into no discovery directory (#261).
+
+    Membership here is the directory, not the scope, because that is what "this stack owns it"
+    actually means.
+    """
+    skills_dir = root / "features" / stack / "skills"
+    if not skills_dir.is_dir():
+        return []
+    return sorted(
+        d.name for d in skills_dir.iterdir()
+        if d.is_dir() and (d / "SKILL.md").exists()
+    )
+
+
 def feature_items(index: Dict[str, Any], stack: str, feature: str) -> List[Dict[str, Any]]:
     """Return the index items for one stack's feature bucket (personas, skills, ...)."""
     return index.get("stacks", {}).get(stack, {}).get(feature, [])

@@ -599,11 +599,14 @@ class Scaffolder:
                     mod = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(mod)
 
-                    # Filter skills to those relevant to this agent: universal
-                    # defaults (common stack) plus the agent's own stack-local skills.
+                    # Filter the *delivered* skills to those this agent's stacks own — by
+                    # directory membership, not by scope. `skills_for_stack` answers "what
+                    # ships by default", which silently dropped every `optIn` skill the project
+                    # asked for: delivered to .ai-badger/skills/ and linked nowhere the agent
+                    # looks, with the run still reporting success (#261).
                     agent_stacks = [s for s in self.stacks if s in ("common", agent_name)]
                     agent_skills = [s for s in self.skills
-                                    if any(s in bl.skills_for_stack(self.root, st)
+                                    if any(s in bl.catalog_skills_for_stack(self.root, st)
                                            for st in agent_stacks)]
 
                     context = {

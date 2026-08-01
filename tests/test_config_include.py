@@ -86,6 +86,59 @@ def test_an_included_opt_in_skill_is_delivered(make_scaffolder):
     assert OPT_IN_SKILL in names
 
 
+def test_an_included_opt_in_skill_reaches_the_agent(make_scaffolder):
+    """Delivered is not the same as discoverable (#261).
+
+    Claude Code finds skills at `.claude/skills/*/SKILL.md` and nowhere else. Writing one to
+    `.ai-badger/skills/` and reporting it included leaves it invisible to the agent it was
+    adopted for, while the run says it succeeded — and the next refresh then deletes a
+    hand-placed link as "no longer delivered", in the same run that delivered it.
+
+    The tests above asserted delivery and stopped there, which is how this shipped.
+    """
+    target, _ = _scaffold(make_scaffolder, _including(OPT_IN_SKILL))
+
+    link = target / ".claude" / "skills" / OPT_IN_SKILL
+    assert link.exists(), (
+        f".claude/skills/{OPT_IN_SKILL} is absent, so the agent cannot discover a skill the "
+        f"project asked for and the scaffold reported as included"
+    )
+    assert (link / "SKILL.md").is_file(), "the discovery link resolves to nothing"
+
+
+def test_a_default_skill_still_reaches_the_agent(make_scaffolder):
+    """The fix must widen the filter, not replace one omission with another."""
+    target, _ = _scaffold(make_scaffolder, _including(OPT_IN_SKILL), skills=("task",))
+
+    assert (target / ".claude" / "skills" / "task" / "SKILL.md").is_file()
+
+
+def test_a_second_run_does_not_prune_the_link_it_just_made(make_scaffolder):
+    """The other half of #261: one run said "included" and "no longer delivered" about the
+    same skill.
+
+    `adjust_skills._prune` removes a link ai-badger placed that is not in the delivered list.
+    While the filter dropped `optIn` skills, the link was never in that list, so a hand-placed
+    one was deleted on the next refresh — with the same run's report saying the skill had been
+    included. Fixing the filter fixes both halves, and this is the half that would silently
+    regress if someone narrowed it again.
+    """
+    target, _ = _scaffold(make_scaffolder, _including(OPT_IN_SKILL))
+    link = target / ".claude" / "skills" / OPT_IN_SKILL
+    assert link.exists(), "precondition: the first run placed it"
+
+    _scaffold(make_scaffolder, _including(OPT_IN_SKILL))
+
+    assert link.exists(), "the second run pruned the link the first run placed"
+
+
+def test_an_opt_in_skill_nobody_asked_for_does_not_reach_the_agent(make_scaffolder):
+    """Widening must not deliver the whole opt-in catalog to every project."""
+    target, _ = _scaffold(make_scaffolder, _config(agents=["claude"]))
+
+    assert not (target / ".claude" / "skills" / OPT_IN_SKILL).exists()
+
+
 def test_an_opt_in_skill_nobody_asked_for_is_not_delivered(make_scaffolder):
     target, _ = _scaffold(make_scaffolder, _config(agents=["claude"]))
 
