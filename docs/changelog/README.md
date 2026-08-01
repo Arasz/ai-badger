@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.69.2 | [The merge tags itself](0.69.2-the-merge-tags-itself.md) |
 | 0.69.1 | [A shipped page is not prose](0.69.1-a-shipped-page-is-not-prose.md) |
 | 0.69.0 | [a task owns its worktree](0.69.0-a-task-owns-its-worktree.md) |
 | 0.68.0 | [A spec is elicited, not drafted](0.68.0-a-spec-is-elicited-not-drafted.md) · [a task owns its worktree](0.68.0-a-task-owns-its-worktree.md) |

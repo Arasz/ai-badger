@@ -1,0 +1,72 @@
+name: Tag the release
+
+# Tagging used to be a manual step after every merge, and skipping it is not a local mistake:
+# release_guard fails every later push until the missing tag exists, so the next unrelated PR's
+# CI breaks on a gate nobody touched. 0.61.1, 0.64.2 and 0.68.0 each did exactly that.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Tags are what the "already tagged?" check reads. The default fetch-depth: 1 fetches
+          # none, which would make every run look like a fresh release and retry the push.
+          fetch-depth: 0
+
+      - name: Tag this commit if VERSION is new
+        run: |
+          set -euo pipefail
+
+          VERSION="$(cat VERSION)"
+          TAG_NAME="ai-badger--v${VERSION}"
+
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "VERSION is '$VERSION', which is not semver — refusing to tag."
+            exit 1
+          fi
+
+          # A version with no release notes is not a release. This repo's invariant is that
+          # every one records what changed, so an unbumped merge simply has nothing to tag
+          # rather than earning a tag with an empty story behind it.
+          if ! ls "docs/changelog/${VERSION}-"*.md >/dev/null 2>&1; then
+            echo "No docs/changelog/${VERSION}-*.md entry — nothing to tag for $VERSION."
+            exit 0
+          fi
+
+          # Always ask the remote. A local ref proves only that this checkout has the tag —
+          # and after `git tag -a` below, it proves nothing at all. release_guard reads the
+          # remote, so the remote is the only answer that counts (the D3 lesson, applied here).
+          remote_has_tag() {
+            [ -n "$(git ls-remote --tags origin "refs/tags/$1" 2>/dev/null)" ]
+          }
+
+          if remote_has_tag "${TAG_NAME}"; then
+            echo "${TAG_NAME} already exists on the remote — nothing to do."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          TITLE="$(head -n 1 "docs/changelog/${VERSION}-"*.md | sed 's/^# *//')"
+          git tag -a "${TAG_NAME}" -m "${TITLE}"
+
+          # Losing the race with a concurrent merge is not worth failing the run for: the tag
+          # is on the remote either way. Every other push failure — tag protection, a token
+          # without contents: write — must stay loud, so this asks the remote rather than
+          # resolving the local ref `git tag -a` just created, which would answer yes always.
+          if git push origin "${TAG_NAME}"; then
+            echo "Tagged ${TAG_NAME} at $(git rev-parse --short HEAD)."
+          elif remote_has_tag "${TAG_NAME}"; then
+            echo "${TAG_NAME} reached the remote by a concurrent run — nothing to do."
+          else
+            echo "Could not push ${TAG_NAME}, and it is not on the remote."
+            exit 1
+          fi
