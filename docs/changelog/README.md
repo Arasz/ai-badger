@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.61.4 | [The tracking-state guard names who wrote](0.61.4-the-guard-names-who-wrote.md) |
 | 0.61.3 | [Naming the test that spawned a daemon, instead of guessing](0.61.3-naming-the-test-that-spawned-it.md) |
 | 0.61.2 | [The usage-limit poller stops](0.61.2-a-poller-that-stops.md) |
 | 0.61.1 | [The plugin sync can remove, so `--check` can see a surplus](0.61.1-the-plugin-sync-can-remove.md) |
