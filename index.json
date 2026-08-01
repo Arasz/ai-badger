@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.72.0",
+  "frameworkVersion": "0.73.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -284,8 +284,20 @@
       ],
       "invariants": [
         {
+          "name": "ask-if-simpler",
+          "path": "features/common/invariants/ask-if-simpler.md"
+        },
+        {
+          "name": "check-sources-not-yourself",
+          "path": "features/common/invariants/check-sources-not-yourself.md"
+        },
+        {
           "name": "guard-clauses",
           "path": "features/common/invariants/guard-clauses.md"
+        },
+        {
+          "name": "measure-when-it-pays",
+          "path": "features/common/invariants/measure-when-it-pays.md"
         },
         {
           "name": "minimal-comments",
@@ -300,8 +312,16 @@
           "path": "features/common/invariants/no-hardcoded-secrets.md"
         },
         {
+          "name": "plain-names",
+          "path": "features/common/invariants/plain-names.md"
+        },
+        {
           "name": "pr-per-task",
           "path": "features/common/invariants/pr-per-task.md"
+        },
+        {
+          "name": "proof-of-done",
+          "path": "features/common/invariants/proof-of-done.md"
         },
         {
           "name": "screaming-architecture",

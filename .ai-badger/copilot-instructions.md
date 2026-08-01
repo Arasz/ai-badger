@@ -4,9 +4,17 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scr
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.72.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
+> Scaffolded by ai-badger 0.73.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
 ## Non-negotiable invariants
+
+### Ask if a simpler shape would do
+
+Before calling any design or change finished, ask whether it is over-engineered and what the simpler version would look like. Take the simpler shape whenever it serves architecture, maintainability and performance as well — an abstraction added before a real caller needs it is a cost with no buyer.
+
+### Check the source, not your own reasoning
+
+Re-read the docs, the data and the code before stating a fact about them — those are what go stale, get misremembered, or change under you. Re-reading your own reasoning twice over costs the same effort and finds nothing new, so spend the check where the error actually lives.
 
 ### Guard clauses over hand-rolled null checks
 
@@ -14,6 +22,10 @@ Prefer a dedicated guard/throw-helper for argument validation over hand-rolled `
 or ad hoc `if (x == null) throw` blocks — a guard reads as intent, not boilerplate, and keeps
 the exception type/message consistent across the codebase. Use the idiomatic guard utility for
 the language/stack in use, and fail fast at the boundary rather than letting invalid state flow in.
+
+### Measure only when the measurement pays
+
+Run your own benchmark or experiment when the time it costs is repaid by the decision it settles, and not otherwise. When it does not pay, cite an existing measurement or say plainly that the number is unverified — a guessed figure presented as measured is worse than no figure at all.
 
 ### Minimal comments
 
@@ -27,6 +39,10 @@ Never implement security/cryptographic orchestration yourself — key derivation
 
 No credentials, connection strings, API keys, or tokens in tracked files, examples, or fixtures. Read secrets from configuration or environment variables, and keep sample/test values obviously fake.
 
+### Plain names
+
+Name things with the simplest accurate word — variables, functions, types, files, folders, flags. Reach for a rare or invented word only when the concept genuinely has no common word for it, because every reader after you pays for the lookup.
+
 ### One PR per task
 
 Every unit of work ends in a pull request; never push directly to the main/trunk branch. One task maps to one PR — don't bundle unrelated work into the same change so review and rollback stay scoped.
@@ -34,6 +50,10 @@ Every unit of work ends in a pull request; never push directly to the main/trunk
 **The one exception is an explicit instruction from the person you are working with.** When they ask you to merge locally, push straight to main, or skip the PR for a particular change, that is theirs to decide. An agent never grants itself this exception — not to save a step, not because the change looks trivial, and not because a rebase turned awkward. Absent that instruction, the rule above is absolute.
 
 The exception lifts the PR requirement and nothing else. Every gate still runs before the push: the PR was the record, not the safety net.
+
+### Done means proven
+
+Every unit of planned work carries its acceptance criteria and the gate that checks them, named before the work starts. "Done" means there is evidence the thing works — a test that passes, a run you watched, a gate that went green — not that the code was written. If you cannot point at the evidence, the work is not done yet.
 
 ### Screaming architecture
 
