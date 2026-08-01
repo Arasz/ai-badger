@@ -320,7 +320,8 @@ def test_a_tag_only_on_this_machine_is_reported(tmp_path, load_script):
     _add_remote(repo, remote)
     _git(repo, "push", "-q", "origin", "HEAD")
 
-    assert guard.unpushed_release_tags(repo) == ["ai-badger--v0.1.0"]
+    # Nothing published above it, so it reads as a release mid-push and is not reported.
+    assert guard.unpushed_release_tags(repo) == []
 
 
 def test_a_tag_on_the_remote_is_not_reported(tmp_path, load_script):
@@ -366,3 +367,46 @@ def test_only_release_tags_are_considered(tmp_path, load_script):
     _git(repo, "push", "-q", "origin", "HEAD")
 
     assert guard.unpushed_release_tags(repo) == []
+
+
+def test_the_newest_local_tag_is_never_reported(tmp_path, load_script):
+    """Otherwise the guard blocks the push that would satisfy it.
+
+    Merged as 0.64.3, this check refused any local-only release tag — including the one being
+    cut right now, whose push runs the same pre-push hook. Circular: the tag cannot reach the
+    remote because it is not on the remote.
+
+    The rule is now about the *sequence*, not about VERSION: a tag is reported only when the
+    remote already has a higher one, meaning the release order skipped it. A tag above
+    everything published is indistinguishable from one mid-push, so it is never reported.
+    """
+    guard = load_script("gates/release_guard.py")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+    (repo / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _commit_all(repo, "first")
+    _tag(repo, "ai-badger--v0.3.0")
+    remote = _bare_remote(tmp_path)
+    _add_remote(repo, remote)
+    _git(repo, "push", "-q", "origin", "HEAD")
+
+    assert guard.unpushed_release_tags(repo) == []
+
+
+def test_a_tag_the_remote_moved_past_is_reported(tmp_path, load_script):
+    """The exact shape of the real failure: 0.61.3 lost, then 0.62.0 published without it."""
+    guard = load_script("gates/release_guard.py")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+    (repo / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _commit_all(repo, "first")
+    _tag(repo, "ai-badger--v0.2.0")
+    _tag(repo, "ai-badger--v0.3.0")
+    remote = _bare_remote(tmp_path)
+    _add_remote(repo, remote)
+    _git(repo, "push", "-q", "origin", "HEAD")
+    _git(repo, "push", "-q", "origin", "refs/tags/ai-badger--v0.3.0")
+
+    assert guard.unpushed_release_tags(repo) == ["ai-badger--v0.2.0"]
