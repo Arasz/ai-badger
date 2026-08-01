@@ -9,10 +9,10 @@ named by `config.mcp.decline` is not declared at all, and is removed from either
 earlier run wrote it (#186).
 
 The Copilot CLI reads **both** project files — `.github/mcp.json` and `.mcp.json`, looked up
-from the cwd upward — and their precedence is undocumented, so one server described twice has
-no knowable configuration. The two entries are therefore identical apart from `cwd`, and a
-server whose two renderings cannot be reconciled is declared once, in `.mcp.json`, and named
-in a note (#193).
+from the cwd upward — and their precedence is undocumented, so one server described twice has no
+knowable configuration. The two entries are therefore identical apart from destination-specific
+fields, and a server whose two renderings cannot be reconciled is declared once, in `.mcp.json`,
+and named in a note (#193).
 """
 from __future__ import annotations
 
@@ -93,11 +93,11 @@ class McpDestination(NamedTuple):
     consequence: str  # what a refusal to write costs, for the note
 
 
-# ``.mcp.json`` alone expands ``${VAR}`` (documented by Claude Code) and alone pins ``cwd``.
-# The Copilot CLI reads it too, by cwd-upward lookup, which is why it carries the ``tools``
-# allowlist and why its overrides fall back to Copilot's when Claude is not configured (#193).
+# ``.mcp.json`` alone expands ``${VAR}`` (documented by Claude Code). The Copilot CLI reads it
+# too, by cwd-upward lookup, which is why it carries the ``tools`` allowlist and why its overrides
+# fall back to Copilot's when Claude is not configured (#193).
 MCP_JSON = McpDestination(
-    label=".mcp.json", readers=("claude", "copilot"), requires_reader=False, pin_cwd=True,
+    label=".mcp.json", readers=("claude", "copilot"), requires_reader=False, pin_cwd=False,
     expand_home=True, all_tools=True,
     consequence=".mcp.json not updated",
 )
@@ -410,15 +410,20 @@ class McpTools:
         Leaves anything already pathed, already expandable, or resolvable elsewhere on PATH
         alone; notes a command that resolves nowhere.
         """
-        if not command or " " in command or "/" in command or command.startswith("${"):
+        parts = command.split(maxsplit=1)
+        if not parts:
+            return command
+        executable = parts[0]
+        if "/" in executable or executable.startswith("${"):
             return command
         for probe_dir, prefix in USER_TOOL_DIRS:
-            candidate = Path(probe_dir) / command
+            candidate = Path(probe_dir) / executable
             if candidate.is_file() and os.access(str(candidate), os.X_OK):
-                return prefix + "/" + command
-        if shutil.which(command) is None:
+                suffix = f" {parts[1]}" if len(parts) > 1 else ""
+                return prefix + "/" + executable + suffix
+        if shutil.which(executable) is None:
             self.ctx.notes.append(
-                f"MCP server '{name}' command '{command}' was not found on PATH or in any "
+                f"MCP server '{name}' command '{executable}' was not found on PATH or in any "
                 f"known user tool directory — that server will fail to start"
             )
         return command
@@ -475,6 +480,10 @@ class McpTools:
             return False
         if dest.pin_cwd:
             self._carry_live_cwd(section, entries)
+        else:
+            for name in entries:
+                if isinstance(section.get(name), dict):
+                    section[name].pop("cwd", None)
         section.update(entries)
         self._drop_declined(section, declined, dest)
         self._drop_declared_elsewhere(section, elsewhere, dest)
