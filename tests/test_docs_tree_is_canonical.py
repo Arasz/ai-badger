@@ -11,8 +11,6 @@ seventeen. A partial map is worse than none, because it is read as complete.
 """
 from __future__ import annotations
 
-import re
-
 import pytest
 
 # The canonical tree, minus `legacy/` — that one exists only while a wholesale migration is in
@@ -32,9 +30,6 @@ CANONICAL_DIRS = (
 # generates its index and a CLAUDE.md invariant pins its filenames. It is on the map but its
 # contents are not governed by the naming rules below.
 FROZEN_DIRS = ("changelog",)
-
-LINK_RE = re.compile(r"\[[^\]]*\]\(\s*<?([^)<>\s]+)>?[^)]*\)")
-
 
 def _docs(root):
     return root / "docs"
@@ -87,6 +82,19 @@ class TestTheGateFreezesOnlyRealPaths:
         absent = [d for d in guard.RECORD_DIRS if not (root / d).is_dir()]
 
         assert not absent, f"docs_guard.RECORD_DIRS names directories that do not exist: {absent}"
+
+    def test_every_builtin_exemption_exists(self, root, load_script):
+        """An exemption for a directory nobody has is dead config that reads as a live rule.
+
+        `docs/archive/` was exempt long after the directory was removed (#268 review). Had it
+        ever come back, its documents would have been skipped by both checks without anyone
+        deciding that.
+        """
+        guard = load_script("gates/docs_guard.py")
+
+        absent = [d for d in guard.BUILTIN_EXEMPT if not (root / d).is_dir()]
+
+        assert not absent, f"docs_guard.BUILTIN_EXEMPT names directories that do not exist: {absent}"
 
     def test_work_is_a_record_dir(self, root, load_script):
         """Work records describe a tree as it was; their dead paths are the record working.

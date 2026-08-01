@@ -36,9 +36,11 @@ subject.
 
 Fenced code blocks are skipped entirely: they hold examples, not claims about this tree.
 
-Exemptions: `docs/archive/` is not scanned at all (an archive is supposed to preserve dead
-references). Anything else goes one-per-line in `.docs-guard-ignore` at the repo root, matched
-as a repo-relative path prefix against both the scanned document and the referenced path.
+Exemptions: there are no built-in ones. `docs/archive/` used to be exempt, but that directory has
+not existed since the kind-grouped record dirs were removed, and an exemption for a directory
+nobody has reads as a live rule while silently skipping those docs if it ever came back (#268).
+Exemptions go one-per-line in `.docs-guard-ignore` at the repo root, matched as a repo-relative
+path prefix against both the scanned document and the referenced path.
 
 Line numbers in citations (`scaffold.py:772`) are NOT checked: such a citation is usefully
 wrong, and any check strict enough to catch it is noisy enough to be turned off.
@@ -61,7 +63,9 @@ import badger_lib as bl
 
 DOCS_DIR = "docs"
 IGNORE_FILE = ".docs-guard-ignore"
-BUILTIN_EXEMPT = ("docs/archive/",)
+# Empty by design: an exemption for a directory nobody has is dead config that reads as a
+# live rule, and would silently skip those docs if the directory were ever recreated (#268).
+BUILTIN_EXEMPT = ()
 CHECKED_ROOTS = ("engine", "tooling", "gates", "features", "schemas", "hooks", "tests", "docs",
                  ".github", ".claude-plugin")
 RECORD_DIRS = ("docs/adr/", "docs/changelog/", "docs/work/")
