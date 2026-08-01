@@ -127,7 +127,19 @@ reduced rigor since high-reasoning delegation wasn't possible.
    board via the source-control extension if active). Read the referenced docs.
 2. Register: `python3 .ai-badger/skills/task/scripts/task_tracker.py start <taskId> --title "<title>" --branch task/<taskId>-<slug>`.
 3. Ask the user to rename the session to match the task (skip if autonomous).
-4. Create/switch to the task branch.
+4. **Work in the worktree `start` just created** — it prints the path, and it is
+   `.claude/worktrees/<taskId>` on the branch you passed to `--branch`. Every command for the rest
+   of the task runs there, not in the main checkout.
+
+   This step used to read "create/switch to the task branch", and `start` recorded the branch name
+   without creating anything. A recorded name that nothing creates is worse than no field: `status`
+   reports the branch, so the tracker looks like it is managing something it never touched. On
+   2026-08-01 that put two commits on `main` in one session. Pass `--no-worktree` if you genuinely
+   want the old behaviour; the branch is still recorded either way.
+
+   A worktree is also what makes concurrent sessions safe. Sessions share one checkout, so a second
+   agent switching branches mid-run changes the files under the first one — measured the same day:
+   a push failed because the tree moved to `main` while its tests were running.
 5. Plan: delegate decomposition to a high-reasoning agent (the `architect` persona), feeding it
    the task body and doc excerpts. Use its plan to drive Phase 2.
 
@@ -159,7 +171,12 @@ build/test, then proceed.
    `completedTasks`, refresh `next`/`lastUpdated`; write verbose notes/decisions to the
    project's notes file.
 3. Compaction check on CLAUDE.md if the project tracks one.
-4. Close tracking: `python3 .ai-badger/skills/task/scripts/task_tracker.py finish <taskId>`.
+4. Close tracking: `python3 .ai-badger/skills/task/scripts/task_tracker.py finish <taskId>`. This
+   also removes the task's worktree — **unless it still holds work that exists nowhere else**, in
+   which case it refuses, says what it found, and leaves the directory alone. Read the
+   `worktree.keptBecause` field in the output; a kept worktree means something is unmerged or
+   uncommitted, not that cleanup failed. Resolve it and re-run, or pass `--keep-worktree` when you
+   are deliberately leaving it in place.
 5. Ask the user to grade the skill 0–5: `python3 .ai-badger/skills/task/scripts/task_tracker.py grade <taskId> <0-5>`
    (skip/leave unset if autonomous).
 6. Report the task's token cost and recommend `/compact` or a fresh session before the next
