@@ -60,8 +60,19 @@ def _git(root, *args, check=True):
 
 
 def worktree_path(root, task_id):
-    """Where a task's worktree lives. One per task, named by the task id."""
-    return lib.Path(root) / WORKTREE_DIR / str(task_id)
+    """Where a task's worktree lives. One per task, named by the task id.
+
+    A task id arrives as a CLI argument, so it is untrusted input being spliced into a path:
+    `..` or a separator would put `git worktree add/remove` somewhere nobody asked for. Refuse
+    rather than sanitise — a silently rewritten id would not match the one in the tracking JSON.
+    """
+    name = str(task_id)
+    if not name or name in {".", ".."} or "/" in name or "\\" in name:
+        raise ValueError(
+            f"task id {name!r} is not usable as a directory name: it must not be empty, "
+            "'.', '..', or contain a path separator"
+        )
+    return lib.Path(root) / WORKTREE_DIR / name
 
 
 def ensure_worktree(root, task_id, branch):
@@ -205,14 +216,15 @@ def cmd_start(args) -> int:
 
     # Outside the lock: this shells out to git, and holding the store lock across it would let a
     # slow checkout block every other tracker call.
+    created = None
     if not args.no_worktree:
         try:
             created = ensure_worktree(lib.PROJECT_ROOT, args.task_id, entry.get("branch", ""))
-        except subprocess.CalledProcessError as exc:
-            print(f"could not create the task worktree: {exc.stderr or exc}", file=sys.stderr)
-            created = None
-        if created is not None:
-            print(f"worktree: {created}")
+        except (subprocess.CalledProcessError, OSError, ValueError) as exc:
+            # State is already persisted; a missing git or a bad id must not turn that into a
+            # traceback. OSError covers `git` being absent or not executable.
+            detail = getattr(exc, "stderr", None) or exc
+            print(f"could not create the task worktree: {detail}", file=sys.stderr)
 
     if args.no_cron:
         print(
@@ -229,6 +241,7 @@ def cmd_start(args) -> int:
                 "taskId": args.task_id,
                 "state": entry["state"],
                 "sessionId": session["sessionId"],
+                "worktree": str(created) if created is not None else None,
                 "startContextTokens": checkpoint["contextTokens"],
             }
         )
@@ -284,8 +297,9 @@ def cmd_finish(args) -> int:
     if not args.keep_worktree:
         try:
             removed, reason = release_worktree(lib.PROJECT_ROOT, args.task_id)
-        except subprocess.CalledProcessError as exc:
-            removed, reason = False, str(exc.stderr or exc)
+        except (subprocess.CalledProcessError, OSError, ValueError) as exc:
+            # Same reasoning as cmd_start: report it as a kept worktree, never a traceback.
+            removed, reason = False, str(getattr(exc, "stderr", None) or exc)
         worktree = {"removed": removed, "keptBecause": reason}
         if reason:
             print(f"kept the task worktree — {reason}", file=sys.stderr)

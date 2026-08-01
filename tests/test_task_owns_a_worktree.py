@@ -85,6 +85,32 @@ class TestTheWorktreeIsCreated:
         assert tracker.ensure_worktree(repo, "issue-42", "") is None
 
 
+class TestATaskIdCannotEscapeTheWorktreeDirectory:
+    """A task id reaches this from a CLI argument, so it is untrusted input on a path."""
+
+    @pytest.mark.parametrize("hostile", ["..", "../..", "a/../../b", "/etc", "a/b"])
+    def test_a_traversing_task_id_is_refused(self, tmp_path, tracker, hostile):
+        repo = _repo(tmp_path)
+
+        with pytest.raises(ValueError):
+            tracker.worktree_path(repo, hostile)
+
+    @pytest.mark.parametrize("ok", ["issue-42", "T02", "fix_thing.2", "266"])
+    def test_an_ordinary_task_id_is_allowed(self, tmp_path, tracker, ok):
+        repo = _repo(tmp_path)
+
+        assert tracker.worktree_path(repo, ok).parent == repo / ".claude" / "worktrees"
+
+    def test_the_refusal_reaches_ensure_and_release(self, tmp_path, tracker):
+        """Both entry points validate; neither may be the one that forgot."""
+        repo = _repo(tmp_path)
+
+        with pytest.raises(ValueError):
+            tracker.ensure_worktree(repo, "../escape", "task/x")
+        with pytest.raises(ValueError):
+            tracker.release_worktree(repo, "../escape")
+
+
 class TestFinishRefusesToDestroyWork:
     """Cleanup that can silently lose a commit is not cleanup."""
 
