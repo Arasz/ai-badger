@@ -297,12 +297,16 @@ logging" — or producing a health report on ai-badger's own hooks in this proje
 (someone is at the keyboard, questions are left alone) and **away** (nobody is, questions are
 denied outright).
 
-**What it does.** `/auto-wm [partner|away DURATION|off|status]` writes an entry in
+**What it does.** `/auto-wm [partner|away DURATION|off|status|forget]` writes an entry in
 `~/.claude/awm/state.json` for the project it was run in (mode, expiry, capped at 12h). A
 `PreToolUse` hook (`awm_gate.py`) then auto-approves calls inside that project, except a denylist
 (destructive shell commands, force-pushes, network egress, writes outside the project) which
 always falls through to the normal permission prompt; every decision is logged to
 `~/.claude/awm/decisions.jsonl`.
+
+`forget [PATH] [--force]` (0.75.0) removes an entry outright — `disable` only flips one off, so
+without it `state.json` accumulates an entry for every directory AWM was ever enabled in,
+including deleted worktrees. It refuses a live window unless forced.
 
 **State is per project** (0.74.0). Each entry carries its own mode and its own clock, so two
 checkouts can be armed at once and `off` in one leaves the other running. Before that a single
