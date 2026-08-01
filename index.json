@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.61.3",
+  "frameworkVersion": "0.61.4",
   "stacks": {
     "angular": {
       "personas": [
