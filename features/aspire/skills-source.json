@@ -1,0 +1,10 @@
+{
+  "sources": [
+    {
+      "name": "aspire-skills",
+      "type": "marketplace",
+      "source": "https://github.com/microsoft/aspire-skills",
+      "support": ["claude"]
+    }
+  ]
+}

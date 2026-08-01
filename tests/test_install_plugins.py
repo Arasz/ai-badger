@@ -382,6 +382,12 @@ class TestThirdPartyPluginsAreNotAddedSilently:
         ("common", "pr-review-toolkit"),
         ("python", "pyright-lsp"),
         ("python", "pydantic-ai"),
+        # First-party Microsoft/.NET plugins, reviewed 2026-08-01: no tool-call hooks, no
+        # external account, and each one verified to install and stay installed.
+        ("dotnet", "dotnet-diag"),
+        ("dotnet", "dotnet-test"),
+        ("dotnet", "dotnet-msbuild"),
+        ("aspire", "aspire"),
     }
 
     @staticmethod

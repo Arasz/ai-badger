@@ -1,0 +1,10 @@
+{
+  "skills": [
+    {
+      "name": "aspire",
+      "source": "aspire-skills",
+      "scope": "default",
+      "description": "AppHost lifecycle and observability for Aspire solutions, including the isolation and file-lock rules an agent otherwise learns the hard way: `aspire start --isolated` per worktree, `aspire stop` before rebuilding, never `pkill dotnet`."
+    }
+  ]
+}
