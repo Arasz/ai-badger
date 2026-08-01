@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.71.0 | [buying speed with coverage](0.71.0-buying-speed-with-coverage.md) |
 | 0.70.2 | [squash-merged content is not lost](0.70.2-squash-merged-content-is-not-lost.md) |
 | 0.70.1 | [a bump is upward](0.70.1-a-bump-is-upward.md) |
 | 0.70.0 | [a finding carries how it is known](0.70.0-a-finding-carries-how-it-is-known.md) |
