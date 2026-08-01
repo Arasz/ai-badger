@@ -141,7 +141,11 @@ def _record_spawn(proc, argv: list, cwd: Path) -> None:
         return
     try:
         record = json.dumps({
-            "argv": list(argv),
+            # str() each element, not list(argv): a Path — which every call site here is one
+            # forgotten str() away from — makes json.dumps raise, and the except below would
+            # then drop the record silently. A probe that goes quiet on unusual input is worse
+            # than one that is absent, because an empty log reads as "nothing spawned".
+            "argv": [str(part) for part in argv],
             "cwd": str(cwd),
             # getattr, not proc.pid: a test that stubs Popen may hand back anything, including
             # None, and this is a diagnostic — it does not get to break the spawn it observes.

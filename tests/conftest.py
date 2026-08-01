@@ -166,6 +166,36 @@ def _real_tracking_state_is_untouched():
         f"added={added} changed={changed}")
 
 
+def foreign_spawn_offenders(log: Path) -> list:
+    """Breadcrumbs written by a process other than this one, as reportable strings.
+
+    Defensive on every axis, because this runs at session teardown and a crash here would
+    mask the offenders it exists to name. Several processes append to this file
+    concurrently, so a torn or partial line is possible, and `argv` elements are stringified
+    on the way in but a hand-written or older record may not be.
+
+    A spawn whose `by` is this pid was already tracked and reaped by the Popen wrapper
+    (#222). One from any other pid came from a child interpreter — the gap #232 records.
+    """
+    if not log.exists():
+        return []
+
+    offenders = set()
+    for line in log.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue  # torn mid-write by a concurrent appender
+        if not isinstance(record, dict) or record.get("by") == os.getpid():
+            continue
+        argv = record.get("argv") or []
+        rendered = " ".join(str(part) for part in argv) if isinstance(argv, list) else str(argv)
+        offenders.add(f"{record.get('test') or '<no test recorded>'} -> {rendered[:90]}")
+    return sorted(offenders)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _no_test_reaches_a_detached_spawn(tmp_path_factory):
     """Name every test that reached `spawn_detached`, and fail the session if any did (#232).
@@ -186,16 +216,7 @@ def _no_test_reaches_a_detached_spawn(tmp_path_factory):
     yield log
     os.environ.pop(SPAWN_LOG_ENV, None)
 
-    if not log.exists():
-        return
-    records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line]
-    # A spawn from this process was already tracked and reaped by the Popen wrapper (#222).
-    # One from any other pid came from a child interpreter, which is the gap #232 records.
-    unreachable = [r for r in records if r.get("by") != os.getpid()]
-    offenders = sorted({
-        f"{r.get('test') or '<no test recorded>'} -> {' '.join(r.get('argv', []))[:90]}"
-        for r in unreachable
-    })
+    offenders = foreign_spawn_offenders(log)
 
     assert not offenders, (
         "these tests reached a detached spawn from a child interpreter, where the Popen "

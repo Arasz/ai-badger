@@ -196,3 +196,88 @@ class TestItCatchesTheCaseItExistsFor:
             "a child-interpreter spawn recorded this process's pid, so conftest would filter "
             "it out as already-reaped — the exact blind spot #232 is about"
         )
+
+
+class TestTheBreadcrumbSurvivesAwkwardArgv:
+    """A probe that goes quiet on unusual input is worse than one that is absent.
+
+    `_record_spawn` swallowed TypeError from json.dumps, so an argv carrying a Path — which
+    every call site in this repo is one forgotten `str()` away from — would drop the record
+    silently and the suite would miss the spawn. Reported by review on PR #253. Latent today:
+    both current call sites pass strings, one of them via an explicit str(script).
+    """
+
+    def test_a_path_in_argv_still_produces_a_record(self, tmp_path, load_script, monkeypatch):
+        tracker = _tracker(load_script)
+        log = tmp_path / "spawns.jsonl"
+        monkeypatch.setenv("AI_BADGER_SPAWN_LOG", str(log))
+        argv = [sys.executable, "-c", "pass", Path("/some/script.py")]
+        monkeypatch.setattr(tracker.subprocess, "Popen", lambda *a, **k: None)
+
+        tracker.spawn_detached(argv, cwd=tmp_path)
+
+        record = json.loads(log.read_text(encoding="utf-8").strip().splitlines()[0])
+        assert record["argv"][-1] == "/some/script.py"
+
+    def test_every_argv_element_is_a_string_in_the_record(
+        self, tmp_path, load_script, monkeypatch
+    ):
+        """conftest joins argv for its message; a non-string element would raise there too."""
+        tracker = _tracker(load_script)
+        log = tmp_path / "spawns.jsonl"
+        monkeypatch.setenv("AI_BADGER_SPAWN_LOG", str(log))
+        monkeypatch.setattr(tracker.subprocess, "Popen", lambda *a, **k: None)
+
+        tracker.spawn_detached([Path("/a"), 7, None], cwd=tmp_path)
+
+        record = json.loads(log.read_text(encoding="utf-8").strip().splitlines()[0])
+        assert all(isinstance(part, str) for part in record["argv"])
+
+
+class TestTeardownReportsRatherThanCrashes:
+    """The log is appended by several processes at once, so a torn or partial line is possible.
+
+    A JSONDecodeError in teardown would mask the very offenders the assertion exists to name.
+    Reported by review on PR #253.
+    """
+
+    def test_a_malformed_line_does_not_stop_the_report(self, tmp_path):
+        import conftest
+
+        log = tmp_path / "spawns.jsonl"
+        log.write_text(
+            '{"argv": ["a"], "cwd": "/x", "pid": 1, "test": "t_one", "by": 999}\n'
+            '{"argv": ["b"], "cwd": "/x", "pid": 2, "test": "t_tw\n'  # torn mid-write
+            '{"argv": ["c"], "cwd": "/x", "pid": 3, "test": "t_three", "by": 999}\n',
+            encoding="utf-8",
+        )
+
+        offenders = conftest.foreign_spawn_offenders(log)
+
+        assert any("t_one" in o for o in offenders)
+        assert any("t_three" in o for o in offenders)
+
+    def test_a_non_string_argv_element_does_not_stop_the_report(self, tmp_path):
+        import conftest
+
+        log = tmp_path / "spawns.jsonl"
+        log.write_text(
+            '{"argv": ["ok", 7, null], "cwd": "/x", "pid": 1, "test": "t_odd", "by": 999}\n',
+            encoding="utf-8",
+        )
+
+        offenders = conftest.foreign_spawn_offenders(log)
+
+        assert any("t_odd" in o for o in offenders)
+
+    def test_this_process_own_spawns_are_still_excluded(self, tmp_path):
+        import conftest
+
+        log = tmp_path / "spawns.jsonl"
+        log.write_text(
+            json.dumps({"argv": ["x"], "cwd": "/x", "pid": 1, "test": "mine",
+                        "by": os.getpid()}) + "\n",
+            encoding="utf-8",
+        )
+
+        assert conftest.foreign_spawn_offenders(log) == []
