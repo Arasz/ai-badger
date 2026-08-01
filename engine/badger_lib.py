@@ -628,6 +628,7 @@ SKILL_SCOPES: Dict[str, str] = {
     "debug-issue": SKILL_SCOPE_OPT_IN,
     "den-refresh": SKILL_SCOPE_DEFAULT,
     "differential-feature-refactor": SKILL_SCOPE_DEFAULT,
+    "explore-codebase": SKILL_SCOPE_OPT_IN,
     "feed-badger": SKILL_SCOPE_DEFAULT,
     "maintain-agent-instructions": SKILL_SCOPE_DEFAULT,
     "mcp-index": SKILL_SCOPE_DEFAULT,

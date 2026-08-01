@@ -38,9 +38,12 @@ SKIP_PATTERNS = tuple(bl.SKILL_EXCLUDE_PATTERNS)
 # never written, never checked, never pruned. A skill the catalog *does* carry belongs to its
 # declared scope instead — `optIn` already keeps it out of the mirror, and listing it here as
 # well would make a later flip to `default` silently ship nothing (ADR-0005 §Context).
-MANAGED_EXTERNALLY = {
-    "explore-codebase",
-}
+# Empty, and deliberately kept. It held the four skills `code-review-graph` auto-installs into
+# `.claude/skills/`; each has since been rewritten into the catalog as an `optIn` skill this
+# framework owns, so none is externally managed any more. The mechanism stays because the next
+# tool that writes its own skills into a project will need it, and because it gates deletion in
+# `_orphans()` as well as writing — an empty set there is a fact, not an oversight.
+MANAGED_EXTERNALLY: set = set()
 
 
 def _shipped_skills():
