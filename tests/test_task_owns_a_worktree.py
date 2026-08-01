@@ -7,7 +7,7 @@ session on 2026-08-01, work landed on `main` and had to be recovered before it w
 A recorded name that nothing creates is worse than no field at all: `status` reports the branch,
 so the tracker looks like it is managing something it never touched.
 
-So `start` creates a git worktree under `.claude/worktrees/<taskId>` on the recorded branch, and
+So `start` creates a git worktree under `.ai-badger/worktrees/<taskId>` on the recorded branch, and
 `finish` removes it — unless it holds uncommitted changes or commits nothing else has, in which
 case it refuses and says what it found. Cleanup that can silently destroy work is not cleanup.
 """
@@ -61,12 +61,25 @@ class TestTheWorktreeIsCreated:
         assert str(path) in listing
         assert "task/issue-42-thing" in listing
 
-    def test_the_worktree_lives_under_the_agent_worktree_directory(self, tmp_path, tracker):
+    def test_the_worktree_lives_under_the_ai_badger_directory(self, tmp_path, tracker):
         repo = _repo(tmp_path)
 
         path = tracker.ensure_worktree(repo, "issue-42", "task/issue-42-thing")
 
-        assert path.parent == repo / ".claude" / "worktrees"
+        assert path.parent == repo / ".ai-badger" / "worktrees"
+
+    def test_the_worktree_path_names_no_agent_directory(self, tmp_path, tracker):
+        """This skill ships in features/common/, which all four supported agents share.
+
+        A path under `.claude/` hands a hermes-only or copilot-only project a directory it has
+        no other use for; `.ai-badger/` is the one directory every scaffolded project has.
+        """
+        repo = _repo(tmp_path)
+
+        path = tracker.ensure_worktree(repo, "issue-42", "task/issue-42-thing")
+
+        assert ".claude" not in path.parts
+        assert not (repo / ".claude").exists(), "a project with no .claude/ was given one"
 
     def test_calling_it_twice_returns_the_same_worktree(self, tmp_path, tracker):
         """Re-running start after a resume must not fail on an existing worktree."""
@@ -99,7 +112,7 @@ class TestATaskIdCannotEscapeTheWorktreeDirectory:
     def test_an_ordinary_task_id_is_allowed(self, tmp_path, tracker, ok):
         repo = _repo(tmp_path)
 
-        assert tracker.worktree_path(repo, ok).parent == repo / ".claude" / "worktrees"
+        assert tracker.worktree_path(repo, ok).parent == repo / ".ai-badger" / "worktrees"
 
     def test_the_refusal_reaches_ensure_and_release(self, tmp_path, tracker):
         """Both entry points validate; neither may be the one that forgot."""

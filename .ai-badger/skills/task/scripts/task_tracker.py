@@ -47,7 +47,9 @@ class CrontabUnavailable(Exception):
     """
 
 
-WORKTREE_DIR = ".claude/worktrees"
+# Under .ai-badger/, not any one agent's directory: this skill ships in features/common/, which
+# all four supported agents share, and .ai-badger/ is the only directory every project has.
+WORKTREE_DIR = ".ai-badger/worktrees"
 
 
 def _git(root, *args, check=True):
