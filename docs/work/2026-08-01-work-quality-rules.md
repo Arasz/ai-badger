@@ -32,7 +32,7 @@ agents check code against.
 | Rules | Home |
 |---|---|
 | proof of done · plain names · check sources not yourself · measure only what pays · ask if simpler | new `common` invariants |
-| review plan first · gather before planning · plan in sections · integration review per step · execute the plan rather than re-checking it | `task` SKILL.md phases |
+| review plan first · gather before planning · plan in sections · integration review per step · execute the plan rather than re-checking it | `features/common/skills/task/SKILL.md` phases |
 | split work so it can run in parallel · cap dispatch depth at root → sub → sub · reach for any tool that simplifies | `task` model & delegation policy |
 | limited automatic gates · the agent decides when the full suite runs | a `--risk` switch on `task start` |
 
@@ -41,7 +41,7 @@ agents check code against.
 Checked against the source rather than assumed, which is the discipline one of the new invariants
 states.
 
-**"Prefer sonnet for implementation" already exists.** `task/extensions/claude/extension.md`
+**"Prefer sonnet for implementation" already exists.** `features/common/skills/task/extensions/claude/extension.md`
 binds it: *"Sonnet — implementation, by default … pass `model: "sonnet"` explicitly rather than
 relying on the default, so the lane survives a change of session model."* Adding it again would
 create two places to disagree.
@@ -61,7 +61,7 @@ that of any planned work.
 | **C** — `--risk` | recorded on `start`, surfaced by `status`, absent by default, survives a resume | tests that distinguish the flag from its absence — a flag no test can tell from nothing is decoration |
 | **E** — integration | the four merged together | full suite, six gates, pylint, and a scaffolded `CLAUDE.md` rendering all fourteen invariants |
 
-A and C are independent. B+D and C both edit `task/SKILL.md`, so B+D waits rather than racing it.
+A and C are independent. B+D and C both edit `features/common/skills/task/SKILL.md`, so B+D waits rather than racing it.
 
 ## Still open
 
