@@ -42,11 +42,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
 import badger_lib as bl
 
 IGNORE_FILE = ".shipped-paths-guard-ignore"
-EXEMPT_DIRS = ("docs/", "tests/")
 # A generated page is not prose. `docs/` is exempt because a changelog may quote a real leaked
 # path as the record of an incident; a review form's `CONFIG.expectedDir` is read by the page's
 # own JavaScript and shown to a reviewer as where to save, so a machine path there is a live
-# instruction pointing at someone else's home directory. #268 shipped two such files.
+# instruction pointing at someone else's home directory. #268 shipped two such files. `tests/`
+# keeps its own unconditional exemption (test_gates_layout.py) — this suffix rule is docs/-only.
 GENERATED_PAGE_SUFFIXES = (".html", ".htm")
 
 _SEGMENT = r"[A-Za-z0-9][A-Za-z0-9_.\-]*"
@@ -87,9 +87,9 @@ def is_exempt(rel: str, prefixes: Sequence[str]) -> bool:
     """True when *rel* is documentation, a test, or explicitly listed."""
     if any(rel == p or rel.startswith(p) for p in prefixes):
         return True
-    if rel.endswith(GENERATED_PAGE_SUFFIXES):
-        return False
-    if rel.startswith(EXEMPT_DIRS):
+    if rel.startswith("docs/"):
+        return not rel.endswith(GENERATED_PAGE_SUFFIXES)
+    if rel.startswith("tests/"):
         return True
     if "/" not in rel and rel.endswith(".md"):
         return True

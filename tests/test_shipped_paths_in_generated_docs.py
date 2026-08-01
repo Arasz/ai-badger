@@ -36,21 +36,37 @@ class TestProseInDocsStaysExempt:
 
 
 class TestAGeneratedPageIsNotProse:
-    """An .html file under docs/ carries executable config, so the exemption stops there."""
+    """A `.html`/`.htm` file under docs/ carries executable config, so the exemption stops
+    there — both suffixes name the same live-config hazard (#268)."""
 
     @pytest.mark.parametrize("rel", [
         "docs/work/2026-08-01-post-backlog-review.html",
         "docs/work/2026-08-01-session-decisions-review.html",
         "docs/anything/else.html",
+        "docs/anything/else.htm",
     ])
     def test_a_shipped_page_is_checked(self, rel):
         assert not guard.is_exempt(rel, ())
 
-    def test_an_explicit_allowlist_entry_still_wins(self):
+    @pytest.mark.parametrize("rel", [
+        "docs/work/2026-08-01-post-backlog-review.html",
+        "docs/work/2026-08-01-post-backlog-review.htm",
+    ])
+    def test_an_explicit_allowlist_entry_still_wins(self, rel):
         """The escape hatch stays usable for a page that genuinely must quote a path."""
-        rel = "docs/work/2026-08-01-post-backlog-review.html"
-
         assert guard.is_exempt(rel, (rel,))
+
+
+class TestATestFixtureStaysExempt:
+    """`tests/` keeps its own exemption (test_gates_layout.py) — the docs/-only generated-page
+    suffix rule must not reach a fixture just because it happens to end in .html/.htm."""
+
+    @pytest.mark.parametrize("rel", [
+        "tests/fixtures/leaked_path.html",
+        "tests/fixtures/leaked_path.htm",
+    ])
+    def test_a_generated_page_suffix_under_tests_stays_exempt(self, rel):
+        assert guard.is_exempt(rel, ())
 
 
 class TestTheRealTreeIsClean:
