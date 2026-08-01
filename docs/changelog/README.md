@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.73.3 | [The cwd strip that never ran](0.73.3-dead-cwd-strip-removed.md) |
 | 0.73.2 | [Portable MCP scaffolding](0.73.2-portable-mcp-scaffolding.md) |
 | 0.73.1 | [A worktree belongs to no one agent](0.73.1-a-worktree-belongs-to-no-one-agent.md) |
 | 0.73.0 | [review before you plan, and check every join](0.73.0-review-before-you-plan.md) |
