@@ -480,10 +480,9 @@ class McpTools:
             return False
         if dest.pin_cwd:
             self._carry_live_cwd(section, entries)
-        else:
-            for name in entries:
-                if isinstance(section.get(name), dict):
-                    section[name].pop("cwd", None)
+        # A stale ``cwd`` needs no explicit removal: the rendered entry omits it unless
+        # ``pin_cwd``, and ``update`` replaces the recorded entry outright. A server this
+        # scaffold does not declare keeps whatever its author wrote (#291).
         section.update(entries)
         self._drop_declined(section, declined, dest)
         self._drop_declared_elsewhere(section, elsewhere, dest)

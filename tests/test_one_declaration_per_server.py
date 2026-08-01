@@ -90,6 +90,39 @@ def test_the_two_files_declare_the_same_server_identically(
     assert ours == _github_mcp_json(target)["pyright"]
 
 
+def test_a_stale_cwd_on_a_declared_server_does_not_survive_a_rescaffold(
+        tmp_path, make_scaffolder):
+    """#287: `.mcp.json` is tracked, so one machine's `cwd` must not outlive the refresh."""
+    target = make_scaffolder.target
+    servers = [{"name": "pyright", "command": "uvx mcp-server-pyright"}]
+    _scaffold(make_scaffolder, tmp_path, servers)
+
+    path = target / ".mcp.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["mcpServers"]["pyright"]["cwd"] = "/Users/someone-else/checkout"
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    _scaffold(make_scaffolder, tmp_path, servers)
+
+    assert "cwd" not in _mcp_json(target)["pyright"]
+
+
+def test_a_server_ai_badger_does_not_declare_keeps_its_own_cwd(tmp_path, make_scaffolder):
+    """The file is merged, not owned: a hand-added server's `cwd` is the author's to set."""
+    target = make_scaffolder.target
+    servers = [{"name": "pyright", "command": "uvx mcp-server-pyright"}]
+    _scaffold(make_scaffolder, tmp_path, servers)
+
+    path = target / ".mcp.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["mcpServers"]["hand-added"] = {"command": "serve", "cwd": "/srv/deliberate"}
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    _scaffold(make_scaffolder, tmp_path, servers)
+
+    assert _mcp_json(target)["hand-added"]["cwd"] == "/srv/deliberate"
+
+
 def test_the_tools_allowlist_reaches_the_file_both_hosts_read(tmp_path, make_scaffolder):
     """`tools` is Copilot's key, and Copilot reads `.mcp.json`; Claude Code ignores it."""
     target = make_scaffolder.target
