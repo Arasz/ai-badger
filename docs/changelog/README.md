@@ -20,7 +20,8 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.72.1 | [A worktree belongs to no one agent](0.72.1-a-worktree-belongs-to-no-one-agent.md) |
+| 0.73.1 | [A worktree belongs to no one agent](0.73.1-a-worktree-belongs-to-no-one-agent.md) |
+| 0.73.0 | [review before you plan, and check every join](0.73.0-review-before-you-plan.md) |
 | 0.72.0 | [rules that lived in the prompt](0.72.0-rules-that-lived-in-the-prompt.md) |
 | 0.71.0 | [buying speed with coverage](0.71.0-buying-speed-with-coverage.md) |
 | 0.70.2 | [squash-merged content is not lost](0.70.2-squash-merged-content-is-not-lost.md) |
