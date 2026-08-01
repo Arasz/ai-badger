@@ -565,3 +565,54 @@ def test_main_routes_forget_and_its_force_flag(tmp_path, load_script, monkeypatc
     assert awm.main(["forget"]) == 1, "an armed entry needs --force"
     assert awm.main(["forget", "--force"]) == 0
     assert json.loads(state_file.read_text(encoding="utf-8"))["projects"] == {}
+# ── the CLI must report what the gate will actually do (#297 review) ──────────
+# entry_here picks the most specific entry even when disabled, but the gate skips disabled
+# entries and falls back to an enclosing one — so the CLI could claim "inactive" while every
+# call auto-approved. That is the same disagreement this release exists to remove.
+
+def _parent_armed_worktree_disabled(awm, monkeypatch, tmp_path):
+    repo = tmp_path / "repo"
+    worktree = repo / "wt"
+    worktree.mkdir(parents=True)
+    monkeypatch.chdir(repo)
+    awm.cmd_away("2h")
+    monkeypatch.chdir(worktree)
+    awm.cmd_away("2h")
+    awm.cmd_disable()
+    return repo, worktree
+
+
+def test_status_reports_the_window_the_gate_would_use(tmp_path, load_script, monkeypatch,
+                                                       capsys):
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    _patch_state_paths(awm, monkeypatch, tmp_path)
+    repo, _ = _parent_armed_worktree_disabled(awm, monkeypatch, tmp_path)
+    capsys.readouterr()
+
+    awm.cmd_status()
+
+    out = capsys.readouterr().out
+    assert "inactive" not in out.lower(), "the gate auto-approves here; status must not deny it"
+    assert "AWAY" in out
+    assert str(repo) in out, "status should name the entry actually covering this directory"
+
+
+def test_disable_says_when_an_enclosing_project_still_covers_this_directory(
+        tmp_path, load_script, monkeypatch, capsys):
+    """"Normal approvals resume" is false if a parent entry still matches this cwd."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    _patch_state_paths(awm, monkeypatch, tmp_path)
+    repo = tmp_path / "repo"
+    worktree = repo / "wt"
+    worktree.mkdir(parents=True)
+    monkeypatch.chdir(repo)
+    awm.cmd_away("2h")
+    monkeypatch.chdir(worktree)
+    awm.cmd_away("2h")
+    capsys.readouterr()
+
+    awm.cmd_disable()
+
+    out = capsys.readouterr().out
+    assert "resume" not in out.lower(), "approvals do not resume while the parent is armed"
+    assert str(repo) in out

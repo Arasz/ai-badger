@@ -168,6 +168,25 @@ def entry_here(state):
     return (best_project, best_entry) if best_project is not None else None
 
 
+def covering_entry(state):
+    """What the gate would resolve for this cwd: the most specific *enabled* entry.
+
+    `entry_here` answers "whose entry is this directory's"; this answers "will a call from
+    here auto-approve". They differ when a disabled worktree entry sits inside an armed
+    checkout, and reporting the first as if it were the second is how the CLI would tell
+    you AWM is off while every call was approved.
+    """
+    here = str(Path.cwd())
+    best_project, best_entry = None, None
+    for project, entry in projects(state).items():
+        if not isinstance(entry, dict) or not entry.get("enabled"):
+            continue
+        if within(project, here) and (best_project is None
+                                      or len(str(project)) > len(str(best_project))):
+            best_project, best_entry = project, entry
+    return (best_project, best_entry) if best_project is not None else None
+
+
 def armed_elsewhere(state):
     """Projects other than this one that still hold a live window."""
     here = str(Path.cwd())
@@ -230,7 +249,12 @@ def cmd_disable(reason="user"):
     entry["disabled_reason"] = reason
     save_entry(state, project, entry)
     log_event("mode_disabled", f"reason={reason}, project={project}")
-    print("AWM disabled here. Normal approvals resume.")
+    still = covering_entry(load_state() or {})
+    if still:
+        print(f"AWM disabled for {project}, but {still[0]} still covers this directory — "
+              f"calls from here keep auto-approving. Disable it there to stop them.")
+    else:
+        print("AWM disabled here. Normal approvals resume.")
     _report_elsewhere(state)
 
 
@@ -243,7 +267,9 @@ def _report_elsewhere(state):
 
 def cmd_status():
     state = load_state() or {}
-    found = entry_here(state)
+    # Report the window the gate would use, not merely this directory's own entry: a
+    # disabled worktree entry inside an armed checkout still auto-approves.
+    found = covering_entry(state) or entry_here(state)
     entry = found[1] if found else None
     if not entry or not entry.get("enabled"):
         print("AWM: inactive in this project.")

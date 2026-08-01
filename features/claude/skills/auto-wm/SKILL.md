@@ -45,7 +45,7 @@ All via `python3 ~/.claude/skills/auto-wm/scripts/awm.py`:
 
 | File | Purpose |
 |---|---|
-| `~/.claude/awm/state.json` | `{"version": 2, "projects": {"<path>": {`enabled`, `mode`, `enabled_at`, `duration`, `expires_at`}}}` — one entry per project. A pre-0.74 single-project file is read as one entry and rewritten in this shape on the next change. |
+| `~/.claude/awm/state.json` | `{"version": 2, "projects": {"<path>": {"enabled": ..., "mode": ..., "enabled_at": ..., "duration": ..., "expires_at": ...}}}` — one entry per project. A pre-0.74 single-project file is read as one entry and rewritten in this shape on the next change. |
 | `~/.claude/awm/decisions.jsonl` | Audit log: `mode_enabled/disabled/expired`, `auto_approve`, `question_denied`, `denylisted`, `out_of_scope`, `decision` |
 | `~/.claude/skills/auto-wm/hooks/` | `awm_gate.py` (PreToolUse), `awm_context.py` (UserPromptSubmit) |
 
