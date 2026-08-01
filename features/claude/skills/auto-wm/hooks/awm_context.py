@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """UserPromptSubmit hook for autonomic work mode (AWM).
 
-If AWM is active, injects a status line (plain stdout becomes context) telling
-Claude which mode is on and how to register decisions. Both modes' windows lapse
-on wall-clock time; this flips the state off and announces expiry once.
-Silent (exit 0, no output) when the mode is off or on any internal error.
+If AWM is active *for the project this prompt came from*, injects a status line (plain
+stdout becomes context) telling Claude which mode is on and how to register decisions.
+Scope is load-bearing: this hook used to ignore it and announce away mode in every project
+on the machine, including ones where the gate denied every call (#296).
+Both modes' windows lapse on wall-clock time; this flips that project's entry off and
+announces expiry once. Silent (exit 0, no output) when the mode is off here or on any
+internal error.
 """
 # pylint: disable=missing-function-docstring,broad-exception-caught
 # Ported verbatim from the originating job-search-ai-assistant repo's auto-wm skill: kept in
@@ -25,13 +28,65 @@ def now_utc():
     return datetime.now(timezone.utc)
 
 
-def retire(state, mode, expires):
-    """Flip an elapsed window off, record it, and announce the expiry once."""
-    expires_at = state.get("expires_at")
-    state["enabled"] = False
-    state["disabled_at"] = now_utc().isoformat(timespec="seconds")
-    state["disabled_reason"] = "expired"
-    STATE_FILE.write_text(json.dumps(state, indent=2) + "\n")
+def session_cwd():
+    """Where this prompt came from. Hooks receive it on stdin; fall back to the process cwd."""
+    try:
+        return (json.load(sys.stdin) or {}).get("cwd") or str(Path.cwd())
+    except Exception:  # pylint: disable=broad-exception-caught
+        return str(Path.cwd())
+
+
+def within(root, path):
+    """True when path is root itself or lives underneath it."""
+    if not root or not path:
+        return False
+    try:
+        base = Path(root).expanduser().resolve()
+        candidate = Path(path).expanduser().resolve()
+    except (OSError, ValueError, RuntimeError):
+        return False
+    return candidate == base or base in candidate.parents
+
+
+def projects(state):
+    """Per-project entries, migrating the pre-#296 single-project shape on read."""
+    if isinstance(state.get("projects"), dict):
+        return state["projects"]
+    if state.get("project"):
+        return {state["project"]: state}
+    return {}
+
+
+def entry_for(state, cwd):
+    """The armed entry whose project contains *cwd*, most specific first, or None.
+
+    The banner used to skip this check entirely, so it announced away mode in every
+    project on the machine while the gate denied all but one of them (#296).
+    """
+    best_project, best_entry = None, None
+    for project, entry in projects(state).items():
+        if not isinstance(entry, dict) or not entry.get("enabled"):
+            continue
+        if within(project, cwd) and (best_project is None
+                                     or len(str(project)) > len(str(best_project))):
+            best_project, best_entry = project, entry
+    return (best_project, best_entry) if best_project is not None else None
+
+
+def save(state, project, entry):
+    """Write the state back in the per-project shape, whichever shape it was read in."""
+    data = {"version": 2, "projects": dict(projects(state))}
+    data["projects"][project] = entry
+    STATE_FILE.write_text(json.dumps(data, indent=2) + "\n")
+
+
+def retire(state, project, entry, mode, expires):
+    """Flip one project's elapsed window off, record it, and announce the expiry once."""
+    expires_at = entry.get("expires_at")
+    entry["enabled"] = False
+    entry["disabled_at"] = now_utc().isoformat(timespec="seconds")
+    entry["disabled_reason"] = "expired"
+    save(state, project, entry)
     with DECISIONS_FILE.open("a") as f:
         f.write(json.dumps({"ts": now_utc().isoformat(timespec="seconds"),
                             "type": "mode_expired",
@@ -43,17 +98,19 @@ def retire(state, mode, expires):
 
 def main():
     state = json.loads(STATE_FILE.read_text())
-    if not state.get("enabled"):
-        return
+    found = entry_for(state, session_cwd())
+    if not found:
+        return  # AWM is off here, whatever it is doing in another project
 
-    mode = state.get("mode", "away")  # older state files predate the mode field
-    expires_at = state.get("expires_at")
+    project, entry = found
+    mode = entry.get("mode", "away")  # older state files predate the mode field
+    expires_at = entry.get("expires_at")
     expires = datetime.fromisoformat(expires_at) if expires_at else None
 
     # Both modes are wall-clock bounded; a state file with no expiry predates that and
     # the gate refuses it, so retire it here too rather than announcing a live window.
     if expires is None or now_utc() >= expires:
-        retire(state, mode, expires)
+        retire(state, project, entry, mode, expires)
         return
 
     total = int((expires - now_utc()).total_seconds())

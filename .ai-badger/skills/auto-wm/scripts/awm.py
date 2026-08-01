@@ -7,10 +7,12 @@ Two modes:
   - away: same auto-approval, but AskUserQuestion is denied (no one is
     around to answer) and the window expires on wall-clock time.
 
-Both modes record the project they were enabled in; the gate refuses to
-auto-approve calls made from anywhere else.
+Each project gets its own entry, with its own mode and its own clock: the gate refuses
+to auto-approve calls made from anywhere else, and enabling AWM in one checkout neither
+arms the machine nor disarms another checkout (#296).
 
-State lives at ~/.claude/awm/state.json (user level, never inside a project).
+State lives at ~/.claude/awm/state.json (user level, never inside a project), keyed by
+project path. A pre-0.74 single-project file is read as one entry and rewritten on change.
 Every mode change and registered decision is appended to ~/.claude/awm/decisions.jsonl.
 """
 # pylint: disable=missing-function-docstring
@@ -122,29 +124,101 @@ def capped_duration(duration_text):
     return MAX_DURATION_SECONDS, f"{MAX_DURATION_SECONDS // 3600}h"
 
 
+def within(root, path):
+    """True when path is root itself or lives underneath it."""
+    if not root or not path:
+        return False
+    try:
+        base = Path(root).expanduser().resolve()
+        candidate = Path(path).expanduser().resolve()
+    except (OSError, ValueError, RuntimeError):
+        return False
+    return candidate == base or base in candidate.parents
+
+
+def projects(state):
+    """Per-project entries, migrating the pre-#296 single-project shape on read."""
+    if isinstance(state.get("projects"), dict):
+        return dict(state["projects"])
+    if state.get("project"):
+        return {state["project"]: state}
+    return {}
+
+
+def save_entry(state, project, entry):
+    """Write one project's entry back, leaving every other project's window alone."""
+    data = {"version": 2, "projects": projects(state)}
+    data["projects"][project] = entry
+    write_state(data)
+
+
+def entry_here(state):
+    """This project's entry, or None — the most specific match, as the gate resolves it.
+
+    A worktree sits inside its checkout, so first-match would let `off` in the worktree
+    disarm the whole repo.
+    """
+    here = str(Path.cwd())
+    best_project, best_entry = None, None
+    for project, entry in projects(state).items():
+        if not isinstance(entry, dict) or not within(project, here):
+            continue
+        if best_project is None or len(str(project)) > len(str(best_project)):
+            best_project, best_entry = project, entry
+    return (best_project, best_entry) if best_project is not None else None
+
+
+def covering_entry(state):
+    """What the gate would resolve for this cwd: the most specific *enabled* entry.
+
+    `entry_here` answers "whose entry is this directory's"; this answers "will a call from
+    here auto-approve". They differ when a disabled worktree entry sits inside an armed
+    checkout, and reporting the first as if it were the second is how the CLI would tell
+    you AWM is off while every call was approved.
+    """
+    here = str(Path.cwd())
+    best_project, best_entry = None, None
+    for project, entry in projects(state).items():
+        if not isinstance(entry, dict) or not entry.get("enabled"):
+            continue
+        if within(project, here) and (best_project is None
+                                      or len(str(project)) > len(str(best_project))):
+            best_project, best_entry = project, entry
+    return (best_project, best_entry) if best_project is not None else None
+
+
+def armed_elsewhere(state):
+    """Projects other than this one that still hold a live window."""
+    here = str(Path.cwd())
+    return sorted(p for p, e in projects(state).items()
+                  if isinstance(e, dict) and e.get("enabled") and not within(p, here))
+
+
 def _enable(mode, duration_text):
-    """Write an enabled, project-scoped, wall-clock-bounded state. Returns it."""
+    """Write an enabled, project-scoped, wall-clock-bounded entry. Returns it."""
     seconds, duration_text = capped_duration(duration_text)
-    prev_state = load_state() or {}
-    prev_mode = prev_state.get("mode") if prev_state.get("enabled") else None
+    state = load_state() or {}
+    found = entry_here(state)
+    prev_mode = found[1].get("mode") if found and found[1].get("enabled") else None
     enabled_at = now_utc()
     expires_at = enabled_at + timedelta(seconds=seconds)
-    state = {
+    project = str(Path.cwd())
+    entry = {
         "enabled": True,
         "mode": mode,
-        "project": str(Path.cwd()),
+        "project": project,
         "enabled_at": enabled_at.isoformat(timespec="seconds"),
         "duration": duration_text,
         "duration_seconds": seconds,
         "expires_at": expires_at.isoformat(timespec="seconds"),
     }
-    write_state(state)
-    detail = (f"mode={mode}, project={state['project']}, duration={duration_text}, "
-              f"expires_at={state['expires_at']}")
+    save_entry(state, project, entry)
+    detail = (f"mode={mode}, project={project}, duration={duration_text}, "
+              f"expires_at={entry['expires_at']}")
     if prev_mode and prev_mode != mode:
         detail += f" (switched from {prev_mode})"
     log_event("mode_enabled", detail)
-    return state
+    return entry
 
 
 def cmd_partner(duration_text=DEFAULT_PARTNER_DURATION):
@@ -164,37 +238,59 @@ def cmd_away(duration_text):
 
 def cmd_disable(reason="user"):
     state = load_state() or {}
-    if not state.get("enabled"):
-        print("AWM is not active.")
+    found = entry_here(state)
+    if not found or not found[1].get("enabled"):
+        print("AWM is not active in this project.")
+        _report_elsewhere(state)
         return
-    state["enabled"] = False
-    state["disabled_at"] = now_utc().isoformat(timespec="seconds")
-    state["disabled_reason"] = reason
-    write_state(state)
-    log_event("mode_disabled", f"reason={reason}")
-    print("AWM disabled. Normal approvals resume.")
+    project, entry = found
+    entry["enabled"] = False
+    entry["disabled_at"] = now_utc().isoformat(timespec="seconds")
+    entry["disabled_reason"] = reason
+    save_entry(state, project, entry)
+    log_event("mode_disabled", f"reason={reason}, project={project}")
+    still = covering_entry(load_state() or {})
+    if still:
+        print(f"AWM disabled for {project}, but {still[0]} still covers this directory — "
+              f"calls from here keep auto-approving. Disable it there to stop them.")
+    else:
+        print("AWM disabled here. Normal approvals resume.")
+    _report_elsewhere(state)
+
+
+def _report_elsewhere(state):
+    """Name the other projects still armed, so a window is never invisible."""
+    others = armed_elsewhere(state)
+    if others:
+        print("Still active in: " + ", ".join(others))
 
 
 def cmd_status():
-    state = load_state()
-    if not state or not state.get("enabled"):
-        print("AWM: inactive.")
-        if state and state.get("disabled_at"):
-            reason = state.get("disabled_reason", "?")
-            print(f"Last disabled {fmt_local(state['disabled_at'])} (reason: {reason}).")
+    state = load_state() or {}
+    # Report the window the gate would use, not merely this directory's own entry: a
+    # disabled worktree entry inside an armed checkout still auto-approves.
+    found = covering_entry(state) or entry_here(state)
+    entry = found[1] if found else None
+    if not entry or not entry.get("enabled"):
+        print("AWM: inactive in this project.")
+        if entry and entry.get("disabled_at"):
+            reason = entry.get("disabled_reason", "?")
+            print(f"Last disabled {fmt_local(entry['disabled_at'])} (reason: {reason}).")
+        _report_elsewhere(state)
         return
-    mode = state.get("mode", "away").upper()  # older state files predate the mode field
-    scope = state.get("project") or "unset — the gate will refuse; re-enable to scope it"
-    if not state.get("expires_at"):
+    mode = entry.get("mode", "away").upper()  # older state files predate the mode field
+    scope = entry.get("project") or found[0]
+    if not entry.get("expires_at"):
         print(f"AWM: {mode} state records no expiry; the gate will refuse it. Re-enable.")
         return
-    if now_utc() >= datetime.fromisoformat(state["expires_at"]):
-        print(f"AWM: {mode} mode EXPIRED at {fmt_local(state['expires_at'])} "
+    if now_utc() >= datetime.fromisoformat(entry["expires_at"]):
+        print(f"AWM: {mode} mode EXPIRED at {fmt_local(entry['expires_at'])} "
               "(hooks will flip it off on next event).")
         return
-    print(f"AWM: {mode} since {fmt_local(state['enabled_at'])}, "
-          f"expires {fmt_local(state['expires_at'])} ({fmt_remaining(state['expires_at'])}).")
+    print(f"AWM: {mode} since {fmt_local(entry['enabled_at'])}, "
+          f"expires {fmt_local(entry['expires_at'])} ({fmt_remaining(entry['expires_at'])}).")
     print(f"Scope: {scope}")
+    _report_elsewhere(state)
 
 
 def cmd_decision(text):

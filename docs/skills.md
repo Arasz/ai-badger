@@ -297,13 +297,22 @@ logging" — or producing a health report on ai-badger's own hooks in this proje
 (someone is at the keyboard, questions are left alone) and **away** (nobody is, questions are
 denied outright).
 
-**What it does.** `/auto-wm [partner|away DURATION|off|status]` writes `~/.claude/awm/state.json`
-(mode, project scope, expiry, capped at 12h). A `PreToolUse` hook (`awm_gate.py`) then
-auto-approves calls inside that project scope, except a denylist (destructive shell commands,
-force-pushes, network egress, writes outside the project) which always falls through to the
-normal permission prompt; every decision is logged to `~/.claude/awm/decisions.jsonl`. State is
-machine-wide, not project-scaffolded — the skill files are versioned per project so `den-refresh`
-updates them, but they must be copied to `~/.claude/skills/auto-wm/` by hand once.
+**What it does.** `/auto-wm [partner|away DURATION|off|status]` writes an entry in
+`~/.claude/awm/state.json` for the project it was run in (mode, expiry, capped at 12h). A
+`PreToolUse` hook (`awm_gate.py`) then auto-approves calls inside that project, except a denylist
+(destructive shell commands, force-pushes, network egress, writes outside the project) which
+always falls through to the normal permission prompt; every decision is logged to
+`~/.claude/awm/decisions.jsonl`.
+
+**State is per project** (0.74.0). Each entry carries its own mode and its own clock, so two
+checkouts can be armed at once and `off` in one leaves the other running. Before that a single
+scope meant enabling AWM in a second repo silently disarmed the first — and the `UserPromptSubmit`
+banner ignored scope entirely, announcing away mode in projects where the gate denied every call
+(#296). Both hooks now read the same entry.
+
+The state **file** is machine-wide, not project-scaffolded — the skill files are versioned per
+project so `den-refresh` updates them, but they must be copied to `~/.claude/skills/auto-wm/` by
+hand once, and re-copied after an update that touches `hooks/`.
 
 **When to use it.** "Enable autonomic/autonomous work mode", "/auto-wm", "partner mode", "work
 by yourself for N hours", "no one will be around to approve/answer" — or to check status, switch

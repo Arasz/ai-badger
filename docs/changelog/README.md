@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.74.0 | [AWM state is per project](0.74.0-awm-per-project-state.md) |
 | 0.73.3 | [The cwd strip that never ran](0.73.3-dead-cwd-strip-removed.md) |
 | 0.73.2 | [Portable MCP scaffolding](0.73.2-portable-mcp-scaffolding.md) |
 | 0.73.1 | [A worktree belongs to no one agent](0.73.1-a-worktree-belongs-to-no-one-agent.md) |

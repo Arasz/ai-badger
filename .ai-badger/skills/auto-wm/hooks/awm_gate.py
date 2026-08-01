@@ -7,8 +7,8 @@ unless one of three guards fires first, in which case nothing is emitted and the
 normal permission prompt reaches the human:
 
   - expiry: both modes carry a wall-clock expiry, re-checked on every call.
-  - project scope: the state records the project it was enabled in; a call whose
-    cwd is outside that tree is never auto-approved.
+  - project scope: the state holds one entry per project; a call whose cwd is outside
+    every armed tree is never auto-approved. Two checkouts can be armed at once.
   - denylist: destructive shell commands, network egress and writes outside the
     project are never auto-approved, in either mode.
 
@@ -114,6 +114,30 @@ def expired(state):
     return now_utc() >= datetime.fromisoformat(expires_at)
 
 
+def projects(state):
+    """Per-project entries, migrating the pre-#296 single-project shape on read."""
+    if isinstance(state.get("projects"), dict):
+        return state["projects"]
+    if state.get("project"):
+        return {state["project"]: state}
+    return {}
+
+
+def entry_for(state, cwd):
+    """The armed entry whose project contains *cwd*, most specific first, or None.
+
+    One machine-wide scope meant enabling AWM in a second repo disarmed the first (#296).
+    """
+    best_project, best_entry = None, None
+    for project, entry in projects(state).items():
+        if not isinstance(entry, dict) or not entry.get("enabled"):
+            continue
+        if within(project, cwd) and (best_project is None
+                                     or len(str(project)) > len(str(best_project))):
+            best_project, best_entry = project, entry
+    return (best_project, best_entry) if best_project is not None else None
+
+
 def denylist_reason(tool_name, tool_input, project):
     """Fixed-vocabulary reason this call may never be auto-approved, or None.
 
@@ -133,39 +157,47 @@ def denylist_reason(tool_name, tool_input, project):
     return None
 
 
-def disable(state, reason, detail, session_id, cwd):
-    """Flip the state off on disk and record why; the caller then emits nothing."""
-    state["enabled"] = False
-    state["disabled_at"] = now_utc().isoformat(timespec="seconds")
-    state["disabled_reason"] = reason
-    STATE_FILE.write_text(json.dumps(state, indent=2) + "\n")
+def disable(state, project, entry, reason, detail, session_id, cwd):
+    """Flip one project's entry off on disk and record why; the caller emits nothing."""
+    entry["enabled"] = False
+    entry["disabled_at"] = now_utc().isoformat(timespec="seconds")
+    entry["disabled_reason"] = reason
+    data = {"version": 2, "projects": dict(projects(state))}
+    data["projects"][project] = entry
+    STATE_FILE.write_text(json.dumps(data, indent=2) + "\n")
     log_event("mode_expired", detail, session_id, cwd)
 
 
 def main():
     payload = json.load(sys.stdin)
     state = json.loads(STATE_FILE.read_text())
-    if not state.get("enabled"):
-        return
 
     session_id = payload.get("session_id")
     cwd = payload.get("cwd")
     tool_name = payload.get("tool_name", "?")
     tool_input = payload.get("tool_input")
-    mode = state.get("mode", "away")  # older state files predate the mode field
-    project = state.get("project")
-    expires_at = state.get("expires_at")
-
-    if expired(state):
-        detail = f"expired_at={expires_at}" if expires_at else "no expiry recorded in state"
-        disable(state, "expired", detail, session_id, cwd)
-        return  # no output -> normal permission flow resumes
 
     # A window enabled in one project never speaks for another, and never for a
     # state file that predates project scoping.
-    if not within(project, cwd):
-        log_event("out_of_scope", f"project={project or 'unset'}", session_id, cwd, tool_name)
+    found = entry_for(state, cwd)
+    if not found:
+        armed = sorted(p for p, e in projects(state).items()
+                       if isinstance(e, dict) and e.get("enabled"))
+        # A window open elsewhere — or an enabled-but-unscoped legacy state — is a refusal
+        # worth recording. AWM simply being off everywhere is not.
+        if armed or state.get("enabled"):
+            log_event("out_of_scope", f"project={', '.join(armed) or 'unset'}",
+                      session_id, cwd, tool_name)
         return
+
+    project, entry = found
+    mode = entry.get("mode", "away")  # older state files predate the mode field
+    expires_at = entry.get("expires_at")
+
+    if expired(entry):
+        detail = f"expired_at={expires_at}" if expires_at else "no expiry recorded in state"
+        disable(state, project, entry, "expired", detail, session_id, cwd)
+        return  # no output -> normal permission flow resumes
 
     reason = denylist_reason(tool_name, tool_input, project)
     if reason:

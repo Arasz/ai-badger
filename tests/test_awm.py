@@ -21,6 +21,12 @@ def _patch_state_paths(module, monkeypatch, tmp_path):
     return awm_dir
 
 
+def _entry_here(awm):
+    """This project's entry. Since #296 state.json holds one entry per project."""
+    found = awm.entry_here(awm.load_state() or {})
+    return found[1] if found else {}
+
+
 def _read_decisions(awm_dir):
     path = awm_dir / "decisions.jsonl"
     if not path.exists():
@@ -57,7 +63,7 @@ def test_main_partner_enables_a_bounded_project_scoped_mode(tmp_path, load_scrip
     rc = awm.main(["partner"])
 
     assert rc == 0
-    state = awm.load_state()
+    state = _entry_here(awm)
     assert state["enabled"] is True
     assert state["mode"] == "partner"
     assert state["duration"] == awm.DEFAULT_PARTNER_DURATION
@@ -76,7 +82,7 @@ def test_main_no_args_defaults_to_partner(tmp_path, load_script, monkeypatch):
     rc = awm.main([])
 
     assert rc == 0
-    assert awm.load_state()["mode"] == "partner"
+    assert _entry_here(awm)["mode"] == "partner"
 
 
 def test_main_away_parses_duration_and_persists_expiry(tmp_path, load_script, monkeypatch,
@@ -87,7 +93,7 @@ def test_main_away_parses_duration_and_persists_expiry(tmp_path, load_script, mo
     rc = awm.main(["away", "4h"])
 
     assert rc == 0
-    state = awm.load_state()
+    state = _entry_here(awm)
     assert state["enabled"] is True
     assert state["mode"] == "away"
     assert state["duration"] == "4h"
@@ -105,7 +111,7 @@ def test_main_away_without_duration_uses_default(tmp_path, load_script, monkeypa
     rc = awm.main(["away"])
 
     assert rc == 0
-    state = awm.load_state()
+    state = _entry_here(awm)
     assert state["duration"] == awm.DEFAULT_AWAY_DURATION
 
 
@@ -152,7 +158,7 @@ def test_main_disable_after_enabled_flips_state_off(tmp_path, load_script, monke
     rc = awm.main(["disable"])
 
     assert rc == 0
-    state = awm.load_state()
+    state = _entry_here(awm)
     assert state["enabled"] is False
     assert state["disabled_reason"] == "user"
     assert "disabled" in capsys.readouterr().out.lower()
@@ -202,9 +208,10 @@ def test_main_status_reports_expired_away_window_as_no_longer_away(tmp_path, loa
                                                                      monkeypatch, capsys):
     awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
     _patch_state_paths(awm, monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
     expired_at = datetime.now(timezone.utc) - timedelta(hours=1)
     awm.write_state({
-        "enabled": True, "mode": "away",
+        "enabled": True, "mode": "away", "project": str(tmp_path),
         "enabled_at": (expired_at - timedelta(hours=4)).isoformat(timespec="seconds"),
         "duration": "4h", "duration_seconds": 4 * 3600,
         "expires_at": expired_at.isoformat(timespec="seconds"),
@@ -258,7 +265,7 @@ def test_main_away_records_the_project_it_was_enabled_in(tmp_path, load_script, 
 
     awm.main(["away", "2h"])
 
-    assert awm.load_state()["project"] == str(tmp_path)
+    assert _entry_here(awm)["project"] == str(tmp_path)
 
 
 def test_a_window_longer_than_the_maximum_is_capped(tmp_path, load_script, monkeypatch, capsys):
@@ -269,7 +276,7 @@ def test_a_window_longer_than_the_maximum_is_capped(tmp_path, load_script, monke
 
     awm.main(["away", "48h"])
 
-    state = awm.load_state()
+    state = _entry_here(awm)
     assert state["duration_seconds"] == awm.MAX_DURATION_SECONDS
     assert "capping" in capsys.readouterr().out
 
@@ -324,3 +331,157 @@ def test_the_decision_log_is_capped(tmp_path, load_script, monkeypatch):
     lines = (tmp_path / "awm" / "decisions.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(lines) <= 5
     assert "entry 19" in lines[-1]
+
+
+# ── per-project state (#296) ─────────────────────────────────────────────────
+
+def _entries(state_file):
+    return json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+
+
+def test_enabling_in_one_project_leaves_another_armed(tmp_path, load_script, monkeypatch, capsys):
+    """The defect: one machine-wide scope, so arming repo B silently disarmed repo A."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file = _patch_state_paths(awm, monkeypatch, tmp_path) / "state.json"
+    a, b = tmp_path / "alpha", tmp_path / "beta"
+    a.mkdir()
+    b.mkdir()
+
+    monkeypatch.chdir(a)
+    awm.cmd_away("2h")
+    monkeypatch.chdir(b)
+    awm.cmd_partner("2h")
+    capsys.readouterr()
+
+    entries = _entries(state_file)
+    assert entries[str(a)]["enabled"] is True and entries[str(a)]["mode"] == "away"
+    assert entries[str(b)]["enabled"] is True and entries[str(b)]["mode"] == "partner"
+
+
+def test_disable_only_affects_the_current_project(tmp_path, load_script, monkeypatch, capsys):
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file = _patch_state_paths(awm, monkeypatch, tmp_path) / "state.json"
+    a, b = tmp_path / "alpha", tmp_path / "beta"
+    a.mkdir()
+    b.mkdir()
+
+    monkeypatch.chdir(a)
+    awm.cmd_away("2h")
+    monkeypatch.chdir(b)
+    awm.cmd_away("2h")
+    awm.cmd_disable()
+    capsys.readouterr()
+
+    entries = _entries(state_file)
+    assert entries[str(a)]["enabled"] is True, "disabling in beta must not disarm alpha"
+    assert entries[str(b)]["enabled"] is False
+
+
+def test_status_reports_this_project_not_another(tmp_path, load_script, monkeypatch, capsys):
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    _patch_state_paths(awm, monkeypatch, tmp_path)
+    a, b = tmp_path / "alpha", tmp_path / "beta"
+    a.mkdir()
+    b.mkdir()
+
+    monkeypatch.chdir(a)
+    awm.cmd_away("2h")
+    capsys.readouterr()
+    monkeypatch.chdir(b)
+    awm.cmd_status()
+
+    out = capsys.readouterr().out
+    assert "inactive" in out.lower()
+    assert str(a) in out, "status should say where the window that does exist is scoped"
+
+
+def test_re_enabling_the_same_project_replaces_its_entry(tmp_path, load_script, monkeypatch,
+                                                          capsys):
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file = _patch_state_paths(awm, monkeypatch, tmp_path) / "state.json"
+    a = tmp_path / "alpha"
+    a.mkdir()
+
+    monkeypatch.chdir(a)
+    awm.cmd_away("2h")
+    awm.cmd_partner("3h")
+    capsys.readouterr()
+
+    entries = _entries(state_file)
+    assert len(entries) == 1
+    assert entries[str(a)]["mode"] == "partner"
+
+
+def test_a_worktree_disables_its_own_entry_not_the_parent_repos(tmp_path, load_script,
+                                                                 monkeypatch, capsys):
+    """The hooks pick the most specific armed project; the CLI must agree, or `off` in a
+    worktree silently disarms the whole checkout."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file = _patch_state_paths(awm, monkeypatch, tmp_path) / "state.json"
+    repo = tmp_path / "repo"
+    worktree = repo / "wt"
+    worktree.mkdir(parents=True)
+
+    monkeypatch.chdir(repo)
+    awm.cmd_away("2h")
+    monkeypatch.chdir(worktree)
+    awm.cmd_away("2h")
+    awm.cmd_disable()
+    capsys.readouterr()
+
+    entries = json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    assert entries[str(repo)]["enabled"] is True, "the parent checkout must stay armed"
+    assert entries[str(worktree)]["enabled"] is False
+
+
+# ── the CLI must report what the gate will actually do (#297 review) ──────────
+# entry_here picks the most specific entry even when disabled, but the gate skips disabled
+# entries and falls back to an enclosing one — so the CLI could claim "inactive" while every
+# call auto-approved. That is the same disagreement this release exists to remove.
+
+def _parent_armed_worktree_disabled(awm, monkeypatch, tmp_path):
+    repo = tmp_path / "repo"
+    worktree = repo / "wt"
+    worktree.mkdir(parents=True)
+    monkeypatch.chdir(repo)
+    awm.cmd_away("2h")
+    monkeypatch.chdir(worktree)
+    awm.cmd_away("2h")
+    awm.cmd_disable()
+    return repo, worktree
+
+
+def test_status_reports_the_window_the_gate_would_use(tmp_path, load_script, monkeypatch,
+                                                       capsys):
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    _patch_state_paths(awm, monkeypatch, tmp_path)
+    repo, _ = _parent_armed_worktree_disabled(awm, monkeypatch, tmp_path)
+    capsys.readouterr()
+
+    awm.cmd_status()
+
+    out = capsys.readouterr().out
+    assert "inactive" not in out.lower(), "the gate auto-approves here; status must not deny it"
+    assert "AWAY" in out
+    assert str(repo) in out, "status should name the entry actually covering this directory"
+
+
+def test_disable_says_when_an_enclosing_project_still_covers_this_directory(
+        tmp_path, load_script, monkeypatch, capsys):
+    """"Normal approvals resume" is false if a parent entry still matches this cwd."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    _patch_state_paths(awm, monkeypatch, tmp_path)
+    repo = tmp_path / "repo"
+    worktree = repo / "wt"
+    worktree.mkdir(parents=True)
+    monkeypatch.chdir(repo)
+    awm.cmd_away("2h")
+    monkeypatch.chdir(worktree)
+    awm.cmd_away("2h")
+    capsys.readouterr()
+
+    awm.cmd_disable()
+
+    out = capsys.readouterr().out
+    assert "resume" not in out.lower(), "approvals do not resume while the parent is armed"
+    assert str(repo) in out
