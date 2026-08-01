@@ -227,4 +227,4 @@ def test_the_catalog_is_now_the_only_thing_declaring_the_graph(make_scaffolder):
     declared = _mcp(make_scaffolder).declared_servers()
 
     assert set(declared) == {CATALOG_SERVER}
-    assert declared[CATALOG_SERVER]["command"] == "python3 -m code_review_graph serve"
+    assert declared[CATALOG_SERVER]["command"] == "code-review-graph serve"

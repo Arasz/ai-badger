@@ -3,8 +3,8 @@
 Copilot CLI reads `.github/mcp.json` *and* `.mcp.json` (looked up from the cwd upward), and
 their precedence is undocumented. A server the two files describe differently therefore has no
 knowable configuration, so ai-badger never writes one: the entries are identical apart from
-`cwd`, and a server whose two renderings cannot be reconciled is declared once, in `.mcp.json`,
-with a note.
+the destination-specific `tools` allowlist, and a server whose two renderings cannot be reconciled
+is declared once, in `.mcp.json`, with a note.
 """
 # pylint: disable=protected-access  # exercises the Scaffolder MCP mixin directly; see pyproject.toml
 from __future__ import annotations
@@ -76,7 +76,7 @@ def _fake_tool_dirs(monkeypatch, load_script, tmp_path):
 
 # ── the two files agree ──────────────────────────────────────────────────────
 
-def test_the_two_files_declare_the_same_server_identically_apart_from_cwd(
+def test_the_two_files_declare_the_same_server_identically(
         tmp_path, make_scaffolder):
     """Precedence stops mattering when there is nothing for it to choose between."""
     target = make_scaffolder.target
@@ -86,7 +86,7 @@ def test_the_two_files_declare_the_same_server_identically_apart_from_cwd(
          "env": {"TOKEN": "${MCP_TOKEN}"}}])
 
     ours = dict(_mcp_json(target)["pyright"])
-    assert ours.pop("cwd") == str(target)
+    assert "cwd" not in ours
     assert ours == _github_mcp_json(target)["pyright"]
 
 

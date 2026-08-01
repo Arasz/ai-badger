@@ -33,7 +33,9 @@ Pre-1.0, the minor slot is the breaking slot. The number tracks blast radius, no
    green PR looks identical whether or not anyone remembered. Automating it removed the failure
    mode; verify the tag reached the remote anyway
    (`git ls-remote --tags origin | grep "refs/tags/ai-badger--v{version}$"`)
-   rather than assuming, because a workflow that did not run also looks like nothing.
+   rather than assuming, because a workflow that did not run also looks like nothing. The
+   workflow annotates the run if the merge subject contains a parenthesized version different
+   from `VERSION`; this is advisory because the merge has already happened.
 9. **Verify content, not just metadata** (fixes #27):
 
 ### Verification (mandatory)
