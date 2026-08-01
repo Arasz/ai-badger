@@ -35,7 +35,7 @@ All via `python3 ~/.claude/skills/auto-wm/scripts/awm.py`:
 
 ## Invocation
 
-`/auto-wm [away DURATION | off | status | partner DURATION]` — no argument means `partner` (8h, default). Away mode must be asked for explicitly, since it changes how questions are handled and has a clock running.
+`/auto-wm [away DURATION | off | status | forget [PATH] [--force] | partner DURATION]` — no argument means `partner` (8h, default). Away mode must be asked for explicitly, since it changes how questions are handled and has a clock running.
 
 1. Run the matching `awm.py` command and relay its output (partner/away both print what changed).
 2. On first enable (partner or away), smoke-test that the gate hook actually fires: run any trivial command (e.g. `true`), then `tail -2 ~/.claude/awm/decisions.jsonl` — a fresh `auto_approve` entry proves auto-approval is live. If no entry appears, check registration with `jq '.hooks.PreToolUse' ~/.claude/settings.json`; if missing, merge `~/.claude/skills/auto-wm/hooks/settings-snippet.json` into `~/.claude/settings.json` (preserve existing keys), then tell the user hooks load on `/hooks` or restart.

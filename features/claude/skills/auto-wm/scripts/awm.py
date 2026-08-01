@@ -152,20 +152,29 @@ def save_entry(state, project, entry):
     write_state(data)
 
 
-def entry_here(state):
-    """This project's entry, or None — the most specific match, as the gate resolves it.
+def most_specific(entries, path, require_enabled=False):
+    """The deepest entry containing *path*, or None. Every candidate is an ancestor of
+    *path*, so they nest and the longest key is the nearest one.
 
-    A worktree sits inside its checkout, so first-match would let `off` in the worktree
-    disarm the whole repo.
+    First-match is wrong three different ways here: `off` in a worktree would disarm the
+    whole checkout, `status` would answer for the wrong project, and `forget` would delete
+    it. Each was found separately; this is the one implementation they now share.
     """
-    here = str(Path.cwd())
     best_project, best_entry = None, None
-    for project, entry in projects(state).items():
-        if not isinstance(entry, dict) or not within(project, here):
+    for project, entry in entries.items():
+        if not isinstance(entry, dict):
             continue
-        if best_project is None or len(str(project)) > len(str(best_project)):
+        if require_enabled and not entry.get("enabled"):
+            continue
+        if within(project, path) and (best_project is None
+                                      or len(str(project)) > len(str(best_project))):
             best_project, best_entry = project, entry
     return (best_project, best_entry) if best_project is not None else None
+
+
+def entry_here(state):
+    """This directory's own entry, enabled or not — what `disable` and `forget` act on."""
+    return most_specific(projects(state), str(Path.cwd()))
 
 
 def covering_entry(state):
@@ -176,15 +185,7 @@ def covering_entry(state):
     checkout, and reporting the first as if it were the second is how the CLI would tell
     you AWM is off while every call was approved.
     """
-    here = str(Path.cwd())
-    best_project, best_entry = None, None
-    for project, entry in projects(state).items():
-        if not isinstance(entry, dict) or not entry.get("enabled"):
-            continue
-        if within(project, here) and (best_project is None
-                                      or len(str(project)) > len(str(best_project))):
-            best_project, best_entry = project, entry
-    return (best_project, best_entry) if best_project is not None else None
+    return most_specific(projects(state), str(Path.cwd()), require_enabled=True)
 
 
 def armed_elsewhere(state):
@@ -320,18 +321,17 @@ def cmd_forget(path=None, force=False):
 
 
 def _match_entry(entries, path):
-    """The key to forget: an exact match first, then the entry this path sits inside.
+    """The key to forget: an exact match first, then the *nearest* entry containing it.
 
     A deleted worktree cannot be resolved by `within`, so a stale entry stays reachable
-    by exact path — which is the case that motivated the command.
+    by exact path — which is the case that motivated the command. Nearest rather than
+    first, or forgetting from inside a worktree would delete the enclosing checkout.
     """
     wanted = str(Path(path).expanduser()) if path else str(Path.cwd())
     if wanted in entries:
         return wanted
-    for key in entries:
-        if within(key, wanted):
-            return key
-    return None
+    found = most_specific(entries, wanted)
+    return found[0] if found else None
 
 
 def _entry_expired(entry):

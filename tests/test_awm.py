@@ -615,3 +615,28 @@ def test_disable_says_when_an_enclosing_project_still_covers_this_directory(
     out = capsys.readouterr().out
     assert "resume" not in out.lower(), "approvals do not resume while the parent is armed"
     assert str(repo) in out
+
+
+def test_forget_from_a_subdirectory_removes_the_nearest_project(tmp_path, load_script,
+                                                                 monkeypatch, capsys):
+    """Third instance of first-match-vs-most-specific (#299 review): from inside a worktree,
+    containment matches the enclosing repo too, and forgetting it would delete the wrong one."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file = _patch_state_paths(awm, monkeypatch, tmp_path) / "state.json"
+    repo = tmp_path / "repo"
+    worktree = repo / "wt"
+    deep = worktree / "src" / "nested"
+    deep.mkdir(parents=True)
+
+    monkeypatch.chdir(repo)
+    awm.cmd_away("2h")
+    monkeypatch.chdir(worktree)
+    awm.cmd_away("2h")
+    monkeypatch.chdir(deep)
+    capsys.readouterr()
+
+    awm.cmd_forget(force=True)
+
+    entries = json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    assert str(repo) in entries, "forgetting from a worktree must not delete the checkout"
+    assert str(worktree) not in entries
