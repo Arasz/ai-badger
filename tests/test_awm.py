@@ -565,7 +565,6 @@ def test_main_routes_forget_and_its_force_flag(tmp_path, load_script, monkeypatc
     assert awm.main(["forget"]) == 1, "an armed entry needs --force"
     assert awm.main(["forget", "--force"]) == 0
     assert json.loads(state_file.read_text(encoding="utf-8"))["projects"] == {}
-# ── the CLI must report what the gate will actually do (#297 review) ──────────
 # entry_here picks the most specific entry even when disabled, but the gate skips disabled
 # entries and falls back to an enclosing one — so the CLI could claim "inactive" while every
 # call auto-approved. That is the same disagreement this release exists to remove.
