@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -97,6 +98,44 @@ def exclusions(config: Dict[str, Any]) -> Dict[str, Set[str]]:
         feature: {n for n in declared.get(feature) or [] if isinstance(n, str)}
         for feature in EXCLUDABLE_FEATURES
     }
+
+
+# A skill citing `../<sibling>/references/<file>.md` depends on that sibling being installed.
+# The lookbehind rejects `../../…`, which reaches past the skills directory and is not a sibling.
+SIBLING_REFERENCE_RE = re.compile(r"(?<![./])\.\./([a-z][a-z0-9-]*)/references/[a-z-]+\.md")
+
+# Skills that cannot do their job alone. Naming any member — or the group — installs all of them.
+#
+# The documentation three read each other's `references/` in place, deliberately: a shared
+# directory beside them would never be indexed and would never ship. That makes the grouping a
+# fact about the catalog, not a convenience. Naming one used to deliver a skill whose every
+# reference path was dangling, with the run reporting success (#266).
+SKILL_GROUPS: Dict[str, Tuple[str, ...]] = {
+    "documentation": (
+        "scaffold-documentation",
+        "update-documentation",
+        "migrate-documentation",
+    ),
+}
+
+
+def expand_skill_groups(names: Iterable[str]) -> Set[str]:
+    """`names` with every group they touch expanded to all its members.
+
+    A member's name pulls in its siblings; the group's own name works too, so a project can ask
+    for `documentation` and get the three. A name in no group passes through untouched — an
+    unknown name is `inclusion_notes`' to report, and two places reporting it disagree eventually.
+    """
+    wanted: Set[str] = set()
+    for name in names:
+        if name in SKILL_GROUPS:
+            wanted.update(SKILL_GROUPS[name])
+            continue
+        wanted.add(name)
+        for members in SKILL_GROUPS.values():
+            if name in members:
+                wanted.update(members)
+    return wanted
 
 
 def inclusions(config: Dict[str, Any]) -> Dict[str, Set[str]]:

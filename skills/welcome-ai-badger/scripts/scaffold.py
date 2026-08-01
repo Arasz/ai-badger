@@ -263,7 +263,11 @@ class Scaffolder:
         excluded = bl.exclusions(config)
         self.included = bl.inclusions(config)
         self.addable_skills = set(bl.opt_in_skills_in(root / "features" / "common" / "skills"))
-        asked_for = [n for n in sorted(self.included["skills"]) if n in self.addable_skills]
+        # Grouped skills cannot do their job alone, so naming one installs all of them (#266).
+        # Expanded before the addable filter: an included skill whose citations dangle is worse
+        # than one that was never offered.
+        wanted = bl.expand_skill_groups(self.included["skills"])
+        asked_for = [n for n in sorted(wanted) if n in self.addable_skills]
         offered = list(dict.fromkeys(list(skills) + asked_for))
         index = bl.read_index(root)
         self.generated_config = GeneratedConfigRecords(target, index["frameworkVersion"])

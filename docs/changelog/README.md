@@ -21,6 +21,7 @@ re-scaffold.
 | Version | Entry |
 |---|---|
 | 0.70.0 | [a finding carries how it is known](0.70.0-a-finding-carries-how-it-is-known.md) |
+| 0.69.3 | [skills that cannot work alone travel together](0.69.3-skills-that-cannot-work-alone-travel-together.md) |
 | 0.69.2 | [The merge tags itself](0.69.2-the-merge-tags-itself.md) |
 | 0.69.1 | [A shipped page is not prose](0.69.1-a-shipped-page-is-not-prose.md) |
 | 0.69.0 | [a task owns its worktree](0.69.0-a-task-owns-its-worktree.md) |
