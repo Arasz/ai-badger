@@ -420,6 +420,33 @@ baseline that needs none. Their workflows derive from the skill templates the
 tool-agnostic — which is also why they are `optIn`: a project already running that tool receives
 its own copies, and ai-badger does not contend for the same files uninvited.
 
+### evidence-first-research
+
+[`SKILL.md`](../features/common/skills/evidence-first-research/SKILL.md)
+
+**What it does.** Produces a dated research record under `docs/work/` where every finding is
+graded by *how it is known* — `MEASURED`, `READ`, `INFERRED`, `UNVERIFIED` — plus a
+self-contained HTML view rendered outside the repository.
+
+**What it actually changes on disk.** One markdown record you commit, and one HTML file in a temp
+directory that you do not. `scripts/render_report.py` refuses a target inside the repo: the record
+is the artefact, and a committed view becomes a second source of truth nobody can date.
+
+**When to use it.** A question whose answer someone will act on or quote — a benchmark, an option
+comparison, "is this worth doing". Not for locating code (`explore-codebase`), tracing one symptom
+(`debug-issue`), or judging a diff (`review-changes`).
+
+**Why the grading is enforced rather than encouraged.** The renderer refuses a record with an
+ungraded finding, an unknown grade, or a `MEASURED`/`READ` claim carrying no `**Evidence:**` line —
+so a clean render is itself a check. `UNVERIFIED` deliberately requires nothing: every requirement
+attached there makes silence cheaper than admission, and a gap that simply goes unmentioned reads
+to the next person as a gap nobody had a concern about.
+
+Five chart kinds (`provenance`, `bars`, `line`, `matrix`, `range`) render as inline SVG with no
+external hosts. The provenance chart is drawn first and always, including grades with zero
+findings — a mix of one `MEASURED` and nine `INFERRED` is a hypothesis, not a finding, and the
+reader needs to see that before the conclusion.
+
 ---
 
 ## Related docs

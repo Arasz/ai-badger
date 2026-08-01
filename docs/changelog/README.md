@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.70.0 | [a finding carries how it is known](0.70.0-a-finding-carries-how-it-is-known.md) |
 | 0.68.0 | [A spec is elicited, not drafted](0.68.0-a-spec-is-elicited-not-drafted.md) |
 | 0.67.1 | [evidence moves out of the body](0.67.1-evidence-moves-out-of-the-body.md) |
 | 0.67.0 | [work records get a legal home](0.67.0-work-records-get-a-legal-home.md) |

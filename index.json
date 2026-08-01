@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.68.0",
+  "frameworkVersion": "0.70.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -192,6 +192,11 @@
           "name": "differential-feature-refactor",
           "path": "features/common/skills/differential-feature-refactor",
           "scope": "default"
+        },
+        {
+          "name": "evidence-first-research",
+          "path": "features/common/skills/evidence-first-research",
+          "scope": "optIn"
         },
         {
           "name": "explore-codebase",
