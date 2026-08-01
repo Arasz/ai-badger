@@ -153,19 +153,19 @@ def _main(argv=None) -> int:
     with open(args.spec, encoding="utf-8") as handle:
         holes = scan(handle.read())
 
+    # The exit code is the gate; the flag chooses a format, never a verdict.
+    open_count = sum(1 for hole in holes if not hole.deferred)
+
     if args.json:
         print(json.dumps([hole._asdict() for hole in holes], indent=2))
-        return 0
-
-    if not holes:
+    elif not holes:
         print(f"{args.spec}: complete — no outstanding questions")
-        return 0
+    else:
+        for hole in holes:
+            mark = "deferred" if hole.deferred else "OPEN"
+            print(f"{args.spec}:{hole.line}: [{mark}] {hole.kind}: {hole.title}")
+        print(f"{len(holes)} hole(s), {open_count} still open")
 
-    open_count = sum(1 for hole in holes if not hole.deferred)
-    for hole in holes:
-        mark = "deferred" if hole.deferred else "OPEN"
-        print(f"{args.spec}:{hole.line}: [{mark}] {hole.kind}: {hole.title}")
-    print(f"{len(holes)} hole(s), {open_count} still open")
     return 1 if open_count else 0
 
 

@@ -1,10 +1,6 @@
 {
   "name": "ai-badger",
-<<<<<<< HEAD
-  "version": "0.67.1",
-=======
   "version": "0.68.0",
->>>>>>> 2b0af64 (feat(create-task-spec): a spec is elicited, not drafted (0.68.0))
   "description": "Cross-project agent framework: scaffolds a curated catalog of Claude Code skills, personas, invariants, and instructions into any repo (welcome-ai-badger), and feeds agnostic improvements back (feed-badger).",
   "author": {
     "name": "Rafał Araszkiewicz",

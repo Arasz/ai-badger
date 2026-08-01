@@ -166,3 +166,36 @@ class TestHolesAreReportedInDocumentOrder:
 
         assert [h.kind for h in holes] == ["rule-without-example", "example-without-steps"]
         assert [h.line for h in holes] == sorted(h.line for h in holes)
+
+
+class TestTheExitCodeIsTheGate:
+    """Automation reads the exit code; a format flag must not change what it means (#269)."""
+
+    def _spec(self, tmp_path, body):
+        path = tmp_path / "Demo.feature"
+        path.write_text(body, encoding="utf-8")
+        return str(path)
+
+    def test_an_open_hole_exits_non_zero(self, tmp_path):
+        target = self._spec(tmp_path, COMPLETE + "\n  Rule: nobody illustrated this\n")
+
+        assert _module._main([target]) == 1
+
+    def test_an_open_hole_exits_non_zero_with_json_too(self, tmp_path):
+        """The regression: --json reported the holes but told the caller everything was fine."""
+        target = self._spec(tmp_path, COMPLETE + "\n  Rule: nobody illustrated this\n")
+
+        assert _module._main([target, "--json"]) == 1
+
+    def test_a_complete_spec_exits_zero_in_both_formats(self, tmp_path):
+        target = self._spec(tmp_path, COMPLETE)
+
+        assert _module._main([target]) == 0
+        assert _module._main([target, "--json"]) == 0
+
+    def test_a_fully_deferred_spec_exits_zero_in_both_formats(self, tmp_path):
+        """A ruled deferral is not an open question, whichever format asked."""
+        target = self._spec(tmp_path, COMPLETE + "\n  @deferred\n  Rule: postponed\n")
+
+        assert _module._main([target]) == 0
+        assert _module._main([target, "--json"]) == 0

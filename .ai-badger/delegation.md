@@ -1,10 +1,6 @@
 # Delegation map — ai-badger
 
-<<<<<<< HEAD
-> Scaffolded by ai-badger 0.67.0. Regenerated on every scaffold; do not edit.
-=======
 > Scaffolded by ai-badger 0.68.0. Regenerated on every scaffold; do not edit.
->>>>>>> 2b0af64 (feat(create-task-spec): a spec is elicited, not drafted (0.68.0))
 
 ## Stacks
 
