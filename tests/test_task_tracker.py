@@ -746,6 +746,85 @@ def test_full_lifecycle_start_subagent_finish_grade(tt, monkeypatch, tmp_path, c
     assert "FINISHED" in status_out
 
 
+class TestTheRiskSwitchRunsGatesInLimitedMode:
+    """`--risk` trades gate coverage for speed, so it has to be recorded and readable.
+
+    A task running on formatting + fast tests only, with nothing on screen saying so, is the
+    dangerous shape: the next person reads a green run as a full one.
+    """
+
+    def test_start_records_the_switch_on_the_task_entry(self, tt, monkeypatch, tmp_path):
+        _no_cron_recorder(monkeypatch, tt)
+
+        code = _run(monkeypatch, tt, "start", "RISK-1", "--risk", "--no-worktree",
+                    "--branch", "feat/risky", "--session-id", "sid-r1",
+                    "--transcript-path", str(tmp_path / "r1.jsonl"))
+
+        assert code == 0
+        entry = tt.lib.find_entry(tt.lib.load_tasks(), "RISK-1")
+        assert entry["risk"] is True
+        assert entry["branch"] == "feat/risky"  # the switch does not eat the other fields
+
+    def test_a_task_that_did_not_ask_for_it_is_not_marked(self, tt, monkeypatch, tmp_path):
+        """Absent means false, not missing-and-therefore-anything."""
+        _no_cron_recorder(monkeypatch, tt)
+
+        _run(monkeypatch, tt, "start", "RISK-2", "--no-worktree", "--session-id", "sid-r2",
+             "--transcript-path", str(tmp_path / "r2.jsonl"))
+
+        entry = tt.lib.find_entry(tt.lib.load_tasks(), "RISK-2")
+        assert entry["risk"] is False
+
+    def test_the_switch_survives_a_resume_and_a_later_start(self, tt, monkeypatch, tmp_path):
+        """Resuming a task must not quietly restore full gates the run was never sized for."""
+        _no_cron_recorder(monkeypatch, tt)
+        transcript = tmp_path / "r3.jsonl"
+        _run(monkeypatch, tt, "start", "RISK-3", "--risk", "--no-worktree",
+             "--session-id", "sid-r3", "--transcript-path", str(transcript))
+        _run(monkeypatch, tt, "reattach", "RISK-3", "--session-id", "sid-r3b",
+             "--transcript-path", str(transcript))
+
+        code = _run(monkeypatch, tt, "start", "RISK-3", "--no-worktree",
+                    "--session-id", "sid-r3b", "--transcript-path", str(transcript))
+
+        assert code == 0
+        entry = tt.lib.find_entry(tt.lib.load_tasks(), "RISK-3")
+        assert entry["risk"] is True
+        assert entry["sessionId"] == "sid-r3b"
+
+    def test_a_later_start_can_raise_the_switch_on_a_task_that_began_without_it(
+        self, tt, monkeypatch, tmp_path
+    ):
+        _no_cron_recorder(monkeypatch, tt)
+        transcript = tmp_path / "r4.jsonl"
+        _run(monkeypatch, tt, "start", "RISK-4", "--no-worktree", "--session-id", "sid-r4",
+             "--transcript-path", str(transcript))
+
+        _run(monkeypatch, tt, "start", "RISK-4", "--risk", "--no-worktree",
+             "--session-id", "sid-r4", "--transcript-path", str(transcript))
+
+        assert tt.lib.find_entry(tt.lib.load_tasks(), "RISK-4")["risk"] is True
+
+    def test_status_names_the_risky_task_and_leaves_the_others_alone(
+        self, tt, monkeypatch, tmp_path, capsys
+    ):
+        """Two tasks, one switched: absence has to be absence, not an empty store."""
+        _no_cron_recorder(monkeypatch, tt)
+        _run(monkeypatch, tt, "start", "RISK-5", "--risk", "--no-worktree",
+             "--session-id", "sid-r5", "--transcript-path", str(tmp_path / "r5.jsonl"))
+        _run(monkeypatch, tt, "start", "SAFE-5", "--no-worktree", "--session-id", "sid-s5",
+             "--transcript-path", str(tmp_path / "s5.jsonl"))
+        capsys.readouterr()
+
+        assert _run(monkeypatch, tt, "status") == 0
+
+        out = capsys.readouterr().out
+        risky = next(line for line in out.splitlines() if line.startswith("RISK-5"))
+        safe = next(line for line in out.splitlines() if line.startswith("SAFE-5"))
+        assert "risk=on" in risky
+        assert "risk" not in safe
+
+
 class TestTheStatusLineShowsTheModelMix:
     """`cacheEff` measures ~0.98 on every real task; the mix is what a reader can act on."""
 
