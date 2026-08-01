@@ -180,7 +180,36 @@ and `.github/mcp.json` if an earlier run wrote it.
 1. Create `features/common/skills/<name>/` with a `SKILL.md` (plus any `scripts/`, `references/`
    subdirs the skill needs — these are copied as-is by `scaffold.py`). Skills are a regular
    feature under `features/common/` — see `framework-architecture.md` §1.
-2. Run `index_build.py` then `validate.py --all`.
+2. **Declare its scope in `engine/badger_lib.py`'s `SKILL_SCOPES`** — `default` or `optIn`.
+   There is no fallback: an undeclared common-stack skill fails CI and, if it somehow did not,
+   would ship to nobody ([ADR-0005](adr/0005-default-skill-set.md)).
+3. Run `index_build.py` then `validate.py --all`, and `sync_plugin_skills.py` if the skill is
+   `default` (that is what puts a copy under `skills/`, the only place Claude Code loads a
+   plugin's skills from).
+
+### `default` or `optIn`
+
+- **`default`** — broadly applicable, no prerequisite: it ships to every scaffolded project and
+  into the plugin copy without anyone asking.
+- **`optIn`** — a specialised set a project chooses: it stays in the catalog, is not scaffolded,
+  is not copied into `skills/`, and drift never reports it as a missing item.
+
+An `optIn` skill is not invisible. Every `welcome-ai-badger` scaffold and every `den-refresh`
+report carries an `availableOptIn` section naming each one the project has not installed, its
+description (read from the skill's own `SKILL.md` frontmatter, so it cannot drift), and the
+literal edit that adds it. A project opts in by adding the name to `config.json`:
+
+```jsonc
+{
+  "include": { "skills": ["update-documentation"] }
+}
+```
+
+`include` is the mirror of `exclude`, enforced at the same single point
+(`Scaffolder.__init__`), so `welcome-ai-badger` and `den-refresh` cannot disagree — a
+`config.json` edit is drift, so the next refresh delivers the skill on its own. **`exclude`
+wins** if a name appears in both. Only `optIn` skills can be named: a name matching nothing, or
+naming a skill that already ships by `default`, is reported as a note and never fails the run.
 
 **An extension to an existing skill** (e.g. a new `task` extension):
 
@@ -196,6 +225,9 @@ and `.github/mcp.json` if an earlier run wrote it.
 
 - [ ] `python3 tooling/index_build.py` run, `index.json` diff committed.
 - [ ] `python3 tooling/validate.py --all` passes.
+- [ ] A new common-stack skill is declared in `badger_lib.SKILL_SCOPES` — without it the skill
+      ships to nobody, which is exactly how `code-review-checklist` lived its whole life
+      unreachable ([ADR-0005](adr/0005-default-skill-set.md) §Context).
 - [ ] New content filed under the right stack (or genuinely `common`) — no project-specific
       paths or domain-coupled models leaked into `common`.
 - [ ] If you touched `skills/task`, grep it for stack-specific literals (`dotnet`,

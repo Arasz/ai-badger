@@ -411,9 +411,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         report["hermesSkillLinks"] = hermes_links
     # Report-only, like newStacks: the listing budget a never-invoked skill spends is real, but
     # config.json is project-owned and a refresh does not rewrite it (#172).
-    usage = su.report(target, delivered_skills(manifest, scaffold_result))
+    delivered = delivered_skills(manifest, scaffold_result)
+    usage = su.report(target, delivered)
     if usage:
         report["skillUsage"] = usage
+    # Report-only too: an optIn skill is never drift, so this listing is the only channel
+    # telling a project one exists and naming the config edit that adds it.
+    offered = bl.available_opt_in(root, delivered)
+    if offered:
+        report["availableOptIn"] = offered
     copies = report_framework_copies(root, args.prune_cache)
     if copies:
         report["frameworkCopies"] = copies

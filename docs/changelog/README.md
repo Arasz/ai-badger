@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.63.0 | [`optIn` becomes a scope a project can choose, and six skills use it](0.63.0-optin-becomes-reachable.md) |
 | 0.61.2 | [The usage-limit poller stops](0.61.2-a-poller-that-stops.md) |
 | 0.61.1 | [The plugin sync can remove, so `--check` can see a surplus](0.61.1-the-plugin-sync-can-remove.md) |
 | 0.61.0 | [a removed skill takes its directory with it](0.61.0-a-removed-skill-takes-its-directory.md) |
