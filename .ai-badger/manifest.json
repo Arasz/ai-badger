@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.66.1",
-  "frameworkCommit": "7e3680eeeca71d0f95a35171199d7940ea368558",
+  "frameworkCommit": "284c0a2ad9fd0a9b34e7735aa054f66e4e1960e1",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -308,12 +308,12 @@
       "source": "features/common/skills/differential-feature-refactor",
       "target": ".ai-badger/skills/differential-feature-refactor",
       "frameworkVersion": "0.66.1",
-      "hash": "45bb400cbd57d6e6efd69b11b82d06a052ee5345afa6160089207c11ed2166d7",
+      "hash": "a9594d36adfa8d469f26499770e331aad9f29c55687b2a89a75f824d1f6e17fa",
       "dirMeta": {
         "file_count": 2,
         "dir_count": 1
       },
-      "sourceHash": "45bb400cbd57d6e6efd69b11b82d06a052ee5345afa6160089207c11ed2166d7",
+      "sourceHash": "a9594d36adfa8d469f26499770e331aad9f29c55687b2a89a75f824d1f6e17fa",
       "sourceMeta": {
         "file_count": 2,
         "dir_count": 1
@@ -380,12 +380,12 @@
       "source": "features/common/skills/owner-gate-review",
       "target": ".ai-badger/skills/owner-gate-review",
       "frameworkVersion": "0.66.1",
-      "hash": "3084b4324b60e4a6a1d64b3e5031d839f4099bc90348047302245c6808feb7be",
+      "hash": "0d866cbad7b9d7c6598b0433225587b866abc4085aed3821b75f324e496d914b",
       "dirMeta": {
         "file_count": 3,
         "dir_count": 1
       },
-      "sourceHash": "3084b4324b60e4a6a1d64b3e5031d839f4099bc90348047302245c6808feb7be",
+      "sourceHash": "0d866cbad7b9d7c6598b0433225587b866abc4085aed3821b75f324e496d914b",
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 1

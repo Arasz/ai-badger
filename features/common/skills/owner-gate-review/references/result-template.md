@@ -32,7 +32,7 @@ Exactly what `form-template.html` emits. Parse against this; do not guess.
 
 <!-- refinement-form: refinement:2026-01-15-import-pipeline:v1 · saved 2026-01-15T09:14:02.113Z · answered 2/4 -->
 
-Source document: `docs/designs/2026-01-15-import-pipeline-design.md`
+Source document: `docs/work/2026-01-15-import-pipeline-design.md`
 
 ## C1 — ADR-0031's body rule is wrong and gets amended
 

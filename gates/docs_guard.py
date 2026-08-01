@@ -23,10 +23,16 @@ outside that surface on purpose — in documentation it means "in a scaffolded c
 which this repo only coincidentally is. Everything else is ignored, which means real misses —
 accepted, because one false positive costs more than ten of them.
 
-Check 2 also skips RECORD_DIRS. A changelog entry, ADR, plan, spec or review describes a tree
-as it was or as it is proposed to be; its dead paths are the record working, not rot, and ADRs
-may not be edited after acceptance at all. Those documents still get check 1, because a link
-that no longer opens is broken for a reader whatever the document is.
+Check 2 also skips RECORD_DIRS. A changelog entry, ADR or dated work record describes a tree as
+it was or as it is proposed to be; its dead paths are the record working, not rot, and ADRs may
+not be edited after acceptance at all. Those documents still get check 1, because a link that no
+longer opens is broken for a reader whatever the document is.
+
+RECORD_DIRS named seven directories grouped by document kind (`design/`, `plans/`, `research/`,
+`reviews/`, `specs/`, `incidents/`, `archive/`) until 2026-08-01. All seven were deleted in PR
+#111 and the list went on freezing paths no longer in the tree — dead config that reads as a live
+rule. `docs/work/` replaces them: one dated home, grouped by nothing, because kind is not a
+subject.
 
 Fenced code blocks are skipped entirely: they hold examples, not claims about this tree.
 
@@ -58,8 +64,7 @@ IGNORE_FILE = ".docs-guard-ignore"
 BUILTIN_EXEMPT = ("docs/archive/",)
 CHECKED_ROOTS = ("engine", "tooling", "gates", "features", "schemas", "hooks", "tests", "docs",
                  ".github", ".claude-plugin")
-RECORD_DIRS = ("docs/adr/", "docs/changelog/", "docs/design/", "docs/incidents/", "docs/plans/",
-               "docs/research/", "docs/reviews/", "docs/specs/")
+RECORD_DIRS = ("docs/adr/", "docs/changelog/", "docs/work/")
 PATH_SUFFIXES = (".py", ".md", ".mjs", ".js", ".json", ".yaml", ".yml", ".toml", ".sh", ".txt")
 PLACEHOLDER_CHARS = "<>{}$()[]|,*?!\"'\\ \t"
 
