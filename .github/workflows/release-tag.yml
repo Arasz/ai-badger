@@ -20,6 +20,18 @@ jobs:
           # none, which would make every run look like a fresh release and retry the push.
           fetch-depth: 0
 
+      - name: Annotate a stale release subject
+        run: |
+          set -euo pipefail
+
+          VERSION="$(cat VERSION)"
+          SUBJECT="$(git log -1 --format=%s)"
+          SUBJECT_VERSION="$(printf '%s' "$SUBJECT" | sed -nE 's/.*\(([0-9]+\.[0-9]+\.[0-9]+)\).*/\1/p')"
+
+          if [ -n "$SUBJECT_VERSION" ] && [ "$SUBJECT_VERSION" != "$VERSION" ]; then
+            echo "::warning title=Release subject/version mismatch::Commit subject names ${SUBJECT_VERSION}, but VERSION is ${VERSION}."
+          fi
+
       - name: Tag this commit if VERSION is new
         run: |
           set -euo pipefail
