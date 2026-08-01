@@ -20,7 +20,8 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.68.0 | [A spec is elicited, not drafted](0.68.0-a-spec-is-elicited-not-drafted.md) |
+| 0.69.0 | [a task owns its worktree](0.69.0-a-task-owns-its-worktree.md) |
+| 0.68.0 | [A spec is elicited, not drafted](0.68.0-a-spec-is-elicited-not-drafted.md) · [a task owns its worktree](0.68.0-a-task-owns-its-worktree.md) |
 | 0.67.1 | [evidence moves out of the body](0.67.1-evidence-moves-out-of-the-body.md) |
 | 0.67.0 | [work records get a legal home](0.67.0-work-records-get-a-legal-home.md) |
 | 0.66.1 | [A release-only push skips the full suite](0.66.1-a-release-only-push-skips-the-full-suite.md) |
