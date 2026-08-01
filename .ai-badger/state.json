@@ -1,7 +1,39 @@
 {
   "lastUpdated": "2026-08-01",
-  "next": "Decide the create-task-spec open questions before implementing (good first owner-gate-review subject): which spec extension to standardise on, JSON or YAML for the manifest, whether a jvm stack enters the catalog at all, and whether the skill refuses to emit while any hole is unruled. Research verdicts: https://claude.ai/code/artifact/06ec3529-7617-446f-ab90-35b67ca22bd8 . Open PRs: #252 (mcp prerequisites, 0.62.0) and #253 (#232 spawn breadcrumb, 0.61.3) - whichever merges second needs a VERSION rebump; release_guard enforces it. Tag every merge: 0.61.1 went untagged and blocked #251's CI until tagged at ed9824d6. Awaiting a decision from the owner, asked twice: (1) the plugin partition - 13 skills to 3 - which fixes a real silent-wrong-answer defect (code-review-checklist's two copies share byte-identical frontmatter, md5 503cde95, and differ by 28 body lines) but changes what /plugin install gives users; (2) research-with-rich-report - the verified design is a different skill under a different name (evidence-first-research, findings with provenance grades), because dotnet-claude-kit:workflow-mastery already owns the context-optimization trigger words. Unstarted follow-ups: move verification-evidence blocks out of owner-gate-review (~730 est tokens) and task (~848, and they break its own platform-neutrality claim); differential-feature-refactor steps 6-7 call superpowers:brainstorming with no fallback. Two framework observations worth issues: tests/conftest.py's _real_tracking_state_is_untouched cannot distinguish the suite's writes from a concurrent external writer, so a cron tick during a long run fails the lane; and task_tracker.py start --branch records a name without creating or verifying the branch, which put work on the wrong branch twice in one session.",
+  "next": "Merge PR #293 (#291, 0.73.3) and PR #294 (#292) — both green, both awaiting the owner because gh pr merge is blocked for the agent. ",
   "completedTasks": [
+    {
+      "id": "fix-mcp-noop-and-untested-extraction",
+      "date": "2026-08-01",
+      "risk": true,
+      "summary": "Fixed the two defects found while reviewing 0.73.2's PRs. PR #293 (0.73.3) removes the no-op cwd-stripping else branch from mcp_tools._merge_mcp_servers_json (#291); PR #294 replaces #289's verbatim-shell assertions with a test that executes the release-subject annotation step against a real commit (#292). Both green on CI; left unmerged because the merge action was blocked by the permission classifier.",
+      "learned": [
+        "For dead-code removal, characterization tests are the honest discipline, not red-green: write the contract tests, watch them pass against the UNMODIFIED code, then delete and watch them still pass. That is what proves a no-op rather than arguing it.",
+        "A test that lifts shell out of a workflow and runs it can be mutation-checked. Swapping the release-subject sed for a first-match variant makes the decoy case fail with 'names 3.9.1, but VERSION is 0.73.0' — the old string-matching assertions caught nothing.",
+        "CI (.github/workflows/pylint.yml) runs the full pytest suite on 3.8/3.9/3.10 plus pylint, so a green PR already satisfies the full-suite coverage --risk defers locally.",
+        "welcome-ai-badger is duplicated into skills/; editing features/.../mcp_tools.py requires python3 tooling/sync_plugin_skills.py or the plugin-skills-sync pre-commit hook fails."
+      ],
+      "artifacts": [
+        "PR #293",
+        "PR #294"
+      ]
+    },
+    {
+      "id": "observe-prs-review-changes",
+      "date": "2026-08-01",
+      "summary": "Observed the Copilot PR queue and reviewed #288/#289/#290. Approved #288 (portable MCP config, #287) and #289 (release-subject annotation, #286); both merged at 0.73.2. Reviewed #290 (#283 keep-region anchors) and, on the owner's 'check all the tests' request, swept the suite for the same pattern and pushed the fix.",
+      "learned": [
+        "release_guard scopes the VERSION-bump requirement to the shipped surface (skills/, features/, engine/, tooling/, schemas/, index.json). A tests/- or .github/-only change owes no bump, despite the blanket 'always bump VERSION' invariant in CLAUDE.md.",
+        "The #283 ambiguous-anchor bug is live in test_scaffold_skill_extensions.py, not just the test #283 named: 'No hardcoded secrets', 'LoggerMessage' and 'clean on main' each occur twice in the rendered checklist. 'clean on main' made a post-merge assertion unfailable.",
+        "The lefthook pre-push gate gets SIGKILLed on this machine when several sessions run at once, and a git push then fails with no useful message. Confirm the pushed tree matches the tree the suite ran on, then LEFTHOOK=0.",
+        "mcp_tools._merge_mcp_servers_json's cwd-stripping else branch (shipped in #288) is a no-op: section.update(entries) replaces the entry wholesale on the next line. Filed #291."
+      ],
+      "artifacts": [
+        "PR #290 (074d706)",
+        "issue #291",
+        "issue #292"
+      ]
+    },
     {
       "id": "gherkin-specbinder",
       "title": "Research: Gherkin + SpecBinder as a create-task-spec elicitation layer",
@@ -50,7 +82,7 @@
     {
       "id": "full-delegator-persona",
       "title": "Delegation becomes a mechanism: persona lanes, dispatch gate, delegator (0.60.0)",
-      "summary": "Shipped ADR-0015's three levers: model: lanes in persona frontmatter (CLAUDE_KEYS passes it through, Copilot drops it, catch-all test), a PreToolUse dispatch gate denying model-less dispatches with no lane, and the delegator persona plus a scaffold-generated .ai-badger/delegation.md. Hook commands now survive a missing script (worktree ${CLAUDE_PROJECT_DIR} resolves to the main checkout \u2014 found when the gate blocked this session's own dispatch) and a changed command shape supersedes the old registration. Also merged: #241 banner-below-frontmatter fix (0.59.1, PR #244). Tags 0.59.1 + 0.60.0 pushed.",
+      "summary": "Shipped ADR-0015's three levers: model: lanes in persona frontmatter (CLAUDE_KEYS passes it through, Copilot drops it, catch-all test), a PreToolUse dispatch gate denying model-less dispatches with no lane, and the delegator persona plus a scaffold-generated .ai-badger/delegation.md. Hook commands now survive a missing script (worktree ${CLAUDE_PROJECT_DIR} resolves to the main checkout — found when the gate blocked this session's own dispatch) and a changed command shape supersedes the old registration. Also merged: #241 banner-below-frontmatter fix (0.59.1, PR #244). Tags 0.59.1 + 0.60.0 pushed.",
       "version": "0.60.0",
       "pr": 245,
       "date": "2026-07-31"
@@ -84,7 +116,7 @@
     {
       "id": "hermes-skills-sync",
       "title": "Hermes learned-skills sync (#67) + reverse #58 + plugin-hook cwd fix (#76)",
-      "summary": "Reviewed docs/research/hermes-learned-skills-sync.md and corrected four load-bearing claims: external_dirs was already tried and reverted (#58/v0.7.1); the ~/.hermes/skills/ symlinks still exist on disk so a naive scan re-imports framework skills; NOTHING distributed .ai-badger/skills/ to any agent; and the hook mechanism is the Python plugin this repo already ships, not ~/.hermes/hooks/. Wrote a staged TDD plan with acceptance criteria, then implemented it: learned_skills_sync.py (5 gates, learned.json provenance, opt-in --reconcile, unsafe-literal refusal), feed-badger per-skill grouping, post_tool_call wiring + ~/.hermes/plugins install, and the #58 reversal restoring namespaced symlinks without the original rmtree data-loss hazard. Key discovery beyond scope: Hermes passes NO cwd to any plugin hook, and names the prompt kwarg user_message not message \u2014 so the drift notice, the pre_llm drift line, and the MCP index logging had never fired (#76, fixed). CodeQL's clear-text-logging alert was name-heuristic, not flow-based: Copilot autofix traded alert 13 for 14 and cost CLI output, so it was reverted and the identifiers renamed to unsafe-literal terms, which cleared it. PRs #73/#74/#75 + recovery #77; 683 tests green at 0.18.0.",
+      "summary": "Reviewed docs/research/hermes-learned-skills-sync.md and corrected four load-bearing claims: external_dirs was already tried and reverted (#58/v0.7.1); the ~/.hermes/skills/ symlinks still exist on disk so a naive scan re-imports framework skills; NOTHING distributed .ai-badger/skills/ to any agent; and the hook mechanism is the Python plugin this repo already ships, not ~/.hermes/hooks/. Wrote a staged TDD plan with acceptance criteria, then implemented it: learned_skills_sync.py (5 gates, learned.json provenance, opt-in --reconcile, unsafe-literal refusal), feed-badger per-skill grouping, post_tool_call wiring + ~/.hermes/plugins install, and the #58 reversal restoring namespaced symlinks without the original rmtree data-loss hazard. Key discovery beyond scope: Hermes passes NO cwd to any plugin hook, and names the prompt kwarg user_message not message — so the drift notice, the pre_llm drift line, and the MCP index logging had never fired (#76, fixed). CodeQL's clear-text-logging alert was name-heuristic, not flow-based: Copilot autofix traded alert 13 for 14 and cost CLI output, so it was reverted and the identifiers renamed to unsafe-literal terms, which cleared it. PRs #73/#74/#75 + recovery #77; 683 tests green at 0.18.0.",
       "completedAt": "2026-07-26T21:20:00Z"
     },
     {
