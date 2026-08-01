@@ -192,9 +192,13 @@ class McpTools:
         self.ctx.mcp_prereqs_noted = True
         for name in sorted(names):
             prereq = self._server_prerequisite(name)
-            if not prereq:
+            summary = (prereq or {}).get("summary")
+            if not summary:
+                # The schema requires `summary`, but nothing validates meta.json at scaffold
+                # time — a hand-edited or half-written catalog entry must not take the whole
+                # scaffold down for the sake of a note.
                 continue
-            parts = [f"{name} needs {prereq['summary']}"]
+            parts = [f"{name} needs {summary}"]
             if prereq.get("check"):
                 parts.append(f"check: {prereq['check']}")
             if prereq.get("install"):

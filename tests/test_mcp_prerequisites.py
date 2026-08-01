@@ -13,10 +13,27 @@ rather than in one stack's declaration — the same reasoning the schema already
 from __future__ import annotations
 
 import json
+import sys
 
 import pytest
 
 CATALOG_META = "meta.json"
+SCRIPTS = "features/common/skills/welcome-ai-badger/scripts"
+
+
+def _load_mcp_tools(load_script, root):
+    """Load mcp_tools with the sibling modules its own bootstrap puts on sys.path."""
+    for entry in (str(root / SCRIPTS), str(root / "engine"), str(root / "tooling")):
+        if entry not in sys.path:
+            sys.path.insert(0, entry)
+    return load_script(f"{SCRIPTS}/mcp_tools.py")
+
+
+def _bare_collaborator(mcp_tools):
+    """An McpTools with only the context fields note_declared_prerequisites touches."""
+    collaborator = mcp_tools.McpTools.__new__(mcp_tools.McpTools)
+    collaborator.ctx = type("Ctx", (), {"mcp_prereqs_noted": False, "notes": []})()
+    return collaborator
 
 
 def _meta(root, stack, server):
@@ -131,3 +148,53 @@ class TestTheScaffoldReportsIt:
         scaf.run(generated_at="2026-08-01T00:00:00Z")
 
         assert any("pip install code-review-graph" in n for n in scaf.ctx.notes)
+
+
+class TestABadCatalogEntryDoesNotCrashTheScaffold:
+    """meta.json is validated by a schema, but nothing validates it *at scaffold time*.
+
+    A hand-edited catalog entry, a half-written file, or a `prerequisite` block missing its
+    required `summary` must not take the whole scaffold down. Reported by review on PR #252.
+    """
+
+    def test_a_prerequisite_without_a_summary_is_skipped_not_raised(
+        self, load_script, root, monkeypatch
+    ):
+        collaborator = _bare_collaborator(_load_mcp_tools(load_script, root))
+        monkeypatch.setattr(
+            collaborator, "_server_prerequisite", lambda _n: {"check": "x --version"}
+        )
+
+        collaborator.note_declared_prerequisites(["half-written"])
+
+        assert collaborator.ctx.notes == []
+
+    def test_a_summary_that_is_present_still_reports(self, load_script, root, monkeypatch):
+        """The skip must be narrow — a good entry still has to produce its note."""
+        collaborator = _bare_collaborator(_load_mcp_tools(load_script, root))
+        monkeypatch.setattr(
+            collaborator, "_server_prerequisite", lambda _n: {"summary": "the thing"}
+        )
+
+        collaborator.note_declared_prerequisites(["good"])
+
+        assert any("the thing" in n for n in collaborator.ctx.notes)
+
+
+class TestTheCatalogGateHasNoHole:
+    """The invariant test skipped a declared server with no meta.json at all — the worst case
+    it claims to cover. Reported by review on PR #252."""
+
+    def test_a_declared_server_must_have_a_catalog_entry(self, root):
+        missing = []
+        for stack_dir in (root / "features").iterdir():
+            decl = stack_dir / "stack-mcp.json"
+            if not decl.is_file():
+                continue
+            for srv in json.loads(decl.read_text(encoding="utf-8")).get("servers", []):
+                if not srv.get("declare"):
+                    continue
+                if not (stack_dir / "mcp" / srv["name"] / CATALOG_META).is_file():
+                    missing.append(f"{stack_dir.name}/{srv['name']}")
+
+        assert not missing, f"declared servers with no catalog meta.json: {missing}"
