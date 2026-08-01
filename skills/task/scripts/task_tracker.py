@@ -112,15 +112,73 @@ def worktree_blockers(path):
         # Commits reachable from HEAD and from nowhere else — not on a remote, and not on any
         # other local branch. Excluding both matters: `--not --remotes` alone calls every commit
         # unique in a repo with no remote, and omitting other locals would flag a branch whose
-        # work is already merged. What is left is the set that disappears with this directory.
+        # work is already merged. What is left LOOKS like it disappears with this directory —
+        # unless a squash merge already delivered the same content under a different SHA
+        # (this repo squash-merges every PR), which `_squash_landed` checks for below before
+        # this becomes a blocker.
         others = [b for b in _git(path, "branch", "--format=%(refname:short)",
                                   check=False).split() if b != head]
         only_here = _git(path, "log", "HEAD", "--not", "--remotes", *others, "--oneline",
                          check=False).strip()
-        if only_here:
+        if only_here and not _squash_landed(path):
             blockers.append(
                 f"{len(only_here.splitlines())} commit(s) on {head} and nowhere else")
     return blockers
+
+
+def _default_branch(path):
+    """The branch a squash-merged PR lands on, or None if it can't be told.
+
+    `git symbolic-ref refs/remotes/origin/HEAD` is what `git clone` records and is
+    authoritative wherever there is a remote. Nothing sets it in a plain `git init` repo
+    (every scratch repo this is tested against, and any local-only worktree), so fall back to
+    whichever of `main`/`master` exists locally. None (rather than a guess) tells the caller
+    to fall back to the old reachability-only behaviour instead of comparing content against
+    the wrong branch.
+    """
+    ref = _git(path, "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD",
+              check=False).strip()
+    if ref:
+        return ref
+    for candidate in ("main", "master"):
+        if _git(path, "rev-parse", "--verify", "--quiet", candidate, check=False).strip():
+            return candidate
+    return None
+
+
+def _squash_landed(path):
+    """Whether HEAD's own changes already exist on the default branch, squash or not.
+
+    `git merge --squash` (what every PR here goes through) discards the branch's commit SHAs:
+    the default branch gets one *new* commit with a matching tree, so plain reachability
+    (`--not --remotes` above) still calls the branch's original commits unique. A raw
+    `git diff <default> HEAD` at the current tip is not reliable either, once the default
+    branch keeps moving after the squash lands — that diff then also carries whatever landed
+    on the default branch afterwards, which has nothing to do with this branch (measured on
+    #278: a squash-merged worktree showed a 19-file diff against main days later, entirely
+    from main's own unrelated progress).
+
+    So: build one synthetic commit for everything this branch has added since it forked
+    (merge-base..HEAD, squashed into a single tree) and ask `git cherry` whether an equivalent
+    *patch* already exists somewhere in the default branch's history. `cherry` compares by
+    patch content, not tree state or SHA, so a later unrelated commit on the default branch
+    can't hide the match the way a tip-only diff would.
+    """
+    default = _default_branch(path)
+    if not default:
+        return False
+    merge_base = _git(path, "merge-base", "HEAD", default, check=False).strip()
+    if not merge_base:
+        return False
+    tree = _git(path, "rev-parse", "HEAD^{tree}", check=False).strip()
+    if not tree:
+        return False
+    synthetic = _git(path, "commit-tree", tree, "-p", merge_base, "-m", "_",
+                     check=False).strip()
+    if not synthetic:
+        return False
+    cherry = _git(path, "cherry", default, synthetic, check=False).strip()
+    return cherry.startswith("-")
 
 
 def release_worktree(root, task_id):
