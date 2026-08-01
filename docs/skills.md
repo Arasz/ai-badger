@@ -1,9 +1,9 @@
 # Skills
 
-ai-badger catalogs twenty skills. Nineteen live under `features/common/skills/` and split by
+ai-badger catalogs twenty-one skills. Twenty live under `features/common/skills/` and split by
 the scope `badger_lib.SKILL_SCOPES` gives them ([ADR-0005](adr/0005-default-skill-set.md)):
-**twelve are `default`** and arrive in every scaffolded project without being asked for, and
-**seven are `optIn`** — catalogued, but written only when a project names them. The twentieth,
+**thirteen are `default`** and arrive in every scaffolded project without being asked for, and
+**seven are `optIn`** — catalogued, but written only when a project names them. The twenty-first,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot, Junie, or Hermes project.
@@ -39,6 +39,7 @@ names it, **claude-only** when the stack decides.
 | [den-refresh](#den-refresh) | Pull framework updates into an already-scaffolded repo | default | by name |
 | [feed-badger](#feed-badger) | Contribute project-agnostic improvements back to the catalog | default | by name |
 | [task](#task) | Run one backlog task end to end with model delegation | default | by name (`/task <id>`) |
+| [create-task-spec](#create-task-spec) | Interrogate an idea into a Gherkin specification plus a manifest `task` consumes | default | by name |
 | [owner-gate-review](#owner-gate-review) | Turn a document's open decisions into a per-decision review form | default | by name |
 | [differential-feature-refactor](#differential-feature-refactor) | Reconcile a drifted feature against its ratified design before refactoring | default | by name |
 | [code-review-checklist](#code-review-checklist) | Aviation-style pass/fail checklist for a PR or diff | default | by name (a reference to work through) |
@@ -132,6 +133,30 @@ high-reasoning model and implementation to persona-routed agents.
 squash-merge.
 
 **When to use it.** "/task \<id\>", "start task X", "work on the next task", "finish this task".
+
+### create-task-spec
+
+[`SKILL.md`](../features/common/skills/create-task-spec/SKILL.md)
+
+**What it is.** Turns a rough idea into an exact specification by interrogating the person for
+what they know, rather than drafting something plausible for them to approve. The structure is
+Gherkin, and that is load-bearing: the grammar decides which questions must be asked, and an
+empty required slot is a question rather than a blank to fill.
+
+Because incompleteness is structural — a `Rule` with no example, an example with no steps —
+`scripts/spec_holes.py` can count the outstanding questions, so the loop stops when the document
+is complete rather than when the conversation feels finished. Unresolved points go to
+`owner-gate-review`; nothing is emitted while a decision card is unanswered.
+
+It emits two files that cannot be derived from one another: a `.feature` behavioural contract,
+and a `spec.json` manifest carrying scope, constraints, gate verdicts and deferrals. `task`
+accepts the manifest path in place of freeform text. `scripts/render_spec.py` renders either into
+a self-contained page for review, with the holes shown rather than merely counted.
+
+Reasoning and prior-art comparison: [`references/why-elicitation.md`](../features/common/skills/create-task-spec/references/why-elicitation.md).
+
+**When to use it.** "spec this out", "create a task spec", "turn this idea into requirements",
+"what exactly should we build" — before planning anything too big to describe in one sentence.
 
 ### owner-gate-review
 

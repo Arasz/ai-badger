@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.67.1",
+  "frameworkVersion": "0.68.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -171,6 +171,11 @@
         {
           "name": "commit-reminder",
           "path": "features/common/skills/commit-reminder",
+          "scope": "default"
+        },
+        {
+          "name": "create-task-spec",
+          "path": "features/common/skills/create-task-spec",
           "scope": "default"
         },
         {

@@ -93,6 +93,11 @@ reduced rigor since high-reasoning delegation wasn't possible.
 
 1. Resolve the task (an issue URL, or freeform text used as scope/title; cross-check the project
    board via the source-control extension if active). Read the referenced docs.
+   **If the argument is a path to a `spec.json` written by `create-task-spec`,** read it and its
+   companion `.feature` file instead of treating the path as a title: the manifest supplies the
+   scope, out-of-scope, constraints and deferred decisions, and the spec supplies the acceptance
+   criteria. Feed both to the planning agent in step 5, and hold the non-deferred scenarios as
+   Phase 3's pass condition.
 2. Register: `python3 .ai-badger/skills/task/scripts/task_tracker.py start <taskId> --title "<title>" --branch task/<taskId>-<slug>`.
 3. Ask the user to rename the session to match the task (skip if autonomous).
 4. Create/switch to the task branch.

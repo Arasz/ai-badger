@@ -625,6 +625,7 @@ SKILL_SCOPES: Dict[str, str] = {
     "call-behaviorist": SKILL_SCOPE_DEFAULT,
     "code-review-checklist": SKILL_SCOPE_DEFAULT,
     "commit-reminder": SKILL_SCOPE_DEFAULT,
+    "create-task-spec": SKILL_SCOPE_DEFAULT,
     "debug-issue": SKILL_SCOPE_OPT_IN,
     "den-refresh": SKILL_SCOPE_DEFAULT,
     "differential-feature-refactor": SKILL_SCOPE_DEFAULT,
