@@ -1,9 +1,9 @@
 # Skills
 
-ai-badger catalogs nineteen skills. Eighteen live under `features/common/skills/` and split by
+ai-badger catalogs twenty skills. Nineteen live under `features/common/skills/` and split by
 the scope `badger_lib.SKILL_SCOPES` gives them ([ADR-0005](adr/0005-default-skill-set.md)):
 **twelve are `default`** and arrive in every scaffolded project without being asked for, and
-**six are `optIn`** — catalogued, but written only when a project names them. The nineteenth,
+**seven are `optIn`** — catalogued, but written only when a project names them. The twentieth,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot, Junie, or Hermes project.
@@ -52,6 +52,7 @@ names it, **claude-only** when the stack decides.
 | [update-documentation](#update-documentation) | Change documentation to match something that already changed | opt-in | by name |
 | [migrate-documentation](#migrate-documentation) | Reorganise an existing documentation tree wholesale | opt-in | by name |
 | [review-changes](#review-changes) | Rank a diff's changed units by blast radius and check the riskiest are tested | opt-in | by name |
+| [explore-codebase](#explore-codebase) | Orient in an unfamiliar codebase before reading it file by file | opt-in | by name |
 | [debug-issue](#debug-issue) | Trace the call chain from a symptom to its entry point before hypothesizing | opt-in | by name |
 | [refactor-safely](#refactor-safely) | Enumerate every affected location before a rename, extraction, or removal | opt-in | by name |
 
@@ -357,6 +358,16 @@ than replacing it — the checklist runs the mechanical gates, this decides wher
 
 **When to use it.** "Is this safe to merge", "what's the blast radius", "did anything untested
 change".
+
+### explore-codebase
+
+[`SKILL.md`](../features/common/skills/explore-codebase/SKILL.md)
+
+**What it is.** Orientation: establish the shape, the module boundaries and the entry points,
+then follow one real path end to end before reading anything else.
+
+**When to use it.** Arriving at an unfamiliar codebase, or an unfamiliar region of a known one,
+where the question is *what is here* rather than *where is this specific thing*.
 
 ### debug-issue
 

@@ -115,7 +115,25 @@ def unpushed_release_tags(root: Path) -> List[str]:
             continue
         name = line.split("refs/tags/", 1)[1]
         remote.add(name[:-3] if name.endswith("^{}") else name)
-    return sorted(t for t in local - remote if TAG_PATTERN.match(t))
+
+    # Report only a tag the remote has *moved past*: one with a higher release tag already
+    # published. That is the real defect — a version skipped in the sequence, which is what
+    # 0.61.3 became once 0.62.0 shipped without it and started failing other people's PRs.
+    #
+    # The newest local tag is never reported, because it is indistinguishable from a release
+    # being cut this second — and pushing it runs this very hook. The first version of this
+    # check had no such rule and blocked its own tag push; the second exempted the tag matching
+    # VERSION, which then failed the moment VERSION was bumped ahead of an untagged release.
+    # Both were written from the failure rather than from the sequence the failure was in.
+    highest_remote = max(
+        (v for t in remote for v in [_semver(t)] if v is not None), default=None
+    )
+    if highest_remote is None:
+        return []
+    return sorted(
+        t for t in local - remote
+        for v in [_semver(t)] if v is not None and v < highest_remote
+    )
 
 
 def tag_version(tag: str) -> str:
