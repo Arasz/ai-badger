@@ -48,6 +48,7 @@ some agents, into the user's home directory. So the honest threat model is:
 | Hermes skill discovery | Creates symlinks under `~/.hermes/skills/<project>/` and copies hook plugins into `~/.hermes/plugins/` | Same |
 | Skill / dependency installation | Can run `pip`, `npm`, and plugin-install commands | Catalog templates; **opt-in only**, see below |
 | `feed-badger` | Takes content *out* of a private repo and puts it in a public draft PR | The user's repo |
+| Generated pages | `owner-gate-review` and `evidence-first-research` write HTML built from repository content | The document being reviewed or researched |
 | Hooks | Run in the agent's process on session start, prompt submit, and tool calls | Catalog scripts, plus project files they read |
 
 **The dangerous direction is outbound and side-effecting**, not inbound parsing. A vulnerability
@@ -86,6 +87,36 @@ From [0.25.0 — the hardening pass](docs/changelog/0.25.0-hardening.md):
 - **Path containment is asserted, not assumed.** `project.name` cannot escape
   `~/.hermes/skills/<name>`, and a manifest `target` cannot steer the drift hasher out of the
   project (an absolute right-hand side no longer wins the `pathlib` join).
+
+From [0.69.0 — a task owns its worktree](docs/changelog/0.69.0-a-task-owns-its-worktree.md):
+
+- **A task id cannot escape the worktree directory.** `task_tracker.py` splices its `<taskId>`
+  argument into `.claude/worktrees/<taskId>` and then hands that path to `git worktree
+  add/remove`. A `..` or a path separator would have pointed a *removal* somewhere nobody asked
+  for. `worktree_path()` refuses those ids rather than sanitising them: a silently rewritten id
+  would no longer match the one in the tracking JSON, which turns a containment fix into a
+  correctness bug.
+
+From [0.70.0 — a finding carries how it is known](docs/changelog/0.70.0-a-finding-carries-how-it-is-known.md):
+
+- **A generated page reaches no network.** `evidence-first-research`'s renderer emits inline SVG
+  and inlined CSS with no `<script src>`, no CDN, no fonts and no fetch — the page contains no
+  `http://` or `https://` string at all. A report is built from repository content and then opened
+  in a browser, so anything it could fetch is an exfiltration path out of a machine that has the
+  repository on it.
+- **It refuses to write inside the repository.** The markdown record is the artefact and is
+  committed; the HTML view goes to a temp directory. A generated page committed beside its source
+  is both a second source of truth and a thing that gets published without being reviewed as
+  published content — which is exactly how the home-directory leak below happened.
+
+From [0.69.1 — a shipped page is not prose](docs/changelog/0.69.1-a-shipped-page-is-not-prose.md):
+
+- **A shipped page cannot carry a machine-specific path.** Generated HTML committed under `docs/`
+  had a reviewer's home directory baked into a config field. That is low-severity information
+  disclosure — it names a user and their directory layout in a public repository — and it is the
+  kind that arrives by generation rather than by typing. `shipped_paths_guard.py` fails the build
+  on `/Users/`, `/home/`, or `C:\\Users\\` in a tracked page. `docs/` and `tests/` stay exempt for
+  prose and fixtures; the exemption stops at generated pages, which are neither.
 
 Structural properties that predate those waves:
 
@@ -134,10 +165,15 @@ omission, and both candidates were looked at:
   theatre, and a five-pattern one advertised as secret scanning is worse than none: it buys
   false confidence.
 
-So, stated plainly: **a credential can be committed locally, and is caught when the branch is
-pushed to `main` or opened as a pull request** — not on the push of a topic branch that is
-neither. Closing that last window is a matter of widening the CI trigger, not of adding a local
-hook.
+So, stated plainly: **a credential can be committed locally, and is caught on the push** —
+`secret-scan.yml` triggers on `push: branches: ['**']`, so a topic branch that never becomes a PR
+is scanned too.
+
+This paragraph used to say the opposite: that a topic branch was scanned only once it reached
+`main` or a PR, and that closing the window meant widening the trigger. The trigger had already
+been widened. A security document that understates its own coverage is not the safe direction to
+be wrong in — it invites someone to "fix" what is already fixed, and to distrust a control that
+works.
 
 ## Out of scope
 

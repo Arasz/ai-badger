@@ -26,10 +26,14 @@ Pre-1.0, the minor slot is the breaking slot. The number tracks blast radius, no
 5. `python3 tooling/version_sync.py --check && python3 tooling/changelog_index.py --check && python3 gates/release_guard.py` — all three must pass.
 6. `python3 -m pytest tests/ -q` and `python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')`.
 7. Open a PR; CI runs the same gates.
-8. **This step is the release.** After merge, from `main`: `claude plugin tag --push` — creates
-   `ai-badger--v{version}`. Until it runs, the version denotes no commit and `release_guard.py`
-   still compares against the *previous* tag. Skipping it is invisible on a green PR; it was
-   skipped 32 times.
+8. **Merge. The tag is automatic** — since 0.69.2 a workflow tags `ai-badger--v{version}` from
+   `main` after the merge. Nobody runs `claude plugin tag --push` by hand any more.
+
+   That step used to be step 8 and used to be *the* release, and it was skipped 32 times: a
+   green PR looks identical whether or not anyone remembered. Automating it removed the failure
+   mode; verify the tag reached the remote anyway
+   (`git ls-remote --tags origin | grep "refs/tags/ai-badger--v{version}$"`)
+   rather than assuming, because a workflow that did not run also looks like nothing.
 9. **Verify content, not just metadata** (fixes #27):
 
 ### Verification (mandatory)
@@ -81,5 +85,21 @@ Tags are **not** cut in batches. `0.3.0`–`0.19.0` carry no tag and never will:
 `release_guard.py` compares against the last release *tag*, not the previous commit. Multiple PRs may land at one unreleased version; tag once when the set is complete.
 
 *One* unreleased version in flight is this model working. Two or more means a tag was skipped, and the guard prints `UNTAGGED RELEASES` naming them and **exits 1** — checked before the diff, because an untagged release is a fact about the repo rather than about what this push touched.
+
+### Merge order is part of the release
+
+Two PRs carrying different versions must merge in version order. On 2026-08-01 they did not: a
+0.70.0 branch merged, then a 0.69.3 branch merged seventeen minutes later and wrote `VERSION`
+**backwards**. Both changes landed; only the recorded version stopped describing the tree, and
+`main` sat below its own highest tag with nowhere to go next.
+
+`release_guard.py` now refuses a `VERSION` below the last released tag — it previously asked only
+whether the two *differed*, and inequality is not ordering, so it reported `0.70.0 -> 0.69.3` as a
+bump and passed. Re-check the base before merging the second PR of a pair; a version stated in a
+PR description is a comment, not a control.
+
+A tag whose commit contains a *later* release's shipped surface is deleted rather than moved: it
+labels a superset of what it claims. Re-cut the content at a fresh version above the highest tag,
+and remove the misleading tag only after the new one exists, so `main` is never untagged.
 
 The check earns that severity: `release_guard.py` derives its baseline from the last tag, so between 2026-07-19 and 2026-07-27 it compared against an 18-minor-stale `ai-badger--v0.2.0`, found changes and a differing `VERSION` every run, and passed 32 times without ever being capable of failing. When a check's authority comes from the artefact it is checking, its silence carries no information.

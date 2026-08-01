@@ -103,11 +103,14 @@ agent-specific stacks (`claude`, `copilot`, `junie`).
 /plugin install ai-badger
 ```
 
-This installs the operational skills: `welcome-ai-badger`, `feed-badger`, `den-refresh`,
-`task`, `maintain-agent-instructions`, `auto-wm`, `prompt-markers`, `mcp-index`,
+This installs the thirteen `default` skills: `welcome-ai-badger`, `feed-badger`, `den-refresh`,
+`task`, `create-task-spec`, `maintain-agent-instructions`, `prompt-markers`, `mcp-index`,
 `code-review-checklist`, `call-behaviorist`, `owner-gate-review`, `commit-reminder`, and
-`differential-feature-refactor`. See [`docs/skills.md`](docs/skills.md) for what each one does
-and when to reach for it.
+`differential-feature-refactor` — plus `auto-wm`, which is stack-local to Claude.
+
+Eight more are catalogued but withheld until a project names them in `config.include.skills`
+(ADR-0005). See [`docs/skills.md`](docs/skills.md) for what each one does, when to reach for it,
+and which arrive unasked.
 
 ## Quickstart
 
@@ -185,7 +188,8 @@ the schema.
 | **welcome-ai-badger** | Bootstrap a new project: detect stacks → config → scaffold |
 | **feed-badger** | Harvest project improvements back into the framework |
 | **den-refresh** | Pull framework updates into an already-scaffolded project |
-| **task** | Orchestrate backlog tasks with TDD, delegation, and PR workflow |
+| **task** | Orchestrate backlog tasks with TDD, delegation, and PR workflow; owns a git worktree per task |
+| **create-task-spec** | Interrogate an idea into a Gherkin specification plus a manifest `task` consumes |
 | **maintain-agent-instructions** | Keep agent instruction files in sync with the catalog |
 | **auto-wm** | Autonomous working mode: partner/away/disable transitions |
 | **prompt-markers** | Structured prompt markers (`h:`, `f:`, `e:`) for agent communication |
@@ -263,7 +267,7 @@ flowchart TB
       COMMON["common/\npersonas·invariants·instructions·hooks·templates"]
       STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · github · angular"]
     end
-    SKILLSDIR["features/common/skills/\nwelcome · feed · task · maintain · prompt-markers\n· den-refresh · mcp-index · code-review-checklist · call-behaviorist\n· owner-gate-review · commit-reminder · differential-feature-refactor"]
+    SKILLSDIR["features/common/skills/\n13 default: welcome · feed · task · create-task-spec · maintain\n· prompt-markers · den-refresh · mcp-index · code-review-checklist\n· call-behaviorist · owner-gate-review · commit-reminder · differential-feature-refactor\n8 optIn: the documentation three · review-changes · explore-codebase\n· debug-issue · refactor-safely · evidence-first-research"]
     CLAUDESKILLS["features/claude/skills/\nauto-wm"]
     MCPCAT["features/*/mcp/ + stack-mcp.json\ncode-review-graph (MCP)"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]
