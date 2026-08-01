@@ -153,8 +153,19 @@ def test_an_exempted_path_is_not_flagged(tmp_path, guard):
 
 
 def test_an_exempted_document_is_not_scanned(tmp_path, guard):
+    """Rewritten 2026-08-01: the vehicle was `docs/archive/`, the last built-in exemption.
+
+    The behaviour under test is unchanged — a document listed as exempt is skipped entirely,
+    both its links and its paths. Only the route to exemption moved: `BUILTIN_EXEMPT` is now
+    empty (#268 review found it still named a directory deleted with the kind-grouped record
+    dirs), so `.docs-guard-ignore` is the one way to exempt a document.
+
+    Distinct from `test_an_exempted_path_is_not_flagged`, which exempts the path being
+    *referenced*; this exempts the document doing the referencing.
+    """
     repo = _repo(tmp_path)
-    _doc(repo, "docs/archive/old.md", "[gone](../nowhere.md) and `tooling/gone.py`\n")
+    _doc(repo, "docs/old-record.md", "[gone](../nowhere.md) and `tooling/gone.py`\n")
+    (repo / ".docs-guard-ignore").write_text("docs/old-record.md\n", encoding="utf-8")
 
     assert guard.main(["--root", str(repo)]) == 0
 

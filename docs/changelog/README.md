@@ -22,7 +22,7 @@ re-scaffold.
 |---|---|
 | 0.69.0 | [a task owns its worktree](0.69.0-a-task-owns-its-worktree.md) |
 | 0.68.0 | [A spec is elicited, not drafted](0.68.0-a-spec-is-elicited-not-drafted.md) · [a task owns its worktree](0.68.0-a-task-owns-its-worktree.md) |
-| 0.67.1 | [evidence moves out of the body](0.67.1-evidence-moves-out-of-the-body.md) |
+| 0.67.1 | [A shipped page is not prose](0.67.1-a-shipped-page-is-not-prose.md) · [evidence moves out of the body](0.67.1-evidence-moves-out-of-the-body.md) |
 | 0.67.0 | [work records get a legal home](0.67.0-work-records-get-a-legal-home.md) |
 | 0.66.1 | [A release-only push skips the full suite](0.66.1-a-release-only-push-skips-the-full-suite.md) |
 | 0.66.0 | [The plugin copy says it is the generic one](0.66.0-the-plugin-copy-says-it-is-the-generic-one.md) |
