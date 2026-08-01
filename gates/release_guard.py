@@ -229,10 +229,22 @@ def _check(root: Path) -> int:
         print(f"no shipped-surface changes since {tag} — PASS")
         return 0
 
-    if current_version != released_version:
+    # A bump is upward. Asking only whether the strings differ let VERSION move backwards: two
+    # PRs merged out of order on 2026-08-01 took main from 0.70.0 to 0.69.3, and the guard
+    # reported that as a bump. A version below its own highest tag cannot be released at all.
+    now = _semver(f"ai-badger--v{current_version}")
+    before = _semver(f"ai-badger--v{released_version}")
+    if now is not None and before is not None and now > before:
         print(f"shipped surface changed since {tag} and VERSION was bumped "
               f"({released_version} -> {current_version}) — PASS")
         return 0
+
+    if now is not None and before is not None and now < before:
+        print(f"VERSION went backwards: {released_version} is already released as {tag}, "
+              f"but VERSION now reads {current_version}.")
+        print(f"    set VERSION above {released_version} — a release below its own tag has "
+              f"nowhere to go")
+        return 1
 
     print(f"shipped surface changed since {tag} but VERSION is still {current_version}:")
     for p in changed:

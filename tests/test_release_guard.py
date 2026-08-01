@@ -410,3 +410,45 @@ def test_a_tag_the_remote_moved_past_is_reported(tmp_path, load_script):
     _git(repo, "push", "-q", "origin", "refs/tags/ai-badger--v0.3.0")
 
     assert guard.unpushed_release_tags(repo) == ["ai-badger--v0.2.0"]
+
+
+def test_fails_when_version_goes_backwards(tmp_path, load_script, capsys):
+    """A bump is upward. Inequality is not ordering (main went 0.70.0 -> 0.69.3 and passed).
+
+    Two PRs merged out of order on 2026-08-01: 0.70.0 landed, then a 0.69.3 branch merged and
+    wrote VERSION backwards. The guard reported "VERSION was bumped (0.70.0 -> 0.69.3) — PASS",
+    because it only asked whether the strings differed.
+    """
+    release_guard = load_script("gates/release_guard.py")
+    repo = _init_repo(tmp_path)
+    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    (repo / "skills").mkdir()
+    (repo / "skills" / "a.md").write_text("a\n", encoding="utf-8")
+    _commit_all(repo, "release 0.2.0")
+    _tag(repo, "ai-badger--v0.2.0")
+
+    (repo / "skills" / "a.md").write_text("changed\n", encoding="utf-8")
+    (repo / "VERSION").write_text("0.1.9\n", encoding="utf-8")
+    _commit_all(repo, "tweak a skill + move VERSION backwards")
+
+    rc = release_guard.main(["--root", str(repo)])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "0.1.9" in out and "0.2.0" in out
+
+
+def test_fails_when_version_equals_an_older_released_tag(tmp_path, load_script):
+    """Re-using a released version is the same defect wearing a different number."""
+    release_guard = load_script("gates/release_guard.py")
+    repo = _init_repo(tmp_path)
+    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    (repo / "skills").mkdir()
+    (repo / "skills" / "a.md").write_text("a\n", encoding="utf-8")
+    _commit_all(repo, "release 0.2.0")
+    _tag(repo, "ai-badger--v0.2.0")
+
+    (repo / "skills" / "a.md").write_text("changed\n", encoding="utf-8")
+    _commit_all(repo, "tweak a skill, VERSION untouched")
+
+    assert release_guard.main(["--root", str(repo)]) == 1
