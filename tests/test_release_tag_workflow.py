@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import subprocess
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -90,16 +92,81 @@ class TestOnlyTheRemoteCounts:
         assert "exit 1" in workflow.split("git push origin")[-1]
 
 
+def annotate_step() -> str:
+    """The body of the annotation step, lifted from the workflow rather than restated.
+
+    Same reason as `rendered_tag`: a test that restates the shell passes while the workflow
+    says something else, and breaks on a harmless requote (#292).
+    """
+    match = re.search(
+        r"- name: Annotate a stale release subject\n\s+run: \|\n(.*?)(?=\n\s*- name:)",
+        workflow, re.DOTALL)
+    assert match, "could not find the 'Annotate a stale release subject' step in the workflow"
+    return textwrap.dedent(match.group(1))
+
+
+def run_annotate(tmp_path, subject: str, version: str) -> str:
+    """Run the real step over a real commit, and return what it wrote to stdout."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git = ["git", "-c", "user.email=t@example.invalid", "-c", "user.name=t"]
+    subprocess.run(git + ["init", "-q"], cwd=repo, check=True)
+    (repo / "VERSION").write_text(f"{version}\n", encoding="utf-8")
+    subprocess.run(git + ["add", "VERSION"], cwd=repo, check=True)
+    subprocess.run(git + ["commit", "-q", "--no-verify", "-m", subject], cwd=repo, check=True)
+
+    done = subprocess.run(["bash", "-c", annotate_step()], cwd=repo,
+                          capture_output=True, text=True, check=True)
+    return done.stdout
+
+
 class TestReleaseSubjectAnnotation:
     """A stale squash title should be visible without blocking the already-merged release."""
 
     def test_the_workflow_reads_the_head_subject(self):
         assert 'SUBJECT="$(git log -1 --format=%s)"' in workflow
 
-    def test_a_parenthesized_version_mismatch_is_annotated(self):
-        assert 'SUBJECT_VERSION="$(printf' in workflow
-        assert '::warning title=Release subject/version mismatch::' in workflow
-        assert 'if [ -n "$SUBJECT_VERSION" ] && [ "$SUBJECT_VERSION" != "$VERSION" ]; then' in workflow
+    @pytest.mark.parametrize("subject,version,warns", [
+        # The repo's own convention: the release version is the last parenthesised group.
+        ("fix: a task worktree lands where every agent has a directory (0.72.1) (#285)",
+         "0.73.0", True),
+        ("feat: review before you plan, and check every join (0.72.0) (#284)", "0.72.0", False),
+        # A decoy earlier in the subject must not win over the trailing release version.
+        ("feat: support python (3.9.1) runtime and bump to (0.73.0) (#291)", "0.73.0", False),
+        ("feat: support python (3.9.1) runtime and bump to (0.73.0) (#291)", "0.73.1", True),
+        # Nothing parenthesised to compare: silent by design, documented in RELEASING.md.
+        ("docs(work): record the sixteen-rules plan while it is in flight (#280)", "0.73.0",
+         False),
+        ("chore: bump to 0.73.1 (#292)", "0.73.0", False),
+    ])
+    def test_a_parenthesised_version_mismatch_is_annotated(self, tmp_path, subject, version,
+                                                           warns):
+        out = run_annotate(tmp_path, subject, version)
+
+        assert ("::warning title=Release subject/version mismatch::" in out) is warns, out
+
+    def test_the_annotation_names_both_versions(self, tmp_path):
+        """The warning is only actionable if it says which two numbers disagree."""
+        out = run_annotate(tmp_path, "fix: something (0.72.1) (#285)", "0.73.0")
+
+        assert "0.72.1" in out and "0.73.0" in out
+
+    def test_the_step_never_fails_the_release(self, tmp_path):
+        """Advisory by design: the merge has already happened by the time this runs."""
+        script = annotate_step()
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        git = ["git", "-c", "user.email=t@example.invalid", "-c", "user.name=t"]
+        subprocess.run(git + ["init", "-q"], cwd=repo, check=True)
+        (repo / "VERSION").write_text("0.73.0\n", encoding="utf-8")
+        subprocess.run(git + ["add", "VERSION"], cwd=repo, check=True)
+        subprocess.run(git + ["commit", "-q", "--no-verify", "-m", "fix: stale (0.1.2) (#1)"],
+                       cwd=repo, check=True)
+
+        done = subprocess.run(["bash", "-c", script], cwd=repo, capture_output=True, text=True,
+                              check=False)
+
+        assert done.returncode == 0, done.stderr
 
 
 class TestTheGuardStillDrivesTheFormat:
