@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.66.1 | [A release-only push skips the full suite](0.66.1-a-release-only-push-skips-the-full-suite.md) |
 | 0.66.0 | [The plugin copy says it is the generic one](0.66.0-the-plugin-copy-says-it-is-the-generic-one.md) |
 | 0.65.1 | [An included `optIn` skill reaches the agent](0.65.1-an-included-optin-skill-reaches-the-agent.md) |
 | 0.65.0 | [`explore-codebase` joins the catalog, and `MANAGED_EXTERNALLY` empties](0.65.0-explore-codebase-joins-the-catalog.md) |

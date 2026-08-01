@@ -239,3 +239,59 @@ def test_summary_log_records_failed_lanes():
     assert "FAIL" in line
     assert "failed:" in line, f"expected 'failed:' marker in: {line}"
     assert "release" in line.split("failed:")[1]
+
+
+# ── a release-only push ─────────────────────────────────────────────────────────
+#
+# Measured on 2026-08-01: the twelve non-pytest lanes total 14s, pylint 12s, pytest 49s. So
+# two thirds of the gate is the full suite, and a release commit reaches it through the
+# `*.json|VERSION` route — VERSION, the three version literals, index.json and the regenerated
+# changelog index are all that changes.
+#
+# Those artifacts are produced by generators that already have dedicated lanes: version-sync,
+# index, changelog (inside docs), release. Running 2813 tests to re-prove what four lanes just
+# proved is the one narrowing worth making, and it is deliberately the *only* one — every other
+# route still runs everything, because a gate that stops verifying is invisible until it matters.
+
+RELEASE_ONLY_PATHS = [
+    "VERSION",
+    "index.json",
+    ".claude-plugin/plugin.json",
+    ".claude-plugin/marketplace.json",
+    "docs/changelog/0.99.0-probe.md",
+    "docs/changelog/README.md",
+]
+
+
+def _lanes_for_paths(paths):
+    """Run the selector against a synthetic changed-path list."""
+    return _run("lanes-for", stdin="".join(f"{p}\n" for p in paths)).stdout.split()
+
+
+def test_a_release_only_push_skips_the_full_suite():
+    selected = _lanes_for_paths(RELEASE_ONLY_PATHS)
+
+    assert "pytest" not in selected, f"selected {selected}"
+    for cheap in ("version-sync", "index", "release", "docs"):
+        assert cheap in selected, f"{cheap} must still run: {selected}"
+
+
+def test_one_source_file_alongside_a_release_restores_the_full_suite():
+    """The narrowing is about what a release touches, not about releases."""
+    selected = _lanes_for_paths(RELEASE_ONLY_PATHS + ["engine/badger_lib.py"])
+
+    assert "pytest" in selected
+
+
+def test_a_hand_written_json_still_runs_the_full_suite():
+    """Only the generated release artifacts are exempt; a schema edit is not one."""
+    selected = _lanes_for_paths(["schemas/config.schema.json"])
+
+    assert "pytest" in selected
+
+
+def test_a_scaffold_stamp_alone_does_not_exempt_a_source_change():
+    """`.ai-badger/` is regenerated too, but it mirrors sources that must still be tested."""
+    selected = _lanes_for_paths([".ai-badger/manifest.json", "features/common/skills/x/SKILL.md"])
+
+    assert "pytest" in selected
