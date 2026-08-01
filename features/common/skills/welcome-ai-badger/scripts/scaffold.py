@@ -257,16 +257,20 @@ class Scaffolder:
     def __init__(self, root: Path, target: Path, config: Dict[str, Any],
                  skills: List[str], install: bool, overwrite: bool = False,
                  reset_seed_files: bool = False, execute: bool = False):
-        # The one enforcement point for config.exclude: every consumer reads self.skills or
-        # self.items(), so welcome-ai-badger and den-refresh cannot disagree about what a
-        # project declined.
+        # The one enforcement point for config.exclude and config.include: every consumer
+        # reads self.skills or self.items(), so welcome-ai-badger and den-refresh cannot
+        # disagree about what a project declined — or asked for.
         excluded = bl.exclusions(config)
+        self.included = bl.inclusions(config)
+        self.addable_skills = set(bl.opt_in_skills_in(root / "features" / "common" / "skills"))
+        asked_for = [n for n in sorted(self.included["skills"]) if n in self.addable_skills]
+        offered = list(dict.fromkeys(list(skills) + asked_for))
         index = bl.read_index(root)
         self.generated_config = GeneratedConfigRecords(target, index["frameworkVersion"])
         self.ctx = ScaffoldContext(
             root=root, target=target, aib=target / ".ai-badger", config=config,
             index=index, stacks=bl.resolve_stacks(config),
-            skills=[s for s in skills if s not in excluded["skills"]],
+            skills=[s for s in offered if s not in excluded["skills"]],
             excluded=excluded, overwrite=overwrite, reset_seed_files=reset_seed_files,
             record_template=self.record_template, record=self.record,
             record_generated_config=self.generated_config.record,
@@ -285,6 +289,7 @@ class Scaffolder:
         self.entries: List[Dict[str, Any]] = []
         self._completed_steps: List[str] = []
         self._note_exclusions()
+        self._note_inclusions()
 
     # -- exclusions -------------------------------------------------------------------
     def items(self, stack: str, feature: str) -> List[Dict[str, Any]]:
@@ -320,6 +325,11 @@ class Scaffolder:
                     f"declined skill '{name}': .ai-badger/skills/{name} left on disk — "
                     f"delete it by hand"
                 )
+
+    def _note_inclusions(self) -> None:
+        """Report each inclusion: what it added, and what it could not add — never fatal."""
+        self.notes.extend(bl.inclusion_notes(
+            self.included["skills"], self.excluded["skills"], self.addable_skills))
 
     # -- provenance -----------------------------------------------------------------
     def record(self, feature: str, stack: str, name: str, source: Path, target: Path) -> None:
@@ -730,6 +740,7 @@ class Scaffolder:
             "pluginCommands": plugin_cmds,
             "dependencyResult": dep_result,
             "notes": self.notes,
+            "availableOptIn": bl.available_opt_in(self.root, self.skills),
         }
 
 
@@ -799,6 +810,11 @@ def main(argv=None) -> int:
     print(f"scaffolded {len(result['manifest']['entries'])} entries into {scaf.aib}")
     for n in cli_notes + result["notes"]:
         print(f"  note: {n}")
+    if result["availableOptIn"]:
+        print("  opt-in skills available (not installed):")
+        for skill in result["availableOptIn"]:
+            print(f"    - {skill['name']}: {skill['description']}")
+            print(f"      add it with: {skill['configEdit']}")
     if result["pluginCommands"]:
         import install_plugins as ip_lib  # pylint: disable=import-outside-toplevel
         print("  plugin setup commands (run per chosen scope):")

@@ -1,34 +1,59 @@
 # Skills
 
-ai-badger ships thirteen skills: twelve under `features/common/skills/`, scoped `default` in
-`badger_lib.SKILL_SCOPES` so every project gets them ([ADR-0005](adr/0005-default-skill-set.md)),
-plus one — `auto-wm` — under `features/claude/skills/`, stack-local to the `claude` agent
+ai-badger catalogs nineteen skills. Eighteen live under `features/common/skills/` and split by
+the scope `badger_lib.SKILL_SCOPES` gives them ([ADR-0005](adr/0005-default-skill-set.md)):
+**twelve are `default`** and arrive in every scaffolded project without being asked for, and
+**six are `optIn`** — catalogued, but written only when a project names them. The nineteenth,
+`auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot, Junie, or Hermes project.
+
+An `optIn` skill is asked for by name in `.ai-badger/config.json`:
+
+```jsonc
+{
+  "include": { "skills": ["update-documentation"] }
+}
+```
+
+`welcome-ai-badger` and `den-refresh` both honour it, a `config.json` edit is drift so the next
+refresh delivers the skill on its own, and every report lists the `optIn` skills a project has
+not installed with the exact edit that adds each. The mechanism — and what to weigh when
+declaring a new skill's scope — is in
+[`authoring-a-feature.md`](authoring-a-feature.md#default-or-optin).
 
 Most skills are **invoked by name** — a slash command or a phrase the agent recognizes from the
 `SKILL.md` frontmatter description, run when someone decides to run it. A few are **hook-backed**
 — wired into `.claude/settings.json` (or the Hermes equivalent) at scaffold time and fire on
 their own, on every matching event, whether or not anyone asked. The table below names which is
-which; the per-skill sections say what changes on disk either way.
+which and which arrive unasked; the per-skill sections say what changes on disk either way.
 
 ## At a glance
 
-| Skill | Purpose | Invoked how |
-|---|---|---|
-| [welcome-ai-badger](#welcome-ai-badger) | Scaffold `.ai-badger/` into a repo for the first time | by name |
-| [den-refresh](#den-refresh) | Pull framework updates into an already-scaffolded repo | by name |
-| [feed-badger](#feed-badger) | Contribute project-agnostic improvements back to the catalog | by name |
-| [task](#task) | Run one backlog task end to end with model delegation | by name (`/task <id>`) |
-| [owner-gate-review](#owner-gate-review) | Turn a document's open decisions into a per-decision review form | by name |
-| [differential-feature-refactor](#differential-feature-refactor) | Reconcile a drifted feature against its ratified design before refactoring | by name |
-| [code-review-checklist](#code-review-checklist) | Aviation-style pass/fail checklist for a PR or diff | by name (a reference to work through) |
-| [prompt-markers](#prompt-markers) | Detect `h:`/`f:`/`e:` prefixes and inject the matching behaviour | hook (`UserPromptSubmit`) |
-| [commit-reminder](#commit-reminder) | Command a commit once uncommitted work crosses a threshold | hook (`PostToolUse`) |
-| [call-behaviorist](#call-behaviorist) | Off-by-default audit log for ai-badger's own hooks | by name |
-| [auto-wm](#auto-wm) — claude-only | Auto-approve tool calls in partner/away mode | by name (`/auto-wm`); installs a `PreToolUse` hook once enabled |
-| [maintain-agent-instructions](#maintain-agent-instructions) | Reconcile CLAUDE.md/Copilot/Junie instruction files against one model | by name (or CI) |
-| [mcp-index](#mcp-index) | Curate the MCP tool index a hook uses to recommend tools per turn | by name; feeds a `pre_llm_call` hook |
+`Ships` is the scope: **default** arrives unasked, **opt-in** only when `config.include.skills`
+names it, **claude-only** when the stack decides.
+
+| Skill | Purpose | Ships | Invoked how |
+|---|---|---|---|
+| [welcome-ai-badger](#welcome-ai-badger) | Scaffold `.ai-badger/` into a repo for the first time | default | by name |
+| [den-refresh](#den-refresh) | Pull framework updates into an already-scaffolded repo | default | by name |
+| [feed-badger](#feed-badger) | Contribute project-agnostic improvements back to the catalog | default | by name |
+| [task](#task) | Run one backlog task end to end with model delegation | default | by name (`/task <id>`) |
+| [owner-gate-review](#owner-gate-review) | Turn a document's open decisions into a per-decision review form | default | by name |
+| [differential-feature-refactor](#differential-feature-refactor) | Reconcile a drifted feature against its ratified design before refactoring | default | by name |
+| [code-review-checklist](#code-review-checklist) | Aviation-style pass/fail checklist for a PR or diff | default | by name (a reference to work through) |
+| [prompt-markers](#prompt-markers) | Detect `h:`/`f:`/`e:` prefixes and inject the matching behaviour | default | hook (`UserPromptSubmit`) |
+| [commit-reminder](#commit-reminder) | Command a commit once uncommitted work crosses a threshold | default | hook (`PostToolUse`) |
+| [call-behaviorist](#call-behaviorist) | Off-by-default audit log for ai-badger's own hooks | default | by name |
+| [maintain-agent-instructions](#maintain-agent-instructions) | Reconcile CLAUDE.md/Copilot/Junie instruction files against one model | default | by name (or CI) |
+| [mcp-index](#mcp-index) | Curate the MCP tool index a hook uses to recommend tools per turn | default | by name; feeds a `pre_llm_call` hook |
+| [auto-wm](#auto-wm) | Auto-approve tool calls in partner/away mode | claude-only | by name (`/auto-wm`); installs a `PreToolUse` hook once enabled |
+| [scaffold-documentation](#scaffold-documentation) | Create the canonical `docs/` tree in a repo that has none | opt-in | by name |
+| [update-documentation](#update-documentation) | Change documentation to match something that already changed | opt-in | by name |
+| [migrate-documentation](#migrate-documentation) | Reorganise an existing documentation tree wholesale | opt-in | by name |
+| [review-changes](#review-changes) | Rank a diff's changed units by blast radius and check the riskiest are tested | opt-in | by name |
+| [debug-issue](#debug-issue) | Trace the call chain from a symptom to its entry point before hypothesizing | opt-in | by name |
+| [refactor-safely](#refactor-safely) | Enumerate every affected location before a rename, extraction, or removal | opt-in | by name |
 
 ---
 
@@ -280,6 +305,84 @@ message, and injects the top-matching tool recommendations as context on the nex
 
 **When to use it.** The agent keeps picking the wrong MCP tool, server tool definitions are
 bloating the prompt, or MCP servers were just added or removed.
+
+---
+
+## Asked for, not shipped (`optIn`)
+
+None of the six below is written into a project until `config.include.skills` names it — see the
+opening of this page for the edit, and
+[`authoring-a-feature.md`](authoring-a-feature.md#default-or-optin) for the mechanism. Every
+scaffold and refresh report lists the ones a project has not installed, so nobody has to know
+they exist in advance.
+
+### scaffold-documentation
+
+[`SKILL.md`](../features/common/skills/scaffold-documentation/SKILL.md)
+
+**What it is.** The first-run half of the documentation workflow: it creates the canonical
+`docs/` tree, not any document in it.
+
+**When to use it.** A repository has no documentation tree, the layout is missing or incomplete,
+or a structure check reports absent directories. Not for adding or editing a document.
+
+### update-documentation
+
+[`SKILL.md`](../features/common/skills/update-documentation/SKILL.md)
+
+**What it is.** The steady-state half: documentation changes to match something that already
+changed, and every new page gets decided a home before it is written.
+
+**When to use it.** After a code change, ADR, schema change or PR lands; when a doc contradicts
+the code; when a fact nobody can source needs one; before creating any new document.
+
+### migrate-documentation
+
+[`SKILL.md`](../features/common/skills/migrate-documentation/SKILL.md)
+
+**What it is.** The one-off half: an existing documentation tree reorganised wholesale, with
+accuracy established before anyone relies on it. Resumable — a migration in progress is picked
+up where it stopped.
+
+**When to use it.** Hundreds of files with no structure, documents that contradict each other, or
+a `docs/` directory nobody can navigate.
+
+### review-changes
+
+[`SKILL.md`](../features/common/skills/review-changes/SKILL.md)
+
+**What it is.** Risk prioritization for a diff: rank changed units by blast radius, then check
+whether the riskiest ones are actually covered. It composes with `code-review-checklist` rather
+than replacing it — the checklist runs the mechanical gates, this decides where attention goes.
+
+**When to use it.** "Is this safe to merge", "what's the blast radius", "did anything untested
+change".
+
+### debug-issue
+
+[`SKILL.md`](../features/common/skills/debug-issue/SKILL.md)
+
+**What it is.** The tracing step of debugging: walk the call chain from symptom to entry point
+before forming a hypothesis.
+
+**When to use it.** A bug report or failing test names a symptom and the code path producing it
+is not yet known.
+
+### refactor-safely
+
+[`SKILL.md`](../features/common/skills/refactor-safely/SKILL.md)
+
+**What it is.** Preview, apply, verify: enumerate every affected location before the first edit,
+and confirm a removal has zero *reachable* callers rather than zero grep hits.
+
+**When to use it.** A rename that spans call sites, an extraction that changes a signature, or a
+removal that might delete something still in use.
+
+Each of those last three names an accelerated path through a code-graph MCP server and a
+baseline that needs none. Their workflows derive from the skill templates the
+`code-review-graph` project auto-installs (MIT, © 2026 Tirth Kanani), rewritten to be
+tool-agnostic — which is also why they are `optIn`: a project already running that tool receives
+its own copies, and ai-badger does not contend for the same files uninvited.
 
 ---
 

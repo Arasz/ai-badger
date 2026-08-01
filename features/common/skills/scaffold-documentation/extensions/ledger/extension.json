@@ -1,0 +1,5 @@
+{
+  "skill": "scaffold-documentation",
+  "extension": "ledger",
+  "requires": ["docs.tool"]
+}

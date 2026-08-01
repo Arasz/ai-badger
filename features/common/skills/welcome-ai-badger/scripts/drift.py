@@ -198,6 +198,11 @@ def detect_new_items(root: Path, manifest: Dict[str, Any],
             for item in items:
                 if item.get("name") in (declined.get(feature) or ()):
                     continue
+                # An optIn skill is absent from the manifest until a project names it in
+                # config.include, so reporting it as new would nag on every refresh and
+                # never clear — a re-scaffold cannot deliver what nobody asked for.
+                if item.get("scope") == bl.SKILL_SCOPE_OPT_IN:
+                    continue
                 key = (stack_name, feature, item.get("name"))
                 if key not in manifest_keys:
                     new_items.append({
