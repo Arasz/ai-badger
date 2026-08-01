@@ -69,3 +69,49 @@ def test_the_checker_itself_can_fail(tmp_path):
     probe.write_text("from __future__ import annotations\nAlias = dict[str, int]\n",
                      encoding="utf-8")
     assert _runtime_builtin_generic_lines(probe) == [2]
+
+
+# ── methods that did not exist on 3.8 ───────────────────────────────────────────
+#
+# The subscript check above catches a TypeError at *import*. A 3.9-only method call fails at
+# *call* time instead, so it passes import, passes a local 3.14 run, and fails only in CI's 3.8
+# lane — which is exactly how `str.removesuffix` reached a pull request from this repo on
+# 2026-08-01. Same floor, different failure mode, so it needs its own check.
+
+# name -> the version that introduced it. Method calls only: a same-named method on someone
+# else's class would be a false positive, which is why the message says "if this is not str".
+METHODS_ADDED_AFTER_3_8 = {
+    "removesuffix": "3.9",
+    "removeprefix": "3.9",
+}
+
+
+def _late_method_calls(path: Path):
+    """(line, name) for every attribute call naming a method added after the floor."""
+    found = []
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if node.func.attr in METHODS_ADDED_AFTER_3_8:
+                found.append((node.lineno, node.func.attr))
+    return found
+
+
+@pytest.mark.parametrize("path", _shipped_sources(), ids=lambda p: p.relative_to(ROOT).as_posix())
+def test_no_method_newer_than_the_floor_is_called(path):
+    calls = _late_method_calls(path)
+    assert not calls, (
+        f"{path.relative_to(ROOT)} calls "
+        + ", ".join(f"`.{name}()` (Python {METHODS_ADDED_AFTER_3_8[name]}+) on line {line}"
+                    for line, name in calls)
+        + ". The floor is 3.8, and this fails at call time rather than import, so a local run "
+          "on a newer interpreter will not notice. Use slicing or a conditional instead. "
+          "(If this is not a str, rename the local or add it to an allowlist here.)"
+    )
+
+
+def test_the_method_checker_can_fail(tmp_path):
+    """Without this, the check above passes on a repo that simply never calls one."""
+    probe = tmp_path / "probe.py"
+    probe.write_text('x = "ab^{}".removesuffix("^{}")\n', encoding="utf-8")
+
+    assert _late_method_calls(probe) == [(1, "removesuffix")]

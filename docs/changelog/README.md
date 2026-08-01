@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.64.3 | [A release tag that never left this machine](0.64.3-a-tag-that-never-left-this-machine.md) |
 | 0.64.2 | [A third-party skill call says what happens without it](0.64.2-a-third-party-call-says-what-happens-without-it.md) |
 | 0.64.1 | [Five checks harvested from a third-party skills triage](0.64.1-checks-harvested-from-a-skills-triage.md) |
 | 0.64.0 | [The `dotnet` and `aspire` stacks declare their upstream skill sources](0.64.0-dotnet-and-aspire-skill-sources.md) |
