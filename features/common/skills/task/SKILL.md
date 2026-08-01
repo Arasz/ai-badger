@@ -55,18 +55,6 @@ Subagent prompts must be self-contained: scope, acceptance criteria, files/docs 
 project's TDD + code-style rules (point them at CLAUDE.md), and what to report back. Run
 independent subagents in parallel.
 
-**Known display artifact — do not misdiagnose as a dispatch bug:** the live agent panel's
-per-task `model` field (and any custom status line reading it) can transiently show a stale
-value — e.g. showing the parent session's model for a subagent that was actually dispatched with
-a different `model` override. Root cause: the panel field comes from an async live-status feed, a
-separate code path from the `resolvedModel` Claude Code writes into the session transcript's
-tool-result metadata at call completion. The transcript is ground truth; the panel is a snapshot
-that can lag it. If a dispatch's actual model is ever in doubt, grep the session's `.jsonl`
-transcript for the `Agent` tool_use whose `description` matches, and check its paired
-`tool_result`'s `toolUseResult.resolvedModel` rather than trusting the panel. Don't spend time
-re-investigating this as a dispatch-code problem unless the transcript itself shows the wrong
-`resolvedModel`.
-
 **Cache-aware dispatch:** every agent's request prefix includes your project's always-loaded
 context (CLAUDE.md/AGENTS.md-equivalent instructions, `.ai-badger/state.json`, and any other
 files your project loads on every turn) — keep them byte-stable within a task (never rewrite them
@@ -77,37 +65,17 @@ cluster of related steps (amortises the cold start), and use `/rewind` rather th
 backtrack within a task (rewind reuses the cached prefix; compact pays for a fresh summary
 write). Compact only at task boundaries (Phase 0).
 
-**Where subagent work actually lives.** Not in the main transcript: measured over 171 real
-transcripts, *no record carries `isSidechain: true`*. Claude Code writes each dispatch to
-`<transcript-dir>/<session-id>/subagents/agent-<id>.jsonl`, with a paired `agent-<id>.meta.json`
-naming its `agentType`, `description`, `spawnDepth` and `model`. `parse_transcript_usage` reads
-both, so a **per-dispatch** split is available — it needs no `parentUuid` chasing, and does not
-depend on the completion notification, which exposes only `total_tokens`. Treat `meta.json` as
-the undocumented CLI artefact it is: a format change must degrade to `unknown`, never to zero,
-or it reads as a delegation collapse that never happened.
+**How a finished task is judged.** `token-usage.json` records `cacheEfficiency`, `modelMix`,
+`outputByModel` and `dispatches`; `python3 .ai-badger/skills/task/scripts/task_tracker.py status` summarises them. Judge a run by its
+**model mix** — the share of output produced by the mid and cheap tiers, over the main transcript
+*and* its subagents together — not by cache efficiency, which does not discriminate. A run whose
+dispatches are mostly `general-purpose` is not routing to this project's personas, whatever
+`personaRouting` says.
 
-**Judge a task by its model mix, not its cache efficiency.** `token-usage.json` records both.
-`cacheEfficiency` (cache_read ÷ (cache_read + cache_creation)) turns out not to discriminate:
-measured over 1250 real sessions it sits at 0.975-0.986 on every one, including the most
-expensive. It is worth watching only for a *collapse*, which means the prefix is churning.
-
-`modelMix` is the number that moves. Over those same sessions the expensive and mid tiers
-produced comparable output volume — 23.7M vs 20.6M tokens — at **3.1× the cost**, so which model
-did a task's output is the largest lever available, and it is precisely what the delegation
-policy above steers. `python3 .ai-badger/skills/task/scripts/task_tracker.py status` shows the
-dominant model and its share (`mix=opus-5:69%`); `outputByModel` carries the full split.
-
-Read it as the **delegation ratio** — the share produced by the mid and cheap tiers — over the
-main transcript *and* its subagents together. Those are different numbers and only the combined
-one means anything: on one real session the main thread alone reads 2.3% while the true figure
-is 23.8%. `dispatches` carries the other half of the picture: how many dispatches ran, how many
-named no model — one that names none takes the `model:` lane in its persona's frontmatter, and
-the dispatch gate denies one whose persona has no lane — and which agent types they went to. A
-run where most dispatches are `general-purpose` is not routing to the personas this project
-scaffolds, whatever `personaRouting` says.
-
-No prices are recorded. They change, and a stale hardcoded rate would be a confidently wrong
-number; output tokens per model is the durable half, and a reader applies today's rates.
+Subagent transcripts are written beside the session's, not inside it, so a per-dispatch split is
+available without chasing `parentUuid`. Where those files live, the numbers behind the model-mix
+rule, and why the agent panel's `model` field can disagree with the transcript, are in
+`extensions/claude/extension.md` — read it when interpreting the numbers, not on every dispatch.
 
 **If you cannot spawn subagents** (you are running as a subagent yourself, or the Agent tool is
 unavailable), do the work directly in-session at whatever model is available — the workflow's
