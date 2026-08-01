@@ -286,3 +286,127 @@ def test_git_helper_raises_rather_than_returning_empty_output(tmp_path, load_scr
 
     with pytest.raises(release_guard.GitCommandFailed):
         release_guard._git(repo, "rev-parse", "definitely-not-a-ref")
+
+
+# ── a tag that exists only locally ──────────────────────────────────────────────
+#
+# latest_release_tag reads `git tag -l`, which is local. On 2026-08-01 a push of
+# ai-badger--v0.61.3 reported success and never landed the tag; the guard passed on the
+# machine that held it locally, and failed in CI on the next two PRs, where a fresh clone has
+# only remote tags. The symptom appeared on a later PR than the cause, which is why it took two
+# red lanes to find.
+
+
+def _add_remote(repo, remote_path):
+    _git(repo, "remote", "add", "origin", str(remote_path))
+
+
+def _bare_remote(tmp_path):
+    remote = tmp_path / "remote.git"
+    remote.mkdir()
+    _git(remote, "init", "-q", "--bare")
+    return remote
+
+
+def test_a_tag_only_on_this_machine_is_reported(tmp_path, load_script):
+    guard = load_script("gates/release_guard.py")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _commit_all(repo, "first")
+    _tag(repo, "ai-badger--v0.1.0")
+    remote = _bare_remote(tmp_path)
+    _add_remote(repo, remote)
+    _git(repo, "push", "-q", "origin", "HEAD")
+
+    # Nothing published above it, so it reads as a release mid-push and is not reported.
+    assert guard.unpushed_release_tags(repo) == []
+
+
+def test_a_tag_on_the_remote_is_not_reported(tmp_path, load_script):
+    guard = load_script("gates/release_guard.py")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _commit_all(repo, "first")
+    _tag(repo, "ai-badger--v0.1.0")
+    remote = _bare_remote(tmp_path)
+    _add_remote(repo, remote)
+    _git(repo, "push", "-q", "origin", "HEAD")
+    _git(repo, "push", "-q", "origin", "refs/tags/ai-badger--v0.1.0")
+
+    assert guard.unpushed_release_tags(repo) == []
+
+
+def test_no_remote_is_not_a_failure(tmp_path, load_script):
+    """A clone with no reachable origin must not fail; the check adds signal or stays quiet."""
+    guard = load_script("gates/release_guard.py")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _commit_all(repo, "first")
+    _tag(repo, "ai-badger--v0.1.0")
+
+    assert guard.unpushed_release_tags(repo) == []
+
+
+def test_only_release_tags_are_considered(tmp_path, load_script):
+    """An unrelated local tag is not a release and must not be reported as unpushed."""
+    guard = load_script("gates/release_guard.py")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _commit_all(repo, "first")
+    _tag(repo, "scratch-marker")
+    remote = _bare_remote(tmp_path)
+    _add_remote(repo, remote)
+    _git(repo, "push", "-q", "origin", "HEAD")
+
+    assert guard.unpushed_release_tags(repo) == []
+
+
+def test_the_newest_local_tag_is_never_reported(tmp_path, load_script):
+    """Otherwise the guard blocks the push that would satisfy it.
+
+    Merged as 0.64.3, this check refused any local-only release tag — including the one being
+    cut right now, whose push runs the same pre-push hook. Circular: the tag cannot reach the
+    remote because it is not on the remote.
+
+    The rule is now about the *sequence*, not about VERSION: a tag is reported only when the
+    remote already has a higher one, meaning the release order skipped it. A tag above
+    everything published is indistinguishable from one mid-push, so it is never reported.
+    """
+    guard = load_script("gates/release_guard.py")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+    (repo / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _commit_all(repo, "first")
+    _tag(repo, "ai-badger--v0.3.0")
+    remote = _bare_remote(tmp_path)
+    _add_remote(repo, remote)
+    _git(repo, "push", "-q", "origin", "HEAD")
+
+    assert guard.unpushed_release_tags(repo) == []
+
+
+def test_a_tag_the_remote_moved_past_is_reported(tmp_path, load_script):
+    """The exact shape of the real failure: 0.61.3 lost, then 0.62.0 published without it."""
+    guard = load_script("gates/release_guard.py")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+    (repo / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _commit_all(repo, "first")
+    _tag(repo, "ai-badger--v0.2.0")
+    _tag(repo, "ai-badger--v0.3.0")
+    remote = _bare_remote(tmp_path)
+    _add_remote(repo, remote)
+    _git(repo, "push", "-q", "origin", "HEAD")
+    _git(repo, "push", "-q", "origin", "refs/tags/ai-badger--v0.3.0")
+
+    assert guard.unpushed_release_tags(repo) == ["ai-badger--v0.2.0"]

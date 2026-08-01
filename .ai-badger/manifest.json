@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.65.0",
-  "frameworkCommit": "81015a5244bf4fbb664d54d7a2b63497682da729",
+  "frameworkCommit": "986cb32dc8cedfa5022715676fe01fbe5d976a8a",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -506,12 +506,12 @@
       "source": "features/common/skills/differential-feature-refactor",
       "target": ".ai-badger/skills/differential-feature-refactor",
       "frameworkVersion": "0.65.0",
-      "hash": "0b2ace686781c54089cd287f4febebb19c6124426dca51870659c4fe6c16cb5c",
+      "hash": "45bb400cbd57d6e6efd69b11b82d06a052ee5345afa6160089207c11ed2166d7",
       "dirMeta": {
         "file_count": 2,
         "dir_count": 1
       },
-      "sourceHash": "0b2ace686781c54089cd287f4febebb19c6124426dca51870659c4fe6c16cb5c",
+      "sourceHash": "45bb400cbd57d6e6efd69b11b82d06a052ee5345afa6160089207c11ed2166d7",
       "sourceMeta": {
         "file_count": 2,
         "dir_count": 1

@@ -88,6 +88,54 @@ def latest_release_tag(root: Path) -> Optional[str]:
     return candidates[-1][1]
 
 
+def unpushed_release_tags(root: Path) -> List[str]:
+    """Release tags this machine has that `origin` does not.
+
+    `latest_release_tag` reads `git tag -l`, which is local. A tag that never left the machine
+    still satisfies every check here, and then fails in CI where a fresh clone has only remote
+    tags — on a *later* PR than the one that created it, which is what makes it expensive to
+    diagnose. That happened to 0.61.3 on 2026-08-01 and cost two pull requests a red lane each.
+
+    Silent when `origin` is unreachable: no remote, no network, or a clone with none configured
+    are all normal, and a guard that fails offline would be turned off. It adds signal when it
+    can and says nothing when it cannot.
+    """
+    local = {t.strip() for t in _git(root, "tag", "-l", "ai-badger--v*").splitlines() if t.strip()}
+    if not local:
+        return []
+    try:
+        listing = _git(root, "ls-remote", "--tags", "origin")
+    except GitCommandFailed:
+        return []
+    # `[:-3]` rather than `removesuffix("^{}")`: that method is 3.9+ and the floor is 3.8.
+    # The dereferenced-tag line for an annotated tag ends in `^{}` and names the same tag.
+    remote = set()
+    for line in listing.splitlines():
+        if "refs/tags/" not in line:
+            continue
+        name = line.split("refs/tags/", 1)[1]
+        remote.add(name[:-3] if name.endswith("^{}") else name)
+
+    # Report only a tag the remote has *moved past*: one with a higher release tag already
+    # published. That is the real defect — a version skipped in the sequence, which is what
+    # 0.61.3 became once 0.62.0 shipped without it and started failing other people's PRs.
+    #
+    # The newest local tag is never reported, because it is indistinguishable from a release
+    # being cut this second — and pushing it runs this very hook. The first version of this
+    # check had no such rule and blocked its own tag push; the second exempted the tag matching
+    # VERSION, which then failed the moment VERSION was bumped ahead of an untagged release.
+    # Both were written from the failure rather than from the sequence the failure was in.
+    highest_remote = max(
+        (v for t in remote for v in [_semver(t)] if v is not None), default=None
+    )
+    if highest_remote is None:
+        return []
+    return sorted(
+        t for t in local - remote
+        for v in [_semver(t)] if v is not None and v < highest_remote
+    )
+
+
 def tag_version(tag: str) -> str:
     """Extract the "x.y.z" version encoded in an ai-badger--v* tag name."""
     m = TAG_PATTERN.match(tag)
@@ -142,6 +190,20 @@ def _report_skipped(root: Path, released_version: str, current_version: str) -> 
     return True
 
 
+def _report_unpushed(root: Path) -> bool:
+    """Print any release tag this machine holds and `origin` does not; True when there is one."""
+    unpushed = unpushed_release_tags(root)
+    if not unpushed:
+        return False
+    print(f"TAGS NOT ON THE REMOTE: {len(unpushed)} release tag(s) exist only here: "
+          f"{', '.join(unpushed)}")
+    print("a local tag satisfies this guard and nothing else — CI clones see only remote tags, "
+          "so the failure surfaces on someone else's pull request")
+    for tag in unpushed:
+        print(f"    git push origin refs/tags/{tag}")
+    return True
+
+
 def _check(root: Path) -> int:
     """The guard proper, assuming every git command it runs succeeds."""
     tag = latest_release_tag(root)
@@ -156,6 +218,10 @@ def _check(root: Path) -> int:
     # Checked before the diff: an untagged release is a fact about the repo, not about
     # whether this particular push touched the shipped surface.
     if _report_skipped(root, released_version, current_version):
+        return 1
+    # Same reasoning, one step further: a tag that never left this machine is a fact about the
+    # repo too, and the one that CI cannot see for itself.
+    if _report_unpushed(root):
         return 1
 
     changed = changed_shipped_paths(root, tag)
