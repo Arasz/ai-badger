@@ -48,9 +48,42 @@ than searched · `0010` stack-local skill discovery · `0011` `engine/`, `toolin
 | [changelog/](changelog/README.md) | One file per version, `{version}-{slug}.md`. The README reconstructs the release timeline |
 | [`../BREAKING_VERSIONS`](../BREAKING_VERSIONS) | Versions that *require* a re-scaffold, not merely recommend one. `den-refresh` reads this and backs up `.ai-badger/` before re-scaffolding |
 
-## What is not here
+## Every directory in this tree
 
-This tree documents the product, not the work that produced it. Plans, session checkpoints,
-reviews, audits, incident post-mortems, research passes and superseded design documents are not
-tracked: what they concluded lives in the documents above or in an ADR, and the documents
-themselves stay in git history. `git log --diff-filter=D --name-only -- docs/` finds them.
+The complete map. A directory missing from this table is a directory nobody will find.
+
+| Directory | What it holds |
+|---|---|
+| [`tutorials/`](tutorials/README.md) | Learning-oriented, we choose the goal. Empty — this framework has no tutorial yet |
+| [`how-to/`](how-to/README.md) | Task-oriented, the reader's goal. Filenames start with a verb |
+| [`reference/`](reference/README.md) | Information looked up mid-task. Filenames are bare nouns |
+| [`explanation/`](explanation/README.md) | Understanding-oriented — why it is like this |
+| [`adr/`](adr/README.md) | Decisions. Immutable, never edited after acceptance |
+| [`work/`](work/README.md) | Dated records — `YYYY-MM-DD-slug`. See the scope note below |
+| [`assets/`](assets/README.md) | Images and diagrams, belonging to no quadrant |
+| [`meta/`](meta/README.md) | Machine state about the documentation itself |
+| [`changelog/`](changelog/README.md) | One file per version, `{version}-{slug}.md`. Generated index; frozen |
+| [`brand/`](brand/README.md) | The logo, palette and usage rules. Predates `assets/`; pinned by the root README |
+| [`screenshots/`](screenshots/README.md) | Screenshots used by the pages above. Predates `assets/`; pinned by `skills.md` |
+
+The four quadrants are Diátaxis. The seven root `*.md` files listed earlier have not been
+re-placed into them yet — several are pinned by `README.md` and `CONTRIBUTING.md`, which makes
+that a `migrate-documentation` job with its own PR.
+
+## What `work/` is, and is not
+
+PR #111 trimmed this tree to product documentation and removed seven directories grouped by
+document *kind* — `plans/`, `research/`, `design/`, `reviews/`, `specs/`, `incidents/`,
+`archive/`. That decision stands, and this is not a reversal of it: kind is not a subject, and
+all seven were the same anti-pattern.
+
+What #111 assumed is that a concluded record can live in git history, because what it concluded
+has already moved into a document above or into an ADR. That holds for a finished plan. It does
+not hold for a record whose conclusions are still being acted on — an open review gate is an
+input to work in flight, not an artefact of work completed. With nowhere legal to put one, the
+two review forms from 2026-08-01 went to `.tmp/`: gitignored, hidden, and unreachable by the
+ripgrep every agent's search is built on.
+
+So `work/` is deliberately narrow. A dated record belongs here while it is still load-bearing.
+Once its conclusions have landed in a quadrant page or an ADR, it leaves — `work/` is a desk, not
+an archive, and it is expected to stay close to empty.

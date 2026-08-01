@@ -107,7 +107,7 @@ gates/                               repo gates CI and the pre-push hook run: re
 schemas/                             a JSON Schema per *.json model
 index.json                           SCRIPT-GENERATED. Never hand-edit it.
 tests/                               pytest; tests/js/ holds the node --test suites
-docs/                                see docs/index.md
+docs/                                see docs/README.md
 ```
 
 [`docs/framework-architecture.md`](docs/framework-architecture.md) explains the model,

@@ -164,7 +164,7 @@ verdict row, and a running answered count in the sticky footer.*
 it will have — before scoping a refactor of something that has drifted from, or was never
 reconciled with, its intended design.
 
-**What it does.** Writes `docs/designs/YYYY-MM-DD-<feature>-differential.md` from
+**What it does.** Writes `docs/work/YYYY-MM-DD-<feature>-differential.md` from
 `references/differential-template.md`, with current-state claims cited `path:line` and one
 Undefined-Point (`UP-N`) block per open question, each with exactly three lettered propositions.
 It invokes `owner-gate-review` to collect rulings on those points as a generated form, then feeds
@@ -403,4 +403,4 @@ its own copies, and ai-badger does not contend for the same files uninvited.
   filed under, and the script-vs-agent split each one follows.
 - [`getting-started.md`](getting-started.md) — `welcome-ai-badger` and `den-refresh` walked end
   to end with real command output.
-- [`index.md`](index.md) — the full documentation map.
+- [`README.md`](README.md) — the full documentation map.

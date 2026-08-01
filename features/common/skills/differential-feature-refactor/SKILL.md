@@ -61,7 +61,10 @@ no authorising decision, that is an undefined point for the human — not a find
    graph does not reach. Every current-state claim carries `path:line`; anything you could not
    verify is marked `[UNVERIFIED]` inline.
 3. **Write the document** from `references/differential-template.md` to
-   `docs/designs/YYYY-MM-DD-<feature>-differential.md`. Do not create a new directory.
+   `<docs>/work/YYYY-MM-DD-<feature>-differential.md` — the dated-work-record directory of the
+   canonical tree, with the docs root read from `.ai-badger/config.json`'s `docs.root` (default
+   `docs/`). If `work/` does not exist, create it with a README first (`scaffold-documentation`
+   does this); do not invent a directory beside it and do not fall back to a scratch path.
 4. **Collect the rulings with a generated review form** — invoke `owner-gate-review`,
    one card per undefined point. The reviewer clicks a verdict and types notes; the result lands
    as a markdown file the agent watches for, so nothing is hand-edited and nothing is pasted.
@@ -81,7 +84,7 @@ no authorising decision, that is an undefined point for the human — not a find
 7. **Plan it.** Where the project has a planning skill — `superpowers:writing-plans` if
    installed — hand the specification to it. Otherwise write the plan directly: numbered,
    bite-sized tasks, each naming the files it touches and the test that proves it. Both
-   documents go wherever this project keeps design and plan documents; do not create a new
+   documents join the differential in `<docs>/work/`, dated the same way; do not create a new
    home for them.
 
 **The differential document is the midpoint, not the finish.** The skill's terminal output is a
@@ -130,7 +133,7 @@ The commands below use POSIX shell features and are intended for macOS/Linux. On
 platform, use equivalent finite commands that preserve the same checks.
 
 ```bash
-D=docs/designs/YYYY-MM-DD-<feature>-differential.md
+D=docs/work/YYYY-MM-DD-<feature>-differential.md
 grep -c '^#### UP-' "$D"                                       # total points
 grep -c 'UNANSWERED' "$D"                                      # still open — must reach 0
 diff <(grep -o '^#### UP-[0-9]*' "$D" | grep -o '[0-9]*$') \
@@ -156,9 +159,11 @@ error in seconds that prose hides for pages.
   stale the moment work lands and is **not authoritative about the running system** — same hazard
   as a parked-feature doc. Say so in the header. Never let it become a competing home for
   architecture truth; the canonical docs stay canonical.
-- **No new doc home.** `docs/designs/` for the differential, `docs/superpowers/specs/` for the
-  spec, `docs/superpowers/plans/` for the plan. Do not add a numbered file to an existing review
-  corpus — that is how twenty overlapping documents happened.
+- **No new doc home.** `<docs>/work/` takes the differential, the spec and the plan alike — all
+  three are dated work records, and kind is not a subject. Do not add a numbered file to an
+  existing review corpus, and do not group `work/` into `designs/`, `specs/` and `plans/`
+  subdirectories: that grouping is how twenty overlapping documents happened, and it was removed
+  from this project in PR #111.
 - Architecture-level target states need an ADR; the plan must include writing it.
 - TDD is mandatory and one task = one PR — the plan reflects both.
 

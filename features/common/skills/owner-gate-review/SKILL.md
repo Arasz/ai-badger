@@ -39,11 +39,19 @@ you can watch — an artifact page has no filesystem and cannot write next to it
 
 ## Agent-side protocol
 
-1. **Write the form** from `references/form-template.html` to `<date>-<slug>-review.html`, beside
-   the document it reviews — whatever directory that project keeps design and review documents in
-   (`docs/designs/` unless it keeps another). Fill the `DECISIONS` array and all per-review
+1. **Write the form** from `references/form-template.html` to `<docs>/work/<date>-<slug>-review.html`
+   — the dated-work-record directory of the canonical tree, where the docs root comes from
+   `.ai-badger/config.json`'s `docs.root` and defaults to `docs/`. A project that keeps work
+   records somewhere else uses that instead. Fill the `DECISIONS` array and all per-review
    `CONFIG` fields: `title`, `subtitle`, `source`, `outName`, `expectedDir`, and a unique
-   `storageKey` such as `refinement:<slug>:v1`. Do not create a new doc home for it.
+   `storageKey` such as `refinement:<slug>:v1`.
+
+   **If `work/` does not exist, create it and give it a README before writing the form** — run
+   `scaffold-documentation` if the project has it. Do not fall back to a scratch directory. This
+   step named `docs/designs/` until 2026-08-01, a directory the canonical tree does not have; in a
+   repo that did not have it either, two real review gates landed in `.tmp/` instead — gitignored,
+   hidden, and unreachable by the ripgrep every agent's search is built on. A form nobody can
+   grep is a review that did not happen.
 2. **Pre-create nothing that could read as a real answer.** Do not write a stub result file, do
    not seed `localStorage`, do not fill any verdict "as an example". A pre-created result file
    makes the watch fire instantly and gets ingested as a review that never happened.
@@ -61,7 +69,7 @@ you can watch — an artifact page has no filesystem and cannot write next to it
 ### The watch
 
 ```bash
-OUT="/abs/path/docs/designs/2026-01-15-import-pipeline-feedback.md"
+OUT="/abs/path/docs/work/2026-01-15-import-pipeline-feedback.md"
 for i in $(seq 1 720); do [ -f "$OUT" ] && break; sleep 5; done   # capped: 720 × 5s = 1h
 [ -f "$OUT" ] && echo "feedback landed at $OUT" || echo "timed out, no feedback"
 ```

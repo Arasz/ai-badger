@@ -160,15 +160,31 @@ def test_an_exempted_document_is_not_scanned(tmp_path, guard):
 
 
 def test_a_record_document_keeps_link_checking_but_not_path_checking(tmp_path, guard, capsys):
+    """Rewritten 2026-08-01: the record dir was `docs/plans/`, deleted in PR #111.
+
+    A dated work record proposes a tree that does not exist yet, so `tooling/not_yet.py` is the
+    record working. A link that does not open is broken for the reader either way.
+    """
     repo = _repo(tmp_path)
-    _doc(repo, "docs/plans/plan.md", "build `tooling/not_yet.py`\nsee [design](gone.md)\n")
+    _doc(repo, "docs/work/2026-01-15-plan.md", "build `tooling/not_yet.py`\nsee [design](gone.md)\n")
 
     rc = guard.main(["--root", str(repo)])
 
     out = capsys.readouterr().out
     assert rc == 1
     assert "tooling/not_yet.py" not in out
-    assert "docs/plans/plan.md:2" in out
+    assert "docs/work/2026-01-15-plan.md:2" in out
+
+
+def test_a_deleted_record_dir_is_no_longer_frozen(tmp_path, guard, capsys):
+    """`docs/plans/` stopped existing in PR #111; a path claim there is now ordinary rot."""
+    repo = _repo(tmp_path)
+    _doc(repo, "docs/plans/plan.md", "build `tooling/not_yet.py`\n")
+
+    rc = guard.main(["--root", str(repo)])
+
+    assert rc == 1
+    assert "tooling/not_yet.py" in capsys.readouterr().out
 
 
 def test_a_changelog_entry_missing_from_the_index_fails(tmp_path, guard, capsys):
