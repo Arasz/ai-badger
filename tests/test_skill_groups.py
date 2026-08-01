@@ -210,3 +210,41 @@ class TestTheGuardCouldFail:
     ])
     def test_unrelated_paths_are_not_matched_as_sibling_references(self, text):
         assert not SIBLING_REF_RE.findall(text)
+
+
+class TestAGroupNameIsReportedAsValid:
+    """Naming a group must not be reported as a mistake (#275 review).
+
+    `expand_skill_groups` made "documentation" a legal value, but the reporting path still saw
+    the raw config names — so a working config was reported as
+    "matches no optIn catalog skill — safe to remove from config.json".
+
+    A note that tells someone to delete config that works is worse than no note: it is acted on.
+    """
+
+    def test_the_group_name_is_not_called_a_mistake(self, load_script, root):
+        lib = load_script("engine/badger_lib.py")
+        addable = lib.opt_in_skills_in(root / "features" / "common" / "skills")
+
+        notes = lib.inclusion_notes(["documentation"], [], addable)
+
+        assert not any("safe to remove" in n for n in notes), notes
+
+    def test_the_group_name_says_what_it_delivered(self, load_script, root):
+        lib = load_script("engine/badger_lib.py")
+        addable = lib.opt_in_skills_in(root / "features" / "common" / "skills")
+
+        notes = lib.inclusion_notes(["documentation"], [], addable)
+
+        joined = " ".join(notes)
+        for member in DOCUMENTATION_THREE:
+            assert member in joined, f"the note does not say {member} was delivered"
+
+    def test_a_genuine_typo_is_still_reported(self, load_script, root):
+        """The note must keep working — a guard that never fires would hide real mistakes."""
+        lib = load_script("engine/badger_lib.py")
+        addable = lib.opt_in_skills_in(root / "features" / "common" / "skills")
+
+        notes = lib.inclusion_notes(["documentatoin"], [], addable)
+
+        assert any("safe to remove" in n for n in notes), notes

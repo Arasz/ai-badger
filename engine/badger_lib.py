@@ -791,7 +791,11 @@ def inclusion_notes(included: Iterable[str], excluded: Iterable[str],
     declined, offerable = set(excluded), set(addable)
     notes = []
     for name in sorted(set(included)):
-        if name in declined:
+        if name in SKILL_GROUPS:
+            members = ", ".join(SKILL_GROUPS[name])
+            notes.append(f"included skill group '{name}' — delivered {members} "
+                         f"(they read each other's references/ and cannot work alone)")
+        elif name in declined:
             notes.append(f"inclusion '{name}' is also in config.exclude.skills — "
                          f"exclude wins; not delivered")
         elif name in offerable:
