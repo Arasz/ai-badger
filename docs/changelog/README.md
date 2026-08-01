@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.62.0 | [A declared MCP server names what must already be installed](0.62.0-a-declared-server-names-its-prerequisite.md) |
 | 0.61.4 | [The tracking-state guard names who wrote](0.61.4-the-guard-names-who-wrote.md) |
 | 0.61.3 | [Naming the test that spawned a daemon, instead of guessing](0.61.3-naming-the-test-that-spawned-it.md) |
 | 0.61.2 | [The usage-limit poller stops](0.61.2-a-poller-that-stops.md) |

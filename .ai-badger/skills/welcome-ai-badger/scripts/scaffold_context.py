@@ -45,6 +45,8 @@ class ScaffoldContext:
     mcp_described_filled: bool = False
     # Whether the retired-declaration-file check has already spoken this run (ADR-0014 step 8).
     mcp_retired_files_noted: bool = False
+    # Whether declared servers' install prerequisites have already been reported this run.
+    mcp_prereqs_noted: bool = False
     # Manifest bookkeeping: shared state, not Scaffolder behaviour.
     record_template: Callable[[Path, Path], None] = _discard_template_record
     record: Callable[[str, str, str, Path, Path], None] = _discard_record
