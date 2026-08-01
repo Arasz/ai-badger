@@ -432,3 +432,136 @@ def test_a_worktree_disables_its_own_entry_not_the_parent_repos(tmp_path, load_s
     entries = json.loads(state_file.read_text(encoding="utf-8"))["projects"]
     assert entries[str(repo)]["enabled"] is True, "the parent checkout must stay armed"
     assert entries[str(worktree)]["enabled"] is False
+
+
+# ── forget (#298) ────────────────────────────────────────────────────────────
+# disable leaves the entry behind, so state.json accumulated one per directory AWM was
+# ever enabled in — including deleted worktrees.
+
+def _forget_fixture(awm, monkeypatch, tmp_path):
+    """Two projects, both previously used; returns (state_file, here, other)."""
+    state_file = _patch_state_paths(awm, monkeypatch, tmp_path) / "state.json"
+    here, other = tmp_path / "here", tmp_path / "other"
+    here.mkdir()
+    other.mkdir()
+    monkeypatch.chdir(other)
+    awm.cmd_away("2h")
+    monkeypatch.chdir(here)
+    awm.cmd_away("2h")
+    return state_file, here, other
+
+
+def test_forget_refuses_an_armed_entry(tmp_path, load_script, monkeypatch, capsys):
+    """Forgetting a live window is far likelier to be a slip than an intent."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file, here, _ = _forget_fixture(awm, monkeypatch, tmp_path)
+    capsys.readouterr()
+
+    rc = awm.cmd_forget()
+
+    assert rc == 1
+    assert "--force" in capsys.readouterr().out
+    assert str(here) in json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+
+
+def test_force_forgets_an_armed_entry(tmp_path, load_script, monkeypatch, capsys):
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file, here, other = _forget_fixture(awm, monkeypatch, tmp_path)
+    capsys.readouterr()
+
+    rc = awm.cmd_forget(force=True)
+
+    assert rc == 0
+    entries = json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    assert str(here) not in entries
+    assert str(other) in entries, "forgetting one project must not touch another"
+
+
+def test_forget_drops_a_disabled_entry_without_force(tmp_path, load_script, monkeypatch, capsys):
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file, here, other = _forget_fixture(awm, monkeypatch, tmp_path)
+    awm.cmd_disable()
+    capsys.readouterr()
+
+    rc = awm.cmd_forget()
+
+    assert rc == 0
+    entries = json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    assert str(here) not in entries
+    assert str(other) in entries
+
+
+def test_forget_accepts_a_named_path(tmp_path, load_script, monkeypatch, capsys):
+    """The usual case is a deleted worktree — you cannot cd into it to forget it."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file, here, other = _forget_fixture(awm, monkeypatch, tmp_path)
+    capsys.readouterr()
+
+    rc = awm.cmd_forget(str(other), force=True)
+
+    entries = json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    assert rc == 0
+    assert str(other) not in entries
+    assert str(here) in entries
+
+
+def test_forget_a_path_with_no_entry_says_so(tmp_path, load_script, monkeypatch, capsys):
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    _forget_fixture(awm, monkeypatch, tmp_path)
+    capsys.readouterr()
+
+    rc = awm.cmd_forget(str(tmp_path / "never-used"))
+
+    assert rc == 1
+    assert "no entry" in capsys.readouterr().out.lower()
+
+
+def test_forget_is_recorded_in_the_audit_log(tmp_path, load_script, monkeypatch, capsys):
+    """Removal must be as auditable as enabling was."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    awm_dir = _patch_state_paths(awm, monkeypatch, tmp_path)
+    here = tmp_path / "here"
+    here.mkdir()
+    monkeypatch.chdir(here)
+    awm.cmd_away("2h")
+    capsys.readouterr()
+
+    awm.cmd_forget(force=True)
+
+    last = _read_decisions(awm_dir)[-1]
+    assert last["type"] == "mode_forgotten"
+    assert str(here) in last["detail"]
+
+
+def test_forget_a_deleted_directory_still_works(tmp_path, load_script, monkeypatch, capsys):
+    """The entry that motivated this was a worktree that no longer exists."""
+    import shutil
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file = _patch_state_paths(awm, monkeypatch, tmp_path) / "state.json"
+    gone, here = tmp_path / "gone", tmp_path / "here"
+    gone.mkdir()
+    here.mkdir()
+    monkeypatch.chdir(gone)
+    awm.cmd_away("2h")
+    monkeypatch.chdir(here)
+    shutil.rmtree(gone)
+    capsys.readouterr()
+
+    rc = awm.cmd_forget(str(gone), force=True)
+
+    assert rc == 0
+    assert str(gone) not in json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+
+
+def test_main_routes_forget_and_its_force_flag(tmp_path, load_script, monkeypatch, capsys):
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file = _patch_state_paths(awm, monkeypatch, tmp_path) / "state.json"
+    here = tmp_path / "here"
+    here.mkdir()
+    monkeypatch.chdir(here)
+    awm.main(["away", "2h"])
+    capsys.readouterr()
+
+    assert awm.main(["forget"]) == 1, "an armed entry needs --force"
+    assert awm.main(["forget", "--force"]) == 0
+    assert json.loads(state_file.read_text(encoding="utf-8"))["projects"] == {}

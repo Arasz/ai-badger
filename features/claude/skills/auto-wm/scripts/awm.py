@@ -267,6 +267,54 @@ def cmd_status():
     _report_elsewhere(state)
 
 
+def cmd_forget(path=None, force=False):
+    """Drop a project's entry entirely. `disable` only flips it off; this removes it (#298).
+
+    Refuses an armed entry without *force*: forgetting a live window is far likelier to be
+    a slip than an intent.
+    """
+    state = load_state() or {}
+    entries = projects(state)
+    target = _match_entry(entries, path)
+    if target is None:
+        print(f"AWM: no entry for {path or Path.cwd()}.")
+        return 1
+
+    entry = entries[target]
+    if entry.get("enabled") and not _entry_expired(entry) and not force:
+        print(f"AWM: {target} still holds a live {entry.get('mode', 'away')} window. "
+              "Disable it first, or re-run with --force.")
+        return 1
+
+    del entries[target]
+    write_state({"version": 2, "projects": entries})
+    log_event("mode_forgotten", f"project={target}, forced={bool(force)}")
+    print(f"AWM: forgot {target}.")
+    return 0
+
+
+def _match_entry(entries, path):
+    """The key to forget: an exact match first, then the entry this path sits inside.
+
+    A deleted worktree cannot be resolved by `within`, so a stale entry stays reachable
+    by exact path — which is the case that motivated the command.
+    """
+    wanted = str(Path(path).expanduser()) if path else str(Path.cwd())
+    if wanted in entries:
+        return wanted
+    for key in entries:
+        if within(key, wanted):
+            return key
+    return None
+
+
+def _entry_expired(entry):
+    expires_at = entry.get("expires_at")
+    if not expires_at:
+        return True
+    return now_utc() >= datetime.fromisoformat(expires_at)
+
+
 def cmd_decision(text):
     log_event("decision", text)
     print("Decision registered.")
@@ -290,6 +338,9 @@ def main(argv):
         cmd_disable()
     elif cmd == "status":
         cmd_status()
+    elif cmd == "forget":
+        rest = [a for a in argv[1:] if a != "--force"]
+        return cmd_forget(rest[0] if rest else None, force="--force" in argv[1:])
     elif cmd == "decision":
         if len(argv) < 2 or not argv[1].strip():
             print("usage: awm.py decision \"<what was decided and why>\"", file=sys.stderr)
@@ -297,7 +348,7 @@ def main(argv):
         cmd_decision(" ".join(argv[1:]))
     else:
         print(f"unknown command {cmd!r}; use partner [duration] | away [duration] | disable | "
-              "status | decision <text>", file=sys.stderr)
+              "status | forget [path] [--force] | decision <text>", file=sys.stderr)
         return 1
     return 0
 

@@ -30,6 +30,7 @@ All via `python3 ~/.claude/skills/auto-wm/scripts/awm.py`:
 | `away [DURATION]` | Switch to away mode: auto-approve, questions denied, expires (default 4h). Grammar: `Nh`, `Nm`, `NhMm`, or a bare number = hours (`4h`, `90m`, `1h30m`, `4`); anything over 12h is capped |
 | `disable` (or `off`, `stop`) | Turn AWM off **for this project** — normal per-tool prompts resume here; other projects keep their windows |
 | `status` | This project's mode, since when, and time remaining — plus any other project still armed |
+| `forget [PATH] [--force]` | Remove this project's entry (or PATH's) from `state.json` entirely. `disable` only flips an entry off; entries otherwise accumulate for every directory AWM was ever enabled in. Refuses a live window without `--force`. Takes a path because the usual case — a deleted worktree — cannot be `cd`'d into |
 | `decision "<what and why>"` | Register a judgment call in the audit log |
 
 ## Invocation
@@ -67,7 +68,7 @@ All via `python3 ~/.claude/skills/auto-wm/scripts/awm.py`:
 - **Reading a fall-through as a failure.** A denylisted or out-of-scope call is not an error: the normal permission prompt reaches the user, exactly as if AWM were off. Don't retry it a different way to get around the gate — ask.
 - **Session cron for expiry** — dies with the session. The hooks compare `expires_at` to wall-clock instead.
 - **Reading the banner as proof the gate will approve.** It used to be: the banner ignored scope entirely and announced away mode in every project on the machine, including ones where every call was denied (#296). Both now read the same per-project entry, but the audit log is still the only place that records what the gate actually decided.
-- **Editing state.json by hand** — always go through `awm.py` so changes land in the audit log.
+- **Editing state.json by hand** — always go through `awm.py` so changes land in the audit log. That includes removing a stale project: `forget` records a `mode_forgotten` event, a text editor records nothing.
 
 ## Installing from ai-badger
 
