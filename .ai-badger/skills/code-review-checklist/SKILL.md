@@ -41,6 +41,15 @@ metadata:
 2. **Mark PASS or FAIL.** If any FAIL exists, do not approve until resolved.
 3. **WARNING items are non-negotiable.** They represent real bugs from past incidents.
 4. **Complete phases sequentially.** Phase 1 gates all others.
+5. **Report every FAIL in one shape** — item or rule / severity (Critical, High, Medium, Low) /
+   location (file, symbol, line) / evidence (the exact snippet) / impact (what goes wrong and who
+   can trigger it) / fix (the smallest safe change) / false-positive notes (what to verify if you
+   are unsure). A finding with no location and no evidence is an impression, and this checklist
+   exists to replace impressions.
+6. **A protection you cannot see in the diff is not a finding.** Security headers set at the edge,
+   a WAF, TLS termination, gateway auth, network policy — these are routinely absent from
+   application code and present in production. Report them as *"not visible in application code,
+   verify at runtime"*, never as a vulnerability.
 
 > **Stack-specific checks:** This template covers universal concerns. If your
 > project uses dotnet, react, cosmos, azure, ts, or mcp, the corresponding
@@ -113,6 +122,37 @@ metadata:
 - [ ] **Missing test scenarios documented** — if a test gap exists, it's noted
   as a follow-up, not silently skipped.
 
+> WARNING: A test that cannot fail is not a test. Each item below is a FAIL on
+> its own — the test is rewritten or deleted, never argued down. These are the
+> patterns that make a suite report green while the behaviour it names is broken.
+
+- [ ] **Every test asserts something** — a test that only calls the code under
+  test passes as long as nothing throws, and reports coverage while verifying
+  nothing.
+- [ ] **No always-true assertion** — `Assert.IsTrue(true)`, `assert True`,
+  `expect(true).toBe(true)`. Equivalent to having no assertion at all.
+- [ ] **No self-referential or tautological assertion** — `Assert.AreEqual(x, x)`,
+  `assert dto.name == dto.name`, or asserting that a value read back from the
+  store you just wrote it to is unchanged. Assert on the transformation the code
+  performs, not on the fact that storage works.
+- [ ] **Every async assertion is awaited** — `Assert.ThrowsAsync` without
+  `await`, `expect(promise).resolves…` without `await`/`return`, an un-awaited
+  coroutine in an async test. The assertion is never evaluated, so the test
+  passes *silently* even when the behaviour it claims to check is broken — the
+  hardest of these to spot by eye, and the one worth grepping the diff's test
+  files for by name.
+- [ ] **No swallowed exception** — `catch { }` (C#), `except: pass` (Python),
+  `catch (e) {}` (JS/TS/Java), `defer recover()` with no re-panic (Go). The test
+  passes on exactly the failure path it was written to detect.
+- [ ] **No assert-in-catch** — `catch (Exception ex) { Assert.Fail(ex.Message); }`
+  in place of asserting the expected exception. It turns "the wrong exception
+  type was thrown" into a generic failure and hides which contract broke.
+
+> These triggers are carried over from the `test-anti-patterns` and `grade-tests`
+> skills in [dotnet/skills](https://github.com/dotnet/skills) (MIT, .NET
+> Foundation). Their A–F letter grades are deliberately **not** carried: a band
+> invites arguing about the grade instead of fixing the finding.
+
 ### 3.2 Repository & Contract Tests
 
 - [ ] **Repository interfaces have contract tests** — not just in-memory fakes.
@@ -130,6 +170,28 @@ metadata:
   platform's encryption mechanism, not plaintext.
 - [ ] **OAuth/SSO flows handle edge cases** — popup-blocked fallback documented,
   token refresh implemented, CSRF tokens have TTL/cleanup.
+- [ ] **Nothing secret ships in a client artifact** — a build-time environment
+  variable inlined into a bundle, a mobile binary, or anything else the user
+  downloads is public. An API key that reaches the client is a leak even though
+  it appears in no tracked file.
+- [ ] **Authorization is enforced server-side** — a client-side check is UX, not
+  a control. Every state-changing request re-authorizes at the API, and hiding a
+  button is never the authorization.
+- [ ] **Untrusted input never reaches a markup or code-execution sink** — markup
+  templating, DOM injection, dynamic evaluation, shell or query construction. The
+  value goes through the framework's escaping/parameterised path, or through an
+  audited sanitizer at the point of insertion. Nothing is trusted because of
+  where it was stored.
+- [ ] **Redirect and navigation targets are allowlisted** — a target taken from a
+  query parameter, a stored value, or a header is an open redirect until proven
+  otherwise; rejecting `javascript:` and `data:` schemes is the floor, not the
+  control.
+
+> Browser-runtime security items (DOM XSS sinks, CSP, Web Storage, `postMessage`,
+> SRI, source maps) live in the `ts` extension, which activates for `ts` and
+> `react` projects. Both sets are distilled from the OpenAI `security-best-practices`
+> skill's frontend references ([openai/skills](https://github.com/openai/skills),
+> Apache-2.0).
 
 ### 3.4 Documentation & Hygiene
 
@@ -142,9 +204,43 @@ metadata:
 - [ ] **Import paths are accurate** — all referenced modules, components, and
   utilities exist at the paths used in import statements.
 
+## ts: Browser Security
+> Applies to code that runs in a browser. For a server-side TypeScript project,
+> mark the browser-only items N/A rather than skipping the section silently.
+- [ ] **No untrusted value reaches a DOM XSS sink** — `innerHTML`/`outerHTML`,
+  `insertAdjacentHTML`, `document.write`, `dangerouslySetInnerHTML`, `eval` /
+  `new Function`, a string passed to `setTimeout`/`setInterval`, or an event
+  handler attribute set from a string. Use `textContent` or the framework's
+  escaping path, or sanitize with an audited sanitizer at the insertion point.
+- [ ] **A markdown or rich-text renderer with raw HTML enabled has a sanitizer**
+  — enabling raw HTML and trusting the source is the same finding as `innerHTML`.
+- [ ] **`href`, `src` and programmatic navigation from untrusted data are
+  scheme-checked** — `javascript:`, `data:` and `vbscript:` rejected, target
+  origin decided explicitly rather than by string concatenation.
+- [ ] **`postMessage` validates `event.origin` and passes an explicit
+  `targetOrigin`** — never `"*"` for anything but public data, and the received
+  payload is untrusted input, not a typed object.
+- [ ] **No token in Web Storage** — `localStorage`/`sessionStorage` is readable
+  by any injected script. Prefer `HttpOnly` `Secure` `SameSite` cookies, or
+  in-memory with a silent-refresh path.
+- [ ] **Cookie-authenticated state-changing requests carry CSRF protection** —
+  `SameSite` is a mitigation, not the control.
+- [ ] **New inline script or style has not quietly forced `unsafe-inline`** — the
+  diff adding it is the moment to re-check the CSP; `unsafe-inline` and
+  `unsafe-eval` each need a written reason, with nonces or hashes as the target.
+- [ ] **A new third-party `<script src>` is self-hosted or carries `integrity`**
+  — an unpinned CDN script, tag manager or analytics snippet is a supply-chain
+  hole with no owner.
+- [ ] **Source maps and dev-only overlays are absent from the production build**
+  — they expose code structure and internal URLs.
+
+> Distilled from the frontend references in the OpenAI `security-best-practices`
+> skill ([openai/skills](https://github.com/openai/skills), Apache-2.0); rules
+> that a reviewer cannot check against a diff were left there deliberately.
+
 ---
 
-## Phase 4: Backend Runtime Behavior (Concurrency, Errors)
+## Phase 4: Backend Runtime Behavior (Concurrency, Errors, Observability)
 
 ### 4.1 Concurrency & Idempotency
 
@@ -165,6 +261,32 @@ metadata:
 
 - [ ] **Problem type URIs / error codes are consistent** — the error identifier
   used by the backend must match what the client checks. Drift = silent failures.
+
+### 4.3 Observability
+
+- [ ] **A renamed or removed metric, label, or structured-log field is treated
+  as a breaking change** — operators' dashboards, alerts and saved queries bind
+  to those names, so they are a quasi-API. A rename in the diff gets the same
+  question as an API rename: who consumes it, and what changes with it?
+- [ ] **Trace context crosses every async boundary the change adds** — a queue
+  publish/consume, a thread-pool or executor hop, a background task, a
+  fire-and-forget call. Working HTTP tracing is not evidence that these work;
+  propagation breaks *silently* and surfaces months later as an orphaned span.
+- [ ] **Readiness does not depend on optional downstreams** — a probe that fails
+  when a non-essential dependency degrades pulls the instance out of rotation for
+  a fault it could have served through. Liveness, readiness and startup answer
+  three different questions.
+- [ ] **Every new metric has a named consumer** — the alert, dashboard, or
+  investigation it exists for. A metric that drives none of the three is cost and
+  noise, not observability.
+- [ ] **Histogram buckets reflect the latency objective** — library-default
+  buckets usually straddle the threshold that matters, which makes the percentile
+  at that threshold unreadable exactly when someone needs it.
+
+> Distilled from the Kotlin `observability-integrator` skill
+> ([Kotlin/kotlin-backend-agent-skills](https://github.com/Kotlin/kotlin-backend-agent-skills));
+> no licence file accompanied the captured copy, so its terms are unestablished —
+> these are restatements of the underlying operational rules, not copied text.
 
 ---
 

@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.64.1 | [Five checks harvested from a third-party skills triage](0.64.1-checks-harvested-from-a-skills-triage.md) |
 | 0.64.0 | [The `dotnet` and `aspire` stacks declare their upstream skill sources](0.64.0-dotnet-and-aspire-skill-sources.md) |
 | 0.63.0 | [`optIn` becomes a scope a project can choose, and six skills use it](0.63.0-optin-becomes-reachable.md) |
 | 0.62.0 | [A declared MCP server names what must already be installed](0.62.0-a-declared-server-names-its-prerequisite.md) |
