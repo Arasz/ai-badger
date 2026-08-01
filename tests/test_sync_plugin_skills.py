@@ -102,15 +102,15 @@ class TestManagedExternallyNeverTouched:
     def test_managed_externally_skill_is_left_alone(self, tmp_path, load_script, monkeypatch, capsys):
         sps = load_script("tooling/sync_plugin_skills.py")
         common_skills = tmp_path / "features" / "common" / "skills"
-        _write_tree(common_skills / "debug-issue", {"SKILL.md": "framework version"})
-        dest = tmp_path / "skills" / "debug-issue"
+        _write_tree(common_skills / "explore-codebase", {"SKILL.md": "framework version"})
+        dest = tmp_path / "skills" / "explore-codebase"
         _write_tree(dest, {"SKILL.md": "externally managed version"})
 
         monkeypatch.setattr(sps, "ROOT", tmp_path)
         monkeypatch.setattr(sps, "TARGET", tmp_path / "skills")
-        monkeypatch.setattr(sps, "COMMON_SKILLS", ["debug-issue"])
+        monkeypatch.setattr(sps, "COMMON_SKILLS", ["explore-codebase"])
         monkeypatch.setattr(sps, "CLAUDE_SKILLS", [])
-        assert "debug-issue" in sps.MANAGED_EXTERNALLY
+        assert "explore-codebase" in sps.MANAGED_EXTERNALLY
 
         before = _snapshot(dest)
         sps.main([])
@@ -118,7 +118,7 @@ class TestManagedExternallyNeverTouched:
 
         assert after == before
         out = capsys.readouterr().out
-        assert "debug-issue" not in out
+        assert "explore-codebase" not in out
 
 
 class TestSyncSkillRealCopy:
@@ -235,13 +235,13 @@ class TestCheckMode:
 
     def test_check_mode_ignores_managed_externally(self, tmp_path, load_script, monkeypatch):
         sps = load_script("tooling/sync_plugin_skills.py")
-        _write_tree(tmp_path / "features" / "common" / "skills" / "debug-issue",
+        _write_tree(tmp_path / "features" / "common" / "skills" / "explore-codebase",
                     {"SKILL.md": "framework version"})
-        _write_tree(tmp_path / "skills" / "debug-issue",
+        _write_tree(tmp_path / "skills" / "explore-codebase",
                     {"SKILL.md": "externally managed version"})
         monkeypatch.setattr(sps, "ROOT", tmp_path)
         monkeypatch.setattr(sps, "TARGET", tmp_path / "skills")
-        monkeypatch.setattr(sps, "COMMON_SKILLS", ["debug-issue"])
+        monkeypatch.setattr(sps, "COMMON_SKILLS", ["explore-codebase"])
         monkeypatch.setattr(sps, "CLAUDE_SKILLS", [])
 
         assert sps.main(["--check"]) == 0
@@ -368,7 +368,7 @@ class TestOrphanedPluginCopies:
         """
         sps = load_script("tooling/sync_plugin_skills.py")
         _write_tree(tmp_path / "features" / "common" / "skills" / "task", {"SKILL.md": "task"})
-        external = tmp_path / "skills" / "debug-issue"
+        external = tmp_path / "skills" / "explore-codebase"
         _write_tree(external, {"SKILL.md": "owned by code-review-graph"})
         monkeypatch.setattr(sps, "ROOT", tmp_path)
         monkeypatch.setattr(sps, "TARGET", tmp_path / "skills")

@@ -73,6 +73,11 @@ _BY_NAME = {ft.name: ft for ft in FEATURE_TYPES}
 # name, so only here does a name in config address one delivered artifact.
 EXCLUDABLE_FEATURES: Tuple[str, ...] = DRIFT_NEW_FEATURES
 
+# The feature types a project may ask for by index name in `config.include`. Narrower than
+# EXCLUDABLE_FEATURES on purpose: only skills carry a scope that withholds them until asked
+# for (ADR-0005). The object shape leaves room for a second entry without a schema break.
+INCLUDABLE_FEATURES: Tuple[str, ...] = ("skills",)
+
 
 def feature_type(name: str) -> FeatureType:
     """Look up a feature type by name; raises KeyError for anything not in the registry."""
@@ -91,6 +96,21 @@ def exclusions(config: Dict[str, Any]) -> Dict[str, Set[str]]:
     return {
         feature: {n for n in declared.get(feature) or [] if isinstance(n, str)}
         for feature in EXCLUDABLE_FEATURES
+    }
+
+
+def inclusions(config: Dict[str, Any]) -> Dict[str, Set[str]]:
+    """Names `config.include` asks for, keyed by feature type — every key always present.
+
+    Mirrors `exclusions`, including its tolerance of a malformed block: a refusal here would
+    turn a bad edit into a broken refresh rather than a reported one.
+    """
+    declared = config.get("include")
+    if not isinstance(declared, dict):
+        declared = {}
+    return {
+        feature: {n for n in declared.get(feature) or [] if isinstance(n, str)}
+        for feature in INCLUDABLE_FEATURES
     }
 
 
@@ -605,14 +625,20 @@ SKILL_SCOPES: Dict[str, str] = {
     "call-behaviorist": SKILL_SCOPE_DEFAULT,
     "code-review-checklist": SKILL_SCOPE_DEFAULT,
     "commit-reminder": SKILL_SCOPE_DEFAULT,
+    "debug-issue": SKILL_SCOPE_OPT_IN,
     "den-refresh": SKILL_SCOPE_DEFAULT,
     "differential-feature-refactor": SKILL_SCOPE_DEFAULT,
     "feed-badger": SKILL_SCOPE_DEFAULT,
     "maintain-agent-instructions": SKILL_SCOPE_DEFAULT,
     "mcp-index": SKILL_SCOPE_DEFAULT,
+    "migrate-documentation": SKILL_SCOPE_OPT_IN,
     "owner-gate-review": SKILL_SCOPE_DEFAULT,
     "prompt-markers": SKILL_SCOPE_DEFAULT,
+    "refactor-safely": SKILL_SCOPE_OPT_IN,
+    "review-changes": SKILL_SCOPE_OPT_IN,
+    "scaffold-documentation": SKILL_SCOPE_OPT_IN,
     "task": SKILL_SCOPE_DEFAULT,
+    "update-documentation": SKILL_SCOPE_OPT_IN,
     "welcome-ai-badger": SKILL_SCOPE_DEFAULT,
 }
 
@@ -649,6 +675,110 @@ def default_skills_in(skills_dir: Path) -> List[str]:
         if d.is_dir() and (d / "SKILL.md").exists()
         and SKILL_SCOPES.get(d.name) == SKILL_SCOPE_DEFAULT
     )
+
+
+def opt_in_skills_in(skills_dir: Path) -> List[str]:
+    """Opt-in-scope skills that live in `skills_dir`, sorted — the catalog a project may name."""
+    if not skills_dir.is_dir():
+        return []
+    return sorted(
+        d.name for d in skills_dir.iterdir()
+        if d.is_dir() and (d / "SKILL.md").exists()
+        and SKILL_SCOPES.get(d.name) == SKILL_SCOPE_OPT_IN
+    )
+
+
+# What a skill with no readable description is reported as. Reporting only — never a value
+# any behaviour keys off.
+NO_DESCRIPTION = "(no description)"
+
+_FRONTMATTER_FENCE = "---"
+_DESCRIPTION_KEY = "description:"
+# The block scalar indicators a SKILL.md description is written with; the text follows on
+# the indented lines beneath.
+_BLOCK_INDICATORS = (">", ">-", ">+", "|", "|-", "|+", "")
+
+
+def _folded_lines(lines: List[str], start: int) -> str:
+    """Join the indented continuation lines of a block scalar starting at `start`."""
+    collected = []
+    for line in lines[start:]:
+        if not line.strip():
+            break
+        if line[:1] not in (" ", "\t"):
+            break
+        collected.append(line.strip())
+    return " ".join(collected)
+
+
+def skill_description(skill_md: Path) -> Optional[str]:
+    """The `description:` scalar from a SKILL.md's frontmatter, or None when it cannot be read.
+
+    A deliberately tolerant extractor rather than a YAML parser: ADR-0005 rejected frontmatter
+    parsing for anything behavioural, so this is used for reporting only and degrades to None
+    on any parse miss instead of raising.
+    """
+    try:
+        text = skill_md.read_text(encoding="utf-8")
+    except (OSError, ValueError, UnicodeDecodeError):
+        return None
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != _FRONTMATTER_FENCE:
+        return None
+    end = next((i for i, line in enumerate(lines[1:], 1)
+                if line.strip() == _FRONTMATTER_FENCE), None)
+    if end is None:
+        return None
+    for i, line in enumerate(lines[1:end], 1):
+        if not line.startswith(_DESCRIPTION_KEY):
+            continue
+        value = line[len(_DESCRIPTION_KEY):].strip()
+        if value not in _BLOCK_INDICATORS:
+            return value.strip("'\"") or None
+        return _folded_lines(lines[:end], i + 1) or None
+    return None
+
+
+def inclusion_notes(included: Iterable[str], excluded: Iterable[str],
+                    addable: Iterable[str]) -> List[str]:
+    """One note per name in `config.include.skills`, saying what it added or why it could not.
+
+    Never fatal, for the reason exclusions are not: refresh refuses on an invalid config, so a
+    fatal note would turn an upstream deletion or a scope change into a broken upgrade.
+    """
+    declined, offerable = set(excluded), set(addable)
+    notes = []
+    for name in sorted(set(included)):
+        if name in declined:
+            notes.append(f"inclusion '{name}' is also in config.exclude.skills — "
+                         f"exclude wins; not delivered")
+        elif name in offerable:
+            notes.append(f"included optIn skill '{name}' (config.include.skills)")
+        elif SKILL_SCOPES.get(name) == SKILL_SCOPE_DEFAULT:
+            notes.append(f"inclusion '{name}' is already a default skill — "
+                         f"safe to remove from config.json")
+        else:
+            notes.append(f"inclusion '{name}' matches no optIn catalog skill — "
+                         f"safe to remove from config.json")
+    return notes
+
+
+def available_opt_in(root: Path, installed: Iterable[str]) -> List[Dict[str, str]]:
+    """Every opt-in catalog skill this project has not installed, with the edit that adds it.
+
+    Report-only: `name`, a one-line `description` read from the skill's own SKILL.md, and the
+    literal `config.json` edit a reader can paste.
+    """
+    have = set(installed or ())
+    skills_dir = root / "features" / "common" / "skills"
+    return [
+        {
+            "name": name,
+            "description": skill_description(skills_dir / name / "SKILL.md") or NO_DESCRIPTION,
+            "configEdit": '"include": {"skills": ["%s"]}' % name,
+        }
+        for name in opt_in_skills_in(skills_dir) if name not in have
+    ]
 
 
 def scaffolded_skill_names(manifest: Dict[str, Any]) -> List[str]:

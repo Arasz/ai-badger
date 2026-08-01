@@ -102,8 +102,14 @@ class TestFirstPartyStackMarketplaces:
     def test_the_stack_declares_the_marketplace_the_cli_resolves(self, stack):
         name, url, _ = self.EXPECTED[stack]
 
-        source = next(s for s in _sources(stack) if s["name"] == name)
+        declared = {s["name"]: s for s in _sources(stack)}
 
+        assert name in declared, (
+            f"features/{stack}/skills-source.json declares "
+            f"{sorted(declared)} — the CLI resolves this repository as {name!r}, and "
+            f"`claude plugin install …@<anything-else>` fails"
+        )
+        source = declared[name]
         assert source["type"] == "marketplace"
         assert source["source"] == url
         assert source["support"] == ["claude"]

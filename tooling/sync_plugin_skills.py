@@ -34,12 +34,12 @@ CLAUDE_SKILLS = bl.skills_for_stack(ROOT, "claude")
 # --check so a file that is never copied can never be reported as divergence.
 SKIP_PATTERNS = tuple(bl.SKILL_EXCLUDE_PATTERNS)
 
-# Skills whose content another tool owns (code-review-graph): never written, never checked.
+# Skills whose content another tool owns (code-review-graph) and the catalog does not carry:
+# never written, never checked, never pruned. A skill the catalog *does* carry belongs to its
+# declared scope instead — `optIn` already keeps it out of the mirror, and listing it here as
+# well would make a later flip to `default` silently ship nothing (ADR-0005 §Context).
 MANAGED_EXTERNALLY = {
-    "debug-issue",
     "explore-codebase",
-    "refactor-safely",
-    "review-changes",
 }
 
 
