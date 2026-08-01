@@ -49,6 +49,15 @@ LIMIT_WAIT_SCHEDULE_SECONDS = [7200, 1800, 900, 300]
 DEFAULT_RESUME_DELAY_SECONDS = 120
 PROBE_MODEL = "claude-haiku-4-5-20251001"
 
+# A watch with no stopping condition is a loop nobody can answer "what ends this?" for, and it
+# outlives the session that started it — the rule owner-gate-review's SKILL.md already states.
+# This poller had neither bound; ten instances were once found alive at once, six of them owned
+# by worktrees that had been deleted. DEFAULT is generous because a usage limit can take hours
+# to reset; MAX is the hard ceiling auto-wm already uses, so no caller can restore the old loop.
+DEFAULT_MAX_HOURS = 12
+MAX_MAX_HOURS = 12
+IDLE_POLLS_BEFORE_EXIT = 3
+
 
 @dataclass(frozen=True)
 class TargetSession:
@@ -324,27 +333,75 @@ def poll_once(
     return DEFAULT_AVAILABLE_INTERVAL_SECONDS
 
 
-def run_forever(interval_seconds: int | None = None, auto_wm_on_reset: bool = False) -> int:
-    if already_running():
+def bounded_max_hours(hours: float) -> float:
+    """Clamp a requested cap to MAX_MAX_HOURS, so no caller can ask for an unbounded loop."""
+    return min(hours, MAX_MAX_HOURS)
+
+
+def _has_unfinished_task(project_root: Path | None = None) -> bool:
+    """Whether task tracking still holds a task this poller could resume.
+
+    Resolves PROJECT_ROOT at call time: a module constant bound as a default argument freezes
+    at import, which is invisible until something reassigns it.
+    """
+    return bool(_discover_task_sessions(project_root or PROJECT_ROOT))
+
+
+def remove_pid(pid_file: Path = PID_FILE) -> None:
+    """Drop our pid file so the next poller need not decide whether a stale pid is alive."""
+    try:
+        pid_file.unlink()
+    except OSError:
+        pass
+
+
+def run_forever(
+    interval_seconds: int | None = None,
+    auto_wm_on_reset: bool = False,
+    max_hours: float = DEFAULT_MAX_HOURS,
+    clock=time.monotonic,
+    sleeper=time.sleep,
+) -> int:
+    """Poll until the cap expires or no unfinished task is left to resume."""
+    if already_running(PID_FILE):
         log("poll_limit.py is already running; exiting")
         return 0
-    write_pid()
-    log("Starting Claude limit poller (dynamic interval: 2h, 30m, 15m, then 5m "
-        "while limited; 5m otherwise)...")
+    write_pid(PID_FILE)
+    max_hours = bounded_max_hours(max_hours)
+    deadline = clock() + max_hours * 3600
+    log(f"Starting Claude limit poller (dynamic interval: 2h, 30m, 15m, then 5m "
+        f"while limited; 5m otherwise). Stops at the {max_hours}h cap, or once no "
+        f"unfinished task remains.")
     state = PollState(auto_wm_on_reset=auto_wm_on_reset)
-    while True:
-        try:
-            wait_seconds = poll_once(state)
-        except Exception as exc:  # noqa: BLE001 - a daemon must outlive transient poll errors
-            log(f"poll_once error (continuing): {exc!r}")
-            wait_seconds = DEFAULT_AVAILABLE_INTERVAL_SECONDS
-        time.sleep(interval_seconds if interval_seconds is not None else wait_seconds)
+    idle_polls = 0
+    try:
+        while clock() < deadline:
+            try:
+                wait_seconds = poll_once(state)
+            except Exception as exc:  # noqa: BLE001 - a daemon must outlive transient poll errors
+                log(f"poll_once error (continuing): {exc!r}")
+                wait_seconds = DEFAULT_AVAILABLE_INTERVAL_SECONDS
+
+            idle_polls = 0 if _has_unfinished_task() else idle_polls + 1
+            if idle_polls >= IDLE_POLLS_BEFORE_EXIT:
+                log(f"No unfinished task for {idle_polls} polls; nothing left to resume. Exiting.")
+                return 0
+
+            sleeper(interval_seconds if interval_seconds is not None else wait_seconds)
+        log(f"Reached the {max_hours}h cap; exiting. Re-run /task to start a new poller.")
+        return 0
+    finally:
+        remove_pid(PID_FILE)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--interval-seconds", type=int, default=None)
     parser.add_argument("--once", action="store_true")
+    parser.add_argument(
+        "--max-hours", type=float, default=DEFAULT_MAX_HOURS,
+        help=f"Wall-clock cap before the poller exits (default {DEFAULT_MAX_HOURS}h, "
+             f"hard ceiling {MAX_MAX_HOURS}h). It also exits once no unfinished task remains.")
     parser.add_argument(
         "--auto-wm-on-reset", action="store_true",
         help="On a limit reset, also run `/auto-wm away 4h`. Off by default: this hands "
@@ -354,7 +411,7 @@ def main() -> int:
         state = PollState(was_limited=True, auto_wm_on_reset=args.auto_wm_on_reset)
         poll_once(state)
         return 0
-    return run_forever(args.interval_seconds, args.auto_wm_on_reset)
+    return run_forever(args.interval_seconds, args.auto_wm_on_reset, args.max_hours)
 
 
 if __name__ == "__main__":

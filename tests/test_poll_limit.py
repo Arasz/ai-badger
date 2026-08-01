@@ -369,3 +369,118 @@ def test_resume_session_reattach_prompt_references_task_tracker_under_own_script
 
     prompt = captured["cmd"][4]
     assert str(poll_limit.SCRIPT_DIR / "task_tracker.py") in prompt
+
+
+# ── run_forever's stopping conditions ────────────────────────────────────────────
+#
+# run_forever was `while True:` with no cap, no liveness check and no parent check, so every
+# poller ever started outlived its session and ran until the machine rebooted. Ten of them were
+# found alive at once, six belonging to /private/tmp worktrees that no longer existed, and their
+# writes into .ai-badger/task-tracking/ broke an unrelated pre-push test run.
+#
+# owner-gate-review's SKILL.md already states the rule this violated: "a watch with no stopping
+# condition is a loop nobody can answer 'what ends this?' for, and it outlives the session that
+# started it."
+
+
+def _poller_at(tmp_path, load_script, monkeypatch):
+    """poll_limit bound to a throwaway project root, with the real limit probe stubbed out."""
+    poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
+    data = tmp_path / ".ai-badger" / "task-tracking"
+    data.mkdir(parents=True)
+    monkeypatch.setattr(poll_limit, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(poll_limit, "PID_FILE", data / "poll_limit.pid")
+    monkeypatch.setattr(poll_limit, "LOG_FILE", data / "poll_limit.log")
+    monkeypatch.setattr(poll_limit, "poll_once", lambda *a, **k: 300)
+    return poll_limit, data
+
+
+def _write_tasks(data, tasks):
+    (data / "executed-tasks.json").write_text(json.dumps({"tasks": tasks}), encoding="utf-8")
+
+
+def test_run_forever_stops_at_the_wall_clock_cap(tmp_path, load_script, monkeypatch):
+    poll_limit, data = _poller_at(tmp_path, load_script, monkeypatch)
+    _write_tasks(data, [{"taskId": "T", "state": "IN_PROGRESS", "sessionId": "s"}])
+    ticks = iter([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+
+    result = poll_limit.run_forever(
+        interval_seconds=0, max_hours=5 / 3600, clock=lambda: next(ticks), sleeper=lambda _s: None,
+    )
+
+    assert result == 0
+
+
+def test_the_cap_is_what_stopped_it_and_it_says_so(tmp_path, load_script, monkeypatch):
+    poll_limit, data = _poller_at(tmp_path, load_script, monkeypatch)
+    _write_tasks(data, [{"taskId": "T", "state": "IN_PROGRESS", "sessionId": "s"}])
+    ticks = iter(range(50))
+
+    poll_limit.run_forever(
+        interval_seconds=0, max_hours=3 / 3600, clock=lambda: next(ticks), sleeper=lambda _s: None,
+    )
+
+    assert "cap" in (data / "poll_limit.log").read_text().lower()
+
+
+def test_run_forever_exits_when_no_unfinished_task_remains(tmp_path, load_script, monkeypatch):
+    """The poller resumes unfinished tasks. With none left it can never do anything again."""
+    poll_limit, data = _poller_at(tmp_path, load_script, monkeypatch)
+    _write_tasks(data, [{"taskId": "T", "state": "FINISHED", "sessionId": "s"}])
+
+    result = poll_limit.run_forever(
+        interval_seconds=0, max_hours=12, clock=lambda: 0.0, sleeper=lambda _s: None,
+    )
+
+    assert result == 0
+
+
+def test_an_unfinished_task_keeps_it_polling_until_the_cap(tmp_path, load_script, monkeypatch):
+    """The idle exit must not fire while there is still work to resume."""
+    poll_limit, data = _poller_at(tmp_path, load_script, monkeypatch)
+    _write_tasks(data, [{"taskId": "T", "state": "IN_PROGRESS", "sessionId": "s"}])
+    polls = []
+    monkeypatch.setattr(poll_limit, "poll_once", lambda *a, **k: polls.append(1) or 300)
+    ticks = iter(range(60))
+
+    poll_limit.run_forever(
+        interval_seconds=0, max_hours=20 / 3600, clock=lambda: next(ticks), sleeper=lambda _s: None,
+    )
+
+    assert len(polls) > poll_limit.IDLE_POLLS_BEFORE_EXIT
+
+
+def test_run_forever_removes_its_pid_file_on_exit(tmp_path, load_script, monkeypatch):
+    """A poller that exits leaving its pid file behind is one already_running has to second-guess."""
+    poll_limit, data = _poller_at(tmp_path, load_script, monkeypatch)
+    _write_tasks(data, [{"taskId": "T", "state": "FINISHED", "sessionId": "s"}])
+
+    poll_limit.run_forever(
+        interval_seconds=0, max_hours=12, clock=lambda: 0.0, sleeper=lambda _s: None,
+    )
+
+    assert not (data / "poll_limit.pid").exists()
+
+
+def test_a_second_poller_still_refuses_to_start(tmp_path, load_script, monkeypatch):
+    """The cap must not weaken the existing single-instance guard."""
+    import os
+
+    poll_limit, data = _poller_at(tmp_path, load_script, monkeypatch)
+    (data / "poll_limit.pid").write_text(str(os.getppid()), encoding="utf-8")
+    _write_tasks(data, [{"taskId": "T", "state": "IN_PROGRESS", "sessionId": "s"}])
+
+    result = poll_limit.run_forever(
+        interval_seconds=0, max_hours=12, clock=lambda: 0.0, sleeper=lambda _s: None,
+    )
+
+    assert result == 0
+    assert "already running" in (data / "poll_limit.log").read_text()
+
+
+def test_the_cap_is_bounded_even_when_asked_for_more(tmp_path, load_script, monkeypatch):
+    """A caller cannot re-create the unbounded loop by passing a huge cap."""
+    poll_limit, _ = _poller_at(tmp_path, load_script, monkeypatch)
+
+    assert poll_limit.bounded_max_hours(9999) == poll_limit.MAX_MAX_HOURS
+    assert poll_limit.bounded_max_hours(4) == 4
