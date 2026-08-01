@@ -1,0 +1,718 @@
+<title>Gherkin as an elicitation engine</title>
+<style>
+  :root {
+    --paper: #F2F3F6; --surface: #FFFFFF; --ink: #14171F; --ink-2: #454B5C; --ink-3: #6E7488;
+    --rule: #D3D7E0; --rule-strong: #A9B0C0; --accent: #33478F; --accent-soft: #E5E8F4;
+    --ok: #1F7A4C; --ok-soft: #E2F0E8; --warn: #8A5A0B; --warn-soft: #F6EDDC;
+    --bad: #A32F2F; --bad-soft: #F7E5E5; --code-bg: #ECEEF3;
+
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #101219; --surface: #171A23; --ink: #E7E9F0; --ink-2: #B0B6C6; --ink-3: #838A9C;
+      --rule: #2B303D; --rule-strong: #434A5C; --accent: #93A4E8; --accent-soft: #1D2340;
+      --ok: #5DC08C; --ok-soft: #14291F; --warn: #D6A45A; --warn-soft: #2B2314;
+      --bad: #E58686; --bad-soft: #2E1919; --code-bg: #1B1F2A;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #101219; --surface: #171A23; --ink: #E7E9F0; --ink-2: #B0B6C6; --ink-3: #838A9C;
+    --rule: #2B303D; --rule-strong: #434A5C; --accent: #93A4E8; --accent-soft: #1D2340;
+    --ok: #5DC08C; --ok-soft: #14291F; --warn: #D6A45A; --warn-soft: #2B2314;
+    --bad: #E58686; --bad-soft: #2E1919; --code-bg: #1B1F2A;
+  }
+  :root[data-theme="light"] {
+    --paper: #F2F3F6; --surface: #FFFFFF; --ink: #14171F; --ink-2: #454B5C; --ink-3: #6E7488;
+    --rule: #D3D7E0; --rule-strong: #A9B0C0; --accent: #33478F; --accent-soft: #E5E8F4;
+    --ok: #1F7A4C; --ok-soft: #E2F0E8; --warn: #8A5A0B; --warn-soft: #F6EDDC;
+    --bad: #A32F2F; --bad-soft: #F7E5E5; --code-bg: #ECEEF3;
+  }
+
+  body {
+    background: var(--paper); color: var(--ink); font-family: var(--sans);
+    font-size: 16.5px; line-height: 1.62; -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 50rem; margin: 0 auto;
+    padding: clamp(2rem, 5vw, 4.5rem) clamp(1.1rem, 4vw, 2.5rem) 6rem;
+    display: flex; flex-direction: column; gap: 2.75rem;
+  }
+
+  .masthead { display: flex; flex-direction: column; gap: 1rem; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--ink-3);
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1rem;
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 600;
+    font-size: clamp(1.95rem, 5vw, 2.9rem); line-height: 1.14;
+    letter-spacing: -0.012em; text-wrap: balance; margin: 0;
+  }
+  .standfirst {
+    font-family: var(--serif); font-size: clamp(1.02rem, 2.4vw, 1.18rem);
+    line-height: 1.55; color: var(--ink-2); max-width: 40rem; text-wrap: pretty;
+  }
+  .masthead-rule { height: 3px; background: var(--ink); border: 0; margin: 0.25rem 0 0; }
+
+  section { display: flex; flex-direction: column; gap: 1rem; }
+  h2 {
+    font-family: var(--serif); font-size: clamp(1.32rem, 3.2vw, 1.62rem);
+    font-weight: 600; line-height: 1.22; letter-spacing: -0.008em;
+    text-wrap: balance; margin: 0; padding-top: 1.4rem;
+    border-top: 1px solid var(--rule-strong);
+  }
+  h3 {
+    font-family: var(--sans); font-size: 0.99rem; font-weight: 650;
+    letter-spacing: 0.005em; margin: 0.6rem 0 0; color: var(--ink);
+  }
+  p { margin: 0; max-width: 42rem; text-wrap: pretty; }
+  ul, ol { margin: 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; max-width: 42rem; }
+  li { padding-left: 0.15rem; }
+  strong { font-weight: 650; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  code {
+    font-family: var(--mono); font-size: 0.855em; background: var(--code-bg);
+    padding: 0.1em 0.34em; border-radius: 2px; word-break: break-word;
+  }
+
+  .chip {
+    font-family: var(--mono); font-size: 0.665rem; letter-spacing: 0.11em;
+    text-transform: uppercase; font-weight: 600; padding: 0.2rem 0.5rem;
+    border: 1px solid currentColor; border-radius: 2px; white-space: nowrap; display: inline-block;
+  }
+  .v-ok { color: var(--ok); background: var(--ok-soft); }
+  .v-warn { color: var(--warn); background: var(--warn-soft); }
+  .v-bad { color: var(--bad); background: var(--bad-soft); }
+  .v-info { color: var(--accent); background: var(--accent-soft); }
+
+  .ledger { display: flex; flex-direction: column; border-top: 1px solid var(--rule); }
+  .claim {
+    display: grid; grid-template-columns: 7.5rem 1fr; gap: 0.5rem 1.25rem;
+    padding: 1rem 0; border-bottom: 1px solid var(--rule); align-items: start;
+  }
+  .claim-verdict { display: flex; flex-direction: column; gap: 0.4rem; align-items: start; }
+  .claim-id { font-family: var(--mono); font-size: 0.7rem; color: var(--ink-3); letter-spacing: 0.06em; }
+  .claim-body { display: flex; flex-direction: column; gap: 0.4rem; }
+  .claim-quote { font-family: var(--serif); font-size: 1.02rem; line-height: 1.42; color: var(--ink); }
+  .claim-note { font-size: 0.9rem; color: var(--ink-2); max-width: 38rem; }
+  @media (max-width: 34rem) {
+    .claim { grid-template-columns: 1fr; gap: 0.55rem; }
+    .claim-verdict { flex-direction: row; align-items: center; gap: 0.65rem; }
+  }
+
+  .callout {
+    background: var(--surface); border: 1px solid var(--rule-strong);
+    border-left: 4px solid var(--bad); padding: 1.15rem 1.3rem;
+    display: flex; flex-direction: column; gap: 0.7rem;
+  }
+  .callout.is-good { border-left-color: var(--ok); }
+  .callout.is-info { border-left-color: var(--accent); }
+  .callout-label {
+    font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .callout p { max-width: none; }
+
+  .scroller { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 30rem; }
+  th, td { text-align: left; padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  thead th {
+    font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--ink-3); font-weight: 600;
+    border-bottom: 1px solid var(--rule-strong); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td code { background: transparent; padding: 0; }
+  .t-slot { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); white-space: nowrap; }
+  .t-q { font-family: var(--serif); font-size: 0.97rem; line-height: 1.4; }
+
+  pre {
+    margin: 0; background: var(--surface); border: 1px solid var(--rule);
+    padding: 1rem 1.1rem; overflow-x: auto; font-family: var(--mono);
+    font-size: 0.8rem; line-height: 1.62; tab-size: 2;
+  }
+  pre code { background: transparent; padding: 0; font-size: inherit; }
+  .g-kw { color: var(--accent); font-weight: 600; }
+  .g-step { color: var(--ok); font-weight: 600; }
+  .g-tag { color: var(--warn); }
+  .g-com { color: var(--ink-3); font-style: italic; }
+  .caption { font-size: 0.8rem; color: var(--ink-3); max-width: 42rem; }
+
+  .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .pair > div { background: var(--surface); padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+  .pair h4 { margin: 0; font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.02em; color: var(--accent); font-weight: 600; }
+  .pair p { font-size: 0.87rem; color: var(--ink-2); }
+  .pair ul { font-size: 0.87rem; color: var(--ink-2); gap: 0.28rem; }
+  .pair.is-poles h4.pole-a { color: var(--bad); }
+  .pair.is-poles h4.pole-b { color: var(--ok); }
+
+  .flow { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--rule); background: var(--surface); }
+  .flow-step { display: grid; grid-template-columns: 2.4rem 1fr; gap: 1rem; padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--rule); align-items: baseline; }
+  .flow-step:last-child { border-bottom: 0; }
+  .flow-n { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-3); letter-spacing: 0.06em; }
+  .flow-t { display: flex; flex-direction: column; gap: 0.25rem; }
+  .flow-t strong { font-size: 0.95rem; }
+  .flow-t span { font-size: 0.87rem; color: var(--ink-2); }
+  .flow-step.is-gate { background: var(--accent-soft); }
+
+  .dialogue { border: 1px solid var(--rule); background: var(--surface); display: flex; flex-direction: column; }
+  .turn { padding: 0.8rem 1.1rem; border-bottom: 1px solid var(--rule); display: grid; grid-template-columns: 4.2rem 1fr; gap: 1rem; }
+  .turn:last-child { border-bottom: 0; }
+  .turn-who { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); padding-top: 0.15rem; }
+  .turn-what { font-size: 0.92rem; color: var(--ink-2); display: flex; flex-direction: column; gap: 0.4rem; }
+  .turn.is-agent .turn-who { color: var(--accent); }
+  @media (max-width: 32rem) { .turn { grid-template-columns: 1fr; gap: 0.3rem; } }
+
+  details { border: 1px solid var(--rule); background: var(--surface); padding: 0.75rem 1rem; }
+  summary { cursor: pointer; font-weight: 600; font-size: 0.92rem; }
+  details > *:not(summary) { margin-top: 0.75rem; }
+
+  footer {
+    border-top: 1px solid var(--rule-strong); padding-top: 1.4rem;
+    font-size: 0.85rem; color: var(--ink-3);
+    display: flex; flex-direction: column; gap: 0.6rem;
+  }
+  footer ol { font-size: 0.85rem; gap: 0.35rem; }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">
+      <span>Research &amp; validation</span>
+      <span>ai-badger</span>
+      <span>1 August 2026</span>
+    </div>
+    <h1>The specification format as the interview script</h1>
+    <hr class="masthead-rule" />
+    <p class="standfirst">
+      An assessment of the proposal to add a <code>create-task-spec</code> skill that starts from a rough idea
+      and interrogates its way to a structured specification — the agent extracting knowledge from the person
+      rather than proposing content for them to nod at. The core idea holds, and has a sharper justification
+      than expected: Gherkin's grammar is a question generator with an objective stopping condition.
+    </p>
+    <p class="standfirst">
+      Scope note: the format is for the agent. No BDD runner, no compiler, no editor plugin is in play —
+      which removes every dependency question and leaves only the format itself.
+    </p>
+  </header>
+
+  <section>
+    <h2>Verdicts at a glance</h2>
+    <div class="ledger">
+
+      <div class="claim">
+        <div class="claim-verdict">
+          <span class="claim-id">C1</span>
+          <span class="chip v-ok">Strongly validated</span>
+        </div>
+        <div class="claim-body">
+          <div class="claim-quote">The agent should actively extract knowledge — force the user to think by asking questions, with the structured format dictating what gets asked.</div>
+          <p class="claim-note">
+            The strongest idea in the proposal, and it has a property generic questioning does not: because
+            Gherkin's grammar has required slots, the question list is <em>derived from the artifact</em> rather
+            than from a checklist, and it terminates when the artifact is structurally complete.
+          </p>
+        </div>
+      </div>
+
+      <div class="claim">
+        <div class="claim-verdict">
+          <span class="claim-id">C2</span>
+          <span class="chip v-bad">Refuted</span>
+        </div>
+        <div class="claim-body">
+          <div class="claim-quote">The skill should emit two documents: a <code>.feature</code> and a <code>.specb</code>.</div>
+          <p class="claim-note">
+            <code>.specb</code> is not a format — it is an alternate file extension recognised by one Java
+            tool, holding identical Gherkin. With that tool out of scope there is nothing left to decide: use
+            <code>.feature</code>, the conventional extension. The <em>instinct</em> that one file is not
+            enough is still right; the second document just isn't a spec file.
+          </p>
+        </div>
+      </div>
+
+      <div class="claim">
+        <div class="claim-verdict">
+          <span class="claim-id">C3</span>
+          <span class="chip v-warn">Validated with caveat</span>
+        </div>
+        <div class="claim-body">
+          <div class="claim-quote">With structured documents, we know what to build with exact meaning.</div>
+          <p class="claim-note">
+            Structure buys precision about <em>behaviour</em>, and it buys a countable notion of completeness.
+            It does not buy exactness on its own — the meaning is only as exact as the answers elicited, which
+            is why the questioning discipline, not the file format, is what carries this claim.
+          </p>
+        </div>
+      </div>
+
+      <div class="claim">
+        <div class="claim-verdict">
+          <span class="claim-id">C4</span>
+          <span class="chip v-ok">Validated</span>
+        </div>
+        <div class="claim-body">
+          <div class="claim-quote">Use the owner gate review before emitting, if details need ironing out.</div>
+          <p class="claim-note">
+            Fits, with a role change under the elicitation framing: the gate is not where the user approves the
+            agent's proposals, it is where they rule on the <em>gaps their own answers left behind</em>. The
+            existing result contract already separates a deliberate DEFER from silence.
+          </p>
+        </div>
+      </div>
+
+      <div class="claim">
+        <div class="claim-verdict">
+          <span class="claim-id">C5</span>
+          <span class="chip v-warn">Redesign advised</span>
+        </div>
+        <div class="claim-body">
+          <div class="claim-quote">A third skill, <code>task-with-spec</code>, whose only job is chaining the two.</div>
+          <p class="claim-note">
+            The integration is right; the wrapper is not. This repo already chains skills without one —
+            <code>differential-feature-refactor</code> calls <code>owner-gate-review</code> inline and reads its
+            result back. A third skill buys one entry point at the cost of a scope declaration, a plugin sync, a
+            docs row, and a permanent "which one do I invoke?" ambiguity.
+          </p>
+        </div>
+      </div>
+
+      <div class="claim">
+        <div class="claim-verdict">
+          <span class="claim-id">C6</span>
+          <span class="chip v-info">Reframed</span>
+        </div>
+        <div class="claim-body">
+          <div class="claim-quote">"Brainstorming, but with more steps."</div>
+          <p class="claim-note">
+            Related, but not the same axis. Brainstorming diverges then converges on <em>what to build</em>;
+            this skill starts once that is settled and converges on <em>exact meaning</em>. It should sit
+            downstream and not try to replace the existing brainstorming skill.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>The thesis: grammar as a question generator</h2>
+    <p>
+      A structured interview usually means a fixed checklist of dimensions — problem, scope, data, auth, edge
+      cases. That works, but the checklist is arbitrary: someone chose those headings, and nothing says when a
+      dimension is finished.
+    </p>
+    <p>
+      Driving the interview from the <em>target format</em> is stronger, because Gherkin's grammar already
+      specifies what a complete document contains. Every required slot that is empty is a question that must be
+      asked. Every rule with no example is a hole you can point at. The interview stops when the document is
+      well-formed — not when the conversation feels long enough.
+    </p>
+
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>Empty slot</th><th>Question it forces</th><th>Why it can't be skipped</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="t-slot">Ability:</td><td class="t-q">What capability is this, as one noun phrase?</td><td>One <code>Feature</code> per file — naming it forces a scope boundary</td></tr>
+          <tr><td class="t-slot">As a …</td><td class="t-q">Who specifically? Name a role, not "the user".</td><td>A generic persona produces generic rules downstream</td></tr>
+          <tr><td class="t-slot">I want …</td><td class="t-q">What do they want to do — the capability, not the button?</td><td>The first place imperative, UI-coupled phrasing creeps in</td></tr>
+          <tr><td class="t-slot">So that …</td><td class="t-q">What changes for them? How would you know it worked?</td><td>An unanswerable benefit means the feature isn't justified yet</td></tr>
+          <tr><td class="t-slot">Rule:</td><td class="t-q">What must always be true? Name something that could be violated.</td><td>Rules are the invariants; a spec with none is a wish list</td></tr>
+          <tr><td class="t-slot">Example: (under a rule)</td><td class="t-q">Give me a case where this holds. Now one that nearly violates it. Now one that fails.</td><td>Three prompts per rule reach edges the user hadn't considered</td></tr>
+          <tr><td class="t-slot">Given</td><td class="t-q">What must already be true before this happens?</td><td>Surfaces unstated preconditions and setup dependencies</td></tr>
+          <tr><td class="t-slot">When</td><td class="t-q">What single event triggers it?</td><td>A second <code>When</code> means it is really two scenarios</td></tr>
+          <tr><td class="t-slot">Then</td><td class="t-q">How would you know it worked, without opening the database?</td><td>Forces an observable outcome instead of an internal state check</td></tr>
+          <tr><td class="t-slot">Examples:</td><td class="t-q">What are the real values? Where exactly is the boundary?</td><td>Turns "it should validate the amount" into a testable threshold</td></tr>
+          <tr><td class="t-slot">@tags</td><td class="t-q">What does this belong with? Who else is affected?</td><td>Catches cross-cutting impact the user didn't volunteer</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="caption">
+      Slot names use the plain-English Gherkin keywords. <code>Ability</code> is a standard synonym for
+      <code>Feature</code>, alongside <code>Business Need</code> — verified against the dialect file shipped
+      with the Cucumber parser, which defines 80 spoken-language dialects.
+    </p>
+
+    <h3>Incompleteness you can count</h3>
+    <p>
+      This is what makes the format-driven approach mechanically checkable rather than a matter of judgement.
+      A partially-elicited spec has holes with names:
+    </p>
+
+<pre><code><span class="g-kw">Ability:</span> DiscountAppliesAtCheckout
+  As a returning customer
+  I want the loyalty discount applied before tax
+  So that the total I am quoted is the total I pay
+
+  <span class="g-kw">Rule:</span> a loyalty discount applies before tax is calculated
+
+    <span class="g-kw">Example:</span> discount precedes tax on a single item
+      <span class="g-step">Given</span> my cart contains <span class="g-tag">"Wireless Headphones"</span> at <span class="g-tag">"60.00"</span>
+      <span class="g-step">When</span> I open the checkout summary
+      <span class="g-step">Then</span> the discounted subtotal is <span class="g-tag">"54.00"</span>
+
+  <span class="g-kw">Rule:</span> an expired membership receives no discount
+    <span class="g-com">← hole: rule stated, no example given</span>
+
+    <span class="g-tag">@deferred</span>
+    <span class="g-kw">Example:</span> expired membership pays list price
+      <span class="g-com">← hole: scenario titled, no steps</span></code></pre>
+
+    <p>
+      Three states, all detectable: a rule with no scenario, a scenario with no steps, and a scenario whose
+      steps are complete. The first two are the outstanding question queue. The interview ends when the queue
+      is empty <em>or</em> every remaining hole carries an explicit deferral — never because the agent decided
+      it had enough.
+    </p>
+
+    <div class="callout is-info">
+      <span class="callout-label">Buildable without a dependency</span>
+      <p>
+        Hole-counting is a property of the grammar, not of any tool. Gherkin is line-oriented and every
+        non-blank line must start with a keyword, so the narrow question the skill asks — <em>which rules have
+        no examples, which examples have no steps</em> — needs a scanner, not a parser.
+      </p>
+      <p>
+        That matters here: ai-badger is stdlib-only apart from <code>jsonschema</code> and an optional
+        <code>pyyaml</code>. Pulling in a Gherkin parsing library to count holes would break that discipline
+        for no gain. A small stdlib scanner keeps the skill dependency-free and makes the completeness check
+        something tests can assert on.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>The polarity problem</h2>
+    <p>
+      Two pieces of close prior art sit at opposite ends of the axis this proposal cares about. Picking the
+      wrong one would quietly defeat the design.
+    </p>
+
+    <div class="pair is-poles">
+      <div>
+        <h4 class="pole-a">Proposal-first</h4>
+        <p>
+          SpecBinder ships Claude Code commands covering these same stages. Their instructions read: "suggest
+          2–6 plausible business rules", "extrapolate scenarios", "extrapolate from the title and description".
+        </p>
+        <p>
+          The agent generates content; the human edits it. Under the elicitation framing this is the
+          anti-pattern — a user shown six plausible rules stops generating a seventh and starts editing someone
+          else's list.
+        </p>
+      </div>
+      <div>
+        <h4 class="pole-b">Question-first</h4>
+        <p>
+          dotnet-claude-kit's <code>/spec</code>, already installed here and MIT-licensed. Its contract:
+          <em>"Never assume. Every gap in the idea becomes a question. If Claude catches itself thinking
+          'probably', 'presumably', or 'the usual way' — that thought is a question to ask, not a decision to
+          make."</em>
+        </p>
+        <p>
+          Questions come in rounds of 3–5. A dimension is finished when a follow-up round produces zero new
+          questions. "I don't know" is legal and becomes a Deferred Decision with a fallback the developer
+          picks now — silent deferral is forbidden.
+        </p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <span class="callout-label">The anchoring risk, stated plainly</span>
+      <p>
+        Language models are strongly disposed to fill a blank rather than leave it open, and users are strongly
+        disposed to accept a plausible list. Together those produce a spec that reads as agreed but encodes the
+        model's guesses. Since the entire value of the artifact is that it captures what the <em>person</em>
+        knows, this is not a rough edge — it is the failure mode that makes the skill worthless while appearing
+        to work.
+      </p>
+    </div>
+
+    <h3>The calibrated middle</h3>
+    <p>
+      Pure interrogation is exhausting, and sometimes a person genuinely cannot answer until they see the shape
+      of an option. The rule that resolves it — borrowed from the question-first pole — is to propose
+      <strong>options to choose between, never content to accept</strong>. Offer two or three alternatives with
+      trade-offs and a recommendation; the user picks, and a recommendation is never silently applied. That
+      keeps them generating decisions instead of proofreading.
+    </p>
+
+    <h3>What a round actually looks like</h3>
+    <div class="dialogue">
+      <div class="turn is-agent">
+        <span class="turn-who">Agent</span>
+        <span class="turn-what"><span>Here's what I understood: returning customers get a loyalty discount, and you want it applied before tax rather than after. Is that the idea — and what did I get wrong?</span></span>
+      </div>
+      <div class="turn">
+        <span class="turn-who">User</span>
+        <span class="turn-what"><span>Right, and it only applies to members in good standing.</span></span>
+      </div>
+      <div class="turn is-agent">
+        <span class="turn-who">Agent</span>
+        <span class="turn-what">
+          <span>"Good standing" is doing a lot of work there, and it's now a rule I can't write. Three questions:</span>
+          <span>1. What makes a membership <em>not</em> in good standing — expired, suspended, unpaid, something else?</span>
+          <span>2. If it lapses mid-checkout, does the price they were quoted still hold?</span>
+          <span>3. You've given me one rule about tax ordering. Is there a second about <em>which items</em> the discount covers, or does it apply to the whole cart?</span>
+        </span>
+      </div>
+      <div class="turn">
+        <span class="turn-who">User</span>
+        <span class="turn-what"><span>Expired or unpaid. Not sure about the mid-checkout one.</span></span>
+      </div>
+      <div class="turn is-agent">
+        <span class="turn-who">Agent</span>
+        <span class="turn-what"><span>Recording "expired or unpaid" as the rule. The mid-checkout case goes to the decision gate rather than my guess — with two options for you to rule on: honour the quoted price for the session, or re-price on payment. Question 3 is still open: does the discount apply to every item?</span></span>
+      </div>
+    </div>
+    <p class="caption">
+      Illustrative, not a transcript. Three moves carry the design: an unanswerable phrase is challenged rather
+      than interpreted, "not sure" becomes a gate decision rather than a default, and the unanswered question is
+      re-asked instead of dropped.
+    </p>
+  </section>
+
+  <section>
+    <h2>What Gherkin cannot be asked to say</h2>
+    <p>
+      The interview can only elicit what the format can hold. Gherkin describes observable behaviour and nothing
+      else — which is exactly why a second document is needed, and what it should contain.
+    </p>
+    <div class="pair">
+      <div>
+        <h4>Elicitable into the spec file</h4>
+        <ul>
+          <li>Behaviour as Given / When / Then</li>
+          <li>Invariants as first-class <code>Rule</code> blocks</li>
+          <li>Shared setup via <code>Background</code> (one per Feature or Rule)</li>
+          <li>Parameterised cases via <code>Scenario Outline</code> + <code>Examples</code></li>
+          <li>Structured arguments: data tables, doc strings</li>
+          <li>Cross-cutting grouping via <code>@tags</code></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Must go in the manifest instead</h4>
+        <ul>
+          <li>Non-functional requirements — latency, volume, cost</li>
+          <li>Architecture and layering constraints</li>
+          <li>Which files to touch; where new code belongs</li>
+          <li>Explicit out-of-scope boundaries</li>
+          <li>Security and compliance obligations</li>
+          <li>Decision provenance — who ruled what, what stayed deferred</li>
+        </ul>
+      </div>
+    </div>
+    <p>
+      Two hard constraints from the reference are worth enforcing during elicitation: only one
+      <code>Feature</code> per file, and no two steps within a scenario may share identical text.
+    </p>
+  </section>
+
+  <section>
+    <h2>Recommended architecture</h2>
+    <p>One new skill and a small change to an existing one.</p>
+
+    <h3>1. <code>create-task-spec</code> — in <code>features/common/skills/</code></h3>
+    <p>An elicitation loop emitting two documents that are genuinely different from one another:</p>
+
+    <div class="pair">
+      <div>
+        <h4>&lt;Name&gt;.feature</h4>
+        <p>The behavioural contract, in standard Gherkin.</p>
+        <ul>
+          <li>User story header</li>
+          <li><code>Rule</code> blocks as elicited invariants</li>
+          <li>Scenarios with concrete steps</li>
+          <li>Deferred items left step-less and tagged</li>
+          <li><code>@spec-id</code> linking back to the manifest</li>
+        </ul>
+      </div>
+      <div>
+        <h4>spec.json</h4>
+        <p>Everything Gherkin structurally cannot hold — the manifest <code>task</code> consumes.</p>
+        <ul>
+          <li>Scope and explicit out-of-scope</li>
+          <li>Non-functional requirements</li>
+          <li>Target paths and architecture constraints</li>
+          <li>Gate verdicts with provenance</li>
+          <li>Deferred decisions and their chosen fallbacks</li>
+          <li>Spec-file path and hole count at emit time</li>
+        </ul>
+      </div>
+    </div>
+    <p class="caption">
+      Neither of these can be derived from the other — which is what the original two-document instinct was
+      reaching for.
+    </p>
+
+    <h3>2. The elicitation loop</h3>
+    <div class="flow">
+      <div class="flow-step">
+        <span class="flow-n">01</span>
+        <span class="flow-t"><strong>Restate and confirm</strong><span>Play the idea back in the agent's own words and ask what's wrong. Never start questioning the wrong idea.</span></span>
+      </div>
+      <div class="flow-step">
+        <span class="flow-n">02</span>
+        <span class="flow-t"><strong>Elicit the ability header</strong><span>Persona, capability, benefit — three slots, three questions, no invented answers.</span></span>
+      </div>
+      <div class="flow-step">
+        <span class="flow-n">03</span>
+        <span class="flow-t"><strong>Elicit rules until dry</strong><span>"What else must always be true?" until the user produces nothing new — the until-dry test rather than a fixed count.</span></span>
+      </div>
+      <div class="flow-step">
+        <span class="flow-n">04</span>
+        <span class="flow-t"><strong>Elicit scenarios per rule</strong><span>Holds / nearly violates / fails. Titles only — the queue of step-less scenarios is now visible to both sides.</span></span>
+      </div>
+      <div class="flow-step">
+        <span class="flow-n">05</span>
+        <span class="flow-t"><strong>Elicit steps, challenging phrasing</strong><span>Reject UI verbs and internal-state assertions. A second <code>When</code> splits the scenario.</span></span>
+      </div>
+      <div class="flow-step is-gate">
+        <span class="flow-n">06</span>
+        <span class="flow-t"><strong>Owner gate on what's left</strong><span>Every "not sure", every contradiction, every remaining hole becomes one decision card: APPROVE / CHANGE / REJECT / DEFER. Nothing is emitted while a card is unanswered.</span></span>
+      </div>
+      <div class="flow-step">
+        <span class="flow-n">07</span>
+        <span class="flow-t"><strong>Emit both documents</strong><span>Spec plus manifest, with verdicts and deferrals recorded as provenance.</span></span>
+      </div>
+    </div>
+    <p class="caption">
+      Numbered because the stages are genuinely sequential — each one's output is the next one's input, and 06
+      is a hard stop. Stages 03 and 04 loop internally; 05 can send the user back to 04 when a step reveals a
+      missing case.
+    </p>
+
+    <h3>3. Integration — extend <code>task</code>, don't wrap it</h3>
+    <p>
+      Teach <code>task</code>'s Phase 1 to recognise a spec manifest path as its argument, and let
+      <code>create-task-spec</code> end by handing one over. The plan Phase 1 delegates to the architect persona
+      gets strictly better input — an elicited behavioural contract plus explicit constraints, instead of
+      freeform text — and Phase 3's quality gate gains an exact pass condition.
+    </p>
+
+    <h3>4. <code>scripts/render_spec.py</code> — the spec as a readable page</h3>
+    <p>
+      The spec file is optimised for the agent, which leaves the human side underserved: plain Gherkin is
+      legible but flat, and it does not show what is <em>missing</em>. A renderer closes that gap, and it comes
+      almost free — the same stdlib scanner that counts holes for the completeness check is the parser the
+      renderer needs. One scanner, two consumers: a gate that blocks emission and a page that makes the state
+      of the spec obvious at a glance.
+    </p>
+    <ul>
+      <li><strong>Show the holes, don't just count them</strong> — a rule with no examples and a scenario with no steps rendered as visible gaps, so an unfinished spec looks unfinished.</li>
+      <li><strong>Separate elicited from deferred</strong> — deferred items carry their chosen fallback and the gate verdict that put them there.</li>
+      <li><strong>Fold in the manifest</strong> — scope, out-of-scope and constraints beside the behaviour they bound, which is the one view neither file gives alone.</li>
+    </ul>
+    <p>
+      It belongs in the skill's <code>scripts/</code> rather than behind an <code>extension.json</code> gate:
+      the gate mechanism keys on config conditions like stack or platform, and there is no condition under
+      which a project would want the renderer switched off. Keeping it a plain script also means it stays
+      re-runnable against any spec, at any time, not only at emit.
+    </p>
+    <p>
+      Rendered specs have an obvious home. <code>docs/work/</code> is already the canonical place for dated
+      records and already holds generated HTML from the owner gate — so a rendered spec sits beside the review
+      form that ruled on it.
+    </p>
+
+    <h3>5. What registration costs</h3>
+    <p>
+      Adding a catalog skill is more than a <code>SKILL.md</code>: scope must be declared in
+      <code>SKILL_SCOPES</code> in <code>engine/badger_lib.py</code> — there is no fallback, and an undeclared
+      skill ships to nobody, the documented failure that left <code>code-review-checklist</code> dark for its
+      entire life — then the index rebuilt, validation passed, and a default-scope skill synced into
+      <code>skills/</code>.
+    </p>
+  </section>
+
+  <section>
+    <h2>Risk register</h2>
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Agent fills blanks instead of asking — the spec encodes the model's guesses</td>
+            <td><span class="chip v-bad">High</span></td>
+            <td>Explicit never-assume contract; propose options to choose between, never content to accept; treat "probably" as a trigger to ask</td>
+          </tr>
+          <tr>
+            <td>Interview fatigue — user abandons partway</td>
+            <td><span class="chip v-warn">Medium</span></td>
+            <td>Rounds of 3–5 questions, not one dump; the partial spec is a valid resumable artifact, since holes are named and countable</td>
+          </tr>
+          <tr>
+            <td>Imperative, UI-coupled scenarios</td>
+            <td><span class="chip v-warn">Medium</span></td>
+            <td>Challenge phrasing during stage 05; reject UI verbs and internal-state assertions in step text</td>
+          </tr>
+          <tr>
+            <td>Skill proliferation and discovery ambiguity</td>
+            <td><span class="chip v-warn">Medium</span></td>
+            <td>One skill rather than two; extend <code>task</code> in place</td>
+          </tr>
+          <tr>
+            <td>Undeclared scope ships the skill to nobody</td>
+            <td><span class="chip v-warn">Medium</span></td>
+            <td>Declare in <code>SKILL_SCOPES</code>, rebuild the index, run the sync — the documented checklist</td>
+          </tr>
+          <tr>
+            <td>Borrowing prose from the proposal-first prior art</td>
+            <td><span class="chip v-info">Low</span></td>
+            <td>SpecBinder is GPL-3.0 against this repo's MIT — cite the convergence, never copy the text. The question-first prior art is MIT and may be borrowed with attribution</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Recommendation</h2>
+    <div class="callout is-good">
+      <span class="callout-label">Proceed — the elicitation framing is what makes it worth building</span>
+      <p>
+        A skill that proposes a spec for someone to approve is a convenience. A skill that interrogates someone
+        into producing one is a different thing, and Gherkin is an unusually good instrument for it because its
+        grammar supplies both the questions and the stopping condition. Build <code>create-task-spec</code> as
+        an elicitation loop emitting a <code>.feature</code> file and a <code>spec.json</code> manifest.
+        Integrate by teaching <code>task</code> to accept a manifest path rather than adding a wrapper skill.
+      </p>
+      <p>
+        With the toolchain out of scope, the only external artifact is the format itself — which is stable,
+        widely understood, and costs nothing to adopt. What has to be built here is the questioning discipline
+        and a small stdlib scanner that counts the holes.
+      </p>
+    </div>
+    <p>
+      Open choices worth a decision round before implementation: JSON or YAML for the manifest, whether the
+      skill refuses to emit while any hole is unruled, how many rounds the loop tolerates before it must gate,
+      and where emitted specs live in the tree.
+    </p>
+  </section>
+
+  <footer>
+    <p><strong>Sources</strong> — all fetched 1 August 2026.</p>
+    <ol>
+      <li><a href="https://cucumber.io/docs/gherkin/reference/">Gherkin Reference — Cucumber documentation</a></li>
+      <li><a href="https://github.com/cucumber/gherkin">cucumber/gherkin</a> — <code>gherkin-languages.json</code>, read directly to confirm 80 dialects and the <code>Ability</code> / <code>Business Need</code> synonyms</li>
+      <li><a href="https://github.com/dmytro-stasyuk/SpecBinder">dmytro-stasyuk/SpecBinder</a> — README and <code>.claude/commands/</code>, read for the extension question and as proposal-first prior art; the tool itself is out of scope</li>
+      <li>dotnet-claude-kit 0.10.0, <code>skills/spec/SKILL.md</code> — MIT, © Mukesh Murugan; read from the local plugin cache</li>
+      <li>ai-badger repository — catalog survey of <code>features/</code>, <code>engine/badger_lib.py</code>, <code>tooling/</code>, and <code>.ai-badger/config.json</code></li>
+    </ol>
+    <p>
+      Claims about file handling were verified against source rather than taken from a summary. No claim here
+      rests on a figure that was not read directly.
+    </p>
+  </footer>
+
+</div>
