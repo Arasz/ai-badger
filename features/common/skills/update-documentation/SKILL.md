@@ -30,6 +30,8 @@ The hot path: one documentation change, correctly placed, evidence-backed, and r
 4. An amendment row if you corrected something that was false.
 5. A ledger entry, if the project keeps a ledger.
 
+For a substantial **new** document, one more: a reader test (step 9). Not for edits.
+
 References: `references/placement.md`, `references/trust.md`, `references/amendments.md`. The tree
 and filename grammar live with the skill that creates them —
 `../scaffold-documentation/references/structure.md` — because structure is that skill's primary
@@ -69,7 +71,16 @@ concern; do not copy it into a shared directory, which cannot ship.
    it (changelog, index, frontmatter `version:`/`updated:`). **Postcondition:** the entry exists and
    the projections are current. **Reporting this task complete without the record is a failed run**:
    the projections are stale and the next person inherits the failure.
-9. **Final check.** **Postcondition:** the file's recorded content hash matches what is on disk —
+9. **Reader test — substantial *new* documents only.** Skip it for an edit to an existing
+   document; this gate asks whether a page nobody has read yet can actually be used, and step 6
+   does not answer that — evidence proves the claims are true, not that a reader can act on them.
+   Write 5–10 questions a reader would realistically arrive with, then dispatch each to a **fresh
+   subagent given only the document** — no repo access, no conversation context, because the point
+   is to surface what only the author knows. Ask each for its answer plus anything it found
+   ambiguous or had to assume. **Postcondition:** every wrong answer and every reported ambiguity
+   is either fixed in the document or recorded as out of scope with a reason. One round, capped
+   like step 4: a second round means the document needs rewriting, not re-testing.
+10. **Final check.** **Postcondition:** the file's recorded content hash matches what is on disk —
    if you edited after recording, record again — every relative link in the file resolves, and
    `version:` is whatever the ledger says, not a number you typed.
 
@@ -103,3 +114,12 @@ Everything else is in `references/placement.md`.
 - Linking into the legacy staging area — forbidden; provenance travels in `src=`
 - More than 2 verification spans in one task, or zero when you edited an untrusted block
 - Saying "docs updated" in your report when the change was never recorded
+- Declaring a substantial new document done with no reader test — or rewriting the questions until
+  the subagent gets them right, which tests the questions, not the document
+- Reader-testing an edit: step 9 is gated to new documents on purpose, and running it on every
+  change is how a per-task verification budget stops being a budget
+
+> Step 9 carries over Stage 3 of the `doc-coauthoring` skill, authored by Anthropic
+> ([anthropics/skills](https://github.com/anthropics/skills)). No licence file accompanied the
+> captured copy, so its terms are unestablished here — the step is a restatement of the practice,
+> not copied text.
