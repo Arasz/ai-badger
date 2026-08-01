@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
@@ -34,16 +35,47 @@ CLAUDE_SKILLS = bl.skills_for_stack(ROOT, "claude")
 # --check so a file that is never copied can never be reported as divergence.
 SKIP_PATTERNS = tuple(bl.SKILL_EXCLUDE_PATTERNS)
 
-# Skills whose content another tool owns (code-review-graph) and the catalog does not carry:
-# never written, never checked, never pruned. A skill the catalog *does* carry belongs to its
-# declared scope instead — `optIn` already keeps it out of the mirror, and listing it here as
-# well would make a later flip to `default` silently ship nothing (ADR-0005 §Context).
 # Empty, and deliberately kept. It held the four skills `code-review-graph` auto-installs into
 # `.claude/skills/`; each has since been rewritten into the catalog as an `optIn` skill this
 # framework owns, so none is externally managed any more. The mechanism stays because the next
 # tool that writes its own skills into a project will need it, and because it gates deletion in
 # `_orphans()` as well as writing — an empty set there is a fact, not an oversight.
 MANAGED_EXTERNALLY: set = set()
+
+
+# These run before, or independently of, a scaffold, so their plugin copy carries the whole
+# procedure. `welcome-ai-badger` creates `.ai-badger/`; pointing at it would be circular.
+# `den-refresh` and `feed-badger` must run the *framework's* copy — ADR-0011 makes that
+# load-bearing across a breaking version boundary, where the project's copy is the stale one.
+BOOTSTRAP_SKILLS = {"welcome-ai-badger", "den-refresh", "feed-badger"}
+
+FULL_BODY_NAME = "SKILL.full.md"
+
+_POINTER_BODY = """
+> **This is the generic copy.** If this project has been scaffolded, prefer the unprefixed
+> `{name}` skill: it is `.ai-badger/skills/{name}/SKILL.md`, and it has this project's
+> extensions and any `project-local.md` merged in. This copy has neither.
+>
+> The full procedure is in `{full}` beside this file, unchanged — read it if the project has no
+> `.ai-badger/`, or run `welcome-ai-badger` to scaffold one.
+"""
+
+
+def render_pointer(name: str, source_text: str) -> str:
+    """Frontmatter verbatim, body replaced by a pointer at the tailored copy.
+
+    The frontmatter is untouched on purpose: `description` is the only text an agent reads
+    before choosing a skill, so changing it here would change what the skill matches on to fix
+    a problem about which of two matches to take.
+
+    A source with no frontmatter is returned unchanged rather than rendered — a pointer with no
+    name for the agent to match on is worse than the duplicate it replaces.
+    """
+    parts = source_text.split("---", 2)
+    if len(parts) < 3 or parts[0].strip():
+        return source_text
+    frontmatter = parts[1]
+    return f"---{frontmatter}---\n{_POINTER_BODY.format(name=name, full=FULL_BODY_NAME)}"
 
 
 def _shipped_skills():
@@ -75,7 +107,28 @@ def _orphans() -> list:
     )
 
 
-def sync_skill(src: Path, dest: Path, dry_run: bool) -> int:
+def render_into(name: str, src: Path, dest: Path) -> None:
+    """Write the shipped copy of one skill: a plain copy, then the pointer rendering.
+
+    The single place a shipped copy is produced. `check_skill` renders into a temp directory
+    and compares, rather than reimplementing the rule — two implementations of "what should be
+    there" is how a check starts disagreeing with the thing it checks.
+    """
+    shutil.copytree(src, dest, ignore=shutil.ignore_patterns(*SKIP_PATTERNS))
+    if name in BOOTSTRAP_SKILLS:
+        return
+    skill_md = dest / "SKILL.md"
+    if not skill_md.is_file():
+        return
+    source_text = skill_md.read_text(encoding="utf-8")
+    pointer = render_pointer(name, source_text)
+    if pointer == source_text:  # no frontmatter — left alone rather than rendered
+        return
+    (dest / FULL_BODY_NAME).write_text(source_text, encoding="utf-8")
+    skill_md.write_text(pointer, encoding="utf-8")
+
+
+def sync_skill(src: Path, dest: Path, dry_run: bool, name: str = "") -> int:
     """Sync one skill directory from src to dest. Returns count of files copied."""
     if not src.is_dir():
         return 0
@@ -83,20 +136,23 @@ def sync_skill(src: Path, dest: Path, dry_run: bool) -> int:
         return 1
     if dest.exists():
         shutil.rmtree(dest)
-    shutil.copytree(src, dest, ignore=shutil.ignore_patterns(*SKIP_PATTERNS))
+    render_into(name or src.name, src, dest)
     return 1
 
 
-def check_skill(src: Path, dest: Path):
+def check_skill(src: Path, dest: Path, name: str = ""):
     """Return the divergence reason for one skill, or None when the shipped copy matches."""
     if not src.is_dir():
         return None
     if not dest.is_dir():
         return "missing"
     excluded = list(SKIP_PATTERNS)
-    src_hash = bl.dir_content_hash(src, excluded)["content_hash"]
+    with tempfile.TemporaryDirectory() as tmp:
+        expected = Path(tmp) / "expected"
+        render_into(name or src.name, src, expected)
+        expected_hash = bl.dir_content_hash(expected, excluded)["content_hash"]
     dest_hash = bl.dir_content_hash(dest, excluded)["content_hash"]
-    if src_hash != dest_hash:
+    if expected_hash != dest_hash:
         return "diverged"
     return None
 
@@ -109,7 +165,7 @@ def check_all() -> int:
         if not src.is_dir():
             continue
         checked += 1
-        reason = check_skill(src, dest)
+        reason = check_skill(src, dest, name)
         if reason:
             out_of_sync += 1
             print(f"  {reason}: {name}")
@@ -131,7 +187,7 @@ def sync_all(dry_run: bool) -> int:
     TARGET.mkdir(parents=True, exist_ok=True)
     copied = 0
     for name, src, dest in _shipped_skills():
-        result = sync_skill(src, dest, dry_run)
+        result = sync_skill(src, dest, dry_run, name)
         copied += result
         if result:
             print(f"  {'would sync' if dry_run else 'synced'}: {name}")
