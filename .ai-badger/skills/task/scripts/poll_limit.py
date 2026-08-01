@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -103,7 +104,8 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
-def already_running(pid_file: Path = PID_FILE) -> bool:
+def already_running(pid_file: Path | None = None) -> bool:
+    pid_file = pid_file or PID_FILE
     try:
         pid = int(pid_file.read_text().strip())
     except (OSError, ValueError):
@@ -111,7 +113,8 @@ def already_running(pid_file: Path = PID_FILE) -> bool:
     return pid != os.getpid() and _pid_alive(pid)
 
 
-def write_pid(pid_file: Path = PID_FILE) -> None:
+def write_pid(pid_file: Path | None = None) -> None:
+    pid_file = pid_file or PID_FILE
     pid_file.parent.mkdir(parents=True, exist_ok=True)
     pid_file.write_text(str(os.getpid()))
 
@@ -334,7 +337,18 @@ def poll_once(
 
 
 def bounded_max_hours(hours: float) -> float:
-    """Clamp a requested cap to MAX_MAX_HOURS, so no caller can ask for an unbounded loop."""
+    """Clamp a requested cap to MAX_MAX_HOURS, refusing values that are not a duration.
+
+    Both ends matter. Above the ceiling is the unbounded loop this whole change removes.
+    At or below zero the deadline is already past, so the poller exits before its first poll
+    while reporting that it reached a cap — and argparse accepts `0`, `-5`, `nan` and `inf`
+    as floats without comment. `nan` is the worst of them: every `clock() < deadline`
+    comparison is false, so it looks exactly like an expired cap.
+    """
+    if not math.isfinite(hours):
+        raise ValueError(f"--max-hours must be a finite number of hours, got {hours!r}")
+    if hours <= 0:
+        raise ValueError(f"--max-hours must be greater than zero, got {hours!r}")
     return min(hours, MAX_MAX_HOURS)
 
 
@@ -347,8 +361,14 @@ def _has_unfinished_task(project_root: Path | None = None) -> bool:
     return bool(_discover_task_sessions(project_root or PROJECT_ROOT))
 
 
-def remove_pid(pid_file: Path = PID_FILE) -> None:
-    """Drop our pid file so the next poller need not decide whether a stale pid is alive."""
+def remove_pid(pid_file: Path | None = None) -> None:
+    """Drop our pid file so the next poller need not decide whether a stale pid is alive.
+
+    Resolves PID_FILE at call time like its siblings: a module constant bound as a default
+    argument freezes at import, and for a function that *unlinks* something that means
+    deleting a file at a path nobody is using any more.
+    """
+    pid_file = pid_file or PID_FILE
     try:
         pid_file.unlink()
     except OSError:
@@ -411,7 +431,13 @@ def main() -> int:
         state = PollState(was_limited=True, auto_wm_on_reset=args.auto_wm_on_reset)
         poll_once(state)
         return 0
-    return run_forever(args.interval_seconds, args.auto_wm_on_reset, args.max_hours)
+    try:
+        return run_forever(args.interval_seconds, args.auto_wm_on_reset, args.max_hours)
+    except ValueError as exc:
+        # A mistyped --max-hours is a usage error, not a crash: exit 2, the code argparse
+        # itself uses, with the message rather than a stack trace.
+        print(str(exc), file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 
 def test_discovers_unfinished_task_sessions_from_tracking_store(tmp_path, load_script):
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
@@ -412,6 +414,12 @@ def test_run_forever_stops_at_the_wall_clock_cap(tmp_path, load_script, monkeypa
 
 
 def test_the_cap_is_what_stopped_it_and_it_says_so(tmp_path, load_script, monkeypatch):
+    """Asserts the *exit* line, not the word "cap".
+
+    The first version of this test matched "cap" anywhere in the log — and the startup line
+    says "Stops at the 12h cap", so it passed whatever ended the loop. Reported by review on
+    PR #251. The sensitivity check below is what proves this one can now fail.
+    """
     poll_limit, data = _poller_at(tmp_path, load_script, monkeypatch)
     _write_tasks(data, [{"taskId": "T", "state": "IN_PROGRESS", "sessionId": "s"}])
     ticks = iter(range(50))
@@ -420,7 +428,57 @@ def test_the_cap_is_what_stopped_it_and_it_says_so(tmp_path, load_script, monkey
         interval_seconds=0, max_hours=3 / 3600, clock=lambda: next(ticks), sleeper=lambda _s: None,
     )
 
-    assert "cap" in (data / "poll_limit.log").read_text().lower()
+    assert "Reached the" in (data / "poll_limit.log").read_text()
+
+
+def test_the_idle_exit_does_not_claim_the_cap_stopped_it(tmp_path, load_script, monkeypatch):
+    """The sensitivity check: two exits, two different reasons, two different lines."""
+    poll_limit, data = _poller_at(tmp_path, load_script, monkeypatch)
+    _write_tasks(data, [{"taskId": "T", "state": "FINISHED", "sessionId": "s"}])
+
+    poll_limit.run_forever(
+        interval_seconds=0, max_hours=12, clock=lambda: 0.0, sleeper=lambda _s: None,
+    )
+
+    text = (data / "poll_limit.log").read_text()
+    assert "nothing left to resume" in text
+    assert "Reached the" not in text
+
+
+def test_a_zero_or_negative_cap_is_refused(tmp_path, load_script, monkeypatch):
+    """argparse accepts --max-hours 0 and -5 as floats; both would exit before the first poll."""
+    poll_limit, _ = _poller_at(tmp_path, load_script, monkeypatch)
+
+    for bad in (0, -5):
+        with pytest.raises(ValueError):
+            poll_limit.bounded_max_hours(bad)
+
+
+def test_a_non_finite_cap_is_refused(tmp_path, load_script, monkeypatch):
+    """nan makes every `clock() < deadline` false, so the loop exits logging "the nanh cap"."""
+    poll_limit, _ = _poller_at(tmp_path, load_script, monkeypatch)
+
+    for bad in (float("nan"), float("inf")):
+        with pytest.raises(ValueError):
+            poll_limit.bounded_max_hours(bad)
+
+
+def test_remove_pid_resolves_its_path_at_call_time(tmp_path, load_script, monkeypatch):
+    """Called bare after PID_FILE moved, it must not unlink the file at the old path.
+
+    The PR fixed the call sites and left the default argument, which is the same import-time
+    freeze it claimed to have fixed. Reported by review on PR #251.
+    """
+    poll_limit, data = _poller_at(tmp_path, load_script, monkeypatch)
+    stale = tmp_path / "elsewhere.pid"
+    stale.write_text("1", encoding="utf-8")
+    monkeypatch.setattr(poll_limit, "PID_FILE", data / "poll_limit.pid")
+    (data / "poll_limit.pid").write_text("2", encoding="utf-8")
+
+    poll_limit.remove_pid()
+
+    assert stale.exists(), "removed a pid file at the import-time path"
+    assert not (data / "poll_limit.pid").exists()
 
 
 def test_run_forever_exits_when_no_unfinished_task_remains(tmp_path, load_script, monkeypatch):
@@ -484,3 +542,16 @@ def test_the_cap_is_bounded_even_when_asked_for_more(tmp_path, load_script, monk
 
     assert poll_limit.bounded_max_hours(9999) == poll_limit.MAX_MAX_HOURS
     assert poll_limit.bounded_max_hours(4) == 4
+
+
+def test_a_bad_cap_on_the_command_line_is_a_message_not_a_traceback(
+    tmp_path, load_script, monkeypatch, capsys
+):
+    """bounded_max_hours raising is right; showing the user a stack trace for a typo is not."""
+    poll_limit, _ = _poller_at(tmp_path, load_script, monkeypatch)
+    monkeypatch.setattr("sys.argv", ["poll_limit.py", "--max-hours", "0"])
+
+    result = poll_limit.main()
+
+    assert result == 2
+    assert "greater than zero" in capsys.readouterr().err
