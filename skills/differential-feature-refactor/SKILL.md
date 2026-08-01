@@ -73,9 +73,16 @@ no authorising decision, that is an undefined point for the human — not a find
    further. Review the answers as answers — challenge contradictions on the spot ("in §3 you
    chose A, this answer implies B; which wins?"), and any answer that opens a new gap becomes a
    new UP block, sent back. Silent deferral is forbidden.
-6. **Brainstorm what the feedback opened up** — invoke `superpowers:brainstorming`. Its design
-   doc is the **refactor specification** (`docs/superpowers/specs/`).
-7. **Plan it** — invoke `superpowers:writing-plans` (`docs/superpowers/plans/`).
+6. **Brainstorm what the feedback opened up.** Where the project has a brainstorming skill —
+   `superpowers:brainstorming` if it is installed — use it, and its design doc is the
+   **refactor specification**. Otherwise write that specification yourself in the same shape:
+   one decision per open question, each with the options considered and the one chosen. The
+   reconciled verdicts are its input either way.
+7. **Plan it.** Where the project has a planning skill — `superpowers:writing-plans` if
+   installed — hand the specification to it. Otherwise write the plan directly: numbered,
+   bite-sized tasks, each naming the files it touches and the test that proves it. Both
+   documents go wherever this project keeps design and plan documents; do not create a new
+   home for them.
 
 **The differential document is the midpoint, not the finish.** The skill's terminal output is a
 refactor specification plus an implementation plan. Reporting the document as the deliverable is
