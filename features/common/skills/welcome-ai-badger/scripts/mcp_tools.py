@@ -161,6 +161,53 @@ class McpTools:
                 return ""
         return ""
 
+    def _server_prerequisite(self, name: str) -> Dict[str, Any]:
+        """The `prerequisite` block from a catalog server's meta.json, or {} when it has none."""
+        import badger_lib as bl
+
+        for stack in self.ctx.stacks:
+            for item in bl.feature_items(self.ctx.index, stack, "mcp"):
+                if item.get("name") != name:
+                    continue
+                meta = self.ctx.root / item.get("path", "") / "meta.json"
+                if not meta.is_file():
+                    return {}
+                try:
+                    return _json.loads(meta.read_text(encoding="utf-8")).get("prerequisite", {})
+                except (OSError, ValueError):
+                    return {}
+        return {}
+
+    def note_declared_prerequisites(self, names) -> None:
+        """Name what each declared server needs installed, once per run.
+
+        Takes the post-decline set rather than reading the catalog again: telling someone to
+        install a prerequisite for a server they declined is noise, and the decline filtering
+        is the caller's. Only declared servers, because those are the ones whose launch config
+        ai-badger writes — a missing prerequisite surfaces later as the agent's own connection
+        error, which names neither this framework nor the thing to install.
+        """
+        if self.ctx.mcp_prereqs_noted:
+            return
+        self.ctx.mcp_prereqs_noted = True
+        for name in sorted(names):
+            prereq = self._server_prerequisite(name)
+            summary = (prereq or {}).get("summary")
+            if not summary:
+                # The schema requires `summary`, but nothing validates meta.json at scaffold
+                # time — a hand-edited or half-written catalog entry must not take the whole
+                # scaffold down for the sake of a note.
+                continue
+            parts = [f"{name} needs {summary}"]
+            if prereq.get("check"):
+                parts.append(f"check: {prereq['check']}")
+            if prereq.get("install"):
+                parts.append(f"install: {prereq['install']}")
+            self.ctx.notes.append(
+                "prerequisite — " + "; ".join(parts) + ". ai-badger declares the server, it "
+                "does not install it."
+            )
+
     def fill_mcp_described(self) -> None:
         """Fill ``ctx.mcp_described`` once: each declared server plus its ``server.md`` prose.
 
@@ -222,6 +269,7 @@ class McpTools:
                     if srv.get("declare")}
         for name in self.declined_servers():
             declared.pop(name, None)
+        self.note_declared_prerequisites(declared)
         return declared
 
     def declarations_for_agent(self, agent: str) -> Dict[str, Dict[str, Any]]:

@@ -21,6 +21,9 @@ re-scaffold.
 | Version | Entry |
 |---|---|
 | 0.63.0 | [`optIn` becomes a scope a project can choose, and six skills use it](0.63.0-optin-becomes-reachable.md) |
+| 0.62.0 | [A declared MCP server names what must already be installed](0.62.0-a-declared-server-names-its-prerequisite.md) |
+| 0.61.4 | [The tracking-state guard names who wrote](0.61.4-the-guard-names-who-wrote.md) |
+| 0.61.3 | [Naming the test that spawned a daemon, instead of guessing](0.61.3-naming-the-test-that-spawned-it.md) |
 | 0.61.2 | [The usage-limit poller stops](0.61.2-a-poller-that-stops.md) |
 | 0.61.1 | [The plugin sync can remove, so `--check` can see a surplus](0.61.1-the-plugin-sync-can-remove.md) |
 | 0.61.0 | [a removed skill takes its directory with it](0.61.0-a-removed-skill-takes-its-directory.md) |

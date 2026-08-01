@@ -125,6 +125,44 @@ def ensure_data_dir() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
+SPAWN_LOG_ENV = "AI_BADGER_SPAWN_LOG"
+
+
+def _record_spawn(proc, argv: list, cwd: Path) -> None:
+    """Append a breadcrumb naming this spawn, when the suite asked for one (#232).
+
+    `conftest` wraps Popen to reap detached children, which reaches nothing a *child*
+    interpreter spawns — a subprocess gets a clean `subprocess` module. Naming the call site
+    is what a wrapper cannot do. Unset outside the suite, so this is inert in production, and
+    it never raises: a diagnostic that can fail the thing it observes is worse than none.
+    """
+    destination = os.environ.get(SPAWN_LOG_ENV)
+    if not destination:
+        return
+    try:
+        record = json.dumps({
+            # str() each element, not list(argv): a Path — which every call site here is one
+            # forgotten str() away from — makes json.dumps raise, and the except below would
+            # then drop the record silently. A probe that goes quiet on unusual input is worse
+            # than one that is absent, because an empty log reads as "nothing spawned".
+            "argv": [str(part) for part in argv],
+            "cwd": str(cwd),
+            # getattr, not proc.pid: a test that stubs Popen may hand back anything, including
+            # None, and this is a diagnostic — it does not get to break the spawn it observes.
+            "pid": getattr(proc, "pid", None),
+            "test": os.environ.get("PYTEST_CURRENT_TEST", ""),
+            # The process that did the spawning. When it is the pytest process itself, #222's
+            # Popen wrapper already tracked and reaped the child; when it is anything else,
+            # the spawn happened in a child interpreter the wrapper cannot reach — which is
+            # the case #232 is about, and the only one worth failing a run over.
+            "by": os.getpid(),
+        })
+        with open(destination, "a", encoding="utf-8") as fh:
+            fh.write(record + "\n")
+    except (OSError, TypeError, ValueError):
+        pass
+
+
 def spawn_detached(argv: list, cwd: Path | None = None, log_path: Path | None = None):
     """Start a background process that deliberately outlives its parent.
 
@@ -134,12 +172,15 @@ def spawn_detached(argv: list, cwd: Path | None = None, log_path: Path | None = 
     """
     cwd = PROJECT_ROOT if cwd is None else cwd
     if log_path is None:
-        return subprocess.Popen(  # pylint: disable=consider-using-with
+        proc = subprocess.Popen(  # pylint: disable=consider-using-with
             argv, cwd=str(cwd), start_new_session=True)
-    with open(log_path, "a", encoding="utf-8") as log_fh:
-        return subprocess.Popen(  # pylint: disable=consider-using-with
-            argv, cwd=str(cwd), stdout=log_fh, stderr=subprocess.STDOUT,
-            start_new_session=True)
+    else:
+        with open(log_path, "a", encoding="utf-8") as log_fh:
+            proc = subprocess.Popen(  # pylint: disable=consider-using-with
+                argv, cwd=str(cwd), stdout=log_fh, stderr=subprocess.STDOUT,
+                start_new_session=True)
+    _record_spawn(proc, argv, cwd)
+    return proc
 
 
 class locked_store:
@@ -150,6 +191,9 @@ class locked_store:
 
     def __enter__(self):
         ensure_data_dir()
+        # Marked for the same reason save_json is: this opens LOCK_FILE for writing, so it is
+        # the other way a suite process can touch real tracking state.
+        _record_real_write(LOCK_FILE)
         self._fh = open(LOCK_FILE, "w", encoding="utf-8")
         fcntl.flock(self._fh, fcntl.LOCK_EX)
         return self
@@ -168,7 +212,54 @@ def load_json(path: Path, default):
         return default
 
 
+REAL_WRITE_LOG_ENV = "AI_BADGER_REAL_WRITE_LOG"
+REAL_ROOT_ENV = "AI_BADGER_REAL_ROOT"
+
+
+def _is_inside(candidate: Path, parent: Path) -> bool:
+    """Whether *candidate* sits under *parent*. `Path.is_relative_to` is 3.9+; the floor is 3.8."""
+    try:
+        candidate.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
+def _record_real_write(path: Path) -> None:
+    """Mark a tracking write that lands outside the suite's scratch project.
+
+    The tracking-state guard used to infer "the suite wrote this" from an mtime diff, which a
+    leftover `poll_limit.py` daemon or a `*/30` resume cron satisfies just as well — it failed
+    four clean runs on 2026-08-01. An external writer inherits none of the suite's environment,
+    so a write it makes is unmarked, and the guard can report it without blaming the suite.
+
+    Inert when the variable is unset, and never raises: a diagnostic does not get to fail the
+    save it observes.
+    """
+    destination = os.environ.get(REAL_WRITE_LOG_ENV)
+    real_root = os.environ.get(REAL_ROOT_ENV)
+    if not destination or not real_root:
+        return
+    try:
+        # Against the real checkout, not CLAUDE_PROJECT_DIR: tests monkeypatch that freely, so
+        # comparing to it marked writes into the scratch project and into pytest tmpdirs — all
+        # of them legitimate. The invariant is about the real repo and nothing else.
+        resolved = Path(path).resolve()
+        if not _is_inside(resolved, Path(real_root).resolve()):
+            return
+        record = json.dumps({
+            "path": str(resolved),
+            "pid": os.getpid(),
+            "test": os.environ.get("PYTEST_CURRENT_TEST", ""),
+        })
+        with open(destination, "a", encoding="utf-8") as fh:
+            fh.write(record + "\n")
+    except (OSError, TypeError, ValueError):
+        pass
+
+
 def save_json(path: Path, data) -> None:
+    _record_real_write(path)
     ensure_data_dir()
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name, suffix=".tmp")
     try:

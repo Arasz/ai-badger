@@ -3,5 +3,10 @@
   "name": "aspire",
   "package": "aspire",
   "description": "Ships with the Aspire CLI: reaches a running AppHost to list resources, read its console/structured logs and distributed traces, start and stop resources, and search the Aspire documentation. Declared by the aspire stack because it is the CLI's own agent surface, not a separate install.",
-  "homepage": "https://aspire.dev/get-started/aspire-mcp-server/"
+  "homepage": "https://aspire.dev/get-started/aspire-mcp-server/",
+  "prerequisite": {
+    "summary": "the Aspire CLI — the server is `aspire agent mcp`, a subcommand of it, so there is nothing separate to install and nothing to install it with",
+    "check": "aspire --version",
+    "install": "https://aspire.dev/get-started/install-cli/"
+  }
 }
