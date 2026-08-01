@@ -253,11 +253,26 @@ _changed_paths() {
 
 # Maps changed paths to the lanes that can see them. The gate's own files, and CI's,
 # route to run-everything: a broken gate is invisible until something stops being verified.
+# Artifacts a release regenerates, each already proven by a lane of its own: version-sync for
+# the three literals, index for index.json, docs for the changelog index, release for the tag
+# and bump. Re-running 2813 tests to re-prove what those four just proved is the one narrowing
+# worth making — measured 2026-08-01, pytest is 49s of a 75s gate. Deliberately the only one:
+# anything not on this list still routes to the full suite, because a gate that quietly stops
+# verifying is invisible until the day it matters.
+_is_release_artifact() {
+    case "$1" in
+        VERSION|index.json|.claude-plugin/*.json) return 0 ;;
+        docs/changelog/*.md) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 _lanes_for() {
-    local path want_all=0 py=0 mjs=0 md=0 json=0 any=0
+    local path want_all=0 py=0 mjs=0 md=0 json=0 any=0 nonrelease=0
     while read -r path; do
         [ -n "$path" ] || continue
         any=1
+        _is_release_artifact "$path" || nonrelease=1
         case "$path" in
             .github/workflows/*|.lefthook/*|lefthook.yml) want_all=1 ;;
             *.mjs)  mjs=1 ;;
@@ -267,6 +282,11 @@ _lanes_for() {
             *)      json=1 ;;
         esac
     done
+    # Every changed path is a regenerated release artifact: the dedicated lanes cover it.
+    if [ "$any" -eq 1 ] && [ "$nonrelease" -eq 0 ]; then
+        json=0
+        py=0
+    fi
     if [ "$want_all" -eq 1 ] || [ "$any" -eq 0 ]; then
         printf '%s\n' "$LANES"
         return 0
@@ -399,6 +419,10 @@ main() {
             return $rc ;;
         lanes)
             _select_lanes; return $? ;;
+        # The selector over a path list on stdin, skipping git entirely — so the routing can be
+        # asserted against paths that need not exist in any commit.
+        lanes-for)
+            sort -u | _lanes_for | sed 's/ *$//'; return $? ;;
         pre-push)
             if [ -n "${SKIP_VERIFY:-}" ]; then
                 printf 'verify: skipped (SKIP_VERIFY=%s)\n' "$SKIP_VERIFY"
