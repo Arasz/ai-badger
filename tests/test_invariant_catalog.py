@@ -15,8 +15,8 @@ from scaffold_helpers import _config
 
 INVARIANTS_DIR = "features/common/invariants"
 
-# The five invariants this change is adding; a follow-up change delivers the .md files that
-# satisfy the delivery/rendering assertions below.
+# The five invariants this change adds; their source .md files live under
+# features/common/invariants/ and are asserted by the delivery/rendering checks below.
 NEW_INVARIANTS = (
     "proof-of-done",
     "plain-names",
