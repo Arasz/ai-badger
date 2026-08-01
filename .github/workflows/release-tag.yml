@@ -40,8 +40,15 @@ jobs:
             exit 0
           fi
 
-          if git rev-parse -q --verify "refs/tags/${TAG_NAME}" >/dev/null; then
-            echo "${TAG_NAME} already exists — nothing to do."
+          # Always ask the remote. A local ref proves only that this checkout has the tag —
+          # and after `git tag -a` below, it proves nothing at all. release_guard reads the
+          # remote, so the remote is the only answer that counts (the D3 lesson, applied here).
+          remote_has_tag() {
+            [ -n "$(git ls-remote --tags origin "refs/tags/$1" 2>/dev/null)" ]
+          }
+
+          if remote_has_tag "${TAG_NAME}"; then
+            echo "${TAG_NAME} already exists on the remote — nothing to do."
             exit 0
           fi
 
@@ -51,16 +58,15 @@ jobs:
           TITLE="$(head -n 1 "docs/changelog/${VERSION}-"*.md | sed 's/^# *//')"
           git tag -a "${TAG_NAME}" -m "${TITLE}"
 
-          # Losing the race with a concurrent merge is not a failure worth failing the run for:
-          # the tag exists either way, which is the only outcome this workflow cares about.
+          # Losing the race with a concurrent merge is not worth failing the run for: the tag
+          # is on the remote either way. Every other push failure — tag protection, a token
+          # without contents: write — must stay loud, so this asks the remote rather than
+          # resolving the local ref `git tag -a` just created, which would answer yes always.
           if git push origin "${TAG_NAME}"; then
             echo "Tagged ${TAG_NAME} at $(git rev-parse --short HEAD)."
+          elif remote_has_tag "${TAG_NAME}"; then
+            echo "${TAG_NAME} reached the remote by a concurrent run — nothing to do."
           else
-            git fetch origin --tags --quiet
-            if git rev-parse -q --verify "refs/tags/${TAG_NAME}" >/dev/null; then
-              echo "${TAG_NAME} was pushed by a concurrent run — nothing to do."
-            else
-              echo "Could not push ${TAG_NAME}."
-              exit 1
-            fi
+            echo "Could not push ${TAG_NAME}, and it is not on the remote."
+            exit 1
           fi

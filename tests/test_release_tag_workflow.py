@@ -66,6 +66,30 @@ class TestTheTagFormatMatchesTheGuard:
         assert guard.TAG_PATTERN.match(rendered_tag(version))
 
 
+class TestOnlyTheRemoteCounts:
+    """A local tag ref proves nothing once `git tag -a` has run (#273 review).
+
+    The first version resolved `refs/tags/<name>` after tagging locally, so the "did a
+    concurrent run push it?" branch answered yes unconditionally. A rejected push — tag
+    protection, a token without `contents: write` — would have reported success and left the
+    remote untagged, which is precisely what release_guard fails on afterwards.
+    """
+
+    def test_the_existence_checks_ask_the_remote(self):
+        assert "git ls-remote --tags origin" in workflow
+
+    def test_no_local_ref_resolution_decides_whether_a_tag_exists(self):
+        """`git rev-parse` may still print HEAD for the log line; it must not gate anything."""
+        gating = [line for line in workflow.splitlines()
+                  if "rev-parse" in line and "refs/tags/" in line]
+
+        assert not gating, f"local ref resolution still decides tag existence: {gating}"
+
+    def test_a_failed_push_is_not_silently_tolerated(self):
+        """The failure branch must still exit non-zero when the remote lacks the tag."""
+        assert "exit 1" in workflow.split("git push origin")[-1]
+
+
 class TestTheGuardStillDrivesTheFormat:
     """A sanity anchor: the prefix is not free-form, it is what the guard already parses."""
 

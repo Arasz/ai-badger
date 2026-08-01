@@ -20,7 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.69.1 | [The merge tags itself](0.69.1-the-merge-tags-itself.md) |
+| 0.69.2 | [The merge tags itself](0.69.2-the-merge-tags-itself.md) |
 | 0.68.0 | [A spec is elicited, not drafted](0.68.0-a-spec-is-elicited-not-drafted.md) |
 | 0.67.1 | [evidence moves out of the body](0.67.1-evidence-moves-out-of-the-body.md) |
 | 0.67.0 | [work records get a legal home](0.67.0-work-records-get-a-legal-home.md) |
