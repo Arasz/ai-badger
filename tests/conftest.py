@@ -34,6 +34,18 @@ DEBUG_DIR_ENV = "AI_BADGER_DEBUG_DIR"
 # repeated rather than imported — conftest does not import production modules — and
 # test_spawn_breadcrumb.py asserts both sides still spell it the same.
 SPAWN_LOG_ENV = "AI_BADGER_SPAWN_LOG"
+
+# tracker_lib.save_json marks a tracking write that lands outside the scratch project here, so
+# the guard below can tell the suite's writes from a leftover daemon's. Same repeated-literal
+# arrangement as SPAWN_LOG_ENV, and test_real_write_attribution.py pins both spellings.
+REAL_WRITE_LOG_ENV = "AI_BADGER_REAL_WRITE_LOG"
+# The reference the marker compares against. NOT CLAUDE_PROJECT_DIR: tests monkeypatch that
+# freely, so comparing to it marked every legitimate write into the scratch project and into
+# pytest tmpdirs. The invariant is about this checkout and nothing else.
+REAL_ROOT_ENV = "AI_BADGER_REAL_ROOT"
+REAL_WRITE_LOG = Path(tempfile.mkdtemp(prefix="ai-badger-real-writes-")) / "writes.jsonl"
+os.environ[REAL_WRITE_LOG_ENV] = str(REAL_WRITE_LOG)
+os.environ[REAL_ROOT_ENV] = str(ROOT)
 os.environ.setdefault(DEBUG_DIR_ENV, tempfile.mkdtemp(prefix="ai-badger-debug-sink-"))
 
 # The real repo root, captured before any test can redirect it.
@@ -144,6 +156,29 @@ def real_tracking_files() -> dict:
     return found
 
 
+def suite_attributed_writes(log: Path) -> list:
+    """Tracking writes outside the scratch project that a suite process marked as its own.
+
+    Defensive for the same reason `foreign_spawn_offenders` is: this runs at teardown, several
+    processes append to the file, and a crash here would hide the offenders it exists to name.
+    """
+    if not log.exists():
+        return []
+
+    offenders = set()
+    for line in log.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue  # torn mid-write by a concurrent appender
+        if not isinstance(record, dict):
+            continue
+        offenders.add(f"{record.get('test') or '<no test recorded>'} -> {record.get('path')}")
+    return sorted(offenders)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _real_tracking_state_is_untouched():
     """No test may add or change a task-tracking file anywhere in the real checkout.
@@ -151,6 +186,13 @@ def _real_tracking_state_is_untouched():
     Wider than a sentinel in one directory, which is what let #222 be called fixed while a
     spawned child was still writing into `features/.ai-badger/` — a path `.gitignore`'s
     unanchored `task-tracking/` rule hides from `git status`.
+
+    The mtime diff alone cannot say *who* wrote. A leftover `poll_limit.py` daemon or a
+    `*/30` resume cron writes into that same directory, and this fixture blamed the suite for
+    it four times on 2026-08-01, on runs that were clean. So the assertion now fires on writes
+    a suite process **marked as its own** (`tracker_lib.save_json`, which an external daemon
+    never has the environment for), and unattributed changes are reported without failing —
+    a real leak and a passing cron tick no longer produce the same message.
     """
     def rel(paths) -> list:
         return sorted(str(p.relative_to(REAL_PROJECT_ROOT)) for p in paths)
@@ -160,10 +202,19 @@ def _real_tracking_state_is_untouched():
     after = real_tracking_files()
     added = rel(set(after) - set(before))
     changed = rel(p for p in set(after) & set(before) if after[p] != before[p])
+    attributed = suite_attributed_writes(REAL_WRITE_LOG)
 
-    assert not added and not changed, (
-        f"the suite wrote into the real checkout's task-tracking state — "
-        f"added={added} changed={changed}")
+    if (added or changed) and not attributed:
+        print(
+            f"\nNOTE: task-tracking state changed during the run but no suite process claimed "
+            f"it — added={added} changed={changed}. An external writer (a poll_limit daemon or "
+            f"the resume cron) is the likely author; the suite is not being blamed for it."
+        )
+
+    assert not attributed, (
+        "a suite process wrote task-tracking state outside the scratch project:\n  "
+        + "\n  ".join(attributed)
+        + f"\n(mtime diff for corroboration: added={added} changed={changed})")
 
 
 def foreign_spawn_offenders(log: Path) -> list:

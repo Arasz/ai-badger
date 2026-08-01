@@ -191,6 +191,9 @@ class locked_store:
 
     def __enter__(self):
         ensure_data_dir()
+        # Marked for the same reason save_json is: this opens LOCK_FILE for writing, so it is
+        # the other way a suite process can touch real tracking state.
+        _record_real_write(LOCK_FILE)
         self._fh = open(LOCK_FILE, "w", encoding="utf-8")
         fcntl.flock(self._fh, fcntl.LOCK_EX)
         return self
@@ -209,7 +212,54 @@ def load_json(path: Path, default):
         return default
 
 
+REAL_WRITE_LOG_ENV = "AI_BADGER_REAL_WRITE_LOG"
+REAL_ROOT_ENV = "AI_BADGER_REAL_ROOT"
+
+
+def _is_inside(candidate: Path, parent: Path) -> bool:
+    """Whether *candidate* sits under *parent*. `Path.is_relative_to` is 3.9+; the floor is 3.8."""
+    try:
+        candidate.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
+def _record_real_write(path: Path) -> None:
+    """Mark a tracking write that lands outside the suite's scratch project.
+
+    The tracking-state guard used to infer "the suite wrote this" from an mtime diff, which a
+    leftover `poll_limit.py` daemon or a `*/30` resume cron satisfies just as well — it failed
+    four clean runs on 2026-08-01. An external writer inherits none of the suite's environment,
+    so a write it makes is unmarked, and the guard can report it without blaming the suite.
+
+    Inert when the variable is unset, and never raises: a diagnostic does not get to fail the
+    save it observes.
+    """
+    destination = os.environ.get(REAL_WRITE_LOG_ENV)
+    real_root = os.environ.get(REAL_ROOT_ENV)
+    if not destination or not real_root:
+        return
+    try:
+        # Against the real checkout, not CLAUDE_PROJECT_DIR: tests monkeypatch that freely, so
+        # comparing to it marked writes into the scratch project and into pytest tmpdirs — all
+        # of them legitimate. The invariant is about the real repo and nothing else.
+        resolved = Path(path).resolve()
+        if not _is_inside(resolved, Path(real_root).resolve()):
+            return
+        record = json.dumps({
+            "path": str(resolved),
+            "pid": os.getpid(),
+            "test": os.environ.get("PYTEST_CURRENT_TEST", ""),
+        })
+        with open(destination, "a", encoding="utf-8") as fh:
+            fh.write(record + "\n")
+    except (OSError, TypeError, ValueError):
+        pass
+
+
 def save_json(path: Path, data) -> None:
+    _record_real_write(path)
     ensure_data_dir()
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name, suffix=".tmp")
     try:
