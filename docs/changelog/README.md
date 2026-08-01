@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.61.1 | [The plugin sync can remove, so `--check` can see a surplus](0.61.1-the-plugin-sync-can-remove.md) |
 | 0.61.0 | [a removed skill takes its directory with it](0.61.0-a-removed-skill-takes-its-directory.md) |
 | 0.60.1 | [the docs catch up with the dispatch gate](0.60.1-the-docs-catch-up-with-the-dispatch-gate.md) |
 | 0.60.0 | [delegation becomes a mechanism](0.60.0-delegation-becomes-a-mechanism.md) |
