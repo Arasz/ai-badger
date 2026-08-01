@@ -153,6 +153,16 @@ import framework_copies as fc  # pylint: disable=wrong-import-position
 import skill_usage as su  # pylint: disable=wrong-import-position
 
 
+def _nested_checkouts(directory: str, names: List[str]) -> set:
+    """Names in `directory` that hold their own `.git` — a second checkout, not our state.
+
+    `.ai-badger/worktrees/<taskId>` is a live git worktree; copying it would duplicate a whole
+    repository, and a copy taken while a session writes into it can fail mid-way.
+    """
+    parent = Path(directory)
+    return {name for name in names if (parent / name / ".git").exists()}
+
+
 def check_breaking_and_backup(root: Path, target: Path) -> Dict[str, Any]:
     """Back up .ai-badger/ before any re-scaffold, and report whether the jump is breaking.
 
@@ -173,7 +183,7 @@ def check_breaking_and_backup(root: Path, target: Path) -> Dict[str, Any]:
     bckp = target / bl.BACKUP_DIR_NAME
     if bckp.exists():
         shutil.rmtree(bckp)
-    shutil.copytree(aib, bckp)
+    shutil.copytree(aib, bckp, ignore=_nested_checkouts)
     return {"isBreaking": is_breaking, "backupPath": str(bckp)}
 
 

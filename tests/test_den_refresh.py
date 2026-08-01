@@ -489,6 +489,36 @@ def test_backup_is_taken_even_when_the_transition_is_not_breaking(tmp_path, load
     assert (backup / "state.json").read_text(encoding="utf-8") == '{"mine": true}\n'
 
 
+def test_the_backup_skips_a_nested_git_checkout(tmp_path, load_script, root):
+    """A task worktree under .ai-badger/ is a whole second checkout; copying it is not a backup.
+
+    The skip is about the nested `.git`, not about the directory's name — an ordinary sibling
+    beside the checkout is still backed up.
+    """
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    target = tmp_path / "proj"
+    aib = target / ".ai-badger"
+    aib.mkdir(parents=True)
+    current = (root / "VERSION").read_text(encoding="utf-8").strip()
+    (aib / "config.json").write_text(
+        json.dumps({"frameworkVersion": current}), encoding="utf-8")
+    checkout = aib / "worktrees" / "issue-42"
+    checkout.mkdir(parents=True)
+    (checkout / ".git").write_text("gitdir: /elsewhere/.git/worktrees/issue-42\n",
+                                   encoding="utf-8")
+    (checkout / "README.md").write_text("a whole repo\n", encoding="utf-8")
+    ordinary = aib / "worktrees" / "notes"
+    ordinary.mkdir()
+    (ordinary / "keep.md").write_text("kept\n", encoding="utf-8")
+
+    refresh.check_breaking_and_backup(root, target)
+
+    backup = target / ".ai-badger.bckp"
+    assert (backup / "config.json").exists()
+    assert not (backup / "worktrees" / "issue-42").exists(), "the backup copied a git checkout"
+    assert (backup / "worktrees" / "notes" / "keep.md").read_text(encoding="utf-8") == "kept\n"
+
+
 # ------------------------------------------------- delivering a newly-added catalog skill
 def _mock_fw_with_skills(fw, root, skill_names):
     """Build a mock framework whose common stack ships `skill_names` and one invariant."""

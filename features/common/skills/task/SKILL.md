@@ -114,8 +114,8 @@ reduced rigor since high-reasoning delegation wasn't possible.
 2. Register: `python3 .ai-badger/skills/task/scripts/task_tracker.py start <taskId> --title "<title>" --branch task/<taskId>-<slug>`.
 3. Ask the user to rename the session to match the task (skip if autonomous).
 4. **Work in the worktree `start` just created** — it prints the path, and it is
-   `.claude/worktrees/<taskId>` on the branch you passed to `--branch`. Every command for the rest
-   of the task runs there, not in the main checkout.
+   `.ai-badger/worktrees/<taskId>` on the branch you passed to `--branch`. Every command for
+   the rest of the task runs there, not in the main checkout.
 
    This step used to read "create/switch to the task branch", and `start` recorded the branch name
    without creating anything. A recorded name that nothing creates is worse than no field: `status`

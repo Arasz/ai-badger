@@ -91,7 +91,7 @@ From [0.25.0 — the hardening pass](docs/changelog/0.25.0-hardening.md):
 From [0.69.0 — a task owns its worktree](docs/changelog/0.69.0-a-task-owns-its-worktree.md):
 
 - **A task id cannot escape the worktree directory.** `task_tracker.py` splices its `<taskId>`
-  argument into `.claude/worktrees/<taskId>` and then hands that path to `git worktree
+  argument into `.ai-badger/worktrees/<taskId>` and then hands that path to `git worktree
   add/remove`. A `..` or a path separator would have pointed a *removal* somewhere nobody asked
   for. `worktree_path()` refuses those ids rather than sanitising them: a silently rewritten id
   would no longer match the one in the tracking JSON, which turns a containment fix into a
