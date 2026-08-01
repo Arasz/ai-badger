@@ -219,6 +219,72 @@ class TestTheBlockerIsAboutThisWorktreeOnly:
         assert tracker.worktree_blockers(path) == []
 
 
+class TestASquashMergedWorktreeIsNotBlocked:
+    """This repo squash-merges every PR: the branch's own commits become unreachable from the
+    default branch (`main` gets one *new* commit with the matching tree, under a different
+    SHA), so the reachability-only check above kept flagging worktrees whose work had shipped
+    hours earlier (#278). Content already on `main` is not lost by removing the directory that
+    produced it, whatever the commit graph says.
+    """
+
+    def test_a_squash_merged_branch_is_not_blocked(self, tmp_path, tracker):
+        """`git merge --squash` + commit is what GitHub's squash-merge produces on the other
+        side: content lands on main, but the branch's own commit is nobody's ancestor."""
+        repo = _repo(tmp_path)
+        path = tracker.ensure_worktree(repo, "issue-42", "task/issue-42-thing")
+        (path / "feature.txt").write_text("shipped\n", encoding="utf-8")
+        _git(path, "add", "-A")
+        _git(path, "commit", "-q", "-m", "add feature")
+
+        _git(repo, "merge", "-q", "--squash", "task/issue-42-thing")
+        _git(repo, "commit", "-q", "-m", "squash merge of task/issue-42-thing")
+
+        assert tracker.worktree_blockers(path) == []
+
+    def test_a_squash_merged_branch_stays_unblocked_after_main_moves_on(self, tmp_path, tracker):
+        """The measured p2-research case (#278): several commits squash-land as one, then main
+        keeps moving with unrelated work. A tip-to-tip content diff would see that later noise
+        and refuse anyway — this must still recognise nothing here is unique."""
+        repo = _repo(tmp_path)
+        path = tracker.ensure_worktree(repo, "p2-research", "task/p2-research")
+        (path / "one.txt").write_text("one\n", encoding="utf-8")
+        _git(path, "add", "-A")
+        _git(path, "commit", "-q", "-m", "commit one")
+        (path / "two.txt").write_text("two\n", encoding="utf-8")
+        _git(path, "add", "-A")
+        _git(path, "commit", "-q", "-m", "commit two")
+
+        _git(repo, "merge", "-q", "--squash", "task/p2-research")
+        _git(repo, "commit", "-q", "-m", "squash merge of task/p2-research")
+        (repo / "unrelated.txt").write_text("later\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-q", "-m", "unrelated later change")
+
+        assert tracker.worktree_blockers(path) == []
+
+    def test_a_branch_with_real_unique_work_is_still_blocked_next_to_a_squashed_one(
+        self, tmp_path, tracker
+    ):
+        """Same class, direct contrast: recognising a squash-landed branch must not turn into
+        waving every unreachable commit through. The case that motivated the blocker
+        (`tests/test_task_owns_a_worktree.py::TestFinishRefusesToDestroyWork`) still applies."""
+        repo = _repo(tmp_path)
+        landed = tracker.ensure_worktree(repo, "landed", "task/landed")
+        (landed / "shipped.txt").write_text("shipped\n", encoding="utf-8")
+        _git(landed, "add", "-A")
+        _git(landed, "commit", "-q", "-m", "shipped work")
+        _git(repo, "merge", "-q", "--squash", "task/landed")
+        _git(repo, "commit", "-q", "-m", "squash merge of task/landed")
+
+        cooking = tracker.ensure_worktree(repo, "cooking", "task/cooking")
+        (cooking / "wip.txt").write_text("not shipped yet\n", encoding="utf-8")
+        _git(cooking, "add", "-A")
+        _git(cooking, "commit", "-q", "-m", "still cooking")
+
+        assert tracker.worktree_blockers(landed) == []
+        assert tracker.worktree_blockers(cooking) != []
+
+
 class TestTheChecksCouldFail:
     """A dirty-check that cannot see dirt would silently delete every worktree."""
 
