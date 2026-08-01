@@ -55,6 +55,19 @@ Subagent prompts must be self-contained: scope, acceptance criteria, files/docs 
 project's TDD + code-style rules (point them at CLAUDE.md), and what to report back. Run
 independent subagents in parallel.
 
+**Split work so it *can* run in parallel.** A large item that one agent works through in sequence
+is usually several items that could have run at once. Do the split while planning, and name which
+sections share a file — those serialise, the rest do not.
+
+**Two levels of dispatch, no more.** You dispatch; those agents may dispatch once; nothing
+deeper. The cap is about the machine rather than the design: every live agent costs memory and a
+share of the CPU, and a tree that widens without bound starves the work already running.
+
+**Reach for whatever tool makes the work smaller.** A code graph, an MCP server, an existing
+skill, a script the repo already has — check what is installed before writing something that
+already exists. This is not permission to add tooling mid-task; it is a reminder that the
+expensive path is often the one nobody checked for a shortcut.
+
 **Cache-aware dispatch:** every agent's request prefix includes your project's always-loaded
 context (CLAUDE.md/AGENTS.md-equivalent instructions, `.ai-badger/state.json`, and any other
 files your project loads on every turn) — keep them byte-stable within a task (never rewrite them
@@ -113,8 +126,20 @@ reduced rigor since high-reasoning delegation wasn't possible.
    A worktree is also what makes concurrent sessions safe. Sessions share one checkout, so a second
    agent switching branches mid-run changes the files under the first one — measured the same day:
    a push failed because the tree moved to `main` while its tests were running.
-5. Plan: delegate decomposition to a high-reasoning agent (the `architect` persona), feeding it
-   the task body and doc excerpts. Use its plan to drive Phase 2.
+5. **Review before you plan, and plan the review first.** Write down what has to be checked to
+   answer the task — every point in the request, and which of them need research rather than a
+   guess. Then run that review and gather the evidence. A plan written before the review is a
+   guess with a table around it.
+6. **Plan from what the review found.** Delegate decomposition to a high-reasoning agent (the
+   `architect` persona), feeding it the task body, the review findings and doc excerpts.
+
+   Split the plan into sections that can be worked independently, and say which may run at the
+   same time. Parallelism has to be designed in; it does not arrive on its own.
+
+   **Every point carries acceptance criteria and a quality gate** — what must be true, and the run
+   that proves it. A point without them is a wish. Where a point needs a specification or a design
+   before it can be built, produce one, and look for an installed skill that formalises that shape
+   before writing a bespoke document.
 
 ## Phase 2 — Execute
 
@@ -135,6 +160,22 @@ acceptance criteria, relevant architecture docs, and the build/test output. Ask 
 implementation correctness (logic, edge cases, test honesty) and architecture (layer purity,
 consistency with docs). Fix findings (trivial yourself, substantial via a subagent), re-run
 build/test, then proceed.
+
+### Review every join, not just every part
+
+Each time separate work is combined — the review findings into a plan, several plan sections into
+one change, several subagents' branches into one PR — check that the combination still works.
+Parts that each passed alone routinely fail together: two branches pick the same version, one
+renames what another calls, a guard passes on each half and fails on the whole.
+
+Run the checks against the combined result, not against the pieces you already ran them on.
+
+**Then stop checking.** Execute what the plan says rather than re-reading it for reassurance; a
+third pass over your own reasoning finds much less than the first and costs the same. Re-verify
+after an integration when there is a reason to — something changed underneath, a claim is load
+bearing, a check has never actually been seen to fail. **Facts are the exception**: anything
+taken from documentation, an earlier run, or someone else's research gets re-checked against its
+source every time, because that is what goes stale while your reasoning stays put.
 
 ### Limited gates — `--risk`
 
