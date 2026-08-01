@@ -107,10 +107,14 @@ def unpushed_release_tags(root: Path) -> List[str]:
         listing = _git(root, "ls-remote", "--tags", "origin")
     except GitCommandFailed:
         return []
-    remote = {
-        line.split("refs/tags/", 1)[1].removesuffix("^{}")
-        for line in listing.splitlines() if "refs/tags/" in line
-    }
+    # `[:-3]` rather than `removesuffix("^{}")`: that method is 3.9+ and the floor is 3.8.
+    # The dereferenced-tag line for an annotated tag ends in `^{}` and names the same tag.
+    remote = set()
+    for line in listing.splitlines():
+        if "refs/tags/" not in line:
+            continue
+        name = line.split("refs/tags/", 1)[1]
+        remote.add(name[:-3] if name.endswith("^{}") else name)
     return sorted(t for t in local - remote if TAG_PATTERN.match(t))
 
 
