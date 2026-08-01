@@ -330,13 +330,7 @@ class TestCatalogRouting:
 
 
 class TestOrphanedPluginCopies:
-    """A skill removed from the shipped list must not linger in the plugin dir (F-17).
-
-    Both sync_all and check_all iterated the shipped list only, so a directory for a name
-    no longer shipped stayed live and --check reported it as in sync — a surplus with the
-    same shape as ADR-0005's omission failure: still registered with Claude Code, invisible
-    to the gate that exists to notice.
-    """
+    """A skill removed from the shipped list must not linger in the plugin dir (F-17)."""
 
     def test_a_skill_no_longer_shipped_is_removed_from_the_plugin_dir(
         self, tmp_path, temp_framework
