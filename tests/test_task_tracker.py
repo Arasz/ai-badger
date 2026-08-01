@@ -20,6 +20,7 @@ of silently touching a real crontab.
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from datetime import timedelta
 
@@ -29,7 +30,14 @@ SCRIPT_RELPATH = "features/common/skills/task/scripts/task_tracker.py"
 
 
 class _GuardedSubprocess:
-    """Stand-in for the `subprocess` module: raises if anything tries to shell out."""
+    """Stand-in for the `subprocess` module: raises if anything tries to shell out.
+
+    It mirrors the module's *exception* surface as well as its callables. `except
+    subprocess.CalledProcessError` is evaluated even on the paths that never shell out, so a stub
+    missing the attribute fails those with an AttributeError that looks like a product bug.
+    """
+
+    CalledProcessError = subprocess.CalledProcessError
 
     @staticmethod
     def run(*args, **kwargs):
@@ -122,17 +130,76 @@ def test_start_registers_task_and_starts_checkpoint(tt, monkeypatch, tmp_path, c
 
 
 def test_start_persists_title_and_branch(tt, monkeypatch, tmp_path):
+    """`--no-worktree` keeps this focused on persistence — and keeps the no-subprocess guard.
+
+    Since D2, a bare `start` creates a git worktree for the branch it records. That is covered
+    by `test_task_owns_a_worktree.py`, which uses a real repo; here it would only mean shelling
+    out, which `_GuardedSubprocess` exists to forbid.
+    """
     _no_cron_recorder(monkeypatch, tt)
     transcript = tmp_path / "t.jsonl"
 
     code = _run(monkeypatch, tt, "start", "T02", "--title", "Fix widgets",
-                "--branch", "feat/widgets", "--session-id", "sid-2",
+                "--branch", "feat/widgets", "--no-worktree", "--session-id", "sid-2",
                 "--transcript-path", str(transcript))
 
     assert code == 0
     entry = tt.lib.find_entry(tt.lib.load_tasks(), "T02")
     assert entry["title"] == "Fix widgets"
     assert entry["branch"] == "feat/widgets"
+
+
+def test_start_reaches_for_a_worktree_unless_told_not_to(tt, monkeypatch, tmp_path):
+    """The flag must actually gate the call, or `--no-worktree` is decoration.
+
+    The session ids must differ. A first draft reused one, and `cmd_start` refuses to attach a
+    session to a second unfinished task — so the second run exited before reaching the gate and
+    the test passed with the gate deleted outright. Verified by deleting it.
+    """
+    _no_cron_recorder(monkeypatch, tt)
+    asked = []
+    monkeypatch.setattr(tt, "ensure_worktree",
+                        lambda root, task_id, branch: asked.append((task_id, branch)))
+
+    assert _run(monkeypatch, tt, "start", "T02a", "--branch", "feat/w", "--session-id", "s-a",
+                "--transcript-path", str(tmp_path / "a.jsonl")) == 0
+    assert _run(monkeypatch, tt, "start", "T02b", "--branch", "feat/w", "--no-worktree",
+                "--session-id", "s-b", "--transcript-path", str(tmp_path / "b.jsonl")) == 0
+
+    assert asked == [("T02a", "feat/w")]
+
+
+def test_start_keeps_stdout_valid_json_when_it_makes_a_worktree(tt, monkeypatch, tmp_path,
+                                                                capsys):
+    """stdout is a machine-readable contract; the worktree path is a JSON field, not a line."""
+    _no_cron_recorder(monkeypatch, tt)
+    monkeypatch.setattr(tt, "ensure_worktree",
+                        lambda root, task_id, branch: tmp_path / "wt" / task_id)
+
+    _run(monkeypatch, tt, "start", "T02c", "--branch", "feat/w", "--session-id", "s-c",
+         "--transcript-path", str(tmp_path / "c.jsonl"))
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["worktree"] == str(tmp_path / "wt" / "T02c")
+
+
+def test_start_survives_git_being_missing(tt, monkeypatch, tmp_path, capsys):
+    """A missing git must not traceback after state was already persisted."""
+    _no_cron_recorder(monkeypatch, tt)
+
+    def _no_git(*_args, **_kwargs):
+        raise FileNotFoundError(2, "No such file or directory: 'git'")
+
+    monkeypatch.setattr(tt, "ensure_worktree", _no_git)
+
+    code = _run(monkeypatch, tt, "start", "T02d", "--branch", "feat/w", "--session-id", "s-d",
+                "--transcript-path", str(tmp_path / "d.jsonl"))
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert json.loads(captured.out)["worktree"] is None
+    assert "git" in captured.err
+    assert tt.lib.find_entry(tt.lib.load_tasks(), "T02d") is not None
 
 
 def test_start_with_no_cron_flag_never_calls_install_cron(tt, monkeypatch, tmp_path):

@@ -46,6 +46,100 @@ class CrontabUnavailable(Exception):
     """
 
 
+WORKTREE_DIR = ".claude/worktrees"
+
+
+def _git(root, *args, check=True):
+    """Run git in `root` and return stdout. Returns '' when check is False and git fails."""
+    result = subprocess.run(["git", "-C", str(root), *args],
+                            capture_output=True, text=True, check=False)
+    if result.returncode != 0 and check:
+        raise subprocess.CalledProcessError(result.returncode, result.args,
+                                            result.stdout, result.stderr)
+    return result.stdout if result.returncode == 0 else ""
+
+
+def worktree_path(root, task_id):
+    """Where a task's worktree lives. One per task, named by the task id.
+
+    A task id arrives as a CLI argument, so it is untrusted input being spliced into a path:
+    `..` or a separator would put `git worktree add/remove` somewhere nobody asked for. Refuse
+    rather than sanitise — a silently rewritten id would not match the one in the tracking JSON.
+    """
+    name = str(task_id)
+    if not name or name in {".", ".."} or "/" in name or "\\" in name:
+        raise ValueError(
+            f"task id {name!r} is not usable as a directory name: it must not be empty, "
+            "'.', '..', or contain a path separator"
+        )
+    return lib.Path(root) / WORKTREE_DIR / name
+
+
+def ensure_worktree(root, task_id, branch):
+    """Create (or adopt) the task's worktree on `branch`. Returns its path, or None.
+
+    None when no branch was recorded: a task that did not ask for one does not get one
+    invented for it. Idempotent, so a resumed task re-running `start` is not an error.
+    """
+    if not branch:
+        return None
+    path = worktree_path(root, task_id)
+    if path.is_dir():
+        return path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing = _git(root, "rev-parse", "--verify", "--quiet", branch, check=False).strip()
+    args = ["worktree", "add"] + ([] if existing else ["-b", branch])
+    args += [str(path)] + ([branch] if existing else [])
+    _git(root, *args)
+    return path
+
+
+def worktree_blockers(path):
+    """Reasons this worktree must not be removed: uncommitted files, then unmerged commits.
+
+    Checked in that order because the first is what a person recognises. An empty list means
+    every change in here also exists somewhere else, so removing it loses nothing.
+    """
+    if not path or not lib.Path(path).is_dir():
+        return []
+    blockers = []
+    dirty = _git(path, "status", "--porcelain", check=False).strip()
+    if dirty:
+        names = ", ".join(line[3:] for line in dirty.splitlines()[:5])
+        blockers.append(f"uncommitted changes: {names}")
+    head = _git(path, "rev-parse", "--abbrev-ref", "HEAD", check=False).strip()
+    if head:
+        # Commits reachable from HEAD and from nowhere else — not on a remote, and not on any
+        # other local branch. Excluding both matters: `--not --remotes` alone calls every commit
+        # unique in a repo with no remote, and omitting other locals would flag a branch whose
+        # work is already merged. What is left is the set that disappears with this directory.
+        others = [b for b in _git(path, "branch", "--format=%(refname:short)",
+                                  check=False).split() if b != head]
+        only_here = _git(path, "log", "HEAD", "--not", "--remotes", *others, "--oneline",
+                         check=False).strip()
+        if only_here:
+            blockers.append(
+                f"{len(only_here.splitlines())} commit(s) on {head} and nowhere else")
+    return blockers
+
+
+def release_worktree(root, task_id):
+    """Remove the task's worktree. Returns (removed, reason-it-was-kept).
+
+    Refuses rather than forcing: a worktree holding the only copy of a change is the one case
+    where cleanup is indistinguishable from data loss. (False, "") means there was nothing to
+    remove, which is not a failure — `finish` runs whether or not `start` made one.
+    """
+    path = worktree_path(root, task_id)
+    if not path.is_dir():
+        return False, ""
+    blockers = worktree_blockers(path)
+    if blockers:
+        return False, "; ".join(blockers)
+    _git(root, "worktree", "remove", str(path))
+    return True, ""
+
+
 def _session_or_die(args) -> dict:
     session = {
         "sessionId": getattr(args, "session_id", None),
@@ -120,6 +214,18 @@ def cmd_start(args) -> int:
         checkpoints["latest"] = checkpoint
         lib.save_json(lib.TOKEN_USAGE, usage)
 
+    # Outside the lock: this shells out to git, and holding the store lock across it would let a
+    # slow checkout block every other tracker call.
+    created = None
+    if not args.no_worktree:
+        try:
+            created = ensure_worktree(lib.PROJECT_ROOT, args.task_id, entry.get("branch", ""))
+        except (subprocess.CalledProcessError, OSError, ValueError) as exc:
+            # State is already persisted; a missing git or a bad id must not turn that into a
+            # traceback. OSError covers `git` being absent or not executable.
+            detail = getattr(exc, "stderr", None) or exc
+            print(f"could not create the task worktree: {detail}", file=sys.stderr)
+
     if args.no_cron:
         print(
             "--no-cron is deprecated and is now a no-op: cron installation is opt-in via "
@@ -135,6 +241,7 @@ def cmd_start(args) -> int:
                 "taskId": args.task_id,
                 "state": entry["state"],
                 "sessionId": session["sessionId"],
+                "worktree": str(created) if created is not None else None,
                 "startContextTokens": checkpoint["contextTokens"],
             }
         )
@@ -186,12 +293,24 @@ def cmd_finish(args) -> int:
         )
         lib.save_json(lib.TOKEN_USAGE, usage)
 
+    worktree = {"removed": False, "keptBecause": ""}
+    if not args.keep_worktree:
+        try:
+            removed, reason = release_worktree(lib.PROJECT_ROOT, args.task_id)
+        except (subprocess.CalledProcessError, OSError, ValueError) as exc:
+            # Same reasoning as cmd_start: report it as a kept worktree, never a traceback.
+            removed, reason = False, str(getattr(exc, "stderr", None) or exc)
+        worktree = {"removed": removed, "keptBecause": reason}
+        if reason:
+            print(f"kept the task worktree — {reason}", file=sys.stderr)
+
     stats = lib.claude_md_stats()
     print(
         json.dumps(
             {
                 "taskId": args.task_id,
                 "state": lib.STATE_FINISHED,
+                "worktree": worktree,
                 "usage": usage_entry["usage"],
                 "claudeMd": {
                     "overBudget": stats["overBudget"],
@@ -440,11 +559,19 @@ def main() -> int:
         "--no-cron", action="store_true",
         help="Deprecated no-op: cron installation is opt-in via --cron now.",
     )
+    p_start.add_argument(
+        "--no-worktree", action="store_true",
+        help="Record the branch without creating a worktree for it.",
+    )
     add_session_args(p_start)
 
     p_finish = sub.add_parser("finish")
     p_finish.add_argument("task_id")
     p_finish.add_argument("--force", action="store_true")
+    p_finish.add_argument(
+        "--keep-worktree", action="store_true",
+        help="Leave the task's worktree on disk instead of removing it.",
+    )
 
     p_grade = sub.add_parser("grade")
     p_grade.add_argument("task_id")
