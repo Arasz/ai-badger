@@ -1,7 +1,39 @@
 {
   "lastUpdated": "2026-08-01",
-  "next": "Follow-up filed from this session's research pass (not started): (a) ai-badger skills register twice in Claude Code - once bare, once ai-badger:-namespaced - because adjust_skills.py symlinks into .claude/skills/ while the plugin ships its own copies; likely the largest always-on context win available and a symlink fix, not a rewrite. (b) Move verification-evidence blocks out of owner-gate-review (~730 est. tokens) and task (~848, and they break its own platform-neutrality claim) into references/ and extensions/claude/. (c) differential-feature-refactor steps 6-7 call superpowers:brainstorming with no fallback - rewrite in the style of its own 'Relationship to a spec skill' paragraph. (d) research-with-rich-report skill: build the context-optimization half, which nothing occupies; the structured-report half is already done five times over. Open backlog: #243 (removed catalog skill leaves its scaffolded directory - PR in flight from a dispatched agent, merge when green) and #232 (a hook reached from a child interpreter can spawn a daemon the test suite cannot see - residual, filed with evidence). Follow-up from the 0.60.0 review, low severity: the dispatch gate's lane lookup walks past the git root (F5); Copilot/Junie docs carry no delegation-map pointer by decision.",
+  "next": "Open PRs: #252 (mcp prerequisites, 0.62.0) and #253 (#232 spawn breadcrumb, 0.61.3) - whichever merges second needs a VERSION rebump; release_guard enforces it. Tag every merge: 0.61.1 went untagged and blocked #251's CI until tagged at ed9824d6. Awaiting a decision from the owner, asked twice: (1) the plugin partition - 13 skills to 3 - which fixes a real silent-wrong-answer defect (code-review-checklist's two copies share byte-identical frontmatter, md5 503cde95, and differ by 28 body lines) but changes what /plugin install gives users; (2) research-with-rich-report - the verified design is a different skill under a different name (evidence-first-research, findings with provenance grades), because dotnet-claude-kit:workflow-mastery already owns the context-optimization trigger words. Unstarted follow-ups: move verification-evidence blocks out of owner-gate-review (~730 est tokens) and task (~848, and they break its own platform-neutrality claim); differential-feature-refactor steps 6-7 call superpowers:brainstorming with no fallback. Two framework observations worth issues: tests/conftest.py's _real_tracking_state_is_untouched cannot distinguish the suite's writes from a concurrent external writer, so a cron tick during a long run fails the lane; and task_tracker.py start --branch records a name without creating or verifying the branch, which put work on the wrong branch twice in one session.",
   "completedTasks": [
+    {
+      "id": "issue-232-spawn-breadcrumb",
+      "title": "Name the test that spawned a daemon, instead of guessing (#232)",
+      "summary": "spawn_detached appends a breadcrumb (argv, cwd, pid, PYTEST_CURRENT_TEST, and `by` = spawning pid) when AI_BADGER_SPAWN_LOG is set; conftest arms it and fails the session on records whose `by` is not the pytest process - the child-interpreter case #222's Popen wrapper structurally cannot reach. Inert in production, never raises. Found by the first run: one in-process record, investigated and correctly classified rather than assumed to be a real launch. Proved able to fail by a test that runs tracker_lib in a real subprocess. Acceptance met - full suite leaves no poll_limit.py in the checkout.",
+      "version": "0.61.3",
+      "pr": 253,
+      "date": "2026-08-01"
+    },
+    {
+      "id": "mcp-prerequisites",
+      "title": "A declared MCP server names what must already be installed",
+      "summary": "meta.json gains a bounded `prerequisite` (summary/check/install), populated for aspire (the Aspire CLI, which the server is a subcommand of) and code-review-graph. The scaffold reports it for declared servers after decline filtering. A catalog test asserts every declared server records one, so 'nothing required' is distinguishable from 'nobody wrote it down'.",
+      "version": "0.62.0",
+      "pr": 252,
+      "date": "2026-08-01"
+    },
+    {
+      "id": "poll-limit-cap",
+      "title": "The usage-limit poller stops",
+      "summary": "run_forever was `while True:` with no cap, liveness or parent check, and session_start_hook launches one per session - ten orphans found alive at once, 17-21h old, six from deleted worktrees. Now a 12h hard-ceilinged cap plus an idle exit after 3 polls with no unfinished task; removes its PID file. Review caught three more: the cap validated only one end (nan read as expiry), remove_pid still froze PID_FILE as a default argument, and one test asserted 'cap' which the startup line also contains, so it could not fail.",
+      "version": "0.61.2",
+      "pr": 251,
+      "date": "2026-08-01"
+    },
+    {
+      "id": "skill-duplicate-registration",
+      "title": "The plugin sync can remove, so --check can see a surplus",
+      "summary": "sync_all and check_all both walked the shipped list, so a dropped skill kept a live directory while --check reported 'in sync'. _orphans() subtracts the shipped set from what is on disk; MANAGED_EXTERNALLY now gates deletion too. The 13->3 plugin partition it precedes is NOT done - that is a product decision, twice asked and unanswered.",
+      "version": "0.61.1",
+      "pr": 250,
+      "date": "2026-08-01"
+    },
     {
       "id": "documentation-skills",
       "title": "Skill catalog documentation + ai-badger skills intro article",
