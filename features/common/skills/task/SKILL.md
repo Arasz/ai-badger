@@ -136,6 +136,21 @@ implementation correctness (logic, edge cases, test honesty) and architecture (l
 consistency with docs). Fix findings (trivial yourself, substantial via a subagent), re-run
 build/test, then proceed.
 
+### Limited gates — `--risk`
+
+Passing `--risk` to `start` puts the **automated** gates into limited mode: formatting, fast tests
+and the lint/rule check only. No end-to-end or integration suite fires automatically — they are
+slow, and one machine usually has several sessions running on it.
+
+The name is literal: you are buying speed with coverage, and the coverage is still owed.
+
+- Run the full suite yourself before integrating, and treat its result as this phase's pass
+  condition. `--risk` moves that run; it does not remove it.
+- Run it as the only session working at that moment — two full suites at once measure each other.
+- The switch is recorded on the task and stays on across a resume;
+  `python3 .ai-badger/skills/task/scripts/task_tracker.py status` prints `risk=on` for it. A task
+  that did not ask for it is unaffected.
+
 ## Phase 4 — Finish protocol
 
 1. If the source-control extension is active, follow `extensions/github/` for PR-ready, the

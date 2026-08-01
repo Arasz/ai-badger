@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.71.0 | [buying speed with coverage](0.71.0-buying-speed-with-coverage.md) |
 | 0.70.1 | [a bump is upward](0.70.1-a-bump-is-upward.md) |
 | 0.70.0 | [a finding carries how it is known](0.70.0-a-finding-carries-how-it-is-known.md) |
 | 0.69.3 | [skills that cannot work alone travel together](0.69.3-skills-that-cannot-work-alone-travel-together.md) |
