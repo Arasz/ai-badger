@@ -160,7 +160,7 @@ def test_the_real_declaration_comes_from_the_catalog_now(make_scaffolder):
 
     declared = scaf.mcp.declared_servers()
 
-    assert declared[CATALOG_SERVER]["command"] == "python3 -m code_review_graph serve"
+    assert declared[CATALOG_SERVER]["command"] == "code-review-graph serve"
     assert declared[CATALOG_SERVER].get("declare") is True
 
 

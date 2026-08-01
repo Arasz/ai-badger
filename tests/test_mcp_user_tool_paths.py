@@ -164,6 +164,17 @@ def test_args_are_preserved_through_the_rewrite(
     assert servers["flagged"]["args"] == ["--flag"]
 
 
+def test_multiword_command_rewrites_its_executable(
+        tmp_path, monkeypatch, load_script, make_scaffolder):
+    """A user-tool command with inline arguments still probes its executable."""
+    dotnet, _ = _fake_tool_dirs(monkeypatch, load_script, tmp_path)
+    _install(dotnet, "sometool")
+    scaf = _scaf(make_scaffolder, tmp_path, tmp_path / "proj", _config())
+
+    assert scaf.mcp._home_relative_command("flagged", "sometool --flag") == (
+        "${HOME}/.dotnet/tools/sometool --flag")
+
+
 # ── scope of the rewrite ─────────────────────────────────────────────────────
 
 def test_a_rewritten_command_leaves_the_copilot_file_undeclared(

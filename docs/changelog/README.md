@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.73.2 | [Portable MCP scaffolding](0.73.2-portable-mcp-scaffolding.md) |
 | 0.73.1 | [A worktree belongs to no one agent](0.73.1-a-worktree-belongs-to-no-one-agent.md) |
 | 0.73.0 | [review before you plan, and check every join](0.73.0-review-before-you-plan.md) |
 | 0.72.0 | [rules that lived in the prompt](0.72.0-rules-that-lived-in-the-prompt.md) |

@@ -547,6 +547,8 @@ def test_the_shipped_catalog_declaration_still_works(root, make_scaffolder):
     assert mcp_path.exists()
     mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
     assert "code-review-graph" in mcp["mcpServers"]
+    assert mcp["mcpServers"]["code-review-graph"]["command"] == "code-review-graph"
+    assert mcp["mcpServers"]["code-review-graph"]["args"] == ["serve"]
 
 
 def test_no_mcp_json_when_no_servers(tmp_path, make_scaffolder):
@@ -695,7 +697,6 @@ def test_one_splitter_renders_the_same_executable_everywhere(
     entries = _render_everywhere(
         make_scaffolder, tmp_path, {"name": "srv", "command": command}, home)
 
-    entries["mcp_json"].pop("cwd")
     for destination, entry in entries.items():
         assert entry == everywhere, destination
 
@@ -709,8 +710,8 @@ def _scaffold_mcp_json_from(make_scaffolder, tmp_path, target, server):
     return scaf
 
 
-class TestCwdSurvivesAScaffoldFromAnotherCheckout:
-    """.mcp.json is tracked, so a refresh run from a worktree must not restage its cwd."""
+class TestCwdIsNotGenerated:
+    """.mcp.json is tracked, so a refresh must not carry a machine-specific cwd."""
 
     @staticmethod
     def _project(tmp_path, name):
@@ -718,12 +719,7 @@ class TestCwdSurvivesAScaffoldFromAnotherCheckout:
         (target / ".ai-badger").mkdir(parents=True, exist_ok=True)
         return target
 
-    @staticmethod
-    def _cwd_of(target, name="srv"):
-        return json.loads(
-            (target / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"][name]["cwd"]
-
-    def test_a_cwd_pointing_at_a_live_checkout_is_left_alone(
+    def test_a_cwd_pointing_at_a_live_checkout_is_removed(
             self, tmp_path, monkeypatch, load_script, make_scaffolder):
         _no_user_tool_dirs(monkeypatch, load_script)
         main = self._project(tmp_path, "proj")
@@ -735,9 +731,10 @@ class TestCwdSurvivesAScaffoldFromAnotherCheckout:
 
         _scaffold_mcp_json_from(make_scaffolder, tmp_path, worktree, server)
 
-        assert self._cwd_of(worktree) == str(main)
+        assert "cwd" not in json.loads(
+            (worktree / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["srv"]
 
-    def test_a_cwd_pointing_nowhere_is_replaced(
+    def test_a_cwd_pointing_nowhere_is_removed(
             self, tmp_path, monkeypatch, load_script, make_scaffolder):
         _no_user_tool_dirs(monkeypatch, load_script)
         target = self._project(tmp_path, "proj")
@@ -748,9 +745,10 @@ class TestCwdSurvivesAScaffoldFromAnotherCheckout:
         _scaffold_mcp_json_from(
             make_scaffolder, tmp_path, target, {"name": "srv", "command": "uvx mcp-server-pyright"})
 
-        assert self._cwd_of(target) == str(target)
+        assert "cwd" not in json.loads(
+            (target / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["srv"]
 
-    def test_a_first_scaffold_pins_the_project_it_ran_from(
+    def test_a_first_scaffold_does_not_pin_the_project_it_ran_from(
             self, tmp_path, monkeypatch, load_script, make_scaffolder):
         _no_user_tool_dirs(monkeypatch, load_script)
         target = self._project(tmp_path, "proj")
@@ -758,7 +756,8 @@ class TestCwdSurvivesAScaffoldFromAnotherCheckout:
         _scaffold_mcp_json_from(
             make_scaffolder, tmp_path, target, {"name": "srv", "command": "uvx mcp-server-pyright"})
 
-        assert self._cwd_of(target) == str(target)
+        assert "cwd" not in json.loads(
+            (target / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["srv"]
 
     def test_everything_but_cwd_is_still_refreshed(
             self, tmp_path, monkeypatch, load_script, make_scaffolder):
@@ -773,11 +772,11 @@ class TestCwdSurvivesAScaffoldFromAnotherCheckout:
 
         entry = json.loads((main / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["srv"]
         assert entry["command"] == "uvx"
-        assert entry["cwd"] == str(main)
+        assert "cwd" not in entry
 
 
-def test_only_mcp_json_pins_the_project_cwd(tmp_path, monkeypatch, load_script, make_scaffolder):
-    """The other three configs are read by agents that supply their own working directory."""
+def test_no_mcp_destination_pins_the_project_cwd(tmp_path, monkeypatch, load_script, make_scaffolder):
+    """Every generated config stays portable across checkouts and worktrees."""
     _no_user_tool_dirs(monkeypatch, load_script)
     home = tmp_path / "home"
     home.mkdir()
@@ -785,7 +784,6 @@ def test_only_mcp_json_pins_the_project_cwd(tmp_path, monkeypatch, load_script, 
     entries = _render_everywhere(
         make_scaffolder, tmp_path, {"name": "srv", "command": "uvx mcp-server-pyright"}, home)
 
-    assert entries.pop("mcp_json")["cwd"] == str(tmp_path / "proj")
     for destination, entry in entries.items():
         assert "cwd" not in entry, destination
 

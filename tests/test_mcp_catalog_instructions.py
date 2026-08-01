@@ -74,9 +74,8 @@ def test_the_generated_mcp_json_still_carries_the_one_declared_server(make_scaff
     rendered = json.loads(_render(make_scaffolder)[".mcp.json"])["mcpServers"]
 
     assert rendered == {CATALOG_SERVER: {
-        "command": "python3",
-        "args": ["-m", "code_review_graph", "serve"],
-        "cwd": str(make_scaffolder.target),
+        "command": "code-review-graph",
+        "args": ["serve"],
         "tools": ["*"],
     }}
 
@@ -168,7 +167,7 @@ def test_the_common_stack_declares_code_review_graph(root, load_script):
 
     entry = next(s for s in declared["servers"] if s["name"] == CATALOG_SERVER)
     assert entry["declare"] is True
-    assert entry["command"] == "python3 -m code_review_graph serve"
+    assert entry["command"] == "code-review-graph serve"
 
 
 def test_the_catalog_directory_carries_all_three_files(root):

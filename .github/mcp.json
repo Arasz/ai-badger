@@ -1,10 +1,8 @@
 {
   "mcpServers": {
     "code-review-graph": {
-      "command": "python3",
+      "command": "code-review-graph",
       "args": [
-        "-m",
-        "code_review_graph",
         "serve"
       ],
       "tools": [
