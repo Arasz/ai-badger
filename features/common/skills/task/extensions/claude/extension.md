@@ -65,3 +65,60 @@ Anthropic clarifies which article is current.
 The orchestrating session must not assume it is already running the planning lane — the default
 model for new sessions changes. Get the reasoning by dispatching an explicit `Agent` call with
 the `model` override, not by doing the work in-session because the session "is" Opus today.
+
+## Reading a finished task's numbers
+
+Measurements behind the delegation policy, and the two artefacts that carry them. Read this when
+interpreting `token-usage.json`, not on every dispatch — the base skill's policy is the part you
+act on.
+
+### Judge a task by its model mix, not its cache efficiency
+
+`token-usage.json` records both. `cacheEfficiency` (cache_read ÷ (cache_read + cache_creation))
+turns out not to discriminate: **measured over 1250 real sessions it sits at 0.975–0.986 on every
+one**, including the most expensive. It is worth watching only for a *collapse*, which means the
+prefix is churning.
+
+`modelMix` is the number that moves. Over those same sessions the expensive and mid tiers produced
+comparable output volume — **23.7M vs 20.6M tokens — at 3.1× the cost**. Which model did a task's
+output is the largest lever available, and it is precisely what the lanes above steer.
+`python3 .ai-badger/skills/task/scripts/task_tracker.py status` shows the dominant model and its share (`mix=opus-5:69%`);
+`outputByModel` carries the full split.
+
+Read it as the **delegation ratio** — the share produced by the mid and cheap tiers — over the
+main transcript *and* its subagents together. Those are different numbers and only the combined
+one means anything: on one real session the main thread alone reads 2.3% while the true figure is
+23.8%. `dispatches` carries the other half: how many ran, how many named no model (one that names
+none takes the `model:` lane in its persona's frontmatter, and the dispatch gate denies one whose
+persona has no lane), and which agent types they went to. A run where most dispatches are
+`general-purpose` is not routing to the personas the project scaffolds, whatever `personaRouting`
+says.
+
+No prices are recorded. They change, and a stale hardcoded rate would be a confidently wrong
+number; output tokens per model is the durable half, and a reader applies today's rates.
+
+### Where subagent work actually lives
+
+Not in the main transcript: **measured over 171 real transcripts, no record carries
+`isSidechain: true`**. Claude Code writes each dispatch to
+`<transcript-dir>/<session-id>/subagents/agent-<id>.jsonl`, with a paired `agent-<id>.meta.json`
+naming its `agentType`, `description`, `spawnDepth` and `model`. `parse_transcript_usage` reads
+both, so a **per-dispatch** split is available — it needs no `parentUuid` chasing, and does not
+depend on the completion notification, which exposes only `total_tokens`.
+
+Treat `meta.json` as the undocumented CLI artefact it is: a format change must degrade to
+`unknown`, never to zero, or it reads as a delegation collapse that never happened.
+
+### The agent panel's model field can lie
+
+**Do not misdiagnose this as a dispatch bug.** The live agent panel's per-task `model` field (and
+any custom status line reading it) can transiently show a stale value — e.g. the parent session's
+model for a subagent dispatched with a different `model` override.
+
+The panel field comes from an async live-status feed, a separate code path from the
+`resolvedModel` Claude Code writes into the session transcript's tool-result metadata at call
+completion. **The transcript is ground truth; the panel is a snapshot that can lag it.** If a
+dispatch's actual model is in doubt, grep the session's `.jsonl` for the `Agent` tool_use whose
+`description` matches and check its paired `tool_result`'s `toolUseResult.resolvedModel`. Do not
+re-investigate this as a dispatch-code problem unless the transcript itself shows the wrong
+`resolvedModel`.
