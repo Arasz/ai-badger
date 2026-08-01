@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.64.0 | [The `dotnet` and `aspire` stacks declare their upstream skill sources](0.64.0-dotnet-and-aspire-skill-sources.md) |
 | 0.63.0 | [`optIn` becomes a scope a project can choose, and six skills use it](0.63.0-optin-becomes-reachable.md) |
 | 0.62.0 | [A declared MCP server names what must already be installed](0.62.0-a-declared-server-names-its-prerequisite.md) |
 | 0.61.4 | [The tracking-state guard names who wrote](0.61.4-the-guard-names-who-wrote.md) |

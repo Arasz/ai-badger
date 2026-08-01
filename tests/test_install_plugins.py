@@ -382,6 +382,14 @@ class TestThirdPartyPluginsAreNotAddedSilently:
         ("common", "pr-review-toolkit"),
         ("python", "pyright-lsp"),
         ("python", "pydantic-ai"),
+        # Externally sourced like every entry above — first-party to Microsoft, third-party to
+        # this catalog, which is the distinction this allowlist is about. Reviewed 2026-08-01:
+        # no tool-call hooks, no external account, and each verified to install and stay
+        # installed (azure was cut from the same batch for failing that last check).
+        ("dotnet", "dotnet-diag"),
+        ("dotnet", "dotnet-test"),
+        ("dotnet", "dotnet-msbuild"),
+        ("aspire", "aspire"),
     }
 
     @staticmethod
