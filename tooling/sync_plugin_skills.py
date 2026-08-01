@@ -55,6 +55,23 @@ def _shipped_skills():
             yield name, base / name, TARGET / name
 
 
+def _orphans() -> list:
+    """Names present in the plugin dir that the catalog no longer ships.
+
+    Sync only ever wrote, so a skill dropped from the shipped list kept its directory —
+    still discovered by Claude Code, and invisible to --check because both walked the
+    shipped list. MANAGED_EXTERNALLY gates deletion as well as writing: those directories
+    are never shipped, so subtracting the shipped set alone would delete them.
+    """
+    if not TARGET.is_dir():
+        return []
+    shipped = {name for name, _, _ in _shipped_skills()}
+    return sorted(
+        d.name for d in TARGET.iterdir()
+        if d.is_dir() and d.name not in shipped and d.name not in MANAGED_EXTERNALLY
+    )
+
+
 def sync_skill(src: Path, dest: Path, dry_run: bool) -> int:
     """Sync one skill directory from src to dest. Returns count of files copied."""
     if not src.is_dir():
@@ -82,7 +99,7 @@ def check_skill(src: Path, dest: Path):
 
 
 def check_all() -> int:
-    """Report every shipped skill whose .claude/ copy differs from features/. 1 if any."""
+    """Report every shipped skill whose skills/ copy differs from features/. 1 if any."""
     checked = 0
     out_of_sync = 0
     for name, src, dest in _shipped_skills():
@@ -94,9 +111,13 @@ def check_all() -> int:
             out_of_sync += 1
             print(f"  {reason}: {name}")
 
-    if out_of_sync:
-        print(f"\n{out_of_sync} of {checked} skill(s) out of sync — "
-              f"run: python3 tooling/sync_plugin_skills.py")
+    orphans = _orphans()
+    for name in orphans:
+        print(f"  orphaned: {name}")
+
+    if out_of_sync or orphans:
+        print(f"\n{out_of_sync} of {checked} skill(s) out of sync, "
+              f"{len(orphans)} orphaned — run: python3 tooling/sync_plugin_skills.py")
         return 1
     print(f"\n{checked} skill(s) in sync")
     return 0
@@ -112,6 +133,13 @@ def sync_all(dry_run: bool) -> int:
         if result:
             print(f"  {'would sync' if dry_run else 'synced'}: {name}")
 
+    for name in _orphans():
+        if dry_run:
+            print(f"  would remove: {name}")
+            continue
+        shutil.rmtree(TARGET / name)
+        print(f"  removed: {name}")
+
     print(f"\n{'Would sync' if dry_run else 'Synced'} {copied} skill(s) "
           f"into {TARGET.relative_to(ROOT)}")
     return 0
@@ -122,7 +150,7 @@ def main(argv=None) -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true", help="Show what would be copied")
     mode.add_argument("--check", action="store_true",
-                      help="Verify .claude/skills/ matches features/; exit 1 on divergence")
+                      help="Verify skills/ matches features/; exit 1 on divergence or orphan")
     args = parser.parse_args(argv)
 
     if args.check:

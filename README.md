@@ -105,7 +105,9 @@ agent-specific stacks (`claude`, `copilot`, `junie`).
 
 This installs the operational skills: `welcome-ai-badger`, `feed-badger`, `den-refresh`,
 `task`, `maintain-agent-instructions`, `auto-wm`, `prompt-markers`, `mcp-index`,
-`code-review-checklist`, and `call-behaviorist`.
+`code-review-checklist`, `call-behaviorist`, `owner-gate-review`, `commit-reminder`, and
+`differential-feature-refactor`. See [`docs/skills.md`](docs/skills.md) for what each one does
+and when to reach for it.
 
 ## Quickstart
 
@@ -190,6 +192,11 @@ the schema.
 | **mcp-index** | MCP tool index with tag + intent semantic matching |
 | **code-review-checklist** | Aviation-style preflight checks for a PR or diff |
 | **call-behaviorist** | Debug audit log for ai-badger's own hooks, and a health report |
+| **owner-gate-review** | A per-decision review form whose answers stay bound to their decision |
+| **commit-reminder** | A `PostToolUse` hook that commands a commit once work sits uncommitted |
+| **differential-feature-refactor** | Separate design intent from accumulated cruft before scoping a refactor |
+
+What each one does in detail, and the situation that calls for it: [`docs/skills.md`](docs/skills.md).
 
 ## Bundled MCP servers
 
@@ -224,7 +231,8 @@ ai-badger/
       skills/                    # Installable operational skills
         task/ welcome-ai-badger/ feed-badger/ den-refresh/
         maintain-agent-instructions/ prompt-markers/ mcp-index/
-        code-review-checklist/ call-behaviorist/
+        code-review-checklist/ call-behaviorist/ owner-gate-review/
+        commit-reminder/ differential-feature-refactor/
       personas/{architect, test-engineer, code-reviewer, delegator}.md
       invariants/*.md            # Agnostic invariant snippets
       instructions/*.md          # Agnostic scoped instructions
@@ -255,7 +263,7 @@ flowchart TB
       COMMON["common/\npersonas·invariants·instructions·hooks·templates"]
       STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · github · angular"]
     end
-    SKILLSDIR["features/common/skills/\nwelcome · feed · task · maintain · prompt-markers\n· den-refresh · mcp-index · code-review-checklist · call-behaviorist"]
+    SKILLSDIR["features/common/skills/\nwelcome · feed · task · maintain · prompt-markers\n· den-refresh · mcp-index · code-review-checklist · call-behaviorist\n· owner-gate-review · commit-reminder · differential-feature-refactor"]
     CLAUDESKILLS["features/claude/skills/\nauto-wm"]
     MCPCAT["features/*/mcp/ + stack-mcp.json\ncode-review-graph (MCP)"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]

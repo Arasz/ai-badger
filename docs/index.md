@@ -14,6 +14,7 @@ Everything written down about this project, grouped by what you came here to do.
 | [getting-started.md](getting-started.md) | **Start here if you just found the repo.** What ai-badger is and who it is not for, plugin vs. clone, the first run end to end with real command output, what to review before committing, and the failures that actually bite |
 | [`../README.md`](../README.md) | What the project is, install, quickstart, the `features/{stack\|common}/{feature}` model, supported agents and stacks |
 | [framework-architecture.md](framework-architecture.md) | **The reference.** The stack × feature catalog model, the `config.json` / `manifest.json` contracts, the script-vs-agent responsibility split, plugins, `task` base + extensions, target repo structure, data-flow diagrams |
+| [skills.md](skills.md) | Every shipped skill grouped by what it's for, what it actually changes on disk, when to reach for it, and which ones are hook-backed rather than invoked by name |
 | [retrieval.md](retrieval.md) | How the MCP tool index is searched: BM25 over fused fields, why the gate is a coverage ratio rather than a score, the eval fixture set, and the telemetry that tells you whether any of it ran |
 | [dictionary.md](dictionary.md) | How ai-badger's vocabulary (skills, hooks, instructions, personas, scaffolding) maps onto each supported agent's native terminology |
 | [scripts.md](scripts.md) | Running the framework scripts and the test suite |

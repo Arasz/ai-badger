@@ -78,8 +78,9 @@ What that buys you:
 - The plugin's `skills/` directory is the one place Claude Code scans for a plugin's skills
   (see [ADR-0008](adr/0008-plugin-skills-live-at-the-plugin-skill-path.md)), so
   `welcome-ai-badger`, `den-refresh`, `feed-badger`, `task`, `maintain-agent-instructions`,
-  `mcp-index`, `prompt-markers`, `auto-wm`, `call-behaviorist` and `code-review-checklist` are
-  available as `ai-badger:<name>` without any setup.
+  `mcp-index`, `prompt-markers`, `auto-wm`, `call-behaviorist`, `code-review-checklist`,
+  `owner-gate-review`, `commit-reminder` and `differential-feature-refactor` are available as
+  `ai-badger:<name>` without any setup — see [`skills.md`](skills.md) for what each one does.
 - [`hooks/hooks.json`](../hooks/hooks.json) registers a `SessionStart` hook that compares the
   plugin's `VERSION` against a project's `.ai-badger/manifest.json` and prints a one-line notice
   when they differ. That notice is your cue to run `den-refresh`. It only fires for the plugin —
