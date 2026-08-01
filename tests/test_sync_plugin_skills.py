@@ -327,3 +327,69 @@ class TestCatalogRouting:
 
         with pytest.raises(bl.UnknownSkillScope):
             bl.skill_scope("no-such-skill")
+
+
+class TestOrphanedPluginCopies:
+    """A skill removed from the shipped list must not linger in the plugin dir (F-17).
+
+    Both sync_all and check_all iterated the shipped list only, so a directory for a name
+    no longer shipped stayed live and --check reported it as in sync — a surplus with the
+    same shape as ADR-0005's omission failure: still registered with Claude Code, invisible
+    to the gate that exists to notice.
+    """
+
+    def test_a_skill_no_longer_shipped_is_removed_from_the_plugin_dir(
+        self, tmp_path, temp_framework
+    ):
+        temp_framework.main([])
+        orphan = tmp_path / "skills" / "retired-skill"
+        _write_tree(orphan, {"SKILL.md": "shipped by a previous version"})
+
+        temp_framework.main([])
+
+        assert not orphan.exists()
+
+    def test_check_mode_fails_on_an_orphaned_plugin_copy(self, tmp_path, temp_framework):
+        temp_framework.main([])
+        _write_tree(tmp_path / "skills" / "retired-skill", {"SKILL.md": "stale"})
+
+        assert temp_framework.main(["--check"]) == 1
+
+    def test_check_mode_names_the_orphaned_skill(self, tmp_path, temp_framework, capsys):
+        temp_framework.main([])
+        _write_tree(tmp_path / "skills" / "retired-skill", {"SKILL.md": "stale"})
+        capsys.readouterr()
+
+        temp_framework.main(["--check"])
+
+        assert "retired-skill" in capsys.readouterr().out
+
+    def test_prune_never_touches_a_managed_externally_directory(
+        self, tmp_path, load_script, monkeypatch
+    ):
+        """MANAGED_EXTERNALLY has to gate deletion, not only writing.
+
+        These directories are never in the shipped list, so a prune that only subtracts
+        that list would delete the code-review-graph skills on the next sync.
+        """
+        sps = load_script("tooling/sync_plugin_skills.py")
+        _write_tree(tmp_path / "features" / "common" / "skills" / "task", {"SKILL.md": "task"})
+        external = tmp_path / "skills" / "debug-issue"
+        _write_tree(external, {"SKILL.md": "owned by code-review-graph"})
+        monkeypatch.setattr(sps, "ROOT", tmp_path)
+        monkeypatch.setattr(sps, "TARGET", tmp_path / "skills")
+        monkeypatch.setattr(sps, "COMMON_SKILLS", ["task"])
+        monkeypatch.setattr(sps, "CLAUDE_SKILLS", [])
+
+        sps.main([])
+
+        assert (external / "SKILL.md").read_text() == "owned by code-review-graph"
+
+    def test_dry_run_reports_an_orphan_without_deleting_it(self, tmp_path, temp_framework):
+        temp_framework.main([])
+        orphan = tmp_path / "skills" / "retired-skill"
+        _write_tree(orphan, {"SKILL.md": "stale"})
+
+        temp_framework.main(["--dry-run"])
+
+        assert orphan.exists()
