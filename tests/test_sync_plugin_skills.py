@@ -100,17 +100,23 @@ class TestManagedExternallyNeverTouched:
     """Names in MANAGED_EXTERNALLY must be skipped entirely, dest untouched."""
 
     def test_managed_externally_skill_is_left_alone(self, tmp_path, load_script, monkeypatch, capsys):
+        """The exemplar is synthetic on purpose.
+
+        This used to name whichever real skill happened to be externally managed, so the test
+        broke each time one was rewritten into the catalog — twice now. What is under test is
+        the mechanism, not the membership.
+        """
         sps = load_script("tooling/sync_plugin_skills.py")
         common_skills = tmp_path / "features" / "common" / "skills"
-        _write_tree(common_skills / "explore-codebase", {"SKILL.md": "framework version"})
-        dest = tmp_path / "skills" / "explore-codebase"
+        _write_tree(common_skills / "owned-elsewhere", {"SKILL.md": "framework version"})
+        dest = tmp_path / "skills" / "owned-elsewhere"
         _write_tree(dest, {"SKILL.md": "externally managed version"})
 
         monkeypatch.setattr(sps, "ROOT", tmp_path)
         monkeypatch.setattr(sps, "TARGET", tmp_path / "skills")
-        monkeypatch.setattr(sps, "COMMON_SKILLS", ["explore-codebase"])
+        monkeypatch.setattr(sps, "COMMON_SKILLS", ["owned-elsewhere"])
         monkeypatch.setattr(sps, "CLAUDE_SKILLS", [])
-        assert "explore-codebase" in sps.MANAGED_EXTERNALLY
+        monkeypatch.setattr(sps, "MANAGED_EXTERNALLY", {"owned-elsewhere"})
 
         before = _snapshot(dest)
         sps.main([])
@@ -118,7 +124,7 @@ class TestManagedExternallyNeverTouched:
 
         assert after == before
         out = capsys.readouterr().out
-        assert "explore-codebase" not in out
+        assert "owned-elsewhere" not in out
 
 
 class TestSyncSkillRealCopy:
@@ -235,13 +241,14 @@ class TestCheckMode:
 
     def test_check_mode_ignores_managed_externally(self, tmp_path, load_script, monkeypatch):
         sps = load_script("tooling/sync_plugin_skills.py")
-        _write_tree(tmp_path / "features" / "common" / "skills" / "explore-codebase",
+        _write_tree(tmp_path / "features" / "common" / "skills" / "owned-elsewhere",
                     {"SKILL.md": "framework version"})
-        _write_tree(tmp_path / "skills" / "explore-codebase",
+        _write_tree(tmp_path / "skills" / "owned-elsewhere",
                     {"SKILL.md": "externally managed version"})
         monkeypatch.setattr(sps, "ROOT", tmp_path)
         monkeypatch.setattr(sps, "TARGET", tmp_path / "skills")
-        monkeypatch.setattr(sps, "COMMON_SKILLS", ["explore-codebase"])
+        monkeypatch.setattr(sps, "COMMON_SKILLS", ["owned-elsewhere"])
+        monkeypatch.setattr(sps, "MANAGED_EXTERNALLY", {"owned-elsewhere"})
         monkeypatch.setattr(sps, "CLAUDE_SKILLS", [])
 
         assert sps.main(["--check"]) == 0
@@ -363,21 +370,25 @@ class TestOrphanedPluginCopies:
     ):
         """MANAGED_EXTERNALLY has to gate deletion, not only writing.
 
-        These directories are never in the shipped list, so a prune that only subtracts
-        that list would delete the code-review-graph skills on the next sync.
+        Such a directory is never in the shipped list, so a prune that only subtracts that list
+        would delete it on the next sync. The set is empty today — every skill it once held has
+        been rewritten into the catalog — which is exactly why this test supplies its own
+        member rather than borrowing a real name: an empty set must not silently retire the
+        guard along with its last entry.
         """
         sps = load_script("tooling/sync_plugin_skills.py")
         _write_tree(tmp_path / "features" / "common" / "skills" / "task", {"SKILL.md": "task"})
-        external = tmp_path / "skills" / "explore-codebase"
-        _write_tree(external, {"SKILL.md": "owned by code-review-graph"})
+        external = tmp_path / "skills" / "owned-elsewhere"
+        _write_tree(external, {"SKILL.md": "owned by another tool"})
         monkeypatch.setattr(sps, "ROOT", tmp_path)
         monkeypatch.setattr(sps, "TARGET", tmp_path / "skills")
         monkeypatch.setattr(sps, "COMMON_SKILLS", ["task"])
         monkeypatch.setattr(sps, "CLAUDE_SKILLS", [])
+        monkeypatch.setattr(sps, "MANAGED_EXTERNALLY", {"owned-elsewhere"})
 
         sps.main([])
 
-        assert (external / "SKILL.md").read_text() == "owned by code-review-graph"
+        assert (external / "SKILL.md").read_text() == "owned by another tool"
 
     def test_dry_run_reports_an_orphan_without_deleting_it(self, tmp_path, temp_framework):
         temp_framework.main([])

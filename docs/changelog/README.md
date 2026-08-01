@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.65.0 | [`explore-codebase` joins the catalog, and `MANAGED_EXTERNALLY` empties](0.65.0-explore-codebase-joins-the-catalog.md) |
 | 0.64.4 | [The remote-tag guard stops blocking its own tag push](0.64.4-the-guard-stops-blocking-its-own-tag.md) |
 | 0.64.3 | [A release tag that never left this machine](0.64.3-a-tag-that-never-left-this-machine.md) |
 | 0.64.2 | [A third-party skill call says what happens without it](0.64.2-a-third-party-call-says-what-happens-without-it.md) |
