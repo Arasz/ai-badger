@@ -122,17 +122,38 @@ def test_start_registers_task_and_starts_checkpoint(tt, monkeypatch, tmp_path, c
 
 
 def test_start_persists_title_and_branch(tt, monkeypatch, tmp_path):
+    """`--no-worktree` keeps this focused on persistence — and keeps the no-subprocess guard.
+
+    Since D2, a bare `start` creates a git worktree for the branch it records. That is covered
+    by `test_task_owns_a_worktree.py`, which uses a real repo; here it would only mean shelling
+    out, which `_GuardedSubprocess` exists to forbid.
+    """
     _no_cron_recorder(monkeypatch, tt)
     transcript = tmp_path / "t.jsonl"
 
     code = _run(monkeypatch, tt, "start", "T02", "--title", "Fix widgets",
-                "--branch", "feat/widgets", "--session-id", "sid-2",
+                "--branch", "feat/widgets", "--no-worktree", "--session-id", "sid-2",
                 "--transcript-path", str(transcript))
 
     assert code == 0
     entry = tt.lib.find_entry(tt.lib.load_tasks(), "T02")
     assert entry["title"] == "Fix widgets"
     assert entry["branch"] == "feat/widgets"
+
+
+def test_start_reaches_for_a_worktree_unless_told_not_to(tt, monkeypatch, tmp_path):
+    """The flag must actually gate the call, or `--no-worktree` is decoration."""
+    _no_cron_recorder(monkeypatch, tt)
+    asked = []
+    monkeypatch.setattr(tt, "ensure_worktree",
+                        lambda root, task_id, branch: asked.append((task_id, branch)))
+
+    _run(monkeypatch, tt, "start", "T02a", "--branch", "feat/w", "--session-id", "s",
+         "--transcript-path", str(tmp_path / "a.jsonl"))
+    _run(monkeypatch, tt, "start", "T02b", "--branch", "feat/w", "--no-worktree",
+         "--session-id", "s", "--transcript-path", str(tmp_path / "b.jsonl"))
+
+    assert asked == [("T02a", "feat/w")]
 
 
 def test_start_with_no_cron_flag_never_calls_install_cron(tt, monkeypatch, tmp_path):
