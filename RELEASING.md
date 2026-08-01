@@ -31,7 +31,8 @@ Pre-1.0, the minor slot is the breaking slot. The number tracks blast radius, no
 
    That step used to be step 8 and used to be *the* release, and it was skipped 32 times: a
    green PR looks identical whether or not anyone remembered. Automating it removed the failure
-   mode; verify the tag reached the remote anyway (`git ls-remote --tags origin | grep v{version}`)
+   mode; verify the tag reached the remote anyway
+   (`git ls-remote --tags origin | grep "refs/tags/ai-badger--v{version}$"`)
    rather than assuming, because a workflow that did not run also looks like nothing.
 9. **Verify content, not just metadata** (fixes #27):
 
