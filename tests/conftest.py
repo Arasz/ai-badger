@@ -7,6 +7,7 @@ The scripts are standalone files (not an installed package) that bootstrap ``bad
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import shutil
 import signal
@@ -27,6 +28,12 @@ REAL_HOME = Path.home()
 # time, not in a fixture: a module imported during collection reads it before fixtures run, and
 # a session fixture alone was measured still leaking 76 records into the real log.
 DEBUG_DIR_ENV = "AI_BADGER_DEBUG_DIR"
+
+# tracker_lib.spawn_detached appends a breadcrumb here when set, so a detached child started by
+# a *child interpreter* can be traced back to the test that reached it (#232). The literal is
+# repeated rather than imported — conftest does not import production modules — and
+# test_spawn_breadcrumb.py asserts both sides still spell it the same.
+SPAWN_LOG_ENV = "AI_BADGER_SPAWN_LOG"
 os.environ.setdefault(DEBUG_DIR_ENV, tempfile.mkdtemp(prefix="ai-badger-debug-sink-"))
 
 # The real repo root, captured before any test can redirect it.
@@ -157,6 +164,64 @@ def _real_tracking_state_is_untouched():
     assert not added and not changed, (
         f"the suite wrote into the real checkout's task-tracking state — "
         f"added={added} changed={changed}")
+
+
+def foreign_spawn_offenders(log: Path) -> list:
+    """Breadcrumbs written by a process other than this one, as reportable strings.
+
+    Defensive on every axis, because this runs at session teardown and a crash here would
+    mask the offenders it exists to name. Several processes append to this file
+    concurrently, so a torn or partial line is possible, and `argv` elements are stringified
+    on the way in but a hand-written or older record may not be.
+
+    A spawn whose `by` is this pid was already tracked and reaped by the Popen wrapper
+    (#222). One from any other pid came from a child interpreter — the gap #232 records.
+    """
+    if not log.exists():
+        return []
+
+    offenders = set()
+    for line in log.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue  # torn mid-write by a concurrent appender
+        if not isinstance(record, dict) or record.get("by") == os.getpid():
+            continue
+        argv = record.get("argv") or []
+        rendered = " ".join(str(part) for part in argv) if isinstance(argv, list) else str(argv)
+        offenders.add(f"{record.get('test') or '<no test recorded>'} -> {rendered[:90]}")
+    return sorted(offenders)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _no_test_reaches_a_detached_spawn(tmp_path_factory):
+    """Name every test that reached `spawn_detached`, and fail the session if any did (#232).
+
+    `_no_process_outlives_the_run` reaps what *this* process detached. It cannot see what a
+    hook run in a child interpreter detaches — the Popen wrapper is a class replaced in one
+    process's `subprocess` module, and a subprocess gets a clean one. That is how #222 could
+    pass while orphaned `poll_limit.py` daemons accumulated with PPID 1 and a cwd inside the
+    checkout.
+
+    So this stops policing the outcome and names the call site instead. `spawn_detached`
+    appends a breadcrumb when `AI_BADGER_SPAWN_LOG` is set; the variable is inert outside the
+    suite, and it is inherited by child interpreters, which is the whole point — it reaches
+    where the wrapper cannot.
+    """
+    log = tmp_path_factory.mktemp("spawn-breadcrumb") / "spawns.jsonl"
+    os.environ[SPAWN_LOG_ENV] = str(log)
+    yield log
+    os.environ.pop(SPAWN_LOG_ENV, None)
+
+    offenders = foreign_spawn_offenders(log)
+
+    assert not offenders, (
+        "these tests reached a detached spawn from a child interpreter, where the Popen "
+        "wrapper cannot reap it — point the hook at a scratch project or stub spawn_detached "
+        "(see tests/test_debug_log.py):\n  " + "\n  ".join(offenders))
 
 
 @pytest.fixture(scope="session", autouse=True)
