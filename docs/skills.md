@@ -16,6 +16,21 @@ An `optIn` skill is asked for by name in `.ai-badger/config.json`:
 }
 ```
 
+Some skills cannot do their job alone and are installed as a group. The three documentation
+skills read each other's `references/` in place, so naming any one of them delivers all three —
+and `"skills": ["documentation"]` asks for the capability without naming them individually:
+
+```jsonc
+{
+  "include": { "skills": ["documentation"] }   // scaffold- + update- + migrate-documentation
+}
+```
+
+Groups are declared in `badger_lib.SKILL_GROUPS`. They group in configuration only: the delivered
+layout stays flat, because a skills directory registers exactly one nesting level and a directory
+without a `SKILL.md` is silently ignored — a nested `documentation/` would be invisible to every
+agent.
+
 `welcome-ai-badger` and `den-refresh` both honour it, a `config.json` edit is drift so the next
 refresh delivers the skill on its own, and every report lists the `optIn` skills a project has
 not installed with the exact edit that adds each. The mechanism — and what to weigh when
