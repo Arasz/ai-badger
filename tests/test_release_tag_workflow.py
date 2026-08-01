@@ -90,6 +90,18 @@ class TestOnlyTheRemoteCounts:
         assert "exit 1" in workflow.split("git push origin")[-1]
 
 
+class TestReleaseSubjectAnnotation:
+    """A stale squash title should be visible without blocking the already-merged release."""
+
+    def test_the_workflow_reads_the_head_subject(self):
+        assert 'SUBJECT="$(git log -1 --format=%s)"' in workflow
+
+    def test_a_parenthesized_version_mismatch_is_annotated(self):
+        assert 'SUBJECT_VERSION="$(printf' in workflow
+        assert '::warning title=Release subject/version mismatch::' in workflow
+        assert 'if [ -n "$SUBJECT_VERSION" ] && [ "$SUBJECT_VERSION" != "$VERSION" ]; then' in workflow
+
+
 class TestTheGuardStillDrivesTheFormat:
     """A sanity anchor: the prefix is not free-form, it is what the guard already parses."""
 
