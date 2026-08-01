@@ -9,6 +9,7 @@ from scaffold_helpers import _config
 
 KEEP_A = "keep-region-alpha-3f9c"
 KEEP_B = "keep-region-beta-7d21"
+KEEP_NOISE = "keep-region-noise-b40e"
 
 
 # --------------------------------------------------------- preserve-by-default / overwrite
@@ -183,14 +184,14 @@ def test_multiple_keep_regions_are_all_preserved_in_order(make_scaffolder):
     _scaffold(make_scaffolder)
 
     aib_claude = make_scaffolder.target / ".ai-badger" / "CLAUDE.md"
-    _append(aib_claude, f"\n{KEEP_START}\n{KEEP_A}\n{KEEP_END}\n\nnoise\n\n"
+    _append(aib_claude, f"\n{KEEP_START}\n{KEEP_A}\n{KEEP_END}\n\n{KEEP_NOISE}\n\n"
                         f"{KEEP_START}\n{KEEP_B}\n{KEEP_END}\n")
 
     _scaffold(make_scaffolder)
 
     content = aib_claude.read_text(encoding="utf-8")
     assert content.index(KEEP_A) < content.index(KEEP_B)
-    assert "noise" not in content
+    assert KEEP_NOISE not in content
 
 
 def test_keep_regions_do_not_accumulate_across_rescaffolds(make_scaffolder):

@@ -3,7 +3,35 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from scaffold_helpers import _config
+
+
+def _sole_index(content, anchor):
+    """Offset of *anchor*, refusing one that does not occur exactly once (#283).
+
+    `str.index` silently returns the earliest match, so an anchor that also appears in
+    unrelated catalog prose measures a position the assertion never meant.
+    """
+    first = content.find(anchor)
+    assert first != -1, f"ordering anchor {anchor!r} is not in the rendered document"
+    assert content.find(anchor, first + 1) == -1, (
+        f"ordering anchor {anchor!r} occurs more than once, so its position is ambiguous — "
+        f"choose a token unique to the item under test"
+    )
+    return first
+
+
+def test_an_ambiguous_ordering_anchor_is_refused():
+    """Without this the helper is decoration: it must fail on a repeat, not measure the first."""
+    assert _sole_index("alpha beta", "beta") == 6
+
+    with pytest.raises(AssertionError, match="occurs more than once"):
+        _sole_index("alpha beta alpha", "alpha")
+
+    with pytest.raises(AssertionError, match="is not in the rendered document"):
+        _sole_index("alpha beta", "gamma")
 
 
 # ------------------------------------------------------------------- github extension gate
@@ -267,21 +295,27 @@ def test_extension_marker_routing_positions_items_correctly(make_scaffolder):
 
     # Verify marker routing: dotnet items land BETWEEN the right generic items
     # Pre-takeoff phase: generic item -> dotnet item -> next phase
-    assert content.index("No hardcoded secrets") < content.index("No `#pragma warning disable`")
-    assert content.index("No `#pragma warning disable`") < content.index("Architecture & Layering")
+    assert _sole_index(content, "no API keys, tokens, connection strings") < _sole_index(
+        content, "No `#pragma warning disable`")
+    assert _sole_index(content, "No `#pragma warning disable`") < _sole_index(
+        content, "Architecture & Layering")
 
     # Architecture phase: generic item -> dotnet item -> next phase
-    assert content.index("Domain has zero infrastructure") < content.index("sealed record")
-    assert content.index("sealed record") < content.index("Cross-Cutting Concerns")
+    assert _sole_index(content, "Domain has zero infrastructure") < _sole_index(
+        content, "sealed record")
+    assert _sole_index(content, "sealed record") < _sole_index(content, "Cross-Cutting Concerns")
 
     # Backend runtime phase: generic item -> dotnet/cosmos items -> next phase
-    assert content.index("Optimistic concurrency via ETag") < content.index("LoggerMessage")
-    assert content.index("partition key") < content.index("Client-Server Contract")
+    assert _sole_index(content, "Optimistic concurrency via ETag") < _sole_index(
+        content, "[LoggerMessage]` source generators")
+    assert _sole_index(content, "partition key") < _sole_index(
+        content, "Client-Server Contract")
 
     # Contract alignment phase: react/ts items -> next phase
-    assert content.index("react-query") < content.index("Cross-Feature Patterns")
-    assert content.index("No `any` types") < content.index("Cross-Feature Patterns")
+    assert _sole_index(content, "react-query") < _sole_index(content, "Cross-Feature Patterns")
+    assert _sole_index(content, "No `any` types") < _sole_index(content, "Cross-Feature Patterns")
 
-    # Post-merge: dotnet/react items present
-    assert "dotnet build" in content and "clean on main" in content
+    # Post-merge: dotnet/react items present. `clean on main` alone would not discriminate —
+    # the generic checklist carries "Build clean on main" whether or not dotnet merged.
+    assert "`dotnet build` clean on main" in content
     assert "Frontend lint + test all pass" in content
