@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.66.1",
-  "frameworkCommit": "bbad8440dee7d19aed8fe55f900ac967bcb8cbec",
+  "frameworkCommit": "7e3680eeeca71d0f95a35171199d7940ea368558",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -12,7 +12,7 @@
   ],
   "skillScope": "default",
   "pluginScope": "default",
-  "configHash": "c97112e2c12116cea6121f0a3d88e997c922088c3c55d74d5ad478615e073b10",
+  "configHash": "36c324394ba6cedea095972f0c94e16fa101a5c6c14f1c4b86efc2aa2c9923df",
   "generatedConfig": [
     {
       "path": ".claude/settings.json",
@@ -304,6 +304,24 @@
     {
       "feature": "skills",
       "stack": "common",
+      "name": "differential-feature-refactor",
+      "source": "features/common/skills/differential-feature-refactor",
+      "target": ".ai-badger/skills/differential-feature-refactor",
+      "frameworkVersion": "0.66.1",
+      "hash": "45bb400cbd57d6e6efd69b11b82d06a052ee5345afa6160089207c11ed2166d7",
+      "dirMeta": {
+        "file_count": 2,
+        "dir_count": 1
+      },
+      "sourceHash": "45bb400cbd57d6e6efd69b11b82d06a052ee5345afa6160089207c11ed2166d7",
+      "sourceMeta": {
+        "file_count": 2,
+        "dir_count": 1
+      }
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
       "name": "feed-badger",
       "source": "features/common/skills/feed-badger",
       "target": ".ai-badger/skills/feed-badger",
@@ -352,6 +370,24 @@
       "sourceHash": "6fe5ea89f3eadaf5c0e31a1c19996a998344c2c61577b919a3f620e9d930ec3a",
       "sourceMeta": {
         "file_count": 7,
+        "dir_count": 1
+      }
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "owner-gate-review",
+      "source": "features/common/skills/owner-gate-review",
+      "target": ".ai-badger/skills/owner-gate-review",
+      "frameworkVersion": "0.66.1",
+      "hash": "3084b4324b60e4a6a1d64b3e5031d839f4099bc90348047302245c6808feb7be",
+      "dirMeta": {
+        "file_count": 3,
+        "dir_count": 1
+      },
+      "sourceHash": "3084b4324b60e4a6a1d64b3e5031d839f4099bc90348047302245c6808feb7be",
+      "sourceMeta": {
+        "file_count": 3,
         "dir_count": 1
       }
     },
@@ -483,6 +519,60 @@
     },
     {
       "feature": "skills",
+      "stack": "common",
+      "name": "migrate-documentation",
+      "source": "features/common/skills/migrate-documentation",
+      "target": ".ai-badger/skills/migrate-documentation",
+      "frameworkVersion": "0.66.1",
+      "hash": "c24b96c4cfb83a77fd641f464cf210c430f4ad464ad98810c4d103110af512ee",
+      "dirMeta": {
+        "file_count": 1,
+        "dir_count": 0
+      },
+      "sourceHash": "c24b96c4cfb83a77fd641f464cf210c430f4ad464ad98810c4d103110af512ee",
+      "sourceMeta": {
+        "file_count": 1,
+        "dir_count": 0
+      }
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "scaffold-documentation",
+      "source": "features/common/skills/scaffold-documentation",
+      "target": ".ai-badger/skills/scaffold-documentation",
+      "frameworkVersion": "0.66.1",
+      "hash": "ff5795fec78e505532038128f89b0a26d8b31e967f9a621d64cc4861b97152f1",
+      "dirMeta": {
+        "file_count": 2,
+        "dir_count": 1
+      },
+      "sourceHash": "ff5795fec78e505532038128f89b0a26d8b31e967f9a621d64cc4861b97152f1",
+      "sourceMeta": {
+        "file_count": 2,
+        "dir_count": 1
+      }
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "update-documentation",
+      "source": "features/common/skills/update-documentation",
+      "target": ".ai-badger/skills/update-documentation",
+      "frameworkVersion": "0.66.1",
+      "hash": "22bc629395e62809cb5fcdc71028d5b805b25878325849a584f235c6f84384a9",
+      "dirMeta": {
+        "file_count": 4,
+        "dir_count": 1
+      },
+      "sourceHash": "22bc629395e62809cb5fcdc71028d5b805b25878325849a584f235c6f84384a9",
+      "sourceMeta": {
+        "file_count": 4,
+        "dir_count": 1
+      }
+    },
+    {
+      "feature": "skills",
       "stack": "claude",
       "name": "auto-wm",
       "source": "features/claude/skills/auto-wm",
@@ -497,42 +587,6 @@
       "sourceMeta": {
         "file_count": 5,
         "dir_count": 2
-      }
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
-      "name": "differential-feature-refactor",
-      "source": "features/common/skills/differential-feature-refactor",
-      "target": ".ai-badger/skills/differential-feature-refactor",
-      "frameworkVersion": "0.66.1",
-      "hash": "45bb400cbd57d6e6efd69b11b82d06a052ee5345afa6160089207c11ed2166d7",
-      "dirMeta": {
-        "file_count": 2,
-        "dir_count": 1
-      },
-      "sourceHash": "45bb400cbd57d6e6efd69b11b82d06a052ee5345afa6160089207c11ed2166d7",
-      "sourceMeta": {
-        "file_count": 2,
-        "dir_count": 1
-      }
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
-      "name": "owner-gate-review",
-      "source": "features/common/skills/owner-gate-review",
-      "target": ".ai-badger/skills/owner-gate-review",
-      "frameworkVersion": "0.66.1",
-      "hash": "3084b4324b60e4a6a1d64b3e5031d839f4099bc90348047302245c6808feb7be",
-      "dirMeta": {
-        "file_count": 3,
-        "dir_count": 1
-      },
-      "sourceHash": "3084b4324b60e4a6a1d64b3e5031d839f4099bc90348047302245c6808feb7be",
-      "sourceMeta": {
-        "file_count": 3,
-        "dir_count": 1
       }
     },
     {
@@ -691,6 +745,15 @@
     {
       "feature": "adjustments",
       "stack": "claude",
+      "name": "adjustments/.claude/skills/differential-feature-refactor",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/differential-feature-refactor",
+      "frameworkVersion": "0.66.1",
+      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
       "name": "adjustments/.claude/skills/feed-badger",
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/feed-badger",
@@ -712,6 +775,15 @@
       "name": "adjustments/.claude/skills/mcp-index",
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/mcp-index",
+      "frameworkVersion": "0.66.1",
+      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/skills/owner-gate-review",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/owner-gate-review",
       "frameworkVersion": "0.66.1",
       "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
     },
@@ -745,27 +817,36 @@
     {
       "feature": "adjustments",
       "stack": "claude",
+      "name": "adjustments/.claude/skills/migrate-documentation",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/migrate-documentation",
+      "frameworkVersion": "0.66.1",
+      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/skills/scaffold-documentation",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/scaffold-documentation",
+      "frameworkVersion": "0.66.1",
+      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/skills/update-documentation",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/update-documentation",
+      "frameworkVersion": "0.66.1",
+      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
       "name": "adjustments/.claude/skills/auto-wm",
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/auto-wm",
-      "frameworkVersion": "0.66.1",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
-      "name": "adjustments/.claude/skills/differential-feature-refactor",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/differential-feature-refactor",
-      "frameworkVersion": "0.66.1",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
-      "name": "adjustments/.claude/skills/owner-gate-review",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/owner-gate-review",
       "frameworkVersion": "0.66.1",
       "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
     },
@@ -853,6 +934,15 @@
     {
       "feature": "adjustments",
       "stack": "copilot",
+      "name": "adjustments/.github/skills/differential-feature-refactor",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/differential-feature-refactor",
+      "frameworkVersion": "0.66.1",
+      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
       "name": "adjustments/.github/skills/feed-badger",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/feed-badger",
@@ -874,6 +964,15 @@
       "name": "adjustments/.github/skills/mcp-index",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/mcp-index",
+      "frameworkVersion": "0.66.1",
+      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/owner-gate-review",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/owner-gate-review",
       "frameworkVersion": "0.66.1",
       "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
     },
@@ -907,18 +1006,27 @@
     {
       "feature": "adjustments",
       "stack": "copilot",
-      "name": "adjustments/.github/skills/differential-feature-refactor",
+      "name": "adjustments/.github/skills/migrate-documentation",
       "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/differential-feature-refactor",
+      "target": ".github/skills/migrate-documentation",
       "frameworkVersion": "0.66.1",
       "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
     },
     {
       "feature": "adjustments",
       "stack": "copilot",
-      "name": "adjustments/.github/skills/owner-gate-review",
+      "name": "adjustments/.github/skills/scaffold-documentation",
       "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/owner-gate-review",
+      "target": ".github/skills/scaffold-documentation",
+      "frameworkVersion": "0.66.1",
+      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/update-documentation",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/update-documentation",
       "frameworkVersion": "0.66.1",
       "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
     },
