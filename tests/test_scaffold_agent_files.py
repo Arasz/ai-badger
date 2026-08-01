@@ -7,6 +7,10 @@ import re
 from scaffold_helpers import _config
 
 
+KEEP_A = "keep-region-alpha-3f9c"
+KEEP_B = "keep-region-beta-7d21"
+
+
 # --------------------------------------------------------- preserve-by-default / overwrite
 def test_scaffold_preserves_hand_authored_claude_md_by_default(make_scaffolder):
     target = make_scaffolder.target
@@ -179,13 +183,13 @@ def test_multiple_keep_regions_are_all_preserved_in_order(make_scaffolder):
     _scaffold(make_scaffolder)
 
     aib_claude = make_scaffolder.target / ".ai-badger" / "CLAUDE.md"
-    _append(aib_claude, f"\n{KEEP_START}\nfirst\n{KEEP_END}\n\nnoise\n\n"
-                        f"{KEEP_START}\nsecond\n{KEEP_END}\n")
+    _append(aib_claude, f"\n{KEEP_START}\n{KEEP_A}\n{KEEP_END}\n\nnoise\n\n"
+                        f"{KEEP_START}\n{KEEP_B}\n{KEEP_END}\n")
 
     _scaffold(make_scaffolder)
 
     content = aib_claude.read_text(encoding="utf-8")
-    assert content.index("first") < content.index("second")
+    assert content.index(KEEP_A) < content.index(KEEP_B)
     assert "noise" not in content
 
 
