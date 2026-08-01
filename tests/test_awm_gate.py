@@ -166,9 +166,9 @@ def test_away_mode_expired_falls_through_and_flips_state_off(tmp_path, load_scri
 
     # falls through to normal permission prompting: no allow/deny decision emitted
     assert capsys.readouterr().out == ""
-    state = json.loads(state_file.read_text(encoding="utf-8"))
-    assert state["enabled"] is False
-    assert state["disabled_reason"] == "expired"
+    entry = json.loads(state_file.read_text(encoding="utf-8"))["projects"][PROJECT]
+    assert entry["enabled"] is False
+    assert entry["disabled_reason"] == "expired"
     decisions = _read_decisions(decisions_file)
     assert decisions[-1]["type"] == "mode_expired"
 
@@ -184,7 +184,8 @@ def test_partner_mode_past_its_maximum_lifetime_falls_through_and_flips_state_of
     _run_main(gate, monkeypatch, _payload(tool_name="Bash"))
 
     assert capsys.readouterr().out == ""
-    assert json.loads(state_file.read_text(encoding="utf-8"))["enabled"] is False
+    entry = json.loads(state_file.read_text(encoding="utf-8"))["projects"][PROJECT]
+    assert entry["enabled"] is False
     assert _read_decisions(decisions_file)[-1]["type"] == "mode_expired"
 
 
@@ -387,3 +388,87 @@ def test_the_breadcrumb_records_no_exception_message(tmp_path, load_script, monk
     gate.guarded_main()
 
     assert "SECRET-PROJECT-PATH" not in errors.read_text(encoding="utf-8")
+
+
+# ── per-project state (#296) ─────────────────────────────────────────────────
+# One machine-wide scope meant enabling AWM in one repo silently disarmed it in another,
+# so two concurrent sessions could never both be covered.
+
+def test_two_projects_are_armed_independently(tmp_path, load_script, monkeypatch, capsys):
+    gate = load_script("features/claude/skills/auto-wm/hooks/awm_gate.py")
+    state_file, _ = _patch_state_paths(gate, monkeypatch, tmp_path)
+    expires = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+    _write_state(state_file, {"version": 2, "projects": {
+        "/repo-a": {"enabled": True, "mode": "away", "expires_at": expires},
+        "/repo-b": {"enabled": True, "mode": "partner", "expires_at": expires},
+    }})
+
+    _run_main(gate, monkeypatch, _payload(cwd="/repo-a"))
+    assert "allow" in capsys.readouterr().out
+
+    _run_main(gate, monkeypatch, _payload(cwd="/repo-b"))
+    assert "allow" in capsys.readouterr().out
+
+
+def test_a_third_project_is_still_out_of_scope(tmp_path, load_script, monkeypatch, capsys):
+    """Arming two projects must not arm the machine."""
+    gate = load_script("features/claude/skills/auto-wm/hooks/awm_gate.py")
+    state_file, decisions_file = _patch_state_paths(gate, monkeypatch, tmp_path)
+    expires = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+    _write_state(state_file, {"version": 2, "projects": {
+        "/repo-a": {"enabled": True, "mode": "away", "expires_at": expires},
+        "/repo-b": {"enabled": True, "mode": "away", "expires_at": expires},
+    }})
+
+    _run_main(gate, monkeypatch, _payload(cwd="/somewhere-else"))
+
+    assert capsys.readouterr().out == ""
+    assert _read_decisions(decisions_file)[-1]["type"] == "out_of_scope"
+
+
+def test_one_projects_expiry_leaves_the_other_armed(tmp_path, load_script, monkeypatch, capsys):
+    gate = load_script("features/claude/skills/auto-wm/hooks/awm_gate.py")
+    state_file, _ = _patch_state_paths(gate, monkeypatch, tmp_path)
+    past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    future = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+    _write_state(state_file, {"version": 2, "projects": {
+        "/repo-stale": {"enabled": True, "mode": "away", "expires_at": past},
+        "/repo-live": {"enabled": True, "mode": "away", "expires_at": future},
+    }})
+
+    _run_main(gate, monkeypatch, _payload(cwd="/repo-stale"))
+    assert capsys.readouterr().out == ""
+
+    _run_main(gate, monkeypatch, _payload(cwd="/repo-live"))
+    assert "allow" in capsys.readouterr().out
+
+    entries = json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    assert entries["/repo-stale"]["enabled"] is False
+    assert entries["/repo-live"]["enabled"] is True
+
+
+def test_the_denylist_uses_the_matching_projects_root(tmp_path, load_script, monkeypatch, capsys):
+    """A write inside repo-b must not be judged against repo-a's root."""
+    gate = load_script("features/claude/skills/auto-wm/hooks/awm_gate.py")
+    state_file, _ = _patch_state_paths(gate, monkeypatch, tmp_path)
+    expires = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+    _write_state(state_file, {"version": 2, "projects": {
+        "/repo-a": {"enabled": True, "mode": "away", "expires_at": expires},
+        "/repo-b": {"enabled": True, "mode": "away", "expires_at": expires},
+    }})
+
+    _run_main(gate, monkeypatch, _payload(tool_name="Write", cwd="/repo-b",
+                                          tool_input={"file_path": "/repo-b/notes.md"}))
+
+    assert "allow" in capsys.readouterr().out
+
+
+def test_a_legacy_single_project_state_still_gates(tmp_path, load_script, monkeypatch, capsys):
+    """State written before #296 keeps working without a migration step."""
+    gate = load_script("features/claude/skills/auto-wm/hooks/awm_gate.py")
+    state_file, _ = _patch_state_paths(gate, monkeypatch, tmp_path)
+    _write_state(state_file, _away_state())
+
+    _run_main(gate, monkeypatch, _payload(cwd=PROJECT))
+
+    assert "allow" in capsys.readouterr().out
