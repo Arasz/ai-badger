@@ -201,7 +201,9 @@ present on all 8 sampled rows; cross-checked against `session_model_usage` for t
   candidate is the `post_api_request` hook payload, which does carry a per-call `usage` dict
   (F10), but no stored artefact exposes per-message tokens. Settles with: check whether Hermes
   can populate `messages.token_count` or expose per-call usage to a plugin hook at checkpoint time.
-- **Would wiring task hooks onto Hermes be worth it?** The data exists (F8–F11), but the
-  checkpoint pipeline is Claude-transcript-shaped. A Hermes backend (query state.db) or a
-  plugin-hook backend (per-turn checkpoint from post_api_request) are both possible; which is
-  simpler is a design decision this record does not make.
+- **Has the wiring landed?** Yes — 0.77.0 ships `parse_hermes_session_usage` /
+  `make_hermes_checkpoint`, the `HERMES_SESSION_ID` branch in `resolve_own_session`, the
+  `trackingSource` field, the agent-correct `resumeCommand`, and `subagent --delegation`
+  reading real tokens from `async_delegations.result_json`. `contextTokens` remains 0 by design
+  (no per-message data). A Hermes plugin hook for automatic per-turn checkpoints is a possible
+  follow-up; the in-session CLI path is what the `/task` skill drives.

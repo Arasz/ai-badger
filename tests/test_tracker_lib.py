@@ -723,6 +723,7 @@ def test_resolve_own_session_env_var_set_but_not_yet_recorded(load_script, tmp_p
 def test_resolve_own_session_matches_via_pid_ancestry(load_script, tmp_path, monkeypatch):
     tl = _load(load_script, tmp_path)
     monkeypatch.delenv(tl.CLAUDE_SESSION_ENV, raising=False)
+    monkeypatch.delenv(tl.HERMES_SESSION_ENV, raising=False)
     tl.ensure_data_dir()
     tl.CURRENT_SESSION.write_text(json.dumps({
         "sessions": {"anc-sid": {"transcriptPath": "/tmp/a.jsonl", "cwd": "/a", "pid": 424242}}
@@ -737,6 +738,7 @@ def test_resolve_own_session_matches_via_pid_ancestry(load_script, tmp_path, mon
 def test_resolve_own_session_matches_via_unique_cwd(load_script, tmp_path, monkeypatch):
     tl = _load(load_script, tmp_path)
     monkeypatch.delenv(tl.CLAUDE_SESSION_ENV, raising=False)
+    monkeypatch.delenv(tl.HERMES_SESSION_ENV, raising=False)
     monkeypatch.chdir(tmp_path)
     tl._own_pid_ancestry = lambda max_depth=12: []
     tl.ensure_data_dir()
@@ -752,6 +754,7 @@ def test_resolve_own_session_matches_via_unique_cwd(load_script, tmp_path, monke
 def test_resolve_own_session_ambiguous_cwd_returns_empty(load_script, tmp_path, monkeypatch):
     tl = _load(load_script, tmp_path)
     monkeypatch.delenv(tl.CLAUDE_SESSION_ENV, raising=False)
+    monkeypatch.delenv(tl.HERMES_SESSION_ENV, raising=False)
     monkeypatch.chdir(tmp_path)
     tl._own_pid_ancestry = lambda max_depth=12: []
     tl.ensure_data_dir()
@@ -770,6 +773,7 @@ def test_resolve_own_session_ambiguous_cwd_returns_empty(load_script, tmp_path, 
 def test_resolve_own_session_returns_empty_when_nothing_matches(load_script, tmp_path, monkeypatch):
     tl = _load(load_script, tmp_path)
     monkeypatch.delenv(tl.CLAUDE_SESSION_ENV, raising=False)
+    monkeypatch.delenv(tl.HERMES_SESSION_ENV, raising=False)
     monkeypatch.chdir(tmp_path)
     tl._own_pid_ancestry = lambda max_depth=12: []
 
