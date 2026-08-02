@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.76.0",
-  "frameworkCommit": "ed1bf5a63d644c4a6f8360d649b4bffd0225f9d2",
+  "frameworkCommit": "0528f62dedf20359fbc85adba05e12845e49bed4",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -560,7 +560,7 @@
       "source": "features/common/skills/task/extensions/hermes/extension.md",
       "target": ".ai-badger/skills/task/extensions/hermes/extension.md",
       "frameworkVersion": "0.76.0",
-      "hash": "9b9606e4026d4d55907225748490451fba1fcd4e9d424ca4976f397c005f0805"
+      "hash": "354c9b1ba6aab3f9d5d7f8e66197caeedc6eac69243871e16467b044ad380ed5"
     },
     {
       "feature": "skills",

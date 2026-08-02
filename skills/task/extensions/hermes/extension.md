@@ -158,20 +158,27 @@ are surfaced via `/usage` rather than polled.
 has been running for many iterations (see Hermes Event Hooks docs for the
 `long-task-alert` example that posts to Telegram).
 
-### 4. Session tracking (Claude: SessionStart → Hermes: native)
+### 4. Session tracking (Claude: SessionStart → Hermes: no wired equivalent)
 
 **What Claude does:** `session_start_hook.py` records `session_id` +
 transcript path to `current-session.json` and launches `poll_limit.py`.
 
-**Hermes equivalent — all native, no custom code:**
+**Hermes native features cover the user-facing parts:**
 - Session continuity: `hermes --continue` or `/resume <name>`
 - Transcript search: `session_search(query="...")` — FTS5 over all past sessions
 - Unfinished tasks: check `.ai-badger/state.json` or use `session_search`
 - Rate limits: `/usage` (no polling needed)
 
-The `session_start_hook.py` and `poll_limit.py` are Claude-specific and
-are NOT scaffolded when `hermes` is in the agent list. Their functionality
-is fully covered by Hermes native features.
+The scaffolder does not filter skill scripts by agent — it copies the whole
+`scripts/` directory regardless of the agent list (only `config.exclude`
+patterns filter) — so `session_start_hook.py`, `stop_hook.py` and
+`poll_limit.py` **are** scaffolded into `.ai-badger/skills/task/scripts/` even
+when `hermes` is in the agent list. They are inert under Hermes: Hermes executes
+Python plugins (`ai_badger_hooks.py`), not `hooks.json`, and that plugin
+currently registers no session-tracking hook — so the tracker's token
+checkpoints are not written automatically under Hermes, and recorded task
+numbers stay zero unless a human or agent records them by hand
+(`task_tracker.py subagent`).
 
 ### Hook comparison summary
 
