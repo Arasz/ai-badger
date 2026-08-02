@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.76.1 | [the task skill's Hermes extension told a false story](0.76.1-hermes-task-extension-correction.md) |
 | 0.76.0 | [Hermes becomes an optional common MCP server](0.76.0-hermes-common-mcp-server.md) |
 | 0.75.0 | [Forgetting a project](0.75.0-awm-forget.md) |
 | 0.74.0 | [AWM state is per project](0.74.0-awm-per-project-state.md) |
