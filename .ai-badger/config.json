@@ -57,7 +57,7 @@
   "skillScope": "default",
   "docs": {},
   "agentDocs": {
-    "maxLines": 180
+    "maxLines": 190
   },
   "include": {
     "skills": [
