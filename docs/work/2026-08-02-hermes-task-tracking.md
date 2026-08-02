@@ -170,6 +170,21 @@ index is pruned or lost"); `gateway/session.py:1911-1938`; `hermes_cli/config_de
 (prune is a manual subcommand); sqlite: 0 archived rows, 362 sessions from 2026-07-22;
 `ls ~/.claude/projects/` → no ai-raccon entry.
 
+### F14 — Subagent token counts are recoverable from async_delegations.result_json [MEASURED]
+
+Every completed delegation row in `async_delegations` carries a `result_json` whose embedded
+result dict has a `tokens` field `{input, output}`. Verified on the last 8 completed rows: e.g.
+`deleg_a7fa2015` (docs-init's review subagent) → `{'input': 688897, 'output': 27117}` — the
+output matches the child session's `session_model_usage` output (27117, F8), confirming the two
+tables agree. So even though `delegate_task`'s live return does not expose token counts (the
+docs-init subagent record in token-usage.json notes "token count not exposed by Hermes
+delegation"), the numbers are present in the session store after completion — a Hermes-side
+tracker could read them, exactly as `task_tracker.py subagent` records them manually today.
+
+**Evidence:** sqlite3 `SELECT delegation_id, result_json FROM async_delegations WHERE state =
+'completed'` against `~/.hermes/state.db`; `json.loads(result_json)['results'][0]['tokens']`
+present on all 8 sampled rows; cross-checked against `session_model_usage` for the child session.
+
 ## Still open
 
 - **Is the `contextTokens` (latest-message context occupancy) derivable from Hermes data?**
