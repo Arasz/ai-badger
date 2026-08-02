@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../../schemas/mcp-server-tools.schema.json",
+  "server": "hermes",
+  "tools": [
+    {"name": "conversations_list", "intent": "List active messaging conversations, optionally filtered by platform or name.", "tags": ["search", "read"]},
+    {"name": "conversation_get", "intent": "Inspect one conversation's details using its session key.", "tags": ["read"]},
+    {"name": "messages_read", "intent": "Read recent message history from a selected conversation.", "tags": ["read"]},
+    {"name": "attachments_fetch", "intent": "Fetch non-text attachments from a specific message.", "tags": ["read"]},
+    {"name": "events_poll", "intent": "Poll for new conversation or approval events after a cursor.", "tags": ["read"]},
+    {"name": "events_wait", "intent": "Wait for the next conversation or approval event with a bounded timeout.", "tags": ["read"]},
+    {"name": "messages_send", "intent": "Send a text message through a connected platform target.", "tags": ["write"]},
+    {"name": "channels_list", "intent": "List available messaging targets across connected platforms.", "tags": ["search", "read"]},
+    {"name": "permissions_list_open", "intent": "List pending approval requests observed by the bridge session.", "tags": ["read"]},
+    {"name": "permissions_respond", "intent": "Allow or deny a pending approval request.", "tags": ["write", "unsafe"]}
+  ]
+}
+

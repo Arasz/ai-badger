@@ -41,6 +41,19 @@
             "additionalProperties": { "type": "string" },
             "description": "Environment variables the launch config carries. Values are literals or ${VAR} references — never a secret."
           },
+          "availability": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["command"],
+            "properties": {
+              "command": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Executable that must resolve on PATH before this optional declaration is emitted."
+              }
+            },
+            "description": "Optional host capability gate. When present, the declaration is emitted only if the command resolves on PATH."
+          },
           "agentOverrides": {
             "type": "object",
             "description": "Per-agent launch overrides, applied by the one agent that reads each generated file.",

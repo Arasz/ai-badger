@@ -1,6 +1,6 @@
 # Delegation map — ai-badger
 
-> Scaffolded by ai-badger 0.75.0. Regenerated on every scaffold; do not edit.
+> Scaffolded by ai-badger 0.76.0. Regenerated on every scaffold; do not edit.
 
 ## Stacks
 
@@ -32,3 +32,4 @@ python, js, github, claude, hermes, ts, node, changelog
 ## MCP servers reachable here
 
 - `code-review-graph` — This project has a knowledge graph
+- `hermes` — Hermes Agent exposes a stdio MCP bridge for connected messaging platforms
