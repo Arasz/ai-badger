@@ -43,11 +43,18 @@ def _copy_working_tree(dest: Path) -> Path:
 
 
 def _freshen(repo: Path) -> None:
-    """Scaffold `repo` against itself and commit, making it fresh by construction."""
+    """Scaffold `repo` against itself and commit, making it fresh by construction.
+
+    Runs with AI_BADGER_MCP_AVAILABILITY=all to mirror the gate's own re-scaffold env: the
+    scaffold's MCP availability gate probes the host PATH, and the fixture must commit the
+    same tree the gate would regenerate or every test fails on a machine with hermes.
+    """
+    env = dict(os.environ)
+    env["AI_BADGER_MCP_AVAILABILITY"] = "all"
     proc = subprocess.run(
         [sys.executable, str(repo / SCAFFOLD), "--config", str(repo / ".ai-badger/config.json"),
          "--target", str(repo), "--root", str(repo), "--no-install", "--skills", ""],
-        cwd=str(repo), capture_output=True, text=True, check=False)
+        cwd=str(repo), capture_output=True, text=True, check=False, env=env)
     assert proc.returncode == 0, f"fixture self-scaffold failed:\n{proc.stdout}{proc.stderr}"
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "--allow-empty", "-m", "self-scaffold")

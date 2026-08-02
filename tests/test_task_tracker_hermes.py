@@ -303,6 +303,68 @@ class TestParseHermesSessionUsage:
         tl.parse_iso(checkpoint["timestamp"])  # must round-trip
         assert checkpoint["cumulative"]["inputTokens"] == 1000
 
+    def test_parse_hermes_session_usage_accumulates_same_model_across_task_rows(
+            self, load_script, tmp_path):
+        """session_model_usage has a composite key: one (session, model) spans several rows
+        split by task. Assigning instead of accumulating corrupts modelMix (review A1)."""
+        tl = load_script(LIB_RELPATH)
+        db = _hermes_db(tmp_path)
+        _session(db, "s1", inp=100)
+        # Same model, different task rows (the real store splits '' / 'approval' / ...).
+        con = sqlite3.connect(db)
+        for task, api, inp, out in (("", 10, 1000, 200), ("approval", 2, 300, 50)):
+            con.execute(
+                "INSERT INTO session_model_usage (session_id, model, api_call_count, "
+                "input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, "
+                "reasoning_tokens, first_seen, last_seen) "
+                "VALUES ('s1', 'model-a', ?, ?, ?, 0, 0, 0, 0, 0)",
+                (api, inp, out))
+        con.commit()
+        con.close()
+
+        usage = tl.parse_hermes_session_usage("s1", db)
+
+        assert usage["byModel"]["model-a"]["inputTokens"] == 1300
+        assert usage["byModel"]["model-a"]["outputTokens"] == 250
+        assert usage["byModel"]["model-a"]["assistantMessages"] == 12
+
+    def test_parse_hermes_session_usage_folds_child_sessions_into_cumulative(
+            self, load_script, tmp_path):
+        """The parent sessions row excludes delegated children; fold one level so cumulative
+        matches the Claude path, which sums subagents/*.jsonl (review A2)."""
+        tl = load_script(LIB_RELPATH)
+        db = _hermes_db(tmp_path)
+        _session(db, "parent", inp=1000, out=200)
+        _session(db, "child-1", inp=400, out=100, parent="parent")
+        _session(db, "child-2", inp=100, out=25, parent="parent")
+
+        usage = tl.parse_hermes_session_usage("parent", db)
+
+        assert usage["cumulative"]["inputTokens"] == 1500
+        assert usage["cumulative"]["outputTokens"] == 325
+
+    def test_parse_hermes_session_usage_non_dict_result_json_degrades_not_crashes(
+            self, load_script, tmp_path):
+        """result_json that parses to a non-dict (e.g. '[1,2]') must degrade, not raise
+        AttributeError (review A3)."""
+        tl = load_script(LIB_RELPATH)
+        db = _hermes_db(tmp_path)
+        _session(db, "s1", inp=1)
+        _delegation(db, "d1", "s1", result="[1, 2]")
+
+        usage = tl.parse_hermes_session_usage("s1", db)
+
+        assert usage["dispatches"]["count"] == 1
+        assert usage["dispatches"]["undeclaredModel"] == 1  # no model -> undeclared
+
+    def test_hermes_delegation_usage_non_dict_result_json_returns_none(
+            self, load_script, tmp_path):
+        tl = load_script(LIB_RELPATH)
+        db = _hermes_db(tmp_path)
+        _delegation(db, "d1", "s1", result='"just a string"')
+
+        assert tl.hermes_delegation_usage(db, "d1") is None
+
 
 class TestCliUnderHermes:
     def test_start_under_hermes_records_nonzero_checkpoint_and_hermes_resume(

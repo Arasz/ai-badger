@@ -599,17 +599,36 @@ def parse_hermes_session_usage(session_id: str, db_path: Path | None = None) -> 
             "cacheReadTokens": row[2] or 0,
             "cacheCreationTokens": row[3] or 0,
         }
+        # Child (delegated) sessions carry their own rows; the parent's sessions row does NOT
+        # include them (measured: fed404 row 309344 vs its child 59265). Fold one level so
+        # cumulative matches the Claude path, which sums subagents/*.jsonl into cumulative.
+        child = con.execute(
+            "SELECT COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), "
+            "COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(cache_write_tokens),0) "
+            "FROM sessions WHERE parent_session_id = ?", (session_id,)
+        ).fetchone()
+        cumulative["inputTokens"] += child[0] or 0
+        cumulative["outputTokens"] += child[1] or 0
+        cumulative["cacheReadTokens"] += child[2] or 0
+        cumulative["cacheCreationTokens"] += child[3] or 0
         by_model = {}
         for (model, api_calls, inp, out, cr, cw) in con.execute(
             "SELECT model, api_call_count, input_tokens, output_tokens, cache_read_tokens, "
             "cache_write_tokens FROM session_model_usage WHERE session_id = ?",
             (session_id,)
         ):
-            by_model[model] = {
-                "inputTokens": inp or 0, "outputTokens": out or 0,
-                "cacheReadTokens": cr or 0, "cacheCreationTokens": cw or 0,
-                "assistantMessages": api_calls or 0,
-            }
+            # session_model_usage has a composite key (session, model, billing_*, task) — one
+            # (session, model) legitimately has several rows split by task. Accumulate rather
+            # than assign, or modelMix corrupts for any session with approval/title rows.
+            slot = by_model.setdefault(model, {
+                "inputTokens": 0, "outputTokens": 0,
+                "cacheReadTokens": 0, "cacheCreationTokens": 0, "assistantMessages": 0,
+            })
+            slot["inputTokens"] += inp or 0
+            slot["outputTokens"] += out or 0
+            slot["cacheReadTokens"] += cr or 0
+            slot["cacheCreationTokens"] += cw or 0
+            slot["assistantMessages"] += api_calls or 0
         messages = con.execute(
             "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role = 'assistant'",
             (session_id,)
@@ -623,7 +642,10 @@ def parse_hermes_session_usage(session_id: str, db_path: Path | None = None) -> 
         for (result_json,) in delegations:
             count += 1
             try:
-                results = (json.loads(result_json) or {}).get("results") or []
+                parsed = json.loads(result_json) if result_json else None
+                results = parsed.get("results") if isinstance(parsed, dict) else None
+                if not isinstance(results, list):
+                    results = []
                 if not any(isinstance(r, dict) and r.get("model") for r in results):
                     undeclared += 1
             except (TypeError, ValueError):
@@ -674,7 +696,10 @@ def hermes_delegation_usage(db_path: Path, delegation_id: str) -> dict | None:
         if row is None or row[0] != "completed" or not row[2]:
             return None
         try:
-            results = (json.loads(row[2]) or {}).get("results") or []
+            parsed = json.loads(row[2]) if row[2] else None
+            results = parsed.get("results") if isinstance(parsed, dict) else None
+            if not isinstance(results, list):
+                results = []
         except (TypeError, ValueError):
             return None
         total = 0
@@ -683,7 +708,9 @@ def hermes_delegation_usage(db_path: Path, delegation_id: str) -> dict | None:
         for result in results:
             if not isinstance(result, dict):
                 continue
-            tokens = result.get("tokens") or {}
+            tokens = result.get("tokens")
+            if not isinstance(tokens, dict):
+                tokens = {}
             total += (tokens.get("input") or 0) + (tokens.get("output") or 0)
             api_calls += result.get("api_calls") or 0
             model = model or result.get("model")

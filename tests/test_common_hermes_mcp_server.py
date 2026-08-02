@@ -175,3 +175,41 @@ def test_catalog_validation_tracks_the_new_stack_mcp_metadata(root, load_script)
     assert "stack-mcp.schema.json" in validate.SCHEMA_INSTANCES
     assert validate.undecided_schemas(root) == []
     assert validate.validate_all(root) == 0
+
+
+def test_availability_override_all_forces_every_declared_server(
+        monkeypatch, load_script, make_scaffolder):
+    """The freshness guard's deterministic comparison: 'all' ignores the PATH probe."""
+    _patch_hermes_lookup(monkeypatch, load_script, None)
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    scaf = _scaffold(make_scaffolder)
+
+    declared = scaf.mcp.declared_servers()
+
+    assert HERMES in declared
+    assert CODE_REVIEW_GRAPH in declared
+
+
+def test_availability_override_none_forces_nothing_declared(
+        monkeypatch, load_script, make_scaffolder):
+    _patch_hermes_lookup(monkeypatch, load_script, "/fake/hermes")
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "none")
+    scaf = _scaffold(make_scaffolder)
+
+    declared = scaf.mcp.declared_servers()
+
+    assert HERMES not in declared
+    assert CODE_REVIEW_GRAPH not in declared
+
+
+def test_availability_override_unset_falls_back_to_path_probe(
+        monkeypatch, load_script, make_scaffolder):
+    """No override: the PATH probe decides, as before (default behavior unchanged)."""
+    monkeypatch.delenv("AI_BADGER_MCP_AVAILABILITY", raising=False)
+    _patch_hermes_lookup(monkeypatch, load_script, "/fake/hermes")
+    scaf = _scaffold(make_scaffolder)
+    assert HERMES in scaf.mcp.declared_servers()
+
+    _patch_hermes_lookup(monkeypatch, load_script, None)
+    scaf = _scaffold(make_scaffolder)
+    assert HERMES not in scaf.mcp.declared_servers()

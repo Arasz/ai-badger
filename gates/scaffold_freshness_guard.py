@@ -110,11 +110,20 @@ def copy_into(root: Path, relatives: Sequence[str], dest: Path) -> None:
 
 
 def rescaffold(work: Path) -> None:
-    """Re-run the scaffolder inside the throwaway copy, against that copy."""
+    """Re-run the scaffolder inside the throwaway copy, against that copy.
+
+    The re-scaffold runs with `AI_BADGER_MCP_AVAILABILITY=all` so the comparison is
+    deterministic: the scaffold's MCP availability gate probes the host PATH (a machine with
+    `hermes` installed emits the Hermes MCP block, CI does not), which would otherwise make
+    the guard's verdict depend on the host that runs it. Forcing every declared server
+    available reproduces the committed tree — it was scaffolded on a hermes machine.
+    """
+    env = dict(os.environ)
+    env["AI_BADGER_MCP_AVAILABILITY"] = "all"
     proc = subprocess.run(
         [sys.executable, str(work / SCAFFOLD), "--config", str(work / CONFIG),
          "--target", str(work), "--root", str(work), "--no-install", "--skills", ""],
-        cwd=str(work), capture_output=True, text=True, check=False)
+        cwd=str(work), capture_output=True, text=True, check=False, env=env)
     if proc.returncode != 0:
         raise Refusal("SCAFFOLDER FAILED on a copy of this tree "
                       f"(exit {proc.returncode}):\n{proc.stdout}{proc.stderr}")

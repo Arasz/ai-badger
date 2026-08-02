@@ -175,10 +175,13 @@ patterns filter) — so `session_start_hook.py`, `stop_hook.py` and
 `poll_limit.py` **are** scaffolded into `.ai-badger/skills/task/scripts/` even
 when `hermes` is in the agent list. They are inert under Hermes: Hermes executes
 Python plugins (`ai_badger_hooks.py`), not `hooks.json`, and that plugin
-currently registers no session-tracking hook — so the tracker's token
-checkpoints are not written automatically under Hermes, and recorded task
-numbers stay zero unless a human or agent records them by hand
-(`task_tracker.py subagent`).
+currently registers no session-tracking hook. The in-session CLI path does read
+real numbers: `task_tracker.py start`/`finish` gather tokens from Hermes's
+`~/.hermes/state.db` (per-session and per-model usage, plus one level of
+delegated child sessions), and `subagent --delegation <id>` records a
+delegation's actual tokens. What remains unwired is hook-driven automatic
+per-turn checkpoints — nothing updates a tracked task's checkpoint except an
+explicit CLI invocation.
 
 ### Hook comparison summary
 

@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.77.0",
-  "frameworkCommit": "c83abf9f38cf486ae587dc614eb9841a0d0f41b9",
+  "frameworkCommit": "c27b4716ab633f3a4f1b7c019c73c2453c5a13d1",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -479,12 +479,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.77.0",
-      "hash": "3ea21e8063ab71596a729c4a4bc46e08a838cef8f1f0a69bb7c89e4826b63e89",
+      "hash": "ea12c0728cac3da66ecd984e01deb722bb6d405b5f4f24e11062a3cbddd2d3a1",
       "dirMeta": {
         "file_count": 15,
         "dir_count": 2
       },
-      "sourceHash": "3ea21e8063ab71596a729c4a4bc46e08a838cef8f1f0a69bb7c89e4826b63e89",
+      "sourceHash": "ea12c0728cac3da66ecd984e01deb722bb6d405b5f4f24e11062a3cbddd2d3a1",
       "sourceMeta": {
         "file_count": 15,
         "dir_count": 2
@@ -560,7 +560,7 @@
       "source": "features/common/skills/task/extensions/hermes/extension.md",
       "target": ".ai-badger/skills/task/extensions/hermes/extension.md",
       "frameworkVersion": "0.77.0",
-      "hash": "354c9b1ba6aab3f9d5d7f8e66197caeedc6eac69243871e16467b044ad380ed5"
+      "hash": "521352f46c72533b720cc7d78922f0a5d0bb5fe5f803067aa8d31554261bd0cf"
     },
     {
       "feature": "skills",
@@ -569,12 +569,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.77.0",
-      "hash": "f14969b31da54025e1df24f961ce11b20c0b470db682851317ecb5cd94911036",
+      "hash": "de027eaef61101cc520847dc0ca62affad4b6f7ec187c97debdce32e0fa47abc",
       "dirMeta": {
         "file_count": 18,
         "dir_count": 2
       },
-      "sourceHash": "f14969b31da54025e1df24f961ce11b20c0b470db682851317ecb5cd94911036",
+      "sourceHash": "de027eaef61101cc520847dc0ca62affad4b6f7ec187c97debdce32e0fa47abc",
       "sourceMeta": {
         "file_count": 18,
         "dir_count": 2
