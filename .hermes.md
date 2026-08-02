@@ -6,7 +6,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scr
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.75.0. Source of truth for this file: `.ai-badger/HERMES.md`.
+> Scaffolded by ai-badger 0.76.0. Source of truth for this file: `.ai-badger/HERMES.md`.
 
 ## Non-negotiable invariants
 
@@ -163,6 +163,18 @@ Entry points: `semantic_search_nodes_tool` to locate code, `query_graph_tool` to
 callers/callees/imports/tests, `detect_changes_tool` for review, `get_impact_radius_tool`
 for blast radius, `get_architecture_overview_tool` for structure. Each tool's own
 description covers the rest; the graph auto-updates on file change.
+
+<!-- Hermes MCP tools -->
+## MCP Tools: hermes
+
+Hermes Agent exposes a stdio MCP bridge for connected messaging platforms. Use it when another
+agent needs to list conversations, read history, poll live events, send text messages, browse
+channels, or manage approval requests through Hermes.
+
+The server is started by the client with `hermes mcp serve`. Read operations use Hermes's session
+store without a running gateway; sending messages requires the gateway and its platform adapters.
+
+The common declaration is conditional: ai-badger emits it only when `hermes` resolves on PATH.
 
 
 

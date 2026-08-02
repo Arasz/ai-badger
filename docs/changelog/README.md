@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.76.0 | [Hermes becomes an optional common MCP server](0.76.0-hermes-common-mcp-server.md) |
 | 0.75.0 | [Forgetting a project](0.75.0-awm-forget.md) |
 | 0.74.0 | [AWM state is per project](0.74.0-awm-per-project-state.md) |
 | 0.73.3 | [The cwd strip that never ran](0.73.3-dead-cwd-strip-removed.md) |

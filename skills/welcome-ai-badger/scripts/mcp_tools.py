@@ -178,6 +178,24 @@ class McpTools:
                     return {}
         return {}
 
+    @staticmethod
+    def _availability_command(server: Dict[str, Any]) -> Optional[str]:
+        """Return the optional executable gate declared by a server."""
+        availability = server.get("availability") or {}
+        command = availability.get("command")
+        return command if isinstance(command, str) and command else None
+
+    def _server_available(self, server: Dict[str, Any]) -> bool:
+        """Whether the server's optional executable gate resolves on PATH."""
+        command = self._availability_command(server)
+        return command is None or shutil.which(command) is not None
+
+    def _unavailable_servers(self) -> List[str]:
+        """Return declared server names whose optional executable is unavailable."""
+        return [srv["name"] for srv in self.collect_catalog_mcp_servers()
+                if srv.get("declare") and srv.get("name")
+                and not self._server_available(srv)]
+
     def note_declared_prerequisites(self, names) -> None:
         """Name what each declared server needs installed, once per run.
 
@@ -218,6 +236,8 @@ class McpTools:
             return
         described = []  # type: List[Dict[str, Any]]
         for srv in self.collect_catalog_mcp_servers():
+            if not self._server_available(srv):
+                continue
             name = srv.get("name")
             instructions = self._server_instructions(name) if name else ""
             if not instructions:
@@ -266,7 +286,7 @@ class McpTools:
         """
         self.note_retired_declaration_files()
         declared = {srv["name"]: dict(srv) for srv in self.collect_catalog_mcp_servers()
-                    if srv.get("declare")}
+                    if srv.get("declare") and self._server_available(srv)}
         for name in self.declined_servers():
             declared.pop(name, None)
         self.note_declared_prerequisites(declared)
@@ -462,6 +482,7 @@ class McpTools:
         dest: McpDestination,
         declined: Sequence[str] = (),
         elsewhere: Sequence[str] = (),
+        unavailable: Sequence[str] = (),
     ) -> bool:
         """Merge rendered *entries* into the ``mcpServers`` object of the JSON file at *path*.
 
@@ -486,6 +507,7 @@ class McpTools:
         section.update(entries)
         self._drop_declined(section, declined, dest)
         self._drop_declared_elsewhere(section, elsewhere, dest)
+        self._drop_unavailable(section, unavailable, dest)
         cg.write_json_with_backup(path, existing)
         self.ctx.record_generated_config(path, dest.label)
         return True
@@ -518,6 +540,34 @@ class McpTools:
                 f"{dest.label}: removed MCP server(s) {', '.join(removed)} that an earlier run "
                 f"declared here as well as in {MCP_JSON.label} — one server, one declaration")
 
+    def _drop_unavailable(
+        self, section: Dict[str, Any], names: Sequence[str], dest: McpDestination
+    ) -> None:
+        """Remove unavailable entries only when they match ai-badger's rendered shape."""
+        catalog = {srv.get("name"): srv for srv in self.collect_catalog_mcp_servers()}
+        generated = []
+        for name in names:
+            server = catalog.get(name)
+            if server is None or name not in section:
+                continue
+            expected = self._render_entry(server, dest)
+            candidates = [expected]
+            if dest.expand_home:
+                executable, args = split_on_whitespace(server.get("command", ""))
+                for _probe_dir, prefix in USER_TOOL_DIRS:
+                    home_entry = dict(expected)
+                    home_entry["command"] = prefix + "/" + executable
+                    if args:
+                        home_entry["args"] = args
+                    candidates.append(home_entry)
+            if section[name] in candidates:
+                generated.append(name)
+        removed = self._drop_servers(section, generated)
+        if removed:
+            self.ctx.notes.append(
+                f"{dest.label}: removed unavailable MCP server(s) {', '.join(removed)} — "
+                "their optional executable is not installed")
+
     def propose_claude_mcp_user(
         self, user_servers: Dict[str, Dict[str, Any]]
     ) -> None:
@@ -548,8 +598,9 @@ class McpTools:
         """
         self._retire_copilot_mcp_config()
         declined = self.declined_servers()
+        unavailable = self._unavailable_servers()
         wanted = {name: srv for name, srv in servers.items() if name not in declined}
-        if not self._destination_applies(COPILOT_MCP_JSON, wanted, declined):
+        if not self._destination_applies(COPILOT_MCP_JSON, wanted, declined + unavailable):
             return
 
         entries = self._render_entries(wanted, COPILOT_MCP_JSON)
@@ -562,6 +613,7 @@ class McpTools:
             COPILOT_MCP_JSON,
             declined,
             elsewhere,
+            unavailable,
         )
 
     def _declared_differently_in_mcp_json(
@@ -622,13 +674,15 @@ class McpTools:
         """
         project_servers, _ = self.split_servers_by_scope(self.declared_servers())
         declined = self.declined_servers()
+        unavailable = self._unavailable_servers()
 
-        if not self._destination_applies(MCP_JSON, project_servers, declined):
+        if not self._destination_applies(MCP_JSON, project_servers, declined + unavailable):
             return
 
         mcp_servers = self._render_entries(project_servers, MCP_JSON)
         written = self._merge_mcp_servers_json(
-            self.ctx.target / ".mcp.json", mcp_servers, MCP_JSON, declined
+            self.ctx.target / ".mcp.json", mcp_servers, MCP_JSON, declined,
+            unavailable=unavailable
         )
         if written:
             self.ctx.notes.append(

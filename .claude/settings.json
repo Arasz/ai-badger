@@ -94,10 +94,12 @@
   },
   "permissions": {
     "allow": [
-      "mcp__code-review-graph__*"
+      "mcp__code-review-graph__*",
+      "mcp__hermes__*"
     ]
   },
   "enabledMcpjsonServers": [
-    "code-review-graph"
+    "code-review-graph",
+    "hermes"
   ]
 }

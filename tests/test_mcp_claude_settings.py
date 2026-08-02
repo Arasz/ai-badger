@@ -61,7 +61,7 @@ def test_a_full_scaffold_approves_the_declared_server(make_scaffolder):
     scaf.run(generated_at="2026-07-30T00:00:00Z")
 
     settings = _settings(target)
-    assert settings["enabledMcpjsonServers"] == ["code-review-graph"]
+    assert "code-review-graph" in settings["enabledMcpjsonServers"]
     assert "mcp__code-review-graph__*" in settings["permissions"]["allow"]
     assert settings["env"] == {"MARK": "kept"}, "existing settings must survive the merge"
 

@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../../schemas/mcp-server.schema.json",
+  "name": "hermes",
+  "package": "hermes-agent",
+  "description": "Hermes Agent's stdio MCP bridge for reading conversations, polling events, sending messages, browsing channels, and responding to approvals across connected messaging platforms.",
+  "homepage": "https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp#running-hermes-as-an-mcp-server",
+  "prerequisite": {
+    "summary": "the Hermes Agent CLI, which provides the `hermes mcp serve` command",
+    "check": "hermes --version",
+    "install": "https://hermes-agent.nousresearch.com/docs/getting-started/installation"
+  }
+}
+

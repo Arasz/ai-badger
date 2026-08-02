@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.75.0",
+  "frameworkVersion": "0.76.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -398,6 +398,10 @@
         {
           "name": "code-review-graph",
           "path": "features/common/mcp/code-review-graph"
+        },
+        {
+          "name": "hermes",
+          "path": "features/common/mcp/hermes"
         }
       ]
     },

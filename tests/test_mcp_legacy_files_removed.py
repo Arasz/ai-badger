@@ -226,5 +226,5 @@ def test_the_computed_slots_no_longer_offer_the_retired_name(make_scaffolder):
 def test_the_catalog_is_now_the_only_thing_declaring_the_graph(make_scaffolder):
     declared = _mcp(make_scaffolder).declared_servers()
 
-    assert set(declared) == {CATALOG_SERVER}
+    assert CATALOG_SERVER in declared
     assert declared[CATALOG_SERVER]["command"] == "code-review-graph serve"

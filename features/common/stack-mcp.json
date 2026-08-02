@@ -5,6 +5,14 @@
       "name": "code-review-graph",
       "command": "code-review-graph serve",
       "declare": true
+    },
+    {
+      "name": "hermes",
+      "command": "hermes mcp serve",
+      "declare": true,
+      "availability": {
+        "command": "hermes"
+      }
     }
   ]
 }
