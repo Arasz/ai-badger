@@ -551,7 +551,16 @@ class McpTools:
             if server is None or name not in section:
                 continue
             expected = self._render_entry(server, dest)
-            if section[name] == expected:
+            candidates = [expected]
+            if dest.expand_home:
+                executable, args = split_on_whitespace(server.get("command", ""))
+                for _probe_dir, prefix in USER_TOOL_DIRS:
+                    home_entry = dict(expected)
+                    home_entry["command"] = prefix + "/" + executable
+                    if args:
+                        home_entry["args"] = args
+                    candidates.append(home_entry)
+            if section[name] in candidates:
                 generated.append(name)
         removed = self._drop_servers(section, generated)
         if removed:

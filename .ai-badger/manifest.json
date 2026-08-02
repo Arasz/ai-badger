@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.76.0",
-  "frameworkCommit": "351087806c8a2d72727991201ee46f1bbedd7c61",
+  "frameworkCommit": "ed1bf5a63d644c4a6f8360d649b4bffd0225f9d2",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -569,12 +569,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.76.0",
-      "hash": "4e5ecc84399ef092b143fc3e86448b062f96ab8e4467722387302278ea0f75ca",
+      "hash": "f14969b31da54025e1df24f961ce11b20c0b470db682851317ecb5cd94911036",
       "dirMeta": {
         "file_count": 18,
         "dir_count": 2
       },
-      "sourceHash": "4e5ecc84399ef092b143fc3e86448b062f96ab8e4467722387302278ea0f75ca",
+      "sourceHash": "f14969b31da54025e1df24f961ce11b20c0b470db682851317ecb5cd94911036",
       "sourceMeta": {
         "file_count": 18,
         "dir_count": 2

@@ -151,6 +151,24 @@ def test_unavailable_hermes_does_not_remove_a_user_authored_entry(
     assert generated["mcpServers"]["mine"] == {"command": "echo mine"}
 
 
+def test_unavailable_hermes_removes_a_home_relative_generated_entry(
+        monkeypatch, load_script, make_scaffolder):
+    _patch_hermes_lookup(monkeypatch, load_script, "/fake/hermes")
+    scaf = _scaffold(make_scaffolder)
+    scaf.mcp.generate_mcp_json()
+    target = make_scaffolder.target
+    generated = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
+    generated["mcpServers"][HERMES]["command"] = "${HOME}/.local/bin/hermes"
+    (target / ".mcp.json").write_text(json.dumps(generated), encoding="utf-8")
+
+    _patch_hermes_lookup(monkeypatch, load_script, None)
+    scaf = _scaffold(make_scaffolder)
+    scaf.mcp.generate_mcp_json()
+    generated = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
+
+    assert HERMES not in generated["mcpServers"]
+
+
 def test_catalog_validation_tracks_the_new_stack_mcp_metadata(root, load_script):
     validate = load_script("tooling/validate.py")
 
