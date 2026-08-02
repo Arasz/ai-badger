@@ -61,11 +61,15 @@ scaffold does. (The scripts are scaffolded but nothing fires them under Hermes �
 ### F5 — Every tracked task under Hermes has all-zero token checkpoints [MEASURED]
 
 ai-raccon's `.ai-badger/task-tracking/token-usage.json` holds three tasks. Every checkpoint
-(start/latest/finish) for every task is all-zero: `contextTokens: 0`, `assistantMessages: 0`,
-`byModel: {}`, `cumulative` all zeros. The `usage` blocks show `outputByModel: {}`, `modelMix:
-{}`, `cacheEfficiency: null`, `subagentTokens` 0 (except one manual 85000 entry), `grandTotal: 0`.
-`executed-tasks.json` shows `transcriptPath: null` on every task, and `resumeCommand` strings
-like `claude --resume 20260802_213638_435316` — a Claude command for a Hermes session id.
+(start/latest/finish) for every finished task is all-zero: `contextTokens: 0`,
+`assistantMessages: 0`, `byModel: {}`, `cumulative` all zeros. The `usage` blocks show
+`outputByModel: {}`, `modelMix: {}`, `cacheEfficiency: null`, `grandTotal: 0` everywhere.
+Subagent tokens are recorded only when a human/agent manually runs `task_tracker.py subagent`
+(two manual entries on agent-memory-server: 85000 Wave 1, 90000 Wave 2 → `subagentTokens:
+175000`; one manual `totalTokens: 0` entry on docs-init). `executed-tasks.json` shows
+`transcriptPath: null` on every task, and `resumeCommand` strings like `claude --resume
+20260802_213638_435316` — a Claude command for a Hermes session id. (agent-memory-server is
+still STARTED and has no finish checkpoint.)
 
 **Evidence:** `cat .ai-badger/task-tracking/token-usage.json` and `executed-tasks.json` in
 ai-raccon; `python3 .../task_tracker.py status` → `tokens=0 cacheEff=- mix=-` on all rows.
@@ -74,7 +78,8 @@ ai-raccon; `python3 .../task_tracker.py status` → `tokens=0 cacheEff=- mix=-` 
 
 `tracker_lib.py` resolves the calling session from `CLAUDE_CODE_SESSION_ID` (line 35,
 `CLAUDE_SESSION_ENV`), then PID ancestry / cwd match against `current-session.json` — a file
-only `session_start_hook.py` writes, which under Hermes never runs (F3). Hermes sets
+written only by Claude-side hooks (`session_start_hook.py` and `user_prompt_hook.py`, both via
+`tracker_lib.save_current_session`), which never run under Hermes (F3). Hermes sets
 `HERMES_SESSION_ID` (measured live: `20260802_232735_2286e6`), but the tracker never reads it.
 So `resolve_own_session()` returns `{}` under Hermes and `task_tracker.py start` demands
 `--session-id` explicitly; the recorded ids `20260802_213638_435316` and
@@ -144,9 +149,10 @@ paths a tracker could consume; neither is used by the current tracker.
 
 Because the tracker stores only the id string and null transcript path (F5), and because two of
 three recorded ids do not exist in the store (F7), a finished task's recorded numbers cannot be
-reconciled with what actually ran. Even where the id is real (docs-init), the null transcript
-path means the finish-time checkpoint computation (F5) had nothing to read and wrote zeros.
-This reasons from F5 and F7: the inference is that under Hermes the tracking record is
+reconciled with what actually ran from the tracker's own record alone — the actuals are
+recoverable from state.db, as F8 shows. Even where the id is real (docs-init), the null
+transcript path means the finish-time checkpoint computation (F5) had nothing to read and wrote
+zeros. This reasons from F5 and F7: the inference is that under Hermes the tracking record is
 decoupled from the ground truth, not that the ids were deliberately fabricated.
 
 ### F13 — Hermes does not auto-delete sessions; the missing ids were never in the store [READ]
@@ -189,11 +195,12 @@ present on all 8 sampled rows; cross-checked against `session_model_usage` for t
 
 - **Is the `contextTokens` (latest-message context occupancy) derivable from Hermes data?**
   `messages.token_count` exists in the schema but is NULL on every row observed
-  (`SELECT COUNT(*) FROM messages WHERE token_count IS NOT NULL` → 0). Per-message usage may be
-  recoverable from request dumps in `~/.hermes/sessions/request_dump_*.json` (a sample dump had
-  `usage` present in its JSON) or from `post_api_request` hook payloads, but the canonical
-  session store alone does not expose it. Settles with: check whether any dump/table carries
-  per-message usage, or whether Hermes can populate `messages.token_count`.
+  (`SELECT COUNT(*) FROM messages WHERE token_count IS NOT NULL` → 0 of 58,818). The
+  `request_dump_*.json` files in `~/.hermes/sessions/` do not help — all 17 on disk are
+  `non_retryable_client_error` captures (request/error only, no usage anywhere). The remaining
+  candidate is the `post_api_request` hook payload, which does carry a per-call `usage` dict
+  (F10), but no stored artefact exposes per-message tokens. Settles with: check whether Hermes
+  can populate `messages.token_count` or expose per-call usage to a plugin hook at checkpoint time.
 - **Would wiring task hooks onto Hermes be worth it?** The data exists (F8–F11), but the
   checkpoint pipeline is Claude-transcript-shaped. A Hermes backend (query state.db) or a
   plugin-hook backend (per-turn checkpoint from post_api_request) are both possible; which is
