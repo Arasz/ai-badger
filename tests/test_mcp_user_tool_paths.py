@@ -151,6 +151,72 @@ def test_unresolvable_command_is_noted(tmp_path, monkeypatch, load_script, make_
     assert "fail to start" in note
 
 
+def test_availability_override_all_skips_the_filesystem_probe(
+        tmp_path, monkeypatch, load_script, make_scaffolder):
+    """`=all` must be host-independent: no probe, no rewrite, no not-found note.
+
+    The freshness guard re-scaffolds with AI_BADGER_MCP_AVAILABILITY=all so the comparison
+    is deterministic, but the ${HOME} rewrite probed the host filesystem: a command found in
+    a user tool dir on the author's machine became `${HOME}/...` while the same tree on CI
+    (binary absent) kept the bare command — making .github/mcp.json's #193 verdict depend on
+    the host (guard failed on main after #300; same latent bug). `=all` means every declared
+    server is available: commands stay exactly as declared, and nothing is "not found".
+    """
+    _fake_tool_dirs(monkeypatch, load_script, tmp_path)
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+
+    scaf, servers = _mcp_json_for(make_scaffolder, tmp_path, [
+        {"name": "user-tool", "command": "some-user-tool"},
+        {"name": "ghost", "command": "definitely-not-installed-anywhere"}])
+
+    assert servers["user-tool"]["command"] == "some-user-tool"
+    assert servers["ghost"]["command"] == "definitely-not-installed-anywhere"
+    assert not any("fail to start" in n for n in scaf.notes)
+
+
+def test_availability_override_none_still_probes_and_notes(
+        tmp_path, monkeypatch, load_script, make_scaffolder):
+    """`=none` is not a determinism override: the normal probe and note stay.
+
+    `=none` declines every server, so nothing reaches the generated file — the rewrite path
+    is exercised directly instead, and must still probe and note like a normal run.
+    """
+    _fake_tool_dirs(monkeypatch, load_script, tmp_path)
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "none")
+    scaf = _scaf(make_scaffolder, tmp_path, tmp_path / "proj", _config())
+
+    rewritten = scaf.mcp._home_relative_command("ghost", "definitely-not-installed-anywhere")
+
+    assert rewritten == "definitely-not-installed-anywhere"
+    assert any("fail to start" in n for n in scaf.notes)
+
+
+def test_availability_override_all_keeps_hermes_in_both_mcp_files(
+        tmp_path, monkeypatch, load_script, make_scaffolder):
+    """Under `=all` the two files agree on hermes, so #193 does not drop it — the same
+    tree every host produces, which is what the freshness guard commits."""
+    dotnet, local = _fake_tool_dirs(monkeypatch, load_script, tmp_path)
+    _install(local, "hermes")
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    target = tmp_path / "proj"
+    target.mkdir(exist_ok=True)
+    py_dir = tmp_path / "features" / "python"
+    py_dir.mkdir(parents=True, exist_ok=True)
+    (py_dir / "stack-mcp.json").write_text(
+        json.dumps({"servers": [
+            {"name": "code-review-graph", "command": "code-review-graph serve", "declare": True},
+            {"name": "hermes", "command": "hermes mcp serve", "declare": True}]}),
+        encoding="utf-8")
+
+    scaf = _scaf(make_scaffolder, tmp_path, target, _config(agents=["claude", "copilot"]))
+    scaf.mcp.generate_mcp_json()
+    project, _ = scaf.mcp.split_servers_by_scope(scaf.mcp.declared_servers())
+    scaf.mcp.generate_copilot_mcp_json(project)
+
+    copilot = json.loads((target / ".github" / "mcp.json").read_text(encoding="utf-8"))
+    assert "hermes" in copilot["mcpServers"]
+
+
 def test_args_are_preserved_through_the_rewrite(
         tmp_path, monkeypatch, load_script, make_scaffolder):
     """Only the executable is rewritten; its arguments survive intact."""
