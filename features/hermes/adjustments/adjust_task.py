@@ -1,35 +1,56 @@
-"""Adjustment: embed Hermes delegation model into task skill.
+"""Adjustment: install the Hermes session source into the scaffolded task skill.
 
-Reads the Hermes task extension (extension.md) and appends its content
-to the task skill during scaffold, so the scaffolded skill contains
-Hermes-specific delegation patterns.
+The hermes-specific task-tracking code (state.db path, SQLite parsing, delegation usage)
+lives in session_sources.py — the generic contract name tracker_lib.py imports — and must
+not ship in the common task skill scripts. This adjustment copies it into the scaffolded
+`.ai-badger/skills/task/scripts/session_sources.py`, where tracker_lib's guarded optional
+import finds and registers it. Also confirms the Hermes task extension (extension.md) exists
+for embedding into the skill.
 """
 from __future__ import annotations
 
-from pathlib import Path
+import shutil
 from typing import Any, Dict
+
+SESSION_SOURCE_SRC = "session_sources.py"
+SESSION_SOURCE_DEST = ".ai-badger/skills/task/scripts/session_sources.py"
 
 
 def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
-    """Embed Hermes delegation model into task skill.
+    """Copy the hermes session source module into the scaffolded task skill scripts.
 
     Args:
         context: {
             'framework_root': Path,
             'config': dict,
-            'feature_dir': Path,
-            'target_dir': Path,
+            'feature_dir': Path,    # features/hermes/adjustments/
+            'target_dir': Path,     # .ai-badger/
+            'target': Path,         # project root
         }
     Returns:
         {'applied': bool, 'files': list[str], 'notes': str}
     """
+    config = context.get("config") or {}
+    if "hermes" not in (config.get("agents") or []):
+        return {"applied": False, "files": [], "notes": "hermes not in config.agents"}
+
     framework_root = context["framework_root"]
+    target_dir = context["target_dir"]
+    src = framework_root / "features" / "hermes" / "adjustments" / SESSION_SOURCE_SRC
+
     ext_md = framework_root / "features" / "common" / "skills" / "task" / "extensions" / "hermes" / "extension.md"
-
+    notes = []
     if not ext_md.exists():
-        return {"applied": False, "files": [], "notes": "extension.md not found"}
+        notes.append("extension.md not found; hermes task extension not embedded")
 
-    # The extension ships inside the skill at task/extensions/hermes/ and is merged into
-    # SKILL.md during scaffold by _merge_extensions(). No files are copied here.
-    return {"applied": True, "files": [],
-            "notes": "Hermes task extension.md registered for embedding"}
+    if not src.exists():
+        return {"applied": False, "files": [],
+                "notes": "session_sources.py not found"}
+
+    dst = target_dir / "skills" / "task" / "scripts" / "session_sources.py"
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dst)
+    notes.append(
+        "Installed hermes session source into .ai-badger/skills/task/scripts/ as "
+        "session_sources.py — the generic name tracker_lib.py imports")
+    return {"applied": True, "files": [SESSION_SOURCE_DEST], "notes": " ".join(notes)}

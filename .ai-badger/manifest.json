@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.77.0",
-  "frameworkCommit": "c27b4716ab633f3a4f1b7c019c73c2453c5a13d1",
+  "frameworkCommit": "4e0ca08c76b0330a0d504412279d606ba946029c",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -479,12 +479,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.77.0",
-      "hash": "ea12c0728cac3da66ecd984e01deb722bb6d405b5f4f24e11062a3cbddd2d3a1",
+      "hash": "c1a9e2d46c006fb3fa3e594e96f491435157cda3d1b81ed8c83369256e4be9d5",
       "dirMeta": {
         "file_count": 15,
         "dir_count": 2
       },
-      "sourceHash": "ea12c0728cac3da66ecd984e01deb722bb6d405b5f4f24e11062a3cbddd2d3a1",
+      "sourceHash": "c1a9e2d46c006fb3fa3e594e96f491435157cda3d1b81ed8c83369256e4be9d5",
       "sourceMeta": {
         "file_count": 15,
         "dir_count": 2
@@ -560,7 +560,7 @@
       "source": "features/common/skills/task/extensions/hermes/extension.md",
       "target": ".ai-badger/skills/task/extensions/hermes/extension.md",
       "frameworkVersion": "0.77.0",
-      "hash": "521352f46c72533b720cc7d78922f0a5d0bb5fe5f803067aa8d31554261bd0cf"
+      "hash": "8de9a158f4ff087fe69635685053423815cef1f9c571d26e00996cad109c6a8a"
     },
     {
       "feature": "skills",
@@ -1263,6 +1263,15 @@
       "target": ".ai-badger/hooks/mcp_matcher.py",
       "frameworkVersion": "0.77.0",
       "hash": "8ec32e97717dd1362179fbc0f872c4d9f637146d75217212d3d9b5f9f6a1a739"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "hermes",
+      "name": "adjustments/.ai-badger/skills/task/scripts/session_sources.py",
+      "source": "features/hermes/adjustments/adjust_task.py",
+      "target": ".ai-badger/skills/task/scripts/session_sources.py",
+      "frameworkVersion": "0.77.0",
+      "hash": "f953e2cd5311c2159a4a8be7908fd874d7cb005878b9fff9ceebcc01d40d9508"
     },
     {
       "feature": "skills",

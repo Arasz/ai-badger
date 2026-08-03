@@ -210,14 +210,14 @@ def _session_or_die(args) -> dict:
         resolved = lib.resolve_own_session()
         session["sessionId"] = resolved.get("sessionId")
         session["transcriptPath"] = session["transcriptPath"] or resolved.get("transcriptPath")
-        session["source"] = resolved.get("source") or "claude"
+        session["source"] = resolved.get("source") or lib.DEFAULT_SOURCE
     else:
-        session["source"] = "claude"  # an explicit --session-id is a Claude transcript id
+        session["source"] = lib.DEFAULT_SOURCE  # an explicit --session-id is a transcript id
     if not session["sessionId"]:
         print(
-            "No session reference. CLAUDE_CODE_SESSION_ID / HERMES_SESSION_ID aren't set and no "
-            "active session in current-session.json matches this process's PID ancestry or "
-            "cwd; pass --session-id/--transcript-path explicitly.",
+            "No session reference. No session env var is set and no active session in "
+            "current-session.json matches this process's PID ancestry or cwd; pass "
+            "--session-id/--transcript-path explicitly.",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -226,9 +226,8 @@ def _session_or_die(args) -> dict:
 
 def cmd_start(args) -> int:
     session = _session_or_die(args)
-    hermes = session["source"] == "hermes"
-    checkpoint = (lib.make_hermes_checkpoint(session["sessionId"]) if hermes
-                  else lib.make_checkpoint(session["transcriptPath"] or ""))
+    source = lib.session_source(session["source"])
+    checkpoint = source["checkpoint"](session)
     with lib.locked_store():
         tasks = lib.load_tasks()
         conflict = lib.find_other_entry_with_session(tasks, session["sessionId"], args.task_id)
@@ -266,10 +265,10 @@ def cmd_start(args) -> int:
                 "startedAt": entry.get("startedAt") or lib.now_iso(),
                 "finishedAt": None,
                 "state": entry.get("state") or lib.STATE_STARTED,
-                # The agent that owns the session decides the resume invocation; recorded so
-                # finish (a later process) can pick the same checkpoint maker.
+                # The session source that owns this session decides the resume invocation;
+                # recorded so finish (a later process) can pick the same checkpoint maker.
                 "trackingSource": session["source"],
-                "resumeCommand": f"{'hermes' if hermes else 'claude'} --resume {session['sessionId']}",
+                "resumeCommand": source["resume"](session["sessionId"]),
                 "resumeAttempts": entry.get("resumeAttempts", []),
             }
         )
@@ -281,6 +280,7 @@ def cmd_start(args) -> int:
             usage_entry = {"taskId": args.task_id, "subagents": [], "grade": None}
             usage["tasks"].append(usage_entry)
         usage_entry["sessionId"] = session["sessionId"]
+        usage_entry["trackingSource"] = session["source"]
         checkpoints = usage_entry.setdefault("checkpoints", {})
         checkpoints.setdefault("start", checkpoint)  # keep the original start on re-runs
         checkpoints["latest"] = checkpoint
@@ -343,9 +343,11 @@ def cmd_finish(args) -> int:
             )
             return 3
 
-        checkpoint = (lib.make_hermes_checkpoint(entry.get("sessionId"))
-                      if entry.get("trackingSource") == "hermes"
-                      else lib.make_checkpoint(entry.get("transcriptPath") or ""))
+        source = lib.session_source(entry.get("trackingSource") or lib.DEFAULT_SOURCE)
+        checkpoint = source["checkpoint"]({
+            "sessionId": entry.get("sessionId"),
+            "transcriptPath": entry.get("transcriptPath"),
+        })
         entry["state"] = lib.STATE_FINISHED
         entry["finishedAt"] = lib.now_iso()
         entry["stateJsonUpdated"] = lib.state_json_updated_since(entry["startedAt"])
@@ -437,14 +439,17 @@ def cmd_subagent(args) -> int:
             return 2
         record = {"description": args.description or "", "at": lib.now_iso()}
         if args.delegation:
-            # Hermes records a completed delegation's tokens in state.db; the live dispatch
-            # return exposes no count, so this is the one way to gather real subagent tokens.
-            usage_data = lib.hermes_delegation_usage(lib.hermes_state_db_path(),
-                                                     args.delegation)
+            # The session source that recorded the task decides how delegation tokens are
+            # read (an installed source may read them from its session store; a source that
+            # records none yields None and the refusal below fires).
+            source = lib.session_source(entry.get("trackingSource") or lib.DEFAULT_SOURCE)
+            delegation_usage = source.get("delegation_usage")
+            usage_data = delegation_usage(args.delegation) if delegation_usage else None
             if usage_data is None:
                 print(
-                    f"Delegation {args.delegation}: not found, not completed, or no token "
-                    "record in the Hermes store. Refusing to record a fabricated number.",
+                    f"Delegation {args.delegation}: no token record in this session source "
+                    "(unknown, not completed, or the source records no delegation tokens). "
+                    "Refusing to record a fabricated number.",
                     file=sys.stderr,
                 )
                 return 2
@@ -491,8 +496,8 @@ def cmd_reattach(args) -> int:
         entry["sessionId"] = session["sessionId"]
         entry["transcriptPath"] = session["transcriptPath"]
         entry["trackingSource"] = session["source"]
-        hermes = session["source"] == "hermes"
-        entry["resumeCommand"] = f"{'hermes' if hermes else 'claude'} --resume {session['sessionId']}"
+        source = lib.session_source(session["source"])
+        entry["resumeCommand"] = source["resume"](session["sessionId"])
         if entry.get("state") != lib.STATE_FINISHED:
             entry["state"] = lib.STATE_IN_PROGRESS
         lib.save_json(lib.EXECUTED_TASKS, tasks)
@@ -690,7 +695,7 @@ def main() -> int:
     p_sub.add_argument("total_tokens", nargs="?", type=int,
                        help="Manual token count; mutually exclusive with --delegation.")
     p_sub.add_argument("--delegation",
-                       help="Hermes delegation id to read real tokens from state.db.")
+                       help="Delegation id whose tokens the session source records.")
     p_sub.add_argument("--description", default="")
 
     p_re = sub.add_parser("reattach")

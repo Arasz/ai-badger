@@ -557,6 +557,10 @@
         {
           "name": "adjustment",
           "path": "features/hermes/adjustments/adjustment.json"
+        },
+        {
+          "name": "session_sources",
+          "path": "features/hermes/adjustments/session_sources.py"
         }
       ],
       "meta": {

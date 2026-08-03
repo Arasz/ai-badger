@@ -1,12 +1,13 @@
 """Hermes session tracking: task_tracker gathers real token data from ~/.hermes/state.db.
 
-Under Claude Code, tracker_lib parses JSONL transcripts and subagent directories. Hermes keeps
-the same numbers in its SQLite session store (sessions, session_model_usage, messages,
-async_delegations) and exposes the session id as HERMES_SESSION_ID on every tool subprocess.
-These tests pin the Hermes data path: session resolution, the state.db parser, and the CLI
-branches (start/finish/reattach/subagent --delegation). The fake store is a real file-backed
-sqlite3 db built in tmp_path with the exact column names Hermes uses, so the mode=ro open path
-is exercised for real and no test can touch ~/.hermes.
+The hermes session source is agent-specific and therefore lives in
+features/hermes/adjustments/session_sources.py, installed by the hermes adjustment
+(adjust_task.py) into the scaffolded .ai-badger/skills/task/scripts/session_sources.py.
+These tests pin the hermes data path: session resolution, the state.db parser, the CLI
+branches (start/finish/reattach/subagent --delegation), and the generic registry seam the
+common tracker uses to reach it. The fake store is a real file-backed sqlite3 db built in
+tmp_path with the exact column names Hermes uses, so the mode=ro open path is exercised for
+real and no test can touch ~/.hermes.
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ import pytest
 
 TRACKER_RELPATH = "features/common/skills/task/scripts/task_tracker.py"
 LIB_RELPATH = "features/common/skills/task/scripts/tracker_lib.py"
+HERMES_RELPATH = "features/hermes/adjustments/session_sources.py"
 
 
 class _GuardedSubprocess:
@@ -53,8 +55,22 @@ def tt(load_script, root, monkeypatch, tmp_path):
     monkeypatch.syspath_prepend(scripts_dir)
     module = load_script(TRACKER_RELPATH)
     _redirect_lib(module.lib, tmp_path)
+    # tracker_lib is module-cached: a register() from one test would otherwise persist into
+    # the next. Give this test its own registry so hermes tests are isolated from claude-only
+    # ones (and each other).
+    monkeypatch.setattr(module.lib, "SESSION_SOURCES", {})
+    hermes = load_script(HERMES_RELPATH)
+    hermes.register(module.lib)
+    module._hermes = hermes
     monkeypatch.setattr(module, "subprocess", _GuardedSubprocess())
     return module
+
+
+@pytest.fixture
+def hs(load_script, root, monkeypatch):
+    scripts_dir = str(root / "features" / "common" / "skills" / "task" / "scripts")
+    monkeypatch.syspath_prepend(scripts_dir)
+    return load_script(HERMES_RELPATH)
 
 
 def _run(monkeypatch, module, *args):
@@ -144,11 +160,12 @@ def _delegation(db, deleg_id, origin, state="completed", result=None):
 
 class TestResolveOwnSessionHermes:
     def test_resolve_own_session_uses_hermes_env_var(self, load_script, monkeypatch,
-                                                     tmp_path):
+                                                     tmp_path, hs):
         tl = load_script(LIB_RELPATH)
         tl.PROJECT_ROOT = tmp_path
         tl.DATA_DIR = tmp_path / ".ai-badger" / "task-tracking"
         tl.CURRENT_SESSION = tmp_path / ".ai-badger" / "task-tracking" / "current-session.json"
+        hs.register(tl)
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
 
@@ -157,11 +174,12 @@ class TestResolveOwnSessionHermes:
         assert resolved == {"sessionId": "sid-h", "transcriptPath": None, "source": "hermes"}
 
     def test_resolve_own_session_claude_env_wins_over_hermes(self, load_script, monkeypatch,
-                                                             tmp_path):
+                                                             tmp_path, hs):
         tl = load_script(LIB_RELPATH)
         tl.PROJECT_ROOT = tmp_path
         tl.DATA_DIR = tmp_path / ".ai-badger" / "task-tracking"
         tl.CURRENT_SESSION = tmp_path / ".ai-badger" / "task-tracking" / "current-session.json"
+        hs.register(tl)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-c")
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
 
@@ -171,11 +189,13 @@ class TestResolveOwnSessionHermes:
         assert "source" not in resolved  # Claude shapes stay untouched
 
     def test_resolve_own_session_hermes_id_ignores_current_sessions_file(self, load_script,
-                                                                         monkeypatch, tmp_path):
+                                                                         monkeypatch,
+                                                                         tmp_path, hs):
         tl = load_script(LIB_RELPATH)
         tl.PROJECT_ROOT = tmp_path
         tl.DATA_DIR = tmp_path / ".ai-badger" / "task-tracking"
         tl.CURRENT_SESSION = tmp_path / ".ai-badger" / "task-tracking" / "current-session.json"
+        hs.register(tl)
         # No current-session.json at all — the Hermes path must not consult it.
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
@@ -184,29 +204,41 @@ class TestResolveOwnSessionHermes:
 
         assert resolved["sessionId"] == "sid-h"
 
+    def test_unregistered_lib_ignores_hermes_env_var(self, load_script, monkeypatch, tmp_path):
+        """The common tracker has no hermes knowledge until an adjustment registers it."""
+        tl = load_script(LIB_RELPATH)
+        tl.PROJECT_ROOT = tmp_path
+        tl.DATA_DIR = tmp_path / ".ai-badger" / "task-tracking"
+        tl.CURRENT_SESSION = tmp_path / ".ai-badger" / "task-tracking" / "current-session.json"
+        monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
+        monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
+        monkeypatch.chdir(tmp_path)
+        tl._own_pid_ancestry = lambda max_depth=12: []
+
+        resolved = tl.resolve_own_session()
+
+        assert resolved == {}
+
 
 class TestHermesStateDbPath:
     def test_hermes_state_db_path_defaults_to_home_hermes(self, load_script, monkeypatch,
-                                                          tmp_path):
-        tl = load_script(LIB_RELPATH)
+                                                          tmp_path, hs):
         monkeypatch.delenv("HERMES_HOME", raising=False)
         monkeypatch.setenv("HOME", str(tmp_path))
 
-        assert tl.hermes_state_db_path() == tmp_path / ".hermes" / "state.db"
+        assert hs.hermes_state_db_path() == tmp_path / ".hermes" / "state.db"
 
     def test_hermes_state_db_path_prefers_hermes_home_env(self, load_script, monkeypatch,
-                                                          tmp_path):
-        tl = load_script(LIB_RELPATH)
+                                                          tmp_path, hs):
         custom = tmp_path / "custom"
         monkeypatch.setenv("HERMES_HOME", str(custom))
 
-        assert tl.hermes_state_db_path() == custom / "state.db"
+        assert hs.hermes_state_db_path() == custom / "state.db"
 
 
 class TestParseHermesSessionUsage:
     def test_parse_hermes_session_usage_missing_db_returns_zeroed_shape(self, load_script,
-                                                                        tmp_path):
-        tl = load_script(LIB_RELPATH)
+                                                                        tmp_path, hs):
         zeroed = {
             "contextTokens": 0, "assistantMessages": 0, "byModel": {},
             "dispatches": {"count": 0, "undeclaredModel": 0, "byAgentType": {}},
@@ -214,26 +246,24 @@ class TestParseHermesSessionUsage:
                            "cacheCreationTokens": 0},
             "transcriptFound": False,
         }
-        assert tl.parse_hermes_session_usage("sid", tmp_path / "nope.db") == zeroed
+        assert hs.parse_hermes_session_usage("sid", tmp_path / "nope.db") == zeroed
 
     def test_parse_hermes_session_usage_unknown_session_returns_zeroed_shape(self, load_script,
-                                                                             tmp_path):
-        tl = load_script(LIB_RELPATH)
+                                                                             tmp_path, hs):
         db = _hermes_db(tmp_path)
         _session(db, "real-session", inp=100)
-        usage = tl.parse_hermes_session_usage("ghost-session", db)
+        usage = hs.parse_hermes_session_usage("ghost-session", db)
         assert usage["transcriptFound"] is False
         assert usage["cumulative"]["inputTokens"] == 0
 
     def test_parse_hermes_session_usage_maps_session_and_model_usage(self, load_script,
-                                                                     tmp_path):
-        tl = load_script(LIB_RELPATH)
+                                                                     tmp_path, hs):
         db = _hermes_db(tmp_path)
         _session(db, "s1", inp=1000, out=200, cr=500, cw=0)
         _model_usage(db, "s1", "model-a", 1000, 200, 500, 0, api_calls=7)
         _model_usage(db, "s1", "model-b", 300, 50, 100, 0, api_calls=3)
 
-        usage = tl.parse_hermes_session_usage("s1", db)
+        usage = hs.parse_hermes_session_usage("s1", db)
 
         assert usage["transcriptFound"] is True
         assert usage["cumulative"] == {
@@ -244,21 +274,20 @@ class TestParseHermesSessionUsage:
         assert usage["byModel"]["model-a"]["assistantMessages"] == 7  # api_call_count proxy
         assert usage["byModel"]["model-b"]["outputTokens"] == 50
 
-    def test_parse_hermes_session_usage_counts_assistant_messages(self, load_script, tmp_path):
-        tl = load_script(LIB_RELPATH)
+    def test_parse_hermes_session_usage_counts_assistant_messages(self, load_script, tmp_path,
+                                                                  hs):
         db = _hermes_db(tmp_path)
         _session(db, "s1", inp=1)
         for role in ("assistant", "assistant", "assistant", "user", "user"):
             _message(db, "s1", role)
 
-        usage = tl.parse_hermes_session_usage("s1", db)
+        usage = hs.parse_hermes_session_usage("s1", db)
 
         assert usage["assistantMessages"] == 3
         assert usage["contextTokens"] == 0  # token_count is NULL everywhere; never fabricated
 
     def test_parse_hermes_session_usage_counts_completed_delegations(self, load_script,
-                                                                     tmp_path):
-        tl = load_script(LIB_RELPATH)
+                                                                     tmp_path, hs):
         db = _hermes_db(tmp_path)
         _session(db, "s1", inp=1)
         _delegation(db, "d1", "s1", result={"results": [{"tokens": {"input": 1, "output": 1},
@@ -266,14 +295,14 @@ class TestParseHermesSessionUsage:
         _delegation(db, "d2", "s1", result={"results": [{"tokens": {"input": 1, "output": 1}}]})
         _delegation(db, "d3", "s1", state="failed", result={})
 
-        usage = tl.parse_hermes_session_usage("s1", db)
+        usage = hs.parse_hermes_session_usage("s1", db)
 
         assert usage["dispatches"]["count"] == 2
         assert usage["dispatches"]["undeclaredModel"] == 1
         assert usage["dispatches"]["byAgentType"] == {}
 
-    def test_parse_hermes_session_usage_handles_null_token_columns(self, load_script, tmp_path):
-        tl = load_script(LIB_RELPATH)
+    def test_parse_hermes_session_usage_handles_null_token_columns(self, load_script, tmp_path,
+                                                                   hs):
         db = _hermes_db(tmp_path)
         con = sqlite3.connect(db)
         con.execute(
@@ -284,30 +313,28 @@ class TestParseHermesSessionUsage:
         con.commit()
         con.close()
 
-        usage = tl.parse_hermes_session_usage("null-s", db)
+        usage = hs.parse_hermes_session_usage("null-s", db)
 
         assert usage["cumulative"] == {
             "inputTokens": 0, "outputTokens": 0,
             "cacheReadTokens": 0, "cacheCreationTokens": 0,
         }
 
-    def test_make_hermes_checkpoint_wraps_with_timestamp(self, load_script, tmp_path):
-        tl = load_script(LIB_RELPATH)
+    def test_make_hermes_checkpoint_wraps_with_timestamp(self, load_script, tmp_path, hs):
         db = _hermes_db(tmp_path)
         _session(db, "s1", inp=1000, out=200)
 
-        checkpoint = tl.make_hermes_checkpoint("s1", db)
+        checkpoint = hs.make_hermes_checkpoint("s1", db)
 
         assert set(checkpoint) == {"timestamp", "contextTokens", "assistantMessages",
                                    "byModel", "cumulative"}
-        tl.parse_iso(checkpoint["timestamp"])  # must round-trip
+        load_script(LIB_RELPATH).parse_iso(checkpoint["timestamp"])  # must round-trip
         assert checkpoint["cumulative"]["inputTokens"] == 1000
 
     def test_parse_hermes_session_usage_accumulates_same_model_across_task_rows(
-            self, load_script, tmp_path):
+            self, load_script, tmp_path, hs):
         """session_model_usage has a composite key: one (session, model) spans several rows
         split by task. Assigning instead of accumulating corrupts modelMix (review A1)."""
-        tl = load_script(LIB_RELPATH)
         db = _hermes_db(tmp_path)
         _session(db, "s1", inp=100)
         # Same model, different task rows (the real store splits '' / 'approval' / ...).
@@ -322,48 +349,45 @@ class TestParseHermesSessionUsage:
         con.commit()
         con.close()
 
-        usage = tl.parse_hermes_session_usage("s1", db)
+        usage = hs.parse_hermes_session_usage("s1", db)
 
         assert usage["byModel"]["model-a"]["inputTokens"] == 1300
         assert usage["byModel"]["model-a"]["outputTokens"] == 250
         assert usage["byModel"]["model-a"]["assistantMessages"] == 12
 
     def test_parse_hermes_session_usage_folds_child_sessions_into_cumulative(
-            self, load_script, tmp_path):
+            self, load_script, tmp_path, hs):
         """The parent sessions row excludes delegated children; fold one level so cumulative
         matches the Claude path, which sums subagents/*.jsonl (review A2)."""
-        tl = load_script(LIB_RELPATH)
         db = _hermes_db(tmp_path)
         _session(db, "parent", inp=1000, out=200)
         _session(db, "child-1", inp=400, out=100, parent="parent")
         _session(db, "child-2", inp=100, out=25, parent="parent")
 
-        usage = tl.parse_hermes_session_usage("parent", db)
+        usage = hs.parse_hermes_session_usage("parent", db)
 
         assert usage["cumulative"]["inputTokens"] == 1500
         assert usage["cumulative"]["outputTokens"] == 325
 
     def test_parse_hermes_session_usage_non_dict_result_json_degrades_not_crashes(
-            self, load_script, tmp_path):
+            self, load_script, tmp_path, hs):
         """result_json that parses to a non-dict (e.g. '[1,2]') must degrade, not raise
         AttributeError (review A3)."""
-        tl = load_script(LIB_RELPATH)
         db = _hermes_db(tmp_path)
         _session(db, "s1", inp=1)
         _delegation(db, "d1", "s1", result="[1, 2]")
 
-        usage = tl.parse_hermes_session_usage("s1", db)
+        usage = hs.parse_hermes_session_usage("s1", db)
 
         assert usage["dispatches"]["count"] == 1
         assert usage["dispatches"]["undeclaredModel"] == 1  # no model -> undeclared
 
     def test_hermes_delegation_usage_non_dict_result_json_returns_none(
-            self, load_script, tmp_path):
-        tl = load_script(LIB_RELPATH)
+            self, load_script, tmp_path, hs):
         db = _hermes_db(tmp_path)
         _delegation(db, "d1", "s1", result='"just a string"')
 
-        assert tl.hermes_delegation_usage(db, "d1") is None
+        assert hs.hermes_delegation_usage(db, "d1") is None
 
 
 class TestCliUnderHermes:
@@ -372,7 +396,7 @@ class TestCliUnderHermes:
         db = _hermes_db(tmp_path)
         _session(db, "sid-h", inp=1000, out=200, cr=500)
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
-        monkeypatch.setattr(tt.lib, "hermes_state_db_path", lambda: db)
+        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)
 
         code = _run(monkeypatch, tt, "start", "T-H1", "--no-worktree", "--no-cron")
 
@@ -389,7 +413,7 @@ class TestCliUnderHermes:
         db = _hermes_db(tmp_path)
         _session(db, "sid-h", inp=1000, out=200, cr=500)
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
-        monkeypatch.setattr(tt.lib, "hermes_state_db_path", lambda: db)
+        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)
         _run(monkeypatch, tt, "start", "T-H2", "--no-worktree", "--no-cron")
         # Bump the session's numbers to simulate the task's work landing.
         con = sqlite3.connect(db)
@@ -415,7 +439,7 @@ class TestCliUnderHermes:
         db = _hermes_db(tmp_path)
         _session(db, "sid-h", inp=1)
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
-        monkeypatch.setattr(tt.lib, "hermes_state_db_path", lambda: db)
+        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)
         _run_args(monkeypatch, tt, "start", "T-H3", "--no-worktree", "--no-cron")
         _run_args(monkeypatch, tt, "reattach", "T-H3")
 
@@ -430,7 +454,7 @@ class TestCliUnderHermes:
                     result={"results": [{"tokens": {"input": 300, "output": 50},
                                          "model": "m1", "api_calls": 4}]})
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
-        monkeypatch.setattr(tt.lib, "hermes_state_db_path", lambda: db)
+        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)
         _run_args(monkeypatch, tt, "start", "T-H4", "--no-worktree", "--no-cron")
 
         code = _run_args(monkeypatch, tt, "subagent", "T-H4", "--delegation", "deleg_1")
@@ -450,11 +474,20 @@ class TestCliUnderHermes:
         code = _run_args(monkeypatch, tt, "subagent", "T-H5", "100", "--delegation", "d1")
         assert code == 2
 
+    def test_subagent_delegation_without_a_registered_source_is_exit_2(
+            self, tt, monkeypatch, tmp_path):
+        """--delegation against the built-in claude source (no delegation store) is a clear
+        refusal, not a crash — the flag is generic, the source decides."""
+        _run_args(monkeypatch, tt, "start", "T-H8", "--no-worktree", "--no-cron",
+                  "--session-id", "s-x")
+        code = _run_args(monkeypatch, tt, "subagent", "T-H8", "--delegation", "d1")
+        assert code == 2
+
     def test_subagent_unknown_delegation_is_exit_2(self, tt, monkeypatch, tmp_path):
         db = _hermes_db(tmp_path)
         _session(db, "sid-h", inp=100)
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
-        monkeypatch.setattr(tt.lib, "hermes_state_db_path", lambda: db)
+        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)
         _run_args(monkeypatch, tt, "start", "T-H6", "--no-worktree", "--no-cron")
         code = _run_args(monkeypatch, tt, "subagent", "T-H6", "--delegation", "nope")
         assert code == 2
@@ -462,7 +495,7 @@ class TestCliUnderHermes:
     def test_start_under_hermes_with_missing_db_degrades_to_zeros(self, tt, monkeypatch,
                                                                   tmp_path):
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
-        monkeypatch.setattr(tt.lib, "hermes_state_db_path",
+        monkeypatch.setattr(tt._hermes, "hermes_state_db_path",
                             lambda: tmp_path / "no-hermes" / "state.db")
         code = _run_args(monkeypatch, tt, "start", "T-H7", "--no-worktree", "--no-cron")
         assert code == 0
