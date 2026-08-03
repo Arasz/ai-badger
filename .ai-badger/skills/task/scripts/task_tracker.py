@@ -210,14 +210,24 @@ def _session_or_die(args) -> dict:
         resolved = lib.resolve_own_session()
         session["sessionId"] = resolved.get("sessionId")
         session["transcriptPath"] = session["transcriptPath"] or resolved.get("transcriptPath")
-        session["source"] = resolved.get("source") or lib.DEFAULT_SOURCE
+        session["source"] = resolved.get("source")
     else:
-        session["source"] = lib.DEFAULT_SOURCE  # an explicit --session-id is a transcript id
+        # An explicit --session-id is a transcript id: attribute it to the transcript-reading
+        # source so the right checkpoint maker is chosen. No default — a session source must
+        # actually be registered (run welcome-ai-badger with one).
+        session["source"] = lib.transcript_source()
+        if session["source"] is None:
+            print(
+                "No session source that reads transcripts is registered (run "
+                "welcome-ai-badger with an agent that provides one); an explicit "
+                "--session-id cannot be attributed.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
     if not session["sessionId"]:
         print(
-            "No session reference. No session env var is set and no active session in "
-            "current-session.json matches this process's PID ancestry or cwd; pass "
-            "--session-id/--transcript-path explicitly.",
+            "No session reference. No session source resolved this process and no session "
+            "env var is set; pass --session-id/--transcript-path explicitly.",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -227,6 +237,13 @@ def _session_or_die(args) -> dict:
 def cmd_start(args) -> int:
     session = _session_or_die(args)
     source = lib.session_source(session["source"])
+    if source is None:
+        print(
+            f"Session source {session['source']!r} is not registered (run welcome-ai-badger "
+            "with an agent that provides it); nothing can checkpoint this session.",
+            file=sys.stderr,
+        )
+        return 2
     checkpoint = source["checkpoint"](session)
     with lib.locked_store():
         tasks = lib.load_tasks()
@@ -343,7 +360,15 @@ def cmd_finish(args) -> int:
             )
             return 3
 
-        source = lib.session_source(entry.get("trackingSource") or lib.DEFAULT_SOURCE)
+        source = lib.session_source(entry.get("trackingSource") or lib.transcript_source() or "")
+        if source is None:
+            print(
+                f"Task {args.task_id} has no registered session source (trackingSource "
+                f"{entry.get('trackingSource')!r}); run welcome-ai-badger with an agent "
+                "that provides one.",
+                file=sys.stderr,
+            )
+            return 2
         checkpoint = source["checkpoint"]({
             "sessionId": entry.get("sessionId"),
             "transcriptPath": entry.get("transcriptPath"),
@@ -442,7 +467,15 @@ def cmd_subagent(args) -> int:
             # The session source that recorded the task decides how delegation tokens are
             # read (an installed source may read them from its session store; a source that
             # records none yields None and the refusal below fires).
-            source = lib.session_source(entry.get("trackingSource") or lib.DEFAULT_SOURCE)
+            source = lib.session_source(entry.get("trackingSource") or lib.transcript_source() or "")
+            if source is None:
+                print(
+                    f"Task {args.task_id} has no registered session source (trackingSource "
+                    f"{entry.get('trackingSource')!r}); run welcome-ai-badger with an agent "
+                    "that provides one.",
+                    file=sys.stderr,
+                )
+                return 2
             delegation_usage = source.get("delegation_usage")
             usage_data = delegation_usage(args.delegation) if delegation_usage else None
             if usage_data is None:
@@ -497,6 +530,13 @@ def cmd_reattach(args) -> int:
         entry["transcriptPath"] = session["transcriptPath"]
         entry["trackingSource"] = session["source"]
         source = lib.session_source(session["source"])
+        if source is None:
+            print(
+                f"Session source {session['source']!r} is not registered (run welcome-ai-badger "
+                "with an agent that provides it); nothing can resume this session.",
+                file=sys.stderr,
+            )
+            return 2
         entry["resumeCommand"] = source["resume"](session["sessionId"])
         if entry.get("state") != lib.STATE_FINISHED:
             entry["state"] = lib.STATE_IN_PROGRESS

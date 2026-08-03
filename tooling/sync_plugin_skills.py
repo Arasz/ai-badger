@@ -115,6 +115,7 @@ def render_into(name: str, src: Path, dest: Path) -> None:
     there" is how a check starts disagreeing with the thing it checks.
     """
     shutil.copytree(src, dest, ignore=shutil.ignore_patterns(*SKIP_PATTERNS))
+    _ship_extra_files(name, dest)
     if name in BOOTSTRAP_SKILLS:
         return
     skill_md = dest / "SKILL.md"
@@ -126,6 +127,28 @@ def render_into(name: str, src: Path, dest: Path) -> None:
         return
     (dest / FULL_BODY_NAME).write_text(source_text, encoding="utf-8")
     skill_md.write_text(pointer, encoding="utf-8")
+
+
+# Files the plugin ships beside a skill's own content, from outside the skill directory.
+# The plugin is Claude Code's distribution, so the task skill's plugin copy carries the
+# claude session source (the transcript reader) — without it the shipped tracker would have
+# no session source at all, since agent sources live in features/<agent>/adjustments/ and
+# are installed by the scaffold, not by the plugin.
+PLUGIN_EXTRA_FILES = {
+    "task": [
+        (ROOT / "features" / "claude" / "adjustments" / "claude_session_source.py",
+         "scripts/claude_session_source.py"),
+    ],
+}
+
+
+def _ship_extra_files(name: str, dest: Path) -> None:
+    """Copy PLUGIN_EXTRA_FILES for *name* into the shipped copy, if the sources exist."""
+    for src, rel in PLUGIN_EXTRA_FILES.get(name, ()):
+        if src.is_file():
+            target = dest / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, target)
 
 
 def sync_skill(src: Path, dest: Path, dry_run: bool, name: str = "") -> int:

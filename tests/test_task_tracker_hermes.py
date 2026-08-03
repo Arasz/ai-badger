@@ -1,8 +1,8 @@
 """Hermes session tracking: task_tracker gathers real token data from ~/.hermes/state.db.
 
 The hermes session source is agent-specific and therefore lives in
-features/hermes/adjustments/session_sources.py, installed by the hermes adjustment
-(adjust_task.py) into the scaffolded .ai-badger/skills/task/scripts/session_sources.py.
+features/hermes/adjustments/hermes_session_source.py, installed by the hermes adjustment
+(adjust_task.py) into the scaffolded .ai-badger/skills/task/scripts/hermes_session_source.py.
 These tests pin the hermes data path: session resolution, the state.db parser, the CLI
 branches (start/finish/reattach/subagent --delegation), and the generic registry seam the
 common tracker uses to reach it. The fake store is a real file-backed sqlite3 db built in
@@ -20,7 +20,7 @@ import pytest
 
 TRACKER_RELPATH = "features/common/skills/task/scripts/task_tracker.py"
 LIB_RELPATH = "features/common/skills/task/scripts/tracker_lib.py"
-HERMES_RELPATH = "features/hermes/adjustments/session_sources.py"
+HERMES_RELPATH = "features/hermes/adjustments/hermes_session_source.py"
 
 
 class _GuardedSubprocess:
@@ -174,11 +174,16 @@ class TestResolveOwnSessionHermes:
         assert resolved == {"sessionId": "sid-h", "transcriptPath": None, "source": "hermes"}
 
     def test_resolve_own_session_claude_env_wins_over_hermes(self, load_script, monkeypatch,
-                                                             tmp_path, hs):
+                                                             tmp_path, hs, root):
         tl = load_script(LIB_RELPATH)
         tl.PROJECT_ROOT = tmp_path
         tl.DATA_DIR = tmp_path / ".ai-badger" / "task-tracking"
         tl.CURRENT_SESSION = tmp_path / ".ai-badger" / "task-tracking" / "current-session.json"
+        # Registration order decides: the first registered source that resolves wins.
+        # The claude adjustment is the first in the config's agents list, so claude
+        # registers first and its env var wins when both are set.
+        claude = load_script("features/claude/adjustments/claude_session_source.py")
+        claude.register(tl)
         hs.register(tl)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-c")
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
@@ -186,7 +191,7 @@ class TestResolveOwnSessionHermes:
         resolved = tl.resolve_own_session()
 
         assert resolved["sessionId"] == "sid-c"
-        assert "source" not in resolved  # Claude shapes stay untouched
+        assert resolved["source"] == "claude"
 
     def test_resolve_own_session_hermes_id_ignores_current_sessions_file(self, load_script,
                                                                          monkeypatch,
@@ -468,16 +473,22 @@ class TestCliUnderHermes:
         assert sub["model"] == "m1"
 
     def test_subagent_delegation_and_total_tokens_are_mutually_exclusive(
-            self, tt, monkeypatch, tmp_path, capsys):
+            self, tt, monkeypatch, tmp_path, capsys, load_script):
+        # An explicit --session-id is attributed to the transcript source (claude); the
+        # hermes-only fixture cannot attribute it, so register the claude source too.
+        claude = load_script("features/claude/adjustments/claude_session_source.py")
+        claude.register(tt.lib)
         _run_args(monkeypatch, tt, "start", "T-H5", "--no-worktree", "--no-cron",
                   "--session-id", "s-x")
         code = _run_args(monkeypatch, tt, "subagent", "T-H5", "100", "--delegation", "d1")
         assert code == 2
 
     def test_subagent_delegation_without_a_registered_source_is_exit_2(
-            self, tt, monkeypatch, tmp_path):
-        """--delegation against the built-in claude source (no delegation store) is a clear
+            self, tt, monkeypatch, tmp_path, load_script):
+        """--delegation against a transcript source (no delegation store) is a clear
         refusal, not a crash — the flag is generic, the source decides."""
+        claude = load_script("features/claude/adjustments/claude_session_source.py")
+        claude.register(tt.lib)
         _run_args(monkeypatch, tt, "start", "T-H8", "--no-worktree", "--no-cron",
                   "--session-id", "s-x")
         code = _run_args(monkeypatch, tt, "subagent", "T-H8", "--delegation", "d1")

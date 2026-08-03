@@ -697,85 +697,33 @@ def test_load_current_sessions_defaults_to_empty_dict(load_script, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# resolve_own_session
+# resolve_own_session — no built-in default; every source is registered
 # ---------------------------------------------------------------------------
 
-def test_resolve_own_session_uses_env_var_when_session_is_known(load_script, tmp_path, monkeypatch):
+def test_resolve_own_session_returns_empty_with_no_registered_source(
+        load_script, tmp_path, monkeypatch):
+    """The common tracker has no default session source: nothing resolves until an
+    adjustment registers one (claude via features/claude/adjustments/, hermes via
+    features/hermes/adjustments/)."""
     tl = _load(load_script, tmp_path)
-    tl.save_current_session("sid-env", "/tmp/env.jsonl", cwd="/env")
-    monkeypatch.setenv(tl.CLAUDE_SESSION_ENV, "sid-env")
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-x")
+    monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
 
-    resolved = tl.resolve_own_session()
-
-    assert resolved["sessionId"] == "sid-env"
-    assert resolved["transcriptPath"] == "/tmp/env.jsonl"
+    assert tl.resolve_own_session() == {}
 
 
-def test_resolve_own_session_env_var_set_but_not_yet_recorded(load_script, tmp_path, monkeypatch):
+def test_session_source_unknown_name_returns_none(load_script, tmp_path):
+    """session_source() has no fallback: an unregistered name is None, never claude."""
     tl = _load(load_script, tmp_path)
-    monkeypatch.setenv(tl.CLAUDE_SESSION_ENV, "sid-unrecorded")
 
-    resolved = tl.resolve_own_session()
-
-    assert resolved == {"sessionId": "sid-unrecorded", "transcriptPath": None}
+    assert tl.session_source("claude") is None
+    assert tl.session_source("nope") is None
 
 
-def test_resolve_own_session_matches_via_pid_ancestry(load_script, tmp_path, monkeypatch):
+def test_transcript_source_returns_none_with_no_registered_source(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
-    monkeypatch.delenv(tl.CLAUDE_SESSION_ENV, raising=False)
-    tl.ensure_data_dir()
-    tl.CURRENT_SESSION.write_text(json.dumps({
-        "sessions": {"anc-sid": {"transcriptPath": "/tmp/a.jsonl", "cwd": "/a", "pid": 424242}}
-    }), encoding="utf-8")
-    tl._own_pid_ancestry = lambda max_depth=12: [1, 424242]
 
-    resolved = tl.resolve_own_session()
-
-    assert resolved["sessionId"] == "anc-sid"
-
-
-def test_resolve_own_session_matches_via_unique_cwd(load_script, tmp_path, monkeypatch):
-    tl = _load(load_script, tmp_path)
-    monkeypatch.delenv(tl.CLAUDE_SESSION_ENV, raising=False)
-    monkeypatch.chdir(tmp_path)
-    tl._own_pid_ancestry = lambda max_depth=12: []
-    tl.ensure_data_dir()
-    tl.CURRENT_SESSION.write_text(json.dumps({
-        "sessions": {"cwd-sid": {"transcriptPath": "/tmp/c.jsonl", "cwd": str(tmp_path)}}
-    }), encoding="utf-8")
-
-    resolved = tl.resolve_own_session()
-
-    assert resolved["sessionId"] == "cwd-sid"
-
-
-def test_resolve_own_session_ambiguous_cwd_returns_empty(load_script, tmp_path, monkeypatch):
-    tl = _load(load_script, tmp_path)
-    monkeypatch.delenv(tl.CLAUDE_SESSION_ENV, raising=False)
-    monkeypatch.chdir(tmp_path)
-    tl._own_pid_ancestry = lambda max_depth=12: []
-    tl.ensure_data_dir()
-    tl.CURRENT_SESSION.write_text(json.dumps({
-        "sessions": {
-            "sid-a": {"transcriptPath": "/tmp/a.jsonl", "cwd": str(tmp_path)},
-            "sid-b": {"transcriptPath": "/tmp/b.jsonl", "cwd": str(tmp_path)},
-        }
-    }), encoding="utf-8")
-
-    resolved = tl.resolve_own_session()
-
-    assert resolved == {}
-
-
-def test_resolve_own_session_returns_empty_when_nothing_matches(load_script, tmp_path, monkeypatch):
-    tl = _load(load_script, tmp_path)
-    monkeypatch.delenv(tl.CLAUDE_SESSION_ENV, raising=False)
-    monkeypatch.chdir(tmp_path)
-    tl._own_pid_ancestry = lambda max_depth=12: []
-
-    resolved = tl.resolve_own_session()
-
-    assert resolved == {}
+    assert tl.transcript_source() is None
 
 
 # ---------------------------------------------------------------------------

@@ -142,8 +142,16 @@
           "path": "features/claude/adjustments/adjust_skills.py"
         },
         {
+          "name": "adjust_task",
+          "path": "features/claude/adjustments/adjust_task.py"
+        },
+        {
           "name": "adjustment",
           "path": "features/claude/adjustments/adjustment.json"
+        },
+        {
+          "name": "claude_session_source",
+          "path": "features/claude/adjustments/claude_session_source.py"
         }
       ],
       "meta": {
@@ -559,8 +567,8 @@
           "path": "features/hermes/adjustments/adjustment.json"
         },
         {
-          "name": "session_sources",
-          "path": "features/hermes/adjustments/session_sources.py"
+          "name": "hermes_session_source",
+          "path": "features/hermes/adjustments/hermes_session_source.py"
         }
       ],
       "meta": {

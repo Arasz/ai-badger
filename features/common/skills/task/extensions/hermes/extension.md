@@ -176,11 +176,13 @@ patterns filter) — so `session_start_hook.py`, `stop_hook.py` and
 when `hermes` is in the agent list. They are inert under Hermes: Hermes executes
 Python plugins (`ai_badger_hooks.py`), not `hooks.json`, and that plugin
 currently registers no session-tracking hook. The in-session CLI path does read
-real numbers: the hermes adjustment installs `session_sources.py` (from
+real numbers: the hermes adjustment installs `hermes_session_source.py` (from
 `features/hermes/adjustments/`) as
-`.ai-badger/skills/task/scripts/session_sources.py`, whose `register()` wires
+`.ai-badger/skills/task/scripts/hermes_session_source.py`, whose `register()` wires
 the hermes source (session env var, state.db checkpoint maker, delegation
-lookup) into the common tracker's session-source registry. Then
+lookup) into the common tracker's session-source registry. The claude adjustment
+installs its own `claude_session_source.py` the same way — every agent's session
+source is registered by its own adjustment, none is built in. Then
 `task_tracker.py start`/`finish` gather tokens from Hermes's
 `~/.hermes/state.db` (per-session and per-model usage, plus one level of
 delegated child sessions), and `subagent --delegation <id>` records a

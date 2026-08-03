@@ -5,9 +5,9 @@ scripts: the session id env var, the state.db location, the SQLite parser that m
 store onto the tracker's checkpoint shape, and the delegation token reader.
 
 The hermes adjustment (features/hermes/adjustments/adjust_task.py) copies this module into
-the scaffolded `.ai-badger/skills/task/scripts/session_sources.py` — the generic contract
-name the common tracker_lib.py imports and asks to `register(lib)`. Absent that copy (a
-claude-only scaffold), the common tracker never hears about hermes.
+the scaffolded `.ai-badger/skills/task/scripts/hermes_session_source.py`, where tracker_lib's
+discovery import finds and asks it to `register(lib)`. Absent that copy, the common tracker
+never hears about hermes.
 
 Reads are read-only (`sqlite3` `mode=ro`): the tracker never writes, locks, or creates the
 Hermes store, and degrades to zeroed checkpoints when Hermes is absent — it never crashes a
@@ -40,11 +40,24 @@ def register(tracker_lib) -> None:
     tracker_lib.register_session_source(
         "hermes",
         env_var=HERMES_SESSION_ENV,
+        resolve=_resolve,
         checkpoint=lambda session: make_hermes_checkpoint(session["sessionId"]),
         resume=lambda session_id: f"hermes --resume {session_id}",
         delegation_usage=lambda delegation_id: hermes_delegation_usage(
             hermes_state_db_path(), delegation_id),
     )
+
+
+def _resolve() -> dict:
+    """Identify the invoking hermes session: HERMES_SESSION_ID, and nothing else.
+
+    Hermes sets the env var on every tool subprocess, so the env id is the identity — no
+    current-session.json consult, no PID/cwd fallback.
+    """
+    sid = os.environ.get(HERMES_SESSION_ENV)
+    if sid:
+        return {"sessionId": sid, "transcriptPath": None}
+    return {}
 
 
 def hermes_state_db_path(env: dict | None = None) -> Path:

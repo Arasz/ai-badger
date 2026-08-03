@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.77.1",
-  "frameworkCommit": "c62652c6689f1e3f825d7b27dfbb5ec16fec15e9",
+  "frameworkCommit": "80b590cb909aaab012d7ded3d6616440fb50e179",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -479,12 +479,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.77.1",
-      "hash": "c1a9e2d46c006fb3fa3e594e96f491435157cda3d1b81ed8c83369256e4be9d5",
+      "hash": "e120b7dd99c891c7a320474a5c9dfab3c2310fed3ae3107940a3d761d2890246",
       "dirMeta": {
         "file_count": 15,
         "dir_count": 2
       },
-      "sourceHash": "c1a9e2d46c006fb3fa3e594e96f491435157cda3d1b81ed8c83369256e4be9d5",
+      "sourceHash": "e120b7dd99c891c7a320474a5c9dfab3c2310fed3ae3107940a3d761d2890246",
       "sourceMeta": {
         "file_count": 15,
         "dir_count": 2
@@ -560,7 +560,7 @@
       "source": "features/common/skills/task/extensions/hermes/extension.md",
       "target": ".ai-badger/skills/task/extensions/hermes/extension.md",
       "frameworkVersion": "0.77.1",
-      "hash": "9fd3b94bb9bb0558d2adb531d5817f18293e2430d1fe4f911949451503ff924f"
+      "hash": "4b09ed5c547ed08ae79083dd672d252d7a716a22a4f309c748f3650132644c13"
     },
     {
       "feature": "skills",
@@ -960,6 +960,15 @@
     },
     {
       "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.ai-badger/skills/task/scripts/claude_session_source.py",
+      "source": "features/claude/adjustments/adjust_task.py",
+      "target": ".ai-badger/skills/task/scripts/claude_session_source.py",
+      "frameworkVersion": "0.77.1",
+      "hash": "475d363c803301209212acfb41358c31669a458b6390925ff28b2729a5ebf66b"
+    },
+    {
+      "feature": "adjustments",
       "stack": "copilot",
       "name": "adjustments/.github/hooks/ai-badger-hooks.json",
       "source": "features/copilot/adjustments/adjust_hooks.py",
@@ -1267,11 +1276,11 @@
     {
       "feature": "adjustments",
       "stack": "hermes",
-      "name": "adjustments/.ai-badger/skills/task/scripts/session_sources.py",
+      "name": "adjustments/.ai-badger/skills/task/scripts/hermes_session_source.py",
       "source": "features/hermes/adjustments/adjust_task.py",
-      "target": ".ai-badger/skills/task/scripts/session_sources.py",
+      "target": ".ai-badger/skills/task/scripts/hermes_session_source.py",
       "frameworkVersion": "0.77.1",
-      "hash": "f953e2cd5311c2159a4a8be7908fd874d7cb005878b9fff9ceebcc01d40d9508"
+      "hash": "23bc44fab388744722fa09af3272ac4e8379784a9354346eafb0b752f1b325a8"
     },
     {
       "feature": "skills",

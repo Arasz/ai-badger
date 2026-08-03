@@ -1,17 +1,18 @@
 """Tests for features/hermes/adjustments/adjust_task.py: hermes session-source delivery.
 
 The hermes task-tracking code (state.db parsing) is agent-specific, so it ships in
-features/hermes/adjustments/session_sources.py and the adjustment copies it into the
-scaffolded task skill's scripts dir as session_sources.py — the generic contract name the
+features/hermes/adjustments/hermes_session_source.py and the adjustment copies it into the
+scaffolded task skill's scripts dir as hermes_session_source.py — the `<agent>_session_source.py` contract name the
 common tracker_lib.py imports. A claude-only scaffold must not receive the file.
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 ADJUSTER = "features/hermes/adjustments/adjust_task.py"
-SOURCE_MODULE = "features/hermes/adjustments/session_sources.py"
-DEST = ".ai-badger/skills/task/scripts/session_sources.py"
+SOURCE_MODULE = "features/hermes/adjustments/hermes_session_source.py"
+DEST = ".ai-badger/skills/task/scripts/hermes_session_source.py"
 
 
 def _context(root: Path, target: Path, *, agents=("hermes",)) -> dict:
@@ -59,9 +60,21 @@ def test_skips_installation_without_the_hermes_agent(tmp_path, root, load_script
     assert not (target / DEST).exists()
 
 
+def test_skips_installation_when_the_task_skill_is_not_delivered(tmp_path, root, load_script):
+    adjust_task = load_script(ADJUSTER)
+    target = tmp_path / "proj"
+    ctx = _context(root, target)
+    ctx["skills"] = ["prompt-markers"]
+
+    result = adjust_task.adjust(ctx)
+
+    assert not result["applied"]
+    assert not (target / DEST).exists()
+
+
 def test_delivered_module_registers_a_hermes_source_into_tracker_lib(
         tmp_path, root, load_script, monkeypatch):
-    """The delivered session_sources.py must expose register(tracker_lib) wiring the
+    """The delivered hermes_session_source.py must expose register(tracker_lib) wiring the
     hermes source: env var, checkpoint maker, resume command, delegation lookup."""
     adjust_task = load_script(ADJUSTER)
     target = tmp_path / "proj"
@@ -83,36 +96,51 @@ def test_delivered_module_registers_a_hermes_source_into_tracker_lib(
 
 def test_guarded_import_registers_a_present_sibling_source(load_script, root, monkeypatch,
                                                            tmp_path):
-    """tracker_lib's guarded import wires a sibling session_sources.py when one is present.
+    """tracker_lib's guarded import wires a sibling *_session_source.py when one is present.
 
-    This is the scaffolded shape: the hermes adjustment copies the module beside
-    tracker_lib.py, and a fresh tracker_lib import must pick it up without any explicit
+    This is the scaffolded shape: agent adjustments copy their modules beside
+    tracker_lib.py, and a fresh tracker_lib import must pick them up without any explicit
     register() call. The absent branch is what every other test sees (scripts dir has no
-    session_sources.py); this pins the present branch.
+    session source modules); this pins the present branch by importing a copied tracker_lib
+    whose SCRIPT_DIR really contains the sibling.
     """
+    import importlib.util
+    import shutil
+
     scripts_dir = tmp_path / "scripts"
     scripts_dir.mkdir()
-    (scripts_dir / "session_sources.py").write_text(
+    shutil.copy2(root / "features/common/skills/task/scripts/tracker_lib.py",
+                 scripts_dir / "tracker_lib.py")
+    (scripts_dir / "probe_session_source.py").write_text(
         "def register(tracker_lib):\n"
         "    tracker_lib.register_session_source(\n"
         "        'probe', env_var='PROBE_SESSION_ID',\n"
+        "        resolve=lambda: {'sessionId': 'p-1', 'transcriptPath': None}\n"
+        "        if __import__('os').environ.get('PROBE_SESSION_ID') else {},\n"
         "        checkpoint=lambda session: {},\n"
         "        resume=lambda session_id: f'probe --resume {session_id}',\n"
         "        delegation_usage=None)\n",
         encoding="utf-8")
     monkeypatch.syspath_prepend(str(scripts_dir))
+    monkeypatch.setenv("PROBE_SESSION_ID", "p-1")
 
-    tl = load_script("features/common/skills/task/scripts/tracker_lib.py")
+    # Import the copy under a unique name so the discovery import (which scans the copy's
+    # SCRIPT_DIR) actually runs and finds the sibling probe module.
+    spec = importlib.util.spec_from_file_location("tracker_lib_probe_copy",
+                                                  scripts_dir / "tracker_lib.py")
+    assert spec is not None and spec.loader is not None
+    tl = importlib.util.module_from_spec(spec)
+    sys.modules["tracker_lib_probe_copy"] = tl
+    spec.loader.exec_module(tl)
 
     assert "probe" in tl.SESSION_SOURCES
     assert tl.session_source("probe")["resume"]("s-1") == "probe --resume s-1"
+    assert tl.resolve_own_session()["source"] == "probe"
 
 
-def test_unregistered_lib_defaults_to_the_claude_source(root, load_script):
-    """session_source() without any registration returns the built-in claude source."""
+def test_unregistered_lib_has_no_session_source(root, load_script):
+    """session_source() without any registration returns None — no agent is special."""
     tl = load_script("features/common/skills/task/scripts/tracker_lib.py")
 
-    source = tl.session_source("nope")
-
-    assert source["env_var"] == tl.CLAUDE_SESSION_ENV
-    assert source["resume"]("sid-1") == f"claude --resume sid-1"
+    assert tl.session_source("claude") is None
+    assert tl.session_source("hermes") is None
