@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.77.2 | [freshness guard's `=all` override is host-independent](0.77.2-freshness-guard-host-independent.md) |
 | 0.77.1 | [Task tracking treats every agent equally](0.77.1-hermes-session-source-adjustment.md) |
 | 0.77.0 | [Hermes task tracking gathers real token data](0.77.0-hermes-task-token-tracking.md) |
 | 0.76.0 | [Hermes becomes an optional common MCP server](0.76.0-hermes-common-mcp-server.md) |
