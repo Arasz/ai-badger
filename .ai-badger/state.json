@@ -1,7 +1,23 @@
 {
-  "lastUpdated": "2026-08-01",
+  "lastUpdated": "2026-08-02",
   "next": "Decide the create-task-spec open questions before implementing (good first owner-gate-review subject): which spec extension to standardise on, JSON or YAML for the manifest, whether a jvm stack enters the catalog at all, and whether the skill refuses to emit while any hole is unruled. Research verdicts: https://claude.ai/code/artifact/06ec3529-7617-446f-ab90-35b67ca22bd8 . Open PRs: #252 (mcp prerequisites, 0.62.0) and #253 (#232 spawn breadcrumb, 0.61.3) - whichever merges second needs a VERSION rebump; release_guard enforces it. Tag every merge: 0.61.1 went untagged and blocked #251's CI until tagged at ed9824d6. Awaiting a decision from the owner, asked twice: (1) the plugin partition - 13 skills to 3 - which fixes a real silent-wrong-answer defect (code-review-checklist's two copies share byte-identical frontmatter, md5 503cde95, and differ by 28 body lines) but changes what /plugin install gives users; (2) research-with-rich-report - the verified design is a different skill under a different name (evidence-first-research, findings with provenance grades), because dotnet-claude-kit:workflow-mastery already owns the context-optimization trigger words. Unstarted follow-ups: move verification-evidence blocks out of owner-gate-review (~730 est tokens) and task (~848, and they break its own platform-neutrality claim); differential-feature-refactor steps 6-7 call superpowers:brainstorming with no fallback. Two framework observations worth issues: tests/conftest.py's _real_tracking_state_is_untouched cannot distinguish the suite's writes from a concurrent external writer, so a cron tick during a long run fails the lane; and task_tracker.py start --branch records a name without creating or verifying the branch, which put work on the wrong branch twice in one session.",
   "completedTasks": [
+    {
+      "taskId": "fix-pr-301-hermes-adjustments",
+      "title": "fix-pr-301: extract hermes-specific task tracking into adjustments",
+      "pr": 301,
+      "branch": "task/hermes-task-tracking-audit",
+      "commit": "c62652c",
+      "outcome": "Review comments r3700649623/r3700650569 fixed: hermes state.db code extracted from common task skill scripts into features/hermes/adjustments/session_sources.py, delivered by adjust_task.py when hermes is an agent; generic session-source registry in tracker_lib.py; VERSION 0.77.1; suite 3109 passed, all gates green. Extension: no built-in default source \u2014 claude registers via its own adjustment (claude_session_source.py), hermes_session_source.py renamed; registry gains per-source resolve + transcript capability; plugin ships claude source; commit c2fdb82."
+    },
+    {
+      "id": "add-hermes-as-common-mcp-server",
+      "title": "Distribute Hermes as an optional common MCP server when installed",
+      "summary": "Added the common Hermes MCP catalog entry (`hermes mcp serve`) behind an availability.command PATH gate, with catalog metadata, ten tool intents, schema/index/version/changelog updates, stale generated-entry cleanup that preserves user-authored entries, and generated scaffold refresh. Merged via PR #300; Copilot review caught and fixed home-relative stale-entry cleanup.",
+      "version": "0.76.0",
+      "pr": 300,
+      "date": "2026-08-02"
+    },
     {
       "id": "gherkin-specbinder",
       "title": "Research: Gherkin + SpecBinder as a create-task-spec elicitation layer",
