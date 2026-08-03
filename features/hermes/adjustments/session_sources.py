@@ -18,10 +18,16 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 HERMES_SESSION_ENV = "HERMES_SESSION_ID"
 HERMES_HOME_ENV = "HERMES_HOME"
+
+
+def _now_iso() -> str:
+    """Same shape as tracker_lib.now_iso; kept local so this module is self-contained."""
+    return datetime.now(timezone.utc).isoformat()
 
 
 def register(tracker_lib) -> None:
@@ -179,10 +185,9 @@ def parse_hermes_session_usage(session_id: str, db_path: Path | None = None) -> 
 
 def make_hermes_checkpoint(session_id: str, db_path: Path | None = None) -> dict:
     """Checkpoint shape for a Hermes session, mirroring make_checkpoint's keys."""
-    import tracker_lib  # same scripts dir at runtime; imported lazily to avoid a cycle
     usage = parse_hermes_session_usage(session_id, db_path)
     return {
-        "timestamp": tracker_lib.now_iso(),
+        "timestamp": _now_iso(),
         "contextTokens": usage["contextTokens"],
         "assistantMessages": usage["assistantMessages"],
         "byModel": usage["byModel"],

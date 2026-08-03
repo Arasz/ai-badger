@@ -1,7 +1,7 @@
 """Tests for features/hermes/adjustments/adjust_task.py: hermes session-source delivery.
 
 The hermes task-tracking code (state.db parsing) is agent-specific, so it ships in
-features/hermes/adjustments/hermes_session_source.py and the adjustment copies it into the
+features/hermes/adjustments/session_sources.py and the adjustment copies it into the
 scaffolded task skill's scripts dir as session_sources.py — the generic contract name the
 common tracker_lib.py imports. A claude-only scaffold must not receive the file.
 """
@@ -79,6 +79,33 @@ def test_delivered_module_registers_a_hermes_source_into_tracker_lib(
     assert source["resume"]("sid-1") == "hermes --resume sid-1"
     assert callable(source["checkpoint"])
     assert callable(source["delegation_usage"])
+
+
+def test_guarded_import_registers_a_present_sibling_source(load_script, root, monkeypatch,
+                                                           tmp_path):
+    """tracker_lib's guarded import wires a sibling session_sources.py when one is present.
+
+    This is the scaffolded shape: the hermes adjustment copies the module beside
+    tracker_lib.py, and a fresh tracker_lib import must pick it up without any explicit
+    register() call. The absent branch is what every other test sees (scripts dir has no
+    session_sources.py); this pins the present branch.
+    """
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir()
+    (scripts_dir / "session_sources.py").write_text(
+        "def register(tracker_lib):\n"
+        "    tracker_lib.register_session_source(\n"
+        "        'probe', env_var='PROBE_SESSION_ID',\n"
+        "        checkpoint=lambda session: {},\n"
+        "        resume=lambda session_id: f'probe --resume {session_id}',\n"
+        "        delegation_usage=None)\n",
+        encoding="utf-8")
+    monkeypatch.syspath_prepend(str(scripts_dir))
+
+    tl = load_script("features/common/skills/task/scripts/tracker_lib.py")
+
+    assert "probe" in tl.SESSION_SOURCES
+    assert tl.session_source("probe")["resume"]("s-1") == "probe --resume s-1"
 
 
 def test_unregistered_lib_defaults_to_the_claude_source(root, load_script):
