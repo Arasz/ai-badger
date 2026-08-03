@@ -283,10 +283,13 @@ def _self_scaffolded_repo(work: Path) -> Path:
         elif src.is_file():
             shutil.copy2(src, dst)
     _commit(repo, "baseline")
+    env = dict(os.environ)
+    env["AI_BADGER_MCP_AVAILABILITY"] = "all"
     scaffolded = _run([
         str(repo / "features/common/skills/welcome-ai-badger/scripts/scaffold.py"),
         "--config", str(repo / ".ai-badger/config.json"),
-        "--target", str(repo), "--root", str(repo), "--no-install", "--skills", ""])
+        "--target", str(repo), "--root", str(repo), "--no-install", "--skills", ""],
+        env=env)
     assert scaffolded.exit_code == 0, f"fixture setup failed:\n{scaffolded.output}"
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "--allow-empty", "-m", "self-scaffold")
