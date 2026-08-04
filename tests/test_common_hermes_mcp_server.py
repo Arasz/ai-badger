@@ -174,7 +174,6 @@ def test_catalog_validation_tracks_the_new_stack_mcp_metadata(root, load_script)
 
     assert "stack-mcp.schema.json" in validate.SCHEMA_INSTANCES
     assert validate.undecided_schemas(root) == []
-    assert validate.validate_all(root) == 0
 
 
 def test_availability_override_all_forces_every_declared_server(
@@ -213,3 +212,9 @@ def test_availability_override_unset_falls_back_to_path_probe(
     _patch_hermes_lookup(monkeypatch, load_script, None)
     scaf = _scaffold(make_scaffolder)
     assert HERMES not in scaf.mcp.declared_servers()
+
+
+def test_catalog_validation_remains_green(root, load_script):
+    validate = load_script("tooling/validate.py")
+    assert validate.validate_all(root) == 0
+
