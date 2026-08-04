@@ -20,9 +20,11 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.77.3 | [Hermes task tracking actually lands on main](0.77.3-hermes-task-tracking-lands.md) |
 | 0.77.2 | [freshness guard's `=all` override is host-independent](0.77.2-freshness-guard-host-independent.md) |
 | 0.77.1 | [Task tracking treats every agent equally](0.77.1-hermes-session-source-adjustment.md) |
 | 0.77.0 | [Hermes task tracking gathers real token data](0.77.0-hermes-task-token-tracking.md) |
+| 0.76.1 | [the task skill's Hermes extension told a false story](0.76.1-hermes-task-extension-correction.md) |
 | 0.76.0 | [Hermes becomes an optional common MCP server](0.76.0-hermes-common-mcp-server.md) |
 | 0.75.0 | [Forgetting a project](0.75.0-awm-forget.md) |
 | 0.74.0 | [AWM state is per project](0.74.0-awm-per-project-state.md) |

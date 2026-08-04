@@ -158,20 +158,37 @@ are surfaced via `/usage` rather than polled.
 has been running for many iterations (see Hermes Event Hooks docs for the
 `long-task-alert` example that posts to Telegram).
 
-### 4. Session tracking (Claude: SessionStart → Hermes: native)
+### 4. Session tracking (Claude: SessionStart → Hermes: no wired equivalent)
 
 **What Claude does:** `session_start_hook.py` records `session_id` +
 transcript path to `current-session.json` and launches `poll_limit.py`.
 
-**Hermes equivalent — all native, no custom code:**
+**Hermes native features cover the user-facing parts:**
 - Session continuity: `hermes --continue` or `/resume <name>`
 - Transcript search: `session_search(query="...")` — FTS5 over all past sessions
 - Unfinished tasks: check `.ai-badger/state.json` or use `session_search`
 - Rate limits: `/usage` (no polling needed)
 
-The `session_start_hook.py` and `poll_limit.py` are Claude-specific and
-are NOT scaffolded when `hermes` is in the agent list. Their functionality
-is fully covered by Hermes native features.
+The scaffolder does not filter skill scripts by agent — it copies the whole
+`scripts/` directory regardless of the agent list (only `config.exclude`
+patterns filter) — so `session_start_hook.py`, `stop_hook.py` and
+`poll_limit.py` **are** scaffolded into `.ai-badger/skills/task/scripts/` even
+when `hermes` is in the agent list. They are inert under Hermes: Hermes executes
+Python plugins (`ai_badger_hooks.py`), not `hooks.json`, and that plugin
+currently registers no session-tracking hook. The in-session CLI path does read
+real numbers: the hermes adjustment installs `hermes_session_source.py` (from
+`features/hermes/adjustments/`) as
+`.ai-badger/skills/task/scripts/hermes_session_source.py`, whose `register()` wires
+the hermes source (session env var, state.db checkpoint maker, delegation
+lookup) into the common tracker's session-source registry. The claude adjustment
+installs its own `claude_session_source.py` the same way — every agent's session
+source is registered by its own adjustment, none is built in. Then
+`task_tracker.py start`/`finish` gather tokens from Hermes's
+`~/.hermes/state.db` (per-session and per-model usage, plus one level of
+delegated child sessions), and `subagent --delegation <id>` records a
+delegation's actual tokens. What remains unwired is hook-driven automatic
+per-turn checkpoints — nothing updates a tracked task's checkpoint except an
+explicit CLI invocation.
 
 ### Hook comparison summary
 

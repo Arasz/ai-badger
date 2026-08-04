@@ -217,3 +217,4 @@ def test_availability_override_unset_falls_back_to_path_probe(
 def test_catalog_validation_remains_green(root, load_script):
     validate = load_script("tooling/validate.py")
     assert validate.validate_all(root) == 0
+

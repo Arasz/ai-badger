@@ -20,6 +20,11 @@
       "feature": "mcp",
       "description": "Approve declared MCP servers in .claude/settings.json, and deny the ones config.mcp.decline names",
       "script": "adjust_mcp.py"
+    },
+    {
+      "feature": "task",
+      "description": "Install the claude session source into the scaffolded task skill scripts",
+      "script": "adjust_task.py"
     }
   ]
 }

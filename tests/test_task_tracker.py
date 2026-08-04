@@ -66,6 +66,10 @@ def tt(load_script, root, monkeypatch, tmp_path):
     monkeypatch.syspath_prepend(scripts_dir)
     module = load_script(SCRIPT_RELPATH)
     _redirect_lib(module.lib, tmp_path)
+    # These tests exercise the transcript (claude) data path; register its session source
+    # exactly as the claude adjustment would in a scaffolded project.
+    claude = load_script("features/claude/adjustments/claude_session_source.py")
+    claude.register(module.lib)
     monkeypatch.setattr(module, "subprocess", _GuardedSubprocess())
     return module
 

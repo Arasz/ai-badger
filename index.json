@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.77.2",
+  "frameworkVersion": "0.77.3",
   "stacks": {
     "angular": {
       "personas": [
@@ -142,8 +142,16 @@
           "path": "features/claude/adjustments/adjust_skills.py"
         },
         {
+          "name": "adjust_task",
+          "path": "features/claude/adjustments/adjust_task.py"
+        },
+        {
           "name": "adjustment",
           "path": "features/claude/adjustments/adjustment.json"
+        },
+        {
+          "name": "claude_session_source",
+          "path": "features/claude/adjustments/claude_session_source.py"
         }
       ],
       "meta": {
@@ -557,6 +565,10 @@
         {
           "name": "adjustment",
           "path": "features/hermes/adjustments/adjustment.json"
+        },
+        {
+          "name": "hermes_session_source",
+          "path": "features/hermes/adjustments/hermes_session_source.py"
         }
       ],
       "meta": {
