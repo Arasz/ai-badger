@@ -21,6 +21,7 @@ or `incidents/`. Kind is not a subject, and those five were tried and removed �
 | `2026-08-01-gherkin-spec-elicitation-research.html` | Research validating a `create-task-spec` skill that elicits a Gherkin specification by questioning rather than proposing. Records six claim verdicts, the grammar-as-question-generator argument, and the architecture chosen on 2026-08-01. |
 | `2026-08-01-work-quality-rules.md` | Where each of sixteen proposed working rules belongs — five become `common` invariants, the rest are task lifecycle, delegation policy, or the `--risk` switch. Written while four packages were running against it; leaves once they merge. |
 | `2026-08-02-hermes-task-tracking.md` | Evidence-first research on how the `/task` skill's tracking is (and is not) hooked into Hermes Agent: the four task hooks are Claude-only by design, the scaffolded scripts never fire under Hermes, every tracked task's checkpoints are all-zero — and Hermes's `state.db` demonstrably stores the per-model and per-subagent token data the tracker never reads. 14 findings (10 measured, 4 read). |
+| `2026-08-05-ai-raccoon-memory-quality.jsonl` | The session's manual memory-search quality log: two graded `memory_search` calls from the ai-raccoon integration work, recorded as the reference shape the memory-grade hook's JSONL lines are verified against. |
 
 The first three are generated HTML forms rather than prose. They are kept because the form *is* the
 record: each carries its decisions verbatim, and the reviewer's verdicts were ingested from them.
