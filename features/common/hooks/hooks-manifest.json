@@ -62,6 +62,15 @@
         "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "post_tool_call" },
         "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "postToolUse", "script": "commit_reminder_hook.py" }
       }
+    },
+    {
+      "name": "memory-grade",
+      "description": "Grade every memory_search's usefulness into a machine-wide quality log",
+      "agents": {
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PostToolUse", "script": "memory_grade_hook.py" },
+        "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "post_tool_call" },
+        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "postToolUse", "script": "memory_grade_hook.py" }
+      }
     }
   ]
 }

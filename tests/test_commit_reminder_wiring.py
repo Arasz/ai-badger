@@ -68,9 +68,11 @@ def test_copilot_wires_commit_reminder_with_matcher(tmp_path, load_script, root)
     hooks = json.loads(
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     post_tool_use = hooks["hooks"]["postToolUse"]
-    assert len(post_tool_use) == 1
-    entry = post_tool_use[0]
-    assert entry["bash"].rstrip('"').rsplit("/", 1)[-1] == "commit_reminder_hook.py"
+    commit_entries = [
+        e for e in post_tool_use
+        if e["bash"].rstrip('"').rsplit("/", 1)[-1] == "commit_reminder_hook.py"]
+    assert commit_entries, post_tool_use
+    entry = commit_entries[0]
     assert entry.get("matcher") == COMMIT_REMINDER_MATCHER
 
 
