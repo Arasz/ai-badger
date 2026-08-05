@@ -220,6 +220,12 @@ injected into every agent file. `features/common/stack-mcp.json` says which serv
 wants and which of them are written into `.mcp.json` during scaffold (ADR-0014);
 `hermes` and `ai-raccoon` are conditional on their CLI being on PATH.
 
+> **Hermes users:** Hermes reads MCP servers only from `~/.hermes/config.yaml`
+> (`mcp_servers:`) — it has no project route, so a server written to `.mcp.json` is
+> invisible to Hermes sessions. ai-badger prints the block to merge instead of writing
+> user-global config (ADR-0014 decision 6); run `hermes mcp add <name> --command <cmd>`
+> once per machine (or merge the printed block) to make a server available to Hermes.
+
 ## Architecture overview
 
 ```
