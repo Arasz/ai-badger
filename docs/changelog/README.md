@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.78.0 | [AiRaccoon becomes an optional common memory server](0.78.0-ai-raccoon-memory-store.md) |
 | 0.77.3 | [Hermes task tracking actually lands on main](0.77.3-hermes-task-tracking-lands.md) |
 | 0.77.2 | [freshness guard's `=all` override is host-independent](0.77.2-freshness-guard-host-independent.md) |
 | 0.77.1 | [Task tracking treats every agent equally](0.77.1-hermes-session-source-adjustment.md) |
