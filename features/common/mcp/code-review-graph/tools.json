@@ -9,7 +9,7 @@
     },
     {
       "name": "query_graph_tool",
-      "intent": "Trace a known symbol's callers, callees, imports or covering tests — the structural answer a text search cannot give.",
+      "intent": "Trace a known symbol's callers, callees, imports and what covers it — the structural answer a text search cannot give.",
       "tags": ["navigation", "search"]
     },
     {
@@ -19,7 +19,7 @@
     },
     {
       "name": "get_impact_radius_tool",
-      "intent": "Blast radius of editing a symbol: everything downstream that a change to it can reach.",
+      "intent": "Blast radius of editing a symbol: how far a change to it reaches.",
       "tags": ["diagnostic", "navigation"]
     },
     {
