@@ -66,6 +66,15 @@
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/commit-reminder/scripts/commit_reminder_hook.py\""
           }
         ]
+      },
+      {
+        "matcher": "memory_search",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/ai-raccoon-memory/scripts/memory_grade_hook.py\""
+          }
+        ]
       }
     ]
   }

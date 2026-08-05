@@ -8,11 +8,15 @@ from __future__ import annotations
 from unittest.mock import patch
 
 PLUGIN_FILES = ("ai_badger_hooks.py", "learned_skills_sync.py")
-SHARED_SKILL_FILES = ("commit_reminder.py", "impact_estimator.py")
+SHARED_SKILL_FILES = (
+    ("commit-reminder", "commit_reminder.py"),
+    ("commit-reminder", "impact_estimator.py"),
+    ("ai-raccoon-memory", "memory_grade.py"),
+)
 
 
-def _commit_reminder_script(root, name):
-    return (root / "features" / "common" / "skills" / "commit-reminder" / "scripts"
+def _skill_script(root, skill, name):
+    return (root / "features" / "common" / "skills" / skill / "scripts"
             / name).read_text(encoding="utf-8")
 
 
@@ -131,9 +135,26 @@ def test_adjust_hooks_copies_shared_skill_modules_to_project_hooks_dir(
     with patch("pathlib.Path.home", return_value=home):
         adjust_hooks.adjust(_adjust_context(root, target, ["hermes"]))
 
-    for name in SHARED_SKILL_FILES:
+    for skill, name in SHARED_SKILL_FILES:
         dst = target / ".ai-badger" / "hooks" / name
-        assert dst.read_text(encoding="utf-8") == _commit_reminder_script(root, name)
+        assert dst.read_text(encoding="utf-8") == _skill_script(root, skill, name)
+
+
+def test_adjust_hooks_copies_memory_grade_to_project_and_user_dirs(
+        tmp_path, load_script, root):
+    """The memory-grade sibling must land beside ai_badger_hooks.py in both destinations."""
+    adjust_hooks = load_script("features/hermes/adjustments/adjust_hooks.py")
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    home.mkdir()
+
+    with patch("pathlib.Path.home", return_value=home):
+        adjust_hooks.adjust(_adjust_context(root, target, ["hermes"]))
+
+    for dst in (target / ".ai-badger" / "hooks" / "memory_grade.py",
+                home / ".hermes" / "plugins" / "memory_grade.py"):
+        assert dst.read_text(encoding="utf-8") == _skill_script(
+            root, "ai-raccoon-memory", "memory_grade.py")
 
 
 def test_adjust_hooks_copies_shared_skill_modules_to_user_plugins_dir(
@@ -146,9 +167,9 @@ def test_adjust_hooks_copies_shared_skill_modules_to_user_plugins_dir(
     with patch("pathlib.Path.home", return_value=home):
         adjust_hooks.adjust(_adjust_context(root, target, ["hermes"]))
 
-    for name in SHARED_SKILL_FILES:
+    for skill, name in SHARED_SKILL_FILES:
         dst = home / ".hermes" / "plugins" / name
-        assert dst.read_text(encoding="utf-8") == _commit_reminder_script(root, name)
+        assert dst.read_text(encoding="utf-8") == _skill_script(root, skill, name)
 
 
 def test_adjust_hooks_still_copies_project_hooks_alongside_shared_skill_modules(
@@ -165,7 +186,7 @@ def test_adjust_hooks_still_copies_project_hooks_alongside_shared_skill_modules(
     for name in adjust_hooks.PROJECT_HOOKS:
         dst = target / ".ai-badger" / "hooks" / name
         assert dst.read_text(encoding="utf-8") == _framework_hook(root, name)
-    assert set(SHARED_SKILL_FILES).issubset({
+    assert {name for _, name in SHARED_SKILL_FILES}.issubset({
         f.rsplit("/", 1)[-1] for f in result["files"]
     })
 

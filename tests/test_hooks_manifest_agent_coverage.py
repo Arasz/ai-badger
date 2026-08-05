@@ -22,6 +22,16 @@ def test_the_real_manifest_has_no_unexplained_gaps(root, load_script):
     assert gaps == []
 
 
+def test_memory_grade_manifest_names_all_three_agents(root):
+    """F3: the memory-grade entry must wire every agent capable of its event family."""
+    manifest = json.loads(
+        (root / "features" / "common" / "hooks" / "hooks-manifest.json")
+        .read_text(encoding="utf-8"))
+
+    entry = next(hook for hook in manifest["hooks"] if hook["name"] == "memory-grade")
+    assert set(entry["agents"]) == {"claude", "hermes", "copilot"}
+
+
 def test_an_agent_missing_from_a_hook_with_no_exemption_is_a_gap(tmp_path, load_script,
                                                                    monkeypatch):
     """The forcing function itself: an entry naming only one agent, with nothing recorded
