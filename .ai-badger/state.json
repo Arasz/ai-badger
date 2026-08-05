@@ -1,7 +1,14 @@
 {
   "lastUpdated": "2026-08-05",
-  "next": "Dogfood the memory-grade hook: let it run across real sessions (already machine-wide), review the ~/.ai-badger/memory-grade/memory-quality.jsonl correlation data after a few days, and decide whether the per-project opt-out (.ai-badger/config.json when env on) is needed. Also pending: PR #303 (doc-audit drift fixes) merge, and the ai-raccoon publish.yml RID-shell fix follow-up.",
+  "next": "Dogfood the memory-grade hook: let it run across real sessions (already machine-wide), review the ~/.ai-badger/memory-grade/memory-quality.jsonl correlation data after a few days, and decide whether the per-project opt-out (.ai-badger/config.json when env on) is needed.",
   "completedTasks": [
+    {
+      "id": "integration-review-and-docs-refresh",
+      "title": "Integration review of last changed points (memory-grade hook #304, state #305) + docs refresh",
+      "summary": "Review based on code-review-graph (graph synced to HEAD; blast radius high — 46 files/500 nodes; no test gaps on changed units; detect_changes anchored to the graph build, so changed_files passed explicitly). Code verdict APPROVE: the 6 memory-grade test files are honest (zero-IO disabled path, exact additionalContext contract, no blocking keys, pop-once/last-wins/inert-without-sibling); all 4 copies of memory_grade.py byte-identical, single-sourced via adjust_hooks SHARED_SKILL_MODULES; full suite 3185 passed, all gates green. One Low finding reported (not fixed): grade_line read-modify-writes the whole JSONL, so a concurrent log_search append from another session can be lost — follow-up: fcntl.flock or append-grade records. Docs drift fixed: README tree sketch + docs/framework-architecture.md + docs/getting-started.md listed 12 of 14 default skills (ai-raccoon-memory omission from #302 missed by #303's audit; create-task-spec omission pre-existing); state.json next dropped #303 (merged) and the ai-raccoon publish.yml RID-shell fix (shipped in 1.0.4). PR #306.",
+      "pr": 306,
+      "date": "2026-08-05"
+    },
     {
       "id": "memory-grade-hook",
       "title": "Memory-grade hook: grade memory_search results 1-5 into a machine-wide quality log (0.79.0)",

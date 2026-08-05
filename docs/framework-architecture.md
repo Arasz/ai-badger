@@ -43,8 +43,9 @@ duplicated.
 ### Skills location
 
 The **installable operational skills** — `welcome-ai-badger`, `feed-badger`, `den-refresh`,
-`task`, `maintain-agent-instructions`, `prompt-markers`, `mcp-index`, `code-review-checklist`,
-`call-behaviorist`, `owner-gate-review`, `commit-reminder`, `differential-feature-refactor` —
+`task`, `create-task-spec`, `maintain-agent-instructions`, `prompt-markers`, `mcp-index`,
+`code-review-checklist`, `call-behaviorist`, `owner-gate-review`, `commit-reminder`,
+`differential-feature-refactor`, `ai-raccoon-memory` —
 live at `features/common/skills/`, discovered by `iter_feature_dirs` like any other stack
 feature. What each one is for: [`skills.md`](skills.md).
 (`auto-wm` lives at `features/claude/skills/` since it depends on Claude Code's `PreToolUse` hooks.)
