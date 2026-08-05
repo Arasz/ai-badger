@@ -1,9 +1,9 @@
 # Skills
 
-ai-badger catalogs twenty-one skills. Twenty live under `features/common/skills/` and split by
-the scope `badger_lib.SKILL_SCOPES` gives them ([ADR-0005](adr/0005-default-skill-set.md)):
-**thirteen are `default`** and arrive in every scaffolded project without being asked for, and
-**seven are `optIn`** — catalogued, but written only when a project names them. The twenty-first,
+ai-badger catalogs twenty-two skills. Twenty-one live under `features/common/skills/` and split
+by the scope `badger_lib.SKILL_SCOPES` gives them ([ADR-0005](adr/0005-default-skill-set.md)):
+**fourteen are `default`** and arrive in every scaffolded project without being asked for, and
+**eight are `optIn`** — catalogued, but written only when a project names them. The twenty-second,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot, Junie, or Hermes project.
@@ -63,6 +63,7 @@ names it, **claude-only** when the stack decides.
 | [call-behaviorist](#call-behaviorist) | Off-by-default audit log for ai-badger's own hooks | default | by name |
 | [maintain-agent-instructions](#maintain-agent-instructions) | Reconcile CLAUDE.md/Copilot/Junie instruction files against one model | default | by name (or CI) |
 | [mcp-index](#mcp-index) | Curate the MCP tool index a hook uses to recommend tools per turn | default | by name; feeds a `pre_llm_call` hook |
+| [ai-raccoon-memory](#ai-raccoon-memory) | Project memory server: search memory first, write durable facts with source paths, watch a docs directory | default | by name |
 | [auto-wm](#auto-wm) | Auto-approve tool calls in partner/away mode | claude-only | by name (`/auto-wm`); installs a `PreToolUse` hook once enabled |
 | [scaffold-documentation](#scaffold-documentation) | Create the canonical `docs/` tree in a repo that has none | opt-in | by name |
 | [update-documentation](#update-documentation) | Change documentation to match something that already changed | opt-in | by name |
@@ -71,6 +72,7 @@ names it, **claude-only** when the stack decides.
 | [explore-codebase](#explore-codebase) | Orient in an unfamiliar codebase before reading it file by file | opt-in | by name |
 | [debug-issue](#debug-issue) | Trace the call chain from a symptom to its entry point before hypothesizing | opt-in | by name |
 | [refactor-safely](#refactor-safely) | Enumerate every affected location before a rename, extraction, or removal | opt-in | by name |
+| [evidence-first-research](#evidence-first-research) | Produce a dated research record whose findings are graded by how they are known | opt-in | by name |
 
 ---
 
@@ -362,9 +364,32 @@ bloating the prompt, or MCP servers were just added or removed.
 
 ---
 
+### ai-raccoon-memory
+
+[`SKILL.md`](../features/common/skills/ai-raccoon-memory/SKILL.md)
+
+**What it is.** The AiRaccoon memory server (`arasz.ai-raccoon`, MCP stdio): semantic search
+over committed project memory and a shared promotion tier, durable-fact writes that carry
+source paths, workspace outboxes for in-progress notes, and directory watching that mirrors a
+docs tree into memory.
+
+**What it does.** The watch-on-docs ritual runs first — `memory_watch_status(project_id)`, and
+`memory_watch_add` when the docs directory is not watched — then search-first:
+`memory_search(project_id, scope=all)` with 2-3 formulations before web search, code search,
+or asking the user. Results escalate by outcome: a decisive hit is cited as evidence, a
+partial hit gets one targeted external search, and a miss gets an external search followed by
+a `memory_write` of the finding (source path included). Durable cross-project facts are
+promoted with `memory_share`, never automatically.
+
+**When to use it.** Any session in a project that has the server installed — the MCP entry is
+declared when `ai-raccoon` is on PATH. Install it with
+`dotnet tool install -g arasz.ai-raccoon`.
+
+---
+
 ## Asked for, not shipped (`optIn`)
 
-None of the six below is written into a project until `config.include.skills` names it — see the
+None of the eight below is written into a project until `config.include.skills` names it — see the
 opening of this page for the edit, and
 [`authoring-a-feature.md`](authoring-a-feature.md#default-or-optin) for the mechanism. Every
 scaffold and refresh report lists the ones a project has not installed, so nobody has to know
