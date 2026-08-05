@@ -167,6 +167,10 @@
     "common": {
       "skills": [
         {
+          "name": "ai-raccoon-memory",
+          "path": "features/common/skills/ai-raccoon-memory"
+        },
+        {
           "name": "call-behaviorist",
           "path": "features/common/skills/call-behaviorist",
           "scope": "default"
@@ -403,6 +407,10 @@
         }
       ],
       "mcp": [
+        {
+          "name": "ai-raccoon",
+          "path": "features/common/mcp/ai-raccoon"
+        },
         {
           "name": "code-review-graph",
           "path": "features/common/mcp/code-review-graph"
