@@ -1,6 +1,6 @@
 {
   "lastUpdated": "2026-08-05",
-  "next": "Dogfood the memory-grade hook: let it run across real sessions (already machine-wide), review the ~/.ai-badger/memory-grade/memory-quality.jsonl correlation data after a few days, and decide whether the per-project opt-out (.ai-badger/config.json when env on) is needed. Also pending: PR #303 (doc-audit drift fixes) merge, and the ai-raccoon publish.yml RID-shell fix follow-up.",
+  "next": "Dogfood the memory-grade hook: let it run across real sessions (already machine-wide), review the ~/.ai-badger/memory-grade/memory-quality.jsonl correlation data after a few days, and decide whether the per-project opt-out (.ai-badger/config.json when env on) is needed.",
   "completedTasks": [
     {
       "id": "memory-grade-hook",

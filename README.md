@@ -239,9 +239,9 @@ ai-badger/
     common/
       skills/                    # Installable operational skills
         task/ welcome-ai-badger/ feed-badger/ den-refresh/
-        maintain-agent-instructions/ prompt-markers/ mcp-index/
+        create-task-spec/ maintain-agent-instructions/ prompt-markers/ mcp-index/
         code-review-checklist/ call-behaviorist/ owner-gate-review/
-        commit-reminder/ differential-feature-refactor/
+        commit-reminder/ differential-feature-refactor/ ai-raccoon-memory/
       personas/{architect, test-engineer, code-reviewer, delegator}.md
       invariants/*.md            # Agnostic invariant snippets
       instructions/*.md          # Agnostic scoped instructions
