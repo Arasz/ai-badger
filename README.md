@@ -103,10 +103,11 @@ agent-specific stacks (`claude`, `copilot`, `junie`).
 /plugin install ai-badger
 ```
 
-This installs the thirteen `default` skills: `welcome-ai-badger`, `feed-badger`, `den-refresh`,
+This installs the fourteen `default` skills: `welcome-ai-badger`, `feed-badger`, `den-refresh`,
 `task`, `create-task-spec`, `maintain-agent-instructions`, `prompt-markers`, `mcp-index`,
-`code-review-checklist`, `call-behaviorist`, `owner-gate-review`, `commit-reminder`, and
-`differential-feature-refactor` — plus `auto-wm`, which is stack-local to Claude.
+`code-review-checklist`, `call-behaviorist`, `owner-gate-review`, `commit-reminder`,
+`differential-feature-refactor`, and `ai-raccoon-memory` — plus `auto-wm`, which is stack-local
+to Claude.
 
 Eight more are catalogued but withheld until a project names them in `config.include.skills`
 (ADR-0005). See [`docs/skills.md`](docs/skills.md) for what each one does, when to reach for it,
@@ -199,6 +200,7 @@ the schema.
 | **owner-gate-review** | A per-decision review form whose answers stay bound to their decision |
 | **commit-reminder** | A `PostToolUse` hook that commands a commit once work sits uncommitted |
 | **differential-feature-refactor** | Separate design intent from accumulated cruft before scoping a refactor |
+| **ai-raccoon-memory** | Project memory server: search memory first, write durable facts with source paths, watch a docs directory |
 
 What each one does in detail, and the situation that calls for it: [`docs/skills.md`](docs/skills.md).
 
@@ -210,10 +212,13 @@ your project during `welcome-ai-badger` or `den-refresh`:
 | Server | What it does |
 |---|---|
 | [**code-review-graph**](https://github.com/tirth8205/code-review-graph) | Local-first code intelligence graph for MCP. Builds a persistent map of your codebase so AI coding tools read only what matters — used for code review, impact analysis, and architecture exploration. |
+| [**hermes**](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp#running-hermes-as-an-mcp-server) | Hermes Agent's stdio MCP bridge: list conversations, read history, poll live events, send messages, manage approvals. Declared only when `hermes` is on PATH. |
+| [**ai-raccoon**](https://github.com/Arasz/ai-raccoon) | Project memory server: semantic search, durable-fact writes, workspaces, docs watching. Declared only when `ai-raccoon` is on PATH. |
 
 Each server is a catalog item under `features/<stack>/mcp/<server>/`, carrying the prose
 injected into every agent file. `features/common/stack-mcp.json` says which servers a stack
-wants and which of them are written into `.mcp.json` during scaffold (ADR-0014).
+wants and which of them are written into `.mcp.json` during scaffold (ADR-0014);
+`hermes` and `ai-raccoon` are conditional on their CLI being on PATH.
 
 ## Architecture overview
 
@@ -267,9 +272,9 @@ flowchart TB
       COMMON["common/\npersonas·invariants·instructions·hooks·templates"]
       STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · github · angular"]
     end
-    SKILLSDIR["features/common/skills/\n13 default: welcome · feed · task · create-task-spec · maintain\n· prompt-markers · den-refresh · mcp-index · code-review-checklist\n· call-behaviorist · owner-gate-review · commit-reminder · differential-feature-refactor\n8 optIn: the documentation three · review-changes · explore-codebase\n· debug-issue · refactor-safely · evidence-first-research"]
+    SKILLSDIR["features/common/skills/\n14 default: welcome · feed · task · create-task-spec · maintain\n· prompt-markers · den-refresh · mcp-index · code-review-checklist\n· call-behaviorist · owner-gate-review · commit-reminder · differential-feature-refactor · ai-raccoon-memory\n8 optIn: the documentation three · review-changes · explore-codebase\n· debug-issue · refactor-safely · evidence-first-research"]
     CLAUDESKILLS["features/claude/skills/\nauto-wm"]
-    MCPCAT["features/*/mcp/ + stack-mcp.json\ncode-review-graph (MCP)"]
+    MCPCAT["features/*/mcp/ + stack-mcp.json\ncode-review-graph · hermes · ai-raccoon (MCP)"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]
   end
   IDXbuild["index_build.py"] -->|scans features/| IDX
