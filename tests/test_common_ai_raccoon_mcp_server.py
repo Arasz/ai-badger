@@ -267,5 +267,6 @@ def test_ai_raccoon_memory_skill_is_indexed(root, load_script):
     items = bl.feature_items(bl.read_index(root), "common", "skills")
     skill = root / "features" / "common" / "skills" / "ai-raccoon-memory"
 
-    assert {"name": "ai-raccoon-memory", "path": "features/common/skills/ai-raccoon-memory"} in items
+    assert {"name": "ai-raccoon-memory", "path": "features/common/skills/ai-raccoon-memory",
+            "scope": "default"} in items
     assert (skill / "SKILL.md").is_file()
