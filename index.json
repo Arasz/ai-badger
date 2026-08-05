@@ -168,7 +168,8 @@
       "skills": [
         {
           "name": "ai-raccoon-memory",
-          "path": "features/common/skills/ai-raccoon-memory"
+          "path": "features/common/skills/ai-raccoon-memory",
+          "scope": "default"
         },
         {
           "name": "call-behaviorist",

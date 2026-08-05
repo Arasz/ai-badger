@@ -661,6 +661,7 @@ SKILL_SCOPE_OPT_IN = "optIn"
 # plugin's per-stack ship lists both derive from this. See ADR-0005 for why the
 # declaration lives here rather than in SKILL.md frontmatter.
 SKILL_SCOPES: Dict[str, str] = {
+    "ai-raccoon-memory": SKILL_SCOPE_DEFAULT,
     "call-behaviorist": SKILL_SCOPE_DEFAULT,
     "code-review-checklist": SKILL_SCOPE_DEFAULT,
     "commit-reminder": SKILL_SCOPE_DEFAULT,
