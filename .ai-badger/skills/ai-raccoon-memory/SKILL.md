@@ -66,6 +66,27 @@ low-rated entries; shared entries are exempt.
 `memory_ingest_file` / `memory_ingest_directory` bulk-load files; `memory_stats` reports bank
 size; `memory_sync` exchanges snapshots with cloud storage when configured.
 
+## 8. Memory-grade hook (dogfooding, default off)
+
+Every `memory_search` can be logged to a machine-wide quality log with a 1-5 usefulness grade
+filled in afterwards — retrieval-quality telemetry correlated by `projectId`/`workspaceId`
+across sessions. **Off by default**: the hook does no reads, no writes, and no injection until
+the env var is set. Enable on the machine (then restart the agent host):
+
+```sh
+echo 'export AI_BADGER_MEMORY_GRADE=1' >> ~/.zshrc
+launchctl setenv AI_BADGER_MEMORY_GRADE 1
+```
+
+When on, each search appends one line to `~/.ai-badger/memory-grade/memory-quality.jsonl`
+(with `usefulness: null`), and the very next turn asks the agent to rate it. Answer by filling
+the grade in place — nothing is lost when an ask goes unanswered:
+
+```sh
+python3 ~/.hermes/plugins/memory_grade.py grade <ts> <1-5> [note]
+python3 ~/.hermes/plugins/memory_grade.py probe   # config state, log path, last 3 lines
+```
+
 ## Verification Checklist
 
 - [ ] `memory_watch_status` shows the docs dir `healthy`

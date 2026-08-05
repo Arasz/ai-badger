@@ -21,6 +21,7 @@ USER_PLUGINS = ("ai_badger_hooks.py", "learned_skills_sync.py")
 SHARED_SKILL_MODULES = (
     ("commit-reminder", "commit_reminder.py"),
     ("commit-reminder", "impact_estimator.py"),
+    ("ai-raccoon-memory", "memory_grade.py"),
 )
 
 # The BM25 MCP matcher (docs/adr/0012): tokenizer, scoring, gate and document
