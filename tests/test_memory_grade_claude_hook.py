@@ -107,3 +107,22 @@ def test_hooks_json_post_tool_use_wires_the_script(root):
     commands = [h["command"] for h in entries[0]["hooks"]]
     assert len(commands) == 1
     assert "memory_grade_hook.py" in commands[0]
+
+
+def test_claude_hook_does_not_stash_a_pending_ask(
+        hook, monkeypatch, tmp_path, capsys, on):
+    """F1: the Claude transport returns the ask directly — it must not leave a
+    pending ask that a later Hermes session in the same project would pop."""
+    payload = {
+        "tool_name": "memory_search",
+        "tool_input": {"projectId": "probe", "query": "q"},
+        "tool_response": {"results": []},
+        "cwd": str(tmp_path),
+    }
+
+    rc = _run(hook, monkeypatch, payload)
+
+    assert rc == 0
+    assert not (tmp_path / "pending.json").exists()
+    out = json.loads(capsys.readouterr().out)
+    assert "additionalContext" in out["hookSpecificOutput"]

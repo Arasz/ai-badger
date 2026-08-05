@@ -27,10 +27,13 @@ def main() -> int:
     tool_name = payload.get("tool_name") or payload.get("toolName") or ""
     if not memory_grade.is_memory_search(tool_name):
         return 0
+    tool_input = payload.get("tool_input")
+    tool_response = payload.get("tool_response")
     ask = memory_grade.log_search(
-        payload.get("tool_input") or {},
-        payload.get("tool_response") or "",
+        tool_input if isinstance(tool_input, dict) else {},
+        "" if tool_response is None else tool_response,
         payload.get("cwd") or "",
+        stash=False,
     )
     if ask is None:
         return 0
@@ -44,4 +47,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception:  # pylint: disable=broad-exception-caught
+        sys.exit(0)  # advisory only — a hook failure must never block the tool call

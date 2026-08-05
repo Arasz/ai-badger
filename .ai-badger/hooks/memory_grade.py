@@ -1,11 +1,12 @@
 """Memory-grade hook logic: match memory_search calls, gate on AI_BADGER_MEMORY_GRADE=1,
 append one JSONL line per search to a machine-wide quality log, stash the grade ask,
 and fill grades back in via the `grade`/`probe` CLI. Default OFF (absent/unset/0/garbage):
-no reads, no writes, no injection."""
+no reads, no writes, no injection. IO is internally guarded: a hook must never raise."""
 from __future__ import annotations
 
 import json
 import os
+import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -67,7 +68,7 @@ def _build_line(args: Dict[str, Any], result: Any) -> Dict[str, Any]:
         "ts": _now_iso(),
         "query": args.get("query", ""),
         "scope": args.get("scope", "all"),
-        "projectId": args.get("projectId", args.get("project_id", "")),
+        "projectId": args.get("projectId", args.get("project_id")),
         "workspaceId": args.get("workspaceId", args.get("workspace_id")),
         "result": _result_payload(result),
         "usefulness": None,
@@ -75,17 +76,21 @@ def _build_line(args: Dict[str, Any], result: Any) -> Dict[str, Any]:
     }
 
 
-def _append_log(line: Dict[str, Any]) -> None:
-    """Append one line, creating the log's parent directory lazily."""
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with LOG_FILE.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(line) + "\n")
+def _append_log(line: Dict[str, Any]) -> bool:
+    """Append one line, creating the log's parent directory lazily; False on IO failure."""
+    try:
+        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with LOG_FILE.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(line) + "\n")
+        return True
+    except OSError:
+        return False
 
 
 def _ask_text(ts: str) -> str:
     """The one-line grade ask; ts is the exact log-line pointer to grade."""
     return (f"[ai-badger] Rate that memory_search's usefulness 1-5 (5=best, or skip): "
-            f"python3 {HELPER} grade {ts} <1-5> [note]")
+            f"python3 {shlex.quote(str(HELPER))} grade {ts} <1-5> [note]")
 
 
 def _load_pending() -> Dict[str, str]:
@@ -101,10 +106,14 @@ def _load_pending() -> Dict[str, str]:
     return data if isinstance(data, dict) else {}
 
 
-def _save_pending(pending: Dict[str, str]) -> None:
-    """Persist the pending-ask file, creating parent directories as needed."""
-    PENDING_FILE.parent.mkdir(parents=True, exist_ok=True)
-    PENDING_FILE.write_text(json.dumps(pending), encoding="utf-8")
+def _save_pending(pending: Dict[str, str]) -> bool:
+    """Persist the pending-ask file, creating parent directories as needed; False on IO failure."""
+    try:
+        PENDING_FILE.parent.mkdir(parents=True, exist_ok=True)
+        PENDING_FILE.write_text(json.dumps(pending), encoding="utf-8")
+        return True
+    except OSError:
+        return False
 
 
 def _set_pending(project: str, ask: str) -> None:
@@ -114,18 +123,23 @@ def _set_pending(project: str, ask: str) -> None:
     _save_pending(pending)
 
 
-def log_search(args: Dict[str, Any], result: Any, cwd: str) -> Optional[str]:
+def log_search(args: Dict[str, Any], result: Any, cwd: str,
+               stash: bool = True) -> Optional[str]:
     """Append one line for a memory_search call and stash the ask; the ask text back.
 
-    Returns None when disabled: no reads, no writes, nothing to inject.
+    Returns None when disabled (no reads, no writes) or when the log write fails.
+    ``stash=False`` for transports that return the ask directly (Claude's
+    PostToolUse) — they must not leave a stale ask a Hermes session would pop.
     """
     if not enabled():
         return None
     line = _build_line(args, result)
     ts = line["ts"]
-    _append_log(line)
+    if not _append_log(line):
+        return None
     ask = _ask_text(ts)
-    _set_pending(cwd, ask)
+    if stash:
+        _set_pending(cwd, ask)
     return ask
 
 
@@ -176,7 +190,11 @@ def grade_line(ts: str, usefulness: str, note: str = "") -> int:
     line["usefulness"] = int(usefulness)
     line["note"] = note or None
     lines[target] = json.dumps(line)
-    LOG_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        LOG_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except OSError:
+        print("could not write the quality log", file=sys.stderr)
+        return 1
     return 0
 
 
