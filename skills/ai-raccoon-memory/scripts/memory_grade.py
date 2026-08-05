@@ -1,10 +1,12 @@
 """Memory-grade hook logic: match memory_search calls, gate on AI_BADGER_MEMORY_GRADE=1,
-append one JSONL line per search to a machine-wide quality log, and stash the grade ask.
-Default OFF (absent/unset/0/garbage): no reads, no writes, no injection."""
+append one JSONL line per search to a machine-wide quality log, stash the grade ask,
+and fill grades back in via the `grade`/`probe` CLI. Default OFF (absent/unset/0/garbage):
+no reads, no writes, no injection."""
 from __future__ import annotations
 
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -137,3 +139,76 @@ def pop_ask(project: str) -> Optional[str]:
     if ask is not None:
         _save_pending(pending)
     return ask
+
+
+def _valid_grade(value: str) -> bool:
+    """Grade guard: an integer in 1..5, or not a grade at all."""
+    try:
+        return int(value) in range(1, 6)
+    except ValueError:
+        return False
+
+
+def grade_line(ts: str, usefulness: str, note: str = "") -> int:
+    """Fill the line whose exact ts matches, in place; exit 1 on a bad grade or unknown ts."""
+    if not _valid_grade(usefulness):
+        print("grade must be an integer 1-5", file=sys.stderr)
+        return 1
+    try:
+        lines = LOG_FILE.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        lines = []
+    target = None
+    for index, raw in enumerate(lines):
+        if not raw.strip():
+            continue
+        try:
+            line = json.loads(raw)
+        except ValueError:
+            continue
+        if line.get("ts") == ts:
+            target = index
+            break
+    if target is None:
+        print(f"no log line with ts {ts} — not found", file=sys.stderr)
+        return 1
+    line = json.loads(lines[target])
+    line["usefulness"] = int(usefulness)
+    line["note"] = note or None
+    lines[target] = json.dumps(line)
+    LOG_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return 0
+
+
+def probe() -> int:
+    """Print the config state, the log path, and the last 3 lines."""
+    print(f"{ENABLED_ENV}={os.environ.get(ENABLED_ENV, '')} "
+          f"({'enabled' if enabled() else 'disabled'})")
+    print(f"log: {LOG_FILE}")
+    try:
+        lines = LOG_FILE.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        lines = []
+    for raw in lines[-3:]:
+        if raw.strip():
+            print(raw)
+    return 0
+
+
+def main(argv: Optional[list] = None) -> int:
+    """CLI: `grade <ts> <1-5> [note]` fills a line; `probe` prints state and the log."""
+    args = list(sys.argv[1:] if argv is None else argv)
+    if not args:
+        print("usage: memory_grade.py grade <ts> <1-5> [note] | probe", file=sys.stderr)
+        return 1
+    command, rest = args[0], args[1:]
+    if command == "grade" and len(rest) >= 2:
+        return grade_line(rest[0], rest[1], " ".join(rest[2:]))
+    if command == "probe":
+        return probe()
+    print(f"unknown command: {command}", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

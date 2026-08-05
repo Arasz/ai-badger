@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.78.0",
-  "frameworkCommit": "07e3da0956170b5a6633333fe63947d264ec79fc",
+  "frameworkCommit": "47044fbd5d7ce92ac278515ce44e465635fcf29a",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -659,12 +659,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.78.0",
-      "hash": "b68281c016fd116eab6b82bda19b13fbe455f71d1b65adc4919e0399ae41f9a6",
+      "hash": "85ed213583548c60257e7789d9243dc0cdda91ca35bbe9a9c0dc8847cf125395",
       "dirMeta": {
         "file_count": 2,
         "dir_count": 1
       },
-      "sourceHash": "b68281c016fd116eab6b82bda19b13fbe455f71d1b65adc4919e0399ae41f9a6",
+      "sourceHash": "85ed213583548c60257e7789d9243dc0cdda91ca35bbe9a9c0dc8847cf125395",
       "sourceMeta": {
         "file_count": 2,
         "dir_count": 1
