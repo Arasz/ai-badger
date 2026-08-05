@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../../schemas/mcp-server-tools.schema.json",
+  "server": "ai-raccoon",
+  "tools": [
+    {"name": "memory_write", "intent": "Persist a durable, project-scoped fact with its source path — one fact per entry, never raw chatter.", "tags": ["write"]},
+    {"name": "memory_search", "intent": "Search project/shared memory (scope=all, project, or shared) with 2-3 formulations before web or code search.", "tags": ["search", "semantic"]},
+    {"name": "memory_list", "intent": "List entries in a project's memory bank, optionally filtered.", "tags": ["read"]},
+    {"name": "memory_stats", "intent": "Report bank size and entry counts for a project.", "tags": ["read"]},
+    {"name": "memory_share", "intent": "Promote a durable, cross-project entry to the shared tier — curated and never swept.", "tags": ["write"]},
+    {"name": "memory_delete", "intent": "Delete a specific memory entry by id.", "tags": ["write", "unsafe"]},
+    {"name": "memory_delete_context", "intent": "Delete entries by context; requires full access mode.", "tags": ["write", "unsafe"]},
+    {"name": "memory_ingest_file", "intent": "Bulk-load a file's contents into project memory as entries.", "tags": ["write", "files", "batch"]},
+    {"name": "memory_ingest_directory", "intent": "Bulk-load every supported file under a directory into project memory.", "tags": ["write", "files", "batch"]},
+    {"name": "memory_embed_pending", "intent": "Embed pending entries; omit the limit argument to process all.", "tags": ["run", "batch", "slow"]},
+    {"name": "memory_workspace_begin", "intent": "Start an isolated workspace outbox for in-progress notes.", "tags": ["write"]},
+    {"name": "memory_workspace_status", "intent": "List what the active workspace outbox holds.", "tags": ["read"]},
+    {"name": "memory_workspace_consolidate", "intent": "Finish a workspace: keep durable facts, promote cross-project ones with memory_share, drop the rest.", "tags": ["write"]},
+    {"name": "memory_workspace_discard", "intent": "Discard an active workspace and its outbox without consolidating.", "tags": ["write", "unsafe"]},
+    {"name": "memory_sweep", "intent": "Remove old, low-rated project entries; shared entries are exempt.", "tags": ["write", "batch"]},
+    {"name": "memory_sync", "intent": "Exchange memory snapshots with cloud storage when configured.", "tags": ["run"]},
+    {"name": "memory_watch_add", "intent": "Register an absolute path to mirror into memory; the initial scan runs in the background.", "tags": ["write", "files"]},
+    {"name": "memory_watch_status", "intent": "Report watch state (scanning/healthy/retrying/stopped) for a project; empty when none.", "tags": ["read"]},
+    {"name": "memory_watch_remove", "intent": "Stop mirroring a watched path; a no-op when the path is not watched.", "tags": ["write", "files"]}
+  ]
+}

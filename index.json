@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.77.3",
+  "frameworkVersion": "0.78.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -166,6 +166,11 @@
     },
     "common": {
       "skills": [
+        {
+          "name": "ai-raccoon-memory",
+          "path": "features/common/skills/ai-raccoon-memory",
+          "scope": "default"
+        },
         {
           "name": "call-behaviorist",
           "path": "features/common/skills/call-behaviorist",
@@ -403,6 +408,10 @@
         }
       ],
       "mcp": [
+        {
+          "name": "ai-raccoon",
+          "path": "features/common/mcp/ai-raccoon"
+        },
         {
           "name": "code-review-graph",
           "path": "features/common/mcp/code-review-graph"

@@ -13,6 +13,14 @@
       "availability": {
         "command": "hermes"
       }
+    },
+    {
+      "name": "ai-raccoon",
+      "command": "ai-raccoon",
+      "declare": true,
+      "availability": {
+        "command": "ai-raccoon"
+      }
     }
   ]
 }

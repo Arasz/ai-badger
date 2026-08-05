@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../../schemas/mcp-server.schema.json",
+  "name": "ai-raccoon",
+  "package": "arasz.ai-raccoon",
+  "description": "Project-scoped agent memory server: semantic search, durable-fact writes, workspaces, promotion to a shared tier, and directory watching, served over MCP stdio.",
+  "homepage": "https://github.com/Arasz/ai-raccoon",
+  "prerequisite": {
+    "summary": "the ai-raccoon global .NET tool",
+    "check": "ai-raccoon --version",
+    "install": "dotnet tool install -g arasz.ai-raccoon"
+  }
+}
