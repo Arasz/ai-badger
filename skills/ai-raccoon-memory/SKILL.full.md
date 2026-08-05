@@ -23,9 +23,9 @@ it into memory. The watch starts `scanning` and settles to `healthy`; an already
 a no-op.
 
 **CLI prerequisite (only when the watch errors):** `watching-disabled` or `path-outside-scope`
-means the one-time per-install setup is missing:
-`ai-raccoon watch scope add <project-id|*> <path>`, then
-`ai-raccoon watch enable <project-id|*> true`. If the `memory_watch_*` tools are not listed at
+means the one-time per-install setup is missing (quote the `*` so the shell does not expand it):
+`ai-raccoon watch scope add '<project-id|*>' <path>`, then
+`ai-raccoon watch enable '<project-id|*>' true`. If the `memory_watch_*` tools are not listed at
 all (older tool build on another machine), update the tool: `dotnet tool update -g arasz.ai-raccoon`.
 
 ## 2. Search-first workflow
@@ -44,9 +44,10 @@ plain-English restatement. Entries carry source paths — cite them as evidence.
 
 Durable facts only, one per entry, source included. Plain writes land in committed project
 memory (`project:<id>`). For in-progress notes use workspace isolation:
-`memory_workspace_begin` → `memory_workspace_status` → `memory_workspace_consolidate` (or
-`memory_workspace_discard`). Promote durable cross-project facts with `memory_share` — never
-automatically. `memory_sweep` removes old low-rated entries; shared entries are exempt.
+`memory_workspace_begin` → `memory_workspace_status` → `memory_workspace_consolidate(keep=[...])`
+(or `["all"]` to promote everything; `memory_workspace_discard` to drop). Promote durable
+cross-project facts with `memory_share` — never automatically. `memory_sweep` removes old
+low-rated entries; shared entries are exempt.
 
 ## 5. Scopes
 

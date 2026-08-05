@@ -4,7 +4,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scr
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.77.3. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
+> Scaffolded by ai-badger 0.78.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
 ## Non-negotiable invariants
 
@@ -152,7 +152,8 @@ Every call passes project_id. Plain writes land in committed project memory; act
 isolate in-progress notes (consolidate on finish); promote durable cross-project facts with
 memory_share — shared entries are curated and never swept. Keep the docs directory searchable:
 check memory_watch_status, then memory_watch_add (project_id + absolute path) when no watch
-exists. One-time CLI setup: `ai-raccoon watch scope add` / `ai-raccoon watch enable`. The common declaration is conditional: ai-badger emits it only when `ai-raccoon` resolves on PATH.
+exists. One-time CLI setup: `ai-raccoon watch scope add` / `ai-raccoon watch enable`.
+The common declaration is conditional: ai-badger emits it only when `ai-raccoon` resolves on PATH.
 
 
 

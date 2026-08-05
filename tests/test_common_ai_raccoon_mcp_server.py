@@ -118,7 +118,8 @@ def test_installed_ai_raccoon_is_declared_and_split_into_mcp_json(
     scaf.mcp.generate_mcp_json()
     generated = json.loads((make_scaffolder.target / ".mcp.json").read_text(encoding="utf-8"))
 
-    # Zero-arg command: the rendered entry carries no "args" key.
+    # Zero-arg command: the rendered entry carries no "args" key. Host-dependent
+    # ${HOME} rewrite is neutralized by the suite's session-scoped HOME redirection.
     assert generated["mcpServers"][AI_RACCOON] == {
         "command": "ai-raccoon",
         "tools": ["*"],
