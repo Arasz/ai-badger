@@ -1,9 +1,10 @@
 {
   "version": "0.1.0",
-  "generated_at": "2026-07-26T08:31:33Z",
+  "generated_at": "2026-08-05T21:00:23Z",
   "sources": [
     {
       "name": "code-review-graph",
+      "status": "unknown",
       "tools": {
         "build_or_update_graph_tool": {
           "tags": [
@@ -27,16 +28,18 @@
         "get_impact_radius_tool": {
           "tags": [
             "diagnostic",
-            "search"
+            "navigation"
           ],
-          "intent": "Analyze the blast radius of changed files in the codebase"
+          "intent": "Blast radius of editing a symbol: how far a change to it reaches.",
+          "origin": "catalog"
         },
         "query_graph_tool": {
           "tags": [
-            "search",
-            "semantic"
+            "navigation",
+            "search"
           ],
-          "intent": "Run a predefined graph query to explore code relationships"
+          "intent": "Trace a known symbol's callers, callees, imports and what covers it — the structural answer a text search cannot give.",
+          "origin": "catalog"
         },
         "get_review_context_tool": {
           "tags": [
@@ -48,9 +51,11 @@
         },
         "semantic_search_nodes_tool": {
           "tags": [
-            "search"
+            "search",
+            "semantic"
           ],
-          "intent": "Search for code entities by name, keyword, or semantic similarity"
+          "intent": "Find code by describing what it does, when you do not know the file or symbol name. The entry point for 'where is X handled?'.",
+          "origin": "catalog"
         },
         "embed_graph_tool": {
           "tags": [
@@ -115,17 +120,19 @@
         },
         "get_architecture_overview_tool": {
           "tags": [
-            "read",
-            "search"
+            "navigation",
+            "read"
           ],
-          "intent": "Generate an architecture overview based on community structure"
+          "intent": "Orientation in an unfamiliar repository — its structure and major components — before reading any single file.",
+          "origin": "catalog"
         },
         "detect_changes_tool": {
           "tags": [
             "diagnostic",
-            "search"
+            "navigation"
           ],
-          "intent": "Detect changes and produce risk-scored, priority-ordered review guidance"
+          "intent": "List what changed since the last graph update, as the starting point of a review rather than a git diff.",
+          "origin": "catalog"
         },
         "refactor_tool": {
           "tags": [
@@ -206,6 +213,8 @@
     },
     {
       "name": "rider",
+      "status": "unknown",
+      "url": "http://127.0.0.1:64342/stream",
       "tools": {
         "build_solution": {
           "tags": [
@@ -480,11 +489,12 @@
           ],
           "intent": "Retrieves a list of recent queries for a database connection"
         }
-      },
-      "url": "http://127.0.0.1:64342/stream"
+      }
     },
     {
       "name": "microsoft-docs",
+      "status": "unknown",
+      "url": "https://learn.microsoft.com/api/mcp",
       "tools": {
         "microsoft_docs_search": {
           "tags": [
@@ -504,11 +514,11 @@
           ],
           "intent": "Search for code snippets and examples in official Microsoft Learn documentation"
         }
-      },
-      "url": "https://learn.microsoft.com/api/mcp"
+      }
     },
     {
       "name": "playwright",
+      "status": "unknown",
       "tools": {
         "browser_navigate": {
           "tags": [
@@ -660,6 +670,78 @@
           "intent": "Run a Playwright code snippet (unsafe)"
         }
       }
+    },
+    {
+      "name": "plugin:github:github",
+      "status": "unreachable",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "tools": {}
+    },
+    {
+      "name": "plugin:playwright:playwright",
+      "status": "unknown",
+      "tools": {}
+    },
+    {
+      "name": "plugin:microsoft-docs:microsoft-learn",
+      "status": "unknown",
+      "url": "https://learn.microsoft.com/api/mcp",
+      "tools": {}
+    },
+    {
+      "name": "plugin:terraform:terraform",
+      "status": "unknown",
+      "tools": {}
+    },
+    {
+      "name": "plugin:dotnet-claude-kit:cwm-roslyn-navigator",
+      "status": "unknown",
+      "tools": {}
+    },
+    {
+      "name": "plugin:dotnet-msbuild:binlog",
+      "status": "unknown",
+      "tools": {}
+    },
+    {
+      "name": "plugin:aspire:context7",
+      "status": "unknown",
+      "tools": {}
+    },
+    {
+      "name": "hermes",
+      "status": "unknown",
+      "tools": {}
+    },
+    {
+      "name": "ai-raccoon",
+      "status": "unknown",
+      "tools": {}
+    },
+    {
+      "name": "dotnet-sdk",
+      "status": "unknown",
+      "tools": {}
+    },
+    {
+      "name": "glider",
+      "status": "unknown",
+      "tools": {}
+    },
+    {
+      "name": "glider-trace",
+      "status": "unknown",
+      "tools": {}
+    },
+    {
+      "name": "llmstudio",
+      "status": "disabled",
+      "tools": {}
+    },
+    {
+      "name": "superpowers",
+      "status": "disabled",
+      "tools": {}
     }
   ]
 }
