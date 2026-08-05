@@ -475,6 +475,12 @@ def pre_llm_inject_context(
     if pending_reminder:
         parts.append(pending_reminder)
 
+    memory_grade = _load_memory_grade()
+    if memory_grade is not None:
+        grade_ask = memory_grade.pop_ask(project)
+        if grade_ask:
+            parts.append(grade_ask)
+
     # Framework version
     fw_version = _read_framework_version()
     if fw_version:

@@ -54,7 +54,8 @@ def _search(hooks, tmp_path, args=None):
 
 
 def test_search_stashes_pending_ask_keyed_by_project(
-        tmp_path, hooks, fake_memory_grade, grade_paths, on):
+        tmp_path, monkeypatch, hooks, fake_memory_grade, grade_paths, on):
+    monkeypatch.chdir(tmp_path)
     _search(hooks, tmp_path)
 
     pending = json.loads(grade_paths[1].read_text(encoding="utf-8"))
@@ -63,7 +64,8 @@ def test_search_stashes_pending_ask_keyed_by_project(
 
 
 def test_ask_injected_once_on_next_pre_llm_call(
-        tmp_path, hooks, fake_memory_grade, grade_paths, on):
+        tmp_path, monkeypatch, hooks, fake_memory_grade, grade_paths, on):
+    monkeypatch.chdir(tmp_path)
     _search(hooks, tmp_path)
 
     result = hooks.pre_llm_inject_context(user_message="next turn")
@@ -73,7 +75,8 @@ def test_ask_injected_once_on_next_pre_llm_call(
 
 
 def test_ask_not_injected_a_second_time(
-        tmp_path, hooks, fake_memory_grade, grade_paths, on):
+        tmp_path, monkeypatch, hooks, fake_memory_grade, grade_paths, on):
+    monkeypatch.chdir(tmp_path)
     _search(hooks, tmp_path)
     hooks.pre_llm_inject_context(user_message="first turn")
 
@@ -83,7 +86,8 @@ def test_ask_not_injected_a_second_time(
 
 
 def test_ask_injection_is_inert_when_disabled(
-        tmp_path, hooks, fake_memory_grade, grade_paths, off):
+        tmp_path, monkeypatch, hooks, fake_memory_grade, grade_paths, off):
+    monkeypatch.chdir(tmp_path)
     _search(hooks, tmp_path)
 
     result = hooks.pre_llm_inject_context(user_message="hello")
@@ -92,7 +96,8 @@ def test_ask_injection_is_inert_when_disabled(
 
 
 def test_ask_contains_helper_command_and_ts(
-        tmp_path, hooks, fake_memory_grade, grade_paths, on):
+        tmp_path, monkeypatch, hooks, fake_memory_grade, grade_paths, on):
+    monkeypatch.chdir(tmp_path)
     _search(hooks, tmp_path)
     ts = json.loads(grade_paths[0].read_text(encoding="utf-8").splitlines()[0])["ts"]
 
