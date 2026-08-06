@@ -10,6 +10,13 @@
       "date": "2026-08-06"
     },
     {
+      "id": "mcp-hermes",
+      "title": "Trace how hermes searches and loads MCP servers; actual vs expected flow graphs + root-cause fix",
+      "summary": "Traced the actual flow (code at ~/.hermes/hermes-agent, measured): search = config.yaml mcp_servers ONLY (no .mcp.json anywhere); load = background daemon discovery, security filters, lazy schema-cache startup, late-binding refresh; the broken leg was REPORTING — hermes mcp list --json errored (issue #188), text table never carries tool names, so mcp-index saw hermes-side servers with zero tools. Doc with actual+expected mermaid graphs, diff table and fix plan: docs/work/2026-08-05-mcp-hermes-setup-flow.md. Root-cause fix upstream: added --json to hermes mcp list (schema-cache tool detail, tools_known honesty contract) — NousResearch/hermes-agent PR #79690 (branch fix/mcp-list-json, fork Arasz; 6 initial tests RED->GREEN + 6 review-round hardening tests, canonical runner 46 passed, ruff clean, consumer parse verified: 10 servers / 160 tools). Phase 3 gate: adversarial review subagent, no blockers; 6 of 9 findings fixed, 2 deliberately skipped (fingerprint auth/env scope; per-server cache re-read negligible). mcp-index re-run + skill note refresh pending upstream merge.",
+      "pr": 308,
+      "date": "2026-08-05"
+    },
+    {
       "id": "integration-review-and-docs-refresh",
       "title": "Integration review of last changed points (memory-grade hook #304, state #305) + docs refresh",
       "summary": "Review based on code-review-graph (graph synced to HEAD; blast radius high — 46 files/500 nodes; no test gaps on changed units; detect_changes anchored to the graph build, so changed_files passed explicitly). Code verdict APPROVE: the 6 memory-grade test files are honest (zero-IO disabled path, exact additionalContext contract, no blocking keys, pop-once/last-wins/inert-without-sibling); all 4 copies of memory_grade.py byte-identical, single-sourced via adjust_hooks SHARED_SKILL_MODULES; full suite 3185 passed, all gates green. One Low finding reported (not fixed): grade_line read-modify-writes the whole JSONL, so a concurrent log_search append from another session can be lost — follow-up: fcntl.flock or append-grade records. Docs drift fixed: README tree sketch + docs/framework-architecture.md + docs/getting-started.md listed 12 of 14 default skills (ai-raccoon-memory omission from #302 missed by #303's audit; create-task-spec omission pre-existing); state.json next dropped #303 (merged) and the ai-raccoon publish.yml RID-shell fix (shipped in 1.0.4). PR #306.",
