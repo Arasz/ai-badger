@@ -1,4 +1,4 @@
-"""PreToolUse/PostToolUse hook for the memory-first gate: stdin payload -> deny JSON.
+"""PreToolUse hook for the memory-first gate: stdin payload -> deny JSON.
 
 Exit 0 on every path is a hard requirement: Copilot command preToolUse hooks are
 fail-closed, so a crash would deny the tool call it was only meant to gate.
@@ -125,28 +125,6 @@ def test_three_strikes_pass_through(hook, monkeypatch, capsys):
 
     rc = _run(hook, monkeypatch, payload)
     assert rc == 0
-    assert capsys.readouterr().out == ""
-
-
-# ------------------------------------------------------------------ recorder mode
-def test_record_mode_touches_marker(hook, monkeypatch, capsys, tmp_path):
-    rc = _run(hook, monkeypatch, {
-        "hook_event_name": "PostToolUse", "session_id": "sess-r",
-        "tool_name": "memory_search", "tool_input": {"query": "q"}}, argv=["--record"])
-
-    assert rc == 0
-    assert (tmp_path / "memory-first" / "sess-r").is_file()
-    assert capsys.readouterr().out == ""
-
-
-def test_record_mode_ignores_non_search_tools(hook, monkeypatch, capsys, tmp_path):
-    rc = _run(hook, monkeypatch, {
-        "hook_event_name": "PostToolUse", "session_id": "sess-r",
-        "tool_name": "terminal", "tool_input": {"command": "dotnet build"}},
-        argv=["--record"])
-
-    assert rc == 0
-    assert not (tmp_path / "memory-first").exists()
     assert capsys.readouterr().out == ""
 
 

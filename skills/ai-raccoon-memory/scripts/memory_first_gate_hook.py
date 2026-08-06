@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""PreToolUse/PostToolUse hook for the memory-first gate.
+"""PreToolUse hook for the memory-first gate.
 
-Gate mode (default): deny text-search tool calls until the session consulted
-memory_search, with a 3-strike pass-through so an agent cannot stall. Recorder mode
-(--record, used by the PostToolUse entries): touch the session's consulted marker when
-the tool was a memory_search. Exit 0 on every path — Copilot's command preToolUse hooks
+Deny text-search tool calls until the session consulted memory_search, with a
+3-strike pass-through so an agent cannot stall. The consulted marker is recorded by
+memory_grade_hook.py (the PostToolUse entry both hosts already run) so one process
+serves each memory_search. Exit 0 on every path — Copilot's command preToolUse hooks
 are fail-closed, so a crash here would deny the very tool call the gate only meant to
 gate. All logic lives in memory_first_gate.py; this entry only transports.
 """
@@ -17,7 +17,6 @@ from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import memory_first_gate as gate  # pylint: disable=wrong-import-position
-import memory_grade  # pylint: disable=wrong-import-position  # single is_memory_search matcher
 
 
 def _payload() -> Dict[str, Any]:
@@ -66,11 +65,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     tool_name = payload.get("tool_name") or payload.get("toolName") or ""
     tool_input = payload.get("tool_input") or payload.get("toolArgs")
     session_id = payload.get("session_id") or payload.get("sessionId")
-
-    if "--record" in args:
-        if memory_grade.is_memory_search(tool_name):
-            gate.record_search(session_id)
-        return 0
 
     if not gate.is_text_search(tool_name, tool_input):
         return 0

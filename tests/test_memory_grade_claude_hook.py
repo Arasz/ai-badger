@@ -22,6 +22,9 @@ def hook(load_script, monkeypatch, tmp_path):
     monkeypatch.setattr(real, "LOG_FILE", tmp_path / "memory-quality.jsonl")
     monkeypatch.setattr(real, "PENDING_FILE", tmp_path / "pending.json")
     monkeypatch.setitem(sys.modules, "memory_grade", real)
+    gate = load_script("features/common/skills/ai-raccoon-memory/scripts/memory_first_gate.py")
+    monkeypatch.setattr(gate, "MARKER_DIR", tmp_path / "memory-first")
+    monkeypatch.setitem(sys.modules, "memory_first_gate", gate)
     return load_script("features/common/skills/ai-raccoon-memory/scripts/memory_grade_hook.py")
 
 
@@ -110,6 +113,19 @@ def test_hooks_json_post_tool_use_wires_the_script(root):
     commands = [h["command"] for h in entries[0]["hooks"]]
     assert len(commands) == 1
     assert "memory_grade_hook.py" in commands[0]
+
+
+def test_claude_hook_records_the_memory_first_marker(hook, monkeypatch, tmp_path):
+    """The gate's consulted marker is folded into this entry — one process per search."""
+    rc = _run(hook, monkeypatch, {
+        "tool_name": "memory_search",
+        "tool_input": {"project_id": "probe", "query": "q"},
+        "tool_response": {},
+        "session_id": "sess-mark",
+    })
+
+    assert rc == 0
+    assert (tmp_path / "memory-first" / "sess-mark").is_file()
 
 
 def test_claude_hook_does_not_stash_a_pending_ask(

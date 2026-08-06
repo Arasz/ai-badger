@@ -244,3 +244,61 @@ def test_every_claude_hooks_json_entry_names_its_script(root):
                and not hook["agents"]["claude"].get("script")]
 
     assert unnamed == [], unnamed
+
+
+# ------------------------------------------------------------ memory-first gate wiring
+GATE_SCRIPT = "memory_first_gate_hook.py"
+
+
+def _hooks_json(root):
+    return json.loads(
+        (root / "features" / "common" / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+
+
+def test_hooks_json_pre_tool_use_wires_the_gate(root):
+    """The gate must fire for Grep/Glob/Bash — the Bash arm inspects the command itself."""
+    entries = [e for e in _hooks_json(root)["hooks"]["PreToolUse"]
+               if e.get("matcher") == "Grep|Glob|Bash"]
+    assert len(entries) == 1
+    commands = [h["command"] for h in entries[0]["hooks"]]
+    assert len(commands) == 1
+    assert commands[0].endswith(f"ai-raccoon-memory/scripts/{GATE_SCRIPT}\"")
+    assert entries[0]["hooks"][0].get("timeout") == 10
+
+
+def test_hooks_json_post_tool_use_keeps_the_folded_recorder(root):
+    """The consulted marker is recorded by the existing memory_search entry — the gate
+    must not add a second entry that select_hooks' endswith filter cannot match."""
+    entries = [e for e in _hooks_json(root)["hooks"]["PostToolUse"]
+               if e.get("matcher") == "memory_search"]
+    assert len(entries) == 1
+    commands = [h["command"] for e in entries for h in e["hooks"]]
+    assert len(commands) == 1
+    assert "memory_grade_hook.py" in commands[0]
+
+
+def test_scaffold_wiring_puts_the_gate_into_settings(tmp_path, load_script, root):
+    """End-to-end: a Claude scaffold wires the gate command into .claude/settings.json."""
+    target = tmp_path / "proj"
+    scripts_dir = target / ".ai-badger" / "skills" / "ai-raccoon-memory" / "scripts"
+    scripts_dir.mkdir(parents=True)
+    (scripts_dir / GATE_SCRIPT).write_text("", encoding="utf-8")
+    (scripts_dir / "memory_grade_hook.py").write_text("", encoding="utf-8")
+
+    manifest_hooks = json.loads(
+        (root / "features" / "common" / "hooks" / "hooks-manifest.json")
+        .read_text(encoding="utf-8"))["hooks"]
+    source_hooks = _hooks_json(root)
+    hooks, _ctx = _wiring(load_script, root, root, target, manifest_hooks, source_hooks)
+
+    hooks.wire()
+
+    settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    pre = [h["command"] for e in settings["hooks"]["PreToolUse"]
+           for h in e["hooks"] if GATE_SCRIPT in h["command"]]
+    assert len(pre) == 1, pre
+    assert "${CLAUDE_PROJECT_DIR}" in pre[0]  # guarded command, not a plugin-root path
+    # The recorder is folded into the memory_search PostToolUse entry.
+    post = [h["command"] for e in settings["hooks"]["PostToolUse"]
+            for h in e["hooks"] if "memory_grade_hook.py" in h["command"]]
+    assert len(post) == 1, post

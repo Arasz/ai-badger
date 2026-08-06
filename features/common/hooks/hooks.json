@@ -55,6 +55,16 @@
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/task/scripts/dispatch_gate_hook.py\""
           }
         ]
+      },
+      {
+        "matcher": "Grep|Glob|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/ai-raccoon-memory/scripts/memory_first_gate_hook.py\"",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
