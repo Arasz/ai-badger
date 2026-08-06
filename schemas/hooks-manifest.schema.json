@@ -62,6 +62,10 @@
                 "script": {
                   "type": "string",
                   "description": "Filename of this hook's script; selects its command from hooks.json when an event carries more than one."
+                },
+                "matcher": {
+                  "type": "string",
+                  "description": "Optional per-agent matcher override. Copilot matches runtime tool names case-sensitively (grep/bash vs Claude's Grep/Bash), so a copilot arm may spell its own matcher."
                 }
               }
             }
