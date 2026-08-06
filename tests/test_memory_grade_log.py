@@ -141,3 +141,24 @@ def test_line_shape_matches_manual_jsonl(root, tmp_path, hooks, fake_memory_grad
     hook_keys = set(_lines(grade_paths[0])[0].keys())
     assert manual_keys <= hook_keys
     assert "workspaceId" in hook_keys
+
+
+def test_log_line_carries_host_and_session(tmp_path, hooks, fake_memory_grade,
+                                           grade_paths, on):
+    """The hook line is a superset of the manual shape: host + sessionId attribute the
+    telemetry to a host, so 'no usage' vs 'no capture' is answerable from the log."""
+    _search(hooks, tmp_path, session_id="sess-1")
+
+    line = _lines(grade_paths[0])[0]
+    assert line["host"] == "hermes"
+    assert line["sessionId"] == "sess-1"
+
+
+def test_log_line_defaults_host_and_session_to_null(tmp_path, hooks, fake_memory_grade,
+                                                    grade_paths, on):
+    """Manual logs (no host context) stay valid: both fields present, null."""
+    _search(hooks, tmp_path)
+
+    line = _lines(grade_paths[0])[0]
+    assert line["host"] is None
+    assert line["sessionId"] is None
