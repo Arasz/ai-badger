@@ -5,6 +5,10 @@ __pycache__/
 # per-project tracking state (only relevant in scaffolded repos, guarded here defensively)
 task-tracking/
 .ai-badger/task-tracking/
+# learned-skill sync (learned_skills_sync.py): one-way hook output carrying machine-specific
+# absolute paths (the shipped-paths guard refuses them); never part of a commit
+.ai-badger/skills/learned/
+.ai-badger/skills-data/hermes/learned.json
 # Added by code-review-graph
 .code-review-graph/
 # den-refresh backup of a previous scaffold
@@ -33,3 +37,5 @@ mutants/
 # was committed by accident and shipped the same absolute path .mcp.json did (issue #173).
 .claude/*.bak-*
 .github/**/*.bak-*
+# mcp writer's safety copy of the ignored .mcp.json before a rewrite (mcp_tools.py)
+.mcp.json.bak-*
