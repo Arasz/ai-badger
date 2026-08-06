@@ -13,7 +13,7 @@ output is quoted, it is the real output.
 ai-badger is a **versioned catalog of agent instructions** — invariants, scoped instructions,
 personas, and skills — plus scripts that materialize a project-tailored slice of that catalog
 into any repository as a `.ai-badger/` directory and the agent-discovery files each coding agent
-looks for (`CLAUDE.md`, `.github/copilot-instructions.md`, `.junie/AGENTS.md`, `HERMES.md`). It
+looks for (`CLAUDE.md`, `.github/copilot-instructions.md`, `HERMES.md`). It
 exists so that the rules you want an AI coding agent to follow live in one maintained place
 instead of being retyped, drifting, and rotting in every repo separately. It runs in two
 directions: `welcome-ai-badger` / `den-refresh` push the catalog into a project, `feed-badger`
@@ -21,8 +21,8 @@ pulls generalizable improvements back out.
 
 ### Who it is not for
 
-- **You do not use one of the four supported agents.** Only `claude`, `copilot`, `hermes`, and
-  `junie` are valid values in `config.json` (see [`schemas/config.schema.json`](../schemas/config.schema.json)).
+- **You do not use one of the three supported agents.** Only `claude`, `copilot`, and
+  `hermes` are valid values in `config.json` (see [`schemas/config.schema.json`](../schemas/config.schema.json)).
   Nothing here generates instructions for an agent outside that list.
 - **You want a linter, a test runner, or CI enforcement.** ai-badger writes instruction files.
   It does not check your code. The only thing it enforces mechanically is its own catalog's
@@ -45,7 +45,7 @@ Requirements: **Python 3.8+** (CI floor) and the two dependencies in
 flowchart TD
   A["Found the repo"] --> B{"Which agent<br/>runs your work?"}
   B -->|"Claude Code"| C["/plugin marketplace add<br/>https://github.com/Arasz/ai-badger"]
-  B -->|"Copilot · Junie · Hermes<br/>· scripted / CI use"| D["git clone the repo"]
+  B -->|"Copilot · Hermes<br/>· scripted / CI use"| D["git clone the repo"]
   C --> E["/plugin install ai-badger@ai-badger"]
   E --> F["Skills load automatically<br/>+ SessionStart drift hook"]
   D --> G["export AI_BADGER=path/to/clone"]
@@ -103,7 +103,7 @@ python3 tooling/index_build.py --check
 
 What that buys you:
 
-- It works for Copilot, Junie, Hermes, and from a shell script or CI job — nothing depends on
+- It works for Copilot, Hermes, and from a shell script or CI job — nothing depends on
   Claude Code being installed.
 - You choose the commit. You can run `main`, a tag, or a branch you are testing.
 - It is the only route that lets you **contribute back**: `feed-badger` step 3 writes generalized
@@ -320,7 +320,7 @@ and the scaffold reports `note: carried preserved regions into <file>`. The rule
   inside the invariants section is a project-local invariant (`invariants/local/*.md` in the
   tree above) — keep regions still land at file end.
 - **Which files.** Every file the scaffolder generates from an agent template: `CLAUDE.md`,
-  `HERMES.md`, `.hermes.md`, `.junie/AGENTS.md`, `.github/copilot-instructions.md`, the scoped
+  `HERMES.md`, `.hermes.md`, `.github/copilot-instructions.md`, the scoped
   `.github/instructions/*.md`, and their `.ai-badger/` source-of-truth copies — the source of
   truth on the same terms as the copy, so the two cannot drift the way they used to. All are
   Markdown, which is why an HTML comment works as the marker in all of them; a non-Markdown
@@ -384,7 +384,7 @@ next scaffold or refresh puts it back. The supported way to say no is a line in
 - **What an exclusion does.** Neither `welcome-ai-badger` nor `den-refresh` delivers the item
   again, an excluded invariant stops being rendered into `CLAUDE.md`, and the discovery symlinks
   ai-badger placed for an excluded skill (`.claude/skills/`, `.github/skills/`,
-  `.junie/skills/`, `~/.hermes/skills/<project>/`) are removed. Its hooks are not wired, and one an earlier run
+  `~/.hermes/skills/<project>/`) are removed. Its hooks are not wired, and one an earlier run
   already put in `.claude/settings.json` is taken out again. An excluded `*.md` item that a
   previous run copied under `.ai-badger/` is deleted — unless you edited it, in which case it is
   yours and the scaffold says so.
@@ -412,7 +412,7 @@ flowchart LR
     CAT -->|"index_build.py"| IDX
   end
   subgraph REPO["your repo, before"]
-    SRC["requirements.txt · package.json<br/>*.csproj · CLAUDE.md · .junie/"]
+    SRC["requirements.txt · package.json<br/>*.csproj · CLAUDE.md"]
   end
   SRC --> DET["detect.py"]
   IDX --> DET
@@ -425,7 +425,7 @@ flowchart LR
   IDX --> SCAF
   CAT --> SCAF
   SCAF --> OUT[".ai-badger/<br/>invariants · instructions · agents<br/>· skills · hooks · state.json"]
-  SCAF --> COPY["CLAUDE.md · HERMES.md · .hermes.md<br/>.github/copilot-instructions.md<br/>.junie/AGENTS.md"]
+  SCAF --> COPY["CLAUDE.md · HERMES.md · .hermes.md<br/>.github/copilot-instructions.md"]
   SCAF --> MAN[".ai-badger/manifest.json"]
   SCAF --> WIRE[".claude/settings.json · .mcp.json"]
 ```

@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.81.0",
+  "frameworkVersion": "0.82.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -611,24 +611,6 @@
         "requires": [],
         "commands": {}
       }
-    },
-    "junie": {
-      "templates": [
-        {
-          "name": "AGENTS.md.tmpl",
-          "path": "features/junie/templates/AGENTS.md.tmpl"
-        }
-      ],
-      "adjustments": [
-        {
-          "name": "adjust_skills",
-          "path": "features/junie/adjustments/adjust_skills.py"
-        },
-        {
-          "name": "adjustment",
-          "path": "features/junie/adjustments/adjustment.json"
-        }
-      ]
     },
     "mcp": {
       "invariants": [

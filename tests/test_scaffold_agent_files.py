@@ -97,7 +97,7 @@ def _managed_files(target) -> list:
 
 def _scaffold_all_agents(make_scaffolder):
     make_scaffolder(
-        config=_config(agents=["claude", "copilot", "hermes", "junie"]),
+        config=_config(agents=["claude", "copilot", "hermes"]),
         skills=["task"],
     ).run(generated_at="2026-07-24T00:00:00Z")
 

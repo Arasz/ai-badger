@@ -68,15 +68,6 @@ SCHEMAS_WITHOUT_LOCAL_INSTANCES = {
 # instead of silently never reaching it — issue #147 was the third occurrence of exactly that.
 HOOK_CAPABLE_AGENTS = ("claude", "hermes", "copilot")
 
-# Junie is deliberately absent from HOOK_CAPABLE_AGENTS, not merely unlisted per hook: its own
-# config ignores project-local hooks entirely (docs/dictionary.md "Hooks" — every Junie column
-# reads N/A), a platform limit rather than a per-hook decision. Recorded here, not just in a
-# comment, so a test can assert the reason is not empty (test_hooks_manifest_agent_coverage.py).
-JUNIE_HOOK_EXEMPTION = (
-    "Junie's own configuration ignores project-local hooks entirely — a platform limit, not a "
-    "per-hook decision, so it never appears in HOOK_CAPABLE_AGENTS or in any hook's agents map."
-)
-
 # hook name -> {agent: reason} for a hook that deliberately does not reach one of
 # HOOK_CAPABLE_AGENTS. Every reason is asserted non-trivial by
 # tests/test_hooks_manifest_agent_coverage.py (the #145 review finding: an untested reason
@@ -124,7 +115,7 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
     "prompt-markers": {
         "hermes": "Acknowledged gap, not a design limit: marker detection (h:/f:/e:) has no "
                   "Hermes-side implementation yet, unlike session-start-tracking's Claude-only "
-                  "design or Junie's platform limit — wiring it on Hermes is possible and simply "
+                  "design — wiring it on Hermes is possible and simply "
                   "has not been done.",
     },
 }

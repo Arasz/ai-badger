@@ -13,8 +13,6 @@ RENDERED_FILES = (
     "HERMES.md",
     ".hermes.md",
     ".ai-badger/HERMES.md",
-    ".junie/AGENTS.md",
-    ".ai-badger/AGENTS.md",
 )
 
 
@@ -25,7 +23,7 @@ def _scaffold(make_scaffolder, config):
 
 
 def test_a_project_without_the_changelog_stack_renders_no_changelog_paths(make_scaffolder):
-    config = _config(stacks=["python"], agents=["claude", "copilot", "hermes", "junie"])
+    config = _config(stacks=["python"], agents=["claude", "copilot", "hermes"])
 
     target = _scaffold(make_scaffolder, config)
 

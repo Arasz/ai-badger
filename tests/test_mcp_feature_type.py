@@ -226,7 +226,7 @@ class TestStackMcpSchema:
 
         assert bl.validate({"servers": [{"command": "x"}]}, schema) != []
 
-    @pytest.mark.parametrize("agent", ["claude", "hermes", "copilot", "junie"])
+    @pytest.mark.parametrize("agent", ["claude", "hermes", "copilot"])
     def test_every_agent_may_override_the_command(self, root, load_script, agent):
         bl, schema = self._schema(root, load_script)
         instance = {"servers": [{"name": "x", "agentOverrides": {agent: {"command": "y"}}}]}

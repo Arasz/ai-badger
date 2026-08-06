@@ -61,8 +61,7 @@
             "properties": {
               "claude": { "$ref": "#/$defs/agentOverride" },
               "hermes": { "$ref": "#/$defs/agentOverride" },
-              "copilot": { "$ref": "#/$defs/agentOverride" },
-              "junie": { "$ref": "#/$defs/agentOverride" }
+              "copilot": { "$ref": "#/$defs/agentOverride" }
             }
           }
         }

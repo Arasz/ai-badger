@@ -44,7 +44,7 @@ some agents, into the user's home directory. So the honest threat model is:
 
 | Surface | What it does | Who controls the input |
 |---|---|---|
-| `welcome-ai-badger` / `den-refresh` scaffolding | Writes `.ai-badger/`, agent-discovery files (`CLAUDE.md`, `.github/copilot-instructions.md`, `.junie/AGENTS.md`, `HERMES.md`), and merges into `.claude/settings.json` / `.mcp.json` | The framework catalog plus the user's own `.ai-badger/config.json` |
+| `welcome-ai-badger` / `den-refresh` scaffolding | Writes `.ai-badger/`, agent-discovery files (`CLAUDE.md`, `.github/copilot-instructions.md`, `HERMES.md`), and merges into `.claude/settings.json` / `.mcp.json` | The framework catalog plus the user's own `.ai-badger/config.json` |
 | Hermes skill discovery | Creates symlinks under `~/.hermes/skills/<project>/` and copies hook plugins into `~/.hermes/plugins/` | Same |
 | Skill / dependency installation | Can run `pip`, `npm`, and plugin-install commands | Catalog templates; **opt-in only**, see below |
 | `feed-badger` | Takes content *out* of a private repo and puts it in a public draft PR | The user's repo |
@@ -177,7 +177,7 @@ works.
 
 ## Out of scope
 
-- Vulnerabilities in the coding agents themselves (Claude Code, GitHub Copilot, JetBrains Junie,
+- Vulnerabilities in the coding agents themselves (Claude Code, GitHub Copilot,
   Hermes Agent) — report those to their vendors.
 - Vulnerabilities in bundled **external** MCP tools such as
   [code-review-graph](https://github.com/tirth8205/code-review-graph) — report upstream. What *is*

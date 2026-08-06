@@ -9,7 +9,7 @@ instructions used across projects. It is three things in one repo:
 
 1. **A catalog** of reusable framework features (skills, personas, invariants, instructions,
    curated plugin bundles) organized by technology stack.
-2. **An agent plugin** — install it once for Claude Code, Copilot, Junie, or Hermes, and it
+2. **An agent plugin** — install it once for Claude Code, Copilot, or Hermes, and it
    hands you the tooling to use the catalog.
 3. **A project scaffolder** — `welcome-ai-badger` reads a target repo, proposes a profile, and
    materializes a tailored slice of the catalog into it; `feed-badger` harvests generalizable
@@ -88,13 +88,12 @@ wrong claim in a PR body passes every one of them. That still needs a reviewer.
 | **Claude Code** | Full | Plugin hooks, `CLAUDE.md`, task extensions |
 | **Hermes Agent** | Full | `HERMES.md`/`.hermes.md`, `delegate_task`, skill auto-discovery |
 | **GitHub Copilot** | Scaffolded | `.github/copilot-instructions.md`, scoped instructions |
-| **JetBrains Junie** | Scaffolded | `.junie/AGENTS.md` |
 
 ## Supported stacks
 
 `angular`, `aspire`, `azure`, `cosmos`, `css`, `dotnet`, `github`, `hermes`, `js`, `mcp`,
 `node`, `python`, `react`, `terraform`, `ts` — plus **`common`** for stack-agnostic content and
-agent-specific stacks (`claude`, `copilot`, `junie`).
+agent-specific stacks (`claude`, `copilot`, `hermes`).
 
 ## Install
 
@@ -121,14 +120,14 @@ output, and the failures that actually bite.
 
 Run **`welcome-ai-badger`** inside a project you want to scaffold:
 
-1. It detects stacks, present agents (`claude`, `copilot`, `junie`, `hermes`), and commands from
+1. It detects stacks, present agents (`claude`, `copilot`, `hermes`), and commands from
    the repo and asks you to confirm/refine a `.ai-badger/config.json` profile (project summary,
    domain, persona routing, plugin scope).
 2. It materializes `.ai-badger/` — selected skills, personas, invariants, instructions, an
    assembled `CLAUDE.md` (or `HERMES.md`), and plugin installs — recording exactly what it wrote
    in `.ai-badger/manifest.json`.
 3. Essential agent-discovery files (`CLAUDE.md`, `.github/copilot-instructions.md`,
-   `.junie/AGENTS.md`, `HERMES.md`/`.hermes.md`) are copied into their conventional locations
+   `HERMES.md`/`.hermes.md`) are copied into their conventional locations
    with a header pointing back at `.ai-badger/` as the source of truth, since some agent CLIs
    only look there.
 
@@ -262,10 +261,10 @@ ai-badger/
     dotnet/ azure/ cosmos/ terraform/ mcp/ changelog/  {personas,invariants,instructions}/…
     github/    (stack-specific features; extensions now inline in skills/)
     claude/    skills/auto-wm/, adjustments/   # agent-specific, not common
-    hermes/ copilot/ junie/   adjustments/     # per-agent scaffolding tweaks
+    hermes/ copilot/   adjustments/     # per-agent scaffolding tweaks
     angular/ node/ js/ ts/ react/ css/  {personas,invariants,instructions}/…
     hermes/    {personas,instructions,adjustments}/…
-    claude/ copilot/ junie/     Agent-specific templates + plugins-instructions.json
+    claude/ copilot/     Agent-specific templates + plugins-instructions.json
 ```
 
 ### Framework overview — structure & data flow

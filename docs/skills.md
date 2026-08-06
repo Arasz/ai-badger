@@ -6,7 +6,7 @@ by the scope `badger_lib.SKILL_SCOPES` gives them ([ADR-0005](adr/0005-default-s
 **eight are `optIn`** — catalogued, but written only when a project names them. The twenty-second,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
-reach a Copilot, Junie, or Hermes project.
+reach a Copilot or Hermes project.
 
 An `optIn` skill is asked for by name in `.ai-badger/config.json`:
 
@@ -61,7 +61,7 @@ names it, **claude-only** when the stack decides.
 | [prompt-markers](#prompt-markers) | Detect `h:`/`f:`/`e:` prefixes and inject the matching behaviour | default | hook (`UserPromptSubmit`) |
 | [commit-reminder](#commit-reminder) | Command a commit once uncommitted work crosses a threshold | default | hook (`PostToolUse`) |
 | [call-behaviorist](#call-behaviorist) | Off-by-default audit log for ai-badger's own hooks | default | by name |
-| [maintain-agent-instructions](#maintain-agent-instructions) | Reconcile CLAUDE.md/Copilot/Junie instruction files against one model | default | by name (or CI) |
+| [maintain-agent-instructions](#maintain-agent-instructions) | Reconcile CLAUDE.md/Copilot/Hermes instruction files against one model | default | by name (or CI) |
 | [mcp-index](#mcp-index) | Curate the MCP tool index a hook uses to recommend tools per turn | default | by name; feeds a `pre_llm_call` hook |
 | [ai-raccoon-memory](#ai-raccoon-memory) | Project memory server: search memory first, write durable facts with source paths, watch a docs directory | default | by name |
 | [auto-wm](#auto-wm) | Auto-approve tool calls in partner/away mode | claude-only | by name (`/auto-wm`); installs a `PreToolUse` hook once enabled |
@@ -91,7 +91,7 @@ traces; the agent authors `project.summary`, `project.domain`, and `personaRouti
 `.ai-badger/` (`config.json`, `manifest.json`, `CLAUDE.md`, `agents/`, `instructions/`,
 `invariants/`, `skills/`, `agent-instructions/`, `state.json`) and copies the agent-discovery
 files each coding agent looks for (`CLAUDE.md`, `.github/copilot-instructions.md`,
-`.junie/AGENTS.md`, `HERMES.md`) to their conventional locations.
+`HERMES.md`) to their conventional locations.
 
 **When to use it.** A repository has never been scaffolded — "welcome-ai-badger", "scaffold this
 project", "add agent instructions here", "onboard this repo".
