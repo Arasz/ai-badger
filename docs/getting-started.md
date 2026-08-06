@@ -276,6 +276,7 @@ your-repo/
     agents/architect.md  agents/code-reviewer.md  agents/test-engineer.md
     delegation.md                   # generated: personas + model lanes, routing, verifiers
     invariants/*.md                 # guard-clauses, tdd-mandatory, no-hardcoded-secrets, …
+    invariants/local/*.md           # project-owned invariants (rendered into the section)
     instructions/*.instructions.md  # path-scoped instructions per stack
     skills/                         # real copies of the scaffolded skills, with scripts/
     skills-data/  hooks/  agent-instructions/
@@ -315,7 +316,9 @@ Every marked block is carried into the regenerated file verbatim, in the order y
 and the scaffold reports `note: carried preserved regions into <file>`. The rules:
 
 - **Where they land.** At the end of the file. The templates have no anchors to re-seat a block
-  at, so position is not preserved — only content and relative order.
+  at, so position is not preserved — only content and relative order. A rule that must live
+  inside the invariants section is a project-local invariant (`invariants/local/*.md` in the
+  tree above) — keep regions still land at file end.
 - **Which files.** Every file the scaffolder generates from an agent template: `CLAUDE.md`,
   `HERMES.md`, `.hermes.md`, `.junie/AGENTS.md`, `.github/copilot-instructions.md`, the scoped
   `.github/instructions/*.md`, and their `.ai-badger/` source-of-truth copies — the source of
@@ -341,7 +344,10 @@ and the scaffold reports `note: carried preserved regions into <file>`. The rule
   to. Decline the ones you do not want by name in `config.exclude.invariants` and re-scaffold;
   deleting the file only lasts until the next refresh (see below). Some arrive with every
   project (from `common`); others arrive only when a stack's evidence is detected — e.g. the
-  concrete changelog-file convention ships with the `changelog` stack, not always-on.
+  concrete changelog-file convention ships with the `changelog` stack, not always-on. Project
+  rules of your own belong in `.ai-badger/invariants/local/` — start each file with a single
+  `# ` heading (it renders as `###` inside the section), files render in sorted order after the
+  framework invariants, and editing or deleting them changes what renders.
 - **`.claude/settings.json` and `.mcp.json`** — hooks and MCP servers were wired in. If your repo
   already had these files, check the merge.
 - **The printed plugin-setup commands** — these were *not* run. Run them yourself, or re-scaffold
