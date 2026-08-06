@@ -1,6 +1,6 @@
 # ADR-0016: Remove Junie support — three-agent scope
 
-**Status:** Accepted (2026-08-06, v0.82.0)
+**Status:** Accepted (2026-08-06, v0.83.0)
 **Scope:** Framework catalog, scaffolding, schemas, docs
 
 ## Context
@@ -18,7 +18,7 @@ surface (hooks, scaffolding, docs, tests) alongside claude, copilot, and hermes.
 
 ## Decision
 
-Remove Junie support entirely in one change (v0.82.0):
+Remove Junie support entirely in one change (v0.83.0):
 
 - delete `features/junie/` and its test file;
 - drop `junie` from `AGENT_NAMES` (`engine/badger_lib.py`), the agent enums in
