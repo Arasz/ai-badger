@@ -168,7 +168,6 @@ decision 6):
 | Copilot CLI | `.github/mcp.json` — and `.mcp.json`, which it reads too | — |
 | Copilot coding agent | nothing — its config lives in the repository settings UI | the JSON snippet, with `COPILOT_MCP_*` secret references |
 | Hermes | nothing — `~/.hermes/config.yaml` is user-global and there is no project route | the `mcp_servers:` YAML snippet |
-| Junie | nothing (`.junie/mcp/mcp.json` is documented, never verified) | — |
 
 `.vscode/mcp.json` is VS Code Copilot Chat's own file and a different schema (top-level
 `servers`, `inputs`, no per-server `tools`); ai-badger does not write it.

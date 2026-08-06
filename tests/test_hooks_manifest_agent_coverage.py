@@ -120,13 +120,6 @@ class TestExemptionReasonsAreMeaningful:
                     f"{hook_name}/{agent}: placeholder reason: {reason!r}"
                 )
 
-    def test_junie_exemption_reason_says_it_is_permanent_and_platform_level(self, load_script):
-        validate = load_script("tooling/validate.py")
-        reason = validate.JUNIE_HOOK_EXEMPTION
-        assert isinstance(reason, str) and len(reason) >= 20
-        assert "junie" in reason.lower()
-        assert "junie" not in validate.HOOK_CAPABLE_AGENTS
-
     def test_session_start_tracking_exemption_is_framed_as_claude_only_design(self, load_script):
         validate = load_script("tooling/validate.py")
         per_agent = validate.HOOKS_MANIFEST_AGENT_EXEMPTIONS["session-start-tracking"]

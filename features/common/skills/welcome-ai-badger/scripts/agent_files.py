@@ -1,7 +1,7 @@
 """Agent file scaffolding, one of the scaffold's collaborators.
 
 Applies scaffolding.json to write agent discovery files (CLAUDE.md, copilot,
-junie, .github/instructions/*) based on each agent's feature directory.
+hermes, .github/instructions/*) based on each agent's feature directory.
 """
 from __future__ import annotations
 

@@ -414,22 +414,6 @@ def test_detect_agents_copilot_via_instructions_dir(tmp_path, load_script, monke
     assert "copilot" in detect.detect_agents(tmp_path)
 
 
-def test_detect_agents_junie_via_agents_md(tmp_path, load_script, monkeypatch):
-    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
-    monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: tmp_path / "empty-home"))
-    (tmp_path / "AGENTS.md").write_text("# guidance\n", encoding="utf-8")
-
-    assert "junie" in detect.detect_agents(tmp_path)
-
-
-def test_detect_agents_junie_via_dot_junie_dir(tmp_path, load_script, monkeypatch):
-    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
-    monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: tmp_path / "empty-home"))
-    (tmp_path / ".junie").mkdir()
-
-    assert "junie" in detect.detect_agents(tmp_path)
-
-
 def test_detect_agents_defaults_to_claude_when_nothing_found(tmp_path, load_script, monkeypatch):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: tmp_path / "empty-home"))

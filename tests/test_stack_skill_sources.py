@@ -64,7 +64,7 @@ class TestDeclaredSupportIsSubstantiated:
     failure class this catalog has been bitten by before.
     """
 
-    AGENTS = ("claude", "copilot", "hermes", "junie")
+    AGENTS = ("claude", "copilot", "hermes")
 
     @pytest.mark.parametrize("stack", _stacks_with_skills())
     def test_no_source_claims_an_agent_that_cannot_install_it(self, stack):

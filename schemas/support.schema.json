@@ -29,8 +29,7 @@
         "enum": [
           "claude",
           "copilot",
-          "hermes",
-          "junie"
+          "hermes"
         ]
       },
       "additionalProperties": {

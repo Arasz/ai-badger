@@ -129,7 +129,7 @@ creation, Copilot review loop) only turns on when `sourceControl.platform == "gi
 `sourceControl.projectUrl`.
 
 `detect.py` produces a *proposed* `config.json` mechanically (stacks from package/project files,
-agents from `CLAUDE.md`/`.github/copilot-instructions.md`/`.junie/` traces in repo and user
+agents from `CLAUDE.md`/`.github/copilot-instructions.md` traces in repo and user
 scope, commands from common scripts). The agent then refines it — filling in project summary,
 domain, and persona routing, asking clarifying questions only for genuine ambiguity — before
 handing it to `validate.py`.
@@ -183,7 +183,7 @@ for the genuinely creative decisions.
   `plugins-instructions` / `adjustment` / `hooks-manifest`) against its schema; `--all` validates the whole repo (schemas self-check +
   `index.json` + every stack's `skills-source.json`/`skills.json`).
 - `detect.py` — best-effort detection: stacks from package/project files and extensions, agents
-  from `CLAUDE.md` / `.github/copilot-instructions.md` / `.junie/` traces (repo *and* user
+  from `CLAUDE.md` / `.github/copilot-instructions.md` traces (repo *and* user
   scope: `~/.claude`, `~/.copilot`), commands from stack metadata → emits a *proposed*
   `config.json` for the agent to refine.
 - `scaffold.py` — given a validated `config.json` + a framework checkout + `index.json`:
@@ -279,7 +279,6 @@ target-repo/
     manifest.json            # provenance
     config.json               # project profile
     CLAUDE.md                # framework-managed source of the claude instructions
-    AGENTS.md                # framework-managed junie source (if junie present)
     copilot-instructions.md  # framework-managed copilot source (if copilot present)
     agents/*.md              # scaffolded personas
     delegation.md            # generated map: personas + lanes, routing, verifiers, MCP servers
@@ -293,7 +292,6 @@ target-repo/
   .github/
     copilot-instructions.md  # COPY (copilot present) — header note
     instructions/*.instructions.md   # COPY per module (copilot discovery)
-  .junie/AGENTS.md           # COPY (junie present) — header note
 ```
 
 Everything the framework put in lives under `.ai-badger/` — that's the actual source of truth
@@ -304,7 +302,7 @@ CLIs discover instructions by convention at fixed paths.
 
 - Files that are **core to agent performance** *and* that the agent CLI discovers purely by
   filesystem convention (`CLAUDE.md`, `.github/copilot-instructions.md`,
-  `.github/instructions/*`, `.junie/AGENTS.md`) are **copied** into their conventional location,
+  `.github/instructions/*`) are **copied** into their conventional location,
   each with a header pointing back at `.ai-badger/` as the source of truth. Copilot in
   particular needs the physical copy — its CLI does not follow a reference.
 - Everything else — non-essential or custom framework files — is **referenced by path** into
@@ -324,7 +322,7 @@ renders each agent's template and writes a full copy with a managed header; no p
 
 **Agent detection** (`detect.py`): an agent counts as "present" if the repo *or* the user scope
 shows its traces — `claude`: `CLAUDE.md` or `~/.claude`; `copilot`:
-`.github/copilot-instructions.md` or `~/.copilot`; `junie`: `.junie/`. Only present agents get
+`.github/copilot-instructions.md` or `~/.copilot`. Only present agents get
 files initialized; ai-badger never adds an agent a project doesn't already use.
 
 ## 7. Data flow, end to end
@@ -332,7 +330,7 @@ files initialized; ai-badger never adds an agent a project doesn't already use.
 ```mermaid
 flowchart LR
   REPO["target repo files\n(package.json, *.csproj, extensions)"] --> DET["detect.py"]
-  USER["user scope\n~/.claude ~/.copilot .junie traces"] --> DET
+  USER["user scope\n~/.claude ~/.copilot traces"] --> DET
   DET --> PC["proposed config"]
   PC --> AG["AGENT"]
   AG --> CFG["config.json"]
@@ -341,7 +339,7 @@ flowchart LR
   CATALOG["features/{stack|common}/{feature} content"] --> SCAF
   CFGok --> SCAF
   SCAF --> AIB[".ai-badger/*"]
-  SCAF --> COPIES["CLAUDE.md · copilot-instructions.md · .junie/AGENTS.md (copies)"]
+  SCAF --> COPIES["CLAUDE.md · copilot-instructions.md (copies)"]
   SCAF --> MAN["manifest.json"]
 ```
 

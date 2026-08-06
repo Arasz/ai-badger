@@ -10,7 +10,7 @@ Usage:
               [--skills task,prompt-markers] [--no-install] [--generated-at <iso>]
               [--overwrite-agent-files] [--reset-seed-files] [--execute]
 
-  --overwrite-agent-files  replace hand-authored CLAUDE.md/copilot/junie files
+  --overwrite-agent-files  replace hand-authored CLAUDE.md/copilot/hermes files
   --reset-seed-files       reseed SEED-ONCE files, discarding project-owned edits
   --execute                actually run skill install commands (default: print them)
 
@@ -19,7 +19,7 @@ from <target>/.ai-badger/manifest.json rather than treated as an instruction to 
 discovery symlink (#129). Omitting --skills scaffolds the catalog defaults.
 
 Outputs under <target>/.ai-badger/ plus copied agent-discovery files (CLAUDE.md, copilot,
-junie) per config.agents, and <target>/.ai-badger/manifest.json.
+hermes) per config.agents, and <target>/.ai-badger/manifest.json.
 """
 from __future__ import annotations
 
@@ -766,7 +766,7 @@ def main(argv=None) -> int:
     ap.add_argument("--no-install", action="store_true")
     ap.add_argument("--overwrite-agent-files", action="store_true",
                     help="Overwrite existing hand-authored discovery files (CLAUDE.md, copilot, "
-                         "junie, .github/instructions/*). Default preserves any that lack the "
+                         "hermes, .github/instructions/*). Default preserves any that lack the "
                          "ai-badger managed header.")
     ap.add_argument("--reset-seed-files", action="store_true",
                     help="Reseed SEED-ONCE files (.ai-badger/state.json, agent-instructions/"
