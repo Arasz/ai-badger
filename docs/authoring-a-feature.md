@@ -83,6 +83,9 @@ against `schemas/stack.schema.json`, and folded into `index.json.stacks[stack].m
    that only exists in this repo.
 4. Run `index_build.py` then `validate.py --all`.
 
+Project-local invariants are NOT catalog items — no index rebuild, no stack, no exclusion by
+name; a single-repo rule belongs in the project's `.ai-badger/invariants/local/` instead.
+
 ## Adding external skills (skill sources)
 
 External skills are installed from sources declared in `skills-source.json`. Each stack has at
