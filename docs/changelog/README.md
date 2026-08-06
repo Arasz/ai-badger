@@ -20,7 +20,8 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.82.0 | [Three agents, not four](0.82.0-junie-support-removed.md) |
+| 0.83.0 | [Three agents, not four](0.82.0-junie-support-removed.md) |
+| 0.82.0 | [ai-raccoon catalog: HTTP serve mode + migrated package id](0.82.0-ai-raccoon-http-default.md) |
 | 0.81.0 | [Project-local invariants](0.81.0-project-local-invariants.md) |
 | 0.80.0 | [Hermes hooks ship as a real directory plugin](0.80.0-hermes-plugin-fix.md) |
 | 0.79.1 | [catalog intents reworded for the retrieval instrument](0.79.1-catalog-intents-reworded-for-retrieval.md) |
