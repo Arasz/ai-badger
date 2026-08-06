@@ -58,10 +58,11 @@ def _lines(log: Path) -> list:
 
 
 def _search(hooks, tmp_path, tool_name="mcp__ai_raccoon__memory_search", result="{}",
-            args=None):
+            args=None, session_id=None):
     hooks.post_tool_observer(
         tool_name=tool_name, result=result, duration_ms=3, cwd=str(tmp_path),
-        args=args or {"projectId": "probe", "query": "q", "scope": "all"})
+        args=args or {"projectId": "probe", "query": "q", "scope": "all"},
+        session_id=session_id)
 
 
 def test_search_call_appends_one_line_with_all_fields(
@@ -154,10 +155,10 @@ def test_log_line_carries_host_and_session(tmp_path, hooks, fake_memory_grade,
     assert line["sessionId"] == "sess-1"
 
 
-def test_log_line_defaults_host_and_session_to_null(tmp_path, hooks, fake_memory_grade,
-                                                    grade_paths, on):
+def test_log_line_defaults_host_and_session_to_null(tmp_path, fake_memory_grade, grade_paths, on):
     """Manual logs (no host context) stay valid: both fields present, null."""
-    _search(hooks, tmp_path)
+    fake_memory_grade.log_search(
+        {"projectId": "probe", "query": "q"}, '{"results": []}', str(tmp_path))
 
     line = _lines(grade_paths[0])[0]
     assert line["host"] is None

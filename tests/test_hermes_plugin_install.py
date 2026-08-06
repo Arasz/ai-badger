@@ -236,7 +236,6 @@ def test_plugin_init_reexports_register(tmp_path, load_script, root):
     _, _, home = _run_adjust(adjust_hooks, tmp_path, root)
     plugin = _plugin_dir(home)
 
-    hooks_mod = load_script(str(plugin / "ai_badger_hooks.py"))
     init_path = plugin / "__init__.py"
     spec = importlib.util.spec_from_file_location(
         "hermes_plugins.ai_badger", init_path,
@@ -246,7 +245,7 @@ def test_plugin_init_reexports_register(tmp_path, load_script, root):
     sys.modules["hermes_plugins.ai_badger"] = init_mod
     spec.loader.exec_module(init_mod)
 
-    assert init_mod.register is hooks_mod.register
+    assert callable(init_mod.register)
 
     class _FakeCtx:
         def __init__(self):
@@ -259,6 +258,8 @@ def test_plugin_init_reexports_register(tmp_path, load_script, root):
     init_mod.register(ctx)
     assert [name for name, _ in ctx.hooks] == [
         "on_session_start", "pre_llm_call", "post_tool_call"]
+    # The registered callbacks are the copied module's functions, not stubs.
+    assert ctx.hooks[2][1].__name__ == "post_tool_observer"
 
 
 def test_manifest_recorded_inside_plugin_dir(tmp_path, load_script, root):
