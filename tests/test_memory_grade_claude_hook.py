@@ -59,6 +59,7 @@ def test_claude_hook_stdin_payload_appends_line_and_emits_additional_context(
         "tool_name": "memory_search",
         "tool_input": {"project_id": "probe", "query": "q", "scope": "all"},
         "tool_response": {"results": [{"sourceFile": "a.md", "score": 1}]},
+        "session_id": "claude-sess-1",
     }
 
     rc = _run(hook, monkeypatch, payload)
@@ -69,6 +70,8 @@ def test_claude_hook_stdin_payload_appends_line_and_emits_additional_context(
     line = json.loads(lines[0])
     assert line["projectId"] == "probe"
     assert line["result"] == {"results": [{"sourceFile": "a.md", "score": 1}]}
+    assert line["host"] == "claude"
+    assert line["sessionId"] == "claude-sess-1"
     assert line["usefulness"] is None
 
     out = json.loads(capsys.readouterr().out)

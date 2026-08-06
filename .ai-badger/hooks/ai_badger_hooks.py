@@ -5,13 +5,15 @@ Provides feature-parity with Claude Code hooks:
 - pre_llm_call: inject framework version context, usage hints, and MCP tool index recommendations
 - post_tool_call: log tool usage, index hit/miss metrics, and learned-skill sync
 
-Installation: `welcome-ai-badger` copies this file and learned_skills_sync.py into
-~/.hermes/plugins/ (features/hermes/adjustments/adjust_hooks.py); Hermes discovers
-plugins there via the register() entry point.
+Installation (0.80.0+): `welcome-ai-badger` ships these hooks as a Hermes
+DIRECTORY plugin at ~/.hermes/plugins/ai-badger/ (plugin.yaml declaring the hooks,
+__init__.py re-exporting register, and every sibling module beside this file);
+Hermes discovers and loads it via register(ctx) — flat .py drops in ~/.hermes/plugins/
+are invisible to Hermes' loader. The plugin is opt-in: `hermes plugins enable ai-badger`.
 
 The plugin self-locates the framework root with the shared `_bootstrap_lib()` shim. In
-~/.hermes/plugins/ there is no framework above these two loose files, so the root recorded
-in the project's .ai-badger/manifest.json is what answers (ADR-0007).
+~/.hermes/plugins/ai-badger/ there is no framework above these files, so the root recorded
+in the plugin dir's own .ai-badger/manifest.json is what answers (ADR-0007 shape D).
 """
 
 from __future__ import annotations
@@ -824,6 +826,11 @@ def post_tool_observer(tool_name: str = "", result: str = "",
     """
     tool_name = tool_name or kwargs.get("function_name") or ""
     args = kwargs.get("args") or kwargs.get("function_args") or {}
+    if isinstance(args, str):  # a transport may serialize function_args as JSON text
+        try:
+            args = json.loads(args)
+        except ValueError:
+            args = {}
     cwd = cwd or kwargs.get("cwd") or os.getcwd()
     session_id = kwargs.get("session_id")
 

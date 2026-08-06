@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 PLUGIN_DIR_NAME = "ai-badger"
-USER_PLUGIN_FILES = ("ai_badger_hooks.py", "learned_skills_sync.py")
+USER_PLUGIN_FILES = ("ai_badger_hooks.py", "learned_skills_sync.py", "debug_log.py")
 SHARED_SKILL_FILES = (
     ("commit-reminder", "commit_reminder.py"),
     ("commit-reminder", "impact_estimator.py"),
