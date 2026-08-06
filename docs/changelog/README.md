@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.80.0 | [Hermes hooks ship as a real directory plugin](0.80.0-hermes-plugin-fix.md) |
 | 0.79.1 | [catalog intents reworded for the retrieval instrument](0.79.1-catalog-intents-reworded-for-retrieval.md) |
 | 0.79.0 | [memory-grade hook grades every memory_search](0.79.0-memory-grade-hook.md) |
 | 0.78.0 | [AiRaccoon becomes an optional common memory server](0.78.0-ai-raccoon-memory-store.md) |
