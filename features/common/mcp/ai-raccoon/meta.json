@@ -1,12 +1,12 @@
 {
   "$schema": "../../../../schemas/mcp-server.schema.json",
   "name": "ai-raccoon",
-  "package": "arasz.ai-raccoon",
-  "description": "Project-scoped agent memory server: semantic search, durable-fact writes, workspaces, promotion to a shared tier, and directory watching, served over MCP stdio.",
+  "package": "ai-raccoon",
+  "description": "Project-scoped agent memory server: semantic search, durable-fact writes, workspaces, promotion to a shared tier, and directory watching, served over MCP stdio by default; `ai-raccoon serve` launches the HTTP mode on 127.0.0.1:7721/mcp with a 4h idle watchdog.",
   "homepage": "https://github.com/Arasz/ai-raccoon",
   "prerequisite": {
     "summary": "the ai-raccoon global .NET tool",
     "check": "ai-raccoon --version",
-    "install": "dotnet tool install -g arasz.ai-raccoon"
+    "install": "dotnet tool install -g ai-raccoon"
   }
 }

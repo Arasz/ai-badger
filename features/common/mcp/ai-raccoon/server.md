@@ -13,3 +13,10 @@ memory_share — shared entries are curated and never swept. Keep the docs direc
 check memory_watch_status, then memory_watch_add (project_id + absolute path) when no watch
 exists. One-time CLI setup: `ai-raccoon watch scope add` / `ai-raccoon watch enable`.
 The common declaration is conditional: ai-badger emits it only when `ai-raccoon` resolves on PATH.
+
+## HTTP mode (Hermes)
+
+Hermes can attach over HTTP instead of the ~5-min stdio recycle: start the server once
+(`ai-raccoon serve > serve.log 2>&1 &`), then `hermes mcp add ai-raccoon --url http://127.0.0.1:7721/mcp`
+for one long-lived process. The idle watchdog shuts the server down after 4h without MCP
+traffic; a second `ai-raccoon serve` attaches to the running server instead of failing.

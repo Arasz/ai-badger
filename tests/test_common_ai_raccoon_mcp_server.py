@@ -107,6 +107,14 @@ def test_ai_raccoon_catalog_is_indexed_with_its_metadata_files(root, load_script
     assert (server / "server.md").is_file()
 
 
+def test_ai_raccoon_meta_json_pins_the_migrated_package_id(root, load_script):
+    bl = load_script("engine/badger_lib.py")
+    meta = bl.load_json(root / "features" / "common" / "mcp" / AI_RACCOON / "meta.json")
+
+    assert meta["package"] == "ai-raccoon"
+    assert meta["prerequisite"]["install"] == "dotnet tool install -g ai-raccoon"
+
+
 def test_installed_ai_raccoon_is_declared_and_split_into_mcp_json(
         monkeypatch, load_script, make_scaffolder):
     _patch_ai_raccoon_lookup(monkeypatch, load_script, "/fake/ai-raccoon")
