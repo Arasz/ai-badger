@@ -64,7 +64,8 @@ MIRROR_PATHS = {
     "mcp_index": "skills/mcp-index/scripts/mcp_index.py",
 }
 
-# `features/hermes/adjustments/adjust_hooks.py` copies exactly these two into ~/.hermes/plugins/.
+# `features/hermes/adjustments/adjust_hooks.py` installs exactly these two into
+# ~/.hermes/plugins/ai-badger/ (the Hermes directory-plugin shape).
 HERMES_PLUGINS = ("ai_badger_hooks", "learned_skills_sync")
 
 # Entry points whose CLI must be reachable: argparse cannot run if the shim raised at import.
@@ -176,7 +177,7 @@ def _entry_path(shapes: dict, shape: str, name: str) -> Path:
         return shapes["consumer"] / SCAFFOLD_PATHS[name]
     if name not in HERMES_PLUGINS:
         pytest.skip(f"{name} is not installed into ~/.hermes/plugins/")
-    return shapes["hermes"] / Path(ENTRY_POINTS[name]).name
+    return shapes["hermes"] / "ai-badger" / Path(ENTRY_POINTS[name]).name
 
 
 def _cwd_for(shapes: dict, shape: str) -> Path:
@@ -299,8 +300,8 @@ def _guards_runtime_error(stmt) -> bool:
 def test_every_hermes_plugin_guards_its_module_scope_bootstrap(root):
     """A hook degrades to silence; it never breaks a session.
 
-    Both files land loose in ~/.hermes/plugins/, where the recorded root is all that answers
-    and it can stop resolving. An unguarded shim there takes the plugin down at import.
+    Both files land inside ~/.hermes/plugins/ai-badger/, where the recorded root is all that
+    answers and it can stop resolving. An unguarded shim there takes the plugin down at import.
     """
     hooks = root / "features" / "common" / "hooks"
     unguarded = []
@@ -332,8 +333,8 @@ def test_the_shim_and_badger_lib_state_one_predicate(root):
 
 
 def test_hermes_drift_notice_has_a_version_to_compare(shapes, tmp_path):
-    """ai_badger_hooks must reach a VERSION from ~/.hermes/plugins/ (ADR-0001 Tier 1)."""
-    path = shapes["hermes"] / "ai_badger_hooks.py"
+    """ai_badger_hooks must reach a VERSION from ~/.hermes/plugins/ai-badger/ (ADR-0001 Tier 1)."""
+    path = shapes["hermes"] / "ai-badger" / "ai_badger_hooks.py"
     proc, reported = _probe_root(shapes, "hermes-plugins", path, tmp_path)
     assert proc.returncode == 0, proc.stderr
     assert reported not in (None, "__missing__")
@@ -416,7 +417,7 @@ def test_a_cloned_repo_cannot_steer_a_session_start_hook(shapes, name, tmp_path)
     the user opened — including one they only cloned.
     """
     repo = _hostile_repo(tmp_path)
-    path = shapes["hermes"] / f"{name}.py"
+    path = shapes["hermes"] / "ai-badger" / f"{name}.py"
 
     _probe_root(shapes, "hermes-plugins", path, tmp_path, cwd=repo)
 
@@ -450,7 +451,7 @@ def test_a_host_processes_own_argv_is_not_read_as_a_root(shapes, name, tmp_path)
     """These two are imported into the Hermes host, so `--root` in its argv is not ours."""
     unrelated = tmp_path / "unrelated"
     unrelated.mkdir()
-    path = shapes["hermes"] / f"{name}.py"
+    path = shapes["hermes"] / "ai-badger" / f"{name}.py"
 
     proc, reported = _probe_root(shapes, "hermes-plugins", path, tmp_path,
                                  argv=["--root", str(unrelated)])
