@@ -98,9 +98,18 @@ shape A minus the `.git` directory: **all four predicates agree**. Works. Note w
 plain file copy performed by the CLI. There is no install step, no interpreter, and no hook
 that could run one.
 
-**D — `~/.hermes/plugins/`.** `features/hermes/adjustments/adjust_hooks.py` copies exactly two
-loose files there: `ai_badger_hooks.py` and `learned_skills_sync.py`. Nothing else. Its
-ancestors are `~/.hermes`, `~`, `/`. Importing `learned_skills_sync` on a clean home:
+**D — `~/.hermes/plugins/ai-badger/` (0.80.0+).** `features/hermes/adjustments/adjust_hooks.py`
+installs a Hermes DIRECTORY plugin there: `plugin.yaml` declaring the hooks,
+`__init__.py` re-exporting `register`, the entry modules (`ai_badger_hooks.py`,
+`learned_skills_sync.py`), the sibling modules the lazy imports resolve
+(`commit_reminder.py`, `impact_estimator.py`, `memory_grade.py`, `debug_log.py`), the
+retrieval modules (`tokenizer.py`, `bm25.py`, `mcp_matcher.py`), and the installer record
+at `ai-badger/.ai-badger/manifest.json` (frameworkRoot + version) — inside the plugin dir
+because `badger_lib.copy_skew` reads `copies_dir/.ai-badger/manifest.json`. The plugin is
+opt-in via `plugins.enabled` (`hermes plugins enable ai-badger`). Pre-0.80.0, shape D was
+two loose files (`ai_badger_hooks.py`, `learned_skills_sync.py`) directly in
+`~/.hermes/plugins/`; flat drops are invisible to Hermes' loader and the hooks never
+fired — that shape is removed. Importing `learned_skills_sync` on a clean home:
 
 ```
 RuntimeError: could not locate ai-badger scripts/badger_lib.py locally or at
