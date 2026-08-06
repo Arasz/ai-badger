@@ -40,6 +40,11 @@ given a specific technology (a routing table entry, a module invariant like *Dom
 *single-writer-Cosmos*) is filed under its owning stack instead of being force-generalized or
 duplicated.
 
+A project can also add invariants of its own: every `*.md` under the scaffolded
+`.ai-badger/invariants/local/` is read fresh on each scaffold and rendered after the catalog
+invariants, demoted like them. The directory is project-owned — files are never copied,
+recorded in the manifest, pruned, or overwritten (issue #313).
+
 ### Skills location
 
 The **installable operational skills** — `welcome-ai-badger`, `feed-badger`, `den-refresh`,
@@ -279,7 +284,8 @@ target-repo/
     agents/*.md              # scaffolded personas
     delegation.md            # generated map: personas + lanes, routing, verifiers, MCP servers
     instructions/*.md        # scoped instructions
-    invariants/*.md
+    invariants/*.md            # framework copies
+    invariants/local/*.md      # project-owned (issue #313)
     skills/…                 # embedded skills — real copies of features/*/skills/, not symlinks
     state.json               # empty task index
     agent-instructions/{schema.json, model.json, validators}
