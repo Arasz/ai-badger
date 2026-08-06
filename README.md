@@ -156,7 +156,8 @@ features/<stack>/<feature>/<item>
 ```
 
 - **personas**, **invariants**, and **instructions** are individual `*.md` files, named by
-  filename stem.
+  filename stem. A project can add its own invariants: `*.md` files in the scaffolded
+  `.ai-badger/invariants/local/` render after the catalog ones and are never overwritten.
 - **skills** — the installable operational skills live at `features/common/skills/` (each
   containing a `SKILL.md` plus scripts/references). Config-gated *extensions* live inline at
   `features/common/skills/<skill>/extensions/<ext>/` with `extension.json` activation
