@@ -83,7 +83,10 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
             # Rewrite paths from framework to scaffolded project
             entries = []
             for entry in source_event_hooks:
-                matcher = entry.get("matcher")
+                # Copilot matches runtime tool names, which are case-sensitive and
+                # lowercased (grep/bash) where Claude's are PascalCase (Grep/Bash) — a
+                # manifest arm may carry its own `matcher` override for that.
+                matcher = copilot_entry.get("matcher") or entry.get("matcher")
                 for h in entry.get("hooks", []):
                     cmd = h.get("command", "")
                     # Rewrite: ${CLAUDE_PLUGIN_ROOT}/features/common/skills/ → .ai-badger/skills/

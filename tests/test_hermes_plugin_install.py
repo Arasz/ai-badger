@@ -20,6 +20,7 @@ SHARED_SKILL_FILES = (
     ("commit-reminder", "commit_reminder.py"),
     ("commit-reminder", "impact_estimator.py"),
     ("ai-raccoon-memory", "memory_grade.py"),
+    ("ai-raccoon-memory", "memory_first_gate.py"),
 )
 RETRIEVAL_FILES = ("tokenizer.py", "bm25.py", "mcp_matcher.py")
 
@@ -224,9 +225,10 @@ def test_plugin_yaml_declares_the_registered_hooks(tmp_path, load_script, root):
 
     manifest = yaml.safe_load((_plugin_dir(home) / "plugin.yaml").read_text(encoding="utf-8"))
     assert manifest["name"] == "ai-badger"
-    assert set(manifest["hooks"]) == {"on_session_start", "pre_llm_call", "post_tool_call"}
+    assert set(manifest["hooks"]) == {
+        "on_session_start", "pre_llm_call", "pre_tool_call", "post_tool_call"}
     assert set(manifest["provides_hooks"]) == {
-        "on_session_start", "pre_llm_call", "post_tool_call"}
+        "on_session_start", "pre_llm_call", "pre_tool_call", "post_tool_call"}
 
 
 def test_plugin_init_reexports_register(tmp_path, load_script, root):
@@ -257,9 +259,10 @@ def test_plugin_init_reexports_register(tmp_path, load_script, root):
     ctx = _FakeCtx()
     init_mod.register(ctx)
     assert [name for name, _ in ctx.hooks] == [
-        "on_session_start", "pre_llm_call", "post_tool_call"]
+        "on_session_start", "pre_llm_call", "pre_tool_call", "post_tool_call"]
     # The registered callbacks are the copied module's functions, not stubs.
-    assert ctx.hooks[2][1].__name__ == "post_tool_observer"
+    assert ctx.hooks[3][1].__name__ == "post_tool_observer"
+    assert ctx.hooks[2][1].__name__ == "pre_tool_call_memory_gate"
 
 
 def test_manifest_recorded_inside_plugin_dir(tmp_path, load_script, root):

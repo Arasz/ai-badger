@@ -220,3 +220,62 @@ def test_ambiguous_glob_fallback_refuses_naming_candidates(tmp_path, load_script
     for script in ("drift_notice_hook.py", "session_start_hook.py",
                    "stop_hook.py", "user_prompt_hook.py"):
         assert script in message
+
+
+# ------------------------------------------------------------ memory-first gate wiring
+def test_copilot_pre_tool_use_wires_the_gate(tmp_path, load_script, root):
+    """Real framework: the gate lands in .github/hooks/ai-badger-hooks.json with the
+    Copilot-cased matcher (runtime tool names are lowercase grep/bash)."""
+    adjust_hooks = load_script("features/copilot/adjustments/adjust_hooks.py")
+    target = tmp_path / "proj"
+    (target / ".ai-badger").mkdir(parents=True)
+
+    result = adjust_hooks.adjust(_context(root, target))
+
+    assert result["applied"]
+    hooks = json.loads(
+        (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
+    gate = [h for h in hooks["hooks"]["preToolUse"]
+            if "memory_first_gate_hook.py" in h.get("bash", "")]
+    assert len(gate) == 1, gate
+    assert gate[0]["matcher"] == "grep|rg|Glob|bash", gate
+    assert gate[0]["bash"].endswith("memory_first_gate_hook.py\""), gate[0]["bash"]
+    # The folded recorder is the existing postToolUse memory_search entry.
+    recorders = [h for h in hooks["hooks"]["postToolUse"]
+                 if "memory_grade_hook.py" in h.get("bash", "")]
+    assert len(recorders) == 1, recorders
+
+
+def test_copilot_matcher_override_wins_over_the_source_entry(tmp_path, load_script):
+    """The manifest arm's `matcher` replaces the Claude-cased source matcher verbatim."""
+    adjust_hooks = load_script("features/copilot/adjustments/adjust_hooks.py")
+    target = tmp_path / "proj"
+    (target / ".ai-badger").mkdir(parents=True)
+
+    manifest_hooks = [
+        {"name": "memory-first-gate",
+         "agents": {"copilot": {"type": "hooks-json", "entry": "hooks.json",
+                                 "event": "preToolUse", "script": "memory_first_gate_hook.py",
+                                 "matcher": "grep|rg|Glob|bash"}}},
+    ]
+    source_hooks = {
+        "PreToolUse": [
+            {"matcher": "Grep|Glob|Bash", "hooks": [
+                {"type": "command",
+                 "command": ('python3 "${CLAUDE_PLUGIN_ROOT}/features/common/skills/'
+                              'ai-raccoon-memory/scripts/memory_first_gate_hook.py"')},
+            ]},
+        ],
+    }
+    fw_root = _fake_framework(tmp_path, manifest_hooks, source_hooks=source_hooks)
+
+    result = adjust_hooks.adjust(_context(fw_root, target))
+
+    assert result["applied"]
+    hooks = json.loads(
+        (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
+    entries = [h for h in hooks["hooks"]["preToolUse"]
+               if "memory_first_gate_hook.py" in h.get("bash", "")]
+    assert len(entries) == 1, entries
+    assert entries[0]["matcher"] == "grep|rg|Glob|bash"
+    assert "Grep|Glob|Bash" not in entries[0]["matcher"]

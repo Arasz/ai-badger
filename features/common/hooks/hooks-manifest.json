@@ -71,6 +71,15 @@
         "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "post_tool_call" },
         "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "postToolUse", "script": "memory_grade_hook.py" }
       }
+    },
+    {
+      "name": "memory-first-gate",
+      "description": "Block repo text-search tools until the session consulted memory_search (3-strike pass-through)",
+      "agents": {
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PreToolUse", "script": "memory_first_gate_hook.py" },
+        "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "pre_tool_call_memory_gate" },
+        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "preToolUse", "script": "memory_first_gate_hook.py", "matcher": "grep|rg|Glob|bash" }
+      }
     }
   ]
 }

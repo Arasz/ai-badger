@@ -4,7 +4,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scr
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.83.0. Source of truth for this file: `.ai-badger/HERMES.md`.
+> Scaffolded by ai-badger 0.84.0. Source of truth for this file: `.ai-badger/HERMES.md`.
 
 ## Non-negotiable invariants
 
