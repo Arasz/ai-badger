@@ -1,7 +1,14 @@
 {
-  "lastUpdated": "2026-08-05",
-  "next": "Dogfood the memory-grade hook: let it run across real sessions (already machine-wide), review the ~/.ai-badger/memory-grade/memory-quality.jsonl correlation data after a few days, and decide whether the per-project opt-out (.ai-badger/config.json when env on) is needed.",
+  "lastUpdated": "2026-08-06",
+  "next": "Implement the Hermes plugin fix (diagnosis doc section 5): ship ~/.hermes/plugins/ai-badger/ as a real directory plugin (plugin.yaml + __init__.py re-exporting register), register via plugins.enabled, fix adjust_hooks.py destination + test_hermes_plugin_install.py, add host/sessionId to the memory-grade log line, and re-verify with a live-session memory_search gate (the WP7 check that was missing).",
   "completedTasks": [
+    {
+      "id": "diagnose-and-review-hermes-integrations-in-ai-badger",
+      "title": "Diagnose and review Hermes integrations in ai-badger",
+      "summary": "Trigger: memory-grade quality log held 1 synthetic line after a week of machine-wide enablement. DIAGNOSIS (docs/work/2026-08-06-hermes-integration-diagnosis.md): the Hermes-side hook surface has never fired. ai-badger deploys flat .py files into ~/.hermes/plugins/ (adjust_hooks.py) but Hermes only loads directory plugins (plugin.yaml + __init__.py register(ctx), opt-in via plugins.enabled; verified in hermes_cli/plugins.py _scan_directory). ai_badger_hooks.py register(ctx) is written correctly against the ABI — packaging shape only. All four hermes hooks-manifest entries (drift-notice, context-enrichment, commit-reminder, memory-grade) are dead declarations. Subsumes 2026-08-02-hermes-task-tracking.md F3 (treated the plugin as loaded by reading file contents, not runtime). Evidence: no __pycache__, no execution in agent.log, live memory_search appended no line; WP7 probe verified the helper, not a live host; freshness guard writes ~/.hermes/plugins with a temp frameworkRoot on every commit. DESIGN REVIEW (docs/work/2026-08-06-memory-skill-design-review.md, subagent): skill core (search-first, write discipline, watch) well-designed; grade hook = well-engineered machinery on a weak measurement via a dead transport; 2 SEVERE (SKILL.md sec 8 misleads on host coverage; grades cannot drive retrieval improvement), 5 MODERATE (grade_line file rewrite race, pitfalls omissions, 3-way hook-knowledge duplication, ritual lacks stop conditions, workspace ceremony), 3 NIT; 10 concrete improvements. FIX deferred to follow-up: ship real Hermes directory plugin (plugin.yaml + __init__.py), plugins.enabled registration, host/sessionId in the log line, live-session verification gate. Docs-only; no VERSION bump.",
+      "pr": 310,
+      "date": "2026-08-06"
+    },
     {
       "id": "integration-review-and-docs-refresh",
       "title": "Integration review of last changed points (memory-grade hook #304, state #305) + docs refresh",
