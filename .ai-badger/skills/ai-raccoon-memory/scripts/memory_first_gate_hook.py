@@ -31,9 +31,9 @@ def _payload() -> Dict[str, Any]:
 def _host(payload: Dict[str, Any]) -> str:
     """The transport, from the event name or the payload's spelling."""
     event = payload.get("hook_event_name") or payload.get("hookEventName") or ""
-    if event == "PreToolUse" or event == "PostToolUse":
+    if event in ("PreToolUse", "PostToolUse"):
         return "claude"
-    if event == "preToolUse" or event == "postToolUse":
+    if event in ("preToolUse", "postToolUse"):
         return "copilot"
     return "copilot" if "toolName" in payload else "claude"
 

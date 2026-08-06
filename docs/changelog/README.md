@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.84.0 | [Memory-first gate: agents must consult memory before text search](0.84.0-memory-first-gate.md) |
 | 0.83.0 | [Three agents, not four](0.83.0-junie-support-removed.md) |
 | 0.82.0 | [ai-raccoon catalog: HTTP serve mode + migrated package id](0.82.0-ai-raccoon-http-default.md) |
 | 0.81.0 | [Project-local invariants](0.81.0-project-local-invariants.md) |
