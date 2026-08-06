@@ -22,11 +22,13 @@ USER_PLUGINS = ("ai_badger_hooks.py", "learned_skills_sync.py", "debug_log.py")
 
 # Files that live under a skill's own scripts/ dir, not features/common/hooks/, but must
 # still land beside ai_badger_hooks.py in both destinations so its lazy sibling-import
-# (_load_commit_reminder/_load_impact_estimator/_load_memory_grade) finds them post-copy.
+# (_load_commit_reminder/_load_impact_estimator/_load_memory_grade/_load_memory_first_gate)
+# finds them post-copy.
 SHARED_SKILL_MODULES = (
     ("commit-reminder", "commit_reminder.py"),
     ("commit-reminder", "impact_estimator.py"),
     ("ai-raccoon-memory", "memory_grade.py"),
+    ("ai-raccoon-memory", "memory_first_gate.py"),
 )
 
 # The BM25 MCP matcher (docs/adr/0012): tokenizer, scoring, gate and document
@@ -45,15 +47,18 @@ name: ai-badger
 version: {version}
 description: >-
   ai-badger framework hooks: framework drift notice (on_session_start), MCP context
-  enrichment and commit reminders (pre_llm_call / post_tool_call), and memory-grade
-  telemetry for memory_search results.
+  enrichment and commit reminders (pre_llm_call / post_tool_call), the memory-first
+  gate that blocks text search until memory_search is consulted (pre_tool_call),
+  and memory-grade telemetry for memory_search results.
 hooks:
   - on_session_start
   - pre_llm_call
+  - pre_tool_call
   - post_tool_call
 provides_hooks:
   - on_session_start
   - pre_llm_call
+  - pre_tool_call
   - post_tool_call
 """
 PLUGIN_INIT = '"""ai-badger framework hooks plugin (Hermes)."""\n' \

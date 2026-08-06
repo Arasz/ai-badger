@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.83.0",
-  "frameworkCommit": "48efdacccfbdcfbbd176becdf1173131f6caf48a",
+  "frameworkCommit": "8230c7bb4311bc85f4089bee4ab8a21797dda192",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1433,7 +1433,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/ai_badger_hooks.py",
       "frameworkVersion": "0.83.0",
-      "hash": "284f4826fb9883abffa6c06a9ce3272116da0d56d6e9f92f49ca28f5ee407022"
+      "hash": "e692b87278fa98457de95f94d3ddc6638901cd4948fd8037894c13aba469fe54"
     },
     {
       "feature": "adjustments",
@@ -1442,7 +1442,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/mcp_index_hook.py",
       "frameworkVersion": "0.83.0",
-      "hash": "284f4826fb9883abffa6c06a9ce3272116da0d56d6e9f92f49ca28f5ee407022"
+      "hash": "e692b87278fa98457de95f94d3ddc6638901cd4948fd8037894c13aba469fe54"
     },
     {
       "feature": "adjustments",
@@ -1451,7 +1451,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/debug_log.py",
       "frameworkVersion": "0.83.0",
-      "hash": "284f4826fb9883abffa6c06a9ce3272116da0d56d6e9f92f49ca28f5ee407022"
+      "hash": "e692b87278fa98457de95f94d3ddc6638901cd4948fd8037894c13aba469fe54"
     },
     {
       "feature": "adjustments",
@@ -1460,7 +1460,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/commit_reminder.py",
       "frameworkVersion": "0.83.0",
-      "hash": "284f4826fb9883abffa6c06a9ce3272116da0d56d6e9f92f49ca28f5ee407022"
+      "hash": "e692b87278fa98457de95f94d3ddc6638901cd4948fd8037894c13aba469fe54"
     },
     {
       "feature": "adjustments",
@@ -1469,7 +1469,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/impact_estimator.py",
       "frameworkVersion": "0.83.0",
-      "hash": "284f4826fb9883abffa6c06a9ce3272116da0d56d6e9f92f49ca28f5ee407022"
+      "hash": "e692b87278fa98457de95f94d3ddc6638901cd4948fd8037894c13aba469fe54"
     },
     {
       "feature": "adjustments",
@@ -1478,7 +1478,16 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/memory_grade.py",
       "frameworkVersion": "0.83.0",
-      "hash": "284f4826fb9883abffa6c06a9ce3272116da0d56d6e9f92f49ca28f5ee407022"
+      "hash": "e692b87278fa98457de95f94d3ddc6638901cd4948fd8037894c13aba469fe54"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "hermes",
+      "name": "adjustments/.ai-badger/hooks/memory_first_gate.py",
+      "source": "features/hermes/adjustments/adjust_hooks.py",
+      "target": ".ai-badger/hooks/memory_first_gate.py",
+      "frameworkVersion": "0.83.0",
+      "hash": "e692b87278fa98457de95f94d3ddc6638901cd4948fd8037894c13aba469fe54"
     },
     {
       "feature": "adjustments",
@@ -1487,7 +1496,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/tokenizer.py",
       "frameworkVersion": "0.83.0",
-      "hash": "284f4826fb9883abffa6c06a9ce3272116da0d56d6e9f92f49ca28f5ee407022"
+      "hash": "e692b87278fa98457de95f94d3ddc6638901cd4948fd8037894c13aba469fe54"
     },
     {
       "feature": "adjustments",
@@ -1496,7 +1505,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/bm25.py",
       "frameworkVersion": "0.83.0",
-      "hash": "284f4826fb9883abffa6c06a9ce3272116da0d56d6e9f92f49ca28f5ee407022"
+      "hash": "e692b87278fa98457de95f94d3ddc6638901cd4948fd8037894c13aba469fe54"
     },
     {
       "feature": "adjustments",
@@ -1505,7 +1514,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/mcp_matcher.py",
       "frameworkVersion": "0.83.0",
-      "hash": "284f4826fb9883abffa6c06a9ce3272116da0d56d6e9f92f49ca28f5ee407022"
+      "hash": "e692b87278fa98457de95f94d3ddc6638901cd4948fd8037894c13aba469fe54"
     },
     {
       "feature": "adjustments",
