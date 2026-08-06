@@ -1,7 +1,15 @@
 {
   "lastUpdated": "2026-08-06",
-  "next": "Implement the Hermes plugin fix (diagnosis doc section 5): ship ~/.hermes/plugins/ai-badger/ as a real directory plugin (plugin.yaml + __init__.py re-exporting register), register via plugins.enabled, fix adjust_hooks.py destination + test_hermes_plugin_install.py, add host/sessionId to the memory-grade log line, and re-verify with a live-session memory_search gate (the WP7 check that was missing).",
+  "next": "Design-review follow-ups (docs/work/2026-08-06-memory-skill-design-review.md): queryClass field + expected-source note contract in the grade log, per-source aggregation recipe in memory-quality-logging, consolidate the triplicated hook knowledge, and feed-badger the hooks-subsystem.md reference fix.",
   "completedTasks": [
+    {
+      "id": "hermes-plugin-fix",
+      "title": "Ship Hermes-side hooks as a real directory plugin (0.80.0)",
+      "summary": "Fixes the dead Hermes hook surface diagnosed in docs/work/2026-08-06-hermes-integration-diagnosis.md: ai-badger deployed flat .py files into ~/.hermes/plugins/, but Hermes only loads directory plugins (plugin.yaml + __init__.py register(ctx), opt-in via plugins.enabled) — none of the four hermes hooks ever fired. Ships: plugin directory ~/.hermes/plugins/ai-badger/ (plugin.yaml declaring the 3 hooks, __init__ re-exporting register, all siblings inside; legacy flat copies removed), enablement note (hermes plugins enable ai-badger), payload adapter (post_tool_observer normalizes function_name/function_args/session_id vs tool_name/args, cwd fallback to os.getcwd()), host+sessionId attribution in the memory-grade JSONL line (both transports), installer record moved inside the plugin dir so copy_skew still judges copies. TDD: RED commit (15 tests pinning the contract) -> GREEN -> shape-test fixes (test_deployment_shapes/test_copy_skew tracked the old flat layout). Gates: full suite 3196 passed / 18 skipped (solo), pylint 10.00/10, index_build clean, freshness+sync on every commit. LIVE VERIFICATION (the WP7 gate 0.79.0 missed): plugin enabled in real Hermes (0.80.0 user scope); fresh session memory_search appended the first organic quality-log line with host=hermes + sessionId. Docs: SKILL.md sec 8 host-coverage truth + capture checklist, changelog 0.80.0. Review: code-reviewer gate (docs/work/2026-08-06-hermes-plugin-fix-review.md). Known follow-ups: freshness-guard temp frameworkRoot (cosmetic), hooks-subsystem.md external-skill update via feed-badger.",
+      "version": "0.80.0",
+      "pr": 311,
+      "date": "2026-08-06"
+    },
     {
       "id": "diagnose-and-review-hermes-integrations-in-ai-badger",
       "title": "Diagnose and review Hermes integrations in ai-badger",

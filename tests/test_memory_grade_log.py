@@ -58,10 +58,11 @@ def _lines(log: Path) -> list:
 
 
 def _search(hooks, tmp_path, tool_name="mcp__ai_raccoon__memory_search", result="{}",
-            args=None):
+            args=None, session_id=None):
     hooks.post_tool_observer(
         tool_name=tool_name, result=result, duration_ms=3, cwd=str(tmp_path),
-        args=args or {"projectId": "probe", "query": "q", "scope": "all"})
+        args=args or {"projectId": "probe", "query": "q", "scope": "all"},
+        session_id=session_id)
 
 
 def test_search_call_appends_one_line_with_all_fields(
@@ -141,3 +142,24 @@ def test_line_shape_matches_manual_jsonl(root, tmp_path, hooks, fake_memory_grad
     hook_keys = set(_lines(grade_paths[0])[0].keys())
     assert manual_keys <= hook_keys
     assert "workspaceId" in hook_keys
+
+
+def test_log_line_carries_host_and_session(tmp_path, hooks, fake_memory_grade,
+                                           grade_paths, on):
+    """The hook line is a superset of the manual shape: host + sessionId attribute the
+    telemetry to a host, so 'no usage' vs 'no capture' is answerable from the log."""
+    _search(hooks, tmp_path, session_id="sess-1")
+
+    line = _lines(grade_paths[0])[0]
+    assert line["host"] == "hermes"
+    assert line["sessionId"] == "sess-1"
+
+
+def test_log_line_defaults_host_and_session_to_null(tmp_path, fake_memory_grade, grade_paths, on):
+    """Manual logs (no host context) stay valid: both fields present, null."""
+    fake_memory_grade.log_search(
+        {"projectId": "probe", "query": "q"}, '{"results": []}', str(tmp_path))
+
+    line = _lines(grade_paths[0])[0]
+    assert line["host"] is None
+    assert line["sessionId"] is None

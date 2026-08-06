@@ -109,11 +109,13 @@ an `on_session_start` plugin hook that does the same comparison. Logs a warning
 to the Hermes log when drift is detected, plus injects a context notice via
 `pre_llm_call` on every turn. Silent on match and on any read error.
 
-**Installation:**
-```bash
-# Copy the hook module to your Hermes plugins directory
-cp features/common/hooks/ai_badger_hooks.py ~/.hermes/plugins/
-```
+**Installation (0.80.0+):** the scaffold installs these hooks as a Hermes DIRECTORY plugin
+at `~/.hermes/plugins/ai-badger/` (plugin.yaml + `__init__.py` re-exporting `register`,
+plus every sibling module) whenever `hermes` is in the project's agents — re-run
+`welcome-ai-badger` or `den-refresh` to (re)install. Hermes only loads user plugins that
+are enabled: run `hermes plugins enable ai-badger` once per machine. Do NOT copy
+individual `.py` files into `~/.hermes/plugins/` — flat files are invisible to Hermes'
+directory-plugin loader and the hooks would silently never fire.
 
 ### 2. Context enrichment (Claude: UserPromptSubmit → Hermes: pre_llm_call)
 

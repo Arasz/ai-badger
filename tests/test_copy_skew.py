@@ -161,7 +161,8 @@ def test_the_installer_records_the_version_the_copies_came_from(tmp_path, root, 
         scaf.run(generated_at="2026-07-29T00:00:00Z")
 
     record = json.loads(
-        (home / ".hermes" / "plugins" / ".ai-badger" / "manifest.json").read_text(encoding="utf-8"))
+        (home / ".hermes" / "plugins" / "ai-badger" / ".ai-badger" / "manifest.json")
+        .read_text(encoding="utf-8"))
 
     assert record["copiedFromVersion"] == (root / "VERSION").read_text(encoding="utf-8").strip()
     assert record["frameworkRoot"] == str(root.resolve())
