@@ -12,8 +12,12 @@ readonly SELF="${_self_abs#"$PWD"/}"
 # git exports these to a hook and they point a child's git at THIS repo, so a test building a
 # throwaway repo would write to the real one. Dropped after the cd, so a lane sees the same
 # environment it would see when run by hand.
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_QUARANTINE_PATH \
-      GIT_REFLOG_ACTION GIT_AUTHOR_DATE GIT_COMMITTER_DATE GIT_EDITOR
+# The first nine mirror badger_lib.GIT_LOCATION_ENV, which git_env() strips on the Python side;
+# test_the_hook_unsets_every_variable_badger_lib_calls_a_location_variable keeps them in step.
+# The last five pin git's behaviour rather than its location, so they are this list's own.
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX GIT_NAMESPACE GIT_CEILING_DIRECTORIES \
+      GIT_QUARANTINE_PATH GIT_REFLOG_ACTION GIT_AUTHOR_DATE GIT_COMMITTER_DATE GIT_EDITOR
 
 # Keyed by checkout: the pytest lane runs this script in a throwaway repo, and a shared path
 # would let that nested run overwrite the log the failure block just cited.
