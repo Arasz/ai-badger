@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.89.0",
-  "frameworkCommit": "ff9f5602b86a6bc93aa5b99bca8a6200906c7772",
+  "frameworkCommit": "9498dd9c1b11b87cb3835cdcdd817eabc10501bc",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -281,12 +281,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.89.0",
-      "hash": "2f6d44120a1dab98a47f658e4d3b237b81ce39b7ec5a02f58a1d380e237caa83",
+      "hash": "da64c644c3680fa622b246338d5768068b84dd8209a2bd5b2ebd87a8e19576d5",
       "dirMeta": {
         "file_count": 5,
         "dir_count": 1
       },
-      "sourceHash": "2f6d44120a1dab98a47f658e4d3b237b81ce39b7ec5a02f58a1d380e237caa83",
+      "sourceHash": "da64c644c3680fa622b246338d5768068b84dd8209a2bd5b2ebd87a8e19576d5",
       "sourceMeta": {
         "file_count": 5,
         "dir_count": 1
@@ -497,12 +497,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.89.0",
-      "hash": "218c02421595cb93fa654a8dc3fa2fe93688e596a92bf064a7030108bbc16655",
+      "hash": "a62dc888c634b4c4feb91683a088b942b8a0f9582f2a1a4bfe8cb84fa318f58f",
       "dirMeta": {
         "file_count": 15,
         "dir_count": 2
       },
-      "sourceHash": "218c02421595cb93fa654a8dc3fa2fe93688e596a92bf064a7030108bbc16655",
+      "sourceHash": "a62dc888c634b4c4feb91683a088b942b8a0f9582f2a1a4bfe8cb84fa318f58f",
       "sourceMeta": {
         "file_count": 15,
         "dir_count": 2

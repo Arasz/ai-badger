@@ -21,6 +21,7 @@ re-scaffold.
 | Version | Entry |
 |---|---|
 | 0.89.0 | [the read-only freshness gate stops writing into `$HOME`](0.89.0-gate-stops-writing-to-home.md) |
+| 0.88.6 | [the tracking store, the memory bank and the cwd all follow the checkout](0.88.6-tracking-and-isolation-floor.md) |
 | 0.88.5 | [the dotnet catalog stops shipping one private project](0.88.5-purge-dotnet-harvest-leakage.md) |
 | 0.88.4 | [the meta-gate sees every gate](0.88.4-meta-gate-sees-every-gate.md) |
 | 0.88.3 | [the plugin-sync gate gets an oracle](0.88.3-plugin-sync-gets-an-oracle.md) |

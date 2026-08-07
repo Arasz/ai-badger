@@ -138,11 +138,73 @@ def _home_off_limits(tmp_path_factory):
 
 
 @pytest.fixture(scope="session", autouse=True)
+def _cwd_off_limits(tmp_path_factory, _home_off_limits):
+    """Point the process cwd at a scratch directory with no `.ai-badger/config.json` above it.
+
+    `$HOME` and `CLAUDE_PROJECT_DIR` were already redirected, but the cwd was not, and several
+    scripts resolve a project root by walking up from `os.getcwd()`. From this checkout that
+    walk finds the real repo — and since 0.88.6 a worktree walk collapses to the main checkout,
+    so it reaches further than it used to. A test that needs the repo as cwd must say so with
+    `monkeypatch.chdir(root)`.
+    """
+    scratch = tmp_path_factory.mktemp("cwd")
+    with pytest.MonkeyPatch.context() as patch:
+        patch.chdir(scratch)
+        yield scratch
+
+
+@pytest.fixture(scope="session", autouse=True)
 def isolated_debug_sink():
     """Remove the redirected debug sink once the run is over."""
     sink = Path(os.environ[DEBUG_DIR_ENV])
     yield sink
     shutil.rmtree(sink, ignore_errors=True)
+
+
+# The operator's real swallowed-exception log. Every hook wraps its body in a bare
+# `except Exception` that appends a line here and exits 0, so a broken hook looks like a
+# working one; 241 entries (227 OSError, 14 AttributeError) had accumulated with nothing
+# reading them, several naming test files. Captured against REAL_HOME because the fixture
+# below runs after `$HOME` is redirected (B7).
+REAL_HOOK_ERRORS_LOG = REAL_HOME / ".ai-badger" / "hook-errors.log"
+
+
+def hook_error_lines(log: Path) -> list:
+    """Every line in a hook-errors log; empty when it is absent or unreadable."""
+    try:
+        return log.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+
+
+def new_hook_errors(before: list, after: list) -> list:
+    """Lines *after* holds that *before* did not, tolerating a truncated or rotated log."""
+    if after[:len(before)] == before:
+        return after[len(before):]
+    return [line for line in after if line not in set(before)]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _real_hook_errors_are_surfaced():
+    """Say how many swallowed hook exceptions are sitting unread, and fail if the run adds any.
+
+    A hook that dies quietly is indistinguishable from a hook that did its job, which is why
+    this log grew to 241 entries unnoticed. The standing backlog is printed rather than
+    asserted on — it is the operator's state, not this run's fault — but nothing this suite
+    does may add to it.
+    """
+    before = hook_error_lines(REAL_HOOK_ERRORS_LOG)
+    yield REAL_HOOK_ERRORS_LOG
+    added = new_hook_errors(before, hook_error_lines(REAL_HOOK_ERRORS_LOG))
+
+    if before:
+        print(f"\nNOTE: {REAL_HOOK_ERRORS_LOG} holds {len(before)} swallowed hook exception(s) "
+              f"that nothing reads. Most recent: {before[-1][:160]}")
+
+    assert not added, (
+            f"this run appended {len(added)} entry(ies) to the operator's real hook-error log — a "
+            "hook under test raised and its bare `except Exception` hid it:\n  "
+            + "\n  ".join(line[:200] for line in added[:10]))
 
 
 def real_tracking_files() -> dict:
@@ -197,6 +259,7 @@ def _real_tracking_state_is_untouched():
     never has the environment for), and unattributed changes are reported without failing —
     a real leak and a passing cron tick no longer produce the same message.
     """
+
     def rel(paths) -> list:
         return sorted(str(p.relative_to(REAL_PROJECT_ROOT)) for p in paths)
 
@@ -215,9 +278,9 @@ def _real_tracking_state_is_untouched():
         )
 
     assert not attributed, (
-        "a suite process wrote task-tracking state outside the scratch project:\n  "
-        + "\n  ".join(attributed)
-        + f"\n(mtime diff for corroboration: added={added} changed={changed})")
+            "a suite process wrote task-tracking state outside the scratch project:\n  "
+            + "\n  ".join(attributed)
+            + f"\n(mtime diff for corroboration: added={added} changed={changed})")
 
 
 def foreign_spawn_offenders(log: Path) -> list:
@@ -273,9 +336,9 @@ def _no_test_reaches_a_detached_spawn(tmp_path_factory):
     offenders = foreign_spawn_offenders(log)
 
     assert not offenders, (
-        "these tests reached a detached spawn from a child interpreter, where the Popen "
-        "wrapper cannot reap it — point the hook at a scratch project or stub spawn_detached "
-        "(see tests/test_debug_log.py):\n  " + "\n  ".join(offenders))
+            "these tests reached a detached spawn from a child interpreter, where the Popen "
+            "wrapper cannot reap it — point the hook at a scratch project or stub spawn_detached "
+            "(see tests/test_debug_log.py):\n  " + "\n  ".join(offenders))
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -331,6 +394,7 @@ def load_script():
     mutation testing silently — every mutant reports "no tests" and the run measures
     0.00 mutations/second, a symptom that points at mutmut, not at this fixture.
     """
+
     def _load(relpath: str):
         path = ROOT / relpath
         name = PurePosixPath(relpath).with_suffix("").as_posix().replace("/", ".")
