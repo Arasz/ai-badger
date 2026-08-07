@@ -16,6 +16,9 @@ from pathlib import Path
 # environment, and importing the fix's own symbols would make them fail with ImportError
 # rather than with the leak, proving only that the symbol exists.
 REAL_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# Evaluated at collection, which is before the session fixture redirects `$HOME` — so this is
+# the operator's real home, derived here rather than imported from the fixture it checks.
+REAL_HOME = Path.home()
 
 
 def _alive(pid: int) -> bool:
@@ -67,6 +70,70 @@ class TestTheSuiteCannotWriteToTheRealTrackingDir:
         assert tl.CURRENT_SESSION.exists(), "the write should have happened"
         assert REAL_PROJECT_ROOT not in tl.CURRENT_SESSION.parents, \
             f"leaked to {tl.CURRENT_SESSION}"
+
+
+class TestTheCwdIsPartOfTheIsolationFloor:
+    """`$HOME` and `CLAUDE_PROJECT_DIR` were redirected; the cwd was not (E4 F12).
+
+    A script that resolves its project root by walking up from `os.getcwd()` found the real
+    checkout from every test that had not chdir'd itself — and since the worktree collapse
+    landed, that walk reaches the main checkout from a worktree too.
+    """
+
+    def test_the_cwd_is_not_inside_the_real_checkout(self):
+        cwd = Path.cwd()
+        assert cwd != REAL_PROJECT_ROOT
+        assert REAL_PROJECT_ROOT not in cwd.parents, f"the run is anchored in {cwd}"
+
+    def test_no_ai_badger_marker_sits_above_the_cwd(self):
+        """The property a cwd-walking script actually depends on: the walk must find nothing."""
+        cwd = Path.cwd()
+        found = [str(a) for a in (cwd, *cwd.parents)
+                 if (a / ".ai-badger" / "config.json").is_file()]
+
+        assert not found, f"a cwd walk would adopt {found[0]} as the project root"
+
+    def test_a_script_walking_up_from_the_bare_cwd_finds_no_project(self, load_script):
+        """The hazard, exercised through a real resolver rather than asserted about paths."""
+        tl = load_script("features/common/skills/task/scripts/tracker_lib.py")
+
+        resolved = tl.resolve_project_root(env={}, script_dir=Path("/nonexistent/a/b/c/d"))
+
+        assert resolved == Path("/nonexistent"), \
+            f"the cwd walk found a project root at {resolved} instead of falling through"
+
+
+class TestTheRealHookErrorLogIsSurfaced:
+    """241 swallowed hook exceptions accumulated in `~/.ai-badger/hook-errors.log` unread (B7)."""
+
+    def test_the_log_is_read_from_the_unredirected_home(self):
+        """Reading it through the redirected `$HOME` would make the guard permanently green."""
+        from conftest import REAL_HOOK_ERRORS_LOG  # pylint: disable=import-outside-toplevel
+
+        assert REAL_HOME in REAL_HOOK_ERRORS_LOG.parents
+        assert Path.home() not in REAL_HOOK_ERRORS_LOG.parents, \
+            "the guard is watching the scratch home, which no hook writes to"
+
+    def test_an_appended_entry_is_reported(self):
+        from conftest import new_hook_errors  # pylint: disable=import-outside-toplevel
+
+        assert new_hook_errors(["old-1", "old-2"], ["old-1", "old-2", "new-1"]) == ["new-1"]
+
+    def test_an_unchanged_log_reports_nothing(self):
+        from conftest import new_hook_errors  # pylint: disable=import-outside-toplevel
+
+        assert new_hook_errors(["old-1"], ["old-1"]) == []
+
+    def test_a_rotated_log_still_reports_what_was_never_seen(self):
+        """Log rotation must not turn every surviving entry into a fresh accusation."""
+        from conftest import new_hook_errors  # pylint: disable=import-outside-toplevel
+
+        assert new_hook_errors(["old-1", "old-2"], ["old-2", "new-1"]) == ["new-1"]
+
+    def test_an_absent_log_reads_as_empty(self, tmp_path):
+        from conftest import hook_error_lines  # pylint: disable=import-outside-toplevel
+
+        assert hook_error_lines(tmp_path / "never-written.log") == []
 
 
 class TestNoProcessOutlivesTheRun:

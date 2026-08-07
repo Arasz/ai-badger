@@ -45,6 +45,42 @@ def _debug(component: str, event: str, **fields) -> None:
         debug_log.log_event(component, event, **fields)
 
 
+# Sibling module names already reported broken this process — logged once, not once per call.
+_broken_siblings: set = set()
+
+
+def _load_sibling_module(module_name: str, filename: str, label: str) -> Optional[Any]:
+    """Import a sibling module beside this file, lazily and cached; None when absent or broken.
+
+    Absent (no file) fails open in silence — an older scaffold legitimately lacks it. Broken
+    (raises on import) logs "<label> disabled" once per process via logger.warning and _debug,
+    then keeps returning None without re-attempting the import.
+    """
+    cached = sys.modules.get(module_name)
+    if cached is not None:
+        return cached
+    if module_name in _broken_siblings:
+        return None
+    path = Path(__file__).resolve().parent / filename
+    if not path.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:  # pylint: disable=broad-exception-caught
+        sys.modules.pop(module_name, None)
+        _broken_siblings.add(module_name)
+        logger.warning("%s disabled: %s could not be loaded from %s", label, module_name, path,
+                       exc_info=True)
+        _debug("ai_badger_hooks/sibling_load", "broken", module=module_name, label=label)
+        return None
+    return module
+
+
 # ---------------------------------------------------------------------------
 # Framework root discovery — the shim every ai-badger entry point carries
 # ---------------------------------------------------------------------------
@@ -252,30 +288,13 @@ def reset_gate_state() -> None:
 
 
 def _load_memory_first_gate() -> Optional[Any]:
-    """Import the sibling memory_first_gate module lazily; None when absent.
+    """Import the sibling memory_first_gate module lazily; None when absent or broken.
 
     An older scaffold without the module gets no gate at all — fail open, never
     block a session because a sibling module is missing.
     """
-    cached = sys.modules.get(MEMORY_FIRST_GATE_MODULE_NAME)
-    if cached is not None:
-        return cached
-    path = Path(__file__).resolve().parent / "memory_first_gate.py"
-    if not path.is_file():
-        return None
-    spec = importlib.util.spec_from_file_location(MEMORY_FIRST_GATE_MODULE_NAME, path)
-    if spec is None or spec.loader is None:
-        return None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[MEMORY_FIRST_GATE_MODULE_NAME] = module
-    try:
-        spec.loader.exec_module(module)
-    except Exception:  # pylint: disable=broad-exception-caught
-        sys.modules.pop(MEMORY_FIRST_GATE_MODULE_NAME, None)
-        logger.warning("memory_first_gate could not be loaded from %s", path,
-                       exc_info=True)
-        return None
-    return module
+    return _load_sibling_module(MEMORY_FIRST_GATE_MODULE_NAME, "memory_first_gate.py",
+                                "memory-first gate")
 
 
 def _gate_project() -> str:
@@ -352,30 +371,12 @@ MCP_MATCHER_MODULE_NAME = "ai_badger_mcp_matcher"
 
 
 def _load_mcp_matcher() -> Optional[Any]:
-    """Import the sibling BM25 matcher lazily; None when an older scaffold lacks it.
+    """Import the sibling BM25 matcher lazily; None when an older scaffold lacks it, or it's broken.
 
     The tokenizer, scoring, gate and document construction all live in
-    features/common/retrieval/mcp_matcher.py (docs/adr/0012) — this hook only
-    calls it. Mirrors _load_commit_reminder's lazy sibling-import.
+    features/common/retrieval/mcp_matcher.py (docs/adr/0012) — this hook only calls it.
     """
-    cached = sys.modules.get(MCP_MATCHER_MODULE_NAME)
-    if cached is not None:
-        return cached
-    path = Path(__file__).resolve().parent / "mcp_matcher.py"
-    if not path.is_file():
-        return None
-    spec = importlib.util.spec_from_file_location(MCP_MATCHER_MODULE_NAME, path)
-    if spec is None or spec.loader is None:
-        return None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[MCP_MATCHER_MODULE_NAME] = module
-    try:
-        spec.loader.exec_module(module)
-    except Exception:  # pylint: disable=broad-exception-caught
-        sys.modules.pop(MCP_MATCHER_MODULE_NAME, None)
-        logger.warning("mcp_matcher could not be loaded from %s", path, exc_info=True)
-        return None
-    return module
+    return _load_sibling_module(MCP_MATCHER_MODULE_NAME, "mcp_matcher.py", "MCP tool matcher")
 
 
 def _load_mcp_index(cwd: Optional[str]) -> Optional[dict[str, Any]]:
@@ -652,25 +653,8 @@ def hermes_skills_root() -> Path:
 
 
 def _load_learned_skills_sync() -> Optional[Any]:
-    """Import the sibling sync module lazily; None when an older scaffold lacks it."""
-    cached = sys.modules.get(SYNC_MODULE_NAME)
-    if cached is not None:
-        return cached
-    path = Path(__file__).resolve().parent / "learned_skills_sync.py"
-    if not path.is_file():
-        return None
-    spec = importlib.util.spec_from_file_location(SYNC_MODULE_NAME, path)
-    if spec is None or spec.loader is None:
-        return None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[SYNC_MODULE_NAME] = module
-    try:
-        spec.loader.exec_module(module)
-    except Exception:  # pylint: disable=broad-exception-caught
-        sys.modules.pop(SYNC_MODULE_NAME, None)
-        logger.warning("learned-skill sync could not be loaded from %s", path, exc_info=True)
-        return None
-    return module
+    """Import the sibling sync module lazily; None when absent, or it's broken."""
+    return _load_sibling_module(SYNC_MODULE_NAME, "learned_skills_sync.py", "learned-skill sync")
 
 
 def _sync_learned_skill(args: Dict[str, Any], status: str, cwd: str) -> None:
@@ -716,47 +700,15 @@ PENDING_REMINDER_FILE = Path.home() / ".ai-badger" / "commit-reminder" / "pendin
 
 
 def _load_commit_reminder() -> Optional[Any]:
-    """Import the sibling commit_reminder module lazily; None when an older scaffold lacks it."""
-    cached = sys.modules.get(COMMIT_REMINDER_MODULE_NAME)
-    if cached is not None:
-        return cached
-    path = Path(__file__).resolve().parent / "commit_reminder.py"
-    if not path.is_file():
-        return None
-    spec = importlib.util.spec_from_file_location(COMMIT_REMINDER_MODULE_NAME, path)
-    if spec is None or spec.loader is None:
-        return None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[COMMIT_REMINDER_MODULE_NAME] = module
-    try:
-        spec.loader.exec_module(module)
-    except Exception:  # pylint: disable=broad-exception-caught
-        sys.modules.pop(COMMIT_REMINDER_MODULE_NAME, None)
-        logger.warning("commit_reminder could not be loaded from %s", path, exc_info=True)
-        return None
-    return module
+    """Import the sibling commit_reminder module lazily; None when absent, or it's broken."""
+    return _load_sibling_module(COMMIT_REMINDER_MODULE_NAME, "commit_reminder.py",
+                                "commit reminder")
 
 
 def _load_impact_estimator() -> Optional[Any]:
-    """Import the sibling impact_estimator module lazily; None when an older scaffold lacks it."""
-    cached = sys.modules.get(IMPACT_ESTIMATOR_MODULE_NAME)
-    if cached is not None:
-        return cached
-    path = Path(__file__).resolve().parent / "impact_estimator.py"
-    if not path.is_file():
-        return None
-    spec = importlib.util.spec_from_file_location(IMPACT_ESTIMATOR_MODULE_NAME, path)
-    if spec is None or spec.loader is None:
-        return None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[IMPACT_ESTIMATOR_MODULE_NAME] = module
-    try:
-        spec.loader.exec_module(module)
-    except Exception:  # pylint: disable=broad-exception-caught
-        sys.modules.pop(IMPACT_ESTIMATOR_MODULE_NAME, None)
-        logger.warning("impact_estimator could not be loaded from %s", path, exc_info=True)
-        return None
-    return module
+    """Import the sibling impact_estimator module lazily; None when absent, or it's broken."""
+    return _load_sibling_module(IMPACT_ESTIMATOR_MODULE_NAME, "impact_estimator.py",
+                                "impact estimator")
 
 
 def _commit_reminder_threshold() -> int:
@@ -866,25 +818,8 @@ MEMORY_GRADE_MODULE_NAME = "memory_grade"
 
 
 def _load_memory_grade() -> Optional[Any]:
-    """Import the sibling memory_grade module lazily; None when an older scaffold lacks it."""
-    cached = sys.modules.get(MEMORY_GRADE_MODULE_NAME)
-    if cached is not None:
-        return cached
-    path = Path(__file__).resolve().parent / "memory_grade.py"
-    if not path.is_file():
-        return None
-    spec = importlib.util.spec_from_file_location(MEMORY_GRADE_MODULE_NAME, path)
-    if spec is None or spec.loader is None:
-        return None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[MEMORY_GRADE_MODULE_NAME] = module
-    try:
-        spec.loader.exec_module(module)
-    except Exception:  # pylint: disable=broad-exception-caught
-        sys.modules.pop(MEMORY_GRADE_MODULE_NAME, None)
-        logger.warning("memory_grade could not be loaded from %s", path, exc_info=True)
-        return None
-    return module
+    """Import the sibling memory_grade module lazily; None when absent, or it's broken."""
+    return _load_sibling_module(MEMORY_GRADE_MODULE_NAME, "memory_grade.py", "memory grade")
 
 
 def _maybe_log_memory_grade(tool_name: str, args: Dict[str, Any], result: str,
