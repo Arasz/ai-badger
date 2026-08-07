@@ -55,27 +55,64 @@ messaging platform. Claude's hook surface is simpler but less flexible.
 }
 ```
 
-Fires on every session start, reads `manifest.json` frameworkVersion, compares to plugin's VERSION,
-prints a one-line notice if they differ.
+Fires on every session start, reads `manifest.json` `frameworkVersion`, compares it to the
+plugin's `VERSION`, and prints a one-line notice when the two diverge.
 
 *Correction (2026-07-27):* the `command` above previously read
 `${CLAUDE_PLUGIN_ROOT}/skills/task/…`. The real path in `hooks/hooks.json` is
-`${CLAUDE_PLUGIN_ROOT}/features/common/skills/task/…` and has been for some time; the rest of
-this paragraph is accurate.
+`${CLAUDE_PLUGIN_ROOT}/features/common/skills/task/…` and has been for some time.
+
+*Correction (2026-08-07, 0.94.0):* "prints a one-line notice if they differ" was accurate until
+0.91.0 and is not now. Two things changed, and both matter to anyone porting this:
+
+- **Diverge is not the same as differ.** The comparison is `drift_notice.versions_diverge`, which
+  reads `(major, minor)` off each side and ignores the patch slot — a patch-only bump is stamp
+  noise, the same tolerance `gates/scaffold_freshness_guard.py` already granted. `0.93.0` against
+  `0.93.1` is silent; `0.93.1` against `0.94.0` still speaks. A version that does not parse as
+  `x.y[.z]` falls back to string inequality.
+- **The hook can speak with no drift at all.** It also emits a *competing copies* notice — on its
+  own, with the versions in agreement — when the idle `~/.ai-badger/framework` cache reports a
+  different version than the tree the session is running from. See the 2026-08-07 amendment to
+  [ADR-0001](adr/0001-versioning-and-release-model.md) decision 5.
 
 **Hermes** — two options:
 
 **Option A: `pre_llm_call` context injection (recommended)**
 
 Instead of a separate hook script, a Hermes plugin registers a `pre_llm_call` hook that
-checks the project's `manifest.json` against the framework's VERSION on every turn and
-injects a drift notice into the LLM context. This is more reliable than a once-per-session
-check because it fires on every turn, not just session start.
+checks the project's `manifest.json` against the framework's VERSION and injects a drift notice
+into the LLM context.
+
+> **This shipped, and shipped differently.** `features/common/hooks/ai_badger_hooks.py` registers
+> `on_session_start` for the drift notice and `pre_llm_call` for context injection — drift is
+> reported once per session, not per turn, for the reason given in the note at the top of this
+> document. The sample below is kept as a minimal illustration of the comparison, corrected to
+> match what ships. It duplicates `versions_diverge` rather than importing it, which is what the
+> real Hermes hook does too, for the reason its own comment gives — the hook lives in a directory
+> that cannot import the Claude-side `drift_notice` module cleanly. The two spellings are pinned
+> against each other by `test_both_hosts_agree_on_versions_diverge` in
+> `tests/test_hook_cwd_resolution.py`, so the duplication cannot drift silently.
 
 ```python
 # hermes plugin register()
 def register(ctx):
     ctx.register_hook("pre_llm_call", inject_drift_notice)
+
+def versions_diverge(scaffolded, running):
+    """(major, minor) only — a patch-only bump is stamp noise, not drift (0.91.0)."""
+    def major_minor(version):
+        parts = version.split(".")
+        if len(parts) < 2:
+            return None
+        try:
+            return int(parts[0]), int(parts[1])
+        except ValueError:
+            return None
+
+    left, right = major_minor(scaffolded), major_minor(running)
+    if left is None or right is None:
+        return scaffolded != running
+    return left != right
 
 def inject_drift_notice(task_id=None, cwd=None, **kwargs):
     if not cwd:
@@ -89,7 +126,7 @@ def inject_drift_notice(task_id=None, cwd=None, **kwargs):
     except (OSError, ValueError):
         return None
     fw_version = (Path(__file__).resolve().parents[3] / "VERSION").read_text().strip()
-    if scaffold_ver and fw_version and scaffold_ver != fw_version:
+    if scaffold_ver and fw_version and versions_diverge(scaffold_ver, fw_version):
         return {
             "context": (
                 f"[ai-badger] Scaffolded with {scaffold_ver}, "
@@ -105,7 +142,7 @@ A cron job that checks daily and delivers to the user's configured platform:
 
 ```bash
 hermes cron create "0 9 * * *" \
-  --prompt "Check if .ai-badger/manifest.json frameworkVersion differs from the ai-badger framework VERSION. If so, notify the user to run den-refresh." \
+  --prompt "Check whether .ai-badger/manifest.json frameworkVersion and the ai-badger framework VERSION differ in their major or minor slot — a patch-only difference is not drift. If they do, notify the user to run den-refresh." \
   --name "ai-badger drift check"
 ```
 
