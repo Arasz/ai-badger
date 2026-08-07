@@ -21,7 +21,7 @@ tooling language is Bun TypeScript — always check the repo's own convention,
 never assume), **old/not-used scripts removed**, **src + tests layout**,
 **TDD: tests written first**.
 
-Pairs with `ai-badger-project-ops` (refresh/staging hygiene) and the `task`
+Pairs with `den-refresh` (framework refresh hygiene) and the `task`
 skill (worktree + orchestration). Run inside the task worktree.
 
 ## Step 1 — Inventory with tracking, not `find`
@@ -196,9 +196,9 @@ behaves like the original.
 - Whole-repo `grep -rln` can hang on ignored/derived dirs — use the
   ripgrep-backed search tool (respects gitignore).
 - Concurrent sessions dirty the tree: snapshot `git status --short` first,
-  stage explicit paths, never `git add -A` (see ai-badger-project-ops).
+  stage explicit paths, never `git add -A`.
 - A refresh/scaffold may overwrite in-place-edited skills — diff before
-  mourning (see ai-badger-project-ops: the overwrite can be a stale-edit fix).
+  mourning (see `den-refresh`: the overwrite can be a stale-edit fix).
 - The task's real spec may arrive as a paste (Claude Code `/task` output +
   requirement bullets): map bullets 1:1 to scope items and confirm the
   refresh/stack work was the prerequisite, not the deliverable.
