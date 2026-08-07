@@ -320,6 +320,20 @@ class TestCatalogRouting:
         assert bl.skill_scope("code-review-checklist") == bl.SKILL_SCOPE_DEFAULT
         assert "code-review-checklist" in sps.COMMON_SKILLS
 
+    def test_fed_back_workflow_skills_are_opt_in(self, load_script):
+        """Learned-workflow skills contributed from a consumer project are optIn,
+        not default — they must never silently ship to every scaffolded project."""
+        bl = load_script("engine/badger_lib.py")
+
+        for name in ("artifact-verification", "code-review-evidence", "design-gate-audit",
+                     "documentation-drift-audit", "multi-lane-report-assembly",
+                     "parallel-expert-review", "pre-push-gate-debugging",
+                     "research-record-audit", "review-gate-diff-verification",
+                     "scripts-tooling-refactor", "spec-driven-refactoring",
+                     "sqlite-bank-space-diagnosis", "sqlite-schema-review",
+                     "worktree-agent-isolation"):
+            assert bl.skill_scope(name) == bl.SKILL_SCOPE_OPT_IN, name
+
     def test_decision_collection_skills_ship_with_every_project(self, load_script):
         """The two common skills are universal and have shipped plugin copies."""
         bl = load_script("engine/badger_lib.py")
