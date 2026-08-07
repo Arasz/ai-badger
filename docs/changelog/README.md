@@ -21,6 +21,7 @@ re-scaffold.
 | Version | Entry |
 |---|---|
 | 0.91.0 | [the pre-push chain gets honest, and the gates that existed start blocking](0.91.0-the-pre-push-chain-gets-honest.md) |
+| 0.90.1 | [`--no-install` leaves no links behind either](0.90.1-no-install-leaves-no-links-behind.md) |
 | 0.90.0 | [the docs answer to the catalog, not to their own prose](0.90.0-the-docs-answer-to-the-catalog.md) |
 | 0.89.0 | [the read-only freshness gate stops writing into `$HOME`](0.89.0-gate-stops-writing-to-home.md) |
 | 0.88.6 | [the tracking store, the memory bank and the cwd all follow the checkout](0.88.6-tracking-and-isolation-floor.md) |
