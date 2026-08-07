@@ -34,8 +34,7 @@ SKIP_MARKER = "[no-tests]"
 
 
 def _git(root: Path, *args: str) -> str:
-    proc = subprocess.run(["git", *args], cwd=str(root), capture_output=True, text=True,
-                           check=False)
+    proc = bl.run_git(list(args), root)
     if proc.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)}: {proc.stderr.strip() or 'failed'}")
     return proc.stdout

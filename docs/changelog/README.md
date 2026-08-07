@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.95.0 | [the tooling layer reads the tree it was pointed at](0.95.0-tooling-reads-the-tree-it-was-pointed-at.md) |
 | 0.94.0 | [one mechanism: a skill declares its own stack and its own scope](0.94.0-routing-is-by-directory.md) |
 | 0.93.1 | [a dot directory under `features/` is not a candidate stack](0.93.1-a-dotdir-is-not-a-stack.md) |
 | 0.93.0 | [jsonschema on first use, one finding shape, one guarded VERSION reader](0.93.0-lazy-schema-and-gate-chassis.md) |

@@ -6,9 +6,10 @@ Claude Code loads subagents from `.claude/agents/*.md`, whose frontmatter must s
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
+
+import frontmatter as fm
 
 # The keys Claude Code reads from a subagent file, in its own documented order. An allowlist:
 # a persona key Claude does not understand must not leak into a file it parses.
@@ -20,8 +21,6 @@ MANAGED_HEADER = (
 )
 # The stable leading text every delivered file carries (the part before the {name} slot).
 _MANAGED_PREFIX = MANAGED_HEADER.split("{name}", 1)[0]
-
-_KEY_RE = re.compile(r"([A-Za-z][A-Za-z0-9_-]*):")
 
 
 def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
@@ -76,48 +75,18 @@ def render(text: str, source_name: str) -> Optional[str]:
     The persona's own `---` block is stripped and replaced, never stacked under a second one;
     the managed header goes on the first *body* line, because frontmatter must start at line 1.
     """
-    lines, body = _split_frontmatter(text)
-    if lines is None:
+    split = fm.split(text)
+    if not split.present:
         return None
-    fields = _fields(lines)
-    if "name" not in fields or "description" not in fields:
+    keep = {entry.key: entry for entry in split.entries}
+    if "name" not in keep or "description" not in keep:
         return None
-    out = ["---"]
+    out = ["---\n"]
     for key in CLAUDE_KEYS:
-        out.extend(fields.get(key, []))
-    out += ["---", "", MANAGED_HEADER.format(name=source_name), ""]
-    return "\n".join(out) + "\n" + body.lstrip("\n")
-
-
-def _split_frontmatter(text: str) -> Tuple[Optional[List[str]], str]:
-    """The frontmatter's lines (fences excluded) and the body, or (None, text) when there is none."""
-    if not text.startswith("---\n"):
-        return None, text
-    rest = text[4:]
-    end = rest.find("\n---\n")
-    if end != -1:
-        return rest[:end].splitlines(), rest[end + 5:]
-    if rest.endswith("\n---") or rest.endswith("\n---\n"):
-        return rest.rsplit("\n---", 1)[0].splitlines(), ""
-    return None, text
-
-
-def _fields(lines: List[str]) -> Dict[str, List[str]]:
-    """Map each top-level frontmatter key to its lines verbatim, continuations included.
-
-    Line-based rather than YAML-parsed: a persona's `description: >` folded block is re-emitted
-    byte-for-byte, and the adjuster stays stdlib-only (pyyaml is optional here, ADR-0002).
-    """
-    fields: Dict[str, List[str]] = {}
-    key = None
-    for line in lines:
-        match = _KEY_RE.match(line)
-        if match:
-            key = match.group(1)
-            fields[key] = [line]
-        elif key is not None:
-            fields[key].append(line)
-    return fields
+        if key in keep:
+            out.extend(keep[key].lines)
+    out += ["---\n", "\n", MANAGED_HEADER.format(name=source_name) + "\n", "\n"]
+    return "".join(out) + split.body.lstrip("\n")
 
 
 def _manifest_targets(target_dir: Path) -> set:

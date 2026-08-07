@@ -89,8 +89,7 @@ def is_exempt(rel: str, prefixes: Sequence[str]) -> bool:
 
 def tracked_files(root: Path) -> Tuple[List[str], bool]:
     """Every path `git ls-files` reports, and whether the command itself succeeded."""
-    proc = subprocess.run(["git", "ls-files"], cwd=str(root), capture_output=True, text=True,
-                          check=False)
+    proc = bl.run_git(["ls-files"], root)
     if proc.returncode != 0:
         return [], False
     return sorted(line for line in proc.stdout.splitlines() if line), True

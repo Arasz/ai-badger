@@ -8,6 +8,7 @@ schema'd or exempt by name, and a stack's files may only point at artifacts its 
 from __future__ import annotations
 
 import json
+import subprocess
 
 import pytest
 
@@ -97,13 +98,54 @@ def test_a_features_directory_with_nothing_indexable_is_reported(tmp_path, root,
 
 
 def test_a_dot_directory_under_features_is_not_a_candidate_stack(tmp_path, root, load_script):
-    """Local state lands in features/.ai-badger/; no stack is ever named with a leading dot."""
+    """The non-git fallback's own rule: local state lands in features/.ai-badger/, never a stack."""
     validate = load_script("tooling/validate.py")
     stray = tmp_path / "features" / ".ai-badger" / "task-tracking"
     stray.mkdir(parents=True)
     (stray / "poll_limit.pid").write_text("1234", encoding="utf-8")
 
     assert validate.catalog_stack_gaps(tmp_path) == []
+
+
+def _committed_catalog(tmp_path):
+    """A git checkout whose features/ holds one committed stack directory."""
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    for key, value in (("user.email", "t@example.com"), ("user.name", "T")):
+        subprocess.run(["git", "-C", str(tmp_path), "config", key, value], check=True)
+    stack = tmp_path / "features" / "python" / "skills" / "demo"
+    stack.mkdir(parents=True)
+    (stack / "SKILL.md").write_text("# demo\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "catalog"], check=True)
+    return tmp_path
+
+
+def test_an_untracked_directory_under_features_cannot_fail_validation(
+        tmp_path, root, load_script):
+    """A validator that read the working tree failed on whatever the session left behind."""
+    validate = load_script("tooling/validate.py")
+    checkout = _committed_catalog(tmp_path)
+    scratch = checkout / "features" / "scratchdir"
+    scratch.mkdir()
+    (scratch / "skills.json").write_text('{"skills": []}', encoding="utf-8")
+
+    assert validate.catalog_stack_gaps(checkout) == []
+
+
+def test_a_committed_directory_the_index_cannot_deliver_is_still_reported(
+        tmp_path, root, load_script):
+    """features/github's exact shape, committed: reading HEAD must not cost the real check."""
+    validate = load_script("tooling/validate.py")
+    checkout = _committed_catalog(tmp_path)
+    ghost = checkout / "features" / "ghoststack"
+    ghost.mkdir()
+    (ghost / "skills.json").write_text('{"skills": []}', encoding="utf-8")
+    subprocess.run(["git", "-C", str(checkout), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(checkout), "commit", "-qm", "ghoststack"], check=True)
+
+    gaps = validate.catalog_stack_gaps(checkout)
+
+    assert any("ghoststack" in g for g in gaps), gaps
 
 
 # ── A16: every JSON under features/ is schema'd or exempt by name ─────────────────────
