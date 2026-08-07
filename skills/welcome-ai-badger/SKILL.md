@@ -173,3 +173,12 @@ exits non-zero or emits an error, attempt recovery before surfacing the failure.
    permission first, gate on `gh` being installed and authenticated, sanitize the config
    before including it. **Never create the issue without explicit user approval** — that rule
    holds even if the reference file is not present.
+
+## Verification Checklist
+
+- [ ] `validate.py --kind config` passed on the authored config
+- [ ] Scaffold output covers exactly the selected stacks — no leakage from unselected stacks
+- [ ] `.ai-badger/` holds config.json, manifest.json, CLAUDE.md, agents/, instructions/, invariants/, skills/, agent-instructions/, state.json
+- [ ] Plugin-setup commands relayed per the chosen scope (default or local-only)
+- [ ] Preserved hand-authored discovery files reported, not overwritten
+- [ ] Any "competing copies" tree list relayed, and nothing outside the target deleted

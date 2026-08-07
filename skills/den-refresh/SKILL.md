@@ -226,15 +226,7 @@ recovery before surfacing the failure to the user.
 2. **Attempt automatic recovery.** Try the applicable fix, then re-run the
    refresh command from step 1 of the Flow.
 
-   | Error | Fix |
-   |---|---|
-   | `config.json` invalid / `validationErrors` present | Read the errors, patch `config.json`, re-run |
-   | `manifest.json` missing or corrupt | Re-run `welcome-ai-badger` steps 4-5 (validate + scaffold) |
-   | `index.json` missing or stale | `python3 "$AI_BADGER/tooling/index_build.py"` |
-   | `frameworkVersion` mismatch between config and framework | Update `frameworkVersion` in config.json to match `cat "$AI_BADGER/VERSION"` |
-   | Scaffold script raised an exception (file-permission, encoding) | Fix the file/permission issue, retry once |
-   | Python dependency missing (`jsonschema`) | `python3 -m pip install -r "$AI_BADGER/engine/requirements.txt"` |
-   | Scaffold and config disagree with `reScaffolded: false` and no drift signal explains why | Re-run with `--force` — re-scaffolds unconditionally and reports `"forced": true` |
+   > Fix table: read references/error-recovery.md when refresh.py exits non-zero or returns a JSON `error` field.
 
    After applying a fix, **re-run the refresh**. If it succeeds, report what was
    fixed and continue with the normal flow (review diff, commit).
@@ -245,3 +237,12 @@ recovery before surfacing the failure to the user.
    permission first, gate on `gh` being installed and authenticated, sanitize the config
    before including it. **Never create the issue without explicit user approval** — that rule
    holds even if the reference file is not present.
+
+## Verification Checklist
+
+- [ ] `refresh.py` exited 0
+- [ ] Report read section by section: `frameworkVersion`, `drift.*`, `reScaffolded`, `note`, `frameworkCopies`
+- [ ] Competing copies surfaced; `~/.ai-badger/framework` pruned only on request
+- [ ] Prune candidates offered, never pruned — `config.json` untouched
+- [ ] Diff reviewed before commit
+- [ ] Seed-once files (`state.json`, `markers-context.json`, `model.json`) absent from the diff

@@ -65,6 +65,19 @@ only if one is found, writes/updates `.ai-badger/prompt-markers/marker-state.jso
 most recent 100 entries). If no such directory exists, the hook still injects context but skips
 the audit write silently — it never creates project-tracking structure on its own.
 
+## Gotchas
+
+- **The hook *appends* via `additionalContext` and never rewrites the prompt.** Prepending or
+  rewriting invalidates prompt caching for that turn and every subsequent one (rationale recorded
+  in ADR-0017; mirror it in the project's ADRs instead of re-deriving).
+- **Registration merges into existing arrays.** If the project already runs a
+  `UserPromptSubmit` hook (e.g. task's session tracker), add an entry, never replace it — the
+  host runs all registered hooks.
+- **The audit write is best-effort by design.** It only fires when an `.ai-badger` directory
+  already exists; a missing `marker-state.json` is not a hook failure.
+- **Marker definitions live in `markers-context.json`.** Edit that file to add or change a
+  marker, not the hook.
+
 ## Installation
 
 Register the hook in the project's Claude Code settings (`.claude/settings.json` or

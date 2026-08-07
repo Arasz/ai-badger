@@ -23,6 +23,12 @@ hub-and-spoke model: one compact, always-loaded entrypoint per agent (`CLAUDE.md
 instruction files. The model is machine-readable so drift between agent files can be checked by
 script instead of by eye — if the project records this decision as an ADR, link it here.
 
+## When NOT to Use
+
+- A single-file typo fix in one instruction file — edit it directly
+- No drift exists and CI checks pass
+- Authoring brand-new policy from scratch — that is content work, not reconciliation
+
 ## Principles
 
 - Use scripts first; inspect only failing files/rules.
@@ -91,3 +97,11 @@ Read `references/agent-instruction-model.md` **when the model contract is in que
 ## Gotchas
 
 No environment-specific gotchas known.
+
+## Verification Checklist
+
+- [ ] Both scripts ran from the project root
+- [ ] Both exit 0 — or every reported failure was fixed and the re-runs pass
+- [ ] Only the reported files and rules were touched
+- [ ] The model was updated before any shared-policy change
+- [ ] ADR added or updated when architecture/process policy changed
