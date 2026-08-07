@@ -437,39 +437,48 @@ def _risk_stub(tmp_path, task_id=""):
     return {"AIB_PYTHON": _shim(tmp_path / "py-stub", body)}
 
 
+def _lanes_for(tmp_path, paths, task_id=""):
+    """The selector over a pinned path list. `lanes` diffs the real branch; this cannot.
+
+    These tests are about `--risk`, not about what happens to be committed. Reading the branch
+    meant a docs-only diff offered no `pytest` and no `pylint`, so the assertions measured the
+    file-type narrowing and blocked every documentation PR (found by the docs sweep at 0.97.0).
+    """
+    return _run("lanes-for", stdin="\n".join(paths) + "\n",
+                env=_risk_stub(tmp_path, task_id)).stdout.split()
+
+
+# One `.py` and one `.md`, so every lane in RISK_DROPPED and RISK_KEPT is on the table.
+PINNED_PATHS = ("engine/badger_lib.py", "docs/README.md")
+
+
 def test_a_risk_task_drops_the_slow_lanes(tmp_path):
-    """Measured against the same tree with risk off, so an unoffered lane cannot pass this."""
-    offered = _run("lanes", env=_risk_stub(tmp_path)).stdout.split()
-    selected = _run("lanes", env=_risk_stub(tmp_path, "TASK-1")).stdout.split()
+    """Same pinned paths, risk off then on, so only the flag can explain the difference."""
+    offered = _lanes_for(tmp_path, PINNED_PATHS)
+    selected = _lanes_for(tmp_path, PINNED_PATHS, "TASK-1")
 
     for lane in RISK_DROPPED:
         assert lane in offered, (
-            f"{lane} was not in the lane list even without --risk, so its absence proves "
-            f"nothing about the flag: {offered}")
+            f"{lane} was not offered even without --risk, so its absence proves nothing "
+            f"about the flag: {offered}")
         assert lane not in selected, f"--risk left {lane} in: {selected}"
 
 
 def test_without_a_risk_task_the_slow_lanes_still_run(tmp_path):
     """The narrowing must be the flag's doing, not the selector's."""
-    selected = _run("lanes", env=_risk_stub(tmp_path)).stdout.split()
+    selected = _lanes_for(tmp_path, PINNED_PATHS)
 
     for lane in RISK_DROPPED:
         assert lane in selected, f"{lane} vanished without --risk: {selected}"
 
 
 def test_a_risk_task_keeps_the_cheap_lanes(tmp_path):
-    """`--risk` trades the suite away, not the checks that cost seconds.
-
-    Compared against the same tree with risk off. The lane list is also narrowed by which
-    file types changed — a branch touching no `.py` is offered no `pylint` — and asserting
-    bare membership cannot tell that narrowing apart from the flag's.
-    """
-    offered = _run("lanes", env=_risk_stub(tmp_path)).stdout.split()
-    selected = _run("lanes", env=_risk_stub(tmp_path, "TASK-1")).stdout.split()
+    """`--risk` trades the suite away, not the checks that cost seconds."""
+    offered = _lanes_for(tmp_path, PINNED_PATHS)
+    selected = _lanes_for(tmp_path, PINNED_PATHS, "TASK-1")
 
     for lane in RISK_KEPT:
-        if lane not in offered:
-            continue
+        assert lane in offered, f"{lane} was not offered at all: {offered}"
         assert lane in selected, f"--risk dropped {lane}, which costs nothing: {selected}"
 
 
