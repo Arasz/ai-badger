@@ -403,6 +403,107 @@ def _changelog_index_check(work: Path, provoked: bool) -> Outcome:
     return _run([str(ROOT / "tooling" / "changelog_index.py"), "--root", str(root), "--check"])
 
 
+# ----------------------------------------------- tooling/validate.py --all (five sub-checks)
+
+# Loaded for HOOK_CAPABLE_AGENTS: spelling the agent names here would let the tuple grow
+# without the fixture growing with it, and a manifest naming every agent would stop meaning it.
+VALIDATE = _load("tooling/validate.py")
+
+CLEAN_SKILL = """---
+name: demo-skill
+description: >-
+  Use when the meta-gate needs a lint-clean skill to stand in for the catalog.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [meta]
+    related_skills: []
+---
+# Demo skill
+
+One paragraph, nothing for the lint to report.
+
+## Gotchas
+
+No environment-specific gotchas known.
+"""
+
+
+def _hooks_manifest(root: Path, agents) -> Path:
+    """One hook entry naming `agents`, in the shape hooks-manifest.schema.json requires."""
+    return _write(root / "features" / "demo" / "hooks" / "hooks-manifest.json", json.dumps({
+        "hooks": [{"name": "demo-hook", "description": "a hook", "agents": {
+            agent: {"type": "hooks-json", "entry": "hooks.json", "event": "SessionStart",
+                    "script": "demo_hook.py"} for agent in agents}}],
+    }))
+
+
+def _validate_tree(work: Path, manifest: bool = True, skill: str = CLEAN_SKILL) -> Path:
+    """A miniature framework tree `validate.py --all` passes clean.
+
+    Real schemas, a hooks manifest reaching every hook-capable agent, one lint-clean skill —
+    every sub-check gets something to say `ok` about, so a provocation is the only reason to fail.
+    """
+    root = work / "framework"
+    root.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(ROOT / "schemas", root / "schemas")
+    if manifest:
+        _hooks_manifest(root, VALIDATE.HOOK_CAPABLE_AGENTS)
+    _write(root / "features" / "demo" / "skills" / "demo-skill" / "SKILL.md", skill)
+    return root
+
+
+def _validate_all(root: Path) -> Outcome:
+    return _run([str(ROOT / "tooling" / "validate.py"), "--all", "--root", str(root)])
+
+
+def _validate_all_schema_not_self_valid(work: Path, provoked: bool) -> Outcome:
+    """A shipped schema that is not itself a valid Draft 2020-12 schema."""
+    root = _validate_tree(work)
+    if provoked:
+        _write(root / "schemas" / "config.schema.json", json.dumps({"type": "not-a-json-type"}))
+    return _validate_all(root)
+
+
+def _validate_all_undecided_schema(work: Path, provoked: bool) -> Outcome:
+    """A schema SCHEMA_INSTANCES and the exemption list both ignore — it validates nothing."""
+    root = _validate_tree(work)
+    if provoked:
+        _write(root / "schemas" / "orphan.schema.json", json.dumps({"type": "object"}))
+    return _validate_all(root)
+
+
+def _validate_all_instance_fails_its_schema(work: Path, provoked: bool) -> Outcome:
+    """A catalog file that does not match the schema its glob maps it to."""
+    root = _validate_tree(work)
+    stack = {"nope": True} if provoked else {"name": "demo", "description": "a demo stack"}
+    _write(root / "features" / "demo" / "stack.json", json.dumps(stack))
+    return _validate_all(root)
+
+
+def _validate_all_hook_agent_gap(work: Path, provoked: bool) -> Outcome:
+    """A hook naming one agent, with no recorded exemption for the others (issue #147)."""
+    agents = VALIDATE.HOOK_CAPABLE_AGENTS
+    root = _validate_tree(work, manifest=False)
+    _hooks_manifest(root, agents[:1] if provoked else agents)
+    return _validate_all(root)
+
+
+def _validate_all_no_hooks_manifest(work: Path, provoked: bool) -> Outcome:
+    """A tree whose manifest glob matches nothing — the check ran against no input at all."""
+    return _validate_all(_validate_tree(work, manifest=not provoked))
+
+
+def _validate_all_skills_lint_violation(work: Path, provoked: bool) -> Outcome:
+    """A SKILL.md whose frontmatter name breaks the name grammar."""
+    skill = CLEAN_SKILL.replace("name: demo-skill", "name: Demo-Skill") if provoked \
+        else CLEAN_SKILL
+    return _validate_all(_validate_tree(work, skill=skill))
+
+
 # ------------------------------------------------------- call-behaviorist analyze findings
 
 
@@ -572,6 +673,24 @@ REGISTRY: Tuple[Provocation, ...] = (
                 _sync_plugin_skills_check, Signal(exit_code=1, contains="diverged")),
     Provocation("tooling/changelog_index.py --check", "an entry added after the index was built",
                 _changelog_index_check, Signal(exit_code=1, contains="stale")),
+    Provocation("tooling/validate.py --all", "a shipped schema that is not a valid schema",
+                _validate_all_schema_not_self_valid,
+                Signal(exit_code=1, contains="INVALID  schemas self-check")),
+    Provocation("tooling/validate.py --all", "a schema no glob points any instance at",
+                _validate_all_undecided_schema,
+                Signal(exit_code=1, contains="validates nothing")),
+    Provocation("tooling/validate.py --all", "a catalog file that fails its own schema",
+                _validate_all_instance_fails_its_schema,
+                Signal(exit_code=1, contains="INVALID  features/demo/stack.json")),
+    Provocation("tooling/validate.py --all", "a hook reaching one agent, nothing said about "
+                                             "the rest",
+                _validate_all_hook_agent_gap,
+                Signal(exit_code=1, contains="no recorded exemption")),
+    Provocation("tooling/validate.py --all", "a tree whose hooks-manifest glob matches nothing",
+                _validate_all_no_hooks_manifest,
+                Signal(exit_code=1, contains="matched no file")),
+    Provocation("tooling/validate.py --all", "a SKILL.md that breaks the name grammar",
+                _validate_all_skills_lint_violation, Signal(exit_code=1, contains="rule 1")),
     Provocation(_behaviorist("not_instrumented"), "a wired hook that calls no logger",
                 _not_instrumented, _finding("not_instrumented", "low")),
     Provocation(_behaviorist("never_observed"), "an instrumented hook that never logged",
@@ -607,6 +726,16 @@ def _declares_check_flag(text: str) -> bool:
     return 'add_argument("--check"' in text
 
 
+def _declares_all_flag(text: str) -> bool:
+    """True when a script exposes an `--all` whole-tree verification mode on its CLI.
+
+    validate.py --all is the largest check this repo runs — five sub-checks, wired into CI —
+    and it spells its flag `--all`, so a discovery predicate that only knew `--check` never saw
+    it (the 2026-08-07 review's A4).
+    """
+    return 'add_argument("--all"' in text
+
+
 def _defines_compare(text: str, path: str) -> bool:
     """True when a module defines a top-level `compare()` — a comparison is a check."""
     try:
@@ -632,8 +761,8 @@ def _finding_kinds(text: str, path: str) -> List[str]:
 def discovered_checks(root: Path) -> Dict[str, str]:
     """Every check in this repo, keyed by id, valued by how it was found.
 
-    Mechanical on purpose: a new gate, a new `--check` mode, a new `compare()` or a new
-    behaviorist finding kind lands in here without anyone remembering to add it.
+    Mechanical on purpose: a new gate, a new `--check` or `--all` mode, a new `compare()` or a
+    new behaviorist finding kind lands in here without anyone remembering to add it.
     """
     found: Dict[str, str] = {}
     for gate in sorted((root / "gates").glob("*.py")):
@@ -642,6 +771,8 @@ def discovered_checks(root: Path) -> Dict[str, str]:
         text = (root / rel).read_text(encoding="utf-8", errors="replace")
         if _declares_check_flag(text):
             found[f"{rel} --check"] = "declares a --check mode"
+        if _declares_all_flag(text):
+            found[f"{rel} --all"] = "declares an --all mode"
         if _defines_compare(text, rel):
             found[f"{rel}::compare"] = "defines a top-level compare()"
     behaviorist = (root / BEHAVIORIST).read_text(encoding="utf-8")

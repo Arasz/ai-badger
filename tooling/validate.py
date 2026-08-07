@@ -48,7 +48,7 @@ SCHEMA_INSTANCES = {
     "dependencies.schema.json": ["features/*/dependencies.json"],
     "scaffolding.schema.json": ["features/*/scaffolding.json"],
     "support.schema.json": ["features/*/support.json"],
-    "model.schema.json": ["features/*/agent-instructions/model.json"],
+    "model.schema.json": ["features/*/templates/agent-instructions/model.template.json"],
 }
 
 # Schemas with no instance in this repo, and why. Listed so the completeness check stays
@@ -161,6 +161,9 @@ def undecided_schemas(root: Path) -> List[str]:
     return sorted(shipped - decided)
 
 
+HOOKS_MANIFEST_GLOB = "features/*/hooks/hooks-manifest.json"
+
+
 def hooks_manifest_agent_gaps(root: Path) -> List[str]:
     """Every (hook, agent) pair reaching neither a manifest entry nor a recorded exemption.
 
@@ -168,10 +171,14 @@ def hooks_manifest_agent_gaps(root: Path) -> List[str]:
     features/common/hooks/hooks-manifest.json) and checks each hook's `agents` map against
     HOOK_CAPABLE_AGENTS. A hook naming an agent is covered; a hook naming neither the agent nor
     an exemption in HOOKS_MANIFEST_AGENT_EXEMPTIONS is a gap — the shape issue #147 was the third
-    occurrence of.
+    occurrence of. A glob matching no manifest at all is itself a gap: checking nothing and
+    finding nothing are not the same answer.
     """
+    manifests = sorted(root.glob(HOOKS_MANIFEST_GLOB))
+    if not manifests:
+        return [f"{HOOKS_MANIFEST_GLOB} matched no file: this check ran against no input"]
     gaps: List[str] = []
-    for manifest_path in sorted(root.glob("features/*/hooks/hooks-manifest.json")):
+    for manifest_path in manifests:
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -214,7 +221,14 @@ MAX_TOKENS = 5000
 REFERENCES_CONDITION_RE = re.compile(r"\b(when|if|before|after|only when)\b", re.IGNORECASE)
 NUMBERED_STEP_RE = re.compile(r"^\s*\d+\.\s")
 # Explicit exemption: a generic directory mention, not a file pointer (plan review round 1 R1-8).
-REFERENCES_EXEMPT = {"scaffold-documentation:84"}
+# Keyed on (skill, the mention line's stripped text), never on a line number — the line-number
+# key `scaffold-documentation:84` pointed at a line that had since gone blank, and nothing said
+# so. test_every_references_exemption_still_names_a_line_that_exists keeps each anchor honest.
+REFERENCES_EXEMPT = {
+    ("scaffold-documentation",
+     "**when placing a skill's reference material**, put it in a `references/` subdirectory "
+     "*inside*"),
+}
 
 
 def references_without_conditions(lines: List[str], skill_name: str) -> List[str]:
@@ -228,7 +242,7 @@ def references_without_conditions(lines: List[str], skill_name: str) -> List[str
         if "references/" not in line or NUMBERED_STEP_RE.match(line):
             continue
         ctx = "\n".join(lines[max(0, i - 2):i + 1])
-        if f"{skill_name}:{i}" in REFERENCES_EXEMPT or REFERENCES_CONDITION_RE.search(ctx):
+        if (skill_name, line.strip()) in REFERENCES_EXEMPT or REFERENCES_CONDITION_RE.search(ctx):
             continue
         bad.append(f"{skill_name}:{i}")
     return bad
@@ -311,6 +325,18 @@ def _frontmatter_fields(text: str) -> Optional[Dict[str, str]]:
     return fields
 
 
+SKILLS_GLOB = "features/*/skills/*/SKILL.md"
+
+
+def skill_files(root: Path) -> List[Path]:
+    """Every catalog SKILL.md the lint scans — every stack, not just common.
+
+    Its own function so scope is one testable fact: narrowing this glob is what left 15 of 51
+    shipped skills unlinted with 22 tests still green (the 2026-08-07 review's A5).
+    """
+    return sorted(root.glob(SKILLS_GLOB))
+
+
 def duplicate_frontmatter_keys(text: str) -> List[str]:
     """Top-level frontmatter keys appearing more than once, in first-seen order.
 
@@ -345,9 +371,7 @@ def skills_lint(root: Path) -> List[str]:
     frontmatter fence; rules 3-5 reuse badger_lib.skill_description.
     """
     violations: List[str] = []
-    for skill_md in sorted(root.glob("features/*/skills/*/SKILL.md")):
-        if skill_md.parent.name.endswith("-extensions"):
-            continue
+    for skill_md in skill_files(root):
         rel = skill_md.relative_to(root)
         try:
             text = skill_md.read_text(encoding="utf-8")
@@ -412,11 +436,10 @@ def validate_all(root: Path) -> int:
     ok = True
     ok &= _report("schemas self-check", bl.check_schemas_selfvalid(root / "schemas"))
 
-    undecided = undecided_schemas(root)
-    if undecided:
-        ok &= _report("schema coverage",
-                      [f"{name} validates nothing: add it to SCHEMA_INSTANCES or to "
-                       f"SCHEMAS_WITHOUT_LOCAL_INSTANCES with a reason" for name in undecided])
+    ok &= _report("schema coverage",
+                  [f"{name} validates nothing: add it to SCHEMA_INSTANCES or to "
+                   f"SCHEMAS_WITHOUT_LOCAL_INSTANCES with a reason"
+                   for name in undecided_schemas(root)])
 
     for schema_name, patterns in sorted(SCHEMA_INSTANCES.items()):
         schema_path = root / "schemas" / schema_name
@@ -428,9 +451,7 @@ def validate_all(root: Path) -> int:
                 ok &= _report(str(instance.relative_to(root)),
                               bl.validate_file(instance, schema_path))
 
-    gaps = hooks_manifest_agent_gaps(root)
-    if gaps:
-        ok &= _report("hooks-manifest agent coverage", gaps)
+    ok &= _report("hooks-manifest agent coverage", hooks_manifest_agent_gaps(root))
     ok &= _report("skills lint", skills_lint(root))
     return 0 if ok else 1
 
