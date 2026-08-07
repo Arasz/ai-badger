@@ -487,6 +487,35 @@ def _clone_pinned(version: str) -> Path:
     return FRAMEWORK_CACHE
 
 
+# Variables git exports to the hooks it runs, each of which pins a git invocation to a
+# repository the caller never named. A hook that shells out with `git -C <dir>` inherits them
+# and gets the hook's repository with <dir> read as its work-tree root — so under a worktree
+# commit every .gitignore above <dir> became invisible (docs/changelog/0.95.0-*.md).
+GIT_LOCATION_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+                    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                    "GIT_PREFIX", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES")
+
+
+def git_env(env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    """`env` (default `os.environ`) minus every variable that pins git to another repository."""
+    out = dict(os.environ if env is None else env)
+    for name in GIT_LOCATION_ENV:
+        out.pop(name, None)
+    return out
+
+
+def run_git(args: List[str], cwd: Path, **kwargs):
+    """Run `git -C cwd <args>`, letting `cwd` alone decide which repository answers.
+
+    The one place this repo invokes git: repository discovery must never come from the
+    environment, because a gate's whole job is to report on the tree it was pointed at.
+    """
+    kwargs.setdefault("capture_output", True)
+    kwargs.setdefault("text", True)
+    kwargs.setdefault("check", False)
+    return subprocess.run(["git", "-C", str(cwd), *args], env=git_env(), **kwargs)
+
+
 def load_json(path: Path) -> Any:
     """Read and parse a JSON file."""
     with open(path, "r", encoding="utf-8") as fh:
