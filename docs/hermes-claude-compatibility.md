@@ -5,11 +5,14 @@ Every concept the framework depends on listed with its Hermes counterpart
 and any gaps that need bridging.
 
 > **Written 2026-07-22, spot-checked against the code at 0.27.0 on 2026-07-27.** The conceptual
-> mapping holds. Three corrections were applied inline (marked *Correction*); one framing caveat:
+> mapping holds. Later corrections are marked inline (*Correction*); one framing caveat:
 > the sections below that read as *proposals* ("Option A … recommended") describe work that has
 > since **shipped**, and shipped differently. `features/common/hooks/ai_badger_hooks.py` registers
-> all three hooks — `on_session_start` for the drift notice, `pre_llm_call` for context
-> injection, `post_tool_call` for observation. Drift is reported at session start, not per turn,
+> **four** hooks — `on_session_start` for the drift notice, `pre_llm_call` for context injection,
+> `pre_tool_call` for the memory-first gate ([ADR-0017](adr/0017-memory-first-gate.md), 0.84.0),
+> and `post_tool_call` for observation. This sentence said "all three hooks" from 0.84.0 until
+> 0.98.0, because the memory gate landed and nothing re-counted.
+> Drift is reported at session start, not per turn,
 > and `pre_llm_call` carries drift plus usage hints plus MCP tool-index recommendations. The
 > advice below to inject usage context "into every turn" was explicitly walked back in 0.18.0 —
 > repeated every turn, the hints became wallpaper, so they are now once per session.
@@ -85,7 +88,8 @@ checks the project's `manifest.json` against the framework's VERSION and injects
 into the LLM context.
 
 > **This shipped, and shipped differently.** `features/common/hooks/ai_badger_hooks.py` registers
-> `on_session_start` for the drift notice and `pre_llm_call` for context injection — drift is
+> `on_session_start` for the drift notice and `pre_llm_call` for context injection (plus
+> `pre_tool_call` and `post_tool_call`, which this section is not about) — drift is
 > reported once per session, not per turn, for the reason given in the note at the top of this
 > document. The sample below is kept as a minimal illustration of the comparison, corrected to
 > match what ships. It duplicates `versions_diverge` rather than importing it, which is what the

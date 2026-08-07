@@ -180,8 +180,12 @@ for the genuinely creative decisions.
 
 - `index_build.py` — scan the catalog tree → `index.json`, validated against its schema.
 - `validate.py` — validate any model (`config` / `manifest` / `index` / `skills-source` / `skills` /
-  `plugins-instructions` / `adjustment` / `hooks-manifest`) against its schema; `--all` validates the whole repo (schemas self-check +
-  `index.json` + every stack's `skills-source.json`/`skills.json`).
+  `plugins-instructions` / `adjustment` / `hooks-manifest` / `learned-skills`) against its schema;
+  `--all` validates the whole repo (schemas self-check + schema coverage + `index.json` + every
+  stack's `skills-source.json`/`skills.json`, then the catalog cross-checks — stack membership,
+  feature-JSON schema coverage, cross-stack references, hooks-manifest agent coverage — and
+  `gates/skills_lint.py`). Derive the list rather than trusting it:
+  `python3 tooling/validate.py --help` prints the `--kind` choices.
 - `detect.py` — best-effort detection: stacks from package/project files and extensions, agents
   from `CLAUDE.md` / `.github/copilot-instructions.md` traces (repo *and* user
   scope: `~/.claude`, `~/.copilot`), commands from stack metadata → emits a *proposed*
