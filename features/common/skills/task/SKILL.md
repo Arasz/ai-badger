@@ -27,6 +27,12 @@ dead session can be resumed.
 a persona name, or a repository. Tracking data lives in `.ai-badger/task-tracking/` (gitignored).
 Scripts live in this skill's `scripts/`.
 
+## When NOT to Use
+
+- A single-file typo fix or one-off question — no tracking, worktree, or delegation needed
+- Work the user wants done inline in this session
+- Anything where the token-tracked pipeline's overhead exceeds the task — use the plain workflow
+
 ## Config contract (read first)
 
 From `.ai-badger/config.json`:
@@ -231,6 +237,16 @@ The name is literal: you are buying speed with coverage, and the coverage is sti
 
 After integration, delegate a doc-audit agent (worktree-isolated) to check CLAUDE.md and the
 project's docs against the merged code, fix small drift, and report gaps needing a decision.
+
+## Gotchas
+
+- **`start` with `--no-worktree` records a branch name nothing creates.** `status` then reports a
+  branch that does not exist (2026-08-01: two commits landed on `main`).
+- **`finish` refuses and keeps the worktree when it holds work that exists nowhere else.** Read the
+  `worktree.keptBecause` field; a kept worktree is unmerged or uncommitted work, not failed cleanup.
+- **Never rewrite always-loaded context files (`CLAUDE.md`, `.ai-badger/state.json`) mid-task.**
+  Subagent cache reads depend on a byte-stable prefix (~10× cost); rewrite only between tasks.
+- **Two levels of dispatch, no deeper.** A widening agent tree starves the machine.
 
 ## Recovery
 
