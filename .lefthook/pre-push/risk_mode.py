@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -26,6 +27,26 @@ FINISHED = "FINISHED"
 def executed_tasks_path(project_root: Path) -> Path:
     """Where the task tracker keeps its entries for `project_root`."""
     return project_root.joinpath(*TRACKING_DIR, EXECUTED_TASKS)
+
+
+def collapse_worktree(project: Path) -> Path:
+    """The checkout a linked worktree belongs to, or *project* unchanged (mirrors tracker_lib).
+
+    A task worktree carries its own `.ai-badger/config.json`, so without this the query reads
+    an empty store and every risk task silently reverts to the full gate.
+    """
+    try:
+        common = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=str(project), capture_output=True, text=True, check=False)
+    except OSError:
+        return project
+    if common.returncode != 0 or not common.stdout.strip():
+        return project
+    checkout = Path(common.stdout.strip()).parent
+    if checkout == project or not (checkout / ".ai-badger" / "config.json").is_file():
+        return project
+    return checkout
 
 
 def load_entries(project_root: Path) -> list:
@@ -61,7 +82,7 @@ def main() -> int:
     parser.add_argument("--branch", default="", help="branch being pushed")
     args = parser.parse_args()
 
-    task = risk_task(Path(args.root), args.branch)
+    task = risk_task(collapse_worktree(Path(args.root).resolve()), args.branch)
     if task:
         print(task)
     return 0

@@ -17,6 +17,7 @@ SCRIPT = ROOT / ".lefthook" / "pre-push" / "risk_mode.py"
 
 
 def _project(tmp_path, entries):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     """A scaffolded project whose tracker holds `entries`."""
     tracking = tmp_path / ".ai-badger" / "task-tracking"
     tracking.mkdir(parents=True)
@@ -84,3 +85,20 @@ def test_it_looks_where_the_tracker_actually_writes(load_script):
 
     assert (risk_mode.executed_tasks_path(Path("/proj"))
             == tracker.compute_paths(Path("/proj"))["executed_tasks"])
+
+
+def test_it_reads_the_checkout_tracker_from_inside_a_worktree(tmp_path):
+    """0.88.6 collapsed a linked worktree onto its checkout; the query must land there too."""
+    checkout = _project(tmp_path / "repo", [_task()])
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=checkout, check=True)
+    subprocess.run(["git", "commit", "-qm", "root", "--allow-empty"], cwd=checkout, check=True,
+                   env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                        "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t", "PATH":
+                            __import__("os").environ["PATH"], "HOME": str(tmp_path)})
+    linked = tmp_path / "wt"
+    subprocess.run(["git", "worktree", "add", "-q", "--detach", str(linked)],
+                   cwd=checkout, check=True)
+    (linked / ".ai-badger").mkdir(exist_ok=True)
+    (linked / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+
+    assert _ask(linked, "feat/x") == "T-1"

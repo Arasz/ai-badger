@@ -94,7 +94,6 @@ def _bootstrap_lib() -> Path:
     (ADR-0009). Duplicated verbatim in every entry point because locating badger_lib is
     what it is for.
     """
-
     def is_root(path):
         return ((path / "schemas").is_dir() and (path / "features").is_dir()
                 and (path / "engine" / "badger_lib.py").is_file())
@@ -446,7 +445,7 @@ def _has_legacy_unmigrated_index(cwd: Optional[str]) -> bool:
 
 
 def _find_relevant_tools(
-        query: str, index: dict[str, Any], top_n: int = 3
+    query: str, index: dict[str, Any], top_n: int = 3
 ) -> list[tuple[str, float]]:
     """Rank tools in the index by relevance to the query via the BM25 matcher.
 
@@ -577,7 +576,7 @@ def _record_tool_index_check(project, tool_name: str, index: dict[str, Any]) -> 
 # ---------------------------------------------------------------------------
 
 def pre_llm_inject_context(
-        cwd: str = "", message: str = "", user_message: str = "", **_kwargs: Any
+    cwd: str = "", message: str = "", user_message: str = "", **_kwargs: Any
 ) -> Optional[Dict[str, str]]:
     """Inject ai-badger framework context into every LLM turn.
 
