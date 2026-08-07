@@ -243,6 +243,100 @@ Serialisation: B2 → B8 → B3 all touch `tooling/validate.py`. B1 → B5 → B
 B3 so the new gate can adopt the shared type. **Independently parallelisable now: B4, B6, B7,
 B10.** Anything touching `features/` or `skills/` must regenerate both derived trees before commit.
 
+## E7 — Catalog and scaffold integrity (architect/sonnet)
+
+Used all three sub-agent slots. Corrected two numbers in its own brief, which is the behaviour the
+evidence rules were written to produce.
+
+### Corrections to the charter's figures
+
+- **18 stack directories plus `common`**, not 20. My count included `common` and a non-stack dir.
+- The 137-item `index.json` claim from a commit message is **accurate** — independently
+  re-derived by reproducing `index_build.py`'s counting logic and confirming all 137 `path` fields
+  resolve on disk, with all 51 `SKILL.md` files mapping 1:1 onto index entries.
+- All three gates pass right now, re-run not cited: `index_build.py --check` → "index.json up to
+  date"; `validate.py --all` → all ok including "skills lint"; `sync_plugin_skills.py --check` →
+  "15 skill(s) in sync" (the plugin-mirrored subset, not all 51).
+- `bedef94`'s fix ("an included optIn skill reaches the agent") **still holds** — traced end to end
+  through `scaffold.py`, live-tested with a scratch scaffold opting into `update-documentation`,
+  backed by a 26-test regression suite that names the scenario.
+
+### Confirmed findings
+
+- **1 (high) — 20 SKILL.md files carry a duplicate `description:` key, and the lint validates the
+  wrong one.** `badger_lib.skill_description()` reads the **first** `description:` line; a real
+  YAML parser resolves duplicate mapping keys to the **last** — the opposite. #320 introduced the
+  duplicates; the 0.87.0 conformance commit `7cebf20` then added the required frontmatter block
+  directly beneath the pre-existing duplicate without noticing. **Six of the twenty would fail the
+  lint's own rule 5 under correct YAML semantics**: `dotnet-hosted-service-testing`,
+  `dotnet-mcp-server`, `design-gate-audit`, `sqlite-schema-review`, `parallel-expert-review`,
+  `artifact-verification`. The gate is green on a reading no real parser agrees with.
+- **2 (high) — `features/github` is an advertised shell stack that this repo itself selects.** It
+  holds exactly one file, `skills.json` with `{"skills": []}`, and no `stack.json`. It does not
+  appear in `index.json.stacks` (18 keys) at all. Yet `.ai-badger/config.json` lists `github` among
+  selected stacks and `CLAUDE.md` advertises it. `schemas/config.schema.json:67` states the
+  membership rule only as a **description string**, never as an enforced construct — so nothing
+  catches it.
+- **3 (medium-high) — a live orphan in this repo's own `.ai-badger/`, and a general blind spot.**
+  `.ai-badger/agent-instructions/model.schema.json` is byte-identical to the current output name
+  `schema.json` and has survived every re-scaffold since v0.1.0. Root cause:
+  `superseded_prune.py:60-71` only deletes a file whose feature type is excludable, and
+  `FEATURE_TYPES` sets `drift_reports_new=False` for `templates`/`hooks`/`adjustments` — deliberate,
+  so rendered output doesn't false-positive as "new" in `drift.py`, but as a side effect it exempts
+  those three types from pruning entirely. **Any renamed destination filename in those types is
+  permanently orphaned, invisible to both `drift.py` and `superseded_prune.py`.**
+- **4 (medium) — 21 JSON catalog files under `features/` are unschema'd.** Notably
+  `features/common/hooks/hooks.json` (real hook-wiring data feeding `.claude/settings.json`, easily
+  confused with the *validated* `hooks-manifest.json`), `mcp-tags.json` (declares `$schema`/`$id`
+  as if it were a schema but lives outside `schemas/`, so it is validated as neither), and 13×
+  `extension.json` sharing an undocumented shape with no schema anywhere.
+- **5 (medium) — one `SCHEMA_INSTANCES` entry is inert.** `validate.py` validates
+  `model.schema.json` against glob `features/*/agent-instructions/model.json`, which matches **zero
+  files**; the real file is one directory deeper under a different name. Unlike the honestly
+  exempted entries, this one silently validates nothing while claiming to.
+- **6 (medium) — three dangling skill-name references** that no rule catches:
+  `scripts-tooling-refactor` cites a nonexistent `ai-badger-project-ops` three times;
+  `research-record-audit` names `grounded-citations`; `worktree-agent-isolation` names
+  `git-worktree-isolation` (apparently confusing its own name). Rule 10 checks only that
+  `related_skills` is *present*, never that its values resolve.
+- **7 (low-medium) — the brief's own premise was wrong, and E7 said so.** `dependencies.json` is
+  scoped by its schema to **package** dependencies (one entry, untouched by #320). The real
+  mechanism is `badger_lib.SKILL_GROUPS`, which declares exactly one group and was never extended
+  to any of #320's 30 skills, despite `981212c`'s commit message promising "skills that cannot work
+  alone travel together".
+- **8–9 (low)** — two skill-description pairs overlap enough to hurt agent discriminability
+  (`documentation-drift-audit`/`update-documentation`, `refactor-safely`/`spec-driven-refactoring`)
+  with no "not for X, use Y" clause, unlike the good trio pattern already in the corpus; and one
+  `references/` file about C# string interpolation sits inside `worktree-agent-isolation`, topically
+  foreign to its skill. Against the charter's suspicion, E7 found the reference splits are
+  **coherent complete-sentence splits, not arbitrary line-count chops**, and rule-9 Gotchas content
+  was substantive rather than padding.
+- **10 (low) — no two scaffolds are ever byte-identical.** `wire_hooks()` and `statusline.wire()`
+  both write `.claude/settings.json` in one run; the second differs from the first, so a
+  timestamped `.bak-*` is stamped even on a completely fresh target. Bounded (does not accumulate
+  over repeated runs — verified by scaffolding three times), but it will break any naive
+  golden-file idempotence test.
+- **11 (info, by design) — the drift notice this session opened with is a known false positive.**
+  Live-ran `drift.py --target .`: reports `versionChanged` 0.87.0→0.87.1 even though 0.87.1's only
+  change touched build tooling that is never scaffolded into any project. Zero actual catalog
+  drift, yet every scaffolded project gets nagged. Documented as intentional at `drift.py:352-353`
+  (issue #110). Re-scaffolding does converge. This is a product decision, not a defect — answering
+  charter item O-4.
+
+### E7's backlog
+
+B1 dedupe the 20 descriptions + a real-YAML duplicate-key rule · B2 resolve the `github` shell
+stack and machine-enforce config↔index membership · B3 delete the orphan and fix the
+templates/hooks/adjustments pruning blind spot · B4 schema-cover `hooks.json`, `mcp-tags.json` and
+the 13 `extension.json` · B5 fix the inert glob · B6 fix the three dangling references + a
+resolves-to-a-real-skill rule · B7 extend `SKILL_GROUPS` for #320 · B8 disambiguate the two skill
+pairs · B9 relocate the misfiled reference · B10 collapse the double `settings.json` write · B11
+owner decision on the version-only drift notice.
+
+Overlaps: B1, B4, B5 and B6 all touch `tooling/validate.py` — they serialise. B2 also touches it
+plus `schemas/config.schema.json`. B3 and B7 touch `engine/badger_lib.py`. B8, B9, B10 are
+independent.
+
 ## Integrated plan
 
 Written once the panel has reported. Not started.
