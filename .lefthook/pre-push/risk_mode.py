@@ -13,9 +13,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
+import sys
 from pathlib import Path
 from typing import Optional
+
+# engine/ is this repo, not a scaffolded tree, so `run_git` is importable here — and this is the
+# one script that runs inside a git hook, where GIT_DIR is exported (docs/changelog/0.103.0-*).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "engine"))
+import badger_lib as bl  # noqa: E402  # pylint: disable=wrong-import-position
 
 # The tracker's own layout, repeated rather than imported: this runs before any lane and must
 # not depend on a scaffolded tree. tests/test_risk_mode.py pins both spellings together.
@@ -36,9 +41,7 @@ def collapse_worktree(project: Path) -> Path:
     an empty store and every risk task silently reverts to the full gate.
     """
     try:
-        common = subprocess.run(
-            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-            cwd=str(project), capture_output=True, text=True, check=False)
+        common = bl.run_git(["rev-parse", "--path-format=absolute", "--git-common-dir"], project)
     except OSError:
         return project
     if common.returncode != 0 or not common.stdout.strip():

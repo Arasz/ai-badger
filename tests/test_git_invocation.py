@@ -11,14 +11,41 @@ from __future__ import annotations
 import ast
 import os
 import subprocess
+from pathlib import Path
 
 import pytest
 
-CODE_ROOTS = ("engine", "tooling", "gates")
+# `features` and `.lefthook` hold every raw call there has ever been; the first three hold
+# none. A scope that covers only the clean directories cannot report the defect it exists for.
+CODE_ROOTS = ("engine", "tooling", "gates", "features", ".lefthook")
 
-# The helper itself, and the one invocation that names no repository: cloning a release tag
-# into a directory that is not a checkout yet.
-EXEMPT = {("engine/badger_lib.py", "run_git"), ("engine/badger_lib.py", "_clone_pinned")}
+# The one invocation that names no repository: cloning a release tag into a directory that is
+# not a checkout yet.
+EXEMPT = {
+    ("engine/badger_lib.py", "_clone_pinned"),
+    # TODO(lane W1): deferred for scoping, NOT because they are safe. The `(root / ".git")`
+    # guard only excludes non-repositories; an exported GIT_DIR still redirects their
+    # `git -C <dir> rev-parse HEAD` to another repository's HEAD, measured. Another lane owns
+    # these two files this wave.
+    ("features/common/skills/welcome-ai-badger/scripts/scaffold.py", "git_provenance"),
+    ("features/common/skills/welcome-ai-badger/scripts/detect.py", "detect_source_control"),
+}
+
+# The strip itself. `badger_lib.run_git` is how a script that can import the framework spells
+# it; a script that ships into a project with no framework checkout keeps its own `git_env`
+# copy, and `test_every_standalone_git_env_drops_the_same_names` pins the copies together.
+STRIPPER = "git_env"
+
+
+def _strips_git_env(node: ast.Call) -> bool:
+    """True when the spawn passes `env=git_env(...)` — the only compliant raw invocation."""
+    for keyword in node.keywords:
+        if keyword.arg != "env":
+            continue
+        value = keyword.value
+        return (isinstance(value, ast.Call)
+                and getattr(value.func, "id", getattr(value.func, "attr", "")) == STRIPPER)
+    return False
 
 
 # Every way stdlib subprocess starts a process. Matching only `run` let a `Popen(["git", ...])`
@@ -29,7 +56,7 @@ SPAWNERS = ("run", "call", "check_call", "check_output", "Popen")
 
 
 def _git_calls(root, rel: str):
-    """(enclosing function, node) for every subprocess spawn whose argv starts with git."""
+    """(enclosing function, node) for every subprocess spawn of git that keeps git's own env."""
     tree = ast.parse((root / rel).read_text(encoding="utf-8"), filename=rel)
     for parent in ast.walk(tree):
         if not isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -43,12 +70,15 @@ def _git_calls(root, rel: str):
             if not isinstance(argv, (ast.List, ast.Tuple)) or not argv.elts:
                 continue
             first = argv.elts[0]
-            if isinstance(first, ast.Constant) and first.value == "git":
+            if isinstance(first, ast.Constant) and first.value == "git" \
+                    and not _strips_git_env(node):
                 yield parent.name, node
 
 
 def test_no_shipped_script_invokes_git_outside_run_git(root):
     """A raw `subprocess.run(["git", ...])` inherits GIT_DIR and answers for another tree."""
+    assert {"features", ".lefthook"} <= set(CODE_ROOTS), \
+        "the only two roots that have ever held a raw call; narrowing back is the whole defect"
     strays = []
     for code_root in CODE_ROOTS:
         for path in sorted((root / code_root).rglob("*.py")):
@@ -120,6 +150,83 @@ def test_the_scanner_sees_every_spelling_of_a_raw_git_call(tmp_path, shape):
                      encoding="utf-8")
 
     assert [name for name, _ in _git_calls(tmp_path, "probe.py")] == ["stray"]
+
+
+NOT_A_STRIP = {
+    "inherited env": 'subprocess.run(["git", "status"], env=os.environ)',
+    "a copied env": 'subprocess.run(["git", "status"], env=dict(os.environ))',
+    "a plain name": 'subprocess.run(["git", "status"], env=env)',
+    "some other builder": 'subprocess.run(["git", "status"], env=build_env())',
+}
+
+
+@pytest.mark.parametrize("shape", sorted(NOT_A_STRIP), ids=sorted(NOT_A_STRIP))
+def test_an_env_that_is_not_the_strip_is_still_a_stray(tmp_path, shape):
+    """`env=` alone proves nothing: `env=os.environ` passes GIT_DIR straight through."""
+    probe = tmp_path / "probe.py"
+    probe.write_text(f"import os\nimport subprocess\n\n\ndef stray():\n"
+                     f"    {NOT_A_STRIP[shape]}\n", encoding="utf-8")
+
+    assert [name for name, _ in _git_calls(tmp_path, "probe.py")] == ["stray"]
+
+
+STRIPPED = {
+    "a local helper": 'subprocess.run(["git", "status"], env=git_env())',
+    "an imported helper": 'subprocess.run(["git", "status"], env=bl.git_env())',
+    "a helper given an env": 'subprocess.run(["git", "status"], env=lib.git_env(os.environ))',
+}
+
+
+@pytest.mark.parametrize("shape", sorted(STRIPPED), ids=sorted(STRIPPED))
+def test_a_spawn_that_strips_gits_env_is_not_a_stray(tmp_path, shape):
+    """Otherwise a shipped script could only comply by importing a framework it may not have."""
+    probe = tmp_path / "probe.py"
+    probe.write_text(f"import os\nimport subprocess\n\n\ndef fine():\n"
+                     f"    {STRIPPED[shape]}\n", encoding="utf-8")
+
+    assert list(_git_calls(tmp_path, "probe.py")) == []
+
+
+def _defines_git_env(path) -> bool:
+    """True when the module defines its own top-level `git_env`."""
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    return any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == STRIPPER
+               for node in tree.body)
+
+
+REPO = Path(__file__).resolve().parents[1]
+
+# Discovered, never listed. `_strips_git_env` clears a spawn on the *name* `git_env` alone, so a
+# hand-written list is an allowlist: a new module could define a `git_env` that strips nothing,
+# satisfy the scanner, and never reach the behaviour check below.
+STANDALONE_STRIPPERS = sorted(
+    path.relative_to(REPO).as_posix()
+    for code_root in CODE_ROOTS
+    for path in (REPO / code_root).rglob("*.py")
+    if _defines_git_env(path)
+)
+
+
+def test_the_strippers_were_discovered():
+    """An empty or shrunken discovery would make the parametrised check below vacuous."""
+    assert {"engine/badger_lib.py",
+            "features/common/skills/task/scripts/tracker_lib.py",
+            "features/common/skills/commit-reminder/scripts/commit_reminder.py",
+            "features/common/skills/ai-raccoon-memory/scripts/memory_first_gate.py"} \
+        <= set(STANDALONE_STRIPPERS)
+
+
+@pytest.mark.parametrize("rel", STANDALONE_STRIPPERS, ids=STANDALONE_STRIPPERS)
+def test_every_standalone_git_env_drops_the_same_names(rel, load_script):
+    """A copy that drops eight of nine names is the 0.95.0 defect with a helper around it."""
+    bl = load_script("engine/badger_lib.py")
+    module = load_script(rel)
+    exported = {name: "/elsewhere" for name in bl.GIT_LOCATION_ENV}
+
+    env = module.git_env(dict(exported, PATH="/usr/bin"))
+
+    assert [name for name in exported if name in env] == []
+    assert env["PATH"] == "/usr/bin"
 
 
 def test_the_scanner_ignores_a_spawn_that_is_not_git(tmp_path):
