@@ -202,7 +202,10 @@ one:
 
 Two things are corrected while the record is open, neither of which is a code change in this PR:
 
-- **The enforcement is a test, and the ADR should say so.** `test_every_catalog_skill_is_reachable_by_a_declared_route` (`tests/test_sync_plugin_skills.py:286`) is what makes omission an error, together with `test_scope_declarations_name_only_real_skills` (line 303). `skill_scope()`'s
+- **The enforcement is a test, and the ADR should say so.**
+  `test_every_catalog_skill_is_reachable_by_a_declared_route`
+  (`tests/test_sync_plugin_skills.py:286`) is what makes omission an error, together with
+  `test_scope_declarations_name_only_real_skills` (line 303). `skill_scope()`'s
   `UnknownSkillScope` is a guard with no production caller — worth keeping as the correct shape for
   a future caller, but it is not what is protecting the catalog today, and ADR-0005 implied it was.
 - **The `# pylint: disable=too-many-lines` comment at `engine/badger_lib.py:1` should stop citing
