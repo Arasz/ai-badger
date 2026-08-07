@@ -33,51 +33,79 @@ The hot path: one documentation change, correctly placed, evidence-backed, and r
 For a substantial **new** document, one more: a reader test (step 9). Not for edits.
 
 References: read `references/placement.md` **when choosing a target path**,
-`references/trust.md` **when an evidence line is challenged**, `references/amendments.md` **when phrasing an amendment's reason**. The tree and filename grammar live with the skill that creates them —
-`../scaffold-documentation/references/structure.md` — because structure is that skill's primary concern; read it **when the canonical tree is in question** — do not copy it into a shared directory, which cannot ship.
+`references/trust.md` **when an evidence line is challenged**, `references/amendments.md` **when
+phrasing an amendment's reason**. The tree
+and filename grammar live with the skill that creates them —
+`../scaffold-documentation/references/structure.md` — because structure is that skill's primary
+concern; read it **when the canonical tree is in question** — do not copy it into a shared
+directory, which cannot ship.
 
 ## Steps
 
-1. **Name the change in one sentence** — what became untrue, or what is now true that no document says. **Postcondition:** you can point at the commit, ADR, or diff that caused it. If you cannot, you are documenting an intention, not a
-   change; stop and go write the ADR instead.
-2. **Choose the target path** by running `placement.md`'s gates in order. Judgement — a script cannot classify Diátaxis and would produce a confident wrong answer. **Postcondition:** one path, and its parent directory exists
-   (`test -d "$(dirname <path>)"`). If the directory is missing, invoke `scaffold-documentation` first; do not create a directory by hand.
+1. **Name the change in one sentence** — what became untrue, or what is now true that no document
+   says. **Postcondition:** you can point at the commit, ADR, or diff that caused it. If you
+   cannot, you are documenting an intention, not a change; stop and go write the ADR instead.
+2. **Choose the target path** by running `placement.md`'s gates in order. Judgement — a script
+   cannot classify Diátaxis and would produce a confident wrong answer. **Postcondition:** one
+   path, and its parent directory exists (`test -d "$(dirname <path>)"`). If the directory is
+   missing, invoke `scaffold-documentation` first; do not create a directory by hand.
 3. **Read the target in full** and list its trust markers:
-   `rg -n 'trust:(untrusted|trustchecked|processedto)' <path>` (or `grep -nE`). **Postcondition:** you know which spans you are about to edit are untrusted. Editing around an untrusted span you touched is how a false claim gets a fresh
-   timestamp and looks verified.
+   `rg -n 'trust:(untrusted|trustchecked|processedto)' <path>` (or `grep -nE`). **Postcondition:** you know which
+   spans you are about to edit are untrusted. Editing around an untrusted span you touched is how
+   a false claim gets a fresh timestamp and looks verified.
 4. **Resolve the untrusted spans inside the blocks you edit**, using the obligation ladder in
-   `trust.md`. Hard cap **2 spans per task**; anything beyond goes to the docs tree's trust-debt file with `blocked="…"`. **Postcondition:** a search for `trust:untrusted` in `<path>` returns no marker inside a block you edited. A span left
-   `untrusted` in edited text is a false claim with a fresh timestamp.
+   `trust.md`. Hard cap **2 spans per task**; anything beyond goes to the docs tree's trust-debt
+   file with `blocked="…"`. **Postcondition:** a search for `trust:untrusted` in `<path>` returns no marker
+   inside a block you edited. A span left `untrusted` in edited text is a false claim with a fresh
+   timestamp.
 5. **Write the change.** Each factual statement about the running system gets a `trustchecked`
-   marker with `evidence=<path>:<line>` you actually opened. **Postcondition:** every claim you would defend in review has a marker; anything you would not defend is either deleted or written as unverified.
-6. **Evidence gate. Do not proceed until every `evidence=` path and line resolves to a line you opened.** Re-open each one and confirm it still says what you cited it for. This is the gate an agent will self-certify — **"I checked it" is
-   not a check, and a plausible line number is not a line number.** A failure here means the evidence is wrong, never that the check is too strict.
+   marker with `evidence=<path>:<line>` you actually opened. **Postcondition:** every claim you
+   would defend in review has a marker; anything you would not defend is either deleted or written
+   as unverified.
+6. **Evidence gate. Do not proceed until every `evidence=` path and line resolves to a line you
+   opened.** Re-open each one and confirm it still says what you cited it for. This is the gate an
+   agent will self-certify — **"I checked it" is not a check, and a plausible line number is not a
+   line number.** A failure here means the evidence is wrong, never that the check is too strict.
 7. **Add an amendment row** if step 5 replaced a false statement — `| Date | Commit | Reason |
-   Change |`, per `amendments.md`. Substantial corrections get the prose block beneath it too. **Postcondition:** the row's Reason names the false statement in the past tense. If you cannot name one, you were editing, not amending; remove
-   the row.
-8. **Record gate.** Append the ledger entry and regenerate the projections the project derives from it (changelog, index, frontmatter `version:`/`updated:`). **Postcondition:** the entry exists and the projections are current. **Reporting
-   this task complete without the record is a failed run**:
+   Change |`, per `amendments.md`. Substantial corrections get the prose block beneath it too.
+   **Postcondition:** the row's Reason names the false statement in the past tense. If you cannot
+   name one, you were editing, not amending; remove the row.
+8. **Record gate.** Append the ledger entry and regenerate the projections the project derives from
+   it (changelog, index, frontmatter `version:`/`updated:`). **Postcondition:** the entry exists and
+   the projections are current. **Reporting this task complete without the record is a failed run**:
    the projections are stale and the next person inherits the failure.
-9. **Reader test — substantial *new* documents only.** Skip it for an edit to an existing document; this gate asks whether a page nobody has read yet can actually be used, and step 6 does not answer that — evidence proves the claims are
-   true, not that a reader can act on them. Write 5–10 questions a reader would realistically arrive with, then dispatch each to a **fresh subagent given only the document** — no repo access, no conversation context, because the point is to
-   surface what only the author knows. Ask each for its answer plus anything it found ambiguous or had to assume. **Postcondition:** every wrong answer and every reported ambiguity is either fixed in the document or recorded as out of scope
-   with a reason. One round, capped like step 4: a second round means the document needs rewriting, not re-testing.
-10. **Final check.** **Postcondition:** the file's recorded content hash matches what is on disk — if you edited after recording, record again — every relative link in the file resolves, and
-    `version:` is whatever the ledger says, not a number you typed.
+9. **Reader test — substantial *new* documents only.** Skip it for an edit to an existing
+   document; this gate asks whether a page nobody has read yet can actually be used, and step 6
+   does not answer that — evidence proves the claims are true, not that a reader can act on them.
+   Write 5–10 questions a reader would realistically arrive with, then dispatch each to a **fresh
+   subagent given only the document** — no repo access, no conversation context, because the point
+   is to surface what only the author knows. Ask each for its answer plus anything it found
+   ambiguous or had to assume. **Postcondition:** every wrong answer and every reported ambiguity
+   is either fixed in the document or recorded as out of scope with a reason. One round, capped
+   like step 4: a second round means the document needs rewriting, not re-testing.
+10. **Final check.** **Postcondition:** the file's recorded content hash matches what is on disk —
+   if you edited after recording, record again — every relative link in the file resolves, and
+   `version:` is whatever the ledger says, not a number you typed.
 
 ## Scripts versus judgement
 
-A step whose output is checkable is a script call, where the project has a script. A step needing judgement is prose followed by a check of its postcondition.
+A step whose output is checkable is a script call, where the project has a script. A step needing
+judgement is prose followed by a check of its postcondition.
 
-**Never script:** Diátaxis classification, verifying that a fact is true, or writing an amendment's reason. A script here produces confident garbage — a sentence shaped like a justification that justifies nothing, which is worse than a
-blank, because a blank gets noticed.
+**Never script:** Diátaxis classification, verifying that a fact is true, or writing an
+amendment's reason. A script here produces confident garbage — a sentence shaped like a
+justification that justifies nothing, which is worse than a blank, because a blank gets noticed.
 
-**Always check mechanically:** does the path exist, does the evidence line resolve, does the hash match, did the ledger accept the entry. Unautomated does not mean optional — it means you run the check by hand.
+**Always check mechanically:** does the path exist, does the evidence line resolve, does the hash
+match, did the ledger accept the entry. Unautomated does not mean optional — it means you run the
+check by hand.
 
 ## Placement, in one line
 
 Falsification test first: if the code changed tomorrow and this became untrue, would you **edit**
-it (→ a quadrant) or would editing it be **falsifying a record** (→ `work/`, dated filename)? Everything else is in `references/placement.md` — read it **when the one-line test does not settle the target**.
+it (→ a quadrant) or would editing it be **falsifying a record** (→ `work/`, dated filename)?
+Everything else is in `references/placement.md` — read it **when the one-line test does not settle
+the target**.
 
 ## Gotchas
 
@@ -94,8 +122,10 @@ No environment-specific gotchas known.
 - Linking into the legacy staging area — forbidden; provenance travels in `src=`
 - More than 2 verification spans in one task, or zero when you edited an untrusted block
 - Saying "docs updated" in your report when the change was never recorded
-- Declaring a substantial new document done with no reader test — or rewriting the questions until the subagent gets them right, which tests the questions, not the document
-- Reader-testing an edit: step 9 is gated to new documents on purpose, and running it on every change is how a per-task verification budget stops being a budget
+- Declaring a substantial new document done with no reader test — or rewriting the questions until
+  the subagent gets them right, which tests the questions, not the document
+- Reader-testing an edit: step 9 is gated to new documents on purpose, and running it on every
+  change is how a per-task verification budget stops being a budget
 
 > Step 9 carries over Stage 3 of the `doc-coauthoring` skill, authored by Anthropic
 > ([anthropics/skills](https://github.com/anthropics/skills)). No licence file accompanied the

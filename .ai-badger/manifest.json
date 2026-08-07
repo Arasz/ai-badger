@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.88.5",
-  "frameworkCommit": "f80e896599fd2c19bb7c3efeb6a30ec8ed8ea6f9",
+  "frameworkCommit": "c6279f8514e7d10c54acd29c6e97f93f3291f39b",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -694,7 +694,7 @@
       "name": "review-changes",
       "source": "features/common/skills/review-changes",
       "target": ".ai-badger/skills/review-changes",
-"frameworkVersion": "0.88.5",
+      "frameworkVersion": "0.88.5",
       "hash": "11a0b67d7f1484b82ed2ba7f3365c4f13a3457a9546d43b1fbc537dc2b11f9ce",
       "dirMeta": {
         "file_count": 1,
@@ -766,7 +766,7 @@
       "name": "cron-watchdog-authoring",
       "source": "features/hermes/skills/cron-watchdog-authoring",
       "target": ".ai-badger/skills/cron-watchdog-authoring",
-      "frameworkVersion": "0.88.5",          
+      "frameworkVersion": "0.88.5",
       "hash": "1273ebc74b64837a4d8ecc65b19be0f99c0b0358b845d78a65c17c1de68ba706",
       "dirMeta": {
         "file_count": 1,
@@ -785,12 +785,12 @@
       "source": "features/hermes/skills/hermes-plugin-development",
       "target": ".ai-badger/skills/hermes-plugin-development",
       "frameworkVersion": "0.88.5",
-      "hash": "b1a93c77e9c234007c89efa4680cacaffc2f5751b6ea77729161decd8abbc081",
+      "hash": "cfdc0482a6beacf39ba2951d3a4040e30f4468a2ae71cddb7647b9c78670e273",
       "dirMeta": {
         "file_count": 3,
         "dir_count": 1
       },
-      "sourceHash": "2cb146c367a5c602cbf65621a259382aaf0c33f87435404ae7906dbc1a587bab",
+      "sourceHash": "cfdc0482a6beacf39ba2951d3a4040e30f4468a2ae71cddb7647b9c78670e273",
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 1
@@ -803,7 +803,6 @@
       "source": "features/common/templates/agent-instructions/schema.json",
       "target": ".ai-badger/agent-instructions/schema.json",
       "frameworkVersion": "0.88.5",
-        
       "hash": "f16a7eebab357b45d5b2b3575d15db8bc5b6273e140a58dfb5026a3ca9d9b0e3"
     },
     {
@@ -840,7 +839,6 @@
       "source": "features/claude/templates/CLAUDE.md.tmpl",
       "target": "CLAUDE.md",
       "frameworkVersion": "0.88.5",
-        
       "hash": "11d0ada78825b9da340b8844e6ec5d8c47970cccd1488be72c14d4259fe496be"
     },
     {
@@ -877,7 +875,6 @@
       "source": "features/claude/adjustments/adjust_agents.py",
       "target": ".claude/agents/architect.md",
       "frameworkVersion": "0.88.5",
-        
       "hash": "5268e72297b81fcd4d675be4c26a0f9bf598bff5bdcbc3b805d0c614a19dd1c9"
     },
     {
@@ -905,7 +902,6 @@
       "source": "features/claude/adjustments/adjust_agents.py",
       "target": ".claude/agents/hermes-agent-author.md",
       "frameworkVersion": "0.88.5",
-        
       "hash": "5268e72297b81fcd4d675be4c26a0f9bf598bff5bdcbc3b805d0c614a19dd1c9"
     },
     {
@@ -933,7 +929,6 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/call-behaviorist",
       "frameworkVersion": "0.88.5",
-        
       "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
     },
     {
@@ -970,7 +965,6 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/den-refresh",
       "frameworkVersion": "0.88.5",
-        
       "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
     },
     {
@@ -1007,7 +1001,6 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/mcp-index",
       "frameworkVersion": "0.88.5",
-        
       "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
     },
     {
@@ -1053,7 +1046,6 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/debug-issue",
       "frameworkVersion": "0.88.5",
-        
       "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
     },
     {
@@ -1061,7 +1053,6 @@
       "stack": "claude",
       "name": "adjustments/.claude/skills/evidence-first-research",
       "source": "features/claude/adjustments/adjust_skills.py",
-
       "target": ".claude/skills/evidence-first-research",
       "frameworkVersion": "0.88.5",
       "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
@@ -1109,7 +1100,6 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/scaffold-documentation",
       "frameworkVersion": "0.88.5",
-        
       "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
     },
     {
@@ -1146,7 +1136,6 @@
       "source": "features/claude/adjustments/adjust_retrieval.py",
       "target": ".ai-badger/skills/mcp-index/scripts/bm25.py",
       "frameworkVersion": "0.88.5",
-        
       "hash": "57927b538803695abe1e38bc7078f190c32a0b8d03c0695ae81de7133a40a7f2"
     },
     {
@@ -1174,7 +1163,6 @@
       "source": "features/claude/adjustments/adjust_task.py",
       "target": ".ai-badger/skills/task/scripts/claude_session_source.py",
       "frameworkVersion": "0.88.5",
-        
       "hash": "475d363c803301209212acfb41358c31669a458b6390925ff28b2729a5ebf66b"
     },
     {
@@ -1211,7 +1199,6 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/code-review-checklist",
       "frameworkVersion": "0.88.5",
-        
       "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
     },
     {
@@ -1239,7 +1226,6 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/den-refresh",
       "frameworkVersion": "0.88.5",
-        
       "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
     },
     {
@@ -1285,7 +1271,6 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/owner-gate-review",
       "frameworkVersion": "0.88.5",
-        
       "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
     },
     {
@@ -1322,7 +1307,6 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/debug-issue",
       "frameworkVersion": "0.88.5",
-        
       "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
     },
     {
@@ -1350,7 +1334,6 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/migrate-documentation",
       "frameworkVersion": "0.88.5",
-        
       "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
     },
     {
@@ -1414,7 +1397,6 @@
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/delegator.agent.md",
       "frameworkVersion": "0.88.5",
-        
       "hash": "40212966d9efd49e034fe88c1b664b41447a4911804c22a4434b5ecf33fe8e05"
     },
     {
@@ -1442,7 +1424,6 @@
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/api-engineer.agent.md",
       "frameworkVersion": "0.88.5",
-        
       "hash": "40212966d9efd49e034fe88c1b664b41447a4911804c22a4434b5ecf33fe8e05"
     },
     {
@@ -1452,7 +1433,6 @@
       "source": "features/copilot/adjustments/adjust_retrieval.py",
       "target": ".ai-badger/skills/mcp-index/scripts/tokenizer.py",
       "frameworkVersion": "0.88.5",
-        
       "hash": "3f36bc11597189114f4d2ae7f7123ae8e93d5659c837e2349d13a70a41641f6d"
     },
     {
@@ -1480,7 +1460,6 @@
       "source": "features/copilot/adjustments/adjust_retrieval.py",
       "target": ".ai-badger/skills/mcp-index/scripts/context_enrichment.py",
       "frameworkVersion": "0.88.5",
-        
       "hash": "3f36bc11597189114f4d2ae7f7123ae8e93d5659c837e2349d13a70a41641f6d"
     },
     {
@@ -1508,7 +1487,6 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/debug_log.py",
       "frameworkVersion": "0.88.5",
-        
       "hash": "e692b87278fa98457de95f94d3ddc6638901cd4948fd8037894c13aba469fe54"
     },
     {
@@ -1536,7 +1514,6 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/memory_grade.py",
       "frameworkVersion": "0.88.5",
-        
       "hash": "e692b87278fa98457de95f94d3ddc6638901cd4948fd8037894c13aba469fe54"
     },
     {
@@ -1564,7 +1541,6 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/bm25.py",
       "frameworkVersion": "0.88.5",
-        
       "hash": "e692b87278fa98457de95f94d3ddc6638901cd4948fd8037894c13aba469fe54"
     },
     {
@@ -1601,7 +1577,6 @@
       "source": "features/common/skills.json",
       "target": ".ai-badger/skills-data/common/skills.json",
       "frameworkVersion": "0.88.5",
-        
       "hash": "d4193b9893a17927003d9af040a88d57adb7f4d1b5d72f085373967985cc5276"
     },
     {
@@ -1629,7 +1604,6 @@
       "source": "features/github/skills.json",
       "target": ".ai-badger/skills-data/github/skills.json",
       "frameworkVersion": "0.88.5",
-        
       "hash": "5875bafd3c61f4bbdbd0dbd8f7ce1e26870e1d03289ada235f6aeaf7f8b6265e"
     },
     {
