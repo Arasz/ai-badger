@@ -43,7 +43,10 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Set, Tuple
 
 # The engine lives in engine/: is_framework_root anchors on engine/badger_lib.py (ADR-0011).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
+# gate_report is a sibling: running this file puts gates/ on the path, importing it does not.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import badger_lib as bl
+from gate_report import Problem, report
 
 CODE_ROOTS = ("engine", "tooling", "features", "gates")
 REQUIREMENTS = "engine/requirements.txt"
@@ -57,18 +60,6 @@ ALIASES: Dict[str, Tuple[str, ...]] = {"pyyaml": ("yaml", "_yaml")}
 STDLIB = "stdlib"
 FIRST_PARTY = "first-party"
 THIRD_PARTY = "third-party"
-
-
-class Problem(NamedTuple):
-    """One actionable finding: where it is, and what about it fails the gate."""
-
-    path: str
-    line: int
-    message: str
-
-    def location(self) -> str:
-        """`file:line`."""
-        return f"{self.path}:{self.line}"
 
 
 class Import(NamedTuple):
@@ -249,12 +240,11 @@ def check(root: Path) -> int:
               f"{REQUIREMENTS} ({declared}) — PASS")
         return 0
 
-    print(f"DEPENDENCY GUARD FAILED: {len(problems)} finding(s) across {len(files)} file(s):")
-    for problem in problems:
-        print(f"    {problem.location()}  {problem.message}")
-    print(f"Declare it in {REQUIREMENTS} — deciding first, per CONTRIBUTING.md, whether it is "
-          "required (imported unguarded) or optional (guarded, degrading to a printed note).")
-    return 1
+    return report(
+        f"DEPENDENCY GUARD FAILED: {len(problems)} finding(s) across {len(files)} file(s):",
+        problems,
+        f"Declare it in {REQUIREMENTS} — deciding first, per CONTRIBUTING.md, whether it is "
+        "required (imported unguarded) or optional (guarded, degrading to a printed note).")
 
 
 def main(argv=None) -> int:

@@ -968,3 +968,32 @@ class TestConfigHash:
         after = self._config(exclude={"invariants": ["tdd-mandatory"]})
 
         assert bl.config_hash(before) != bl.config_hash(after)
+
+
+class TestReadVersion:
+    """One guarded reader for `<root>/VERSION`, replacing two unguarded reads (D7)."""
+
+    def test_it_returns_the_stripped_version(self, load_script, tmp_path):
+        bl = load_script("engine/badger_lib.py")
+        (tmp_path / "VERSION").write_text("0.93.0\n", encoding="utf-8")
+
+        assert bl.read_version(tmp_path) == "0.93.0"
+
+    def test_a_missing_file_refuses_by_name_instead_of_raising_filenotfound(
+        self, load_script, tmp_path,
+    ):
+        """`FileNotFoundError: .../VERSION` reached the operator as a traceback."""
+        bl = load_script("engine/badger_lib.py")
+
+        with pytest.raises(bl.MissingVersion) as caught:
+            bl.read_version(tmp_path)
+
+        assert "VERSION" in str(caught.value)
+
+    def test_an_empty_file_refuses_too(self, load_script, tmp_path):
+        """An empty VERSION read as the version "" and compared clean against every tag."""
+        bl = load_script("engine/badger_lib.py")
+        (tmp_path / "VERSION").write_text("\n", encoding="utf-8")
+
+        with pytest.raises(bl.MissingVersion):
+            bl.read_version(tmp_path)

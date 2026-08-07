@@ -34,14 +34,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import badger_lib as bl
 import index_build
 
-VERSION_FILE = "VERSION"
 PLUGIN_MANIFEST = Path(".claude-plugin/plugin.json")
 MARKETPLACE_MANIFEST = Path(".claude-plugin/marketplace.json")
-
-
-def read_version(root: Path) -> str:
-    """Read and strip the single-line VERSION file at the framework root."""
-    return (root / VERSION_FILE).read_text(encoding="utf-8").strip()
 
 
 def _plugin_mismatches(plugin_data: Dict[str, Any], version: str) -> List[Tuple[str, Any, str]]:
@@ -52,7 +46,7 @@ def _plugin_mismatches(plugin_data: Dict[str, Any], version: str) -> List[Tuple[
 
 
 def _marketplace_mismatches(
-    marketplace_data: Dict[str, Any], version: str, plugin_name: str,
+        marketplace_data: Dict[str, Any], version: str, plugin_name: str,
 ) -> List[Tuple[str, Any, str]]:
     mismatches: List[Tuple[str, Any, str]] = []
     for entry in marketplace_data.get("plugins", []):
@@ -111,7 +105,11 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     root = Path(args.root).resolve() if args.root else bl.find_root()
 
-    version = read_version(root)
+    try:
+        version = bl.read_version(root)
+    except bl.MissingVersion as exc:
+        print(f"VERSION SYNC COULD NOT RUN: {exc}")
+        return 1
 
     if args.check:
         return check(root, version)

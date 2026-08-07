@@ -4,8 +4,9 @@ Ownership decides: `~/.ai-badger/framework` is written by `badger_lib._clone_pin
 may prune it; `~/.claude/plugins/cache/` is Claude Code's and is only ever read (#109, and the
 0.19.0 invariant that no command destroys state it did not create).
 
-Stdlib only, and deliberately free of `badger_lib`: a SessionStart hook imports this module and
-`badger_lib` imports `jsonschema` unguarded.
+Stdlib only, and deliberately free of `badger_lib`: a SessionStart hook imports this module on
+every session and must not pay for 1000 lines it never calls. (Until 0.93.0 the stated reason
+was `badger_lib`'s unguarded `jsonschema` import, which is now deferred.)
 """
 from __future__ import annotations
 

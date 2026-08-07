@@ -401,6 +401,25 @@ def find_root(start: Optional[Path] = None) -> Path:
     return resolve_framework_root(start=start)
 
 
+class MissingVersion(RuntimeError):
+    """A tree that must declare a VERSION has none, or an unreadable/empty one."""
+
+
+def read_version(root: Path) -> str:
+    """The version `root` declares in its VERSION file. Raises MissingVersion when it has none.
+
+    For callers that require the marker; `installed_version` degrades to None instead.
+    """
+    version_file = root / "VERSION"
+    try:
+        version = version_file.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise MissingVersion(f"{version_file}: cannot be read ({exc.strerror})") from exc
+    if not version:
+        raise MissingVersion(f"{version_file}: empty — it must name the version of this tree")
+    return version
+
+
 def installed_version(start: Optional[Path] = None) -> Optional[str]:
     """Read the VERSION file of the tree this code is installed in, or None."""
     p = (start or Path(__file__)).resolve()
