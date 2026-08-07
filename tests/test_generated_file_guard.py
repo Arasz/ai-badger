@@ -1,0 +1,196 @@
+"""A hand edit to a generated file is refused at edit time, not at push time (D8/W10.e).
+
+`.ai-badger/`, `.claude/` and the plugin's `skills/` tree are written by the scaffolder from
+the `features/` catalog. Editing them by hand survives until the next scaffold and is then
+reverted; `scaffold_freshness_guard` notices at push, hours after the work was done.
+
+The oracle is `.ai-badger/manifest.json`, which the scaffolder writes: every generated file is
+already recorded there with the source it came from. Nothing here guesses at a path shape.
+"""
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+GUARD = "features/common/skills/welcome-ai-badger/scripts/generated_file_guard.py"
+GUARD_PATH = ROOT / GUARD
+
+
+@pytest.fixture(name="project")
+def _project(tmp_path):
+    """A project with a manifest, one generated skill, one catalog source and one plain file."""
+    root = tmp_path / "proj"
+    (root / ".ai-badger" / "skills" / "task" / "scripts").mkdir(parents=True)
+    (root / "features" / "common" / "skills" / "task" / "scripts").mkdir(parents=True)
+    (root / "skills" / "task").mkdir(parents=True)
+    (root / "src").mkdir()
+    (root / "src" / "app.py").write_text("print(1)\n", encoding="utf-8")
+    (root / ".ai-badger" / "manifest.json").write_text(json.dumps({"entries": [
+        {"feature": "skills", "stack": "common",
+         "source": "features/common/skills/task", "target": ".ai-badger/skills/task"},
+        {"feature": "adjustments", "stack": "claude",
+         "source": "features/claude/adjustments/adjust_agents.py",
+         "target": ".claude/agents/architect.md"},
+        {"feature": "adjustments", "stack": "claude",
+         "source": "features/claude/adjustments/adjust_task.py",
+         "target": ".ai-badger/skills/task/scripts/task_tracker.py"},
+        {"feature": "templates", "stack": "common",
+         "source": "features/common/templates/state.json", "target": ".ai-badger/state.json"},
+    ]}), encoding="utf-8")
+    return root
+
+
+def _payload(path, tool="Edit"):
+    key = "notebook_path" if tool == "NotebookEdit" else "file_path"
+    return {"hook_event_name": "PreToolUse", "tool_name": tool, "tool_input": {key: str(path)}}
+
+
+def _decision(guard, payload, capsys):
+    """The guard's printed hook output as a dict, or None when it said nothing."""
+    assert guard.decide(payload) == 0, "a PreToolUse gate must always exit 0"
+    out = capsys.readouterr().out.strip()
+    return json.loads(out) if out else None
+
+
+def _denial_reason(guard, payload, capsys) -> str:
+    decision = _decision(guard, payload, capsys)
+    assert decision is not None, "the guard allowed an edit to a generated file"
+    hook_output = decision["hookSpecificOutput"]
+    assert hook_output["permissionDecision"] == "deny"
+    return hook_output["permissionDecisionReason"]
+
+
+def test_editing_a_generated_skill_file_is_refused_and_names_its_catalog_source(
+        load_script, project, capsys):
+    guard = load_script(GUARD)
+    target = project / ".ai-badger" / "skills" / "task" / "scripts" / "tracker_lib.py"
+
+    reason = _denial_reason(guard, _payload(target), capsys)
+
+    assert ".ai-badger/skills/task/scripts/tracker_lib.py is generated" in reason, \
+        "the refusal must name the file the agent tried to edit, not the manifest target dir"
+    assert "features/common/skills/task/scripts/tracker_lib.py" in reason
+    assert "welcome-ai-badger" in reason
+
+
+def test_the_most_specific_manifest_entry_names_the_source(load_script, project, capsys):
+    """A file inside a generated skill can have a generator of its own; the skill is not it."""
+    guard = load_script(GUARD)
+    target = project / ".ai-badger" / "skills" / "task" / "scripts" / "task_tracker.py"
+
+    reason = _denial_reason(guard, _payload(target), capsys)
+
+    assert "features/claude/adjustments/adjust_task.py" in reason
+    assert "features/common/skills/task/scripts/task_tracker.py" not in reason
+
+
+def test_editing_a_copied_agent_file_is_refused(load_script, project, capsys):
+    """`.claude/agents/*.md` is written by an adjustment, and the manifest records which one."""
+    guard = load_script(GUARD)
+
+    reason = _denial_reason(guard, _payload(project / ".claude" / "agents" / "architect.md"),
+                            capsys)
+
+    assert "features/claude/adjustments/adjust_agents.py" in reason
+
+
+def test_editing_the_plugin_copy_of_a_skill_is_refused(load_script, project, capsys):
+    """`skills/` is not in the manifest; it is `sync_plugin_skills.py`'s copy of the catalog."""
+    guard = load_script(GUARD)
+
+    reason = _denial_reason(guard, _payload(project / "skills" / "task" / "SKILL.md"), capsys)
+
+    assert "features/common/skills/task/SKILL.md" in reason
+    assert "sync_plugin_skills" in reason
+
+
+@pytest.mark.parametrize("tool", ["Edit", "Write", "MultiEdit", "NotebookEdit"])
+def test_every_edit_shaped_tool_is_covered(load_script, project, capsys, tool):
+    guard = load_script(GUARD)
+    target = project / ".ai-badger" / "skills" / "task" / "SKILL.md"
+
+    _denial_reason(guard, _payload(target, tool=tool), capsys)
+
+
+def test_an_ordinary_source_file_is_allowed(load_script, project, capsys):
+    guard = load_script(GUARD)
+
+    assert _decision(guard, _payload(project / "src" / "app.py"), capsys) is None
+
+
+def test_the_catalog_itself_is_allowed(load_script, project, capsys):
+    """The whole point of the denial is to send the edit here."""
+    guard = load_script(GUARD)
+    target = project / "features" / "common" / "skills" / "task" / "scripts" / "tracker_lib.py"
+
+    assert _decision(guard, _payload(target), capsys) is None
+
+
+def test_a_seeded_template_is_allowed(load_script, project, capsys):
+    """`.ai-badger/state.json` is seeded once and then owned by the project, not regenerated."""
+    guard = load_script(GUARD)
+
+    assert _decision(guard, _payload(project / ".ai-badger" / "state.json"), capsys) is None
+
+
+def test_a_file_outside_any_ai_badger_project_is_allowed(load_script, tmp_path, capsys):
+    guard = load_script(GUARD)
+    stray = tmp_path / "unrelated" / ".ai-badger" / "skills" / "x.md"
+    stray.parent.mkdir(parents=True)
+
+    assert _decision(guard, _payload(stray), capsys) is None
+
+
+def test_a_non_edit_tool_is_allowed(load_script, project, capsys):
+    """The scaffolder writes through Bash, never through an edit tool."""
+    guard = load_script(GUARD)
+    payload = {"tool_name": "Bash",
+               "tool_input": {"command": "python3 tooling/scaffold.py --target ."}}
+
+    assert _decision(guard, payload, capsys) is None
+
+
+def test_the_override_lever_allows_a_deliberate_hand_patch(load_script, project, capsys,
+                                                           monkeypatch):
+    guard = load_script(GUARD)
+    monkeypatch.setenv(guard.OVERRIDE_ENV, "1")
+    target = project / ".ai-badger" / "skills" / "task" / "SKILL.md"
+
+    assert _decision(guard, _payload(target), capsys) is None
+
+
+def test_a_corrupt_manifest_fails_open(load_script, project, capsys):
+    """A guard that denies on its own internal error would brick every edit in the repo."""
+    guard = load_script(GUARD)
+    (project / ".ai-badger" / "manifest.json").write_text("{not json", encoding="utf-8")
+    target = project / ".ai-badger" / "skills" / "task" / "SKILL.md"
+
+    assert _decision(guard, _payload(target), capsys) is None
+
+
+def test_garbage_on_stdin_exits_zero_and_says_nothing():
+    """`main()` is the surface Claude Code actually invokes."""
+    result = subprocess.run([sys.executable, str(GUARD_PATH)], input="not json at all",
+                            capture_output=True, text=True, check=False)
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == ""
+
+
+def test_the_guard_denies_end_to_end_through_stdin(project):
+    """The real invocation shape: JSON in on stdin, a deny decision out on stdout."""
+    target = project / ".ai-badger" / "skills" / "task" / "SKILL.md"
+
+    result = subprocess.run([sys.executable, str(GUARD_PATH)],
+                            input=json.dumps(_payload(target)),
+                            capture_output=True, text=True, check=False)
+
+    assert result.returncode == 0
+    decision = json.loads(result.stdout)["hookSpecificOutput"]
+    assert decision["permissionDecision"] == "deny"
+    assert "features/common/skills/task/SKILL.md" in decision["permissionDecisionReason"]
