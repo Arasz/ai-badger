@@ -1,7 +1,6 @@
 ---
 name: parallel-expert-review
 description: "Use when reviewing code or plans with parallel architect+engineer subagents: PR review with architecture concerns, pre-refactor assessment, MoE plan review before implementation (ground-truth the plan FIRST — trust nothing in it), wave-gated dispatch, integrate findings, route owner questions through owner-gate."
-description: Review code with parallel architect+engineer subagents.
 version: 1.0.0
 author: ai-badger
 license: MIT

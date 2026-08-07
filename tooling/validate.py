@@ -311,6 +311,33 @@ def _frontmatter_fields(text: str) -> Optional[Dict[str, str]]:
     return fields
 
 
+def duplicate_frontmatter_keys(text: str) -> List[str]:
+    """Top-level frontmatter keys appearing more than once, in first-seen order.
+
+    Counts raw `key:` lines rather than parsing YAML (ADR-0005: pyyaml stays optional) — a real
+    parser resolves a duplicate to its *last* value silently, so a validator reading only the
+    first would pass a file that every YAML-reading host reads differently. Rule 11 exists to
+    make that divergence impossible rather than to guess which value wins.
+    """
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return []
+    end = next((i for i, line in enumerate(lines[1:], 1) if line.strip() == "---"), None)
+    if end is None:
+        return []
+    seen: Dict[str, int] = {}
+    order: List[str] = []
+    for line in lines[1:end]:
+        m = _FRONTMATTER_KEY_RE.match(line)
+        if not m:
+            continue
+        key = m.group(1)
+        seen[key] = seen.get(key, 0) + 1
+        if seen[key] == 1:
+            order.append(key)
+    return [k for k in order if seen[k] > 1]
+
+
 def skills_lint(root: Path) -> List[str]:
     """Convention violations across catalog SKILL.md files (plan G4 rules 1-10).
 
@@ -373,6 +400,10 @@ def skills_lint(root: Path) -> List[str]:
             if missing:
                 violations.append(
                     f"{rel}: rule 10: missing frontmatter keys: {', '.join(missing)}")
+        for key in duplicate_frontmatter_keys(text):
+            violations.append(
+                f"{rel}: rule 11: frontmatter key {key!r} appears more than once "
+                f"(a YAML parser resolves duplicates to the last value, not the first)")
     return violations
 
 
