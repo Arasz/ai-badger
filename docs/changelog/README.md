@@ -21,6 +21,7 @@ re-scaffold.
 | Version | Entry |
 |---|---|
 | 0.96.0 | [state and edits land where they belong](0.96.0-state-and-edits-land-where-they-belong.md) |
+| 0.94.0 | [one mechanism: a skill declares its own stack and its own scope](0.94.0-routing-is-by-directory.md) |
 | 0.93.1 | [a dot directory under `features/` is not a candidate stack](0.93.1-a-dotdir-is-not-a-stack.md) |
 | 0.93.0 | [jsonschema on first use, one finding shape, one guarded VERSION reader](0.93.0-lazy-schema-and-gate-chassis.md) |
 | 0.92.0 | [the catalog's claims are checked, not just written down](0.92.0-catalog-claims-are-checked.md) |
