@@ -12,8 +12,12 @@ readonly SELF="${_self_abs#"$PWD"/}"
 # git exports these to a hook and they point a child's git at THIS repo, so a test building a
 # throwaway repo would write to the real one. Dropped after the cd, so a lane sees the same
 # environment it would see when run by hand.
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_QUARANTINE_PATH \
-      GIT_REFLOG_ACTION GIT_AUTHOR_DATE GIT_COMMITTER_DATE GIT_EDITOR
+# The first nine mirror badger_lib.GIT_LOCATION_ENV, which git_env() strips on the Python side;
+# test_the_hook_unsets_every_variable_badger_lib_calls_a_location_variable keeps them in step.
+# The last five pin git's behaviour rather than its location, so they are this list's own.
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX GIT_NAMESPACE GIT_CEILING_DIRECTORIES \
+      GIT_QUARANTINE_PATH GIT_REFLOG_ACTION GIT_AUTHOR_DATE GIT_COMMITTER_DATE GIT_EDITOR
 
 # Keyed by checkout: the pytest lane runs this script in a throwaway repo, and a shared path
 # would let that nested run overwrite the log the failure block just cited.
@@ -25,7 +29,7 @@ readonly BASE_REF="${VERIFY_BASE:-origin/main}"
 readonly LOG_SUMMARY="${VERIFY_LOG_SUMMARY:-logs/lefthook.log}"
 
 # Cheap lanes first so a typo fails fast, before pylint and pytest.
-readonly LANES="version-sync index plugin-skills deps docs release paths validate scaffold tdd js pylint pytest"
+readonly LANES="version-sync index plugin-skills deps docs release paths workflows validate scaffold tdd js pylint pytest"
 
 # Lanes `--risk` trades away. Measured 2026-08-07 at 43fbfb49: `verify.sh all` is 778s wall
 # clock, of which pytest is 664s — so this is the one lane whose removal changes the number.
@@ -108,6 +112,7 @@ lane_cmd() {
         docs)          lane_docs ;;
         release)       "$PY" gates/release_guard.py ;;
         paths)         "$PY" gates/shipped_paths_guard.py ;;
+        workflows)     "$PY" gates/workflow_lint.py ;;
         validate)      lane_validate ;;
         scaffold)      "$PY" gates/scaffold_freshness_guard.py ;;
         tdd)           lane_tdd ;;
@@ -320,7 +325,7 @@ _lanes_for() {
         return 0
     fi
     # The whole-tree guards are seconds each and catch cross-file breakage, so they always run.
-    local lanes="version-sync index plugin-skills deps docs release paths validate scaffold tdd"
+    local lanes="version-sync index plugin-skills deps docs release paths workflows validate scaffold tdd"
     [ "$mjs" -eq 1 ] && lanes="$lanes js"
     [ "$py" -eq 1 ] && lanes="$lanes pylint pytest"
     [ "$json" -eq 1 ] && lanes="$lanes pytest"

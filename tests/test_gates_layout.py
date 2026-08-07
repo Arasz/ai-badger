@@ -14,7 +14,7 @@ GUARD_NAMES = ("deps_guard.py", "docs_guard.py", "release_guard.py",
 # the tests iterate, so a gate added under a name neither tuple predicts is still smoke-run.
 # skills_lint reads prose rather than JSON, so it is already a gate the guard suffix does not
 # fit (the review's D4) — the shape a hand-maintained enumeration silently drops.
-GATE_NAMES = GUARD_NAMES + ("skills_lint.py",)
+GATE_NAMES = GUARD_NAMES + ("skills_lint.py", "workflow_lint.py")
 
 
 def _runnable_gates(root: Path):

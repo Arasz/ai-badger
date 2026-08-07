@@ -11,8 +11,11 @@ import subprocess
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
+from typing import List
 
 import pytest
+
+import badger_lib as bl
 
 REPO = Path(__file__).resolve().parent.parent
 GATE = REPO / ".lefthook" / "pre-push" / "verify.sh"
@@ -142,13 +145,60 @@ def test_the_history_mined_docs_commit_agrees_with_the_synthetic_one():
 
 
 @pytest.mark.parametrize("lane", ["version-sync", "index", "plugin-skills", "deps", "docs",
-                                  "release", "paths", "scaffold", "validate", "tdd", "js",
-                                  "pylint", "pytest"])
+                                  "release", "paths", "workflows", "scaffold", "validate", "tdd",
+                                  "js", "pylint", "pytest"])
 def test_every_advertised_lane_is_dispatchable(lane):
     """A lane named in usage but missing from the dispatch table would skip silently."""
     done = _run(lane, env={"VERIFY_SKIP": lane})
     assert done.returncode == 0
     assert lane in done.stdout
+
+
+# ── the hook's `unset` and badger_lib's list are one enumeration in two languages ──
+#
+# verify.sh drops git's hook environment in shell; `badger_lib.git_env` drops it in Python.
+# Nothing compared the two, and verify.sh was missing five of the nine names in
+# GIT_LOCATION_ENV. A superset, not equality: verify.sh legitimately also drops
+# GIT_QUARANTINE_PATH, GIT_REFLOG_ACTION, GIT_AUTHOR_DATE, GIT_COMMITTER_DATE and GIT_EDITOR,
+# which pin git's behaviour rather than its location.
+
+
+def _unset_names(text: str) -> List[str]:
+    """Every name a top-level `unset` drops, following backslash line continuations."""
+    lines = text.splitlines()
+    names: List[str] = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if line.startswith("unset "):
+            while line.rstrip().endswith("\\") and index + 1 < len(lines):
+                index += 1
+                line = line.rstrip()[:-1] + lines[index]
+            names += line.split()[1:]
+        index += 1
+    return names
+
+
+def test_the_hook_unsets_every_variable_badger_lib_calls_a_location_variable():
+    """A name in only one of the two lists is a hole in the other."""
+    dropped = set(_unset_names(GATE.read_text(encoding="utf-8")))
+
+    assert bl.GIT_LOCATION_ENV, "the tuple is empty, so this proves nothing"
+    assert "GIT_DIR" in dropped, "the unset line did not parse, so the check below proves nothing"
+    missing = sorted(set(bl.GIT_LOCATION_ENV) - dropped)
+    assert not missing, (
+        "verify.sh does not unset every variable badger_lib.git_env strips, so a lane sees a "
+        f"git environment the Python helpers refuse to trust: {missing}")
+
+
+def test_the_unset_reader_follows_a_line_continuation():
+    """The real `unset` spans two lines; a reader stopping at the first would pass blind."""
+    assert _unset_names("unset A B \\\n      C D\nunset E\n") == ["A", "B", "C", "D", "E"]
+
+
+def test_the_unset_reader_ignores_a_mention_that_unsets_nothing():
+    """A name in a comment, or in a function's own local unset, is not the environment scrub."""
+    assert _unset_names("# unset GIT_DIR\nfoo() { unset GIT_WORK_TREE; }\n") == []
 
 
 def test_lanes_do_not_inherit_the_hook_git_environment(tmp_path):

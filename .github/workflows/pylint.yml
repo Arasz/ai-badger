@@ -2,6 +2,10 @@ name: Lint and test
 
 on: [push]
 
+# Least privilege: every step here reads the checkout and writes nothing back.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -63,6 +67,9 @@ jobs:
     - name: Dependency guard - every third-party import is declared in engine/requirements.txt
       run: |
         python3 gates/deps_guard.py
+    - name: Workflow lint - every action pinned to a SHA, every job scoped
+      run: |
+        python3 gates/workflow_lint.py
     - name: JS gate scripts have tests
       if: matrix.python-version == '3.10'
       run: |
