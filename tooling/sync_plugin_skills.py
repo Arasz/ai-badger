@@ -18,6 +18,7 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
+from typing import List
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
 import badger_lib as bl
@@ -163,6 +164,26 @@ def sync_skill(src: Path, dest: Path, dry_run: bool, name: str = "") -> int:
     return 1
 
 
+def shape_violations(src: Path, dest: Path, name: str = "") -> List[str]:
+    """Report top-level entry-name differences between a shipped copy and a fresh render.
+
+    The render is the contract: a shape the renderer itself would create (no
+    `SKILL.full.md` for a bootstrap skill or a frontmatter-less source) is not a
+    violation. Content equality stays `check_skill`'s job; this is names only.
+    A missing destination directory is `check_skill`'s "missing" report, not ours.
+    """
+    if not dest.is_dir():
+        return []
+    with tempfile.TemporaryDirectory() as tmp:
+        expected = Path(tmp) / "expected"
+        render_into(name or src.name, src, expected)
+        rendered = {entry.name for entry in expected.iterdir()}
+        actual = {entry.name for entry in dest.iterdir()}
+    return sorted(f"missing {n}" for n in rendered - actual) + sorted(
+        f"unexpected {n}" for n in actual - rendered
+    )
+
+
 def check_skill(src: Path, dest: Path, name: str = ""):
     """Return the divergence reason for one skill, or None when the shipped copy matches."""
     if not src.is_dir():
@@ -192,6 +213,9 @@ def check_all() -> int:
         if reason:
             out_of_sync += 1
             print(f"  {reason}: {name}")
+        for violation in shape_violations(src, dest, name):
+            out_of_sync += 1
+            print(f"  shape {violation}: {name}")
 
     orphans = _orphans()
     for name in orphans:

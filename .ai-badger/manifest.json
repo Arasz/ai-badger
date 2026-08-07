@@ -1,10 +1,10 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.87.0",
-  "frameworkCommit": "dcc3cd52b3c208f66e75637253150873391f9599",
+  "frameworkCommit": "d095a54f41dbb3b6a6a74a9d7c6924b36e34c18e",
   "frameworkDirty": true,
   "frameworkRoot": ".",
-  "generatedAt": "2026-08-07T08:48:21Z",
+  "generatedAt": "2026-08-07T09:01:15Z",
   "agents": [
     "claude",
     "copilot",
