@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.87.0 | [Skills-lint gate in validate.py](0.87.0-skills-lint.md) |
 | 0.86.1 | [Skills individual improvements (I1–I12)](0.86.1-skills-individual.md) |
 | 0.86.0 | [Learned skills feed: dotnet/mcp/hermes stacks + optIn workflow skills](0.86.0-learned-skills-feed.md) |
 | 0.85.0 | [Skills corpus conventions: Gotchas, frontmatter, checklists, disclosure conditions](0.85.0-skills-conventions.md) |
