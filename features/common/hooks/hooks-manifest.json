@@ -73,6 +73,13 @@
       }
     },
     {
+      "name": "generated-file-guard",
+      "description": "Refuse a hand edit to a file the scaffold generated, naming the features/ source to edit instead",
+      "agents": {
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PreToolUse", "script": "generated_file_guard.py" }
+      }
+    },
+    {
       "name": "memory-first-gate",
       "description": "Block repo text-search tools until the session consulted memory_search (3-strike pass-through)",
       "agents": {

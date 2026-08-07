@@ -159,6 +159,15 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                   "design — wiring it on Hermes is possible and simply "
                   "has not been done.",
     },
+    "generated-file-guard": {
+        "hermes": "Acknowledged gap, not a design limit: Hermes fires pre_tool_call and can "
+                  "refuse, so the guard would work there — the scaffold manifest it reads is "
+                  "agent-independent. It has not been done, and shipping the arm without a "
+                  "session that exercised it is the failure this hook's own review names.",
+        "copilot": "A wall, not a gap: Copilot fires preToolUse but its hook protocol has no "
+                   "block-with-reason channel, and a refusal naming the features/ file to edit "
+                   "instead is this guard's entire output. A silent block would teach nothing.",
+    },
 }
 
 PROVENANCE_KEYS = ("frameworkCommit", "frameworkDirty")
