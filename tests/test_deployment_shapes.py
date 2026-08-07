@@ -134,7 +134,12 @@ def _write_config(path: Path) -> Path:
 
 @pytest.fixture(scope="session")
 def shapes(tmp_path_factory) -> dict:
-    """Build all four deployment shapes once, under one empty home."""
+    """Build all four deployment shapes once, under one empty home.
+
+    The scaffold runs without `--no-install`: the hermes-plugins shape *is* the user-scope
+    install, and that flag now suppresses it. `$HOME` is redirected, so nothing real is
+    written; `--execute` is still absent, so no skill install command runs.
+    """
     base = tmp_path_factory.mktemp("deployment-shapes")
     home = base / "home"
     home.mkdir()
@@ -149,8 +154,7 @@ def shapes(tmp_path_factory) -> dict:
     config = _write_config(base / "config.json")
     proc = subprocess.run(
         [sys.executable, str(checkout / ENTRY_POINTS["scaffold"]),
-         "--config", str(config), "--target", str(consumer), "--root", str(checkout),
-         "--no-install"],
+         "--config", str(config), "--target", str(consumer), "--root", str(checkout)],
         capture_output=True, text=True, cwd=str(consumer), env=_env(home), check=False)
     assert proc.returncode == 0, f"scaffold run failed:\n{proc.stdout}\n{proc.stderr}"
 

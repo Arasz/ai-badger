@@ -8,6 +8,7 @@ tree fails the gate's own lane rather than these tests.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
 import subprocess
@@ -175,3 +176,86 @@ def test_the_gate_never_mutates_the_tree_it_checks(mutable_repo):
     _run_gate(mutable_repo)
 
     assert _git(mutable_repo, "status", "--porcelain") == before
+
+
+def _tree_digest(path: Path) -> dict:
+    """Every entry under `path` by relative path and content — a byte-level snapshot."""
+    if not path.exists():
+        return {}
+    out = {}
+    for base, dirs, files in os.walk(path, followlinks=False):
+        for name in dirs + files:
+            entry = Path(base) / name
+            rel = entry.relative_to(path).as_posix()
+            if entry.is_symlink():
+                out[rel] = "-> " + os.readlink(str(entry))
+            elif entry.is_file():
+                out[rel] = hashlib.sha256(entry.read_bytes()).hexdigest()
+            else:
+                out[rel] = "dir"
+    return out
+
+
+def _seed_hermes_home(home: Path) -> None:
+    """An operator's installed Hermes plugin, as the gate would find it on a real machine."""
+    plugin = home / ".hermes" / "plugins" / "ai-badger"
+    (plugin / ".ai-badger").mkdir(parents=True)
+    (plugin / "ai_badger_hooks.py").write_text("# the operator's install\n", encoding="utf-8")
+    (plugin / ".ai-badger" / "manifest.json").write_text(
+        '{"frameworkRoot": "/the/operators/checkout"}\n', encoding="utf-8")
+    (home / ".hermes" / "skills" / "ai-badger").mkdir(parents=True)
+
+
+def test_the_gate_never_writes_into_the_operators_hermes_home(fresh_repo, tmp_path):
+    """A read-only gate must leave the user scope alone (theme B, B1).
+
+    The gate re-scaffolds a throwaway copy, and that run installed the Hermes plugin and
+    relinked the skill namespace into the real `$HOME`, recording the temp directory as
+    `frameworkRoot` — so the operator's plugin pointed at a path the gate then deleted.
+    """
+    home = tmp_path / "home"
+    _seed_hermes_home(home)
+    before = _tree_digest(home / ".hermes")
+
+    env = dict(os.environ, HOME=str(home), USERPROFILE=str(home))
+    done = subprocess.run([sys.executable, str(GATE), "--root", str(fresh_repo)],
+                          capture_output=True, text=True, check=False, env=env)
+
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert _tree_digest(home / ".hermes") == before
+
+
+def _printed_remediation(stdout: str) -> str:
+    """The command the gate told the operator to run, joined back into one line."""
+    lines = stdout.splitlines()
+    start = next(i for i, ln in enumerate(lines) if ln.startswith("Re-scaffold this repo"))
+    return " ".join(ln.strip().rstrip("\\").strip()
+                    for ln in lines[start + 1:] if ln.strip())
+
+
+def test_the_printed_remediation_produces_a_tree_the_gate_then_passes(mutable_repo):
+    """The advice must be the gate's own command (theme B, B3).
+
+    It printed the scaffolder invocation without `AI_BADGER_MCP_AVAILABILITY=all`, which the
+    gate sets internally, so following it verbatim dropped every server the host cannot probe
+    from `.github/mcp.json` and the gate rejected the tree its own message produced.
+
+    The remediation runs on a minimal `PATH` — the machine the forced availability exists for.
+    A developer with `hermes` and `ai-raccoon` installed probes the same answer either way, so
+    on their PATH this test cannot fail for the reason it was written. Only the interpreter is
+    substituted: `python3` on an operator's PATH has the dependencies.
+    """
+    (mutable_repo / SKILL_SOURCE / "scripts" / "added_after_scaffold.py").write_text(
+        '"""Added after the last self-scaffold."""\n', encoding="utf-8")
+    failed = _run_gate(mutable_repo)
+    assert failed.returncode == 1, failed.stdout + failed.stderr
+
+    command = _printed_remediation(failed.stdout).replace("python3", sys.executable, 1)
+    bare = dict(os.environ, PATH="/usr/bin:/bin")
+    bare.pop("AI_BADGER_MCP_AVAILABILITY", None)
+    done = subprocess.run(command, shell=True, cwd=str(mutable_repo), env=bare,
+                          capture_output=True, text=True, check=False)
+    assert done.returncode == 0, command + "\n" + done.stdout + done.stderr
+
+    again = _run_gate(mutable_repo)
+    assert again.returncode == 0, command + "\n" + again.stdout + again.stderr
