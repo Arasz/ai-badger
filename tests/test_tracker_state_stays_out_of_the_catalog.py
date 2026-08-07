@@ -116,3 +116,41 @@ def test_writing_a_poller_pid_from_an_unmarked_cwd_leaves_the_catalog_untouched(
     assert not strays, f"the poller wrote into the catalog: {strays}"
     assert (repo / ".ai-badger" / "task-tracking" / "poll_limit.pid").is_file(), \
         "the pid file has to land somewhere — this test is about where, not whether"
+
+
+def test_no_tracker_entry_point_points_its_state_at_the_catalog(replica):
+    """Every script in the skill, imported from an unmarked cwd — the shape that leaked.
+
+    Asserts the paths, not the filesystem: most of these entry points only create their
+    directory once something calls them, so a walk of the disk after a bare import is green
+    even when every one of them is aimed at `features/`.
+    """
+    repo, scripts, outside = replica
+    modules = sorted(path.stem for path in scripts.glob("*.py") if not path.name.startswith("_"))
+    assert len(modules) > 5, f"the entry points went missing from the replica: {modules}"
+    code = (
+        "import sys\n"
+        + "".join(f"import {name}\n" for name in modules)
+        + "from pathlib import Path\n"
+        "for name in sys.argv[1:]:\n"
+        "    for attr, value in vars(sys.modules[name]).items():\n"
+        "        if isinstance(value, Path):\n"
+        "            print(f'{name}.{attr} {value}')\n"
+    )
+
+    result = subprocess.run([sys.executable, "-c", code, *modules], cwd=str(outside),
+                            env={**_child_env(), "PYTHONPATH": str(scripts)},
+                            capture_output=True, text=True, check=False)
+
+    assert result.returncode == 0, f"importing the entry points failed: {result.stderr[-600:]}"
+    catalog = repo / "features"
+    aimed_at_catalog = []
+    for line in result.stdout.splitlines():
+        name, value = line.split(" ", 1)
+        path = Path(value)
+        if path == scripts or scripts in path.parents:
+            continue  # the module's own source location, which is of course in the catalog
+        if path == catalog or catalog in path.parents:
+            aimed_at_catalog.append(f"{name} -> {path}")
+    assert not aimed_at_catalog, "\n".join(aimed_at_catalog)
+    assert "tracker_lib.DATA_DIR" in result.stdout, "the sweep found no paths to check"
