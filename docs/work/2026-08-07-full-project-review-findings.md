@@ -337,6 +337,142 @@ Overlaps: B1, B4, B5 and B6 all touch `tooling/validate.py` — they serialise. 
 plus `schemas/config.schema.json`. B3 and B7 touch `engine/badger_lib.py`. B8, B9, B10 are
 independent.
 
+## E3 — Correctness of this week's changes (code-reviewer/opus)
+
+Fifteen findings, every gate re-run rather than cited, three sub-agents used.
+
+### Gate numbers actually observed
+
+| Gate | Result |
+|---|---|
+| `pytest -q` | **1 failed, 3300 passed, 18 skipped — 1397 s (23 min)** |
+| `pylint` (234 files) | 10.00/10 |
+| `index_build.py --check` | `index.json up to date`, exit 0 |
+| `validate.py --all` | 52 lines, all `ok`, exit 0 |
+| `sync_plugin_skills.py --check` | `15 skill(s) in sync`, exit 0 |
+| `scaffold_freshness_guard.py` | `1344 path(s) compared … PASS` |
+| `deps` / `docs` / `release` / `paths` / `tdd` guards | all PASS |
+
+The single failure is `test_docs_tree_is_canonical.py … [work]`, caused by **this review session
+writing into `docs/work/` mid-run**; re-run in isolation, 32 passed. Not a defect in main — but see
+F-9, which is the defect it exposes.
+
+**The freshness path count is not a fact.** Commit messages assert 1342; a concurrent run reported
+1343; E3 measured 1344 twice, at the same commit. It moves with untracked artifacts. Quoting it as
+a fixed figure proves nothing.
+
+### F-1 (HIGH, security) — AWM away-mode auto-approves force-pushes
+
+`features/claude/skills/auto-wm/hooks/awm_gate.py:48-62`, mirrored into all three trees. The
+docstring at lines 12-13 promises destructive commands "are never auto-approved, in either mode."
+The 13 `DENIED_COMMAND_PATTERNS` are regexes over **raw command text** assuming short-form flags.
+
+Reproduced independently by the orchestrator, loading the module and running its own pattern list:
+
+```
+DENIED   rm -rf /tmp/x            DENIED   rm -r -f /tmp/x      DENIED   rm -Rf /tmp/x
+ALLOWED  rm --recursive --force /tmp/x                  <- bypass, long form
+ALLOWED  V=-rf; rm $V /tmp/x                            <- bypass, variable indirection
+DENIED   git push --force origin main                   DENIED   git push -f origin main
+ALLOWED  git push origin +main                          <- bypass, force push via refspec
+ALLOWED  git push origin +refs/heads/main:refs/heads/main
+ALLOWED  find /tmp/x -type f -delete                    <- bypass
+```
+
+**Failure scenario:** AWM is armed in `away` mode — the mode that exists *because no human is
+present*. An agent issues `git push origin +main`. Nothing matches, the hook falls through to
+`emit("allow", …)` at line 223, and a force-push to main executes with zero oversight. That also
+breaches the project's own non-negotiable "never push directly to the main/trunk branch."
+
+**Fix:** a denylist of dangerous verbs is the wrong shape for a mechanism that auto-approves with
+no human present. Normalise first — `shlex.split`, resolve long flags to short, match on argv — and
+prefer an **allowlist** of safe verbs.
+
+Corroborating observation: the *external* `dotnet-claude-kit` `pre-bash-guard.sh` fails the same
+way, and blocked the orchestrator's read-only verification script because a force-push string
+appeared inside a Python literal that would never execute. Raw-text matching of shell commands is
+unsound in both directions — it misses the real thing and blocks the harmless one.
+
+### F-2 (HIGH) — the plugin-sync gate cannot detect a bug in its own renderer
+
+`check_skill` builds its expected value by calling `render_into` — **the same function that
+produces the actual value**. Any renderer bug is invisible by construction. `_ship_extra_files`
+(`:146-152`) silently no-ops when a declared source is missing. Proved by monkey-patching
+`PLUGIN_EXTRA_FILES` at a non-existent source: the rendered copy loses the file, `check_skill`
+returns `None` (in sync), `shape_violations` returns `[]`, and `--check` prints `15 skill(s) in
+sync`.
+
+**Failure scenario:** someone renames `claude_session_source.py`. The shipped `task` tracker goes
+out with no session source at all — the exact outcome the code's own comment says must not happen —
+and every gate stays green.
+
+This is the sharpest instance of the project's recurring defect class yet found: **the checker is
+the thing that isn't running.**
+
+### F-3 (medium-high) — #325's shape assertion only reaches depth 1
+
+`shape_violations` uses `iterdir()`, top level only. `dir_content_hash` skips
+`SKILL_EXCLUDE_PATTERNS` (`tests`, `test_*.py`, `evals`) so those files are hash-invisible — which
+is exactly what #325 was added to close. Measured: a top-level `evals/` is caught; a file at
+`scripts/tests/payload.py` is invisible to both the hash and the shape check. `skills/task/scripts/`
+and 19 other nested directories exist in the shipped tree, so the path is live. Fix: compare
+`rglob("*")` name sets.
+
+### F-4 (medium) — rule 8's only exemption points at a line that is now blank
+
+`REFERENCES_EXEMPT = {"scaffold-documentation:84"}` shipped in 0.87.0. Line 84 of that SKILL.md is
+now the empty string; the mention it was written for moved to line 73, which passes today **only
+because the word "when" incidentally sits on it**. The corpus is green by luck. A copy-edit to line
+73 turns a reviewed-and-accepted mention red; a future mention landing on line 84 gets silently
+exempted from a rule it was never reviewed against.
+
+### F-6 (medium) — `--risk` is parsed, stored, printed, and consumed by nothing
+
+Grepping `gates/`, `tooling/`, `.github/workflows/` and `.lefthook/` for the stored flag returns
+zero consumers. `.lefthook/pre-push/verify.sh:26` runs a fixed lane list with no risk branch. An
+operator running `task start X --risk` believing gates are now limited gets the full chain
+regardless — and nothing verifies the "run the full suite yourself" obligation the flag trades
+against. A trust marker dressed as a control.
+
+### The rest
+
+- **F-5 (medium)** — `bl.SIBLING_REFERENCE_RE` has zero callers; the guard it exists for keeps its
+  own diverged copy in `tests/test_skill_groups.py:33`. That guard scans only `SKILL.md`, and its
+  `[a-z-]+\.md` filename pattern misses **15 of 152** reference filenames — every dated/versioned
+  name #320 introduced. Nothing is broken today; the mechanism that would notice is the dead one.
+- **F-7 (medium)** — the hook-coverage gate reports only when gaps are non-empty, so an empty root
+  and a corrupt manifest both yield `[]` and silence. A reader cannot distinguish "checked, no
+  gaps" from "the glob matched nothing" — the same defect class the gate was written to catch.
+- **F-8 (medium)** — `_frontmatter_fields` rejects legal YAML: a blank line, a block-style list, a
+  `#` comment, or `metadata:` followed by a blank line each return `None` and fire rule 10 with a
+  message blaming the author's `---` fence. Root cause at `:296-298`: `line[:1]` of an empty string
+  is `""`, which matches neither branch. It fails closed, which is right; the message is wrong.
+- **F-9 (medium)** — `tests/test_docs_tree_is_canonical.py:73` asserts against the **live working
+  tree** during a 23-minute suite. Any concurrent write flips it red nondeterministically, pointing
+  at documentation rather than the race. E3 believes this is a likely contributor to the recorded
+  "pre-push gate gets SIGKILLed" pattern.
+- **F-10 (low-medium)** — prefixing a `references/` pointer with `1. ` turns rule 8 off entirely; 4
+  of the 5 numbered-step mentions carry no condition anywhere. **Credit where due:** E3 checked
+  whether rule 8 is vacuous and found it is not — 162 of 173 mentions carry the condition on the
+  mention line itself, and it inspected all 11 that pass via the neighbour window.
+- **F-11 to F-15 (low/cosmetic)** — a cross-skill path with no `../` that resolves from nowhere; an
+  8.5 KB orphaned reference file shipped to every project and cited by nothing; a latent
+  `split("---", 2)` break if a description ever contains `---`; the ai-raccoon HTTP "default" being
+  documentation-only (same shape as F-6); and a counter whose numerator can exceed its denominator.
+
+### Verified sound — E3's clean list
+
+Version/changelog integrity across all six surfaces (the lagging `0.87.0` stamps are scoped out by
+design). **#323's regeneration dropped nothing from #320** — all 143 added files exist at HEAD, and
+`git diff` between the real merge-resolution tree and what landed is *empty*. Junie removal clean
+(one doc nit: ADR-0016's body says 0.83.0, its README row says 0.82.0). `skills_lint` reaches 51 of
+51 SKILL.md. **No secrets and no machine-specific absolute paths** in the harvested catalog — the
+dated #320 reference files are anonymised worked examples, not leakage, which answers the charter's
+leakage question for the common corpus. Path traversal, symlink-following deletes, command
+injection and insecure deserialization all ruled out with specific reasoning. Five subsystems
+confirmed **fired in anger**, not merely registered: the memory-grade hook, the freshness-guard
+`=all` override, worktree ownership, AWM per-project scoping, and project-local invariants.
+
 ## Integrated plan
 
 Written once the panel has reported. Not started.
