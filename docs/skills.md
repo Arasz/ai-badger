@@ -1,6 +1,7 @@
 # Skills
 
-This page catalogs 37 skills — the ones that can reach any project.
+This page catalogs 37 skills — everything under `features/common/skills/` and
+`features/claude/skills/`.
 36 live under `features/common/skills/` and split by the scope `badger_lib.SKILL_SCOPES` gives
 them ([ADR-0005](adr/0005-default-skill-set.md)):
 **14 are `default`** and arrive in every scaffolded project without being asked for, and
