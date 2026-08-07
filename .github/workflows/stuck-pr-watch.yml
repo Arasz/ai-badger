@@ -70,7 +70,9 @@ jobs:
                   nodes {
                     number
                     mergeable
-                    comments(last: 50) { nodes { body } }
+                    # totalCount again: past this window "no marker here" stops meaning
+                    # "not told yet", and the script declines to guess rather than re-post.
+                    comments(last: 100) { totalCount nodes { body } }
                   }
                 }
               }
@@ -91,10 +93,17 @@ jobs:
 
           # Only pull request numbers cross into the shell. Titles and branch names are
           # attacker-controlled on a fork PR and are never read here, let alone interpolated.
-          jq -r '.needs_comment[]' report.json | while read -r number; do
+          #
+          # A `for` over the numbers, not `jq | while read`: the latter runs in a subshell, so
+          # one PR closing between the query and this step would abort the loop under `set -e`
+          # and leave every later PR silently uncommented. Here each is attempted, and the
+          # step still fails at the end if any did not land.
+          failed=0
+          for number in $(jq -r '.needs_comment[]' report.json); do
             echo "Commenting on #${number}"
-            gh pr comment "$number" --body-file notice.md
+            gh pr comment "$number" --body-file notice.md || failed=1
           done
+          [ "$failed" -eq 0 ]
 
       - name: Summarise
         run: |
@@ -123,5 +132,15 @@ jobs:
               echo "the next run reports on them:"
               echo
               jq -r '.unknown[] | "- #\(.)"' report.json
+            fi
+
+            truncated=$(jq -r '.history_truncated | length' report.json)
+            if [ "$truncated" -ne 0 ]; then
+              echo
+              echo "$truncated stuck pull request(s) have more comments than one page, and the"
+              echo "notice was not among the ones read — so it was **not** re-posted rather than"
+              echo "posted twice. Check these by hand:"
+              echo
+              jq -r '.history_truncated[] | "- #\(.)"' report.json
             fi
           } >> "$GITHUB_STEP_SUMMARY"

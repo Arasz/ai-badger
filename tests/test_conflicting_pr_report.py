@@ -29,14 +29,17 @@ report = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(report)
 
 
-def pull_request(number, mergeable, comments=(), is_draft=False):
+def pull_request(number, mergeable, comments=(), is_draft=False, comment_total=None):
     return {
         "number": number,
         "title": f"PR {number}",
         "url": f"https://github.com/o/r/pull/{number}",
         "isDraft": is_draft,
         "mergeable": mergeable,
-        "comments": {"nodes": [{"body": body} for body in comments]},
+        "comments": {
+            "totalCount": len(comments) if comment_total is None else comment_total,
+            "nodes": [{"body": body} for body in comments],
+        },
     }
 
 
@@ -149,6 +152,50 @@ class TestTheMarkerItSearchesForIsTheMarkerItPosts:
         assert result.needs_comment == [341]
 
 
+class TestItWillNotGuessFromAnUnreadCommentHistory:
+    """A blocked PR attracts discussion. Once the notice scrolls out of the fetched window,
+    "no marker here" stops meaning "not commented yet" — and re-posting every six hours is
+    the same guess-instead-of-know this whole detector argues against."""
+
+    def test_a_stuck_pr_whose_history_is_truncated_is_not_commented_again(self):
+        result = report.stuck_pull_requests(
+            payload(pull_request(341, "CONFLICTING", comments=("chatter",), comment_total=500)))
+
+        assert result.stuck == [341]
+        assert result.needs_comment == []
+
+    def test_and_it_says_so_rather_than_going_quiet(self):
+        result = report.stuck_pull_requests(
+            payload(pull_request(341, "CONFLICTING", comments=("chatter",), comment_total=500)))
+
+        assert result.history_truncated == [341]
+
+    def test_a_truncated_history_that_still_shows_the_marker_is_settled(self):
+        """Seeing the notice is proof; only its absence is inconclusive."""
+        result = report.stuck_pull_requests(
+            payload(pull_request(341, "CONFLICTING", comments=(report.comment_body(),),
+                                 comment_total=500)))
+
+        assert result.needs_comment == []
+        assert result.history_truncated == []
+
+    def test_a_complete_history_is_not_reported_as_truncated(self):
+        result = report.stuck_pull_requests(
+            payload(pull_request(341, "CONFLICTING", comments=("chatter",))))
+
+        assert result.needs_comment == [341]
+        assert result.history_truncated == []
+
+    def test_a_payload_without_a_comment_total_is_trusted(self):
+        """Hand-written fixtures and older captures omit it; absence is not evidence."""
+        node = pull_request(341, "CONFLICTING")
+        del node["comments"]["totalCount"]
+
+        result = report.stuck_pull_requests(payload(node))
+
+        assert result.needs_comment == [341]
+
+
 class TestTheCommentSaysWhatIsActuallyWrong:
     """"Merge main" is the fix; the notice is worthless if it reads as a generic conflict nag."""
 
@@ -216,14 +263,25 @@ class TestTheCommandLine:
 
 
 class TestTheseChecksCouldFail:
-    """A green gate here is a weak signal; each assertion above must have a way to go red."""
+    """A green gate here is a weak signal, so each of these mutates something real."""
 
-    def test_reporting_only_mergeable_pull_requests_would_be_caught(self):
-        """Mutation: invert the filter. The conflicting-PR tests must then fail."""
-        with pytest.raises(AssertionError):
-            result = report.stuck_pull_requests(payload(pull_request(341, "MERGEABLE")))
-            assert result.stuck == [341]
+    def test_the_filter_discriminates_rather_than_always_firing(self):
+        """One PR number, two mergeable states, opposite verdicts."""
+        conflicting = report.stuck_pull_requests(payload(pull_request(341, "CONFLICTING")))
+        mergeable = report.stuck_pull_requests(payload(pull_request(341, "MERGEABLE")))
 
-    def test_a_comment_body_without_the_marker_would_be_caught(self):
-        with pytest.raises(AssertionError):
-            assert report.MARKER in "a body that forgot its marker"
+        assert conflicting.stuck == [341]
+        assert mergeable.stuck == []
+
+    def test_dedup_breaks_when_the_marker_drifts(self, monkeypatch):
+        """Mutate MARKER; a PR carrying the real notice must stop being recognised.
+
+        This is the drift the two-spellings bug would cause, exercised rather than asserted.
+        """
+        carried = report.comment_body()
+        monkeypatch.setattr(report, "MARKER", "<!-- some other marker -->")
+
+        result = report.stuck_pull_requests(
+            payload(pull_request(341, "CONFLICTING", comments=(carried,))))
+
+        assert result.needs_comment == [341]

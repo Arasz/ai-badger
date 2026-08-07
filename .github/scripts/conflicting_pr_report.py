@@ -17,7 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Any, Dict, List, NamedTuple
+from typing import Any, Dict, List, NamedTuple, Optional
 
 # Single source of truth for the dedup: the workflow posts `comment_body()`, and a later run
 # recognises its own notice by finding this string. Two spellings would mean either a notice
@@ -52,6 +52,7 @@ class Report(NamedTuple):
     stuck: List[int]
     needs_comment: List[int]
     unknown: List[int]
+    history_truncated: List[int]
 
 
 def comment_body() -> str:
@@ -83,9 +84,21 @@ def _nodes(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     return nodes
 
 
-def _already_noticed(node: Dict[str, Any]) -> bool:
-    comments = (node.get("comments") or {}).get("nodes") or []
-    return any(MARKER in (comment.get("body") or "") for comment in comments)
+def _noticed(node: Dict[str, Any]) -> Optional[bool]:
+    """Has this pull request been told already? None when the history is too long to say.
+
+    Seeing the marker settles it. Not seeing it settles nothing once the query returned fewer
+    comments than the pull request has: the notice may simply have scrolled out of the window.
+    """
+    comments = node.get("comments") or {}
+    fetched = comments.get("nodes") or []
+    if any(MARKER in (comment.get("body") or "") for comment in fetched):
+        return True
+
+    total = comments.get("totalCount")
+    if total is not None and total > len(fetched):
+        return None
+    return False
 
 
 def stuck_pull_requests(payload: Dict[str, Any]) -> Report:
@@ -93,6 +106,7 @@ def stuck_pull_requests(payload: Dict[str, Any]) -> Report:
     stuck: List[int] = []
     needs_comment: List[int] = []
     unknown: List[int] = []
+    history_truncated: List[int] = []
 
     nodes = _nodes(payload)
     for node in nodes:
@@ -100,14 +114,20 @@ def stuck_pull_requests(payload: Dict[str, Any]) -> Report:
         state = node.get("mergeable") or "UNKNOWN"
         if state == CONFLICTING:
             stuck.append(number)
-            if not _already_noticed(node):
+            noticed = _noticed(node)
+            if noticed is None:
+                # Re-posting every six hours on a busy pull request would be the same
+                # guess-rather-than-know this detector exists to argue against. Say so instead.
+                history_truncated.append(number)
+            elif not noticed:
                 needs_comment.append(number)
         elif state != MERGEABLE:
             # GitHub computes mergeability lazily and answers UNKNOWN until it has. Saying so
             # is honest; folding it into "clean" would hide exactly the state we are hunting.
             unknown.append(number)
 
-    return Report(checked=len(nodes), stuck=stuck, needs_comment=needs_comment, unknown=unknown)
+    return Report(checked=len(nodes), stuck=stuck, needs_comment=needs_comment,
+                  unknown=unknown, history_truncated=history_truncated)
 
 
 def main(argv: List[str]) -> int:
