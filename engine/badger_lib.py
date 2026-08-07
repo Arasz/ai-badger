@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines  # the skill-routing catalog keeps growing (ADR-0005)
 """Shared helpers for ai-badger scripts.
 
 Deterministic and offline (Python 3.8+, the floor CI tests): scripts must be runnable wherever
@@ -662,27 +663,41 @@ SKILL_SCOPE_OPT_IN = "optIn"
 # declaration lives here rather than in SKILL.md frontmatter.
 SKILL_SCOPES: Dict[str, str] = {
     "ai-raccoon-memory": SKILL_SCOPE_DEFAULT,
+    "artifact-verification": SKILL_SCOPE_OPT_IN,
     "call-behaviorist": SKILL_SCOPE_DEFAULT,
     "code-review-checklist": SKILL_SCOPE_DEFAULT,
+    "code-review-evidence": SKILL_SCOPE_OPT_IN,
     "commit-reminder": SKILL_SCOPE_DEFAULT,
     "create-task-spec": SKILL_SCOPE_DEFAULT,
     "debug-issue": SKILL_SCOPE_OPT_IN,
     "den-refresh": SKILL_SCOPE_DEFAULT,
+    "design-gate-audit": SKILL_SCOPE_OPT_IN,
     "differential-feature-refactor": SKILL_SCOPE_DEFAULT,
+    "documentation-drift-audit": SKILL_SCOPE_OPT_IN,
     "evidence-first-research": SKILL_SCOPE_OPT_IN,
     "explore-codebase": SKILL_SCOPE_OPT_IN,
     "feed-badger": SKILL_SCOPE_DEFAULT,
     "maintain-agent-instructions": SKILL_SCOPE_DEFAULT,
     "mcp-index": SKILL_SCOPE_DEFAULT,
     "migrate-documentation": SKILL_SCOPE_OPT_IN,
+    "multi-lane-report-assembly": SKILL_SCOPE_OPT_IN,
     "owner-gate-review": SKILL_SCOPE_DEFAULT,
+    "parallel-expert-review": SKILL_SCOPE_OPT_IN,
+    "pre-push-gate-debugging": SKILL_SCOPE_OPT_IN,
     "prompt-markers": SKILL_SCOPE_DEFAULT,
     "refactor-safely": SKILL_SCOPE_OPT_IN,
+    "research-record-audit": SKILL_SCOPE_OPT_IN,
     "review-changes": SKILL_SCOPE_OPT_IN,
+    "review-gate-diff-verification": SKILL_SCOPE_OPT_IN,
     "scaffold-documentation": SKILL_SCOPE_OPT_IN,
+    "scripts-tooling-refactor": SKILL_SCOPE_OPT_IN,
+    "spec-driven-refactoring": SKILL_SCOPE_OPT_IN,
+    "sqlite-bank-space-diagnosis": SKILL_SCOPE_OPT_IN,
+    "sqlite-schema-review": SKILL_SCOPE_OPT_IN,
     "task": SKILL_SCOPE_DEFAULT,
     "update-documentation": SKILL_SCOPE_OPT_IN,
     "welcome-ai-badger": SKILL_SCOPE_DEFAULT,
+    "worktree-agent-isolation": SKILL_SCOPE_OPT_IN,
 }
 
 

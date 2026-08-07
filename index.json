@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.85.0",
+  "frameworkVersion": "0.86.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -172,6 +172,11 @@
           "scope": "default"
         },
         {
+          "name": "artifact-verification",
+          "path": "features/common/skills/artifact-verification",
+          "scope": "optIn"
+        },
+        {
           "name": "call-behaviorist",
           "path": "features/common/skills/call-behaviorist",
           "scope": "default"
@@ -180,6 +185,11 @@
           "name": "code-review-checklist",
           "path": "features/common/skills/code-review-checklist",
           "scope": "default"
+        },
+        {
+          "name": "code-review-evidence",
+          "path": "features/common/skills/code-review-evidence",
+          "scope": "optIn"
         },
         {
           "name": "commit-reminder",
@@ -202,9 +212,19 @@
           "scope": "default"
         },
         {
+          "name": "design-gate-audit",
+          "path": "features/common/skills/design-gate-audit",
+          "scope": "optIn"
+        },
+        {
           "name": "differential-feature-refactor",
           "path": "features/common/skills/differential-feature-refactor",
           "scope": "default"
+        },
+        {
+          "name": "documentation-drift-audit",
+          "path": "features/common/skills/documentation-drift-audit",
+          "scope": "optIn"
         },
         {
           "name": "evidence-first-research",
@@ -237,9 +257,24 @@
           "scope": "optIn"
         },
         {
+          "name": "multi-lane-report-assembly",
+          "path": "features/common/skills/multi-lane-report-assembly",
+          "scope": "optIn"
+        },
+        {
           "name": "owner-gate-review",
           "path": "features/common/skills/owner-gate-review",
           "scope": "default"
+        },
+        {
+          "name": "parallel-expert-review",
+          "path": "features/common/skills/parallel-expert-review",
+          "scope": "optIn"
+        },
+        {
+          "name": "pre-push-gate-debugging",
+          "path": "features/common/skills/pre-push-gate-debugging",
+          "scope": "optIn"
         },
         {
           "name": "prompt-markers",
@@ -252,13 +287,43 @@
           "scope": "optIn"
         },
         {
+          "name": "research-record-audit",
+          "path": "features/common/skills/research-record-audit",
+          "scope": "optIn"
+        },
+        {
           "name": "review-changes",
           "path": "features/common/skills/review-changes",
           "scope": "optIn"
         },
         {
+          "name": "review-gate-diff-verification",
+          "path": "features/common/skills/review-gate-diff-verification",
+          "scope": "optIn"
+        },
+        {
           "name": "scaffold-documentation",
           "path": "features/common/skills/scaffold-documentation",
+          "scope": "optIn"
+        },
+        {
+          "name": "scripts-tooling-refactor",
+          "path": "features/common/skills/scripts-tooling-refactor",
+          "scope": "optIn"
+        },
+        {
+          "name": "spec-driven-refactoring",
+          "path": "features/common/skills/spec-driven-refactoring",
+          "scope": "optIn"
+        },
+        {
+          "name": "sqlite-bank-space-diagnosis",
+          "path": "features/common/skills/sqlite-bank-space-diagnosis",
+          "scope": "optIn"
+        },
+        {
+          "name": "sqlite-schema-review",
+          "path": "features/common/skills/sqlite-schema-review",
           "scope": "optIn"
         },
         {
@@ -275,6 +340,11 @@
           "name": "welcome-ai-badger",
           "path": "features/common/skills/welcome-ai-badger",
           "scope": "default"
+        },
+        {
+          "name": "worktree-agent-isolation",
+          "path": "features/common/skills/worktree-agent-isolation",
+          "scope": "optIn"
         }
       ],
       "personas": [
@@ -501,6 +571,52 @@
       }
     },
     "dotnet": {
+      "skills": [
+        {
+          "name": "dotnet-bdd-testing",
+          "path": "features/dotnet/skills/dotnet-bdd-testing"
+        },
+        {
+          "name": "dotnet-domain-modeling",
+          "path": "features/dotnet/skills/dotnet-domain-modeling"
+        },
+        {
+          "name": "dotnet-flaky-test-diagnosis",
+          "path": "features/dotnet/skills/dotnet-flaky-test-diagnosis"
+        },
+        {
+          "name": "dotnet-hosted-service-review",
+          "path": "features/dotnet/skills/dotnet-hosted-service-review"
+        },
+        {
+          "name": "dotnet-hosted-service-testing",
+          "path": "features/dotnet/skills/dotnet-hosted-service-testing"
+        },
+        {
+          "name": "dotnet-logger-message-design",
+          "path": "features/dotnet/skills/dotnet-logger-message-design"
+        },
+        {
+          "name": "dotnet-mcp-server",
+          "path": "features/dotnet/skills/dotnet-mcp-server"
+        },
+        {
+          "name": "dotnet-sqlcipher-encryption",
+          "path": "features/dotnet/skills/dotnet-sqlcipher-encryption"
+        },
+        {
+          "name": "dotnet-system-commandline",
+          "path": "features/dotnet/skills/dotnet-system-commandline"
+        },
+        {
+          "name": "dotnet-tool-publishing",
+          "path": "features/dotnet/skills/dotnet-tool-publishing"
+        },
+        {
+          "name": "observability-contract-review",
+          "path": "features/dotnet/skills/observability-contract-review"
+        }
+      ],
       "personas": [
         {
           "name": "dotnet-engineer",
@@ -515,6 +631,10 @@
         {
           "name": "high-performance-logging",
           "path": "features/dotnet/invariants/high-performance-logging.md"
+        },
+        {
+          "name": "static-classes",
+          "path": "features/dotnet/invariants/static-classes.md"
         }
       ],
       "instructions": [
@@ -540,6 +660,16 @@
       }
     },
     "hermes": {
+      "skills": [
+        {
+          "name": "cron-watchdog-authoring",
+          "path": "features/hermes/skills/cron-watchdog-authoring"
+        },
+        {
+          "name": "hermes-plugin-development",
+          "path": "features/hermes/skills/hermes-plugin-development"
+        }
+      ],
       "personas": [
         {
           "name": "hermes-agent-author",
@@ -613,6 +743,12 @@
       }
     },
     "mcp": {
+      "skills": [
+        {
+          "name": "mcp-tool-surface-testing",
+          "path": "features/mcp/skills/mcp-tool-surface-testing"
+        }
+      ],
       "invariants": [
         {
           "name": "mcp-thin",

@@ -39,7 +39,10 @@ def test_an_empty_skills_flag_relinks_the_previously_scaffolded_set(
 def test_reusing_the_manifest_set_is_stated_on_stdout(tmp_path, load_script, root, capsys):
     scaffold = load_script(SCRIPT)
     config_path = tmp_path / "config.json"
-    config_path.write_text(json.dumps(_config()), encoding="utf-8")
+    # node has no stack-local skills: the recovered set is exactly the manifest's,
+    # so "reused 2 skill(s)" pins the recovery path (dotnet would add stack-local
+    # skills on top of the recovered set).
+    config_path.write_text(json.dumps(_config(stacks=["node"])), encoding="utf-8")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -58,7 +61,10 @@ def test_an_empty_skills_flag_on_a_fresh_target_still_exits_zero(
     """Lock: a fresh target has no manifest to recover from, so the run still exits 0."""
     scaffold = load_script(SCRIPT)
     config_path = tmp_path / "config.json"
-    config_path.write_text(json.dumps(_config()), encoding="utf-8")
+    # A stack WITHOUT stack-local skills keeps the assertion meaningful: dotnet now
+    # ships stack-local skills (dotnet-mcp-server etc.), which a fresh scaffold
+    # delivers even with an empty --skills — that is the designed stack-local route.
+    config_path.write_text(json.dumps(_config(stacks=["node"])), encoding="utf-8")
     target = tmp_path / "proj"
     target.mkdir()
 
