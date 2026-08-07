@@ -1,7 +1,6 @@
 ---
 name: sqlite-bank-space-diagnosis
 description: "Use when a SQLite bank file or WAL is bloated: diagnose space read-only first (snapshot backup, sqlite3_analyzer, wal_checkpoint(TRUNCATE), VACUUM INTO to quantify reclaim), explain WAL growth mechanics (checkpointed-but-untruncated frames under pooling), the vec0 chunk count(*) trap, and VACUUM/checkpoint/ANALYZE ordering."
-description: Use when a SQLite bank or WAL is bloated — diagnose space.
 platforms: [macos, linux]
 metadata:
   hermes:

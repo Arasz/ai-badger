@@ -8,7 +8,21 @@ import shutil
 def _copy_real_schemas(tmp_path, root):
     (tmp_path / "features").mkdir()
     shutil.copytree(root / "schemas", tmp_path / "schemas")
+    _write_hooks_manifest(tmp_path)
     return tmp_path
+
+
+def _write_hooks_manifest(tmp_path):
+    """A complete manifest: since 0.88.4 a tree with no hooks-manifest.json fails --all."""
+    d = tmp_path / "features" / "common" / "hooks"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "hooks-manifest.json").write_text(json.dumps({"hooks": [
+        {"name": "demo-hook", "agents": {
+            agent: {"type": "hooks-json", "entry": "hooks.json", "event": "SessionStart",
+                    "script": "demo_hook.py"}
+            for agent in ("claude", "hermes", "copilot")}},
+    ]}), encoding="utf-8")
+    return d
 
 
 def test_kind_config_valid_instance_returns_zero(tmp_path, root, load_script, capsys):
@@ -135,7 +149,7 @@ def test_all_validates_stack_mcp_and_stack_json(tmp_path, root, load_script, cap
 def test_all_validates_the_agent_capability_matrix(tmp_path, root, load_script, capsys):
     validate = load_script("tooling/validate.py")
     fake_root = _copy_real_schemas(tmp_path, root)
-    (fake_root / "features" / "common").mkdir(parents=True)
+    (fake_root / "features" / "common").mkdir(parents=True, exist_ok=True)
     (fake_root / "features" / "common" / "support.json").write_text(
         json.dumps({"description": "d", "agents": {"claude": {"name": "c"}}}), encoding="utf-8")
 
@@ -157,6 +171,48 @@ def test_all_validates_stack_descriptors(tmp_path, root, load_script, capsys):
 
     assert rc == 1
     assert "stack.json" in capsys.readouterr().out
+
+
+def test_all_reports_hook_coverage_and_schema_coverage_even_when_there_is_nothing_to_say(
+        root, load_script, capsys):
+    """Silence read as "clean" and as "the glob matched nothing" alike, so both now print a
+    verdict every run (the review's A9)."""
+    validate = load_script("tooling/validate.py")
+
+    rc = validate.main(["--all", "--root", str(root)])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "ok       hooks-manifest agent coverage" in out
+    assert "ok       schema coverage" in out
+
+
+def test_a_tree_with_no_hooks_manifest_is_a_violation_not_a_pass(tmp_path, root, load_script,
+                                                                 capsys):
+    """An empty glob checked nothing. Reporting `[]` for it is the shape this whole gate exists
+    to reject: one answer, and it looks like success."""
+    validate = load_script("tooling/validate.py")
+    fake_root = _copy_real_schemas(tmp_path, root)
+    (fake_root / "features" / "common" / "hooks" / "hooks-manifest.json").unlink()
+
+    rc = validate.main(["--all", "--root", str(fake_root)])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "matched no file" in out
+
+
+def test_every_schema_instance_glob_matches_at_least_one_file(root, load_script):
+    """A glob matching nothing validates nothing: model.schema.json pointed at
+    features/*/agent-instructions/model.json, which has never existed (the review's A10)."""
+    validate = load_script("tooling/validate.py")
+
+    inert = sorted(f"{name} -> {pattern}"
+                   for name, patterns in validate.SCHEMA_INSTANCES.items()
+                   for pattern in patterns
+                   if not list(root.glob(pattern)))
+
+    assert not inert, f"these globs validate nothing: {inert}"
 
 
 def test_every_schema_has_a_coverage_decision(root, load_script):

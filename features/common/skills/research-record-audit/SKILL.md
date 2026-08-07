@@ -1,7 +1,6 @@
 ---
 name: research-record-audit
 description: "Use when auditing a research record's factual accuracy, citation truth, or grade correctness: adversarially re-derive every load-bearing claim from cited sources, verify quotes verbatim at cited lines, re-run MEASURED claims, audit grade honesty (INFERRED hedged, UNVERIFIED plain), check negative claims for prune/retention explanations, and report ACCURATE/CORRECTED/OVERCLAIMED."
-description: Use when auditing a research record's factual accuracy, citation truth, or grade correctness.
 version: 1.0.0
 author: ai-badger
 license: MIT
