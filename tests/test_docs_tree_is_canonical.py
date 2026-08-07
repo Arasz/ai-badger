@@ -77,7 +77,7 @@ class TestEveryMapIsComplete:
     """A README lists every file beside it. An unlisted file is one nobody will find."""
 
     def test_no_directory_sits_outside_the_map(self, root):
-        """`plans/` outlived PR #111 because the map check matched the prose explaining its removal."""
+        """`plans/` outlived PR #111: the map check matched the prose explaining its removal."""
         known = set(CANONICAL_DIRS) | set(FROZEN_DIRS) | set(PINNED_DIRS)
         present = sorted(d.name for d in _docs(root).iterdir()
                          if d.is_dir() and not d.name.startswith("."))

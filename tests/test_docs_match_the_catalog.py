@@ -79,7 +79,8 @@ class TestSkillsDocCoversTheCatalog:
     """Every skill the catalog routes has a row, and every row names a skill that exists."""
 
     def test_no_catalog_skill_is_undocumented(self, root):
-        undocumented = sorted(set(_catalog_skills(root)) - set(_documented_skills(_skills_doc(root))))
+        documented = _documented_skills(_skills_doc(root))
+        undocumented = sorted(set(_catalog_skills(root)) - set(documented))
 
         assert not undocumented, (
                 "docs/skills.md has no at-a-glance row for: " + ", ".join(undocumented)
@@ -147,7 +148,7 @@ class TestScriptsDocCoversTheScripts:
 
 
 class TestTheseChecksCouldFail:
-    """Each assertion above must go red on a broken document; a green that cannot fail proves nothing."""
+    """Each assertion above must go red on a broken document, or it proves nothing."""
 
     def test_a_deleted_row_is_caught(self):
         catalog = {"task", "den-refresh"}
