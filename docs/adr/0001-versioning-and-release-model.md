@@ -195,6 +195,28 @@ works against a scaffold from before this fix (indeed from before Tier 1 existed
 pre-0.2.0) — the scaffolded hook approach could not, since a stale scaffold has no drift code to
 run in the first place.
 
+**Amendment (2026-08-07, 0.94.0): what Tier 1 compares, and when it speaks.** The text above says
+the check "prints one line on mismatch and is silent otherwise". Both halves have moved, and this
+records where they landed rather than restating the decision, which stands.
+
+- **A patch-only difference is no longer a mismatch.** Since 0.91.0 the comparison is
+  `drift_notice.versions_diverge`, which parses `(major, minor)` out of each side and compares
+  only those. The string inequality described above fired on every patch release with nothing for
+  a consumer to do, while `gates/scaffold_freshness_guard.py` already tolerated stamp-only diffs
+  by design — the two disagreed about what drift means. A version that does not parse as
+  `x.y[.z]` on either side still falls back to plain string inequality. So `0.93.0` against
+  `0.93.1` is now silent; `0.93.1` against `0.94.0` still speaks.
+- **The hook can speak with no version drift at all.** `drift_notice_hook.main` joins the drift
+  notice with `competing_copies_notice`, and that second part is emitted on its own whenever the
+  idle `~/.ai-badger/framework` cache reports a different version than the tree the session is
+  running from. Two installs both answering as ai-badger read as a framework versioning bug
+  unless something names them, so this is deliberate (#109) — but "silent otherwise" is no longer
+  the whole rule, and anything planning against Tier 1's output should expect either part.
+
+Unchanged, and still load-bearing: the comparison itself is two local reads — the project's
+`.ai-badger/manifest.json` and the plugin's `VERSION` — with no network, and every failure path
+is still silence rather than an error.
+
 ## Consequences
 
 **Good.** A version identifies content, so a bug report can name one. Installs become
