@@ -21,6 +21,11 @@ re-scaffold.
 | Version | Entry |
 |---|---|
 | 0.89.0 | [the read-only freshness gate stops writing into `$HOME`](0.89.0-gate-stops-writing-to-home.md) |
+| 0.88.5 | [the dotnet catalog stops shipping one private project](0.88.5-purge-dotnet-harvest-leakage.md) |
+| 0.88.4 | [the meta-gate sees every gate](0.88.4-meta-gate-sees-every-gate.md) |
+| 0.88.3 | [the plugin-sync gate gets an oracle](0.88.3-plugin-sync-gets-an-oracle.md) |
+| 0.88.2 | [the gate's logs record pushes, not test runs](0.88.2-gate-logs-are-honest.md) |
+| 0.88.1 | [Duplicate `description:` keys fixed, and a lint rule to stop the next one](0.88.1-duplicate-skill-descriptions.md) |
 | 0.88.0 | [the AWM denylist judges what a command does, not how it is spelled](0.88.0-awm-judges-intent-not-spelling.md) |
 | 0.87.2 | [the catalog carries no real vault identifiers](0.87.2-purge-vault-identifiers.md) |
 | 0.87.1 | [the shipped plugin copy's shape is the rendered shape](0.87.1-shape-assertion.md) |

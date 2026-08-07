@@ -116,7 +116,7 @@ print(type(p).__name__, p.name, p.is_available(), [s['name'] for s in p.get_tool
 ## Implication for server-backed memory (e.g. an MCP memory server)
 
 The ABC is pure in-process Python with no transport abstraction — every call site is a
-direct method call. A remote backend (like the the MCP server) plugs in as a thin
+direct method call. A remote backend (like the MCP server) plugs in as a thin
 MemoryProvider shim: `initialize` opens a client to the server's HTTP/stdio endpoint,
 `get_tool_schemas`/`handle_tool_call` proxy the server's tools, `sync_turn`/`prefetch`
 call search/ingest verbs non-blocking. The honcho/mem0/openviking providers are the

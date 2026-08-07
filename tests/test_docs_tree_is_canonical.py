@@ -31,6 +31,7 @@ CANONICAL_DIRS = (
 # contents are not governed by the naming rules below.
 FROZEN_DIRS = ("changelog",)
 
+
 def _docs(root):
     return root / "docs"
 

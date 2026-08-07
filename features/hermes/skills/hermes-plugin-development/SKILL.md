@@ -1,7 +1,6 @@
 ---
 name: hermes-plugin-development
 description: "Use when writing or debugging Hermes Agent Python plugins — including the memory-provider specialized plugin type: directory-plugin packaging (plugin.yaml + __init__.py with register(ctx) — flat .py files are INVISIBLE), VALID_HOOKS list, per-hook payload keys (no cwd; tool_name vs function_name), plugins.enabled opt-in, pre_llm_call context injection, stash/pop for post_tool_call, HERMES_PLUGINS_DEBUG=1, and the MemoryProvider ABC with its threading & lifecycle contract."
-description: Use when writing or debugging Hermes Agent Python plugins.
 version: 1.0.0
 metadata:
   hermes:

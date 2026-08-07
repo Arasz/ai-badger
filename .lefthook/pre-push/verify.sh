@@ -20,7 +20,9 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_QUARANTINE_PATH \
 _log_key="$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)"
 readonly LOG_DIR="${VERIFY_LOG_DIR:-${TMPDIR:-/tmp}/ai-badger-verify/$_log_key}"
 readonly BASE_REF="${VERIFY_BASE:-origin/main}"
-readonly LOG_SUMMARY="logs/lefthook.log"
+# Redirectable for the same reason as LOG_DIR: the pytest lane runs this script, and an
+# unredirectable summary collects rows for pushes that never happened.
+readonly LOG_SUMMARY="${VERIFY_LOG_SUMMARY:-logs/lefthook.log}"
 
 # Cheap lanes first so a typo fails fast, before pylint and pytest.
 readonly LANES="version-sync index plugin-skills deps docs release paths validate scaffold tdd js pylint pytest"

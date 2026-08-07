@@ -81,7 +81,8 @@ the exact list of new tests the fix batch must add.
    it. Fix-test: real sweep with shared+project copies of one hash, assert the
    shared row survives.
 5. **Dead provisioning masked by test setup.** Integration tests copied
-   pre-provisioned extension files from `~/.ai-raccon/extensions/<rid>` into
+   pre-provisioned extension files from a local extensions cache (e.g.
+   `~/.<tool>/extensions/<rid>/`) into
    the temp data root; the production `Program.cs` never calls
    `ExtensionProvisioner` at all. First-run open throws. Grep for the
    production caller of anything the tests set up manually.

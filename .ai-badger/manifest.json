@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.89.0",
-  "frameworkCommit": "bae1b3e53f9978b1f908534926f144b3cccc83f7",
+  "frameworkCommit": "ff9f5602b86a6bc93aa5b99bca8a6200906c7772",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -497,12 +497,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.89.0",
-      "hash": "cd9e213f9ad48491aa7845dedd7dff1c907ddace92cdc8bf47b42ee93c39109b",
+      "hash": "218c02421595cb93fa654a8dc3fa2fe93688e596a92bf064a7030108bbc16655",
       "dirMeta": {
         "file_count": 15,
         "dir_count": 2
       },
-      "sourceHash": "cd9e213f9ad48491aa7845dedd7dff1c907ddace92cdc8bf47b42ee93c39109b",
+      "sourceHash": "218c02421595cb93fa654a8dc3fa2fe93688e596a92bf064a7030108bbc16655",
       "sourceMeta": {
         "file_count": 15,
         "dir_count": 2
@@ -767,12 +767,12 @@
       "source": "features/hermes/skills/cron-watchdog-authoring",
       "target": ".ai-badger/skills/cron-watchdog-authoring",
       "frameworkVersion": "0.89.0",
-      "hash": "b7b87c8b15101c97c42279240fdf1a6b6508a4901ef5c88c98d8ed9f73ae37bc",
+      "hash": "1273ebc74b64837a4d8ecc65b19be0f99c0b0358b845d78a65c17c1de68ba706",
       "dirMeta": {
         "file_count": 1,
         "dir_count": 0
       },
-      "sourceHash": "b7b87c8b15101c97c42279240fdf1a6b6508a4901ef5c88c98d8ed9f73ae37bc",
+      "sourceHash": "1273ebc74b64837a4d8ecc65b19be0f99c0b0358b845d78a65c17c1de68ba706",
       "sourceMeta": {
         "file_count": 1,
         "dir_count": 0
@@ -785,12 +785,12 @@
       "source": "features/hermes/skills/hermes-plugin-development",
       "target": ".ai-badger/skills/hermes-plugin-development",
       "frameworkVersion": "0.89.0",
-      "hash": "8cb6e37462fa8e8976e70e6323e451169deec39d760538b67e47feebe1adf8a5",
+      "hash": "cfdc0482a6beacf39ba2951d3a4040e30f4468a2ae71cddb7647b9c78670e273",
       "dirMeta": {
         "file_count": 3,
         "dir_count": 1
       },
-      "sourceHash": "8cb6e37462fa8e8976e70e6323e451169deec39d760538b67e47feebe1adf8a5",
+      "sourceHash": "cfdc0482a6beacf39ba2951d3a4040e30f4468a2ae71cddb7647b9c78670e273",
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 1

@@ -8,7 +8,7 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [worktrees, parallel, agents, isolation]
-    related_skills: [task, git-worktree-isolation]
+    related_skills: [task]
 ---
 
 # Worktree Agent Isolation
@@ -257,4 +257,3 @@ Servers/processes a subagent starts in background (watch patterns like "Applicat
 
 - `references/ab-agent-experiment.md` — A/B agent experiment pattern (tool comparison in parallel worktrees); read when running A/B agent experiments.
 - `references/code-review-graph-setup.md` — macOS install notes for the graph tool used in experiments; read when installing code-review-graph on macOS.
-- `references/csharp-string-interpolation-gotchas.md` — C# string interpolation traps (regex word boundaries, escaping); read when writing C# string interpolation.

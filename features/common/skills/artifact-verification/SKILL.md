@@ -1,7 +1,6 @@
 ---
 name: artifact-verification
 description: "Use when verifying changed artifacts that lack a canonical test gate — specs, docs, manifests, generated files, published packages: use the workflow-defined checker first (spec_holes.py), review manual fresh-install protocols against the false-pass checklist, and verify 'installed build contains merged PR X' by tree comparison, never squash-ancestry."
-description: Verify changed artifacts that lack a canonical test gate.
 version: 1.0.0
 author: ai-badger
 license: MIT

@@ -89,24 +89,51 @@ def _hermes_db(tmp_path):
     con = sqlite3.connect(path)
     con.executescript(
         """
-        CREATE TABLE sessions (
-            id TEXT PRIMARY KEY, input_tokens INTEGER, output_tokens INTEGER,
-            cache_read_tokens INTEGER, cache_write_tokens INTEGER, reasoning_tokens INTEGER,
-            api_call_count INTEGER, message_count INTEGER, tool_call_count INTEGER,
-            parent_session_id TEXT, started_at REAL, ended_at REAL
+        CREATE TABLE sessions
+        (
+            id                 TEXT PRIMARY KEY,
+            input_tokens       INTEGER,
+            output_tokens      INTEGER,
+            cache_read_tokens  INTEGER,
+            cache_write_tokens INTEGER,
+            reasoning_tokens   INTEGER,
+            api_call_count     INTEGER,
+            message_count      INTEGER,
+            tool_call_count    INTEGER,
+            parent_session_id  TEXT,
+            started_at         REAL,
+            ended_at           REAL
         );
-        CREATE TABLE session_model_usage (
-            session_id TEXT, model TEXT, api_call_count INTEGER, input_tokens INTEGER,
-            output_tokens INTEGER, cache_read_tokens INTEGER, cache_write_tokens INTEGER,
-            reasoning_tokens INTEGER, first_seen REAL, last_seen REAL
+        CREATE TABLE session_model_usage
+        (
+            session_id         TEXT,
+            model              TEXT,
+            api_call_count     INTEGER,
+            input_tokens       INTEGER,
+            output_tokens      INTEGER,
+            cache_read_tokens  INTEGER,
+            cache_write_tokens INTEGER,
+            reasoning_tokens   INTEGER,
+            first_seen         REAL,
+            last_seen          REAL
         );
-        CREATE TABLE messages (
-            id INTEGER PRIMARY KEY, session_id TEXT, role TEXT, token_count INTEGER
+        CREATE TABLE messages
+        (
+            id          INTEGER PRIMARY KEY,
+            session_id  TEXT,
+            role        TEXT,
+            token_count INTEGER
         );
-        CREATE TABLE async_delegations (
-            delegation_id TEXT PRIMARY KEY, origin_session TEXT, origin_session_id TEXT,
-            parent_session_id TEXT, state TEXT, dispatched_at REAL, completed_at REAL,
-            result_json TEXT
+        CREATE TABLE async_delegations
+        (
+            delegation_id     TEXT PRIMARY KEY,
+            origin_session    TEXT,
+            origin_session_id TEXT,
+            parent_session_id TEXT,
+            state             TEXT,
+            dispatched_at     REAL,
+            completed_at      REAL,
+            result_json       TEXT
         );
         """
     )
@@ -296,7 +323,7 @@ class TestParseHermesSessionUsage:
         db = _hermes_db(tmp_path)
         _session(db, "s1", inp=1)
         _delegation(db, "d1", "s1", result={"results": [{"tokens": {"input": 1, "output": 1},
-                                                        "model": "m1"}]})
+                                                         "model": "m1"}]})
         _delegation(db, "d2", "s1", result={"results": [{"tokens": {"input": 1, "output": 1}}]})
         _delegation(db, "d3", "s1", state="failed", result={})
 

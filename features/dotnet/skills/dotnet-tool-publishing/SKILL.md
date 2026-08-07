@@ -1,7 +1,6 @@
 ---
 name: dotnet-tool-publishing
 description: "Use when packaging or publishing a .NET CLI tool (PackAsTool) or library to NuGet: the MSB3030 build-before-pack trap (and its Web-SDK inversion), multi-RID matrix shells + the shell-race fix, gitignored bundled assets, Trusted Publishing/OIDC with human approval gates, the 409-published-nothing diagnosis, ToolCommandName/PATH shim rules, and full fresh-install verification for MCP tools with bundled models."
-description: Use when packaging or publishing a .NET CLI tool to NuGet.
 version: 1.0.0
 author: ai-badger
 license: MIT
@@ -290,3 +289,4 @@ Diagnosis when every push 409s for a version the read APIs can't see (full ladde
 - `dotnet-system-commandline` — Cocona/System.CommandLine error handling and exit codes.
 - `references/package-id-migration.md` — migrating an installed tool's package id (tool command name, store paths, fresh-install impact); read when migrating an installed tool's package id.
 - `references/release-tags-version-content.md` — release tags vs version content: which tags carry which versions, and the version-content contract; read when release tags disagree with version content.
+- `references/multirid-shell-race-fix.md` — the measured shell-race fix: parallel per-RID pack jobs each write a shell package naming only their own RID, so the last push wins; read when a multi-RID publish installs the wrong RID payload.
