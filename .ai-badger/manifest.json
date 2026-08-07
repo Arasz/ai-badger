@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.93.0",
-  "frameworkCommit": "d8404ed421749e6cab298d89149d731f1a0cab1a",
+  "frameworkCommit": "f2181575569e2964d81902a069290a21f8e3b70b",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -111,6 +111,15 @@
       "target": ".ai-badger/instructions/javascript.instructions.md",
       "frameworkVersion": "0.93.0",
       "hash": "aee34b31f88b32868758abe80d1f4676e9cc4268b83a71eebe22dacc2ceeb59c"
+    },
+    {
+      "feature": "instructions",
+      "stack": "github",
+      "name": "github-actions.instructions",
+      "source": "features/github/instructions/github-actions.instructions.md",
+      "target": ".ai-badger/instructions/github-actions.instructions.md",
+      "frameworkVersion": "0.93.0",
+      "hash": "dddff56e7b9d977c6aad71dcb7d5bade6a20358f8aa869b6a4a5d4d0a7af8918"
     },
     {
       "feature": "instructions",
@@ -264,6 +273,15 @@
       "target": ".ai-badger/invariants/traceable-releases.md",
       "frameworkVersion": "0.93.0",
       "hash": "377265b6f5764fba81ec41fc5f8e6447ae3bb6d6f9aa38344e13e0c4dd1867b4"
+    },
+    {
+      "feature": "invariants",
+      "stack": "github",
+      "name": "pin-actions-to-sha",
+      "source": "features/github/invariants/pin-actions-to-sha.md",
+      "target": ".ai-badger/invariants/pin-actions-to-sha.md",
+      "frameworkVersion": "0.93.0",
+      "hash": "775423167ecb74b8ce5abdb1994a9c44b516a142d50b6da567a77362819993d8"
     },
     {
       "feature": "invariants",
@@ -425,12 +443,12 @@
       "source": "features/common/skills/maintain-agent-instructions",
       "target": ".ai-badger/skills/maintain-agent-instructions",
       "frameworkVersion": "0.93.0",
-      "hash": "c5bb3d682f749c94b60ab4d48f42f4a9420407eff80df748ab74e9fdb61db709",
+      "hash": "6904afc2c8a53c46a298d19e999d5112ae617a0b560ac029681ef565bead2289",
       "dirMeta": {
         "file_count": 5,
         "dir_count": 2
       },
-      "sourceHash": "c5bb3d682f749c94b60ab4d48f42f4a9420407eff80df748ab74e9fdb61db709",
+      "sourceHash": "6904afc2c8a53c46a298d19e999d5112ae617a0b560ac029681ef565bead2289",
       "sourceMeta": {
         "file_count": 5,
         "dir_count": 2
@@ -497,12 +515,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.93.0",
-      "hash": "a62dc888c634b4c4feb91683a088b942b8a0f9582f2a1a4bfe8cb84fa318f58f",
+      "hash": "dd070ed8864246238f11a01586ddb5a2970649290c0c56ae13e77426be88f022",
       "dirMeta": {
         "file_count": 15,
         "dir_count": 2
       },
-      "sourceHash": "a62dc888c634b4c4feb91683a088b942b8a0f9582f2a1a4bfe8cb84fa318f58f",
+      "sourceHash": "dd070ed8864246238f11a01586ddb5a2970649290c0c56ae13e77426be88f022",
       "sourceMeta": {
         "file_count": 15,
         "dir_count": 2

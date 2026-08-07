@@ -1,0 +1,8 @@
+{
+  "name": "github",
+  "description": "GitHub Actions workflows and GitHub-hosted repository automation.",
+  "detectionSignals": [
+    ".github/workflows/*.yml",
+    ".github/workflows/*.yaml"
+  ]
+}

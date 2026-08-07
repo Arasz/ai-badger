@@ -73,6 +73,14 @@ Write a failing, behavior-focused test before any production code change. No pro
 
 Every release records the version it went out at and what changed in it, using whatever version marker and release notes this project already keeps. Do not invent a versioning scheme or a release-notes tree for a project that has none — if there is no release process here, there is nothing to record.
 
+### Pin actions to a commit SHA; declare least-privilege permissions
+
+Every third-party GitHub Action referenced in a workflow is pinned to a full
+commit SHA, never a tag or branch — a mutable tag is remote code you re-fetch
+on every run, not a fixed dependency. Every workflow (or job, where jobs need
+different scopes) declares an explicit `permissions:` block set to the least
+privilege that job needs; never rely on the repository's default token scope.
+
 ### Always bump VERSION and add changelog entry
 
 Every release — no matter how small — must:
@@ -102,6 +110,7 @@ Before editing matching files, read the applicable scoped instruction file:
 - `documentation.instructions.md` → `.ai-badger/instructions/documentation.instructions.md`
 - `python.instructions.md` → `.ai-badger/instructions/python.instructions.md`
 - `javascript.instructions.md` → `.ai-badger/instructions/javascript.instructions.md`
+- `github-actions.instructions.md` → `.ai-badger/instructions/github-actions.instructions.md`
 - `hermes.instructions.md` → `.ai-badger/instructions/hermes.instructions.md`
 - `typescript.instructions.md` → `.ai-badger/instructions/typescript.instructions.md`
 - `node.instructions.md` → `.ai-badger/instructions/node.instructions.md`

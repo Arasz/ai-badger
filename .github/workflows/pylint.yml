@@ -24,7 +24,7 @@ jobs:
         pip install pylint pytest jsonschema pyyaml
     - name: Analysing the code with pylint (scripts only; tests keep their own conventions)
       run: |
-        pylint $(git ls-files '*.py' | grep -v '^tests/')
+        pylint -j 0 $(git ls-files '*.py' | grep -v '^tests/')
     - name: Run tests with pytest
       run: |
         pytest -q
@@ -40,6 +40,11 @@ jobs:
     - name: Framework tree validates against its schemas
       run: |
         python3 tooling/validate.py --all
+    - name: Agent instruction files match the model
+      if: matrix.python-version == '3.10'
+      run: |
+        node features/common/skills/maintain-agent-instructions/scripts/validate-agent-instructions.mjs
+        node features/common/skills/maintain-agent-instructions/scripts/check-agent-drift.mjs
     - name: Version literals (plugin.json, marketplace.json, index.json) agree with VERSION
       run: |
         python3 tooling/version_sync.py --check

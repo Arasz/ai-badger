@@ -1,6 +1,6 @@
 # Project-specific gotchas (worked cases)
 
-Domain-modeling gotchas tied to specific project shapes (Azure Functions, worktree discipline, locale handling). These are the worked cases behind the generic rules in the skill body.
+Domain-modeling gotchas tied to specific project shapes (Azure Functions, worktree discipline, locale handling). These are the worked cases behind the generic rules in the skill body. Rows naming Azure Functions, Durable Functions, or Cosmos apply only when the project uses that service; the worktree, locale, and record-mutation rows are stack-agnostic.
 
 | Pitfall | Fix |
 |---|---|
