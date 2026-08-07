@@ -22,6 +22,7 @@ Usage: version_sync.py [--root <dir>] [--check]
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -76,6 +77,42 @@ def sync(root: Path, version: str) -> None:
     index_build.main(["--root", str(root)])
 
 
+SCAFFOLD_MANIFEST = Path(".ai-badger/manifest.json")
+# Anchored on a leading digit so prose *about* the stamp is not mistaken for one:
+# CONTRIBUTING.md documents it as `Scaffolded by ai-badger <v>`. The trailing period is
+# prose too — the stamp reads "Scaffolded by ai-badger 0.97.0." — so it is stripped.
+STAMP_RE = re.compile(r"Scaffolded by ai-badger (\d\S*)")
+
+
+def _scaffold_stamp_mismatches(root: Path, version: str) -> List[Tuple[str, Any, str]]:
+    """Targets the scaffolder stamps, not this script — reported, never rewritten.
+
+    Writing them here would assert a scaffold that never ran. The freshness guard exempts
+    version stamps on purpose ("a version bump alone must not fail this"), so a release that
+    skips the re-scaffold is otherwise invisible: 3 of the 14 tags in the 0.87-0.99 window
+    shipped a manifest one release behind.
+    """
+    mismatches: List[Tuple[str, Any, str]] = []
+    manifest_path = root / SCAFFOLD_MANIFEST
+    if manifest_path.is_file():
+        stamped = bl.load_json(manifest_path).get("frameworkVersion")
+        if stamped != version:
+            mismatches.append((str(SCAFFOLD_MANIFEST) + ":frameworkVersion", stamped, version))
+    seen = {}
+    for pattern in ("*.md", ".*.md", ".ai-badger/*.md", ".github/*.md"):
+        for found_path in root.glob(pattern):
+            seen[found_path.resolve()] = found_path
+    for path in sorted(seen.values()):
+        try:
+            found = STAMP_RE.search(path.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        if found and found.group(1).rstrip(".") != version:
+            mismatches.append(
+                (str(path.relative_to(root)), found.group(1).rstrip("."), version))
+    return mismatches
+
+
 def check(root: Path, version: str) -> int:
     """Report any target whose version disagrees with VERSION; return 0 clean, 1 mismatch."""
     plugin_data = bl.load_json(root / PLUGIN_MANIFEST)
@@ -83,15 +120,22 @@ def check(root: Path, version: str) -> int:
 
     mismatches = _plugin_mismatches(plugin_data, version)
     mismatches += _marketplace_mismatches(marketplace_data, version, plugin_data.get("name"))
+    stale_stamps = _scaffold_stamp_mismatches(root, version)
 
     if mismatches:
         print(f"version literals disagree with VERSION ({version!r}):")
         for label, current, expected in mismatches:
             print(f"    - {label}: {current!r} (expected {expected!r})")
 
+    if stale_stamps:
+        print(f"the scaffold stamps disagree with VERSION ({version!r}) — the re-scaffold step "
+              f"was skipped; re-run welcome-ai-badger and commit the result:")
+        for label, current, expected in stale_stamps:
+            print(f"    - {label}: {current!r} (expected {expected!r})")
+
     index_rc = index_build.main(["--root", str(root), "--check"])
 
-    if mismatches or index_rc != 0:
+    if mismatches or stale_stamps or index_rc != 0:
         return 1
     print("version literals up to date")
     return 0

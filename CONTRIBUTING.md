@@ -201,6 +201,17 @@ Run the release guard. It compares the shipped surface (`features/`, `engine/`, 
      not merely recommended.
   5. `.venv/bin/python3 tooling/version_sync.py` — propagates the version into `plugin.json`,
      `marketplace.json` and `index.json`.
+  6. **Re-scaffold this repo against itself, last.** The scaffolder stamps `frameworkVersion`
+     into `.ai-badger/manifest.json` and `Scaffolded by ai-badger <v>` into every generated
+     agent file, and it reads the version from `index.json` — so this only produces the right
+     answer *after* step 5. Skipping it shipped a stale manifest in 3 of the 14 tags between
+     0.87 and 0.99; `version_sync.py --check` now catches it.
+
+     ```bash
+     AI_BADGER_MCP_AVAILABILITY=all .venv/bin/python3 \
+       features/common/skills/welcome-ai-badger/scripts/scaffold.py \
+       --config .ai-badger/config.json --target . --root . --no-install --skills ''
+     ```
 
 Full detail, including the semver-for-a-catalog rules, is in [`RELEASING.md`](RELEASING.md).
 
@@ -244,7 +255,7 @@ What each one is for:
 | `changelog_index.py --check` | The generated table in `docs/changelog/README.md` does not match the entry files. Re-run without `--check`; never hand-edit the table. |
 | `sync_plugin_skills.py --check` | The shipped `skills/` copy has drifted from `features/`. |
 | `validate.py --all` | Any catalog JSON violates its schema in `schemas/`. |
-| `version_sync.py --check` | `plugin.json`, `marketplace.json` or `index.json` disagree with `VERSION`. |
+| `version_sync.py --check` | `plugin.json`, `marketplace.json` or `index.json` disagree with `VERSION` — or the scaffold stamps do, meaning step 6's re-scaffold was skipped. |
 | `docs_guard.py` | A relative link or a backticked repo path in the docs no longer resolves, or a changelog entry is missing from `docs/changelog/README.md`. |
 | `deps_guard.py` | Code imports a third-party module that `engine/requirements.txt` does not declare. |
 | `release_guard.py` | The shipped surface changed since the last release tag without a `VERSION` bump. |
