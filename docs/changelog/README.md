@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.88.3 | [the plugin-sync gate gets an oracle](0.88.3-plugin-sync-gets-an-oracle.md) |
 | 0.88.2 | [the gate's logs record pushes, not test runs](0.88.2-gate-logs-are-honest.md) |
 | 0.88.1 | [Duplicate `description:` keys fixed, and a lint rule to stop the next one](0.88.1-duplicate-skill-descriptions.md) |
 | 0.88.0 | [the AWM denylist judges what a command does, not how it is spelled](0.88.0-awm-judges-intent-not-spelling.md) |

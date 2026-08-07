@@ -370,7 +370,10 @@ def _sync_plugin_skills_check(work: Path, provoked: bool) -> Outcome:
     """A shipped skill copy whose content diverged from the catalog it mirrors.
 
     The gate has no --root: it anchors on its own location, so the fixture is a miniature
-    framework tree with the two files the check needs copied into it.
+    framework tree with the two files the check needs copied into it. The skill is
+    `prompt-markers` rather than `task` because `task` is the one skill with a
+    `PLUGIN_EXTRA_FILES` declaration, which a tree this small cannot satisfy — and the
+    divergence this provocation is about has nothing to do with that declaration.
     """
     root = work / "framework"
     (root / "engine").mkdir(parents=True, exist_ok=True)
@@ -378,10 +381,10 @@ def _sync_plugin_skills_check(work: Path, provoked: bool) -> Outcome:
     (root / "tooling").mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "tooling" / "sync_plugin_skills.py",
                  root / "tooling" / "sync_plugin_skills.py")
-    catalog = "# task\ncatalog\n"
-    _write(root / "features" / "common" / "skills" / "task" / "SKILL.md", catalog)
-    _write(root / "skills" / "task" / "SKILL.md",
-           "# task\nSHIPPED COPY, DIVERGED\n" if provoked else catalog)
+    catalog = "# prompt-markers\ncatalog\n"
+    _write(root / "features" / "common" / "skills" / "prompt-markers" / "SKILL.md", catalog)
+    _write(root / "skills" / "prompt-markers" / "SKILL.md",
+           "# prompt-markers\nSHIPPED COPY, DIVERGED\n" if provoked else catalog)
     return _run([str(root / "tooling" / "sync_plugin_skills.py"), "--check"])
 
 
@@ -584,7 +587,6 @@ REGISTRY: Tuple[Provocation, ...] = (
     Provocation(_behaviorist("always_skipped"), "a component that exits early every time",
                 _always_skipped, _finding("always_skipped", "medium")),
 )
-
 
 # ------------------------------------------------------------------------------- discovery
 
