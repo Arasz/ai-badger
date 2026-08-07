@@ -137,8 +137,9 @@ onto each index entry as it already does, and derive the routing helpers from th
 **What it costs**
 
 - **Routing gains I/O.** `SKILL_SCOPES` is a constant: no root argument at the call site, no
-  read that can fail, no value that can be stale. Under Option B every routing answer is either 51
-  file reads or a lookup into generated `index.json`. The index route makes a
+  read that can fail, no value that can be stale. Under Option B every routing answer is either a read of
+  each candidate `SKILL.md` in the directory being asked about (36 for the common stack, 51
+  across the catalog) or a lookup into generated `index.json`. The index route makes a
   *generated* artifact load-bearing for which skills reach a user — `index_build.py --check`
   guards its freshness in CI, but nothing does at runtime in a consumer's installed plugin.
   Production already has one such reader (`drift.py:204` consults `item.get("scope")`), so the
@@ -147,7 +148,7 @@ onto each index entry as it already does, and derive the routing helpers from th
   (`badger_lib.py:848`) would need a root threaded to it from
   `scaffold.py:336`.
 - **One-place legibility goes.** "What ships to every consumer by default" is one hunk in a diff
-  today. Under Option B, reviewing a change to the default set means reading 51 files or trusting
+  today. Under Option B, reviewing a change to the default set means reading 36 files or trusting
   a generated table. Given that this ADR family exists *because* a complete, correct skill shipped
   to nobody for its entire life and no reviewer noticed, the property of being reviewable in one
   glance is not decoration.
