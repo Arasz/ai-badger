@@ -32,6 +32,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+
 def _bootstrap_lib() -> Path:
     """Put the framework's engine/ and tooling/ on sys.path and return its root.
 
@@ -41,6 +42,7 @@ def _bootstrap_lib() -> Path:
     (ADR-0009). Duplicated verbatim in every entry point because locating badger_lib is
     what it is for.
     """
+
     def is_root(path):
         return ((path / "schemas").is_dir() and (path / "features").is_dir()
                 and (path / "engine" / "badger_lib.py").is_file())
@@ -469,7 +471,7 @@ class Scaffolder:
             self.record_template(schema, out / "schema.json")
         model_tmpl = tdir / "model.template.json"
         self._seed_once_copy(model_tmpl, out / "model.json",
-                              ".ai-badger/agent-instructions/model.json")
+                             ".ai-badger/agent-instructions/model.json")
 
     def scaffold_templates(self) -> None:
         """Seed the shared state.json template into .ai-badger/ on first scaffold only. It is a
@@ -534,7 +536,13 @@ class Scaffolder:
 
     # -- Hermes skill discovery ---------------------------------------------------
     def symlink_hermes_skills(self) -> None:
-        """Publish this project's skills in the Hermes namespace, through `skill_delivery`."""
+        """Publish this project's skills in the Hermes namespace, through `skill_delivery`.
+
+        A no-op under `--no-install`: the links are user-global and point at `--target`, so a
+        throwaway target would leave them dangling once it is removed.
+        """
+        if not self.install:
+            return
         self.skill_delivery.symlink_hermes_skills()
 
     # -- dependency checking ---------------------------------------------------------

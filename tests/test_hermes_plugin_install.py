@@ -350,4 +350,22 @@ def test_the_scaffolder_hands_no_install_through_to_the_user_scope(
     with patch("pathlib.Path.home", return_value=home):
         scaf.run(generated_at="2026-07-26T00:00:00Z")
 
-    assert not (home / ".hermes" / "plugins").exists()
+    assert not (home / ".hermes").exists(), sorted(
+        str(p.relative_to(home)) for p in (home / ".hermes").rglob("*"))
+
+
+def test_no_install_leaves_no_hermes_skill_links_behind(tmp_path, root, make_scaffolder):
+    """The freshness gate scaffolds a temp copy; its links would outlive the temp dir.
+
+    `--no-install` reached `install_plugins` but not `symlink_hermes_skills`, so every gate
+    run left `~/.hermes/skills/<project>/` pointing at a deleted `scaffold-freshness-*` tree.
+    """
+    assert root
+    home = tmp_path / "home"
+    home.mkdir()
+
+    scaf = make_scaffolder(config=_config(["hermes"]), skills=["task"], install=False)
+    with patch("pathlib.Path.home", return_value=home):
+        scaf.run(generated_at="2026-07-26T00:00:00Z")
+
+    assert not (home / ".hermes" / "skills").exists()
