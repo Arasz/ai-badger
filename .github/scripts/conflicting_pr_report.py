@@ -66,11 +66,20 @@ def _nodes(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     would report "nothing stuck", which is the silent pass this detector exists to prevent.
     """
     try:
-        nodes = payload["data"]["repository"]["pullRequests"]["nodes"]
+        pull_requests = payload["data"]["repository"]["pullRequests"]
+        nodes = pull_requests["nodes"]
     except (KeyError, TypeError) as exc:
         raise ValueError("payload has no data.repository.pullRequests.nodes") from exc
     if not isinstance(nodes, list):
         raise ValueError("data.repository.pullRequests.nodes is not a list")
+
+    # The query asks for one page. Reporting on 100 of 101 open pull requests would leave the
+    # 101st quietly clean — the same "answered without looking" failure this detector exists
+    # to catch. Refuse instead, so the day it happens is the day someone adds pagination.
+    total = pull_requests.get("totalCount")
+    if total is not None and total > len(nodes):
+        raise ValueError(f"only {len(nodes)} of {total} open pull requests were returned; "
+                         "the query needs pagination before this report means anything")
     return nodes
 
 

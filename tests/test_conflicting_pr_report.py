@@ -40,8 +40,10 @@ def pull_request(number, mergeable, comments=(), is_draft=False):
     }
 
 
-def payload(*nodes):
-    return {"data": {"repository": {"pullRequests": {"nodes": list(nodes)}}}}
+def payload(*nodes, total=None):
+    pull_requests = {"nodes": list(nodes)}
+    pull_requests["totalCount"] = len(nodes) if total is None else total
+    return {"data": {"repository": {"pullRequests": pull_requests}}}
 
 
 class TestItFiresOnAConflictingPullRequest:
@@ -105,6 +107,26 @@ class TestUnknownIsReportedAsUnknown:
         result = report.stuck_pull_requests(payload(node))
 
         assert result.unknown == [342]
+
+
+class TestItRefusesToReportOnPullRequestsItDidNotSee:
+    """The query asks for the first 100. Open PR 101 would otherwise be silently clean."""
+
+    def test_a_truncated_page_fails_rather_than_under_reporting(self):
+        with pytest.raises(ValueError):
+            report.stuck_pull_requests(payload(pull_request(1, "MERGEABLE"), total=101))
+
+    def test_a_complete_page_is_fine(self):
+        result = report.stuck_pull_requests(payload(pull_request(1, "MERGEABLE"), total=1))
+
+        assert result.checked == 1
+
+    def test_a_payload_without_a_total_is_not_treated_as_truncated(self):
+        """Older captures and hand-written fixtures have no totalCount; absence is not proof."""
+        result = report.stuck_pull_requests(
+            {"data": {"repository": {"pullRequests": {"nodes": [pull_request(1, "CONFLICTING")]}}}})
+
+        assert result.stuck == [1]
 
 
 class TestTheMarkerItSearchesForIsTheMarkerItPosts:

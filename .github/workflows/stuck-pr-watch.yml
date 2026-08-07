@@ -56,6 +56,9 @@ jobs:
             query($owner:String!, $name:String!) {
               repository(owner:$owner, name:$name) {
                 pullRequests(states: OPEN, first: 100) {
+                  # Asked for so the script can refuse a truncated page rather than report
+                  # on 100 of 101 open pull requests and call the 101st clean.
+                  totalCount
                   nodes {
                     number
                     mergeable
