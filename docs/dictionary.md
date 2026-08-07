@@ -23,6 +23,8 @@ How ai-badger's concepts map to each supported agent's native terminology.
 | **Tool call hook** | `PostToolUse` / `PreToolUse` | `post_tool_call` / `pre_tool_call` | `postToolUse` / `preToolUse` |
 | **Turn stop hook** | `Stop` event | `on_session_end` (session-scoped, not per-turn) | `agentStop` event |
 | **Session end hook** | `SessionEnd` event | `on_session_end` plugin hook | `sessionEnd` event |
+| **Generated-file guard** (`generated_file_guard.py`, 0.96.0) | `PreToolUse` — denies `Edit`/`Write`/`MultiEdit`/`NotebookEdit` on a file `manifest.json` records as generated | N/A | N/A |
+| **Memory-first gate** (`memory_first_gate_hook.py`, ADR-0017) | `PreToolUse` | `pre_tool_call` plugin hook | `preToolUse` with a `grep\|rg\|Glob\|bash` matcher |
 | **Hooks manifest** (`hooks-manifest.json`) | Inline in `hooks.json` | Plugin `register()` function | Copilot entries in manifest → `adjust_hooks.py` |
 
 Only Claude Code's `Stop` reaches the model: its stdout is read as

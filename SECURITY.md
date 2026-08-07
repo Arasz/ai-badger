@@ -137,9 +137,11 @@ Structural properties that predate those waves:
   (`.github/workflows/codeql.yml`).
 - **Dependabot** watches `engine/requirements.txt` and the GitHub Actions used by the workflows,
   weekly (`.github/dependabot.yml`).
-- **gitleaks** scans the commit range on every push to **any** branch and every pull request, and the
-  whole history weekly (`.github/workflows/secret-scan.yml`). Findings are redacted: this
-  repository is public, so an unredacted report would publish the credential it just caught.
+- **gitleaks** scans the commit range on every pull request against `main` and every push to
+  `main`, and the whole history weekly (`.github/workflows/secret-scan.yml`). Since 0.91.0 the
+  `gitleaks` context is a **required status check** on the default-branch ruleset — before that
+  the job could be red and a PR still merge. Findings are redacted: this repository is public, so
+  an unredacted report would publish the credential it just caught.
 - **`deps_guard.py`** fails the build on a third-party import that
   `engine/requirements.txt` does not declare — in pre-commit and on all three CI Python
   versions.
@@ -167,15 +169,20 @@ omission, and both candidates were looked at:
   theatre, and a five-pattern one advertised as secret scanning is worse than none: it buys
   false confidence.
 
-So, stated plainly: **a credential can be committed locally, and is caught on the push** —
-`secret-scan.yml` triggers on `push: branches: ['**']`, so a topic branch that never becomes a PR
-is scanned too.
+So, stated plainly: **a credential can be committed locally, and is caught when the branch is
+opened as a pull request or merged to `main`** — `secret-scan.yml` triggers on
+`pull_request: branches: [main]` and `push: branches: [main]`. A branch pushed and never opened
+as a PR is not scanned until it merges. That gap is deliberate, and the workflow says so in its
+own comment: `pull_request` is the trigger a required status check is evaluated on and the only
+one that reaches a fork, so it is the one kept.
 
-This paragraph used to say the opposite: that a topic branch was scanned only once it reached
-`main` or a PR, and that closing the window meant widening the trigger. The trigger had already
-been widened. A security document that understates its own coverage is not the safe direction to
-be wrong in — it invites someone to "fix" what is already fixed, and to distrust a control that
-works.
+This paragraph has now been wrong in both directions, which is worth recording. It first said a
+topic branch was scanned only once it reached `main` or a PR; that was corrected to
+`push: branches: ['**']`, which was true at the time. 0.91.0 then made `gitleaks` a required
+check and narrowed `push` to `main` to stop running the scan twice per PR — and this paragraph
+kept advertising the wider trigger. **Verify the trigger in
+[`secret-scan.yml`](.github/workflows/secret-scan.yml) before relying on this sentence**; a
+security document that overstates its own coverage is the dangerous direction to be wrong in.
 
 ## Out of scope
 
