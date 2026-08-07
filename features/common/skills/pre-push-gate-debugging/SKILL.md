@@ -1,6 +1,14 @@
 ---
 name: pre-push-gate-debugging
 description: "Use when a pre-push quality gate blocks git push or a lane fails: read the gate's own logs first (reproduce one lane), run single lanes for fast iteration, test the working tree you intend to push, handle E2E/infra cross-run state contamination, worktree node_modules gotchas, and build a manual repro harness when lane output hides the real error."
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [gates, debugging, ci, pre-push]
+    related_skills: [debug-issue, commit-reminder]
 ---
 
 # Pre-push verification gate debugging

@@ -2,6 +2,14 @@
 name: parallel-expert-review
 description: "Use when reviewing code or plans with parallel architect+engineer subagents: PR review with architecture concerns, pre-refactor assessment, MoE plan review before implementation (ground-truth the plan FIRST — trust nothing in it), wave-gated dispatch, integrate findings, route owner questions through owner-gate."
 description: Review code with parallel architect+engineer subagents.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [review, subagents, moe, architecture]
+    related_skills: [code-review-checklist, multi-lane-report-assembly]
 ---
 
 # Parallel Expert Review
@@ -57,7 +65,7 @@ over the plan's stale claims): ...". Experts reviewing stale plans produce stale
 - Collect owner questions from ALL expert reports (each was asked to produce them) —
   one question answered twice beats one never asked.
 - **Generate the owner-gate form programmatically, don't hand-edit the 30 KB template.**
-  Load `owner-gate-review/references/form-template.html`, replace the `var CONFIG = {...};`
+  Load `owner-gate-review/references/form-template.html` (read when generating the owner-gate form), replace the `var CONFIG = {...};`
   and `var DECISIONS = [...]` blocks with `json.dumps()` output built from your decisions
   array, and sanity-check the result: storageKey unique to this review (never the template's
   example `refinement:2026-01-15-import-pipeline:v1`), `outName`/`expectedDir` matching the
@@ -163,4 +171,4 @@ review, QA gate.
 
 ## References
 
-- `references/owner-gate-form-lifecycle.md` — generating and running the owner-gate decision form for MoE reviews.
+- `references/owner-gate-form-lifecycle.md` — generating and running the owner-gate decision form for MoE reviews; read when running the owner-gate form.

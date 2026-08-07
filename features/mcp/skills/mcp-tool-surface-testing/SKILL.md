@@ -2,6 +2,14 @@
 name: mcp-tool-surface-testing
 description: "Use when testing every tool an MCP server exports: black-box expectations-first audit (expectations → call → compare), live contract vs docs-drift findings, destructive-tool safety controls, dependency-ordered execution, and a results doc committed to the repo. Triggers: 'test all tools', 'does every MCP tool work', server surface changed."
 description: Use when testing all tools exported by an MCP server.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [mcp, testing, tools, e2e]
+    related_skills: [mcp-index, dotnet-mcp-server]
 ---
 
 # MCP tool-surface testing
@@ -110,5 +118,5 @@ test turns up behaviours, fold them into the server's pitfalls skill.
 
 ## References
 
-- `references/e2e-parity-test-recipe.md` — the expectations-first E2E parity test recipe.
-- `references/fix-loop-and-delete-scope-2026-08-06.md` — worked case: fixing a loop/delete-scope bug found by a surface test.
+- `references/e2e-parity-test-recipe.md` — the expectations-first E2E parity test recipe; read when writing an E2E parity test.
+- `references/fix-loop-and-delete-scope-2026-08-06.md` — worked case: fixing a loop/delete-scope bug found by a surface test; read when a surface test finds a loop/delete-scope bug.

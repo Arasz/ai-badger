@@ -2,6 +2,14 @@
 name: cron-watchdog-authoring
 description: "Use when scheduling a Hermes cron job or writing a watchdog script: recurring schedules need 'every 30m' (bare '30m' is ONE-SHOT — check repeat), no_agent+script shape, silent-unless-action stdout discipline, version-gated rollout watchdogs (marker files, surgical port-kill), idempotent ticks, and verifying CLI verb paths before the rollout branch can run."
 description: Use when scheduling a Hermes cron job or watchdog script.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [hermes, cron, watchdogs, scheduling]
+    related_skills: [hermes-plugin-development, task]
 ---
 
 # Cron / watchdog job authoring
@@ -52,6 +60,10 @@ guarantee: when the user reports the trigger condition (e.g. "we updated to 1.1.
 Run the script once in the foreground first. Expect the "nothing to report" path to be silent + logged; the action path can be exercised with a lowered TARGET only if the real side effects are safe (port kill is NOT safe to dry-run against
 a live server — verify the rollout branch by review instead).
 
+## Gotchas
+
+- Bare "30m" is ONE-SHOT, not every-30-minutes — recurring schedules need "every 30m".
+- Verify CLI verb paths BEFORE the rollout branch can run them — a typo'd verb fails silently in the watchdog.
 ## Related
 
 - The bank-maintenance design this rollout supports lives in the repo's work docs

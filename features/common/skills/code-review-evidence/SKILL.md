@@ -27,72 +27,8 @@ tests are evidence at all**. Two failure modes recur:
 
 ## Steps
 
-1. **Identify what the code delegates to.** Any wrapper around a native
-   extension, SDK, or external service is a candidate: the review must confirm
-   the underlying semantics, not the wrapper's description of them.
 
-2. **Verify semantics from the upstream source, not the spec/comments.**
-   - Fetch the upstream implementation: `curl -sL
-     https://raw.githubusercontent.com/<org>/<repo>/main/src/<file>` (or the
-     pinned version tag — note `main` may differ from the pinned version).
-   - Confirm the exact behaviors the wrapper depends on: dedup scope
-     (per-context vs global), option persistence (connection-scoped vs stored
-     in a settings table), argument requirements (NULL vs positive integer),
-     delete granularity (per-context vs global by key), hidden filter columns
-     on virtual tables.
-   - A 3-line check of the upstream function is cheaper than a wrong verdict:
-     this method found four real bugs in one review (see
-     `references/sqlite-memory-semantics.md` for the verified facts and the
-     exact functions to read).
-
-2b. **When the data source is a store (SQLite/DB), query it directly.** A
-   claim like "the parent row already aggregates children" or "the per-model
-   table has one row per model" is a testable SQL fact, not a spec detail —
-   open the real store read-only
-   (`sqlite3.connect(f"file:{path}?mode=ro", uri=True)`) and check:
-   `PRAGMA table_info` for the actual columns and PRIMARY KEY, `GROUP BY`
-   cardinality counts (`SELECT session_id, model, COUNT(*) ... HAVING COUNT(*)
-   > 1`), and a concrete arithmetic spot-check (parent row vs parent+child
-   sum) before trusting the mapping in code or in a plan doc. "VERIFIED
-   GROUND TRUTH" in a design doc means verified at *some* time by *somebody*
-   — re-derive it. This caught two wrong claims in one review: a "parent
-   aggregates include children" fact that was false 8/8 times measured, and a
-   byModel mapping built on one-row-per-model when the real PK splits one
-   model across 4 task rows (590 rows vs 367 distinct pairs).
-
-2c. **When the wrapper maps SDK exceptions, verify the hierarchy and what the
-   SDK actually throws.** A catch chain routing on SDK exception types
-   (AWS/Azure/…) is only correct if the type graph of the RESTORED package
-   versions matches the assumption. The compiler catches only the obvious
-   failure — CS0160 fires when a later catch's type derives from an earlier
-   catch's type in the same try — so a clean build proves nothing about the
-   sibling direction: if you assume siblings and they are parent→child, the
-   code compiles and the earlier catch silently swallows the later one's cases
-   (errors misrouted to the wrong bucket). Probe: (a) build — CS0160-free is
-   necessary but not sufficient; (b) reflection — throwaway console referencing
-   the top-level package versions and printing `Type.BaseType` for every type
-   the catches name (recipe + observed AWS/Azure facts in
-   `references/dotnet-sdk-exception-probes.md`); (c) live — run the real client
-   against a dead endpoint (port 9 refuses instantly, no network dependency)
-   with and without credentials to learn what surfaces for no-creds vs
-   connection-refused vs 401/403. Never trust a plan's "probe-verified" claim —
- re-verify.
-
- 2d. **Prove test-isolation claims against the production code path.** When a
- suite claims it never touches the real store because a fixture sets an env
- var (`monkeypatch.setenv("APP_DATA_ROOT", tmp)`), verify the production code
- actually reads that var: `grep -rn "<VAR>" src/` — if the only hits are
- docs/tests/fixtures, the var is a no-op and the tests ran against the real
- store. Then confirm forensically instead of arguing: open the real store
- read-only and look for the suite's unique probe markers under a test-only
- project/key — exact probe strings in the real DB are the smoking gun (one
- review: all 4 probe writes from a "temp bank" suite found in the user's real
- `~/.<app>/memory.db` under a `hermes-itest` project; the CLI resolved
- its data root only from `--data-root`, defaulting to the user dir). The fix
- direction is usually passing the CLI arg through the spawn args
- (`StdioServerParameters(args=[...])`), not an env var the production path
- never reads. Also note the doc/README claims about the env var are then
- factually false and must be corrected with the code.
+> Step 1 (verify wrapped-code semantics from the upstream source, not the spec): read `references/wrapped-code-evidence.md` when reviewing code that wraps external libs, SDKs, or stores.
 
  3. **Check integration tests assert observable state, not constructed values.**
    For every integration test over a real backend, ask: *could this test pass
@@ -142,43 +78,8 @@ tests are evidence at all**. Two failure modes recur:
      harness would catch a regression in each claimed capability is the
      deliverable's spine.
 
-7. **Env-gated suites: prove the pinning, audit precedent parity.** Features
-   gated behind an env var (default OFF) and hook/plugin features that fire on
-   tool calls or inject into LLM turns have a recurring evidence shape:
-   - **Empirical env-pinning check.** Re-run the new test files with the
-     ambient env var exported to its ON value (`AI_BADGER_MEMORY_GRADE=1
-     pytest tests/test_feature_*.py`). If the OFF-path tests still pass, their
-     `monkeypatch.delenv/setenv` pinning is real — the suite will not inherit a
-     machine-wide enable. This matters because the feature plan often enables
-     the var machine-wide for dogfooding on the author's host, so ambient ON
-     is the realistic condition the suite must survive. One command converts
-     "the tests say they pin the env" into verified fact; report the run in
-     the review.
-   - **Precedent-parity audit.** A feature explicitly built as a mirror of an
-     existing precedent (same lazy sibling-import, stash/pop, hook entry) must
-     have a test for every behavior the precedent's suite pins. Diff the two
-     suites test-by-test; the highest-value gap is the inert-without-sibling
-     path on BOTH callbacks (`_load_x()` → None when the sibling script is
-     absent, e.g. older scaffold). Then check whether the per-turn injection
-     callback calls the loader OUTSIDE try/except: a loader that raises there
-     breaks every LLM turn on every host, and the suite never catches it if
-     every test injects the sibling via sys.modules.
-   - **Transport-specific stash pollution.** Shared logic that stashes pending
-     state for a transport with no pop (a PostToolUse hook returning
-     additionalContext directly while the shared function also writes the
-     other agent's pending file) leaves unpopped asks a later session on the
-     OTHER agent pops. A plan-vs-code deviation even when benign — flag it.
-   - **Exit-0-always contracts.** A hook documented "advisory only, exit 0"
-     must have its disk IO internally guarded (try/except inside the shared
-     module), or an unwritable log dir escapes as traceback + exit 1 on the
-     unguarded transport. Compare the precedent module's IO guards against
-     the new one.
-   - **Adversarial sweep.** env garbage/0/unset → fully off with zero IO;
-     two events before one turn → last-wins; unknown pointer (ts) → exit 1
-     with no mutation; absent optional arg → null (flag "" vs null
-     inconsistencies); non-string tool names never match. Worked ai-badger
-     hook review (29-test suite, all gaps found):
-     `references/ai-badger-hook-feature-review.md`.
+
+> Step 7 (env-gated and hook/plugin suites): read `references/env-gated-suite-audit.md` when auditing env-gated suites, hook features, or precedent-parity claims.
 
 ## Gotchas
 - **Dapper scalar queries: affinity decides, not the alias.** For
@@ -312,7 +213,7 @@ tests are evidence at all**. Two failure modes recur:
   even though the section-absent guard exists. The honest fix guards the bound
   VALUE (`if (string.IsNullOrWhiteSpace(opts.ApiKey)) throw`) and the negative
   test uses a fixture that satisfies every other required section. Probe
- recipe + worked case (PR #748 OpenRouter swap): `references/vacuous-negative-guard-tests.md`.
+ recipe + worked case (PR #748 OpenRouter swap): read `references/vacuous-negative-guard-tests.md` when a negative test passes for the wrong reason.
  - **Skip on spawn failure under an explicit slow flag.** An integration fixture
  that does `pytest.skip("server failed to spawn")` when the spawned child
  process doesn't come up reports "N passed" while the entire child-process
@@ -343,41 +244,41 @@ tests are evidence at all**. Two failure modes recur:
 
 ## References
 
-- `references/ai-badger-hook-feature-review.md` — worked env-gated hook review
+- `references/ai-badger-hook-feature-review.md` — worked env-gated hook review (read when auditing an env-gated hook feature)
   (ai-badger memory-grade hook, PR #304): empirical env-pinning check,
   precedent-parity audit, transport stash pollution, exit-0-always IO guards,
   adversarial sweep, and the repo's hook-feature wiring map (manifest
   tri-agent entries, hooks.json matcher, adjust_hooks deployment,
   version_sync targets).
 
-- `references/vacuous-negative-guard-tests.md` — worked case: the PR #748
+- `references/vacuous-negative-guard-tests.md` — worked case: the PR #748 (read when a negative test passes for the wrong reason)
   OpenRouter swap's "deployed build without OpenRouter:ApiKey fails to
   compose" test, which passed via an unrelated `UserAuth` `GetRequiredSection`
   throw; includes the binder probe program and the entry-point/earlier-thrower
   checks that expose vacuous negative DI tests.
 
-- `references/sqlite-memory-semantics.md` — verified upstream facts for
+- `references/sqlite-memory-semantics.md` — verified upstream facts for (read when verifying wrapper claims about SQLite semantics)
   sqlite-memory/vector/sync used by wrapper reviews, with the functions to
   read.
-- `references/test-harness-qa.md` — full-suite QA playbook (assertion
+- `references/test-harness-qa.md` — full-suite QA playbook (read when QA-reviewing a full test harness; assertion
   taxonomy, fake-fidelity audit, skip honesty, AC trace) plus the worked
   agent-memory harness review: share-promotion tautology, embed-pending
   DBNull, per-connection option clobber, global-delete sweep hazard, dead
   provisioning wiring masked by test setup.
-- `references/hermes-state-db-data-path-review.md` — worked SQL-data-path
+- `references/hermes-state-db-data-path-review.md` — worked SQL-data-path (read when reviewing SQL data-path handling against a live store)
   review against a live store: the assign-vs-accumulate byModel bug and the
   false "parent aggregates include children" claim, with the read-only
   queries that caught both and the per-area verdict shape.
-- `references/dotnet-sdk-exception-probes.md` — how to verify catch-chain
+- `references/dotnet-sdk-exception-probes.md` — how to verify catch-chain (read when verifying SDK exception-hierarchy assumptions)
   assumptions about SDK exception hierarchies: reflection probe of the
   restored package versions, live dead-endpoint probes, restore-from-cache
   pitfalls, and observed AWS/Azure hierarchy + surfacing facts.
-- `references/dotnet-pr-review-lane.md` — worked dotnet-engineer lane (a
+- `references/dotnet-pr-review-lane.md` — worked dotnet-engineer lane (a (read when reviewing a dotnet-engineer lane)
   PR #55): Dapper scalar-mapping affinity analysis, hosted-service loop OCE
   idioms + StopHost, dead config-knob proof, DI duplication across transport
   paths, EventId range checks, and re-baselining a review when the PR branch
   ref is pruned mid-review (PR merged).
-- `references/hermes-memory-provider-review.md` — worked Python memory-provider
+- `references/hermes-memory-provider-review.md` — worked Python memory-provider (read when reviewing a Hermes memory-provider plugin)
   plugin review (PR #61): proving an env-var isolation claim false
   (DATA_ROOT env never read by the CLI — probe rows found in the real
   bank), installed-mcp-SDK tuple/termination verification, plugin.yaml manifest

@@ -9,6 +9,7 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [dotnet, bdd, gherkin, reqnroll, specflow, testing]
+    related_skills: [dotnet-domain-modeling, dotnet-test-migrations]
 ---
 
 # BDD / Gherkin testing in .NET
@@ -129,14 +130,14 @@ newer implementation file, both live in the same suite):
   accepts its own template schema and will refuse other shapes.
 
 ## Files
-- `references/reqnroll-verification-spike-2026-08-02.md` — the full spike recipe (commands, csproj,
+- `references/reqnroll-verification-spike-2026-08-02.md` — the full spike recipe (read when verifying a Reqnroll spike; commands, csproj,
   Directory.Packages.props, feature, step-definition sketch, results, machine) that proved
   Reqnroll 3.3.4 works on a modern .NET stack (net10.0, xunit.v3, CPM).
-- `references/reqnroll-tags-skip-rule-2026-08-03.md` — source-verified mechanics of tag→skip/Category
+- `references/reqnroll-tags-skip-rule-2026-08-03.md` — source-verified mechanics of tag→skip/Category (read when tag→skip mapping is in question)
   mapping, MSBuild generation knobs, package/ecosystem state with dates+licenses, SpecFlow EOL
   evidence, Xunit.Gherkin.Quick rejection, and the sparse-clone grep technique used to verify
   generator internals.
-- `references/unignoring-dormant-scenarios-2026-08-06.md` — the implement/delete/keep decision
+- `references/unignoring-dormant-scenarios-2026-08-06.md` — the implement/delete/keep decision (read when un-ignoring dormant scenarios)
   table for a 13-tag un-ignore pass, plus the code-verified behavior facts (workspace context
   storage, search-bump rating formula, FTS OR-fallback trigger, SweepService candidate rule,
   SyncService workspace stripping) the bindings were built on.

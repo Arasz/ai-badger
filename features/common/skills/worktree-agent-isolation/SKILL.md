@@ -1,6 +1,14 @@
 ---
 name: worktree-agent-isolation
 description: "Use when running multiple agents in parallel, or when the user says 'worktrees only', 'agent isolation', 'parallel workstreams', or 'don't touch main': give each agent its own git worktree branched from origin/main (fetch first), integrate via GitHub PRs, keep the main checkout read-only, and avoid shared obj/ races and file-modification conflicts."
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [worktrees, parallel, agents, isolation]
+    related_skills: [task, git-worktree-isolation]
 ---
 
 # Worktree Agent Isolation
@@ -152,48 +160,8 @@ git push origin task/state-update
 # PR + admin merge + remove worktree
 ```
 
-## Handling merge conflicts (rebase pattern)
 
-When multiple PRs merge sequentially, later ones conflict with earlier merges.
-Rebase the worktree branch on latest main before retrying the merge:
-
-```bash
-# In the worktree
-git fetch origin main
-git rebase origin/main
-
-# For docs conflicts (flows.md, data-model.md, architecture.md):
-# Keep BOTH sides — HEAD has upstream additions, ours has new feature content
-python3 -c "
-import re
-for f in ['docs/flows.md', 'docs/data-model.md', 'docs/architecture.md']:
-    with open(f) as fh: content = fh.read()
-    content = re.sub(r'<<<<<<< HEAD\n(.*?)=======\n(.*?)>>>>>>> .*?\n',
-        lambda m: m.group(1) + m.group(2), content, flags=re.DOTALL)
-    with open(f, 'w') as fh: fh.write(content)
-"
-
-git add -A
-GIT_EDITOR=true git rebase --continue
-git push origin task/<id>-<slug> --force-with-lease
-
-# Retry merge
-gh pr merge <PR_N> --squash --delete-branch --admin
-```
-
-`GIT_EDITOR=true` prevents rebase from opening an editor interactively.
-
-**Add/add conflicts on emitted spec/docs files (the owner committed the same files to main mid-task).** When the task branch carries files that the user/another session ALSO committed to main directly, `git rebase origin/main` stops with `CONFLICT (add/add)` on every shared file. The branch copy is usually the NEWER one (it carries post-emit rulings) — resolve by keeping the branch version at every step:
-
-```bash
-git checkout --ours <file>...   # for the commit that FIRST added the files (ours = branch state during rebase)
-git add <files> && GIT_EDITOR=true git rebase --continue
-# if a LATER branch commit updates those files and now conflicts:
-git checkout --theirs <file>... # theirs = the update commit being applied (branch-derived, correct content)
-git add <files> && GIT_EDITOR=true git rebase --continue
-```
-
-After the rebase, re-run the files' own gates (spec validator / JSON validity / scenario counts) — a mangled merge shows up as content loss, not a git error.
+> Merge conflicts: read `references/merge-conflicts-rebase.md` when a worktree branch hits merge conflicts (rebase pattern).
 
 ## Scaling to N parallel issues
 
@@ -222,41 +190,11 @@ When a subagent's work has test failures after completion:
 2. If the fix is non-trivial, dispatch a dedicated fix-up subagent for that worktree.
 3. Only commit+push+PR after all tests pass in the worktree.
 
-## Autonomous wave-based cycle
 
-When the user says "continue until wave N" or authorizes autonomous progression, run this cycle for each wave:
+> Autonomous wave cycles: read `references/autonomous-wave-cycle.md` when running a fully autonomous wave-based cycle.
 
-```
-For wave W in [W..N]:
-  1. PREPARE: Create worktrees for wave W's tasks (max 3 concurrent)
-  2. DISPATCH: delegate_task with up to 3 tasks per batch
-  3. WAIT: Collect results as subagents complete
-  4. FIX: Re-dispatch failed/unfinished tasks (iteration limit, build errors)
-  5. MERGE: Sequential merge into main, resolve conflicts
-  6. VERIFY: dotnet build + full test suite + frontend lint + test
-  6b. MEASURE: re-run the project's baseline/measurement harness and append fresh results to the standing comparison doc. Measured improvement per integration is the norm; a degradation is a priority — analyze why and revise the plan before the next wave.
-  7. REVIEW: Dispatch frontend + backend review subagents — for runtime/gate claims, hand them the server-start command and a scratch data-root so they probe LIVE. **Verify PRODUCTION WIRING, not just tests: a green suite can coexist with a dead production path** (a pipeline loop with zero callers in `src/` passed 62 scenarios driven manually). Briefs must require: for every background loop/hosted service, grep `src/` for the call that STARTS it, and a test that starts the real composition with NO manual tick/drain calls.
-  8. APPLY: Fix HIGH/MUST-FIX review findings
-  9. CLOSE: gh issue comment + gh issue close for completed issues
-  10. NEXT: Prepare wave W+1 worktrees while reviews run
-```
 
-**Key principles:**
-- Max 3 concurrent subagents (delegate_task limit). If wave has 4+ tasks, dispatch first 3, then the 4th when a slot frees up.
-- Wave worktrees branch from main's current HEAD (which includes all prior wave merges).
-- Dependency merging: if task B depends on task A (different wave), merge A's branch into B's worktree before dispatching B's agent.
-- Never ask the user to continue — if authorized, proceed to next wave automatically.
-- Between waves: reviews run in parallel with next-wave preparation.
-
-## Parallel waves sharing a committed binary artifact (corpus db, vector store)
-
-When two parallel waves both regenerate the same committed binary (SQLite db, vector store) plus a coupled generated map (hash map / index), the plan's "independent" dependency graph is a lie — the binary is a physical shared file. Design around it:
-
-- Make the LATER-MERGED wave content-preserving: a **backfill** that adds columns/embeddings without changing existing row content, instead of re-ingesting from source. Content hashes stay byte-identical, so the coupled generated map never conflicts; a content-rewriting wave forces a map conflict on top of the binary conflict.
-- Backfills must be **idempotent and re-runnable**: the later wave's db is stale the moment the earlier wave merges (content changed underneath), so the orchestrator re-runs the backfill on the merged corpus at integration. Tell the agent this explicitly in the dispatch context ("your db commit will conflict; the orchestrator re-runs your backfill on the merged corpus — make it safe to re-run").
-- **Merge order**: content-changing wave first, backfill wave second (rebased on merged main), then re-run the backfill before the final gate. Do not let the backfill wave merge before the content wave.
-- Commit the binary + its generated map in ONE commit — tests match against the map; a half-updated pair breaks expected-source matching and looks like a random test failure.
-- Capture the measurement reference (baseline run) on the pre-wave HEAD BEFORE dispatch — post-merge comparisons need fresh numbers from the same commands; a reference captured mid-wave is contaminated.
+> Shared binary artifacts: read `references/parallel-waves-shared-artifact.md` when parallel waves share a committed binary artifact (corpus db, vector store).
 
 ## Reading subagent background-process notifications (orchestrator)
 
@@ -267,189 +205,11 @@ Servers/processes a subagent starts in background (watch patterns like "Applicat
 - Repeated server restarts in a transcript are progress, not loops: each restart often means one ingest/regeneration iteration with a fix baked in.
 - A re-run of a failed background command produces a DELAYED notification carrying the OLD failure output. If you already re-ran and verified green, the stale notification is noise — ignore it.
 
-## Comparative Agent Experiments
 
-When you need to compare two approaches (e.g., "with tool X vs without"), use
-worktrees to run identical tasks in parallel with different tool configurations.
+> A/B agent experiments: read `references/comparative-agent-experiments.md` when comparing agents or tools in parallel workstreams.
 
-### Setup
-1. Create two worktrees from the same base branch.
-2. Pre-build any tool-specific state (e.g., a graph index build) in the
-   worktree that needs it.
-3. Create a shared `experiments/` directory in the main checkout with per-agent
-   subdirectories for logs.
 
-### Tool-Usage Logging
-Each agent appends tool names to its own log file:
-```bash
-echo 'TOOL_NAME' >> /path/to/experiments/agent-name/tool-usage.log
-```
-Instruct agents to log at START (`AGENT_START`), after each tool call, and at
-FINISH (`AGENT_FINISH`). This produces a comparable timeline of tool usage.
-
-### Dispatching
-Pass identical goals to both agents with one key difference in context:
-- Agent A: "You MUST use [tool] MCP tools BEFORE reading files"
-- Agent B: "Do NOT use [tool]. Use terminal, read_file, write_file only."
-
-Both agents must log tool usage and record start/finish markers.
-
-### Comparing Results
-After both complete:
-1. `wc -l` on tool-usage logs — total tool calls per agent.
-2. `grep -c` for specific tool categories (graph tools vs file reads).
-3. `git diff --stat` in each worktree — scope of changes.
-4. Run test suites in both worktrees — quality gate.
-5. Compare the agent transcript summaries — reasoning quality.
-
-### Gotchas (experiments)
-- **Pre-build tool state before dispatching** — if a tool needs setup (like
-  a graph index build), do it in the worktree before the agent starts,
-  otherwise the agent wastes tokens on setup or fails. See
-  `references/code-review-graph-setup.md` for macOS-specific install notes.
-- **Log file timestamps differ from agent timestamps** — the log records wall
-  clock time, but agent transcript timestamps are more reliable for comparing
-  pacing. Use the log for tool-count comparison, transcripts for timing.
-- **Rider MCP tools don't work in worktrees** — the Rider plugin binds to the
-  main checkout. Instruct worktree agents to use terminal/file tools only.
-
-## Agents sharing ONE worktree (parallel WIP build collisions)
-
-The isolation model is one worktree per agent, but parallel packages can still
-land in the SAME worktree (e.g. a wave runs two agents on one checkout). When a
-parallel agent's UNCOMMITTED WIP breaks the shared test-project compile, do
-NOT touch their files. Verify YOUR slice with a zero-file-change MSBuild override:
-
-```bash
-dotnet test tests/X.Tests/X.Tests.csproj --filter "FullyQualifiedName~YourSlice" \
-  -p:DefaultItemExcludes="**/TheirInFlightFolder/**"
-```
-
-Mechanics (verified on .NET SDK 10):
-
-- Overriding `DefaultItemExcludes` with ONLY your folder pattern is safe — bin/obj are
-  excluded by `DefaultExcludesInProjectFolder`, not by the value you replace.
-- `-p:` values split on `;` — use a SINGLE pattern with no semicolons (a `%3B`-escaped
-  list misbehaved). Confirm the exclude took effect with
-  `dotnet msbuild <proj> -getItem:Compile "-p:DefaultItemExcludes=**/TheirFolder/**" | grep '"Identity": "TheirFolder'`.
-- CS2002 "source file specified multiple times" warnings are artifacts of the override, NOT your code.
-- Report the collision in your summary: the canonical gate re-runs clean once the
-  other agent lands their fix; don't claim full-suite green.
-
-**The sibling's broken file shares YOUR namespace folder → DefaultItemExcludes cannot
-separate you.** The exclude override is folder-granular;
-when the parallel agent's in-flight RED test file sits in the SAME folder your tests live in,
-excluding their file excludes yours too. Fall back to the
-throwaway scratch test project:
-`mktemp -d "${TMPDIR:-/tmp}/hermes-verify-<slice>.XXXXXX"`, minimal csproj with explicit
-package versions, ProjectReference to the real production project, `<Compile Include>` your
-exact test files + the shared test helpers by absolute path, `dotnet test`, `rm -rf`. Then
-poll `git log` — once the sibling's GREEN lands, the shared assembly builds again and the
-canonical `dotnet test --filter` run SUPERSEDES the scratch run; re-run the real gate rather
-than reporting scratch evidence as final.
-
-**Sibling RED already COMMITTED → `dotnet test --no-build` runs the last-built bin.** When the parallel agent's RED lands as a commit (not just WIP),
-the test project won't compile until their GREEN — but the bin/ from BEFORE their commit is
-still intact, so `dotnet test --no-build --filter 'YourSlice'` executes it without triggering
-a build. Two caveats: (a) the bin must predate their breakage (your own changes since then
-need a pre-check via the isolated compile, or you stash/rebuild only after their GREEN);
-(b) `--no-build` does NOT touch obj/bin, so it cannot race the sibling's build. Use it to get
-real execution evidence for your slice mid-blockage; the canonical filtered run after their
-GREEN still supersedes it. Scratch-project refinement: prefer
-`<Reference><HintPath>` to the already-built production DLLs (wildcard HintPaths do NOT
-expand — list each DLL) over ProjectReference, so the scratch build never writes the shared
-obj/bin of src projects; and a repo whose SQLite provider is activated by an app-level
-`[ModuleInitializer]` needs that initializer replicated in the scratch host (plus the repo's
-exact native-package pins) or bank-opening tests die on the wrong native provider.
-
-**Contract types owned by a parallel agent: ship a shape-identical stand-in, reconcile when
-they land.** When your section needs a shared type (record/DTO)
-the plan assigns to a parallel section that hasn't landed yet, do NOT block and do NOT create
-it in their directory. Define a stand-in with the identical shape in your own namespace, build
-and test against it, and flag the duplication in your report. The moment the owner's commit
-lands (poll `git log` / `ls` their dir), reconcile in one small refactor commit: delete your
-copy, `using` theirs, re-run the gate. Two same-named types in different namespaces compile
-fine until one file imports both namespaces — then CS0104 ambiguity — so reconcile promptly,
-before the next wave's files import both.
-
-Corollary worktree gotcha: a fresh worktree of a repo whose `NuGet.config` lists
-a local source (e.g. `./.nupkg-local/`) restores with NU1301 until you
-`mkdir -p .nupkg-local` — the main checkout has that directory, worktrees do not.
-
-### Git discipline when sharing ONE worktree
-
-The `git add -A` in the integration flow above is ONLY safe for single-agent
-worktrees. With a concurrent agent in the SAME worktree:
-
-- **Never `git add -A`** — it stages the other agent's in-flight files. Stage
-  only your own paths explicitly (`git add src/X.cs tests/Y.cs`).
-- **`git status --short` immediately before EVERY commit** — confirm only your
-  files are staged; the other agent may have landed files since your last check.
-- **Run only targeted builds/tests** (`dotnet build src/App/App.csproj`,
-  `dotnet test --filter 'YourSlice'`) — the full-suite gate runs at the wave
-  join, and a full build can collide with the other agent's in-flight obj/bin
-  writes.
-- **TDD red commits are safe here** — a test-only commit that breaks the TEST
-  project compile does not disturb a concurrent agent who builds only the app
-  project (the test project is never a dependency of the app). This preserves
-  red-first discipline in a shared worktree; confirm the other agent's build
-  target first.
-
-### Orchestrator committing from a SHARED main checkout
-
-`git commit` (no pathspec) commits the WHOLE INDEX, not just your `git add`ed
-file — another session's staged changes (including DELETIONS) silently ride inside
-your commit. Checks before committing from a shared checkout:
-
-- `git branch --show-current` — if you are NOT on the branch you think, the
-  checkout was switched under you; stop and relocate to a worktree.
-- `git status --short` — the staged column (first char) must contain ONLY your
-  files; unstage foreign paths (`git restore --staged <path>`) or move to a worktree.
-- Verify the branch base is intact: `git ls-tree HEAD -- <dir>` for directories
-  your commit should NOT have touched — a swept-in deletion shows as a missing tree entry.
-
-If the branch is already contaminated (foreign changes in the commit): rebuild
-it cleanly rather than trying to surgically remove hunks —
-`git checkout -B <branch> origin/main` (drops the contaminated commit), then
-re-apply your changes in TDD order (RED commit first, then GREEN). Worktrees
-isolate this class entirely — prefer them over committing from a shared
-checkout whenever another session may be active.
-
-### Verification evidence for your slice
-
-When the platform demands script-based verification evidence (automated
-verification tracker: "no canonical test/lint/build command detected"), wrap the
-repo's canonical gates in a throwaway script instead of asserting green from
-memory:
-
-```bash
-SCRIPT=$(mktemp -t hermes-verify-)   # OS-safe temp path, hermes-verify- prefix
-cat > "$SCRIPT" <<'EOF'
-#!/bin/bash
-set -u
-cd <worktree> || exit 1
-BUILD=$(dotnet build src/App/App.csproj --nologo 2>&1)
-echo "$BUILD" | grep -q "0 Warning(s)" || { echo "FAIL build"; exit 1; }
-echo "$BUILD" | grep -q "0 Error(s)"   || { echo "FAIL build"; exit 1; }
-TEST=$(dotnet test tests/App.Tests/App.Tests.csproj --filter 'YourSlice' --nologo 2>&1)
-echo "$TEST" | grep -q "Passed!"       || { echo "FAIL test"; exit 1; }
-echo "$TEST" | grep -q "Failed:     0" || { echo "FAIL test"; exit 1; }
-echo "VERIFY OK"
-EOF
-chmod +x "$SCRIPT" && "$SCRIPT"; RC=$?; rm -f "$SCRIPT"
-```
-
-Assert on the canonical output markers (`0 Warning(s)`, `Passed!`) rather than
-inventing your own. Report the run as targeted/ad-hoc verification — a targeted
-filter run is NOT full-suite green, and the shared-worktree caveat above still
-applies.
-
-**Verification-script pitfalls (measured 2026-08-04):** `mktemp -t hermes-verify-`
-can fail on macOS with "File exists" — use an explicit path + unique suffix and check `$?`
-after mktemp; the tracker's recording hook keys on the command SHAPE and can record a false
-`passed` from the script TEXT when mktemp failed — confirm real execution (exit 0 AND PASS
-lines in the output) before trusting a recorded event; the tracker re-fires per edit turn on
-changed paths — one clean recorded canonical run satisfies it.
+> Shared-worktree collisions: read `references/shared-worktree-collisions.md` when agents must share ONE worktree (WIP build collisions, git discipline, shared-main commits).
 
 ## Gotchas
 - **`git worktree add <path> origin/<branch>` without `-b` = DETACHED HEAD — commits silently vanish.** When a task worktree was already removed and you re-add one just to fix a pushed PR branch, plain `git worktree add /tmp/x origin/task/foo` checks out the remote branch DETACHED: your commit lands on the detached HEAD, `git push` answers "Everything up-to-date" (the branch ref never moved), and `git worktree remove` discards the work with no error. The local branch often STILL EXISTS after a tracker finish — reuse it directly (`git worktree add /tmp/x task/foo`). Otherwise create one explicitly: `git worktree add /tmp/x -b <local> origin/<remote-branch>`, then push with `git push origin <local>:<remote-branch>`. After any post-hoc worktree commit, verify it landed: `git log --oneline origin/<branch>` must show your commit before you report it.
@@ -495,6 +255,6 @@ changed paths — one clean recorded canonical run satisfies it.
 
 ## References
 
-- `references/ab-agent-experiment.md` — A/B agent experiment pattern (tool comparison in parallel worktrees).
-- `references/code-review-graph-setup.md` — macOS install notes for the graph tool used in experiments.
-- `references/csharp-string-interpolation-gotchas.md` — C# string interpolation traps (regex word boundaries, escaping).
+- `references/ab-agent-experiment.md` — A/B agent experiment pattern (tool comparison in parallel worktrees); read when running A/B agent experiments.
+- `references/code-review-graph-setup.md` — macOS install notes for the graph tool used in experiments; read when installing code-review-graph on macOS.
+- `references/csharp-string-interpolation-gotchas.md` — C# string interpolation traps (regex word boundaries, escaping); read when writing C# string interpolation.

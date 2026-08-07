@@ -7,6 +7,9 @@ metadata:
   hermes:
     tags: [hermes, plugins, hooks, abi, debugging]
     related_skills: [hermes-agent]
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
 ---
 
 # Hermes plugin development
@@ -96,7 +99,7 @@ function-calling format; `handle_tool_call` returns a JSON string. The provider 
 IN-PROCESS — no MCP/IPC anywhere in the call path, so a server-backed memory (e.g. an
 MCP memory server) plugs in as a thin Python shim. Full ABC surface, per-turn call
 points, threading contract, config/CLI surfaces, and a live loader probe:
-`references/memory-provider-interface.md`.
+Read `references/memory-provider-interface.md` when implementing a MemoryProvider.
 
 ### Runtime call points (MemoryManager)
 
@@ -220,5 +223,5 @@ from a manifest that declares the hook. Check in order:
 
 ## References
 
-- `references/memory-provider-interface.md` — full MemoryProvider ABC surface, per-turn call points, threading contract, config/CLI surfaces.
-- `references/provider-implementation.md` — worked provider implementation (MemoryProvider shim over a server transport).
+- `references/memory-provider-interface.md` — full MemoryProvider ABC surface, per-turn call points, threading contract, config/CLI surfaces; read when implementing a MemoryProvider.
+- `references/provider-implementation.md` — worked provider implementation (MemoryProvider shim over a server transport); read when writing a provider implementation.

@@ -3,6 +3,13 @@ name: dotnet-logger-message-design
 description: "Use when designing or testing [LoggerMessage] log lines in .NET: nested static partial Log classes, explicit EventIds with per-category ranges, no call-site interpolation, collection parameters (pre-join at the call site), per-item detail logs vs counts, and FakeLogger-based log assertions (generic vs non-generic compile contract, LatestRecord/AllRecords, RED-first EventId tests)."
 description: Use when designing [LoggerMessage] log lines or log tests.
 version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [dotnet, logging, loggermessage, testing]
+    related_skills: [dotnet-hosted-service-testing, dotnet-domain-modeling]
 ---
 
 # dotnet-logger-message-design
@@ -35,4 +42,9 @@ Design and test `[LoggerMessage]` logging that stays inside the high-performance
 
 ## Worked example
 
-`references/extraction-candidate-detail-logging.md` — a propose-mode ranked-candidate logging plan: propose-mode ranked-candidate logging (EventId 507 design, RED test names, docs-sync findings, dependencies/risks).
+`references/extraction-candidate-detail-logging.md` — a propose-mode ranked-candidate logging plan: propose-mode ranked-candidate logging (EventId 507 design, RED test names, docs-sync findings, dependencies/risks); read when designing detail-logging EventIds.
+
+## Gotchas
+
+- No call-site interpolation: pass the message template and arguments separately — string concat defeats [LoggerMessage].
+- Join collections at the call site — the generator does not render collection parameters.

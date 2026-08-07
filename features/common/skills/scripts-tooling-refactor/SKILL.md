@@ -1,6 +1,14 @@
 ---
 name: scripts-tooling-refactor
 description: "Use when refactoring a repo's scripts/ directory: convert non-python scripts to the repo's tooling language, move logic to src/ with tests in tests/ (TDD first), prune dead scripts on usage evidence (git ls-files inventory, LIVE/HISTORICAL classification, three-way sync contracts), and preserve call sites with thin wrappers."
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [refactoring, scripts, tooling, testing]
+    related_skills: [refactor-safely, spec-driven-refactoring]
 ---
 
 # Scripts-tooling refactor
@@ -110,7 +118,7 @@ Also pinned: topic keywords are substring matches ("consistently" contains
 regex eats fences by accident). P6's byte-identity proof used a NO-TOUCH
 smoke (module-global OUT redirected to tmp, diff legacy-vs-new) because
 regeneration of the tracked corpus was forbidden — recipe in
-`references/behavior-pinning-derivation.md`.
+`references/behavior-pinning-derivation.md` — read when deriving behavior pins.
 
 Importing the legacy module for derivation needs `sys.modules[spec.name] = m`
 BEFORE `spec.loader.exec_module(m)` — otherwise dataclasses with `from
@@ -118,7 +126,7 @@ __future__ import annotations` crash with `AttributeError: 'NoneType' object
 has no attribute '__dict__'`.
 
 Full recipe, importlib fix, split-adjustment checklist, and the golden-artifact
-smoke compare: `references/behavior-pinning-derivation.md`.
+smoke compare: `references/behavior-pinning-derivation.md` — read when running a smoke compare.
 
 ## Step 4c — Shell→Python ports: byte-identical output discipline
 
@@ -150,7 +158,7 @@ For converted scripts whose gates are "same messages, same exit codes"
   tempfile default dir ≠ `${TMPDIR:-/tmp}`).
 
 Worked example with message/exit table and smoke recipe:
-`references/shell-to-python-port-checklist.md`.
+`references/shell-to-python-port-checklist.md` — read when porting shell scripts to python.
 
 ## Step 5 — Reference-update checklist (after conversions)
 
@@ -179,8 +187,8 @@ bytes). Extract the old script via `git show HEAD:<path>` even after the
 rewrite landed. For .sh → .py that shells out (`dotnet`), put a shim named
 EXACTLY like the real binary on PATH to verify cwd/env/args/exit propagation
 without running the real tool. Full recipe + pitfalls:
-`references/cli-parity-harness.md`. Pairs with the derivation recipe
-(`references/behavior-pinning-derivation.md`): derivation pins expected test
+`references/cli-parity-harness.md` — read when building a CLI parity harness. Pairs with the derivation recipe
+(`references/behavior-pinning-derivation.md` — read when deriving pins): derivation pins expected test
 values from current code; the harness proves the converted script still
 behaves like the original.
 
@@ -226,8 +234,8 @@ behaves like the original.
 
 ## References
 
-- `references/pytest-config-and-sync-contract.md` — pytest config for a converted scripts suite + the sync contract between script and test.
-- `references/port-verification-checklist.md` — verifying a ported script matches the original's behavior.
-- `references/behavior-pinning-derivation.md` — deriving behavior pins from the original implementation.
-- `references/cli-parity-harness.md` — CLI parity harness for converted scripts.
-- `references/shell-to-python-port-checklist.md` — the shell→python port checklist.
+- `references/pytest-config-and-sync-contract.md` — pytest config for a converted scripts suite + the sync contract between script and test; read when configuring the converted suite.
+- `references/port-verification-checklist.md` — verifying a ported script matches the original's behavior; read when verifying a port.
+- `references/behavior-pinning-derivation.md` — deriving behavior pins from the original implementation; read when deriving behavior pins.
+- `references/cli-parity-harness.md` — CLI parity harness for converted scripts; read when building a CLI parity harness.
+- `references/shell-to-python-port-checklist.md` — the shell→python port checklist; read when porting shell scripts to python.
