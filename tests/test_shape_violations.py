@@ -1,11 +1,13 @@
 """The shipped plugin copy is checked against something other than the renderer (G5).
 
 Two oracles, neither of which the renderer can move: `shape_violations` compares the
-shipped tree's relative-path set at every depth against a fresh render, and
-`extra_file_violations` reads `PLUGIN_EXTRA_FILES` directly. Content equality stays
-`check_skill`'s job.
+shipped tree's relative-path set at every depth against a fresh render, ignoring what
+git ignores, and `extra_file_violations` reads `PLUGIN_EXTRA_FILES` directly. Content
+equality stays `check_skill`'s job.
 """
 from __future__ import annotations
+
+import subprocess
 
 import pytest
 
@@ -199,8 +201,59 @@ class TestDeclaredExtraFiles:
         assert "session_source.py" in capsys.readouterr().out
 
 
+class TestGitIgnoredEntriesAreNotShippedContent:
+    """A `tests/` directory committed into `skills/` shipped; a `__pycache__/` the test
+    run left behind did not. `.gitignore` already draws that line."""
+
+    @staticmethod
+    def _tree(mod, tmp_path):
+        subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+        (tmp_path / ".gitignore").write_text("__pycache__/\n*.pyc\n", encoding="utf-8")
+        src, _, dest = _plugin_tree(tmp_path, "shape-test")
+        _render(mod, src, dest, "shape-test")
+        (dest / "scripts" / "tests").mkdir(parents=True)
+        (dest / "scripts" / "tests" / "payload.py").write_text("x = 1\n", encoding="utf-8")
+        cache = dest / "scripts" / "__pycache__"
+        cache.mkdir()
+        (cache / "helper.cpython-310.pyc").write_bytes(b"\x00")
+        return src, dest
+
+    def test_a_committed_tests_directory_is_still_reported(self, tmp_path, load_script):
+        mod = load_script("tooling/sync_plugin_skills.py")
+        src, dest = self._tree(mod, tmp_path)
+
+        assert "unexpected scripts/tests/payload.py" in mod.shape_violations(
+            src, dest, "shape-test")
+
+    def test_a_git_ignored_pycache_is_not_reported(self, tmp_path, load_script):
+        mod = load_script("tooling/sync_plugin_skills.py")
+        src, dest = self._tree(mod, tmp_path)
+
+        violations = mod.shape_violations(src, dest, "shape-test")
+
+        assert violations == ["unexpected scripts", "unexpected scripts/tests",
+                              "unexpected scripts/tests/payload.py"]
+
+    def test_git_failing_inside_a_work_tree_is_surfaced_not_read_as_not_ignored(
+            self, tmp_path, load_script, monkeypatch
+    ):
+        mod = load_script("tooling/sync_plugin_skills.py")
+        src, dest = self._tree(mod, tmp_path)
+        real_run = mod.subprocess.run
+
+        def fake_run(cmd, **kwargs):
+            if "check-ignore" in cmd:
+                return subprocess.CompletedProcess(cmd, 128, "", "fatal: broken index")
+            return real_run(cmd, **kwargs)
+
+        monkeypatch.setattr(mod.subprocess, "run", fake_run)
+
+        with pytest.raises(RuntimeError, match="check-ignore"):
+            mod.shape_violations(src, dest, "shape-test")
+
+
 class TestCheckAllWiring:
-    def test_check_all_flags_junk_the_content_hash_cannot_see(
+    def test_check_all_flags_a_nested_entry_the_content_hash_cannot_see(
             self, tmp_path, load_script, monkeypatch
     ):
         """The fixture leaves `check_skill` green, so only the shape loop can fail it."""
@@ -211,9 +264,8 @@ class TestCheckAllWiring:
         monkeypatch.setattr(mod, "TARGET", plugin)
         assert mod.check_all() == 0  # control: a freshly rendered copy is in sync
 
-        cache = dest / "references" / "__pycache__"
-        cache.mkdir()
-        (cache / "details.cpython-311.pyc").write_bytes(b"\x00")
+        (dest / "references" / "tests").mkdir()
+        (dest / "references" / "tests" / "helper.py").write_text("x = 1\n", encoding="utf-8")
 
         assert mod.check_skill(src, dest, "shape-test") is None
         assert mod.check_all() == 1

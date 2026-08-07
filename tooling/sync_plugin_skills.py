@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import List
+from typing import List, Set
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
 import badger_lib as bl
@@ -190,6 +191,31 @@ def sync_skill(src: Path, dest: Path, dry_run: bool, name: str = "") -> int:
     return 1
 
 
+def _outside_work_tree(root: Path) -> bool:
+    """True when *root* is not inside a git work tree, so no .gitignore governs it."""
+    proc = subprocess.run(["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
+                          capture_output=True, text=True, check=False)
+    return proc.returncode != 0 or proc.stdout.strip() != "true"
+
+
+def _not_ignored_by_git(root: Path, relpaths: Set[str]) -> Set[str]:
+    """*relpaths* minus the ones git ignores; all of them outside a work tree.
+
+    `check-ignore` exits 0 when something on the list is ignored, 1 when nothing is, and
+    128 on failure — a returncode read as "not ignored" would silently pass every path.
+    """
+    if not relpaths:
+        return set()
+    proc = subprocess.run(["git", "-C", str(root), "check-ignore", "-z", "--stdin"],
+                          input="\0".join(sorted(relpaths)),
+                          capture_output=True, text=True, check=False)
+    if proc.returncode == 0:
+        return relpaths - {p for p in proc.stdout.split("\0") if p}
+    if proc.returncode == 1 or _outside_work_tree(root):
+        return set(relpaths)
+    raise RuntimeError(f"git check-ignore failed under {root}: {proc.stderr.strip()}")
+
+
 def shape_violations(src: Path, dest: Path, name: str = "") -> List[str]:
     """Report relative-path differences at every depth between a shipped copy and a render.
 
@@ -197,8 +223,9 @@ def shape_violations(src: Path, dest: Path, name: str = "") -> List[str]:
     `SKILL.full.md` for a bootstrap skill or a frontmatter-less source) is not a
     violation. Content equality stays `check_skill`'s job; this is names only, and it
     recurses because `SKILL_EXCLUDE_PATTERNS` makes nested `tests/`, `__pycache__/` and
-    `.DS_Store` invisible to that hash. A missing destination directory is
-    `check_skill`'s "missing" report, not ours.
+    `.DS_Store` invisible to that hash. An unexpected entry git ignores is a runtime
+    artifact rather than shipped content, so `.gitignore` — not a second list beside it
+    — decides. A missing destination directory is `check_skill`'s "missing" report.
     """
     if not dest.is_dir():
         return []
@@ -208,7 +235,7 @@ def shape_violations(src: Path, dest: Path, name: str = "") -> List[str]:
         rendered = {p.relative_to(expected).as_posix() for p in expected.rglob("*")}
         actual = {p.relative_to(dest).as_posix() for p in dest.rglob("*")}
     return sorted(f"missing {n}" for n in rendered - actual) + sorted(
-        f"unexpected {n}" for n in actual - rendered
+        f"unexpected {n}" for n in _not_ignored_by_git(dest, actual - rendered)
     )
 
 
