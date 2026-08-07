@@ -259,3 +259,30 @@ def test_the_printed_remediation_produces_a_tree_the_gate_then_passes(mutable_re
 
     again = _run_gate(mutable_repo)
     assert again.returncode == 0, command + "\n" + again.stdout + again.stderr
+
+
+def test_the_rescaffold_points_hermes_home_away_from_the_operators(tmp_path, load_script,
+                                                                   monkeypatch):
+    """The belt to `--no-install`'s braces, asserted on the mechanism because no outcome can.
+
+    `test_the_gate_never_writes_into_the_operators_hermes_home` watches a seeded `~/.hermes`
+    and passes with this line deleted: `--no-install` already skips every Hermes write, so the
+    outcome is identical either way and only `--no-install` is really under test. `$HERMES_HOME`
+    outranks `$HOME` wherever the user scope is resolved, so a future scaffolder that installs
+    despite the flag would land here — but only if this env entry survives.
+    """
+    guard = load_script("gates/scaffold_freshness_guard.py")
+    work = tmp_path / "copy" / "repo"
+    seen = {}
+
+    def _record(argv, **kwargs):  # pylint: disable=unused-argument
+        seen.update(kwargs["env"])
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(guard.subprocess, "run", _record)
+    guard.rescaffold(work)
+
+    hermes_home = Path(seen[guard.HERMES_HOME_ENV])
+    assert hermes_home == work.parent / "hermes-home"
+    assert Path.home() not in hermes_home.parents, \
+        "the re-scaffold would resolve the operator's own Hermes user scope"
