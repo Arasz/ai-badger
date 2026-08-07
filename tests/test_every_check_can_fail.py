@@ -650,6 +650,32 @@ def _always_skipped(work: Path, provoked: bool) -> Outcome:
     ])
 
 
+# --------------------------------------------------------------------------- workflow_lint
+
+_WORKFLOW = """name: ci
+{permissions}jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@{ref}
+"""
+_SCOPED = "permissions:\n  contents: read\n"
+
+
+def _workflow(workspace: Path, ref: str, permissions: str) -> Outcome:
+    _write(workspace / ".github" / "workflows" / "ci.yml",
+           _WORKFLOW.format(ref=ref, permissions=permissions))
+    return _run_gate("gates/workflow_lint.py", "--root", str(workspace))
+
+
+def _workflow_lint_unpinned(workspace: Path, provoked: bool) -> Outcome:
+    return _workflow(workspace, "v4" if provoked else "0" * 40, _SCOPED)
+
+
+def _workflow_lint_default_token_scope(workspace: Path, provoked: bool) -> Outcome:
+    return _workflow(workspace, "0" * 40, "" if provoked else _SCOPED)
+
+
 def _behaviorist(kind: str) -> str:
     return f"{BEHAVIORIST}::{kind}"
 
@@ -710,6 +736,12 @@ REGISTRY: Tuple[Provocation, ...] = (
     Provocation("gates/skills_lint.py", "a SKILL.md that breaks the name grammar",
                 _skills_lint_violation,
                 Signal(exit_code=1, contains="SKILLS LINT FAILED")),
+    Provocation("gates/workflow_lint.py", "an action pinned to a tag instead of a commit",
+                _workflow_lint_unpinned,
+                Signal(exit_code=1, contains="not pinned to a 40-character commit SHA")),
+    Provocation("gates/workflow_lint.py", "a job running on the default token scope",
+                _workflow_lint_default_token_scope,
+                Signal(exit_code=1, contains="default token scope")),
     Provocation(_behaviorist("not_instrumented"), "a wired hook that calls no logger",
                 _not_instrumented, _finding("not_instrumented", "low")),
     Provocation(_behaviorist("never_observed"), "an instrumented hook that never logged",

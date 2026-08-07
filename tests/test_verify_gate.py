@@ -142,8 +142,8 @@ def test_the_history_mined_docs_commit_agrees_with_the_synthetic_one():
 
 
 @pytest.mark.parametrize("lane", ["version-sync", "index", "plugin-skills", "deps", "docs",
-                                  "release", "paths", "scaffold", "validate", "tdd", "js",
-                                  "pylint", "pytest"])
+                                  "release", "paths", "workflows", "scaffold", "validate", "tdd",
+                                  "js", "pylint", "pytest"])
 def test_every_advertised_lane_is_dispatchable(lane):
     """A lane named in usage but missing from the dispatch table would skip silently."""
     done = _run(lane, env={"VERIFY_SKIP": lane})
