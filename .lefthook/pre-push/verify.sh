@@ -474,7 +474,11 @@ main() {
         # The selector over a path list on stdin, skipping git entirely — so the routing can be
         # asserted against paths that need not exist in any commit.
         lanes-for)
-            sort -u | _lanes_for | sed 's/ *$//'; return $? ;;
+            # The whole selector, not half of it: `--risk` narrows here exactly as it does in
+            # _select_lanes, so a test can pin the changed paths and still measure the flag.
+            lanes="$(sort -u | _lanes_for | sed 's/ *$//')"
+            [ -n "$(_risk_task)" ] && lanes="$(_without_risk_lanes "$lanes")"
+            printf '%s\n' "$lanes"; return 0 ;;
         pre-push)
             if [ -n "${SKIP_VERIFY:-}" ]; then
                 printf 'verify: skipped (SKIP_VERIFY=%s)\n' "$SKIP_VERIFY"
