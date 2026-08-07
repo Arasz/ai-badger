@@ -31,6 +31,8 @@ The library every bootstrap shim imports, and the anchor of the framework-root p
 | `changelog_index.py` | Regenerate the release table in `docs/changelog/README.md` from the entry files (issue #160). | `python3 tooling/changelog_index.py` — `--check` fails when the table is stale. |
 | `sync_plugin_skills.py` | Refresh the published `skills/` copy from `features/`. | `python3 tooling/sync_plugin_skills.py` — `--check` fails on divergence. |
 | `install_plugins.py` | Resolve per-agent skill install commands from `plugins-instructions.json`. Print-only; `scaffold.py --execute` runs them. | `python3 tooling/install_plugins.py --config <config.json>` |
+| `retrieval_eval.py` | Score the MCP BM25 matcher against a fixture file: recall@1/@3, false-fire rate, coverage margin (ADR-0012). Wired into no gate — run by hand. | `python3 tooling/retrieval_eval.py` — `--fixtures`, `--index`, `--threshold`, `--json-out` for a machine-diffable report. |
+| `fixture_harvest.py` | Propose eval fixtures from the queries the retrieval hooks actually recorded, so the corpus is not only author-written. Never writes an `expect` field — a human adds that, and that review is the privacy gate. | `python3 tooling/fixture_harvest.py` — queries are hashed unless `--include-queries`. |
 | `drift.py` (in `welcome-ai-badger`) | Compare a scaffold against the framework's current content. | See den-refresh. |
 
 ## Repo gates (`gates/`)

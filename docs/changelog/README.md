@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.90.0 | [the docs answer to the catalog, not to their own prose](0.90.0-the-docs-answer-to-the-catalog.md) |
 | 0.89.0 | [the read-only freshness gate stops writing into `$HOME`](0.89.0-gate-stops-writing-to-home.md) |
 | 0.88.6 | [the tracking store, the memory bank and the cwd all follow the checkout](0.88.6-tracking-and-isolation-floor.md) |
 | 0.88.5 | [the dotnet catalog stops shipping one private project](0.88.5-purge-dotnet-harvest-leakage.md) |
