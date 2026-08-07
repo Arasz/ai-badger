@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.88.6",
-  "frameworkCommit": "17b723d3ccbbd29386fd01dfa99cf39fad321c60",
+  "frameworkCommit": "c8265b1037394a39e9401ee1ce8b477145c9f925",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -146,7 +146,7 @@
       "source": "features/common/invariants/ask-if-simpler.md",
       "target": ".ai-badger/invariants/ask-if-simpler.md",
       "frameworkVersion": "0.88.6",
-      "hash": "972c7b321e4f2f76e2d91a538a33269a74ccf16f4fbe7f38369ccf225f027a08"
+      "hash": "e02d242f6ce7993be31ced05957f6b9416b4c60d59cd6bf6caaf85749c243741"
     },
     {
       "feature": "invariants",
@@ -155,7 +155,7 @@
       "source": "features/common/invariants/check-sources-not-yourself.md",
       "target": ".ai-badger/invariants/check-sources-not-yourself.md",
       "frameworkVersion": "0.88.6",
-      "hash": "f732a03395eff95d8405275773ce1257d6993797109ecae6d568fb71ae9e90a9"
+      "hash": "7df3c33c8644ee5be6009f3388fadbda9b85ded7ea23f3515f5c4d5107619d6b"
     },
     {
       "feature": "invariants",
@@ -173,7 +173,7 @@
       "source": "features/common/invariants/measure-when-it-pays.md",
       "target": ".ai-badger/invariants/measure-when-it-pays.md",
       "frameworkVersion": "0.88.6",
-      "hash": "3eecc16e835b8cf5dc7277c02261c391fbf6cf503bf4abfae0ebc59b35ae8851"
+      "hash": "22d126a295210ee210c203aeb2360e2caceb9322e7f55871e409f33b6dfadd2e"
     },
     {
       "feature": "invariants",
@@ -209,7 +209,7 @@
       "source": "features/common/invariants/plain-names.md",
       "target": ".ai-badger/invariants/plain-names.md",
       "frameworkVersion": "0.88.6",
-      "hash": "d62b3cfd5326cae979976a3b3b454f8cd79a05660e3b42a883eef430f433ab25"
+      "hash": "fb5481c20855554b3817dd4f27038d4a44b2e50bf1e1beb6b4aecdedc426ee20"
     },
     {
       "feature": "invariants",
@@ -227,7 +227,7 @@
       "source": "features/common/invariants/proof-of-done.md",
       "target": ".ai-badger/invariants/proof-of-done.md",
       "frameworkVersion": "0.88.6",
-      "hash": "d9ba744f8adb099029f5c73017d0e4918215b55f7763815bd88b1ef3f326668b"
+      "hash": "7e9b933d21a8d1f05e2cd3b5c8912aa67944cd2abcafb254cc11d95af0ac657c"
     },
     {
       "feature": "invariants",
