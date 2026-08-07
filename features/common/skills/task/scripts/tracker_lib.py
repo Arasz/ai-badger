@@ -44,6 +44,23 @@ SESSION_SOURCES: dict = {}
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 
+# badger_lib.GIT_LOCATION_ENV, repeated because this ships into projects that have no framework
+# checkout to import it from. git exports GIT_DIR to its hooks and GIT_COMMON_DIR answers
+# `--git-common-dir` outright, so a child that inherits either reports another repository's
+# layout. tests/test_git_invocation.py pins every copy against the original.
+GIT_LOCATION_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+                    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                    "GIT_PREFIX", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES")
+
+
+def git_env(env=None) -> dict:
+    """`env` (default `os.environ`) minus every variable that pins git to another repository."""
+    out = dict(os.environ if env is None else env)
+    for name in GIT_LOCATION_ENV:
+        out.pop(name, None)
+    return out
+
+
 def _git_worktree_facts(project: Path) -> tuple:
     """(toplevel, main checkout) for *project*, or (None, None) when git cannot say.
 
@@ -53,7 +70,7 @@ def _git_worktree_facts(project: Path) -> tuple:
     try:
         result = subprocess.run(
             ["git", "-C", str(project), "rev-parse", "--show-toplevel", "--git-common-dir"],
-            capture_output=True, text=True, check=False, timeout=10,
+            capture_output=True, text=True, check=False, timeout=10, env=git_env(),
         )
     except (OSError, subprocess.SubprocessError):
         return None, None
