@@ -197,3 +197,11 @@ No environment-specific gotchas known.
 | "This file is obviously stale, I'll drop it rather than migrate it." | Dropping needs a recorded row with a reason. Silent drops are indistinguishable from bugs. |
 | "The freeze list is over-cautious for this one file." | It is derived from the build. A file the build parses at runtime corrupts from a static initializer in production, not at compile time. |
 | "I'll move and rewrite in one commit to save a round trip." | Then the rename is undetectable and `git log --follow` dies across the corpus. Move, then rewrite. |
+
+## Verification Checklist
+
+- [ ] State file committed and shows zero pending
+- [ ] A drain report exists for every deleted legacy file
+- [ ] No delete shipped in the same PR as its replacement
+- [ ] Every move recorded — `git mv` plus a matching move record
+- [ ] Freeze list respected

@@ -127,3 +127,11 @@ No environment-specific gotchas known.
 > ([anthropics/skills](https://github.com/anthropics/skills)). No licence file accompanied the
 > captured copy, so its terms are unestablished here — the step is a restatement of the practice,
 > not copied text.
+
+## Verification Checklist
+
+- [ ] Every `evidence=` line resolves to a real `path:line` — opened, not inferred
+- [ ] The ledger accepted the entry
+- [ ] No frozen build-input file touched
+- [ ] Verification-span budget respected (≤2)
+- [ ] Report matches what was recorded

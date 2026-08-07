@@ -126,6 +126,12 @@ Every run logs to the `debug_log`/`call-behaviorist` audit trail under component
 early, `checked` after computing the uncommitted count, and `fire` when the command is emitted —
 carrying `unanswered` and `atRisk` so the escalation is visible in the audit trail too.
 
+## Verification Checklist
+
+- [ ] `scripts/ensure_committed.py` run and at-risk projects named
+- [ ] At-risk work committed or explicitly taken over
+- [ ] Hook verified firing: one edit → count checked; escalation visible in the audit trail when enabled
+
 ## Files
 
 - `scripts/commit_reminder.py` — pure logic: parsing `git status --porcelain`, recognizing an

@@ -243,3 +243,11 @@ your crontab. If you wake in a resumed session mid-task, run
 > are defined in `extensions/<name>/` and are embedded by `welcome-ai-badger` only when
 > `config.json` supplies the required data. The base skill above stays platform-, stack- and
 > model-neutral.
+
+## Verification Checklist
+
+- [ ] `python3 .ai-badger/skills/task/scripts/task_tracker.py status` shows the task finished and `.ai-badger/state.json` reflects it
+- [ ] All work lives in the worktree `start` created — no stray commits on the main checkout's branch
+- [ ] Every plan point's acceptance gate ran
+- [ ] `finish` left no worktree with unmerged or uncommitted work — `keptBecause` empty or resolved
+- [ ] Token cost reported and compact/fresh-session advice given (or the auto-continue condition held)
