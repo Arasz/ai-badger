@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,9 @@ ZERO = "0" * 40
 # The gate keys its log directory by the checkout it runs in, so these tests — which run it in
 # the real repo — would write over the very log a failing push tells the user to read (#212).
 _LOG_DIR = tempfile.mkdtemp(prefix="verify-gate-tests-")
+# Same reason as _LOG_DIR: without this the suite appends rows to the repo's own summary that
+# no push produced, and a reader cannot tell them from real ones.
+_LOG_SUMMARY = str(Path(_LOG_DIR) / "lefthook.log")
 
 
 def _run(*args, stdin="", env=None):
@@ -28,6 +32,7 @@ def _run(*args, stdin="", env=None):
     environ.pop("VERIFY_SKIP", None)
     environ.pop("SKIP_VERIFY", None)
     environ["VERIFY_LOG_DIR"] = _LOG_DIR
+    environ["VERIFY_LOG_SUMMARY"] = _LOG_SUMMARY
     environ.update(env or {})
     return subprocess.run(
         ["/bin/bash", str(GATE), *args],
@@ -182,15 +187,67 @@ def _cited_log_dir():
     return Path(os.environ.get("TMPDIR", "/tmp")) / "ai-badger-verify" / key
 
 
+@contextmanager
+def _preserved(path: Path):
+    """Restore a real on-disk file after a test writes over it, including restoring its absence."""
+    had = path.exists()
+    before = path.read_bytes() if had else None
+    try:
+        yield
+    finally:
+        if had:
+            path.write_bytes(before)
+        elif path.exists():
+            path.unlink()
+
+
+def test_preserved_restores_prior_content(tmp_path):
+    target = tmp_path / "cited.log"
+    target.write_text("the real failure\n", encoding="utf-8")
+    with _preserved(target):
+        target.write_text("a test fixture\n", encoding="utf-8")
+    assert target.read_text(encoding="utf-8") == "the real failure\n"
+
+
+def test_preserved_restores_absence(tmp_path):
+    target = tmp_path / "never-existed.log"
+    with _preserved(target):
+        target.write_text("a test fixture\n", encoding="utf-8")
+    assert not target.exists()
+
+
 def test_a_gate_run_does_not_clobber_the_log_a_real_push_cites():
     """The pytest lane runs this suite, so its gate runs must not overwrite the cited log (#212)."""
     cited = _cited_log_dir() / "release.log"
     cited.parent.mkdir(parents=True, exist_ok=True)
     sentinel = "the failure the outer push actually hit\n"
-    cited.write_text(sentinel, encoding="utf-8")
-    _run("release", env={"AIB_PYTHON": "/bin/false"})
-    assert cited.read_text(encoding="utf-8") == sentinel, \
-        "a gate run from the test suite overwrote the log path a failing push reports"
+    with _preserved(cited):
+        cited.write_text(sentinel, encoding="utf-8")
+        _run("release", env={"AIB_PYTHON": "/bin/false"})
+        assert cited.read_text(encoding="utf-8") == sentinel, \
+            "a gate run from the test suite overwrote the log path a failing push reports"
+
+
+def test_log_summary_honours_an_override(tmp_path):
+    """Without this the suite appends real-looking lane rows to the repo's own logs/lefthook.log."""
+    redirected = tmp_path / "lefthook.log"
+    repo_summary = REPO / "logs" / "lefthook.log"
+    with _preserved(repo_summary):
+        _run("release", env={"AIB_PYTHON": "/bin/false",
+                             "VERIFY_LOG_SUMMARY": str(redirected)})
+        assert redirected.exists(), "VERIFY_LOG_SUMMARY was ignored"
+        assert "release" in redirected.read_text(encoding="utf-8")
+
+
+def test_a_redirected_run_leaves_the_repo_summary_alone(tmp_path):
+    redirected = tmp_path / "lefthook.log"
+    repo_summary = REPO / "logs" / "lefthook.log"
+    before = repo_summary.read_bytes() if repo_summary.exists() else None
+    with _preserved(repo_summary):
+        _run("release", env={"AIB_PYTHON": "/bin/false",
+                             "VERIFY_LOG_SUMMARY": str(redirected)})
+        after = repo_summary.read_bytes() if repo_summary.exists() else None
+    assert after == before, "a redirected gate run still wrote the repo's lefthook.log"
 
 
 def test_failing_lane_propagates_non_zero():
@@ -210,11 +267,11 @@ def test_failure_block_prints_all_three_escape_hatches():
 
 
 def test_summary_log_is_appended_on_run():
-    """Every gate invocation appends a structured line to logs/lefthook.log."""
-    log_path = REPO / "logs" / "lefthook.log"
+    """Every gate invocation appends a structured line to the summary log."""
+    log_path = Path(_LOG_SUMMARY)
     before_lines = log_path.read_text().splitlines() if log_path.exists() else []
     _run("release", env={"VERIFY_SKIP": "release"})
-    assert log_path.exists(), "logs/lefthook.log was not created"
+    assert log_path.exists(), "the summary log was not created"
     after_lines = log_path.read_text().splitlines()
     assert len(after_lines) > len(before_lines), "no new log line appended"
     line = after_lines[-1]
@@ -230,7 +287,7 @@ def test_summary_log_is_appended_on_run():
 
 def test_summary_log_records_failed_lanes():
     """A failing run logs the failed lane names after a 'failed:' marker."""
-    log_path = REPO / "logs" / "lefthook.log"
+    log_path = Path(_LOG_SUMMARY)
     before_lines = log_path.read_text().splitlines() if log_path.exists() else []
     _run("release", env={"AIB_PYTHON": "/bin/false"})
     after_lines = log_path.read_text().splitlines()

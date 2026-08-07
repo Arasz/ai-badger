@@ -415,3 +415,30 @@ def test_the_lint_reaches_every_stack_that_ships_skills(root, load_script):
     assert {p.relative_to(root).parts[1] for p in linted} - {"common"}, (
         "every shipped skill is under features/common/ — this test can no longer see a "
         "glob narrowed to that one stack")
+
+def test_duplicate_frontmatter_key_reported(tmp_path, load_script):
+    validate = load_script("tooling/validate.py")
+    _write_skill(tmp_path, body=_GOOD_BODY, frontmatter_extra="description: a short stub.\n")
+
+    bad = _lint(validate, tmp_path)
+
+    assert any("rule 11" in v and "description" in v for v in bad)
+
+
+def test_real_corpus_has_no_duplicate_description_key(root):
+    """Independent of rule 11's implementation: counts raw `description:` lines per SKILL.md.
+
+    PR #320 shipped 20 skills with a duplicate `description:` key — the first (long,
+    trigger-oriented) line is what skills_lint validates, but a real YAML parser resolves
+    duplicates to the *last* value, so every agent host reads the short stub instead.
+    """
+    offenders = []
+    for skill_md in sorted(root.glob("features/*/skills/*/SKILL.md")):
+        lines = skill_md.read_text(encoding="utf-8").splitlines()
+        if not lines or lines[0].strip() != "---":
+            continue
+        end = next((i for i, line in enumerate(lines[1:], 1) if line.strip() == "---"), len(lines))
+        count = sum(1 for line in lines[1:end] if line.startswith("description:"))
+        if count > 1:
+            offenders.append(str(skill_md.relative_to(root)))
+    assert offenders == []

@@ -1,7 +1,6 @@
 ---
 name: review-gate-diff-verification
 description: "Use when a review gate judges a branch diff: verify the diff base FIRST — merge-base vs moved origin/main ref (phantom D/M files), grep anchors after the status tab, exclude bin/obj from symbol greps, and diff the committed plan against the accepted amended version before judging implementation."
-description: "Use when gating a git diff: verify the diff base first."
 version: 1.0.0
 author: ai-badger
 license: MIT
