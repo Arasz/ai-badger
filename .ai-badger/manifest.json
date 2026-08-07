@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.102.0",
-  "frameworkCommit": "a25fb5b5676b01efaec2e0d4b00ac472ec94b477",
+  "frameworkCommit": "1c4faa79f5bf8a7940bdbc91a8e0e1bad9f8f6bb",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -605,12 +605,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.102.0",
-      "hash": "4355bbad27b7b870a1d16a6c5da07972571e0006603474059b3d85e11662342e",
+      "hash": "74ad1cd82b66c3dec4802016e144ab1827d18797fa5d9a684dcce55876faedc6",
       "dirMeta": {
         "file_count": 20,
         "dir_count": 2
       },
-      "sourceHash": "4355bbad27b7b870a1d16a6c5da07972571e0006603474059b3d85e11662342e",
+      "sourceHash": "74ad1cd82b66c3dec4802016e144ab1827d18797fa5d9a684dcce55876faedc6",
       "sourceMeta": {
         "file_count": 20,
         "dir_count": 2
@@ -821,7 +821,8 @@
       "source": "features/common/templates/agent-instructions/schema.json",
       "target": ".ai-badger/agent-instructions/schema.json",
       "frameworkVersion": "0.102.0",
-      "hash": "f16a7eebab357b45d5b2b3575d15db8bc5b6273e140a58dfb5026a3ca9d9b0e3"
+      "hash": "f16a7eebab357b45d5b2b3575d15db8bc5b6273e140a58dfb5026a3ca9d9b0e3",
+      "seedOnce": false
     },
     {
       "feature": "templates",
@@ -830,7 +831,8 @@
       "source": "features/common/templates/agent-instructions/model.template.json",
       "target": ".ai-badger/agent-instructions/model.json",
       "frameworkVersion": "0.102.0",
-      "hash": "66773c529baad7498df3af925c86b40bcb097ac7c8fcf108eddae5585aef375e"
+      "hash": "66773c529baad7498df3af925c86b40bcb097ac7c8fcf108eddae5585aef375e",
+      "seedOnce": true
     },
     {
       "feature": "templates",
@@ -839,7 +841,8 @@
       "source": "features/common/templates/state.json",
       "target": ".ai-badger/state.json",
       "frameworkVersion": "0.102.0",
-      "hash": "340d9da18a9e2938ff0c058d36c1558428c82c11dd1cc4b35b312d620f923438"
+      "hash": "340d9da18a9e2938ff0c058d36c1558428c82c11dd1cc4b35b312d620f923438",
+      "seedOnce": true
     },
     {
       "feature": "templates",
@@ -848,7 +851,8 @@
       "source": "features/common/templates/delegation.md.tmpl",
       "target": ".ai-badger/delegation.md",
       "frameworkVersion": "0.102.0",
-      "hash": "f8ff555e880966a58ae82aee36f133e3f14a292cc4045f4417b2b817c61a26f2"
+      "hash": "f8ff555e880966a58ae82aee36f133e3f14a292cc4045f4417b2b817c61a26f2",
+      "seedOnce": false
     },
     {
       "feature": "templates",
@@ -857,7 +861,8 @@
       "source": "features/claude/templates/CLAUDE.md.tmpl",
       "target": "CLAUDE.md",
       "frameworkVersion": "0.102.0",
-      "hash": "11d0ada78825b9da340b8844e6ec5d8c47970cccd1488be72c14d4259fe496be"
+      "hash": "11d0ada78825b9da340b8844e6ec5d8c47970cccd1488be72c14d4259fe496be",
+      "seedOnce": false
     },
     {
       "feature": "templates",
@@ -866,7 +871,8 @@
       "source": "features/copilot/templates/copilot-instructions.md.tmpl",
       "target": ".github/copilot-instructions.md",
       "frameworkVersion": "0.102.0",
-      "hash": "11d0ada78825b9da340b8844e6ec5d8c47970cccd1488be72c14d4259fe496be"
+      "hash": "11d0ada78825b9da340b8844e6ec5d8c47970cccd1488be72c14d4259fe496be",
+      "seedOnce": false
     },
     {
       "feature": "templates",
@@ -875,7 +881,8 @@
       "source": "features/hermes/templates/HERMES.md.tmpl",
       "target": "HERMES.md",
       "frameworkVersion": "0.102.0",
-      "hash": "8df5436cac88bcf0cd525a1b5e9e37d48eb84546941198820bf1126141f2cf2e"
+      "hash": "8df5436cac88bcf0cd525a1b5e9e37d48eb84546941198820bf1126141f2cf2e",
+      "seedOnce": false
     },
     {
       "feature": "adjustments",

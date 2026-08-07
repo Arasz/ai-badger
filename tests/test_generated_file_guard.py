@@ -40,9 +40,21 @@ def _project(tmp_path):
          "source": "features/claude/adjustments/adjust_task.py",
          "target": ".ai-badger/skills/task/scripts/task_tracker.py"},
         {"feature": "templates", "stack": "common",
-         "source": "features/common/templates/state.json", "target": ".ai-badger/state.json"},
+         "source": "features/common/templates/state.json", "target": ".ai-badger/state.json",
+         "seedOnce": True},
+        {"feature": "templates", "stack": "claude",
+         "source": "features/claude/templates/CLAUDE.md.tmpl", "target": "CLAUDE.md"},
     ]}), encoding="utf-8")
     return root
+
+
+def _drop_seed_once_flags(project):
+    """Rewrite the manifest as a pre-0.101.0 scaffold left it: no `seedOnce` key anywhere."""
+    path = project / ".ai-badger" / "manifest.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    for entry in document["entries"]:
+        entry.pop("seedOnce", None)
+    path.write_text(json.dumps(document), encoding="utf-8")
 
 
 def _payload(path, tool="Edit"):
@@ -160,10 +172,40 @@ def test_the_catalog_itself_is_allowed(load_script, project, capsys):
 
 
 def test_a_seeded_template_is_allowed(load_script, project, capsys):
-    """`.ai-badger/state.json` is seeded once and then owned by the project, not regenerated."""
+    """`.ai-badger/state.json` carries `seedOnce`: seeded once, owned by the project after."""
     guard = load_script(GUARD)
 
     assert _decision(guard, _payload(project / ".ai-badger" / "state.json"), capsys) is None
+
+
+def test_a_template_the_next_scaffold_rewrites_is_refused(load_script, project, capsys):
+    """Five of this repo's seven `templates` targets are rewritten on every scaffold.
+
+    Exempting the whole feature let an agent edit CLAUDE.md, lose it to the next scaffold and
+    then have the push rejected as hand-edited — the failure the guard exists to prevent.
+    """
+    guard = load_script(GUARD)
+
+    reason = _denial_reason(guard, _payload(project / "CLAUDE.md"), capsys)
+
+    assert "features/claude/templates/CLAUDE.md.tmpl" in reason
+    assert "welcome-ai-badger" in reason
+
+
+def test_a_manifest_older_than_the_flag_refuses_rather_than_exempts(load_script, project,
+                                                                    capsys):
+    """A pre-0.101.0 manifest cannot tell the two apart, so the guard fails closed.
+
+    The plugin's copy of this guard updates when the plugin does, not when a project
+    re-scaffolds, so guard-newer-than-manifest is reachable. Refusing an edit is loud, names
+    its override lever and self-heals on the next scaffold; exempting is silent and costs the
+    push cycle this guard was added to remove.
+    """
+    guard = load_script(GUARD)
+    _drop_seed_once_flags(project)
+
+    _denial_reason(guard, _payload(project / ".ai-badger" / "state.json"), capsys)
+    _denial_reason(guard, _payload(project / "CLAUDE.md"), capsys)
 
 
 def test_a_file_outside_any_ai_badger_project_is_allowed(load_script, tmp_path, capsys):
