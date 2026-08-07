@@ -10,6 +10,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+import frontmatter as fm
+
 
 # Deliberate Copilot-specific overrides; they win over a persona's own frontmatter.
 PERSONA_MAP = {
@@ -34,20 +36,19 @@ AGENTS_SUBDIR = Path(".github") / "agents"
 
 
 def _split_frontmatter(yaml_mod, text: str) -> Tuple[Dict[str, Any], str]:
-    """Split a leading `---` YAML block off `text`; ({}, text) when there is none."""
-    if not text.startswith("---\n"):
+    """Split a leading `---` YAML block off `text`; ({}, text) when there is none.
+
+    The fence is the shared extractor's call; only the typed values are pyyaml's, because
+    `tools` has to come back as a list rather than a string this module would re-split.
+    """
+    split = fm.split(text)
+    if not split.present:
         return {}, text
-    lines = text.split("\n")
-    for i, line in enumerate(lines[1:], start=1):
-        if line.strip() != "---":
-            continue
-        try:
-            data = yaml_mod.safe_load("\n".join(lines[1:i]))
-        except yaml_mod.YAMLError:
-            return {}, text
-        body = "\n".join(lines[i + 1:]).lstrip("\n")
-        return (data if isinstance(data, dict) else {}), body
-    return {}, text
+    try:
+        data = yaml_mod.safe_load(split.raw)
+    except yaml_mod.YAMLError:
+        return {}, text
+    return (data if isinstance(data, dict) else {}), split.body.lstrip("\n")
 
 
 def _tool_list(value: Any) -> List[str]:
