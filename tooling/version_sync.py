@@ -46,7 +46,7 @@ def _plugin_mismatches(plugin_data: Dict[str, Any], version: str) -> List[Tuple[
 
 
 def _marketplace_mismatches(
-        marketplace_data: Dict[str, Any], version: str, plugin_name: str,
+    marketplace_data: Dict[str, Any], version: str, plugin_name: str,
 ) -> List[Tuple[str, Any, str]]:
     mismatches: List[Tuple[str, Any, str]] = []
     for entry in marketplace_data.get("plugins", []):

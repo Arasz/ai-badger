@@ -58,7 +58,6 @@ def _bootstrap_lib() -> Path:
     (ADR-0009). Duplicated verbatim in every entry point because locating badger_lib is
     what it is for.
     """
-
     def is_root(path):
         return ((path / "schemas").is_dir() and (path / "features").is_dir()
                 and (path / "engine" / "badger_lib.py").is_file())
@@ -722,7 +721,7 @@ def cmd_intent(target: str, tool_ref: str, intent: str) -> int:
 
 
 def cmd_list(
-        target: str, tag: Optional[str] = None, untagged: bool = False
+    target: str, tag: Optional[str] = None, untagged: bool = False
 ) -> int:
     """List tools, optionally filtered."""
     index, err = _read_index_safe(target)
@@ -815,7 +814,7 @@ def _usage() -> int:
 
 
 def _parse_target_and_remaining(
-        argv: list[str],
+    argv: list[str],
 ) -> tuple[Optional[str], list[str]]:
     """Extract --target value and return (target, remaining_args)."""
     try:
