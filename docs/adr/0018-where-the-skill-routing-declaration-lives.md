@@ -31,6 +31,14 @@ Something else does, several times over. Verified at 0.93.1:
 | `_split_frontmatter` | `features/copilot/adjustments/adjust_agents.py:36` | the same, via pyyaml |
 | `declares_model` | `features/common/skills/task/scripts/dispatch_gate_hook.py:69` | denying an `Agent` dispatch that names no model |
 
+**Every file:line above is true at 0.94.0 and two of them are about to move.** PR #350 (L11 —
+open, not merged, verified against `origin/main` at `7ad63765`) extracts the frontmatter reader to
+`engine/frontmatter.py` and lifts the lint out of `tooling/validate.py` into `gates/skills_lint.py`.
+The argument below does not depend on where those live, but the implementation lane should read
+the extracted modules rather than the citations here — this ADR was written before that landed,
+and a citation that silently rots is the exact defect the same pull request corrects in ADR-0001
+and `hermes-claude-compatibility.md`.
+
 The specific fear is gone too. ADR-0005 worried a hand-rolled parser "buys a worse failure mode
 than the constant it replaces" — a parse miss reading as a pass. That is now impossible by
 construction: `_frontmatter_fields` returns `None` rather than a partial dict, and `skills_lint`
@@ -220,7 +228,9 @@ not decision.
 - **Ruled (2026-08-07): collapse to one mechanism.** *"We need to clean up and leave one clear
   mechanism if `SKILL_SCOPES` is not used."* It is used, but only for scope — so the split stands
   until scope moves to where the skill already declares everything else about itself.
-- **Recommended implementation, for a separate lane** once L11 releases `engine/` and `tooling/`:
+- **Recommended implementation, for a separate lane** once L11 (#350) releases `engine/` and
+  `tooling/` — it lands `engine/frontmatter.py` and `gates/skills_lint.py`, which is the extractor
+  and the linter this recommendation builds on, so it must land first:
   add `scope:` to the 36 common-stack `SKILL.md` files, add the `skills_lint` rule that makes its
   absence a failure, repoint `default_skills_in` / `opt_in_skills_in` / `inclusion_notes` /
   `index_build` at frontmatter, delete `SKILL_SCOPES`, `skill_scope()` and `UnknownSkillScope`,
