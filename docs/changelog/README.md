@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.88.2 | [the gate's logs record pushes, not test runs](0.88.2-gate-logs-are-honest.md) |
 | 0.87.1 | [the shipped plugin copy's shape is the rendered shape](0.87.1-shape-assertion.md) |
 | 0.87.0 | [Skills-lint gate in validate.py](0.87.0-skills-lint.md) |
 | 0.86.1 | [Skills individual improvements (I1–I12)](0.86.1-skills-individual.md) |
