@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 from unittest.mock import patch
 
+import pytest
+
 from scaffold_helpers import _config, SCAFFOLD_SCRIPT
 
 
@@ -171,6 +173,28 @@ def test_a_traversing_project_name_cannot_escape_the_hermes_namespace(
     assert not (tmp_path / "home" / "escaped").exists()
     assert not (home / ".hermes" / "escaped").exists()
     assert any("project name" in n for n in result["notes"])
+
+
+@pytest.mark.parametrize("module", ["_shared", "drift"])
+def test_a_sibling_sharing_the_namespaces_name_prefix_is_not_inside_it(
+        tmp_path, load_script, module):
+    """`~/.hermes/skills-evil` starts with `~/.hermes/skills` and is not inside it.
+
+    The end-to-end test above only exercises `../../escaped`, which leaves the parent outright
+    — a string-prefix comparison rejects that one too, so swapping `relative_to` for
+    `startswith` changed no verdict. Both copies of the predicate are pinned: `drift.py` keeps
+    its own, and a divergence between them would read as containment on one path and not the
+    other. Deleted-then-recreated is the reachable shape, so nothing here needs to exist.
+    """
+    within = load_script(
+        f"features/common/skills/welcome-ai-badger/scripts/{module}.py")._within
+    skills = tmp_path / ".hermes" / "skills"
+    skills.mkdir(parents=True)
+
+    assert within(skills, skills)
+    assert within(skills, skills / "task")
+    assert not within(skills, skills.parent / "skills-evil"), \
+        "a sibling whose name merely starts with the namespace's was read as inside it"
 
 
 # ------------------------------------------------------------ empty skill list guard (#129)

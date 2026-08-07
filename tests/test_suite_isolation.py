@@ -43,6 +43,34 @@ class TestTheSuiteCannotWriteToTheRealTrackingDir:
             assert REAL_PROJECT_ROOT not in data_dir.parents, \
                 f"{relpath} would write to {data_dir}"
 
+    def test_the_guard_watches_wherever_a_write_from_here_would_land(self, load_script):
+        """The floor watched this tree; tracker_lib sends a worktree's writes to its checkout.
+
+        Measured 2026-08-07 from `.ai-badger/worktrees/`: a mutation run really did write
+        `current-session.json` into the main checkout, and every isolation fixture stayed
+        green — they all watch `parents[1]`, which is the worktree, not the checkout.
+        """
+        from conftest import REAL_CHECKOUTS  # pylint: disable=import-outside-toplevel
+
+        tl = load_script("features/common/skills/task/scripts/tracker_lib.py")
+        lands_in = tl.collapse_worktree(REAL_PROJECT_ROOT)
+
+        assert lands_in in REAL_CHECKOUTS, (
+            f"a tracking write from this tree lands in {lands_in}, which no isolation "
+            f"fixture watches (watched: {[str(p) for p in REAL_CHECKOUTS]})")
+
+    def test_the_write_marker_covers_every_watched_checkout(self):
+        """`save_json` marks a write against one root, so that root must contain them all."""
+        from conftest import (  # pylint: disable=import-outside-toplevel
+            REAL_CHECKOUTS, REAL_WRITE_ROOT)
+
+        outside = [str(p) for p in REAL_CHECKOUTS
+                   if p != REAL_WRITE_ROOT and REAL_WRITE_ROOT not in p.parents]
+
+        assert not outside, (
+            f"these checkouts sit outside {REAL_WRITE_ROOT}, so a write into them would go "
+            f"unmarked and the guard could not fail on it: {outside}")
+
     def test_the_session_guard_looks_beyond_the_obvious_directory(self):
         """`features/.ai-badger/` is where the leak went while a sentinel watched the root."""
         from conftest import real_tracking_files  # pylint: disable=import-outside-toplevel

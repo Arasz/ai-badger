@@ -148,6 +148,22 @@ def test_a_committed_directory_the_index_cannot_deliver_is_still_reported(
     assert any("ghoststack" in g for g in gaps), gaps
 
 
+def test_a_committed_dot_directory_is_not_a_candidate_stack_either(
+        tmp_path, root, load_script):
+    """The same rule on the branch that actually runs: every real checkout has an index, so
+    `git ls-tree` answers and the working-tree fallback never executes here."""
+    validate = load_script("tooling/validate.py")
+    checkout = _committed_catalog(tmp_path)
+    stray = checkout / "features" / ".ai-badger"
+    stray.mkdir()
+    (stray / "config.json").write_text("{}", encoding="utf-8")
+    subprocess.run(["git", "-C", str(checkout), "add", "-Af"], check=True)
+    subprocess.run(["git", "-C", str(checkout), "commit", "-qm", "local state"], check=True)
+
+    assert ".ai-badger" not in validate.candidate_stack_dirs(checkout)
+    assert validate.catalog_stack_gaps(checkout) == []
+
+
 # ── A16: every JSON under features/ is schema'd or exempt by name ─────────────────────
 
 def test_every_json_under_features_is_schemad_or_exempt_by_name(root, load_script):

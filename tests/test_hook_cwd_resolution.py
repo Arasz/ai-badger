@@ -176,3 +176,22 @@ def test_both_hosts_agree_on_versions_diverge(hooks, load_script):
         assert claude_result is expected, (scaffolded, running, "drift_notice.py")
         assert hermes_result is expected, (scaffolded, running, "ai_badger_hooks.py")
         assert claude_result == hermes_result, (scaffolded, running)
+
+
+def test_an_explicit_cwd_outranks_the_process_one(tmp_path, monkeypatch, hooks):
+    """Hermes sends none, but a host that does send one must not be overruled by the process.
+
+    Every other test here relies on `monkeypatch.chdir` and passes no `cwd`, so swapping the
+    fallback's operands — `os.getcwd() or cwd`, which ignores the argument entirely — changed
+    no verdict in this file.
+    """
+    named = _scaffolded_project(tmp_path)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    result = hooks.pre_llm_inject_context(
+        session_id="sess_1", user_message="hello", cwd=str(named), platform="cli")
+
+    assert result is not None, "the explicit cwd was ignored in favour of the process one"
+    assert "Run den-refresh to update." in result["context"]
