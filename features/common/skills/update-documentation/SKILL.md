@@ -32,10 +32,13 @@ The hot path: one documentation change, correctly placed, evidence-backed, and r
 
 For a substantial **new** document, one more: a reader test (step 9). Not for edits.
 
-References: `references/placement.md`, `references/trust.md`, `references/amendments.md`. The tree
+References: read `references/placement.md` **when choosing a target path**,
+`references/trust.md` **when an evidence line is challenged**, `references/amendments.md` **when
+phrasing an amendment's reason**. The tree
 and filename grammar live with the skill that creates them —
 `../scaffold-documentation/references/structure.md` — because structure is that skill's primary
-concern; do not copy it into a shared directory, which cannot ship.
+concern; read it **when the canonical tree is in question** — do not copy it into a shared
+directory, which cannot ship.
 
 ## Steps
 
@@ -101,7 +104,8 @@ check by hand.
 
 Falsification test first: if the code changed tomorrow and this became untrue, would you **edit**
 it (→ a quadrant) or would editing it be **falsifying a record** (→ `work/`, dated filename)?
-Everything else is in `references/placement.md`.
+Everything else is in `references/placement.md` — read it **when the one-line test does not settle
+the target**.
 
 ## Gotchas
 

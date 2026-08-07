@@ -168,7 +168,8 @@ exits non-zero or emits an error, attempt recovery before surfacing the failure.
    succeeds, report what was fixed.
 
 3. **Recovery failed — offer to create a GitHub issue.** Follow
-   `.ai-badger/skills/welcome-ai-badger/references/reporting-a-framework-bug.md`: ask
+   `.ai-badger/skills/welcome-ai-badger/references/reporting-a-framework-bug.md` **when a fix
+   does not recover the failure**: ask
    permission first, gate on `gh` being installed and authenticated, sanitize the config
    before including it. **Never create the issue without explicit user approval** — that rule
    holds even if the reference file is not present.

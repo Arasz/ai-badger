@@ -29,10 +29,12 @@ dies with the session; a resumed session that trusts one silently re-does or ski
 file lives in the docs tree's `meta/` area; a project may name it via `.ai-badger/config.json`'s
 `docs.stateFile`.
 
-References, each owned by the skill whose primary concern it is:
-`../update-documentation/references/placement.md`, `../update-documentation/references/trust.md`,
-`../update-documentation/references/amendments.md`, and
-`../scaffold-documentation/references/structure.md`. Read them where they live; do not copy them
+References, each owned by the skill whose primary concern it is: read
+`../update-documentation/references/placement.md` **when a target path is in doubt**,
+`../update-documentation/references/trust.md` **when freezing**,
+`../update-documentation/references/amendments.md` **when amending**, and
+`../scaffold-documentation/references/structure.md` **when the canonical tree is in question**.
+Read them where they live; do not copy them
 into a shared directory, which cannot ship.
 
 ## Step 1 — always, every session, before anything else

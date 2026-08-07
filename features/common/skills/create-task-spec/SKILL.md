@@ -150,4 +150,5 @@ starts once that is settled and converges on *exact meaning*. If the idea itself
 that belongs upstream — `superpowers:brainstorming` covers it where that plugin is installed;
 otherwise settle the idea in conversation first, then come back.
 
-> Why this shape, and the research behind it: `references/why-elicitation.md`.
+> Why this shape, and the research behind it: read `references/why-elicitation.md` **when the
+> contract shape is questioned**.
