@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import List
+from typing import List, Set
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
 import badger_lib as bl
@@ -42,7 +43,6 @@ SKIP_PATTERNS = tuple(bl.SKILL_EXCLUDE_PATTERNS)
 # tool that writes its own skills into a project will need it, and because it gates deletion in
 # `_orphans()` as well as writing — an empty set there is a fact, not an oversight.
 MANAGED_EXTERNALLY: set = set()
-
 
 # These run before, or independently of, a scaffold, so their plugin copy carries the whole
 # procedure. `welcome-ai-badger` creates `.ai-badger/`; pointing at it would be circular.
@@ -82,8 +82,8 @@ def render_pointer(name: str, source_text: str) -> str:
 def _shipped_skills():
     """Yield (name, src, dest) for every skill the plugin ships, minus externally managed ones."""
     for base, names in (
-        (ROOT / "features" / "common" / "skills", COMMON_SKILLS),
-        (ROOT / "features" / "claude" / "skills", CLAUDE_SKILLS),
+            (ROOT / "features" / "common" / "skills", COMMON_SKILLS),
+            (ROOT / "features" / "claude" / "skills", CLAUDE_SKILLS),
     ):
         for name in names:
             if name in MANAGED_EXTERNALLY:
@@ -144,12 +144,39 @@ PLUGIN_EXTRA_FILES = {
 
 
 def _ship_extra_files(name: str, dest: Path) -> None:
-    """Copy PLUGIN_EXTRA_FILES for *name* into the shipped copy, if the sources exist."""
+    """Copy PLUGIN_EXTRA_FILES for *name* into the shipped copy.
+
+    PLUGIN_EXTRA_FILES is a repo-internal declaration, so a source that is not on disk
+    is a bug in the declaration, not a condition to skip past.
+    """
     for src, rel in PLUGIN_EXTRA_FILES.get(name, ()):
-        if src.is_file():
-            target = dest / rel
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, target)
+        if not src.is_file():
+            raise FileNotFoundError(
+                f"{name}: PLUGIN_EXTRA_FILES declares {src}, which does not exist"
+            )
+        target = dest / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, target)
+
+
+def _missing_extra_sources(name: str) -> List[Path]:
+    """Declared PLUGIN_EXTRA_FILES sources for *name* that are not on disk."""
+    return [src for src, _ in PLUGIN_EXTRA_FILES.get(name, ()) if not src.is_file()]
+
+
+def extra_file_violations(name: str, dest: Path) -> List[str]:
+    """Declared extra files absent at their source or from the shipped copy.
+
+    Read off PLUGIN_EXTRA_FILES, never off a render: an expected value the renderer
+    also produces cannot catch a renderer that stopped shipping the file.
+    """
+    problems = [f"declared source missing {src}" for src in _missing_extra_sources(name)]
+    if dest.is_dir():
+        problems += sorted(
+            f"not shipped {rel}" for _, rel in PLUGIN_EXTRA_FILES.get(name, ())
+            if not (dest / rel).is_file()
+        )
+    return problems
 
 
 def sync_skill(src: Path, dest: Path, dry_run: bool, name: str = "") -> int:
@@ -164,23 +191,51 @@ def sync_skill(src: Path, dest: Path, dry_run: bool, name: str = "") -> int:
     return 1
 
 
+def _outside_work_tree(root: Path) -> bool:
+    """True when *root* is not inside a git work tree, so no .gitignore governs it."""
+    proc = subprocess.run(["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
+                          capture_output=True, text=True, check=False)
+    return proc.returncode != 0 or proc.stdout.strip() != "true"
+
+
+def _not_ignored_by_git(root: Path, relpaths: Set[str]) -> Set[str]:
+    """*relpaths* minus the ones git ignores; all of them outside a work tree.
+
+    `check-ignore` exits 0 when something on the list is ignored, 1 when nothing is, and
+    128 on failure — a returncode read as "not ignored" would silently pass every path.
+    """
+    if not relpaths:
+        return set()
+    proc = subprocess.run(["git", "-C", str(root), "check-ignore", "-z", "--stdin"],
+                          input="\0".join(sorted(relpaths)),
+                          capture_output=True, text=True, check=False)
+    if proc.returncode == 0:
+        return relpaths - {p for p in proc.stdout.split("\0") if p}
+    if proc.returncode == 1 or _outside_work_tree(root):
+        return set(relpaths)
+    raise RuntimeError(f"git check-ignore failed under {root}: {proc.stderr.strip()}")
+
+
 def shape_violations(src: Path, dest: Path, name: str = "") -> List[str]:
-    """Report top-level entry-name differences between a shipped copy and a fresh render.
+    """Report relative-path differences at every depth between a shipped copy and a render.
 
     The render is the contract: a shape the renderer itself would create (no
     `SKILL.full.md` for a bootstrap skill or a frontmatter-less source) is not a
-    violation. Content equality stays `check_skill`'s job; this is names only.
-    A missing destination directory is `check_skill`'s "missing" report, not ours.
+    violation. Content equality stays `check_skill`'s job; this is names only, and it
+    recurses because `SKILL_EXCLUDE_PATTERNS` makes nested `tests/`, `__pycache__/` and
+    `.DS_Store` invisible to that hash. An unexpected entry git ignores is a runtime
+    artifact rather than shipped content, so `.gitignore` — not a second list beside it
+    — decides. A missing destination directory is `check_skill`'s "missing" report.
     """
     if not dest.is_dir():
         return []
     with tempfile.TemporaryDirectory() as tmp:
         expected = Path(tmp) / "expected"
         render_into(name or src.name, src, expected)
-        rendered = {entry.name for entry in expected.iterdir()}
-        actual = {entry.name for entry in dest.iterdir()}
+        rendered = {p.relative_to(expected).as_posix() for p in expected.rglob("*")}
+        actual = {p.relative_to(dest).as_posix() for p in dest.rglob("*")}
     return sorted(f"missing {n}" for n in rendered - actual) + sorted(
-        f"unexpected {n}" for n in actual - rendered
+        f"unexpected {n}" for n in _not_ignored_by_git(dest, actual - rendered)
     )
 
 
@@ -209,6 +264,11 @@ def check_all() -> int:
         if not src.is_dir():
             continue
         checked += 1
+        for violation in extra_file_violations(name, dest):
+            out_of_sync += 1
+            print(f"  extra file {violation}: {name}")
+        if _missing_extra_sources(name):
+            continue  # rendering raises on those; the report above is the whole answer
         reason = check_skill(src, dest, name)
         if reason:
             out_of_sync += 1

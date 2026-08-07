@@ -4,17 +4,19 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scr
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.88.2. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
+> Scaffolded by ai-badger 0.88.6. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
 ## Non-negotiable invariants
 
 ### Ask if a simpler shape would do
 
-Before calling any design or change finished, ask whether it is over-engineered and what the simpler version would look like. Take the simpler shape whenever it serves architecture, maintainability and performance as well — an abstraction added before a real caller needs it is a cost with no buyer.
+Before calling any design or change finished, ask whether it is over-engineered and what the simpler version would look like. Take the simpler shape whenever it serves architecture, maintainability and performance as well — an abstraction
+added before a real caller needs it is a cost with no buyer.
 
 ### Check the source, not your own reasoning
 
-Re-read the docs, the data and the code before stating a fact about them — those are what go stale, get misremembered, or change under you. Re-reading your own reasoning twice over costs the same effort and finds nothing new, so spend the check where the error actually lives.
+Re-read the docs, the data and the code before stating a fact about them — those are what go stale, get misremembered, or change under you. Re-reading your own reasoning twice over costs the same effort and finds nothing new, so spend the
+check where the error actually lives.
 
 ### Guard clauses over hand-rolled null checks
 
@@ -25,7 +27,8 @@ the language/stack in use, and fail fast at the boundary rather than letting inv
 
 ### Measure only when the measurement pays
 
-Run your own benchmark or experiment when the time it costs is repaid by the decision it settles, and not otherwise. When it does not pay, cite an existing measurement or say plainly that the number is unverified — a guessed figure presented as measured is worse than no figure at all.
+Run your own benchmark or experiment when the time it costs is repaid by the decision it settles, and not otherwise. When it does not pay, cite an existing measurement or say plainly that the number is unverified — a guessed figure
+presented as measured is worse than no figure at all.
 
 ### Minimal comments
 
@@ -41,7 +44,8 @@ No credentials, connection strings, API keys, or tokens in tracked files, exampl
 
 ### Plain names
 
-Name things with the simplest accurate word — variables, functions, types, files, folders, flags. Reach for a rare or invented word only when the concept genuinely has no common word for it, because every reader after you pays for the lookup.
+Name things with the simplest accurate word — variables, functions, types, files, folders, flags. Reach for a rare or invented word only when the concept genuinely has no common word for it, because every reader after you pays for the
+lookup.
 
 ### One PR per task
 
@@ -53,7 +57,8 @@ The exception lifts the PR requirement and nothing else. Every gate still runs b
 
 ### Done means proven
 
-Every unit of planned work carries its acceptance criteria and the gate that checks them, named before the work starts. "Done" means there is evidence the thing works — a test that passes, a run you watched, a gate that went green — not that the code was written. If you cannot point at the evidence, the work is not done yet.
+Every unit of planned work carries its acceptance criteria and the gate that checks them, named before the work starts. "Done" means there is evidence the thing works — a test that passes, a run you watched, a gate that went green — not
+that the code was written. If you cannot point at the evidence, the work is not done yet.
 
 ### Screaming architecture
 

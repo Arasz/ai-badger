@@ -8,7 +8,7 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [research, audit, citations, evidence]
-    related_skills: [evidence-first-research, grounded-citations]
+    related_skills: [evidence-first-research]
 ---
 
 # Research Record Audit

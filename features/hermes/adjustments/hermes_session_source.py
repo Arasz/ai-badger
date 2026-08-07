@@ -144,9 +144,9 @@ def parse_hermes_session_usage(session_id: str, db_path: Path | None = None) -> 
         cumulative["cacheCreationTokens"] += child[3] or 0
         by_model = {}
         for (model, api_calls, inp, out, cr, cw) in con.execute(
-            "SELECT model, api_call_count, input_tokens, output_tokens, cache_read_tokens, "
-            "cache_write_tokens FROM session_model_usage WHERE session_id = ?",
-            (session_id,)
+                "SELECT model, api_call_count, input_tokens, output_tokens, cache_read_tokens, "
+                "cache_write_tokens FROM session_model_usage WHERE session_id = ?",
+                (session_id,)
         ):
             # session_model_usage has a composite key (session, model, billing_*, task) — one
             # (session, model) legitimately has several rows split by task. Accumulate rather

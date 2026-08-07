@@ -107,8 +107,8 @@ dotnet add package Microsoft.Data.Sqlite   # version matching the repo
 #   run memory_set_option / memory_add_text / SELECT ... FROM dbmem_content; Dump per context
 ```
 
-Copy the real modules into place first (from `~/.ai-raccon/extensions/<rid>/` or the pinned
-GitHub release tarballs), then drive the exact SQL the wrapper emits. This settles dedup
+Copy the real modules into place first (from your tool's local extensions cache, e.g.
+`~/.<tool>/extensions/<rid>/`, or the pinned GitHub release tarballs), then drive the exact SQL the wrapper emits. This settles dedup
 scope, option persistence, and return-value semantics with measured evidence — cheaper than
 re-reading the C source and immune to `main`-vs-tag drift.
 

@@ -37,7 +37,7 @@ def test_installs_hermes_session_source_into_scaffolded_task_scripts(tmp_path, r
     installed = target / DEST
     assert installed.is_file()
     assert installed.read_text(encoding="utf-8") == \
-        (root / SOURCE_MODULE).read_text(encoding="utf-8")
+           (root / SOURCE_MODULE).read_text(encoding="utf-8")
     assert DEST in result["files"]
 
 
