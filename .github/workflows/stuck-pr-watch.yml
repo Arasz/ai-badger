@@ -46,12 +46,13 @@ jobs:
       - name: Find pull requests no pull_request workflow will run on
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
-          NAME: ${{ github.event.repository.name }}
+          # `github.repository` is in the context for every event; `github.event.repository`
+          # depends on the payload, and a schedule's payload is not the place to find out.
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
 
-          gh api graphql -F owner="$OWNER" -F name="$NAME" -f query='
+          gh api graphql -F owner="${REPO%%/*}" -F name="${REPO#*/}" -f query='
             query($owner:String!, $name:String!) {
               repository(owner:$owner, name:$name) {
                 pullRequests(states: OPEN, first: 100) {
