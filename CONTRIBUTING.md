@@ -251,6 +251,7 @@ green local run means a green build:
 .venv/bin/python3 gates/shipped_paths_guard.py
 .venv/bin/python3 gates/scaffold_freshness_guard.py
 .venv/bin/python3 gates/tdd_guard.py --base origin/main
+.venv/bin/python3 gates/workflow_lint.py
 node --test "tests/js/*.test.mjs"
 ```
 
@@ -272,6 +273,7 @@ What each one is for:
 | `skills_lint.py` | A catalog `SKILL.md` breaks one of the eleven conventions. `validate.py --all` calls it, so CI reports it without a step of its own. |
 | `scaffold_freshness_guard.py` | Re-scaffolding this repo against itself would change something other than a version stamp — a `features/**` edit that never reached `.ai-badger/`. |
 | `tdd_guard.py` | Code changed and no test changed with it. Runs on branches, not on `main`. |
+| `workflow_lint.py` | A `uses:` in `.github/workflows/` is not pinned to a commit SHA, or a workflow runs on the repository's default token scope with no `permissions:` block. |
 | `node --test` | A `.mjs` gate script's tests fail. |
 
 **CodeQL** also runs on every pull request and is a required check before merge.

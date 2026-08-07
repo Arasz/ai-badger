@@ -24,6 +24,10 @@ def test_scaffold_manifest_entries_have_expected_shape(make_scaffolder):
     for entry in entries:
         # Directory entries (skills) carry a second hash: the framework source's (#110)
         allowed_keys = base_keys | (dir_keys if "dirMeta" in entry else set())
+        # Template entries carry the flag the edit-time guard reads to tell a file the next
+        # scaffold rewrites from one it seeds and then leaves to the project.
+        if entry["feature"] == "templates":
+            allowed_keys = allowed_keys | {"seedOnce"}
         assert set(entry.keys()) == allowed_keys
         assert entry["source"].startswith("features/")
         for key in ("hash", *(("sourceHash",) if "dirMeta" in entry else ())):

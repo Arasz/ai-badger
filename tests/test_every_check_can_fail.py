@@ -23,6 +23,8 @@ Every one was found by a human noticing something downstream, never by a test. S
      registered nor exempt fails this module, so adding a guard without a provocation breaks the
      build (same shape as test_gates_layout.test_every_gate_is_a_pylint_target).
   3. EXEMPTIONS is a visible, shrinking debt list. Each entry carries a reason.
+  4. Every discovered gate must be reachable from a lane in verify.sh's `$LANES`. A provably
+     failing gate that nothing dispatches proves nothing about a push.
 
 Provocations are hermetic: every fixture is built under tmp_path, and nothing here touches the
 real repository, ~/.ai-badger or ~/.hermes. Checks are run the way they really run — a
@@ -34,6 +36,7 @@ import ast
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -45,6 +48,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 BEHAVIORIST = "features/common/skills/call-behaviorist/scripts/behaviorist.py"
 DRIFT = "features/common/skills/welcome-ai-badger/scripts/drift.py"
+VERIFY = ".lefthook/pre-push/verify.sh"
 
 # Checks with no provocation yet. EVERY ENTRY IS A DEBT, not a decision: an empty-by-default
 # list that only grows is worthless. Delete an entry by writing its provocation.
@@ -646,6 +650,32 @@ def _always_skipped(work: Path, provoked: bool) -> Outcome:
     ])
 
 
+# --------------------------------------------------------------------------- workflow_lint
+
+_WORKFLOW = """name: ci
+{permissions}jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@{ref}
+"""
+_SCOPED = "permissions:\n  contents: read\n"
+
+
+def _workflow(workspace: Path, ref: str, permissions: str) -> Outcome:
+    _write(workspace / ".github" / "workflows" / "ci.yml",
+           _WORKFLOW.format(ref=ref, permissions=permissions))
+    return _run_gate("gates/workflow_lint.py", "--root", str(workspace))
+
+
+def _workflow_lint_unpinned(workspace: Path, provoked: bool) -> Outcome:
+    return _workflow(workspace, "v4" if provoked else "0" * 40, _SCOPED)
+
+
+def _workflow_lint_default_token_scope(workspace: Path, provoked: bool) -> Outcome:
+    return _workflow(workspace, "0" * 40, "" if provoked else _SCOPED)
+
+
 def _behaviorist(kind: str) -> str:
     return f"{BEHAVIORIST}::{kind}"
 
@@ -706,6 +736,12 @@ REGISTRY: Tuple[Provocation, ...] = (
     Provocation("gates/skills_lint.py", "a SKILL.md that breaks the name grammar",
                 _skills_lint_violation,
                 Signal(exit_code=1, contains="SKILLS LINT FAILED")),
+    Provocation("gates/workflow_lint.py", "an action pinned to a tag instead of a commit",
+                _workflow_lint_unpinned,
+                Signal(exit_code=1, contains="not pinned to a 40-character commit SHA")),
+    Provocation("gates/workflow_lint.py", "a job running on the default token scope",
+                _workflow_lint_default_token_scope,
+                Signal(exit_code=1, contains="default token scope")),
     Provocation(_behaviorist("not_instrumented"), "a wired hook that calls no logger",
                 _not_instrumented, _finding("not_instrumented", "low")),
     Provocation(_behaviorist("never_observed"), "an instrumented hook that never logged",
@@ -889,6 +925,112 @@ def test_discovery_agrees_with_the_shebang_on_which_gates_are_runnable(root):
         f"whether it runs: {disagree}")
     assert "gates/skills_lint.py" in discovered, \
         "the one gate not named *_guard.py is exactly the one a convention-shaped filter drops"
+
+
+# ------------------------------------------------------------------------------- dispatch
+
+_LANES_RE = re.compile(r'^readonly LANES="([^"]*)"', re.M)
+_FUNCTION_RE = re.compile(r"^(lane_[a-z_]+)\(\) \{$(.*?)^\}$", re.M | re.S)
+_ARM_RE = re.compile(r"^ {8}([a-z|-]+)\)(.*?);;\s*$", re.M)
+_SCRIPT_RE = re.compile(r"(?:gates|tooling)/[A-Za-z0-9_]+\.py")
+
+
+def _uncommented(text: str) -> str:
+    """`text` without its comment lines — a script named only in prose is not dispatched."""
+    return "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+
+
+def scripts_a_lane_runs(verify_sh: str) -> Dict[str, str]:
+    """Every gates/ or tooling/ script a lane in `$LANES` runs, keyed by path, valued by lane.
+
+    Reads the dispatch, not the file: `mutation` has a `lane_cmd` arm and is deliberately not in
+    `$LANES`, so a gate only it ran would never run on a push.
+    """
+    functions = dict(_FUNCTION_RE.findall(verify_sh))
+    arms = dict(_ARM_RE.findall(_uncommented(functions.get("lane_cmd", ""))))
+    found: Dict[str, str] = {}
+    for lane in _LANES_RE.search(verify_sh).group(1).split():
+        pending, seen = [arms.get(lane, "")], set()
+        while pending:
+            chunk = pending.pop()
+            for script in _SCRIPT_RE.findall(chunk):
+                found.setdefault(script, lane)
+            for name in re.findall(r"\blane_[a-z_]+\b", chunk):
+                if name in functions and name not in seen:
+                    seen.add(name)
+                    pending.append(_uncommented(functions[name]))
+    return found
+
+
+def _imported_modules(text: str, path: str) -> List[str]:
+    """Top-level module names `text` imports, either spelling."""
+    names = []
+    for node in ast.walk(ast.parse(text, filename=path)):
+        if isinstance(node, ast.Import):
+            names += [alias.name.split(".")[0] for alias in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names.append(node.module.split(".")[0])
+    return names
+
+
+def dispatched_gates(root: Path) -> Dict[str, str]:
+    """Every gate a lane runs, directly or through a tooling script a lane runs.
+
+    The indirect hop is load-bearing: `gates/skills_lint.py` runs on every push as an import
+    inside `tooling/validate.py --all`, and its filename appears nowhere in verify.sh.
+    """
+    scripts = scripts_a_lane_runs((root / VERIFY).read_text(encoding="utf-8"))
+    found = {path: lane for path, lane in scripts.items() if path.startswith("gates/")}
+    for path, lane in sorted(scripts.items()):
+        if path.startswith("gates/") or not (root / path).is_file():
+            continue
+        for module in _imported_modules((root / path).read_text(encoding="utf-8"), path):
+            if (root / "gates" / f"{module}.py").is_file():
+                found.setdefault(f"gates/{module}.py", f"{lane} (imported by {path})")
+    return found
+
+
+def test_every_gate_is_dispatched_by_a_lane(root):
+    """A gate no lane runs is proven able to fail and unable to fail anything."""
+    dispatched = dispatched_gates(root)
+    gates = sorted(check for check in discovered_checks(root) if check.startswith("gates/"))
+
+    assert gates, "no gates discovered — the discovery is wrong, not the tree"
+    assert dispatched, f"read no gate at all out of {VERIFY} — the dispatch parse is broken"
+    orphans = [gate for gate in gates if gate not in dispatched]
+    assert not orphans, (
+        f"these gates are in gates/ and in no lane of {VERIFY}, so no push runs them: {orphans}")
+
+
+def test_dispatch_reading_ignores_a_lane_that_is_not_in_lanes():
+    """`mutation` is the live example: dispatchable by hand, in no lane, run by no push."""
+    text = ('readonly LANES="wired"\n'
+            'lane_cmd() {\n    case "$1" in\n'
+            '        wired)     "$PY" gates/wired.py ;;\n'
+            '        by-hand)   "$PY" gates/by_hand.py ;;\n'
+            '    esac\n}\n')
+
+    assert scripts_a_lane_runs(text) == {"gates/wired.py": "wired"}
+
+
+def test_dispatch_reading_follows_a_lane_helper_and_skips_a_comment():
+    """docs and tdd reach their gates through a `lane_*` helper, not from the arm itself."""
+    text = ('readonly LANES="docs"\n'
+            'lane_docs() {\n'
+            '    # gates/mentioned.py is named here and run nowhere\n'
+            '    "$PY" gates/real.py\n}\n'
+            'lane_cmd() {\n    case "$1" in\n'
+            '        docs)  lane_docs ;;\n'
+            '    esac\n}\n')
+
+    assert scripts_a_lane_runs(text) == {"gates/real.py": "docs"}
+
+
+def test_the_indirect_hop_is_what_covers_skills_lint(root):
+    """The one gate no lane names: if the hop ever stops finding it, the test above went blind."""
+    assert "gates/skills_lint.py" not in scripts_a_lane_runs(
+        (root / VERIFY).read_text(encoding="utf-8"))
+    assert "tooling/validate.py" in dispatched_gates(root)["gates/skills_lint.py"]
 
 
 def test_registry_names_only_checks_that_exist(root):
