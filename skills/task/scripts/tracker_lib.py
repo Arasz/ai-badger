@@ -79,6 +79,21 @@ def collapse_worktree(project: Path) -> Path:
     return checkout
 
 
+def project_above(start: Path, stop: Path | None = None) -> Path | None:
+    """The nearest ancestor of *start* holding `.ai-badger/config.json`, collapsed to its checkout.
+
+    `stop` is an ancestor the walk refuses to adopt or pass: `$HOME` for a walk that starts in
+    the Claude Code plugin cache, where every project's marker would otherwise be one home
+    directory away from every other project's.
+    """
+    for ancestor in (start, *start.parents):
+        if stop is not None and ancestor == stop:
+            return None
+        if (ancestor / ".ai-badger" / "config.json").is_file():
+            return collapse_worktree(ancestor)
+    return None
+
+
 def resolve_project_root(
         env: dict | None = None, cwd: Path | None = None, script_dir: Path = SCRIPT_DIR
 ) -> Path:
@@ -87,12 +102,17 @@ def resolve_project_root(
     1. `CLAUDE_PROJECT_DIR` env var, when set and pointing at an existing directory --
        authoritative for hook/statusLine invocations (Claude Code sets it; ai-badger's own
        scaffolded settings.json hooks already rely on it).
-    2. Walk up from `cwd` to the nearest ancestor containing `.ai-badger/config.json` (the
-       ai-badger contract marker) -- covers script invocations from anywhere in the repo --
-       then `collapse_worktree()` it, so a task worktree shares its checkout's store.
-    3. Fallback: `script_dir.parents[3]` -- today's behavior for in-repo scaffolded copies
-       (`<repo>/.claude/skills/task/scripts` or `<repo>/.ai-badger/skills/task/scripts`)
-       invoked with no session context.
+    2. The marker walk up from `cwd` -- covers script invocations from anywhere in the repo.
+    3. The same marker walk up from `script_dir`, stopping at `$HOME` -- every in-repo copy of
+       these scripts (`features/common/skills/`, `.ai-badger/skills/`, `.claude/skills/`,
+       `skills/`) sits under the marker, so this answer does not depend on the cwd at all. The
+       plugin cache copy sits under `$HOME` instead, finds nothing, and falls through.
+    4. Fallback: `script_dir.parents[3]`, for a copy that is under no marker and reached from
+       no project -- the plugin cache with no session context.
+
+    Step 3 is why the catalog copy can no longer resolve `features/`: `parents[3]` of
+    `features/common/skills/task/scripts` is the catalog directory itself, and a process whose
+    cwd was outside any project used to land there and write its tracking state into it (N3).
 
     Deliberately does not walk up from `script_dir` looking for a `.claude/` directory (as
     poll_limit's old `_find_project_root` did): from a Claude Code plugin cache
@@ -105,10 +125,13 @@ def resolve_project_root(
     if env_dir and Path(env_dir).is_dir():
         return Path(env_dir)
 
-    start = Path.cwd() if cwd is None else Path(cwd)
-    for ancestor in (start, *start.parents):
-        if (ancestor / ".ai-badger" / "config.json").is_file():
-            return collapse_worktree(ancestor)
+    from_cwd = project_above(Path.cwd() if cwd is None else Path(cwd))
+    if from_cwd is not None:
+        return from_cwd
+
+    from_script = project_above(script_dir, stop=Path.home())
+    if from_script is not None:
+        return from_script
 
     return script_dir.parents[3]  # .claude/skills/task/scripts -> repo root
 
