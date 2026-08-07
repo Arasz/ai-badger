@@ -11,7 +11,7 @@ and any gaps that need bridging.
 > **four** hooks — `on_session_start` for the drift notice, `pre_llm_call` for context injection,
 > `pre_tool_call` for the memory-first gate ([ADR-0017](adr/0017-memory-first-gate.md), 0.84.0),
 > and `post_tool_call` for observation. This sentence said "all three hooks" from 0.84.0 until
-> 0.98.0, because the memory gate landed and nothing re-counted.
+> the 2026-08-07 documentation sweep, because the memory gate landed and nothing re-counted.
 > Drift is reported at session start, not per turn,
 > and `pre_llm_call` carries drift plus usage hints plus MCP tool-index recommendations. The
 > advice below to inject usage context "into every turn" was explicitly walked back in 0.18.0 —

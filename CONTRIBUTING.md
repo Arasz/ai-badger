@@ -99,18 +99,27 @@ file again.
 features/{stack|common}/{feature}/   the catalog — skills, personas, invariants, instructions,
                                      hooks, adjustments, templates, mcp
 engine/                              the library every bootstrap shim imports: badger_lib,
-                                     unsafe_literals (and requirements.txt)
+                                     framework_copies, frontmatter, unsafe_literals
+                                     (and requirements.txt)
 tooling/                             maintainer catalog and release tooling: index_build,
-                                     validate, version_sync, sync_plugin_skills,
-                                     install_plugins
+                                     validate, version_sync, changelog_index,
+                                     sync_plugin_skills, install_plugins, retrieval_eval,
+                                     fixture_harvest
 gates/                               repo gates CI and the pre-push hook run: release_guard,
                                      tdd_guard, docs_guard, deps_guard, shipped_paths_guard,
-                                     scaffold_freshness_guard
+                                     scaffold_freshness_guard, skills_lint (and gate_report,
+                                     the shared finding shape)
+.github/scripts/                     CI helpers a workflow calls and nothing else:
+                                     conflicting_pr_report
 schemas/                             a JSON Schema per *.json model
 index.json                           SCRIPT-GENERATED. Never hand-edit it.
 tests/                               pytest; tests/js/ holds the node --test suites
 docs/                                see docs/README.md
 ```
+
+That list is prose and drifts; [`docs/scripts.md`](docs/scripts.md) is the one this repo checks
+(`tests/test_docs_match_the_catalog.py` fails when a script under `engine/`, `tooling/` or
+`gates/` has no entry there).
 
 [`docs/framework-architecture.md`](docs/framework-architecture.md) explains the model,
 [`docs/authoring-a-feature.md`](docs/authoring-a-feature.md) is the how-to for adding a catalog
@@ -248,7 +257,8 @@ What each one is for:
 | `docs_guard.py` | A relative link or a backticked repo path in the docs no longer resolves, or a changelog entry is missing from `docs/changelog/README.md`. |
 | `deps_guard.py` | Code imports a third-party module that `engine/requirements.txt` does not declare. |
 | `release_guard.py` | The shipped surface changed since the last release tag without a `VERSION` bump. |
-| `shipped_paths_guard.py` | A machine-specific absolute path (`/Users/…`, `/home/…`, `C:\Users\…`) ships in a tracked file outside `docs/` and `tests/`. |
+| `shipped_paths_guard.py` | A machine-specific absolute path (`/Users/…`, `/home/…`, `C:\Users\…`) ships in a tracked file outside `docs/`, root `*.md` and `tests/`. The `docs/` exemption stops at generated `.html`/`.htm` pages, which are scanned. |
+| `skills_lint.py` | A catalog `SKILL.md` breaks one of the eleven conventions. `validate.py --all` calls it, so CI reports it without a step of its own. |
 | `scaffold_freshness_guard.py` | Re-scaffolding this repo against itself would change something other than a version stamp — a `features/**` edit that never reached `.ai-badger/`. |
 | `tdd_guard.py` | Code changed and no test changed with it. Runs on branches, not on `main`. |
 | `node --test` | A `.mjs` gate script's tests fail. |

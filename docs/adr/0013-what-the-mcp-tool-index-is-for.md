@@ -3,6 +3,12 @@
 **Date:** 2026-07-29
 **Status:** Accepted
 **Author:** Rafał Araszkiewicz (Arasz) with Claude
+**Superseded in part by:** [ADR-0014](0014-mcp-support-is-configuration-not-retrieval.md)
+(2026-07-29). The three purposes below stand; the premise that tool definitions are already
+resident in the model's context is false on current Claude Code, and the ordering derived from
+it is reversed there. Added 2026-08-07 — this pointer was missing, and `docs/adr/README.md`
+requires a supersession to be said in both.
+
 **Supersedes:** Nothing. [ADR-0004](0004-mcp-tool-index.md)'s first stated problem is recorded
 below as never having been addressed; its decisions are not reversed.
 [ADR-0012](0012-bm25-retrieval-with-a-falsifiable-eval.md) stands in full — BM25 remains the

@@ -22,8 +22,10 @@ leave out — how we can tell whether it is working at all.
 ## 1. The problem
 
 A project that connects a handful of MCP servers can easily reach a hundred tools. In this
-repository's own index there are **98 tools**, spread very unevenly across 9 configured
-sources — four of them carry all 98 (41, 30, 24 and 3), and five carry none at all. Each one
+repository's own index there are **98 tools**, spread very unevenly across 18 configured
+sources — four of them carry all 98 (41, 30, 24 and 3), and the other fourteen carry none at
+all. (Those two numbers come from `.ai-badger/mcp-tools.json` in this checkout, which records
+whatever MCP servers this repo is configured against; re-derive rather than quote.) Each one
 carries a name, a
 description, and a schema; all of it is loaded whether or not the conversation will ever touch
 it. The same pressure applies to skills, where hosts have started shipping explicit budgets — a

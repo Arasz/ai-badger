@@ -44,7 +44,9 @@ needs no index rebuild:
 |---|---|
 | `stack-mcp` | `features/{common,stack}/stack-mcp.json` (`schemas/stack-mcp.schema.json`); last-writer-wins on name. Which servers a stack wants; the servers themselves are indexed catalog items under `features/<stack>/mcp/` |
 
-The retired `mcp-servers.json` and `external-tools.json` are read by nothing (ADR-0014 step 8).
+The retired `mcp-servers.json` and `external-tools.json` are read by nothing
+([ADR-0014](adr/0014-mcp-support-is-configuration-not-retrieval.md) decisions 2 and 3 — that
+ADR's Decision section has seven items, not eight).
 A stack still shipping either one gets a scaffold note naming it and pointing at
 `stack-mcp.json`; its servers are not declared.
 
