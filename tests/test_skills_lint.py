@@ -14,14 +14,16 @@ def _copy_real_schemas(tmp_path, root):
     return tmp_path
 
 
-def _write_skill(tmp_path, name="my-skill", description="Use when testing the skills lint.",
+def _write_skill(tmp_path, name="my-skill", fm_name=None, description="Use when testing the skills lint.",
                  body="", frontmatter_extra=""):
     """Write a canonical-frontmatter SKILL.md under a fake features/common/skills/<name>/ tree."""
     d = tmp_path / "features" / "common" / "skills" / name
     d.mkdir(parents=True)
+    if fm_name is None:
+        fm_name = name
     fm = (
         f"---\n"
-        f"name: {name}\n"
+        f"name: {fm_name}\n"
         f"description: >-\n"
         f"  {description}\n"
         f"version: 1.0.0\n"
@@ -63,7 +65,7 @@ def test_name_grammar_rejects_uppercase(tmp_path, load_script):
 
 def test_name_must_match_parent_dir(tmp_path, load_script):
     validate = load_script("tooling/validate.py")
-    _write_skill(tmp_path, name="other-name", body=_GOOD_BODY)
+    _write_skill(tmp_path, name="my-skill", fm_name="other-name", body=_GOOD_BODY)
 
     bad = _lint(validate, tmp_path)
 
