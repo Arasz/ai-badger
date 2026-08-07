@@ -20,8 +20,6 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Set, Tuple
 
-import jsonschema  # engine/requirements.txt: jsonschema>=4
-from jsonschema import Draft202012Validator
 
 class FeatureType(NamedTuple):
     """One catalog feature type and the behaviour every stage keys off.
@@ -626,14 +624,24 @@ def dir_content_hash(path: Path, exclude: Optional[List[str]] = None,
 
 
 # -------------------------------------------------------------- validation (jsonschema)
-def _loc(err: "jsonschema.exceptions.ValidationError") -> str:
+def _jsonschema():
+    """The `jsonschema` module, imported on first use.
+
+    Required, never optional: the ImportError propagates so validation refuses rather than
+    silently passing. Deferred because 11 of 13 entry points never validate (ADR-0011, D1).
+    """
+    import jsonschema  # pylint: disable=import-outside-toplevel
+    return jsonschema
+
+
+def _loc(err) -> str:
     path = "$" + "".join(f"[{p!r}]" if isinstance(p, int) else f".{p}" for p in err.absolute_path)
     return path
 
 
 def validate(instance: Any, schema: Dict[str, Any]) -> List[str]:
     """Return a sorted list of human-readable validation errors (empty == valid)."""
-    validator = Draft202012Validator(schema)
+    validator = _jsonschema().Draft202012Validator(schema)
     errors = sorted(validator.iter_errors(instance), key=lambda e: list(e.absolute_path))
     return [f"{_loc(e)}: {e.message}" for e in errors]
 
@@ -645,10 +653,11 @@ def validate_file(instance_path: Path, schema_path: Path) -> List[str]:
 
 def check_schemas_selfvalid(schemas_dir: Path) -> List[str]:
     """Meta-check: every *.schema.json is itself a valid Draft 2020-12 schema."""
+    jsonschema = _jsonschema()
     problems: List[str] = []
     for sp in sorted(schemas_dir.glob("*.schema.json")):
         try:
-            Draft202012Validator.check_schema(load_json(sp))
+            jsonschema.Draft202012Validator.check_schema(load_json(sp))
         except jsonschema.exceptions.SchemaError as exc:  # pragma: no cover
             problems.append(f"{sp.name}: {exc.message}")
     return problems
