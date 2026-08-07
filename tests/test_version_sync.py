@@ -176,3 +176,79 @@ def test_version_sync_loads_without_tooling_already_on_sys_path(load_script, mon
     monkeypatch.delitem(_sys.modules, "tooling.version_sync", raising=False)
 
     assert load_script("tooling/version_sync.py") is not None
+
+
+# ── the release ritual's last step: the scaffold stamps must agree with VERSION ──────
+
+def _stamp_the_scaffold(tmp_path, version):
+    """A manifest and a stamped agent file, as the scaffolder would leave them."""
+    aib = tmp_path / ".ai-badger"
+    aib.mkdir(exist_ok=True)
+    _write_json(aib / "manifest.json", {"frameworkVersion": version, "entries": []})
+    (tmp_path / "CLAUDE.md").write_text(
+        f"# p\n\n> Scaffolded by ai-badger {version}. Source of truth: `.ai-badger/CLAUDE.md`.\n",
+        encoding="utf-8")
+
+
+def test_a_manifest_left_at_the_previous_release_is_reported(tmp_path, root, load_script, capsys):
+    """Three of fourteen tags shipped a manifest one release behind; no lane could see it.
+
+    The freshness guard exempts version stamps by design, and version_sync did not read the
+    manifest at all, so a release that skipped the re-scaffold passed every check.
+    """
+    version_sync = load_script("tooling/version_sync.py")
+    _make_synced_root(tmp_path, root, load_script, version="0.3.0")
+    _stamp_the_scaffold(tmp_path, "0.2.0")
+
+    rc = version_sync.check(tmp_path, "0.3.0")
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "manifest" in out and "0.2.0" in out
+
+
+def test_a_stale_scaffolded_by_line_is_reported(tmp_path, root, load_script, capsys):
+    """The stamp in every generated agent file is the other half of the same skipped step."""
+    version_sync = load_script("tooling/version_sync.py")
+    _make_synced_root(tmp_path, root, load_script, version="0.3.0")
+    _stamp_the_scaffold(tmp_path, "0.3.0")
+    (tmp_path / "CLAUDE.md").write_text(
+        "# p\n\n> Scaffolded by ai-badger 0.2.0. Source of truth: `.ai-badger/CLAUDE.md`.\n",
+        encoding="utf-8")
+
+    rc = version_sync.check(tmp_path, "0.3.0")
+
+    assert rc == 1
+    assert "CLAUDE.md" in capsys.readouterr().out
+
+
+def test_agreeing_scaffold_stamps_are_silent(tmp_path, root, load_script):
+    version_sync = load_script("tooling/version_sync.py")
+    _make_synced_root(tmp_path, root, load_script, version="0.3.0")
+    _stamp_the_scaffold(tmp_path, "0.3.0")
+
+    assert version_sync.check(tmp_path, "0.3.0") == 0
+
+
+def test_sync_never_forges_the_scaffold_stamp(tmp_path, root, load_script):
+    """Writing frameworkVersion here would claim a scaffold that never ran."""
+    version_sync = load_script("tooling/version_sync.py")
+    _make_synced_root(tmp_path, root, load_script, version="0.3.0")
+    _stamp_the_scaffold(tmp_path, "0.2.0")
+
+    version_sync.sync(tmp_path, "0.3.0")
+
+    manifest = json.loads((tmp_path / ".ai-badger" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["frameworkVersion"] == "0.2.0"
+
+
+def test_prose_describing_the_stamp_is_not_mistaken_for_one(tmp_path, root, load_script):
+    """CONTRIBUTING.md documents the stamp as `Scaffolded by ai-badger <v>`; that is not a version."""
+    version_sync = load_script("tooling/version_sync.py")
+    _make_synced_root(tmp_path, root, load_script, version="0.3.0")
+    _stamp_the_scaffold(tmp_path, "0.3.0")
+    (tmp_path / "CONTRIBUTING.md").write_text(
+        "The scaffolder writes `Scaffolded by ai-badger <v>` into every generated file.\n",
+        encoding="utf-8")
+
+    assert version_sync.check(tmp_path, "0.3.0") == 0
