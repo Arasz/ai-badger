@@ -53,6 +53,15 @@ not require a `VERSION` bump.
 | `skills_lint.py` | Fail if a catalog `SKILL.md` breaks one of the eleven conventions (name grammar, description shape and size, body budget, conditioned `references/` mentions, a gotchas section, required and non-duplicated frontmatter keys). `tooling/validate.py --all` calls it too, so CI reports it without running it directly. | `python3 gates/skills_lint.py` |
 | `gate_report.py` | Not a gate: the `Problem(path, line, message)` finding shape and the failure report shared by `deps_guard`, `docs_guard` and `shipped_paths_guard`. The other three report something else and keep their own output. | Imported, never run. |
 
+## CI helpers (`.github/scripts/`)
+
+Called only by a workflow in `.github/workflows/`, never by a gate, the pre-push hook or a
+consumer of the plugin. Not shipped surface.
+
+| Script | What it does | Run |
+|--------|--------------|-----|
+| `conflicting_pr_report.py` | Report the open pull requests that conflict with their base — GitHub dispatches no `pull_request` workflow run for those, so a required check whose only trigger is `pull_request` never reports and the PR reads as slow rather than stuck. Filtering only; `stuck-pr-watch.yml` posts the notice. | `gh api graphql ... \| python3 .github/scripts/conflicting_pr_report.py`; `--print-comment` prints the notice body. |
+
 ## welcome-ai-badger (`features/common/skills/welcome-ai-badger/scripts/`)
 
 Bootstraps a target repo. See that skill's `SKILL.md` for the full flow.

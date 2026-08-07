@@ -1,0 +1,156 @@
+# Tell a stuck pull request apart from a slow one.
+#
+# A pull request that conflicts with its base has no merge ref, so GitHub dispatches no
+# `pull_request`-triggered workflow runs for it — zero runs, not queued runs. `Secret scan`
+# and `CodeQL` are both `pull_request`-only, so the required `gitleaks` check reports nothing
+# at all, and the mergebox draws "never reported" exactly like "still running".
+#
+# PR #341 is the measured case: while its branch conflicted, `Lint and test` ran three times
+# (it triggers on `push`, which the conflict does not affect) and `Secret scan`/`CodeQL` ran
+# zero times. Only the merge commit at 18:14 UTC started them. That asymmetry is what makes
+# the state read as slowness.
+#
+# GitHub exposes no setting that distinguishes the two, and the alternatives are worse:
+# `pull_request_target` would run on a conflicting PR but checks out the BASE commit with the
+# repository's secrets, so `gitleaks` would scan main and report green about code it never
+# read — a required check turned into a rubber stamp. `merge_group` only fires once a PR
+# enters a merge queue, which a conflicting PR cannot. So: detect it and say so on the PR.
+name: Stuck PR watch
+
+on:
+  schedule:
+    # Every six hours, off the hour. A conflict is resolved by a human on human timescales;
+    # polling faster only adds runs.
+    - cron: '23 1,7,13,19 * * *'
+  workflow_dispatch:
+
+# Least privilege: read the checkout, write the notice. No `contents: write`, no
+# `security-events`, no `actions` scope. Nothing here runs pull request code.
+permissions:
+  contents: read
+  pull-requests: write
+
+# One sweep at a time. A manual dispatch landing on top of a scheduled run would query the
+# same pull requests and could post the notice twice before either had commented.
+concurrency:
+  group: stuck-pr-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: stuck-pr-watch
+    runs-on: ubuntu-latest
+    # Two API calls and a filter. Anything approaching this is hung, not busy.
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The job authenticates with GH_TOKEN explicitly; a credential left in .git/config
+          # is one this step never needs again.
+          persist-credentials: false
+
+      - name: Find pull requests no pull_request workflow will run on
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # `github.repository` is in the context for every event; `github.event.repository`
+          # depends on the payload, and a schedule's payload is not the place to find out.
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          gh api graphql -F owner="${REPO%%/*}" -F name="${REPO#*/}" -f query='
+            query($owner:String!, $name:String!) {
+              repository(owner:$owner, name:$name) {
+                pullRequests(states: OPEN, first: 100) {
+                  # Asked for so the script can refuse a truncated page rather than report
+                  # on 100 of 101 open pull requests and call the 101st clean.
+                  totalCount
+                  nodes {
+                    number
+                    mergeable
+                    # totalCount again: past this window "no marker here" stops meaning
+                    # "not told yet", and the script declines to guess rather than re-post.
+                    comments(last: 100) { totalCount nodes { body } }
+                  }
+                }
+              }
+            }' > prs.json
+
+          # The script refuses a payload it cannot read rather than reporting "nothing stuck",
+          # so a changed query or an API error fails this step instead of passing quietly.
+          python3 .github/scripts/conflicting_pr_report.py --from prs.json > report.json
+          cat report.json
+
+      - name: Comment on each newly stuck pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          python3 .github/scripts/conflicting_pr_report.py --print-comment > notice.md
+
+          # Only pull request numbers cross into the shell. Titles and branch names are
+          # attacker-controlled on a fork PR and are never read here, let alone interpolated.
+          #
+          # A `for` over the numbers, not `jq | while read`: the latter runs in a subshell, so
+          # one PR closing between the query and this step would abort the loop under `set -e`
+          # and leave every later PR silently uncommented. Here each is attempted, and the
+          # step still fails at the end if any did not land.
+          failed=0
+          for number in $(jq -r '.needs_comment[]' report.json); do
+            echo "Commenting on #${number}"
+            gh pr comment "$number" --body-file notice.md || failed=1
+          done
+          [ "$failed" -eq 0 ]
+
+      - name: Summarise
+        # A step defaults to `if: success()`, which would drop the summary exactly when a
+        # comment failed to post — the run a human most needs to read.
+        if: always()
+        run: |
+          set -euo pipefail
+
+          if [ ! -f report.json ]; then
+            echo "### Stuck PR watch" >> "$GITHUB_STEP_SUMMARY"
+            echo >> "$GITHUB_STEP_SUMMARY"
+            echo "The query step failed, so nothing was checked. Read its log." \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo "### Stuck PR watch"
+            echo
+            echo "Checked $(jq -r '.checked' report.json) open pull request(s)."
+            echo
+
+            stuck=$(jq -r '.stuck | length' report.json)
+            if [ "$stuck" -eq 0 ]; then
+              echo "No pull request is waiting on a check that will never report."
+            else
+              echo "**$stuck stuck** — conflicting, so no \`pull_request\` workflow runs on them"
+              echo "and their required \`gitleaks\` check will never report:"
+              echo
+              jq -r '.stuck[] | "- #\(.)"' report.json
+            fi
+
+            unknown=$(jq -r '.unknown | length' report.json)
+            if [ "$unknown" -ne 0 ]; then
+              echo
+              echo "GitHub had not computed mergeability for $unknown pull request(s) yet;"
+              echo "the next run reports on them:"
+              echo
+              jq -r '.unknown[] | "- #\(.)"' report.json
+            fi
+
+            truncated=$(jq -r '.history_truncated | length' report.json)
+            if [ "$truncated" -ne 0 ]; then
+              echo
+              echo "$truncated stuck pull request(s) have more comments than one page, and the"
+              echo "notice was not among the ones read — so it was **not** re-posted rather than"
+              echo "posted twice. Check these by hand:"
+              echo
+              jq -r '.history_truncated[] | "- #\(.)"' report.json
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

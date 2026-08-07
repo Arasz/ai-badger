@@ -315,6 +315,27 @@ State in the body:
 
 Then wait for CI. Do not merge with a red build.
 
+#### If a required check never reports, the PR is stuck, not slow
+
+`gitleaks` is a required status check. It comes from `Secret scan`, which — like `CodeQL` —
+triggers only on `pull_request`. GitHub does not run `pull_request` workflows on a pull request
+that conflicts with its base ([events that trigger
+workflows](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows)):
+there is no merge ref to check out, so **no run is dispatched at all**. The mergebox draws that
+identically to a queued run, so the PR looks slow while it is in fact unmergeable forever.
+
+What makes it convincing is the asymmetry: `Lint and test` triggers on `push`, so `build (3.10)`
+keeps reporting normally. PR #341 sat this way for 37 minutes — three `Lint and test` runs, zero
+`Secret scan` runs — until a merge commit started the others.
+
+The fix is to merge `main` into your branch (this repo merges, never rebases) and push. To check
+before waiting on the six-hourly [`Stuck PR watch`](.github/workflows/stuck-pr-watch.yml), which
+posts this same notice on any stuck PR:
+
+```bash
+gh pr view <number> --json mergeable --jq .mergeable   # CONFLICTING means stuck
+```
+
 ### 8. After merge — tag, if you released
 
 **This step is the release**, and it is easy to forget because a green PR looks finished without
