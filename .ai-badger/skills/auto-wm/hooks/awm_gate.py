@@ -26,6 +26,7 @@ normal permission flow is untouched.
 # except below is intentional — a broken hook must never break the session's permission flow.
 import json
 import re
+import shlex
 import sys
 import traceback
 from datetime import datetime, timezone
@@ -48,7 +49,9 @@ PATH_KEYS = ("file_path", "notebook_path", "path")
 DENIED_COMMAND_PATTERNS = [re.compile(p, re.IGNORECASE) for p in (
     r"\brm\s+(-\w+\s+)*-\w*[rf]",
     r"\b(sudo|doas|su)\b",
-    r"\bgit\s+push\b[^|;&]*\s(--force|-f)\b",
+    r"\bgit\s+push\b[^|;&]*\s(--force|-f|--force-with-lease)\b",
+    r"\bgit\s+push\b[^|;&]*\s\+[\w./-]+",
+    r"\bfind\b[^|;&]*\s-(delete|exec)\b",
     r"\bgit\s+(reset\s+--hard|clean\s+-\w*[fdx])\b",
     r"\b(mkfs|fdisk|diskutil)\b",
     r"\bdd\s+if=",
@@ -60,6 +63,50 @@ DENIED_COMMAND_PATTERNS = [re.compile(p, re.IGNORECASE) for p in (
     r"\bcrontab\b",
     r"\bhistory\s+-c\b",
 )]
+
+LONG_FLAG_ALIASES = {
+    "--recursive": "-r",
+    "--force": "-f",
+    "--dir": "-d",
+    "--no-preserve-root": "-r",
+}
+
+# A verb that destroys or escalates. Its arguments must be readable to be judged.
+UNRESOLVABLE_ARG_HEADS = {
+    "rm", "dd", "mkfs", "fdisk", "diskutil", "chmod", "chown",
+    "shutdown", "reboot", "halt", "killall", "crontab", "sudo", "doas", "su", "find",
+}
+EXPANSION_RE = re.compile(r"[$`]")
+SEGMENT_RE = re.compile(r"[;&|]+|\n")
+
+
+def normalise_command(command):
+    """Rewrite a command so the denylist matches intent, not flag spelling.
+
+    Long flags become their short equivalents; unparseable input is returned unchanged
+    so the patterns still run against the raw text rather than being skipped.
+    """
+    try:
+        tokens = shlex.split(command, comments=False)
+    except ValueError:
+        return command
+    return " ".join(LONG_FLAG_ALIASES.get(token, token) for token in tokens)
+
+
+def hides_arguments_from_the_denylist(command):
+    """True when a destructive verb's arguments are expansions this gate cannot resolve.
+
+    `V=-rf; rm $V` reads as harmless and runs as `rm -rf`, so an unreadable argument to a
+    destructive verb is treated as the dangerous reading.
+    """
+    for segment in SEGMENT_RE.split(command):
+        tokens = segment.split()
+        if len(tokens) < 2:
+            continue
+        if Path(tokens[0]).name in UNRESOLVABLE_ARG_HEADS:
+            if any(EXPANSION_RE.search(token) for token in tokens[1:]):
+                return True
+    return False
 
 
 def now_utc():
@@ -147,7 +194,10 @@ def denylist_reason(tool_name, tool_input, project):
         return "denied_tool"
     if tool_name == "Bash":
         command = (tool_input or {}).get("command") or ""
-        if any(pattern.search(command) for pattern in DENIED_COMMAND_PATTERNS):
+        normalised = normalise_command(command)
+        if any(pattern.search(normalised) for pattern in DENIED_COMMAND_PATTERNS):
+            return "destructive_command"
+        if hides_arguments_from_the_denylist(command):
             return "destructive_command"
         return None
     if tool_name in PATH_SCOPED_TOOLS:
