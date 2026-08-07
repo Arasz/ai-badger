@@ -168,9 +168,13 @@ def test_resolve_project_root_regression_plugin_cache_does_not_misroot(load_scri
     assert resolved != wrong_root
 
 
-def test_module_level_constants_fall_back_to_parents_index_by_default(load_script, tmp_path, monkeypatch):
-    """A real (non-redirected) import with no CLAUDE_PROJECT_DIR and a cwd outside any
-    `.ai-badger` project must match today's SCRIPT_DIR.parents[3] behavior exactly."""
+def test_module_level_constants_resolve_the_checkout_not_the_catalog(
+        load_script, root, tmp_path, monkeypatch):
+    """No env, a cwd outside any project: the catalog copy must still name its own checkout.
+
+    This test previously asserted `SCRIPT_DIR.parents[3]`, which for the catalog copy is
+    `features/` -- the mis-root that wrote `features/.ai-badger/task-tracking/` (N3).
+    """
     monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
     isolated_cwd = tmp_path / "isolated"
     isolated_cwd.mkdir()
@@ -178,7 +182,8 @@ def test_module_level_constants_fall_back_to_parents_index_by_default(load_scrip
 
     tl = load_script("features/common/skills/task/scripts/tracker_lib.py")
 
-    assert tl.PROJECT_ROOT == tl.SCRIPT_DIR.parents[3]
+    assert tl.SCRIPT_DIR.parents[3].name == "features", "the mis-root this pins against"
+    assert tl.PROJECT_ROOT == tl.collapse_worktree(root)
     assert tl.DATA_DIR == tl.PROJECT_ROOT / ".ai-badger" / "task-tracking"
 
 
