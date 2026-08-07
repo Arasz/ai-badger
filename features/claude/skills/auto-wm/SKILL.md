@@ -68,7 +68,7 @@ All via `python3 ~/.claude/skills/auto-wm/scripts/awm.py`:
 - Register every significant judgment call with `awm.py decision` — option chosen, alternatives, why.
 - Prefer reversible choices (branch instead of main, keep backups before overwrites); log anything risky before doing it.
 
-## Common mistakes
+## Gotchas
 
 - **State in the project** (`.claude/` in a repo, `CLAUDE.md` edits) — the *scripts* are scaffolded per project, but the *state* is user-level: enabled flag, window, decisions. Keep all of it in `~/.claude/awm/`; a state marker committed to a repo both leaks and misleads.
 - **Permission allowlist ≠ AWM.** Adding `permissions.allow` entries doesn't approve everything; only the PreToolUse hook does.

@@ -166,18 +166,9 @@ report the counts it holds.
 **A migration reported complete while the state file shows pending items is a failed run** — a
 worse outcome than stopping, because it retires the only signal that work remains.
 
-## Rationalizations — every one of these means STOP
+## Gotchas
 
-| Rationalization | Reality |
-|---|---|
-| "The content is clearly covered by the new page, I'll delete the source." | `residual == 0`, or it is not covered. "Clearly" is the word that precedes every vacuous migration. |
-| "I'll write `the state machine is described in explanation/flows.md` and mark it processed." | That sentence is exactly the failure mode this gate exists for. A `processedto` target must contain the span id and be a file this branch wrote. |
-| "I'll batch the remaining 40 files, it's faster." | One item at a time. Batching is how a compaction lands mid-batch and nobody can tell what transferred. |
-| "The todo list has the remaining work, that's enough." | The todo list does not survive a compaction. The state file is committed. |
-| "It's 90 % done, I'll report it complete and file the rest." | The state file will contradict you in the next session. Report the counts. |
-| "This file is obviously stale, I'll drop it rather than migrate it." | Dropping needs a recorded row with a reason. Silent drops are indistinguishable from bugs. |
-| "The freeze list is over-cautious for this one file." | It is derived from the build. A file the build parses at runtime corrupts from a static initializer in production, not at compile time. |
-| "I'll move and rewrite in one commit to save a round trip." | Then the rename is undetectable and `git log --follow` dies across the corpus. Move, then rewrite. |
+No environment-specific gotchas known.
 
 ## Red flags — STOP
 
@@ -193,3 +184,16 @@ worse outcome than stopping, because it retires the only signal that work remain
 - A `git mv` with no matching move record — the move is unrecorded and nothing can answer for it
 - Creating a redirect stub at a vacated path
 - Reporting completion while the state file shows pending items
+
+### Rationalizations — every one of these means STOP
+
+| Rationalization | Reality |
+|---|---|
+| "The content is clearly covered by the new page, I'll delete the source." | `residual == 0`, or it is not covered. "Clearly" is the word that precedes every vacuous migration. |
+| "I'll write `the state machine is described in explanation/flows.md` and mark it processed." | That sentence is exactly the failure mode this gate exists for. A `processedto` target must contain the span id and be a file this branch wrote. |
+| "I'll batch the remaining 40 files, it's faster." | One item at a time. Batching is how a compaction lands mid-batch and nobody can tell what transferred. |
+| "The todo list has the remaining work, that's enough." | The todo list does not survive a compaction. The state file is committed. |
+| "It's 90 % done, I'll report it complete and file the rest." | The state file will contradict you in the next session. Report the counts. |
+| "This file is obviously stale, I'll drop it rather than migrate it." | Dropping needs a recorded row with a reason. Silent drops are indistinguishable from bugs. |
+| "The freeze list is over-cautious for this one file." | It is derived from the build. A file the build parses at runtime corrupts from a static initializer in production, not at compile time. |
+| "I'll move and rewrite in one commit to save a round trip." | Then the rename is undetectable and `git log --follow` dies across the corpus. Move, then rewrite. |

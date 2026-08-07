@@ -86,3 +86,7 @@ Scripts are small deterministic helpers. They should:
 
 Use `references/agent-instruction-model.md` for the model contract and
 `references/copilot-compatibility.md` for Copilot integration notes.
+
+## Gotchas
+
+No environment-specific gotchas known.

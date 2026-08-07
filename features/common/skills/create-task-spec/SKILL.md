@@ -139,6 +139,10 @@ python3 .ai-badger/skills/create-task-spec/scripts/render_spec.py <spec>.feature
 planning phase gets an agreed contract plus explicit constraints. Acceptance becomes exact —
 every non-deferred scenario satisfied.
 
+## Gotchas
+
+No environment-specific gotchas known.
+
 ## What this skill is not
 
 It is not brainstorming. Brainstorming explores *what to build* and converges on an idea; this

@@ -235,7 +235,7 @@ tight, unambiguous alias earns a technology tag.
 | Server is `playwright` | adds `[browser]` |
 | No match | `[general]` |
 
-## Common Pitfalls
+## Gotchas
 
 1. **Auto-tagging covers only ~60% of tools.** Expect 10-20 tools tagged as `[general]` after `init`. Curate them with `mcp-index tag`, or — better, if the server is worth describing for every project — add its `tools.json` to the framework's mcp catalog.
 2. **The first `update` after upgrading rewrites heuristic tags.** Any tool the catalog describes gets the curated tags and intent, because an entry with no `origin` cannot be told apart from a guess. Tools curated with `mcp-index tag`/`intent` from now on are marked `manual` and left alone.

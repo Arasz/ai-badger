@@ -74,6 +74,10 @@ with it — never in a sibling directory beside it, which would never be indexed
 delivered. The same rule applies to the documentation tree you are creating: nothing is picked up
 because it is nearby.
 
+## Gotchas
+
+No environment-specific gotchas known.
+
 ## Red flags — STOP
 
 - Writing any document before the structure inventory comes back empty

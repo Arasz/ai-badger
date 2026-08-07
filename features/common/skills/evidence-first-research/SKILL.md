@@ -91,6 +91,10 @@ and an unknown kind is refused rather than skipped:
 **Prefer `range` to `bars` for anything timed.** A single bar asserts a precision three runs will
 not support, and the spread is usually the interesting part.
 
+## Gotchas
+
+No environment-specific gotchas known.
+
 ## Red flags — STOP
 
 - A number in the record with no grade on its finding

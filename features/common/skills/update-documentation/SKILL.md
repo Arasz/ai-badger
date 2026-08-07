@@ -103,6 +103,10 @@ Falsification test first: if the code changed tomorrow and this became untrue, w
 it (→ a quadrant) or would editing it be **falsifying a record** (→ `work/`, dated filename)?
 Everything else is in `references/placement.md`.
 
+## Gotchas
+
+No environment-specific gotchas known.
+
 ## Red flags — STOP
 
 - Writing "the system does X" with no `evidence=` — that is the claim the evidence gate exists to catch

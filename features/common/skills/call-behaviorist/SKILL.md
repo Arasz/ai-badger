@@ -236,6 +236,10 @@ Two things regardless of process:
 - Title it so the headline is legible in a list: `ai-badger health: <project> — <what is
   wrong>`, not `health report`.
 
+## Gotchas
+
+No environment-specific gotchas known.
+
 ## Turn it off when you are done
 
 The window expires on wall-clock time, checked on every event — no timer and no cron. Debug
