@@ -77,6 +77,15 @@ back to `ai-badger` as a **draft PR** for human review.
 - **Provenance drives detection.** `feed-badger` only works on repos scaffolded by ai-badger
   (those with `.ai-badger/manifest.json`).
 
+## Gotchas
+
+- **Draft PR, always.** A human reviews and merges; never auto-merge.
+- **`--path` is required and repeatable.** Only declared paths are staged, so an unrelated dirty
+  file cannot ride along in the PR.
+- **The credential scan is a guard, not proof.** It checks known literal shapes; a clean run is
+  not a certificate.
+- **The agnostic bar is high.** When unsure, keep it in the project, not the framework.
+
 ## Error Recovery
 
 When any script in the feed flow (`detect_additions.py`, `open_pr.py`) exits
@@ -106,3 +115,11 @@ non-zero or emits an error, attempt recovery before surfacing the failure.
    permission first, gate on `gh` being installed and authenticated, sanitize the config
    before including it. **Never create the issue without explicit user approval** — that rule
    holds even if the reference file is not present.
+
+## Verification Checklist
+
+- [ ] `detect_additions.py` ran and every candidate was classified — dropped project-specific ones have stated reasons
+- [ ] Every keeper generalized — no repo names, domain nouns, or absolute paths
+- [ ] Placed files pass `index_build.py` + `validate.py --all` in the checkout
+- [ ] Draft PR opened with `--path` naming every placed path (and `index.json` if regenerated)
+- [ ] Credential scan clean
