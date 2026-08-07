@@ -131,6 +131,9 @@ def _home_off_limits(tmp_path_factory):
     with pytest.MonkeyPatch.context() as patch:
         for var in ("HOME", "USERPROFILE"):
             patch.setenv(var, str(scratch))
+        # $HERMES_HOME outranks $HOME wherever the Hermes user scope is resolved, so a
+        # developer who has it set would send the suite's writes to their real Hermes home.
+        patch.delenv("HERMES_HOME", raising=False)
         yield scratch
 
 

@@ -191,7 +191,8 @@ def _bootstrap_lib() -> Path:
 
 try:
     FRAMEWORK_ROOT: Optional[Path] = _bootstrap_lib()
-except RuntimeError:  # a hook degrades to silence; it never breaks a session
+except RuntimeError as _bootstrap_failure:  # never break a session; never hide the reason
+    print(f"ai-badger: {_bootstrap_failure}", file=sys.stderr)
     FRAMEWORK_ROOT = None
 
 

@@ -78,7 +78,7 @@ def test_scaffold_installs_hermes_plugin_as_directory_plugin(tmp_path, root, mak
     home = tmp_path / "home"
     home.mkdir()
 
-    scaf = make_scaffolder(config=_config(["hermes"]), skills=["task"])
+    scaf = make_scaffolder(config=_config(["hermes"]), skills=["task"], install=True)
     with patch("pathlib.Path.home", return_value=home):
         result = scaf.run(generated_at="2026-07-26T00:00:00Z")
 
@@ -104,7 +104,7 @@ def test_scaffold_refreshes_stale_hermes_plugin(tmp_path, root, make_scaffolder)
     for name in USER_PLUGIN_FILES:
         (plugin / name).write_text("# stale copy\n", encoding="utf-8")
 
-    scaf = make_scaffolder(config=_config(["hermes"]), skills=["task"])
+    scaf = make_scaffolder(config=_config(["hermes"]), skills=["task"], install=True)
     with patch("pathlib.Path.home", return_value=home):
         scaf.run(generated_at="2026-07-26T00:00:00Z")
 
@@ -299,3 +299,55 @@ def test_legacy_flat_copies_are_removed(tmp_path, load_script, root):
     assert [p.name for p in plugins.iterdir() if p.is_file()] == []
     assert not (plugins / ".ai-badger").exists()
     assert (_plugin_dir(home) / "ai_badger_hooks.py").is_file()
+
+
+# ------------------------------------------------------- confining the user-scope install
+
+
+def test_no_install_leaves_the_user_scope_untouched(tmp_path, load_script, root):
+    """`--no-install` must reach the user scope, not just the skill install commands.
+
+    The scaffold-freshness gate re-scaffolds a throwaway copy with `--no-install`; when that
+    reached only `install_plugins`, every gate run overwrote the operator's real Hermes plugin
+    and recorded the temp directory as its `frameworkRoot`.
+    """
+    adjust_hooks = load_script("features/hermes/adjustments/adjust_hooks.py")
+    target = tmp_path / "proj"
+    home = tmp_path / "home"
+    home.mkdir()
+    context = _adjust_context(root, target, ["hermes"])
+    context["install"] = False
+
+    with patch("pathlib.Path.home", return_value=home):
+        result = adjust_hooks.adjust(context)
+
+    assert not (home / ".hermes").exists()
+    assert ".hermes" not in result["notes"]
+    assert result["applied"] is True
+    assert (target / ".ai-badger" / "hooks" / "ai_badger_hooks.py").is_file()
+
+
+def test_the_plugin_install_follows_hermes_home(tmp_path, load_script, root, monkeypatch):
+    """`$HERMES_HOME` names the Hermes home; the install must not hardcode `~/.hermes`."""
+    elsewhere = tmp_path / "elsewhere"
+    monkeypatch.setenv("HERMES_HOME", str(elsewhere))
+    adjust_hooks = load_script("features/hermes/adjustments/adjust_hooks.py")
+
+    _, _, home = _run_adjust(adjust_hooks, tmp_path, root)
+
+    assert (elsewhere / "plugins" / PLUGIN_DIR_NAME / "ai_badger_hooks.py").is_file()
+    assert not (home / ".hermes").exists()
+
+
+def test_the_scaffolder_hands_no_install_through_to_the_user_scope(
+        tmp_path, root, make_scaffolder):
+    """End to end: the adjustment's no-op is only a fix if scaffold.py passes the flag."""
+    assert root  # the fixture pins which framework the scaffolder reads
+    home = tmp_path / "home"
+    home.mkdir()
+
+    scaf = make_scaffolder(config=_config(["hermes"]), skills=["task"], install=False)
+    with patch("pathlib.Path.home", return_value=home):
+        scaf.run(generated_at="2026-07-26T00:00:00Z")
+
+    assert not (home / ".hermes" / "plugins").exists()

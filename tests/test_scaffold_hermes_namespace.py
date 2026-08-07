@@ -218,3 +218,19 @@ def test_a_scaffolder_run_reports_a_hermes_link_removal(tmp_path, make_scaffolde
             generated_at="2026-07-29T00:01:00Z")
 
     assert any("prompt-markers" in n for n in result["notes"])
+
+
+def test_the_namespace_follows_hermes_home(tmp_path, make_scaffolder, monkeypatch):
+    """`$HERMES_HOME` names the Hermes home; the namespace must not hardcode `~/.hermes`.
+
+    Without this the scaffold-freshness gate, which re-scaffolds a throwaway copy, relinked
+    the operator's real namespace at every run — leaving links into a deleted temp tree.
+    """
+    _, home = _hermes_case(tmp_path, make_scaffolder)
+    elsewhere = tmp_path / "elsewhere"
+    monkeypatch.setenv("HERMES_HOME", str(elsewhere))
+
+    _hermes_scaffold(make_scaffolder, home, ["task"])
+
+    assert (elsewhere / "skills" / "probe" / "task").is_symlink()
+    assert not (home / ".hermes").exists()

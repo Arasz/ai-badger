@@ -146,7 +146,11 @@ def test_an_unparseable_version_string_is_not_skew(tmp_path, load_script):
 
 # ------------------------------------------------------------------ the installer's record
 def test_the_installer_records_the_version_the_copies_came_from(tmp_path, root, make_scaffolder):
-    """AC-1: the record beside the copies names the checkout that wrote them."""
+    """AC-1: the record beside the copies names the checkout that wrote them.
+
+    `install=True` is explicit because `make_scaffolder` defaults to `False`, and that flag
+    now suppresses the user-scope install outright — there would be no record to read.
+    """
     home = tmp_path / "home"
     home.mkdir()
 
@@ -156,7 +160,7 @@ def test_the_installer_records_the_version_the_copies_came_from(tmp_path, root, 
         "stacks": ["python"], "agents": ["hermes"],
         "sourceControl": {"platform": "none", "repoUrl": None, "projectUrl": None},
         "commands": {}, "personaRouting": [], "skillScope": "default", "docs": {},
-    }, skills=["task"])
+    }, skills=["task"], install=True)
     with patch("pathlib.Path.home", return_value=home):
         scaf.run(generated_at="2026-07-29T00:00:00Z")
 

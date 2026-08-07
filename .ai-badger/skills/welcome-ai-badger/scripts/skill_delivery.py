@@ -20,6 +20,18 @@ SEED_ONCE_SKILL_FILES: Dict[str, List[str]] = {
 
 # Hermes-authored skills live under one directory the namespace links whole.
 LEARNED_SKILLS_DIR = "learned"
+HERMES_HOME_ENV = "HERMES_HOME"
+
+
+def hermes_skills_root() -> Path:
+    """Hermes's skills root: $HERMES_HOME/skills when set, else ~/.hermes/skills.
+
+    Same resolution `ai_badger_hooks.hermes_skills_root` uses, so a redirected Hermes home
+    keeps the namespace and the hooks that read it pointing at one place.
+    """
+    override = os.environ.get(HERMES_HOME_ENV, "").strip()
+    base = Path(override).expanduser() if override else Path.home() / ".hermes"
+    return base / "skills"
 
 
 def _owns_link(entry: Path, skills_root: Path) -> bool:
@@ -46,7 +58,7 @@ def relink_hermes_skills(target: Path, config: Dict[str, Any],
 
     project_name = config.get("project", {}).get("name", "unknown")
     skills_root = target / ".ai-badger" / "skills"
-    hermes_skills = Path.home() / ".hermes" / "skills"
+    hermes_skills = hermes_skills_root()
     namespace_dir = hermes_skills / project_name
     if not _within(hermes_skills, namespace_dir):
         raise ValueError(
