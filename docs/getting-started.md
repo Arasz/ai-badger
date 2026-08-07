@@ -3,8 +3,12 @@
 You found this repository and you do not yet know whether it is for you. This page answers that
 in the first two sections, then walks one project from nothing to a committed scaffold.
 
-Everything below was run against the code in this repo at version `0.27.1`. Where a command's
-output is quoted, it is the real output.
+**The commands and flags below are current** — re-run against `0.97.0` on 2026-08-07, and they
+still work as written. **The quoted output is a transcript from `0.27.1`**, kept because it is
+real output rather than an invented sample, and it has moved since: the catalog is larger, the
+scaffolder wires more hooks, and two of the note strings it prints were reworded. The counts you
+see are the counts for *your* repo, not these. Where a number matters, the deltas are called out
+next to the block it appears in.
 
 ---
 
@@ -31,8 +35,9 @@ pulls generalizable improvements back out.
   step and no public API.
 - **You are on Windows.** The scripts themselves are portable, but the `task` skill declares
   `platforms: [linux, macos]` — it uses `fcntl` and `crontab`.
-- **You want zero generated files in your repo.** A scaffold writes roughly fifty files under
-  `.ai-badger/` plus copies at conventional paths. They are meant to be committed.
+- **You want zero generated files in your repo.** A scaffold writes dozens of files under
+  `.ai-badger/` plus copies at conventional paths — a one-file demo repo produced 71 entries at
+  `0.97.0`, and a real project produces more. They are meant to be committed.
 
 Requirements: **Python 3.8+** (CI floor) and the two dependencies in
 [`engine/requirements.txt`](../engine/requirements.txt).
@@ -219,6 +224,7 @@ python3 "$AI_BADGER/tooling/validate.py" --kind config /tmp/ai-badger-config.jso
 
 ```
 ok       /tmp/ai-badger-config.json
+ok       config stack membership
 ```
 
 Exit 0 valid, 1 invalid, 2 usage error. An invalid config names the offending path:
@@ -256,6 +262,17 @@ scaffolded 50 entries into /path/to/demo1/.ai-badger
 ```
 
 Read the notes. They are the honest record of what was skipped and why.
+
+*What has changed since that `0.27.1` transcript, measured on 2026-08-07 at `0.97.0`:* the entry
+count and the hook/skill counts are all higher and depend on the repo and the agents detected —
+a one-file demo scaffolded **71** entries and wired **6** hooks here, not 50 and 2. Two of the
+note strings above can no longer be printed as written: the skip note now reads
+`skill '<name>' not in any configured stack — skipped`
+(`skill_delivery.py`), and the MCP line reads `generated .mcp.json with N MCP server(s)`, not
+`N external tool(s)` — MCP servers became a catalog feature type in 0.51.0
+([ADR-0014](adr/0014-mcp-support-is-configuration-not-retrieval.md)). The scaffolder also prints
+a `prerequisite —` note per declared server now. Run it and read your own notes; do not calibrate
+against these.
 
 Useful flags: `--overwrite-agent-files` (replace hand-authored discovery files instead of
 preserving them), `--execute` (actually run the printed plugin-install commands),
@@ -476,8 +493,11 @@ python3 "$AI_BADGER/features/common/skills/den-refresh/scripts/refresh.py" --tar
 ```
 
 Runs drift detection, backs up `.ai-badger/` to `.ai-badger.bckp`, re-scaffolds from your existing
-`config.json` — no re-detection, no questions — and prints a JSON report: `frameworkVersion`,
-`drift.changed`, `drift.removed`, `newStacks`, `reScaffolded`, `scaffold`. Seed-once files
+`config.json` — no re-detection, no questions — and prints a JSON report. Always present:
+`frameworkVersion` (an object — `scaffolded`, `current`, `manifest` — not a scalar),
+`breakingChange` (`isBreaking`, `backupPath`), `drift.changed`, `drift.removed`, `newStacks`,
+`reScaffolded`. Present when they apply: `scaffold`, `forced`, `note`, `hermesSkillLinks`,
+`skillUsage`, `availableOptIn`, `frameworkCopies`, `cache`. Seed-once files
 (`state.json`, `markers-context.json`, `model.json`) survive. Review `git diff` before committing.
 Why this is a separate skill rather than a mode of `welcome-ai-badger`:
 [ADR-0002](adr/0002-den-refresh-skill.md). Versions that *require* a re-scaffold are listed in
@@ -525,23 +545,29 @@ PR/review-loop behaviour activates only when `sourceControl.platform == "github"
 ### `ModuleNotFoundError: No module named 'jsonschema'`
 
 ```
-  File ".../engine/badger_lib.py", line 20, in <module>
-    import jsonschema  # engine/requirements.txt: jsonschema>=4
+  File ".../engine/badger_lib.py", line 696, in validate
+    validator = _jsonschema().Draft202012Validator(schema)
+  File ".../engine/badger_lib.py", line 685, in _jsonschema
+    import jsonschema  # pylint: disable=import-outside-toplevel
 ModuleNotFoundError: No module named 'jsonschema'
 ```
 
-Every script imports `badger_lib`, and `badger_lib` imports `jsonschema` at module level with no
-guard. Missing it is a traceback and a non-zero exit from `detect.py`, `validate.py`,
-`scaffold.py`, and `refresh.py` alike — not a degraded run.
+`badger_lib` imports `jsonschema` **on first use**, inside `_jsonschema()`, not at module level —
+deferred because 11 of its 13 entry points never validate (ADR-0011, D1). The import is still
+unguarded, so validation refuses rather than silently passing: `validate.py`, `scaffold.py` and
+`refresh.py` all die with the traceback above. `detect.py` does not — it never validates, so it
+completes with exit 0 on an interpreter that has no `jsonschema` at all.
 
 ```bash
 python3 -m pip install -r "$AI_BADGER/engine/requirements.txt"
 ```
 
-The other dependency, **`pyyaml`, is guarded and degrades to a note**: without it the scaffold
-prints `note: yaml not available — skipping hermes user MCP config` and continues, and
-`mcp-index` prints `mcp-index needs PyYAML: pip install pyyaml (it is in
-engine/requirements.txt)`. Install both anyway.
+The other dependency, **`pyyaml`, is guarded and degrades to a note**: without it the Copilot
+adjustment prints `PyYAML not available — Copilot custom agents not generated; pip install
+pyyaml (engine/requirements.txt)` and the scaffold continues, and `mcp-index` prints
+`mcp-index needs PyYAML: pip install pyyaml (it is in engine/requirements.txt)`. Install both
+anyway. (The Hermes MCP adjustment used to print a note of its own here; it now builds its
+`mcp_servers:` snippet as plain text so pyyaml is never needed for it.)
 
 If you are running the scripts with a system interpreter that has neither, use a virtualenv and
 call its `python3` explicitly.
@@ -567,11 +593,20 @@ index.json is missing or stale — run index_build.py
 (exit 1). Fix it by dropping `--check`. This only affects the clone route where you edit
 `features/` yourself; a released plugin ships a matching index.
 
-### `note: skill 'auto-wm' not in index common.skills — skipped`
+### `note: skill '<name>' not in any configured stack — skipped`
 
-Expected, not an error. `auto-wm` lives under `features/claude/skills/`, and the scaffold only
-resolves the stacks in your config plus `common` — `claude` is an agent, not a stack. `auto-wm`
-reaches you through the Claude Code plugin, not through `.ai-badger/skills/`.
+You named a skill that no stack in your `config.json` provides. The scaffold resolves a skill
+against the stacks you configured plus `common`, and says so rather than guessing.
+
+`auto-wm` is the usual case, and it is not always an error: it lives under
+`features/claude/skills/`, and `claude` **is** a stack (`features/claude/stack.json`, and
+`"claude"` is in `schemas/config.schema.json`'s `stacks` enum) as well as an agent. Put `claude`
+in `stacks` and `SkillDelivery.discover_stack_local()` picks `auto-wm` up automatically and
+delivers it into `.ai-badger/skills/auto-wm/` — no note at all. Leave `claude` out of `stacks`
+and you get the note above.
+
+This entry previously quoted the message as `not in index common.skills — skipped` and said
+`claude` was an agent and not a stack. Both were wrong; corrected 2026-08-07.
 
 ### `can't open file '.../skills/welcome-ai-badger/scripts/detect.py'`
 
