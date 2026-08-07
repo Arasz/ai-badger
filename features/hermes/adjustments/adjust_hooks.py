@@ -13,6 +13,7 @@ older ai-badger versions are removed so the user scope stays clean.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List
@@ -42,6 +43,7 @@ LEGACY_FLAT_FILES = tuple(
                   + RETRIEVAL_MODULES))
 
 PLUGIN_DIR_NAME = "ai-badger"
+HERMES_HOME_ENV = "HERMES_HOME"
 PLUGIN_YAML = """\
 name: ai-badger
 version: {version}
@@ -110,9 +112,22 @@ def _remove_legacy_flat_copies(plugins_dir: Path) -> None:
         shutil.rmtree(legacy_manifest)
 
 
-def _install_user_plugins(hooks_dir: Path, framework_root: Path) -> List[str]:
-    """Copy (and refresh) the Hermes plugin as a directory plugin in ~/.hermes/plugins/."""
-    plugins_dir = Path.home() / ".hermes" / "plugins"
+def _hermes_home() -> Path:
+    """Hermes's own home: $HERMES_HOME when set, else ~/.hermes."""
+    override = os.environ.get(HERMES_HOME_ENV, "").strip()
+    return Path(override).expanduser() if override else Path.home() / ".hermes"
+
+
+def _install_user_plugins(hooks_dir: Path, framework_root: Path, install: bool) -> List[str]:
+    """Copy (and refresh) the Hermes plugin as a directory plugin in $HERMES_HOME/plugins/.
+
+    A no-op under `--no-install`: this is user-global state, and a caller that asked for no
+    installation must not have its own machine rewritten (the scaffold-freshness gate
+    re-scaffolds a throwaway copy on every commit).
+    """
+    if not install:
+        return []
+    plugins_dir = _hermes_home() / "plugins"
     plugin_dir = plugins_dir / PLUGIN_DIR_NAME
     installed: List[str] = []
     for name in USER_PLUGINS:
@@ -155,6 +170,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
             'config': dict,
             'feature_dir': Path,    # features/hermes/adjustments/
             'target_dir': Path,     # .ai-badger/
+            'install': bool,        # False under --no-install: skip user-global state
         }
     Returns:
         {'applied': bool, 'files': list[str], 'notes': str}
@@ -192,14 +208,15 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
 
     # User-scope copies are deliberately absent from 'files': the scaffolder records every
     # returned file relative to the project target, which a home path cannot be.
-    installed = _install_user_plugins(hooks_dir, framework_root)
+    installed = _install_user_plugins(hooks_dir, framework_root,
+                                      context.get("install", True))
 
     notes = []
     if files:
         notes.append(f"Installed {len(files)} Hermes plugin hooks")
     if installed:
         notes.append(
-            f"installed into ~/.hermes/plugins/{PLUGIN_DIR_NAME}: "
+            f"installed into {_hermes_home()}/plugins/{PLUGIN_DIR_NAME}: "
             + ", ".join(installed)
             + "; enable with `hermes plugins enable ai-badger` "
             + "(or add plugins.enabled: [ai-badger] to ~/.hermes/config.yaml)")

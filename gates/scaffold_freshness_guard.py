@@ -27,6 +27,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -41,6 +42,16 @@ import badger_lib as bl
 CONFIG = ".ai-badger/config.json"
 MANIFEST = ".ai-badger/manifest.json"
 SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
+
+# The environment the re-scaffold needs, printed with the remediation because an operator who
+# omits it re-scaffolds a different tree: the MCP availability gate probes the host PATH, so a
+# machine without `hermes` on it drops that server from .github/mcp.json and the guard then
+# rejects the tree its own advice produced.
+RESCAFFOLD_ENV = {"AI_BADGER_MCP_AVAILABILITY": "all"}
+# Guard-only containment. The scaffolder writes user-global Hermes state (the plugin under
+# plugins/, the skill namespace under skills/), and this run happens in a directory that is
+# about to be deleted — it must not reach the operator's own Hermes home.
+HERMES_HOME_ENV = "HERMES_HOME"
 
 # Keys the scaffolder re-stamps on every run; their value says when it ran, not what it wrote.
 STAMP_KEYS = frozenset({"frameworkVersion", "frameworkCommit", "frameworkDirty",
@@ -109,6 +120,20 @@ def copy_into(root: Path, relatives: Sequence[str], dest: Path) -> None:
             shutil.copy2(src, dst)
 
 
+def rescaffold_argv(python: str, scaffold: str, config: str, target: str,
+                    root: str) -> List[str]:
+    """The scaffolder command line — one builder, so the printed advice is what the guard ran."""
+    return [python, scaffold, "--config", config, "--target", target, "--root", root,
+            "--no-install", "--skills", ""]
+
+
+def remediation() -> str:
+    """The command that makes a stale tree fresh: the guard's own, environment included."""
+    argv = rescaffold_argv("python3", SCAFFOLD, CONFIG, ".", ".")
+    assignments = [f"{key}={value}" for key, value in sorted(RESCAFFOLD_ENV.items())]
+    return " ".join(assignments + [shlex.quote(arg) for arg in argv])
+
+
 def rescaffold(work: Path) -> None:
     """Re-run the scaffolder inside the throwaway copy, against that copy.
 
@@ -118,11 +143,11 @@ def rescaffold(work: Path) -> None:
     the guard's verdict depend on the host that runs it. Forcing every declared server
     available reproduces the committed tree — it was scaffolded on a hermes machine.
     """
-    env = dict(os.environ)
-    env["AI_BADGER_MCP_AVAILABILITY"] = "all"
+    env = dict(os.environ, **RESCAFFOLD_ENV)
+    env[HERMES_HOME_ENV] = str(work.parent / "hermes-home")
     proc = subprocess.run(
-        [sys.executable, str(work / SCAFFOLD), "--config", str(work / CONFIG),
-         "--target", str(work), "--root", str(work), "--no-install", "--skills", ""],
+        rescaffold_argv(sys.executable, str(work / SCAFFOLD), str(work / CONFIG),
+                        str(work), str(work)),
         cwd=str(work), capture_output=True, text=True, check=False, env=env)
     if proc.returncode != 0:
         raise Refusal("SCAFFOLDER FAILED on a copy of this tree "
@@ -301,8 +326,7 @@ def check(root: Path) -> int:
     for finding in findings:
         print(finding.line())
     print("Re-scaffold this repo against itself and commit the result:")
-    print(f"    python3 {SCAFFOLD} \\\n"
-          f"        --config {CONFIG} --target . --root . --no-install --skills ''")
+    print(f"    {remediation()}")
     return 1
 
 

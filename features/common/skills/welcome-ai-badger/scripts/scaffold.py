@@ -624,6 +624,9 @@ class Scaffolder:
                         "feature_dir": self.root / "features" / agent_name / "adjustments",
                         "target_dir": self.aib,
                         "target": self.target,
+                        # --no-install reaches the adjustments: user-global state
+                        # (~/.hermes/plugins) is never written when it is set.
+                        "install": self.install,
                         "skills": agent_skills,
                         "personas": [item for _stack, item in bl.applicable_feature_items(
                             self.index, self.config, "personas")],
