@@ -167,7 +167,7 @@ def test_a_successful_run_leaves_no_partial_marker(make_scaffolder):
 
 def test_a_failing_user_scope_write_degrades_to_a_note(make_scaffolder):
     target = make_scaffolder.target
-    scaf = make_scaffolder()
+    scaf = make_scaffolder(install=True)  # the user-scope write only runs when installing
 
     def _explode(*_args, **_kwargs):
         raise OSError("read-only home directory")
