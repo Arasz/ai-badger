@@ -1,6 +1,14 @@
 ---
 name: spec-driven-refactoring
 description: "Use when the user says 'refactor', 'migrate', or 'rename across the codebase', or a change touches 5+ files across schemas, scripts, tests, and docs: write a spec, run two review gates (pre-implementation consistency + post-implementation quality), then implement against it. Covers schema migrations, concept renames, structural reorganizations."
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [refactoring, specs, planning, migration]
+    related_skills: [refactor-safely, scripts-tooling-refactor]
 ---
 
 # Spec-Driven Refactoring
@@ -227,7 +235,7 @@ Explicit checks the quality review sub-agent should run:
 ## Python mixin-based module split
 
 For splitting a single large Python file into domain-specific modules while preserving the
-public API, see `references/python-mixin-module-split.md`. Covers the mixin inheritance pattern,
+public API — read `references/python-mixin-module-split.md` when splitting a Python module. Covers the mixin inheritance pattern,
 dynamic script loading (`sys.path`), circular import handling, and multi-copy sync.
 
 ## Feature design spec patterns
@@ -240,8 +248,8 @@ DDD/.NET projects.
 ## Multi-PR sequential merge pattern
 
 For large refactors (8+ phases), split into independently-mergeable PRs. See
-`references/multi-sequential-pr-pattern.md` for the full workflow.
+read `references/multi-sequential-pr-pattern.md` for the full workflow when the change needs multiple sequential PRs.
 
 ## References
 
-- `references/plugin-to-skills-migration.md` — worked case: migrating a plugin layout to per-stack skills.
+- `references/plugin-to-skills-migration.md` — worked case: migrating a plugin layout to per-stack skills; read when migrating a plugin layout.

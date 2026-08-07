@@ -2,6 +2,14 @@
 name: artifact-verification
 description: "Use when verifying changed artifacts that lack a canonical test gate — specs, docs, manifests, generated files, published packages: use the workflow-defined checker first (spec_holes.py), review manual fresh-install protocols against the false-pass checklist, and verify 'installed build contains merged PR X' by tree comparison, never squash-ancestry."
 description: Verify changed artifacts that lack a canonical test gate.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [verification, artifacts, evidence, testing]
+    related_skills: [evidence-first-research, code-review-evidence]
 ---
 
 # Artifact verification (non-code work products)
@@ -34,7 +42,7 @@ silent-degradation paths, sha-pinned assets with runtime download fallbacks,
 stdout-reserved-for-protocol CLIs (help/version on stderr), package-cache
 provenance, mandatory call params, content dedup, env inheritance, dual-instance
 regression checks, cross-RID packing, shutdown hygiene, and MCP stdio framing:
-`references/install-verification-protocol-review.md`.
+`references/install-verification-protocol-review.md` — read when a fresh-install protocol review is in scope.
 
 ## Verifying an INSTALLED build contains a merged PR (measured 2026-08-06)
 
@@ -132,8 +140,7 @@ changed-path list you must record a REAL event against the SAME root:
   per run avoids the collision class entirely; `mktemp -t hermes-verify-<topic>`
   (no X's, random suffix appended) also works.
 
-See `references/verification-tracker.md` for the db schema and a worked attribution
-diagnosis.
+See `references/verification-tracker.md` for the db schema and a worked attribution diagnosis — read it when tracking verification state.
 
 ## The stale changed-path reminder loop
 
@@ -197,4 +204,9 @@ Two more patterns that let a real miss through:
   if the control is also absent, your scan is wrong, not the code. Also note the
   SDK may consume the attribute at build time and not emit the literal anywhere
   else, so absence in one encoding proves nothing either way. Full recipe:
-  `references/dotnet-binary-string-checks.md`.
+  `references/dotnet-binary-string-checks.md` — read when checking binary strings for embedded secrets.
+
+## Gotchas
+
+- The changed-path reminder can fire for paths the verification already covered — re-check the real tree, not the reminder.
+- Assert what IS checkable: a mid-workflow red is expected when the artifact is not yet built, not a verification failure.

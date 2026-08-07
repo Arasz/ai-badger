@@ -9,6 +9,7 @@ metadata:
   hermes:
     tags: [code-review, observability, tracing, metrics, mcp, e2e]
     related_skills: [code-review-checklist, comprehensive-code-review, integration-review-gate, review-changes]
+version: 1.0.0
 ---
 
 # Observability / Instrumentation Contract Review
@@ -65,6 +66,10 @@ Reviewing code that claims "every call is instrumented" (spans carrying status +
 
 Numbered findings (severity + `file:line` + concrete fix), an explicit verdict (approve / approve-with-changes / reject), and explicit pass statements on the judged dimensions (implementation correctness, test honesty, architecture/layering, cleanup discipline, security). Say "clean on the substance" explicitly when true — reviewers should not need to infer an absence of findings.
 
+## Gotchas
+
+- "All calls are instrumented" is a path-coverage claim, not a call-site count — filtered-catch escape holes bypass instrumentation.
+- Metrics-unchanged verification must compare before/after runs, not the presence of metric code.
 ## References
 
 - `references/filtered-catch-hole.md` — the concrete before/after of the unrecorded-path defect (guard throws filtered type before inner try) with the idempotent-record fix.

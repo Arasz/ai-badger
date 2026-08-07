@@ -7,6 +7,9 @@ metadata:
   hermes:
     tags: [sqlite, wal, vacuum, disk-space, diagnostics]
     related_skills: [evidence-first-research]
+version: 1.0.0
+author: ai-badger
+license: MIT
 ---
 
 # SQLite bank space & WAL diagnosis (physical layer)
@@ -62,3 +65,8 @@ A BackgroundService in EVERY process that opens the bank: startup checkpoint (bo
 and VACUUM + ANALYZE on a weekly cadence with an in-memory per-process clock (short-lived processes never vacuum). Busy → defer + retry next tick. Settings-driven intervals with safe fallbacks. Measured result: 461 MB → ~16–20 MB steady
 state; TRUNCATE
 ~0 s, VACUUM ~160 ms on a 29 MB bank. Implementation reference: the project PR #79 (`BankMaintenanceHostedService`).
+
+## Gotchas
+
+- The vec0 chunk `count(*)` trap: vec0 tables count chunks, not rows — quantify reclaim with sqlite3_analyzer, not count.
+- Order matters: VACUUM INTO quantifies reclaim read-only; checkpoint(TRUNCATE) only truncates WAL frames.

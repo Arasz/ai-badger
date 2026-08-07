@@ -3,6 +3,13 @@ name: review-gate-diff-verification
 description: "Use when a review gate judges a branch diff: verify the diff base FIRST — merge-base vs moved origin/main ref (phantom D/M files), grep anchors after the status tab, exclude bin/obj from symbol greps, and diff the committed plan against the accepted amended version before judging implementation."
 description: "Use when gating a git diff: verify the diff base first."
 version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [review, git, diff, gates]
+    related_skills: [review-changes, pre-push-gate-debugging]
 ---
 
 # Review-gate diff verification
@@ -49,3 +56,8 @@ The plan's prose about existing code can be wrong or stale. Verify each "already
 ## Reporting shape
 
 Numbered findings with MUST-FIX / SHOULD-FIX / NIT severities, file:line evidence, a verdict (APPROVE / APPROVE-WITH-CHANGES / REQUEST-CHANGES), and owner questions for anything the plan left open or the diff base made ambiguous. Lead with a compact "verified against plan" checklist (each plan point → pass/fail with evidence) so the verdict reads as a judgment, not a vibe.
+
+## Gotchas
+
+- Phantom D/M files come from a moved origin/main ref — verify merge-base BEFORE judging the diff.
+- The committed plan doc can lag the accepted amended plan — diff the plan against the amended version before judging implementation.

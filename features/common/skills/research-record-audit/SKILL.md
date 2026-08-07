@@ -2,6 +2,14 @@
 name: research-record-audit
 description: "Use when auditing a research record's factual accuracy, citation truth, or grade correctness: adversarially re-derive every load-bearing claim from cited sources, verify quotes verbatim at cited lines, re-run MEASURED claims, audit grade honesty (INFERRED hedged, UNVERIFIED plain), check negative claims for prune/retention explanations, and report ACCURATE/CORRECTED/OVERCLAIMED."
 description: Use when auditing a research record's factual accuracy, citation truth, or grade correctness.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [research, audit, citations, evidence]
+    related_skills: [evidence-first-research, grounded-citations]
 ---
 
 # Research Record Audit
@@ -124,9 +132,9 @@ not in re-reading the prose twice.
   file AND contain the thing claimed — verify the tail line, not just the head.
 
 ## Support files
-- `references/hermes-internals.md` — verified map of Hermes Agent internals: source
+- `references/hermes-internals.md` — verified map of Hermes Agent internals: source (read when verifying claims about Hermes internals)
   locations, state.db schema, hook payloads, usage-file writer, request-dump semantics,
   and ai-badger task-tracking internals (as re-derived 2026-08-02).
-- `references/evidence-record-citation-audit.md` — worked example: adversarial citation/
+- `references/evidence-record-citation-audit.md` — worked example: adversarial citation/ (read when auditing a record's citations)
   grade audit of a Hermes memory-provider interface record (2026-08-06), with the
   call-site-gating catch and the code-truth vs runtime-truth distinction.

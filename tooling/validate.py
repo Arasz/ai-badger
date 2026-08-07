@@ -204,7 +204,7 @@ MAX_LINES = 500
 # chars/4 token proxy (deterministic stdlib; whitespace-token proxies undercount 1.53-1.75x and
 # were rejected). Corpus max measured 2026-08-07: code-review-checklist body = 16,904 chars ->
 # 4,226 proxy pre-#320; the post-#320 max was dotnet-mcp-server 52,524 chars -> 13,131 proxy,
-# split to references/ in this PR.
+# split to references/ in this PR; post-split max is worktree-agent-isolation at 4,922 proxy.
 MAX_TOKENS = 5000
 
 # G2/G4 rule 8 shared checker (the plan's G2 acceptance logic, one function): every

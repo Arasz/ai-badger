@@ -1,6 +1,14 @@
 ---
 name: dotnet-sqlcipher-encryption
 description: "Use when working with SQLCipher-encrypted SQLite in .NET (e_sqlite3mc / SQLitePCLRaw bundle): raw 256-bit keys via Password='x'<hex>'', deriving keys from ed25519 SSH keys, PRAGMA rekey constraints (WAL unsupported), pluggable key-source providers (env/keychain/vault) with the pre-open sidecar pattern, and Dapper-over-SQLite3MC mapping traps."
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [dotnet, sqlcipher, sqlite, encryption, keys]
+    related_skills: [database-encryption-key-management, dotnet-domain-modeling]
 ---
 
 # SQLCipher encryption in .NET
@@ -71,4 +79,4 @@ Dapper's typed deserializer is built EAGERLY from the reader schema — it fails
 
 ## References
 
-- `references/bitwarden-bws-integration.md` — provisioned IDs, SDK facts, bootstrap ranking, and the full owner-decision record from an encryption-key-source work package.
+- `references/bitwarden-bws-integration.md` — provisioned IDs, SDK facts, bootstrap ranking, and the full owner-decision record from an encryption-key-source work package; read when choosing an encryption-key source.

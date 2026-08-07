@@ -2,6 +2,14 @@
 name: design-gate-audit
 description: "Use when auditing a design doc's acceptance gates BEFORE implementation: check every gate would fail if the feature were broken (HONEST) and the named test file/framework/seam exists (FEASIBLE). Attacks vacuous negatives, timing-window vacuity, port races, env poisoning, unprovable real-time halves. Pairs with dotnet-hosted-service-testing for FakeTimeProvider mechanics."
 description: Audit design-doc acceptance gates for honesty/feasibility.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [design, gates, acceptance, honesty]
+    related_skills: [create-task-spec, dotnet-hosted-service-testing]
 ---
 
 # design-gate-audit

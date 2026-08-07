@@ -3,6 +3,13 @@ name: sqlite-schema-review
 description: "Use when reviewing SQLite schema/migration changes: DDL, on-open migrations, unique indexes, insert-path dedup, ON CONFLICT DO NOTHING scope, last_insert_rowid staleness, trigger fire-time failures, UNIQUE-index NULL semantics. Core rule: verify every semantics claim against a scratch DB — never the plan, PR, or docs."
 description: Review SQLite schema/migration changes.
 version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [sqlite, schema, migrations, review]
+    related_skills: [sqlite-bank-space-diagnosis, code-review-checklist]
 ---
 
 # SQLite schema & migration review
@@ -95,3 +102,8 @@ Bundled SQLite version: `strings libe_sqlite3mc.dylib | grep -i sqlite` (partial
 Numbered findings with MUST-FIX / SHOULD-FIX / NIT severities, file:line evidence, an
 approve-with-changes verdict, and owner questions for every decision the plan left open
 (cross-project race failure mode, migration placement, test-seed shapes).
+
+## Gotchas
+
+- Verify every semantics claim against a scratch DB — never the plan, PR, or docs.
+- last_insert_rowid goes stale across connections and triggers — read it in the same connection that wrote.

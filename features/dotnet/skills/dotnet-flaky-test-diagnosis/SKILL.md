@@ -2,6 +2,14 @@
 name: dotnet-flaky-test-diagnosis
 description: "Use when a .NET test fails in the full suite but passes alone (or flakes intermittently): classify via the ladder — intra-test race (lock-guard fake collections), inter-test contention (xunit v3 DisableParallelization collections), or environmental flakes (child PATH/env, cold-worktree asset provisioning) — before blaming the branch. Includes the clean-main baseline check and gate discipline."
 description: Use when a test fails in the full suite but passes alone.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [dotnet, testing, flakes, diagnosis]
+    related_skills: [dotnet-hosted-service-testing, systematic-debugging]
 ---
 
 # .NET flaky-test diagnosis
@@ -121,3 +129,8 @@ failures were the gitignored ONNX model missing from the fresh worktree at build
 
 `references/watch-flake-fixes-2026-08-06.md` — two watch tests, both classes
 A and B in one session, the full diagnosis transcript, and before/after evidence.
+
+## Gotchas
+
+- Run the clean-main baseline check BEFORE blaming the branch — a failure on clean main is not your change.
+- Classify via the ladder first: intra-test race, inter-test contention, then environmental — misclassification sends you down the wrong fix.

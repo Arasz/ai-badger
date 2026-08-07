@@ -2,6 +2,14 @@
 name: documentation-drift-audit
 description: "Use when auditing docs for drift vs code ('audit and fix documentation drift'): inventory claims with path:line, verify each against real files (scaffolders, manifests, hooks), classify verifiably-false vs design-position vs ambiguous vs historical, fix only the false, and report A/B/C. Also for post-merge doc-gap audits and user-facing doc compaction rewrites."
 description: "Use when auditing docs for drift vs code; verify then fix."
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [documentation, drift, audit, verification]
+    related_skills: [update-documentation, maintain-agent-instructions]
 ---
 
 # Documentation drift audit
@@ -145,97 +153,11 @@ For audits that follow a merged feature (worktree-isolated, docs-only, no push):
    covering only some prefixes — goes in the report as needs-decision, because
    writing it down either changes product behavior or is a product call.
 
-## Compaction / rewrite passes (READMEs and user-facing docs)
 
-A "clean up the readme, use proper markdown, compact it and redirect to the
-detailed files" task is a rewrite, not a drift fix — but it inherits the audit's
-core rule: **the doc being replaced is NOT ground truth.** It is itself the
-accumulated drift. Verified 2026-08-06 on the project's root README (561 → 158
-lines): the rewrite carried forward the old README's "MCP SDK 2.0.0" claim,
-which contradicted `Directory.Packages.props` (pin is 2.1.0) — caught by the
-reviewer, not by the rewrite. Full worked example:
-`references/readme-compaction-recipe.md`.
+> Compaction passes: read `references/compaction-rewrite-passes.md` when doing compaction/rewrite passes on READMEs or user-facing docs.
 
-Method:
 
-1. **Pull ground truth from code FIRST, before writing a line.** Version pins
-   (`Directory.Packages.props`, csproj TFMs), tool counts (grep the `[McpServerTool]`
-   surface), test counts (run the suite), model/file sizes (`ls -l`, not the old
-   doc's rounded figure), ADR/record counts (`ls docs/adr`). Every number you keep
-   must survive a grep against the declaration, not against the old prose.
-2. **Redirect, don't duplicate.** The root README's job is: what it is, quick
-   start, feature table, and pointers. Detail (CLI verb families, sync auth
-   matrix, error shapes, watch semantics) lives in `docs/reference/` /
-   `docs/explanation/`. Before cutting a section, confirm the redirect target
-   actually contains the detail — a pointer to a page that lost the content is
-   worse than the duplication.
-3. **Content-regression check against the OLD doc.** `git show main:README.md`
-   and grep for load-bearing operational warnings that compaction tends to drop:
-   `--no-launch-profile` stdio-corruption warning, encrypted-bank `.mcp.json`
-   placement ("never in a tracked file"), shell-quoting gotchas, packaging
-   env-var case-sensitivity (e.g. `DOTNET_ENV=local` vs `dotnet_env` on macOS).
-   Relocate these to the redirect target; dropping them loses real knowledge.
-4. **Fix the class, not the site.** The same broken construct usually lives in
-   several files written together — a two-commands-per-line CLI fenced block
-   appeared in the root README, `docs/reference/agent-memory-server.md`, AND the
-   packaged `src/<Proj>/README.md`. Grep the whole doc surface for the
-   pattern after fixing the first copy. The packaged README may also be missing
-   verb families that the reference doc gained (e.g. `encryption`) — diff the
-   CLI block against the command tree, not against a sibling README.
-5. **Markdown-construct checklist** (the "CLI commands are a mess" complaint):
-   one command per line in fenced blocks — never two-per-line space-aligned;
-   group families with `# family:` comment lines; tag every fence
-   (```bash / ```json / ```text); tables need a header separator row; avoid
-   bold-inline-header bullet walls (feature table instead); sentence-case
-   headings. Em-dash tics are the humanizer's tell — run the final prose
-   through the humanize patterns (strip `—` parentheticals, "by design",
-   "serves as") before committing.
-6. **Packaged/embedded READMEs are self-contained.** `src/*/README.md` ships
-   inside the tool package: it cannot use repo-relative links, so it must keep
-   its own CLI block and its own copy of critical warnings. It is hand-maintained
-   and drifts independently — treat it as a separate doc to verify, not a mirror
-   to skip.
-
-## ADR-vs-code drift: contract points vs factual points
-
-When an ADR and the code disagree, do NOT reflexively "fix the ADR to match the
-code". Split the drift by what kind of statement it is:
-
-- **Contract points** — the ADR *promises* behavior the code must emit (tag
-  tables, status semantics, instrument names, DI shape, error shapes). Here the
-  CODE is wrong; align code to the spec with TDD (write the failing test
-  asserting the promised emission, then implement). The ADR is the accepted
-  spec; a "docs refresh" task is not a license to downgrade the spec to match
-  the code. When the task says "check if all metrics/traces are emitted", that
-  IS a spec-vs-emission audit — trace-side promises the code never kept (a
-  promised `result` tag, promised `SetStatus(Ok)` on success) are the exact
-  findings to fix in code, not delete from the doc.
-- **Factual points** — the ADR *describes* the implementation (tool counts,
-  "instrumentation is inlined 3–5 lines" vs an extracted helper class, which
-  Future-evolution item already landed). Here the DOC is wrong; refresh it in
-  place, smallest edit that makes the sentence true.
-
-Before editing, check the ADR regime: read the ADR README's stated policy
-("immutable, frozen — never edited") AND `git log --follow -- <adr-file>` for
-observed practice. They often disagree: the project's ADR README declares
-immutability while ADR-0002/0003/0004 each carry post-acceptance correction
-commits (e.g. "fix: review corrections — …"). Working rule: immutability
-protects the DECISION (the architectural choice, instrument names, DI
-registration); factual snapshots inside the ADR get corrected in place like any
-other doc. If the owner enforces strict immutability, the fallback is a NEW
-numbered ADR amending the old one — offer it in the report, don't preempt it.
-Also re-check the ADR's own "Future evolution" list: an evolution item that has
-already shipped (e.g. "helper extraction after N tools are instrumented") turns
-the old "current" description into fact-drift that the refresh must record.
-
-Worked example (the project, 2026-08-06): ADR-0002 drifted in 4 places — tool
-count 17→19 (fact), "inlined instrumentation" vs the shipped
-`ToolExecutionActivity` helper (fact; the ADR's Future-evolution #4 had
-landed), a promised `result` activity tag the code never set (contract), and
-promised `SetStatus(Ok)` on success that code only did on the error path
-(contract). Ruling: TDD-added `SetStatus(Ok)` + `result` tags (success AND
-error paths) to the code; edited the ADR's factual sections in place; decision
-substance untouched.
+> ADR-vs-code drift: read `references/adr-vs-code-drift.md` when auditing ADR-vs-code drift (contract points vs factual points).
 
 ## Classification pitfalls
 
@@ -316,32 +238,36 @@ substance untouched.
   earlier tests), not a regression from your edit — confirm against the full suite
   before chasing it.
 
+## Gotchas
+
+- "Verifiably-false" verdicts need path:line evidence — a claim you cannot pin to a real file is "ambiguous", not "false".
+- Never hand-edit generated files: scaffolders and manifests regenerate them; classify them with the doc-surface map instead.
 ## References
 
-- `references/readme-compaction-recipe.md` — worked example of the README
+- `references/readme-compaction-recipe.md` — worked example of the README (read when planning a README compaction)
   compaction (the project, 2026-08-06, 561 → 158 lines): ground-truth extraction
   list, redirect mapping, content-regression grep, the SDK-version stale-fact
   miss the reviewer caught, and the merge-race recovery (PR merged mid-review →
   cherry-pick orphaned commit onto a fresh branch from origin/main → follow-up PR).
-- `references/ai-badger-drift-audit-map.md` — verified ai-badger framework facts
+- `references/ai-badger-drift-audit-map.md` — verified ai-badger framework facts (read when auditing ai-badger docs for drift)
   gathered during the 2026-08 hermes-task-tracking audit: scaffolder copy behavior,
   extension gating (`requires` semantics), hook manifest/plugin registration, the
   `.ai-badger/` freshness mirror, and where each mechanism lives. Re-verify before
   citing — framework code moves.
-- `references/ai-badger-doc-surface-map.md` — which ai-badger files are generated
+- `references/ai-badger-doc-surface-map.md` — which ai-badger files are generated (read when deciding what is generated vs hand-edited)
   (never hand-edit) vs hand-edited, where skill/MCP counts come from
   (`badger_lib.SKILL_SCOPES`, `stack-mcp.json`), the per-host `.mcp.json` fact, and
   the gates that verify doc edits (0.78.0 snapshot).
-- `references/post-merge-doc-audit-recipe.md` — worked example of the post-merge
+- `references/post-merge-doc-audit-recipe.md` — worked example of the post-merge (read when running a post-merge feature audit)
   feature audit (Azure Blob sync, 2026-08-05): setup commands, ground-truth
   extraction list, grep-gate classification, generated-copy diff check, and the
   decision-gap report shape.
-- `references/post-merge-tracking-conflict-recipe.md` — worked example of a
+- `references/post-merge-tracking-conflict-recipe.md` — worked example of a (read when a tracking-file conflict blocks a fast-forward)
   fast-forward blocked by a local tracking-file update the merge also touched
   (memory-grade hook audit, 2026-08-05): stash-push single file, conflict
   reconstruction via JSON surgery, dropped-stash recovery, the pending-PR check
   that prevented duplicating #303's fixes, and the expected mirror differences.
-- `references/ai-badger-mcp-scaffold-declaration.md` — why a declared MCP server can
+- `references/ai-badger-mcp-scaffold-declaration.md` — why a declared MCP server can (read when a declared MCP server is missing from a scaffold)
   be absent from scaffolded projects (scaffold-time PATH gate, tool command renames
   between versions, `den-refresh --force` when versions match, `.mcp.json` gitignored,
   `.github/mcp.json` #193 dedup), plus the Hermes `~/.hermes/config.yaml` route
