@@ -6,7 +6,14 @@ description: >-
   separated, token-tracked unit of work with model delegation: a high-reasoning model plans and
   reviews, implementation models do the hands-on work. Project specifics come from
   .ai-badger/config.json; source-control and PR behaviour from config-gated extensions.
+version: 1.0.0
+author: ai-badger
+license: MIT
 platforms: [linux, macos]
+metadata:
+  hermes:
+    tags: [task, orchestration, delegation, worktree]
+    related_skills: [create-task-spec, commit-reminder]
 ---
 
 > **This is the generic copy.** If this project has been scaffolded, prefer the unprefixed

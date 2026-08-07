@@ -5,6 +5,14 @@ description: >-
   acting), `f:`/`feedback:` (a correction to apply immediately), `e:`/`extension:` (a request to
   widen scope) — or when the user asks to add, change, or inspect those markers. The
   UserPromptSubmit hook detects them and injects the matching behaviour.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [prompts, markers, hooks, context]
+    related_skills: [auto-wm, call-behaviorist]
 ---
 
 # Prompt markers

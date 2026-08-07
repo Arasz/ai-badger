@@ -1,6 +1,14 @@
 ---
 name: auto-wm
 description: Use when the user wants Claude to auto-approve tool calls — "enable autonomic/autonomous work mode", "/auto-wm", "partner mode", "work by yourself for N hours", "no one will be around to approve/answer" — or to check status, switch modes, or turn it off ("awm status", "auto-wm away 4h", "auto-wm off").
+version: 1.0.0
+author: Hermes Agent
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [autonomy, permissions, hooks, guardrails]
+    related_skills: [call-behaviorist, commit-reminder]
 ---
 
 > **This is the generic copy.** If this project has been scaffolded, prefer the unprefixed

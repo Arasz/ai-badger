@@ -5,6 +5,14 @@ description: >-
   debug logging", "why is the drift notice silent?", "turn on the audit log", "what did the
   hooks do?" — or to check, tail, or switch off that logging. Records which hook ran, in which
   project, under which version, to an append-only log.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [observability, hooks, audit, logging]
+    related_skills: [auto-wm, commit-reminder]
 ---
 
 > **This is the generic copy.** If this project has been scaffolded, prefer the unprefixed
