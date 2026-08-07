@@ -41,7 +41,7 @@
 
 **Convention (defined once, enforced by review until G4's lint lands):** a `## Gotchas` section holds concrete corrections to mistakes the agent would otherwise make (environment/API/tool-behaviour specific). Stop-and-reconsider conditions keep the existing `## Red flags — STOP` name. Rationalization tables mean STOP and belong to the Red-flags family. Canonical order: procedure → `## Gotchas` → `## Red flags — STOP` → `## Verification Checklist` → aux sections (`## Files`, `## Error Recovery`, `## Recovery`, `## Notes` last).
 
-**A. Rename in place (5 files):**
+**A. Rename in place (6 files):**
 
 | File | Current heading | New heading |
 |---|---|---|
@@ -50,20 +50,16 @@
 | `features/common/skills/mcp-index/SKILL.md` (l.238) | `## Common Pitfalls` | `## Gotchas` |
 | `features/common/skills/differential-feature-refactor/SKILL.md` (l.179) | `## Common Pitfalls — STOP and go back to the authority set` | `## Red flags — STOP` (content unchanged; h3 `### Rationalizations — all of these mean STOP` at l.43 stays) |
 | `features/common/skills/owner-gate-review/SKILL.md` (l.121) | `## Common Pitfalls — STOP` | `## Red flags — STOP` (omitted from audit's rename list; same rule) |
-| `features/common/skills/migrate-documentation/SKILL.md` (l.169/182) | two adjacent sections | merge: l.169 becomes `## Red flags — STOP`, table becomes `### Rationalizations — every one of these means STOP`, delete duplicate heading at l.182 |
+| `features/common/skills/migrate-documentation/SKILL.md` (l.169/182) | h2 `## Rationalizations — every one of these means STOP` (l.169) above h2 `## Red flags — STOP` (l.182) | demote l.169 to `### Rationalizations — every one of these means STOP` (its table stays under it); keep l.182 as `## Red flags — STOP` with its bullets; move the h3+table below the Red-flags bullets so no content dangles. There is no duplicate heading to delete. |
 
-**B. Add `## Gotchas` by lifting embedded prose (6 files):** extract the named corrections, leave a one-line pointer at the source ("Why — see Gotchas.").
+**B. Add `## Gotchas` by lifting embedded prose (2 files — the other four B candidates are owned by I5–I8):** task, commit-reminder, prompt-markers and feed-badger get their Gotchas sections from the I-series (I5–I8 bulletize the same prose); do NOT add a second `## Gotchas` there in this PR. For the two files below, extract the named corrections, leave a one-line pointer at the source ("Why — see Gotchas.").
 
 | File | Source prose to lift |
 |---|---|
-| `task` | Phase 1 step 4 note (l.120–128: `start` records a branch it may not have created; worktree is what makes concurrent sessions safe) + Phase 4 step 4 (l.209–211: `worktree.keptBecause` = unmerged/uncommitted work, not cleanup failure) |
-| `commit-reminder` | "Two consequences worth knowing" (l.59–65: escalation bar = new highs, not time; `git stash`/clean-build clears the counter) + `## Migration` (l.131–135: legacy state shape still loads) |
-| `prompt-markers` | "Why `additionalContext` (append)" (l.37–44: cache byte-identity rationale; ADR-0017 pointer) + hook-merge-into-existing-arrays note (Installation) + audit-is-best-effort (Auditing) |
 | `welcome-ai-badger` | Flow step 3 (l.56–59: deleting a scaffolded file is undone by the next refresh — use `exclude`), Notes (l.102–107: unbalanced keep-markers leave file untouched — a marker typo never loses content), Flow step 6 (l.82–83: drift notice fires once per tree) |
 | `den-refresh` | Rules (l.147–148 seed-once files survive; l.149–153 preserved regions are the only survival path), Notes (l.189–194: absence is not a declaration — use config `exclude`) |
-| `feed-badger` | Rules (l.65–66 draft-always), Flow step 4 (l.53–55 `--path` required+repeatable; l.57–59 credential scan is a guard, not proof) |
 
-**C. Add the one-line note (11 files):** `debug-issue`, `explore-codebase`, `refactor-safely`, `review-changes`, `scaffold-documentation`, `update-documentation`, `evidence-first-research`, `maintain-agent-instructions`, `differential-feature-refactor`, `migrate-documentation`, `owner-gate-review`.
+**C. Add the one-line note (14 files):** `debug-issue`, `explore-codebase`, `refactor-safely`, `review-changes`, `scaffold-documentation`, `update-documentation`, `evidence-first-research`, `maintain-agent-instructions`, `differential-feature-refactor`, `migrate-documentation`, `owner-gate-review`, **plus `call-behaviorist`, `code-review-checklist`, `create-task-spec`** (review round 1 finding 3: without them the `== 23` acceptance and G4 rule 9 are unreachable).
 
 **Template (B and C):**
 
@@ -77,39 +73,42 @@
 No environment-specific gotchas known.
 ```
 
-**Placement anchors:** rename skills — in place. Add-skills — immediately before `## Red flags — STOP` where present (evidence-first-research: between `## Charts` and `## Red flags — STOP`; owner-gate-review: between `## Writing decision cards` and `## Red flags — STOP`); before `## Verification Checklist` when no Red flags (task: after `## Recovery`); otherwise before the last aux section (update-documentation, scaffold-documentation, refactor-safely, review-changes, explore-codebase, debug-issue: before their `## Red flags — STOP`; maintain-agent-instructions: end of file).
+**Placement anchors:** rename skills — in place. Add-skills — immediately before `## Red flags — STOP` where present (evidence-first-research: between `## Charts` and `## Red flags — STOP`; owner-gate-review: between `## Writing decision cards` and `## Red flags — STOP`); before `## Verification Checklist` when no Red flags (task: after `## Recovery` — but task's Gotchas comes from I5, not here); otherwise before the last aux section (update-documentation, scaffold-documentation, refactor-safely, review-changes, explore-codebase, debug-issue: before their `## Red flags — STOP`; maintain-agent-instructions: end of file).
 
 **Acceptance (reviewer runs):**
 ```bash
-grep -rn "^## .*Gotchas" features/common/skills/*/SKILL.md features/claude/skills/auto-wm/SKILL.md | wc -l   # == 23
-grep -rn "^## \(Common mistakes\|Pitfalls\|Common Pitfalls\)" features --include=SKILL.md                  # no output
-grep -rn "Rationalizations" features --include=SKILL.md | grep -v "STOP"                                   # no output
+grep -rn "^## .*Gotchas" features/common/skills/*/SKILL.md features/claude/skills/auto-wm/SKILL.md | wc -l   # == 23 (3 renamed A + 2 lifted B + 4 via I5-I8 + 14 one-line C)
+grep -rn "^## \\(Common mistakes\\|Pitfalls\\|Common Pitfalls\\)" features --include=SKILL.md                  # no output (note: `## 6. Gotchas` in ai-raccoon-memory matches the first grep via `.*`; a missed `## 6. Pitfalls` rename needs its own check)
+grep -rn "^## 6. Pitfalls" features --include=SKILL.md                                                         # no output (numbered-scheme variant of the rename check)
+grep -rn "Rationalizations" features --include=SKILL.md | grep -v "STOP"                                       # no output
 # plus shared loop: sync --check, freshness guard, pytest green
 ```
 
-**Parallel:** no — touches 22 files, 6 of them shared with G3/G6. **Risks:** root `skills/` regeneration mandatory (G1 renames/touches 13 root-shipped skills); `test_plugin_copy_points_at_the_tailored_one.py` pins bootstrap-three byte-equality and pointer frontmatter — re-sync satisfies both; do not introduce evidence-table shapes (Fact/Claim/Measurement rows) — `test_skill_bodies_carry_procedure_not_evidence.py` fails on them; do not add new `python3 <path>.py` invocations (test_skill_docs).
+**Parallel:** no — touches 23 files, 6 of them shared with G3/G6. **Risks:** root `skills/` regeneration mandatory (G1 renames/touches 12 root-shipped skills); `test_plugin_copy_points_at_the_tailored_one.py` pins bootstrap-three byte-equality and pointer frontmatter — re-sync satisfies both; do not introduce evidence-table shapes (Fact/Claim/Measurement rows) — `test_skill_bodies_carry_procedure_not_evidence.py` fails on them; do not add new `python3 <path>.py` invocations (test_skill_docs).
 
 ## G2 — Explicit progressive-disclosure conditions
 
-**Rule:** every `references/...` mention in a SKILL.md body is triggered by an explicit when/if condition — on the mention line, its bullet lead, its numbered step, or the immediately preceding line.
+**Rule:** every `references/...` mention in a SKILL.md body is triggered by an explicit when/if condition — on the mention line itself or within the checker's context window. The checker (below) examines the line plus its immediate neighbours `{i−1, i, i+1}` (a 1-indexed 3-line window — the plan prose "the immediately preceding line" is loose; the code is the contract), skipping numbered-step lines (`^\s*\d+\.\s`) and an explicit exempt list. Same predicate is G4 rule 8 (shared function — see Part C rule 8).
 
 **Edits (10 files, ~16 line changes):** add/rewrite the trigger; keep the `"Read \`references/X.md\` when <trigger>"` shape.
 
 | File:line | Change |
 |---|---|
-| `evidence-first-research`:46 | "Full rules in `references/provenance.md`" → "…read `references/provenance.md` **when a grade is in doubt**" |
-| `evidence-first-research`:116–117 | Files list → "`references/provenance.md` — read **when grading a finding**; `references/report-template.md` — read **when writing the record**" |
+| `evidence-first-research`:46 | "Full rules in `references/provenance.md`" → "…read `references/provenance.md` **when a grade is in doubt**" — final wording owned by I12 (review round 1 finding 21); implement I12's version, not this one |
+| `evidence-first-research`:116–117 | Files list → "`references/provenance.md` — read **when grading a finding**; `references/report-template.md` — read **when writing the record**" — same: I12 owns the final text |
 | `owner-gate-review`:142–143 | Files list → "…read **when writing the form**"; "…read **when reconciling a saved result**" (l.103 already conditioned — leave) |
-| `maintain-agent-instructions`:73 | "see `references/agent-instruction-model.md`" → "…read it **when writing a script that reads the model**" (l.24 has "before" — leave) |
+| `maintain-agent-instructions`:73 | "see `references/agent-instruction-model.md`" → "…read it **when writing a script that reads the model**" (l.24's paragraph gets a `when` added in PR-1: "…model (`references/agent-instruction-model.md`) **when** changing shared policy" — rule 8/G2 must agree; see rule-8 note below) |
 | `maintain-agent-instructions`:79–80 | "Use `references/…` for the model contract" → "Read `references/agent-instruction-model.md` **when the model contract is in question** and `references/copilot-compatibility.md` **when phrasing a Copilot-specific rule**" |
-| `scaffold-documentation`:23 | "Reference: `references/structure.md`" → "…read it **when the canonical tree is in question**" (l.84 bullet-lead conditioned — leave) |
+| `scaffold-documentation`:23 | "Reference: `references/structure.md`" → "…read it **when the canonical tree is in question**" |
+| `scaffold-documentation`:72 | paragraph "…belongs in a `references/` subdirectory…" → lead with a trigger: "**When placing a skill's reference material**, put it in a `references/` subdirectory *inside* that skill…" (review round 1: this paragraph was flagged by the plan's own gate; the `references/`-as-directory mention needs the trigger too) |
 | `update-documentation`:35 | "References: …" → "Read `references/placement.md` **when choosing a target path**, `references/trust.md` **when an evidence line is challenged**, `references/amendments.md` **when phrasing an amendment's reason**" (l.27 step-bound — leave) |
+| `update-documentation`:37 | the `../scaffold-documentation/references/structure.md` mention (2 lines below the edited l.35 — outside the checker's {i−1, i, i+1} window) → reword to "…structure is that skill's primary concern — read it **when the canonical tree is in question**" |
 | `update-documentation`:104 | "Everything else is in `references/placement.md`" → "…read it **when the one-line test does not settle the target**" |
 | `migrate-documentation`:32–36 | add per-file triggers: placement "**when a target path is in doubt**", trust "**when freezing**", amendments "**when amending**", structure "**when the canonical tree is in question**" |
 | `create-task-spec`:142 | blockquote → "read `references/why-elicitation.md` **when the contract shape is questioned**" |
-| `den-refresh`:225, `feed-badger`:96, `welcome-ai-badger`:149 | prepend trigger to the mention line: "**Recovery failed:** follow `…/reporting-a-framework-bug.md` — ask permission first…" |
+| `den-refresh`:225, `feed-badger`:96, `welcome-ai-badger`:149 | prepend trigger to the mention line: "**Recovery failed:** follow `…/reporting-a-framework-bug.md` **when a fix does not recover the failure** — ask permission first…" (the trigger word must be on the mention line or within its 3-line window — "ask permission first" alone contains no when/if/before/after) |
 
-Already compliant (verified, no edit): `differential-feature-refactor`:63, `owner-gate-review`:42, `evidence-first-research`:58, `update-documentation`:27 (numbered steps); `scaffold-documentation`:84 (bullet lead).
+Already compliant (verified, no edit): `differential-feature-refactor`:63, `owner-gate-review`:42, `evidence-first-research`:58, `update-documentation`:27 (numbered steps); `scaffold-documentation`:84 (explicit exemption — see acceptance; the "bullet lead" reading is not why it passes).
 
 **Acceptance (reviewer runs):**
 ```bash
@@ -117,7 +116,7 @@ Already compliant (verified, no edit): `differential-feature-refactor`:63, `owne
 import pathlib, re
 ok = re.compile(r"\b(when|if|before|after|only when)\b", re.I)
 numbered = re.compile(r"^\s*\d+\.\s")
-exempt = {"scaffold-documentation:84"}   # condition on bullet lead
+exempt = {"scaffold-documentation:84"}   # explicit exemption (generic directory mention, not a file pointer)
 bad = []
 for p in sorted(pathlib.Path("features").glob("*/skills/*/SKILL.md")):
     lines = p.read_text().splitlines()
@@ -173,7 +172,7 @@ Never touch `name`/`description`; `version:` is a content marker, not the framew
 **Acceptance (reviewer runs):**
 ```bash
 .venv/bin/python3 - <<'EOF'
-import pathlib, yaml
+import pathlib, yaml  # NOTE: pyyaml is optional in this repo (engine/requirements.txt, guarded) — run this acceptance with the repo .venv, or use the same stdlib extractor rule 10 uses (review round 1 Part C F6)
 names = ["auto-wm","call-behaviorist","commit-reminder","create-task-spec","den-refresh",
          "feed-badger","maintain-agent-instructions","prompt-markers","task","welcome-ai-badger"]
 need = {"version","author","license","platforms","metadata"}
@@ -199,26 +198,21 @@ EOF
 
 **Rule:** every skill with 4+ procedural steps ends with `## Verification Checklist` — last section of the file, except where a `## Files` section exists (then checklist precedes Files; `## Error Recovery`/`## Recovery`/`## Notes` aux sections stay after it). Items are concrete, greppable, and reuse commands the skill already documents (test_skill_docs forbids inventing new `python3` paths).
 
-**Edits (8 files) — append at end (task: after the extensions blockquote):**
+**Edits (4 files — ownership split with the I-series, review round 1 finding 2):** den-refresh, feed-badger, welcome-ai-badger and maintain-agent-instructions get their checklists from I4/I7/I9/I10 — do NOT add a second `## Verification Checklist` there in this PR. This PR owns: task, commit-reminder, migrate-documentation, update-documentation.
 
 | File | Checklist items (shape) |
 |---|---|
 | `task` | `task_tracker.py status` shows finished + `.ai-badger/state.json` updated; all work in the worktree `start` created (no stray commits on the main checkout's branch); every plan point's acceptance gate ran; `finish` left no worktree with unmerged/uncommitted work (`keptBecause` empty or resolved); token cost reported and compact/fresh-session advice given (or auto-continue condition held) |
-| `den-refresh` | `refresh.py` exited 0 with no `error`/`validationErrors` (or recovered and re-run); `config.json` unchanged (no re-detection); seed-once files (`state.json`, `markers-context.json`, `model.json`) preserved; diff reviewed — dropped content offered the keep-region fix, `newStacks` accepted/declined explicitly; committed |
-| `welcome-ai-badger` | scaffold matches detected stacks — no leakage from unselected stacks; `manifest.json` written and `validate.py --all` passes; plugin commands relayed per chosen scope; hand-authored discovery files reported `preserved` and left untouched |
-| `feed-badger` | every placed file agnostic (no repo names/domain nouns/absolute paths); PR is a draft; every placed path declared via `--path` (plus `index.json` if regenerated); `index_build.py` + `validate.py --all` green in the checkout; credential scan ran clean (a guard, not proof) |
-| `maintain-agent-instructions` | model updated before any shared-policy file changed; validation scripts pass (every agent file consistent with the model); smallest consistency-preserving edit made (no wholesale rewrites) |
-| `commit-reminder` | `ensure_committed.py` run; at-risk projects named and work committed or taken over; hook verified firing (one edit → count checked; escalation visible in audit trail when enabled) |
+| `commit-reminder` | `ensure_committed.py` run; at-risk projects named and work committed or taken over; hook verified firing (one edit → count checked; escalation visible in audit trail when enabled). Insert BEFORE `## Files` (l.121) — the rule says checklists precede Files |
 | `migrate-documentation` | state file committed and shows zero pending; drain report exists for every deleted legacy file; no delete shipped in the same PR as its replacement; every move recorded (`git mv` + move record); freeze list respected |
 | `update-documentation` | every `evidence=` line resolves to a real `path:line` (opened, not inferred); ledger accepted the entry; no frozen build-input file touched; verification-span budget respected (≤2); report matches what was recorded |
 
 **Acceptance (reviewer runs):**
 ```bash
-for f in task den-refresh welcome-ai-badger feed-badger maintain-agent-instructions \
-         commit-reminder migrate-documentation update-documentation; do
+for f in task commit-reminder migrate-documentation update-documentation; do
   grep -c "^## Verification Checklist" features/common/skills/$f/SKILL.md   # == 1 each
 done
-# eyeball: checklist is the last section before ## Files (none of these 8 have Files last; migrate/update end with Red flags)
+# eyeball: checklist is the last section before ## Files (migrate/update end with Red flags; commit-reminder has Files last)
 ```
 
 **Parallel:** no — 6 of 8 files shared with G1/G3. **Risks:** checklists must not duplicate step postconditions (update-documentation's are per-step; keep only cross-cutting checks); keep each item a verifiable boolean; do not reference commands the skill doesn't document (test_skill_docs).
@@ -244,14 +238,14 @@ Base path for all edits: `.ai-badger/worktrees/opt-skills/` (repo root: `/Users/
 
 ## Cross-cutting rules (apply to every item)
 
-**R1 — Root `skills/` mirror must be synced in the same commit.** Every in-scope skill except `evidence-first-research` has a root copy that is byte-identical today (G5 hazard; nothing enforces it, so it is a manual step):
-- Stub+full shape → sync `skills/<name>/SKILL.full.md` (verified for `task`; applies to `code-review-checklist`, `mcp-index`, `call-behaviorist`, `commit-reminder`, `prompt-markers`, `maintain-agent-instructions`, `ai-raccoon-memory`).
-- Full-copy shape → sync `skills/<name>/SKILL.md` (verified byte-identical for `den-refresh`, `feed-badger`, `welcome-ai-badger`).
+**R1 — Root `skills/` mirror is regenerated by `tooling/sync_plugin_skills.py`, gate-enforced (review round 1 finding 9).** Run `python3 tooling/sync_plugin_skills.py` in the same commit as every skill edit; the pre-push `plugin-skills` lane (`.lefthook/pre-push/verify.sh:96`) runs `--check` and fails on divergence — the per-file diff ritual below is only a quick sanity check, not the enforcement (the earlier "nothing enforces it" framing is stale; integration decision 1 supersedes it):
+- Stub+full shape → the sync regenerates `skills/<name>/SKILL.full.md` + pointer SKILL.md (verified for `task`; applies to `code-review-checklist`, `mcp-index`, `call-behaviorist`, `commit-reminder`, `prompt-markers`, `maintain-agent-instructions`, `ai-raccoon-memory`).
+- Full-copy shape → the sync regenerates `skills/<name>/SKILL.md` (verified byte-identical for `den-refresh`, `feed-badger`, `welcome-ai-badger`).
 - Gate: `for d in <names>; do diff -q skills/$d/SKILL.full.md features/common/skills/$d/SKILL.md || diff -q skills/$d/SKILL.md features/common/skills/$d/SKILL.md; done` → all identical.
 
-**R2 — Extension-merge machinery (do not touch markers).** `welcome-ai-badger/scripts/extensions.py` embeds `extensions/<name>/` fragments into the *scaffolded* SKILL.md at `<!-- EXT:name -->` markers and requires the `<!-- MERGE_EXTENSIONS -->` sentinel. `tests/test_scaffold_skill_extensions.py` pins this (markers keep position, sentinel removed after merge). Only `code-review-checklist` has `extensions/` — its 9 `<!-- EXT:* -->` markers (incl. `cross-cutting` after §3.4 and `backend-runtime` after §4.3) and the sentinel must survive I1.
+**R2 — Extension-merge machinery (do not touch markers).** `welcome-ai-badger/scripts/extensions.py` embeds `extensions/<name>/` fragments into the *scaffolded* SKILL.md at `<!-- EXT:name -->` markers and requires the `<!-- MERGE_EXTENSIONS -->` sentinel. `tests/test_scaffold_skill_extensions.py` pins this (markers keep position, sentinel removed after merge). Only `code-review-checklist`'s SKILL.md carries EXT markers and the sentinel (review round 1 finding 14: task, migrate-documentation, scaffold-documentation and update-documentation also ship `extensions/` dirs, but their SKILL.md bodies carry no `<!-- EXT:` markers) — its 9 `<!-- EXT:* -->` markers (incl. `cross-cutting` after §3.4 and `backend-runtime` after §4.3) and the sentinel must survive I1.
 
-**R3 — `tests/test_skill_docs.py` pins SKILL.md script invocations.** Every literal `python3 <path>.py` in a SKILL.md must resolve (and no bare `scripts/x.py`). Consequence: (a) don't add new `python3` invocations in new sections unless the target script exists; (b) moved content is *unchecked* once in `references/`, so splits are safe; (c) `test_welcome_names_only_real_config_keys` reads `welcome-ai-badger/SKILL.md` — I9 must not introduce new backticked `<name>Scope` keys.
+**R3 — `tests/test_skill_docs.py` pins SKILL.md script invocations.** Every literal `python3 <path>.py` in a SKILL.md must resolve (and no bare `scripts/x.py`). Consequence: (a) don't add new `python3` invocations in new sections unless the target script exists; (b) moved content is *unchecked* once in `references/`, so splits are safe; (c) `test_welcome_names_only_real_config_keys` (in `tests/test_skill_docs.py:100`) reads `welcome-ai-badger/SKILL.md` — I9 must not introduce new backticked `<name>Scope` keys.
 
 **R4 — No evidence tables.** `tests/test_skill_bodies_carry_procedure_not_evidence.py` rejects `| Fact |` / `| Claim |` / `| Measurement |` tables in SKILL.md bodies — none of the planned additions use those headers.
 
@@ -268,9 +262,9 @@ Base path for all edits: `.ai-badger/worktrees/opt-skills/` (repo root: `/Users/
 1. **Files:** edit `features/common/skills/code-review-checklist/SKILL.md`; create `features/common/skills/code-review-checklist/references/security.md`, `references/observability.md`; sync `skills/code-review-checklist/SKILL.full.md` (R1).
 
 2. **What moves where:**
-   - Lines 168–199 (heading `### 3.3 Security` through the OpenAI-provenance note, incl. all 9 checklist items and the ts-extension note) → `references/security.md` (keep the `> Distilled from …` note with it).
+   - Lines 168–199 (heading `### 3.3 Security` through the OpenAI-provenance note, incl. 8 checklist items and the ts-extension note) → `references/security.md` (keep the `> Distilled from …` note with it).
    - Lines 238–262 (heading `### 4.3 Observability` through the Kotlin-provenance note, incl. all 5 items) → `references/observability.md`.
-   - In SKILL.md, replace each moved block with: `### 3.3 Security` / `### 4.3 Observability` + one line: `> Full checklist: read references/security.md if the diff touches security surfaces (auth, secrets, input handling, redirects).` (same for observability: `…read references/observability.md if the diff touches metrics, logs, tracing, or readiness probes.`)
+   - In SKILL.md, replace each moved block with a one-line pointer (review round 1 finding 4: do NOT keep the `### 3.3 Security` / `### 4.3 Observability` headings — the acceptance greps `== 0` require them gone): `> Full checklist: read references/security.md if the diff touches security surfaces (auth, secrets, input handling, redirects).` (same for observability: `…read references/observability.md if the diff touches metrics, logs, tracing, or readiness probes.`)
    - All other phases (1, 2, 3.1, 3.2, 3.4, 4.1, 4.2, 5–9) stay inline — checklists load whole. Keep `<!-- EXT:cross-cutting -->` (line 212) and `<!-- EXT:backend-runtime -->` (line 264) exactly where they are (R2).
 
 3. **New sections:** none (splits only).
@@ -293,7 +287,7 @@ Base path for all edits: `.ai-badger/worktrees/opt-skills/` (repo root: `/Users/
    - Lines 187–213 (whole section `## Server status — why a silent server is still in the index`: intro para, status-enum table, "unknown is the honest reading" para, "additive enum" para) → `references/status.md`.
    - Lines 215–236 (whole section `## Auto-tagging Heuristics`: last-resort rule, issue-#171 warning, pattern table) → `references/heuristics.md`.
    - Replace each with a one-line pointer: `> Status meanings: read references/status.md if `update` reports a status other than `ok` (or when a silent server needs explaining).` and `> Auto-tagging rules: read references/heuristics.md when a tool came back `[general]` and you are deciding whether to curate it or extend the catalog.`
-   - Keep inline: `origin` table (43–47, command-time authority), `## Tag Taxonomy` (60–71, needed by `tag`), all `## Commands` blocks, `## Where the server list comes from` (176–185), `## Common Pitfalls`, `## Verification Checklist`.
+   - Keep inline: `origin` table (43–47, command-time authority), `## Tag Taxonomy` (60–71, needed by `tag`), all `## Commands` blocks, `## Where the server list comes from` (168–186), `## Common Pitfalls`, `## Verification Checklist`.
 
 3. **New sections:** `## When NOT to Use` (insert after `## When to Use`, ~5 lines): one-off tool lookup → read the index JSON directly; writing a brand-new MCP server → `hermes-mcp-setup`; no MCP servers in the project → nothing to index; a wrong-tool call that is a one-off → tag it, don't re-architect.
 
@@ -319,7 +313,7 @@ Base path for all edits: `.ai-badger/worktrees/opt-skills/` (repo root: `/Users/
 3. **New sections:** final `## Verification Checklist` (≈7 items): `status` shows enabled with an expiry; `tail` renders records one line each; `analyze --json` exits 0 and names findings; report leads with what is wrong, includes window + record count, names versions/ranges for `version_skew`; `window.unattributed` reported if non-zero; logging expired/switched off when done.
 
 4. **Acceptance:**
-   - `grep -c "^| \`t\` |" SKILL.md` == 0 and `grep -c "^| \`kind\` |" SKILL.md` == 0 (tables gone from body).
+   - `grep -c "^| \`t\` |" SKILL.md` == 0 and `grep -c "^| \`hit\` |" SKILL.md` == 0 (tables gone from body; review round 1 finding 13: the original `kind` row does not exist today — `hit` is the real first event-table row).
    - `test -f references/record-format.md && test -f references/findings.md`; each mention in SKILL.md contains `when` (G2).
    - `grep -c "^## Verification Checklist" SKILL.md` == 1.
    - `wc -l` ≤ 210 (expected ≈ 200); `python3 -m pytest tests/test_behaviorist_analyze.py -q` passes (script untouched).
@@ -351,7 +345,7 @@ Base path for all edits: `.ai-badger/worktrees/opt-skills/` (repo root: `/Users/
 2. **What moves where:** nothing (no split).
 
 3. **New sections:**
-   - `## When NOT to use` (after the intro block, before `## Config contract`, ≈5 lines): a single-file typo fix or one-off question — no tracking/worktree/delegation needed; work the user wants done inline in this session; anything where the token-tracked pipeline's overhead exceeds the task (use the plain workflow).
+   - `## When NOT to Use` (after the intro block, before `## Config contract`, ≈5 lines): a single-file typo fix or one-off question — no tracking/worktree/delegation needed; work the user wants done inline in this session; anything where the token-tracked pipeline's overhead exceeds the task (use the plain workflow).
    - `## Gotchas` (before `## Recovery`, ≈12 lines, lifted from existing prose — do NOT renumber phases):
      1. `start` without `--worktree` records a branch name nothing creates — `status` then reports a branch that doesn't exist (2026-08-01: two commits landed on `main`).
      2. `finish` refuses and keeps the worktree when it holds work that exists nowhere else — read `worktree.keptBecause`; a kept worktree is unmerged/uncommitted work, not failed cleanup.
@@ -359,7 +353,7 @@ Base path for all edits: `.ai-badger/worktrees/opt-skills/` (repo root: `/Users/
      4. Two levels of dispatch, no deeper — a widening agent tree starves the machine.
 
 4. **Acceptance:**
-   - `grep -c "^## Gotchas" SKILL.md` == 1 with ≥ 4 bullets; `grep -c "^## When NOT to use" SKILL.md` == 1.
+   - `grep -c "^## Gotchas" SKILL.md` == 1 with ≥ 4 bullets; `grep -c "^## When NOT to Use" SKILL.md` == 1.
    - Phase headings stable: `grep -c "^## Phase" SKILL.md` == 6 (task_tracker.py prints "SKILL.md Phase 1 step 3" — must stay true).
    - `wc -l` ≤ 265 (expected ≈ 255); `python3 -m pytest tests/test_task_checkpoint_wiring_end_to_end.py tests/test_adjust_task_claude.py tests/test_adjust_task_hermes.py -q` passes.
    - `diff -q skills/task/SKILL.full.md features/common/skills/task/SKILL.md` identical.
@@ -400,7 +394,7 @@ Base path for all edits: `.ai-badger/worktrees/opt-skills/` (repo root: `/Users/
    - `wc -l` ≤ 125 (expected ≈ 115); `python3 -m pytest tests/test_open_pr.py tests/test_detect_additions.py -q` passes.
    - `diff -q skills/feed-badger/SKILL.md features/common/skills/feed-badger/SKILL.md` identical.
 
-5. **Risks:** root mirror is the full copy — forgetting it silently desyncs `skills/feed-badger/` (R1, no test gate today).
+5. **Risks:** root mirror is the full copy — the pre-push `plugin-skills` gate (verify.sh:96) fails the PR if `skills/feed-badger/` desyncs, so run the sync in the same commit (R1; the earlier "no test gate" framing is stale).
 
 ## I8 — prompt-markers (93 / 1190) — add Gotchas
 
@@ -431,11 +425,11 @@ Base path for all edits: `.ai-badger/worktrees/opt-skills/` (repo root: `/Users/
 
 4. **Acceptance:**
    - `grep -c "^## Verification Checklist" SKILL.md` == 1, last `##` section (`grep "^## " SKILL.md | tail -1`).
-   - `wc -l` ≤ 175 (expected ≈ 165); no new backticked `<name>Scope` keys (R3: `test_welcome_names_only_real_config_keys` passes).
+   - `wc -l` ≤ 175 (expected ≈ 165); no new backticked `<name>Scope` keys (R3: `test_welcome_names_only_real_config_keys` in `tests/test_skill_docs.py:100` passes — the file is real; the standalone name is not).
    - `python3 -m pytest tests/test_scaffold_skill_extensions.py tests/test_scaffolding.py -q` passes.
    - `diff -q skills/welcome-ai-badger/SKILL.md features/common/skills/welcome-ai-badger/SKILL.md` identical.
 
-5. **Risks:** in *scaffolded* copies, `extensions.py` appends `project-local.md` content after the checklist — the checklist won't be the literal last section when project-local content exists; acceptable (note in PR description). Keep `<!-- MERGE_EXTENSIONS -->`-adjacent layout untouched.
+5. **Risks:** in *scaffolded* copies, `extensions.py` appends `project-local.md` content after the checklist — the checklist won't be the literal last section when project-local content exists; acceptable (note in PR description). (The "keep `<!-- MERGE_EXTENSIONS -->` layout untouched" note from the draft is moot — welcome-ai-badger's SKILL.md carries no sentinel; review round 1 finding 20.)
 
 ## I10 — maintain-agent-instructions (81 / 882) — add When NOT to use + verification checklist
 
@@ -444,11 +438,11 @@ Base path for all edits: `.ai-badger/worktrees/opt-skills/` (repo root: `/Users/
 2. **What moves where:** nothing.
 
 3. **New sections:**
-   - `## When NOT to use` (after intro, before `## Principles`, ≈4 lines): a single-file typo fix in one instruction file — edit it directly; no drift exists and CI checks pass; authoring brand-new policy from scratch (that is content work, not reconciliation).
+   - `## When NOT to Use` (after intro, before `## Principles`, ≈4 lines): a single-file typo fix in one instruction file — edit it directly; no drift exists and CI checks pass; authoring brand-new policy from scratch (that is content work, not reconciliation).
    - Final `## Verification Checklist` (≈6 items): both scripts ran from the project root; both exit 0 (or every reported failure was fixed and re-runs pass); only the reported files/rules were touched; the model was updated before any shared-policy change; ADR added/updated when architecture/process policy changed.
 
 4. **Acceptance:**
-   - `grep -c "^## When NOT to use" SKILL.md` == 1; `grep -c "^## Verification Checklist" SKILL.md` == 1 (last `##` section).
+   - `grep -c "^## When NOT to Use" SKILL.md` == 1; `grep -c "^## Verification Checklist" SKILL.md` == 1 (last `##` section).
    - `wc -l` ≤ 105 (expected ≈ 95).
    - `diff -q skills/maintain-agent-instructions/SKILL.full.md …` identical.
 
@@ -460,10 +454,10 @@ Base path for all edits: `.ai-badger/worktrees/opt-skills/` (repo root: `/Users/
 
 2. **What moves where:** nothing.
 
-3. **New sections:** `## When NOT to use` (after the title intro, before `## 1. Watch-on-docs ritual`, ≈5 lines): a one-off lookup ("have we seen X before?") — run `memory_search` and be done, no watch ritual, no write-back; no docs directory to watch and no durable fact to write — the ritual adds ceremony, not value; the memory-grade hook when you only need one answer (it is opt-in by env var; don't enable it for a single search).
+3. **New sections:** `## When NOT to Use` (after the title intro, before `## 1. Watch-on-docs ritual`, ≈5 lines): a one-off lookup ("have we seen X before?") — run `memory_search` and be done, no watch ritual, no write-back; no docs directory to watch and no durable fact to write — the ritual adds ceremony, not value; the memory-grade hook when you only need one answer (it is opt-in by env var; don't enable it for a single search).
 
 4. **Acceptance:**
-   - `grep -c "^## When NOT to use" SKILL.md` == 1 (≥ 3 bullets); `wc -l` ≤ 130 (expected ≈ 122).
+   - `grep -c "^## When NOT to Use" SKILL.md` == 1 (≥ 3 bullets); `wc -l` ≤ 130 (expected ≈ 122).
    - Section numbering unchanged: `grep -c "^## [0-9]" SKILL.md` == 8 (Pitfalls/checklist stay numbered as-is).
    - `python3 -m pytest tests/test_memory_grade_*.py -q` passes; `diff -q skills/ai-raccoon-memory/SKILL.full.md …` identical.
 
@@ -482,7 +476,7 @@ Base path for all edits: `.ai-badger/worktrees/opt-skills/` (repo root: `/Users/
 3. **New sections:** none.
 
 4. **Acceptance:**
-   - G2 gate: `grep -n "references/" SKILL.md` → all 4 mention lines contain `when` or `if` (grep -c 'references/.*\(when\|if\)' == 4).
+   - G2 gate: `grep -n "references/" SKILL.md` → 3 of 4 mention lines carry an explicit `when`/`if` (review round 1 finding 5: line 58's mention sits inside its own step — the step IS the condition — so the gate is `grep -c 'references/.*\(when\|if\)' == 3`, with line 58's in-step conditioning noted in a comment).
    - `python3 -m pytest tests/test_evidence_first_research.py -q` passes (it pins `references/provenance.md` + `references/report-template.md` existence post-scaffold — untouched files).
    - `wc -l` ≤ 125 (expected ≈ 120).
 
@@ -504,9 +498,9 @@ The "three shapes" framing in the audit was a misread: `SKILL.full.md` is the st
 
 **What is genuinely missing for G5:** the shape rule lives only in tests; no script asserts "every `skills/` dir has exactly the derived shape" as a gate. Plan:
 
-1. Add `shape_violations(root: Path) -> List[str]` to `tooling/sync_plugin_skills.py` — for every dir in `TARGET`: not shipped and not in `MANAGED_EXTERNALLY` → `orphaned` (already handled by `_orphans`); shipped non-bootstrap → require `SKILL.md` (pointer) **and** `SKILL.full.md`; shipped bootstrap → require inline `SKILL.md` **and no** `SKILL.full.md`; anything else (missing `SKILL.md`, extra top-level `SKILL.*` variants) → violation. Wire into `check_all()` so `--check` exits 1 on any shape violation.
+1. Add `shape_violations(root: Path) -> List[str]` to `tooling/sync_plugin_skills.py` — **derive the expected top-level file set by rendering each shipped skill into a temp dir and comparing entry names against the dest dir** (review round 1 Part C F5; `check_skill` already renders into a temp dir, so reuse that path — do NOT reimplement `render_into`'s contract, which the earlier SKILL.md-and-SKILL.full.md formulation disagreed with on the no-frontmatter edge where `render_into` writes no `SKILL.full.md`). The render-compare subsumes: missing `SKILL.md`, missing/extra `SKILL.full.md`, and extra top-level `SKILL.*` variants, for shipped non-bootstrap (pointer+full) and bootstrap (inline, no full) skills alike; orphaned dirs stay handled by `_orphans`. Wire into `check_all()` so `--check` exits 1 on any shape violation. (Verified: no currently-shipped skill violates the rule — latent, not live.)
 2. Content drift root↔features stays exactly as-is (`check_skill` hash-compare; no change).
-3. Tests in `tests/test_plugin_copy_points_at_the_tailored_one.py` style (see below).
+3. Tests in `tests/test_plugin_copy_points_at_the_tailored_one.py` style — note that file is real-root-only, so the new G5 tests use `tmp_path` fake trees via `load_script` (conftest.py:320–340 supports it; review round 1 Part C F7).
 4. Update the audit G5 gate wording: "every root skills/ dir has **one of the two declared shapes, assigned exactly by `BOOTSTRAP_SKILLS`**; drift check covers root↔features equality" — both now machine-checked.
 
 ## G4 — skills-lint: where it plugs in
@@ -530,12 +524,12 @@ Checked per catalog `SKILL.md`; body = text after the closing `---`:
 | 4 | description ≤1024 | `len(desc) <= 1024` (`MAX_DESC_LEN = 1024`) |
 | 5 | description starts "Use when" | `desc.startswith("Use when")` |
 | 6 | size lines | `len(body.splitlines()) <= 500` (`MAX_LINES = 500`, exact) |
-| 7 | size tokens | `len(body) / 4 <= 5000` (`MAX_TOKENS = 5000`, chars/4 proxy — deterministic stdlib; the audit's real-tokenizer count for the largest skill (code-review-checklist 4375) maps to ≈3,700 proxy, so both stay under; whitespace-token proxy rejected: it undercounts 1.5–1.75× vs the audit's tokenizer and would admit ~8k real tokens. PR must record the measured corpus max in a comment.) |
-| 8 | references/ conditions (G2) | strip fenced code blocks, split body into paragraphs (blank lines); every paragraph containing `references/[A-Za-z0-9._/-]+` must also contain `\b(when|if|unless)\b` |
-| 9 | gotchas (G1) | body contains `^##\s+Gotchas\b` (MULTILINE) **or** a line matching `no environment-specific gotchas known` (IGNORECASE) |
+| 7 | size tokens | `len(body) / 4 <= 5000` (`MAX_TOKENS = 5000`, chars/4 proxy — deterministic stdlib; review round 1 measured the corpus max: code-review-checklist body = 16,904 chars → **4,226 proxy** (whole file 4,422), NOT ≈3,700 as first estimated — the proxy tracks the audit's real-tokenizer count (4375) at ≈1.01×, so the budget still holds with margin; whitespace-token proxy rejected: it undercounts 1.53–1.75× and would admit ~8k real tokens. PR must record the measured corpus max in a comment.) |
+| 8 | references/ conditions (G2) | **Must BE the G2 checker, not a second predicate** (review round 1 findings 7 and Part C F1): extract the G2 acceptance logic — regex `\b(when|if|before|after|only when)\b`, 3-line context window `{i−1, i, i+1}`, numbered-step skip, same exempt list — into one shared function both the G2 acceptance script and `skills_lint` call. The earlier paragraph-level `when|if|unless` formulation is withdrawn: it flags the plan's own "already compliant" set (maintain-agent-instructions:24, owner-gate-review:42/103, scaffold-documentation:84) and misses scaffold-documentation:72 — it serves neither invariant |
+| 9 | gotchas (G1) | body contains `^##\s+(?:\d+\.\s+)?Gotchas\b` (MULTILINE — the `(?:\d+\.\s+)?` accepts ai-raccoon-memory's `## 6. Gotchas`; review round 1 Part C F2) **or** a line matching `no environment-specific gotchas known` (IGNORECASE) |
 | 10 | frontmatter completeness (G3) | required keys all present and parseable: `name, description, version, author, license, platforms, metadata.hermes.tags, metadata.hermes.related_skills` (arrays may be empty; presence is the gate) |
 
-Measured today (2026-08-07, `.venv/bin/python3`): all 23 pass rules 1–7; **0/23** pass rule 9 (`## Gotchas`); **12/23** mention `references/` (29 mentions, 0 with a condition — rule 8); **10/23** miss frontmatter keys (rule 10). So rules 8–10 fail the corpus until the G1/G2/G3 content work lands — **ordering is mandatory**, see below.
+Measured today (2026-08-07, `.venv/bin/python3`): all 23 pass rules 1–7; **0/23** pass rule 9 (`## Gotchas`); **11/23** mention `references/` — 26 mention lines / 31 occurrences, 2 already conditioned (owner-gate-review:103, maintain-agent-instructions:24), 19 flagged by the line-checker (review round 1 finding 11 corrects the earlier "29 mentions, 0 conditioned" count); **10/23** miss frontmatter keys (rule 10). So rules 8–10 fail the corpus until the G1/G2/G3 content work lands — **ordering is mandatory**, see below.
 
 ## G4 — tests (new file `tests/test_skills_lint.py`, `test_validate.py` style: `tmp_path` + `load_script`, no file edits to the real tree)
 
@@ -544,7 +538,7 @@ Measured today (2026-08-07, `.venv/bin/python3`): all 23 pass rules 1–7; **0/2
 - `test_skills_lint_ignores_a_root_without_features`: fake root → `rc == 0`.
 - **Final PR only:** `test_the_real_corpus_passes_skills_lint` (real root, `skills_lint(root) == []`) — lands together with the G1/G2/G3 corpus fixes so `test_all_flag_validates_the_real_framework_tree_and_reports_ok` never goes red.
 
-**Sequencing (one PR per task):** PR 1–3 = corpus conformance (G1 gotchas rename+lifts, G2 conditions on the 29 mentions, G3 frontmatter on the 10 skills) — content only, no tooling. PR 4 = G4 lint + tests + real-corpus test (green because 1–3 landed). G5 = independent PR (shape assertion + tests). VERSION bump + changelog entry per PR (repo invariant; G4 is a feature → minor).
+**Sequencing (one PR per task):** PR 1–3 = corpus conformance (G1 gotchas rename+lifts, G2 conditions on the 26 mention lines, G3 frontmatter on the 10 skills) — content only, no tooling. PR 4 = G4 lint + tests + real-corpus test (green because 1–3 landed). G5 = independent PR (shape assertion + tests). VERSION bump + changelog entry per PR (repo invariant; G4 is a feature → minor).
 
 ## Acceptance criteria (concrete commands, from the worktree root; venv = main checkout's)
 
@@ -606,4 +600,39 @@ EOF
 
 ## Review record (MoE review group)
 
-<!-- review output -->
+**Round 1 — 2026-08-07, 2 parallel code-reviewer agents (deleg_d300e912), verdicts: APPROVE-WITH-FIXES (both).** All findings verified by the reviewers against the real corpus and repo code (no files edited by reviewers). Dispositions below; every FIXED item is already applied to this plan.
+
+| # | Severity | Finding (short) | Disposition |
+|---|---|---|---|
+| R1-1 | BLOCKER | G2 acceptance gate fails on 5 lines after planned edits (scaffold-documentation:72, update-documentation:37, den-refresh:225, feed-badger:96, welcome-ai-badger:149) | FIXED — G2 edit table now includes all 5 with trigger wording; trigger word placed on the mention line / in-window |
+| R1-2 | BLOCKER | Part A × Part B duplicate Gotchas/Checklist sections on 7 files; I-item `== 1` greps would fail | FIXED — ownership split: G1-B defers task/commit-reminder/prompt-markers/feed-badger to I5–I8; G6 defers den-refresh/feed-badger/welcome-ai-badger/maintain-agent-instructions to I4/I7/I9/I10 |
+| R1-3 | MAJOR | G1 acceptance `== 23` unreachable: call-behaviorist, code-review-checklist, create-task-spec get no Gotchas | FIXED — added to G1 list C (14 files) |
+| R1-4 | MAJOR | I1 edit contradicts its own acceptance grep (`### 3.3 Security` heading) | FIXED — pointer-only replacement, no headings; 9→8 items corrected |
+| R1-5 | MAJOR | I12 acceptance `== 4` yields 3 (line 58's mention is in-step) | FIXED — acceptance `== 3` with in-step note |
+| R1-6 | MAJOR | G1 migrate-documentation merge misdescribed (no duplicate heading; Red-flags bullets would dangle) | FIXED — demote h2→h3, keep l.182, move h3+table below bullets |
+| R1-7 | MAJOR | G2 checker and G4 rule 8 are two different predicates; rule 8 flags the plan's own "already compliant" set | FIXED — rule 8 IS the G2 checker (one shared function); paragraph-level `when|if|unless` withdrawn |
+| R1-8 | MAJOR | G2 context-window prose wrong (code is {i−1,i,i+1}); scaffold-documentation:84 "bullet lead" justification false | FIXED — rule prose corrected; :84 re-justified as explicit exemption |
+| R1-9 | MAJOR | R1 "nothing enforces root sync" stale | FIXED — R1 defers to `sync_plugin_skills.py` + pre-push gate (also I7 risk line) |
+| R1-10 | MINOR | "5 files" header vs 6 rows | FIXED |
+| R1-11 | MINOR | G2/G4 corpus counts wrong (12/23, 29 mentions, 0 conditioned) | FIXED — re-measured: 11/23, 26 lines/31 occurrences, 2 conditioned, 19 flagged |
+| R1-12 | MINOR | I2 line range 176–185 wrong | FIXED — 168–186 |
+| R1-13 | MINOR | I3 `kind` row grep vacuous | FIXED — greps `hit` row |
+| R1-14 | MINOR | "Only code-review-checklist has extensions/" false | FIXED — reworded (markers/sentinel only) |
+| R1-15 | MINOR | test_welcome_names_only_real_config_keys is not a file | FIXED — cited as test_skill_docs.py:100 (2 places) |
+| R1-16 | MINOR | G6 commit-reminder placement vs own rule | FIXED — insert before `## Files` |
+| R1-17 | MINOR | Off-by-one line counts (den-refresh 227→228, maintain 81→80, G1 22→20 unique, 13→12 root-shipped) | FIXED |
+| R1-18 | NIT | "When NOT to use" capitalization inconsistent with existing "When NOT to Use" | FIXED — unified to "When NOT to Use" (I2/I5/I10/I11) |
+| R1-19 | NIT | G1 acceptance grep misses `## 6. Pitfalls` | FIXED — added numbered-variant grep |
+| R1-20 | NIT | I9 sentinel note moot | FIXED — marked moot |
+| R1-21 | NIT | G2 and I12 both edit evidence-first-research files with different final text | FIXED — I12 owns the wording; G2's evidence-first-research rows now say "see I12" |
+| R2-F1 | MAJOR | Lint rule 8 ≠ G2 gate (same as R1-7) | FIXED (with R1-7) |
+| R2-F2 | MAJOR | Rule 9 regex rejects `## 6. Gotchas` | FIXED — `^##\s+(?:\d+\.\s+)?Gotchas\b` |
+| R2-F3 | MAJOR | scaffold-documentation:72 missing from G2 table (same as R1-1) | FIXED |
+| R2-F4 | MINOR | chars/4 calibration wrong (3,700 → 4,226 body / 4,422 whole) | FIXED |
+| R2-F5 | MINOR | shape_violations reimplements render_into contract | FIXED — render-compare approach |
+| R2-F6 | NIT | G3 acceptance imports pyyaml unguarded | FIXED — noted venv requirement / stdlib extractor |
+| R2-F7 | NIT | Wiring notes (CI pylint.yml:42; G5 tests need tmp_path via load_script) | FIXED — G5 test note added |
+
+**Also confirmed by the review round (no action):** the plan's architecture (features/ as source of truth, sync+freshness gates, PR sequencing) is sound; the wiring of `skills_lint` into `validate_all()`/`_report()`/pre-push `validate` lane works; the simpler-shape question was examined and the full lint gate is the right shape with rule 8 shared; I1's EXT-marker survival and all cited test pins verified.
+
+**Verdict after fixes:** the plan is executable as amended. The review-round findings themselves are the quality gate for this plan task: 28 findings, 0 open.
