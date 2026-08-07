@@ -226,9 +226,11 @@ RED → minimal domain types → GREEN → purity re-check, with the stub-first 
 
 When a domain feature processes external signals (emails, notifications, etc.) through multiple stages before taking action, use a **pipeline of static utility classes**. Each stage is a pure function — no HTTP, persistence, or LLM dependencies. Stage sequence, per-stage test patterns, and the LLM-fallback classifier: `references/deterministic-classification-pipeline.md`; signal correlation & bootstrap import: `references/signal-correlation-and-bootstrap-import.md`; transport→repository ingestion with cursor durability: `references/ingest-wiring-pattern.md`.
 
-For financial/tax domain modeling (rate tables, rounding, progressive tax), read `references/financial-domain-modeling.md` when modeling rate tables or rounding.
+For financial/tax domain modeling, read `references/financial-domain-modeling.md` when modeling rate tables, rounding, or progressive tax.
 
 ## HTTP Endpoint Testing (Azure Functions)
+
+Applies only when endpoints are Azure Functions HTTP triggers — skip otherwise.
 
 When writing tests for Azure Functions HTTP-triggered endpoints (non-durable), see `references/http-endpoint-testing-patterns.md` for:
 - Test harness setup (FunctionContext, DefaultHttpContext, response body reading)
@@ -254,19 +256,21 @@ Full structure, conventions, testing strategy, and pitfalls: read `references/re
 
 ## Infrastructure Adapter Pattern (External Services)
 
-When implementing a new external-service integration (a mail API, a partner API), follow the full 7-step sequence in `references/infrastructure-adapter-pattern.md`. Covers: transport DTO + interface, Fake transport, TDD cycle, monitor implementation, token refresher with deterministic intervention IDs, high-performance logging, and deduplication.
+When implementing a new external-service integration (e.g. a mail API), follow the full 7-step sequence in `references/infrastructure-adapter-pattern.md`. Covers: transport DTO + interface, Fake transport, TDD cycle, monitor implementation, token refresher with deterministic intervention IDs, high-performance logging, and deduplication.
 
-Key distinction from Cosmos persistence: the transport interface lives in Infrastructure (not Domain), Domain only sees the extension-point interface (`IChannelMonitor`), and the adapter maps external wire types to domain signals.
+Key distinction from Cosmos persistence: the transport interface lives in Infrastructure, Domain only sees `IChannelMonitor`, and the adapter maps external wire types to domain signals.
 
 ## Cosmos Persistence (Infrastructure Layer)
 
-When implementing the Cosmos repository for a domain entity, follow the full 9-step sequence in `references/cosmos-persistence-implementation.md`. Covers: contract test suite, InMemory fake, CosmosOptions, Cosmos repository, DI, Terraform container, and the easily-forgotten ProvisionCosmosEmulator update.
+Applies only when the project persists to Azure Cosmos DB — skip otherwise. The general shape holds for any store: a repository interface in Domain, a contract test suite, an InMemory fake, and a store-specific adapter in Infrastructure.
 
-Two sub-patterns for specialized cases (documented in the same reference):
-- **Encrypted document** — when the entity contains sensitive data (API keys, compensation). Entire document encrypted via `ISecretCipher` before persisting; Cosmos stores a wrapper with `EncryptedSecret`. Test with ephemeral `DataProtectionProvider.Create("scope")`.
-- **Optimistic concurrency** — when the contract uses `VersionedDocument<T>` (entity + ETag). Uses CreateItemAsync/ReplaceItemAsync with ETag guards and `ConcurrencyConflictException` on conflicts.
-- **Simple config document** — when the entity is a single per-user config (userId = id = partition key). Uses ReadItemAsync + UpsertItemAsync with no concurrency. See `references/cosmos-persistence-implementation.md`.
-- **Wildcard-ETag upsert** — when `UpsertAsync(entity, etag)` supports `"*"` for blind upsert and real ETags for conditional replace. Uses UpsertItemAsync with optional `IfMatchEtag`. See `references/cosmos-persistence-implementation.md`.
+When implementing the Cosmos repository for a domain entity, follow the full 9-step sequence in `references/cosmos-persistence-implementation.md`. Covers: contract tests, InMemory fake, CosmosOptions, Cosmos repository, DI, Terraform container, and the easily-forgotten ProvisionCosmosEmulator update.
+
+Four Cosmos-specific sub-patterns (same reference) — each a worked example of a store-agnostic need (encryption-at-rest, optimistic concurrency, single-document config, blind-vs-conditional upsert):
+- **Encrypted document** — entity has sensitive data (API keys, compensation): encrypt via `ISecretCipher` before persisting; Cosmos stores a wrapper with `EncryptedSecret`. Test with ephemeral `DataProtectionProvider.Create("scope")`.
+- **Optimistic concurrency** — contract uses `VersionedDocument<T>` (entity + ETag): CreateItemAsync/ReplaceItemAsync with ETag guards, `ConcurrencyConflictException` on conflicts.
+- **Simple config document** — when the entity is a single per-user config (userId = id = partition key): ReadItemAsync + UpsertItemAsync, no concurrency. See `references/cosmos-persistence-implementation.md`.
+- **Wildcard-ETag upsert** — `UpsertAsync(entity, etag)` supports `"*"` for blind upsert, real ETags for conditional replace: UpsertItemAsync with optional `IfMatchEtag`. See `references/cosmos-persistence-implementation.md`.
 
 
 > High-performance logging: read `references/high-performance-logging.md` when applying the high-performance logging convention.
@@ -287,6 +291,9 @@ When mapping domain exceptions to RFC 7807 ProblemDetails (problem-type constant
 Build a transition matrix — N states × M transition methods, one test per cell, invalid paths asserted to throw: read `references/lifecycle-completeness-matrix.md` when building the transition matrix.
 
 ## Gotchas
+
+Rows naming Azure Functions, Durable Functions, or Cosmos apply only if the project uses that service.
+
 | Pitfall | Fix |
 |---|---|
 | `Guard.IsEqualTo` fails with nullable/enum types | Use `if` + `ThrowHelper.ThrowInvalidOperationException` — see `references/communitytoolkit-guard-pitfalls.md` |
@@ -305,4 +312,4 @@ Build a transition matrix — N states × M transition methods, one test per cel
 For worked cases (Azure Functions, worktree discipline, locale-sensitive tests), read `references/project-gotchas.md` when one of them bites.
 
 
-> Durable Functions: read `references/durable-functions-orchestrations.md` when orchestrating Durable Functions (deterministic code constraints, testing pipelines, dry-run+apply).
+> Durable Functions: applies only when orchestrating with Durable Functions — skip otherwise. Read `references/durable-functions-orchestrations.md` for deterministic code constraints, testing pipelines, and dry-run+apply.

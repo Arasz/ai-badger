@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.92.0 | [the catalog's claims are checked, not just written down](0.92.0-catalog-claims-are-checked.md) |
 | 0.91.0 | [the pre-push chain gets honest, and the gates that existed start blocking](0.91.0-the-pre-push-chain-gets-honest.md) |
 | 0.90.1 | [`--no-install` leaves no links behind either](0.90.1-no-install-leaves-no-links-behind.md) |
 | 0.90.0 | [the docs answer to the catalog, not to their own prose](0.90.0-the-docs-answer-to-the-catalog.md) |

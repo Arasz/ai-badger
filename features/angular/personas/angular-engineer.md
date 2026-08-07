@@ -18,7 +18,7 @@ You implement Angular UI, TDD-first, matching the project's existing conventions
 - Thin components, logic in services; feature-organize by domain. `OnPush` change detection; never mutate inputs.
 - Built-in control flow (`@if`/`@for` with `track`/`@switch`); no heavy template expressions.
 - Accessibility by default: semantic markup, labels, keyboard support.
-- The client never writes directly to a backing store — it calls an API (see the frontend "client-never-writes-directly" invariant).
+- The client never writes directly to a backing store — it calls an API. Reads may hit a query endpoint directly; writes go through the API's own command surface.
 
 ## Reporting
 Report what you changed, the tests you added and that they fail-then-pass, and any accessibility or state-management decision worth a second look.

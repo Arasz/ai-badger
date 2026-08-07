@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.91.0",
+  "frameworkVersion": "0.92.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -657,6 +657,27 @@
           "build": "dotnet build",
           "test": "dotnet test"
         }
+      }
+    },
+    "github": {
+      "invariants": [
+        {
+          "name": "pin-actions-to-sha",
+          "path": "features/github/invariants/pin-actions-to-sha.md"
+        }
+      ],
+      "instructions": [
+        {
+          "name": "github-actions.instructions",
+          "path": "features/github/instructions/github-actions.instructions.md"
+        }
+      ],
+      "meta": {
+        "description": "GitHub Actions workflows and GitHub-hosted repository automation.",
+        "detectionSignals": [
+          ".github/workflows/*.yml",
+          ".github/workflows/*.yaml"
+        ]
       }
     },
     "hermes": {

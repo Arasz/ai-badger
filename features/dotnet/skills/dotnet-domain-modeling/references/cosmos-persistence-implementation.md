@@ -1,5 +1,7 @@
 # Cosmos Persistence Implementation Pattern
 
+Assumes Azure Cosmos DB. For another store, keep the store-agnostic shape (repository interface in Domain, contract test suite, InMemory fake, adapter in Infrastructure) and swap steps 5-9 below for your store's equivalent.
+
 When adding a new Cosmos-backed entity to a Clean-Architecture .NET solution, follow this sequence. Skipping a step tends to surface as a test or build failure later, so it pays to work through them in order.
 
 ## Step-by-Step Checklist

@@ -1,5 +1,7 @@
 # Azure Durable Functions Orchestration Pitfalls
 
+Assumes Azure Durable Functions.
+
 ## Non-Deterministic APIs in Orchestrators
 
 Durable Functions orchestrators replay from the history log. Any non-deterministic call produces different values on replay, breaking replay correctness.
