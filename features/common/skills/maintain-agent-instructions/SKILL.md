@@ -5,6 +5,14 @@ description: >-
   CLAUDE.md, copilot-instructions.md, AGENTS.md, hosted-review and path-scoped instruction files
   — or when validation/drift checks fail in CI. Reconciles them from the machine-readable model
   in .ai-badger/agent-instructions/.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [agent-instructions, drift, claude, copilot]
+    related_skills: [welcome-ai-badger, update-documentation]
 ---
 
 # Maintain agent instructions

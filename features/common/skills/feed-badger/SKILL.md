@@ -4,6 +4,14 @@ description: >-
   Use when something learned in this repo belongs in the ai-badger framework itself — a new
   skill, persona, invariant, instruction or fix that is project-agnostic — and the user wants to
   contribute it back. Opens a draft PR against the framework; refuses anything project-specific.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [contribution, framework, pr, catalog]
+    related_skills: [welcome-ai-badger, den-refresh]
 ---
 
 # feed-badger

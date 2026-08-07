@@ -7,7 +7,14 @@ description: >-
   approve, using Gherkin's own grammar to decide which questions must be asked and when the
   document is complete. Emits a .feature behavioural contract plus a spec.json manifest that the
   task skill consumes.
+version: 1.0.0
+author: ai-badger
+license: MIT
 platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [specification, gherkin, requirements, contracts]
+    related_skills: [task, behavioral-contracts]
 ---
 
 # create-task-spec

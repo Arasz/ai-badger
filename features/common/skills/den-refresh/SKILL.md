@@ -4,6 +4,14 @@ description: >-
   Use when an already-scaffolded project is behind the framework — a drift notice appeared, a new
   ai-badger version shipped, or the user asks to "refresh"/"update ai-badger". Reports what
   changed, backs up .ai-badger/, and re-scaffolds from the project's existing config.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [scaffolding, drift, upgrade, refresh]
+    related_skills: [welcome-ai-badger, feed-badger]
 ---
 
 # den-refresh

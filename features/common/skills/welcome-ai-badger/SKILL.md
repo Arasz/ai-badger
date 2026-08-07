@@ -5,6 +5,14 @@ description: >-
   project", "add agent instructions here", "onboard this repo" — whether it is new or already has
   agent files. Detects stacks, writes .ai-badger/, and generates each configured agent's
   discovery file.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [scaffolding, onboarding, setup, detection]
+    related_skills: [den-refresh, feed-badger]
 ---
 
 # welcome-ai-badger

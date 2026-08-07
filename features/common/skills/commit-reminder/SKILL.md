@@ -8,6 +8,14 @@ description: >-
   edit-shaped tool call and commands a commit once it crosses a threshold; after repeated
   unanswered commands it records the work as at risk, and `scripts/ensure_committed.py` reports
   that to a parent.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [git, commits, hooks, safety]
+    related_skills: [call-behaviorist, task]
 ---
 
 # Commit reminder
