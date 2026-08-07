@@ -106,8 +106,19 @@ jobs:
           [ "$failed" -eq 0 ]
 
       - name: Summarise
+        # A step defaults to `if: success()`, which would drop the summary exactly when a
+        # comment failed to post — the run a human most needs to read.
+        if: always()
         run: |
           set -euo pipefail
+
+          if [ ! -f report.json ]; then
+            echo "### Stuck PR watch" >> "$GITHUB_STEP_SUMMARY"
+            echo >> "$GITHUB_STEP_SUMMARY"
+            echo "The query step failed, so nothing was checked. Read its log." \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
 
           {
             echo "### Stuck PR watch"
