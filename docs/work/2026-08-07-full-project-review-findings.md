@@ -163,6 +163,86 @@ plan — **the panel width was itself a constraint**, and a fan-out plan has to 
 W2 → W5 serialise (fix the data, then write the test against a clean tree). W1, W3, W4 are
 mutually independent and independent of W2/W5.
 
+## E1 — Python architecture of the framework itself (architect/opus)
+
+Thirteen findings, each labelled by how it is known — measured, delegated-and-reported, or
+reasoned. Three carry unusual weight.
+
+### The three that change what we build
+
+- **F2 (high, measured) — `import jsonschema` costs ~470 ms of `badger_lib`'s ~500 ms import, and
+  11 of 13 entry points never validate.** Best-of-5 warm subprocess timings on this machine:
+  `python3 -c "pass"` 0.12 s, `import framework_copies` 0.17 s, `import badger_lib` **0.62 s**,
+  `import jsonschema` 0.59 s. Only `index_build.py` and `validate.py` ever call the validators; the
+  other eleven — `changelog_index`, `install_plugins`, `retrieval_eval`, `sync_plugin_skills`,
+  `version_sync` and all six `gates/*.py` — pay it for nothing on every pre-push run. The same
+  unguarded import is the *documented* reason `engine/framework_copies.py` restates
+  `is_framework_root` and `read_version`. Fix is ~5 lines: move the import inside the three
+  validation functions. It must still **raise** — "validation refuses rather than silently
+  passing" is the invariant, and a lazy import that swallowed `ImportError` would quietly turn
+  validation into a no-op.
+- **F1 (high) — ADR-0005 wrote its own expiry condition, and it fired four days ago unnoticed.**
+  The ADR rejected frontmatter-declared skill scope because *"no script in `scripts/` parses YAML
+  frontmatter today … worth revisiting if anything else ever needs frontmatter at build time."*
+  Commit `7cebf20` (#324, this week) added exactly that parser at `tooling/validate.py:277`. The
+  ADR still reads as settled, while `engine/badger_lib.py:664-702` carries a 39-entry hand-kept
+  `SKILL_SCOPES` dict and line 1 carries `# pylint: disable=too-many-lines … (ADR-0005)`. The file
+  is over its lint ceiling because of a data table whose justification has lapsed.
+- **F10 (medium, over-engineering) — 672 LOC of retrieval-evaluation machinery gates nothing.**
+  `grep` over `.github/`, `.lefthook/` and `lefthook.yml` finds no reference to
+  `tooling/retrieval_eval.py` (398 LOC) or `tooling/fixture_harvest.py` (274 LOC). Their tests
+  exercise synthetic fixtures only. ADR-0012 ratified "BM25 retrieval with a falsifiable eval";
+  the eval has never been fired at the real corpus. Two honest options — wire it into a lane with
+  a stated threshold, or delete the harvester and demote the eval to a documented manual tool.
+  Choosing the first and not doing it is the current state.
+
+### The rest
+
+- **F3 (high)** — `validate.py` accreted a markdown convention linter (+187 lines in one commit).
+  `skills_lint()` enforces ten *authoring* conventions, which is a repo gate; ADR-0011 already
+  names `gates/` as the home for exactly that. It also parses the same file three times with three
+  different parsers, and carries five-line provenance comments against the minimal-comments
+  invariant.
+- **F5 (medium, cost not bug) — the triplication is a generated pipeline with a hard gate, not
+  debt.** Source is `features/{common,claude}/skills/`; `skills/` is pointer-rendered by
+  `sync_plugin_skills.render_into()`; `.ai-badger/skills/` is this repo scaffolded against itself.
+  `check_skill()` re-renders with the same function used to write and compares content hashes — the
+  render *is* the contract. Both derived trees are gated in lefthook and CI; both checks were run
+  live and came back green. Real cost: ~126 files / ~1.3 MB per tree and enforcement after the
+  fact, so a hand-edit to a derived copy is caught at push rather than at edit time. Worth one
+  cheap PreToolUse guard that refuses the edit and points at `features/`.
+- **F4 (medium-high)** — `badger_lib.py` is seven domains with clean seams (framework root
+  resolution, content hashing, schema validation, skill routing). **But E1 argues against splitting
+  it yet**: do F2 first and re-measure, because if the lazy import lands, the architectural case
+  collapses to "1002 lines is a lot", which does not clear the "abstraction before a real caller"
+  bar. Ship it only if a second stdlib-only consumer appears or F1 removes `SKILL_SCOPES`.
+- **F6 (medium)** — one gate-report shape copy-pasted three times and *already drifted*:
+  `deps_guard.py:69-71` dropped the line-less fallback, so a missing `engine/requirements.txt`
+  prints `engine/requirements.txt:0`. Five report shapes exist for one concept.
+- **F8 (medium)** — eight `VERSION` readers; six guard a missing file, `version_sync.py:44` and
+  `release_guard.py:217` raise an uncaught `FileNotFoundError`.
+- **F9 (medium)** — four frontmatter parsers, two of them one file apart.
+- **F11–F13 (low-medium)** — a doc-budget checker living inside the task tracker's state store,
+  crontab management bundled into the task CLI, and an analyzer bolted onto a log switch. All three
+  carry the same blocking caveat: those files claim **lockstep with an upstream
+  `job-search-ai-assistant` repo**, so a refactor has an owner question attached before it has a
+  design.
+- **F7 (low) — flagged expressly so nobody "fixes" it.** The 12× `--root` idiom and 13× sys.path
+  bootstrap are ratified at `pyproject.toml:23-28` as *"a deliberate deployability property, not
+  debt to refactor away."* Same for the five byte-identical `debug_log.py` copies.
+
+### E1's backlog, with its own serialisation
+
+B1 lazy jsonschema · B2 supersede ADR-0005 · B3 extract skills lint to a gate · B4 shared gate
+`Problem`/`report()` · B5 guarded `read_version` · B6 decide the retrieval eval · B7 PreToolUse
+guard on derived trees · B8 one frontmatter extractor · B9 split `badger_lib` (conditional on
+B1+B2) · B10 task-script splits (blocked on the lockstep question).
+
+Serialisation: B2 → B8 → B3 all touch `tooling/validate.py`. B1 → B5 → B9 all touch
+`engine/badger_lib.py`, B1 first as cheapest-and-highest-value, B9 last and conditional. B4 before
+B3 so the new gate can adopt the shared type. **Independently parallelisable now: B4, B6, B7,
+B10.** Anything touching `features/` or `skills/` must regenerate both derived trees before commit.
+
 ## Integrated plan
 
 Written once the panel has reported. Not started.
