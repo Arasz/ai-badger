@@ -136,9 +136,9 @@ onto each index entry as it already does, and derive the routing helpers from th
 
 **What it costs**
 
-- **Routing gains I/O.** `SKILL_SCOPES` is a constant that cannot be stale, cannot fail to read,
-  and is importable by a SessionStart hook with no root in hand. Under Option B every routing
-  answer is either 51 file reads or a lookup into generated `index.json`. The index route makes a
+- **Routing gains I/O.** `SKILL_SCOPES` is a constant: no root argument at the call site, no
+  read that can fail, no value that can be stale. Under Option B every routing answer is either 51
+  file reads or a lookup into generated `index.json`. The index route makes a
   *generated* artifact load-bearing for which skills reach a user — `index_build.py --check`
   guards its freshness in CI, but nothing does at runtime in a consumer's installed plugin.
   Production already has one such reader (`drift.py:204` consults `item.get("scope")`), so the
@@ -192,8 +192,8 @@ The frontmatter alternative is therefore rejected again, on these grounds instea
 one:
 
 1. Routing must not depend on a generated artifact or on filesystem reads. Every scope answer
-   today is a dict lookup with no I/O and no failure path, callable from a SessionStart hook that
-   has no framework root in hand.
+   today is a dict lookup with no I/O and no failure path — the value is decided at import, not
+   at call time, so there is nothing to be stale and nothing to handle.
 2. The default set must stay reviewable in one diff hunk. The failure this ADR family exists to
    prevent is an omission nobody noticed; a 51-file declaration is not reviewable by eye, and
    nothing proposed replaces the reviewer.
