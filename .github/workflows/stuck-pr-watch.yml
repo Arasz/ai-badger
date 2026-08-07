@@ -30,10 +30,18 @@ permissions:
   contents: read
   pull-requests: write
 
+# One sweep at a time. A manual dispatch landing on top of a scheduled run would query the
+# same pull requests and could post the notice twice before either had commented.
+concurrency:
+  group: stuck-pr-watch
+  cancel-in-progress: false
+
 jobs:
   watch:
     name: stuck-pr-watch
     runs-on: ubuntu-latest
+    # Two API calls and a filter. Anything approaching this is hung, not busy.
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         # v7 — pinned to the tag's commit; a tag is remote code refetched on every run.
