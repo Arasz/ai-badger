@@ -262,6 +262,21 @@ dispatch; an item without chunks is one dispatch.
 
 ## Parallel execution schedule
 
+**Status 2026-08-07: Wave 0 and Wave 1 are landed and released.** Wave 2 and Wave 3 are not started.
+
+| Wave | Lane | PR | Version |
+|---|---|---|---|
+| 0 | W8.a — gate log stops clobbering | #330 | 0.88.2 |
+| 1 | L1 — W1 freshness guard stops writing `$HOME` | #332 | 0.89.0 |
+| 1 | L2 — W2 plugin-sync oracle | #331 | 0.88.3 |
+| 1 | L3 — W3 meta-gate sees every gate | #335 | 0.88.4 |
+| 1 | L4 — W5 dotnet harvest leakage | #333 | 0.88.5 |
+| 1 | L5 — W7 tracking and isolation floor | #334 | 0.88.6 |
+
+Landed alongside: #326 (0.87.2, Bitwarden identifiers purged), #327 (0.88.0, AWM denylist
+normalisation), #328 (0.88.1, duplicate skill descriptions), #329 (this plan), #336 (main repair).
+`main` is green at `43fbfb49`, tagged `ai-badger--v0.89.0`.
+
 Constraint measured this session: **the concurrent-agent pool is 20 slots and the panel saturated
 it** — E5 could not use its three sub-agent slots at all. Waves are sized to that, not to the
 number of items.
