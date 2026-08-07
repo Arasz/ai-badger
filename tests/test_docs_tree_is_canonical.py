@@ -12,6 +12,7 @@ seventeen. A partial map is worse than none, because it is read as complete.
 from __future__ import annotations
 
 import functools
+import re
 import subprocess
 
 import pytest
@@ -34,6 +35,18 @@ CANONICAL_DIRS = (
 # contents are not governed by the naming rules below.
 FROZEN_DIRS = ("changelog",)
 
+# `brand/` and `screenshots/` predate `assets/` and are pinned by the root README and by
+# `skills.md`. They are on the map by name, not by quadrant.
+PINNED_DIRS = ("brand", "screenshots")
+
+# An index row's first cell, as a backticked filename or a relative markdown link. `adr/` and
+# `work/` index their contents in a table; the other READMEs use prose the forward check covers.
+INDEX_ROW_RE = re.compile(r"^\|\s*(?:`([^`|]+)`|\[[^\]]*\]\(([^)|]+)\))\s*\|")
+
+# Directories that index their files in a table, and the least they must index — a regex that
+# stopped matching would let the reverse check pass by finding nothing at all.
+INDEXED_DIRS = {"adr": 15, "work": 10}
+
 
 def _docs(root):
     return root / "docs"
@@ -41,18 +54,36 @@ def _docs(root):
 
 @functools.lru_cache(maxsize=None)
 def _committed_entries(root, subpath):
-    """Direct children of HEAD:<subpath> as (name, is_dir) pairs, read from the committed tree."""
-    result = subprocess.run(
-        ["git", "-C", str(root), "ls-tree", f"HEAD:{subpath}"],
-        capture_output=True, text=True, check=False)
-    if result.returncode != 0:
+    """Direct children of `HEAD:<subpath>` as (name, is_dir) pairs — the committed tree, not disk.
+
+    The suite runs for minutes; anything writing into docs/ meanwhile turned the map checks red
+    for a reason that had nothing to do with the map (review B11).
+    """
+    done = subprocess.run(["git", "-C", str(root), "ls-tree", f"HEAD:{subpath}"],
+                          capture_output=True, text=True, check=False)
+    if done.returncode != 0:
         return ()
     entries = []
-    for line in result.stdout.splitlines():
+    for line in done.stdout.splitlines():
         meta, name = line.split("\t", 1)
         _mode, kind, _sha = meta.split()
         entries.append((name, kind == "tree"))
     return tuple(entries)
+
+
+def _committed_dirs(root):
+    return sorted(name for name, is_dir in _committed_entries(root, "docs")
+                  if is_dir and not name.startswith("."))
+
+
+def _indexed_files(readme_text: str):
+    """Filenames a README's index table claims exist beside it."""
+    named = []
+    for line in readme_text.splitlines():
+        row = INDEX_ROW_RE.match(line)
+        if row:
+            named.append(row.group(1) or row.group(2))
+    return named
 
 
 class TestTheTreeExists:
@@ -71,10 +102,20 @@ class TestTheTreeExists:
 class TestEveryMapIsComplete:
     """A README lists every file beside it. An unlisted file is one nobody will find."""
 
+    def test_no_directory_sits_outside_the_map(self, root):
+        """`plans/` outlived PR #111: the map check matched the prose explaining its removal."""
+        known = set(CANONICAL_DIRS) | set(FROZEN_DIRS) | set(PINNED_DIRS)
+        present = _committed_dirs(root)
+
+        residue = [name for name in present if name not in known]
+
+        assert not residue, (
+                "docs/ holds directories the canonical tree does not name: " + ", ".join(residue)
+        )
+
     def test_the_root_readme_names_every_directory(self, root):
         readme = (_docs(root) / "README.md").read_text(encoding="utf-8")
-        present = sorted(name for name, is_dir in _committed_entries(root, "docs")
-                         if is_dir and not name.startswith("."))
+        present = _committed_dirs(root)
 
         missing = [name for name in present if f"{name}/" not in readme]
 
@@ -85,25 +126,46 @@ class TestEveryMapIsComplete:
         """Subdirectories answer for themselves; files do not."""
         directory = _docs(root) / name
         readme = (directory / "README.md").read_text(encoding="utf-8")
-        beside = sorted(entry_name for entry_name, is_dir in _committed_entries(root, f"docs/{name}")
-                        if not is_dir and entry_name != "README.md")
+        beside = sorted(entry for entry, is_dir in _committed_entries(root, f"docs/{name}")
+                        if not is_dir and entry != "README.md")
 
         missing = [f for f in beside if f not in readme]
 
         assert not missing, f"docs/{name}/README.md omits: {', '.join(missing)}"
 
+    @pytest.mark.parametrize("name", CANONICAL_DIRS)
+    def test_a_directory_readme_indexes_nothing_that_is_absent(self, root, name):
+        """The other half of the map: a row for a file that never merged reads as a real record."""
+        directory = _docs(root) / name
+        readme = (directory / "README.md").read_text(encoding="utf-8")
+
+        dangling = sorted({f for f in _indexed_files(readme) if not (directory / f).exists()})
+
+        assert not dangling, (
+            f"docs/{name}/README.md indexes files that do not exist: {', '.join(dangling)}"
+        )
+
     def test_the_checks_ignore_an_untracked_file_and_directory(self, root):
-        """A concurrent write into docs/ mid-run must not flip these checks red — only commits count."""
+        """A concurrent write into docs/ mid-run must not flip these red — only commits count."""
         scratch_dir = _docs(root) / "zz_scratch_untracked_dir"
         scratch_file = _docs(root) / "reference" / "zz-scratch-untracked.md"
         scratch_dir.mkdir()
         scratch_file.write_text("scratch", encoding="utf-8")
         try:
+            self.test_no_directory_sits_outside_the_map(root)
             self.test_the_root_readme_names_every_directory(root)
             self.test_a_directory_readme_names_every_file_beside_it(root, "reference")
         finally:
             scratch_file.unlink()
             scratch_dir.rmdir()
+
+    @pytest.mark.parametrize("name,least", sorted(INDEXED_DIRS.items()))
+    def test_an_index_table_is_actually_read(self, root, name, least):
+        """A reverse check that parses no rows passes vacuously and guards nothing."""
+        readme = (_docs(root) / name / "README.md").read_text(encoding="utf-8")
+
+        assert len(_indexed_files(readme)) >= least, \
+            f"docs/{name}/README.md yielded too few index rows — the row pattern has drifted"
 
 
 class TestTheGateFreezesOnlyRealPaths:
@@ -143,7 +205,7 @@ class TestNoProseHidesFromRipgrep:
     """The reason `work/` had to exist: `.tmp/` is hidden, and every agent's search is ripgrep."""
 
     def test_no_review_form_is_left_in_a_hidden_directory(self, root):
-        # .tmp/ is gitignored, so it cannot be read from git — the working tree is the only source.
+        # `.tmp/` is gitignored, so git cannot answer for it: the working tree is the only source.
         hidden = root / ".tmp"
         if not hidden.is_dir():
             return
@@ -164,6 +226,25 @@ class TestTheGuardCouldFail:
         missing = [name for name in present if f"{name}/" not in readme]
 
         assert missing == ["reference"]
+
+    def test_the_index_check_catches_a_row_for_a_file_that_never_merged(self, tmp_path):
+        (tmp_path / "2026-08-07-real.md").write_text("record", encoding="utf-8")
+        readme = ("| File | What it records |\n|---|---|\n"
+                  "| `2026-08-07-real.md` | A record that exists |\n"
+                  "| `2026-08-07-imagined.md` | A record that never merged |\n")
+
+        dangling = sorted({f for f in _indexed_files(readme) if not (tmp_path / f).exists()})
+
+        assert dangling == ["2026-08-07-imagined.md"]
+
+    def test_the_residue_check_catches_a_directory_off_the_map(self, tmp_path):
+        for name in ("work", "plans"):
+            (tmp_path / name).mkdir()
+        known = {"work", "adr"}
+
+        residue = [d.name for d in sorted(tmp_path.iterdir()) if d.name not in known]
+
+        assert residue == ["plans"]
 
     def test_the_record_dir_check_catches_a_dead_path(self, tmp_path):
         (tmp_path / "docs" / "work").mkdir(parents=True)

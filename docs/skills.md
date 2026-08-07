@@ -1,12 +1,16 @@
 # Skills
 
-ai-badger catalogs twenty-two skills. Twenty-one live under `features/common/skills/` and split
-by the scope `badger_lib.SKILL_SCOPES` gives them ([ADR-0005](adr/0005-default-skill-set.md)):
-**fourteen are `default`** and arrive in every scaffolded project without being asked for, and
-**eight are `optIn`** — catalogued, but written only when a project names them. The twenty-second,
+ai-badger catalogs 37 skills. 36 live under `features/common/skills/` and split by the scope
+`badger_lib.SKILL_SCOPES` gives them ([ADR-0005](adr/0005-default-skill-set.md)):
+**14 are `default`** and arrive in every scaffolded project without being asked for, and
+**22 are `optIn`** — catalogued, but written only when a project names them. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
+
+Those four numbers, and every row of the table below, are checked against `SKILL_SCOPES` by
+`tests/test_docs_match_the_catalog.py`. A skill added to the catalog without a row here fails
+that test, and so does a row naming a skill the catalog no longer has.
 
 An `optIn` skill is asked for by name in `.ai-badger/config.json`:
 
@@ -73,6 +77,20 @@ names it, **claude-only** when the stack decides.
 | [debug-issue](#debug-issue) | Trace the call chain from a symptom to its entry point before hypothesizing | opt-in | by name |
 | [refactor-safely](#refactor-safely) | Enumerate every affected location before a rename, extraction, or removal | opt-in | by name |
 | [evidence-first-research](#evidence-first-research) | Produce a dated research record whose findings are graded by how they are known | opt-in | by name |
+| [research-record-audit](#research-record-audit) | Re-derive a written record's claims from its cited sources | opt-in | by name |
+| [multi-lane-report-assembly](#multi-lane-report-assembly) | Assemble parallel research or review lanes into one evidence-graded record | opt-in | by name |
+| [parallel-expert-review](#parallel-expert-review) | Review a change through an architect and a domain engineer in parallel | opt-in | by name |
+| [code-review-evidence](#code-review-evidence) | Catch claims about wrapped libraries and tests that assert their own input | opt-in | by name |
+| [review-gate-diff-verification](#review-gate-diff-verification) | Establish a branch diff's true base before a gate judges it | opt-in | by name |
+| [design-gate-audit](#design-gate-audit) | Audit a design doc's acceptance gates before anyone builds against them | opt-in | by name |
+| [artifact-verification](#artifact-verification) | Verify specs, docs, manifests and packages that no code test covers | opt-in | by name |
+| [documentation-drift-audit](#documentation-drift-audit) | Audit documentation against the real tree and fix only what is verifiably false | opt-in | by name |
+| [spec-driven-refactoring](#spec-driven-refactoring) | Gate a large multi-file refactor on a spec, before and after | opt-in | by name |
+| [scripts-tooling-refactor](#scripts-tooling-refactor) | Convert a `scripts/` directory into a tested, tooling-language-native layout | opt-in | by name |
+| [worktree-agent-isolation](#worktree-agent-isolation) | Give each parallel agent its own git worktree and integrate via PRs | opt-in | by name |
+| [pre-push-gate-debugging](#pre-push-gate-debugging) | Debug a blocked pre-push quality gate one lane at a time | opt-in | by name |
+| [sqlite-schema-review](#sqlite-schema-review) | Review SQLite DDL and migrations against scratch-database evidence | opt-in | by name |
+| [sqlite-bank-space-diagnosis](#sqlite-bank-space-diagnosis) | Diagnose a bloated SQLite file and its WAL read-only before reclaiming | opt-in | by name |
 
 ---
 
@@ -389,7 +407,7 @@ declared when `ai-raccoon` is on PATH. Install it with
 
 ## Asked for, not shipped (`optIn`)
 
-None of the eight below is written into a project until `config.include.skills` names it — see the
+None of the 22 below is written into a project until `config.include.skills` names it — see the
 opening of this page for the edit, and
 [`authoring-a-feature.md`](authoring-a-feature.md#default-or-optin) for the mechanism. Every
 scaffold and refresh report lists the ones a project has not installed, so nobody has to know
@@ -499,6 +517,176 @@ Five chart kinds (`provenance`, `bars`, `line`, `matrix`, `range`) render as inl
 external hosts. The provenance chart is drawn first and always, including grades with zero
 findings — a mix of one `MEASURED` and nine `INFERRED` is a hypothesis, not a finding, and the
 reader needs to see that before the conclusion.
+
+### research-record-audit
+
+[`SKILL.md`](../features/common/skills/research-record-audit/SKILL.md)
+
+**What it is.** The adversarial counterpart to `evidence-first-research`: it re-derives every
+load-bearing claim in a written record from the cited primary sources instead of trusting the
+record's own account of them. Quotes are checked verbatim, `MEASURED` claims are re-run, and the
+grades themselves are audited for honesty.
+
+**When to use it.** A research record, findings document, review write-up or incident report is
+about to be acted on or quoted, and nobody has checked it against its sources.
+
+### multi-lane-report-assembly
+
+[`SKILL.md`](../features/common/skills/multi-lane-report-assembly/SKILL.md)
+
+**What it is.** Merges the output of parallel research or review lanes into one graded record. It
+lifts each `### F# — <claim> [GRADE]` block verbatim from the lane's authoritative full summary
+rather than the truncated delegation transcript, truncates at an embedded `## Still open` header,
+dedupes cross-cutting themes, and renumbers with a pass over the stale cross-references.
+
+**When to use it.** Two or more dispatched lanes have each returned graded finding blocks that
+have to become a single deliverable a strict renderer will parse.
+
+### parallel-expert-review
+
+[`SKILL.md`](../features/common/skills/parallel-expert-review/SKILL.md)
+
+**What it is.** Reviews a change or a plan through two subagents at once — an architect on
+structure, composition, naming and separation, and a domain engineer on idiomatic patterns,
+correctness and edge cases — then integrates the two. Disagreements are resolved on evidence,
+not on which agent argued harder.
+
+**When to use it.** A PR review with architecture concerns, a pre-refactor assessment, or a plan
+review where structure and implementation both carry risk.
+
+### code-review-evidence
+
+[`SKILL.md`](../features/common/skills/code-review-evidence/SKILL.md)
+
+**What it is.** A companion to `code-review-checklist` and `review-changes` aimed at one question:
+is this claim evidence, or is it a restatement? It catches behaviour claims about wrapped
+third-party code — native extensions, SDKs, CLIs — taken from the wrapper's own comments or from
+the feature spec, and integration tests that assert values the method under test constructed.
+
+**When to use it.** Reviewing code that wraps an external library, SDK or CLI, or judging whether
+a test harness would actually catch a regression.
+
+### review-gate-diff-verification
+
+[`SKILL.md`](../features/common/skills/review-gate-diff-verification/SKILL.md)
+
+**What it is.** Establishes that a branch diff is real before a review gate judges its contents.
+A moved `origin/main` produces phantom `D`/`M` rows; `git show --name-status` greps that are not
+anchored after the status tab match the wrong thing; build output under `bin`/`obj` pollutes
+symbol greps; and a committed plan document can differ from the amended version that was accepted.
+
+**When to use it.** Immediately before a code-review, phase or plan-versus-implementation gate
+reads a diff.
+
+### design-gate-audit
+
+[`SKILL.md`](../features/common/skills/design-gate-audit/SKILL.md)
+
+**What it is.** Audits a design document's acceptance-criteria table before implementation starts.
+Each gate row answers two questions: would it fail if the feature were broken (honest), and does
+the test file, framework or seam it names actually exist (feasible) — established by reading the
+real test project, never taken from the document.
+
+**When to use it.** A design document's gates need checking for vacuous negatives, timing-window
+vacuity, port races, environment poisoning or unprovable real-time halves.
+
+### artifact-verification
+
+[`SKILL.md`](../features/common/skills/artifact-verification/SKILL.md)
+
+**What it is.** The verification playbook for work products no code test covers — specs,
+documents, manifests, generated files, published packages. It reaches for the workflow's own
+checker first (`spec_holes.py` for a `create-task-spec` spec, for instance) rather than inventing
+a parallel one, reviews manual fresh-install protocols against a false-pass checklist, and
+separates a mid-workflow red that is expected from a real failure.
+
+**When to use it.** Something claims to be done, the evidence matters, and `pytest` or
+`dotnet test` does not apply to it.
+
+### documentation-drift-audit
+
+[`SKILL.md`](../features/common/skills/documentation-drift-audit/SKILL.md)
+
+**What it is.** Audits documentation against the tree it describes — scaffolder behaviour,
+manifests, hook registration, config schemas — and sorts every claim into exactly one bucket:
+verifiably false, design position, ambiguous, or historical record. Only the verifiably false
+bucket is edited; the rest are reported for a person to rule on.
+
+**When to use it.** A feature just merged and the user docs or `CLAUDE.md` need checking against
+it, or a document claims something about what the code does or ships.
+
+### spec-driven-refactoring
+
+[`SKILL.md`](../features/common/skills/spec-driven-refactoring/SKILL.md)
+
+**What it is.** Two review gates around a large refactor: before implementation, that the written
+spec is internally consistent and matches the real codebase; after it, a consistency and quality
+review. Schema migrations, concept renames and structural reorganisations carry more surface area
+for a stale assumption than a normal feature does.
+
+**When to use it.** A refactor, migration or codebase-wide rename, or any change touching five or
+more files across schemas, scripts, tests and documentation.
+
+### scripts-tooling-refactor
+
+[`SKILL.md`](../features/common/skills/scripts-tooling-refactor/SKILL.md)
+
+**What it is.** Turns an accumulated `scripts/` directory into a maintained one: non-native
+scripts converted to the repo's own tooling language, logic moved into `src/` behind thin wrappers
+that keep the call sites working, tests written first, and dead scripts pruned only on usage
+evidence — every reference classified live or historical before anything is deleted.
+
+**When to use it.** Converting shell scripts, splitting logic out of a monolithic entrypoint, or
+removing scripts nothing appears to reference any more.
+
+### worktree-agent-isolation
+
+[`SKILL.md`](../features/common/skills/worktree-agent-isolation/SKILL.md)
+
+**What it is.** Runs several coding agents in parallel, each in its own git worktree branched from
+`origin/main`, integrating through pull requests. The main checkout stays read-only, so agents
+neither collide on shared build artefacts nor race each other's edits.
+
+**When to use it.** Multiple independent tasks can run at once, or the instruction is "worktrees
+only", "agent isolation", "parallel workstreams" or "don't touch main".
+
+### pre-push-gate-debugging
+
+[`SKILL.md`](../features/common/skills/pre-push-gate-debugging/SKILL.md)
+
+**What it is.** An operating guide for a heavy local pre-push gate — a lefthook hook running docs,
+unit, end-to-end, infrastructure and frontend lanes. Read the gate's own logs before anything
+else, reproduce one lane at a time rather than the whole gate, and build a manual repro harness
+when a lane's buffered output hides the real error.
+
+**When to use it.** A pre-push quality gate is blocking `git push`, or one lane fails and the hook
+output does not say why.
+
+### sqlite-schema-review
+
+[`SKILL.md`](../features/common/skills/sqlite-schema-review/SKILL.md)
+
+**What it is.** Review for SQLite DDL, on-open migrations, unique indexes and insert-path dedup
+logic, under one rule: every claim about semantics — `ON CONFLICT` scope, `last_insert_rowid`
+staleness, when a trigger fires and what a failure inside one does, how a UNIQUE index treats
+`NULL` — is verified against a scratch database rather than accepted from the plan, the PR or the
+documentation.
+
+**When to use it.** A change touches SQLite schema, a migration that runs on open, a unique index,
+or the dedup logic on an insert path.
+
+### sqlite-bank-space-diagnosis
+
+[`SKILL.md`](../features/common/skills/sqlite-bank-space-diagnosis/SKILL.md)
+
+**What it is.** Diagnoses a bloated SQLite file or write-ahead log read-only first: snapshot the
+file, measure per-table space with `sqlite3_analyzer`, run `PRAGMA wal_checkpoint(TRUNCATE)` on
+the snapshot to size the checkpoint debt, and `VACUUM INTO` to quantify what the freelist would
+give back — all before the live file is touched. It also covers WAL growth under connection
+pooling and the `vec0` chunk `count(*)` trap.
+
+**When to use it.** A SQLite bank file or its WAL has grown large and neither the cause nor a safe
+way to reclaim the space is established.
 
 ---
 
