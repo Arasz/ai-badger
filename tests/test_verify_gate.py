@@ -419,9 +419,14 @@ def _risk_stub(tmp_path, task_id=""):
 
 
 def test_a_risk_task_drops_the_slow_lanes(tmp_path):
+    """Measured against the same tree with risk off, so an unoffered lane cannot pass this."""
+    offered = _run("lanes", env=_risk_stub(tmp_path)).stdout.split()
     selected = _run("lanes", env=_risk_stub(tmp_path, "TASK-1")).stdout.split()
 
     for lane in RISK_DROPPED:
+        assert lane in offered, (
+            f"{lane} was not in the lane list even without --risk, so its absence proves "
+            f"nothing about the flag: {offered}")
         assert lane not in selected, f"--risk left {lane} in: {selected}"
 
 
@@ -434,10 +439,18 @@ def test_without_a_risk_task_the_slow_lanes_still_run(tmp_path):
 
 
 def test_a_risk_task_keeps_the_cheap_lanes(tmp_path):
-    """`--risk` trades the suite away, not the checks that cost seconds."""
+    """`--risk` trades the suite away, not the checks that cost seconds.
+
+    Compared against the same tree with risk off. The lane list is also narrowed by which
+    file types changed — a branch touching no `.py` is offered no `pylint` — and asserting
+    bare membership cannot tell that narrowing apart from the flag's.
+    """
+    offered = _run("lanes", env=_risk_stub(tmp_path)).stdout.split()
     selected = _run("lanes", env=_risk_stub(tmp_path, "TASK-1")).stdout.split()
 
     for lane in RISK_KEPT:
+        if lane not in offered:
+            continue
         assert lane in selected, f"--risk dropped {lane}, which costs nothing: {selected}"
 
 
