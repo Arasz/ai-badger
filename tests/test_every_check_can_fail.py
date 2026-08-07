@@ -761,13 +761,22 @@ def _defines_compare(text: str, path: str) -> bool:
                for node in tree.body)
 
 
-def _defines_main(text: str, path: str) -> bool:
-    """True when a module defines a top-level `main()` — what makes a file in gates/ runnable."""
+def _runs_as_a_script(text: str, path: str) -> bool:
+    """True when a module has a top-level `if __name__ == ...` block — what makes it runnable.
+
+    Not "defines a top-level `main()`": that spelling is a convention, and a gate whose entry
+    point is named anything else was invisible to discovery *and* to the oracle below at once,
+    because the oracle only globbed `*_guard.py`. `gates/skills_lint.py` already proves neither
+    half of that convention is load-bearing.
+    """
     try:
         tree = ast.parse(text, filename=path)
     except SyntaxError:  # pragma: no cover - a broken file is another gate's problem
         return False
-    return any(isinstance(node, ast.FunctionDef) and node.name == "main" for node in tree.body)
+    return any(isinstance(node, ast.If)
+               and any(isinstance(sub, ast.Name) and sub.id == "__name__"
+                       for sub in ast.walk(node.test))
+               for node in tree.body)
 
 
 def _finding_kinds(text: str, path: str) -> List[str]:
@@ -792,7 +801,7 @@ def discovered_checks(root: Path) -> Dict[str, str]:
     for gate in sorted((root / "gates").glob("*.py")):
         # A runnable script, not a shared helper: gate_report.py holds the finding shape three
         # gates print and has no verdict of its own, so it can have no provocation.
-        if _defines_main(gate.read_text(encoding="utf-8", errors="replace"), gate.name):
+        if _runs_as_a_script(gate.read_text(encoding="utf-8", errors="replace"), gate.name):
             found[f"gates/{gate.name}"] = "a script in gates/"
     for rel in _tracked_sources(root):
         text = (root / rel).read_text(encoding="utf-8", errors="replace")
@@ -858,14 +867,28 @@ def test_every_check_has_a_provocation(root):
     )
 
 
-def test_discovery_still_finds_every_runnable_gate(root):
-    """The `main()` filter must exclude only helpers — a gate it skips is a gate nobody proves."""
-    discovered = discovered_checks(root)
-    runnable = sorted(p.name for p in (root / "gates").glob("*_guard.py"))
+def test_discovery_agrees_with_the_shebang_on_which_gates_are_runnable(root):
+    """Two independent signals of "this file is a CLI" must name the same gates.
 
-    assert runnable, "no gates found — the glob is wrong, not the tree"
-    missing = [name for name in runnable if f"gates/{name}" not in discovered]
-    assert not missing, f"discovery skipped runnable gates: {missing}"
+    The old oracle globbed `*_guard.py` while discovery asked for a top-level `main()`, so a
+    runnable gate that satisfied neither convention — a real shape, `gates/skills_lint.py` is
+    one — was skipped by both at once and demanded no provocation. A shebang is what an author
+    writes on a script and omits on a helper module, and it is independent of the AST predicate.
+    """
+    discovered = discovered_checks(root)
+    gates = sorted((root / "gates").glob("*.py"))
+
+    assert gates, "no gates found — the glob is wrong, not the tree"
+    disagree = [f"{gate.name}: shebang={shipped_as_a_cli}, discovered={proven}"
+                for gate in gates
+                for shipped_as_a_cli in [gate.read_text(encoding="utf-8").startswith("#!")]
+                for proven in [f"gates/{gate.name}" in discovered]
+                if shipped_as_a_cli != proven]
+    assert not disagree, (
+        "a gate's shebang and its discoverability disagree — one of the two is lying about "
+        f"whether it runs: {disagree}")
+    assert "gates/skills_lint.py" in discovered, \
+        "the one gate not named *_guard.py is exactly the one a convention-shaped filter drops"
 
 
 def test_registry_names_only_checks_that_exist(root):

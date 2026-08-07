@@ -52,11 +52,36 @@ REAL_WRITE_LOG_ENV = "AI_BADGER_REAL_WRITE_LOG"
 REAL_ROOT_ENV = "AI_BADGER_REAL_ROOT"
 REAL_WRITE_LOG = Path(tempfile.mkdtemp(prefix="ai-badger-real-writes-")) / "writes.jsonl"
 os.environ[REAL_WRITE_LOG_ENV] = str(REAL_WRITE_LOG)
-os.environ[REAL_ROOT_ENV] = str(ROOT)
 os.environ.setdefault(DEBUG_DIR_ENV, tempfile.mkdtemp(prefix="ai-badger-debug-sink-"))
 
 # The real repo root, captured before any test can redirect it.
 REAL_PROJECT_ROOT = ROOT
+
+
+def _main_checkout(start: Path) -> Path:
+    """The checkout a linked worktree belongs to, or *start* when it is one already."""
+    try:
+        common = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=str(start),
+            capture_output=True, text=True, check=True).stdout.strip()
+    except (OSError, subprocess.SubprocessError):  # pragma: no cover - no git, no worktrees
+        return start
+    return Path(common).parent if common else start
+
+
+# Every checkout the suite must not write into. `tracker_lib.collapse_worktree` sends a linked
+# worktree's tracking writes to its *checkout*, and the suite runs from
+# `.ai-badger/worktrees/<name>/` as often as from the checkout itself — so watching ROOT alone
+# left the one directory holding live state unwatched. Measured 2026-08-07: a run from a
+# worktree wrote current-session.json into the real checkout with every fixture below green.
+REAL_CHECKOUTS = tuple(dict.fromkeys((ROOT, _main_checkout(ROOT))))
+
+# `save_json` marks a write as the suite's own when it lands under this one path, so it must
+# cover every checkout above. The main checkout contains its own `.ai-badger/worktrees/`, which
+# makes it the outer of the two; `test_suite_isolation.py` asserts that containment rather than
+# assuming it, so a worktree placed somewhere else fails loudly instead of going unwatched.
+REAL_WRITE_ROOT = min(REAL_CHECKOUTS, key=lambda p: len(str(p)))
+os.environ[REAL_ROOT_ENV] = str(REAL_WRITE_ROOT)
 
 # tracker_lib resolves <project-root>/.ai-badger/task-tracking/ from this variable, then by
 # walking up from the cwd for .ai-badger/config.json — which finds the real checkout even with
@@ -215,16 +240,19 @@ def _real_hook_errors_are_surfaced():
 
 
 def real_tracking_files() -> dict:
-    """Every task-tracking file in the real checkout, by path and mtime.
+    """Every task-tracking file in every real checkout, by path and mtime.
 
-    Checks the repo root and each first-level directory: the leak that got past a sentinel
-    landed in `features/.ai-badger/`, one directory over from the one being watched (#222).
+    Each checkout's root and each of its first-level directories: the leak that got past a
+    sentinel landed in `features/.ai-badger/`, one directory over from the one being watched
+    (#222), and the leak that got past *that* landed in the checkout a worktree collapses to.
     """
     found = {}
-    for base in (REAL_PROJECT_ROOT, *(p for p in REAL_PROJECT_ROOT.glob("*") if p.is_dir())):
-        tracking = base / ".ai-badger" / "task-tracking"
-        if tracking.is_dir():
-            found.update({p: p.stat().st_mtime_ns for p in tracking.rglob("*") if p.is_file()})
+    for root in REAL_CHECKOUTS:
+        for base in (root, *(p for p in root.glob("*") if p.is_dir())):
+            tracking = base / ".ai-badger" / "task-tracking"
+            if tracking.is_dir():
+                found.update({p: p.stat().st_mtime_ns
+                              for p in tracking.rglob("*") if p.is_file()})
     return found
 
 
@@ -268,7 +296,9 @@ def _real_tracking_state_is_untouched():
     """
 
     def rel(paths) -> list:
-        return sorted(str(p.relative_to(REAL_PROJECT_ROOT)) for p in paths)
+        """Absolute, not relative: a path in the checkout a worktree collapses to is not
+        under this tree at all, and `relative_to` raises rather than naming it."""
+        return sorted(str(p) for p in paths)
 
     before = real_tracking_files()
     yield

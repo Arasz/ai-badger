@@ -112,14 +112,33 @@ def _docs_only_commit():
 
 
 def test_docs_only_change_skips_the_expensive_lanes():
-    """Change detection must actually narrow, or the gate is `all` wearing a disguise."""
+    """Change detection must actually narrow, or the gate is `all` wearing a disguise.
+
+    Asserted over a synthetic path list rather than mined out of `git log`: the history
+    version searched the last 40 commits for a docs-only one and `pytest.skip`ped when it
+    found none, so the day this repo's history moved past the last docs-only commit the
+    check would stop running and report green for it (measured 2026-08-07: depth 11).
+    """
+    selected = _lanes_for_paths(["docs/design/a-note.md", "docs/changelog/README.md"])
+
+    assert "docs" in selected
+    for expensive in ("pytest", "pylint", "js"):
+        assert expensive not in selected, f"a docs-only change still ran {expensive}: {selected}"
+
+
+def test_the_history_mined_docs_commit_agrees_with_the_synthetic_one():
+    """The synthetic list above stands in for a real diff, so the two must still agree.
+
+    Skips only when history holds no docs-only commit — and the invariant itself is asserted
+    unconditionally above, so a skip here costs a corroboration, not the check.
+    """
     sha = _docs_only_commit()
     if sha is None:
         pytest.skip("no docs-only commit in recent history")
-    selected = _run("lanes", stdin=f"refs/heads/x {sha} refs/heads/x {sha}~1\n").stdout.split()
-    assert "docs" in selected
-    for expensive in ("pytest", "pylint", "js"):
-        assert expensive not in selected
+    from_refs = _run("lanes", stdin=f"refs/heads/x {sha} refs/heads/x {sha}~1\n").stdout.split()
+    changed = _git("diff", "--name-only", f"{sha}~1", sha).split()
+
+    assert from_refs == _lanes_for_paths(changed), f"{from_refs} vs {changed}"
 
 
 @pytest.mark.parametrize("lane", ["version-sync", "index", "plugin-skills", "deps", "docs",

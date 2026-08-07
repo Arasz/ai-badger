@@ -266,14 +266,16 @@ def candidate_stack_dirs(root: Path) -> List[str]:
 
     An untracked directory is not a stack the catalog ships, so it is not a gap either — a
     validator reading the working tree failed on whatever the session had left behind. A root
-    with no index (a fixture, an unpacked tarball) has only its working tree to go on, and
-    there the leading-dot rule still applies: local state lands in `features/.ai-badger/`.
+    with no index (a fixture, an unpacked tarball) has only its working tree to go on. The
+    leading-dot rule applies to both: local state lands in `features/.ai-badger/`, and being
+    committed does not make it a stack.
     """
     tracked = bl.run_git(["ls-tree", "-d", "--name-only", "HEAD", "features/"], root)
     if tracked.returncode == 0:
-        return sorted(line.rsplit("/", 1)[-1] for line in tracked.stdout.splitlines() if line)
-    return sorted(d.name for d in (root / "features").iterdir()
-                  if d.is_dir() and not d.name.startswith("."))
+        names = (line.rsplit("/", 1)[-1] for line in tracked.stdout.splitlines() if line)
+    else:
+        names = (d.name for d in (root / "features").iterdir() if d.is_dir())
+    return sorted(name for name in names if not name.startswith("."))
 
 
 def catalog_stack_gaps(root: Path) -> List[str]:

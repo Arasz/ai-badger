@@ -176,3 +176,33 @@ def test_a_git_checkout_without_the_marker_above_it_is_not_adopted(load_script, 
     tl = load_script(SOURCE)
 
     assert tl.resolve_project_root(env={}, cwd=nested) == nested
+
+
+def test_a_worktree_of_a_repo_that_is_not_an_ai_badger_project_stays_where_it_is(
+        tmp_path, load_script):
+    """Only a linked worktree whose *checkout* is itself an ai-badger project is collapsed.
+
+    Every other fixture here builds a checkout that already carries the marker, so deleting
+    the marker guard from `collapse_worktree` changed no verdict — a vendored project nested
+    in someone else's repo would have had its tracking writes redirected into that repo.
+    """
+    tracker = load_script(SOURCE)
+    host = tmp_path / "host"
+    host.mkdir()
+    _git(host, "init", "-b", "main")
+    _git(host, "config", "user.email", "test@example.invalid")
+    _git(host, "config", "user.name", "Test")
+    (host / "README.md").write_text("# not an ai-badger project\n", encoding="utf-8")
+    _git(host, "add", "README.md")
+    _git(host, "commit", "-m", "host")
+    vendored = host / "vendor" / "proj"
+    _git(host, "worktree", "add", "-b", "vendored", str(vendored))
+    marker = vendored / ".ai-badger" / "config.json"
+    marker.parent.mkdir(parents=True)
+    marker.write_text("{}", encoding="utf-8")
+
+    assert not (host / ".ai-badger" / "config.json").is_file(), "the host must not be a project"
+    assert tracker.collapse_worktree(vendored) == vendored
+
+    subprocess.run(["git", "worktree", "remove", "--force", str(vendored)],
+                   cwd=str(host), check=False, capture_output=True)

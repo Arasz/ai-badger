@@ -273,6 +273,23 @@ def test_frontmatter_missing_keys_reported(tmp_path, load_script):
     assert any("platforms" in v for v in rule10)
 
 
+def test_a_metadata_key_carrying_an_inline_value_is_reported_not_passed(tmp_path, load_script):
+    """`metadata: <value>` with an indented block under it is ambiguous, so it must not resolve.
+
+    Every other fixture writes the canonical bare `metadata:`, where the block-reader already
+    refuses on its own and the inline guard does no work — so removing that guard changed no
+    test's verdict while `frontmatter_fields()` started returning a full, "valid" dict here.
+    """
+    lint = load_script("gates/skills_lint.py")
+    d = _write_skill(tmp_path, body=_GOOD_BODY)
+    path = d / "SKILL.md"
+    path.write_text(path.read_text(encoding="utf-8").replace(
+        "metadata:\n", "metadata: an inline value no reader can reconcile\n"), encoding="utf-8")
+
+    assert lint.frontmatter_fields(path.read_text(encoding="utf-8")) is None
+    assert any("rule 10" in v for v in _lint(lint, tmp_path))
+
+
 def test_unparseable_frontmatter_is_reported_not_passed(tmp_path, load_script):
     lint = load_script("gates/skills_lint.py")
     d = _write_skill(tmp_path, body=_GOOD_BODY)
