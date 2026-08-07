@@ -19,6 +19,7 @@ The library every bootstrap shim imports, and the anchor of the framework-root p
 |--------|--------------|
 | `badger_lib.py` | Shared helpers: root discovery, atomic JSON write, sha256, index read. |
 | `framework_copies.py` | Every tree on the machine claiming to be ai-badger, the notice naming them, and the one prune allowed: `~/.ai-badger/framework`, on explicit request. Stdlib only and free of `badger_lib` — a SessionStart hook imports it and `badger_lib` requires `jsonschema`. |
+| `frontmatter.py` | The one YAML-frontmatter extractor: `split(text)` gives the head, the raw block, the body and one entry per top-level key. Line-oriented, so pyyaml stays optional (ADR-0005); a caller needing typed values parses `raw` itself. |
 | `unsafe_literals.py` | Secret/unsafe-literal scanning, shared by feed-badger and the Hermes learned-skills sync. Moves with `badger_lib.py`: one `sys.path` entry serves both. |
 
 ## Catalog and release tooling (`tooling/`)
@@ -49,6 +50,7 @@ not require a `VERSION` bump.
 | `shipped_paths_guard.py` | Fail if a machine-specific absolute path (`/Users/…`, `/home/…`, `C:\Users\…`) appears in a tracked file outside `docs/`, root `*.md` and `tests/`. | `python3 gates/shipped_paths_guard.py`; exempt a path in `.shipped-paths-guard-ignore`. |
 | `scaffold_freshness_guard.py` | Fail if re-scaffolding this repo against itself, in a throwaway copy, would change anything but a version stamp — a `features/**` edit that never reached `.ai-badger/`. Each finding is read as `stale` (the source moved ahead) or `hand-edited` (the mirror was changed here). | `python3 gates/scaffold_freshness_guard.py` |
 | `tdd_guard.py` | Fail if `.py`/`.mjs` under `engine/`, `tooling/`, `features/` or `gates/` changed since `--base` and nothing under `tests/` did. | `python3 gates/tdd_guard.py --base origin/main` |
+| `skills_lint.py` | Fail if a catalog `SKILL.md` breaks one of the eleven conventions (name grammar, description shape and size, body budget, conditioned `references/` mentions, a gotchas section, required and non-duplicated frontmatter keys). `tooling/validate.py --all` calls it too, so CI reports it without running it directly. | `python3 gates/skills_lint.py` |
 | `gate_report.py` | Not a gate: the `Problem(path, line, message)` finding shape and the failure report shared by `deps_guard`, `docs_guard` and `shipped_paths_guard`. The other three report something else and keep their own output. | Imported, never run. |
 
 ## CI helpers (`.github/scripts/`)
