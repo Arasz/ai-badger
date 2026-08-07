@@ -47,12 +47,13 @@ recorded in the manifest, pruned, or overwritten (issue #313).
 
 ### Skills location
 
-The **installable operational skills** — `welcome-ai-badger`, `feed-badger`, `den-refresh`,
+Thirty-six skills live under `features/common/skills/`. The fourteen with `scope: default` —
+the ones that arrive without being asked for — are `welcome-ai-badger`, `feed-badger`, `den-refresh`,
 `task`, `create-task-spec`, `maintain-agent-instructions`, `prompt-markers`, `mcp-index`,
 `code-review-checklist`, `call-behaviorist`, `owner-gate-review`, `commit-reminder`,
-`differential-feature-refactor`, `ai-raccoon-memory` —
-live at `features/common/skills/`, discovered by `iter_feature_dirs` like any other stack
-feature. What each one is for: [`skills.md`](skills.md).
+`differential-feature-refactor` and `ai-raccoon-memory`. The other twenty-two are `optIn` — same
+directory, written only when a project names them. All of them are discovered by
+`iter_feature_dirs` like any other stack feature; what each one is for: [`skills.md`](skills.md).
 (`auto-wm` lives at `features/claude/skills/` since it depends on Claude Code's `PreToolUse` hooks.)
 Stack-scoped skill *extensions* live inline inside the base skill directory (e.g.
 `features/common/skills/task/extensions/github/`). `scaffold.py` embeds them when their
@@ -75,7 +76,7 @@ where:
   "frameworkVersion": "0.1.0",
   "stacks": {
     "common": {
-      "skills":       [ { "name": "task", "path": "features/common/skills/task", "extensions": ["github", "hermes"] } ],
+      "skills":       [ { "name": "task", "path": "features/common/skills/task", "scope": "default" } ],
       "personas":     [ { "name": "architect", "path": "features/common/personas/architect.md" } ],
       "invariants":   [ /* … */ ],
       "instructions": [ /* … */ ],
@@ -145,9 +146,13 @@ additions.
 {
   "$schema": "…/manifest.schema.json",
   "frameworkVersion": "0.1.0",
+  "frameworkCommit": "…",
+  "frameworkDirty": false,
+  "frameworkRoot": "…",
   "generatedAt": "…",
   "agents": ["claude", "copilot"],
   "skillScope": "default",
+  "pluginScope": "…",
   "configHash": "…",
   "generatedConfig": [
     { "path": ".mcp.json", "destination": ".mcp.json", "frameworkVersion": "0.52.0" }
@@ -180,8 +185,12 @@ for the genuinely creative decisions.
 
 - `index_build.py` — scan the catalog tree → `index.json`, validated against its schema.
 - `validate.py` — validate any model (`config` / `manifest` / `index` / `skills-source` / `skills` /
-  `plugins-instructions` / `adjustment` / `hooks-manifest`) against its schema; `--all` validates the whole repo (schemas self-check +
-  `index.json` + every stack's `skills-source.json`/`skills.json`).
+  `plugins-instructions` / `adjustment` / `hooks-manifest` / `learned-skills`) against its schema;
+  `--all` validates the whole repo (schemas self-check + schema coverage + `index.json` + every
+  stack's `skills-source.json`/`skills.json`, then the catalog cross-checks — stack membership,
+  feature-JSON schema coverage, cross-stack references, hooks-manifest agent coverage — and
+  `gates/skills_lint.py`). Derive the list rather than trusting it:
+  `python3 tooling/validate.py --help` prints the `--kind` choices.
 - `detect.py` — best-effort detection: stacks from package/project files and extensions, agents
   from `CLAUDE.md` / `.github/copilot-instructions.md` traces (repo *and* user
   scope: `~/.claude`, `~/.copilot`), commands from stack metadata → emits a *proposed*
@@ -262,7 +271,7 @@ The `task` skill ships in two parts:
 `index_build.py` convention needed — extensions are found by their `extension.json`.
 
 `prompt-markers` ships as its own skill at `features/common/skills/prompt-markers` (hook +
-`markers-context.json` + `marker-state.json`, see ADR-0017 in the design doc) and is referenced
+`markers-context.json` + `marker-state.json`) and is referenced
 by the base `task` skill rather than folded into it.
 
 **Risk to watch:** the base `task` skill must carry zero stack-specific literals — grep the
@@ -287,7 +296,7 @@ target-repo/
     invariants/local/*.md      # project-owned (issue #313)
     skills/…                 # embedded skills — real copies of features/*/skills/, not symlinks
     state.json               # empty task index
-    agent-instructions/{schema.json, model.json, validators}
+    agent-instructions/{schema.json, model.schema.json, model.json}
   CLAUDE.md                  # COPY of .ai-badger/CLAUDE.md, header: "source of truth: .ai-badger/CLAUDE.md"
   .github/
     copilot-instructions.md  # COPY (copilot present) — header note

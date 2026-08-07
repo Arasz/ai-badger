@@ -14,8 +14,10 @@ python3 tooling/validate.py --all
 
 `index_build.py` regenerates `index.json` (script-generated, never hand-edited) by scanning the
 tree with the discovery rules below. `validate.py --all` then checks the schemas self-check,
-`index.json`, and every stack's `plugins.json` + `marketplaces.json` against
-`schemas/*.schema.json`. Both are mechanical — no LLM, no network — so there's no reason to skip
+`index.json`, and every catalog JSON that `SCHEMA_INSTANCES` in `tooling/validate.py` maps —
+each stack's `skills-source.json`, `skills.json`, `stack.json`, `stack-mcp.json`,
+`mcp/*/meta.json` and the rest — against `schemas/*.schema.json`, then runs the catalog
+cross-checks and `gates/skills_lint.py`. Both are mechanical — no LLM, no network — so there's no reason to skip
 them; a PR against ai-badger with a stale `index.json` should be treated as broken.
 
 Install the one dependency once:
@@ -32,7 +34,6 @@ python3 -m pip install -r engine/requirements.txt   # jsonschema
 | `personas`                  | file        | any `*.md` in `features/<stack>/personas/` (excluding `README.md`); name = filename stem                       |
 | `invariants`                | file        | any `*.md` in `features/<stack>/invariants/` (excluding `README.md`); name = filename stem                     |
 | `instructions`              | file        | any `*.md` in `features/<stack>/instructions/` (excluding `README.md`); name = filename stem                   |
-| `plugins`                   | single file | the `plugins` array inside `features/<stack>/plugins/plugins.json`, if present (at most one per stack)         |
 | `templates` (`common` only) | file/dir    | every top-level entry under `features/common/templates/`                                                       |
 | `mcp`                       | directory   | any subdir of `features/<stack>/mcp/` containing a `meta.json`; one MCP server each. `server.md` beside it is injected into every agent file; `tools.json` carries curated tool intents |
 
@@ -44,7 +45,9 @@ needs no index rebuild:
 |---|---|
 | `stack-mcp` | `features/{common,stack}/stack-mcp.json` (`schemas/stack-mcp.schema.json`); last-writer-wins on name. Which servers a stack wants; the servers themselves are indexed catalog items under `features/<stack>/mcp/` |
 
-The retired `mcp-servers.json` and `external-tools.json` are read by nothing (ADR-0014 step 8).
+The retired `mcp-servers.json` and `external-tools.json` are read by nothing
+([ADR-0014](adr/0014-mcp-support-is-configuration-not-retrieval.md) decisions 2 and 3 — that
+ADR's Decision section has seven items, not eight).
 A stack still shipping either one gets a scaffold note naming it and pointing at
 `stack-mcp.json`; its servers are not declared.
 
@@ -58,7 +61,7 @@ against `schemas/stack.schema.json`, and folded into `index.json.stacks[stack].m
 ## Adding a new stack
 
 1. Create `features/<stack>/` with whichever feature subdirectories apply (`personas/`,
-   `invariants/`, `instructions/`, `plugins/`, `skills/` — `templates/` is a `common`-only
+   `invariants/`, `instructions/`, `skills/`, `mcp/` — `templates/` is a `common`-only
    convention). Keep to the pattern used by existing stacks unless you have a reason not to.
 2. Optionally add `features/<stack>/stack.json` (`schemas/stack.schema.json`) with
    `detectionSignals` (glob/filename hints `detect.py` uses to auto-propose this stack — e.g.

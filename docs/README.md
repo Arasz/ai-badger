@@ -39,7 +39,10 @@ Everything written down about this project, grouped by what you came here to do.
 skill-extension mechanism · `0007` ai-badger ships as files, not a Python distribution ·
 `0008` plugin skills live at the plugin skill path · `0009` one framework root, resolved rather
 than searched · `0010` stack-local skill discovery · `0011` `engine/`, `tooling/` and `gates/` ·
-`0012` BM25 retrieval with a falsifiable eval · `0013` what the MCP tool index is for · `0014` MCP support is configuration, not retrieval · `0015` delegation needs a mechanism, not more prose.
+`0012` BM25 retrieval with a falsifiable eval · `0013` what the MCP tool index is for · `0014` MCP
+support is configuration, not retrieval · `0015` delegation needs a mechanism, not more prose ·
+`0016` Junie support removed · `0017` memory-first gate · `0018` one mechanism: a skill declares
+its own stack and its own scope (supersedes `0005`).
 
 ## I want to know what changed
 

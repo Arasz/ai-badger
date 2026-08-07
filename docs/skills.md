@@ -1,16 +1,27 @@
 # Skills
 
-ai-badger catalogs 37 skills. 36 live under `features/common/skills/` and split by the scope
-`badger_lib.SKILL_SCOPES` gives them ([ADR-0005](adr/0005-default-skill-set.md)):
+This page catalogs 37 skills — everything under `features/common/skills/` and
+`features/claude/skills/`.
+36 live under `features/common/skills/` and split by the scope `badger_lib.SKILL_SCOPES` gives
+them ([ADR-0005](adr/0005-default-skill-set.md)):
 **14 are `default`** and arrive in every scaffolded project without being asked for, and
 **22 are `optIn`** — catalogued, but written only when a project names them. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
+**These 37 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **51** files:
+the 37 above plus 14 more that belong to a single stack and arrive only with it — 11 under
+`features/dotnet/skills/`, 2 under `features/hermes/skills/` and 1 under `features/mcp/skills/`.
+Those 14 have no row below and are documented by their own `SKILL.md`. Derive the number rather
+than trusting this sentence: `python3 gates/skills_lint.py` prints how many `SKILL.md` files the
+catalog holds.
+
 Those four numbers, and every row of the table below, are checked against `SKILL_SCOPES` by
 `tests/test_docs_match_the_catalog.py`. A skill added to the catalog without a row here fails
-that test, and so does a row naming a skill the catalog no longer has.
+that test, and so does a row naming a skill the catalog no longer has — **but only for the
+common and `claude` stacks**: that test's `STACK_LOCAL_SKILL_DIRS` names `claude` alone, so the
+14 `dotnet`/`hermes`/`mcp` skills are outside its reach and their absence here fails nothing.
 
 An `optIn` skill is asked for by name in `.ai-badger/config.json`:
 
