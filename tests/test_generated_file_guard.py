@@ -109,6 +109,15 @@ def test_editing_the_plugin_copy_of_a_skill_is_refused(load_script, project, cap
     assert "sync_plugin_skills" in reason
 
 
+def test_a_projects_own_skills_directory_is_left_alone(load_script, project, capsys):
+    """A consumer repo's `skills/` is its own source. Only a name the catalog also holds is a copy."""
+    guard = load_script(GUARD)
+    theirs = project / "skills" / "their-own-thing" / "SKILL.md"
+    theirs.parent.mkdir(parents=True)
+
+    assert _decision(guard, _payload(theirs), capsys) is None
+
+
 @pytest.mark.parametrize("tool", ["Edit", "Write", "MultiEdit", "NotebookEdit"])
 def test_every_edit_shaped_tool_is_covered(load_script, project, capsys, tool):
     guard = load_script(GUARD)

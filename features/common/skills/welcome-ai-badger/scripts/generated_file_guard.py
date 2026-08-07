@@ -14,7 +14,7 @@ import json
 import os
 import sys
 from pathlib import Path, PurePosixPath
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 OVERRIDE_ENV = "AI_BADGER_ALLOW_GENERATED_EDITS"
@@ -77,22 +77,26 @@ def _under(rel: PurePosixPath, target: str) -> bool:
     return str(rel) == target or str(rel).startswith(target + "/")
 
 
-def manifest_source(root: Path, rel: PurePosixPath) -> Optional[Tuple[str, str]]:
-    """(target, source) for the regenerated manifest entry covering *rel*, longest match first."""
-    best: Optional[Tuple[str, str]] = None
+def manifest_source(root: Path, rel: PurePosixPath) -> Optional[str]:
+    """The catalog path *rel* was generated from, per the most specific manifest entry.
+
+    Most specific wins: a file inside a generated skill can have a generator of its own, and
+    the skill directory that contains it is not the answer.
+    """
+    best_target = ""
+    best_source = None
     for entry in manifest_entries(root):
         if not isinstance(entry, dict) or entry.get("feature") not in REGENERATED_FEATURES:
             continue
         target, source = entry.get("target"), entry.get("source")
         if not isinstance(target, str) or not isinstance(source, str) or not _under(rel, target):
             continue
-        if best is None or len(target) > len(best[0]):
-            best = (target, source)
-    if best is None:
+        if best_source is None or len(target) > len(best_target):
+            best_target, best_source = target, source
+    if best_source is None:
         return None
-    target, source = best
-    remainder = str(rel)[len(target):].lstrip("/")
-    return target, f"{source}/{remainder}" if remainder else source
+    remainder = str(rel)[len(best_target):].lstrip("/")
+    return f"{best_source}/{remainder}" if remainder else best_source
 
 
 def plugin_copy_source(root: Path, rel: PurePosixPath) -> Optional[str]:
@@ -116,10 +120,9 @@ def refusal(path: Path) -> Optional[str]:
     except ValueError:  # pragma: no cover - project_of only returns ancestors
         return None
 
-    found = manifest_source(root, rel)
-    if found is not None:
-        source, regenerate = found[1], "welcome-ai-badger (or den-refresh)"
-    else:
+    source = manifest_source(root, rel)
+    regenerate = "welcome-ai-badger (or den-refresh)"
+    if source is None:
         source = plugin_copy_source(root, rel)
         if source is None:
             return None
