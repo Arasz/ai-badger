@@ -49,6 +49,7 @@ not require a `VERSION` bump.
 | `shipped_paths_guard.py` | Fail if a machine-specific absolute path (`/Users/…`, `/home/…`, `C:\Users\…`) appears in a tracked file outside `docs/`, root `*.md` and `tests/`. | `python3 gates/shipped_paths_guard.py`; exempt a path in `.shipped-paths-guard-ignore`. |
 | `scaffold_freshness_guard.py` | Fail if re-scaffolding this repo against itself, in a throwaway copy, would change anything but a version stamp — a `features/**` edit that never reached `.ai-badger/`. Each finding is read as `stale` (the source moved ahead) or `hand-edited` (the mirror was changed here). | `python3 gates/scaffold_freshness_guard.py` |
 | `tdd_guard.py` | Fail if `.py`/`.mjs` under `engine/`, `tooling/`, `features/` or `gates/` changed since `--base` and nothing under `tests/` did. | `python3 gates/tdd_guard.py --base origin/main` |
+| `gate_report.py` | Not a gate: the `Problem(path, line, message)` finding shape and the failure report shared by `deps_guard`, `docs_guard` and `shipped_paths_guard`. The other three report something else and keep their own output. | Imported, never run. |
 
 ## welcome-ai-badger (`features/common/skills/welcome-ai-badger/scripts/`)
 
