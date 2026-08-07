@@ -26,8 +26,9 @@ def _write_hooks_manifest(tmp_path):
 
 
 def test_kind_config_valid_instance_returns_zero(tmp_path, root, load_script, capsys):
+    """Against the real root: since 0.92.0 --kind config also checks that every stack and
+    agent named is one the catalog ships, which a stub tree of copied schemas cannot answer."""
     validate = load_script("tooling/validate.py")
-    fake_root = _copy_real_schemas(tmp_path, root)
     instance = tmp_path / "config.json"
     instance.write_text(json.dumps({
         "$schema": "./schemas/config.schema.json",
@@ -42,7 +43,7 @@ def test_kind_config_valid_instance_returns_zero(tmp_path, root, load_script, ca
         "docs": {},
     }), encoding="utf-8")
 
-    rc = validate.main(["--kind", "config", "--root", str(fake_root), str(instance)])
+    rc = validate.main(["--kind", "config", "--root", str(root), str(instance)])
 
     assert rc == 0
     assert "ok" in capsys.readouterr().out
