@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Set
 
 
-def _discard_template_record(source: Path, dest: Path) -> None:
+def _discard_template_record(source: Path, dest: Path, seed_once: bool = False) -> None:
     """Default provenance sink: a context with no manifest behind it records nothing."""
 
 
@@ -48,7 +48,7 @@ class ScaffoldContext:
     # Whether declared servers' install prerequisites have already been reported this run.
     mcp_prereqs_noted: bool = False
     # Manifest bookkeeping: shared state, not Scaffolder behaviour.
-    record_template: Callable[[Path, Path], None] = _discard_template_record
+    record_template: Callable[..., None] = _discard_template_record
     record: Callable[[str, str, str, Path, Path], None] = _discard_record
     # Called with (path, destination label) by whoever writes a config file ai-badger merges
     # into but does not own, so the manifest can answer "did ai-badger write here?" (#194).

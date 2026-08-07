@@ -68,6 +68,10 @@
           "target": { "type": "string", "description": "Path within the target repo." },
           "frameworkVersion": { "type": "string" },
           "hash": { "type": "string", "description": "sha256 of the source content at scaffold time. For directory entries this covers the written target, so it answers whether the project edited its own copy — see sourceHash for framework drift." },
+          "seedOnce": {
+            "type": "boolean",
+            "description": "True where the scaffolder seeds this target once and never rewrites it (.ai-badger/state.json, .ai-badger/agent-instructions/model.json, any scaffolding.json entry marked seedOnce), so the project owns it thereafter. Every other entry is rewritten on the next run, which is what generated_file_guard.py refuses an edit to. Absent on manifests written before 0.101.0: the guard reads absence as regenerated and refuses, because a wrong refusal is loud, overridable and healed by one re-scaffold, while a wrong exemption is the silent loss this guard exists to prevent."
+          },
           "sourceHash": { "type": "string", "description": "Directory entries only: sha256 of the framework source directory at scaffold time. The only hash that can answer whether the framework has moved ahead, because the target is rendered output (#110)." },
           "dirMeta": {
             "type": "object",

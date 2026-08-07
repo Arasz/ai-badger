@@ -165,3 +165,56 @@ def test_scaffold_preserves_project_local_md_across_rescaffold(make_scaffolder):
     assert "Custom check" in pl.read_text(), "project-local.md content was reset"
     skill_md = target / ".ai-badger" / "skills" / "task" / "SKILL.md"
     assert "## My Project" in skill_md.read_text(), "project-local not appended after re-scaffold"
+
+
+# ------------------------------------------------------- the manifest says which is which
+# The edit-time guard (generated_file_guard.py) has no other way to tell a template the next
+# scaffold rewrites from one it seeds and then leaves alone (#354 follow-up, wave 4 W1).
+def test_the_manifest_flags_seed_once_targets_and_only_those(make_scaffolder):
+    manifest_path = make_scaffolder.target / ".ai-badger" / "manifest.json"
+
+    make_scaffolder().run(generated_at="2026-07-19T00:00:00Z")
+
+    entries = json.loads(manifest_path.read_text(encoding="utf-8"))["entries"]
+    assert {e["target"] for e in entries if e.get("seedOnce")} == {
+        ".ai-badger/state.json", ".ai-badger/agent-instructions/model.json"}
+
+
+def test_a_regenerated_template_is_not_flagged_seed_once(make_scaffolder):
+    """CLAUDE.md is rewritten on every run; flagging it would exempt it from the edit guard."""
+    manifest_path = make_scaffolder.target / ".ai-badger" / "manifest.json"
+
+    make_scaffolder().run(generated_at="2026-07-19T00:00:00Z")
+
+    entries = json.loads(manifest_path.read_text(encoding="utf-8"))["entries"]
+    rewritten = [e for e in entries
+                 if e["target"] in ("CLAUDE.md", ".ai-badger/agent-instructions/schema.json")]
+    assert len(rewritten) == 2, f"expected both regenerated templates recorded, got {rewritten}"
+    assert not any(e.get("seedOnce") for e in rewritten)
+
+
+def test_a_scaffolding_json_seed_once_entry_reaches_the_manifest(make_scaffolder, monkeypatch):
+    """`seedOnce` in features/<agent>/scaffolding.json is the third seed-once site.
+
+    Injected rather than declared: no agent ships one today, and the guard must not start
+    denying edits to a file the scaffolder has been told to leave alone.
+    """
+    import badger_lib as bl
+
+    real_load = bl.load_json
+
+    def _seed_once_claude(path):
+        loaded = real_load(path)
+        if str(path).endswith("claude/scaffolding.json"):
+            for entry in loaded["files"]:
+                entry["seedOnce"] = True
+        return loaded
+
+    monkeypatch.setattr(bl, "load_json", _seed_once_claude)
+    make_scaffolder().run(generated_at="2026-07-19T00:00:00Z")
+
+    manifest = json.loads(
+        (make_scaffolder.target / ".ai-badger" / "manifest.json").read_text(encoding="utf-8"))
+    claude_md = [e for e in manifest["entries"] if e["target"] == "CLAUDE.md"]
+    assert len(claude_md) == 1, f"CLAUDE.md not recorded once: {claude_md}"
+    assert claude_md[0].get("seedOnce") is True
