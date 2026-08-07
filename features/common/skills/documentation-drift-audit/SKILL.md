@@ -1,7 +1,6 @@
 ---
 name: documentation-drift-audit
 description: "Use when auditing docs for drift vs code ('audit and fix documentation drift'): inventory claims with path:line, verify each against real files (scaffolders, manifests, hooks), classify verifiably-false vs design-position vs ambiguous vs historical, fix only the false, and report A/B/C. Also for post-merge doc-gap audits and user-facing doc compaction rewrites."
-description: "Use when auditing docs for drift vs code; verify then fix."
 version: 1.0.0
 author: ai-badger
 license: MIT
