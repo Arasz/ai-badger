@@ -161,7 +161,7 @@ def test_an_excluded_skill_is_not_linked_into_the_hermes_namespace(tmp_path, mak
     home.mkdir()
     config = _excluding(skills=["call-behaviorist"])
     config["agents"] = ["hermes"]
-    scaf = make_scaffolder(config=config, skills=["task", "call-behaviorist"])
+    scaf = make_scaffolder(config=config, skills=["task", "call-behaviorist"], install=True)
     with patch("pathlib.Path.home", return_value=home):
         scaf.run(generated_at="2026-07-28T00:00:00Z")
 
