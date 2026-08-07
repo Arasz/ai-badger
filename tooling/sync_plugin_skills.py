@@ -23,6 +23,7 @@ from typing import List, Set
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
 import badger_lib as bl
+import frontmatter as fm
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "skills"
@@ -72,11 +73,10 @@ def render_pointer(name: str, source_text: str) -> str:
     A source with no frontmatter is returned unchanged rather than rendered — a pointer with no
     name for the agent to match on is worse than the duplicate it replaces.
     """
-    parts = source_text.split("---", 2)
-    if len(parts) < 3 or parts[0].strip():
+    split = fm.split(source_text)
+    if not split.present:
         return source_text
-    frontmatter = parts[1]
-    return f"---{frontmatter}---\n{_POINTER_BODY.format(name=name, full=FULL_BODY_NAME)}"
+    return split.head + _POINTER_BODY.format(name=name, full=FULL_BODY_NAME)
 
 
 def _shipped_skills():
@@ -193,8 +193,7 @@ def sync_skill(src: Path, dest: Path, dry_run: bool, name: str = "") -> int:
 
 def _outside_work_tree(root: Path) -> bool:
     """True when *root* is not inside a git work tree, so no .gitignore governs it."""
-    proc = subprocess.run(["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
-                          capture_output=True, text=True, check=False)
+    proc = bl.run_git(["rev-parse", "--is-inside-work-tree"], root)
     return proc.returncode != 0 or proc.stdout.strip() != "true"
 
 
@@ -203,12 +202,13 @@ def _not_ignored_by_git(root: Path, relpaths: Set[str]) -> Set[str]:
 
     `check-ignore` exits 0 when something on the list is ignored, 1 when nothing is, and
     128 on failure — a returncode read as "not ignored" would silently pass every path.
+    Run through `bl.run_git`: an inherited GIT_DIR makes *root* the work-tree root, and the
+    repo-level .gitignore above it then matches nothing at all.
     """
     if not relpaths:
         return set()
-    proc = subprocess.run(["git", "-C", str(root), "check-ignore", "-z", "--stdin"],
-                          input="\0".join(sorted(relpaths)),
-                          capture_output=True, text=True, check=False)
+    proc = bl.run_git(["check-ignore", "-z", "--stdin"], root,
+                      input="\0".join(sorted(relpaths)))
     if proc.returncode == 0:
         return relpaths - {p for p in proc.stdout.split("\0") if p}
     if proc.returncode == 1 or _outside_work_tree(root):

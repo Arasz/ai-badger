@@ -20,6 +20,9 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Set, Tuple
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import frontmatter as fm  # noqa: E402
+
 
 class FeatureType(NamedTuple):
     """One catalog feature type and the behaviour every stage keys off.
@@ -487,6 +490,35 @@ def _clone_pinned(version: str) -> Path:
     return FRAMEWORK_CACHE
 
 
+# Variables git exports to the hooks it runs, each of which pins a git invocation to a
+# repository the caller never named. A hook that shells out with `git -C <dir>` inherits them
+# and gets the hook's repository with <dir> read as its work-tree root — so under a worktree
+# commit every .gitignore above <dir> became invisible (docs/changelog/0.95.0-*.md).
+GIT_LOCATION_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+                    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                    "GIT_PREFIX", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES")
+
+
+def git_env(env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    """`env` (default `os.environ`) minus every variable that pins git to another repository."""
+    out = dict(os.environ if env is None else env)
+    for name in GIT_LOCATION_ENV:
+        out.pop(name, None)
+    return out
+
+
+def run_git(args: List[str], cwd: Path, **kwargs):
+    """Run `git -C cwd <args>`, letting `cwd` alone decide which repository answers.
+
+    The one place this repo invokes git: repository discovery must never come from the
+    environment, because a gate's whole job is to report on the tree it was pointed at.
+    """
+    kwargs.setdefault("capture_output", True)
+    kwargs.setdefault("text", True)
+    return subprocess.run(["git", "-C", str(cwd), *args], env=git_env(),
+                          check=kwargs.pop("check", False), **kwargs)
+
+
 def load_json(path: Path) -> Any:
     """Read and parse a JSON file."""
     with open(path, "r", encoding="utf-8") as fh:
@@ -779,51 +811,24 @@ def opt_in_skills_in(skills_dir: Path) -> List[str]:
 # any behaviour keys off.
 NO_DESCRIPTION = "(no description)"
 
-_FRONTMATTER_FENCE = "---"
-_DESCRIPTION_KEY = "description:"
-# The block scalar indicators a SKILL.md description is written with; the text follows on
-# the indented lines beneath.
-_BLOCK_INDICATORS = (">", ">-", ">+", "|", "|-", "|+", "")
-
-
-def _folded_lines(lines: List[str], start: int) -> str:
-    """Join the indented continuation lines of a block scalar starting at `start`."""
-    collected = []
-    for line in lines[start:]:
-        if not line.strip():
-            break
-        if line[:1] not in (" ", "\t"):
-            break
-        collected.append(line.strip())
-    return " ".join(collected)
-
 
 def skill_description(skill_md: Path) -> Optional[str]:
     """The `description:` scalar from a SKILL.md's frontmatter, or None when it cannot be read.
 
-    A deliberately tolerant extractor rather than a YAML parser: ADR-0005 rejected frontmatter
-    parsing for anything behavioural, so this is used for reporting only and degrades to None
-    on any parse miss instead of raising.
+    Reporting only, so it degrades to None on any parse miss instead of raising. An inline
+    scalar is unquoted here and nowhere else: this is the one caller that renders the value
+    to a human rather than handing it on.
     """
     try:
         text = skill_md.read_text(encoding="utf-8")
     except (OSError, ValueError, UnicodeDecodeError):
         return None
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != _FRONTMATTER_FENCE:
+    entry = fm.split(text).entry("description")
+    if entry is None:
         return None
-    end = next((i for i, line in enumerate(lines[1:], 1)
-                if line.strip() == _FRONTMATTER_FENCE), None)
-    if end is None:
-        return None
-    for i, line in enumerate(lines[1:end], 1):
-        if not line.startswith(_DESCRIPTION_KEY):
-            continue
-        value = line[len(_DESCRIPTION_KEY):].strip()
-        if value not in _BLOCK_INDICATORS:
-            return value.strip("'\"") or None
-        return _folded_lines(lines[:end], i + 1) or None
-    return None
+    if entry.inline in fm.BLOCK_INDICATORS:
+        return entry.value() or None
+    return entry.inline.strip("'\"") or None
 
 
 def inclusion_notes(included: Iterable[str], excluded: Iterable[str],

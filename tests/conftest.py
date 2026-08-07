@@ -20,6 +20,13 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# Every entry point puts engine/ and tooling/ on sys.path through its own `_bootstrap_lib`
+# before importing anything; a script loaded by path here never ran that, so its
+# `import badger_lib` / `import frontmatter` would resolve nowhere.
+for _shared_dir in (ROOT / "engine", ROOT / "tooling"):
+    if str(_shared_dir) not in sys.path:
+        sys.path.insert(0, str(_shared_dir))
+
 # The real home, captured before any test can redirect it.
 REAL_HOME = Path.home()
 

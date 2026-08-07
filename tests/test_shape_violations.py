@@ -234,6 +234,22 @@ class TestGitIgnoredEntriesAreNotShippedContent:
         assert violations == ["unexpected scripts", "unexpected scripts/tests",
                               "unexpected scripts/tests/payload.py"]
 
+    def test_the_verdict_is_the_same_when_git_exports_a_repository_to_its_hooks(
+            self, tmp_path, load_script, monkeypatch
+    ):
+        """`git commit` inside a worktree exports GIT_DIR to every hook it runs. An inherited
+        GIT_DIR makes `git -C <subdir>` read <subdir> as the work-tree root, so no .gitignore
+        above it is ever consulted and every ignored artefact reads as shipped content."""
+        mod = load_script("tooling/sync_plugin_skills.py")
+        src, dest = self._tree(mod, tmp_path)
+        monkeypatch.setenv("GIT_DIR", str(tmp_path / ".git"))
+        monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / ".git" / "index"))
+
+        violations = mod.shape_violations(src, dest, "shape-test")
+
+        assert violations == ["unexpected scripts", "unexpected scripts/tests",
+                              "unexpected scripts/tests/payload.py"]
+
     def test_git_failing_inside_a_work_tree_is_surfaced_not_read_as_not_ignored(
             self, tmp_path, load_script, monkeypatch
     ):

@@ -376,8 +376,8 @@ def _sync_plugin_skills_check(work: Path, provoked: bool) -> Outcome:
     divergence this provocation is about has nothing to do with that declaration.
     """
     root = work / "framework"
-    (root / "engine").mkdir(parents=True, exist_ok=True)
-    shutil.copy2(ROOT / "engine" / "badger_lib.py", root / "engine" / "badger_lib.py")
+    shutil.copytree(ROOT / "engine", root / "engine",
+                    ignore=shutil.ignore_patterns("__pycache__"))
     (root / "tooling").mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "tooling" / "sync_plugin_skills.py",
                  root / "tooling" / "sync_plugin_skills.py")
@@ -498,10 +498,22 @@ def _validate_all_no_hooks_manifest(work: Path, provoked: bool) -> Outcome:
 
 
 def _validate_all_skills_lint_violation(work: Path, provoked: bool) -> Outcome:
-    """A SKILL.md whose frontmatter name breaks the name grammar."""
+    """A SKILL.md whose frontmatter name breaks the name grammar.
+
+    Kept after the lint moved to gates/: CI runs `validate.py --all` and nothing else, so this
+    is what proves the delegation is still wired (the review's D4).
+    """
     skill = CLEAN_SKILL.replace("name: demo-skill", "name: Demo-Skill") if provoked \
         else CLEAN_SKILL
     return _validate_all(_validate_tree(work, skill=skill))
+
+
+def _skills_lint_violation(work: Path, provoked: bool) -> Outcome:
+    """The same broken name, run through the gate itself rather than through validate.py."""
+    skill = CLEAN_SKILL.replace("name: demo-skill", "name: Demo-Skill") if provoked \
+        else CLEAN_SKILL
+    root = _validate_tree(work, skill=skill)
+    return _run([str(ROOT / "gates" / "skills_lint.py"), "--root", str(root)])
 
 
 # ------------------------------------------------------- call-behaviorist analyze findings
@@ -691,6 +703,9 @@ REGISTRY: Tuple[Provocation, ...] = (
                 Signal(exit_code=1, contains="matched no file")),
     Provocation("tooling/validate.py --all", "a SKILL.md that breaks the name grammar",
                 _validate_all_skills_lint_violation, Signal(exit_code=1, contains="rule 1")),
+    Provocation("gates/skills_lint.py", "a SKILL.md that breaks the name grammar",
+                _skills_lint_violation,
+                Signal(exit_code=1, contains="SKILLS LINT FAILED")),
     Provocation(_behaviorist("not_instrumented"), "a wired hook that calls no logger",
                 _not_instrumented, _finding("not_instrumented", "low")),
     Provocation(_behaviorist("never_observed"), "an instrumented hook that never logged",

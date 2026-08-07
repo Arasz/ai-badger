@@ -63,8 +63,7 @@ class GitCommandFailed(RuntimeError):
 
 
 def _git(root: Path, *args: str) -> str:
-    proc = subprocess.run(["git", *args], cwd=str(root), capture_output=True, text=True,
-                           check=False)
+    proc = bl.run_git(list(args), root)
     if proc.returncode != 0:
         raise GitCommandFailed(args, proc.stderr)
     return proc.stdout

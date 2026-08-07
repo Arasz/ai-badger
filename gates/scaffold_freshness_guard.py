@@ -90,8 +90,7 @@ class Finding(NamedTuple):
 def tracked_and_untracked(root: Path) -> List[str]:
     """Every path git reports as tracked or untracked-but-not-ignored, repo-relative."""
     try:
-        proc = subprocess.run(["git", "ls-files", "-co", "--exclude-standard", "-z"],
-                              cwd=str(root), capture_output=True, check=False)
+        proc = bl.run_git(["ls-files", "-co", "--exclude-standard", "-z"], root, text=False)
     except OSError as exc:
         raise Refusal(f"GIT COMMAND FAILED in {root}: {exc}") from exc
     if proc.returncode != 0:
@@ -104,8 +103,7 @@ def ignored_in(root: Path, paths: Sequence[str]) -> frozenset:
     """The subset of *paths* this repo's .gitignore rules exclude (e.g. a generated .mcp.json)."""
     if not paths:
         return frozenset()
-    proc = subprocess.run(["git", "check-ignore", "--stdin"], cwd=str(root), check=False,
-                          input="\n".join(paths), capture_output=True, text=True)
+    proc = bl.run_git(["check-ignore", "--stdin"], root, input="\n".join(paths))
     return frozenset(line for line in proc.stdout.splitlines() if line)
 
 

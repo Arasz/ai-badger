@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.96.0",
-  "frameworkCommit": "a209e750628844cdb712e9b1803a38a44740d5cc",
+  "frameworkCommit": "89c5fc5d6481ff1dc130d1ab2bb044d3db10ef13",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -605,12 +605,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.96.0",
-      "hash": "9c7b774aeb664020905767bf49789c04acd09a596abe5f3d42054c12e82f345c",
+      "hash": "4355bbad27b7b870a1d16a6c5da07972571e0006603474059b3d85e11662342e",
       "dirMeta": {
         "file_count": 20,
         "dir_count": 2
       },
-      "sourceHash": "9c7b774aeb664020905767bf49789c04acd09a596abe5f3d42054c12e82f345c",
+      "sourceHash": "4355bbad27b7b870a1d16a6c5da07972571e0006603474059b3d85e11662342e",
       "sourceMeta": {
         "file_count": 20,
         "dir_count": 2
@@ -884,7 +884,7 @@
       "source": "features/claude/adjustments/adjust_agents.py",
       "target": ".claude/agents/api-engineer.md",
       "frameworkVersion": "0.96.0",
-      "hash": "5268e72297b81fcd4d675be4c26a0f9bf598bff5bdcbc3b805d0c614a19dd1c9"
+      "hash": "586d103646aa85952bea3a1957df906c312bae3238b75730bd1364e5e40766ba"
     },
     {
       "feature": "adjustments",
@@ -893,7 +893,7 @@
       "source": "features/claude/adjustments/adjust_agents.py",
       "target": ".claude/agents/architect.md",
       "frameworkVersion": "0.96.0",
-      "hash": "5268e72297b81fcd4d675be4c26a0f9bf598bff5bdcbc3b805d0c614a19dd1c9"
+      "hash": "586d103646aa85952bea3a1957df906c312bae3238b75730bd1364e5e40766ba"
     },
     {
       "feature": "adjustments",
@@ -902,7 +902,7 @@
       "source": "features/claude/adjustments/adjust_agents.py",
       "target": ".claude/agents/code-reviewer.md",
       "frameworkVersion": "0.96.0",
-      "hash": "5268e72297b81fcd4d675be4c26a0f9bf598bff5bdcbc3b805d0c614a19dd1c9"
+      "hash": "586d103646aa85952bea3a1957df906c312bae3238b75730bd1364e5e40766ba"
     },
     {
       "feature": "adjustments",
@@ -911,7 +911,7 @@
       "source": "features/claude/adjustments/adjust_agents.py",
       "target": ".claude/agents/delegator.md",
       "frameworkVersion": "0.96.0",
-      "hash": "5268e72297b81fcd4d675be4c26a0f9bf598bff5bdcbc3b805d0c614a19dd1c9"
+      "hash": "586d103646aa85952bea3a1957df906c312bae3238b75730bd1364e5e40766ba"
     },
     {
       "feature": "adjustments",
@@ -920,7 +920,7 @@
       "source": "features/claude/adjustments/adjust_agents.py",
       "target": ".claude/agents/hermes-agent-author.md",
       "frameworkVersion": "0.96.0",
-      "hash": "5268e72297b81fcd4d675be4c26a0f9bf598bff5bdcbc3b805d0c614a19dd1c9"
+      "hash": "586d103646aa85952bea3a1957df906c312bae3238b75730bd1364e5e40766ba"
     },
     {
       "feature": "adjustments",
@@ -929,7 +929,7 @@
       "source": "features/claude/adjustments/adjust_agents.py",
       "target": ".claude/agents/test-engineer.md",
       "frameworkVersion": "0.96.0",
-      "hash": "5268e72297b81fcd4d675be4c26a0f9bf598bff5bdcbc3b805d0c614a19dd1c9"
+      "hash": "586d103646aa85952bea3a1957df906c312bae3238b75730bd1364e5e40766ba"
     },
     {
       "feature": "adjustments",
@@ -1397,7 +1397,7 @@
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/architect.agent.md",
       "frameworkVersion": "0.96.0",
-      "hash": "40212966d9efd49e034fe88c1b664b41447a4911804c22a4434b5ecf33fe8e05"
+      "hash": "25169805f914b1a903d84f399a95ed5f3d6506618713f7d46495f6e9cc928142"
     },
     {
       "feature": "adjustments",
@@ -1406,7 +1406,7 @@
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/code-reviewer.agent.md",
       "frameworkVersion": "0.96.0",
-      "hash": "40212966d9efd49e034fe88c1b664b41447a4911804c22a4434b5ecf33fe8e05"
+      "hash": "25169805f914b1a903d84f399a95ed5f3d6506618713f7d46495f6e9cc928142"
     },
     {
       "feature": "adjustments",
@@ -1415,7 +1415,7 @@
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/delegator.agent.md",
       "frameworkVersion": "0.96.0",
-      "hash": "40212966d9efd49e034fe88c1b664b41447a4911804c22a4434b5ecf33fe8e05"
+      "hash": "25169805f914b1a903d84f399a95ed5f3d6506618713f7d46495f6e9cc928142"
     },
     {
       "feature": "adjustments",
@@ -1424,7 +1424,7 @@
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/test-engineer.agent.md",
       "frameworkVersion": "0.96.0",
-      "hash": "40212966d9efd49e034fe88c1b664b41447a4911804c22a4434b5ecf33fe8e05"
+      "hash": "25169805f914b1a903d84f399a95ed5f3d6506618713f7d46495f6e9cc928142"
     },
     {
       "feature": "adjustments",
@@ -1433,7 +1433,7 @@
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/hermes-agent-author.agent.md",
       "frameworkVersion": "0.96.0",
-      "hash": "40212966d9efd49e034fe88c1b664b41447a4911804c22a4434b5ecf33fe8e05"
+      "hash": "25169805f914b1a903d84f399a95ed5f3d6506618713f7d46495f6e9cc928142"
     },
     {
       "feature": "adjustments",
@@ -1442,7 +1442,7 @@
       "source": "features/copilot/adjustments/adjust_agents.py",
       "target": ".github/agents/api-engineer.agent.md",
       "frameworkVersion": "0.96.0",
-      "hash": "40212966d9efd49e034fe88c1b664b41447a4911804c22a4434b5ecf33fe8e05"
+      "hash": "25169805f914b1a903d84f399a95ed5f3d6506618713f7d46495f6e9cc928142"
     },
     {
       "feature": "adjustments",

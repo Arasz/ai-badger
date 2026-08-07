@@ -162,7 +162,8 @@ def _break_git_subcommand(monkeypatch, release_guard, subcommand):
     real_run = subprocess.run
 
     def fake_run(cmd, *args, **kwargs):
-        if list(cmd[:2]) == ["git", subcommand]:
+        # bl.run_git spells every call `git -C <root> <subcommand> ...`.
+        if list(cmd[:2]) == ["git", "-C"] and list(cmd[3:4]) == [subcommand]:
             return subprocess.CompletedProcess(cmd, 128, "", "fatal: bad object HEAD\n")
         return real_run(cmd, *args, **kwargs)
 
