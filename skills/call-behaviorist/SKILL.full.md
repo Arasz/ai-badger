@@ -5,6 +5,14 @@ description: >-
   debug logging", "why is the drift notice silent?", "turn on the audit log", "what did the
   hooks do?" — or to check, tail, or switch off that logging. Records which hook ran, in which
   project, under which version, to an append-only log.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [observability, hooks, audit, logging]
+    related_skills: [auto-wm, commit-reminder]
 ---
 
 # call-behaviorist
@@ -227,6 +235,10 @@ Two things regardless of process:
   `--json` output is your evidence for it.
 - Title it so the headline is legible in a list: `ai-badger health: <project> — <what is
   wrong>`, not `health report`.
+
+## Gotchas
+
+No environment-specific gotchas known.
 
 ## Turn it off when you are done
 

@@ -354,6 +354,10 @@ metadata:
 
 ---
 
+## Gotchas
+
+No environment-specific gotchas known.
+
 ## Usage Tips
 
 1. **Walk phases sequentially** — Phase 1 gates everything.

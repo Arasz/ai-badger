@@ -53,7 +53,7 @@ low-rated entries; shared entries are exempt.
 
 `scope=all` (default: shared + project), `scope=project`, `scope=shared` (the promotion tier only).
 
-## 6. Pitfalls
+## 6. Gotchas
 
 - `memory_write` has **no `path` param** — the entry path is derived from its content.
 - **Never pass `context`** unless workspace isolation is intended: it silently sets

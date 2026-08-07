@@ -8,6 +8,14 @@ description: >-
   edit-shaped tool call and commands a commit once it crosses a threshold; after repeated
   unanswered commands it records the work as at risk, and `scripts/ensure_committed.py` reports
   that to a parent.
+version: 1.0.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [git, commits, hooks, safety]
+    related_skills: [call-behaviorist, task]
 ---
 
 # Commit reminder
@@ -117,6 +125,12 @@ Every run logs to the `debug_log`/`call-behaviorist` audit trail under component
 `commit_reminder_hook` (a no-op unless that facility is switched on): `skip` when the hook exits
 early, `checked` after computing the uncommitted count, and `fire` when the command is emitted —
 carrying `unanswered` and `atRisk` so the escalation is visible in the audit trail too.
+
+## Verification Checklist
+
+- [ ] `scripts/ensure_committed.py` run and at-risk projects named
+- [ ] At-risk work committed or explicitly taken over
+- [ ] Hook verified firing: one edit → count checked; escalation visible in the audit trail when enabled
 
 ## Files
 

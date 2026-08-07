@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.85.0 | [Skills corpus conventions: Gotchas, frontmatter, checklists, disclosure conditions](0.85.0-skills-conventions.md) |
 | 0.84.0 | [Memory-first gate: agents must consult memory before text search](0.84.0-memory-first-gate.md) |
 | 0.83.0 | [Three agents, not four](0.83.0-junie-support-removed.md) |
 | 0.82.0 | [ai-raccoon catalog: HTTP serve mode + migrated package id](0.82.0-ai-raccoon-http-default.md) |
