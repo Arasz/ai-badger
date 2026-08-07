@@ -27,6 +27,14 @@ readonly LOG_SUMMARY="${VERIFY_LOG_SUMMARY:-logs/lefthook.log}"
 # Cheap lanes first so a typo fails fast, before pylint and pytest.
 readonly LANES="version-sync index plugin-skills deps docs release paths validate scaffold tdd js pylint pytest"
 
+# Lanes `--risk` trades away. Measured 2026-08-07 at 43fbfb49: `verify.sh all` is 778s wall
+# clock, of which pytest is 664s — so this is the one lane whose removal changes the number.
+# The full suite is still owed before integrating; see skills/task/SKILL.md.
+readonly RISK_DROPPED_LANES="pytest"
+
+# The tracker entry `task_tracker.py start --risk` writes is the only record of that choice.
+readonly RISK_QUERY=".lefthook/pre-push/risk_mode.py"
+
 # --------------------------------------------------------------------------- python
 
 # Resolve the interpreter that owns this repo's dev dependencies. A linked worktree has no
@@ -100,7 +108,7 @@ lane_cmd() {
         docs)          lane_docs ;;
         release)       "$PY" gates/release_guard.py ;;
         paths)         "$PY" gates/shipped_paths_guard.py ;;
-        validate)      "$PY" tooling/validate.py --all ;;
+        validate)      lane_validate ;;
         scaffold)      "$PY" gates/scaffold_freshness_guard.py ;;
         tdd)           lane_tdd ;;
         js)            lane_js ;;
@@ -109,6 +117,20 @@ lane_cmd() {
         mutation)      lane_mutation ;;
         *)             printf 'unknown lane: %s\n' "$1" >&2; return 2 ;;
     esac
+}
+
+# Three checks, one concern: the framework tree and the agent-instruction files that describe it
+# must both validate. The two .mjs validators ran in no gate at all before 0.91.0 (review A7) —
+# only their unit tests did, so real drift between model.json and CLAUDE.md reached main unseen.
+readonly AGENT_INSTRUCTION_SCRIPTS="features/common/skills/maintain-agent-instructions/scripts"
+
+lane_validate() {
+    local rc=0 script
+    "$PY" tooling/validate.py --all || rc=1
+    for script in validate-agent-instructions.mjs check-agent-drift.mjs; do
+        node "$AGENT_INSTRUCTION_SCRIPTS/$script" || rc=1
+    done
+    return "$rc"
 }
 
 # Two checks, one concern: the docs must describe the tree they ship with. docs_guard answers
@@ -123,6 +145,8 @@ lane_docs() {
 
 # Mirrors CI: non-test Python only, 10.00 required. An empty file list means the index is
 # wrong, not that the tree is clean, so it fails rather than reporting a 0s pass.
+# `-j 0` fans out over every core: measured 2026-08-07 back to back on 234 files, 232s serial
+# against 62s parallel, same verdict.
 lane_pylint() {
     local files
     files="$(git ls-files '*.py' | grep -v '^tests/')"
@@ -131,7 +155,7 @@ lane_pylint() {
         return 1
     fi
     # shellcheck disable=SC2086
-    "$PY" -m pylint $files
+    "$PY" -m pylint -j 0 $files
 }
 
 # node's own glob would expand to nothing and still exit 0 if the suite moved.
@@ -257,10 +281,12 @@ _changed_paths() {
 # route to run-everything: a broken gate is invisible until something stops being verified.
 # Artifacts a release regenerates, each already proven by a lane of its own: version-sync for
 # the three literals, index for index.json, docs for the changelog index, release for the tag
-# and bump. Re-running 2813 tests to re-prove what those four just proved is the one narrowing
-# worth making — measured 2026-08-01, pytest is 49s of a 75s gate. Deliberately the only one:
-# anything not on this list still routes to the full suite, because a gate that quietly stops
-# verifying is invisible until the day it matters.
+# and bump. Re-running the suite to re-prove what those four just proved is the one narrowing
+# worth making — measured 2026-08-07 at 43fbfb49, `verify.sh all` is 778s wall clock and pytest
+# is 664s of it. (The "49s of a 75s gate" this comment claimed until 0.91.0 was never true of
+# any run anyone watched.) Deliberately the only narrowing: anything not on this list still
+# routes to the full suite, because a gate that quietly stops verifying is invisible until the
+# day it matters.
 _is_release_artifact() {
     case "$1" in
         VERSION|index.json|.claude-plugin/*.json) return 0 ;;
@@ -303,10 +329,32 @@ _lanes_for() {
     printf '\n'
 }
 
+# --------------------------------------------------------------------------- limited gates
+
+# The task id that put this branch into `--risk` mode, or nothing. Empty means the full gate,
+# and every failure mode of the query — no tracker, no branch, no python — resolves that way.
+_risk_task() {
+    [ -n "${PY:-}" ] && [ -f "$RISK_QUERY" ] || return 0
+    "$PY" "$RISK_QUERY" --root "$PWD" \
+        --branch "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" 2>/dev/null
+}
+
+# The lanes minus the ones `--risk` trades away.
+_without_risk_lanes() {
+    local lane dropped keep=""
+    for lane in $1; do
+        for dropped in $RISK_DROPPED_LANES; do
+            [ "$lane" = "$dropped" ] && lane=""
+        done
+        [ -n "$lane" ] && keep="$keep $lane"
+    done
+    printf '%s' "${keep# }"
+}
+
 # Prints the space-separated lanes `pre-push` would run, or the word DELETION.
 # Consumes stdin, so it runs exactly once per invocation.
 _select_lanes() {
-    local changed rc
+    local changed rc lanes
     mkdir -p "$LOG_DIR"
     changed="$LOG_DIR/changed-paths.txt"
     _changed_paths >"$changed"
@@ -315,7 +363,9 @@ _select_lanes() {
         printf 'DELETION\n'
         return 0
     fi
-    sort -u "$changed" | _lanes_for | sed 's/ *$//'
+    lanes="$(sort -u "$changed" | _lanes_for | sed 's/ *$//')"
+    [ -n "$(_risk_task)" ] && lanes="$(_without_risk_lanes "$lanes")"
+    printf '%s\n' "$lanes"
 }
 
 # --------------------------------------------------------------------------- doctor
@@ -436,10 +486,17 @@ main() {
                 "")       printf 'verify: nothing to verify\n'; return 0 ;;
             esac
             printf '\xe2\x96\xb8 verify pre-push: %s\n' "$lanes"
-            local rc start
+            local rc start risk hook="pre-push"
+            risk="$(_risk_task)"
+            if [ -n "$risk" ]; then
+                hook="risk"
+                printf '  limited gates: %s is a --risk task, so %s did not run.\n' \
+                    "$risk" "$RISK_DROPPED_LANES"
+                printf '  You still owe the full suite before integrating.\n'
+            fi
             start=$(date +%s)
             run_lanes "$lanes"; rc=$?
-            _log_summary "pre-push" "$lanes" "$([ $rc -eq 0 ] && echo PASS || echo FAIL)" "$(( $(date +%s) - start ))" "$_FAILED_LANES"
+            _log_summary "$hook" "$lanes" "$([ $rc -eq 0 ] && echo PASS || echo FAIL)" "$(( $(date +%s) - start ))" "$_FAILED_LANES"
             return $rc ;;
         *)
             # "mutation" is invocable by hand without joining $LANES (and therefore without

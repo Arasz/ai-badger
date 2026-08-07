@@ -60,6 +60,42 @@ def _competing_home(tmp_path, monkeypatch, cache_version=None, plugin_versions=(
     return made
 
 
+def test_silent_when_scaffold_and_plugin_differ_by_patch_only(tmp_path, load_script):
+    """Acceptance criterion (B10): a patch-only bump must not produce a drift notice --
+    the scaffold-freshness guard already tolerates stamp-only differences, so the notice
+    that fires on any string inequality is a false alarm by construction."""
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
+    project = tmp_path / "proj"
+    _write_manifest(project, "0.89.0")
+    plugin = _write_plugin(tmp_path, "0.89.1")
+
+    assert dn.scaffold_drift_notice(project, str(plugin)) is None
+
+
+def test_notice_when_scaffold_and_plugin_differ_by_minor(tmp_path, load_script):
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
+    project = tmp_path / "proj"
+    _write_manifest(project, "0.89.0")
+    plugin = _write_plugin(tmp_path, "0.90.0")
+
+    notice = dn.scaffold_drift_notice(project, str(plugin))
+
+    assert notice is not None
+    assert "0.89.0" in notice and "0.90.0" in notice
+
+
+def test_notice_when_scaffold_and_plugin_differ_by_major(tmp_path, load_script):
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
+    project = tmp_path / "proj"
+    _write_manifest(project, "0.89.0")
+    plugin = _write_plugin(tmp_path, "1.0.0")
+
+    notice = dn.scaffold_drift_notice(project, str(plugin))
+
+    assert notice is not None
+    assert "0.89.0" in notice and "1.0.0" in notice
+
+
 def test_notice_when_scaffold_and_plugin_versions_differ(tmp_path, load_script):
     dn = load_script("features/common/skills/task/scripts/drift_notice.py")
     project = tmp_path / "proj"
@@ -70,6 +106,31 @@ def test_notice_when_scaffold_and_plugin_versions_differ(tmp_path, load_script):
 
     assert notice is not None
     assert "0.1.0" in notice and "0.2.0" in notice
+
+
+def test_notice_when_one_version_is_unparseable_garbage(tmp_path, load_script):
+    """An unparseable version falls back to plain string inequality -- fail loud, not quiet."""
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
+    project = tmp_path / "proj"
+    _write_manifest(project, "not-a-version")
+    plugin = _write_plugin(tmp_path, "also-not-a-version")
+
+    assert dn.scaffold_drift_notice(project, str(plugin)) is not None
+
+
+def test_versions_diverge_table(load_script):
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
+
+    cases = [
+        ("0.89.0", "0.89.1", False),
+        ("0.89.0", "0.90.0", True),
+        ("0.89.0", "1.0.0", True),
+        ("0.89.0", "0.89.0", False),
+        ("not-a-version", "also-not-a-version", True),
+        ("not-a-version", "not-a-version", False),
+    ]
+    for scaffolded, running, expected in cases:
+        assert dn.versions_diverge(scaffolded, running) is expected, (scaffolded, running)
 
 
 def test_silent_when_versions_match(tmp_path, load_script):
@@ -168,7 +229,7 @@ def test_session_start_hook_no_longer_owns_drift(load_script):
 
 
 def test_hook_main_emits_notice_when_versions_differ(tmp_path, root, load_script, monkeypatch,
-                                                       capsys):
+                                                     capsys):
     """End-to-end through drift_notice_hook.main(): crafted stdin + CLAUDE_PROJECT_DIR, no
     plugin-root guessing needed since the script self-locates from its own real path."""
     hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
@@ -262,12 +323,12 @@ def test_hook_main_silent_when_no_manifest(tmp_path, load_script, monkeypatch, c
 
 
 def test_hook_main_silent_and_exit_zero_for_malformed_manifests(tmp_path, load_script,
-                                                                  monkeypatch, capsys):
+                                                                monkeypatch, capsys):
     hook = load_script("features/common/skills/task/scripts/drift_notice_hook.py")
     for label, content in (
-        ("json-list", "[1, 2, 3]"),
-        ("bare-scalar", "42"),
-        ("unparseable", "{not json"),
+            ("json-list", "[1, 2, 3]"),
+            ("bare-scalar", "42"),
+            ("unparseable", "{not json"),
     ):
         project = tmp_path / label
         aib = project / ".ai-badger"

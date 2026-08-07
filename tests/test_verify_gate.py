@@ -300,13 +300,13 @@ def test_summary_log_records_failed_lanes():
 
 # ── a release-only push ─────────────────────────────────────────────────────────
 #
-# Measured on 2026-08-01: the twelve non-pytest lanes total 14s, pylint 12s, pytest 49s. So
-# two thirds of the gate is the full suite, and a release commit reaches it through the
-# `*.json|VERSION` route — VERSION, the three version literals, index.json and the regenerated
-# changelog index are all that changes.
+# Measured 2026-08-07 at 43fbfb49, `verify.sh all` end to end: 778s wall clock — pytest 664s,
+# pylint 104s, the other eleven lanes 10s between them. So 85% of the gate is the full suite,
+# and a release commit reaches it through the `*.json|VERSION` route — VERSION, the three
+# version literals, index.json and the regenerated changelog index are all that changes.
 #
 # Those artifacts are produced by generators that already have dedicated lanes: version-sync,
-# index, changelog (inside docs), release. Running 2813 tests to re-prove what four lanes just
+# index, changelog (inside docs), release. Running the suite to re-prove what four lanes just
 # proved is the one narrowing worth making, and it is deliberately the *only* one — every other
 # route still runs everything, because a gate that stops verifying is invisible until it matters.
 
@@ -352,3 +352,98 @@ def test_a_scaffold_stamp_alone_does_not_exempt_a_source_change():
     selected = _lanes_for_paths([".ai-badger/manifest.json", "features/common/skills/x/SKILL.md"])
 
     assert "pytest" in selected
+
+
+# ── the validate lane covers the agent-instruction validators ───────────────────
+#
+# Both .mjs validators ran in no gate at all until 0.91.0 (review finding A7): only their unit
+# tests did, so real drift between the model and CLAUDE.md/AGENTS.md reached main unnoticed.
+
+AGENT_INSTRUCTION_VALIDATORS = (
+    "features/common/skills/maintain-agent-instructions/scripts/validate-agent-instructions.mjs",
+    "features/common/skills/maintain-agent-instructions/scripts/check-agent-drift.mjs",
+)
+
+
+def _shim(path, body):
+    """Write an executable /bin/sh shim and return its path as a string."""
+    path.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
+    path.chmod(0o755)
+    return str(path)
+
+
+@contextmanager
+def _recording_node(tmp_path, exit_code=0):
+    """Put a `node` on PATH that records its argv and exits with `exit_code`."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir(exist_ok=True)
+    record = tmp_path / "node-argv.txt"
+    _shim(bindir / "node", f'printf "%s\\n" "$*" >> {record}\nexit {exit_code}')
+    yield record, {"PATH": f"{bindir}:{os.environ['PATH']}",
+                   "AIB_PYTHON": _shim(tmp_path / "py-pass", "exit 0")}
+
+
+def test_the_validate_lane_runs_both_agent_instruction_validators(tmp_path):
+    with _recording_node(tmp_path) as (record, env):
+        done = _run("validate", env=env)
+
+    assert done.returncode == 0, done.stdout
+    invoked = record.read_text(encoding="utf-8") if record.exists() else ""
+    for script in AGENT_INSTRUCTION_VALIDATORS:
+        assert script in invoked, f"the validate lane never ran {script}:\n{invoked}"
+
+
+def test_the_validate_lane_fails_when_an_agent_instruction_validator_fails(tmp_path):
+    """A validator that reports drift must take the lane down with it."""
+    with _recording_node(tmp_path, exit_code=1) as (_record, env):
+        done = _run("validate", env=env)
+
+    assert done.returncode != 0, f"a failing validator was swallowed:\n{done.stdout}"
+
+
+# ── --risk actually changes which lanes run ─────────────────────────────────────
+#
+# `--risk` was parsed, persisted and printed by task_tracker.py and consumed by nothing
+# (review finding A8). The gate now asks the tracker, so the flag buys what it claims.
+
+RISK_DROPPED = ("pytest",)
+# `--risk` buys speed with coverage, not with the cheap checks: skills/task/SKILL.md keeps
+# "formatting, fast tests and the lint/rule check", and pytest is 664s of a 778s gate.
+RISK_KEPT = ("pylint", "validate", "docs", "release", "tdd")
+
+
+def _risk_stub(tmp_path, task_id=""):
+    """A stand-in for `$PY` that answers the risk query with `task_id` (empty = risk off)."""
+    body = f'printf "%s" "{task_id}"' if task_id else "exit 0"
+    return {"AIB_PYTHON": _shim(tmp_path / "py-stub", body)}
+
+
+def test_a_risk_task_drops_the_slow_lanes(tmp_path):
+    selected = _run("lanes", env=_risk_stub(tmp_path, "TASK-1")).stdout.split()
+
+    for lane in RISK_DROPPED:
+        assert lane not in selected, f"--risk left {lane} in: {selected}"
+
+
+def test_without_a_risk_task_the_slow_lanes_still_run(tmp_path):
+    """The narrowing must be the flag's doing, not the selector's."""
+    selected = _run("lanes", env=_risk_stub(tmp_path)).stdout.split()
+
+    for lane in RISK_DROPPED:
+        assert lane in selected, f"{lane} vanished without --risk: {selected}"
+
+
+def test_a_risk_task_keeps_the_cheap_lanes(tmp_path):
+    """`--risk` trades the suite away, not the checks that cost seconds."""
+    selected = _run("lanes", env=_risk_stub(tmp_path, "TASK-1")).stdout.split()
+
+    for lane in RISK_KEPT:
+        assert lane in selected, f"--risk dropped {lane}, which costs nothing: {selected}"
+
+
+def test_a_risk_run_says_so_and_names_the_task(tmp_path):
+    """A reduced gate that looks like a full one is the failure mode worth guarding."""
+    out = _run("pre-push", env=_risk_stub(tmp_path, "TASK-1")).stdout
+
+    assert "risk" in out.lower()
+    assert "TASK-1" in out

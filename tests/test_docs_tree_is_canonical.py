@@ -11,7 +11,9 @@ seventeen. A partial map is worse than none, because it is read as complete.
 """
 from __future__ import annotations
 
+import functools
 import re
+import subprocess
 
 import pytest
 
@@ -50,6 +52,30 @@ def _docs(root):
     return root / "docs"
 
 
+@functools.lru_cache(maxsize=None)
+def _committed_entries(root, subpath):
+    """Direct children of `HEAD:<subpath>` as (name, is_dir) pairs — the committed tree, not disk.
+
+    The suite runs for minutes; anything writing into docs/ meanwhile turned the map checks red
+    for a reason that had nothing to do with the map (review B11).
+    """
+    done = subprocess.run(["git", "-C", str(root), "ls-tree", f"HEAD:{subpath}"],
+                          capture_output=True, text=True, check=False)
+    if done.returncode != 0:
+        return ()
+    entries = []
+    for line in done.stdout.splitlines():
+        meta, name = line.split("\t", 1)
+        _mode, kind, _sha = meta.split()
+        entries.append((name, kind == "tree"))
+    return tuple(entries)
+
+
+def _committed_dirs(root):
+    return sorted(name for name, is_dir in _committed_entries(root, "docs")
+                  if is_dir and not name.startswith("."))
+
+
 def _indexed_files(readme_text: str):
     """Filenames a README's index table claims exist beside it."""
     named = []
@@ -79,8 +105,7 @@ class TestEveryMapIsComplete:
     def test_no_directory_sits_outside_the_map(self, root):
         """`plans/` outlived PR #111: the map check matched the prose explaining its removal."""
         known = set(CANONICAL_DIRS) | set(FROZEN_DIRS) | set(PINNED_DIRS)
-        present = sorted(d.name for d in _docs(root).iterdir()
-                         if d.is_dir() and not d.name.startswith("."))
+        present = _committed_dirs(root)
 
         residue = [name for name in present if name not in known]
 
@@ -90,8 +115,7 @@ class TestEveryMapIsComplete:
 
     def test_the_root_readme_names_every_directory(self, root):
         readme = (_docs(root) / "README.md").read_text(encoding="utf-8")
-        present = sorted(d.name for d in _docs(root).iterdir()
-                         if d.is_dir() and not d.name.startswith("."))
+        present = _committed_dirs(root)
 
         missing = [name for name in present if f"{name}/" not in readme]
 
@@ -102,8 +126,8 @@ class TestEveryMapIsComplete:
         """Subdirectories answer for themselves; files do not."""
         directory = _docs(root) / name
         readme = (directory / "README.md").read_text(encoding="utf-8")
-        beside = sorted(f.name for f in directory.iterdir()
-                        if f.is_file() and f.name != "README.md")
+        beside = sorted(entry for entry, is_dir in _committed_entries(root, f"docs/{name}")
+                        if not is_dir and entry != "README.md")
 
         missing = [f for f in beside if f not in readme]
 
@@ -120,6 +144,20 @@ class TestEveryMapIsComplete:
         assert not dangling, (
             f"docs/{name}/README.md indexes files that do not exist: {', '.join(dangling)}"
         )
+
+    def test_the_checks_ignore_an_untracked_file_and_directory(self, root):
+        """A concurrent write into docs/ mid-run must not flip these red — only commits count."""
+        scratch_dir = _docs(root) / "zz_scratch_untracked_dir"
+        scratch_file = _docs(root) / "reference" / "zz-scratch-untracked.md"
+        scratch_dir.mkdir()
+        scratch_file.write_text("scratch", encoding="utf-8")
+        try:
+            self.test_no_directory_sits_outside_the_map(root)
+            self.test_the_root_readme_names_every_directory(root)
+            self.test_a_directory_readme_names_every_file_beside_it(root, "reference")
+        finally:
+            scratch_file.unlink()
+            scratch_dir.rmdir()
 
     @pytest.mark.parametrize("name,least", sorted(INDEXED_DIRS.items()))
     def test_an_index_table_is_actually_read(self, root, name, least):
@@ -167,6 +205,7 @@ class TestNoProseHidesFromRipgrep:
     """The reason `work/` had to exist: `.tmp/` is hidden, and every agent's search is ripgrep."""
 
     def test_no_review_form_is_left_in_a_hidden_directory(self, root):
+        # `.tmp/` is gitignored, so git cannot answer for it: the working tree is the only source.
         hidden = root / ".tmp"
         if not hidden.is_dir():
             return
