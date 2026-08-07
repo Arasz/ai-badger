@@ -54,7 +54,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import List, NamedTuple, Sequence, Tuple
+from typing import List, Sequence, Tuple
 from urllib.parse import unquote
 
 # The engine lives in engine/: is_framework_root anchors on engine/badger_lib.py (ADR-0011).

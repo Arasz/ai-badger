@@ -35,7 +35,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, NamedTuple, Sequence, Tuple
+from typing import List, Sequence, Tuple
 
 # The engine lives in engine/: is_framework_root anchors on engine/badger_lib.py (ADR-0011).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))

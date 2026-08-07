@@ -58,6 +58,7 @@ def _bootstrap_lib() -> Path:
     (ADR-0009). Duplicated verbatim in every entry point because locating badger_lib is
     what it is for.
     """
+
     def is_root(path):
         return ((path / "schemas").is_dir() and (path / "features").is_dir()
                 and (path / "engine" / "badger_lib.py").is_file())
@@ -299,10 +300,11 @@ def _read_index_safe(target: str) -> tuple[Optional[dict[str, Any]], Optional[st
 
 
 def _try_import_badger_lib():
-    """Return the badger_lib module, or None when validation cannot run at all.
+    """Return the badger_lib module, or None when it is not importable at all.
 
-    Covers both causes uniformly: FRAMEWORK_ROOT is None (nothing on sys.path to import
-    from), or badger_lib itself fails to import (it imports jsonschema unguarded).
+    FRAMEWORK_ROOT is None (nothing on sys.path to import from), or the import itself fails.
+    Since 0.93.0 badger_lib imports jsonschema lazily, so a successful import here does not
+    mean validation can run — `_validate_against_schema` catches that.
     """
     if FRAMEWORK_ROOT is None:
         return None
@@ -322,7 +324,10 @@ def _validate_against_schema(data: dict[str, Any]) -> Optional[list[str]]:
     if not schema_path.is_file():
         return None
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    return bl.validate(data, schema)
+    try:
+        return bl.validate(data, schema)
+    except ImportError:
+        return None  # jsonschema absent: unavailable, the same answer as no framework root
 
 
 def _write_index(target: str, data: dict[str, Any], *, require_validation: bool) -> None:
@@ -717,7 +722,7 @@ def cmd_intent(target: str, tool_ref: str, intent: str) -> int:
 
 
 def cmd_list(
-    target: str, tag: Optional[str] = None, untagged: bool = False
+        target: str, tag: Optional[str] = None, untagged: bool = False
 ) -> int:
     """List tools, optionally filtered."""
     index, err = _read_index_safe(target)
@@ -810,7 +815,7 @@ def _usage() -> int:
 
 
 def _parse_target_and_remaining(
-    argv: list[str],
+        argv: list[str],
 ) -> tuple[Optional[str], list[str]]:
     """Extract --target value and return (target, remaining_args)."""
     try:

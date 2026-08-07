@@ -997,3 +997,11 @@ class TestReadVersion:
 
         with pytest.raises(bl.MissingVersion):
             bl.read_version(tmp_path)
+
+    def test_undecodable_bytes_refuse_too(self, load_script, tmp_path):
+        """UnicodeDecodeError is a ValueError, not an OSError — it escaped the first guard."""
+        bl = load_script("engine/badger_lib.py")
+        (tmp_path / "VERSION").write_bytes(b"\xff\xfe0.1.0")
+
+        with pytest.raises(bl.MissingVersion):
+            bl.read_version(tmp_path)

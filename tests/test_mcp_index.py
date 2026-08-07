@@ -747,6 +747,47 @@ def test_tag_writes_unvalidated_with_a_loud_note_when_root_unreachable(tmp_path,
     assert "--root" in err and "jsonschema" in err
 
 
+def test_a_reachable_framework_without_jsonschema_still_degrades(tmp_path, load_script,
+                                                                  monkeypatch, capsys):
+    """0.93.0 made badger_lib importable without jsonschema; the refusal moved into validate().
+
+    Before that, `import badger_lib` itself raised and `_try_import_badger_lib` returned None.
+    Now the import succeeds, so tag/intent must catch the ImportError at the call site or a
+    consumer project with no jsonschema gets a traceback instead of the documented note.
+    """
+    _write_index(tmp_path, _valid_index())
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+
+    def _refuse(*_args, **_kwargs):
+        raise ImportError("no module named 'jsonschema'")
+
+    monkeypatch.setattr(mod, "_try_import_badger_lib",
+                        lambda: type("bl", (), {"validate": staticmethod(_refuse)}))
+
+    rc = mod.main(["tag", "rider:build_solution", "diagnostic", "--target", str(tmp_path)])
+
+    assert rc == 0
+    assert "jsonschema" in capsys.readouterr().err
+
+
+def test_init_still_refuses_when_jsonschema_is_absent(tmp_path, load_script, monkeypatch):
+    """The other half: unavailable must stay a refusal for init, not a silent unvalidated write."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+
+    def _refuse(*_args, **_kwargs):
+        raise ImportError("no module named 'jsonschema'")
+
+    monkeypatch.setattr(mod, "_try_import_badger_lib",
+                        lambda: type("bl", (), {"validate": staticmethod(_refuse)}))
+
+    rc = mod.main(["init", "--target", str(tmp_path), "--from-json",
+                   json.dumps({"servers": [{"name": "s", "tools": [
+                       {"name": "t", "description": "Does something useful"}]}]})])
+
+    assert rc == 1
+    assert not (tmp_path / ".ai-badger" / "mcp-tools.json").exists()
+
+
 def test_validation_unavailable_hint_names_root_and_jsonschema(load_script):
     """The hard-refusal message must name the two remedies verbatim (reviewer requirement)."""
     mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")

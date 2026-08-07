@@ -413,8 +413,9 @@ def read_version(root: Path) -> str:
     version_file = root / "VERSION"
     try:
         version = version_file.read_text(encoding="utf-8").strip()
-    except OSError as exc:
-        raise MissingVersion(f"{version_file}: cannot be read ({exc.strerror})") from exc
+    except (OSError, UnicodeDecodeError) as exc:
+        detail = getattr(exc, "strerror", None) or exc
+        raise MissingVersion(f"{version_file}: cannot be read ({detail})") from exc
     if not version:
         raise MissingVersion(f"{version_file}: empty — it must name the version of this tree")
     return version
