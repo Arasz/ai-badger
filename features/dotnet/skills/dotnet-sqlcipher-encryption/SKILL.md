@@ -1,7 +1,6 @@
 ---
 name: dotnet-sqlcipher-encryption
-description: >-
-  Use when working with SQLCipher-encrypted SQLite in .NET.
+description: "Use when working with SQLCipher-encrypted SQLite in .NET (e_sqlite3mc / SQLitePCLRaw bundle): raw 256-bit keys via Password='x'<hex>'', deriving keys from ed25519 SSH keys, PRAGMA rekey constraints (WAL unsupported), pluggable key-source providers (env/keychain/vault) with the pre-open sidecar pattern, and Dapper-over-SQLite3MC mapping traps."
 ---
 
 # SQLCipher encryption in .NET
@@ -52,8 +51,7 @@ Pattern for any encrypted store with multiple key sources (env / keychain / vaul
 - The C# SDK (`Bitwarden.Secrets.Sdk` 1.0.0) is beta, synchronous-only, custom license,
   ~7 MB native binary — prefer the CLI when available.
 
-## Pitfalls
-
+## Gotchas
 - SecureString: deprecated (DE0001), no in-memory encryption on .NET Core — NOT a solution for key handling or storage.
 - Env vars: visible via `/proc/<pid>/environ` on Linux (macOS hides them from `ps`); the bigger exposure is plaintext client configs and backups.
 - Offline behavior for network sources: refuse to start loudly; an offline cache is an explicit opt-in, never a default.

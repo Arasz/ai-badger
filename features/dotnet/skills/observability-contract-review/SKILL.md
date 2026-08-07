@@ -1,5 +1,6 @@
 ---
 name: observability-contract-review
+description: "Use when reviewing claims that 'all calls are instrumented': span+metrics helper diffs, tool-layer try/catch instrumentation, N/N tool-surface parity tests. Checks path coverage, not call-site presence — filtered-catch escape holes, exactly-once recording, Activity status/tag ordering, instrumentation-test honesty, CI Speed-trait blind spots, metrics-unchanged verification."
 description: Use when reviewing claims that all calls are instrumented.
 author: hermes-curator
 license: MIT
@@ -67,3 +68,4 @@ Numbered findings (severity + `file:line` + concrete fix), an explicit verdict (
 ## References
 
 - `references/filtered-catch-hole.md` — the concrete before/after of the unrecorded-path defect (guard throws filtered type before inner try) with the idempotent-record fix.
+- `references/quiet-mode-functional-payload.md` — the quiet-mode functional payload: what a successful tool call must carry on the span/metrics contract.

@@ -22,8 +22,8 @@ re-verify before citing — framework code moves.
 
 ## Root-cause chain observed
 
-1. **Tool command names change between versions.** the maintainer.the project 1.0.4
-   installed the binary as `the project` (capital — evidence: a hand-written
+1. **Tool command names change between versions.** <pkg-id> 1.0.4
+   installed the binary as `<tool>` (capital — evidence: a hand-written
    VS Code entry referencing `~/.dotnet/tools/the project`); 1.0.5's
    ToolCommandName is `the project` (lowercase shim). Every scaffold between
    #302 and the 1.0.5 install silently skipped the server — including this

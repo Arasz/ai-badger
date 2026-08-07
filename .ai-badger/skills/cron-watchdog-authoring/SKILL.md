@@ -1,5 +1,6 @@
 ---
 name: cron-watchdog-authoring
+description: "Use when scheduling a Hermes cron job or writing a watchdog script: recurring schedules need 'every 30m' (bare '30m' is ONE-SHOT — check repeat), no_agent+script shape, silent-unless-action stdout discipline, version-gated rollout watchdogs (marker files, surgical port-kill), idempotent ticks, and verifying CLI verb paths before the rollout branch can run."
 description: Use when scheduling a Hermes cron job or watchdog script.
 ---
 
@@ -53,5 +54,6 @@ a live server — verify the rollout branch by review instead).
 
 ## Related
 
-- `memory-bank-audit` references/maintenance-fix-shape.md — the bank-maintenance design this rollout supports.
+- The bank-maintenance design this rollout supports lives in the repo's work docs
+  (the maintenance-fix shape); keep a pointer to it beside the rollout script.
 - Existing instances: `<tool>-rollout` (every 30m) + a PR monitor (30m, local-deliver).

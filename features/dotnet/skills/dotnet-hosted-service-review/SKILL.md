@@ -1,5 +1,6 @@
 ---
 name: dotnet-hosted-service-review
+description: "Use when reviewing a PR that adds or modifies a .NET BackgroundService/IHostedService — background extraction loops, watchers, sync, sweep, or any poll loop. Checklist: ExecuteAsync try/catch coverage (StopHost kills the process), cancellation filtering, PeriodicTimer semantics, store-level idempotency vs TOCTOU, settings-channel parsing, LoggerMessage invariants. Produces numbered findings + severity + file:line."
 description: Use when reviewing .NET hosted/background services.
 version: 1.0.0
 ---
@@ -34,8 +35,7 @@ A worked review record (PR case study: finding shapes with evidence lines and th
 safety-claim table) is a useful companion when reviewing — keep the repo's own past
 review docs handy and cite the divergence explicitly.
 
-## Pitfalls
-
+## Gotchas
 - Don't rate a pre-existing TOCTOU as MUST-FIX when the identical pattern already exists on the synchronous tool path — SHOULD-FIX (low) + owner question is the honest severity.
 - `BackgroundServiceExceptionBehavior.StopHost` is the .NET default — verify the host config before claiming a faulted ExecuteAsync is contained.
 - One host per process (e.g. ServerSetup picks stdio-app-host OR web-host) means `AddHostedService` runs once per process — the multi-loop question is about processes sharing one bank, not hosts within a process.

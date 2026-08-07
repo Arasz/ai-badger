@@ -1,5 +1,6 @@
 ---
 name: parallel-expert-review
+description: "Use when reviewing code or plans with parallel architect+engineer subagents: PR review with architecture concerns, pre-refactor assessment, MoE plan review before implementation (ground-truth the plan FIRST — trust nothing in it), wave-gated dispatch, integrate findings, route owner questions through owner-gate."
 description: Review code with parallel architect+engineer subagents.
 ---
 
@@ -135,8 +136,7 @@ After the review is settled, produce a refactoring plan with:
 Follow the project's task skill for implementation: write failing tests first, implement,
 review, QA gate.
 
-## Pitfalls
-
+## Gotchas
 - **Worktree alignment**: `task_tracker.py start` may create the worktree from the wrong
   branch. After creation, verify with `git branch --show-current` and
   `git log --oneline -3`. Use `git fetch origin <branch> && git reset --hard origin/<branch>`
@@ -160,3 +160,7 @@ review, QA gate.
   substance; verify each claim at the merged commit independently.
 - **Subagent context**: Each subagent needs the worktree path, not the main checkout path.
   The worktree IS the review target.
+
+## References
+
+- `references/owner-gate-form-lifecycle.md` — generating and running the owner-gate decision form for MoE reviews.

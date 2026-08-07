@@ -1,5 +1,6 @@
 ---
 name: mcp-tool-surface-testing
+description: "Use when testing every tool an MCP server exports: black-box expectations-first audit (expectations → call → compare), live contract vs docs-drift findings, destructive-tool safety controls, dependency-ordered execution, and a results doc committed to the repo. Triggers: 'test all tools', 'does every MCP tool work', server surface changed."
 description: Use when testing all tools exported by an MCP server.
 ---
 
@@ -61,8 +62,7 @@ exploratory guessing.
 - If the repo runs the `task` skill: register the task with `--no-worktree` and follow
   the finish protocol (state.json entry, tracker finish).
 
-## Pitfalls
-
+## Gotchas
 - **Docs tables lag the live contract.** Verified on a real server: `memory_workspace_discard`
   documented as `{discarded}`, actual `{deleted}`; `memory_list` documented as a json
   tree, actual a stringified string; `memory_write` schema has params the docs table
@@ -107,3 +107,8 @@ a full surface test (21 tools, 35 calls, 33 PASS / 2 PARTIAL / 0 FAIL):
 results doc committed to the repo's work docs. The
 server-side quirks it uncovered live in the server's pitfalls skill — when a surface
 test turns up behaviours, fold them into the server's pitfalls skill.
+
+## References
+
+- `references/e2e-parity-test-recipe.md` — the expectations-first E2E parity test recipe.
+- `references/fix-loop-and-delete-scope-2026-08-06.md` — worked case: fixing a loop/delete-scope bug found by a surface test.

@@ -1,5 +1,6 @@
 ---
 name: dotnet-tool-publishing
+description: "Use when packaging or publishing a .NET CLI tool (PackAsTool) or library to NuGet: the MSB3030 build-before-pack trap (and its Web-SDK inversion), multi-RID matrix shells + the shell-race fix, gitignored bundled assets, Trusted Publishing/OIDC with human approval gates, the 409-published-nothing diagnosis, ToolCommandName/PATH shim rules, and full fresh-install verification for MCP tools with bundled models."
 description: Use when packaging or publishing a .NET CLI tool to NuGet.
 ---
 
@@ -7,8 +8,7 @@ description: Use when packaging or publishing a .NET CLI tool to NuGet.
 
 Use when: packing a `PackAsTool` dotnet tool, pushing it to NuGet (incl. Trusted
 Publishing), building the GitHub Actions publish workflow, or version-bumping a
-published tool. Reference implementation: `a reference PackAsTool project`
-(the reference project reference PackAsTool project, Cocona 2.2.0), published 1.1.0 via Trusted
+published tool. Reference implementation: the reference tool (Cocona 2.2.0), published 1.1.0 via Trusted
 Publishing 2026-08-05. Verified against the official NuGet Trusted Publishing
 docs the same day.
 
@@ -17,12 +17,12 @@ docs the same day.
 `dotnet pack` on a PackAsTool project FAILS on a clean checkout:
 
     Microsoft.NET.Publish.targets(372,5): error MSB3030: Could not copy the file
-    ".../bin/Release/net10.0/a reference PackAsTool project.deps.json" because it was not found
+    ".../bin/Release/net10.0/<tool>.deps.json" because it was not found
 
 The publish pass inside pack expects bin/Release outputs the implicit build does
 not produce. Reproduced: fresh clone + `dotnet pack -c Release` alone -> 4x MSB3030.
 A local worktree that already ran `dotnet build -c Release` masks the bug (pack
-then succeeds), which is why it only explodes in CI. a reference PackAsTool project's first
+then succeeds), which is why it only explodes in CI. the reference tool's first
 publish dispatch failed exactly this way.
 
 Fix — always build first, then pack with --no-build:
@@ -74,7 +74,7 @@ dispatch and fixed it in a follow-up commit.
 
 ## csproj essentials for a tool package
 
-- `<PackAsTool>true</PackAsTool>` + `<ToolCommandName>a reference PackAsTool project</ToolCommandName>`.
+- `<PackAsTool>true</PackAsTool>` + `<ToolCommandName><tool></ToolCommandName>`.
   **The ToolCommandName dispatch rule (verified 2026-08-05):** the shim a global
   tool install creates is named exactly `ToolCommandName`, and `dotnet <command>`
   resolves by looking for a shim literally named `dotnet-<command>` on PATH.
@@ -82,13 +82,13 @@ dispatch and fixed it in a follow-up commit.
   but the README-documented `dotnet ignore list` fails with "a dotnet-prefixed
   executable with this name could not be found on the PATH" (`dotnet mcp` works
   only because its shim is `dotnet-mcp`). Make ToolCommandName match the
-  documented invocation: `a reference PackAsTool project` (matches AssemblyName + package id).
-  a reference PackAsTool project shipped 1.1.0 with the broken `ignore` value; the 1.2.0 fix
+  documented invocation: `<tool>` (matches AssemblyName + package id).
+  the reference tool shipped 1.1.0 with the broken `ignore` value; the 1.2.0 fix
   renamed it and `dotnet ignore` worked — verify via pack -> install to a
   tool-path -> `dotnet ignore list`, not from a pre-existing global install
   (the old shim lingers there).
 - **The packed README must document the PATH requirement** (user-driven lesson
-  2026-08-05, PR #18 on a reference PackAsTool project): `dotnet <tool> <subcommand>` dispatches
+  2026-08-05, PR #18 on the reference tool): `dotnet <tool> <subcommand>` dispatches
   to a shim in `~/.dotnet/tools` (macOS/Linux) / `%USERPROFILE%\.dotnet\tools`
   (Windows), which must be on PATH. A README that jumps from
   `dotnet tool install -g <pkg>` straight to usage makes the FIRST command a
@@ -338,7 +338,7 @@ and WORKFLOW FILE NAME — the file name must match `.github/workflows/<file>`
 exactly (file name only, e.g. `publish.yml`). If the policy declares an
 `environment:`, the workflow must use that environment.
 
-**Environment-mismatch verification rule (verified 2026-08-05, a reference PackAsTool project):**
+**Environment-mismatch verification rule (verified 2026-08-05 on the reference tool):**
 the `NuGet/login@v1` failure names the expected environment —
 `Token exchange failed (HTTP 401) ... Environment mismatch for policy 'X':
 expected 'production', actual 'publish'`. Read the expected name from the live
@@ -458,8 +458,91 @@ for strings — the two-arg overload resolves to the `IEnumerable<char>` predica
 - **Static version = single-shot workflow** — see version-input note above; flag it as
   Medium for any publish workflow meant to be re-run.
 
+## Library packages (non-PackAsTool)
+
+Same Trusted Publishing mechanics, two differences:
+
+- No multi-RID matrix: one `dotnet pack -c Release` job suffices (multi-targeting via
+  `TargetFrameworks` inside the single nupkg).
+- The publish job can skip the fresh-install smoke (no tool shell to install); the
+  metadata checklist below still applies.
+
+## Workflow skeleton (verified)
+
+build.yml — on push/PR: checkout + setup-dotnet + `dotnet build` + fast tests only (`--filter "Speed=Fast"`); full suite moves to nightly.
+publish.yml — `workflow_dispatch` restricted to `branches: [main]`:
+- pack matrix, one job per RID:
+  1. `mkdir -p .nupkg-local` (nuget.config local-feed reference → NU1301 on fresh runner)
+  2. `dotnet build -c Release -p:RuntimeIdentifiers=${{ matrix.rid }}` — **build before pack** (packing an unbuilt multi-RID project fails MSB3030)
+  3. `dotnet pack ... --no-build -o artifacts`
+  4. upload-artifact
+- publish job: `needs: pack`, `environment: production`, `permissions: {contents: read, id-token: write}`, download-artifact, `NuGet/login@v1` (`user: <nuget username>`), push all nupkgs with `--api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate`.
+nightly.yml — cron + `workflow_dispatch`, `concurrency: {group: nightly, cancel-in-progress: false}`, full `dotnet test`. Scheduled runs are best-effort (GitHub can drop/delay them); document `gh workflow run nightly.yml` for re-arming.
+
+## Trigger choice: push to trunk, not pull_request (branch-policy trap)
+
+A `pull_request`-triggered run executes from the PR **merge ref**
+(`refs/pull/<n>/merge`). If the target environment has a branch policy, the run
+is rejected:
+
+```
+Branch "refs/pull/15/merge" is not allowed to deploy to production due to
+environment protection rules.
+```
+
+Fix: trigger on the trunk push — a merge to master IS a push, and the run's ref
+is `refs/heads/master`, which branch policies allow:
+
+```yaml
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+```
+
+Consequence: every push to trunk creates a pending run; the approval gate is the
+release control (approve, or ignore/cancel). Manual `workflow_dispatch` runs from
+the default branch ref and also passes branch policies.
+
+## Green publish run that published nothing (409 on every push)
+
+With `--skip-duplicate` on the push, EVERY 409 conflict becomes a no-op and the run
+still concludes **success** — a green run proves nothing was pushed. The push-step
+lines are the truth: `PUT ... 201 Created` = published, `Conflict ... already exists` =
+skipped. Always read them before telling anyone the release is live.
+
+Diagnosis when every push 409s for a version the read APIs can't see (full ladder in
+`references/push-409-invisible-package.md`):
+
+1. **Read-API sweep** — flat container `https://api.nuget.org/v3-flatcontainer/<id>/index.json`
+   (404 = no versions AT ALL, listed or unlisted), registration
+   `.../v3/registration5-gz-semver2/<id>/index.json` (XML BlobNotFound), search
+   `https://azuresearch-usnc.nuget.org/query?q=packageid:<id>&prerelease=true` (totalHits 0),
+   gallery page 404. All four invisible = the id exists nowhere public.
+2. **Control the queries** — query a known-live package owned by the SAME account
+   (e.g. a sibling tool). If it shows up in all four, your queries are sound AND the
+   account's OIDC publishing mechanism works — the problem is specific to this id/version.
+3. **Check earlier runs** — `gh run list --workflow publish.yml` + `gh run view <n> --log |
+   grep -E "Pushing|PUT http|Conflict|Created"`. An older run that ALSO all-conflicted on
+   an earlier version means the block predates the current bump; the login step saying
+   "Successfully exchanged OIDC token" rules out a policy problem.
+4. **Official docs rule out "deleted"** — nuget.org does NOT support permanent deletion,
+   only unlisting, and unlisted versions STAY in the flat container.
+
+## Metadata checklist (NuGet package-authoring best practices)
+
+- `PackageLicenseExpression` (SPDX/OSI-approved; match the repo LICENSE — missing license = legal default to exclusive copyright)
+- `Authors` = pretty name (NOT the username), `Copyright`
+- `PackageProjectUrl`, `RepositoryUrl` + `RepositoryType=git`
+- `PackageReadmeFile`, `PackageReleaseNotes` (URL link is acceptable)
+- `Description` = what it is; it is the first line of search results
+- `PackageTags` = **terms a user would type to find the tool — never internal features** (no observability/sync/encryption/implementation details). Space-delimited, <4000 chars.
+- Icon: optional (doc says CONSIDER); skip when no asset exists.
+
 ## See also
 
+- `references/push-409-invisible-package.md` — worked 409-everywhere diagnosis: the
+  four read-API probes, control queries, run-log archaeology, and the unlist-only rule.
 - `references/web-sdk-multirid-pack-reproduction.md` — measured A/B/C reproduction
   of the MSB3030 trap on Web-SDK multi-RID tools (build-then-pack vs single-pack)
   and the nested-pack recursion guard for AfterTargets local-deploy targets.
@@ -474,4 +557,6 @@ for strings — the two-arg overload resolves to the `IEnumerable<char>` predica
 - `references/global-tool-content-assets.md` — the 1.0.4 case: gitignored
   pack globs shipping nothing on fresh runners, installed .store layout, native-shim
   lsof diagnosis, manual provisioning without reinstall, live MCP verification.
-- `dotnet-cli-parsing` — Cocona/System.CommandLine error handling and exit codes.
+- `dotnet-system-commandline` — Cocona/System.CommandLine error handling and exit codes.
+- `references/package-id-migration.md` — migrating an installed tool's package id (tool command name, store paths, fresh-install impact).
+- `references/release-tags-version-content.md` — release tags vs version content: which tags carry which versions, and the version-content contract.

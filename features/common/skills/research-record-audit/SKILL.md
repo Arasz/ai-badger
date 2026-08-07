@@ -1,5 +1,6 @@
 ---
 name: research-record-audit
+description: "Use when auditing a research record's factual accuracy, citation truth, or grade correctness: adversarially re-derive every load-bearing claim from cited sources, verify quotes verbatim at cited lines, re-run MEASURED claims, audit grade honesty (INFERRED hedged, UNVERIFIED plain), check negative claims for prune/retention explanations, and report ACCURATE/CORRECTED/OVERCLAIMED."
 description: Use when auditing a research record's factual accuracy, citation truth, or grade correctness.
 ---
 
@@ -81,7 +82,7 @@ not in re-reading the prose twice.
 - `hermes insights --days N` → Platforms table has a `subagent` row (per-dispatch spend
   aggregation). Numbers differ run-to-run; treat as snapshot.
 
-## Pitfalls (learned the hard way)
+## Gotchas (learned the hard way)
 - **Quotes survive; summary parentheticals drift.** In the motivating audit, every quoted
   line was verbatim-correct while the record's parenthetical "(subagentTokens 0 except
   one manual 85000 entry)" was wrong — the file had TWO manual entries (85000 + 90000,

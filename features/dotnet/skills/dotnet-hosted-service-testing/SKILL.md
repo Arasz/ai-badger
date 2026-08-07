@@ -1,5 +1,6 @@
 ---
 name: dotnet-hosted-service-testing
+description: "Use when writing or reviewing .NET BackgroundService tests with FakeTimeProvider/TimeProvider: lost-first-Advance semantics, inline-vs-threadpool timer callbacks, poll-loop test honesty (invocation counters, not side-effect counts), tick derivation from timeouts, DI registration smoke tests, vacuous-gate detection. Verified on .NET 10; includes an empirical probe script."
 description: Write or review BackgroundService/FakeTimeProvider tests.
 ---
 
@@ -36,3 +37,10 @@ description: Write or review BackgroundService/FakeTimeProvider tests.
 
 ## Empirical probe pattern
 When timing semantics are in doubt, run `scripts/probe-faketime.sh` (scratch console app outside the repo) — it prints thread ids and counters around `StartAsync`/`Advance` and settles inline-vs-threadpool and lost-advance questions in ~2 minutes. Details and measured outputs: `references/faketime-semantics.md`.
+
+## References
+
+- `references/faketime-semantics.md` — measured FakeTimeProvider semantics (lost-first Advance, inline-vs-threadpool).
+- `references/di-registration-triple.md` — DI registration smoke tests: the three registrations a hosted service needs (service, options, hosted) and how to pin them.
+- `references/real-time-smoke-deadline-trap.md` — the latent flake mode in real-time smoke tests for deadline services (idle watchdog case).
+- `references/watchdog-e2e-tick-cadence-and-di-signaling.md` — PeriodicTimer tick cadence pinning + DI signaling in watchdog E2E tests.

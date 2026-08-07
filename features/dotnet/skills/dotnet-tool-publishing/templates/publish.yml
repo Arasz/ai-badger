@@ -1,4 +1,4 @@
-# NuGet Trusted Publishing workflow — known-good template (a reference PackAsTool project, 2026-08-05).
+# NuGet Trusted Publishing workflow — known-good template (reference tool, 2026-08-05).
 # Policy on nuget.org binds to this file name (publish.yml) — rename the file and
 # the policy together. The Build step MUST precede Pack (PackAsTool MSB3030 trap).
 name: publish

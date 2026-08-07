@@ -1,11 +1,6 @@
 ---
 name: spec-driven-refactoring
-description: >-
-  Structured workflow for large refactors: write a spec, run two review gates
-  (pre-implementation consistency + post-implementation quality), then implement
-  against the spec. Use when the user says "refactor", "migrate", "rename across
-  the codebase", or when the change touches 5+ files across schemas, scripts,
-  tests, and docs simultaneously.
+description: "Use when the user says 'refactor', 'migrate', or 'rename across the codebase', or a change touches 5+ files across schemas, scripts, tests, and docs: write a spec, run two review gates (pre-implementation consistency + post-implementation quality), then implement against it. Covers schema migrations, concept renames, structural reorganizations."
 ---
 
 # Spec-Driven Refactoring
@@ -136,8 +131,7 @@ Explicit checks the quality review sub-agent should run:
 - **Dead code from removed features** — after removing a feature, search for deprecated functions, branches, and references. `grep -r "old_feature" scripts/ tests/` catches what IDE cleanup misses.
 - **Scaffold version propagation** — after re-scaffold, does the config's frameworkVersion update? If not, the next drift detection will re-scaffold unnecessarily.
 
-## Pitfalls
-
+## Gotchas
 - **`execute_code`/`read_file` sandbox may show pre-seeded content, not real files.** When
   reviewing a refactoring on a feature branch, the sandbox environment may be populated with
   mock data for the *target* state rather than reflecting the actual filesystem. You can build
@@ -247,3 +241,7 @@ DDD/.NET projects.
 
 For large refactors (8+ phases), split into independently-mergeable PRs. See
 `references/multi-sequential-pr-pattern.md` for the full workflow.
+
+## References
+
+- `references/plugin-to-skills-migration.md` — worked case: migrating a plugin layout to per-stack skills.

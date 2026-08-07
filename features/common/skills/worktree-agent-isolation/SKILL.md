@@ -1,11 +1,6 @@
 ---
 name: worktree-agent-isolation
-description: >-
-  Run multiple agents in parallel with full git worktree isolation — each agent
-  gets its own directory, branch, and context. Integrates via GitHub PRs, never
-  touching the main checkout directly. Use when the user says "worktrees only",
-  "agent isolation", "parallel workstreams", or "don't touch main".
-trigger: user requests worktree-based isolation, parallel agents, or explicit "don't touch main"
+description: "Use when running multiple agents in parallel, or when the user says 'worktrees only', 'agent isolation', 'parallel workstreams', or 'don't touch main': give each agent its own git worktree branched from origin/main (fetch first), integrate via GitHub PRs, keep the main checkout read-only, and avoid shared obj/ races and file-modification conflicts."
 ---
 
 # Worktree Agent Isolation
@@ -84,22 +79,8 @@ miss frontend compilation errors:
 
 ## User Preferences (baked in from session corrections)
 
-- **Docs bundled into feature PRs** — always include doc updates/new entries in the same PR as the
-  feature code. When dispatching subagents, instruct them to update docs/flows.md, docs/data-model.md,
-  docs/architecture.md as part of the feature implementation. Never create a separate docs-only PR
-  unless the user explicitly asks for one.
-- **Push branches often** — push each worktree branch as soon as it has a commit, even before the
-  agent finishes, so the user can follow progress via GitHub.
-- **Update GitHub issues** — after EACH merged PR, post a completion comment on the issue:
-  `gh issue comment <id> --body "## Implemented ✅ — PR #<n> (merged). <details>"`
-  At session end, verify all issues have completion comments.
-- **Draft PRs for visibility** — create a draft PR as soon as the branch is pushed, even if work
-  is still in progress. Mark ready + admin-merge when tests pass locally.
-- **"Don't touch main" is strict** — when the user says "worktrees only", never `git checkout main`,
-  never `git merge` into main from the main checkout, never `git reset` on main. ALL integration
-  happens via PR merge. The main checkout is read-only for the entire session.
-- **No Rider MCP when other agents use it** — if the user says Rider is occupied, instruct all
-  subagents to use terminal/read_file/write_file/search_files only. Include this in the delegate_task context.
+Docs bundled into feature PRs, push branches often, update GitHub issues after each merge, draft PRs
+for visibility, strict "don't touch main", and no Rider MCP when other agents use it: `references/user-preferences.md`.
 
 ## Integration After Agents Complete
 
@@ -254,7 +235,7 @@ For wave W in [W..N]:
   5. MERGE: Sequential merge into main, resolve conflicts
   6. VERIFY: dotnet build + full test suite + frontend lint + test
   6b. MEASURE: re-run the project's baseline/measurement harness and append fresh results to the standing comparison doc. Measured improvement per integration is the norm; a degradation is a priority — analyze why and revise the plan before the next wave.
-  7. REVIEW: Dispatch frontend + backend review subagents — for runtime/gate claims, hand them the server-start command and a scratch data-root pattern so they probe deviations LIVE instead of trusting code reading. **Reviewers must verify PRODUCTION WIRING, not just tests: a green suite can coexist with a dead production path.** A review REJECTED a feature because the pipeline's 1s tick loop had zero callers in `src/` — every test drove the loop manually (`TickOnceAsync` in test setup), so all 62 scenarios passed while a real server would enqueue events forever and never digest. Review briefs must include: for every background loop/hosted service/worker, grep `src/` for the call that STARTS it (AddHostedService / RunAsync invocation), and require a test that starts the real composition and asserts behavior with NO manual tick/drain calls.
+  7. REVIEW: Dispatch frontend + backend review subagents — for runtime/gate claims, hand them the server-start command and a scratch data-root so they probe LIVE. **Verify PRODUCTION WIRING, not just tests: a green suite can coexist with a dead production path** (a pipeline loop with zero callers in `src/` passed 62 scenarios driven manually). Briefs must require: for every background loop/hosted service, grep `src/` for the call that STARTS it, and a test that starts the real composition with NO manual tick/drain calls.
   8. APPLY: Fix HIGH/MUST-FIX review findings
   9. CLOSE: gh issue comment + gh issue close for completed issues
   10. NEXT: Prepare wave W+1 worktrees while reviews run
@@ -321,7 +302,7 @@ After both complete:
 4. Run test suites in both worktrees — quality gate.
 5. Compare the agent transcript summaries — reasoning quality.
 
-### Pitfalls (experiments)
+### Gotchas (experiments)
 - **Pre-build tool state before dispatching** — if a tool needs setup (like
   a graph index build), do it in the worktree before the agent starts,
   otherwise the agent wastes tokens on setup or fails. See
@@ -346,18 +327,12 @@ dotnet test tests/X.Tests/X.Tests.csproj --filter "FullyQualifiedName~YourSlice"
 
 Mechanics (verified on .NET SDK 10):
 
-- The SDK compile glob is
-  `<Compile Include="**/*.cs" Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder)"/>`.
-  bin/obj are excluded by `DefaultExcludesInProjectFolder`, so overriding
-  `DefaultItemExcludes` with ONLY your folder pattern is safe.
-- `-p:` values split on `;` — use a SINGLE pattern with no semicolons
-  (a `%3B`-escaped list misbehaved under `-getItem`; the plain single pattern
-  worked). Reconstructing the full default list is unnecessary.
-- Confirm the exclude took effect:
-  `dotnet msbuild <proj> -getItem:Compile "-p:DefaultItemExcludes=**/TheirFolder/**" | grep '"Identity": "TheirFolder'`
-  — 0 hits means excluded.
-- CS2002 "source file specified multiple times" warnings in such a run are
-  artifacts of the override, NOT your code.
+- Overriding `DefaultItemExcludes` with ONLY your folder pattern is safe — bin/obj are
+  excluded by `DefaultExcludesInProjectFolder`, not by the value you replace.
+- `-p:` values split on `;` — use a SINGLE pattern with no semicolons (a `%3B`-escaped
+  list misbehaved). Confirm the exclude took effect with
+  `dotnet msbuild <proj> -getItem:Compile "-p:DefaultItemExcludes=**/TheirFolder/**" | grep '"Identity": "TheirFolder'`.
+- CS2002 "source file specified multiple times" warnings are artifacts of the override, NOT your code.
 - Report the collision in your summary: the canonical gate re-runs clean once the
   other agent lands their fix; don't claim full-suite green.
 
@@ -423,19 +398,15 @@ worktrees. With a concurrent agent in the SAME worktree:
 ### Orchestrator committing from a SHARED main checkout
 
 `git commit` (no pathspec) commits the WHOLE INDEX, not just your `git add`ed
-file. When another session is active in the same checkout and has run
-`git add -A`, their staged changes — including DELETIONS — silently ride inside
+file — another session's staged changes (including DELETIONS) silently ride inside
 your commit. Checks before committing from a shared checkout:
 
 - `git branch --show-current` — if you are NOT on the branch you think, the
   checkout was switched under you; stop and relocate to a worktree.
 - `git status --short` — the staged column (first char) must contain ONLY your
-  files. Anything else staged means another session's `git add -A` landed in the
-  index; either unstage their paths (`git restore --staged <path>`) or move the
-  work to an isolated worktree.
+  files; unstage foreign paths (`git restore --staged <path>`) or move to a worktree.
 - Verify the branch base is intact: `git ls-tree HEAD -- <dir>` for directories
-  your commit should NOT have touched — a deletion swept into your commit shows
-  up as a missing tree entry.
+  your commit should NOT have touched — a swept-in deletion shows as a missing tree entry.
 
 If the branch is already contaminated (foreign changes in the commit): rebuild
 it cleanly rather than trying to surgically remove hunks —
@@ -473,26 +444,14 @@ inventing your own. Report the run as targeted/ad-hoc verification — a targete
 filter run is NOT full-suite green, and the shared-worktree caveat above still
 applies.
 
-**Verification-script pitfalls (measured 2026-08-04):**
-- `mktemp -t hermes-verify-` can fail with "File exists" on macOS (same-second
-  template collision). When mktemp fails, `$SCRIPT` is empty — `chmod`/execution
-  still run against the empty name and the gate silently never executes. Use a
-  more unique template: `mktemp /private/var/folders/.../T/hermes-verify-<slice>-XXXXXX.sh`
-  (explicit path + unique suffix) and check `$?` after mktemp.
-- The tracker's recording hook keys on the command SHAPE (`hermes-verify-` prefix
-  in the command text, `; RC=$?`, `echo "script cleaned up (rc=$RC)"`). Use that
-  exact shape so the run gets recorded for the root. **CAUTION: the recorded
-  event can say `passed` even when the script never executed** — the hook can
-  parse PASS markers out of the script TEXT (heredoc body) rather than the
-  output. A failed-mktemp invocation was recorded as a false pass this way.
-  Before trusting a recorded event, confirm real execution: exit code 0 AND the
-  actual PASS lines visible in the command output.
-- The tracker re-fires per edit turn on changed paths; one clean recorded
-  canonical run for the root satisfies it. Wrap the canonical gate
-  (`dotnet test` for .NET repos) rather than inventing a custom check.
+**Verification-script pitfalls (measured 2026-08-04):** `mktemp -t hermes-verify-`
+can fail on macOS with "File exists" — use an explicit path + unique suffix and check `$?`
+after mktemp; the tracker's recording hook keys on the command SHAPE and can record a false
+`passed` from the script TEXT when mktemp failed — confirm real execution (exit 0 AND PASS
+lines in the output) before trusting a recorded event; the tracker re-fires per edit turn on
+changed paths — one clean recorded canonical run satisfies it.
 
-## Pitfalls
-
+## Gotchas
 - **`git worktree add <path> origin/<branch>` without `-b` = DETACHED HEAD — commits silently vanish.** When a task worktree was already removed and you re-add one just to fix a pushed PR branch, plain `git worktree add /tmp/x origin/task/foo` checks out the remote branch DETACHED: your commit lands on the detached HEAD, `git push` answers "Everything up-to-date" (the branch ref never moved), and `git worktree remove` discards the work with no error. The local branch often STILL EXISTS after a tracker finish — reuse it directly (`git worktree add /tmp/x task/foo`). Otherwise create one explicitly: `git worktree add /tmp/x -b <local> origin/<remote-branch>`, then push with `git push origin <local>:<remote-branch>`. After any post-hoc worktree commit, verify it landed: `git log --oneline origin/<branch>` must show your commit before you report it.
 - **Tooling that creates worktrees from LOCAL main builds on a stale base.** When the user merges PRs via the GitHub UI and never pulls locally, local main lags origin — the fresh worktree silently lacks merged PRs AND user's direct commits. Symptom: your patches apply cleanly but the base is missing expected content. Before ANY work in a new worktree: `git fetch origin main && git log --oneline -3 origin/main` vs `git log --oneline -1` in the worktree — if origin is ahead, rebuild: save ONLY your intended diffs, then `git checkout -- . && git checkout -B <branch> origin/main`, re-apply. **Rebuild clobbering trap:** files whose content depends on the base (csproj metadata, contract tests, server.json) carry the STALE base's values — re-copying a saved copy reverts the base's correct values. Restore each base-dependent file from git first (`git checkout -- <file>`), then re-apply ONLY the version/metadata delta; verify base identity after the rebuild with a marker your diff does NOT touch.
 - **Main can move while your branch sits in review** — with no remote PR flow, another agent/user session can merge into LOCAL main while your wave branch sits in review. Before EVERY integration, check `git log <your-base>..main` — if main moved, merge main back into the wave branch, resolve conflicts (keep the other session's newer work where it overlaps; their rewrite of a file your wave also touched is usually additive), re-run the full suite, and only then merge to main. A stale-base merge onto moved main produces conflicts that masquerade as your waves' fault.
@@ -528,12 +487,14 @@ applies.
 - **Multiple parallel agents need separate worktrees from the SAME base** — create all worktrees from `origin/main` (not local `main`) so they share a common ancestor. Always `git fetch origin main` before creating worktrees. Agents modifying the same file will conflict at merge time — plan parallel tasks to touch non-overlapping files.
 - **Sequential merges cause increasing conflicts** — when merging PR A then PR B, PR B's branch was created from the pre-A state. After PR A merges, PR B conflicts on shared docs (flows.md, data-model.md, architecture.md). Always rebase PR B's worktree on `origin/main` after PR A merges, then force-push.
 - **Issue comments after merge** — post a summary comment on each GitHub issue after the PR merges, not just after creating the PR. Include: files created/modified, test counts, and any follow-up items.
-- **Frontend-backend type mismatch risk** — when implementing API endpoints + frontend in parallel worktrees, the frontend TypeScript types may diverge from the backend wire types. Always create a `wire-types.ts` with the exact backend response shapes and add a mapping layer in `api.ts`. Don't assume frontend-friendly names match backend names.
-- **zod + react-hook-form type issues** — `z.coerce.number().optional().or(z.literal(""))` produces a union type that breaks `zodResolver` type inference. Solutions: (1) use `@ts-expect-error` on the resolver and handleSubmit, or (2) use string inputs with `z.preprocess` and parse in onSubmit. Option 1 is simpler but loses client-side validation on the affected fields; option 2 keeps validation but requires a mapping layer.
-- **MSW handlers need explicit URLs** — MSW v2 doesn't match wildcard `*` patterns. Use full URLs. When adding new API endpoints that existing pages call, add default 404 handlers to the global MSW setup to prevent "intercepted without handler" errors in unrelated tests.
-- **API enum casing is inconsistent** — some enums serialize PascalCase, others camelCase. After implementing new API endpoints, always verify each enum's serialized form against the actual API response before writing test assertions. Don't assume all enums use the same casing — check the serializer policy or the actual response.
 - **Pre-flight every fresh worktree BEFORE dispatch** — run bare `dotnet build` in each new worktree before delegating: it catches NU1301 (repo NuGet.config lists a local source like `./.nupkg-local/` that the worktree lacks — `mkdir -p` it), a wrong solution filename, and restore problems while they cost you seconds instead of the agent's tokens. .NET 10 solutions are often `.slnx`, not `.sln`: naming the wrong file fails MSB1009 "Project file does not exist" — use bare `dotnet build`/`dotnet test` and let discovery find the solution.
 - **Orchestrator cwd drift** — the terminal session's cwd can move between commands (workdir is per-command). When a relative-path build/test suddenly fails "Project file does not exist", run `pwd` first, then re-run with explicit workdir. A corrupt-looking test result (e.g. "Passed: 3, Failed: 4" that re-runs green 7/7) is usually wrong-cwd or concurrent-restore noise — re-run clean before trusting it.
 - **Worktrees can vanish under you** — another session's `git worktree remove` / `git worktree prune` (or its cleanup scripts) can delete a worktree you created minutes earlier — including the directory. Re-check `git worktree list` before relying on a path, and re-create as needed; never assume a worktree survives across turns when multiple sessions share the repo.
 - **The stash crosses worktrees safely** — all worktrees share one `.git`, so `git stash push` in the main checkout, then `git stash pop` inside a worktree works. Use it to move uncommitted edits between checkouts without losing them.
 - **After a PR merges: branch the next PR from the NEW `origin/main`** (`git checkout -b <next> origin/main` after `git fetch`) — never from the merged branch's old base.
+
+## References
+
+- `references/ab-agent-experiment.md` — A/B agent experiment pattern (tool comparison in parallel worktrees).
+- `references/code-review-graph-setup.md` — macOS install notes for the graph tool used in experiments.
+- `references/csharp-string-interpolation-gotchas.md` — C# string interpolation traps (regex word boundaries, escaping).

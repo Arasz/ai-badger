@@ -1,6 +1,6 @@
 # Pure Domain Project Scaffolding (.NET)
 
-How to add a new pure-domain class library to an existing .NET solution, TDD-first, without touching other layers. Validated in the project agent-memory worktree (`src/the project.Core`, net10.0, xunit.v3 + Shouldly, TreatWarningsAsErrors repo).
+How to add a new pure-domain class library to an existing .NET solution, TDD-first, without touching other layers. Validated in the project agent-memory worktree (`src/<Proj>.Core`, net10.0, xunit.v3 + Shouldly, TreatWarningsAsErrors repo).
 
 ## Project shape
 
@@ -37,7 +37,7 @@ Records that must reject input at construction use an explicit constructor + get
 ## TDD red phase for a brand-new namespace
 
 1. Write ALL test files + csproj + solution wiring first.
-2. `dotnet test` → every file fails with the same `CS0234: type or namespace 'the project.Core' does not exist` — that is legitimate red; no stubs needed (nothing is masked, the error IS "feature missing").
+2. `dotnet test` → every file fails with the same `CS0234: type or namespace '<Proj>.Core' does not exist` — that is legitimate red; no stubs needed (nothing is masked, the error IS "feature missing").
 3. Implement all domain types.
 4. `dotnet build` → must show `0 Warning(s)` (TreatWarningsAsErrors — a warning IS a failure).
 5. `dotnet test` → all green. Note the runner counts theory cases individually (6 `[InlineData]` rows = 6 tests), so a "54 new tests" report means counting cases, not `[Fact]` blocks.

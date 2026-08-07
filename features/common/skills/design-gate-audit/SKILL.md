@@ -1,5 +1,6 @@
 ---
 name: design-gate-audit
+description: "Use when auditing a design doc's acceptance gates BEFORE implementation: check every gate would fail if the feature were broken (HONEST) and the named test file/framework/seam exists (FEASIBLE). Attacks vacuous negatives, timing-window vacuity, port races, env poisoning, unprovable real-time halves. Pairs with dotnet-hosted-service-testing for FakeTimeProvider mechanics."
 description: Audit design-doc acceptance gates for honesty/feasibility.
 ---
 
@@ -36,8 +37,11 @@ Auditing a design doc's acceptance criteria BEFORE implementation, so gates cann
 4. TDD order per work package with corrections (RED test first per gate; mark which tests are RED now vs after the WP).
 5. Missed test cases the table doesn't cover.
 
-## Pitfalls
-
+## Gotchas
 - Rate gate-honesty bugs as MUST-FIX even when the fix is a design-doc edit — the doc is the build contract; an unsatisfiable or vacuous gate certifies broken behavior.
 - `JsonDocument` deep-equal IS property-order-insensitive for objects (fine for single-object golden docs) — don't invent an order problem.
 - Verify the "no churn" claim substance: `record` positional params with a defaulted 4th arg keep 3-arg call sites compiling, but reword "direct constructions" to "positional constructions" if the grep shows only target-typed `new(...)`.
+
+## References
+
+- `references/http-serve-gate-audit-2026-08-06.md` — worked example: auditing an HTTP serve-mode design's 13 acceptance gates before implementation.

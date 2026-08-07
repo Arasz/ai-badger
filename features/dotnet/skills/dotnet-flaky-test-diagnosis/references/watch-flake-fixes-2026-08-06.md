@@ -1,4 +1,4 @@
-# the project watch-flake fixes — 2026-08-06
+# the tool watch-flake fixes — 2026-08-06
 
 Two watch tests cost repeated full-suite re-runs (~3 min each). Both diagnosed to a
 distinct root cause and fixed. This is the concrete transcript behind the

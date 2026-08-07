@@ -1,5 +1,6 @@
 ---
 name: sqlite-schema-review
+description: "Use when reviewing SQLite schema/migration changes: DDL, on-open migrations, unique indexes, insert-path dedup, ON CONFLICT DO NOTHING scope, last_insert_rowid staleness, trigger fire-time failures, UNIQUE-index NULL semantics. Core rule: verify every semantics claim against a scratch DB — never the plan, PR, or docs."
 description: Review SQLite schema/migration changes.
 version: 1.0.0
 ---

@@ -1,7 +1,6 @@
 ---
 name: pre-push-gate-debugging
-description: >-
-  Use when a pre-push gate blocks a push or a lane fails.
+description: "Use when a pre-push quality gate blocks git push or a lane fails: read the gate's own logs first (reproduce one lane), run single lanes for fast iteration, test the working tree you intend to push, handle E2E/infra cross-run state contamination, worktree node_modules gotchas, and build a manual repro harness when lane output hides the real error."
 ---
 
 # Pre-push verification gate debugging
@@ -57,8 +56,7 @@ log layout, repro steps) as this skill's reference when one exists.
 7. **Auto-repair**: some gates try to regenerate drifted artefacts (baseline.json, index.json)
    before failing. If repair "declined", the cause is NOT drift — read the lane log.
 
-## Pitfalls
-
+## Gotchas
 - **A push can LOOK hung while the pre-push hook is simply running.** `git push 2>&1 | tail` buffers everything, so the lefthook banner (`🥊 lefthook ... hook: pre-push`) never shows and the full gate (which can take 5+ minutes) looks like a network stall — zero output, no timeout. Diagnose by re-running the push UNPIPED or in background and reading the first lines: a banner means the gate is working, not hanging. If the user has said "skip gates" / "just push", `git push --no-verify` is the sanctioned bypass and returns instantly — do not keep waiting on a gate the user already waived.
 - `full` vs `limited` mode changes which lanes run; limited skips infra/e2e and prints that
   coverage is still owed. Unset `VERIFY_MODE` for the real gate.

@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.85.0",
-  "frameworkCommit": "81303b901752a1494ab72a9173464d6905214d35",
+  "frameworkCommit": "1a301b6f9034a7ba1bacb0c42d2194062350ff47",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -767,30 +767,12 @@
       "source": "features/hermes/skills/cron-watchdog-authoring",
       "target": ".ai-badger/skills/cron-watchdog-authoring",
       "frameworkVersion": "0.85.0",
-      "hash": "ae05d3992353239ccbc9d581f19a5ef46029e1af2f6716aa4d492aaa46f379df",
+      "hash": "64d639f3e78e77e9ecfdfd24d125f06b42b2827a2c3f396533bb7d060b6acb78",
       "dirMeta": {
         "file_count": 1,
         "dir_count": 0
       },
-      "sourceHash": "ae05d3992353239ccbc9d581f19a5ef46029e1af2f6716aa4d492aaa46f379df",
-      "sourceMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      }
-    },
-    {
-      "feature": "skills",
-      "stack": "hermes",
-      "name": "hermes-memory-provider-development",
-      "source": "features/hermes/skills/hermes-memory-provider-development",
-      "target": ".ai-badger/skills/hermes-memory-provider-development",
-      "frameworkVersion": "0.85.0",
-      "hash": "acf6dec20b73251908476c59547d641a3652c92b4a877b1c0fdd96d1b9716d98",
-      "dirMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "sourceHash": "acf6dec20b73251908476c59547d641a3652c92b4a877b1c0fdd96d1b9716d98",
+      "sourceHash": "64d639f3e78e77e9ecfdfd24d125f06b42b2827a2c3f396533bb7d060b6acb78",
       "sourceMeta": {
         "file_count": 1,
         "dir_count": 0
@@ -803,12 +785,12 @@
       "source": "features/hermes/skills/hermes-plugin-development",
       "target": ".ai-badger/skills/hermes-plugin-development",
       "frameworkVersion": "0.85.0",
-      "hash": "541905a1d042dbff09fed539eb64d0d449aeb844a9768551fafef0c87aeafc95",
+      "hash": "b6655b2659c78ba5a9578422a86a3406c30adb54461a869b423dac49e52361b1",
       "dirMeta": {
         "file_count": 3,
         "dir_count": 1
       },
-      "sourceHash": "541905a1d042dbff09fed539eb64d0d449aeb844a9768551fafef0c87aeafc95",
+      "sourceHash": "b6655b2659c78ba5a9578422a86a3406c30adb54461a869b423dac49e52361b1",
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 1

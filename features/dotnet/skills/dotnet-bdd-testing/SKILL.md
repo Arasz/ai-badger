@@ -1,5 +1,6 @@
 ---
 name: dotnet-bdd-testing
+description: "Use when adding Gherkin .feature files / a BDD runner to a .NET project: Reqnroll is the only live option (SpecFlow is EOL — never recommend it), xunit.v3 + CPM integration, tags/@ignore/Skip and Rule: blocks, or un-ignoring dormant scenarios. Includes the build-time code-behind recipe, feature-file overlap policy, and verified package facts."
 description: Use when adding a Gherkin/.feature runner to a .NET project.
 version: 1.0.0
 author: hermes-curator
@@ -110,7 +111,7 @@ newer implementation file, both live in the same suite):
   scenarios whose fallback shipped are the honest keepers (consistent with the sibling
   file's treatment of its own unbuilt Part-2 scenarios).
 
-## Pitfalls
+## Gotchas
 - **Filtering generated tests (verified 2026-08-05, Reqnroll.xunit.v3):** the
   generated test NAMES are the scenario display texts, so `--filter
   "FullyQualifiedName~<StepsClass>"` (or `Name~<scenario>`) matches NOTHING and

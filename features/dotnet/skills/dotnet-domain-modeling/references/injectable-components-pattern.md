@@ -54,7 +54,7 @@ public interface the encryption command interface
         TextWriter stderr, CancellationToken ct);
 }
 
-internal sealed class the encryption commands : the encryption command interface
+internal sealed class EncryptionCommands : IEncryptionCommands
 {
     private readonly SqliteConnectionFactory _bank;
     private readonly ICliSecretManager _bws;
@@ -62,12 +62,12 @@ internal sealed class the encryption commands : the encryption command interface
     private readonly IEncryptionState _encryptionState;
     private readonly ILogger _logger;
 
-    public the encryption commands(
+    public EncryptionCommands(
         SqliteConnectionFactory bank,
         ICliSecretManager bws,
         IEncryptionKeyProvider env,
         IEncryptionState encryptionState,
-        ILogger<the encryption commands> logger)
+        ILogger<EncryptionCommands> logger)
     {
         _bank = bank;
         _bws = bws;
@@ -102,7 +102,7 @@ state, or coordinate I/O. It does NOT apply to:
 
 ## Migration priority
 
-1. Command/verb handlers (e.g., `the config dispatcher`, `the encryption commands`) — highest priority,
+1. Command/verb handlers (e.g., `the config dispatcher`, `EncryptionCommands`) — highest priority,
    these have the most dependencies threaded through parameters
 2. CLI infrastructure (`CliArgs`, `CliRendering`) — parsing and rendering logic
 3. Composition roots (`ConfigVerbRunner`) — thin wrapper that becomes an injectable orchestrator

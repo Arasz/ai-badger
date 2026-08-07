@@ -1,5 +1,6 @@
 ---
-name: dotnet-cli-parsing
+name: dotnet-system-commandline
+description: "Use when adding CLI argument parsing to a .NET app or dotnet tool: System.CommandLine 2.0.x GA idioms (parse-first, HelpAction/VersionOptionAction detection, Option.Validators, FromAmong), parser-landscape verdicts (Cocona archived — don't adopt), and the stdio-MCP trap where help/version must render to stderr. Includes Cocona-maintenance guidance for existing tools."
 description: Use when adding CLI argument parsing to a .NET app.
 ---
 
@@ -20,7 +21,7 @@ the repo's CLI-args design doc (`docs/plans/cli-args-parsing.md`).
 | McMaster.Extensions.CommandLineUtils | maintained, minimal | third-party, thinner than the official parser |
 | hand-rolled | — | rejected wherever 'official NuGet over hand-rolled' applies |
 
-## Maintaining an existing Cocona tool (verified 2026-08-05, a reference PackAsTool project)
+## Maintaining an existing Cocona tool (verified 2026-08-05, the reference tool)
 
 Cocona is archived — don't adopt it for new work — but tools already built on it
 need these behaviors (Cocona 2.2.0, observed on a real CLI):
@@ -289,3 +290,11 @@ When web_extract is unavailable (search-only backend), gather package/repo facts
 versions via the NuGet flatcontainer API, metadata via the catalog, repo status via the
 GitHub API, behavior from raw source. Exact recipe + verified 2026-08 facts with citations:
 `references/nuget-evidence-research.md`.
+
+## References
+
+- `references/system-commandline-2.0.10-ga-api.md` — System.CommandLine 2.0.10 GA API surface notes.
+- `references/system-commandline-2.0.10-option-validation.md` — Option.Validators and validation ordering.
+- `references/system-commandline-2.0.10-subcommand-options.md` — subcommand option scoping and parse results.
+- `references/system-commandline-bool-flags-and-prescan.md` — bool-flag parsing traps and the pre-scan pattern for help/version detection.
+- `references/nuget-evidence-research.md` — NuGet package/API facts without docs: flatcontainer, catalog, raw source.

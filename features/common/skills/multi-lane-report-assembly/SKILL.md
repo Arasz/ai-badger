@@ -1,7 +1,6 @@
 ---
 name: multi-lane-report-assembly
-description: >-
-  Use when assembling parallel lane outputs into one record.
+description: "Use when assembling outputs from 2+ parallel research/review lanes into one evidence-graded record: lift finding blocks verbatim from the authoritative full summaries (never the truncated delegation transcripts), enforce the lane contract (### F# — claim [GRADE], Evidence line), truncate at embedded '## Still open' headers, renumber, and gate the result."
 ---
 
 # Multi-lane report assembly
@@ -97,8 +96,7 @@ When the work ships as one PR per wave and merges are squash merges, see
 `references/wave-pr-hygiene.md` — branch rebasing, draft-gating on owner-side
 prerequisites, and the gh CLI quirks that look like failures but aren't.
 
-## Pitfalls
-
+## Gotchas
 - **Trust the renderer's count, not the markdown.** A truncated capture still
   renders "fine" for the part it saw. Check the provenance chart's total.
 - **Consolidation ≠ summarization.** Merge by quoting the lane evidence lines,

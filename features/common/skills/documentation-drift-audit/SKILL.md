@@ -1,5 +1,6 @@
 ---
 name: documentation-drift-audit
+description: "Use when auditing docs for drift vs code ('audit and fix documentation drift'): inventory claims with path:line, verify each against real files (scaffolders, manifests, hooks), classify verifiably-false vs design-position vs ambiguous vs historical, fix only the false, and report A/B/C. Also for post-merge doc-gap audits and user-facing doc compaction rewrites."
 description: "Use when auditing docs for drift vs code; verify then fix."
 ---
 
@@ -344,5 +345,5 @@ substance untouched.
   be absent from scaffolded projects (scaffold-time PATH gate, tool command renames
   between versions, `den-refresh --force` when versions match, `.mcp.json` gitignored,
   `.github/mcp.json` #193 dedup), plus the Hermes `~/.hermes/config.yaml` route
-  (`hermes mcp add`; adjust is proposal-only), the project port-5000 single-instance
+  (`hermes mcp add`; adjust is proposal-only), a port-5000 single-instance
   bind, and the JSON-RPC stdio probe recipe — verified 2026-08-05.

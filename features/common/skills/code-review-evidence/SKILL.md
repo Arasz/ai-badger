@@ -1,8 +1,6 @@
 ---
 name: code-review-evidence
-description: >-
-  Use when reviewing code wrapping external libs/extensions, or QA-reviewing a
-  test harness for tautologies, spec-vs-coverage gaps, fake honesty, and hygiene.
+description: "Use when reviewing code that wraps external libs/extensions/SDKs/CLIs, or QA-reviewing a test harness: verify wrapped-library semantics from the upstream source (not comments/spec), query the real store read-only for data claims, and hunt tautological tests that assert values the code constructed itself. Catches spec-vs-coverage gaps, fake honesty, hygiene."
 version: 1.0.0
 author: hermes-curator
 license: MIT
@@ -182,8 +180,7 @@ tests are evidence at all**. Two failure modes recur:
      hook review (29-test suite, all gaps found):
      `references/ai-badger-hook-feature-review.md`.
 
-## Pitfalls
-
+## Gotchas
 - **Dapper scalar queries: affinity decides, not the alias.** For
   `QueryAsync<string>` on a single-column `SELECT x AS Alias`, the alias is
   irrelevant (scalar path — no record-ctor matching); correctness hinges on the

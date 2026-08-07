@@ -1,5 +1,6 @@
 ---
 name: dotnet-mcp-server
+description: "Use when adding MCP (Model Context Protocol) tools or servers to a .NET project: tool/prompt registration with [McpServerTool]/[McpServerPrompt], stdio or Streamable-HTTP host wiring (dual-mode, port traps), DI + typed HttpClient for REST-backed tools, unit tests with mock HTTP handlers, tool-inventory tests that assert the REGISTERED surface, and SDK 2.x specifics (McpException error signaling, request filters, tool-name derivation)."
 description: Implement MCP (Model Context Protocol) servers in .NET using the ModelContextProtocol NuGet package — tool registration, DI wiring, HttpClient for REST-based tools, and unit testing with mock HTTP handlers. Use when adding MCP tools to a .NET project, wiring up a stdio MCP server host, or testing MCP server tool classes.
 tags: [dotnet, mcp, csharp, server, tools, model-context-protocol]
 related_skills: [dotnet-domain-modeling]
@@ -112,7 +113,7 @@ await builder.Build().RunAsync();
 - Use **`AddHttpClient<T>()`** (named typed clients) — one per tool class. This gives you typed DI, testability, and Polly integration out of the box.
 - The `WithStdioServerTransport()` call makes it a stdio MCP server. Other transports (SSE, HTTP) are available in the SDK.
 
-## 3b. HTTP (Streamable) transport and dual-mode servers
+## 4. HTTP (Streamable) transport and dual-mode servers
 
 The base `ModelContextProtocol` package only ships stdio. Streamable HTTP needs
 `ModelContextProtocol.AspNetCore` plus the **Web SDK** (`Microsoft.NET.Sdk.Web`):
@@ -193,28 +194,24 @@ and report the bound URL through a LoggerMessage after `StartAsync`, not `Consol
 ```
 
 **Long-interval BackgroundServices never fire in stdio-only hosts — gate them to
-HTTP transports.** MCP clients recycle stdio subprocesses aggressively (the hermes
-gateway re-spawns per connection on a ~5-min cadence; verified live: 1048
-MCP registrations in one day, each instance cleanly stdin-EOF'd), so a
-`BackgroundService` whose first `PeriodicTimer` tick is 30-60 min out dies before
-it fires in a stdio process — "configured but not executing". Ship the gate as a
-registration flag: `RegisterMemoryServices(options, registerExtractionHostedService: false)`
-in the stdio-only host path, default on in any HTTP/S host, pinned by host-shape
-tests (`host.Services.GetServices<IHostedService>()` ShouldNotContain/ShouldContain).
-An idle-watchdog / serve-mode service is the same class of component: HTTP-gated,
-and its "activity" signal must count MCP requests only — the watchdog's own
-background passes must NOT reset the idle timer.
+HTTP transports.** MCP clients recycle stdio subprocesses aggressively (re-spawned
+per connection on a ~5-min cadence), so a `BackgroundService` whose first
+`PeriodicTimer` tick is 30-60 min out dies before it fires — "configured but not
+executing". Ship the gate as a registration flag
+(`RegisterMemoryServices(options, registerExtractionHostedService: false)` in the
+stdio-only path, default on in HTTP/S hosts), pinned by host-shape tests
+(`host.Services.GetServices<IHostedService>()` ShouldNotContain/ShouldContain).
+An idle-watchdog / serve-mode service is the same class: HTTP-gated, and its
+"activity" signal must count MCP requests only — its own background passes must
+NOT reset the idle timer.
 
 **Before building a "switch to HTTP" CLI feature, check the client side first.**
-The tool may already serve HTTP (`--transport http --port N` → `MapMcp("/mcp")`,
-bound URL reported via a LoggerMessage after `StartAsync`), and MCP clients often
-accept URL servers directly — Hermes: `hermes mcp add <name> --url http://127.0.0.1:<port>/mcp`;
+MCP clients often accept URL servers directly — Hermes: `hermes mcp add <name> --url http://127.0.0.1:<port>/mcp`;
 Claude Code: `.mcp.json` entry with `"type": "http"`. When both hold, the feature
 collapses to: a launch verb that prints the bound URL, an `--mcp-entry` renderer,
-and (optionally) an idle watchdog. The client-config change is a one-liner; do not
-design a transport-switch protocol nobody's client needs. (Verified 2026-08-06 on
-the whole "serve" feature shrank from a transport overhaul to three
-small pieces.)
+and (optionally) an idle watchdog. Do not design a transport-switch protocol
+nobody's client needs (verified: a "serve" feature shrank from a transport
+overhaul to three small pieces).
 
 The canonical artifact for that feature — `serve` verb shape, foreground semantics
 (URI to stdout after bind, busy-port fail-fast, shell backgrounding recipe), the
@@ -222,25 +219,18 @@ idle watchdog (one BackgroundService + Interlocked timestamp + middleware on `/m
 HTTP-gated, `--idle-timeout 0` disables), exact `--mcp-entry` JSON for Hermes
 (`{"<server>":{"url":…}}`) and Claude Code
 (`{"mcpServers":{"<server>":{"type":"http","url":…}}}`), plus an acceptance-criteria
-table with named gates and a parallel WP split — lives in the repo's work docs
-(branch `task/switch-from-stdio-to-http`). Read it before
-implementing any serve-mode work package.
+table with named gates — is the shape to follow when a server gains a serve mode.
+See `references/serve-mode-client-contract-and-di.md` and
+`references/serve-probe-attach-verified.md` for the verified deep dives.
 
 **Transport-switch research (verified 2026-08-06): no stdio→HTTP upgrade exists in
 the MCP spec.** Through the 2026-07-28 revision, stdio and Streamable HTTP are
 SEPARATE transports with no upgrade/handoff mechanism; no SDK (Python/TS/.NET)
-implements one; prior art is reverse-direction only (mcp-remote-style wrappers
-exposing a remote HTTP server as local stdio). If a WebSocket-style upgrade is
-requested, the honest shape is a bespoke, OPT-IN banner: server prints one magic line
-(`MCP-UPGRADE: http://127.0.0.1:<port>/mcp`) as its FIRST stdout byte then serves
-HTTP; a capable client peeks the first line before handing the pipe to its stdio
-transport, falling back to stdio on `{` or timeout (bare launch must stay pure
-JSON-RPC — the banner can never replace it by default). The one thing the handshake
-buys that a `url:` client config cannot is RANDOM-PORT self-discovery (`--port 0` +
-banner tells the client the ephemeral URL); a fixed-port url entry achieves the same
-end state with zero protocol invention. Client integration point for any such
-handshake: Hermes runs from `~/.hermes/hermes-agent/` (venv, official Python `mcp`
-SDK's `stdio_client`; the peek must precede pipe handover in `tools/mcp_tool.py`).
+implements one; prior art is reverse-direction only (mcp-remote-style wrappers).
+A WebSocket-style upgrade would need a bespoke OPT-IN banner (`MCP-UPGRADE: <url>`
+as the first stdout byte, peeked by a capable client before pipe handover) — and its
+only real win is RANDOM-PORT self-discovery (`--port 0`); a fixed-port `url:` entry
+achieves the same end state with zero protocol invention.
 
 **Idempotent "already serving → attach" semantics** are the answer to per-client
 spawn collisions when a client config (e.g. Claude Code `.mcp.json`, spawned per
@@ -302,7 +292,7 @@ the model loaded; assert the engine side-effect (`pending == 0`) and no download
 stderr. Full protocol, isolation recipe, and result-shape table:
 see the `dotnet-tool-publishing` skill's `references/fresh-install-verification.md`.
 
-## 3f. Giving a stdio MCP server a CLI (System.CommandLine, parse-first)
+## 5. Giving a stdio MCP server a CLI (System.CommandLine, parse-first)
 
 For a stdio server, every byte of CLI output must go to stderr: System.CommandLine's default
 help renders to stdout (`InvocationConfiguration.Output`) and parse errors print to stderr
@@ -340,7 +330,7 @@ Key facts (full detail + evidence: `references/cli-args-for-stdio-mcp.md`):
 - `WebApplicationFactory<T>` passes EMPTY args to the entry point — CLI behavior is
   unit-test + manual-smoke territory; env behavior stays E2E-able (factory env mutation).
 
-## 3g. Tool inventory tests — assert the REGISTERED surface, not the class
+## 6. Tool inventory tests — assert the REGISTERED surface, not the class
 
 A tool-inventory test that reflects over the tool CLASS (`typeof(Tools).GetMethods()`
 filtered by `[McpServerTool]`) proves the class carries tools — it does NOT prove the
@@ -368,7 +358,7 @@ Fast negative filter before either guard: `strings <server.dll> | grep -o "memor
 — tool-name strings missing from the binary means registration is moot (but strings
 presence does NOT prove registration; only the host test / live probe does).
 
-## 3c. MCP SDK 2.0 API specifics (verified against 2.0.0)
+## 7. MCP SDK 2.0 API specifics (verified against 2.0.0)
 
 Facts below were verified by reflection on the installed `ModelContextProtocol.Core` 2.0.0
 assembly and by reading the v2.0.0 sources (`AIFunctionMcpServerTool.cs`, `McpServerImpl.cs`,
@@ -464,7 +454,7 @@ verified working — but keep the §6 `Task<object>`/`JsonElement` boxing caveat
 ### Request filters — per-tool-call interception (SDK 2.1.0)
 
 `ModelContextProtocol.Server.McpRequestFilters` (verified by reflection probe on
-the installed 2.1.0 assembly; the §3c 2.0.0 notes predate it) exposes per-method
+the installed 2.1.0 assembly; the §7 2.0.0 notes predate it) exposes per-method
 filter lists — the hook for activity signals (idle watchdog), auth, or per-call
 logging without touching tool bodies or ASP.NET middleware: `ListToolsFilters`,
 `CallToolFilters`, `CallToolWithAlternateFilters` (`IList<McpRequestFilter<TParams,TResult>>`).
@@ -512,7 +502,7 @@ options (e.g. one `SqliteConnectionFactory` with `loadCloudSync: true` for sync,
 store) — the LAST `AddSingleton<T>` wins for plain resolution; construct the special instance via a
 factory lambda instead of relying on two registrations of one type.
 
-## 3d. E2E-testing the full server over the HTTP transport
+## 8. E2E-testing the full server over the HTTP transport
 
 The unit-test pattern in §4 tests tool classes in isolation. To prove the WHOLE stack — tools, DI,
 store, native extensions, JSON-RPC transport — boot the real server in-process and drive it with a
@@ -542,7 +532,7 @@ real MCP client. Full recipe (factory class, client wiring, provisioning, assert
   `dotnet test --filter "Category=Unit&Speed=Fast"`. Use `Assert.Skip(...)` (xunit.v3) to skip
   honestly when native extensions / a model are unavailable — never a false green.
 
-## 3e. Access control at the tool boundary (per-project/global modes)
+## 9. Access control at the tool boundary (per-project/global modes)
 
 Verified while landing access-control work (FR-NM-2, ro/rw/full modes). When tools must be gated by
 a per-project policy, keep the pattern split across layers:
@@ -582,7 +572,7 @@ a per-project policy, keep the pattern split across layers:
   bank by setting the env var in the test factory ctor (restore in Dispose), which also exercises
   the seed-at-open path.
 
-## 4. Testing pattern
+## 10. Testing pattern
 
 ```csharp
 using System.Net;
@@ -664,7 +654,7 @@ public class MyToolsTests
 3. **Response handling**: tool returns the API's JSON string
 4. **Error propagation**: `EnsureSuccessStatusCode()` throws on non-2xx
 
-## 5. Adding tools to an existing MCP server
+## 11. Adding tools to an existing MCP server
 
 When the MCP server project already has tool classes (e.g. `SalaryTools`), adding new tools follows a tighter sequence:
 
@@ -735,8 +725,7 @@ public async Task AnyTool_ThrowsOnNonSuccessStatusCode(HttpStatusCode errorStatu
 }
 ```
 
-## 6. Pitfalls
-
+## 12. Gotchas
 - **`Task<object>` return type** — causes boxing of `JsonElement`, losing `ValueKind`. Always use `Task<string>` and serialize/deserialize explicitly.
 - **Missing `using System.Net.Http.Json`** — `PostAsJsonAsync` and `PutAsJsonAsync` are extension methods in this namespace. Without the `using`, you get `CS1061: 'HttpClient' does not contain a definition for 'PostAsJsonAsync'`. The NuGet package `Microsoft.Extensions.Http` is necessary but not sufficient — the source file also needs the `using` directive.
 - **Missing `Microsoft.Extensions.Http`** — `AddHttpClient<T>()` lives in this package. Without it you get `CS1061: 'IServiceCollection' does not contain a definition for 'AddHttpClient'`.
@@ -748,7 +737,7 @@ public async Task AnyTool_ThrowsOnNonSuccessStatusCode(HttpStatusCode errorStatu
 - **Shouldly lambdas are expression trees — no `is` patterns.** `collection.ShouldContain(x => x.Field is null)` fails to compile with `CS8122: An expression tree may not contain an 'is' pattern-matching operator`. Use `ShouldHaveSingleItem()` + `.ShouldBeNull()`/`.ShouldBe(...)` on the result, or a plain `==` comparison in the predicate.
 - **`virtual` members require non-sealed classes** — a test fake that overrides a method (`override Task<...> GetEntryAsync`) fails with `CS0549: 'new virtual member in sealed type` when the class is `sealed`. Either unseal the class or extract an interface; unsealing is the smaller change.
 - **Namespace shadows type name** — a folder named after a domain type (`Infrastructure/Workspace/` holding a service) makes `using <Proj>.Core.Workspace;` ambiguous: `Workspace` resolves to the namespace, not the type (`CS0118: 'Workspace' is a namespace but is used like a type`). Fix with a using alias: `using WorkspaceRecord = <Proj>.Core.Workspace.Workspace;`.
-- **`Enum.TryParse<T>(string, out T)` is case-sensitive in .NET 10** — the parameterless overload does NOT ignore case, so `MCP_TRANSPORT=http`/`HTTP` silently fall back to the default (stdio) and the server comes up on the wrong transport, with tests only catching it if they pin the case-insensitive contract. Pass `ignoreCase: true` explicitly: `Enum.TryParse<T>(value, ignoreCase: true, out var result)`. This is the enum-based sibling of the `McpTransportSelector.UseHttp` lesson in §3b — if you move transport selection from a string compare to an enum, keep the case-insensitivity.
+- **`Enum.TryParse<T>(string, out T)` is case-sensitive in .NET 10** — the parameterless overload does NOT ignore case, so `MCP_TRANSPORT=http`/`HTTP` silently fall back to the default (stdio) and the server comes up on the wrong transport, with tests only catching it if they pin the case-insensitive contract. Pass `ignoreCase: true` explicitly: `Enum.TryParse<T>(value, ignoreCase: true, out var result)`. This is the enum-based sibling of the `McpTransportSelector.UseHttp` lesson in §4 — if you move transport selection from a string compare to an enum, keep the case-insensitivity.
 - **`CommunityToolkit.Diagnostics.Guard.IsNotNull(x)` returns VOID, not the value** — you cannot write `_field = Guard.IsNotNull(x);` or chain `.ToList()` off it (`CS0023`/`CS0029`). And with `Nullable enable` + DI-injected constructors, the `x ?? throw new ArgumentNullException(nameof(x))` guards on non-nullable reference params are redundant — the compiler and container guarantee non-null. The clean move is to DELETE those ctor guards outright (simpler than converting them) and keep CommunityToolkit guards only for real value validation (whitespace/range) on domain records. A reviewer will ask "do we need those null checks given NRT?" — the answer is no for DI ctor params.
 - **Anonymous-type spread `...` does not exist in C#** — `new { a = 1, ...rest }` is `CS8635: Unexpected character sequence '...'` even on .NET 10 with `LangVersion latest` (verified in a scratch project). The spread was proposed but never shipped; only collection expressions support `..`. Write the anonymous type out explicitly or use a named DTO.
 - **Dapper record-ctor materialization breaks on SQLite INTEGER → int** — Dapper reads SQLite INTEGER as `long`, so `record Row(long CreatedAt, int AccessCount)` fails with "A parameterless default constructor or one matching signature ... is required for ... materialization". Use mutable class DTOs for anything Dapper materializes (full pattern + FTS5/vec0 store-layer traps: `references/managed-sqlite-store-patterns.md`).
@@ -782,7 +771,7 @@ public async Task AnyTool_ThrowsOnNonSuccessStatusCode(HttpStatusCode errorStatu
 - **`MapMcp()` default pattern is `""` (root)** in MCP SDK 2.x — endpoints land at `/`, not `/mcp`. Call `app.MapMcp("/mcp")` explicitly so clients use the conventional path.
 - **Local NuGet feed deploy gated on env var** — an MSBuild target can gate on a lowercase env var because MSBuild imports env vars case-insensitively: `Condition="'$(DOTNET_ENV)' == 'local'"` fires when the shell has `dotnet_env=local`. Pattern: `MakeDir` the feed dir, `dotnet pack ... -p:RuntimeIdentifiers=$(NETCoreSdkRuntimeIdentifier) -o "$(PackageOutputPath)"`, then push BOTH produced nupkgs — `dotnet nuget push "$(PackageOutputPath)*.nupkg" --source <feed> --skip-duplicate` (pushing only `$(PackageId).$(PackageVersion).nupkg` lands the binary-free shell and breaks install — see the RID companion bullet above); register `<add key="local" value="./.nupkg-local/" />` in nuget.config and gitignore the feed. Set `PackageOutputPath` in `Directory.Build.props` (repo-root `$(MSBuildThisFileDirectory).nupkg/`) so it applies repo-wide. **Add an up-to-date guard** so plain `dotnet build`/`dotnet test` (which builds the src project via ProjectReference) doesn't re-pack + re-push on every run when the env var is exported: `Inputs="$(MSBuildProjectFullPath);$(TargetPath)" Outputs="$(PackageOutputPath)$(PackageId).$(NETCoreSdkRuntimeIdentifier).$(PackageVersion).nupkg"` on the target — MSBuild skips the whole target when the output nupkg is newer tha memory file and built dll.
 
-## 7. Docs fold-in checklist
+## 13. Docs fold-in checklist
 
 When shipping MCP tools alongside a feature, update these docs:
 
@@ -797,3 +786,12 @@ When shipping MCP tools alongside a feature, update these docs:
 | `docs/flows.md` | New flow diagrams (if any) |
 
 If architecture.md, data-model.md, and flows.md already have the content from a prior task, only update functional-specification.md and the status markers.
+
+## References
+
+- `references/mcp-csharp-sdk-2.0-apis.md` — SDK 2.x API surface (McpException, request filters, tool-name derivation).
+- `references/tool-registration-surface-test.md` — inventory tests that assert the REGISTERED surface, not the tool class.
+- `references/serve-mode-client-contract-and-di.md` — HTTP serve mode: client-config contract + watchdog DI triple.
+- `references/serve-mode-probe-attach.md` / `references/serve-probe-attach-verified.md` — the probe-attach pattern for an already-running server.
+- `references/e2e-http-transport-testing.md` — E2E tests over the HTTP transport.
+- `references/stdio-host-port-bind.md` — stdio host port-bind facts.

@@ -1,5 +1,6 @@
 ---
 name: artifact-verification
+description: "Use when verifying changed artifacts that lack a canonical test gate — specs, docs, manifests, generated files, published packages: use the workflow-defined checker first (spec_holes.py), review manual fresh-install protocols against the false-pass checklist, and verify 'installed build contains merged PR X' by tree comparison, never squash-ancestry."
 description: Verify changed artifacts that lack a canonical test gate.
 ---
 
@@ -45,7 +46,7 @@ the branch tip, so **squash-ancestry is an invalid check for "does the installed
 build contain PR X"** (a data package wrongly claimed "installed 1.0.9 predates
 #55" this way; the feature was present and live). Valid checks, cheapest first:
 
-1. Probe the binary itself: `--help` / feature verbs (`the project extract list` →
+1. Probe the binary itself: `--help` / feature verbs (`<tool> extract list` →
    `enabled: True, mode: promote`) are the authoritative surface.
 2. Compare trees: `git rev-parse <version-hash>^{tree}` vs `<squash>^{tree}` —
    equal ⇒ same content, ancestry irrelevant.
@@ -168,7 +169,7 @@ Two more patterns that let a real miss through:
 - **Verify the PR's changed-file set, not just the bytes (branch-base check).** When
   verifying a pushed branch, assert WHAT it changes relative to its base — a wrong
   branch base silently drags unrelated commits into the PR (observed 2026-08-05: a
-  `chore/task-state-record` branch cut from `task/mcp-index-the project` carried that
+  `chore/task-state-record` branch cut from `task/mcp-index-<feature>` carried that
   feature branch's `mcp-tools.json` commit into a bookkeeping PR; the verify script
   caught it via `git diff --name-only main...HEAD` showing two files where one was
   intended). Cheap assertions:

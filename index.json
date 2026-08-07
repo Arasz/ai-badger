@@ -577,10 +577,6 @@
           "path": "features/dotnet/skills/dotnet-bdd-testing"
         },
         {
-          "name": "dotnet-cli-parsing",
-          "path": "features/dotnet/skills/dotnet-cli-parsing"
-        },
-        {
           "name": "dotnet-domain-modeling",
           "path": "features/dotnet/skills/dotnet-domain-modeling"
         },
@@ -605,12 +601,12 @@
           "path": "features/dotnet/skills/dotnet-mcp-server"
         },
         {
-          "name": "dotnet-nuget-publish",
-          "path": "features/dotnet/skills/dotnet-nuget-publish"
-        },
-        {
           "name": "dotnet-sqlcipher-encryption",
           "path": "features/dotnet/skills/dotnet-sqlcipher-encryption"
+        },
+        {
+          "name": "dotnet-system-commandline",
+          "path": "features/dotnet/skills/dotnet-system-commandline"
         },
         {
           "name": "dotnet-tool-publishing",
@@ -668,10 +664,6 @@
         {
           "name": "cron-watchdog-authoring",
           "path": "features/hermes/skills/cron-watchdog-authoring"
-        },
-        {
-          "name": "hermes-memory-provider-development",
-          "path": "features/hermes/skills/hermes-memory-provider-development"
         },
         {
           "name": "hermes-plugin-development",

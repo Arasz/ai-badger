@@ -1,4 +1,4 @@
-# Publish run green but nothing published: 409 on every push (2026-08-05, ai-raccoon)
+# Publish run green but nothing published: 409 on every push (2026-08-05)
 
 Case: `publish.yml` (Trusted Publishing OIDC, `dotnet nuget push ... --skip-duplicate`)
 dispatched after merging a version bump. The push job showed 12/12 pushes (6 RID
@@ -10,18 +10,18 @@ payloads + 6 shell copies) all `Conflict ... Package '...' already exists at fee
 
 | Probe | Result |
 |---|---|
-| `https://api.nuget.org/v3-flatcontainer/ai-raccoon/index.json` | 404 (no versions AT ALL — listed OR unlisted) |
-| `https://api.nuget.org/v3/registration5-gz-semver2/ai-raccoon/index.json` | XML `BlobNotFound` error page (has a UTF-8 BOM — parse with utf-8-sig or just `head -c`) |
-| `https://azuresearch-usnc.nuget.org/query?q=packageid:ai-raccoon&prerelease=true` | `{"totalHits":0,"data":[]}` |
-| `https://www.nuget.org/packages/ai-raccoon` | 404 |
-| `https://www.nuget.org/api/v2/FindPackagesById()?id='ai-raccoon'` | `<m:count>0</m:count>` (the `$filter=Id eq 'x'` OData form ERRORS — use FindPackagesById) |
+| `https://api.nuget.org/v3-flatcontainer/<pkg-id>/index.json` | 404 (no versions AT ALL — listed OR unlisted) |
+| `https://api.nuget.org/v3/registration5-gz-semver2/<pkg-id>/index.json` | XML `BlobNotFound` error page (has a UTF-8 BOM — parse with utf-8-sig or just `head -c`) |
+| `https://azuresearch-usnc.nuget.org/query?q=packageid:<pkg-id>&prerelease=true` | `{"totalHits":0,"data":[]}` |
+| `https://www.nuget.org/packages/<pkg-id>` | 404 |
+| `https://www.nuget.org/api/v2/FindPackagesById()?id='<pkg-id>'` | `<m:count>0</m:count>` (the `$filter=Id eq 'x'` OData form ERRORS — use FindPackagesById) |
 | nupkg HEADs on the flat container (1.0.0, 0.1.0-beta, 1.0.1) | 404 all |
 
 ## Control experiment (proves queries AND mechanism)
 
 `dotnet-ignore` — same account (Arasz), same OIDC pattern: flat container lists 11
 versions, FindPackagesById count=11, gallery 200. Control visible ⇒ queries sound,
-account's OIDC publishing works, problem is specific to the `ai-raccoon*` ids.
+account's OIDC publishing works, problem is specific to the `<pkg-id>*` ids.
 
 ## Run-history logic
 
@@ -71,8 +71,8 @@ shows the body — the "duplicate" message is a lie for namespace conflicts.
 
 Why every symptom fit:
 - Per-ID check → every version (0.1.0-beta, 1.0.0, 1.0.1) conflicts.
-- Prefix matching → a reservation on `ai-raccoon` also covers `ai-raccoon.win-x64`,
-  `ai-raccoon.osx-arm64`, ... (all 6 RID payloads conflict too).
+- Prefix matching → a reservation on `<pkg-id>` also covers `<pkg-id>.win-x64`,
+  `<pkg-id>.osx-arm64`, ... (all 6 RID payloads conflict too).
 - Reserved-but-never-published ids have NO packages → every read API 404s.
 - Auth/scope failures return 401/403 (code comment: "Push returns Unauthorized instead
   of Forbidden for failures not related to reserved namespaces") → a 409 on a valid key
@@ -83,7 +83,7 @@ Why every symptom fit:
 ## Fix paths
 
 1. Fastest confirmation: nuget.org -> Upload, drag the nupkg in — the reservation
-   message shows verbatim in the browser. MEASURED 2026-08-05 (ai-raccoon 1.0.1):
+   message shows verbatim in the browser. MEASURED 2026-08-05 (<pkg-id> 1.0.1):
    the upload returned the OWNERLESS variant verbatim — "The package ID is reserved.
    You can upload your package with a different package ID. Reach out to
    support@nuget.org if you have questions." — so this reservation has no owner to
@@ -93,14 +93,14 @@ Why every symptom fit:
 2. Ownerless reservation → email support@nuget.org (the message points there).
 3. Owned reservation → request access from the owner of the reserved prefix.
 4. Rename `PackageId` to an unreserved id if you must publish now — `ToolCommandName`
-   is independent, so the installed command name (`ai-raccoon`) does NOT change; only
+   is independent, so the installed command name (`<pkg-id>`) does NOT change; only
    the `dotnet tool install -g <id>` name changes. (Docs/user-visible strings change.)
-   EXECUTED 2026-08-05: bridge PR renamed PackageId -> `arasz.ai-raccoon` (csproj +
+   EXECUTED 2026-08-05: bridge PR renamed PackageId -> `arasz.<pkg-id>` (csproj +
    .mcp/server.json packages[0].identifier + README install lines); the
    version-contract test gained an id fact pinning PackageId == server.json identifier
-   == bridge id AND ToolCommandName == `ai-raccoon` (TDD: 1 failing -> 4 passing).
+   == bridge id AND ToolCommandName == `<pkg-id>` (TDD: 1 failing -> 4 passing).
    Reversible: when support releases the reservation, flip PackageId back and deprecate
-   `arasz.ai-raccoon` with the alternate-package pointer set to `ai-raccoon`; versions
+   `arasz.<pkg-id>` with the alternate-package pointer set to `<pkg-id>`; versions
    are per-id so both ids can carry 1.0.1. Users migrate via uninstall/reinstall —
    `dotnet tool update` does not cross ids.
 

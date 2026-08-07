@@ -92,7 +92,7 @@ transport reads the message, sees stdin-EOF, and shuts down before the response 
 (stderr: "transport completed reading messages"; process exits 0). Hold stdin open:
 
 ```bash
-{ printf '%s\n' '<frame>'; sleep 3; } | the project 2>/tmp/the project-smoke.err | head -c 400
+{ printf '%s\n' '<frame>'; sleep 3; } | <tool> 2>/tmp/the project-smoke.err | head -c 400
 ```
 
 - Process exits 0 on stdin-EOF → no `timeout` needed; `timeout(1)`/`gtimeout` are absent on

@@ -67,7 +67,7 @@ Notes:
 ## Quick negative filter
 
 ```bash
-DLL=$(find ~/.dotnet/tools/.store/the maintainer.the project -name "the project.dll" | head -1)
+DLL=$(find ~/.dotnet/tools/.store/<pkg-id> -name "<tool>.dll" | head -1)
 strings "$DLL" | grep -o "memory_watch_[a-z]*" | sort -u
 ```
 

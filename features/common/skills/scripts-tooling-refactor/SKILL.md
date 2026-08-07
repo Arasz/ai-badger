@@ -1,7 +1,6 @@
 ---
 name: scripts-tooling-refactor
-description: >-
-  Refactor repo scripts: convert, src/tests, prune dead.
+description: "Use when refactoring a repo's scripts/ directory: convert non-python scripts to the repo's tooling language, move logic to src/ with tests in tests/ (TDD first), prune dead scripts on usage evidence (git ls-files inventory, LIVE/HISTORICAL classification, three-way sync contracts), and preserve call sites with thin wrappers."
 ---
 
 # Scripts-tooling refactor
@@ -185,8 +184,7 @@ without running the real tool. Full recipe + pitfalls:
 values from current code; the harness proves the converted script still
 behaves like the original.
 
-## Pitfalls
-
+## Gotchas
 - Whole-repo `grep -rln` can hang on ignored/derived dirs — use the
   ripgrep-backed search tool (respects gitignore).
 - Concurrent sessions dirty the tree: snapshot `git status --short` first,
@@ -225,3 +223,11 @@ behaves like the original.
   landed while P2 ran; `git status` was clean at start). Leave them
   untouched, list them in the report so the parent can reconcile — never
   `git add -A` over them.
+
+## References
+
+- `references/pytest-config-and-sync-contract.md` — pytest config for a converted scripts suite + the sync contract between script and test.
+- `references/port-verification-checklist.md` — verifying a ported script matches the original's behavior.
+- `references/behavior-pinning-derivation.md` — deriving behavior pins from the original implementation.
+- `references/cli-parity-harness.md` — CLI parity harness for converted scripts.
+- `references/shell-to-python-port-checklist.md` — the shell→python port checklist.

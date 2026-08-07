@@ -61,7 +61,7 @@ Same `McpServerFactory` + `McpClient` harness as the sibling E2E suite:
 
 Drop the flaky tools from the parity test, note it in the report, and rely on their
 unit/BDD suites. A parity test that intermittently fails is worse than one that covers
-16/19 — it poisons every future CI run. (the project watch trio was stable; the flaky
+16/19 — it poisons every future CI run. (the tool watch trio was stable; the flaky
 tests observed were unrelated fixed-port-bind and fake-timer BDD races.)
 
 ## Full-suite proof discipline

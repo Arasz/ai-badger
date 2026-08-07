@@ -1,4 +1,4 @@
-# Upgrading a .NET tool's dependencies to current majors (2026-08, a reference PackAsTool project)
+# Upgrading a .NET tool's dependencies to current majors (2026-08, reference tool)
 
 Session knowledge bank: net8.0 -> net10.0, xunit 2 -> v3, Octokit 9 -> 14,
 FluentAssertions 6 -> 8, Microsoft.NET.Test.Sdk 17 -> 18, coverlet.collector 10.
@@ -8,7 +8,7 @@ FluentAssertions 6 -> 8, Microsoft.NET.Test.Sdk 17 -> 18, coverlet.collector 10.
 GET `https://api.nuget.org/v3-flatcontainer/{pkg-lowercase}/index.json` ->
 `versions[]`; drop prereleases (version contains `-`); last remaining is the
 latest stable. Batch many packages in one python loop. (Fuller recipe:
-`dotnet-cli-parsing`/references/nuget-evidence-research.md.)
+`dotnet-system-commandline`/references/nuget-evidence-research.md.)
 
 ## Probing a NuGet package's API surface without docs (dotnet fsi)
 
