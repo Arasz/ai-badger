@@ -15,8 +15,12 @@ def _hermes_skill(target, name):
 
 # ---------------------------------------------------------------------- hermes skill symlinks
 def _hermes_scaffold(make_scaffolder, home, skills, agents=("hermes",)):
-    """Scaffold with Path.home patched to *home*; return the hermes namespace dir."""
-    scaf = make_scaffolder(config=_config(agents=list(agents)), skills=list(skills))
+    """Scaffold with Path.home patched to *home*; return the hermes namespace dir.
+
+    `install=True` because the namespace is user-global state: `--no-install` skips it.
+    """
+    scaf = make_scaffolder(config=_config(agents=list(agents)), skills=list(skills),
+                           install=True)
     with patch("pathlib.Path.home", return_value=home):
         scaf.run(generated_at="2026-07-22T00:00:00Z")
     return home / ".hermes" / "skills" / "probe"
@@ -161,7 +165,7 @@ def test_a_traversing_project_name_cannot_escape_the_hermes_namespace(
     config = _config(agents=["hermes"])
     config["project"]["name"] = "../../escaped"
 
-    scaf = make_scaffolder(config=config, skills=["task"])
+    scaf = make_scaffolder(config=config, skills=["task"], install=True)
     result = scaf.run(generated_at="2026-07-27T00:00:00Z")
 
     assert not (tmp_path / "home" / "escaped").exists()
@@ -212,9 +216,10 @@ def test_a_scaffolder_run_reports_a_hermes_link_removal(tmp_path, make_scaffolde
     config = _config(agents=["hermes"])
 
     with patch("pathlib.Path.home", return_value=home):
-        make_scaffolder(config=config, skills=["task", "prompt-markers"]).run(
+        make_scaffolder(config=config, skills=["task", "prompt-markers"],
+                        install=True).run(
             generated_at="2026-07-29T00:00:00Z")
-        result = make_scaffolder(config=config, skills=["task"]).run(
+        result = make_scaffolder(config=config, skills=["task"], install=True).run(
             generated_at="2026-07-29T00:01:00Z")
 
     assert any("prompt-markers" in n for n in result["notes"])

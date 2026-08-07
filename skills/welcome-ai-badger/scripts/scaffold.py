@@ -700,7 +700,8 @@ class Scaffolder:
         self.skill_delivery.discover_stack_local()
         self.skill_delivery.scaffold_skills()
         self._record_progress("skills")
-        self._outside_project("hermes skill symlinks", self.symlink_hermes_skills)
+        if self.install:  # links point at --target; a throwaway target leaves them dangling
+            self._outside_project("hermes skill symlinks", self.symlink_hermes_skills)
         self.scaffold_agent_instructions()
         self.scaffold_templates()
         self.mcp.fill_mcp_described()
