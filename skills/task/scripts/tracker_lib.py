@@ -44,8 +44,43 @@ SESSION_SOURCES: dict = {}
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 
+def _git_worktree_facts(project: Path) -> tuple:
+    """(toplevel, main checkout) for *project*, or (None, None) when git cannot say.
+
+    One `git rev-parse` for both answers: `--git-common-dir` is the shared `.git` a linked
+    worktree points back at, so its parent is the checkout that owns the tracking store.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(project), "rev-parse", "--show-toplevel", "--git-common-dir"],
+            capture_output=True, text=True, check=False, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None, None
+    lines = result.stdout.split()
+    if result.returncode != 0 or len(lines) < 2:
+        return None, None
+    return Path(lines[0]).resolve(), (project / lines[1]).resolve().parent
+
+
+def collapse_worktree(project: Path) -> Path:
+    """The checkout a linked worktree belongs to, or *project* unchanged.
+
+    A task worktree carries its own copy of the `.ai-badger/config.json` marker, so the cwd
+    walk below stops there and the worktree gets an empty tracking store (B12). Only a
+    *linked worktree whose checkout is itself an ai-badger project* is collapsed: a vendored
+    project nested inside some other repo is not a working-tree root and stays where it is.
+    """
+    toplevel, checkout = _git_worktree_facts(project)
+    if checkout is None or toplevel != project.resolve() or checkout == project.resolve():
+        return project
+    if not (checkout / ".ai-badger" / "config.json").is_file():
+        return project
+    return checkout
+
+
 def resolve_project_root(
-    env: dict | None = None, cwd: Path | None = None, script_dir: Path = SCRIPT_DIR
+        env: dict | None = None, cwd: Path | None = None, script_dir: Path = SCRIPT_DIR
 ) -> Path:
     """Resolve the ai-badger project root, in precedence order:
 
@@ -53,7 +88,8 @@ def resolve_project_root(
        authoritative for hook/statusLine invocations (Claude Code sets it; ai-badger's own
        scaffolded settings.json hooks already rely on it).
     2. Walk up from `cwd` to the nearest ancestor containing `.ai-badger/config.json` (the
-       ai-badger contract marker) -- covers script invocations from anywhere in the repo.
+       ai-badger contract marker) -- covers script invocations from anywhere in the repo --
+       then `collapse_worktree()` it, so a task worktree shares its checkout's store.
     3. Fallback: `script_dir.parents[3]` -- today's behavior for in-repo scaffolded copies
        (`<repo>/.claude/skills/task/scripts` or `<repo>/.ai-badger/skills/task/scripts`)
        invoked with no session context.
@@ -72,7 +108,7 @@ def resolve_project_root(
     start = Path.cwd() if cwd is None else Path(cwd)
     for ancestor in (start, *start.parents):
         if (ancestor / ".ai-badger" / "config.json").is_file():
-            return ancestor
+            return collapse_worktree(ancestor)
 
     return script_dir.parents[3]  # .claude/skills/task/scripts -> repo root
 
@@ -508,7 +544,7 @@ def make_checkpoint(transcript_path: str) -> dict:
 
 
 def register_session_source(name: str, *, env_var: str, resolve, checkpoint, resume,
-                      delegation_usage=None, transcript: bool = False) -> None:
+                            delegation_usage=None, transcript: bool = False) -> None:
     """Register a session source (called by an agent adjustment's session source module).
 
     `resolve()` identifies the invoking session for this agent, returning
@@ -681,6 +717,7 @@ def state_json_updated_since(started_at: str) -> bool:
 # import must never fail the tracker over a module that was never installed.
 try:
     import importlib
+
     for _path in sorted(SCRIPT_DIR.glob("*_session_source.py")):
         importlib.import_module(_path.stem)
         sys.modules[_path.stem].register(sys.modules[__name__])
