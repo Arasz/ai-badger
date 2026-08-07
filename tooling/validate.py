@@ -49,7 +49,44 @@ SCHEMA_INSTANCES = {
     "scaffolding.schema.json": ["features/*/scaffolding.json"],
     "support.schema.json": ["features/*/support.json"],
     "model.schema.json": ["features/*/templates/agent-instructions/model.template.json"],
+    "hooks.schema.json": ["features/*/hooks/hooks.json"],
+    "mcp-tags.schema.json": ["features/*/mcp-tags.json"],
+    "skill-extension.schema.json": ["features/*/skills/*/extensions/*/extension.json"],
 }
+
+# JSON under features/ that no schema validates, and why. A file matching neither a
+# SCHEMA_INSTANCES glob nor one of these is a violation: SCHEMA_INSTANCES only proves a
+# schema has instances, never that an instance has a schema (the review's A16).
+FEATURE_JSON_WITHOUT_SCHEMA: Dict[str, str] = {
+    "features/*/skills/*/hooks/settings-snippet.json":
+        "a verbatim fragment of the agent's own settings.json, merged in as-is; its shape is "
+        "the agent vendor's contract, not ours, so a schema here would only go stale",
+    "features/*/skills/*/markers-context.json":
+        "free-form prompt context the prompt-markers skill injects; the keys are prose slots "
+        "the skill reads by name, with no cross-file contract to hold them to",
+    "features/*/skills/*/evals/*.json":
+        "retrieval eval fixtures (ADR-0012), consumed only by the eval harness that ships "
+        "beside them; wired into no lane today, so a schema would outlive its only reader",
+    "features/*/templates/agent-instructions/schema.json":
+        "shipped output, not input: this is the JSON Schema a scaffolded project gets for its "
+        "own agent-instructions model, and it is self-validating as a schema",
+    "features/*/templates/state.json":
+        "the seed body of a scaffolded project's .ai-badger/state.json; owned by the tracker "
+        "that reads it in the consumer project, and it carries no framework-side contract",
+}
+
+# Stacks whose files are not checked for cross-stack references, and why.
+CROSS_STACK_REFERENCE_EXEMPT: Dict[str, str] = {
+    "common":
+        "common ships in every scaffold and has no `requires` closure of its own to violate: "
+        "its mentions of stack artifacts are illustrative examples inside prose, not "
+        "instructions to go read a file. Checking it would mean hedging a dozen sentences "
+        "rather than fixing a dangling pointer. The residual risk is real but bounded — a "
+        "common skill naming a dotnet skill still reads oddly in a python-only project.",
+}
+
+# Feature directories carrying per-item artifacts a sibling stack's file may point at.
+REFERENCEABLE_FEATURES = ("personas", "invariants", "instructions", "skills")
 
 # Schemas with no instance in this repo, and why. Listed so the completeness check stays
 # honest rather than silently shrinking.
@@ -431,6 +468,122 @@ def skills_lint(root: Path) -> List[str]:
     return violations
 
 
+def catalog_stacks(root: Path) -> List[str]:
+    """Stack names the catalog can actually deliver: a stack.json, a feature directory, or both.
+
+    Mirrors index_build.build_index's own membership rule, so this set is exactly
+    index.json.stacks without needing a built index to compare against.
+    """
+    names = {stack for stack, _, _ in bl.iter_feature_dirs(root)}
+    features_root = root / "features"
+    if features_root.is_dir():
+        names |= {d.name for d in features_root.iterdir()
+                  if d.is_dir() and (d / "stack.json").is_file()}
+    return sorted(names)
+
+
+def catalog_stack_gaps(root: Path) -> List[str]:
+    """features/<dir> that delivers nothing — the shape features/github had (the review's C14)."""
+    features_root = root / "features"
+    if not features_root.is_dir():
+        return []
+    known = set(catalog_stacks(root))
+    return [f"features/{d.name}: no stack.json and no feature directory, so the index never "
+            f"sees it — populate it or delete it"
+            for d in sorted(features_root.iterdir())
+            if d.is_dir() and d.name not in known]
+
+
+def config_stack_gaps(root: Path, config: Dict) -> List[str]:
+    """Stacks a config selects that the catalog cannot deliver.
+
+    `agents` names catalog directories as much as `stacks` does (badger_lib.delivering_stacks),
+    so both are checked. config.schema.json states this rule only in a description string.
+    """
+    known = set(catalog_stacks(root))
+    if not known:
+        return []
+    common = config.get("commonStacks", "common")
+    selected = {
+        "stacks": config.get("stacks") or [],
+        "agents": config.get("agents") or [],
+        "commonStacks": [common] if isinstance(common, str) else list(common or []),
+    }
+    return [f"config.{key} names {name!r}, which the catalog does not ship "
+            f"(known: {', '.join(sorted(known))})"
+            for key, names in selected.items() for name in names if name not in known]
+
+
+def unschemad_feature_json(root: Path) -> List[str]:
+    """JSON under features/ that no schema validates and no exemption names (the review's A16)."""
+    features_root = root / "features"
+    if not features_root.is_dir():
+        return []
+    covered = {p for patterns in SCHEMA_INSTANCES.values()
+               for pattern in patterns for p in root.glob(pattern)}
+    covered |= {p for pattern in FEATURE_JSON_WITHOUT_SCHEMA for p in root.glob(pattern)}
+    return [f"{p.relative_to(root).as_posix()}: matched by no schema — add a SCHEMA_INSTANCES "
+            f"glob or an entry in FEATURE_JSON_WITHOUT_SCHEMA with a reason"
+            for p in sorted(features_root.rglob("*.json")) if p not in covered]
+
+
+def _stack_requires(root: Path, stack: str) -> List[str]:
+    sj = root / "features" / stack / "stack.json"
+    return list(bl.load_json(sj).get("requires", [])) if sj.is_file() else []
+
+
+def _requires_closure(root: Path, stack: str) -> set:
+    out = {stack, "common"}
+    pending = [stack]
+    while pending:
+        for req in _stack_requires(root, pending.pop()):
+            if req not in out:
+                out.add(req)
+                pending.append(req)
+    return out
+
+
+def _artifact_owners(root: Path) -> Dict[str, set]:
+    """Artifact name -> the stacks that ship it, over the referenceable feature types.
+
+    Hyphenated names only: a bare one-word name (`mcp`, `css`, `task`) is ordinary prose
+    wherever it appears, so matching it would report noise instead of dangling pointers.
+    """
+    owners: Dict[str, set] = {}
+    for stack, feature, fdir in bl.iter_feature_dirs(root):
+        if feature not in REFERENCEABLE_FEATURES:
+            continue
+        for item in sorted(fdir.iterdir()):
+            name = item.name if item.is_dir() else item.stem
+            if (item.is_dir() or item.suffix == ".md") and "-" in name:
+                owners.setdefault(name, set()).add(stack)
+    return owners
+
+
+def cross_stack_reference_gaps(root: Path) -> List[str]:
+    """A stack's file naming an artifact only another, undeclared stack ships (the review's C8).
+
+    `features/dotnet` declares `requires: []`, so a dotnet-only scaffold has no
+    `cloud-infra-engineer` — yet its persona sent readers to one.
+    """
+    owners = _artifact_owners(root)
+    gaps: List[str] = []
+    for stack_dir in sorted(p for p in (root / "features").glob("*") if p.is_dir()):
+        stack = stack_dir.name
+        if stack in CROSS_STACK_REFERENCE_EXEMPT:
+            continue
+        closure = _requires_closure(root, stack)
+        candidates = [(n, o) for n, o in owners.items() if not o & closure]
+        for path in sorted(stack_dir.rglob("*.md")):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            gaps += [
+                f"{path.relative_to(root).as_posix()}: names {name!r}, shipped only by "
+                f"{'/'.join(sorted(own))}, which {stack} does not require"
+                for name, own in candidates
+                if re.search(r"(?<![\w-])" + re.escape(name) + r"(?![\w-])", text)]
+    return sorted(gaps)
+
+
 def validate_all(root: Path) -> int:
     """Validate every catalog file SCHEMA_INSTANCES maps, plus the schemas themselves."""
     ok = True
@@ -451,6 +604,9 @@ def validate_all(root: Path) -> int:
                 ok &= _report(str(instance.relative_to(root)),
                               bl.validate_file(instance, schema_path))
 
+    ok &= _report("catalog stack membership", catalog_stack_gaps(root))
+    ok &= _report("feature json schema coverage", unschemad_feature_json(root))
+    ok &= _report("cross-stack references", cross_stack_reference_gaps(root))
     ok &= _report("hooks-manifest agent coverage", hooks_manifest_agent_gaps(root))
     ok &= _report("skills lint", skills_lint(root))
     return 0 if ok else 1
@@ -484,6 +640,10 @@ def main(argv=None) -> int:
         ap.error("provide --schema or --kind")
 
     ok = _report(str(inst), bl.validate_file(inst, schema_path))
+    if ok and schema_path.name == KIND_TO_SCHEMA["config"]:
+        # The schema states stack membership only in a description string; a config selecting a
+        # stack the catalog cannot deliver is otherwise valid (the review's C14).
+        ok &= _report("config stack membership", config_stack_gaps(root, bl.load_json(inst)))
     return 0 if ok else 1
 
 
