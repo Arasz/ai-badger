@@ -174,6 +174,10 @@ def check(root: Path) -> int:
         print("the guard cannot prove the shipped surface is unchanged — FAIL. A shallow or "
               "partial clone is the usual cause; CI needs fetch-depth: 0.")
         return 1
+    except bl.MissingVersion as exc:
+        print(f"NO VERSION TO GUARD: {exc}")
+        print("a repo with release tags must declare the version it is now at — FAIL.")
+        return 1
 
 
 def _report_skipped(root: Path, released_version: str, current_version: str) -> bool:
@@ -214,7 +218,7 @@ def _check(root: Path) -> int:
         return 0
 
     released_version = tag_version(tag)
-    current_version = (root / "VERSION").read_text(encoding="utf-8").strip()
+    current_version = bl.read_version(root)
     # Checked before the diff: an untagged release is a fact about the repo, not about
     # whether this particular push touched the shipped surface.
     if _report_skipped(root, released_version, current_version):

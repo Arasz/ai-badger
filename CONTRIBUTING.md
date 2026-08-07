@@ -45,9 +45,11 @@ interpreter.
 
 Runtime dependencies are deliberately minimal, and the two behave differently on purpose:
 
-- **`jsonschema` is required.** `engine/badger_lib.py` imports it unguarded. Validation that
-  silently no-ops is worse than a missing dependency — an unvalidated config would sail straight
-  into the scaffolder — so it fails loudly instead.
+- **`jsonschema` is required.** `engine/badger_lib.py` imports it inside the three validation
+  functions rather than at module scope, so the eleven entry points that never validate do not
+  pay for it — but the `ImportError` is never caught there. Validation that silently no-ops is
+  worse than a missing dependency — an unvalidated config would sail straight into the
+  scaffolder — so it fails loudly instead.
 - **`pyyaml` is optional.** It is imported behind a guard and degrades to a printed note
   (`mcp_index.YAML_MISSING_HINT`), because the features needing it are not on the critical path.
 

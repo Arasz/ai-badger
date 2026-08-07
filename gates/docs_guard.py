@@ -54,12 +54,15 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import List, NamedTuple, Sequence, Tuple
+from typing import List, Sequence, Tuple
 from urllib.parse import unquote
 
 # The engine lives in engine/: is_framework_root anchors on engine/badger_lib.py (ADR-0011).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
+# gate_report is a sibling: running this file puts gates/ on the path, importing it does not.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import badger_lib as bl
+from gate_report import Problem, report
 
 DOCS_DIR = "docs"
 IGNORE_FILE = ".docs-guard-ignore"
@@ -78,18 +81,6 @@ REF_LINK_RE = re.compile(r"^ {0,3}\[[^\]]+\]:\s*<?([^>\s]+)>?")
 CODE_SPAN_RE = re.compile(r"`+([^`\n]+)`+")
 SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
 ENTRY_RE = re.compile(r"^(\d+\.\d+\.\d+)-[A-Za-z0-9._-]+\.md$")
-
-
-class Problem(NamedTuple):
-    """One actionable finding: where it is, and what does not resolve."""
-
-    path: str
-    line: int
-    message: str
-
-    def location(self) -> str:
-        """`file:line`, or just the file when the finding has no single line."""
-        return f"{self.path}:{self.line}" if self.line else self.path
 
 
 def exempt_prefixes(root: Path) -> Tuple[str, ...]:
@@ -254,12 +245,11 @@ def check(root: Path) -> int:
               f"resolves — PASS")
         return 0
 
-    print(f"DOCS OUT OF SYNC: {len(problems)} unresolved reference(s) in {scanned} document(s):")
-    for problem in problems:
-        print(f"    {problem.location()}  {problem.message}")
-    print("Fix the reference, or — only when the path is meant to be absent — add it to "
-          f"{IGNORE_FILE}.")
-    return 1
+    return report(
+        f"DOCS OUT OF SYNC: {len(problems)} unresolved reference(s) in {scanned} document(s):",
+        problems,
+        "Fix the reference, or — only when the path is meant to be absent — add it to "
+        f"{IGNORE_FILE}.")
 
 
 def main(argv=None) -> int:

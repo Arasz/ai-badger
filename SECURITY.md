@@ -144,9 +144,11 @@ Structural properties that predate those waves:
   `engine/requirements.txt` does not declare — in pre-commit and on all three CI Python
   versions.
 - The runtime dependency surface is deliberately tiny: **`jsonschema` and `pyyaml`**. Everything
-  else is Python 3.8+ stdlib. Their imports differ on purpose — `jsonschema` is required and
-  imported unguarded, because a guarded import would let validation silently pass when it is
-  absent; `pyyaml` is optional and guarded, degrading to a printed note.
+  else is Python 3.8+ stdlib. Their imports differ on purpose — `jsonschema` is required, and
+  although it is imported lazily (inside the validation functions, so the entry points that
+  never validate do not pay for it) the `ImportError` is never swallowed, because a guarded
+  import would let validation silently pass when it is absent; `pyyaml` is optional and
+  guarded, degrading to a printed note.
 
 There is still no secret-scanning **pre-commit** hook. That is now a decision rather than an
 omission, and both candidates were looked at:

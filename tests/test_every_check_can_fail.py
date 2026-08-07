@@ -746,6 +746,15 @@ def _defines_compare(text: str, path: str) -> bool:
                for node in tree.body)
 
 
+def _defines_main(text: str, path: str) -> bool:
+    """True when a module defines a top-level `main()` — what makes a file in gates/ runnable."""
+    try:
+        tree = ast.parse(text, filename=path)
+    except SyntaxError:  # pragma: no cover - a broken file is another gate's problem
+        return False
+    return any(isinstance(node, ast.FunctionDef) and node.name == "main" for node in tree.body)
+
+
 def _finding_kinds(text: str, path: str) -> List[str]:
     """Every finding kind `_finding(...)` can emit, read from its first argument."""
     kinds = []
@@ -766,7 +775,10 @@ def discovered_checks(root: Path) -> Dict[str, str]:
     """
     found: Dict[str, str] = {}
     for gate in sorted((root / "gates").glob("*.py")):
-        found[f"gates/{gate.name}"] = "a script in gates/"
+        # A runnable script, not a shared helper: gate_report.py holds the finding shape three
+        # gates print and has no verdict of its own, so it can have no provocation.
+        if _defines_main(gate.read_text(encoding="utf-8", errors="replace"), gate.name):
+            found[f"gates/{gate.name}"] = "a script in gates/"
     for rel in _tracked_sources(root):
         text = (root / rel).read_text(encoding="utf-8", errors="replace")
         if _declares_check_flag(text):
@@ -829,6 +841,16 @@ def test_every_check_has_a_provocation(root):
         "these checks have no provocation and no exemption — add one to REGISTRY, "
         f"or an entry with a reason to EXEMPTIONS: {unproven}"
     )
+
+
+def test_discovery_still_finds_every_runnable_gate(root):
+    """The `main()` filter must exclude only helpers — a gate it skips is a gate nobody proves."""
+    discovered = discovered_checks(root)
+    runnable = sorted(p.name for p in (root / "gates").glob("*_guard.py"))
+
+    assert runnable, "no gates found — the glob is wrong, not the tree"
+    missing = [name for name in runnable if f"gates/{name}" not in discovered]
+    assert not missing, f"discovery skipped runnable gates: {missing}"
 
 
 def test_registry_names_only_checks_that_exist(root):

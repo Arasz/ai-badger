@@ -35,11 +35,14 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, NamedTuple, Sequence, Tuple
+from typing import List, Sequence, Tuple
 
 # The engine lives in engine/: is_framework_root anchors on engine/badger_lib.py (ADR-0011).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
+# gate_report is a sibling: running this file puts gates/ on the path, importing it does not.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import badger_lib as bl
+from gate_report import Problem, report
 
 IGNORE_FILE = ".shipped-paths-guard-ignore"
 # A generated page is not prose. `docs/` is exempt because a changelog may quote a real leaked
@@ -57,18 +60,6 @@ ABS_PATH_RE = re.compile(
     r"(?:/Users/|/home/)" + _SEGMENT
     + r"|[A-Za-z]:" + _WIN_SEP + "Users" + _WIN_SEP + _SEGMENT
 )
-
-
-class Problem(NamedTuple):
-    """One actionable finding: where it is, and what leaked."""
-
-    path: str
-    line: int
-    message: str
-
-    def location(self) -> str:
-        """`file:line`, or just the file when the finding has no single line."""
-        return f"{self.path}:{self.line}" if self.line else self.path
 
 
 def exempt_prefixes(root: Path) -> Tuple[str, ...]:
@@ -147,12 +138,11 @@ def check(root: Path) -> int:
               f"PASS")
         return 0
 
-    print(f"SHIPPED PATH GUARD FAILED: {len(problems)} finding(s) in {scanned} tracked file(s):")
-    for problem in problems:
-        print(f"    {problem.location()}  {problem.message}")
-    print(f"Untrack the file (ship a portable .example alongside it), or — only for a genuine "
-          f"exception — list its path prefix in {IGNORE_FILE}.")
-    return 1
+    return report(
+        f"SHIPPED PATH GUARD FAILED: {len(problems)} finding(s) in {scanned} tracked file(s):",
+        problems,
+        "Untrack the file (ship a portable .example alongside it), or — only for a genuine "
+        f"exception — list its path prefix in {IGNORE_FILE}.")
 
 
 def main(argv=None) -> int:

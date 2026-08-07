@@ -452,3 +452,22 @@ def test_fails_when_version_equals_an_older_released_tag(tmp_path, load_script):
     _commit_all(repo, "tweak a skill, VERSION untouched")
 
     assert release_guard.main(["--root", str(repo)]) == 1
+
+
+def test_a_tagged_repo_with_no_version_file_fails_with_a_message_not_a_traceback(
+    tmp_path, load_script, capsys,
+):
+    """`(root / "VERSION").read_text()` raised FileNotFoundError straight out of the gate (D7)."""
+    release_guard = load_script("gates/release_guard.py")
+    repo = _init_repo(tmp_path)
+    (repo / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+    _commit_all(repo, "release 0.1.0")
+    _tag(repo, "ai-badger--v0.1.0")
+    (repo / "VERSION").unlink()
+    _commit_all(repo, "lose the version marker")
+
+    rc = release_guard.main(["--root", str(repo)])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "VERSION" in out
