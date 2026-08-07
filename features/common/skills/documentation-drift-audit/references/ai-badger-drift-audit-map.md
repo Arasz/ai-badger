@@ -1,7 +1,7 @@
 # ai-badger drift-audit map (verified 2026-08-02/03 during hermes-task-tracking audit)
 
 Where mechanisms live and how they behave, verified by reading the tree and a real
-scaffolded project (ai-raccon/the project: `agents: [claude, copilot, hermes]`,
+scaffolded project (ai-raccoon: `agents: [claude, copilot, hermes]`,
 `stacks: [dotnet, mcp]`). **Re-verify before citing — framework code moves.**
 
 ## Scaffolder copy behavior — no per-agent script filtering
@@ -29,7 +29,7 @@ scaffolded project (ai-raccon/the project: `agents: [claude, copilot, hermes]`,
 - Asymmetry (decision-gap): `task/extensions/claude/extension.json` requires
   `agents=claude`; `hermes/extension.json` requires `stacks=hermes` (unchanged since
   commit 7fdcb415, #46); `github` requires `sourceControl.platform==github` + `repoUrl`.
-  A project with hermes only in `agents` (ai-raccon) gets the scripts but the hermes
+  A project with hermes only in `agents` (ai-raccoon) gets the scripts but the hermes
   extension.md is **pruned** — the doc explaining the inert scripts is absent exactly
   where needed.
 - `detect.py`: hermes lands in `agents` (via `.hermes.md`/`HERMES.md`/`~/.hermes`) AND

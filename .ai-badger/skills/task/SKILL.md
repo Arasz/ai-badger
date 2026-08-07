@@ -25,7 +25,7 @@ dead session can be resumed.
 
 **All project specifics come from `.ai-badger/config.json`** — never hardcode a build command,
 a persona name, or a repository. Tracking data lives in `.ai-badger/task-tracking/` (gitignored).
-Scripts live in this skill's `scripts/`.
+Scripts live in this skill's `scripts/`. Read `references/file-schemas.md` before hand-writing or repairing any tracking file — it carries the exact shape of each one.
 
 ## When NOT to Use
 

@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.88.5 | [the dotnet catalog stops shipping one private project](0.88.5-purge-dotnet-harvest-leakage.md) |
 | 0.88.4 | [the meta-gate sees every gate](0.88.4-meta-gate-sees-every-gate.md) |
 | 0.88.3 | [the plugin-sync gate gets an oracle](0.88.3-plugin-sync-gets-an-oracle.md) |
 | 0.88.2 | [the gate's logs record pushes, not test runs](0.88.2-gate-logs-are-honest.md) |
