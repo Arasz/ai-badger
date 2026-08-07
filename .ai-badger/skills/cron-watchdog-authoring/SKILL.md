@@ -1,7 +1,6 @@
 ---
 name: cron-watchdog-authoring
 description: "Use when scheduling a Hermes cron job or writing a watchdog script: recurring schedules need 'every 30m' (bare '30m' is ONE-SHOT — check repeat), no_agent+script shape, silent-unless-action stdout discipline, version-gated rollout watchdogs (marker files, surgical port-kill), idempotent ticks, and verifying CLI verb paths before the rollout branch can run."
-description: Use when scheduling a Hermes cron job or watchdog script.
 version: 1.0.0
 author: ai-badger
 license: MIT
