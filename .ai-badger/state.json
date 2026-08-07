@@ -1,7 +1,28 @@
 {
-  "lastUpdated": "2026-08-06",
+  "lastUpdated": "2026-08-07",
   "next": "Design-review follow-ups (docs/work/2026-08-06-memory-skill-design-review.md): queryClass field + expected-source note contract in the grade log, per-source aggregation recipe in memory-quality-logging, consolidate the triplicated hook knowledge, and feed-badger the hooks-subsystem.md reference fix.",
   "completedTasks": [
+    {
+      "id": "skills-individual",
+      "title": "Skills individual improvements PR-2: I1-I12 (0.86.1)",
+      "summary": "Implemented Part B of the opt-skills plan (docs/work/2026-08-07-opt-skills-plan.md) in 14 commits: I1 code-review-checklist split (security+observability -> references/, EXT markers intact), I2 mcp-index split + When NOT to Use, I3 call-behaviorist split + checklist, I4 den-refresh split + checklist, I5 task gotchas + When NOT to Use, I6 commit-reminder gotchas, I7 feed-badger gotchas + checklist, I8 prompt-markers gotchas, I9 welcome-ai-badger checklist, I10 maintain-agent-instructions, I11 ai-raccoon-memory When NOT to Use, I12 evidence-first-research Files conditions; regen commit (config frameworkVersion -> 0.86.1, sync, self-scaffold); release 0.86.1 (amended from 0.85.1 after #320 claimed 0.86.0, per user f:); merged origin/main (feed harvest #320) with conflicts on 15 derived files only, resolved by regeneration (changelog index 197 entries, index.json 137 items); .github/mcp.json host-drift pitfall handled. Gates: 3272 passed/18 skipped full suite, sync --check 15 in sync, freshness PASS 1309 paths, validate --all ok. Pushed with --no-verify per user instruction. Draft PR #323.",
+      "pr": 323,
+      "date": "2026-08-07"
+    },
+    {
+      "id": "skills-conventions",
+      "title": "Skills corpus conventions PR-1: Gotchas, disclosure triggers, frontmatter, checklists (0.85.0)",
+      "summary": "Implemented Part A of the opt-skills plan (docs/work/2026-08-07-opt-skills-plan.md, PR #321) in 6 commits: G3 uniform frontmatter (10 skills), G1 one Gotchas convention (19/23 \u2014 4 I-PR-owned), G6 verification checklists (4), G2 explicit read-X-when-Y triggers (checker 0 flagged), plugin copy regen + self-scaffold, release 0.85.0 (VERSION + changelog + index + version_sync). Acceptance gates run by implementation agent and re-verified by orchestrator; one test pin fixed (task checklist full script path, TestTaskTrackerIsReachable). Full suite 3241 passed / 18 skipped; sync --check 15 in sync; freshness PASS; validate --all ok. Draft PR #322. Version slot 0.85.0 shared with feed PR #320 (user-directed f:).",
+      "pr": 322,
+      "date": "2026-08-07"
+    },
+    {
+      "id": "opt-skills",
+      "title": "Skills optimization: audit 23 distributed skills vs agentskills.io best practices + MoE-reviewed implementation plan",
+      "summary": "Audit (docs/work/2026-08-07-skills-optimization-audit.md): corpus already strong on descriptions/size/procedures; gaps G1-G6 (gotchas convention, progressive-disclosure triggers, frontmatter metadata, skills-lint gate, checklist convention) + individual items I1-I14; G5 premise corrected against source (root skills/ shapes intentional, sync gate-enforced at pre-push plugin-skills). Plan (docs/work/2026-08-07-opt-skills-plan.md) from 3 parallel architect lanes, reviewed by 2 parallel code-reviewer agents (APPROVE-WITH-FIXES, 28 findings, all resolved in plan): PR-1 corpus conventions, PR-2 individual edits, PR-3 skills-lint in validate.py (rule 8 = shared G2 checker), PR-4 shape_violations render-compare. Draft PR #321 (plan only; implementation is follow-up). Also two MCP research records (mcp-skills-distribution, mcp-skills-tools-pattern) produced under this task. Planning delegation had no token record; refused to fabricate.",
+      "pr": 321,
+      "date": "2026-08-07"
+    },
     {
       "id": "issue-313",
       "title": "Project-local invariants: add, not just exclude (0.81.0)",
