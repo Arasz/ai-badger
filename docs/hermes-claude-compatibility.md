@@ -62,8 +62,9 @@ plugin's `VERSION`, and prints a one-line notice when the two diverge.
 `${CLAUDE_PLUGIN_ROOT}/skills/task/…`. The real path in `hooks/hooks.json` is
 `${CLAUDE_PLUGIN_ROOT}/features/common/skills/task/…` and has been for some time.
 
-*Correction (2026-08-07, 0.94.0):* "prints a one-line notice if they differ" was accurate until
-0.91.0 and is not now. Two things changed, and both matter to anyone porting this:
+*Correction (2026-08-07, 0.94.0):* the paragraph above read "prints a one-line notice if they
+differ" until now. That was accurate until 0.91.0. Two things changed, and both matter to anyone
+porting this:
 
 - **Diverge is not the same as differ.** The comparison is `drift_notice.versions_diverge`, which
   reads `(major, minor)` off each side and ignores the patch slot — a patch-only bump is stamp
