@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.88.0 | [the AWM denylist judges what a command does, not how it is spelled](0.88.0-awm-judges-intent-not-spelling.md) |
 | 0.87.2 | [the catalog carries no real vault identifiers](0.87.2-purge-vault-identifiers.md) |
 | 0.87.1 | [the shipped plugin copy's shape is the rendered shape](0.87.1-shape-assertion.md) |
 | 0.87.0 | [Skills-lint gate in validate.py](0.87.0-skills-lint.md) |
