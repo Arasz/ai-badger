@@ -42,4 +42,4 @@ supersedes report F28 where they differ).
 - Azure Key Vault: Azure.Security.KeyVault.Secrets 4.11.0 + Azure.Identity 1.21.0 (MIT, net10); bootstrap = DefaultAzureCredential → az login state under ~/.azure.
 - AWS Secrets Manager: AWSSDK.SecretsManager 4.0.100.7 (Apache-2.0, net10, same v4 SDK generation as AWSSDK.S3); bootstrap = standard AWS chain (~/.aws/credentials, SSO cache). Don't copy the static BasicAWSCredentials pattern used by the
   repo's S3 sync.
-- Keychain-direct stays the general recommendation; Bitwarden is the opt-in tier the owner chose for this project.
+- Keychain-direct stays the general recommendation; Bitwarden is an opt-in tier for teams that already run a shared vault.
