@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.88.1",
-  "frameworkCommit": "8360b50be786efc18bc6f10512fd70a865857885",
+  "frameworkCommit": "2e000f6fd7f890283d175a1c6d8a24eb93e759bb",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -749,12 +749,12 @@
       "source": "features/claude/skills/auto-wm",
       "target": ".ai-badger/skills/auto-wm",
       "frameworkVersion": "0.88.1",
-      "hash": "851a45fcb20dd07b1f6db4226f60af05f59dbb3a97727db08d21316fb7852963",
+      "hash": "9e9f94638808a2a3ff0fc06bccedf9efcd4d7f003518e1694935314bf2ebafae",
       "dirMeta": {
         "file_count": 5,
         "dir_count": 2
       },
-      "sourceHash": "851a45fcb20dd07b1f6db4226f60af05f59dbb3a97727db08d21316fb7852963",
+      "sourceHash": "9e9f94638808a2a3ff0fc06bccedf9efcd4d7f003518e1694935314bf2ebafae",
       "sourceMeta": {
         "file_count": 5,
         "dir_count": 2
