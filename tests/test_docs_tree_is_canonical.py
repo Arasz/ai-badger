@@ -11,6 +11,9 @@ seventeen. A partial map is worse than none, because it is read as complete.
 """
 from __future__ import annotations
 
+import functools
+import subprocess
+
 import pytest
 
 # The canonical tree, minus `legacy/` — that one exists only while a wholesale migration is in
@@ -36,6 +39,22 @@ def _docs(root):
     return root / "docs"
 
 
+@functools.lru_cache(maxsize=None)
+def _committed_entries(root, subpath):
+    """Direct children of HEAD:<subpath> as (name, is_dir) pairs, read from the committed tree."""
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-tree", f"HEAD:{subpath}"],
+        capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        return ()
+    entries = []
+    for line in result.stdout.splitlines():
+        meta, name = line.split("\t", 1)
+        _mode, kind, _sha = meta.split()
+        entries.append((name, kind == "tree"))
+    return tuple(entries)
+
+
 class TestTheTreeExists:
     """A legal home exists before any document is written."""
 
@@ -54,8 +73,8 @@ class TestEveryMapIsComplete:
 
     def test_the_root_readme_names_every_directory(self, root):
         readme = (_docs(root) / "README.md").read_text(encoding="utf-8")
-        present = sorted(d.name for d in _docs(root).iterdir()
-                         if d.is_dir() and not d.name.startswith("."))
+        present = sorted(name for name, is_dir in _committed_entries(root, "docs")
+                         if is_dir and not name.startswith("."))
 
         missing = [name for name in present if f"{name}/" not in readme]
 
@@ -66,12 +85,25 @@ class TestEveryMapIsComplete:
         """Subdirectories answer for themselves; files do not."""
         directory = _docs(root) / name
         readme = (directory / "README.md").read_text(encoding="utf-8")
-        beside = sorted(f.name for f in directory.iterdir()
-                        if f.is_file() and f.name != "README.md")
+        beside = sorted(entry_name for entry_name, is_dir in _committed_entries(root, f"docs/{name}")
+                        if not is_dir and entry_name != "README.md")
 
         missing = [f for f in beside if f not in readme]
 
         assert not missing, f"docs/{name}/README.md omits: {', '.join(missing)}"
+
+    def test_the_checks_ignore_an_untracked_file_and_directory(self, root):
+        """A concurrent write into docs/ mid-run must not flip these checks red — only commits count."""
+        scratch_dir = _docs(root) / "zz_scratch_untracked_dir"
+        scratch_file = _docs(root) / "reference" / "zz-scratch-untracked.md"
+        scratch_dir.mkdir()
+        scratch_file.write_text("scratch", encoding="utf-8")
+        try:
+            self.test_the_root_readme_names_every_directory(root)
+            self.test_a_directory_readme_names_every_file_beside_it(root, "reference")
+        finally:
+            scratch_file.unlink()
+            scratch_dir.rmdir()
 
 
 class TestTheGateFreezesOnlyRealPaths:
@@ -111,6 +143,7 @@ class TestNoProseHidesFromRipgrep:
     """The reason `work/` had to exist: `.tmp/` is hidden, and every agent's search is ripgrep."""
 
     def test_no_review_form_is_left_in_a_hidden_directory(self, root):
+        # .tmp/ is gitignored, so it cannot be read from git — the working tree is the only source.
         hidden = root / ".tmp"
         if not hidden.is_dir():
             return

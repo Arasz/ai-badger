@@ -193,3 +193,37 @@ test("an oversized pattern is reported, not thrown as a stack trace", () => {
   assert.match(result.stderr, /pattern too long/i);
   assert.doesNotMatch(result.stderr, /at Object\.|at Module\./);
 });
+
+
+// Seven characters, so the length cap never sees it, and it backtracks catastrophically
+// against a non-matching input: measured as a hang, not a slow run (review B16).
+test("a quantified group is reported, not run", () => {
+  const root = makeProject({ "CLAUDE.md": "# P\n" }, {
+    ...MINIMAL_MODEL,
+    validation: { requiredPatterns: { "CLAUDE.md": ["^(a+)+$"] } },
+  });
+
+  const result = run(SCRIPT, root);
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /nested quantifier/i);
+  assert.doesNotMatch(result.stderr, /at Object\.|at Module\./);
+});
+
+test("a forbidden pattern with a quantified group is reported too", () => {
+  const root = makeProject({ "CLAUDE.md": "# P\n" }, {
+    ...MINIMAL_MODEL,
+    validation: { forbiddenPatterns: { "CLAUDE.md": ["(ab|a)+c"] } },
+  });
+
+  assert.match(run(SCRIPT, root).stderr, /nested quantifier/i);
+});
+
+test("an unquantified group is still a legal pattern", () => {
+  const root = makeProject({ "CLAUDE.md": "# P\n\nTDD is mandatory.\n" }, {
+    ...MINIMAL_MODEL,
+    validation: { requiredPatterns: { "CLAUDE.md": ["(TDD|BDD) is mandatory"] } },
+  });
+
+  assert.equal(run(SCRIPT, root).code, 0);
+});

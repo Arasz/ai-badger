@@ -26,7 +26,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 # debug_log sits beside this file in every deployment shape; it is a no-op unless the
 # call-behaviorist skill has switched debug on.
@@ -94,6 +94,7 @@ def _bootstrap_lib() -> Path:
     (ADR-0009). Duplicated verbatim in every entry point because locating badger_lib is
     what it is for.
     """
+
     def is_root(path):
         return ((path / "schemas").is_dir() and (path / "features").is_dir()
                 and (path / "engine" / "badger_lib.py").is_file())
@@ -258,6 +259,35 @@ def _read_scaffold_version(cwd: Optional[str]) -> Optional[str]:
         return None
 
 
+def _parse_major_minor(version: str) -> Optional[Tuple[int, int]]:
+    """(major, minor) from a `x.y[.z]` string, or None when it does not parse."""
+    parts = version.split(".")
+    if len(parts) < 2:
+        return None
+    try:
+        return int(parts[0]), int(parts[1])
+    except ValueError:
+        return None
+
+
+# Duplicated from features/common/skills/task/scripts/drift_notice.py: this Hermes hook lives in
+# a directory that cannot import that Claude-side module cleanly. test_both_hosts_agree_on_
+# versions_diverge in tests/test_hook_cwd_resolution.py pins both spellings, the same convention
+# tests/conftest.py's SPAWN_LOG_ENV/REAL_WRITE_LOG_ENV comments describe.
+def versions_diverge(scaffolded: str, running: str) -> bool:
+    """True when a re-scaffold could change something a consumer would see.
+
+    Compares (major, minor) only — a patch-only difference is stamp noise, the same
+    tolerance `gates/scaffold_freshness_guard.py`'s STAMP_KEYS already grant (B10). An
+    unparseable version on either side falls back to plain string inequality.
+    """
+    parsed_scaffolded = _parse_major_minor(scaffolded)
+    parsed_running = _parse_major_minor(running)
+    if parsed_scaffolded is None or parsed_running is None:
+        return scaffolded != running
+    return parsed_scaffolded != parsed_running
+
+
 # Hints already injected in this session; cleared at session start.
 _session_hints_shown: set = set()
 
@@ -340,10 +370,10 @@ def pre_tool_call_memory_gate(tool_name: str = "", args: Optional[Dict[str, Any]
 
 
 def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
-    """Check for framework version drift on every session start.
+    """Check for framework version drift (see `versions_diverge`) on every session start.
 
-    Silent on match, on an unscaffolded project, and on any read error.
-    A hook that breaks session start or nags unconditionally defeats its purpose.
+    Silent on match, on a patch-only bump, on an unscaffolded project, and on any read
+    error. A hook that breaks session start or nags unconditionally defeats its purpose.
     """
     reset_session_hints()
     reset_gate_state()
@@ -351,7 +381,7 @@ def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
     _debug("ai_badger_hooks/session_start", "start", project=project)
     scaffold_ver = _read_scaffold_version(project)
     fw_version = _read_framework_version()
-    if not scaffold_ver or not fw_version or scaffold_ver == fw_version:
+    if not scaffold_ver or not fw_version or not versions_diverge(scaffold_ver, fw_version):
         _debug("ai_badger_hooks/session_start", "skip", project=project,
                scaffold_version=scaffold_ver, framework_version=fw_version)
         return
@@ -416,7 +446,7 @@ def _has_legacy_unmigrated_index(cwd: Optional[str]) -> bool:
 
 
 def _find_relevant_tools(
-    query: str, index: dict[str, Any], top_n: int = 3
+        query: str, index: dict[str, Any], top_n: int = 3
 ) -> list[tuple[str, float]]:
     """Rank tools in the index by relevance to the query via the BM25 matcher.
 
@@ -547,7 +577,7 @@ def _record_tool_index_check(project, tool_name: str, index: dict[str, Any]) -> 
 # ---------------------------------------------------------------------------
 
 def pre_llm_inject_context(
-    cwd: str = "", message: str = "", user_message: str = "", **_kwargs: Any
+        cwd: str = "", message: str = "", user_message: str = "", **_kwargs: Any
 ) -> Optional[Dict[str, str]]:
     """Inject ai-badger framework context into every LLM turn.
 
@@ -576,11 +606,11 @@ def pre_llm_inject_context(
         if grade_ask:
             parts.append(grade_ask)
 
-    # Framework version
+    # Framework version — see `versions_diverge`; a patch-only bump is silent (B10).
     fw_version = _read_framework_version()
     if fw_version:
         scaffold_ver = _read_scaffold_version(project)
-        if scaffold_ver and scaffold_ver != fw_version:
+        if scaffold_ver and versions_diverge(scaffold_ver, fw_version):
             parts.append(
                 f"[ai-badger] Scaffolded with {scaffold_ver}, "
                 f"framework is {fw_version}. Run den-refresh to update."
@@ -838,7 +868,7 @@ def _maybe_log_memory_grade(tool_name: str, args: Dict[str, Any], result: str,
 # ---------------------------------------------------------------------------
 
 def post_tool_observer(tool_name: str = "", result: str = "",
-                        duration_ms: int = 0, cwd: str = "", **kwargs: Any) -> None:
+                       duration_ms: int = 0, cwd: str = "", **kwargs: Any) -> None:
     """Observe tool calls for debugging and metrics.
 
     Fires after every tool execution. Logs at DEBUG level so it doesn't flood

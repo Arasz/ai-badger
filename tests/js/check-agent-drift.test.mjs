@@ -114,3 +114,42 @@ test("an oversized file is not scanned", () => {
   assert.equal(result.code, 1);
   assert.match(result.stderr, /too large/i);
 });
+
+
+// Seven characters, so the length cap never sees it, and it backtracks catastrophically
+// against a non-matching input: measured as a hang, not a slow run (review B16).
+test("a quantified group is rejected rather than compiled", () => {
+  const root = makeProject({ "CLAUDE.md": "# P\n" }, modelWith([{
+    ...TDD_RULE, patterns: ["^(a+)+$"],
+  }]));
+
+  const result = run(SCRIPT, root);
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /nested quantifier/i);
+  assert.match(result.stderr, /\^\(a\+\)\+\$/);
+});
+
+test("an alternation inside a quantified group is rejected too", () => {
+  const root = makeProject({ "CLAUDE.md": "# P\n" }, modelWith([{
+    ...TDD_RULE, patterns: ["^(a|aa)+$"],
+  }]));
+
+  assert.match(run(SCRIPT, root).stderr, /nested quantifier/i);
+});
+
+test("an ordinary quantifier outside a group still compiles and matches", () => {
+  const root = makeProject({ "CLAUDE.md": "# P\n\nTDD is    mandatory.\n" }, modelWith([{
+    ...TDD_RULE, patterns: ["TDD is\\s+mandatory"],
+  }]));
+
+  assert.equal(run(SCRIPT, root).code, 0);
+});
+
+test("a group that is not quantified still compiles", () => {
+  const root = makeProject({ "CLAUDE.md": "# P\n\nTDD is mandatory.\n" }, modelWith([{
+    ...TDD_RULE, patterns: ["(TDD|BDD) is mandatory"],
+  }]));
+
+  assert.equal(run(SCRIPT, root).code, 0);
+});
