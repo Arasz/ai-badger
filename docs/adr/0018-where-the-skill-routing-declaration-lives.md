@@ -29,7 +29,7 @@ Something else does, several times over. Verified at 0.93.1:
 | `frontmatter_fields` | `features/common/skills/welcome-ai-badger/scripts/template_rendering.py:24` | persona `model:` lanes, at scaffold time |
 | `_split_frontmatter` | `features/claude/adjustments/adjust_agents.py:92` | rebuilding a persona as a Claude subagent |
 | `_split_frontmatter` | `features/copilot/adjustments/adjust_agents.py:36` | the same, via pyyaml |
-| `has_model_frontmatter` | `features/common/skills/task/scripts/dispatch_gate_hook.py:70` | denying an `Agent` dispatch that names no model |
+| `declares_model` | `features/common/skills/task/scripts/dispatch_gate_hook.py:69` | denying an `Agent` dispatch that names no model |
 
 The specific fear is also gone. ADR-0005 worried that a hand-rolled parser "buys a worse failure
 mode than the constant it replaces" — a parse miss reading as a pass. That is now impossible by
@@ -71,7 +71,7 @@ thing here:
   ADR-0005's Decision says `skill_scope()` "raises `UnknownSkillScope` rather than assuming a
   default". True of the function; not true of the system. The property that omission is an error
   is held entirely by
-  `tests/test_sync_plugin_skills.py:284 test_every_catalog_skill_is_reachable_by_a_declared_route`,
+  `tests/test_sync_plugin_skills.py:286 test_every_catalog_skill_is_reachable_by_a_declared_route`,
   which diffs `index.json`'s common-stack skills against `set(SKILL_SCOPES)`. That test does work
   — it can fail, and it is the thing standing between us and another `code-review-checklist`. But
   it is a test, not a raise, and the ADR credits the wrong mechanism.
@@ -202,7 +202,7 @@ one:
 
 Two things are corrected while the record is open, neither of which is a code change in this PR:
 
-- **The enforcement is a test, and the ADR should say so.** `test_every_catalog_skill_is_reachable_by_a_declared_route` (`tests/test_sync_plugin_skills.py:284`) is what makes omission an error, together with `test_scope_declarations_name_only_real_skills` (line 300). `skill_scope()`'s
+- **The enforcement is a test, and the ADR should say so.** `test_every_catalog_skill_is_reachable_by_a_declared_route` (`tests/test_sync_plugin_skills.py:286`) is what makes omission an error, together with `test_scope_declarations_name_only_real_skills` (line 303). `skill_scope()`'s
   `UnknownSkillScope` is a guard with no production caller — worth keeping as the correct shape for
   a future caller, but it is not what is protecting the catalog today, and ADR-0005 implied it was.
 - **The `# pylint: disable=too-many-lines` comment at `engine/badger_lib.py:1` should stop citing
