@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.101.0 | [the edit guard agrees with the push gate](0.101.0-the-guard-agrees-with-the-gate.md) |
 | 0.100.0 | [the release ritual's last step is checked](0.100.0-the-release-rituals-last-step-is-checked.md) |
 | 0.99.0 | [a gate nobody enumerates, and a fix that landed on the dead branch](0.99.0-a-gate-nobody-enumerates.md) |
 | 0.97.0 | [a stuck PR stops looking slow](0.97.0-a-stuck-pr-stops-looking-slow.md) |

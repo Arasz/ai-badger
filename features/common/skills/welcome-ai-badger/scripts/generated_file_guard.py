@@ -20,11 +20,11 @@ EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 OVERRIDE_ENV = "AI_BADGER_ALLOW_GENERATED_EDITS"
 MANIFEST = ".ai-badger/manifest.json"
 
-# Manifest features whose targets the scaffold rewrites on every run. `templates` is deliberately
-# absent: a template is seeded once and then belongs to the project (`.ai-badger/state.json`,
-# `CLAUDE.md`), so refusing to edit one would refuse the intended way to use it.
-REGENERATED_FEATURES = frozenset({"skills", "personas", "instructions", "invariants",
-                                  "adjustments"})
+# Every manifest entry is a file the scaffold rewrites on the next run except one the scaffolder
+# marked `seedOnce` — the flag it sets exactly where it seeds a file and then leaves it alone. A
+# manifest written before the flag carries none, and every entry reads as regenerated: a loud
+# refusal that self-heals on the next scaffold, not a silent exemption the push gate then rejects.
+SEED_ONCE = "seedOnce"
 
 # The plugin copy under `skills/` is produced by tooling/sync_plugin_skills.py, which writes no
 # manifest. It is only a copy when the catalog it was copied from is still there to prove it.
@@ -86,7 +86,7 @@ def manifest_source(root: Path, rel: PurePosixPath) -> Optional[str]:
     best_target = ""
     best_source = None
     for entry in manifest_entries(root):
-        if not isinstance(entry, dict) or entry.get("feature") not in REGENERATED_FEATURES:
+        if not isinstance(entry, dict) or entry.get(SEED_ONCE):
             continue
         target, source = entry.get("target"), entry.get("source")
         if not isinstance(target, str) or not isinstance(source, str) or not _under(rel, target):

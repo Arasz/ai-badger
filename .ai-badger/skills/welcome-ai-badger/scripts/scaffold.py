@@ -387,10 +387,11 @@ class Scaffolder:
         self.record(feature, stack, item["name"], src, dest)
         return dest
 
-    def record_template(self, src: Path, dest: Path) -> None:
-        """Record a template's provenance, named by its path under the stack's templates dir."""
+    def record_template(self, src: Path, dest: Path, seed_once: bool = False) -> None:
+        """Record a template's provenance; `seed_once` marks one the scaffold never rewrites."""
         rel = src.relative_to(self.root / "features").parts
         self.record("templates", rel[0], Path(*rel[2:]).as_posix(), src, dest)
+        self.entries[-1]["seedOnce"] = seed_once
 
     def generated_config_records(self) -> List[Dict[str, Any]]:
         """Every generated-but-not-owned config path the manifest should carry (#194)."""
@@ -412,12 +413,10 @@ class Scaffolder:
         """Copy src to dest only on first scaffold. If dest already exists, it is project-owned
         and left untouched (--reset-seed-files overrides this and reseeds from src)."""
         if src.exists():
-            self.record_template(src, dest)
+            self.record_template(src, dest, seed_once=True)
         if dest.exists() and not self.reset_seed_files:
-            self.notes.append(
-                f"preserved seed-once {label} (already exists; not re-seeded; "
-                "pass --reset-seed-files to reset)"
-            )
+            self.notes.append(f"preserved seed-once {label} (already exists; not re-seeded; "
+                              "pass --reset-seed-files to reset)")
             return
         if src.exists():
             dest.parent.mkdir(parents=True, exist_ok=True)
