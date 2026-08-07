@@ -491,7 +491,7 @@ def catalog_stack_gaps(root: Path) -> List[str]:
     return [f"features/{d.name}: no stack.json and no feature directory, so the index never "
             f"sees it — populate it or delete it"
             for d in sorted(features_root.iterdir())
-            if d.is_dir() and d.name not in known]
+            if d.is_dir() and not d.name.startswith(".") and d.name not in known]
 
 
 def config_stack_gaps(root: Path, config: Dict) -> List[str]:

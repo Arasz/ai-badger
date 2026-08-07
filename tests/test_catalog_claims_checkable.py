@@ -96,6 +96,16 @@ def test_a_features_directory_with_nothing_indexable_is_reported(tmp_path, root,
     assert any("ghost" in g for g in gaps), gaps
 
 
+def test_a_dot_directory_under_features_is_not_a_candidate_stack(tmp_path, root, load_script):
+    """Local state lands in features/.ai-badger/; no stack is ever named with a leading dot."""
+    validate = load_script("tooling/validate.py")
+    stray = tmp_path / "features" / ".ai-badger" / "task-tracking"
+    stray.mkdir(parents=True)
+    (stray / "poll_limit.pid").write_text("1234", encoding="utf-8")
+
+    assert validate.catalog_stack_gaps(tmp_path) == []
+
+
 # ── A16: every JSON under features/ is schema'd or exempt by name ─────────────────────
 
 def test_every_json_under_features_is_schemad_or_exempt_by_name(root, load_script):
