@@ -18,6 +18,23 @@ PROJECT_ID_ENV = "AI_RACCOON_PROJECT_ID"
 # Keeps a hung/slow git from blocking the tool call the gate is meant to police.
 _GIT_TIMEOUT_SECONDS = 2
 
+# badger_lib.GIT_LOCATION_ENV, repeated because this ships into projects that have no framework
+# checkout to import it from. git exports GIT_DIR to its hooks and GIT_COMMON_DIR answers
+# `--git-common-dir` outright, so a child that inherits either reports another repository's
+# layout. tests/test_git_invocation.py pins every copy against the original.
+GIT_LOCATION_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+                    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                    "GIT_PREFIX", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES")
+
+
+def git_env(env=None) -> dict:
+    """`env` (default `os.environ`) minus every variable that pins git to another repository."""
+    out = dict(os.environ if env is None else env)
+    for name in GIT_LOCATION_ENV:
+        out.pop(name, None)
+    return out
+
+
 # Bash/terminal commands whose first token is one of these are text search.
 _SEARCH_COMMANDS = ("grep", "rg", "find", "rg.exe")
 
@@ -99,6 +116,7 @@ def _main_checkout_basename(cwd: str) -> Optional[str]:
         result = subprocess.run(
             ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
             cwd=cwd, capture_output=True, text=True, timeout=_GIT_TIMEOUT_SECONDS, check=False,
+            env=git_env(),
         )
     except (OSError, subprocess.SubprocessError):
         return None
