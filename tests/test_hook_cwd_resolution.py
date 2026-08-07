@@ -68,6 +68,20 @@ def test_drift_notice_fires_when_hermes_sends_no_cwd(tmp_path, monkeypatch, capl
     assert any("ai-badger drift" in r.message for r in caplog.records)
 
 
+def test_drift_notice_silent_on_patch_only_bump(tmp_path, root, monkeypatch, caplog, hooks):
+    """Acceptance criterion (B10): a patch-only bump must not produce a drift notice."""
+    fw_version = (root / "VERSION").read_text(encoding="utf-8").strip()
+    major, minor, patch = fw_version.split(".")
+    scaffold_version = f"{major}.{minor}.{int(patch) + 1}"
+    project = _scaffolded_project(tmp_path, framework_version=scaffold_version)
+    monkeypatch.chdir(project)
+
+    with caplog.at_level("INFO"):
+        hooks.on_session_start_drift_notice(session_id="sess_1")
+
+    assert not any("ai-badger drift" in r.message for r in caplog.records)
+
+
 def test_drift_notice_silent_outside_a_project(tmp_path, monkeypatch, caplog, hooks):
     """Resolving cwd must not make the hook nag from an unscaffolded directory."""
     monkeypatch.chdir(tmp_path)
@@ -87,6 +101,21 @@ def test_pre_llm_injects_drift_when_hermes_sends_no_cwd(tmp_path, monkeypatch, h
 
     assert result is not None
     assert "Run den-refresh to update." in result["context"]
+
+
+def test_pre_llm_silent_on_patch_only_bump(tmp_path, root, monkeypatch, hooks):
+    """Same acceptance criterion (B10) for the per-turn context-injection path."""
+    fw_version = (root / "VERSION").read_text(encoding="utf-8").strip()
+    major, minor, patch = fw_version.split(".")
+    scaffold_version = f"{major}.{minor}.{int(patch) + 1}"
+    project = _scaffolded_project(tmp_path, framework_version=scaffold_version)
+    monkeypatch.chdir(project)
+
+    result = hooks.pre_llm_inject_context(
+        session_id="sess_1", user_message="hello", model="claude-opus-5", platform="cli")
+
+    if result is not None:
+        assert "Run den-refresh to update." not in result["context"]
 
 
 def test_pre_llm_reads_the_user_message_kwarg_hermes_sends(
@@ -125,3 +154,25 @@ def test_post_tool_observer_finds_the_index_when_hermes_sends_no_cwd(
     records = [json.loads(line) for line in dl.AUDIT_FILE.read_text(encoding="utf-8").splitlines()]
     assert any(r[dl.KEY_COMPONENT] == "ai_badger_hooks/mcp_retrieval" and r[dl.KEY_EVENT] == "known"
                for r in records)
+
+
+def test_both_hosts_agree_on_versions_diverge(hooks, load_script):
+    """ai_badger_hooks.py cannot import drift_notice.py cleanly (different Hermes/Claude
+    directories), so `versions_diverge` is duplicated -- this pins both spellings agree,
+    the pattern SPAWN_LOG_ENV/REAL_WRITE_LOG_ENV use in tests/conftest.py."""
+    dn = load_script("features/common/skills/task/scripts/drift_notice.py")
+
+    cases = [
+        ("0.89.0", "0.89.1", False),
+        ("0.89.0", "0.90.0", True),
+        ("0.89.0", "1.0.0", True),
+        ("0.89.0", "0.89.0", False),
+        ("not-a-version", "also-not-a-version", True),
+        ("not-a-version", "not-a-version", False),
+    ]
+    for scaffolded, running, expected in cases:
+        claude_result = dn.versions_diverge(scaffolded, running)
+        hermes_result = hooks.versions_diverge(scaffolded, running)
+        assert claude_result is expected, (scaffolded, running, "drift_notice.py")
+        assert hermes_result is expected, (scaffolded, running, "ai_badger_hooks.py")
+        assert claude_result == hermes_result, (scaffolded, running)
