@@ -608,6 +608,23 @@ and you get the note above.
 This entry previously quoted the message as `not in index common.skills — skipped` and said
 `claude` was an agent and not a stack. Both were wrong; corrected 2026-08-07.
 
+### An edit inside `.ai-badger/`, `.claude/` or `skills/` is denied
+
+The **generated-file guard** (0.96.0, `features/common/skills/welcome-ai-badger/scripts/generated_file_guard.py`)
+is a Claude Code `PreToolUse` hook. `Edit`, `Write`, `MultiEdit` and `NotebookEdit` on a file the
+scaffold owns are refused with the source to edit instead, because the next scaffold would revert
+the change anyway. `gates/scaffold_freshness_guard.py` already catches that at push time; the hook
+moves it to edit time.
+
+The oracle is `.ai-badger/manifest.json`, resolved from the *edited file's* ancestors rather than
+the working directory — a worktree session edits the worktree, not the main checkout. Only the
+regenerated features are covered (`skills`, `personas`, `instructions`, `invariants`,
+`adjustments`); `templates` is deliberately excluded, because a template is seeded once and then
+belongs to the project. The plugin copy under `skills/` counts as generated only while the
+`features/*/skills/` catalog it was copied from is still present.
+
+For a deliberate one-off hand patch: `AI_BADGER_ALLOW_GENERATED_EDITS=1`.
+
 ### `can't open file '.../skills/welcome-ai-badger/scripts/detect.py'`
 
 **Fixed in 0.28.3.** Before that release, the skill files spelled their script paths as

@@ -91,9 +91,10 @@ wrong claim in a PR body passes every one of them. That still needs a reviewer.
 
 ## Supported stacks
 
-`angular`, `aspire`, `azure`, `cosmos`, `css`, `dotnet`, `github`, `hermes`, `js`, `mcp`,
+`angular`, `aspire`, `azure`, `changelog`, `cosmos`, `css`, `dotnet`, `github`, `js`, `mcp`,
 `node`, `python`, `react`, `terraform`, `ts` — plus **`common`** for stack-agnostic content and
-agent-specific stacks (`claude`, `copilot`, `hermes`).
+agent-specific stacks (`claude`, `copilot`, `hermes`). Derive it rather than quoting this line:
+`ls features/`.
 
 ## Install
 
@@ -243,7 +244,7 @@ ai-badger/
   docs/                          # Architecture, authoring guides, ADRs
   features/
     common/
-      skills/                    # Installable operational skills
+      skills/                    # 36 skills; the 14 with scope: default are
         task/ welcome-ai-badger/ feed-badger/ den-refresh/
         create-task-spec/ maintain-agent-instructions/ prompt-markers/ mcp-index/
         code-review-checklist/ call-behaviorist/ owner-gate-review/
