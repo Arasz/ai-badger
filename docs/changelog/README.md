@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.108.0 | [the namespaces nothing was left to clean](0.108.0-the-namespaces-nothing-was-left-to-clean.md) |
 | 0.107.0 | [the edit guard allows the files a project is told to own](0.107.0-the-guard-allows-the-files-a-project-owns.md) |
 | 0.106.0 | [the review becomes catalog](0.106.0-the-review-becomes-catalog.md) |
 | 0.104.0 | [a skill declares its own scope](0.104.0-a-skill-declares-its-own-scope.md) |
