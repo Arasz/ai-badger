@@ -286,3 +286,73 @@ def test_os_droppings_are_not_contribution_candidates(tmp_path, load_script, roo
     assert rc == 0
 
     assert json.loads(capsys.readouterr().out)["candidates"] == []
+
+
+def test_a_project_owned_file_in_a_skill_is_not_a_changed_skill(tmp_path, load_script, root,
+                                                                capsys):
+    """The scaffold preserves it, so editing it is not something to contribute back."""
+    detect = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
+    bl = load_script("engine/badger_lib.py")
+    target = tmp_path / "proj"
+    skill = target / ".ai-badger" / "skills" / "prompt-markers"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("# prompt-markers\n", encoding="utf-8")
+    (skill / "markers-context.json").write_text('{"markers": {}}\n', encoding="utf-8")
+
+    owned = ["project-local.md", "markers-context.json"]
+    fingerprint = bl.dir_content_hash(skill, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"],
+                                      exclude_rel=owned)
+    (skill / "markers-context.json").write_text('{"markers": {"h": "ours"}}\n', encoding="utf-8")
+    (skill / "project-local.md").write_text("## ours\n", encoding="utf-8")
+
+    (target / ".ai-badger" / "manifest.json").write_text(json.dumps({
+        "frameworkVersion": "0.105.0",
+        "entries": [
+            {"feature": "skills", "stack": "common", "name": "prompt-markers",
+             "source": "features/common/skills/prompt-markers",
+             "target": ".ai-badger/skills/prompt-markers",
+             "hash": fingerprint["content_hash"], "projectOwned": owned,
+             "dirMeta": {"file_count": fingerprint["file_count"],
+                         "dir_count": fingerprint["dir_count"]}},
+        ],
+    }), encoding="utf-8")
+
+    rc = detect.main(["--target", str(target), "--root", str(root)])
+    assert rc == 0
+
+    assert json.loads(capsys.readouterr().out)["candidates"] == []
+
+
+def test_a_generated_file_in_that_same_skill_is_still_a_changed_skill(tmp_path, load_script,
+                                                                     root, capsys):
+    """Over-correction check: the exemption is per named file, not per skill."""
+    detect = load_script("features/common/skills/feed-badger/scripts/detect_additions.py")
+    bl = load_script("engine/badger_lib.py")
+    target = tmp_path / "proj"
+    skill = target / ".ai-badger" / "skills" / "prompt-markers"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("# prompt-markers\n", encoding="utf-8")
+    (skill / "markers-context.json").write_text('{"markers": {}}\n', encoding="utf-8")
+
+    owned = ["project-local.md", "markers-context.json"]
+    fingerprint = bl.dir_content_hash(skill, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"],
+                                      exclude_rel=owned)
+    (skill / "SKILL.md").write_text("# prompt-markers\n\n## ours\n", encoding="utf-8")
+
+    (target / ".ai-badger" / "manifest.json").write_text(json.dumps({
+        "frameworkVersion": "0.105.0",
+        "entries": [
+            {"feature": "skills", "stack": "common", "name": "prompt-markers",
+             "source": "features/common/skills/prompt-markers",
+             "target": ".ai-badger/skills/prompt-markers",
+             "hash": fingerprint["content_hash"], "projectOwned": owned,
+             "dirMeta": {"file_count": fingerprint["file_count"],
+                         "dir_count": fingerprint["dir_count"]}},
+        ],
+    }), encoding="utf-8")
+
+    rc = detect.main(["--target", str(target), "--root", str(root)])
+    assert rc == 0
+
+    paths = [c["path"] for c in json.loads(capsys.readouterr().out)["candidates"]]
+    assert ".ai-badger/skills/prompt-markers" in paths

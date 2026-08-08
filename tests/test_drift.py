@@ -843,3 +843,40 @@ def test_an_empty_directory_the_scaffolder_left_is_not_a_local_modification(
     result = drift.compare(fw, manifest, target=proj)
 
     assert result["locallyModified"] == []
+
+
+def test_a_project_edit_to_a_preserved_file_is_not_local_modification(
+        tmp_path, load_script, root, make_scaffolder):
+    """markers-context.json is the project's to edit, so drift must not report it as one."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    fw = _copy_framework(root, tmp_path / "fw")
+    target = make_scaffolder.target
+
+    result = make_scaffolder(root=fw, config=_config(stacks=["python"]),
+                             skills=["prompt-markers"]).run(generated_at="2026-07-28T00:00:00Z")
+
+    marker = target / ".ai-badger" / "skills" / "prompt-markers" / "markers-context.json"
+    marker.write_text('{"markers": {"h": "ours"}}\n', encoding="utf-8")
+
+    compared = drift.compare(fw, result["manifest"], target=target)
+
+    assert compared["locallyModified"] == []
+    assert compared["changed"] == []
+
+
+def test_a_project_edit_to_a_generated_file_in_that_same_skill_is_still_reported(
+        tmp_path, load_script, root, make_scaffolder):
+    """The exclusion is per named file, not per skill directory."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    fw = _copy_framework(root, tmp_path / "fw")
+    target = make_scaffolder.target
+
+    result = make_scaffolder(root=fw, config=_config(stacks=["python"]),
+                             skills=["prompt-markers"]).run(generated_at="2026-07-28T00:00:00Z")
+
+    edited = target / ".ai-badger" / "skills" / "prompt-markers" / "SKILL.md"
+    edited.write_text(edited.read_text(encoding="utf-8") + "\n# ours\n", encoding="utf-8")
+
+    compared = drift.compare(fw, result["manifest"], target=target)
+
+    assert "features/common/skills/prompt-markers" in compared["locallyModified"]

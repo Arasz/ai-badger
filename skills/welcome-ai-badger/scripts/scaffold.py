@@ -337,12 +337,13 @@ class Scaffolder:
             bl.default_skills_in(self.root / "features" / "common" / "skills")))
 
     # -- provenance -----------------------------------------------------------------
-    def record(self, feature: str, stack: str, name: str, source: Path, target: Path) -> None:
+    def record(self, feature: str, stack: str, name: str, source: Path, target: Path,
+               **extra: Any) -> None:
         """Append a manifest entry recording where a scaffolded item came from and went.
 
         Feature types the registry marks `hashes_source` record the framework source's hash
         rather than the written file's, because drift.compare re-hashes the source for file
-        entries and any other choice can never match (ADR-0006).
+        entries and any other choice can never match (ADR-0006). `extra` is merged in verbatim.
         """
         entry = {
             "feature": feature, "stack": stack, "name": name,
@@ -355,11 +356,11 @@ class Scaffolder:
             # TARGET dir and answers "did this project edit its copy?"; `sourceHash` covers the
             # framework SOURCE and is the only one that can answer "has the framework moved
             # ahead?", because the target is rendered output the source is not comparable to.
-            # Both exclude extensions/, which config gating keeps or prunes per project and so
-            # is not part of the skill's own identity; extension files carry their own entries.
+            # Both exclude extensions/ (config-gated per project, with entries of their own);
+            # `hash` also drops `projectOwned`, which the project edits and this run preserved.
             fingerprint = bl.dir_content_hash(
-                target, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
-            )
+                target, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"],
+                exclude_rel=extra.get("projectOwned"))
             entry["hash"] = fingerprint["content_hash"]
             entry["dirMeta"] = {
                 "file_count": fingerprint["file_count"],
@@ -376,7 +377,7 @@ class Scaffolder:
         else:
             hash_from = source if bl.feature_type(feature).hashes_source else target
             entry["hash"] = bl.sha256_file(hash_from)
-        self.entries.append(entry)
+        self.entries.append({**entry, **extra})
 
     def copy_file(self, feature: str, stack: str, item: Dict[str, Any], dest_dir: Path) -> Path:
         """Copy one index item's source file into dest_dir and record its provenance."""

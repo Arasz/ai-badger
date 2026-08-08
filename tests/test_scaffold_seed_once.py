@@ -257,3 +257,40 @@ def test_a_newly_preserved_skill_file_is_allowed_without_touching_the_guard(
     assert guard.refusal(skill / "local-notes.json") is None
     assert guard.refusal(skill / "SKILL.md") is not None, \
         "the same skill's generated files must still be refused"
+
+
+def test_editing_a_project_owned_file_does_not_move_the_skills_recorded_hash(make_scaffolder):
+    """A skill entry's `hash` is what `scaffold_freshness_guard` re-derives; if a preserved
+    file moves it, the push gate rejects the edit the edit-time guard just allowed."""
+    make_scaffolder(skills=["prompt-markers"]).run(generated_at="2026-07-19T00:00:00Z")
+    target = make_scaffolder.target
+    before = _skill_entry(target, "prompt-markers")
+
+    marker = target / ".ai-badger" / "skills" / "prompt-markers" / "markers-context.json"
+    marker.write_text(json.dumps({"markers": {"h": "custom"}}), encoding="utf-8")
+    make_scaffolder(skills=["prompt-markers"]).run(generated_at="2026-07-19T00:05:00Z")
+
+    after = _skill_entry(target, "prompt-markers")
+    assert after["hash"] == before["hash"]
+    assert after["dirMeta"] == before["dirMeta"]
+
+
+def test_the_recorded_hash_still_covers_the_generated_files_beside_it(make_scaffolder, root,
+                                                                     tmp_path):
+    """Over-correction check: excluding the preserved file must not blind the hash."""
+    import shutil
+
+    framework = tmp_path / "fw"
+    shutil.copytree(root, framework, symlinks=True,
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".git", ".venv",
+                                                  ".ai-badger"))
+    make_scaffolder(root=framework, skills=["prompt-markers"]).run(
+        generated_at="2026-07-19T00:00:00Z")
+    before = _skill_entry(make_scaffolder.target, "prompt-markers")
+
+    catalog = framework / "features" / "common" / "skills" / "prompt-markers" / "SKILL.md"
+    catalog.write_text(catalog.read_text(encoding="utf-8") + "\nmoved\n", encoding="utf-8")
+    make_scaffolder(root=framework, skills=["prompt-markers"]).run(
+        generated_at="2026-07-19T00:05:00Z")
+
+    assert _skill_entry(make_scaffolder.target, "prompt-markers")["hash"] != before["hash"]

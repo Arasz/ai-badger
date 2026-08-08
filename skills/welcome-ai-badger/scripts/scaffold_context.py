@@ -14,7 +14,8 @@ def _discard_template_record(source: Path, dest: Path, seed_once: bool = False) 
     """Default provenance sink: a context with no manifest behind it records nothing."""
 
 
-def _discard_record(feature: str, stack: str, name: str, source: Path, dest: Path) -> None:
+def _discard_record(feature: str, stack: str, name: str, source: Path, dest: Path,
+                    **extra: Any) -> None:
     """Default provenance sink for a catalog item, for the same reason."""
 
 
@@ -49,7 +50,7 @@ class ScaffoldContext:
     mcp_prereqs_noted: bool = False
     # Manifest bookkeeping: shared state, not Scaffolder behaviour.
     record_template: Callable[..., None] = _discard_template_record
-    record: Callable[[str, str, str, Path, Path], None] = _discard_record
+    record: Callable[..., None] = _discard_record
     # Called with (path, destination label) by whoever writes a config file ai-badger merges
     # into but does not own, so the manifest can answer "did ai-badger write here?" (#194).
     record_generated_config: Callable[[Path, str], None] = _discard_generated_config

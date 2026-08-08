@@ -73,11 +73,12 @@ def test_skill_delivery_records_every_skill_through_the_context(tmp_path, load_s
     """Manifest bookkeeping is a context callable, exactly as record_template is."""
     recorded = []
     delivery, ctx = _delivery(load_script, root, tmp_path / "proj")
-    ctx.record = lambda feature, stack, name, source, dest: recorded.append((feature, name))
+    ctx.record = lambda feature, stack, name, source, dest, **extra: recorded.append(
+        (feature, name, extra))
 
     delivery.scaffold_skills()
 
-    assert ("skills", "task") in recorded
+    assert ("skills", "task", {"projectOwned": ["project-local.md"]}) in recorded
 
 
 def test_skill_delivery_preserves_a_project_owned_seed_once_file(tmp_path, load_script, root):
