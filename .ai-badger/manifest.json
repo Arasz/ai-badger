@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.106.0",
-  "frameworkCommit": "9006bf5671d455e2511067e5760247290577985b",
+  "frameworkCommit": "9832f3d5afc881ea0ea1cf4a9a23e64b0b43252f",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -12,7 +12,7 @@
   ],
   "skillScope": "default",
   "pluginScope": "default",
-  "configHash": "245f26ed1622ef9af2adf49ae1110e07a9846013a231f026e80f8bd6f5f68c38",
+  "configHash": "6ec87e2f2cfe89a3dd349feaabaf5520e259a46f4f77b5d74e2ba29c29aa68a9",
   "generatedConfig": [
     {
       "path": ".claude/settings.json",
@@ -173,7 +173,7 @@
       "source": "features/common/invariants/derive-or-delete-the-list.md",
       "target": ".ai-badger/invariants/derive-or-delete-the-list.md",
       "frameworkVersion": "0.106.0",
-      "hash": "af912596530f390c7647a63db3a59ec0f3eb095a54f88e87238f9f82e04b708c"
+      "hash": "c2c4b8fb245b7753a1b686d16458c6fb3e0835bf18efb25bccc71db649ab1ca3"
     },
     {
       "feature": "invariants",
@@ -254,7 +254,7 @@
       "source": "features/common/invariants/prove-the-check-fails.md",
       "target": ".ai-badger/invariants/prove-the-check-fails.md",
       "frameworkVersion": "0.106.0",
-      "hash": "c157683308d08ae23bda73e623e3862bf2c12ad1dc65d12ba5361b11dae2c1f4"
+      "hash": "220c3cef8a9c03287b7c1fab0c9206dec2c00a6e7ed0f9b65f79e18036467317"
     },
     {
       "feature": "invariants",
