@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Rehearse a real installation of ai-badger, end to end, in a throwaway home.
 
-Every defect the 2026-08 review found escaped a suite of 3725 in-process tests by living in the
-gap between a fixture and a real installation: 36 test sites patch `Path.home`, and every scaffold
-in the suite passes `--root <source checkout>`. A consumer's path differs in ways that each
-produced a shipped bug — `--no-install` writing 14 symlinks into `~/.hermes`, 31 dangling
-`~/.hermes/skills/<project>/` links, a guard denying the one file a project is told to own.
+Every defect the 2026-08 review found escaped this repo's in-process suite by living in the gap
+between a fixture and a real installation: 38 `monkeypatch` calls under `tests/` redirect `HOME`
+or `Path.home`, and 71 call sites scaffold with `--root <source checkout>`. A consumer's path
+differs in ways that each produced a shipped bug — `--no-install` writing 14 symlinks into
+`~/.hermes`, 31 dangling `~/.hermes/skills/<project>/` links, a guard denying the one file a
+project is told to own.
 
 So this runs the consumer's path instead of a fixture's: a real `git init`, an install from a
 plugin-cache-shaped copy with no `.git` (which is how `frameworkRoot` resolves for everyone who
@@ -62,8 +63,8 @@ ALLOWED_HOME_CONTAINERS = (".hermes", ".hermes/plugins", ".hermes/skills", ".cla
 ALLOWED_HOME_TREES = (".hermes/plugins/ai-badger", f".hermes/skills/{PROJECT}",
                       ".claude/settings.json")
 
-# Bytecode the scaffolder's own imports write into the cache it was launched from. The
-# interpreter's noise, not the framework's write — the same exemption sfg.is_noise makes.
+# One refusal type across both gates: a rehearsal that could not run is not a rehearsal that
+# failed, and the distinction is the same one scaffold_freshness_guard already draws.
 Refusal = sfg.Refusal
 
 
@@ -502,9 +503,11 @@ class Journey:
     def tear_down_the_project(self) -> None:
         """Delete the project and look at what `$HOME` is still holding on to.
 
-        A dangling link inside the project's own namespace is a known open gap — nothing prunes
-        a namespace whose project moved. A dangling link anywhere else is untraceable: no
-        consumer can find the directory to delete, which is how 31 of them accumulated.
+        A dangling link inside the project's own namespace is expected and attributable: 0.108.0
+        gave `den-refresh --prune-namespaces` the job of clearing it, and that runs from a live
+        project, so nothing clears it at the moment the project disappears. A dangling link
+        anywhere else is untraceable — no consumer can find the directory to delete, which is
+        how 31 of them accumulated.
         """
         namespace = f".hermes/skills/{PROJECT}"
         shutil.rmtree(self.project)
@@ -515,8 +518,8 @@ class Journey:
             self._fail("teardown", f"$HOME holds dangling links outside {namespace}/, which "
                                    f"no consumer can attribute to a project: {stray}")
         if broken:
-            print(f"    note: {len(broken)} links under ~/{namespace}/ now dangle — nothing "
-                  "prunes a namespace whose project is gone (known gap)")
+            print(f"    note: {len(broken)} links under ~/{namespace}/ now dangle, and stay "
+                  "that way until `den-refresh --prune-namespaces` runs from a live project")
 
     def steps(self):
         """The order a consumer's own goes in: install, look around, work, refresh, leave.
