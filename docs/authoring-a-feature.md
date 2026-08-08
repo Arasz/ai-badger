@@ -185,9 +185,10 @@ and `.github/mcp.json` if an earlier run wrote it.
 1. Create `features/common/skills/<name>/` with a `SKILL.md` (plus any `scripts/`, `references/`
    subdirs the skill needs — these are copied as-is by `scaffold.py`). Skills are a regular
    feature under `features/common/` — see `framework-architecture.md` §1.
-2. **Declare its scope in `engine/badger_lib.py`'s `SKILL_SCOPES`** — `default` or `optIn`.
-   There is no fallback: an undeclared common-stack skill fails CI and, if it somehow did not,
-   would ship to nobody ([ADR-0005](adr/0005-default-skill-set.md)).
+2. **Declare its scope in the `SKILL.md`'s own frontmatter** — `scope: default` or
+   `scope: optIn`. There is no fallback: a common-stack skill declaring neither fails
+   `gates/skills_lint.py` rule 12 and would otherwise ship to nobody
+   ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)).
 3. Run `index_build.py` then `validate.py --all`, and `sync_plugin_skills.py` if the skill is
    `default` (that is what puts a copy under `skills/`, the only place Claude Code loads a
    plugin's skills from).
@@ -230,9 +231,9 @@ naming a skill that already ships by `default`, is reported as a note and never 
 
 - [ ] `python3 tooling/index_build.py` run, `index.json` diff committed.
 - [ ] `python3 tooling/validate.py --all` passes.
-- [ ] A new common-stack skill is declared in `badger_lib.SKILL_SCOPES` — without it the skill
+- [ ] A new common-stack skill declares `scope:` in its own frontmatter — without it the skill
       ships to nobody, which is exactly how `code-review-checklist` lived its whole life
-      unreachable ([ADR-0005](adr/0005-default-skill-set.md) §Context).
+      unreachable ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md) §Context).
 - [ ] New content filed under the right stack (or genuinely `common`) — no project-specific
       paths or domain-coupled models leaked into `common`.
 - [ ] If you touched `skills/task`, grep it for stack-specific literals (`dotnet`,

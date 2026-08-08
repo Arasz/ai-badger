@@ -534,7 +534,8 @@ def _mock_fw_with_skills(fw, root, skill_names):
     for name in skill_names:
         sd = fw / "features" / "common" / "skills" / name
         sd.mkdir(parents=True, exist_ok=True)
-        (sd / "SKILL.md").write_text(f"# {name}\n", encoding="utf-8")
+        (sd / "SKILL.md").write_text(
+            f"---\nname: {name}\nscope: default\n---\n# {name}\n", encoding="utf-8")
     index = {
         "$schema": "./schemas/index.schema.json",
         "frameworkVersion": "0.3.0",

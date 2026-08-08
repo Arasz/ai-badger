@@ -151,8 +151,7 @@ from _shared import (  # noqa: E402 — re-exported for backward compatibility
     cfg_get, requirement_met, _condition_met, _within,
 )
 
-# Declared once in badger_lib.SKILL_SCOPES so the scaffold and the plugin ship list cannot
-# disagree about what a project gets without asking. Resolved against the catalog
+# Read from each skill's own `scope:` frontmatter (ADR-0018), against the catalog
 # scaffold_skills actually reads, so a default-scope skill shipped from another stack is
 # not offered here and then reported as missing.
 DEFAULT_SKILLS = bl.default_skills_in(FRAMEWORK_ROOT / "features" / "common" / "skills")
@@ -334,7 +333,8 @@ class Scaffolder:
     def _note_inclusions(self) -> None:
         """Report each inclusion: what it added, and what it could not add — never fatal."""
         self.notes.extend(bl.inclusion_notes(
-            self.included["skills"], self.excluded["skills"], self.addable_skills))
+            self.included["skills"], self.excluded["skills"], self.addable_skills,
+            bl.default_skills_in(self.root / "features" / "common" / "skills")))
 
     # -- provenance -----------------------------------------------------------------
     def record(self, feature: str, stack: str, name: str, source: Path, target: Path) -> None:

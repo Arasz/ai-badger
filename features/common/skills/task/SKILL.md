@@ -10,6 +10,7 @@ version: 1.0.0
 author: ai-badger
 license: MIT
 platforms: [linux, macos]
+scope: default
 metadata:
   hermes:
     tags: [task, orchestration, delegation, worktree]

@@ -5,8 +5,9 @@ table (14 + 8 = 22 != 21). Nothing checked it: `skills_lint` reads `SKILL.md` fr
 `docs_guard` reads links, so a prose undercount is invisible to both. The same shape hit
 `docs/scripts.md`, which lists the `tooling/` scripts by hand and lost two of them.
 
-These checks derive every number from the source — `badger_lib.SKILL_SCOPES` for routing, the
-catalog directories for stack-local skills, the filesystem for scripts — and never from the prose.
+These checks derive every number from the source — each skill's own `scope:` frontmatter for
+routing, the catalog directories for stack-local skills, the filesystem for scripts — and never
+from the prose.
 """
 from __future__ import annotations
 
@@ -28,14 +29,14 @@ OPT_IN_TOTAL_RE = re.compile(r"\*\*(\d+) are `optIn`\*\*")
 # How a declared scope reads in the `Ships` column.
 SHIPS_BY_SCOPE = {"default": "default", "optIn": "opt-in"}
 
-# Stack-local skills are declared by the stack that holds them, not by SKILL_SCOPES.
+# Stack-local skills are declared by the stack directory that holds them, not by a `scope:`.
 STACK_LOCAL_SKILL_DIRS = {"claude": "claude-only"}
 
 SCRIPT_DIRS = ("engine", "tooling", "gates")
 
 
 def _badger_lib(root: Path):
-    """`SKILL_SCOPES` is the routing source of truth (ADR-0005)."""
+    """`skill_scope_in` reads the routing source of truth: the skill itself (ADR-0018)."""
     engine = str(root / "engine")
     if engine not in sys.path:
         sys.path.insert(0, engine)
@@ -58,10 +59,18 @@ def _documented_skills(text: str) -> dict:
     return rows
 
 
+def _common_scopes(root: Path) -> dict:
+    """`{skill name: declared scope}` for the common catalog, read from each SKILL.md."""
+    bl = _badger_lib(root)
+    return {d.name: bl.skill_scope_in(d)
+            for d in sorted((root / "features" / "common" / "skills").iterdir())
+            if (d / "SKILL.md").is_file()}
+
+
 def _catalog_skills(root: Path) -> dict:
     """`{skill name: expected Ships cell}` derived from the catalog, not from any document."""
     expected = {name: SHIPS_BY_SCOPE[scope]
-                for name, scope in _badger_lib(root).SKILL_SCOPES.items()}
+                for name, scope in _common_scopes(root).items()}
     for stack, ships in STACK_LOCAL_SKILL_DIRS.items():
         for skill in (root / "features" / stack / "skills").iterdir():
             if (skill / "SKILL.md").is_file():
@@ -120,14 +129,14 @@ class TestSkillsDocCountsAreDerived:
         text = _skills_doc(root)
 
         assert _one_count(COMMON_TOTAL_RE, text, "features/common total") == \
-               len(_badger_lib(root).SKILL_SCOPES)
+               len(_common_scopes(root))
 
     @pytest.mark.parametrize("scope,pattern,label", [
         ("default", DEFAULT_TOTAL_RE, "default count"),
         ("optIn", OPT_IN_TOTAL_RE, "optIn count"),
     ])
     def test_each_scope_total_is_right(self, root, scope, pattern, label):
-        scopes = _badger_lib(root).SKILL_SCOPES
+        scopes = _common_scopes(root)
         text = _skills_doc(root)
 
         assert _one_count(pattern, text, label) == sum(1 for s in scopes.values() if s == scope)

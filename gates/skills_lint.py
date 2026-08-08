@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail when a catalog SKILL.md breaks one of the eleven conventions the framework relies on.
+"""Fail when a catalog SKILL.md breaks one of the twelve conventions the framework relies on.
 
 A repo gate, not a schema check: it reads prose and frontmatter rather than validating JSON,
 which is why it no longer lives in tooling/validate.py. `validate.py --all` still reports it,
@@ -125,6 +125,12 @@ def frontmatter_fields(text: str) -> Optional[Dict[str, str]]:
 
 SKILLS_GLOB = "features/*/skills/*/SKILL.md"
 
+# Rule 12 (ADR-0018) applies to the common catalog alone: `stack_local_skills` ships a stack's
+# whole directory whatever its scope, so requiring the key on the other stacks would be a value
+# nothing reads. `skill_scope_in` is the predicate production routes on, so the lint's guarantee
+# is exactly "what the scaffolder will read is one of the two scopes".
+SCOPED_STACKS = tuple(bl.DEFAULT_COMMON_STACKS)
+
 
 def skill_files(root: Path) -> List[Path]:
     """Every catalog SKILL.md the lint scans — every stack, not just common.
@@ -136,7 +142,7 @@ def skill_files(root: Path) -> List[Path]:
 
 
 def skills_lint(root: Path) -> List[str]:
-    """Convention violations across catalog SKILL.md files (plan G4 rules 1-10).
+    """Convention violations across catalog SKILL.md files (plan G4 rules 1-10, plus 11-12).
 
     Missing features/ (fake test roots) yields no violations. Body = text after the closing
     frontmatter fence; rules 3-5 reuse badger_lib.skill_description.
@@ -198,6 +204,11 @@ def skills_lint(root: Path) -> List[str]:
             violations.append(
                 f"{rel}: rule 11: frontmatter key {key!r} appears more than once "
                 f"(a YAML parser resolves duplicates to the last value, not the first)")
+        if skill_md.parents[2].name in SCOPED_STACKS and bl.skill_scope_in(skill_md.parent) is None:
+            violations.append(
+                f"{rel}: rule 12: no readable scope: key — a common-stack skill declares "
+                f"{bl.SKILL_SCOPE_DEFAULT!r} (ships unasked) or {bl.SKILL_SCOPE_OPT_IN!r} "
+                f"(ships when a project names it) in its own frontmatter")
     return violations
 
 

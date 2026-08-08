@@ -1,7 +1,7 @@
 # ADR-0010 — Stack-local skill discovery
 
 **Date:** 2026-07-28
-**Status:** Accepted
+**Status:** Accepted; ratified and restated 2026-08-07 by [ADR-0018](0018-where-the-skill-routing-declaration-lives.md)
 **Author:** Rafał Araszkiewicz (Arasz) with Hermes Agent
 **Supersedes:** None
 
@@ -72,3 +72,8 @@ the same logic. A shared helper in `badger_lib.py` keeps the two in agreement.
 - The catalog routing test (`test_every_catalog_skill_is_reachable_by_a_declared_route`)
   now checks only common-stack skills against `SKILL_SCOPES`. Stack-local skills are
   reachable via their stack's directory.
+
+**Restated at 0.104.0 (ADR-0018).** `SKILL_SCOPES` is gone; a common-stack skill declares
+`scope:` in its own frontmatter. `stack_local_skills()` now returns a stack directory's whole
+catalog, and its callers route the common stack away from it rather than filtering the result —
+the exclusion clause described above was load-bearing, not decorative.

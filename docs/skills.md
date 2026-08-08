@@ -2,8 +2,8 @@
 
 This page catalogs 37 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-36 live under `features/common/skills/` and split by the scope `badger_lib.SKILL_SCOPES` gives
-them ([ADR-0005](adr/0005-default-skill-set.md)):
+36 live under `features/common/skills/` and split by the `scope:` each declares in its own
+`SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
 **14 are `default`** and arrive in every scaffolded project without being asked for, and
 **22 are `optIn`** — catalogued, but written only when a project names them. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
@@ -17,7 +17,7 @@ Those 14 have no row below and are documented by their own `SKILL.md`. Derive th
 than trusting this sentence: `python3 gates/skills_lint.py` prints how many `SKILL.md` files the
 catalog holds.
 
-Those four numbers, and every row of the table below, are checked against `SKILL_SCOPES` by
+Those four numbers, and every row of the table below, are checked against the declared scopes by
 `tests/test_docs_match_the_catalog.py`. A skill added to the catalog without a row here fails
 that test, and so does a row naming a skill the catalog no longer has — **but only for the
 common and `claude` stacks**: that test's `STACK_LOCAL_SKILL_DIRS` names `claude` alone, so the

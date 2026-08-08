@@ -1,7 +1,7 @@
 # ADR-0018 — One mechanism: a skill declares its own stack and its own scope
 
 **Date:** 2026-08-07
-**Status:** Proposed — two halves **owner-ruled** (see Ruling); recommends the implementation
+**Status:** Accepted (2026-08-08, 0.104.0) — two halves **owner-ruled** (see Ruling)
 **Author:** Rafał Araszkiewicz (Arasz) with Claude Code (architect lane)
 **Supersedes:** ADR-0005; ratifies and restates ADR-0010
 **Scope:** `badger_lib.SKILL_SCOPES`, skill routing and scope, `skills_lint`, the catalog-routing tests
@@ -23,26 +23,24 @@ Something else does, several times over. Verified at 0.93.1:
 
 | Reader | Where | What it reads frontmatter for |
 |---|---|---|
-| `_frontmatter_fields` | `tooling/validate.py:328` | `skills_lint` rule 10 — eight required keys on every catalog `SKILL.md`, run in CI |
-| `duplicate_frontmatter_keys` | `tooling/validate.py:377` | rule 11 — a duplicate key is refused |
-| `skill_description` | `engine/badger_lib.py:801` | the `description:` scalar, for rules 3–5 and for `available_opt_in` |
-| `frontmatter_fields` | `features/common/skills/welcome-ai-badger/scripts/template_rendering.py:24` | persona `model:` lanes, at scaffold time |
-| `_split_frontmatter` | `features/claude/adjustments/adjust_agents.py:92` | rebuilding a persona as a Claude subagent |
-| `_split_frontmatter` | `features/copilot/adjustments/adjust_agents.py:36` | the same, via pyyaml |
-| `declares_model` | `features/common/skills/task/scripts/dispatch_gate_hook.py:69` | denying an `Agent` dispatch that names no model |
+| `frontmatter_fields` | `gates/skills_lint.py` | rule 10 — eight required keys on every catalog `SKILL.md`, run in CI |
+| `Frontmatter.duplicate_keys` | `engine/frontmatter.py` | rule 11 — a duplicate key is refused |
+| `skill_description` | `engine/badger_lib.py` | the `description:` scalar, for rules 3–5 and for `available_opt_in` |
+| `frontmatter_fields` | `features/common/skills/welcome-ai-badger/scripts/template_rendering.py` | persona `model:` lanes, at scaffold time |
+| `_split_frontmatter` | `features/claude/adjustments/adjust_agents.py` | rebuilding a persona as a Claude subagent |
+| `_split_frontmatter` | `features/copilot/adjustments/adjust_agents.py` | the same, via pyyaml |
+| `declares_model` | `features/common/skills/task/scripts/dispatch_gate_hook.py` | denying an `Agent` dispatch that names no model |
 
-**Every file:line above is true at 0.94.0 and two of them are about to move.** PR #350 (L11 —
-open, not merged, verified against `origin/main` at `7ad63765`) extracts the frontmatter reader to
-`engine/frontmatter.py` and lifts the lint out of `tooling/validate.py` into `gates/skills_lint.py`.
-The argument below does not depend on where those live, but the implementation lane should read
-the extracted modules rather than the citations here — this ADR was written before that landed,
-and a citation that silently rots is the exact defect the same pull request corrects in ADR-0001
-and `hermes-claude-compatibility.md`.
+**Line numbers are deliberately absent above.** The draft of this ADR carried them and they
+rotted within one release: PR #350 (L11) landed after it was written, extracting the frontmatter
+reader into `engine/frontmatter.py` and lifting the lint out of `tooling/validate.py` into
+`gates/skills_lint.py`. Symbol plus file survives a refactor; `file:line` does not, and a citation
+that silently rots is the defect this document exists to close, not one to reproduce.
 
 The specific fear is gone too. ADR-0005 worried a hand-rolled parser "buys a worse failure mode
 than the constant it replaces" — a parse miss reading as a pass. That is now impossible by
-construction: `_frontmatter_fields` returns `None` rather than a partial dict, and `skills_lint`
-reports the `None` as a rule-10 violation (`tooling/validate.py:456-463`).
+construction: `frontmatter_fields` returns `None` rather than a partial dict, and `skills_lint`
+reports the `None` as a rule-10 violation.
 
 ### What checking the code found that the review summary did not
 
@@ -60,9 +58,9 @@ measurement.
 A third fact, found while tracing call sites, does most of the work below:
 
 - **`skill_scope()` and `default_skill_names()` have no production callers.** Every reference is
-  a test (`tests/test_sync_plugin_skills.py:313,320,335,343,350`,
-  `tests/test_skill_scope_declarations.py:34,39`, `tests/test_commit_reminder_wiring.py:81,82`,
-  `tests/test_plugin_manifest.py:52,64,79`). Production reads the dict through
+  a test (`tests/test_sync_plugin_skills.py`,
+  `tests/test_skill_scope_declarations.py`, `tests/test_commit_reminder_wiring.py`,
+  `tests/test_plugin_manifest.py`). Production reads the dict through
   `default_skills_in`, `opt_in_skills_in` and `stack_local_skills`, all of which use
   `SKILL_SCOPES.get(...)` and **skip an undeclared directory silently**.
 
@@ -84,7 +82,7 @@ skills. Routing is the directory, and has been since ADR-0010.
 
 `SKILL_SCOPES` **is** still used — just not for routing. Its production surface is
 `default_skills_in()`, `opt_in_skills_in()`, `inclusion_notes()`, and an *exclusion* clause inside
-`stack_local_skills()`; `tooling/sync_plugin_skills.py:33-34` and `scaffold.py:158` derive from
+`stack_local_skills()`; `tooling/sync_plugin_skills.py` and `scaffold.py` derive from
 those at import time. What it declares is scope, for one set of 36 skills.
 
 ## Decision — recommended
@@ -109,10 +107,10 @@ Every clause of that is wrong, and the facts were available when I wrote it:
 
 1. **It adds no new I/O.** Every `SKILL.md` already carries frontmatter, and `skills_lint` already
    parses **all 51 of them** on every gate run (`SKILLS_GLOB = "features/*/skills/*/SKILL.md"`,
-   `tooling/validate.py:365`) and enforces five rules on the result — rule 2 already compares the
+   `gates/skills_lint.py`) and enforces five rules on the result — rule 2 already compares the
    frontmatter `name` against the parent directory. These files are read anyway.
 2. **The dict never avoided the filesystem.** `default_skills_in`
-   (`engine/badger_lib.py:752-764`) already calls `skills_dir.iterdir()` and stats a `SKILL.md`
+   (`engine/badger_lib.py`) already calls `skills_dir.iterdir()` and stats a `SKILL.md`
    per entry. It is a filter on a directory walk, not a substitute for one.
 3. **Measured, the delta is noise.** Deriving the default set from the dict plus a stat walk is
    **1.17 ms**; reading and parsing all 36 frontmatter blocks is **8.16 ms** — 20 iterations each,
@@ -132,7 +130,7 @@ than the ADR claims:
 - At runtime, an undeclared skill is **silently not offered** — `default_skills_in` and
   `opt_in_skills_in` both use `SKILL_SCOPES.get(...)` and drop it.
 - The hard failure comes from `test_every_catalog_skill_is_reachable_by_a_declared_route`
-  (`tests/test_sync_plugin_skills.py:286`), a test that diffs generated `index.json` against the
+  (`tests/test_sync_plugin_skills.py`), a test that diffs generated `index.json` against the
   dict and covers **only the common stack**.
 - `skill_scope()`'s `UnknownSkillScope` — the raise ADR-0005 credits — is called by nothing in
   production.
@@ -146,9 +144,9 @@ mechanism ADR-0005 wanted is more nearly delivered by frontmatter than by the co
 ### Costs, honestly
 
 - **The migration touches 36 `SKILL.md` files and every reader.** `default_skills_in`,
-  `opt_in_skills_in`, `inclusion_notes` (`engine/badger_lib.py:848`), `stack_local_skills`,
-  `index_build.py:62-63`, `tooling/sync_plugin_skills.py:33-34`, `scaffold.py:158,266`,
-  `den-refresh/scripts/refresh.py:225`, plus the tests listed above.
+  `opt_in_skills_in`, `inclusion_notes` (`engine/badger_lib.py`), `stack_local_skills`,
+  `index_build.py`, `tooling/sync_plugin_skills.py`, `scaffold.py`,
+  `den-refresh/scripts/refresh.py`, plus the tests listed above.
 - **`sync_plugin_skills.py` and `scaffold.py` derive their lists at module import.** Both already
   do filesystem work there; both would now read and parse 36 files instead of stat-ing 36
   directories. Measured above at ~7 ms. It is a real change in kind — import-time I/O grows — and
@@ -160,7 +158,7 @@ mechanism ADR-0005 wanted is more nearly delivered by frontmatter than by the co
   lint rule. `docs/skills.md`'s generated table and its bidirectional check
   (`tests/test_docs_match_the_catalog.py`) are where the one-glance view should live.
 - **`index.json` keeps carrying `scope`**, derived by `index_build.py` from frontmatter instead of
-  from the dict, so `drift.py:204`'s `item.get("scope")` consumer is unaffected. The index stays a
+  from the dict, so `drift.py`'s `item.get("scope")` consumer is unaffected. The index stays a
   derived view; it does not become a source.
 
 ### Two dispositions the implementation must settle, with recommendations
@@ -196,7 +194,7 @@ being the right home:
 2. **`skills_lint`'s glob stops covering a directory that ships.** The rule is only a guarantee
    over the files it reads. This has already happened once: narrowing the glob left 15 of 51
    skills unlinted with 22 tests still green (review finding A5, now pinned by
-   `tooling/validate.py:365`'s own `skill_files()`). If that pin is ever loosened, a missing
+   `gates/skills_lint.py`'s own `skill_files()`). If that pin is ever loosened, a missing
    `scope:` goes silent again and the guarantee is back to where ADR-0005 found it.
 
 ## Consequences
@@ -236,6 +234,30 @@ not decision.
   `index_build` at frontmatter, delete `SKILL_SCOPES`, `skill_scope()` and `UnknownSkillScope`,
   and replace `stack_local_skills`' exclusion clause with a duplicate-name test.
 
-This ADR stays **Proposed** until that lane lands, because an ADR is accepted with the change it
-justifies, not before it (`docs/adr/README.md`). No production code is touched by the pull request
-that introduces this document.
+## Implementation (0.104.0)
+
+Landed as recommended, with one correction the implementation lane had to make.
+
+- 36 common `SKILL.md` files gained `scope:`; `SKILL_SCOPES`, `skill_scope()`,
+  `UnknownSkillScope` and `default_skill_names()` are deleted. `badger_lib.skill_scope_in()`
+  reads the key; `skills_lint` rule 12 refuses a common-stack skill that declares neither value.
+- Verified identical before and after: the delivered `.ai-badger/skills/` tree for three configs
+  (bare defaults → 14, an `optIn` skill named explicitly → 19, `stacks: ["dotnet"]` with nothing
+  named → 25), and every `scope` value in `index.json` for all 51 skills.
+- `inclusion_notes` takes the default set as an argument rather than consulting a module
+  constant. `drift.py` is untouched, as predicted.
+
+**One claim in this document was wrong and the lane measured it.** The disposition above says
+`stack_local_skills`' `not in SKILL_SCOPES` clause "already excludes nothing". It excludes 36
+things, at the one call site nobody traced: `resolve_stacks` always puts `common` first, and
+`SkillDelivery.discover_stack_local` walks *every* stack in that list. The clause was the only
+thing keeping the common catalog's 22 `optIn` skills out of every scaffold. Deleting it as
+recommended and rerunning the three configs delivers **36, 36 and 47** skills where 14, 19 and 25
+belong. The clause is gone as recommended, but the caller now skips `DEFAULT_COMMON_STACKS`, and
+`test_stack_local_discovery_never_reaches_into_the_common_catalog` fails without that guard.
+
+The recommended duplicate-name test landed too: no name appears in two of the 51 stack
+directories, and planting one fails it.
+
+This ADR is **Accepted** with that change, because an ADR is accepted with the change it
+justifies, not before it (`docs/adr/README.md`).

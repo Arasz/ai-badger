@@ -284,43 +284,58 @@ class TestCatalogRouting:
     """Every catalogued skill must reach users by a route somebody chose on purpose."""
 
     def test_every_catalog_skill_is_reachable_by_a_declared_route(self, root, load_script):
+        """A common skill whose frontmatter declares no scope reaches nobody; skills_lint
+        refuses it at authorship, and this pins the index the scaffolder actually reads."""
         bl = load_script("engine/badger_lib.py")
 
-        # Stack-local skills (no scope in SKILL_SCOPES) are reachable via their
-        # stack's index entry — the Scaffolder discovers them when the stack is
-        # configured.  Only common-stack skills must be in SKILL_SCOPES.
         index = json.loads((root / "index.json").read_text())
-        common_skills = {
-            e["name"] for e in index.get("stacks", {}).get("common", {}).get("skills", [])
-        }
-        undeclared = sorted(common_skills - set(bl.SKILL_SCOPES))
+        common = index.get("stacks", {}).get("common", {}).get("skills", [])
+        undeclared = sorted(e["name"] for e in common
+                            if e.get("scope") not in bl.SKILL_SCOPE_VALUES)
 
         assert not undeclared, (
-            f"common-stack skill(s) routed nowhere: {undeclared}. Add each to "
-            "badger_lib.SKILL_SCOPES as 'default' (ships everywhere) or 'optIn'."
+            f"common-stack skill(s) routed nowhere: {undeclared}. Add `scope: default` "
+            "(ships everywhere) or `scope: optIn` to each SKILL.md's frontmatter, then "
+            "rerun tooling/index_build.py."
         )
+
+    def test_the_index_scope_matches_what_each_skill_declares(self, root, load_script):
+        """index.json is a derived view; a stale row is what re-derivation exists to catch."""
+        bl = load_script("engine/badger_lib.py")
+        index = json.loads((root / "index.json").read_text())
+
+        wrong = {e["name"]: e.get("scope")
+                 for stack, data in index.get("stacks", {}).items()
+                 for e in data.get("skills", [])
+                 if not e.get("external")
+                 and e.get("scope") != bl.skill_scope_in(root / e["path"])}
+
+        assert not wrong, f"index.json disagrees with the catalog: {wrong}"
 
     def test_scope_declarations_name_only_real_skills(self, root, load_script):
         bl = load_script("engine/badger_lib.py")
+        skills_dir = root / "features" / "common" / "skills"
+        declared = set(bl.default_skills_in(skills_dir)) | set(bl.opt_in_skills_in(skills_dir))
 
-        assert not sorted(set(bl.SKILL_SCOPES) - _catalog_skill_names(root))
+        assert declared and not declared - _catalog_skill_names(root)
 
     def test_default_scope_skills_ship_in_the_plugin_copy(self, root, load_script):
         bl = load_script("engine/badger_lib.py")
         sps = load_script("tooling/sync_plugin_skills.py")
         shipped = set(sps.COMMON_SKILLS) | set(sps.CLAUDE_SKILLS)
 
-        for name in bl.default_skill_names():
+        for name in bl.default_skills_in(root / "features" / "common" / "skills"):
             assert name in shipped, f"{name} is scope 'default' but the plugin ships no copy"
 
-    def test_the_review_checklist_ships_with_every_project(self, load_script):
+    def test_the_review_checklist_ships_with_every_project(self, root, load_script):
         bl = load_script("engine/badger_lib.py")
         sps = load_script("tooling/sync_plugin_skills.py")
 
-        assert bl.skill_scope("code-review-checklist") == bl.SKILL_SCOPE_DEFAULT
+        assert bl.skill_scope_in(
+            root / "features/common/skills/code-review-checklist") == bl.SKILL_SCOPE_DEFAULT
         assert "code-review-checklist" in sps.COMMON_SKILLS
 
-    def test_fed_back_workflow_skills_are_opt_in(self, load_script):
+    def test_fed_back_workflow_skills_are_opt_in(self, root, load_script):
         """Learned-workflow skills contributed from a consumer project are optIn,
         not default — they must never silently ship to every scaffolded project."""
         bl = load_script("engine/badger_lib.py")
@@ -332,22 +347,18 @@ class TestCatalogRouting:
                      "scripts-tooling-refactor", "spec-driven-refactoring",
                      "sqlite-bank-space-diagnosis", "sqlite-schema-review",
                      "worktree-agent-isolation"):
-            assert bl.skill_scope(name) == bl.SKILL_SCOPE_OPT_IN, name
+            assert bl.skill_scope_in(
+                root / "features" / "common" / "skills" / name) == bl.SKILL_SCOPE_OPT_IN, name
 
-    def test_decision_collection_skills_ship_with_every_project(self, load_script):
+    def test_decision_collection_skills_ship_with_every_project(self, root, load_script):
         """The two common skills are universal and have shipped plugin copies."""
         bl = load_script("engine/badger_lib.py")
         sps = load_script("tooling/sync_plugin_skills.py")
 
         for name in ("owner-gate-review", "differential-feature-refactor"):
-            assert bl.skill_scope(name) == bl.SKILL_SCOPE_DEFAULT
+            assert bl.skill_scope_in(
+                root / "features" / "common" / "skills" / name) == bl.SKILL_SCOPE_DEFAULT
             assert name in sps.COMMON_SKILLS
-
-    def test_an_undeclared_skill_is_refused_rather_than_guessed(self, load_script):
-        bl = load_script("engine/badger_lib.py")
-
-        with pytest.raises(bl.UnknownSkillScope):
-            bl.skill_scope("no-such-skill")
 
 
 class TestOrphanedPluginCopies:

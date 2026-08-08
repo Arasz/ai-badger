@@ -5,6 +5,7 @@ version: 1.0.0
 author: ai-badger
 license: MIT
 platforms: [linux, macos, windows]
+scope: optIn
 metadata:
   hermes:
     tags: [documentation, drift, audit, verification]
@@ -169,7 +170,7 @@ For audits that follow a merged feature (worktree-isolated, docs-only, no push):
   real count; if the referent is ambiguous, list in A, don't edit.
 - **Verify counts against code, not against sibling docs.** Docs drift from each
   other as well as from code ("seven are optIn" in one doc, eight in the other, while
-  code declares eight). The declaration (e.g. a `SKILL_SCOPES` dict, a manifest) is
+  code declares eight). The declaration (e.g. a frontmatter key, a manifest) is
   the source of truth; when a count is unambiguous against it, fix the pre-existing
   wrong doc too, but report it as pre-existing so the maintainer knows it was not
   merge-caused.
@@ -219,8 +220,8 @@ For audits that follow a merged feature (worktree-isolated, docs-only, no push):
   and an audit pointed at two files (#303 fixed README + skills.md) can miss the siblings
   (framework-architecture.md, getting-started.md and the README tree sketch all still
   listed 12 of 14 default skills). After fixing the first copy, grep the whole doc surface
-  for the enumeration's vocabulary, and verify the count against the code declaration
-  (badger_lib.SKILL_SCOPES), never against a sibling doc.
+  for the enumeration's vocabulary, and verify the count against the declaration itself
+  (each skill's `scope:` frontmatter), never against a sibling doc.
 - **Tracking-file `next` pointers go stale while the task is still open.** `.ai-badger/
   state.json`'s `next` was written after PR #303 had already merged yet still listed it
   as pending, alongside a follow-up that had shipped in the meantime. When an audit
@@ -255,7 +256,7 @@ For audits that follow a merged feature (worktree-isolated, docs-only, no push):
   citing — framework code moves.
 - `references/ai-badger-doc-surface-map.md` — which ai-badger files are generated (read when deciding what is generated vs hand-edited)
   (never hand-edit) vs hand-edited, where skill/MCP counts come from
-  (`badger_lib.SKILL_SCOPES`, `stack-mcp.json`), the per-host `.mcp.json` fact, and
+  (each `SKILL.md`'s `scope:`, `stack-mcp.json`), the per-host `.mcp.json` fact, and
   the gates that verify doc edits (0.78.0 snapshot).
 - `references/post-merge-doc-audit-recipe.md` — worked example of the post-merge (read when running a post-merge feature audit)
   feature audit (Azure Blob sync, 2026-08-05): setup commands, ground-truth

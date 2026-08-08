@@ -279,7 +279,7 @@ flowchart TB
       COMMON["common/\npersonas·invariants·instructions·hooks·templates"]
       STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · github · angular"]
     end
-    SKILLSDIR["features/common/skills/\n14 default: welcome · feed · task · create-task-spec · maintain\n· prompt-markers · den-refresh · mcp-index · code-review-checklist\n· call-behaviorist · owner-gate-review · commit-reminder · differential-feature-refactor · ai-raccoon-memory\n8 optIn: the documentation three · review-changes · explore-codebase\n· debug-issue · refactor-safely · evidence-first-research"]
+    SKILLSDIR["features/common/skills/\n14 default: welcome · feed · task · create-task-spec · maintain\n· prompt-markers · den-refresh · mcp-index · code-review-checklist\n· call-behaviorist · owner-gate-review · commit-reminder · differential-feature-refactor · ai-raccoon-memory\n22 optIn (scope: optIn in each SKILL.md): the documentation three\n· review-changes · explore-codebase · debug-issue · refactor-safely\n· evidence-first-research · 16 more — see docs/skills.md"]
     CLAUDESKILLS["features/claude/skills/\nauto-wm"]
     MCPCAT["features/*/mcp/ + stack-mcp.json\ncode-review-graph · hermes · ai-raccoon (MCP)"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]

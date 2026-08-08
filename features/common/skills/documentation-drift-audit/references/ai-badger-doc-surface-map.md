@@ -34,9 +34,10 @@ at-a-glance).
 
 ## Where skill counts come from
 
-- Scope declaration: `engine/badger_lib.py` `SKILL_SCOPES` dict — **not** SKILL.md
-  frontmatter (ADR-0005). Undeclared skill dir = `UnknownSkillScope` error, so the
-  dict is complete by construction.
+- Scope declaration: the `scope:` key in each `features/common/skills/*/SKILL.md`
+  frontmatter (ADR-0018, since 0.104.0; before that a `badger_lib.SKILL_SCOPES` dict).
+  A common-stack skill declaring neither value fails `gates/skills_lint.py` rule 12,
+  so the catalog is complete by construction.
 - 0.78.0 snapshot: **14 default** (13 + `the project-memory`), **8 optIn**
   (debug-issue, evidence-first-research, explore-codebase, migrate-documentation,
   refactor-safely, review-changes, scaffold-documentation, update-documentation),

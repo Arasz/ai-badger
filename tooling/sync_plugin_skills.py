@@ -28,9 +28,9 @@ import frontmatter as fm
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "skills"
 
-# Which skills ship is declared once, in badger_lib.SKILL_SCOPES; each list is just that
-# decision filtered to the stack whose directory holds the skill.
-# skills_for_stack() is the single place this decision lives.
+# Which skills ship is declared by each skill: its directory names the stack, its `scope:`
+# frontmatter says whether it ships unasked (ADR-0018).
+# skills_for_stack() is the single place both facts are read together.
 COMMON_SKILLS = bl.skills_for_stack(ROOT, "common")
 CLAUDE_SKILLS = bl.skills_for_stack(ROOT, "claude")
 

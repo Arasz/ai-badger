@@ -5,6 +5,7 @@ version: 1.0.0
 author: hermes-curator
 license: MIT
 platforms: [linux, macos, windows]
+scope: optIn
 metadata:
   hermes:
     tags: [code-review, verification, integration-tests, third-party]

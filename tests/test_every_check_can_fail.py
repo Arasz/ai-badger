@@ -385,10 +385,14 @@ def _sync_plugin_skills_check(work: Path, provoked: bool) -> Outcome:
     (root / "tooling").mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "tooling" / "sync_plugin_skills.py",
                  root / "tooling" / "sync_plugin_skills.py")
-    catalog = "# prompt-markers\ncatalog\n"
+    catalog = "---\nname: prompt-markers\nscope: default\n---\n# prompt-markers\ncatalog\n"
     _write(root / "features" / "common" / "skills" / "prompt-markers" / "SKILL.md", catalog)
-    _write(root / "skills" / "prompt-markers" / "SKILL.md",
-           "# prompt-markers\nSHIPPED COPY, DIVERGED\n" if provoked else catalog)
+    built = _run([str(root / "tooling" / "sync_plugin_skills.py")])
+    assert built.exit_code == 0, f"fixture setup failed:\n{built.output}"
+    if provoked:
+        shipped = root / "skills" / "prompt-markers" / "SKILL.md"
+        shipped.write_text(shipped.read_text(encoding="utf-8") + "\nSHIPPED COPY, DIVERGED\n",
+                           encoding="utf-8")
     return _run([str(root / "tooling" / "sync_plugin_skills.py"), "--check"])
 
 

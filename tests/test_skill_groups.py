@@ -224,17 +224,19 @@ class TestAGroupNameIsReportedAsValid:
 
     def test_the_group_name_is_not_called_a_mistake(self, load_script, root):
         lib = load_script("engine/badger_lib.py")
-        addable = lib.opt_in_skills_in(root / "features" / "common" / "skills")
+        skills_dir = root / "features" / "common" / "skills"
+        addable = lib.opt_in_skills_in(skills_dir)
 
-        notes = lib.inclusion_notes(["documentation"], [], addable)
+        notes = lib.inclusion_notes(["documentation"], [], addable, lib.default_skills_in(skills_dir))
 
         assert not any("safe to remove" in n for n in notes), notes
 
     def test_the_group_name_says_what_it_delivered(self, load_script, root):
         lib = load_script("engine/badger_lib.py")
-        addable = lib.opt_in_skills_in(root / "features" / "common" / "skills")
+        skills_dir = root / "features" / "common" / "skills"
+        addable = lib.opt_in_skills_in(skills_dir)
 
-        notes = lib.inclusion_notes(["documentation"], [], addable)
+        notes = lib.inclusion_notes(["documentation"], [], addable, lib.default_skills_in(skills_dir))
 
         joined = " ".join(notes)
         for member in DOCUMENTATION_THREE:
@@ -243,8 +245,26 @@ class TestAGroupNameIsReportedAsValid:
     def test_a_genuine_typo_is_still_reported(self, load_script, root):
         """The note must keep working — a guard that never fires would hide real mistakes."""
         lib = load_script("engine/badger_lib.py")
-        addable = lib.opt_in_skills_in(root / "features" / "common" / "skills")
+        skills_dir = root / "features" / "common" / "skills"
+        addable = lib.opt_in_skills_in(skills_dir)
 
-        notes = lib.inclusion_notes(["documentatoin"], [], addable)
+        notes = lib.inclusion_notes(["documentatoin"], [], addable, lib.default_skills_in(skills_dir))
 
         assert any("safe to remove" in n for n in notes), notes
+
+    def test_a_one_shot_defaults_iterable_is_read_once_not_once_per_name(self, load_script):
+        """`defaults` is typed `Iterable`, so a generator is legal — and it drains on first use.
+
+        Consumed mid-loop, every name after the first reads as unknown and gets told to delete
+        working config, which is the exact note this class exists to prevent.
+        """
+        lib = load_script("engine/badger_lib.py")
+
+        notes = lib.inclusion_notes(["task", "welcome-ai-badger"], [], [],
+                                    (n for n in ("task", "welcome-ai-badger")))
+
+        assert [n for n in notes if "already a default skill" in n] == [
+            "inclusion 'task' is already a default skill — safe to remove from config.json",
+            "inclusion 'welcome-ai-badger' is already a default skill — "
+            "safe to remove from config.json",
+        ], notes
