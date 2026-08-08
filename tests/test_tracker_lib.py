@@ -780,27 +780,32 @@ def test_doc_budget_falls_back_to_the_constants_without_config(load_script, tmp_
 
 def test_doc_budget_reads_an_override_from_config(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
-    _write_config(tl, json.dumps({"agentDocs": {"maxChars": 20000, "maxLines": 200}}))
+    # Both derived: an override literal that happens to equal the default proves nothing, because
+    # an override the code ignored entirely would return the same pair.
+    chars, lines = tl.CLAUDE_MD_MAX_CHARS * 2, tl.CLAUDE_MD_MAX_LINES * 2
+    _write_config(tl, json.dumps({"agentDocs": {"maxChars": chars, "maxLines": lines}}))
 
-    assert tl.doc_budget() == (20000, 200)
+    assert tl.doc_budget() == (chars, lines)
 
 
 def test_an_override_lifts_a_file_that_was_over_budget(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
     tl.CLAUDE_MD.write_text("x\n" * (tl.CLAUDE_MD_MAX_LINES + 14), encoding="utf-8")
     assert tl.over_budget_docs(), "fixture must start over the default budget"
+    lifted = tl.CLAUDE_MD_MAX_LINES + 50  # clears the fixture's +14, and never equals the default
 
-    _write_config(tl, json.dumps({"agentDocs": {"maxLines": 200}}))
+    _write_config(tl, json.dumps({"agentDocs": {"maxLines": lifted}}))
 
     assert tl.over_budget_docs() == []
-    assert tl.claude_md_stats()["maxLines"] == 200
+    assert tl.claude_md_stats()["maxLines"] == lifted
 
 
 def test_a_partial_override_keeps_the_other_default(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
-    _write_config(tl, json.dumps({"agentDocs": {"maxLines": 200}}))
+    lines = tl.CLAUDE_MD_MAX_LINES + 50  # must differ from the default, or an ignored override passes
+    _write_config(tl, json.dumps({"agentDocs": {"maxLines": lines}}))
 
-    assert tl.doc_budget() == (tl.CLAUDE_MD_MAX_CHARS, 200)
+    assert tl.doc_budget() == (tl.CLAUDE_MD_MAX_CHARS, lines)
 
 
 def test_a_malformed_override_does_not_silently_disable_the_gate(load_script, tmp_path):

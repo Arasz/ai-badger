@@ -10,6 +10,7 @@ matters because doc_budget() reads a project's agentDocs override from it — le
 this repo's own config, these tests would assert against whatever budget ai-badger happens to
 declare.
 """
+# pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations
 
 import json
@@ -51,7 +52,10 @@ def test_claude_md_within_default_budget_exits_zero(compact, monkeypatch, capsys
 
 
 def test_claude_md_over_char_budget_exits_one(compact, monkeypatch, capsys, tmp_path):
-    (tmp_path / "CLAUDE.md").write_text("x" * 20000, encoding="utf-8")
+    # Derived from the shipped default, not pinned: a raised default must not quietly make the
+    # input fit and turn this into a test that cannot fail.
+    (tmp_path / "CLAUDE.md").write_text("x" * (compact.lib.CLAUDE_MD_MAX_CHARS + 1),
+                                        encoding="utf-8")
 
     rc = _run(compact, monkeypatch, [])
 
@@ -63,7 +67,7 @@ def test_claude_md_over_char_budget_exits_one(compact, monkeypatch, capsys, tmp_
 
 
 def test_claude_md_over_line_budget_exits_one(compact, monkeypatch, capsys, tmp_path):
-    text = "\n".join(f"line {i}" for i in range(200))
+    text = "\n".join(f"line {i}" for i in range(compact.lib.CLAUDE_MD_MAX_LINES + 1))
     (tmp_path / "CLAUDE.md").write_text(text, encoding="utf-8")
 
     rc = _run(compact, monkeypatch, [])
@@ -88,20 +92,23 @@ def test_custom_max_chars_override_lowers_the_budget(compact, monkeypatch, capsy
 
 
 def test_custom_max_lines_override_raises_the_budget(compact, monkeypatch, capsys, tmp_path):
-    # 200 lines trips the *default* 110-line budget; a generous override should clear it.
-    text = "\n".join(f"line {i}" for i in range(200))
+    # One line over the default trips it; a generous override should clear it. Both numbers are
+    # derived, so raising the default cannot turn this into a test that passes without the flag.
+    over_default = compact.lib.CLAUDE_MD_MAX_LINES + 1
+    override = over_default * 2
+    text = "\n".join(f"line {i}" for i in range(over_default))
     (tmp_path / "CLAUDE.md").write_text(text, encoding="utf-8")
 
-    rc = _run(compact, monkeypatch, ["--max-lines", "500"])
+    rc = _run(compact, monkeypatch, ["--max-lines", str(override)])
 
     stats = json.loads(capsys.readouterr().out)
     assert rc == 0
-    assert stats["maxLines"] == 500
+    assert stats["maxLines"] == override
     assert stats["overBudget"] is False
 
 
-def test_a_cli_budget_beats_the_projects_agentDocs_override(compact, monkeypatch, capsys,
-                                                             tmp_path):
+def test_a_cli_budget_beats_the_projects_agentDocs_override(  # pylint: disable=invalid-name
+        compact, monkeypatch, capsys, tmp_path):  # spells the config key, so camelCase stays
     # A project's own agentDocs.maxLines (120) must not shadow an explicit CLI override (500).
     text = "\n".join(f"line {i}" for i in range(200))
     (tmp_path / "CLAUDE.md").write_text(text, encoding="utf-8")
