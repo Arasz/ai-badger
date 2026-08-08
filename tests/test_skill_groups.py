@@ -251,3 +251,20 @@ class TestAGroupNameIsReportedAsValid:
         notes = lib.inclusion_notes(["documentatoin"], [], addable, lib.default_skills_in(skills_dir))
 
         assert any("safe to remove" in n for n in notes), notes
+
+    def test_a_one_shot_defaults_iterable_is_read_once_not_once_per_name(self, load_script):
+        """`defaults` is typed `Iterable`, so a generator is legal — and it drains on first use.
+
+        Consumed mid-loop, every name after the first reads as unknown and gets told to delete
+        working config, which is the exact note this class exists to prevent.
+        """
+        lib = load_script("engine/badger_lib.py")
+
+        notes = lib.inclusion_notes(["task", "welcome-ai-badger"], [], [],
+                                    (n for n in ("task", "welcome-ai-badger")))
+
+        assert [n for n in notes if "already a default skill" in n] == [
+            "inclusion 'task' is already a default skill — safe to remove from config.json",
+            "inclusion 'welcome-ai-badger' is already a default skill — "
+            "safe to remove from config.json",
+        ], notes

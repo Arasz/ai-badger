@@ -787,7 +787,7 @@ def inclusion_notes(included: Iterable[str], excluded: Iterable[str],
     Never fatal, for the reason exclusions are not: refresh refuses on an invalid config, so a
     fatal note would turn an upstream deletion or a scope change into a broken upgrade.
     """
-    declined, offerable = set(excluded), set(addable)
+    declined, offerable, ships = set(excluded), set(addable), set(defaults)
     notes = []
     for name in sorted(set(included)):
         if name in SKILL_GROUPS:
@@ -799,7 +799,7 @@ def inclusion_notes(included: Iterable[str], excluded: Iterable[str],
                          f"exclude wins; not delivered")
         elif name in offerable:
             notes.append(f"included optIn skill '{name}' (config.include.skills)")
-        elif name in set(defaults):
+        elif name in ships:
             notes.append(f"inclusion '{name}' is already a default skill — "
                          f"safe to remove from config.json")
         else:
