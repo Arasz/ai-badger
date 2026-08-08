@@ -84,7 +84,7 @@ def test_a_namespace_whose_target_tree_is_gone_is_reported(tmp_path, hermes, del
 
     assert [n.path for n in found] == [namespace]
     assert found[0].status == "reported"
-    assert found[0].links == 2
+    assert found[0].links == 2 and found[0].kept == 0
     assert found[0].target.endswith("/.ai-badger/skills")
     assert namespace.is_dir()
     assert sorted(p.name for p in namespace.iterdir()) == ["prompt-markers", "task"]
@@ -135,13 +135,37 @@ def test_a_hermes_category_survives_an_explicit_prune(tmp_path, hermes, delivery
     assert outside.is_dir() and (outside / "notes").is_symlink()
 
 
-def test_a_namespace_holding_one_foreign_entry_is_left_whole(tmp_path, hermes, delivery):
-    """A Hermes-authored skill sitting beside our dead links makes the directory not ours."""
+def test_a_hermes_authored_skill_beside_dead_links_survives_the_prune(tmp_path, hermes, delivery):
+    """The real shape: `ai-badger` and `AiRaccoon` both hold Hermes-authored skills of their own.
+
+    Surveyed read-only on the machine this was found on, 2026-08-08 — `ai-badger` holds
+    `agent-skill-discovery` and `framework-development`, `AiRaccoon` holds `spec-elicitation`.
+    Only the links ai-badger placed are removed, and the directory outlives them.
+    """
     namespace = _orphan(tmp_path, hermes)
+    authored = namespace / "agent-skill-discovery"
+    authored.mkdir()
+    (authored / "SKILL.md").write_text("# hermes-authored\n", encoding="utf-8")
+
+    found = delivery.prune_namespaces()
+
+    assert [n.path for n in found] == [namespace]
+    assert found[0].links == 2 and found[0].kept == 1
+
+    delivery.prune_namespaces(execute=True)
+
+    assert namespace.is_dir()
+    assert [p.name for p in namespace.iterdir()] == ["agent-skill-discovery"]
+    assert (authored / "SKILL.md").read_text(encoding="utf-8") == "# hermes-authored\n"
+
+
+def test_a_live_link_beside_a_foreign_entry_is_still_not_an_orphan(tmp_path, hermes, delivery):
+    """One reachable link means the project is on disk; the foreign entry does not change that."""
+    namespace = _namespace(hermes, "mixed", _project(tmp_path, "mixed"))
     (namespace / "agent-skill-discovery").mkdir()
 
     assert delivery.prune_namespaces(execute=True) == []
-    assert namespace.is_dir()
+    assert (namespace / "task").is_symlink()
 
 
 def test_a_symlinked_namespace_is_left_whole(tmp_path, hermes, delivery):
