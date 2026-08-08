@@ -232,3 +232,47 @@ def test_mcp_tools_exemption_reason_is_honest_not_that_the_format_is_yaml(root, 
     reason = validate.SCHEMAS_WITHOUT_LOCAL_INSTANCES["mcp-tools.schema.json"]
     assert "yaml" not in reason.lower()
     assert "instances live in consumer projects" in reason
+
+
+def test_a_relative_link_in_an_inlined_catalog_body_is_a_violation(tmp_path, root, load_script):
+    """0.112.0's defect: invariant bodies are inlined into agent files at the consumer's repo
+    root, where a path relative to `features/<stack>/invariants/` points outside the repo."""
+    validate = load_script("tooling/validate.py")
+    d = tmp_path / "features" / "demo" / "invariants"
+    d.mkdir(parents=True)
+    (d / "rule.md").write_text(
+        "# A rule\n\nSee [the other one](../../common/invariants/other.md).\n", encoding="utf-8")
+
+    gaps = validate.inlined_relative_links(tmp_path)
+
+    assert any("rule.md" in g and "../../common/invariants/other.md" in g for g in gaps), gaps
+
+
+def test_an_absolute_url_in_an_inlined_catalog_body_is_allowed(tmp_path, load_script):
+    """The escape hatch: a URL resolves from every depth, so it survives inlining."""
+    validate = load_script("tooling/validate.py")
+    d = tmp_path / "features" / "demo" / "invariants"
+    d.mkdir(parents=True)
+    (d / "rule.md").write_text(
+        "# A rule\n\nSee [the docs](https://example.com/x.md).\n", encoding="utf-8")
+
+    assert validate.inlined_relative_links(tmp_path) == []
+
+
+def test_the_shipped_catalog_has_no_relative_links_in_inlined_bodies(root, load_script):
+    validate = load_script("tooling/validate.py")
+
+    assert validate.inlined_relative_links(root) == []
+
+
+def test_a_relative_link_in_an_mcp_body_is_a_violation_too(tmp_path, load_script):
+    """MCP server bodies fill the MCP_INSTRUCTIONS slot, so they are inlined like invariants."""
+    validate = load_script("tooling/validate.py")
+    d = tmp_path / "features" / "common" / "mcp" / "demo"
+    d.mkdir(parents=True)
+    (d / "server.md").write_text("## Demo\n\nSee [setup](../../../docs/setup.md).\n",
+                                 encoding="utf-8")
+
+    gaps = validate.inlined_relative_links(tmp_path)
+
+    assert any("server.md" in g for g in gaps), gaps
