@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.110.0 | [the state-transition rule comes back, general this time](0.110.0-state-transitions-come-back-general.md) |
 | 0.109.0 | [dogfood the consumer journey](0.109.0-dogfood-the-consumer-journey.md) |
 | 0.108.0 | [the namespaces nothing was left to clean](0.108.0-the-namespaces-nothing-was-left-to-clean.md) |
 | 0.107.0 | [the edit guard allows the files a project is told to own](0.107.0-the-guard-allows-the-files-a-project-owns.md) |
