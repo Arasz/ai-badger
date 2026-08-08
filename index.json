@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.109.0",
+  "frameworkVersion": "0.110.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -421,6 +421,10 @@
         {
           "name": "small-commits-early-draft-pr",
           "path": "features/common/invariants/small-commits-early-draft-pr.md"
+        },
+        {
+          "name": "state-transitions-through-a-machine",
+          "path": "features/common/invariants/state-transitions-through-a-machine.md"
         },
         {
           "name": "tdd-mandatory",
