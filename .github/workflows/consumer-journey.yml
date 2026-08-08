@@ -1,0 +1,26 @@
+name: Consumer journey
+
+on: [push]
+
+# Least privilege: the journey reads the checkout and writes only to the runner's scratch
+# directory. It needs no token at all beyond fetching the code.
+permissions:
+  contents: read
+
+jobs:
+  journey:
+    name: Install ai-badger the way a consumer does
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - name: Install the framework's declared dependencies
+        run: python -m pip install -r engine/requirements.txt
+      # No git identity step: the journey configures one inside the project it inits, which is
+      # what a consumer's repo has. A --global identity would hide a regression that made the
+      # scaffold depend on one.
+      - name: Scaffold, work in and tear down a throwaway project
+        run: python3 gates/consumer_journey.py
