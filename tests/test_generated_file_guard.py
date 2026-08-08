@@ -264,3 +264,108 @@ def test_the_guard_denies_end_to_end_through_stdin(project):
     decision = json.loads(result.stdout)["hookSpecificOutput"]
     assert decision["permissionDecision"] == "deny"
     assert "features/common/skills/task/SKILL.md" in decision["permissionDecisionReason"]
+
+
+# ------------------------------------------------- the files inside a skill the project owns
+# The scaffolder preserves `project-local.md` and every SEED_ONCE_SKILL_FILES entry across a
+# re-scaffold, so `scaffold_freshness_guard` passes a project that hand-edits them. Denying
+# them at edit time contradicted the push-time gate the guard exists to mirror. The manifest
+# names them per skill entry (`projectOwned`), so the guard reads one source of truth.
+def _declare_project_owned(project, target, names):
+    """Stamp `projectOwned` onto the manifest entry whose target is exactly *target*."""
+    path = project / ".ai-badger" / "manifest.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    for entry in document["entries"]:
+        if entry.get("target") == target:
+            entry["projectOwned"] = names
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+
+def test_a_project_owned_file_inside_a_generated_skill_is_allowed(load_script, project, capsys):
+    guard = load_script(GUARD)
+    _declare_project_owned(project, ".ai-badger/skills/task",
+                           ["project-local.md", "markers-context.json"])
+    skill = project / ".ai-badger" / "skills" / "task"
+
+    for name in ("project-local.md", "markers-context.json"):
+        assert _decision(guard, _payload(skill / name), capsys) is None, \
+            f"the guard refused an edit to {name}, which the scaffold preserves"
+
+
+def test_the_generated_files_in_that_same_skill_are_still_denied(load_script, project, capsys):
+    """Over-correction check: one project-owned file must not exempt its whole directory."""
+    guard = load_script(GUARD)
+    _declare_project_owned(project, ".ai-badger/skills/task", ["project-local.md"])
+    skill = project / ".ai-badger" / "skills" / "task"
+
+    assert "features/common/skills/task/SKILL.md" in _denial_reason(
+        guard, _payload(skill / "SKILL.md"), capsys)
+    assert "features/common/skills/task/scripts/run.py" in _denial_reason(
+        guard, _payload(skill / "scripts" / "run.py"), capsys)
+
+
+def test_a_file_the_manifest_does_not_list_as_project_owned_is_denied(load_script, project,
+                                                                     capsys):
+    """The list is read, not assumed: a name absent from it stays generated."""
+    guard = load_script(GUARD)
+    _declare_project_owned(project, ".ai-badger/skills/task", ["markers-context.json"])
+    skill = project / ".ai-badger" / "skills" / "task"
+
+    assert "features/common/skills/task/project-local.md" in _denial_reason(
+        guard, _payload(skill / "project-local.md"), capsys)
+
+
+def test_project_owned_does_not_reach_a_sibling_skill(load_script, project, capsys):
+    """Entries are per skill; one skill's list must not exempt another skill's copy."""
+    guard = load_script(GUARD)
+    path = project / ".ai-badger" / "manifest.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["entries"].append({
+        "feature": "skills", "stack": "common",
+        "source": "features/common/skills/prompt-markers",
+        "target": ".ai-badger/skills/prompt-markers"})
+    path.write_text(json.dumps(document), encoding="utf-8")
+    _declare_project_owned(project, ".ai-badger/skills/task", ["markers-context.json"])
+    sibling = project / ".ai-badger" / "skills" / "prompt-markers" / "markers-context.json"
+
+    assert "features/common/skills/prompt-markers/markers-context.json" in _denial_reason(
+        guard, _payload(sibling), capsys)
+
+
+def test_a_more_specific_generated_entry_still_wins_over_project_owned(load_script, project,
+                                                                      capsys):
+    """An adjustment writes .../scripts/task_tracker.py; naming it project-owned on the
+    directory entry must not beat the entry that actually generates it."""
+    guard = load_script(GUARD)
+    _declare_project_owned(project, ".ai-badger/skills/task", ["scripts/task_tracker.py"])
+    target = project / ".ai-badger" / "skills" / "task" / "scripts" / "task_tracker.py"
+
+    assert "adjust_task.py" in _denial_reason(guard, _payload(target), capsys)
+
+
+def test_a_manifest_written_before_project_owned_denies_rather_than_crashing(load_script,
+                                                                            project, capsys):
+    """The pre-0.105.0 manifest carries no list: a loud refusal that self-heals on re-scaffold."""
+    guard = load_script(GUARD)
+    target = project / ".ai-badger" / "skills" / "task" / "project-local.md"
+
+    assert "features/common/skills/task/project-local.md" in _denial_reason(
+        guard, _payload(target), capsys)
+
+
+def test_a_malformed_project_owned_value_is_ignored(load_script, project, capsys):
+    """A hand-mangled manifest must not make the guard throw — it exempts nothing instead."""
+    guard = load_script(GUARD)
+    _declare_project_owned(project, ".ai-badger/skills/task", "project-local.md")
+    target = project / ".ai-badger" / "skills" / "task" / "project-local.md"
+
+    assert _denial_reason(guard, _payload(target), capsys)
+
+
+def test_the_skill_directory_itself_is_never_project_owned(load_script, project, capsys):
+    """The empty remainder must not match an empty-string entry someone slipped into the list."""
+    guard = load_script(GUARD)
+    _declare_project_owned(project, ".ai-badger/skills/task", [""])
+    target = project / ".ai-badger" / "skills" / "task"
+
+    assert _denial_reason(guard, _payload(target), capsys)

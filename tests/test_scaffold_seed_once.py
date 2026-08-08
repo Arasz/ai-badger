@@ -218,3 +218,42 @@ def test_a_scaffolding_json_seed_once_entry_reaches_the_manifest(make_scaffolder
     claude_md = [e for e in manifest["entries"] if e["target"] == "CLAUDE.md"]
     assert len(claude_md) == 1, f"CLAUDE.md not recorded once: {claude_md}"
     assert claude_md[0].get("seedOnce") is True
+
+
+# ------------------------------------- the manifest names the files inside a skill it preserves
+# Same question one level down: a skill directory is one manifest entry, so the edit-time guard
+# cannot tell the copied files from the ones the scaffold stashes and restores. `projectOwned`
+# lists the second kind on the skill's own entry, from the list the preservation reads (#15).
+def _skill_entry(target, name):
+    manifest = json.loads((target / ".ai-badger" / "manifest.json").read_text(encoding="utf-8"))
+    matches = [e for e in manifest["entries"]
+               if e.get("target") == f".ai-badger/skills/{name}" and e.get("feature") == "skills"]
+    assert len(matches) == 1, f"expected one skills entry for {name}, got {matches}"
+    return matches[0]
+
+
+def test_the_manifest_lists_the_project_owned_files_of_each_delivered_skill(make_scaffolder):
+    make_scaffolder(skills=["prompt-markers", "task"]).run(generated_at="2026-07-19T00:00:00Z")
+
+    target = make_scaffolder.target
+    assert _skill_entry(target, "prompt-markers")["projectOwned"] == [
+        "project-local.md", "markers-context.json"]
+    assert _skill_entry(target, "task")["projectOwned"] == ["project-local.md"]
+
+
+def test_a_newly_preserved_skill_file_is_allowed_without_touching_the_guard(
+        make_scaffolder, load_script, monkeypatch):
+    """The acceptance the two-list shape kept failing: adding a name in one place is enough."""
+    import skill_delivery
+
+    monkeypatch.setitem(skill_delivery.SEED_ONCE_SKILL_FILES, "task", ["local-notes.json"])
+    make_scaffolder(skills=["task"]).run(generated_at="2026-07-19T00:00:00Z")
+
+    target = make_scaffolder.target
+    assert "local-notes.json" in _skill_entry(target, "task")["projectOwned"]
+    guard = load_script(
+        "features/common/skills/welcome-ai-badger/scripts/generated_file_guard.py")
+    skill = target / ".ai-badger" / "skills" / "task"
+    assert guard.refusal(skill / "local-notes.json") is None
+    assert guard.refusal(skill / "SKILL.md") is not None, \
+        "the same skill's generated files must still be refused"
