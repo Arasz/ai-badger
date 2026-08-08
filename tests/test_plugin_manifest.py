@@ -49,7 +49,7 @@ class TestPluginExposesItsSkills:
     def test_every_default_scope_skill_ships_at_the_plugin_skill_path(self, root, load_script):
         bl = load_script("engine/badger_lib.py")
 
-        missing = [name for name in bl.default_skill_names()
+        missing = [name for name in bl.default_skills_in(root / "features" / "common" / "skills")
                    if not (root / PLUGIN_SKILLS_DIR / name / "SKILL.md").is_file()]
 
         assert not missing, (
@@ -61,7 +61,7 @@ class TestPluginExposesItsSkills:
     def test_every_skill_the_plugin_advertises_is_actually_shipped(self, root, load_script):
         bl = load_script("engine/badger_lib.py")
         blurb = _manifest(root)["description"] + " " + _marketplace_entry(root)["description"]
-        advertised = [name for name in bl.default_skill_names() if name in blurb]
+        advertised = [name for name in bl.default_skills_in(root / "features" / "common" / "skills") if name in blurb]
 
         assert advertised, "no skill is named in the plugin description; nothing is being checked"
         for name in advertised:
@@ -76,7 +76,7 @@ class TestPluginExposesItsSkills:
 
     def test_the_shipped_skills_are_tracked_and_not_ignored(self, root, load_script):
         bl = load_script("engine/badger_lib.py")
-        paths = [f"{PLUGIN_SKILLS_DIR}/{name}/SKILL.md" for name in bl.default_skill_names()]
+        paths = [f"{PLUGIN_SKILLS_DIR}/{name}/SKILL.md" for name in bl.default_skills_in(root / "features" / "common" / "skills")]
 
         ignored = subprocess.run(["git", "check-ignore", "--stdin"], input="\n".join(paths),
                                  cwd=root, capture_output=True, text=True, check=False).stdout

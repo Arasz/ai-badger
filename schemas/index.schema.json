@@ -52,7 +52,7 @@
           "external": { "type": "boolean", "description": "True for external skills referenced in skills.json." },
           "scope": {
             "enum": ["default", "optIn"],
-            "description": "Skills only: 'default' ships without being asked for, 'optIn' installs only on request. Declared in badger_lib.SKILL_SCOPES."
+            "description": "Skills only: 'default' ships without being asked for, 'optIn' installs only on request. Derived from the skill's own SKILL.md frontmatter (ADR-0018)."
           },
           "detectionSignals": {
             "type": "array",

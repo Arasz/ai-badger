@@ -119,11 +119,15 @@ class SkillDelivery:
         """Add each configured stack's stack-local skills to the delivery list.
 
         The universal defaults arrive from the caller; a stack-local skill (auto-wm from
-        claude) is not in SKILL_SCOPES and is discovered here, minus what config.exclude declines.
+        claude) is discovered here, minus what config.exclude declines. The common catalog is
+        skipped: its skills ship by their declared `scope:`, so walking it here would deliver
+        every optIn skill to every project (ADR-0018).
         """
         import badger_lib as bl
 
         for stack in self.ctx.stacks:
+            if stack in bl.DEFAULT_COMMON_STACKS:
+                continue
             for name in bl.stack_local_skills(self.ctx.root / "features" / stack / "skills"):
                 if name not in self.ctx.skills and name not in self.ctx.excluded["skills"]:
                     self.ctx.skills.append(name)

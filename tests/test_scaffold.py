@@ -88,10 +88,11 @@ def test_scaffold_execute_flag_handles_failure(make_scaffolder):
 
 
 # ----------------------------------------------------------------- stack-local skills
-def test_auto_wm_is_not_a_universal_default(load_script):
-    """auto-wm is a claude stack-local skill, not in the universal SKILL_SCOPES."""
+def test_auto_wm_is_not_a_universal_default(load_script, root):
+    """auto-wm ships from the claude stack directory, so the common catalog never names it."""
     bl = load_script("engine/badger_lib.py")
-    assert "auto-wm" not in bl.SKILL_SCOPES
+    skills_dir = root / "features" / "common" / "skills"
+    assert "auto-wm" not in bl.default_skills_in(skills_dir) + bl.opt_in_skills_in(skills_dir)
 
 
 def test_scaffolder_discovers_stack_local_skill_for_configured_stack(make_scaffolder):

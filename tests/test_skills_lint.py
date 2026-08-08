@@ -32,8 +32,11 @@ def _write_hooks_manifest(tmp_path):
 
 
 def _write_skill(tmp_path, name="my-skill", fm_name=None, description="Use when testing the skills lint.",
-                 body="", frontmatter_extra="", stack="common"):
-    """Write a canonical-frontmatter SKILL.md under a fake features/<stack>/skills/<name>/ tree."""
+                 body="", frontmatter_extra="", stack="common", scope="default"):
+    """Write a canonical-frontmatter SKILL.md under a fake features/<stack>/skills/<name>/ tree.
+
+    `scope=None` omits the key, which is rule 12's violation for a common-stack skill.
+    """
     d = tmp_path / "features" / stack / "skills" / name
     d.mkdir(parents=True)
     if fm_name is None:
@@ -47,7 +50,8 @@ def _write_skill(tmp_path, name="my-skill", fm_name=None, description="Use when 
         f"author: ai-badger\n"
         f"license: MIT\n"
         f"platforms: [linux, macos, windows]\n"
-        f"metadata:\n"
+        + (f"scope: {scope}\n" if scope is not None else "")
+        + f"metadata:\n"
         f"  hermes:\n"
         f"    tags: [lint, tests]\n"
         f"    related_skills: []\n"
@@ -301,6 +305,52 @@ def test_unparseable_frontmatter_is_reported_not_passed(tmp_path, load_script):
     assert any("rule 10" in v and "parse" in v for v in bad)
     # An unreadable name is not a name that disagrees with its directory: rule 2 stays quiet.
     assert not any("rule 2" in v for v in bad), bad
+
+
+# ------------------------------------------------------------------- rule 12: scope (ADR-0018)
+def test_a_common_skill_with_no_scope_is_reported(tmp_path, load_script):
+    """The guarantee ADR-0005 wanted: an undeclared skill fails at authorship, never silently."""
+    lint = load_script("gates/skills_lint.py")
+    _write_skill(tmp_path, body=_GOOD_BODY, scope=None)
+
+    bad = _lint(lint, tmp_path)
+
+    assert any("rule 12" in v for v in bad), bad
+
+
+def test_a_common_skill_with_an_unknown_scope_value_is_reported(tmp_path, load_script):
+    lint = load_script("gates/skills_lint.py")
+    _write_skill(tmp_path, body=_GOOD_BODY, scope="sometimes")
+
+    bad = _lint(lint, tmp_path)
+
+    assert any("rule 12" in v for v in bad), bad
+
+
+def test_an_empty_scope_value_is_reported(tmp_path, load_script):
+    """`scope:` with nothing after it reads as declared to a grep and as nothing to a parser."""
+    lint = load_script("gates/skills_lint.py")
+    _write_skill(tmp_path, body=_GOOD_BODY, scope="")
+
+    bad = _lint(lint, tmp_path)
+
+    assert any("rule 12" in v for v in bad), bad
+
+
+@pytest.mark.parametrize("scope", ["default", "optIn"])
+def test_both_declared_scopes_are_accepted(tmp_path, load_script, scope):
+    lint = load_script("gates/skills_lint.py")
+    _write_skill(tmp_path, body=_GOOD_BODY, scope=scope)
+
+    assert _lint(lint, tmp_path) == []
+
+
+def test_a_stack_local_skill_needs_no_scope(tmp_path, load_script):
+    """Only the common catalog's scope is consulted; requiring it elsewhere is ceremony."""
+    lint = load_script("gates/skills_lint.py")
+    _write_skill(tmp_path, name="dotnet-thing", stack="dotnet", body=_GOOD_BODY, scope=None)
+
+    assert _lint(lint, tmp_path) == []
 
 
 def test_valid_skill_passes_all_rules(tmp_path, load_script):

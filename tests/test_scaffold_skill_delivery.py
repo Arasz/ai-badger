@@ -117,6 +117,25 @@ def test_skill_delivery_adds_the_stack_local_skills_to_the_context(tmp_path, loa
     assert "auto-wm" in ctx.skills
 
 
+def test_stack_local_discovery_never_reaches_into_the_common_catalog(tmp_path, load_script, root):
+    """`resolve_stacks` always puts `common` first, and its optIn skills ship only when asked.
+
+    Before ADR-0018 the exclusion inside `stack_local_skills` was what kept them out; the
+    scope declaration replaced the list it filtered on, and this is the behaviour that had to
+    survive the swap.
+    """
+    bl = load_script("engine/badger_lib.py")
+    delivery, ctx = _delivery(load_script, root, tmp_path / "proj",
+                              config=_config(stacks=["claude"], agents=["claude"]))
+    opt_in = set(bl.opt_in_skills_in(root / "features" / "common" / "skills"))
+
+    delivery.discover_stack_local()
+
+    assert "common" in ctx.stacks, "the fixture stopped exercising the hazard"
+    assert opt_in, "no optIn skill in the catalog leaves nothing to leak"
+    assert not opt_in & set(ctx.skills), sorted(opt_in & set(ctx.skills))
+
+
 # ------------------------------------------------------------- what the Scaffolder keeps
 def test_the_scaffolder_delivers_its_skills_through_the_collaborator(load_script, root,
                                                                     make_scaffolder):

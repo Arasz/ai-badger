@@ -5,6 +5,7 @@ version: 1.0.0
 author: ai-badger
 license: MIT
 platforms: [linux, macos, windows]
+scope: optIn
 metadata:
   hermes:
     tags: [review, git, diff, gates]

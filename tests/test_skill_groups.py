@@ -224,17 +224,19 @@ class TestAGroupNameIsReportedAsValid:
 
     def test_the_group_name_is_not_called_a_mistake(self, load_script, root):
         lib = load_script("engine/badger_lib.py")
-        addable = lib.opt_in_skills_in(root / "features" / "common" / "skills")
+        skills_dir = root / "features" / "common" / "skills"
+        addable = lib.opt_in_skills_in(skills_dir)
 
-        notes = lib.inclusion_notes(["documentation"], [], addable)
+        notes = lib.inclusion_notes(["documentation"], [], addable, lib.default_skills_in(skills_dir))
 
         assert not any("safe to remove" in n for n in notes), notes
 
     def test_the_group_name_says_what_it_delivered(self, load_script, root):
         lib = load_script("engine/badger_lib.py")
-        addable = lib.opt_in_skills_in(root / "features" / "common" / "skills")
+        skills_dir = root / "features" / "common" / "skills"
+        addable = lib.opt_in_skills_in(skills_dir)
 
-        notes = lib.inclusion_notes(["documentation"], [], addable)
+        notes = lib.inclusion_notes(["documentation"], [], addable, lib.default_skills_in(skills_dir))
 
         joined = " ".join(notes)
         for member in DOCUMENTATION_THREE:
@@ -243,8 +245,9 @@ class TestAGroupNameIsReportedAsValid:
     def test_a_genuine_typo_is_still_reported(self, load_script, root):
         """The note must keep working — a guard that never fires would hide real mistakes."""
         lib = load_script("engine/badger_lib.py")
-        addable = lib.opt_in_skills_in(root / "features" / "common" / "skills")
+        skills_dir = root / "features" / "common" / "skills"
+        addable = lib.opt_in_skills_in(skills_dir)
 
-        notes = lib.inclusion_notes(["documentatoin"], [], addable)
+        notes = lib.inclusion_notes(["documentatoin"], [], addable, lib.default_skills_in(skills_dir))
 
         assert any("safe to remove" in n for n in notes), notes

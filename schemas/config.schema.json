@@ -161,7 +161,7 @@
     },
     "include": {
       "type": "object",
-      "description": "Catalog items this project asks for by index name \u2014 the counterpart of exclude. Skills scoped optIn in badger_lib.SKILL_SCOPES can be named \u2014 they stay in the catalog until a project wants them (ADR-0005) \u2014 as can a group name from badger_lib.SKILL_GROUPS, which delivers every member. Both welcome-ai-badger and den-refresh deliver what is named here, and a name matching no optIn skill \u2014 or naming one that already ships by default \u2014 is reported, never fatal. exclude wins if a name appears in both.",
+      "description": "Catalog items this project asks for by index name \u2014 the counterpart of exclude. Skills declaring scope: optIn in their own SKILL.md frontmatter can be named \u2014 they stay in the catalog until a project wants them (ADR-0018) \u2014 as can a group name from badger_lib.SKILL_GROUPS, which delivers every member. Both welcome-ai-badger and den-refresh deliver what is named here, and a name matching no optIn skill \u2014 or naming one that already ships by default \u2014 is reported, never fatal. exclude wins if a name appears in both.",
       "additionalProperties": false,
       "properties": {
         "skills": {

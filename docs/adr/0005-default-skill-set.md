@@ -1,7 +1,7 @@
 # ADR-0005 — One Declaration of Which Skills Ship
 
 **Date:** 2026-07-27
-**Status:** Accepted
+**Status:** Superseded (2026-08-08, 0.104.0) by [ADR-0018](0018-where-the-skill-routing-declaration-lives.md)
 **Author:** Rafał Araszkiewicz (Arasz) with Hermes Agent
 **Supersedes:** None
 

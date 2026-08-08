@@ -59,8 +59,9 @@ def _skill_items(fdir: Path, root: Path):
             continue
         if (d / "SKILL.md").exists():
             item = {"name": d.name, "path": d.relative_to(root).as_posix()}
-            if d.name in bl.SKILL_SCOPES:
-                item["scope"] = bl.SKILL_SCOPES[d.name]
+            scope = bl.skill_scope_in(d)
+            if scope is not None:
+                item["scope"] = scope
             items.append(item)
     return items
 

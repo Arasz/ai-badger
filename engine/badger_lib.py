@@ -1,4 +1,3 @@
-# pylint: disable=too-many-lines  # the skill-routing catalog keeps growing (ADR-0005)
 """Shared helpers for ai-badger scripts.
 
 Deterministic and offline (Python 3.8+, the floor CI tests): scripts must be runnable wherever
@@ -719,92 +718,42 @@ def check_schemas_selfvalid(schemas_dir: Path) -> List[str]:
 SKILL_SCOPE_DEFAULT = "default"
 SKILL_SCOPE_OPT_IN = "optIn"
 
-# The single home for "which skills reach a user". scaffold.DEFAULT_SKILLS and the
-# plugin's per-stack ship lists both derive from this. See ADR-0005 for why the
-# declaration lives here rather than in SKILL.md frontmatter.
-SKILL_SCOPES: Dict[str, str] = {
-    "ai-raccoon-memory": SKILL_SCOPE_DEFAULT,
-    "artifact-verification": SKILL_SCOPE_OPT_IN,
-    "call-behaviorist": SKILL_SCOPE_DEFAULT,
-    "code-review-checklist": SKILL_SCOPE_DEFAULT,
-    "code-review-evidence": SKILL_SCOPE_OPT_IN,
-    "commit-reminder": SKILL_SCOPE_DEFAULT,
-    "create-task-spec": SKILL_SCOPE_DEFAULT,
-    "debug-issue": SKILL_SCOPE_OPT_IN,
-    "den-refresh": SKILL_SCOPE_DEFAULT,
-    "design-gate-audit": SKILL_SCOPE_OPT_IN,
-    "differential-feature-refactor": SKILL_SCOPE_DEFAULT,
-    "documentation-drift-audit": SKILL_SCOPE_OPT_IN,
-    "evidence-first-research": SKILL_SCOPE_OPT_IN,
-    "explore-codebase": SKILL_SCOPE_OPT_IN,
-    "feed-badger": SKILL_SCOPE_DEFAULT,
-    "maintain-agent-instructions": SKILL_SCOPE_DEFAULT,
-    "mcp-index": SKILL_SCOPE_DEFAULT,
-    "migrate-documentation": SKILL_SCOPE_OPT_IN,
-    "multi-lane-report-assembly": SKILL_SCOPE_OPT_IN,
-    "owner-gate-review": SKILL_SCOPE_DEFAULT,
-    "parallel-expert-review": SKILL_SCOPE_OPT_IN,
-    "pre-push-gate-debugging": SKILL_SCOPE_OPT_IN,
-    "prompt-markers": SKILL_SCOPE_DEFAULT,
-    "refactor-safely": SKILL_SCOPE_OPT_IN,
-    "research-record-audit": SKILL_SCOPE_OPT_IN,
-    "review-changes": SKILL_SCOPE_OPT_IN,
-    "review-gate-diff-verification": SKILL_SCOPE_OPT_IN,
-    "scaffold-documentation": SKILL_SCOPE_OPT_IN,
-    "scripts-tooling-refactor": SKILL_SCOPE_OPT_IN,
-    "spec-driven-refactoring": SKILL_SCOPE_OPT_IN,
-    "sqlite-bank-space-diagnosis": SKILL_SCOPE_OPT_IN,
-    "sqlite-schema-review": SKILL_SCOPE_OPT_IN,
-    "task": SKILL_SCOPE_DEFAULT,
-    "update-documentation": SKILL_SCOPE_OPT_IN,
-    "welcome-ai-badger": SKILL_SCOPE_DEFAULT,
-    "worktree-agent-isolation": SKILL_SCOPE_OPT_IN,
-}
+SKILL_SCOPE_VALUES = (SKILL_SCOPE_DEFAULT, SKILL_SCOPE_OPT_IN)
 
 
-class UnknownSkillScope(KeyError):
-    """A skill's routing was asked for but never declared."""
+def skill_scope_in(skill_dir: Path) -> Optional[str]:
+    """The `scope:` a skill declares in its own SKILL.md frontmatter, or None (ADR-0018).
+
+    None covers "no key", "unreadable" and "not one of the two values" alike; skills_lint
+    rule 12 is what turns any of them into a failure, at the point of authorship.
+    """
+    try:
+        text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+    except (OSError, ValueError, UnicodeDecodeError):
+        return None
+    entry = fm.split(text).entry("scope")
+    if entry is None:
+        return None
+    declared = entry.value().strip("'\"")
+    return declared if declared in SKILL_SCOPE_VALUES else None
 
 
-def skill_scope(name: str) -> str:
-    """Declared routing scope for a catalog skill. Undeclared is an error, not a default."""
-    if name not in SKILL_SCOPES:
-        raise UnknownSkillScope(
-            f"{name}: no scope declared in badger_lib.SKILL_SCOPES "
-            f"(use {SKILL_SCOPE_DEFAULT!r} or {SKILL_SCOPE_OPT_IN!r})"
-        )
-    return SKILL_SCOPES[name]
-
-
-def default_skill_names() -> List[str]:
-    """Every skill scoped to ship without being asked for, sorted."""
-    return sorted(n for n, s in SKILL_SCOPES.items() if s == SKILL_SCOPE_DEFAULT)
+def _skills_scoped(skills_dir: Path, scope: str) -> List[str]:
+    """Skill directories under `skills_dir` whose SKILL.md declares `scope`, sorted."""
+    if not skills_dir.is_dir():
+        return []
+    return sorted(d.name for d in skills_dir.iterdir()
+                  if d.is_dir() and skill_scope_in(d) == scope)
 
 
 def default_skills_in(skills_dir: Path) -> List[str]:
-    """Default-scope skills that actually live in `skills_dir`, sorted.
-
-    Undeclared skill directories are skipped, not guessed at; the catalog-routing test
-    is what turns that omission into a failure.
-    """
-    if not skills_dir.is_dir():
-        return []
-    return sorted(
-        d.name for d in skills_dir.iterdir()
-        if d.is_dir() and (d / "SKILL.md").exists()
-        and SKILL_SCOPES.get(d.name) == SKILL_SCOPE_DEFAULT
-    )
+    """Skills in `skills_dir` declaring `scope: default`, sorted — what ships unasked."""
+    return _skills_scoped(skills_dir, SKILL_SCOPE_DEFAULT)
 
 
 def opt_in_skills_in(skills_dir: Path) -> List[str]:
-    """Opt-in-scope skills that live in `skills_dir`, sorted — the catalog a project may name."""
-    if not skills_dir.is_dir():
-        return []
-    return sorted(
-        d.name for d in skills_dir.iterdir()
-        if d.is_dir() and (d / "SKILL.md").exists()
-        and SKILL_SCOPES.get(d.name) == SKILL_SCOPE_OPT_IN
-    )
+    """Skills in `skills_dir` declaring `scope: optIn`, sorted — the catalog a project may name."""
+    return _skills_scoped(skills_dir, SKILL_SCOPE_OPT_IN)
 
 
 # What a skill with no readable description is reported as. Reporting only — never a value
@@ -832,7 +781,7 @@ def skill_description(skill_md: Path) -> Optional[str]:
 
 
 def inclusion_notes(included: Iterable[str], excluded: Iterable[str],
-                    addable: Iterable[str]) -> List[str]:
+                    addable: Iterable[str], defaults: Iterable[str]) -> List[str]:
     """One note per name in `config.include.skills`, saying what it added or why it could not.
 
     Never fatal, for the reason exclusions are not: refresh refuses on an invalid config, so a
@@ -850,7 +799,7 @@ def inclusion_notes(included: Iterable[str], excluded: Iterable[str],
                          f"exclude wins; not delivered")
         elif name in offerable:
             notes.append(f"included optIn skill '{name}' (config.include.skills)")
-        elif SKILL_SCOPES.get(name) == SKILL_SCOPE_DEFAULT:
+        elif name in set(defaults):
             notes.append(f"inclusion '{name}' is already a default skill — "
                          f"safe to remove from config.json")
         else:
@@ -894,25 +843,25 @@ def scaffolded_skill_names(manifest: Dict[str, Any]) -> List[str]:
 
 
 def stack_local_skills(skills_dir: Path) -> List[str]:
-    """Skills in a stack directory that are NOT in the universal SKILL_SCOPES.
+    """Every skill a stack directory holds — a stack ships its whole catalog (ADR-0010).
 
-    These are stack-specific skills (e.g. auto-wm from claude) — included
-    automatically when the project uses that stack.
+    Never the common catalog, whose skills declare a `scope:` instead: `skills_for_stack` and
+    `SkillDelivery.discover_stack_local` are the two callers, and both route `common` away
+    from here. Passing it one anyway returns its optIn skills, which ship only when asked for.
     """
     if not skills_dir.is_dir():
         return []
     return sorted(
         d.name for d in skills_dir.iterdir()
         if d.is_dir() and (d / "SKILL.md").exists()
-        and d.name not in SKILL_SCOPES
     )
 
 
 def skills_for_stack(root: Path, stack: str) -> List[str]:
     """Shippable skills for one stack, combining universal defaults and stack-local.
 
-    For the common stack: universal default-scope skills only.
-    For any other stack: stack-local skills (not in SKILL_SCOPES).
+    For the common stack: the skills whose frontmatter declares `scope: default`.
+    For any other stack: everything the stack's directory holds.
     This is the single place both scaffold.py and sync_plugin_skills.py derive from.
     """
     skills_dir = root / "features" / stack / "skills"
