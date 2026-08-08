@@ -91,6 +91,11 @@ CROSS_STACK_REFERENCE_EXEMPT: Dict[str, str] = {
 # Feature directories carrying per-item artifacts a sibling stack's file may point at.
 REFERENCEABLE_FEATURES = ("personas", "invariants", "instructions", "skills")
 
+# Globs for the bodies copied into the generated agent files, so a link inside them is read from
+# the consumer's repo root rather than from where the file lives. MCP server bodies fill the
+# MCP_INSTRUCTIONS slot and sit one directory deeper than the rest.
+INLINED_BODY_GLOBS = ("*/invariants/*.md", "*/instructions/*.md", "*/mcp/*/*.md")
+
 # Schemas with no instance in this repo, and why. Listed so the completeness check stays
 # honest rather than silently shrinking.
 SCHEMAS_WITHOUT_LOCAL_INSTANCES = {
@@ -354,6 +359,29 @@ def _artifact_owners(root: Path) -> Dict[str, set]:
     return owners
 
 
+def inlined_relative_links(root: Path) -> List[str]:
+    """A relative markdown link in a body that gets inlined somewhere else (0.112.0's defect).
+
+    `cross-stack references` resolves a link where the file *lives*, which is why the broken one
+    passed. These bodies are copied into the generated agent files at the consumer's repo root,
+    a different depth in a different tree, so a path correct here points outside the repo there.
+    An absolute URL survives the move; nothing else does.
+    """
+    gaps: List[str] = []
+    for glob in INLINED_BODY_GLOBS:
+        for path in sorted((root / "features").glob(glob)):
+            if path.name == "README.md":
+                continue
+            for target in re.findall(r"\]\(([^)]+)\)", path.read_text(encoding="utf-8")):
+                if "://" in target or target.startswith("#"):
+                    continue
+                gaps.append(
+                    f"{path.relative_to(root).as_posix()}: relative link {target!r} — this body "
+                    "is inlined into the agent files, where the path does not resolve. Use an "
+                    "absolute URL or name the target in prose.")
+    return gaps
+
+
 def cross_stack_reference_gaps(root: Path) -> List[str]:
     """A stack's file naming an artifact only another, undeclared stack ships (the review's C8).
 
@@ -401,6 +429,7 @@ def validate_all(root: Path) -> int:
     ok &= _report("catalog stack membership", catalog_stack_gaps(root))
     ok &= _report("feature json schema coverage", unschemad_feature_json(root))
     ok &= _report("cross-stack references", cross_stack_reference_gaps(root))
+    ok &= _report("inlined bodies carry no relative links", inlined_relative_links(root))
     ok &= _report("hooks-manifest agent coverage", hooks_manifest_agent_gaps(root))
     ok &= _report("skills lint", skills_lint(root))
     return 0 if ok else 1

@@ -21,14 +21,9 @@ GOLDEN_MCP_REGION = (
     "## MCP Tools: code-review-graph\n"
     "\n"
     "**This project has a knowledge graph. Reach for the code-review-graph MCP tools before\n"
-    "Grep/Glob/Read** — they cost fewer tokens and return structural context (callers,\n"
-    "dependents, test coverage) that file scanning cannot. Fall back to Grep/Glob/Read only\n"
-    "where the graph doesn't reach.\n"
-    "\n"
-    "Entry points: `semantic_search_nodes_tool` to locate code, `query_graph_tool` to trace\n"
-    "callers/callees/imports/tests, `detect_changes_tool` for review, `get_impact_radius_tool`\n"
-    "for blast radius, `get_architecture_overview_tool` for structure. Each tool's own\n"
-    "description covers the rest; the graph auto-updates on file change.\n"
+    "Grep/Glob/Read** — they cost fewer tokens and return structural context (callers, dependents,\n"
+    "test coverage) that file scanning cannot. Start at `semantic_search_nodes_tool`; fall back to\n"
+    "Grep/Glob/Read only where the graph doesn't reach. Each tool's own description covers the rest.\n"
 )
 
 

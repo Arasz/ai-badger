@@ -1,8 +1,9 @@
 """Project-local invariants: .ai-badger/invariants/local/*.md render into the agent files.
 
 The convention (issue #313): a project-owned directory under the scaffolded project. Each
-file's content is demoted and rendered into the invariants section of CLAUDE.md/HERMES.md
-after all framework invariants. Files are never copied into the framework catalog, recorded
+file renders as one summary bullet in the invariants section of CLAUDE.md/HERMES.md after all
+framework invariants, linking back to `.ai-badger/invariants/local/` for the body (0.113.0 —
+before that the whole body was inlined). Files are never copied into the framework catalog, recorded
 in the manifest, pruned, or overwritten.
 """
 from __future__ import annotations
@@ -41,11 +42,12 @@ def test_a_local_invariant_renders_demoted_inside_the_section(make_scaffolder):
     claude_md = (target / "CLAUDE.md").read_text(encoding="utf-8")
     section = _invariants_section(claude_md)
 
-    assert "### Static classes only" in section
-    assert "\n## Static classes only" not in section
+    assert "- **Static classes only**" in section
+    assert "→ `.ai-badger/invariants/local/static-classes.md`" in section
+    assert "Prefer sealed records and pure functions over mutable classes." in section
     assert not claude_md.rstrip().endswith("Static classes only")
     aib_copy = (target / ".ai-badger" / "CLAUDE.md").read_text(encoding="utf-8")
-    assert "### Static classes only" in _invariants_section(aib_copy)
+    assert "- **Static classes only**" in _invariants_section(aib_copy)
     assert (local / "static-classes.md").read_text(encoding="utf-8") == STATIC
 
 
@@ -57,9 +59,9 @@ def test_local_invariants_render_after_all_framework_invariants(make_scaffolder)
     target, _ = _scaffold(make_scaffolder, _config(agents=["claude"]))
     section = _invariants_section((target / "CLAUDE.md").read_text(encoding="utf-8"))
 
-    assert "### TDD is mandatory" in section
-    assert section.index("### Static classes only") > section.index("### TDD is mandatory")
-    assert "### " not in section.split("### Static classes only", 1)[1]
+    assert "- **TDD is mandatory**" in section
+    assert section.index("- **Static classes only**") > section.index("- **TDD is mandatory**")
+    assert "- **" not in section.split("- **Static classes only**", 1)[1]
 
 
 def test_local_invariants_render_in_sorted_order(make_scaffolder):
@@ -71,7 +73,7 @@ def test_local_invariants_render_in_sorted_order(make_scaffolder):
     target, result = _scaffold(make_scaffolder, _config(agents=["claude"]))
     section = _invariants_section((target / "CLAUDE.md").read_text(encoding="utf-8"))
 
-    assert section.index("### Alpha rule") < section.index("### Beta rule")
+    assert section.index("- **Alpha rule**") < section.index("- **Beta rule**")
     assert any("rendered 2 project-local invariant(s)" in n for n in result["notes"])
 
 
@@ -153,7 +155,7 @@ def test_a_local_invariant_replaces_the_fallback_when_framework_invariants_are_e
     target, _ = _scaffold(make_scaffolder, _config_without_invariants(root))
     section = _invariants_section((target / "CLAUDE.md").read_text(encoding="utf-8"))
 
-    assert "### Static classes only" in section
+    assert "- **Static classes only**" in section
     assert section.strip() != "_None yet._"
 
 
@@ -166,7 +168,7 @@ def test_local_invariants_reach_hermes_md_too(make_scaffolder):
     target, _ = _scaffold(make_scaffolder, _config(agents=["claude", "hermes"]))
     hermes_md = (target / "HERMES.md").read_text(encoding="utf-8")
 
-    assert "### Static classes only" in _invariants_section(hermes_md)
+    assert "- **Static classes only**" in _invariants_section(hermes_md)
 
 
 # ----------------------------------------------------------------------- provenance

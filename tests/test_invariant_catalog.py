@@ -63,6 +63,7 @@ def test_invariant_is_delivered_to_the_scaffolded_project(make_scaffolder, name)
 # ------------------------------------------------------------------------------ rendering
 @pytest.mark.parametrize("name", NEW_INVARIANTS)
 def test_invariant_heading_reaches_claude_md(make_scaffolder, root, name):
+    """Since 0.113.0 the body is summarised, so the assertion is the title and the link."""
     source = root / INVARIANTS_DIR / f"{name}.md"
     assert source.is_file(), f"{name}: source file missing at {source}"
 
@@ -70,13 +71,14 @@ def test_invariant_heading_reaches_claude_md(make_scaffolder, root, name):
     claude_md = (target / "CLAUDE.md").read_text(encoding="utf-8")
     section = _invariants_section(claude_md)
 
-    demote_headings = make_scaffolder.module.demote_headings
-    rendered = demote_headings(source.read_text(encoding="utf-8").strip())
-    expected_heading = rendered.splitlines()[0]
+    title = source.read_text(encoding="utf-8").strip().splitlines()[0].lstrip("#").strip()
 
-    assert expected_heading in section, (
-        f"{name}: heading {expected_heading!r} not found under "
+    assert f"- **{title}**" in section, (
+        f"{name}: title {title!r} not found under "
         f"'## Non-negotiable invariants' in the generated CLAUDE.md"
+    )
+    assert f"→ `.ai-badger/invariants/{name}.md`" in section, (
+        f"{name}: the summary must link to the copy carrying the rationale"
     )
 
 
