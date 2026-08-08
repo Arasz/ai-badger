@@ -274,9 +274,12 @@ def _shipped_paths_guard(work: Path, provoked: bool) -> Outcome:
 # ------------------------------------------------- gates/scaffold_freshness_guard.py
 
 
-def _self_scaffolded_repo(work: Path) -> Path:
-    """A git copy of this repo, scaffolded against itself so it is fresh by construction."""
-    repo = _repo(work / "repo")
+def _repo_copy(dest: Path) -> Path:
+    """A git copy of this repo's tracked and untracked-unignored files, symlinks preserved.
+
+    The framework tree a provocation may mutate: the real one is only ever read.
+    """
+    repo = _repo(dest)
     out = subprocess.run(["git", "ls-files", "-co", "--exclude-standard", "-z"], cwd=str(ROOT),
                          check=True, capture_output=True).stdout
     for rel in (p.decode("utf-8") for p in out.split(b"\0") if p):
@@ -286,6 +289,12 @@ def _self_scaffolded_repo(work: Path) -> Path:
             os.symlink(os.readlink(str(src)), str(dst))
         elif src.is_file():
             shutil.copy2(src, dst)
+    return repo
+
+
+def _self_scaffolded_repo(work: Path) -> Path:
+    """A git copy of this repo, scaffolded against itself so it is fresh by construction."""
+    repo = _repo_copy(work / "repo")
     _commit(repo, "baseline")
     env = dict(os.environ)
     env["AI_BADGER_MCP_AVAILABILITY"] = "all"
@@ -307,6 +316,71 @@ def _scaffold_freshness_guard(work: Path, provoked: bool) -> Outcome:
         _write(repo / "features" / "common" / "skills" / "welcome-ai-badger" / "scripts"
                / "added_after_scaffold.py", '"""Added after the last self-scaffold."""\n')
     return _run_gate("gates/scaffold_freshness_guard.py", "--root", str(repo))
+
+
+# --------------------------------------------------------------- gates/consumer_journey.py
+
+
+def _journey_against(work: Path, edit: Callable[[Path], None]) -> Outcome:
+    """Run the journey against a private copy of this framework that *edit* may have broken.
+
+    `--root` is the copy and `--scratch` is under tmp_path, so the run reads the real tree not
+    at all and writes to the real `$HOME` not at all — the journey refuses a scratch home
+    inside the real one before it does anything else.
+    """
+    framework = _repo_copy(work / "framework")
+    edit(framework)
+    return _run_gate("gates/consumer_journey.py", "--root", str(framework),
+                     "--scratch", str(work / "scratch"))
+
+
+def _journey_no_install_leaks_home(work: Path, provoked: bool) -> Outcome:
+    """`--no-install` writing 14 symlinks into `~/.hermes` — the leak declared fixed twice.
+
+    The mutation is the fix's own line: without the `if self.install:` gate the scaffolder
+    rebuilds the Hermes namespace on a run that promised to touch nothing outside the project.
+    """
+    anchor = ("        if self.install:  # links point at --target; a throwaway target leaves "
+              "them dangling\n"
+              '            self._outside_project("hermes skill symlinks", '
+              "self.symlink_hermes_skills)\n")
+    replacement = ('        self._outside_project("hermes skill symlinks", '
+                   "self.symlink_hermes_skills)\n")
+
+    def edit(framework: Path) -> None:
+        if provoked:
+            _replace(framework / "features/common/skills/welcome-ai-badger/scripts/scaffold.py",
+                     anchor, replacement)
+
+    return _journey_against(work, edit)
+
+
+def _journey_guard_denies_project_local(work: Path, provoked: bool) -> Outcome:
+    """The edit guard refusing `project-local.md` — the file a project is told it owns.
+
+    The mutation drops the manifest's `projectOwned` exemption, which is exactly the state the
+    guard shipped in: it read the skill's directory entry and never the list of names inside it
+    the scaffolder preserves.
+    """
+    anchor = "    if remainder in project_owned(best_entry):\n        return None\n"
+
+    def edit(framework: Path) -> None:
+        if provoked:
+            _replace(framework / "features/common/skills/welcome-ai-badger/scripts"
+                     / "generated_file_guard.py", anchor, "")
+
+    return _journey_against(work, edit)
+
+
+def _replace(path: Path, anchor: str, replacement: str) -> None:
+    """Rewrite *path* with *anchor* replaced, failing loudly when the anchor has moved.
+
+    A mutation whose anchor no longer matches would silently produce an unmutated tree, and the
+    provocation would then report a clean run as proof the check cannot fail.
+    """
+    text = path.read_text(encoding="utf-8")
+    assert anchor in text, f"the mutation anchor is gone from {path.name}; update it"
+    path.write_text(text.replace(anchor, replacement), encoding="utf-8")
 
 
 # ------------------------------------------------------------------- gates/tdd_guard.py
@@ -709,6 +783,12 @@ REGISTRY: Tuple[Provocation, ...] = (
                 "a skill source that gained a file, with no re-scaffold",
                 _scaffold_freshness_guard,
                 Signal(exit_code=1, contains="SCAFFOLD FRESHNESS GUARD FAILED")),
+    Provocation("gates/consumer_journey.py", "--no-install writing into ~/.hermes",
+                _journey_no_install_leaks_home,
+                Signal(exit_code=1, contains="--no-install: $HOME gained")),
+    Provocation("gates/consumer_journey.py", "the edit guard denying project-local.md",
+                _journey_guard_denies_project_local,
+                Signal(exit_code=1, contains="editing project-local.md was deny")),
     Provocation("gates/tdd_guard.py", "shipped code changed with no test change",
                 _tdd_guard, Signal(exit_code=1, contains="Write the failing test first")),
     Provocation("tooling/index_build.py --check", "a feature added after index.json was built",

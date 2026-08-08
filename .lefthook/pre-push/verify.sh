@@ -29,7 +29,7 @@ readonly BASE_REF="${VERIFY_BASE:-origin/main}"
 readonly LOG_SUMMARY="${VERIFY_LOG_SUMMARY:-logs/lefthook.log}"
 
 # Cheap lanes first so a typo fails fast, before pylint and pytest.
-readonly LANES="version-sync index plugin-skills deps docs release paths workflows validate scaffold tdd js pylint pytest"
+readonly LANES="version-sync index plugin-skills deps docs release paths workflows validate scaffold journey tdd js pylint pytest"
 
 # Lanes `--risk` trades away. Measured 2026-08-07 at 43fbfb49: `verify.sh all` is 778s wall
 # clock, of which pytest is 664s — so this is the one lane whose removal changes the number.
@@ -115,6 +115,7 @@ lane_cmd() {
         workflows)     "$PY" gates/workflow_lint.py ;;
         validate)      lane_validate ;;
         scaffold)      "$PY" gates/scaffold_freshness_guard.py ;;
+        journey)       "$PY" gates/consumer_journey.py ;;
         tdd)           lane_tdd ;;
         js)            lane_js ;;
         pylint)        lane_pylint ;;
@@ -325,7 +326,7 @@ _lanes_for() {
         return 0
     fi
     # The whole-tree guards are seconds each and catch cross-file breakage, so they always run.
-    local lanes="version-sync index plugin-skills deps docs release paths workflows validate scaffold tdd"
+    local lanes="version-sync index plugin-skills deps docs release paths workflows validate scaffold journey tdd"
     [ "$mjs" -eq 1 ] && lanes="$lanes js"
     [ "$py" -eq 1 ] && lanes="$lanes pylint pytest"
     [ "$json" -eq 1 ] && lanes="$lanes pytest"
