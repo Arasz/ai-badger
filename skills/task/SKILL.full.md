@@ -77,6 +77,10 @@ sections share a file — those serialise, the rest do not.
 deeper. The cap is about the machine rather than the design: every live agent costs memory and a
 share of the CPU, and a tree that widens without bound starves the work already running.
 
+**Write the brief so the lane can improve on it.** Before dispatching an agent that owns a
+unit of work end to end, read `references/lane-dispatch-brief.md` — it carries the prompt
+shape, and the reason each part of it is there.
+
 **Reach for whatever tool makes the work smaller.** A code graph, an MCP server, an existing
 skill, a script the repo already has — check what is installed before writing something that
 already exists. This is not permission to add tooling mid-task; it is a reminder that the

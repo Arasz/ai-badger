@@ -4,7 +4,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scr
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.104.0. Source of truth for this file: `.ai-badger/CLAUDE.md`.
+> Scaffolded by ai-badger 0.106.0. Source of truth for this file: `.ai-badger/CLAUDE.md`.
 
 ## Non-negotiable invariants
 
@@ -15,6 +15,12 @@ Before calling any design or change finished, ask whether it is over-engineered 
 ### Check the source, not your own reasoning
 
 Re-read the docs, the data and the code before stating a fact about them — those are what go stale, get misremembered, or change under you. Re-reading your own reasoning twice over costs the same effort and finds nothing new, so spend the check where the error actually lives.
+
+### Derive the list, or delete it
+
+A hand-maintained list that is meant to mirror something else — the gates on disk, the copies of a helper, the entries a script regenerates, the skills in the catalog — drifts the moment someone adds to one side and not the other, and nothing notices because nothing compares them. Compute the list from the thing it describes so the two cannot disagree; where that is genuinely impossible, write the check that compares them and prove it fails when they differ.
+
+The best outcome is usually neither list nor check: when the list exists only to restate what the tree already says, delete it and read the tree. A count written into prose is the same defect in smaller packaging — derive it or drop it, because a number nobody recomputes is wrong by the next commit.
 
 ### Guard clauses over hand-rolled null checks
 
@@ -54,6 +60,12 @@ The exception lifts the PR requirement and nothing else. Every gate still runs b
 ### Done means proven
 
 Every unit of planned work carries its acceptance criteria and the gate that checks them, named before the work starts. "Done" means there is evidence the thing works — a test that passes, a run you watched, a gate that went green — not that the code was written. If you cannot point at the evidence, the work is not done yet.
+
+### A check you have not seen fail is not a check
+
+Before trusting a gate, test or acceptance criterion, put the defect it exists to catch in front of it and watch it go red, then take the defect away and watch it go green. A check that has only ever passed is indistinguishable from one whose comparison can produce a single answer, and that answer looks like success. This is not the TDD red step restated: red for the wrong reason is worth nothing, and a test that pins the path a previous fix patched, or that reads differently depending on which branch you are standing on, passes forever while the defect it named moves one directory over.
+
+"I could not make it fail" is a fact about your attempt; "it cannot fail" is a claim about the system, and only a failure you produced carries you from one to the other. Re-prove the check whenever the code beneath it moves, because the failure path belongs to the pair and not to the check alone.
 
 ### Screaming architecture
 
