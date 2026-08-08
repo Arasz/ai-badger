@@ -152,12 +152,10 @@ def _badger_link_target(entry: Path) -> Optional[str]:
     resolves to nothing. The path shape — `<project>/.ai-badger/skills/<name>` — is what says
     ai-badger placed it, the same claim `_owns_link` makes about a project still on disk.
     """
-    if not entry.is_symlink():
-        return None
     try:
         raw = os.readlink(str(entry))
     except OSError:
-        return None
+        return None  # not a link at all: a Hermes-authored skill directory, or a file
     target = os.path.normpath(os.path.join(str(entry.parent), raw))
     if Path(target).parts[-3:-1] != SKILLS_DIR_PARTS:
         return None

@@ -169,13 +169,22 @@ def test_a_live_link_beside_a_foreign_entry_is_still_not_an_orphan(tmp_path, her
 
 
 def test_a_symlinked_namespace_is_left_whole(tmp_path, hermes, delivery):
-    """We create namespaces as directories; a link in that slot is somebody else's arrangement."""
+    """We create namespaces as directories; a link in that slot is somebody else's arrangement.
+
+    Its contents are dangling ai-badger links, so the sweep would take them if it followed the
+    link — and deleting through a link the user put there is how a prune reaches state nobody
+    offered it.
+    """
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    (hermes / "linked").symlink_to(elsewhere)
+    _namespace(elsewhere, "AiRaccon", _project(tmp_path, "AiRaccon"))
+    shutil.rmtree(tmp_path / "AiRaccon")
+    (hermes / "linked").symlink_to(elsewhere / "AiRaccon")
 
     assert delivery.prune_namespaces(execute=True) == []
     assert (hermes / "linked").is_symlink()
+    assert sorted(p.name for p in (elsewhere / "AiRaccon").iterdir()) == [
+        "prompt-markers", "task"]
 
 
 # ------------------------------------------------------------------------------- the prune
