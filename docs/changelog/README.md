@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.112.0 | [a link that only works where it lives](0.112.0-a-link-that-only-works-where-it-lives.md) |
 | 0.111.0 | [the default doc budget fits the floor](0.111.0-the-default-budget-fits-the-floor.md) |
 | 0.110.0 | [the state-transition rule comes back, general this time](0.110.0-state-transitions-come-back-general.md) |
 | 0.109.0 | [dogfood the consumer journey](0.109.0-dogfood-the-consumer-journey.md) |
