@@ -345,7 +345,7 @@ def test_a_more_specific_generated_entry_still_wins_over_project_owned(load_scri
 
 def test_a_manifest_written_before_project_owned_denies_rather_than_crashing(load_script,
                                                                             project, capsys):
-    """The pre-0.105.0 manifest carries no list: a loud refusal that self-heals on re-scaffold."""
+    """The pre-0.107.0 manifest carries no list: a loud refusal that self-heals on re-scaffold."""
     guard = load_script(GUARD)
     target = project / ".ai-badger" / "skills" / "task" / "project-local.md"
 

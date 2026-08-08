@@ -20,7 +20,8 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.105.0 | [the edit guard allows the files a project is told to own](0.105.0-the-guard-allows-the-files-a-project-owns.md) |
+| 0.107.0 | [the edit guard allows the files a project is told to own](0.107.0-the-guard-allows-the-files-a-project-owns.md) |
+| 0.106.0 | [the review becomes catalog](0.106.0-the-review-becomes-catalog.md) |
 | 0.104.0 | [a skill declares its own scope](0.104.0-a-skill-declares-its-own-scope.md) |
 | 0.103.0 | [the run_git invariant reaches the code that violates it](0.103.0-run-git-covers-where-it-matters.md) |
 | 0.102.0 | [the meta-gate proves gates run, and the workflow pins are enforced](0.102.0-gates-that-run-and-pins-that-stay.md) |

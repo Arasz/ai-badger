@@ -58,6 +58,26 @@ living at `features/common/skills/`, as with `task`). Per-stack metadata — det
 stacks, default commands — is read from an optional `features/<stack>/stack.json`, validated
 against `schemas/stack.schema.json`, and folded into `index.json.stacks[stack].meta`.
 
+### Indexed is not delivered
+
+Appearing in `index.json` and reaching a scaffolded project are two different things, and only
+some features do both. Delivery splits into two shapes:
+
+- **Denylist (everything ships).** `features/*/skills/<name>/` is copied whole by
+  `SkillDelivery.scaffold_skills` (`copytree`, minus test/eval/`__pycache__` patterns), and
+  `personas`, `invariants` and `instructions` are bulk-copied from their index entries. A new
+  file here needs no registration — a reference document dropped into an existing skill's
+  `references/` directory reaches every scaffolded project on the next re-scaffold.
+- **Allowlist (only named files ship).** `features/common/templates/` is indexed in full by
+  `_template_items`, but nothing iterates that list to copy anything. A templates file is
+  delivered only if some `features/<agent>/scaffolding.json` names it, or a call site in
+  `scaffold.py` / `template_rendering.py` hardcodes it. Dropping a new file into `templates/`
+  gets it into `index.json` and nowhere else.
+
+So: put a new *document* where delivery is a denylist. Reserve `templates/` for files that a
+scaffolding entry or an explicit call site will name, and add that entry in the same change —
+a catalog item that nothing delivers is indistinguishable from one that was never added.
+
 ## Adding a new stack
 
 1. Create `features/<stack>/` with whichever feature subdirectories apply (`personas/`,

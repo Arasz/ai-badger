@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.105.0",
+  "frameworkVersion": "0.107.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -375,6 +375,10 @@
           "path": "features/common/invariants/check-sources-not-yourself.md"
         },
         {
+          "name": "derive-or-delete-the-list",
+          "path": "features/common/invariants/derive-or-delete-the-list.md"
+        },
+        {
           "name": "guard-clauses",
           "path": "features/common/invariants/guard-clauses.md"
         },
@@ -405,6 +409,10 @@
         {
           "name": "proof-of-done",
           "path": "features/common/invariants/proof-of-done.md"
+        },
+        {
+          "name": "prove-the-check-fails",
+          "path": "features/common/invariants/prove-the-check-fails.md"
         },
         {
           "name": "screaming-architecture",

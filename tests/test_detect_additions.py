@@ -306,7 +306,7 @@ def test_a_project_owned_file_in_a_skill_is_not_a_changed_skill(tmp_path, load_s
     (skill / "project-local.md").write_text("## ours\n", encoding="utf-8")
 
     (target / ".ai-badger" / "manifest.json").write_text(json.dumps({
-        "frameworkVersion": "0.105.0",
+        "frameworkVersion": "0.107.0",
         "entries": [
             {"feature": "skills", "stack": "common", "name": "prompt-markers",
              "source": "features/common/skills/prompt-markers",
@@ -340,7 +340,7 @@ def test_a_generated_file_in_that_same_skill_is_still_a_changed_skill(tmp_path, 
     (skill / "SKILL.md").write_text("# prompt-markers\n\n## ours\n", encoding="utf-8")
 
     (target / ".ai-badger" / "manifest.json").write_text(json.dumps({
-        "frameworkVersion": "0.105.0",
+        "frameworkVersion": "0.107.0",
         "entries": [
             {"feature": "skills", "stack": "common", "name": "prompt-markers",
              "source": "features/common/skills/prompt-markers",
