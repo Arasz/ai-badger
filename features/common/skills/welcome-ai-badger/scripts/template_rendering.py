@@ -40,7 +40,7 @@ def invariant_summary(text: str, name: str) -> str:
     lines = text.strip().splitlines()
     title = lines[0].lstrip("#").strip() if lines and lines[0].startswith("#") else name
     body = "\n".join(lines[1:]).strip()
-    opening = body.split("\n\n")[0].strip() if body else ""
+    opening = body.split("\n\n", maxsplit=1)[0].strip() if body else ""
     if _leads_into_a_list(opening):
         # The list *is* the rule — "Every release must:" alone says nothing. Keep it whole,
         # indented under the bullet, rather than truncating at the colon.
