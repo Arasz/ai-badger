@@ -83,6 +83,18 @@ def test_the_summary_keeps_the_sentence_that_states_the_rule(rendering):
     assert "nobody can see" not in line
 
 
+def test_an_abbreviation_is_not_the_end_of_the_sentence(rendering):
+    """`(e.g. \\`userId\\`` matched the boundary pattern, so the rule stopped at "e.g." """
+    text = ("# Partition by the tenant/owner key\n\nEvery entity carries the tenant/owner key "
+            "(e.g. `userId` in a single-tenant-per-partition design) as an explicit field, and "
+            "it is also the partition key. Every query filters or partitions by it.\n")
+
+    line = rendering.invariant_summary(text, "partition-by-userid")
+
+    assert "it is also the partition key" in line
+    assert "Every query filters" not in line, "the second sentence still belongs in the file"
+
+
 def test_a_rule_that_lives_in_a_list_keeps_the_list(rendering):
     """"Every release must:" on its own says nothing — truncating at the colon loses the rule.
 
