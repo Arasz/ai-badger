@@ -26,6 +26,13 @@ MANIFEST = ".ai-badger/manifest.json"
 # refusal that self-heals on the next scaffold, not a silent exemption the push gate then rejects.
 SEED_ONCE = "seedOnce"
 
+# A skill is one manifest entry for a whole directory, and not everything inside it is the
+# framework's: `skill_delivery` stashes `project-local.md` and its SEED_ONCE_SKILL_FILES across
+# the copytree, which is why `scaffold_freshness_guard` passes a project that edits them. The
+# scaffolder lists those names on the skill's entry, so this reads the preservation's own list
+# rather than a second copy of it — a name added there needs no change here.
+PROJECT_OWNED = "projectOwned"
+
 # The plugin copy under `skills/` is produced by tooling/sync_plugin_skills.py, which writes no
 # manifest. It is only a copy when the catalog it was copied from is still there to prove it.
 PLUGIN_TREE = "skills"
@@ -77,26 +84,40 @@ def _under(rel: PurePosixPath, target: str) -> bool:
     return str(rel) == target or str(rel).startswith(target + "/")
 
 
+def project_owned(entry: Dict[str, Any]) -> frozenset:
+    """The paths inside a directory entry the scaffold preserves instead of rewriting.
+
+    An empty name is dropped, so the entry's own directory never reads as project-owned.
+    """
+    names = entry.get(PROJECT_OWNED)
+    if not isinstance(names, list):
+        return frozenset()
+    return frozenset(name for name in names if isinstance(name, str) and name)
+
+
 def manifest_source(root: Path, rel: PurePosixPath) -> Optional[str]:
     """The catalog path *rel* was generated from, per the most specific manifest entry.
 
     Most specific wins: a file inside a generated skill can have a generator of its own, and
-    the skill directory that contains it is not the answer.
+    the skill directory that contains it is not the answer. None when that entry names *rel*
+    as project-owned — the scaffold keeps it, so an edit to it is not lost.
     """
     best_target = ""
-    best_source = None
+    best_entry: Optional[Dict[str, Any]] = None
     for entry in manifest_entries(root):
         if not isinstance(entry, dict) or entry.get(SEED_ONCE):
             continue
         target, source = entry.get("target"), entry.get("source")
         if not isinstance(target, str) or not isinstance(source, str) or not _under(rel, target):
             continue
-        if best_source is None or len(target) > len(best_target):
-            best_target, best_source = target, source
-    if best_source is None:
+        if best_entry is None or len(target) > len(best_target):
+            best_target, best_entry = target, entry
+    if best_entry is None:
         return None
     remainder = str(rel)[len(best_target):].lstrip("/")
-    return f"{best_source}/{remainder}" if remainder else best_source
+    if remainder in project_owned(best_entry):
+        return None
+    return f"{best_entry['source']}/{remainder}" if remainder else best_entry["source"]
 
 
 def plugin_copy_source(root: Path, rel: PurePosixPath) -> Optional[str]:

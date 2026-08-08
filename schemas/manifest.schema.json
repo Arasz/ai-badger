@@ -72,6 +72,11 @@
             "type": "boolean",
             "description": "True where the scaffolder seeds this target once and never rewrites it (.ai-badger/state.json, .ai-badger/agent-instructions/model.json, any scaffolding.json entry marked seedOnce), so the project owns it thereafter. Every other entry is rewritten on the next run, which is what generated_file_guard.py refuses an edit to. Absent on manifests written before 0.101.0: the guard reads absence as regenerated and refuses, because a wrong refusal is loud, overridable and healed by one re-scaffold, while a wrong exemption is the silent loss this guard exists to prevent."
           },
+          "projectOwned": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "description": "Skill directory entries only: the paths inside this delivered skill that the scaffolder stashes and restores across a re-scaffold rather than rewriting — `project-local.md` plus that skill's SEED_ONCE_SKILL_FILES. A skill is one entry for a whole directory, so without this list generated_file_guard.py cannot tell a copied file from a preserved one, and refuses the edit scaffold_freshness_guard.py accepts. Written from the same list the preservation reads, so a newly preserved name needs no second edit. Absent on manifests written before 0.107.0: the guard reads absence as regenerated and refuses, for the reason seedOnce gives."
+          },
           "sourceHash": { "type": "string", "description": "Directory entries only: sha256 of the framework source directory at scaffold time. The only hash that can answer whether the framework has moved ahead, because the target is rendered output (#110)." },
           "dirMeta": {
             "type": "object",

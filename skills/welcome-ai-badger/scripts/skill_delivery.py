@@ -18,6 +18,16 @@ SEED_ONCE_SKILL_FILES: Dict[str, List[str]] = {
     "prompt-markers": ["markers-context.json"],
 }
 
+
+def project_owned_names(skill_name: str) -> List[str]:
+    """Every name inside a delivered skill directory the project owns, not the framework.
+
+    One list for both kinds: `project-local.md`, which any skill may carry and no catalog
+    ships, and the per-skill seed-once files. The manifest records it so `generated_file_guard`
+    stops refusing what the scaffold preserves and `scaffold_freshness_guard` accepts.
+    """
+    return [PROJECT_LOCAL_FILE] + SEED_ONCE_SKILL_FILES.get(skill_name, [])
+
 # Hermes-authored skills live under one directory the namespace links whole.
 LEARNED_SKILLS_DIR = "learned"
 HERMES_HOME_ENV = "HERMES_HOME"
@@ -154,7 +164,8 @@ class SkillDelivery:
             self.extensions.merge_extensions(skill_name, dest)
             self.extensions.append_project_local(skill_name, dest)
             # hash includes embedded extensions
-            self.ctx.record("skills", item_stack, skill_name, src, dest)
+            self.ctx.record("skills", item_stack, skill_name, src, dest,
+                            projectOwned=project_owned_names(skill_name))
             # emit per-file entries for extension content so feed-badger can
             # detect user edits to extension files (#65)
             ext_dir = dest / "extensions"
@@ -174,8 +185,7 @@ class SkillDelivery:
         What the prune consults before removing a superseded skill tree: the framework never
         wrote these and cannot put them back (#243).
         """
-        candidates = [PROJECT_LOCAL_FILE] + SEED_ONCE_SKILL_FILES.get(skill_name, [])
-        return [name for name in candidates if (dest / name).exists()]
+        return [name for name in project_owned_names(skill_name) if (dest / name).exists()]
 
     def _stash_seed_once_files(self, skill_name: str, dest: Path) -> Dict[str, bytes]:
         """Read the current content of any seed-once files inside a skill dir before it is

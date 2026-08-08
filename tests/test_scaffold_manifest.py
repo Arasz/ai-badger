@@ -20,9 +20,10 @@ def test_scaffold_manifest_entries_have_expected_shape(make_scaffolder):
     assert entries, "expected at least one manifest entry"
     base_keys = {"feature", "stack", "name", "source", "target",
                  "frameworkVersion", "hash"}
-    dir_keys = {"dirMeta", "sourceHash", "sourceMeta"}
+    dir_keys = {"dirMeta", "sourceHash", "sourceMeta", "projectOwned"}
     for entry in entries:
-        # Directory entries (skills) carry a second hash: the framework source's (#110)
+        # Directory entries (skills) carry a second hash: the framework source's (#110), and
+        # the names inside them the project owns, which the edit-time guard must not refuse.
         allowed_keys = base_keys | (dir_keys if "dirMeta" in entry else set())
         # Template entries carry the flag the edit-time guard reads to tell a file the next
         # scaffold rewrites from one it seeds and then leaves to the project.
