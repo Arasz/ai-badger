@@ -38,6 +38,7 @@ import scaffold_freshness_guard as sfg
 
 WELCOME = "features/common/skills/welcome-ai-badger/scripts"
 DETECT = f"{WELCOME}/detect.py"
+DRIFT = f"{WELCOME}/drift.py"
 SCAFFOLD = f"{WELCOME}/scaffold.py"
 VALIDATE = "tooling/validate.py"
 
@@ -397,10 +398,30 @@ class Journey:
         if verdict != "allow":
             self._fail("guard", f"editing the project's own app.py was {verdict}")
 
+        # Make the two edits, and after each one ask the reporter a consumer actually runs.
+        # A project has no `scaffold_freshness_guard` — that gate re-scaffolds a repo against
+        # itself and needs --root to be both project and framework. `drift.py` is the
+        # consumer's equivalent, and it must agree with the guard on both files or one of the
+        # two is telling a project the wrong thing about its own tree.
         owned.write_text("# widget-shop local notes\n\nDo not lose this line.\n",
                          encoding="utf-8")
+        if self._drift_calls_the_task_skill_edited():
+            self._fail("drift", "the drift report calls the task skill locally modified when "
+                                "only project-local.md was written, contradicting the guard "
+                                "that allowed it")
+
         generated.write_text(generated.read_text(encoding="utf-8") + "\nHand-edited.\n",
                              encoding="utf-8")
+        if not self._drift_calls_the_task_skill_edited():
+            self._fail("drift", "the drift report is silent about a hand-edited generated "
+                                "file, so nothing warns a consumer the next refresh discards it")
+
+    def _drift_calls_the_task_skill_edited(self) -> bool:
+        """Whether `drift.py` reports the task skill as this project's own edit."""
+        proc = self._script(DRIFT, "--target", str(self.project), "--root", str(self.cache))
+        self._must(proc, "drift.py")
+        return ("locally modified" in proc.stdout
+                and "features/common/skills/task" in proc.stdout)
 
     # -- 7. installing the way a consumer does -------------------------------------------
 
@@ -417,8 +438,8 @@ class Journey:
             self._fail("install", "an installing scaffold wrote nothing to $HOME at all, so "
                                   "this step is not observing the install it claims to")
         else:
-            print(f"    note: $HOME gained {len(additions)} entries, all inside "
-                  f"~/.hermes/plugins/ai-badger or ~/.hermes/skills/{PROJECT}/")
+            print(f"    note: $HOME gained {len(additions)} entries, every one inside "
+                  f"{', '.join(ALLOWED_HOME_TREES)}")
 
     # -- 8. idempotence -------------------------------------------------------------------
 

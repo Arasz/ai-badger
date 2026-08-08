@@ -125,6 +125,27 @@ def test_gained_reports_a_file_a_link_and_a_directory_added_at_once(cj, tmp_path
     assert lines[-1] == f".hermes/skills/proj/task: link -> {tmp_path / 'proj' / 'task'}"
 
 
+def test_gained_reports_a_link_repointed_at_a_different_project(cj, tmp_path):
+    """The namespace is rebuilt on every install, and a link may keep its name and move.
+
+    Both targets exist and both are directories, so a snapshot that resolved the link would
+    see two live directories and call it no change.
+    """
+    home = tmp_path / "home"
+    for owner in ("first", "second"):
+        (tmp_path / owner / ".ai-badger" / "skills" / "task").mkdir(parents=True)
+    link = home / ".hermes" / "skills" / "proj" / "task"
+    _link(link, str(tmp_path / "first" / ".ai-badger" / "skills" / "task"))
+    before = cj.snapshot(home)
+
+    link.unlink()
+    _link(link, str(tmp_path / "second" / ".ai-badger" / "skills" / "task"))
+
+    assert cj.gained(before, cj.snapshot(home)) == [
+        f".hermes/skills/proj/task: link -> "
+        f"{tmp_path / 'second' / '.ai-badger' / 'skills' / 'task'}"]
+
+
 def test_gained_reports_a_file_whose_content_changed_but_not_its_length(cj, tmp_path):
     """`~/.claude/settings.json` is edited in place, and a size-only kind reads that as clean."""
     home = tmp_path / "home"

@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.109.0 | [dogfood the consumer journey](0.109.0-dogfood-the-consumer-journey.md) |
 | 0.107.0 | [the edit guard allows the files a project is told to own](0.107.0-the-guard-allows-the-files-a-project-owns.md) |
 | 0.106.0 | [the review becomes catalog](0.106.0-the-review-becomes-catalog.md) |
 | 0.104.0 | [a skill declares its own scope](0.104.0-a-skill-declares-its-own-scope.md) |
