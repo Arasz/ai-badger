@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.113.1 | ["e.g." is not the end of the sentence](0.113.1-e-g-is-not-the-end-of-the-sentence.md) |
 | 0.113.0 | [the agent files carry the rule, not the essay](0.113.0-the-agent-files-carry-the-rule-not-the-essay.md) |
 | 0.112.0 | [a link that only works where it lives](0.112.0-a-link-that-only-works-where-it-lives.md) |
 | 0.111.0 | [the default doc budget fits the floor](0.111.0-the-default-budget-fits-the-floor.md) |
