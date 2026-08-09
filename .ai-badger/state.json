@@ -1,7 +1,14 @@
 {
-  "lastUpdated": "2026-08-07",
+  "lastUpdated": "2026-08-09",
   "next": "Design-review follow-ups (docs/work/2026-08-06-memory-skill-design-review.md): queryClass field + expected-source note contract in the grade log, per-source aggregation recipe in memory-quality-logging, consolidate the triplicated hook knowledge, and feed-badger the hooks-subsystem.md reference fix.",
   "completedTasks": [
+    {
+      "id": "full-project-review",
+      "title": "Full-project MoE review: charter, 7 expert reports, integrated plan",
+      "summary": "Orphaned session (started 2026-08-07T11:40:47, 524M tokens, ended without finish protocol). Closed at 2026-08-09 Phase 0 hygiene of the next task. Outputs already on main via PR #329 (squash, fa1db3e1): docs/work/2026-08-07-full-project-review-{charter,findings,plan}.md + README row verified file-by-file; worktree has no uncommitted changes.",
+      "pr": 329,
+      "date": "2026-08-09"
+    },
     {
       "id": "skills-shape",
       "title": "Plugin copy shape assertion PR-4: shape_violations render-compare (0.87.1)",
