@@ -4,7 +4,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scr
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.113.1. Source of truth for this file: `.ai-badger/CLAUDE.md`.
+> Scaffolded by ai-badger 0.114.0. Source of truth for this file: `.ai-badger/CLAUDE.md`.
 
 ## Non-negotiable invariants
 
@@ -31,6 +31,9 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scr
 
 - **No hardcoded secrets** — No credentials, connection strings, API keys, or tokens in tracked files, examples, or fixtures.
   → `.ai-badger/invariants/no-hardcoded-secrets.md`
+
+- **Run what you changed; the pipeline runs the rest** — Run the build and the tests your change touches, and let the pipeline run everything else — a full local sweep buys no coverage the pipeline does not already have and spends the same time twice.
+  → `.ai-badger/invariants/pipeline-runs-the-rest.md`
 
 - **Plain names** — Name things with the simplest accurate word — variables, functions, types, files, folders, flags.
   → `.ai-badger/invariants/plain-names.md`
