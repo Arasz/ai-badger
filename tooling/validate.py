@@ -173,6 +173,28 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                    "block-with-reason channel, and a refusal naming the features/ file to edit "
                    "instead is this guard's entire output. A silent block would teach nothing.",
     },
+    "blast-radius-kill-guard": {
+        "hermes": "A wall on the input, not the output: the guard denies only while two or more "
+                  "agent lanes are plausibly live, and it counts them from the per-process "
+                  "socket directory Claude Code keeps for its own sessions. Hermes publishes no "
+                  "equivalent registry of live lanes, so an arm there would classify the hazard "
+                  "correctly and then always find zero lanes and allow — a gate that can only "
+                  "ever say yes.",
+        "copilot": "A wall on both halves: Copilot fires preToolUse but its hook protocol has "
+                   "no block-with-reason channel, and a denial naming the scoped kill to use "
+                   "instead is this guard's entire output — plus it would still need a live-lane "
+                   "count Copilot does not expose.",
+    },
+    "cross-worktree-dirty-warning": {
+        "hermes": "Acknowledged gap, not a design limit: the sweep is pure git (worktree list "
+                  "plus per-tree status) and agent-independent, so it would work on "
+                  "pre_tool_call — it has not been done, and no Hermes-side channel for a "
+                  "non-blocking note back to the model has been chosen yet.",
+        "copilot": "Acknowledged gap on the same terms: Copilot fires preToolUse over the "
+                   "edit-shaped tools and the git sweep needs nothing Claude-specific, but this "
+                   "hook only ever warns and Copilot's hook protocol has no channel that puts a "
+                   "non-blocking note in front of the model.",
+    },
 }
 
 PROVENANCE_KEYS = ("frameworkCommit", "frameworkDirty")

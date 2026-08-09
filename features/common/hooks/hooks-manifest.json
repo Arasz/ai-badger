@@ -87,6 +87,20 @@
         "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "pre_tool_call_memory_gate" },
         "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "preToolUse", "script": "memory_first_gate_hook.py", "matcher": "grep|rg|Glob|bash" }
       }
+    },
+    {
+      "name": "blast-radius-kill-guard",
+      "description": "Deny an unscoped process kill or shared-cache reap while more than one agent lane is live, with a 3-denial escape valve per command",
+      "agents": {
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PreToolUse", "script": "blast_radius_kill_guard.py" }
+      }
+    },
+    {
+      "name": "cross-worktree-dirty-warning",
+      "description": "Warn, never block, when the file an edit targets is also dirty in another worktree of this repo",
+      "agents": {
+        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PreToolUse", "script": "cross_worktree_dirty_warning.py" }
+      }
     }
   ]
 }
