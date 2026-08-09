@@ -14,4 +14,4 @@
 #
 # Install:
 #   python3 -m pip install -r requirements-mutation.txt
-mutmut>=3.6,<4
+mutmut>=3.7.0,<4
