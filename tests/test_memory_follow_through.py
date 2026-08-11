@@ -88,6 +88,7 @@ class TestStashSearchSources:
 
 
 class TestRecordFollowThrough:
+    # pylint: disable=attribute-defined-outside-init
     def _setup(self, fresh_hook_state, tmp_path):
         fresh_hook_state._RECENT_SEARCHES[str(tmp_path)] = [{
             "correlationId": "abc-123",
@@ -195,6 +196,7 @@ def _load_memory_grade_hook():
 
 
 class TestMemoryGradeHook:
+    # pylint: disable=attribute-defined-outside-init
     @pytest.fixture(autouse=True)
     def clean_searches_file(self, tmp_path, monkeypatch):
         searches_file = tmp_path / "searches.json"

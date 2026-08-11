@@ -137,7 +137,7 @@ def _record_follow_through_sql(correlation_id: str, file_path: str) -> None:
             conn.commit()
         finally:
             conn.close()
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         pass  # best-effort
 
 
