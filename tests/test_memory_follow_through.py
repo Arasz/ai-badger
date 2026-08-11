@@ -15,11 +15,15 @@ import pytest
 @pytest.fixture
 def fresh_hook_state(monkeypatch):
     """Reset the hook's in-memory state before each test."""
+    import sys as _sys
     import features.common.hooks.ai_badger_hooks as hooks
-    hooks._RECENT_SEARCHES.clear()
-    monkeypatch.setattr(hooks, "_record_follow_through_sql", lambda cid, fp: None)
+    import features.common.hooks.follow_through as ft
+    # Seed sys.modules so _load_follow_through() finds the same instance
+    _sys.modules.setdefault("ai_badger_follow_through", ft)
+    ft._RECENT_SEARCHES.clear()
+    monkeypatch.setattr(ft, "_record_follow_through_sql", lambda cid, fp: None)
     monkeypatch.setattr(hooks, "_debug", lambda *a, **kw: None)
-    return hooks
+    return hooks, ft
 
 
 class TestStashSearchSources:
@@ -33,105 +37,113 @@ class TestStashSearchSources:
     })
 
     def test_stashes_correlation_id_and_source_files(self, fresh_hook_state, tmp_path):
-        fresh_hook_state._stash_search_sources(
-            "memory_search", self.MEMORY_SEARCH_RESULT, str(tmp_path))
-        assert str(tmp_path) in fresh_hook_state._RECENT_SEARCHES
-        entries = fresh_hook_state._RECENT_SEARCHES[str(tmp_path)]
+        hooks, ft = fresh_hook_state
+        hooks._stash_search_sources("memory_search", self.MEMORY_SEARCH_RESULT, str(tmp_path))
+        assert str(tmp_path) in ft._RECENT_SEARCHES
+        entries = ft._RECENT_SEARCHES[str(tmp_path)]
         assert len(entries) == 1
         assert entries[0]["correlationId"] == "abc-123"
         assert entries[0]["sourceFiles"] == [
             "/project/docs/adr/0001.md", "/project/src/Program.cs"]
 
     def test_ignores_non_memory_search_tools(self, fresh_hook_state, tmp_path):
-        fresh_hook_state._stash_search_sources(
-            "read_file", self.MEMORY_SEARCH_RESULT, str(tmp_path))
-        assert str(tmp_path) not in fresh_hook_state._RECENT_SEARCHES
+        hooks, ft = fresh_hook_state
+        hooks._stash_search_sources("read_file", self.MEMORY_SEARCH_RESULT, str(tmp_path))
+        assert str(tmp_path) not in ft._RECENT_SEARCHES
 
     def test_ignores_result_without_correlation_id(self, fresh_hook_state, tmp_path):
+        hooks, ft = fresh_hook_state
         result = json.dumps({"meta": {}, "results": [{"sourceFile": "/x.md"}]})
-        fresh_hook_state._stash_search_sources("memory_search", result, str(tmp_path))
-        assert str(tmp_path) not in fresh_hook_state._RECENT_SEARCHES
+        hooks._stash_search_sources("memory_search", result, str(tmp_path))
+        assert str(tmp_path) not in ft._RECENT_SEARCHES
 
     def test_ignores_result_without_source_files(self, fresh_hook_state, tmp_path):
+        hooks, ft = fresh_hook_state
         result = json.dumps({"meta": {"correlationId": "abc"}, "results": [{}]})
-        fresh_hook_state._stash_search_sources("memory_search", result, str(tmp_path))
-        assert str(tmp_path) not in fresh_hook_state._RECENT_SEARCHES
+        hooks._stash_search_sources("memory_search", result, str(tmp_path))
+        assert str(tmp_path) not in ft._RECENT_SEARCHES
 
     def test_handles_mcp_prefixed_tool_name(self, fresh_hook_state, tmp_path):
-        fresh_hook_state._stash_search_sources(
+        hooks, ft = fresh_hook_state
+        hooks._stash_search_sources(
             "mcp__ai_raccoon__memory_search", self.MEMORY_SEARCH_RESULT, str(tmp_path))
-        assert str(tmp_path) in fresh_hook_state._RECENT_SEARCHES
+        assert str(tmp_path) in ft._RECENT_SEARCHES
 
     def test_handles_non_json_result(self, fresh_hook_state, tmp_path):
-        fresh_hook_state._stash_search_sources("memory_search", "not json", str(tmp_path))
-        assert str(tmp_path) not in fresh_hook_state._RECENT_SEARCHES
+        hooks, ft = fresh_hook_state
+        hooks._stash_search_sources("memory_search", "not json", str(tmp_path))
+        assert str(tmp_path) not in ft._RECENT_SEARCHES
 
     def test_prunes_old_entries(self, fresh_hook_state, tmp_path):
+        hooks, ft = fresh_hook_state
         stale = {"correlationId": "stale", "sourceFiles": ["/old.md"],
                  "ts": time.time() - 200}
-        fresh_hook_state._RECENT_SEARCHES[str(tmp_path)] = [stale]
-        fresh_hook_state._stash_search_sources(
-            "memory_search", self.MEMORY_SEARCH_RESULT, str(tmp_path))
-        entries = fresh_hook_state._RECENT_SEARCHES[str(tmp_path)]
+        ft._RECENT_SEARCHES[str(tmp_path)] = [stale]
+        hooks._stash_search_sources("memory_search", self.MEMORY_SEARCH_RESULT, str(tmp_path))
+        entries = ft._RECENT_SEARCHES[str(tmp_path)]
         assert len(entries) == 1
         assert entries[0]["correlationId"] == "abc-123"
 
     def test_multiple_searches_accumulate(self, fresh_hook_state, tmp_path):
-        fresh_hook_state._stash_search_sources(
-            "memory_search", self.MEMORY_SEARCH_RESULT, str(tmp_path))
-        fresh_hook_state._stash_search_sources(
+        hooks, ft = fresh_hook_state
+        hooks._stash_search_sources("memory_search", self.MEMORY_SEARCH_RESULT, str(tmp_path))
+        hooks._stash_search_sources(
             "memory_search", json.dumps({
                 "meta": {"correlationId": "def"},
                 "results": [{"sourceFile": "/other.md"}]}), str(tmp_path))
-        entries = fresh_hook_state._RECENT_SEARCHES[str(tmp_path)]
+        entries = ft._RECENT_SEARCHES[str(tmp_path)]
         assert len(entries) == 2
 
 
 class TestRecordFollowThrough:
     # pylint: disable=attribute-defined-outside-init
-    def _setup(self, fresh_hook_state, tmp_path):
-        fresh_hook_state._RECENT_SEARCHES[str(tmp_path)] = [{
+    def _setup(self, hooks, ft, tmp_path):
+        ft._RECENT_SEARCHES[str(tmp_path)] = [{
             "correlationId": "abc-123",
             "sourceFiles": ["/project/docs/adr/0001.md"],
             "ts": time.time(),
         }]
         recorded = []
         monkeypatch = pytest.MonkeyPatch()
-        monkeypatch.setattr(fresh_hook_state, "_record_follow_through_sql",
+        monkeypatch.setattr(ft, "_record_follow_through_sql",
                             lambda cid, fp: recorded.append((cid, fp)))
         self.recorded = recorded
-        self.hooks = fresh_hook_state
+        self.hooks = hooks
         self.project = str(tmp_path)
 
     def test_matches_exact_path(self, fresh_hook_state, tmp_path):
-        self._setup(fresh_hook_state, tmp_path)
+        hooks, ft = fresh_hook_state
+        self._setup(hooks, ft, tmp_path)
         self.hooks._maybe_record_follow_through(
             "read_file", json.dumps({"path": "/project/docs/adr/0001.md"}), self.project)
         assert len(self.recorded) == 1
         assert self.recorded[0] == ("abc-123", "/project/docs/adr/0001.md")
 
     def test_ignores_non_read_tools(self, fresh_hook_state, tmp_path):
-        self._setup(fresh_hook_state, tmp_path)
+        hooks, ft = fresh_hook_state
+        self._setup(hooks, ft, tmp_path)
         self.hooks._maybe_record_follow_through(
             "write_file", json.dumps({"path": "/project/docs/adr/0001.md"}), self.project)
         assert len(self.recorded) == 0
 
     def test_ignores_stale_search_results(self, fresh_hook_state, tmp_path):
-        fresh_hook_state._RECENT_SEARCHES[str(tmp_path)] = [{
+        hooks, ft = fresh_hook_state
+        ft._RECENT_SEARCHES[str(tmp_path)] = [{
             "correlationId": "abc-123",
             "sourceFiles": ["/project/docs/adr/0001.md"],
             "ts": time.time() - 120,
         }]
         recorded = []
         monkeypatch = pytest.MonkeyPatch()
-        monkeypatch.setattr(fresh_hook_state, "_record_follow_through_sql",
+        monkeypatch.setattr(ft, "_record_follow_through_sql",
                             lambda cid, fp: recorded.append((cid, fp)))
-        fresh_hook_state._maybe_record_follow_through(
+        hooks._maybe_record_follow_through(
             "read_file", json.dumps({"path": "/project/docs/adr/0001.md"}), str(tmp_path))
         assert len(recorded) == 0
 
     def test_first_match_wins(self, fresh_hook_state, tmp_path):
-        fresh_hook_state._RECENT_SEARCHES[str(tmp_path)] = [
+        hooks, ft = fresh_hook_state
+        ft._RECENT_SEARCHES[str(tmp_path)] = [
             {"correlationId": "first", "sourceFiles": ["/project/docs/adr/0001.md"],
              "ts": time.time()},
             {"correlationId": "second", "sourceFiles": ["/project/docs/adr/0001.md"],
@@ -139,20 +151,22 @@ class TestRecordFollowThrough:
         ]
         recorded = []
         monkeypatch = pytest.MonkeyPatch()
-        monkeypatch.setattr(fresh_hook_state, "_record_follow_through_sql",
+        monkeypatch.setattr(ft, "_record_follow_through_sql",
                             lambda cid, fp: recorded.append((cid, fp)))
-        fresh_hook_state._maybe_record_follow_through(
+        hooks._maybe_record_follow_through(
             "read_file", json.dumps({"path": "/project/docs/adr/0001.md"}), str(tmp_path))
         assert len(recorded) == 1
         assert recorded[0][0] == "first"
 
     def test_handles_non_json_result(self, fresh_hook_state, tmp_path):
-        self._setup(fresh_hook_state, tmp_path)
+        hooks, ft = fresh_hook_state
+        self._setup(hooks, ft, tmp_path)
         self.hooks._maybe_record_follow_through("read_file", "not json", self.project)
         assert len(self.recorded) == 0
 
     def test_handles_result_without_path(self, fresh_hook_state, tmp_path):
-        self._setup(fresh_hook_state, tmp_path)
+        hooks, ft = fresh_hook_state
+        self._setup(hooks, ft, tmp_path)
         self.hooks._maybe_record_follow_through(
             "read_file", json.dumps({"content": "no path"}), self.project)
         assert len(self.recorded) == 0
@@ -160,19 +174,24 @@ class TestRecordFollowThrough:
 
 class TestIsReadFile:
     def test_hermes_read_file(self, fresh_hook_state):
-        assert fresh_hook_state._is_read_file("read_file") is True
+        _hooks, ft = fresh_hook_state
+        assert ft._is_read_file("read_file") is True
 
     def test_claude_read(self, fresh_hook_state):
-        assert fresh_hook_state._is_read_file("Read") is True
+        _hooks, ft = fresh_hook_state
+        assert ft._is_read_file("Read") is True
 
     def test_mcp_prefixed(self, fresh_hook_state):
-        assert fresh_hook_state._is_read_file("mcp__hermes__read_file") is True
+        _hooks, ft = fresh_hook_state
+        assert ft._is_read_file("mcp__hermes__read_file") is True
 
     def test_non_read_tool(self, fresh_hook_state):
-        assert fresh_hook_state._is_read_file("write_file") is False
+        _hooks, ft = fresh_hook_state
+        assert ft._is_read_file("write_file") is False
 
     def test_non_string(self, fresh_hook_state):
-        assert fresh_hook_state._is_read_file(None) is False
+        _hooks, ft = fresh_hook_state
+        assert ft._is_read_file(None) is False
 
 
 # ---------------------------------------------------------------------------
@@ -228,8 +247,10 @@ class TestMemoryGradeHook:
             "correlationId": "abc-123", "sourceFiles": ["/project/docs/adr/0001.md"],
             "ts": time.time()}]})
         recorded = []
-        monkeypatch.setattr(mgh, "_record_follow_through_sql", lambda cid, fp: recorded.append((cid, fp)))
-        payload = {"tool_name": "Read", "result": json.dumps({"path": "/project/docs/adr/0001.md"})}
+        monkeypatch.setattr(mgh, "_record_follow_through_sql",
+                            lambda cid, fp: recorded.append((cid, fp)))
+        payload = {"tool_name": "Read",
+                   "result": json.dumps({"path": "/project/docs/adr/0001.md"})}
         import io
         old = mgh.sys.stdin
         mgh.sys.stdin = io.StringIO(json.dumps(payload))
@@ -281,9 +302,9 @@ class TestRecordFollowThroughSql:
         return db_path
 
     def test_records_first_follow_through(self, db, monkeypatch):
-        import features.common.hooks.ai_badger_hooks as hooks
+        import features.common.hooks.follow_through as ft
         monkeypatch.setattr(Path, "home", lambda: db.parent.parent)
-        hooks._record_follow_through_sql("abc-123", "/project/docs/adr/0001.md")
+        ft._record_follow_through_sql("abc-123", "/project/docs/adr/0001.md")
         conn = sqlite3.connect(str(db))
         row = conn.execute(
             "SELECT follow_through_count, follow_through_files "
@@ -293,7 +314,7 @@ class TestRecordFollowThroughSql:
         assert json.loads(row[1]) == ["/project/docs/adr/0001.md"]
 
     def test_appends_to_existing_files(self, db, monkeypatch):
-        import features.common.hooks.ai_badger_hooks as hooks
+        import features.common.hooks.follow_through as ft
         monkeypatch.setattr(Path, "home", lambda: db.parent.parent)
         conn = sqlite3.connect(str(db))
         conn.execute("UPDATE search_quality SET follow_through_count=1, "
@@ -301,7 +322,7 @@ class TestRecordFollowThroughSql:
                      (json.dumps(["/first.md"]), "abc-123"))
         conn.commit()
         conn.close()
-        hooks._record_follow_through_sql("abc-123", "/second.md")
+        ft._record_follow_through_sql("abc-123", "/second.md")
         conn = sqlite3.connect(str(db))
         row = conn.execute(
             "SELECT follow_through_count, follow_through_files "
@@ -311,10 +332,10 @@ class TestRecordFollowThroughSql:
         assert json.loads(row[1]) == ["/first.md", "/second.md"]
 
     def test_deduplicates_same_file(self, db, monkeypatch):
-        import features.common.hooks.ai_badger_hooks as hooks
+        import features.common.hooks.follow_through as ft
         monkeypatch.setattr(Path, "home", lambda: db.parent.parent)
-        hooks._record_follow_through_sql("abc-123", "/same.md")
-        hooks._record_follow_through_sql("abc-123", "/same.md")
+        ft._record_follow_through_sql("abc-123", "/same.md")
+        ft._record_follow_through_sql("abc-123", "/same.md")
         conn = sqlite3.connect(str(db))
         row = conn.execute(
             "SELECT follow_through_count, follow_through_files "
@@ -323,11 +344,11 @@ class TestRecordFollowThroughSql:
         assert row[0] == 1
 
     def test_noop_when_db_missing(self, monkeypatch):
-        import features.common.hooks.ai_badger_hooks as hooks
+        import features.common.hooks.follow_through as ft
         monkeypatch.setattr(Path, "home", lambda: Path("/nonexistent"))
-        hooks._record_follow_through_sql("abc-123", "/file.md")
+        ft._record_follow_through_sql("abc-123", "/file.md")
 
     def test_noop_when_correlation_id_not_found(self, db, monkeypatch):
-        import features.common.hooks.ai_badger_hooks as hooks
+        import features.common.hooks.follow_through as ft
         monkeypatch.setattr(Path, "home", lambda: db.parent.parent)
-        hooks._record_follow_through_sql("nonexistent", "/file.md")
+        ft._record_follow_through_sql("nonexistent", "/file.md")
