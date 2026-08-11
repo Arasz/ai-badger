@@ -332,11 +332,22 @@ def _gate_project() -> str:
     return _project_cwd("")
 
 
+def _is_memory_search(tool_name: Any) -> bool:
+    """True for any naming spelling of the memory_search tool; never matches other tools."""
+    if not isinstance(tool_name, str):
+        return False
+    name = tool_name
+    if name.startswith("mcp__"):
+        name = name[len("mcp__"):].split("__", 1)[-1]
+    if ":" in name:
+        name = name.rsplit(":", 1)[-1]
+    return name == "memory_search"
+
+
 def _maybe_record_memory_consult(tool_name: str, args: Dict[str, Any], cwd: str,
                                  session_id: Optional[str] = None) -> None:
     """After a memory_search call, unlock the gate for this project's session."""
-    memory_grade = _load_memory_grade()
-    if memory_grade is None or not memory_grade.is_memory_search(tool_name):
+    if not _is_memory_search(tool_name):
         return
     project = _project_cwd(cwd)
     _memory_consulted.add(project)
@@ -599,12 +610,6 @@ def pre_llm_inject_context(
     if pending_reminder:
         parts.append(pending_reminder)
 
-    memory_grade = _load_memory_grade()
-    if memory_grade is not None:
-        grade_ask = memory_grade.pop_ask(project)
-        if grade_ask:
-            parts.append(grade_ask)
-
     # Framework version — see `versions_diverge`; a patch-only bump is silent (B10).
     fw_version = _read_framework_version()
     if fw_version:
@@ -838,31 +843,6 @@ def _maybe_remind_commit(tool_name: str, cwd: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Memory grade — Hermes has no PostToolUse return channel into the model's
-# context, so the search line is logged at post_tool_call time and the grade ask
-# is stashed for pre_llm_inject_context to surface on the very next turn.
-# All logic lives in memory_grade.py; this section only wires it in.
-# ---------------------------------------------------------------------------
-
-MEMORY_GRADE_MODULE_NAME = "memory_grade"
-
-
-def _load_memory_grade() -> Optional[Any]:
-    """Import the sibling memory_grade module lazily; None when absent, or it's broken."""
-    return _load_sibling_module(MEMORY_GRADE_MODULE_NAME, "memory_grade.py", "memory grade")
-
-
-def _maybe_log_memory_grade(tool_name: str, args: Dict[str, Any], result: str,
-                            cwd: str, session_id: Optional[str] = None) -> None:
-    """After a memory_search call, log the line and stash the grade ask; silent otherwise."""
-    memory_grade = _load_memory_grade()
-    if memory_grade is None or not memory_grade.is_memory_search(tool_name):
-        return
-    memory_grade.log_search(args or {}, result, cwd, host="hermes",
-                            session_id=session_id)
-
-
-# ---------------------------------------------------------------------------
 # Tool call observer — equivalent to Claude's PostToolUse hook
 # ---------------------------------------------------------------------------
 
@@ -905,11 +885,6 @@ def post_tool_observer(tool_name: str = "", result: str = "",
         _maybe_remind_commit(tool_name, cwd)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.warning("commit reminder check failed", exc_info=True)
-
-    try:
-        _maybe_log_memory_grade(tool_name, args, result, cwd, session_id)
-    except Exception:  # pylint: disable=broad-exception-caught
-        logger.warning("memory grade logging failed", exc_info=True)
 
     try:
         _maybe_record_memory_consult(tool_name, args, cwd, session_id)

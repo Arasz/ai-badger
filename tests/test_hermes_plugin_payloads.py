@@ -10,16 +10,16 @@ _emit_post_tool_call_hook / agent conversation loop / hooks.py _DEFAULT_PAYLOADS
 The observers must accept these verbatim (keyword args) and behave identically to
 the legacy tool_name/args spelling. No cwd arrives in any payload — callbacks fall
 back to os.getcwd() (the session process cwd), matching pre_llm's pop side.
+
+The memory-grade file logging is gone (2026-08-11, task mem-cleanup): a memory_search
+payload must unlock the memory-first gate and must NOT create any quality-log file.
 """
 # pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations
 
-import json
 import sys
 
 import pytest
-
-ENV = "AI_BADGER_MEMORY_GRADE"
 
 
 @pytest.fixture
@@ -29,31 +29,19 @@ def hooks(load_script):
 
 
 @pytest.fixture
-def fake_memory_grade(hooks, monkeypatch, load_script):
-    """The real memory_grade module, injected under the hooks' module-name constant (F8)."""
-    real = load_script("features/common/skills/ai-raccoon-memory/scripts/memory_grade.py")
-    monkeypatch.setitem(sys.modules, hooks.MEMORY_GRADE_MODULE_NAME, real)
+def fake_gate(hooks, monkeypatch, load_script, tmp_path):
+    """The real gate module, injected under the hooks' module-name constant."""
+    real = load_script(
+        "features/common/skills/ai-raccoon-memory/scripts/memory_first_gate.py")
+    monkeypatch.setattr(real, "MARKER_DIR", tmp_path / "memory-first")
+    monkeypatch.setitem(sys.modules, hooks.MEMORY_FIRST_GATE_MODULE_NAME, real)
     return real
 
 
 @pytest.fixture
-def grade_paths(tmp_path, fake_memory_grade, monkeypatch):
-    """Redirect the log and pending store away from the real ~/.ai-badger/."""
-    log = tmp_path / "memory-quality.jsonl"
-    pending = tmp_path / "pending.json"
-    monkeypatch.setattr(fake_memory_grade, "LOG_FILE", log)
-    monkeypatch.setattr(fake_memory_grade, "PENDING_FILE", pending)
-    return log, pending
-
-
-@pytest.fixture
-def on(monkeypatch):
-    monkeypatch.setenv(ENV, "1")
-
-
-def _lines(log) -> list:
-    return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()
-            if line.strip()]
+def fresh(hooks):
+    """Reset the per-session gate state before each test."""
+    hooks.reset_gate_state()
 
 
 def _real_post_tool_payload(**overrides):
@@ -71,26 +59,21 @@ def _real_post_tool_payload(**overrides):
     return payload
 
 
-def test_post_tool_observer_accepts_real_hermes_plugin_payload(
-        tmp_path, hooks, fake_memory_grade, grade_paths, on, monkeypatch):
+def test_post_tool_observer_real_payload_unlocks_the_gate_without_file_logging(
+        tmp_path, hooks, fake_gate, fresh, monkeypatch):
     """The plugin emitter sends function_name/function_args/session_id — the observer
-    must map them to the internal tool_name/args contract and log the search."""
+    must map them to the internal contract, unlock the gate, and write no log file."""
     monkeypatch.chdir(tmp_path)
     hooks.post_tool_observer(**_real_post_tool_payload())
 
-    log, pending = grade_paths
-    lines = _lines(log)
-    assert len(lines) == 1
-    line = lines[0]
-    assert line["query"] == "q"
-    assert line["projectId"] == "probe"
-    assert line["host"] == "hermes"
-    assert line["sessionId"] == "sess-1"
-    assert pending.exists()  # the grade ask was stashed
+    assert hooks.pre_tool_call_memory_gate(
+        tool_name="search_files", args={"pattern": "x"}, task_id="t1") is None
+    grade_dir = tmp_path / ".ai-badger" / "memory-grade"
+    assert not grade_dir.exists()
 
 
-def test_post_tool_observer_accepts_legacy_shell_hook_spelling(
-        tmp_path, hooks, fake_memory_grade, grade_paths, on, monkeypatch):
+def test_post_tool_observer_legacy_spelling_unlocks_the_gate(
+        tmp_path, hooks, fake_gate, fresh, monkeypatch):
     """Backward compat: the script-hook spelling (tool_name/args/cwd) still works."""
     monkeypatch.chdir(tmp_path)
     hooks.post_tool_observer(
@@ -101,43 +84,32 @@ def test_post_tool_observer_accepts_legacy_shell_hook_spelling(
         cwd=str(tmp_path),
     )
 
-    line = _lines(grade_paths[0])[0]
-    assert line["query"] == "q"
-    assert line["projectId"] == "probe"
-    assert line["host"] == "hermes"
-    assert line["sessionId"] is None
+    assert hooks.pre_tool_call_memory_gate(
+        tool_name="search_files", args={"pattern": "x"}, task_id="t1") is None
 
 
-def test_post_tool_observer_non_search_tool_writes_nothing(
-        tmp_path, hooks, fake_memory_grade, grade_paths, on, monkeypatch):
+def test_post_tool_observer_non_search_tool_writes_nothing_and_keeps_gate(
+        tmp_path, hooks, fake_gate, fresh, monkeypatch):
     monkeypatch.chdir(tmp_path)
     hooks.post_tool_observer(**_real_post_tool_payload(function_name="memory_write"))
 
-    log, pending = grade_paths
-    assert not log.exists()
-    assert not pending.exists()
+    out = hooks.pre_tool_call_memory_gate(
+        tool_name="search_files", args={"pattern": "x"}, task_id="t1")
+    assert out is not None and out.get("action") == "block"
+    grade_dir = tmp_path / ".ai-badger" / "memory-grade"
+    assert not grade_dir.exists()
 
 
 def test_pre_llm_inject_context_accepts_real_pre_llm_payload(
-        tmp_path, hooks, fake_memory_grade, grade_paths, on, monkeypatch):
+        tmp_path, hooks, fake_gate, fresh, monkeypatch):
     """pre_llm_call arrives with session_id/user_message/model/platform — no cwd.
-    The pop side must resolve the stash key via os.getcwd() and surface the ask once."""
+    The injector must not raise and must not surface a grade ask."""
     monkeypatch.chdir(tmp_path)
-    hooks.post_tool_observer(**_real_post_tool_payload())
-    _, pending = grade_paths
-    assert pending.exists()
-
     context = hooks.pre_llm_inject_context(
         session_id="sess-1", user_message="hello", conversation_history=[],
         is_first_turn=True, model="gpt-4", platform="cli")
-    assert context is not None
-    assert "memory_search" in context["context"]
-    assert "grade" in context["context"]
-
-    # Inject-once: a second turn with no new search surfaces nothing.
-    second = hooks.pre_llm_inject_context(session_id="sess-1", user_message="again")
-    ask_text = "Rate that memory_search"
-    assert second is None or ask_text not in (second.get("context") or "")
+    if context is not None:
+        assert "Rate that memory_search" not in (context.get("context") or "")
 
 
 def test_on_session_start_drift_notice_accepts_session_only_payload(hooks):

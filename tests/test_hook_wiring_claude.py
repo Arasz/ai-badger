@@ -274,7 +274,7 @@ def test_hooks_json_post_tool_use_keeps_the_folded_recorder(root):
     assert len(entries) == 1
     commands = [h["command"] for e in entries for h in e["hooks"]]
     assert len(commands) == 1
-    assert "memory_grade_hook.py" in commands[0]
+    assert "memory_first_gate_post_hook.py" in commands[0]
 
 
 def test_scaffold_wiring_puts_the_gate_into_settings(tmp_path, load_script, root):
@@ -283,7 +283,7 @@ def test_scaffold_wiring_puts_the_gate_into_settings(tmp_path, load_script, root
     scripts_dir = target / ".ai-badger" / "skills" / "ai-raccoon-memory" / "scripts"
     scripts_dir.mkdir(parents=True)
     (scripts_dir / GATE_SCRIPT).write_text("", encoding="utf-8")
-    (scripts_dir / "memory_grade_hook.py").write_text("", encoding="utf-8")
+    (scripts_dir / "memory_first_gate_post_hook.py").write_text("", encoding="utf-8")
 
     manifest_hooks = json.loads(
         (root / "features" / "common" / "hooks" / "hooks-manifest.json")
@@ -300,5 +300,5 @@ def test_scaffold_wiring_puts_the_gate_into_settings(tmp_path, load_script, root
     assert "${CLAUDE_PROJECT_DIR}" in pre[0]  # guarded command, not a plugin-root path
     # The recorder is folded into the memory_search PostToolUse entry.
     post = [h["command"] for e in settings["hooks"]["PostToolUse"]
-            for h in e["hooks"] if "memory_grade_hook.py" in h["command"]]
+            for h in e["hooks"] if "memory_first_gate_post_hook.py" in h["command"]]
     assert len(post) == 1, post

@@ -23,14 +23,18 @@ USER_PLUGINS = ("ai_badger_hooks.py", "learned_skills_sync.py", "debug_log.py")
 
 # Files that live under a skill's own scripts/ dir, not features/common/hooks/, but must
 # still land beside ai_badger_hooks.py in both destinations so its lazy sibling-import
-# (_load_commit_reminder/_load_impact_estimator/_load_memory_grade/_load_memory_first_gate)
+# (_load_commit_reminder/_load_impact_estimator/_load_memory_first_gate)
 # finds them post-copy.
 SHARED_SKILL_MODULES = (
     ("commit-reminder", "commit_reminder.py"),
     ("commit-reminder", "impact_estimator.py"),
-    ("ai-raccoon-memory", "memory_grade.py"),
     ("ai-raccoon-memory", "memory_first_gate.py"),
 )
+
+# Modules the framework used to ship but no longer does; every adjust run must delete
+# stale copies from both destinations (the memory-grade file-logging feature, removed
+# 2026-08-11, is the first member).
+REMOVED_MODULES = ("memory_grade.py",)
 
 # The BM25 MCP matcher (docs/adr/0012): tokenizer, scoring, gate and document
 # construction live here, not in ai_badger_hooks.py, so they need their own copy
@@ -40,7 +44,7 @@ RETRIEVAL_MODULES = ("tokenizer.py", "bm25.py", "mcp_matcher.py")
 # Every flat file older ai-badger versions dropped directly into ~/.hermes/plugins/.
 LEGACY_FLAT_FILES = tuple(
     dict.fromkeys(USER_PLUGINS + tuple(name for _, name in SHARED_SKILL_MODULES)
-                  + RETRIEVAL_MODULES))
+                  + RETRIEVAL_MODULES + REMOVED_MODULES))
 
 PLUGIN_DIR_NAME = "ai-badger"
 HERMES_HOME_ENV = "HERMES_HOME"
@@ -49,9 +53,8 @@ name: ai-badger
 version: {version}
 description: >-
   ai-badger framework hooks: framework drift notice (on_session_start), MCP context
-  enrichment and commit reminders (pre_llm_call / post_tool_call), the memory-first
-  gate that blocks text search until memory_search is consulted (pre_tool_call),
-  and memory-grade telemetry for memory_search results.
+  enrichment and commit reminders (pre_llm_call / post_tool_call), and the memory-first
+  gate that blocks text search until memory_search is consulted (pre_tool_call).
 hooks:
   - on_session_start
   - pre_llm_call
@@ -151,6 +154,8 @@ def _install_user_plugins(hooks_dir: Path, framework_root: Path, install: bool) 
         plugin_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, plugin_dir / filename)
         installed.append(filename)
+    for filename in REMOVED_MODULES:
+        (plugin_dir / filename).unlink(missing_ok=True)
     if installed:
         version = _framework_version(framework_root)
         (plugin_dir / "plugin.yaml").write_text(
@@ -205,6 +210,8 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
             files.append(str(dst.relative_to(target_dir.parent)))
+    for filename in REMOVED_MODULES:
+        (target_dir / "hooks" / filename).unlink(missing_ok=True)
 
     # User-scope copies are deliberately absent from 'files': the scaffolder records every
     # returned file relative to the project target, which a home path cannot be.

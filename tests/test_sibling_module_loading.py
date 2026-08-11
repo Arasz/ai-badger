@@ -49,7 +49,6 @@ def hooks_module(tmp_path, root):
                 module.SYNC_MODULE_NAME,
                 module.COMMIT_REMINDER_MODULE_NAME,
                 module.IMPACT_ESTIMATOR_MODULE_NAME,
-                module.MEMORY_GRADE_MODULE_NAME,
         ):
             sys.modules.pop(name, None)
 

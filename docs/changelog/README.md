@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.116.0 | [memory-grade file logging removed (metrics will replace it)](0.116.0-memory-grade-file-logging-removed.md) |
 | 0.115.1 | [disjoint files are not isolation](0.115.1-disjoint-files-are-not-isolation.md) |
 | 0.115.0 | [lanes stop reaching into each other](0.115.0-lanes-stop-reaching-into-each-other.md) |
 | 0.114.0 | [run what you changed; the pipeline runs the rest](0.114.0-pipeline-runs-the-rest.md) |
