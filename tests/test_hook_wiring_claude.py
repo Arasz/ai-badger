@@ -273,8 +273,9 @@ def test_hooks_json_post_tool_use_keeps_the_folded_recorder(root):
                if e.get("matcher") == "memory_search"]
     assert len(entries) == 1
     commands = [h["command"] for e in entries for h in e["hooks"]]
-    assert len(commands) == 1
+    assert len(commands) == 2
     assert "memory_first_gate_post_hook.py" in commands[0]
+    assert "memory_grade_hook.py" in commands[1]
 
 
 def test_scaffold_wiring_puts_the_gate_into_settings(tmp_path, load_script, root):
