@@ -217,6 +217,29 @@
           "script": "cross_worktree_dirty_warning.py"
         }
       }
+    },
+    {
+      "name": "memory-follow-through",
+      "description": "Passive follow-through detection (Joachims implicit feedback): after memory_search stash results, after read_file check for path match within 60s and record follow_through_count",
+      "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "PostToolUse",
+          "script": "memory_grade_hook.py"
+        },
+        "hermes": {
+          "type": "plugin",
+          "entry": "ai_badger_hooks.py",
+          "method": "post_tool_call"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "postToolUse",
+          "script": "memory_grade_hook.py"
+        }
+      }
     }
   ]
 }
