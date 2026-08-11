@@ -16,10 +16,21 @@ import pytest
 def fresh_hook_state(monkeypatch):
     """Reset the hook's in-memory state before each test."""
     import sys as _sys
-    import features.common.hooks.ai_badger_hooks as hooks
-    import features.common.hooks.follow_through as ft
-    # Seed sys.modules so _load_follow_through() finds the same instance
-    _sys.modules.setdefault("ai_badger_follow_through", ft)
+    import importlib.util as _ilu
+
+    def _load(name, rel_path):
+        spec = _ilu.spec_from_file_location(
+            name, Path(__file__).resolve().parent.parent / rel_path)
+        assert spec is not None and spec.loader is not None
+        module = _ilu.module_from_spec(spec)
+        _sys.modules[name] = module
+        spec.loader.exec_module(module)
+        return module
+
+    hooks = _load("aib_hooks_ft_test", "features/common/hooks/ai_badger_hooks.py")
+    ft = _load("aib_follow_through_ft_test", "features/common/hooks/follow_through.py")
+    # Seed sys.modules so _load_follow_through() finds THIS test's instance
+    _sys.modules["ai_badger_follow_through"] = ft
     ft._RECENT_SEARCHES.clear()
     monkeypatch.setattr(ft, "_record_follow_through_sql", lambda cid, fp: None)
     monkeypatch.setattr(hooks, "_debug", lambda *a, **kw: None)
@@ -287,6 +298,18 @@ class TestMemoryGradeHook:
 
 class TestRecordFollowThroughSql:
     @pytest.fixture
+    def ft(self):
+        import importlib.util as _ilu
+        spec = _ilu.spec_from_file_location(
+            "aib_follow_through_sql_test",
+            Path(__file__).resolve().parent.parent
+            / "features" / "common" / "hooks" / "follow_through.py")
+        assert spec is not None and spec.loader is not None
+        module = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    @pytest.fixture
     def db(self, tmp_path):
         db_dir = tmp_path / ".ai-raccoon"
         db_dir.mkdir()
@@ -301,8 +324,7 @@ class TestRecordFollowThroughSql:
         conn.close()
         return db_path
 
-    def test_records_first_follow_through(self, db, monkeypatch):
-        import features.common.hooks.follow_through as ft
+    def test_records_first_follow_through(self, db, monkeypatch, ft):
         monkeypatch.setattr(Path, "home", lambda: db.parent.parent)
         ft._record_follow_through_sql("abc-123", "/project/docs/adr/0001.md")
         conn = sqlite3.connect(str(db))
@@ -313,8 +335,7 @@ class TestRecordFollowThroughSql:
         assert row[0] == 1
         assert json.loads(row[1]) == ["/project/docs/adr/0001.md"]
 
-    def test_appends_to_existing_files(self, db, monkeypatch):
-        import features.common.hooks.follow_through as ft
+    def test_appends_to_existing_files(self, db, monkeypatch, ft):
         monkeypatch.setattr(Path, "home", lambda: db.parent.parent)
         conn = sqlite3.connect(str(db))
         conn.execute("UPDATE search_quality SET follow_through_count=1, "
@@ -331,8 +352,7 @@ class TestRecordFollowThroughSql:
         assert row[0] == 2
         assert json.loads(row[1]) == ["/first.md", "/second.md"]
 
-    def test_deduplicates_same_file(self, db, monkeypatch):
-        import features.common.hooks.follow_through as ft
+    def test_deduplicates_same_file(self, db, monkeypatch, ft):
         monkeypatch.setattr(Path, "home", lambda: db.parent.parent)
         ft._record_follow_through_sql("abc-123", "/same.md")
         ft._record_follow_through_sql("abc-123", "/same.md")
@@ -343,12 +363,10 @@ class TestRecordFollowThroughSql:
         conn.close()
         assert row[0] == 1
 
-    def test_noop_when_db_missing(self, monkeypatch):
-        import features.common.hooks.follow_through as ft
+    def test_noop_when_db_missing(self, monkeypatch, ft):
         monkeypatch.setattr(Path, "home", lambda: Path("/nonexistent"))
         ft._record_follow_through_sql("abc-123", "/file.md")
 
-    def test_noop_when_correlation_id_not_found(self, db, monkeypatch):
-        import features.common.hooks.follow_through as ft
+    def test_noop_when_correlation_id_not_found(self, db, monkeypatch, ft):
         monkeypatch.setattr(Path, "home", lambda: db.parent.parent)
         ft._record_follow_through_sql("nonexistent", "/file.md")
