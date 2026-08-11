@@ -15,12 +15,13 @@ import re
 import shutil
 import sys
 from pathlib import Path
+from conftest import _test_write
 
 
 def _write_manifest(target, version):
     aib = target / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
-    (aib / "manifest.json").write_text(json.dumps({
+    _test_write(aib / "manifest.json", json.dumps({
         "frameworkVersion": version,
         "frameworkCommit": None,
         "frameworkDirty": False,
@@ -32,7 +33,7 @@ def _write_manifest(target, version):
 def _write_plugin(tmp_path, version):
     plugin = tmp_path / "plugin"
     plugin.mkdir(parents=True, exist_ok=True)
-    (plugin / "VERSION").write_text(version + "\n", encoding="utf-8")
+    _test_write(plugin / "VERSION", version + "\n", encoding="utf-8")
     return plugin
 
 
@@ -40,8 +41,8 @@ def _make_root(path, version):
     """A directory the framework-root predicate accepts, carrying a VERSION."""
     for name in ("schemas", "features", "engine"):
         (path / name).mkdir(parents=True, exist_ok=True)
-    (path / "engine" / "badger_lib.py").write_text("", encoding="utf-8")
-    (path / "VERSION").write_text(version + "\n", encoding="utf-8")
+    _test_write(path / "engine" / "badger_lib.py", "", encoding="utf-8")
+    _test_write(path / "VERSION", version + "\n", encoding="utf-8")
     return path
 
 
@@ -167,7 +168,7 @@ def test_silent_when_manifest_is_malformed(tmp_path, load_script):
     project = tmp_path / "proj"
     aib = project / ".ai-badger"
     aib.mkdir(parents=True)
-    (aib / "manifest.json").write_text("{not json", encoding="utf-8")
+    _test_write(aib / "manifest.json", "{not json", encoding="utf-8")
     plugin = _write_plugin(tmp_path, "0.2.0")
 
     assert dn.scaffold_drift_notice(project, str(plugin)) is None
@@ -181,7 +182,7 @@ def test_silent_when_manifest_is_a_json_list(tmp_path, load_script):
     project = tmp_path / "proj"
     aib = project / ".ai-badger"
     aib.mkdir(parents=True)
-    (aib / "manifest.json").write_text("[1, 2, 3]", encoding="utf-8")
+    _test_write(aib / "manifest.json", "[1, 2, 3]", encoding="utf-8")
     plugin = _write_plugin(tmp_path, "0.2.0")
 
     assert dn.scaffold_drift_notice(project, str(plugin)) is None
@@ -193,7 +194,7 @@ def test_silent_when_manifest_is_a_bare_scalar(tmp_path, load_script):
     project = tmp_path / "proj"
     aib = project / ".ai-badger"
     aib.mkdir(parents=True)
-    (aib / "manifest.json").write_text("42", encoding="utf-8")
+    _test_write(aib / "manifest.json", "42", encoding="utf-8")
     plugin = _write_plugin(tmp_path, "0.2.0")
 
     assert dn.scaffold_drift_notice(project, str(plugin)) is None
@@ -204,7 +205,7 @@ def test_silent_when_manifest_missing_framework_version(tmp_path, load_script):
     project = tmp_path / "proj"
     aib = project / ".ai-badger"
     aib.mkdir(parents=True)
-    (aib / "manifest.json").write_text(json.dumps({"agents": ["claude"]}), encoding="utf-8")
+    _test_write(aib / "manifest.json", json.dumps({"agents": ["claude"]}), encoding="utf-8")
     plugin = _write_plugin(tmp_path, "0.2.0")
 
     assert dn.scaffold_drift_notice(project, str(plugin)) is None
@@ -333,7 +334,7 @@ def test_hook_main_silent_and_exit_zero_for_malformed_manifests(tmp_path, load_s
         project = tmp_path / label
         aib = project / ".ai-badger"
         aib.mkdir(parents=True)
-        (aib / "manifest.json").write_text(content, encoding="utf-8")
+        _test_write(aib / "manifest.json", content, encoding="utf-8")
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
         monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({
             "session_id": "sid-1", "source": "startup", "cwd": str(project),

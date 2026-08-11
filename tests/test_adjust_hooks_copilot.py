@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from conftest import _test_write
 
 
 def _context(root, target) -> dict:
@@ -28,7 +29,7 @@ def _context(root, target) -> dict:
 
 def _write_json(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data), encoding="utf-8")
+    _test_write(path, json.dumps(data), encoding="utf-8")
 
 
 def _fake_framework(tmp_path, manifest_hooks, source_hooks=None):
@@ -64,7 +65,7 @@ def test_two_manifest_entries_on_one_event_both_survive(tmp_path, load_script):
     for skill in ("prompt-markers", "context-enrichment"):
         skill_dir = aib / "skills" / skill / "scripts"
         skill_dir.mkdir(parents=True)
-        (skill_dir / f"{skill.replace('-', '_')}_hook.py").write_text("", encoding="utf-8")
+        _test_write(skill_dir / f"{skill.replace('-', '_')}_hook.py", "", encoding="utf-8")
 
     manifest_hooks = [
         {"name": "prompt-markers",
@@ -139,7 +140,7 @@ def test_manifest_script_name_is_honoured_in_multi_script_skill(tmp_path, load_s
     skill_dir.mkdir(parents=True)
     # Four candidates, alphabetically ahead of the one the manifest actually names.
     for script in ("a_hook.py", "b_hook.py", "c_hook.py", "stop_hook.py"):
-        (skill_dir / script).write_text("", encoding="utf-8")
+        _test_write(skill_dir / script, "", encoding="utf-8")
 
     manifest_hooks = [
         {"name": "task",
@@ -204,7 +205,7 @@ def test_ambiguous_glob_fallback_refuses_naming_candidates(tmp_path, load_script
     skill_dir.mkdir(parents=True)
     for script in ("drift_notice_hook.py", "session_start_hook.py",
                    "stop_hook.py", "user_prompt_hook.py"):
-        (skill_dir / script).write_text("", encoding="utf-8")
+        _test_write(skill_dir / script, "", encoding="utf-8")
 
     manifest_hooks = [
         {"name": "task",

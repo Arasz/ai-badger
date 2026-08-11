@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from conftest import _test_write
 
 ADJUSTER = "features/claude/adjustments/adjust_mcp.py"
 
@@ -37,9 +38,9 @@ def _write_settings(target: Path, payload) -> Path:
     path = target / ".claude" / "settings.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(payload, bytes):
-        path.write_bytes(payload)
+        _test_write(path, payload)
     else:
-        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        _test_write(path, json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return path
 
 

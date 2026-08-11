@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import sys
+from conftest import _test_write
 
 
 AI_RACCOON = "ai-raccoon"
@@ -175,7 +176,7 @@ def test_unavailable_ai_raccoon_does_not_remove_a_user_authored_entry(
         monkeypatch, load_script, make_scaffolder):
     _patch_ai_raccoon_lookup(monkeypatch, load_script, None)
     target = make_scaffolder.target
-    (target / ".mcp.json").write_text(json.dumps({"mcpServers": {
+    _test_write(target / ".mcp.json", json.dumps({"mcpServers": {
         AI_RACCOON: {"type": "http", "url": "https://example.invalid/ai-raccoon"},
         "mine": {"command": "echo mine"},
     }}), encoding="utf-8")
@@ -196,7 +197,7 @@ def test_unavailable_ai_raccoon_removes_a_home_relative_generated_entry(
     target = make_scaffolder.target
     generated = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
     generated["mcpServers"][AI_RACCOON]["command"] = "${HOME}/.dotnet/tools/ai-raccoon"
-    (target / ".mcp.json").write_text(json.dumps(generated), encoding="utf-8")
+    _test_write(target / ".mcp.json", json.dumps(generated), encoding="utf-8")
 
     _patch_ai_raccoon_lookup(monkeypatch, load_script, None)
     scaf = _scaffold(make_scaffolder)

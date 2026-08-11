@@ -25,6 +25,7 @@ import sys
 from datetime import timedelta
 
 import pytest
+from conftest import _test_write
 
 SCRIPT_RELPATH = "features/common/skills/task/scripts/task_tracker.py"
 
@@ -96,7 +97,7 @@ def _write_transcript(path, records):
                 }
             },
         }))
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _test_write(path, "\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _no_cron_recorder(monkeypatch, tt_module):
@@ -295,7 +296,7 @@ def test_finish_succeeds_when_state_json_was_updated_since_start(tt, monkeypatch
     started_at = tt.lib.find_entry(tt.lib.load_tasks(), "T01")["startedAt"]
     started_dt = tt.lib.parse_iso(started_at)
     tt.lib.STATE_JSON.parent.mkdir(parents=True, exist_ok=True)
-    tt.lib.STATE_JSON.write_text("{}", encoding="utf-8")
+    _test_write(tt.lib.STATE_JSON, "{}", encoding="utf-8")
     later = (started_dt + timedelta(seconds=5)).timestamp()
     import os
     os.utime(tt.lib.STATE_JSON, (later, later))
@@ -719,7 +720,7 @@ def test_full_lifecycle_start_subagent_finish_grade(tt, monkeypatch, tmp_path, c
     # 3. Update state.json (mimics orchestrator updating project state)
     started_dt = tt.lib.parse_iso(entry["startedAt"])
     tt.lib.STATE_JSON.parent.mkdir(parents=True, exist_ok=True)
-    tt.lib.STATE_JSON.write_text("{}", encoding="utf-8")
+    _test_write(tt.lib.STATE_JSON, "{}", encoding="utf-8")
     later = (started_dt + timedelta(seconds=5)).timestamp()
     os.utime(tt.lib.STATE_JSON, (later, later))
 

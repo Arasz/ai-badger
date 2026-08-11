@@ -5,6 +5,7 @@ import json
 import re
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 
 # ---------------------------------------------------------------------- hook wiring
@@ -194,8 +195,7 @@ def test_wiring_from_a_second_checkout_does_not_append_a_duplicate(tmp_path, mak
 
     first_settings = _scaffold(make_scaffolder, first)
     (second / ".claude").mkdir(parents=True)
-    (second / ".claude" / "settings.json").write_text(
-        json.dumps(first_settings), encoding="utf-8")
+    _test_write(second / ".claude" / "settings.json", json.dumps(first_settings), encoding="utf-8")
 
     by_event = _commands_by_event(_scaffold(make_scaffolder, second))
     for event, commands in by_event.items():

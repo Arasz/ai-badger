@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 
 def _config(agents=("claude",), stacks=("python",), mcp=None) -> dict:
@@ -54,8 +55,7 @@ def test_a_full_scaffold_approves_the_declared_server(make_scaffolder):
     """`features/common/stack-mcp.json` declares code-review-graph; the run must approve it."""
     target = make_scaffolder.target
     (target / ".claude").mkdir(parents=True, exist_ok=True)
-    (target / ".claude" / "settings.json").write_text(
-        json.dumps({"env": {"MARK": "kept"}}), encoding="utf-8")
+    _test_write(target / ".claude" / "settings.json", json.dumps({"env": {"MARK": "kept"}}), encoding="utf-8")
 
     scaf = make_scaffolder(config=_config())
     scaf.run(generated_at="2026-07-30T00:00:00Z")
@@ -99,7 +99,7 @@ def test_an_existing_user_settings_file_is_not_touched(fake_home, make_scaffolde
     settings_path = fake_home / ".claude" / "settings.json"
     settings_path.parent.mkdir(parents=True)
     original = json.dumps({"permissions": {"deny": ["Bash(rm:*)"]}}, indent=2) + "\n"
-    settings_path.write_text(original, encoding="utf-8")
+    _test_write(settings_path, original, encoding="utf-8")
     scaf = make_scaffolder(config=_config())
 
     scaf.mcp.propose_claude_mcp_user(

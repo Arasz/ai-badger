@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 
 import pytest
+from conftest import _test_write
 
 
 @pytest.fixture
@@ -23,13 +24,13 @@ def _project(tmp_path):
 
 def test_has_mcp_index_true_for_current_json(hook, tmp_path):
     project = _project(tmp_path)
-    (project / ".ai-badger" / "mcp-tools.json").write_text("{}", encoding="utf-8")
+    _test_write(project / ".ai-badger" / "mcp-tools.json", "{}", encoding="utf-8")
     assert hook._has_mcp_index(project) is True
 
 
 def test_has_mcp_index_true_for_legacy_yaml(hook, tmp_path):
     project = _project(tmp_path)
-    (project / ".ai-badger" / "mcp-tools.yaml").write_text("sources: []\n", encoding="utf-8")
+    _test_write(project / ".ai-badger" / "mcp-tools.yaml", "sources: []\n", encoding="utf-8")
     assert hook._has_mcp_index(project) is True
 
 

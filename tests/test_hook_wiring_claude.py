@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 SCRIPTS = "features/common/skills/welcome-ai-badger/scripts"
 
@@ -32,7 +33,7 @@ def _load(load_script, root, name):
 
 def _write_json(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data), encoding="utf-8")
+    _test_write(path, json.dumps(data), encoding="utf-8")
 
 
 def _fake_framework(tmp_path, manifest_hooks, source_hooks=None):
@@ -73,7 +74,7 @@ def _skill_scripts(target: Path, skill: str, *names: str) -> Path:
     scripts_dir = target / ".ai-badger" / "skills" / skill / "scripts"
     scripts_dir.mkdir(parents=True, exist_ok=True)
     for name in names:
-        (scripts_dir / name).write_text("", encoding="utf-8")
+        _test_write(scripts_dir / name, "", encoding="utf-8")
     return scripts_dir
 
 
@@ -283,8 +284,8 @@ def test_scaffold_wiring_puts_the_gate_into_settings(tmp_path, load_script, root
     target = tmp_path / "proj"
     scripts_dir = target / ".ai-badger" / "skills" / "ai-raccoon-memory" / "scripts"
     scripts_dir.mkdir(parents=True)
-    (scripts_dir / GATE_SCRIPT).write_text("", encoding="utf-8")
-    (scripts_dir / "memory_first_gate_post_hook.py").write_text("", encoding="utf-8")
+    _test_write(scripts_dir / GATE_SCRIPT, "", encoding="utf-8")
+    _test_write(scripts_dir / "memory_first_gate_post_hook.py", "", encoding="utf-8")
 
     manifest_hooks = json.loads(
         (root / "features" / "common" / "hooks" / "hooks-manifest.json")

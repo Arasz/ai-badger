@@ -17,6 +17,7 @@ import json
 import shutil
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 
 def _write_config(target, **overrides):
@@ -36,7 +37,7 @@ def _write_config(target, **overrides):
         "docs": {},
     }
     config.update(overrides)
-    (aib / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    _test_write(aib / "config.json", json.dumps(config), encoding="utf-8")
     return config
 
 
@@ -54,7 +55,7 @@ def _write_manifest(target, entries, version="0.3.0"):
         "skillScope": "default",
         "entries": entries,
     }
-    (aib / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    _test_write(aib / "manifest.json", json.dumps(manifest), encoding="utf-8")
     return manifest
 
 
@@ -62,7 +63,7 @@ def _make_fw_file(fw, relpath, content="framework content v1\n"):
     """Create a framework feature file at relpath under fw."""
     p = fw / relpath
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(content, encoding="utf-8")
+    _test_write(p, content, encoding="utf-8")
     return p
 
 
@@ -89,7 +90,7 @@ def _write_fw_index(fw, version="0.3.0"):
             },
         },
     }
-    (fw / "index.json").write_text(json.dumps(index), encoding="utf-8")
+    _test_write(fw / "index.json", json.dumps(index), encoding="utf-8")
 
 
 # --------------------------------------------------------------------- up-to-date (no drift)
@@ -100,17 +101,11 @@ def test_refresh_reports_up_to_date_when_no_drift(tmp_path, load_script, root):
     # Create a minimal mock framework with one invariant
     fw = tmp_path / "fw"
     fw.mkdir()
-    (fw / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.3.0\n", encoding="utf-8")
     (fw / "schemas").mkdir()
-    (fw / "schemas" / "config.schema.json").write_text(
-        (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
+    _test_write(fw / "schemas" / "config.schema.json", (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"), encoding="utf-8")
     (fw / "features" / "common" / "templates").mkdir(parents=True)
-    (fw / "features" / "common" / "templates" / "CLAUDE.md.tmpl").write_text(
-        "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Invariants\n\n{{INVARIANTS}}\n",
-        encoding="utf-8",
-    )
+    _test_write(fw / "features" / "common" / "templates" / "CLAUDE.md.tmpl", "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Invariants\n\n{{INVARIANTS}}\n", encoding="utf-8")
     src = _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory.\n")
     _write_fw_index(fw)
 
@@ -129,7 +124,7 @@ def test_refresh_reports_up_to_date_when_no_drift(tmp_path, load_script, root):
 
     # Also write the actual file in the project (so manifest hash matches)
     (proj / ".ai-badger" / "invariants").mkdir(parents=True)
-    (proj / ".ai-badger" / "invariants" / "tdd.md").write_text("- TDD is mandatory.\n", encoding="utf-8")
+    _test_write(proj / ".ai-badger" / "invariants" / "tdd.md", "- TDD is mandatory.\n", encoding="utf-8")
 
     rc = refresh.main(["--target", str(proj), "--root", str(fw)])
 
@@ -143,22 +138,13 @@ def test_refresh_detects_drift_and_re_scaffolds(tmp_path, load_script, root, mak
 
     fw = tmp_path / "fw"
     fw.mkdir()
-    (fw / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.3.0\n", encoding="utf-8")
     (fw / "schemas").mkdir()
-    (fw / "schemas" / "config.schema.json").write_text(
-        (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
+    _test_write(fw / "schemas" / "config.schema.json", (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"), encoding="utf-8")
     # Minimal template so scaffold works
     (fw / "features" / "common" / "templates").mkdir(parents=True)
-    (fw / "features" / "common" / "templates" / "CLAUDE.md.tmpl").write_text(
-        "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Invariants\n\n{{INVARIANTS}}\n",
-        encoding="utf-8",
-    )
-    (fw / "features" / "common" / "templates" / "HERMES.md.tmpl").write_text(
-        "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n",
-        encoding="utf-8",
-    )
+    _test_write(fw / "features" / "common" / "templates" / "CLAUDE.md.tmpl", "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Invariants\n\n{{INVARIANTS}}\n", encoding="utf-8")
+    _test_write(fw / "features" / "common" / "templates" / "HERMES.md.tmpl", "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n", encoding="utf-8")
 
     src = _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory (v1).\n")
     _write_fw_index(fw)
@@ -176,7 +162,7 @@ def test_refresh_detects_drift_and_re_scaffolds(tmp_path, load_script, root, mak
     assert "v1" in tdd_path.read_text(encoding="utf-8")
 
     # Now modify the framework file (simulate an upstream update)
-    src.write_text("- TDD is mandatory (v2 — updated upstream).\n", encoding="utf-8")
+    _test_write(src, "- TDD is mandatory (v2 — updated upstream).\n", encoding="utf-8")
 
     # Run refresh
     rc = refresh.main(["--target", str(proj), "--root", str(fw)])
@@ -194,27 +180,16 @@ def test_refresh_preserves_seed_once_files(tmp_path, load_script, root, make_sca
 
     fw = tmp_path / "fw"
     fw.mkdir()
-    (fw / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.3.0\n", encoding="utf-8")
     (fw / "schemas").mkdir()
-    (fw / "schemas" / "config.schema.json").write_text(
-        (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
+    _test_write(fw / "schemas" / "config.schema.json", (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"), encoding="utf-8")
     (fw / "features" / "common" / "templates").mkdir(parents=True)
-    (fw / "features" / "common" / "templates" / "CLAUDE.md.tmpl").write_text(
-        "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Invariants\n\n{{INVARIANTS}}\n",
-        encoding="utf-8",
-    )
-    (fw / "features" / "common" / "templates" / "HERMES.md.tmpl").write_text(
-        "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n",
-        encoding="utf-8",
-    )
+    _test_write(fw / "features" / "common" / "templates" / "CLAUDE.md.tmpl", "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Invariants\n\n{{INVARIANTS}}\n", encoding="utf-8")
+    _test_write(fw / "features" / "common" / "templates" / "HERMES.md.tmpl", "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n", encoding="utf-8")
     _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory.\n")
     # Also need state.json template for seed-once
     (fw / "features" / "common" / "templates" / "state.json").parent.mkdir(parents=True, exist_ok=True)
-    (fw / "features" / "common" / "templates" / "state.json").write_text(
-        '{"tasks": [], "lastUpdated": null}\n', encoding="utf-8",
-    )
+    _test_write(fw / "features" / "common" / "templates" / "state.json", '{"tasks": [], "lastUpdated": null}\n', encoding="utf-8")
     _write_fw_index(fw)
 
     proj = tmp_path / "proj"
@@ -226,11 +201,11 @@ def test_refresh_preserves_seed_once_files(tmp_path, load_script, root, make_sca
     # Mutate state.json (project-owned data)
     state_path = proj / ".ai-badger" / "state.json"
     mutated = {"tasks": [{"id": 1, "title": "my custom task"}], "lastUpdated": "2026-07-22"}
-    state_path.write_text(json.dumps(mutated), encoding="utf-8")
+    _test_write(state_path, json.dumps(mutated), encoding="utf-8")
 
     # Modify a framework file to trigger drift
     src = fw / "features" / "common" / "invariants" / "tdd.md"
-    src.write_text("- TDD is mandatory (updated).\n", encoding="utf-8")
+    _test_write(src, "- TDD is mandatory (updated).\n", encoding="utf-8")
 
     # Run refresh
     rc = refresh.main(["--target", str(proj), "--root", str(fw)])
@@ -257,7 +232,7 @@ def test_refresh_errors_when_no_manifest(tmp_path, load_script):
     refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
     fw = tmp_path / "fw"
     fw.mkdir()
-    (fw / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.3.0\n", encoding="utf-8")
 
     proj = tmp_path / "proj"
     _write_config(proj)  # config exists, but no manifest
@@ -274,26 +249,17 @@ def test_refresh_re_scaffolds_hermes_agent_files(tmp_path, load_script, root, ma
 
     fw = tmp_path / "fw"
     fw.mkdir()
-    (fw / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.3.0\n", encoding="utf-8")
     (fw / "schemas").mkdir()
-    (fw / "schemas" / "config.schema.json").write_text(
-        (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
+    _test_write(fw / "schemas" / "config.schema.json", (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"), encoding="utf-8")
     (fw / "features" / "common" / "templates").mkdir(parents=True)
-    (fw / "features" / "common" / "templates" / "CLAUDE.md.tmpl").write_text(
-        "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Invariants\n\n{{INVARIANTS}}\n",
-        encoding="utf-8",
-    )
-    (fw / "features" / "common" / "templates" / "HERMES.md.tmpl").write_text(
-        "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Hermes-specific guidance\n\nSkills: {{STACKS}}\n",
-        encoding="utf-8",
-    )
+    _test_write(fw / "features" / "common" / "templates" / "CLAUDE.md.tmpl", "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Invariants\n\n{{INVARIANTS}}\n", encoding="utf-8")
+    _test_write(fw / "features" / "common" / "templates" / "HERMES.md.tmpl", "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Hermes-specific guidance\n\nSkills: {{STACKS}}\n", encoding="utf-8")
     _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory (v1).\n")
 
     # hermes scaffolding.json + template symlink
     (fw / "features" / "hermes").mkdir(parents=True)
-    (fw / "features" / "hermes" / "scaffolding.json").write_text(json.dumps({
+    _test_write(fw / "features" / "hermes" / "scaffolding.json", json.dumps({
         "agent": "hermes",
         "files": [{
             "source": "templates/HERMES.md.tmpl",
@@ -306,10 +272,7 @@ def test_refresh_re_scaffolds_hermes_agent_files(tmp_path, load_script, root, ma
     }), encoding="utf-8")
     (fw / "features" / "hermes" / "templates").mkdir(parents=True)
     # Copy the template instead of symlink (tmp_path symlinks can be tricky)
-    (fw / "features" / "hermes" / "templates" / "HERMES.md.tmpl").write_text(
-        (fw / "features" / "common" / "templates" / "HERMES.md.tmpl").read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
+    _test_write(fw / "features" / "hermes" / "templates" / "HERMES.md.tmpl", (fw / "features" / "common" / "templates" / "HERMES.md.tmpl").read_text(encoding="utf-8"), encoding="utf-8")
     # Also add scaffolding schema
     shutil.copyfile(root / "schemas" / "scaffolding.schema.json",
                     fw / "schemas" / "scaffolding.schema.json")
@@ -331,18 +294,12 @@ def test_refresh_re_scaffolds_hermes_agent_files(tmp_path, load_script, root, ma
     assert "Hermes-specific guidance" in hermes_path.read_text(encoding="utf-8")
 
     # Modify the HERMES.md template to simulate upstream change
-    (fw / "features" / "common" / "templates" / "HERMES.md.tmpl").write_text(
-        "# {{PROJECT_NAME}} (v2)\n\n{{PROJECT_SUMMARY}}\n\n## Hermes-specific guidance\n\nSkills: {{STACKS}}\n",
-        encoding="utf-8",
-    )
+    _test_write(fw / "features" / "common" / "templates" / "HERMES.md.tmpl", "# {{PROJECT_NAME}} (v2)\n\n{{PROJECT_SUMMARY}}\n\n## Hermes-specific guidance\n\nSkills: {{STACKS}}\n", encoding="utf-8")
     # Also update the hermes feature's copy of the template
-    (fw / "features" / "hermes" / "templates" / "HERMES.md.tmpl").write_text(
-        "# {{PROJECT_NAME}} (v2)\n\n{{PROJECT_SUMMARY}}\n\n## Hermes-specific guidance\n\nSkills: {{STACKS}}\n",
-        encoding="utf-8",
-    )
+    _test_write(fw / "features" / "hermes" / "templates" / "HERMES.md.tmpl", "# {{PROJECT_NAME}} (v2)\n\n{{PROJECT_SUMMARY}}\n\n## Hermes-specific guidance\n\nSkills: {{STACKS}}\n", encoding="utf-8")
     # Also modify an invariant to trigger drift detection
     src = fw / "features" / "common" / "invariants" / "tdd.md"
-    src.write_text("- TDD is mandatory (v2).\n", encoding="utf-8")
+    _test_write(src, "- TDD is mandatory (v2).\n", encoding="utf-8")
 
     # Run refresh
     rc = refresh.main(["--target", str(proj), "--root", str(fw)])
@@ -367,17 +324,11 @@ def test_refresh_re_scaffolds_and_advances_both_stamps_when_only_the_version_mov
     # Framework at v0.4.0 (version bumped, but same file content)
     fw = tmp_path / "fw"
     fw.mkdir()
-    (fw / "VERSION").write_text("0.4.0\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.4.0\n", encoding="utf-8")
     (fw / "schemas").mkdir()
-    (fw / "schemas" / "config.schema.json").write_text(
-        (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
+    _test_write(fw / "schemas" / "config.schema.json", (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"), encoding="utf-8")
     (fw / "features" / "common" / "templates").mkdir(parents=True)
-    (fw / "features" / "common" / "templates" / "CLAUDE.md.tmpl").write_text(
-        "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Invariants\n\n{{INVARIANTS}}\n",
-        encoding="utf-8",
-    )
+    _test_write(fw / "features" / "common" / "templates" / "CLAUDE.md.tmpl", "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Invariants\n\n{{INVARIANTS}}\n", encoding="utf-8")
     src = _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory.\n")
     _write_fw_index(fw, version="0.4.0")
 
@@ -393,9 +344,7 @@ def test_refresh_re_scaffolds_and_advances_both_stamps_when_only_the_version_mov
         "frameworkVersion": "0.3.0", "hash": entry_hash,
     }], version="0.3.0")
     (proj / ".ai-badger" / "invariants").mkdir(parents=True)
-    (proj / ".ai-badger" / "invariants" / "tdd.md").write_text(
-        "- TDD is mandatory.\n", encoding="utf-8"
-    )
+    _test_write(proj / ".ai-badger" / "invariants" / "tdd.md", "- TDD is mandatory.\n", encoding="utf-8")
 
     rc = refresh.main(["--target", str(proj), "--root", str(fw)])
 
@@ -420,17 +369,11 @@ def test_refresh_relinks_hermes_skills(tmp_path, load_script, root):
 
     fw = tmp_path / "fw"
     fw.mkdir()
-    (fw / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.3.0\n", encoding="utf-8")
     (fw / "schemas").mkdir()
-    (fw / "schemas" / "config.schema.json").write_text(
-        (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
+    _test_write(fw / "schemas" / "config.schema.json", (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"), encoding="utf-8")
     (fw / "features" / "common" / "templates").mkdir(parents=True)
-    (fw / "features" / "common" / "templates" / "CLAUDE.md.tmpl").write_text(
-        "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Invariants\n\n{{INVARIANTS}}\n",
-        encoding="utf-8",
-    )
+    _test_write(fw / "features" / "common" / "templates" / "CLAUDE.md.tmpl", "# {{PROJECT_NAME}}\n\n{{PROJECT_SUMMARY}}\n\n## Invariants\n\n{{INVARIANTS}}\n", encoding="utf-8")
     src = _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory.\n")
     _write_fw_index(fw)
 
@@ -443,12 +386,10 @@ def test_refresh_relinks_hermes_skills(tmp_path, load_script, root):
         "frameworkVersion": "0.3.0", "hash": bl.sha256_file(src),
     }])
     (proj / ".ai-badger" / "invariants").mkdir(parents=True)
-    (proj / ".ai-badger" / "invariants" / "tdd.md").write_text(
-        "- TDD is mandatory.\n", encoding="utf-8"
-    )
+    _test_write(proj / ".ai-badger" / "invariants" / "tdd.md", "- TDD is mandatory.\n", encoding="utf-8")
     added = proj / ".ai-badger" / "skills" / "added-skill"
     added.mkdir(parents=True)
-    (added / "SKILL.md").write_text("# added\n", encoding="utf-8")
+    _test_write(added / "SKILL.md", "# added\n", encoding="utf-8")
 
     home = tmp_path / "hermes-home"
     namespace = home / ".hermes" / "skills" / "test-proj"
@@ -457,7 +398,7 @@ def test_refresh_relinks_hermes_skills(tmp_path, load_script, root):
     stale.symlink_to("../../../../proj/.ai-badger/skills/gone-skill")
     foreign = namespace / "agent-skill-discovery"
     foreign.mkdir()
-    (foreign / "SKILL.md").write_text("# hermes-authored\n", encoding="utf-8")
+    _test_write(foreign / "SKILL.md", "# hermes-authored\n", encoding="utf-8")
 
     with patch("pathlib.Path.home", return_value=home):
         rc = refresh.main(["--target", str(proj), "--root", str(fw)])
@@ -477,9 +418,8 @@ def test_backup_is_taken_even_when_the_transition_is_not_breaking(tmp_path, load
     aib.mkdir(parents=True)
     # Same version both sides: no boundary is crossed, whatever BREAKING_VERSIONS holds.
     current = (root / "VERSION").read_text(encoding="utf-8").strip()
-    (aib / "config.json").write_text(
-        json.dumps({"frameworkVersion": current}), encoding="utf-8")
-    (aib / "state.json").write_text('{"mine": true}\n', encoding="utf-8")
+    _test_write(aib / "config.json", json.dumps({"frameworkVersion": current}), encoding="utf-8")
+    _test_write(aib / "state.json", '{"mine": true}\n', encoding="utf-8")
 
     result = refresh.check_breaking_and_backup(root, target)
 
@@ -500,16 +440,14 @@ def test_the_backup_skips_a_nested_git_checkout(tmp_path, load_script, root):
     aib = target / ".ai-badger"
     aib.mkdir(parents=True)
     current = (root / "VERSION").read_text(encoding="utf-8").strip()
-    (aib / "config.json").write_text(
-        json.dumps({"frameworkVersion": current}), encoding="utf-8")
+    _test_write(aib / "config.json", json.dumps({"frameworkVersion": current}), encoding="utf-8")
     checkout = aib / "worktrees" / "issue-42"
     checkout.mkdir(parents=True)
-    (checkout / ".git").write_text("gitdir: /elsewhere/.git/worktrees/issue-42\n",
-                                   encoding="utf-8")
-    (checkout / "README.md").write_text("a whole repo\n", encoding="utf-8")
+    _test_write(checkout / ".git", "gitdir: /elsewhere/.git/worktrees/issue-42\n", encoding="utf-8")
+    _test_write(checkout / "README.md", "a whole repo\n", encoding="utf-8")
     ordinary = aib / "worktrees" / "notes"
     ordinary.mkdir()
-    (ordinary / "keep.md").write_text("kept\n", encoding="utf-8")
+    _test_write(ordinary / "keep.md", "kept\n", encoding="utf-8")
 
     refresh.check_breaking_and_backup(root, target)
 
@@ -523,19 +461,17 @@ def test_the_backup_skips_a_nested_git_checkout(tmp_path, load_script, root):
 def _mock_fw_with_skills(fw, root, skill_names):
     """Build a mock framework whose common stack ships `skill_names` and one invariant."""
     fw.mkdir(exist_ok=True)
-    (fw / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.3.0\n", encoding="utf-8")
     (fw / "schemas").mkdir(exist_ok=True)
-    (fw / "schemas" / "config.schema.json").write_text(
-        (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"), encoding="utf-8")
+    _test_write(fw / "schemas" / "config.schema.json", (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"), encoding="utf-8")
     tdir = fw / "features" / "common" / "templates"
     tdir.mkdir(parents=True, exist_ok=True)
-    (tdir / "CLAUDE.md.tmpl").write_text("# {{PROJECT_NAME}}\n", encoding="utf-8")
+    _test_write(tdir / "CLAUDE.md.tmpl", "# {{PROJECT_NAME}}\n", encoding="utf-8")
     _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory.\n")
     for name in skill_names:
         sd = fw / "features" / "common" / "skills" / name
         sd.mkdir(parents=True, exist_ok=True)
-        (sd / "SKILL.md").write_text(
-            f"---\nname: {name}\nscope: default\n---\n# {name}\n", encoding="utf-8")
+        _test_write(sd / "SKILL.md", f"---\nname: {name}\nscope: default\n---\n# {name}\n", encoding="utf-8")
     index = {
         "$schema": "./schemas/index.schema.json",
         "frameworkVersion": "0.3.0",
@@ -550,7 +486,7 @@ def _mock_fw_with_skills(fw, root, skill_names):
             "dotnet": {"personas": [], "invariants": [], "instructions": []},
         },
     }
-    (fw / "index.json").write_text(json.dumps(index), encoding="utf-8")
+    _test_write(fw / "index.json", json.dumps(index), encoding="utf-8")
 
 
 def test_refresh_delivers_a_skill_added_to_the_catalog_after_the_project_was_scaffolded(
@@ -591,7 +527,7 @@ def test_refresh_delivers_a_skill_the_framework_changed_after_the_project_was_sc
         generated_at="2026-07-22T00:00:00Z")
 
     upstream = fw / "features" / "common" / "skills" / "task" / "SKILL.md"
-    upstream.write_text("# task\n\nupstream v2\n", encoding="utf-8")
+    _test_write(upstream, "# task\n\nupstream v2\n", encoding="utf-8")
 
     rc = refresh.main(["--target", str(proj), "--root", str(fw)])
     report = json.loads(capsys.readouterr().out)
@@ -650,7 +586,7 @@ def test_refresh_does_not_report_per_file_extension_entries_as_refreshed_skills(
     _mock_fw_with_skills(fw, root, ["task"])
     ext = fw / "features" / "common" / "skills" / "task" / "extensions"
     ext.mkdir(parents=True)
-    (ext / "dotnet.md").write_text("# dotnet extension\n", encoding="utf-8")
+    _test_write(ext / "dotnet.md", "# dotnet extension\n", encoding="utf-8")
     proj = tmp_path / "proj"
     config = _write_config(proj, frameworkVersion="0.3.0")
     make_scaffolder(root=fw, target=proj, config=config, skills=["task"]).run(
@@ -691,8 +627,8 @@ def _framework_tree(path, version):
     """A directory the framework-root predicate accepts, carrying a VERSION."""
     for name in ("schemas", "features", "engine"):
         (path / name).mkdir(parents=True, exist_ok=True)
-    (path / "engine" / "badger_lib.py").write_text("", encoding="utf-8")
-    (path / "VERSION").write_text(version + "\n", encoding="utf-8")
+    _test_write(path / "engine" / "badger_lib.py", "", encoding="utf-8")
+    _test_write(path / "VERSION", version + "\n", encoding="utf-8")
     return path
 
 
@@ -836,7 +772,7 @@ def _edit_config(target, **updates):
     config_path = target / ".ai-badger" / "config.json"
     on_disk = json.loads(config_path.read_text(encoding="utf-8"))
     on_disk.update(updates)
-    config_path.write_text(json.dumps(on_disk), encoding="utf-8")
+    _test_write(config_path, json.dumps(on_disk), encoding="utf-8")
     return on_disk
 
 
@@ -956,7 +892,7 @@ def test_refresh_re_scaffolds_once_when_the_manifest_predates_the_config_hash(
     manifest_path = target / ".ai-badger" / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     del manifest["configHash"]
-    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    _test_write(manifest_path, json.dumps(manifest), encoding="utf-8")
 
     rc = refresh.main(["--target", str(target), "--root", str(root)])
     first = json.loads(capsys.readouterr().out)
@@ -1062,10 +998,10 @@ def test_refresh_reports_a_hand_authored_stack_but_does_not_re_scaffold_for_it(
     make_scaffolder(config=_config(stacks=["python"], agents=["claude"]), skills=skills).run(
         generated_at="2026-07-28T00:00:00Z")
 
-    (target / "tsconfig.json").write_text("{}\n", encoding="utf-8")
+    _test_write(target / "tsconfig.json", "{}\n", encoding="utf-8")
     src = target / "src"
     src.mkdir()
-    (src / "app.ts").write_text("export {};\n", encoding="utf-8")
+    _test_write(src / "app.ts", "export {};\n", encoding="utf-8")
 
     rc = refresh.main(["--target", str(target), "--root", str(root)])
     report = json.loads(capsys.readouterr().out)
@@ -1087,8 +1023,7 @@ def _transcript_store(home, project, records):
     mangled = "".join(c if c.isalnum() else "-" for c in str(project))
     store = home / ".claude" / "projects" / mangled
     store.mkdir(parents=True, exist_ok=True)
-    (store / "session.jsonl").write_text(
-        "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+    _test_write(store / "session.jsonl", "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
     return store
 
 

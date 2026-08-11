@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
 import pytest
+from conftest import _test_write
 
 ROOT = Path(__file__).resolve().parents[1]
 BEHAVIORIST = "features/common/skills/call-behaviorist/scripts/behaviorist.py"
@@ -157,7 +158,7 @@ def _commit(repo: Path, message: str) -> str:
 
 def _write(path: Path, text: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    _test_write(path, text, encoding="utf-8")
     return path
 
 
@@ -380,7 +381,7 @@ def _replace(path: Path, anchor: str, replacement: str) -> None:
     """
     text = path.read_text(encoding="utf-8")
     assert anchor in text, f"the mutation anchor is gone from {path.name}; update it"
-    path.write_text(text.replace(anchor, replacement), encoding="utf-8")
+    _test_write(path, text.replace(anchor, replacement), encoding="utf-8")
 
 
 # ------------------------------------------------------------------- gates/tdd_guard.py
@@ -465,8 +466,7 @@ def _sync_plugin_skills_check(work: Path, provoked: bool) -> Outcome:
     assert built.exit_code == 0, f"fixture setup failed:\n{built.output}"
     if provoked:
         shipped = root / "skills" / "prompt-markers" / "SKILL.md"
-        shipped.write_text(shipped.read_text(encoding="utf-8") + "\nSHIPPED COPY, DIVERGED\n",
-                           encoding="utf-8")
+        _test_write(shipped, shipped.read_text(encoding="utf-8") + "\nSHIPPED COPY, DIVERGED\n", encoding="utf-8")
     return _run([str(root / "tooling" / "sync_plugin_skills.py"), "--check"])
 
 
@@ -617,7 +617,7 @@ def _analyze(work: Path, project: Path, records: List[Dict[str, str]]) -> Outcom
     debug = work / "debug"
     debug.mkdir(parents=True, exist_ok=True)
     lines = "".join(json.dumps(r) + "\n" for r in records)
-    (debug / "audit.jsonl").write_text(lines, encoding="utf-8")
+    _test_write(debug / "audit.jsonl", lines, encoding="utf-8")
 
     home = work / "home"
     home.mkdir(parents=True, exist_ok=True)

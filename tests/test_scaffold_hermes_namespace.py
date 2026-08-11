@@ -7,12 +7,13 @@ from unittest.mock import patch
 import pytest
 
 from scaffold_helpers import _config, SCAFFOLD_SCRIPT
+from conftest import _test_write
 
 
 def _hermes_skill(target, name):
     skill = target / ".ai-badger" / "skills" / name
     skill.mkdir(parents=True)
-    (skill / "SKILL.md").write_text(f"# {name}\n", encoding="utf-8")
+    _test_write(skill / "SKILL.md", f"# {name}\n", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------- hermes skill symlinks
@@ -87,7 +88,7 @@ def test_scaffold_preserves_foreign_dirs_in_namespace(tmp_path, make_scaffolder)
     namespace = _hermes_scaffold(make_scaffolder, home, ["task"])
     foreign = namespace / "agent-skill-discovery"
     foreign.mkdir()
-    (foreign / "SKILL.md").write_text("# hermes-authored\n", encoding="utf-8")
+    _test_write(foreign / "SKILL.md", "# hermes-authored\n", encoding="utf-8")
 
     _hermes_scaffold(make_scaffolder, home, ["task"])
 
@@ -130,7 +131,7 @@ def test_scaffold_symlinks_learned_skills_dir(tmp_path, make_scaffolder):
     target, home = _hermes_case(tmp_path, make_scaffolder)
     learned = target / ".ai-badger" / "skills" / "learned" / "apple" / "apple-notes"
     learned.mkdir(parents=True)
-    (learned / "SKILL.md").write_text("# apple-notes\n", encoding="utf-8")
+    _test_write(learned / "SKILL.md", "# apple-notes\n", encoding="utf-8")
 
     namespace = _hermes_scaffold(make_scaffolder, home, ["task"])
 

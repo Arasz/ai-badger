@@ -14,6 +14,7 @@ import sys
 from unittest.mock import patch
 
 import pytest
+from conftest import _test_write
 
 SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 
@@ -36,8 +37,7 @@ def _config(agents=None):
 def _scaf(make_scaffolder, root, target, config):
     index_path = root / "index.json"
     if not index_path.exists():
-        index_path.write_text(
-            json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8")
+        _test_write(index_path, json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8")
     return make_scaffolder(root=root, target=target, config=config)
 
 
@@ -58,7 +58,7 @@ def _fake_tool_dirs(monkeypatch, load_script, tmp_path):
 
 def _install(directory, name):
     exe = directory / name
-    exe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    _test_write(exe, "#!/bin/sh\nexit 0\n", encoding="utf-8")
     exe.chmod(0o755)
     return exe
 
@@ -69,8 +69,7 @@ def _mcp_json_for(make_scaffolder, tmp_path, servers, agents=None):
     target.mkdir(exist_ok=True)
     py_dir = tmp_path / "features" / "python"
     py_dir.mkdir(parents=True, exist_ok=True)
-    (py_dir / "stack-mcp.json").write_text(
-        json.dumps({"servers": [dict(s, declare=True) for s in servers]}), encoding="utf-8")
+    _test_write(py_dir / "stack-mcp.json", json.dumps({"servers": [dict(s, declare=True) for s in servers]}), encoding="utf-8")
 
     scaf = _scaf(make_scaffolder, tmp_path, target, _config(agents))
     scaf.mcp.generate_mcp_json()
@@ -202,11 +201,9 @@ def test_availability_override_all_keeps_hermes_in_both_mcp_files(
     target.mkdir(exist_ok=True)
     py_dir = tmp_path / "features" / "python"
     py_dir.mkdir(parents=True, exist_ok=True)
-    (py_dir / "stack-mcp.json").write_text(
-        json.dumps({"servers": [
+    _test_write(py_dir / "stack-mcp.json", json.dumps({"servers": [
             {"name": "code-review-graph", "command": "code-review-graph serve", "declare": True},
-            {"name": "hermes", "command": "hermes mcp serve", "declare": True}]}),
-        encoding="utf-8")
+            {"name": "hermes", "command": "hermes mcp serve", "declare": True}]}), encoding="utf-8")
 
     scaf = _scaf(make_scaffolder, tmp_path, target, _config(agents=["claude", "copilot"]))
     scaf.mcp.generate_mcp_json()

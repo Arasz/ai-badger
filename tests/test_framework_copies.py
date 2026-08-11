@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 
 def _make_root(path: Path, version: str = None) -> Path:
@@ -17,9 +18,9 @@ def _make_root(path: Path, version: str = None) -> Path:
     (path / "schemas").mkdir(parents=True, exist_ok=True)
     (path / "features").mkdir(parents=True, exist_ok=True)
     (path / "engine").mkdir(parents=True, exist_ok=True)
-    (path / "engine" / "badger_lib.py").write_text("", encoding="utf-8")
+    _test_write(path / "engine" / "badger_lib.py", "", encoding="utf-8")
     if version:
-        (path / "VERSION").write_text(version + "\n", encoding="utf-8")
+        _test_write(path / "VERSION", version + "\n", encoding="utf-8")
     return path
 
 
@@ -85,7 +86,7 @@ class TestDiscovery:
     def test_a_directory_that_is_not_a_framework_root_is_not_a_copy(self, fc, tmp_path):
         home = tmp_path / "home"
         (home / ".ai-badger" / "framework").mkdir(parents=True)
-        (home / ".ai-badger" / "framework" / "README.md").write_text("hi", encoding="utf-8")
+        _test_write(home / ".ai-badger" / "framework" / "README.md", "hi", encoding="utf-8")
 
         assert fc.discover(home=home) == []
 
@@ -101,8 +102,7 @@ class TestDiscovery:
         home = tmp_path / "home"
         _home_cache(home)
         (home / ".claude" / "plugins" / "cache" / "ai-badger").mkdir(parents=True)
-        (home / ".claude" / "plugins" / "cache" / "ai-badger" / "ai-badger").write_text(
-            "not a directory", encoding="utf-8")
+        _test_write(home / ".claude" / "plugins" / "cache" / "ai-badger" / "ai-badger", "not a directory", encoding="utf-8")
 
         assert len(fc.discover(home=home)) == 1
 
@@ -233,7 +233,7 @@ class TestPruning:
         home = tmp_path / "home"
         stranger = home / ".ai-badger" / "framework"
         stranger.mkdir(parents=True)
-        (stranger / "notes.txt").write_text("someone else's", encoding="utf-8")
+        _test_write(stranger / "notes.txt", "someone else's", encoding="utf-8")
 
         result = fc.prune_home_cache(home=home, execute=True)
 
@@ -258,7 +258,7 @@ class TestPruning:
         cache = _home_cache(home, "0.13.0")
         outside = tmp_path / "outside"
         outside.mkdir()
-        (outside / "keep.txt").write_text("keep", encoding="utf-8")
+        _test_write(outside / "keep.txt", "keep", encoding="utf-8")
         os.symlink(outside, cache / "features" / "linked")
 
         result = fc.prune_home_cache(home=home, execute=True)

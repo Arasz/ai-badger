@@ -10,13 +10,14 @@ from __future__ import annotations
 import json
 
 from test_scaffold_context import _hand_built_context, _load
+from conftest import _test_write
 
 
 def _mcp_tools(load_script, root, tmp_path, filename, body):
     """An McpTools built on a context whose framework root holds one catalog file."""
     fake_root = tmp_path / "framework"
     (fake_root / "features" / "python").mkdir(parents=True)
-    (fake_root / "features" / "python" / filename).write_text(body, encoding="utf-8")
+    _test_write(fake_root / "features" / "python" / filename, body, encoding="utf-8")
     ctx = _hand_built_context(load_script, root, tmp_path / "proj")
     ctx.root = fake_root
     ctx.stacks = ["python"]

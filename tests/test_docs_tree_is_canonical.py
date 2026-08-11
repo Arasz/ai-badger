@@ -1,7 +1,7 @@
 """Every document has a legal home, and every home is on the map.
 
 `scaffold-documentation/references/structure.md` binds the tree. Before this guard the repo had
-no `work/`, so dated work records — review forms, research notes, incident writeups — had nowhere
+no `work/`, so dated work records — review forms, research notes, incident writeup — had nowhere
 legal to go. Two of them ended up in `.tmp/`: gitignored, and hidden, which the same reference
 calls out by name ("ripgrep skips it; the default search of every agent misses it").
 
@@ -16,6 +16,7 @@ import re
 import subprocess
 
 import pytest
+from conftest import _test_write
 
 # The canonical tree, minus `legacy/` — that one exists only while a wholesale migration is in
 # flight and drains to empty, so its absence is the healthy state, not a gap.
@@ -39,9 +40,9 @@ FROZEN_DIRS = ("changelog",)
 # `skills.md`. They are on the map by name, not by quadrant.
 PINNED_DIRS = ("brand", "screenshots")
 
-# An index row's first cell, as a backticked filename or a relative markdown link. `adr/` and
+# An index row's first cell, as a backticked filename or a relative Markdown link. `adr/` and
 # `work/` index their contents in a table; the other READMEs use prose the forward check covers.
-INDEX_ROW_RE = re.compile(r"^\|\s*(?:`([^`|]+)`|\[[^\]]*\]\(([^)|]+)\))\s*\|")
+INDEX_ROW_RE = re.compile(r"^\|\s*(?:`([^`|]+)`|\[[^]]*]\(([^)|]+)\))\s*\|")
 
 # Directories that index their files in a table, and the least they must index — a regex that
 # stopped matching would let the reverse check pass by finding nothing at all.
@@ -150,7 +151,7 @@ class TestEveryMapIsComplete:
         scratch_dir = _docs(root) / "zz_scratch_untracked_dir"
         scratch_file = _docs(root) / "reference" / "zz-scratch-untracked.md"
         scratch_dir.mkdir()
-        scratch_file.write_text("scratch", encoding="utf-8")
+        scratch_file.write_text("scratch", encoding="utf-8")  # deliberate real-repo write
         try:
             self.test_no_directory_sits_outside_the_map(root)
             self.test_the_root_readme_names_every_directory(root)
@@ -228,7 +229,7 @@ class TestTheGuardCouldFail:
         assert missing == ["reference"]
 
     def test_the_index_check_catches_a_row_for_a_file_that_never_merged(self, tmp_path):
-        (tmp_path / "2026-08-07-real.md").write_text("record", encoding="utf-8")
+        _test_write(tmp_path / "2026-08-07-real.md", "record", encoding="utf-8")
         readme = ("| File | What it records |\n|---|---|\n"
                   "| `2026-08-07-real.md` | A record that exists |\n"
                   "| `2026-08-07-imagined.md` | A record that never merged |\n")

@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / ".lefthook" / "pre-push" / "risk_mode.py"
@@ -21,9 +22,8 @@ def _project(tmp_path, entries):
     """A scaffolded project whose tracker holds `entries`."""
     tracking = tmp_path / ".ai-badger" / "task-tracking"
     tracking.mkdir(parents=True)
-    (tmp_path / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
-    (tracking / "executed-tasks.json").write_text(
-        json.dumps({"tasks": entries}), encoding="utf-8")
+    _test_write(tmp_path / ".ai-badger" / "config.json", "{}", encoding="utf-8")
+    _test_write(tracking / "executed-tasks.json", json.dumps({"tasks": entries}), encoding="utf-8")
     return tmp_path
 
 
@@ -68,7 +68,7 @@ def test_a_corrupt_tracker_reads_as_no_risk(tmp_path, payload):
     """Fail safe: an unreadable tracker runs the full gate, it does not reduce it."""
     tracking = tmp_path / ".ai-badger" / "task-tracking"
     tracking.mkdir(parents=True)
-    (tracking / "executed-tasks.json").write_text(payload, encoding="utf-8")
+    _test_write(tracking / "executed-tasks.json", payload, encoding="utf-8")
 
     assert _ask(tmp_path, "feat/x") == ""
 
@@ -99,6 +99,6 @@ def test_it_reads_the_checkout_tracker_from_inside_a_worktree(tmp_path):
     subprocess.run(["git", "worktree", "add", "-q", "--detach", str(linked)],
                    cwd=checkout, check=True)
     (linked / ".ai-badger").mkdir(exist_ok=True)
-    (linked / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+    _test_write(linked / ".ai-badger" / "config.json", "{}", encoding="utf-8")
 
     assert _ask(linked, "feat/x") == "T-1"

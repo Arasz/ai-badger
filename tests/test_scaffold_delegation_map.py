@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 PERSONA_WITH_LANE = """---
 name: lane-probe
@@ -77,7 +78,7 @@ def test_the_delegation_map_names_the_mcp_servers_the_project_gets(make_scaffold
 def test_a_persona_lane_comes_from_its_model_frontmatter(make_scaffolder):
     agents = make_scaffolder.target / ".ai-badger" / "agents"
     agents.mkdir(parents=True, exist_ok=True)
-    (agents / "lane-probe.md").write_text(PERSONA_WITH_LANE, encoding="utf-8")
+    _test_write(agents / "lane-probe.md", PERSONA_WITH_LANE, encoding="utf-8")
 
     doc = _delegation(make_scaffolder, _routed_config())
 
@@ -91,7 +92,7 @@ def test_a_persona_without_a_model_runs_on_the_session_default(make_scaffolder):
     agents = make_scaffolder.target / ".ai-badger" / "agents"
     agents.mkdir(parents=True, exist_ok=True)
     laneless = PERSONA_WITH_LANE.replace("model: opus\n", "").replace("lane-probe", "no-lane-probe")
-    (agents / "no-lane-probe.md").write_text(laneless, encoding="utf-8")
+    _test_write(agents / "no-lane-probe.md", laneless, encoding="utf-8")
 
     doc = _delegation(make_scaffolder, _routed_config())
 

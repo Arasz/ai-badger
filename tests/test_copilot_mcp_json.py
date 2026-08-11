@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 LEGACY = Path(".github") / "copilot" / "mcp-config.json"
 CURRENT = Path(".github") / "mcp.json"
@@ -37,8 +38,7 @@ def _config(stacks=None, agents=None, mcp=None):
 def _scaf(make_scaffolder, tmp_path, config):
     index_path = tmp_path / "index.json"
     if not index_path.exists():
-        index_path.write_text(json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}),
-                              encoding="utf-8")
+        _test_write(index_path, json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8")
     return make_scaffolder(root=tmp_path, target=make_scaffolder.target, config=config)
 
 
@@ -106,9 +106,7 @@ def test_nothing_is_written_without_the_copilot_agent(make_scaffolder, tmp_path)
 def test_an_existing_hand_added_server_survives_the_merge(make_scaffolder, tmp_path):
     target = make_scaffolder.target
     (target / ".github").mkdir(parents=True, exist_ok=True)
-    (target / CURRENT).write_text(
-        json.dumps({"mcpServers": {"mine": {"command": "echo mine", "tools": ["a"]}}}),
-        encoding="utf-8")
+    _test_write(target / CURRENT, json.dumps({"mcpServers": {"mine": {"command": "echo mine", "tools": ["a"]}}}), encoding="utf-8")
     scaf = _scaf(make_scaffolder, tmp_path, _config())
 
     scaf.mcp.generate_copilot_mcp_json(_servers())
@@ -150,9 +148,9 @@ def _legacy(target: Path, payload) -> Path:
     path = target / LEGACY
     path.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(payload, bytes):
-        path.write_bytes(payload)
+        _test_write(path, payload)
     else:
-        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        _test_write(path, json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return path
 
 
@@ -254,8 +252,7 @@ def test_a_previously_declared_server_is_removed_once_declined(make_scaffolder, 
     """Merge-only would have left the entry behind, and Copilot would still register it."""
     target = make_scaffolder.target
     (target / ".github").mkdir(parents=True, exist_ok=True)
-    (target / CURRENT).write_text(
-        json.dumps({"mcpServers": {"pyright": {"command": "uvx", "tools": ["*"]},
+    _test_write(target / CURRENT, json.dumps({"mcpServers": {"pyright": {"command": "uvx", "tools": ["*"]},
                                    "keeper": {"command": "echo"}}}), encoding="utf-8")
     scaf = _scaf(make_scaffolder, tmp_path, _config(mcp={"decline": ["pyright"]}))
 
@@ -269,8 +266,7 @@ def test_a_previously_declared_server_is_removed_once_declined(make_scaffolder, 
 def test_removing_a_declined_entry_is_reported(make_scaffolder, tmp_path):
     target = make_scaffolder.target
     (target / ".github").mkdir(parents=True, exist_ok=True)
-    (target / CURRENT).write_text(
-        json.dumps({"mcpServers": {"pyright": {"command": "uvx"}}}), encoding="utf-8")
+    _test_write(target / CURRENT, json.dumps({"mcpServers": {"pyright": {"command": "uvx"}}}), encoding="utf-8")
     scaf = _scaf(make_scaffolder, tmp_path, _config(mcp={"decline": ["pyright"]}))
 
     scaf.mcp.generate_copilot_mcp_json(_servers())

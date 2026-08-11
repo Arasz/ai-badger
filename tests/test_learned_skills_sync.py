@@ -7,6 +7,7 @@ import shutil
 import sys
 
 import pytest
+from conftest import _test_write
 
 NOW = "2026-07-26T20:00:00Z"
 # Obviously fake, but shaped like the github-token pattern the scanner recognises.
@@ -35,18 +36,18 @@ def _make_project(tmp_path, framework_skills=("task",)):
         }
         for name in framework_skills
     ]
-    (aib / "manifest.json").write_text(json.dumps({"entries": entries}), encoding="utf-8")
+    _test_write(aib / "manifest.json", json.dumps({"entries": entries}), encoding="utf-8")
     for name in framework_skills:
         skill_dir = aib / "skills" / name
         skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text(f"# framework {name}\n", encoding="utf-8")
+        _test_write(skill_dir / "SKILL.md", f"# framework {name}\n", encoding="utf-8")
     return project
 
 
 def _make_source_skill(skills_root, category, name, body="---\nname: demo\n---\n"):
     skill_dir = skills_root / category / name if category else skills_root / name
     skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(body, encoding="utf-8")
+    _test_write(skill_dir / "SKILL.md", body, encoding="utf-8")
     return skill_dir
 
 
@@ -54,7 +55,7 @@ def _make_secret_file(tmp_path, name="credentials"):
     """A credential-shaped file outside the skills root, i.e. a symlink's payload."""
     secret = tmp_path / "outside" / name
     secret.parent.mkdir(exist_ok=True)
-    secret.write_text(f"token={FAKE_GITHUB_TOKEN}\n", encoding="utf-8")
+    _test_write(secret, f"token={FAKE_GITHUB_TOKEN}\n", encoding="utf-8")
     return secret
 
 
@@ -195,9 +196,9 @@ def test_sync_skill_copies_subdirectories(tmp_path, sync):
     project = _make_project(tmp_path)
     source = _make_source_skill(tmp_path / "skills", "apple", "apple-notes")
     (source / "scripts").mkdir()
-    (source / "scripts" / "helper.py").write_text("print('hi')\n", encoding="utf-8")
+    _test_write(source / "scripts" / "helper.py", "print('hi')\n", encoding="utf-8")
     (source / "references").mkdir()
-    (source / "references" / "api.md").write_text("# api\n", encoding="utf-8")
+    _test_write(source / "references" / "api.md", "# api\n", encoding="utf-8")
 
     sync.sync_skill(project, source, "apple-notes", "apple", now=NOW,
                     source_path="apple/apple-notes")
@@ -261,7 +262,7 @@ def test_sync_skill_updates_in_place_when_source_changed(tmp_path, sync):
     sync.sync_skill(project, source, "apple-notes", "apple", now=NOW,
                     source_path="apple/apple-notes")
 
-    (source / "SKILL.md").write_text("---\nname: demo\n---\nchanged\n", encoding="utf-8")
+    _test_write(source / "SKILL.md", "---\nname: demo\n---\nchanged\n", encoding="utf-8")
     later = "2026-08-01T10:00:00Z"
     result = sync.sync_skill(project, source, "apple-notes", "apple", now=later,
                              source_path="apple/apple-notes")
@@ -279,7 +280,7 @@ def test_sync_skill_reports_conflict_for_untracked_existing_path(tmp_path, sync)
     source = _make_source_skill(tmp_path / "skills", "apple", "apple-notes")
     dest = project / ".ai-badger" / "skills" / "learned" / "apple" / "apple-notes"
     dest.mkdir(parents=True)
-    (dest / "SKILL.md").write_text("hand written\n", encoding="utf-8")
+    _test_write(dest / "SKILL.md", "hand written\n", encoding="utf-8")
 
     result = sync.sync_skill(project, source, "apple-notes", "apple", now=NOW,
                              source_path="apple/apple-notes")
@@ -748,7 +749,7 @@ def test_load_manifest_refuses_to_discard_an_unreadable_manifest(tmp_path, sync)
     project = _make_project(tmp_path)
     manifest = project / ".ai-badger" / "skills-data" / "hermes" / "learned.json"
     manifest.parent.mkdir(parents=True)
-    manifest.write_text('{"skills": [{"name": "a"}', encoding="utf-8")  # truncated by a crash
+    _test_write(manifest, '{"skills": [{"name": "a"}', encoding="utf-8")  # truncated by a crash
 
     with pytest.raises(sync.ManifestUnreadable):
         sync.load_manifest(project)
@@ -759,10 +760,10 @@ def test_sync_refuses_rather_than_overwriting_an_unreadable_manifest(tmp_path, s
     manifest = project / ".ai-badger" / "skills-data" / "hermes" / "learned.json"
     manifest.parent.mkdir(parents=True)
     truncated = '{"skills": [{"name": "kept", "category": "general"}'
-    manifest.write_text(truncated, encoding="utf-8")
+    _test_write(manifest, truncated, encoding="utf-8")
     source = tmp_path / "hermes-skills" / "general" / "note-taking"
     source.mkdir(parents=True)
-    (source / "SKILL.md").write_text("# note taking\n", encoding="utf-8")
+    _test_write(source / "SKILL.md", "# note taking\n", encoding="utf-8")
 
     result = sync.sync_skill(project, source, "note-taking", "general", now=NOW)
 

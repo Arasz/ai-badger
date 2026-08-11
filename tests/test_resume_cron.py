@@ -18,6 +18,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from conftest import _test_write
 
 
 @pytest.fixture
@@ -43,7 +44,7 @@ def _old_iso(minutes):
 def _stale_transcript(tmp_path, name="t.jsonl"):
     """A transcript file with an mtime old enough to count as stale (see transcript_stale())."""
     transcript = tmp_path / name
-    transcript.write_text("{}\n", encoding="utf-8")
+    _test_write(transcript, "{}\n", encoding="utf-8")
     old_time = time.time() - 60 * 60
     os.utime(transcript, (old_time, old_time))
     return str(transcript)
@@ -53,7 +54,7 @@ def _stale_transcript(tmp_path, name="t.jsonl"):
 
 def test_transcript_stale_true_for_old_transcript_mtime(resume_cron, tmp_path):
     transcript = tmp_path / "t.jsonl"
-    transcript.write_text("{}\n", encoding="utf-8")
+    _test_write(transcript, "{}\n", encoding="utf-8")
     old_time = time.time() - 60 * 60  # 60 minutes ago, > STALE_MINUTES (25)
     os.utime(transcript, (old_time, old_time))
 
@@ -62,7 +63,7 @@ def test_transcript_stale_true_for_old_transcript_mtime(resume_cron, tmp_path):
 
 def test_transcript_stale_false_for_fresh_transcript(resume_cron, tmp_path):
     transcript = tmp_path / "t.jsonl"
-    transcript.write_text("{}\n", encoding="utf-8")
+    _test_write(transcript, "{}\n", encoding="utf-8")
 
     assert resume_cron.transcript_stale({"transcriptPath": str(transcript)}) is False
 
@@ -253,7 +254,8 @@ def test_run_skips_when_lock_already_held(resume_cron, monkeypatch):
     )
 
     resume_cron.lib.ensure_data_dir()
-    holder = open(resume_cron.CRON_LOCK, "w", encoding="utf-8")
+    _test_write(resume_cron.CRON_LOCK, "")
+    holder = open(resume_cron.CRON_LOCK, "r")
     try:
         fcntl.flock(holder, fcntl.LOCK_EX)
         rc = resume_cron.run(dry_run=False)

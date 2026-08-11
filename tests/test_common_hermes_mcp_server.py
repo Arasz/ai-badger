@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import sys
+from conftest import _test_write
 
 
 HERMES = "hermes"
@@ -138,7 +139,7 @@ def test_unavailable_hermes_does_not_remove_a_user_authored_entry(
         monkeypatch, load_script, make_scaffolder):
     _patch_hermes_lookup(monkeypatch, load_script, None)
     target = make_scaffolder.target
-    (target / ".mcp.json").write_text(json.dumps({"mcpServers": {
+    _test_write(target / ".mcp.json", json.dumps({"mcpServers": {
         HERMES: {"type": "http", "url": "https://example.invalid/hermes"},
         "mine": {"command": "echo mine"},
     }}), encoding="utf-8")
@@ -159,7 +160,7 @@ def test_unavailable_hermes_removes_a_home_relative_generated_entry(
     target = make_scaffolder.target
     generated = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
     generated["mcpServers"][HERMES]["command"] = "${HOME}/.local/bin/hermes"
-    (target / ".mcp.json").write_text(json.dumps(generated), encoding="utf-8")
+    _test_write(target / ".mcp.json", json.dumps(generated), encoding="utf-8")
 
     _patch_hermes_lookup(monkeypatch, load_script, None)
     scaf = _scaffold(make_scaffolder)

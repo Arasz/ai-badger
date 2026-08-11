@@ -7,6 +7,7 @@ tests/test_mcp_legacy_files_removed.py owns what a stack still shipping a retire
 from __future__ import annotations
 
 import json
+from conftest import _test_write
 
 CATALOG_SERVER = "code-review-graph"
 
@@ -28,15 +29,14 @@ def _config(stacks=None, agents=None):
 
 def _fake_root(tmp_path):
     """A framework root with only an index.json, so a Scaffolder can start on it."""
-    (tmp_path / "index.json").write_text(
-        json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8")
+    _test_write(tmp_path / "index.json", json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8")
     return tmp_path
 
 
 def _write(tmp_path, stack, filename, payload):
     stack_dir = tmp_path / "features" / stack
     stack_dir.mkdir(parents=True, exist_ok=True)
-    (stack_dir / filename).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    _test_write(stack_dir / filename, json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _declare(tmp_path, stack, *servers):

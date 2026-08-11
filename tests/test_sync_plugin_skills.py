@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 
 def _write_tree(base: Path, files: dict) -> None:
@@ -12,7 +13,7 @@ def _write_tree(base: Path, files: dict) -> None:
     for relpath, content in files.items():
         path = base / relpath
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content)
+        _test_write(path, content)
 
 
 def _snapshot(tree: Path) -> dict:
@@ -192,7 +193,7 @@ class TestCheckMode:
         temp_framework.main([])
 
         shipped = tmp_path / "skills" / "task" / "SKILL.md"
-        shipped.write_text("task skill (hand-edited)")
+        _test_write(shipped, "task skill (hand-edited)")
 
         assert temp_framework.main(["--check"]) == 1
 
@@ -211,7 +212,7 @@ class TestCheckMode:
     def test_check_mode_names_the_diverged_skill(self, tmp_path, temp_framework, capsys):
         temp_framework.main([])
         capsys.readouterr()
-        (tmp_path / "skills" / "task" / "scripts" / "helper.py").write_text("drift")
+        _test_write(tmp_path / "skills" / "task" / "scripts" / "helper.py", "drift")
 
         temp_framework.main(["--check"])
 
@@ -231,7 +232,7 @@ class TestCheckMode:
     def test_check_mode_never_writes(self, tmp_path, temp_framework):
         temp_framework.main([])
         target = tmp_path / "skills"
-        (target / "task" / "SKILL.md").write_text("diverged")
+        _test_write(target / "task" / "SKILL.md", "diverged")
 
         before = _snapshot(target)
         temp_framework.main(["--check"])

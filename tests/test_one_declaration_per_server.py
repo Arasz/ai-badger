@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import sys
+from conftest import _test_write
 
 SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 
@@ -34,12 +35,10 @@ def _scaffold(make_scaffolder, tmp_path, servers, agents=None):
     """Declare *servers* and run both project MCP writers, in scaffold.run()'s order."""
     index_path = tmp_path / "index.json"
     if not index_path.exists():
-        index_path.write_text(json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}),
-                              encoding="utf-8")
+        _test_write(index_path, json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8")
     stack = tmp_path / "features" / "python"
     stack.mkdir(parents=True, exist_ok=True)
-    (stack / "stack-mcp.json").write_text(
-        json.dumps({"servers": [dict(srv, declare=True) for srv in servers]}), encoding="utf-8")
+    _test_write(stack / "stack-mcp.json", json.dumps({"servers": [dict(srv, declare=True) for srv in servers]}), encoding="utf-8")
 
     scaf = make_scaffolder(root=tmp_path, target=make_scaffolder.target,
                            config=_config(agents))
@@ -100,7 +99,7 @@ def test_a_stale_cwd_on_a_declared_server_does_not_survive_a_rescaffold(
     path = target / ".mcp.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     data["mcpServers"]["pyright"]["cwd"] = "/Users/someone-else/checkout"
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    _test_write(path, json.dumps(data, indent=2), encoding="utf-8")
 
     _scaffold(make_scaffolder, tmp_path, servers)
 
@@ -116,7 +115,7 @@ def test_a_server_ai_badger_does_not_declare_keeps_its_own_cwd(tmp_path, make_sc
     path = target / ".mcp.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     data["mcpServers"]["hand-added"] = {"command": "serve", "cwd": "/srv/deliberate"}
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    _test_write(path, json.dumps(data, indent=2), encoding="utf-8")
 
     _scaffold(make_scaffolder, tmp_path, servers)
 
@@ -186,7 +185,7 @@ def test_an_earlier_runs_divergent_entry_is_removed(tmp_path, make_scaffolder):
     """Merge-only would have left the contradiction this release exists to remove."""
     target = make_scaffolder.target
     (target / ".github").mkdir(parents=True, exist_ok=True)
-    (target / ".github" / "mcp.json").write_text(json.dumps({"mcpServers": {
+    _test_write(target / ".github" / "mcp.json", json.dumps({"mcpServers": {
         "fs": {"command": "copilot-resolved", "tools": ["*"]},
         "keeper": {"command": "echo"}}}), encoding="utf-8")
 
@@ -204,7 +203,7 @@ def test_a_home_relative_command_is_declared_once(
     target = make_scaffolder.target
     dotnet = _fake_tool_dirs(monkeypatch, load_script, tmp_path)
     exe = dotnet / "cwm-roslyn-navigator"
-    exe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    _test_write(exe, "#!/bin/sh\nexit 0\n", encoding="utf-8")
     exe.chmod(0o755)
 
     _scaffold(make_scaffolder, tmp_path, [

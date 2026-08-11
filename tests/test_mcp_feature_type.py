@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from conftest import _test_write
 
 
 def _fake_root(tmp_path, root, servers=("code-review-graph",)):
@@ -15,12 +16,12 @@ def _fake_root(tmp_path, root, servers=("code-review-graph",)):
     import shutil
 
     shutil.copytree(root / "schemas", tmp_path / "schemas")
-    (tmp_path / "VERSION").write_text("1.2.3\n", encoding="utf-8")
+    _test_write(tmp_path / "VERSION", "1.2.3\n", encoding="utf-8")
     mcp = tmp_path / "features" / "common" / "mcp"
     for name in servers:
         server = mcp / name
         server.mkdir(parents=True)
-        (server / "meta.json").write_text(json.dumps({"name": name}), encoding="utf-8")
+        _test_write(server / "meta.json", json.dumps({"name": name}), encoding="utf-8")
     return tmp_path
 
 
@@ -63,9 +64,9 @@ def test_mcp_items_are_the_subdirs_carrying_a_meta_json(tmp_path, load_script):
     index_build = load_script("tooling/index_build.py")
     fdir = tmp_path / "features" / "common" / "mcp"
     (fdir / "rider").mkdir(parents=True)
-    (fdir / "rider" / "meta.json").write_text("{}", encoding="utf-8")
+    _test_write(fdir / "rider" / "meta.json", "{}", encoding="utf-8")
     (fdir / "not-a-server").mkdir(parents=True)
-    (fdir / "not-a-server" / "README.md").write_text("# notes\n", encoding="utf-8")
+    _test_write(fdir / "not-a-server" / "README.md", "# notes\n", encoding="utf-8")
 
     items = index_build._mcp_items(fdir, tmp_path)  # pylint: disable=protected-access
 
@@ -77,7 +78,7 @@ def test_mcp_items_are_sorted_by_name(tmp_path, load_script):
     fdir = tmp_path / "features" / "common" / "mcp"
     for name in ("zulu", "alpha", "mike"):
         (fdir / name).mkdir(parents=True)
-        (fdir / name / "meta.json").write_text("{}", encoding="utf-8")
+        _test_write(fdir / name / "meta.json", "{}", encoding="utf-8")
 
     items = index_build._mcp_items(fdir, tmp_path)  # pylint: disable=protected-access
 
@@ -89,7 +90,7 @@ def test_a_loose_file_beside_the_servers_is_not_an_item(tmp_path, load_script):
     index_build = load_script("tooling/index_build.py")
     fdir = tmp_path / "features" / "common" / "mcp"
     fdir.mkdir(parents=True)
-    (fdir / "tags.json").write_text("{}", encoding="utf-8")
+    _test_write(fdir / "tags.json", "{}", encoding="utf-8")
 
     assert index_build._mcp_items(fdir, tmp_path) == []  # pylint: disable=protected-access
 

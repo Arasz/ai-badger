@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 SCRIPTS = "features/common/skills/worktree-agent-isolation/scripts"
 GUARD = f"{SCRIPTS}/blast_radius_kill_guard.py"
@@ -58,7 +59,7 @@ def test_the_gate_goes_red_when_the_shell_recursion_is_narrowed(scripts_copy):
     guard = scripts_copy / "blast_radius_kill_guard.py"
     text = guard.read_text(encoding="utf-8")
     assert LEXER in text, "the lexer this mutation removes is no longer spelled that way"
-    guard.write_text(text.replace(LEXER, NARROWED), encoding="utf-8")
+    _test_write(guard, text.replace(LEXER, NARROWED), encoding="utf-8")
 
     result = _run_gate(scripts_copy)
 

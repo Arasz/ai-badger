@@ -8,6 +8,7 @@ commit, or kill it.
 from __future__ import annotations
 
 import json
+from conftest import _test_write
 
 
 SCRIPT = "features/common/skills/commit-reminder/scripts/ensure_committed.py"
@@ -15,7 +16,7 @@ SCRIPT = "features/common/skills/commit-reminder/scripts/ensure_committed.py"
 
 def _state(tmp_path, payload) -> "Path":
     path = tmp_path / "state.json"
-    path.write_text(json.dumps(payload), encoding="utf-8")
+    _test_write(path, json.dumps(payload), encoding="utf-8")
     return path
 
 
@@ -119,7 +120,7 @@ class TestItSurvivesMalformedState:
     def test_a_non_utf8_state_file_reports_nothing_rather_than_exiting_non_zero(
             self, load_script, monkeypatch, tmp_path, capsys):
         state = tmp_path / "state.json"
-        state.write_bytes(b"\xff\xfe not utf-8 at all")
+        _test_write(state, b"\xff\xfe not utf-8 at all")
 
         _, rc = _run(load_script, monkeypatch, state)
 

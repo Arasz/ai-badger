@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from conftest import _test_write
 
 
 def test_discovers_unfinished_task_sessions_from_tracking_store(tmp_path, load_script):
@@ -19,8 +20,8 @@ def test_discovers_unfinished_task_sessions_from_tracking_store(tmp_path, load_s
     data = tmp_path / ".ai-badger" / "task-tracking"
     data.mkdir(parents=True)
     transcript = data / "active.jsonl"
-    transcript.write_text("{}\n", encoding="utf-8")
-    (data / "executed-tasks.json").write_text(json.dumps({
+    _test_write(transcript, "{}\n", encoding="utf-8")
+    _test_write(data / "executed-tasks.json", json.dumps({
         "tasks": [
             {"taskId": "T01", "state": "IN_PROGRESS", "sessionId": "sid-1",
              "transcriptPath": str(transcript)},
@@ -43,8 +44,7 @@ def test_discovers_sessions_from_user_claude_projects_jsonl_when_tracking_missin
     project_dir = user_claude / "projects" / "repo"
     project_dir.mkdir(parents=True)
     transcript = project_dir / "session.jsonl"
-    transcript.write_text(json.dumps({"sessionId": "sid-json", "cwd": str(project_root)}) + "\n",
-                           encoding="utf-8")
+    _test_write(transcript, json.dumps({"sessionId": "sid-json", "cwd": str(project_root)}) + "\n", encoding="utf-8")
 
     sessions = poll_limit.discover_target_sessions(project_root, user_claude)
 
@@ -57,16 +57,13 @@ def test_discover_target_sessions_prefers_task_tracking_over_user_claude_fallbac
     project_root = tmp_path / "repo"
     data = project_root / ".ai-badger" / "task-tracking"
     data.mkdir(parents=True)
-    (data / "executed-tasks.json").write_text(json.dumps({
+    _test_write(data / "executed-tasks.json", json.dumps({
         "tasks": [{"taskId": "T01", "state": "IN_PROGRESS", "sessionId": "sid-tracking"}]
     }), encoding="utf-8")
     user_claude = tmp_path / "home" / ".claude"
     project_dir = user_claude / "projects" / "repo"
     project_dir.mkdir(parents=True)
-    (project_dir / "session.jsonl").write_text(
-        json.dumps({"sessionId": "sid-fallback", "cwd": str(project_root)}) + "\n",
-        encoding="utf-8",
-    )
+    _test_write(project_dir / "session.jsonl", json.dumps({"sessionId": "sid-fallback", "cwd": str(project_root)}) + "\n", encoding="utf-8")
 
     sessions = poll_limit.discover_target_sessions(project_root, user_claude)
 
@@ -86,7 +83,7 @@ def test_discover_target_sessions_reads_tracker_libs_actual_data_dir(tmp_path, l
     project_root = tmp_path / "repo"
     tasks_path = poll_limit.lib.compute_paths(project_root)["executed_tasks"]
     tasks_path.parent.mkdir(parents=True)
-    tasks_path.write_text(json.dumps({
+    _test_write(tasks_path, json.dumps({
         "tasks": [{"taskId": "T09", "state": "IN_PROGRESS", "sessionId": "sid-real"}]
     }), encoding="utf-8")
     empty_user_claude = tmp_path / "home" / ".claude"  # isolate from the fallback path
@@ -223,7 +220,7 @@ def test_statusline_reset_time_is_used_before_probe(tmp_path, load_script):
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
     state_file = tmp_path / "statusline-state.json"
     future_reset = int(poll_limit.time.time()) + 3600
-    state_file.write_text(json.dumps({
+    _test_write(state_file, json.dumps({
         "capturedAt": poll_limit.datetime.now(poll_limit.timezone.utc).isoformat(),
         "rateLimits": {
             "five_hour": {"used_percentage": 100, "resets_at": future_reset},
@@ -240,7 +237,7 @@ def test_statusline_expired_reset_reports_available(tmp_path, load_script):
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
     state_file = tmp_path / "statusline-state.json"
     past_reset = int(poll_limit.time.time()) - 1
-    state_file.write_text(json.dumps({
+    _test_write(state_file, json.dumps({
         "capturedAt": poll_limit.datetime.now(poll_limit.timezone.utc).isoformat(),
         "rateLimits": {
             "five_hour": {"used_percentage": 100, "resets_at": past_reset},
@@ -257,7 +254,7 @@ def test_statusline_future_reset_but_window_not_exhausted_is_available(tmp_path,
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
     state_file = tmp_path / "statusline-state.json"
     future_reset = int(poll_limit.time.time()) + 3600
-    state_file.write_text(json.dumps({
+    _test_write(state_file, json.dumps({
         "capturedAt": poll_limit.datetime.now(poll_limit.timezone.utc).isoformat(),
         "rateLimits": {
             "five_hour": {"used_percentage": 42, "resets_at": future_reset},
@@ -276,7 +273,7 @@ def test_stale_statusline_state_is_ignored_so_probe_can_run(tmp_path, load_scrip
     state_file = tmp_path / "statusline-state.json"
     stale_capture = poll_limit.datetime.fromtimestamp(0, tz=poll_limit.timezone.utc).isoformat()
     future_reset = int(poll_limit.time.time()) + 3600
-    state_file.write_text(json.dumps({
+    _test_write(state_file, json.dumps({
         "capturedAt": stale_capture,
         "rateLimits": {
             "five_hour": {"used_percentage": 100, "resets_at": future_reset},
@@ -300,7 +297,7 @@ def test_statusline_missing_state_file_is_ignored_so_probe_can_run(tmp_path, loa
 def test_check_limit_from_statusline_missing_resets_at_returns_none(tmp_path, load_script):
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
     state_file = tmp_path / "statusline-state.json"
-    state_file.write_text(json.dumps({
+    _test_write(state_file, json.dumps({
         "capturedAt": poll_limit.datetime.now(poll_limit.timezone.utc).isoformat(),
         "rateLimits": {"five_hour": {"used_percentage": 100}},
     }), encoding="utf-8")
@@ -327,7 +324,7 @@ def test_already_running_false_for_a_dead_pid(tmp_path, load_script):
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
     pid_file = tmp_path / "poll_limit.pid"
     # PID unlikely to be alive: a huge, almost-certainly-unused process id.
-    pid_file.write_text("999999", encoding="utf-8")
+    _test_write(pid_file, "999999", encoding="utf-8")
 
     assert poll_limit.already_running(pid_file) is False
 
@@ -336,7 +333,7 @@ def test_already_running_false_for_current_process_pid(tmp_path, load_script):
     import os
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
     pid_file = tmp_path / "poll_limit.pid"
-    pid_file.write_text(str(os.getpid()), encoding="utf-8")
+    _test_write(pid_file, str(os.getpid()), encoding="utf-8")
 
     # The poller treats its own PID as "not already running" (it's this run's own marker).
     assert poll_limit.already_running(pid_file) is False
@@ -398,7 +395,7 @@ def _poller_at(tmp_path, load_script, monkeypatch):
 
 
 def _write_tasks(data, tasks):
-    (data / "executed-tasks.json").write_text(json.dumps({"tasks": tasks}), encoding="utf-8")
+    _test_write(data / "executed-tasks.json", json.dumps({"tasks": tasks}), encoding="utf-8")
 
 
 def test_run_forever_stops_at_the_wall_clock_cap(tmp_path, load_script, monkeypatch):
@@ -471,9 +468,9 @@ def test_remove_pid_resolves_its_path_at_call_time(tmp_path, load_script, monkey
     """
     poll_limit, data = _poller_at(tmp_path, load_script, monkeypatch)
     stale = tmp_path / "elsewhere.pid"
-    stale.write_text("1", encoding="utf-8")
+    _test_write(stale, "1", encoding="utf-8")
     monkeypatch.setattr(poll_limit, "PID_FILE", data / "poll_limit.pid")
-    (data / "poll_limit.pid").write_text("2", encoding="utf-8")
+    _test_write(data / "poll_limit.pid", "2", encoding="utf-8")
 
     poll_limit.remove_pid()
 
@@ -525,7 +522,7 @@ def test_a_second_poller_still_refuses_to_start(tmp_path, load_script, monkeypat
     import os
 
     poll_limit, data = _poller_at(tmp_path, load_script, monkeypatch)
-    (data / "poll_limit.pid").write_text(str(os.getppid()), encoding="utf-8")
+    _test_write(data / "poll_limit.pid", str(os.getppid()), encoding="utf-8")
     _write_tasks(data, [{"taskId": "T", "state": "IN_PROGRESS", "sessionId": "s"}])
 
     result = poll_limit.run_forever(

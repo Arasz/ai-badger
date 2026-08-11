@@ -843,6 +843,34 @@ def _maybe_remind_commit(tool_name: str, cwd: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Follow-through detection — passive implicit-feedback measurement.
+# Logic lives in the sibling follow_through.py module (lazy-loaded).
+# ---------------------------------------------------------------------------
+
+FOLLOW_THROUGH_MODULE_NAME = "ai_badger_follow_through"
+
+
+def _load_follow_through() -> Optional[Any]:
+    """Import the sibling follow_through module lazily; None when absent, or it's broken."""
+    return _load_sibling_module(FOLLOW_THROUGH_MODULE_NAME, "follow_through.py",
+                                "follow-through detection")
+
+
+def _stash_search_sources(tool_name: str, result: str, cwd: str) -> None:
+    """After memory_search, stash results for follow-through correlation."""
+    ft = _load_follow_through()
+    if ft is not None:
+        ft.stash_search_sources(tool_name, result, cwd, debug_fn=_debug)
+
+
+def _maybe_record_follow_through(tool_name: str, result: str, cwd: str) -> None:
+    """After read_file, check for follow-through matches."""
+    ft = _load_follow_through()
+    if ft is not None:
+        ft.maybe_record_follow_through(tool_name, result, cwd, debug_fn=_debug)
+
+
+# ---------------------------------------------------------------------------
 # Tool call observer — equivalent to Claude's PostToolUse hook
 # ---------------------------------------------------------------------------
 
@@ -890,6 +918,16 @@ def post_tool_observer(tool_name: str = "", result: str = "",
         _maybe_record_memory_consult(tool_name, args, cwd, session_id)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.warning("memory-first gate record failed", exc_info=True)
+
+    try:
+        _stash_search_sources(tool_name, result, cwd)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("follow-through stash failed", exc_info=True)
+
+    try:
+        _maybe_record_follow_through(tool_name, result, cwd)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("follow-through record failed", exc_info=True)
 
     # Log index hit/miss metrics if the index is available
     if tool_name:

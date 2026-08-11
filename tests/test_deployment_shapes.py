@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -128,7 +129,7 @@ def test_the_probe_environment_never_puts_the_real_home_on_pythonpath(tmp_path):
 def _write_config(path: Path) -> Path:
     cfg = _config(stacks=["python"], agents=["claude", "hermes"])
     cfg["frameworkVersion"] = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
-    path.write_text(json.dumps(cfg), encoding="utf-8")
+    _test_write(path, json.dumps(cfg), encoding="utf-8")
     return path
 
 
@@ -193,7 +194,7 @@ def _probe_root(shapes: dict, shape: str, path: Path, tmp_path: Path, cwd: Path 
                 extra_env: dict = None, argv: list = None):
     """Import `path` in a fresh interpreter and return (process, reported root)."""
     probe = tmp_path / "probe.py"
-    probe.write_text(_PROBE, encoding="utf-8")
+    _test_write(probe, _PROBE, encoding="utf-8")
     env = _env(shapes["home"])
     env.update(extra_env or {})
     proc = subprocess.run([sys.executable, str(probe), str(path), *(argv or [])],
@@ -369,14 +370,12 @@ def _stale_cache_shape(base: Path, tmp_path: Path) -> tuple:
     """
     home = base / "home"
     cache = _copy_framework(home / ".ai-badger" / "framework")
-    (cache / "VERSION").write_text("0.13.0\n", encoding="utf-8")
+    _test_write(cache / "VERSION", "0.13.0\n", encoding="utf-8")
 
     consumer = base / "consumer"
     aib = consumer / ".ai-badger"
     aib.mkdir(parents=True)
-    (aib / "manifest.json").write_text(
-        json.dumps({"frameworkVersion": "0.35.2", "frameworkRoot": str(tmp_path / "gone")}),
-        encoding="utf-8")
+    _test_write(aib / "manifest.json", json.dumps({"frameworkVersion": "0.35.2", "frameworkRoot": str(tmp_path / "gone")}), encoding="utf-8")
     entry = aib / "skills" / "welcome-ai-badger" / "scripts" / "detect.py"
     entry.parent.mkdir(parents=True)
     shutil.copy2(ROOT / ENTRY_POINTS["detect"], entry)
@@ -388,7 +387,7 @@ def test_a_stale_cache_announces_itself_to_the_entry_point_that_reached_for_it(t
     home, cache, entry = _stale_cache_shape(tmp_path / "shape", tmp_path)
 
     probe = tmp_path / "probe.py"
-    probe.write_text(_PROBE, encoding="utf-8")
+    _test_write(probe, _PROBE, encoding="utf-8")
     proc = subprocess.run([sys.executable, str(probe), str(entry)], capture_output=True,
                           text=True, cwd=str(tmp_path), env=_env(home), check=False)
 
@@ -404,11 +403,8 @@ def _hostile_repo(base: Path) -> Path:
     (repo / ".ai-badger").mkdir(parents=True)
     for name in ("schemas", "features", "engine"):
         (repo / "vendor" / name).mkdir(parents=True)
-    (repo / ".ai-badger" / "manifest.json").write_text(
-        json.dumps({"frameworkVersion": "0.33.0", "frameworkRoot": "vendor", "entries": []}),
-        encoding="utf-8")
-    (repo / "vendor" / "engine" / "badger_lib.py").write_text(
-        "from pathlib import Path\n"
+    _test_write(repo / ".ai-badger" / "manifest.json", json.dumps({"frameworkVersion": "0.33.0", "frameworkRoot": "vendor", "entries": []}), encoding="utf-8")
+    _test_write(repo / "vendor" / "engine" / "badger_lib.py", "from pathlib import Path\n"
         f"Path({str(base / 'PWNED')!r}).write_text('x', encoding='utf-8')\n", encoding="utf-8")
     return repo
 
@@ -480,7 +476,7 @@ def _stranded_shim(source: Path, dest: Path) -> Path:
     end = text.index("    return root.resolve()", start)
     block = text[start:end].replace('"engine"', '"scripts"').replace(
         '    sys.path.insert(0, str(root / "tooling"))\n', "")
-    dest.write_text(text[:start] + block + text[end:], encoding="utf-8")
+    _test_write(dest, text[:start] + block + text[end:], encoding="utf-8")
     return dest
 
 
@@ -493,7 +489,7 @@ def test_a_stale_vendored_shim_degrades_rather_than_raising_in_a_hook(name, tmp_
                            tmp_path / "consumer" / ".ai-badger" / name / f"{name}.py")
 
     probe = tmp_path / "probe.py"
-    probe.write_text(_PROBE, encoding="utf-8")
+    _test_write(probe, _PROBE, encoding="utf-8")
     proc = subprocess.run([sys.executable, str(probe), str(entry)], capture_output=True,
                           text=True, cwd=str(tmp_path / "consumer"), env=_env(home), check=False)
 

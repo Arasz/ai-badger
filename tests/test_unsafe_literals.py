@@ -6,6 +6,7 @@ F-24/security I4). The rule that makes a finding safe to print is that `pattern`
 label from a closed vocabulary and no scanned byte ever reaches the return value.
 """
 from __future__ import annotations
+from conftest import _test_write
 
 # Obviously fake, but shaped like the patterns the scanner recognises.
 FAKE_GITHUB_TOKEN = "ghp_FAKEnotarealtoken" + "0" * 19
@@ -18,14 +19,14 @@ def _mod(load_script):
 
 def test_a_clean_tree_produces_no_findings(tmp_path, load_script):
     lit = _mod(load_script)
-    (tmp_path / "SKILL.md").write_text("# a skill\n\nNothing secret here.\n", encoding="utf-8")
+    _test_write(tmp_path / "SKILL.md", "# a skill\n\nNothing secret here.\n", encoding="utf-8")
 
     assert lit.scan_tree(tmp_path) == []
 
 
 def test_a_token_shaped_literal_is_found_and_labelled(tmp_path, load_script):
     lit = _mod(load_script)
-    (tmp_path / "SKILL.md").write_text(f"token: {FAKE_GITHUB_TOKEN}\n", encoding="utf-8")
+    _test_write(tmp_path / "SKILL.md", f"token: {FAKE_GITHUB_TOKEN}\n", encoding="utf-8")
 
     findings = lit.scan_tree(tmp_path)
 
@@ -38,7 +39,7 @@ def test_a_token_shaped_literal_is_found_and_labelled(tmp_path, load_script):
 def test_no_scanned_byte_reaches_the_finding(tmp_path, load_script):
     """A finding is printed and logged; the matched text must never travel with it."""
     lit = _mod(load_script)
-    (tmp_path / "conf.env").write_text(f"api_key = {FAKE_PROVIDER_KEY}\n", encoding="utf-8")
+    _test_write(tmp_path / "conf.env", f"api_key = {FAKE_PROVIDER_KEY}\n", encoding="utf-8")
 
     findings = lit.scan_tree(tmp_path)
 
@@ -50,11 +51,11 @@ def test_no_scanned_byte_reaches_the_finding(tmp_path, load_script):
 
 def test_scan_paths_accepts_a_mix_of_files_and_directories(tmp_path, load_script):
     lit = _mod(load_script)
-    (tmp_path / "loose.md").write_text(f"{FAKE_GITHUB_TOKEN}\n", encoding="utf-8")
+    _test_write(tmp_path / "loose.md", f"{FAKE_GITHUB_TOKEN}\n", encoding="utf-8")
     nested = tmp_path / "skills" / "thing"
     nested.mkdir(parents=True)
-    (nested / "SKILL.md").write_text("clean\n", encoding="utf-8")
-    (nested / "notes.md").write_text(f"{FAKE_PROVIDER_KEY}\n", encoding="utf-8")
+    _test_write(nested / "SKILL.md", "clean\n", encoding="utf-8")
+    _test_write(nested / "notes.md", f"{FAKE_PROVIDER_KEY}\n", encoding="utf-8")
 
     findings = lit.scan_paths(tmp_path, ["loose.md", "skills/thing"])
 
@@ -65,7 +66,7 @@ def test_scan_paths_reports_relative_to_the_root(tmp_path, load_script):
     lit = _mod(load_script)
     nested = tmp_path / "features" / "common"
     nested.mkdir(parents=True)
-    (nested / "x.md").write_text(f"{FAKE_GITHUB_TOKEN}\n", encoding="utf-8")
+    _test_write(nested / "x.md", f"{FAKE_GITHUB_TOKEN}\n", encoding="utf-8")
 
     findings = lit.scan_paths(tmp_path, ["features/common/x.md"])
 
@@ -81,7 +82,7 @@ def test_a_path_that_does_not_exist_is_skipped_not_raised(tmp_path, load_script)
 def test_a_file_over_the_size_cap_is_skipped(tmp_path, load_script, monkeypatch):
     lit = _mod(load_script)
     monkeypatch.setattr(lit, "LITERAL_SCAN_MAX_BYTES", 10)
-    (tmp_path / "big.md").write_text(f"{FAKE_GITHUB_TOKEN}\n" * 100, encoding="utf-8")
+    _test_write(tmp_path / "big.md", f"{FAKE_GITHUB_TOKEN}\n" * 100, encoding="utf-8")
 
     assert lit.scan_tree(tmp_path) == []
 
@@ -89,7 +90,7 @@ def test_a_file_over_the_size_cap_is_skipped(tmp_path, load_script, monkeypatch)
 def test_symlinks_are_not_followed(tmp_path, load_script):
     lit = _mod(load_script)
     outside = tmp_path / "outside.md"
-    outside.write_text(f"{FAKE_GITHUB_TOKEN}\n", encoding="utf-8")
+    _test_write(outside, f"{FAKE_GITHUB_TOKEN}\n", encoding="utf-8")
     tree = tmp_path / "tree"
     tree.mkdir()
     (tree / "link.md").symlink_to(outside)
@@ -108,7 +109,7 @@ def test_learned_skills_sync_uses_the_shared_scanner(tmp_path, load_script):
     """The inbound path keeps working through the extracted module, not a second copy."""
     sync = load_script("features/common/hooks/learned_skills_sync.py")
     lit = _mod(load_script)
-    (tmp_path / "SKILL.md").write_text(f"{FAKE_GITHUB_TOKEN}\n", encoding="utf-8")
+    _test_write(tmp_path / "SKILL.md", f"{FAKE_GITHUB_TOKEN}\n", encoding="utf-8")
 
     findings = sync.scan_for_unsafe_literals(tmp_path)
 

@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 from unittest.mock import patch
+from conftest import _test_write
 
 REALISTIC_PAYLOAD = {
     "session_id": "ff836f92-f769-4a31-ae00-ff0585e741b1",
@@ -31,12 +32,11 @@ def test_end_to_end_capture_writes_state_and_delegates_to_the_recorded_renderer(
     """The wired command, run as Claude Code runs it: state persisted, renderer output relayed."""
     data_dir = tmp_path / ".ai-badger" / "task-tracking"
     data_dir.mkdir(parents=True)
-    (tmp_path / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+    _test_write(tmp_path / ".ai-badger" / "config.json", "{}", encoding="utf-8")
     renderer = tmp_path / "renderer.sh"
-    renderer.write_text("#!/bin/sh\nprintf 'rendered:'\ncat\n", encoding="utf-8")
+    _test_write(renderer, "#!/bin/sh\nprintf 'rendered:'\ncat\n", encoding="utf-8")
     renderer.chmod(0o755)
-    (data_dir / "statusline-delegate.json").write_text(
-        json.dumps({"command": str(renderer)}), encoding="utf-8")
+    _test_write(data_dir / "statusline-delegate.json", json.dumps({"command": str(renderer)}), encoding="utf-8")
     env = dict(os.environ, CLAUDE_PROJECT_DIR=str(tmp_path))
     env.pop("CLAUDE_USER_STATUSLINE", None)
 
@@ -104,7 +104,7 @@ def test_capture_silently_ignores_invalid_json(tmp_path, load_script):
 def _record(module, tmp_path, command):
     """Point the module at a delegate record holding *command*."""
     path = tmp_path / "statusline-delegate.json"
-    path.write_text(json.dumps({"command": command}), encoding="utf-8")
+    _test_write(path, json.dumps({"command": command}), encoding="utf-8")
     return patch.object(module, "DELEGATE_RECORD", path)
 
 
@@ -120,7 +120,7 @@ def test_render_user_statusline_returns_zero_when_the_delegate_is_missing(tmp_pa
 def test_render_user_statusline_prints_user_script_stdout(tmp_path, load_script, capsys):
     statusline_capture = load_script("features/common/skills/task/scripts/statusline_capture.py")
     script = tmp_path / "statusline.sh"
-    script.write_text("#!/bin/sh\ncat\n", encoding="utf-8")
+    _test_write(script, "#!/bin/sh\ncat\n", encoding="utf-8")
     script.chmod(0o755)
 
     with _record(statusline_capture, tmp_path, str(script)):
@@ -174,7 +174,7 @@ def test_an_unreadable_record_yields_no_delegate(load_script, monkeypatch, tmp_p
     statusline_capture = load_script("features/common/skills/task/scripts/statusline_capture.py")
     monkeypatch.delenv("CLAUDE_USER_STATUSLINE", raising=False)
     path = tmp_path / "statusline-delegate.json"
-    path.write_text("{ not json", encoding="utf-8")
+    _test_write(path, "{ not json", encoding="utf-8")
 
     with patch.object(statusline_capture, "DELEGATE_RECORD", path):
         assert statusline_capture.resolve_delegate() is None
@@ -185,7 +185,7 @@ def test_a_recorded_shell_command_is_run_through_a_shell(tmp_path, load_script, 
     """A preserved renderer is a settings command string, not always a bare path."""
     statusline_capture = load_script("features/common/skills/task/scripts/statusline_capture.py")
     script = tmp_path / "statusline.sh"
-    script.write_text("#!/bin/sh\ncat\n", encoding="utf-8")
+    _test_write(script, "#!/bin/sh\ncat\n", encoding="utf-8")
     monkeypatch.delenv("CLAUDE_USER_STATUSLINE", raising=False)
 
     with _record(statusline_capture, tmp_path, f'sh "{script}"'):
@@ -200,7 +200,7 @@ def test_a_tilde_in_the_recorded_command_is_expanded(tmp_path, load_script, caps
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.delenv("CLAUDE_USER_STATUSLINE", raising=False)
     script = tmp_path / "statusline.sh"
-    script.write_text("#!/bin/sh\ncat\n", encoding="utf-8")
+    _test_write(script, "#!/bin/sh\ncat\n", encoding="utf-8")
     script.chmod(0o755)
 
     with _record(statusline_capture, tmp_path, "~/statusline.sh"):

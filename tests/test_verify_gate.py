@@ -16,6 +16,7 @@ from typing import List
 import pytest
 
 import badger_lib as bl
+from conftest import _test_write
 
 REPO = Path(__file__).resolve().parent.parent
 GATE = REPO / ".lefthook" / "pre-push" / "verify.sh"
@@ -205,9 +206,8 @@ def test_lanes_do_not_inherit_the_hook_git_environment(tmp_path):
     """git points a hook's children at THIS repo, so a test building a temp repo would
     commit into the real one. The lane must see the environment a hand-run would."""
     probe = tmp_path / "probe.sh"
-    probe.write_text('#!/bin/sh\nfor v in GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE; do\n'
-                     '  eval "val=\\$$v"\n  [ -n "$val" ] && exit 9\ndone\nexit 0\n',
-                     encoding="utf-8")
+    _test_write(probe, '#!/bin/sh\nfor v in GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE; do\n'
+                     '  eval "val=\\$$v"\n  [ -n "$val" ] && exit 9\ndone\nexit 0\n', encoding="utf-8")
     probe.chmod(0o755)
     gitdir = _git("rev-parse", "--path-format=absolute", "--git-dir").strip()
     done = _run("docs", env={"AIB_PYTHON": str(probe), "GIT_DIR": gitdir,
@@ -224,7 +224,7 @@ def test_lane_with_nothing_to_check_fails_instead_of_passing(lane, tmp_path):
     subprocess.run(["git", "init", "-q"], cwd=str(empty), check=True)
     gate = empty / ".lefthook" / "pre-push"
     gate.mkdir(parents=True)
-    (gate / "verify.sh").write_text(GATE.read_text(encoding="utf-8"), encoding="utf-8")
+    _test_write(gate / "verify.sh", GATE.read_text(encoding="utf-8"), encoding="utf-8")
     (gate / "verify.sh").chmod(0o755)
     done = subprocess.run(["/bin/bash", str(gate / "verify.sh"), lane], cwd=str(empty),
                           capture_output=True, text=True, check=False)
@@ -240,7 +240,7 @@ def test_log_dir_is_per_checkout(tmp_path):
     subprocess.run(["git", "init", "-q"], cwd=str(other), check=True)
     gate = other / ".lefthook" / "pre-push"
     gate.mkdir(parents=True)
-    (gate / "verify.sh").write_text(GATE.read_text(encoding="utf-8"), encoding="utf-8")
+    _test_write(gate / "verify.sh", GATE.read_text(encoding="utf-8"), encoding="utf-8")
     (gate / "verify.sh").chmod(0o755)
     here = _run("pylint", env={"VERIFY_SKIP": "pylint"}).stdout
     there = subprocess.run(["/bin/bash", str(gate / "verify.sh"), "pylint"], cwd=str(other),
@@ -265,23 +265,23 @@ def _preserved(path: Path):
         yield
     finally:
         if had:
-            path.write_bytes(before)
+            path.write_bytes(before)  # deliberate real-path write — gate bypass for restore
         elif path.exists():
             path.unlink()
 
 
 def test_preserved_restores_prior_content(tmp_path):
     target = tmp_path / "cited.log"
-    target.write_text("the real failure\n", encoding="utf-8")
+    _test_write(target, "the real failure\n", encoding="utf-8")
     with _preserved(target):
-        target.write_text("a test fixture\n", encoding="utf-8")
+        _test_write(target, "a test fixture\n", encoding="utf-8")
     assert target.read_text(encoding="utf-8") == "the real failure\n"
 
 
 def test_preserved_restores_absence(tmp_path):
     target = tmp_path / "never-existed.log"
     with _preserved(target):
-        target.write_text("a test fixture\n", encoding="utf-8")
+        _test_write(target, "a test fixture\n", encoding="utf-8")
     assert not target.exists()
 
 
@@ -291,7 +291,7 @@ def test_a_gate_run_does_not_clobber_the_log_a_real_push_cites():
     cited.parent.mkdir(parents=True, exist_ok=True)
     sentinel = "the failure the outer push actually hit\n"
     with _preserved(cited):
-        cited.write_text(sentinel, encoding="utf-8")
+        _test_write(cited, sentinel, encoding="utf-8")
         _run("release", env={"AIB_PYTHON": "/bin/false"})
         assert cited.read_text(encoding="utf-8") == sentinel, \
             "a gate run from the test suite overwrote the log path a failing push reports"
@@ -436,7 +436,7 @@ AGENT_INSTRUCTION_VALIDATORS = (
 
 def _shim(path, body):
     """Write an executable /bin/sh shim and return its path as a string."""
-    path.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
+    _test_write(path, f"#!/bin/sh\n{body}\n", encoding="utf-8")
     path.chmod(0o755)
     return str(path)
 

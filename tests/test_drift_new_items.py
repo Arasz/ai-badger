@@ -1,5 +1,6 @@
 """Tier 2 drift: catalog items and detectable stacks the project has not scaffolded yet."""
 from __future__ import annotations
+from conftest import _test_write
 
 
 # --- new items detection (Tier 2, ADR-0001 decision 5) ---
@@ -12,9 +13,9 @@ def test_detect_new_items_finds_catalog_items_not_in_manifest(tmp_path, load_scr
     # Framework has two invariants
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
-    (fw / "features" / "common" / "invariants" / "existing.md").write_text("existing\n")
-    (fw / "features" / "common" / "invariants" / "new-item.md").write_text("new\n")
-    (fw / "VERSION").write_text("0.3.0\n")
+    _test_write(fw / "features" / "common" / "invariants" / "existing.md", "existing\n")
+    _test_write(fw / "features" / "common" / "invariants" / "new-item.md", "new\n")
+    _test_write(fw / "VERSION", "0.3.0\n")
     # Create index.json
     idx = {
         "frameworkVersion": "0.3.0",
@@ -56,8 +57,8 @@ def test_detect_new_items_empty_when_manifest_is_current(tmp_path, load_script):
 
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
-    (fw / "features" / "common" / "invariants" / "x.md").write_text("x\n")
-    (fw / "VERSION").write_text("0.3.0\n")
+    _test_write(fw / "features" / "common" / "invariants" / "x.md", "x\n")
+    _test_write(fw / "VERSION", "0.3.0\n")
     idx = {
         "frameworkVersion": "0.3.0",
         "stacks": {"common": {"invariants": [
@@ -89,8 +90,8 @@ def test_detect_new_items_only_checks_configured_stacks(tmp_path, load_script):
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
     (fw / "features" / "dotnet" / "invariants").mkdir(parents=True)
-    (fw / "features" / "dotnet" / "invariants" / "dotnet-only.md").write_text("dotnet\n")
-    (fw / "VERSION").write_text("0.3.0\n")
+    _test_write(fw / "features" / "dotnet" / "invariants" / "dotnet-only.md", "dotnet\n")
+    _test_write(fw / "VERSION", "0.3.0\n")
     idx = {
         "frameworkVersion": "0.3.0",
         "stacks": {
@@ -120,8 +121,8 @@ def test_a_new_template_is_not_reported_as_a_new_item(tmp_path, load_script):
 
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "templates").mkdir(parents=True)
-    (fw / "features" / "common" / "templates" / "new.md.tmpl").write_text("hi\n")
-    (fw / "VERSION").write_text("0.3.0\n")
+    _test_write(fw / "features" / "common" / "templates" / "new.md.tmpl", "hi\n")
+    _test_write(fw / "VERSION", "0.3.0\n")
     idx = {
         "frameworkVersion": "0.3.0",
         "stacks": {"common": {"templates": [
@@ -145,8 +146,8 @@ def test_common_stacks_given_as_a_bare_string_is_not_split_into_characters(
 
     fw = tmp_path / "fw"
     (fw / "features" / "house" / "invariants").mkdir(parents=True)
-    (fw / "features" / "house" / "invariants" / "rule.md").write_text("rule\n")
-    (fw / "VERSION").write_text("0.3.0\n")
+    _test_write(fw / "features" / "house" / "invariants" / "rule.md", "rule\n")
+    _test_write(fw / "VERSION", "0.3.0\n")
     bl.dump_json(fw / "index.json", {
         "frameworkVersion": "0.3.0",
         "stacks": {"house": {"invariants": [
@@ -169,8 +170,8 @@ def test_drift_reports_a_new_common_item_although_config_stacks_omits_common(
 
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "skills" / "fresh-skill").mkdir(parents=True)
-    (fw / "features" / "common" / "skills" / "fresh-skill" / "SKILL.md").write_text("s\n")
-    (fw / "VERSION").write_text("0.3.0\n")
+    _test_write(fw / "features" / "common" / "skills" / "fresh-skill" / "SKILL.md", "s\n")
+    _test_write(fw / "VERSION", "0.3.0\n")
     bl.dump_json(fw / "index.json", {
         "frameworkVersion": "0.3.0",
         "stacks": {
@@ -202,8 +203,8 @@ def test_compare_includes_new_items(tmp_path, load_script):
 
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
-    (fw / "features" / "common" / "invariants" / "new.md").write_text("new\n")
-    (fw / "VERSION").write_text("0.3.0\n")
+    _test_write(fw / "features" / "common" / "invariants" / "new.md", "new\n")
+    _test_write(fw / "VERSION", "0.3.0\n")
     idx = {
         "frameworkVersion": "0.3.0",
         "stacks": {"common": {"invariants": [
@@ -245,7 +246,7 @@ def test_detect_new_stacks_finds_stack_not_in_config(tmp_path, load_script):
     # Target has hermes signals but config only knows about python
     target = tmp_path / "proj"
     target.mkdir(parents=True, exist_ok=True)
-    (target / ".hermes.md").write_text("# Hermes\n")
+    _test_write(target / ".hermes.md", "# Hermes\n")
 
     new_stacks = drift.detect_new_stacks(target, fw, config_stacks=["python"])
 
@@ -271,7 +272,7 @@ def test_detect_new_stacks_empty_when_config_is_complete(tmp_path, load_script):
 
     target = tmp_path / "proj"
     target.mkdir(parents=True, exist_ok=True)
-    (target / "pyproject.toml").write_text("[project]\n")
+    _test_write(target / "pyproject.toml", "[project]\n")
 
     new_stacks = drift.detect_new_stacks(target, fw, config_stacks=["python"])
 
@@ -299,8 +300,8 @@ def test_detect_new_stacks_ignores_stacks_not_in_index(tmp_path, load_script):
     # Target has hermes signals but hermes is not in the index
     target = tmp_path / "proj"
     target.mkdir(parents=True, exist_ok=True)
-    (target / ".hermes.md").write_text("# Hermes\n")
-    (target / "pyproject.toml").write_text("[project]\n")
+    _test_write(target / ".hermes.md", "# Hermes\n")
+    _test_write(target / "pyproject.toml", "[project]\n")
 
     new_stacks = drift.detect_new_stacks(target, fw, config_stacks=[])
 
@@ -332,7 +333,7 @@ def test_detect_new_stacks_includes_expanded_requires(tmp_path, load_script):
     # Target has tsx files → react detected → requires ts
     target = tmp_path / "proj"
     target.mkdir(parents=True, exist_ok=True)
-    (target / "app.tsx").write_text("export default () => null\n")
+    _test_write(target / "app.tsx", "export default () => null\n")
 
     new_stacks = drift.detect_new_stacks(target, fw, config_stacks=[])
 
@@ -362,8 +363,8 @@ def test_detect_new_stacks_respects_ignore_list(tmp_path, load_script):
 
     target = tmp_path / "proj"
     target.mkdir(parents=True, exist_ok=True)
-    (target / "main.py").write_text("print('hi')\n")
-    (target / ".hermes.md").write_text("# Hermes\n")
+    _test_write(target / "main.py", "print('hi')\n")
+    _test_write(target / ".hermes.md", "# Hermes\n")
 
     # python is in config, hermes is detectable but ignored
     new_stacks = drift.detect_new_stacks(

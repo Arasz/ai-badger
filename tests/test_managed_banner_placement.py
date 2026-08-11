@@ -13,6 +13,7 @@ import sys
 import pytest
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 SCRIPTS = "features/common/skills/welcome-ai-badger/scripts"
 NAME = "instructions/python.instructions.md"
@@ -127,7 +128,7 @@ def _instruction_file(scaffolder, text=None):
     dest = scaffolder.ctx.target / ".github" / "instructions" / "python.instructions.md"
     dest.parent.mkdir(parents=True, exist_ok=True)
     if text is not None:
-        dest.write_text(text, encoding="utf-8")
+        _test_write(dest, text, encoding="utf-8")
     return dest
 
 
@@ -241,7 +242,7 @@ def test_a_second_scaffold_changes_no_instruction_file(make_scaffolder):
 def test_a_hand_edited_managed_instruction_file_is_refreshed(make_scaffolder):
     files, _ = _scaffold_instruction_files(make_scaffolder)
     edited = files[0]
-    edited.write_text(edited.read_text(encoding="utf-8") + "\nstray local edit\n", encoding="utf-8")
+    _test_write(edited, edited.read_text(encoding="utf-8") + "\nstray local edit\n", encoding="utf-8")
 
     _, result = _scaffold_instruction_files(make_scaffolder)
 

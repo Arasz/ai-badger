@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from conftest import _test_write
 
 HOOK_PATH = (
     Path(__file__).resolve().parents[1]
@@ -35,11 +36,8 @@ def _plant_project(tmp_path: Path, script_name: str) -> Path:
     scripts_dir = tmp_path / ".ai-badger" / "skills" / "mcp-index" / "scripts"
     scripts_dir.mkdir(parents=True)
     sentinel = tmp_path / "sentinel.txt"
-    (scripts_dir / script_name).write_text(
-        f"from pathlib import Path\n"
-        f"Path({str(sentinel)!r}).write_text('executed', encoding='utf-8')\n",
-        encoding="utf-8",
-    )
+    _test_write(scripts_dir / script_name, f"from pathlib import Path\n"
+        f"Path({str(sentinel)!r}).write_text('executed', encoding='utf-8')\n", encoding="utf-8")
     return sentinel
 
 

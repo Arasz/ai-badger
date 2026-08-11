@@ -59,6 +59,7 @@ def test_manifest_without_a_config_hash_is_still_valid(load_script, root):
 
 
 import subprocess
+from conftest import _test_write
 
 
 def _git(cwd, *args):
@@ -71,7 +72,7 @@ def _init_repo(path):
     _git(path, "init", "-q")
     _git(path, "config", "user.email", "t@example.com")
     _git(path, "config", "user.name", "t")
-    (path / "seed.txt").write_text("seed\n", encoding="utf-8")
+    _test_write(path / "seed.txt", "seed\n", encoding="utf-8")
     _git(path, "add", "-A")
     _git(path, "commit", "-qm", "init")
 
@@ -91,7 +92,7 @@ def test_git_provenance_dirty_repo_flags_dirty(tmp_path, load_script):
     scaffold = load_script("features/common/skills/welcome-ai-badger/scripts/scaffold.py")
     repo = tmp_path / "dirty"
     _init_repo(repo)
-    (repo / "seed.txt").write_text("edited\n", encoding="utf-8")
+    _test_write(repo / "seed.txt", "edited\n", encoding="utf-8")
 
     sha, dirty = scaffold.git_provenance(repo)
 

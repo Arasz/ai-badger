@@ -12,6 +12,7 @@ import io
 import json
 
 import pytest
+from conftest import _test_write
 
 HOOK_PATH = "features/common/skills/task/scripts/dispatch_gate_hook.py"
 
@@ -49,7 +50,7 @@ def _agent_file(project, name, template=LANE):
     agents = project / ".claude" / "agents"
     agents.mkdir(parents=True, exist_ok=True)
     path = agents / f"{name}.md"
-    path.write_text(template.format(name=name), encoding="utf-8")
+    _test_write(path, template.format(name=name), encoding="utf-8")
     return path
 
 

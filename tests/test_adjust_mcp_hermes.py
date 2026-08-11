@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 ADJUSTER = "features/hermes/adjustments/adjust_mcp.py"
 
@@ -130,7 +131,7 @@ def test_an_existing_config_is_neither_read_nor_rewritten(tmp_path, root, load_s
     (home / ".hermes").mkdir(parents=True)
     config_path = home / ".hermes" / "config.yaml"
     original = b"mcp_servers: {broken: [\n"
-    config_path.write_bytes(original)
+    _test_write(config_path, original)
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
     notes = _proposal(root, tmp_path / "proj", load_script)

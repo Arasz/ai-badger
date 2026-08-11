@@ -23,6 +23,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from conftest import _test_write
 
 
 def pathlib_parent(file_path: str) -> str:
@@ -245,12 +246,9 @@ class TestTeardownReportsRatherThanCrashes:
         import conftest
 
         log = tmp_path / "spawns.jsonl"
-        log.write_text(
-            '{"argv": ["a"], "cwd": "/x", "pid": 1, "test": "t_one", "by": 999}\n'
+        _test_write(log, '{"argv": ["a"], "cwd": "/x", "pid": 1, "test": "t_one", "by": 999}\n'
             '{"argv": ["b"], "cwd": "/x", "pid": 2, "test": "t_tw\n'  # torn mid-write
-            '{"argv": ["c"], "cwd": "/x", "pid": 3, "test": "t_three", "by": 999}\n',
-            encoding="utf-8",
-        )
+            '{"argv": ["c"], "cwd": "/x", "pid": 3, "test": "t_three", "by": 999}\n', encoding="utf-8")
 
         offenders = conftest.foreign_spawn_offenders(log)
 
@@ -261,10 +259,7 @@ class TestTeardownReportsRatherThanCrashes:
         import conftest
 
         log = tmp_path / "spawns.jsonl"
-        log.write_text(
-            '{"argv": ["ok", 7, null], "cwd": "/x", "pid": 1, "test": "t_odd", "by": 999}\n',
-            encoding="utf-8",
-        )
+        _test_write(log, '{"argv": ["ok", 7, null], "cwd": "/x", "pid": 1, "test": "t_odd", "by": 999}\n', encoding="utf-8")
 
         offenders = conftest.foreign_spawn_offenders(log)
 
@@ -274,10 +269,7 @@ class TestTeardownReportsRatherThanCrashes:
         import conftest
 
         log = tmp_path / "spawns.jsonl"
-        log.write_text(
-            json.dumps({"argv": ["x"], "cwd": "/x", "pid": 1, "test": "mine",
-                        "by": os.getpid()}) + "\n",
-            encoding="utf-8",
-        )
+        _test_write(log, json.dumps({"argv": ["x"], "cwd": "/x", "pid": 1, "test": "mine",
+                        "by": os.getpid()}) + "\n", encoding="utf-8")
 
         assert conftest.foreign_spawn_offenders(log) == []

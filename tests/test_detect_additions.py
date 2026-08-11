@@ -3,6 +3,7 @@
 Issue #65: extension content edits must be visible to detect_additions.
 """
 import json
+from conftest import _test_write
 
 
 def test_extension_content_edit_detected_as_candidate(load_script, root, capsys, make_scaffolder):
@@ -25,7 +26,7 @@ def test_extension_content_edit_detected_as_candidate(load_script, root, capsys,
     assert ext_file.exists(), "extension.md should be scaffolded"
 
     # Edit the extension file (user correction)
-    ext_file.write_text("# Custom extension edit by user\n")
+    _test_write(ext_file, "# Custom extension edit by user\n")
 
     # Run detect_additions
     rc = detect.main(["--target", str(target), "--root", str(root)])
@@ -48,7 +49,7 @@ def _write_minimal_manifest(target):
     """Write the smallest .ai-badger/manifest.json that satisfies main()'s gate."""
     aib = target / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
-    (aib / "manifest.json").write_text(json.dumps({
+    _test_write(aib / "manifest.json", json.dumps({
         "frameworkVersion": "0.18.0", "entries": [],
     }))
     return aib
@@ -59,9 +60,9 @@ def _write_learned_skill(aib, category="apple", name="apple-notes"):
     skill_dir = aib / "skills" / "learned" / category / name
     (skill_dir / "scripts").mkdir(parents=True)
     (skill_dir / "references").mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text("# apple notes\n")
-    (skill_dir / "scripts" / "helper.py").write_text("print('hi')\n")
-    (skill_dir / "references" / "api.md").write_text("# api\n")
+    _test_write(skill_dir / "SKILL.md", "# apple notes\n")
+    _test_write(skill_dir / "scripts" / "helper.py", "print('hi')\n")
+    _test_write(skill_dir / "references" / "api.md", "# api\n")
     return skill_dir
 
 
@@ -102,7 +103,7 @@ def test_learned_skill_candidate_carries_learned_provenance(tmp_path, load_scrip
 
     learned_data_dir = aib / "skills-data" / "hermes"
     learned_data_dir.mkdir(parents=True)
-    (learned_data_dir / "learned.json").write_text(json.dumps({
+    _test_write(learned_data_dir / "learned.json", json.dumps({
         "version": 1,
         "skills": [{
             "name": "apple-notes", "category": "apple",
@@ -132,7 +133,7 @@ def test_malformed_learned_json_still_yields_the_candidate(tmp_path, load_script
 
     learned_data_dir = aib / "skills-data" / "hermes"
     learned_data_dir.mkdir(parents=True)
-    (learned_data_dir / "learned.json").write_text("{ not json at all")
+    _test_write(learned_data_dir / "learned.json", "{ not json at all")
 
     rc = detect.main(["--target", str(target), "--root", str(root)])
     assert rc == 0
@@ -152,7 +153,7 @@ def test_non_learned_new_files_still_yield_per_file_candidates(tmp_path, load_sc
     aib = _write_minimal_manifest(target)
     instructions_dir = aib / "instructions"
     instructions_dir.mkdir()
-    (instructions_dir / "extra.instructions.md").write_text("# extra\n")
+    _test_write(instructions_dir / "extra.instructions.md", "# extra\n")
 
     rc = detect.main(["--target", str(target), "--root", str(root)])
     assert rc == 0
@@ -173,7 +174,7 @@ def test_skill_only_excludes_do_not_hide_managed_instruction_files(
     aib = _write_minimal_manifest(target)
     instruction = aib / "instructions" / "evals" / "custom.md"
     instruction.parent.mkdir(parents=True)
-    instruction.write_text("# project instruction\n", encoding="utf-8")
+    _test_write(instruction, "# project instruction\n", encoding="utf-8")
 
     rc = detect.main(["--target", str(target), "--root", str(root)])
     assert rc == 0
@@ -192,9 +193,9 @@ def test_a_project_authored_skill_still_hides_its_own_tests_and_evals(
     skill = aib / "skills" / "deploy-thing"
     (skill / "tests").mkdir(parents=True)
     (skill / "evals").mkdir(parents=True)
-    (skill / "SKILL.md").write_text("# deploy thing\n", encoding="utf-8")
-    (skill / "tests" / "test_deploy.py").write_text("def test_x(): pass\n", encoding="utf-8")
-    (skill / "evals" / "case1.md").write_text("# a case\n", encoding="utf-8")
+    _test_write(skill / "SKILL.md", "# deploy thing\n", encoding="utf-8")
+    _test_write(skill / "tests" / "test_deploy.py", "def test_x(): pass\n", encoding="utf-8")
+    _test_write(skill / "evals" / "case1.md", "# a case\n", encoding="utf-8")
 
     rc = detect.main(["--target", str(target), "--root", str(root)])
     assert rc == 0
@@ -213,11 +214,11 @@ def test_source_hashed_entries_are_never_project_change_candidates(
     aib = target / ".ai-badger"
     linked = aib / "skills" / "task"
     linked.mkdir(parents=True)
-    (linked / "SKILL.md").write_text("# task\n", encoding="utf-8")
+    _test_write(linked / "SKILL.md", "# task\n", encoding="utf-8")
     mirror = target / ".github" / "skills"
     mirror.mkdir(parents=True)
     (mirror / "task").symlink_to(linked)
-    (aib / "manifest.json").write_text(json.dumps({
+    _test_write(aib / "manifest.json", json.dumps({
         "frameworkVersion": "0.33.0",
         "entries": [{
             "feature": "adjustments", "stack": "copilot", "name": "adjustments/task",
@@ -241,13 +242,13 @@ def test_a_file_another_entry_owns_is_not_a_changed_skill(tmp_path, load_script,
     target = tmp_path / "proj"
     skill = target / ".ai-badger" / "skills" / "mcp-index"
     (skill / "scripts").mkdir(parents=True)
-    (skill / "SKILL.md").write_text("# mcp-index\n", encoding="utf-8")
+    _test_write(skill / "SKILL.md", "# mcp-index\n", encoding="utf-8")
 
     exclude = bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
     fingerprint = bl.dir_content_hash(skill, exclude=exclude)
-    (skill / "scripts" / "bm25.py").write_text("# retrieval\n", encoding="utf-8")
+    _test_write(skill / "scripts" / "bm25.py", "# retrieval\n", encoding="utf-8")
 
-    (target / ".ai-badger" / "manifest.json").write_text(json.dumps({
+    _test_write(target / ".ai-badger" / "manifest.json", json.dumps({
         "frameworkVersion": "0.53.1",
         "entries": [
             {"feature": "skills", "stack": "common", "name": "mcp-index",
@@ -275,10 +276,10 @@ def test_os_droppings_are_not_contribution_candidates(tmp_path, load_script, roo
     target = tmp_path / "proj"
     aib = target / ".ai-badger"
     (aib / "skills").mkdir(parents=True)
-    (aib / "skills" / ".DS_Store").write_bytes(b"\x00\x01macos")
+    _test_write(aib / "skills" / ".DS_Store", b"\x00\x01macos")
     (aib / "skills" / "__pycache__").mkdir()
-    (aib / "skills" / "__pycache__" / "x.pyc").write_bytes(b"\x00")
-    (aib / "manifest.json").write_text(json.dumps({
+    _test_write(aib / "skills" / "__pycache__" / "x.pyc", b"\x00")
+    _test_write(aib / "manifest.json", json.dumps({
         "frameworkVersion": "0.53.1", "entries": [],
     }), encoding="utf-8")
 
@@ -296,16 +297,16 @@ def test_a_project_owned_file_in_a_skill_is_not_a_changed_skill(tmp_path, load_s
     target = tmp_path / "proj"
     skill = target / ".ai-badger" / "skills" / "prompt-markers"
     skill.mkdir(parents=True)
-    (skill / "SKILL.md").write_text("# prompt-markers\n", encoding="utf-8")
-    (skill / "markers-context.json").write_text('{"markers": {}}\n', encoding="utf-8")
+    _test_write(skill / "SKILL.md", "# prompt-markers\n", encoding="utf-8")
+    _test_write(skill / "markers-context.json", '{"markers": {}}\n', encoding="utf-8")
 
     owned = ["project-local.md", "markers-context.json"]
     fingerprint = bl.dir_content_hash(skill, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"],
                                       exclude_rel=owned)
-    (skill / "markers-context.json").write_text('{"markers": {"h": "ours"}}\n', encoding="utf-8")
-    (skill / "project-local.md").write_text("## ours\n", encoding="utf-8")
+    _test_write(skill / "markers-context.json", '{"markers": {"h": "ours"}}\n', encoding="utf-8")
+    _test_write(skill / "project-local.md", "## ours\n", encoding="utf-8")
 
-    (target / ".ai-badger" / "manifest.json").write_text(json.dumps({
+    _test_write(target / ".ai-badger" / "manifest.json", json.dumps({
         "frameworkVersion": "0.107.0",
         "entries": [
             {"feature": "skills", "stack": "common", "name": "prompt-markers",
@@ -331,15 +332,15 @@ def test_a_generated_file_in_that_same_skill_is_still_a_changed_skill(tmp_path, 
     target = tmp_path / "proj"
     skill = target / ".ai-badger" / "skills" / "prompt-markers"
     skill.mkdir(parents=True)
-    (skill / "SKILL.md").write_text("# prompt-markers\n", encoding="utf-8")
-    (skill / "markers-context.json").write_text('{"markers": {}}\n', encoding="utf-8")
+    _test_write(skill / "SKILL.md", "# prompt-markers\n", encoding="utf-8")
+    _test_write(skill / "markers-context.json", '{"markers": {}}\n', encoding="utf-8")
 
     owned = ["project-local.md", "markers-context.json"]
     fingerprint = bl.dir_content_hash(skill, exclude=bl.SKILL_EXCLUDE_PATTERNS + ["extensions"],
                                       exclude_rel=owned)
-    (skill / "SKILL.md").write_text("# prompt-markers\n\n## ours\n", encoding="utf-8")
+    _test_write(skill / "SKILL.md", "# prompt-markers\n\n## ours\n", encoding="utf-8")
 
-    (target / ".ai-badger" / "manifest.json").write_text(json.dumps({
+    _test_write(target / ".ai-badger" / "manifest.json", json.dumps({
         "frameworkVersion": "0.107.0",
         "entries": [
             {"feature": "skills", "stack": "common", "name": "prompt-markers",

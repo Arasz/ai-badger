@@ -83,6 +83,26 @@ REAL_CHECKOUTS = tuple(dict.fromkeys((ROOT, _main_checkout(ROOT))))
 REAL_WRITE_ROOT = min(REAL_CHECKOUTS, key=lambda p: len(str(p)))
 os.environ[REAL_ROOT_ENV] = str(REAL_WRITE_ROOT)
 
+
+def _test_write(path, data, *, encoding="utf-8"):
+    """The one place a test may write a file.
+
+    Refuses paths inside the real checkouts or the real home — a module constant a test
+    forgot to redirect resolves there, and writing through it corrupts live state (#222).
+    Accepts text or bytes; returns the target path.
+    """
+    target = Path(path)
+    for real in (*REAL_CHECKOUTS, REAL_HOME):
+        if target == real or real in target.parents:
+            raise AssertionError(
+                f"_test_write refuses {target}: inside {real}, which the suite must not "
+                f"write. Redirect the module constant to tmp_path (test-file-isolation).")
+    if isinstance(data, bytes):
+        target.write_bytes(data)
+    else:
+        target.write_text(data, encoding=encoding)
+    return target
+
 # tracker_lib resolves <project-root>/.ai-badger/task-tracking/ from this variable, then by
 # walking up from the cwd for .ai-badger/config.json — which finds the real checkout even with
 # $HOME redirected, so the suite wrote phantom sessions into live state (#222). Assigned, not
@@ -95,7 +115,7 @@ SCRATCH_PROJECT = Path(tempfile.mkdtemp(prefix="ai-badger-project-"))
 # The marker `resolve_project_root` walks up looking for. Without it a *spawned* child —
 # which re-resolves in its own interpreter, where none of this isolation exists — finds no
 # marker and falls back to `script_dir.parents[3]`, landing in `<repo>/features` (#222).
-(SCRATCH_PROJECT / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+_test_write(SCRATCH_PROJECT / ".ai-badger" / "config.json", "{}")
 os.environ[PROJECT_DIR_ENV] = str(SCRATCH_PROJECT)
 
 # session_start_hook and poll_limit detach children with start_new_session=True, so they
@@ -318,6 +338,70 @@ def _real_tracking_state_is_untouched():
             "a suite process wrote task-tracking state outside the scratch project:\n  "
             + "\n  ".join(attributed)
             + f"\n(mtime diff for corroboration: added={added} changed={changed})")
+
+
+# The fs observer: `_test_write` is the gate every test write passes through, and the
+# session fixtures above watch task-tracking specifically. The observer watches the whole
+# tree — anything that still lands in the real checkouts came from production code a test
+# reached, a child interpreter, or an external daemon, and the run should say so.
+_OBSERVER_EXCLUDED_DIRS = {".git", "__pycache__", ".pytest_cache", ".venv", "node_modules"}
+
+
+def _checkout_snapshot(roots=REAL_CHECKOUTS) -> dict:
+    """path -> (mtime_ns, size) for every file under *roots*, bookkeeping excluded.
+
+    mtime_ns + size pairs so that a rewrite in place is seen as a change, not just adds and
+    removals. The excluded dirs are pytest's own (caches, bytecode) and git's — the observer
+    exists for repo content, not for what the run itself generates.
+    """
+    snapshot = {}
+    for base in roots:
+        for dirpath, dirnames, filenames in os.walk(base):
+            dirnames[:] = [d for d in dirnames if d not in _OBSERVER_EXCLUDED_DIRS]
+            for name in filenames:
+                path = Path(dirpath) / name
+                try:
+                    stat = path.stat()
+                except OSError:
+                    continue
+                snapshot[str(path)] = (stat.st_mtime_ns, stat.st_size)
+    return snapshot
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _no_write_lands_in_the_real_checkout():
+    """Report every file the real checkouts gained, lost, or changed during the run.
+
+    The gate (`_test_write`) refuses real-repo paths at the call site, so a change here
+    means a write that did not pass through it. Attributed writes fail (a suite process
+    claimed them); unattributed ones are reported without failing, because a leftover
+    daemon or the resume cron can write into the same tree — the exact split the tracking
+    guard draws, over the whole checkout instead of one directory.
+    """
+
+    def rel(paths) -> list:
+        return sorted(str(p) for p in paths)
+
+    before = _checkout_snapshot()
+    yield
+    after = _checkout_snapshot()
+    added = rel(set(after) - set(before))
+    removed = rel(set(before) - set(after))
+    changed = rel(p for p in set(after) & set(before) if after[p] != before[p])
+    attributed = suite_attributed_writes(REAL_WRITE_LOG)
+
+    if added or removed or changed:
+        print(
+            "\nFS OBSERVER: the real checkout changed during the run — a write bypassed "
+            "_test_write (production code, a child interpreter, or an external daemon):\n"
+            + "\n".join(f"  added    {p}" for p in added)
+            + "\n".join(f"  changed  {p}" for p in changed)
+            + "\n".join(f"  removed  {p}" for p in removed))
+
+    assert not attributed, (
+            "a suite process wrote a file in the real checkout outside the scratch "
+            "project:\n  " + "\n  ".join(attributed)
+            + f"\n(fs observer corroboration: added={added} changed={changed} removed={removed})")
 
 
 def foreign_spawn_offenders(log: Path) -> list:

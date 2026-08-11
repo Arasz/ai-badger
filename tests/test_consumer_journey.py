@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 import scaffold_helpers  # noqa: F401  (path bootstrap, same as the other suites)
+from conftest import _test_write
 
 JOURNEY = "gates/consumer_journey.py"
 
@@ -53,7 +54,7 @@ def test_the_snapshot_records_a_symlink_without_following_it(cj, tmp_path):
     home = tmp_path / "home"
     real = tmp_path / "elsewhere" / "task"
     (real / "nested").mkdir(parents=True)
-    (real / "nested" / "SKILL.md").write_text("# task\n", encoding="utf-8")
+    _test_write(real / "nested" / "SKILL.md", "# task\n", encoding="utf-8")
     _link(home / ".hermes" / "skills" / "proj" / "task", str(real))
 
     shot = cj.snapshot(home)
@@ -85,8 +86,8 @@ def test_the_snapshot_ignores_bytecode(cj, tmp_path):
     home = tmp_path / "home"
     cache = home / ".claude" / "plugins" / "cache" / "ai-badger" / "tooling"
     (cache / "__pycache__").mkdir(parents=True)
-    (cache / "__pycache__" / "validate.cpython-311.pyc").write_bytes(b"\x00")
-    (cache / "validate.py").write_text("x = 1\n", encoding="utf-8")
+    _test_write(cache / "__pycache__" / "validate.cpython-311.pyc", b"\x00")
+    _test_write(cache / "validate.py", "x = 1\n", encoding="utf-8")
 
     assert sorted(cj.snapshot(home)) == [
         ".claude", ".claude/plugins", ".claude/plugins/cache",
@@ -109,8 +110,7 @@ def test_gained_reports_a_file_a_link_and_a_directory_added_at_once(cj, tmp_path
     home.mkdir()
     before = cj.snapshot(home)
     (home / ".hermes" / "plugins" / "ai-badger").mkdir(parents=True)
-    (home / ".hermes" / "plugins" / "ai-badger" / "plugin.yaml").write_text("a\n",
-                                                                           encoding="utf-8")
+    _test_write(home / ".hermes" / "plugins" / "ai-badger" / "plugin.yaml", "a\n", encoding="utf-8")
     (home / ".hermes" / "skills" / "proj").mkdir(parents=True)
     _link(home / ".hermes" / "skills" / "proj" / "task", str(tmp_path / "proj" / "task"))
 
@@ -152,10 +152,10 @@ def test_gained_reports_a_file_whose_content_changed_but_not_its_length(cj, tmp_
     home.mkdir()
     settings = home / ".claude" / "settings.json"
     settings.parent.mkdir()
-    settings.write_text('{"hooks": {"a": 1}}\n', encoding="utf-8")
+    _test_write(settings, '{"hooks": {"a": 1}}\n', encoding="utf-8")
     before = cj.snapshot(home)
 
-    settings.write_text('{"hooks": {"b": 2}}\n', encoding="utf-8")
+    _test_write(settings, '{"hooks": {"b": 2}}\n', encoding="utf-8")
 
     assert [line.split(": ", 1)[0] for line in cj.gained(before, cj.snapshot(home))] == [
         ".claude/settings.json"]

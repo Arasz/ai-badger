@@ -12,6 +12,7 @@ tokens per model is the durable signal, and a reader applies whatever the rates 
 from __future__ import annotations
 
 import json
+from conftest import _test_write
 
 
 SCRIPT = "features/common/skills/task/scripts/tracker_lib.py"
@@ -28,7 +29,7 @@ def _write(path, records):
             message["model"] = model
         lines.append(json.dumps({"type": "assistant", "isSidechain": is_side,
                                  "message": message}))
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _test_write(path, "\n".join(lines) + "\n", encoding="utf-8")
 
 
 class TestUsageIsSplitByModel:

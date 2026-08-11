@@ -9,6 +9,7 @@ is not declared.
 from __future__ import annotations
 
 import pytest
+from conftest import _test_write
 
 DECLARED = "jsonschema>=4.26.0\npyyaml>=6.0.3\n"
 ABSENT = "no_such_distribution_anywhere_xyz"
@@ -20,7 +21,7 @@ def _repo(tmp_path, requirements=DECLARED):
     """A tree the guard can scan: declared dependencies plus the two roots it walks."""
     engine = tmp_path / "engine"
     engine.mkdir()
-    (engine / "requirements.txt").write_text(requirements, encoding="utf-8")
+    _test_write(engine / "requirements.txt", requirements, encoding="utf-8")
     (tmp_path / "features").mkdir()
     return tmp_path
 
@@ -28,7 +29,7 @@ def _repo(tmp_path, requirements=DECLARED):
 def _module(repo, relpath, source):
     path = repo / relpath
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(source, encoding="utf-8")
+    _test_write(path, source, encoding="utf-8")
     return path
 
 

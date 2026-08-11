@@ -12,6 +12,7 @@ the skill documented as unavailable.
 from __future__ import annotations
 
 import json
+from conftest import _test_write
 
 
 SCRIPT = "features/common/skills/task/scripts/tracker_lib.py"
@@ -27,14 +28,14 @@ def _assistant(model, out, inp=0, cr=0, cc=0):
 def _session(tmp_path, session_id, main_records, subagents=()):
     """Lay out a transcript the way Claude Code does: a file plus a sibling directory."""
     transcript = tmp_path / f"{session_id}.jsonl"
-    transcript.write_text("\n".join(main_records) + "\n", encoding="utf-8")
+    _test_write(transcript, "\n".join(main_records) + "\n", encoding="utf-8")
     if subagents:
         sub_dir = tmp_path / session_id / "subagents"
         sub_dir.mkdir(parents=True)
         for name, records, meta in subagents:
-            (sub_dir / f"{name}.jsonl").write_text("\n".join(records) + "\n", encoding="utf-8")
+            _test_write(sub_dir / f"{name}.jsonl", "\n".join(records) + "\n", encoding="utf-8")
             if meta is not None:
-                (sub_dir / f"{name}.meta.json").write_text(json.dumps(meta), encoding="utf-8")
+                _test_write(sub_dir / f"{name}.meta.json", json.dumps(meta), encoding="utf-8")
     return transcript
 
 

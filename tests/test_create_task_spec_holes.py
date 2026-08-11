@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+from conftest import _test_write
 
 SCRIPT = (Path(__file__).resolve().parents[1]
           / "features/common/skills/create-task-spec/scripts/spec_holes.py")
@@ -173,7 +174,7 @@ class TestTheExitCodeIsTheGate:
 
     def _spec(self, tmp_path, body):
         path = tmp_path / "Demo.feature"
-        path.write_text(body, encoding="utf-8")
+        _test_write(path, body, encoding="utf-8")
         return str(path)
 
     def test_an_open_hole_exits_non_zero(self, tmp_path):

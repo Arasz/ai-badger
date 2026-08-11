@@ -10,6 +10,7 @@ import json
 import shutil
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 DRIFT = "features/common/skills/welcome-ai-badger/scripts/drift.py"
 TS_INSTRUCTION = ".ai-badger/instructions/typescript.instructions.md"
@@ -36,8 +37,7 @@ class TestDriftSeesASubtraction:
         drift = load_script(DRIFT)
         fw = tmp_path / "fw"
         (fw / "features" / "ts" / "instructions").mkdir(parents=True)
-        (fw / "features" / "ts" / "instructions" / "typescript.instructions.md").write_text(
-            "ts\n", encoding="utf-8")
+        _test_write(fw / "features" / "ts" / "instructions" / "typescript.instructions.md", "ts\n", encoding="utf-8")
         manifest = _manifest([_entry("ts", "features/ts/instructions/typescript.instructions.md",
                                      TS_INSTRUCTION)])
 
@@ -50,7 +50,7 @@ class TestDriftSeesASubtraction:
         fw = tmp_path / "fw"
         (fw / "features" / "ts" / "instructions").mkdir(parents=True)
         src = fw / "features" / "ts" / "instructions" / "typescript.instructions.md"
-        src.write_text("ts\n", encoding="utf-8")
+        _test_write(src, "ts\n", encoding="utf-8")
         bl = load_script("engine/badger_lib.py")
         manifest = _manifest([_entry("ts", "features/ts/instructions/typescript.instructions.md",
                                      TS_INSTRUCTION, bl.sha256_file(src))])
@@ -65,7 +65,7 @@ class TestDriftSeesASubtraction:
         fw = tmp_path / "fw"
         (fw / "features" / "common" / "invariants").mkdir(parents=True)
         src = fw / "features" / "common" / "invariants" / "x.md"
-        src.write_text("inv\n", encoding="utf-8")
+        _test_write(src, "inv\n", encoding="utf-8")
         bl = load_script("engine/badger_lib.py")
         manifest = _manifest([_entry("common", "features/common/invariants/x.md",
                                      ".ai-badger/invariants/x.md", bl.sha256_file(src),
@@ -80,8 +80,7 @@ class TestDriftSeesASubtraction:
         drift = load_script(DRIFT)
         fw = tmp_path / "fw"
         (fw / "features" / "ts" / "instructions").mkdir(parents=True)
-        (fw / "features" / "ts" / "instructions" / "typescript.instructions.md").write_text(
-            "moved on\n", encoding="utf-8")
+        _test_write(fw / "features" / "ts" / "instructions" / "typescript.instructions.md", "moved on\n", encoding="utf-8")
         manifest = _manifest([_entry("ts", "features/ts/instructions/typescript.instructions.md",
                                      TS_INSTRUCTION, "stale-hash")])
 
@@ -98,7 +97,7 @@ class TestDriftSeesASubtraction:
         fw = tmp_path / "fw"
         (fw / "features" / "copilot" / "templates").mkdir(parents=True)
         src = fw / "features" / "copilot" / "templates" / "copilot-instructions.md.tmpl"
-        src.write_text("copilot\n", encoding="utf-8")
+        _test_write(src, "copilot\n", encoding="utf-8")
         manifest = _manifest([_entry("copilot",
                                      "features/copilot/templates/copilot-instructions.md.tmpl",
                                      ".github/copilot-instructions.md", bl.sha256_file(src),
@@ -122,7 +121,7 @@ class TestDriftSeesASubtraction:
         fw = tmp_path / "fw"
         (fw / "features" / "ts" / "instructions").mkdir(parents=True)
         src = fw / "features" / "ts" / "instructions" / "typescript.instructions.md"
-        src.write_text("ts\n", encoding="utf-8")
+        _test_write(src, "ts\n", encoding="utf-8")
         bl = load_script("engine/badger_lib.py")
         manifest = _manifest([_entry("ts", "features/ts/instructions/typescript.instructions.md",
                                      TS_INSTRUCTION, bl.sha256_file(src))])
@@ -162,7 +161,7 @@ class TestTheReScaffoldPrunesTheOrphan:
         """Only what ai-badger placed and the project never touched may be removed."""
         target, _ = _scaffolded(make_scaffolder, _config(stacks=["python", "ts"]))
         edited = target / TS_INSTRUCTION
-        edited.write_text("# ours now\n", encoding="utf-8")
+        _test_write(edited, "# ours now\n", encoding="utf-8")
 
         _, result = _scaffolded(make_scaffolder, _config(stacks=["python"]))
 
@@ -184,7 +183,7 @@ def _inject_entry(target, entry):
     manifest_path = target / ".ai-badger" / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["entries"].append(entry)
-    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    _test_write(manifest_path, json.dumps(manifest), encoding="utf-8")
 
 
 class TestTheFrameworkDroppedTheItem:
@@ -195,7 +194,7 @@ class TestTheFrameworkDroppedTheItem:
         bl = load_script("engine/badger_lib.py")
         target, _ = _scaffolded(make_scaffolder, _config(stacks=["python"]))
         gone = target / ".ai-badger" / "invariants" / "gone.md"
-        gone.write_text("# Gone\n\nNo longer in the catalog.\n", encoding="utf-8")
+        _test_write(gone, "# Gone\n\nNo longer in the catalog.\n", encoding="utf-8")
         _inject_entry(target, _entry(
             "common", "features/common/invariants/gone.md", ".ai-badger/invariants/gone.md",
             entry_hash=bl.sha256_file(gone), feature="invariants", name="gone"))
@@ -209,11 +208,11 @@ class TestTheFrameworkDroppedTheItem:
         bl = load_script("engine/badger_lib.py")
         target, _ = _scaffolded(make_scaffolder, _config(stacks=["python"]))
         gone = target / ".ai-badger" / "invariants" / "gone.md"
-        gone.write_text("# Gone\n\nNo longer in the catalog.\n", encoding="utf-8")
+        _test_write(gone, "# Gone\n\nNo longer in the catalog.\n", encoding="utf-8")
         _inject_entry(target, _entry(
             "common", "features/common/invariants/gone.md", ".ai-badger/invariants/gone.md",
             entry_hash=bl.sha256_file(gone), feature="invariants", name="gone"))
-        gone.write_text("# Gone\n\nEdited by the project.\n", encoding="utf-8")
+        _test_write(gone, "# Gone\n\nEdited by the project.\n", encoding="utf-8")
 
         _, result = _scaffolded(make_scaffolder, _config(stacks=["python"]))
 
@@ -261,7 +260,7 @@ def _catalog_dropped_skill(target, skill_name):
         source = entry.get("source", "")
         if marker in source:
             entry["source"] = source.replace(marker, f"{marker}-deleted-upstream")
-    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    _test_write(manifest_path, json.dumps(manifest), encoding="utf-8")
 
 
 class TestARemovedSkillTakesItsDirectory:
@@ -297,7 +296,7 @@ class TestARemovedSkillTakesItsDirectory:
         target, _ = _scaffolded(make_scaffolder, config,
                                 skills=["task", "call-behaviorist"])
         edited = target / BEHAVIORIST / "SKILL.md"
-        edited.write_text("# ours now\n", encoding="utf-8")
+        _test_write(edited, "# ours now\n", encoding="utf-8")
         _catalog_dropped_skill(target, "call-behaviorist")
 
         _, result = _scaffolded(make_scaffolder, config, skills=["task"])
@@ -346,7 +345,7 @@ class TestARemovedSkillTakesItsDirectory:
         target, _ = _scaffolded(make_scaffolder, config,
                                 skills=["task", "call-behaviorist"])
         local = target / BEHAVIORIST / "project-local.md"
-        local.write_text("## Ours\n\nProject rule.\n", encoding="utf-8")
+        _test_write(local, "## Ours\n\nProject rule.\n", encoding="utf-8")
         # Re-scaffolded so the recorded hash covers it: an unrecorded file already reads as an
         # edit, and this must hold for one the manifest knows about.
         _scaffolded(make_scaffolder, config, skills=["task", "call-behaviorist"])
@@ -363,7 +362,7 @@ class TestARemovedSkillTakesItsDirectory:
         target, _ = _scaffolded(make_scaffolder, config, skills=["task"])
         extension = target / ".ai-badger" / "skills" / "task" / "extensions" / "claude" \
             / "extension.md"
-        extension.write_text("# ours now\n", encoding="utf-8")
+        _test_write(extension, "# ours now\n", encoding="utf-8")
         _catalog_dropped_skill(target, "task")
 
         _scaffolded(make_scaffolder, config, skills=[])

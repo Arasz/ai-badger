@@ -12,6 +12,7 @@ import shutil
 from pathlib import Path
 
 import yaml
+from conftest import _test_write
 
 ADJUSTER = "features/copilot/adjustments/adjust_agents.py"
 AGENTS_DIR = Path(".github") / "agents"
@@ -38,7 +39,7 @@ def _persona(fw: Path, stack: str, name: str, text: str) -> dict:
     rel = f"features/{stack}/personas/{name}.md"
     path = fw / rel
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    _test_write(path, text, encoding="utf-8")
     return {"name": name, "path": rel}
 
 
@@ -167,9 +168,9 @@ def test_a_stale_agent_file_from_a_prior_run_is_removed(tmp_path, load_script):
     target = _proj(tmp_path)
     stale = target / AGENTS_DIR / "dotnet-engineer.agent.md"
     stale.parent.mkdir(parents=True)
-    stale.write_text("stale\n", encoding="utf-8")
+    _test_write(stale, "stale\n", encoding="utf-8")
     (target / ".ai-badger").mkdir()
-    (target / ".ai-badger" / "manifest.json").write_text(json.dumps({"entries": [{
+    _test_write(target / ".ai-badger" / "manifest.json", json.dumps({"entries": [{
         "feature": "adjustments", "stack": "copilot",
         "name": "adjustments/.github/agents/dotnet-engineer.agent.md",
         "source": "features/copilot/adjustments/adjust_agents.py",
@@ -191,7 +192,7 @@ def test_an_agent_file_the_manifest_does_not_own_is_left_alone(tmp_path, load_sc
     target = _proj(tmp_path)
     mine = target / AGENTS_DIR / "my-own.agent.md"
     mine.parent.mkdir(parents=True)
-    mine.write_text("hand-authored\n", encoding="utf-8")
+    _test_write(mine, "hand-authored\n", encoding="utf-8")
 
     adjust_agents.adjust(_context(fw, target, [item]))
 
@@ -223,16 +224,15 @@ def _fake_framework(tmp_path: Path, root: Path, personas, exclude=None) -> dict:
         _persona(tmp_path, stack, name, PERSONA_PLAIN)
     adjustments = tmp_path / "features" / "copilot" / "adjustments"
     adjustments.mkdir(parents=True, exist_ok=True)
-    (adjustments / "adjustment.json").write_text(json.dumps({"agent": "copilot", "adjustments": [
-        {"feature": "agents", "description": "personas", "script": "adjust_agents.py"}]}),
-        encoding="utf-8")
+    _test_write(adjustments / "adjustment.json", json.dumps({"agent": "copilot", "adjustments": [
+        {"feature": "agents", "description": "personas", "script": "adjust_agents.py"}]}), encoding="utf-8")
     shutil.copyfile(root / ADJUSTER, adjustments / "adjust_agents.py")
 
     index = {"frameworkVersion": "0.1.0", "stacks": {}}
     for stack, name in personas:
         index["stacks"].setdefault(stack, {}).setdefault("personas", []).append(
             {"name": name, "path": f"features/{stack}/personas/{name}.md"})
-    (tmp_path / "index.json").write_text(json.dumps(index), encoding="utf-8")
+    _test_write(tmp_path / "index.json", json.dumps(index), encoding="utf-8")
 
     config = {
         "$schema": "./schemas/config.schema.json",

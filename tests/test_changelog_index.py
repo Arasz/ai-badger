@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 WIRING = (".pre-commit-config.yaml", ".lefthook/pre-push/verify.sh",
           ".github/workflows/pylint.yml")
@@ -20,21 +21,18 @@ def changelog_index(load_script):
 def _readme(directory: Path, body: str = "") -> Path:
     """A minimal README carrying the generated region between its markers."""
     path = directory / "README.md"
-    path.write_text(
-        "# Changelog\n\nprose above\n\n"
+    _test_write(path, "# Changelog\n\nprose above\n\n"
         "<!-- changelog-index:start -->\n"
         f"{body}"
         "<!-- changelog-index:end -->\n\n"
-        "prose below\n",
-        encoding="utf-8",
-    )
+        "prose below\n", encoding="utf-8")
     return path
 
 
 def _entry(directory: Path, name: str, h1: str, body: str = "") -> Path:
     path = directory / name
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"# {h1}\n\n{body}", encoding="utf-8")
+    _test_write(path, f"# {h1}\n\n{body}", encoding="utf-8")
     return path
 
 
@@ -198,7 +196,7 @@ def test_check_fails_when_the_markers_are_missing(changelog_index, tmp_path, cap
     """Without the region there is nothing to generate into; that is a failure, not a pass."""
     root = _tree(tmp_path)
     directory = root / "docs" / "changelog"
-    (directory / "README.md").write_text("# Changelog\n\nno markers here\n", encoding="utf-8")
+    _test_write(directory / "README.md", "# Changelog\n\nno markers here\n", encoding="utf-8")
     _entry(directory, "0.1.0-a-thing.md", "0.1.0 — a thing")
 
     rc = changelog_index.main(["--root", str(root), "--check"])
@@ -210,8 +208,7 @@ def test_check_fails_when_the_markers_are_missing(changelog_index, tmp_path, cap
 def test_an_entry_with_no_h1_is_reported_rather_than_indexed_blank(changelog_index, tmp_path,
                                                                   capsys):
     root = _tree(tmp_path)
-    (root / "docs" / "changelog" / "0.1.0-a-thing.md").write_text("no heading\n",
-                                                                  encoding="utf-8")
+    _test_write(root / "docs" / "changelog" / "0.1.0-a-thing.md", "no heading\n", encoding="utf-8")
 
     rc = changelog_index.main(["--root", str(root)])
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from conftest import _test_write
 
 
 def _copy_real_schemas(tmp_path, root):
@@ -16,7 +17,7 @@ def _write_hooks_manifest(tmp_path):
     """A complete manifest: since 0.88.4 a tree with no hooks-manifest.json fails --all."""
     d = tmp_path / "features" / "common" / "hooks"
     d.mkdir(parents=True, exist_ok=True)
-    (d / "hooks-manifest.json").write_text(json.dumps({"hooks": [
+    _test_write(d / "hooks-manifest.json", json.dumps({"hooks": [
         {"name": "demo-hook", "agents": {
             agent: {"type": "hooks-json", "entry": "hooks.json", "event": "SessionStart",
                     "script": "demo_hook.py"}
@@ -30,7 +31,7 @@ def test_kind_config_valid_instance_returns_zero(tmp_path, root, load_script, ca
     agent named is one the catalog ships, which a stub tree of copied schemas cannot answer."""
     validate = load_script("tooling/validate.py")
     instance = tmp_path / "config.json"
-    instance.write_text(json.dumps({
+    _test_write(instance, json.dumps({
         "$schema": "./schemas/config.schema.json",
         "frameworkVersion": "0.1.0",
         "project": {"name": "p", "summary": "s", "domain": "d"},
@@ -53,7 +54,7 @@ def test_kind_config_invalid_instance_returns_one(tmp_path, root, load_script, c
     validate = load_script("tooling/validate.py")
     fake_root = _copy_real_schemas(tmp_path, root)
     instance = tmp_path / "config.json"
-    instance.write_text(json.dumps({"not": "a valid config"}), encoding="utf-8")
+    _test_write(instance, json.dumps({"not": "a valid config"}), encoding="utf-8")
 
     rc = validate.main(["--kind", "config", "--root", str(fake_root), str(instance)])
 
@@ -65,9 +66,9 @@ def test_kind_config_invalid_instance_returns_one(tmp_path, root, load_script, c
 def test_explicit_schema_path_is_used_over_kind(tmp_path, load_script, capsys):
     validate = load_script("tooling/validate.py")
     schema_path = tmp_path / "s.schema.json"
-    schema_path.write_text(json.dumps({"type": "object", "required": ["x"]}), encoding="utf-8")
+    _test_write(schema_path, json.dumps({"type": "object", "required": ["x"]}), encoding="utf-8")
     instance = tmp_path / "i.json"
-    instance.write_text(json.dumps({"x": 1}), encoding="utf-8")
+    _test_write(instance, json.dumps({"x": 1}), encoding="utf-8")
 
     rc = validate.main(["--schema", str(schema_path), str(instance)])
 
@@ -88,7 +89,7 @@ def test_missing_instance_and_missing_all_flag_is_a_usage_error(load_script):
 def test_instance_without_schema_or_kind_is_a_usage_error(tmp_path, load_script):
     validate = load_script("tooling/validate.py")
     instance = tmp_path / "i.json"
-    instance.write_text("{}", encoding="utf-8")
+    _test_write(instance, "{}", encoding="utf-8")
 
     import pytest
     with pytest.raises(SystemExit) as exc_info:
@@ -113,7 +114,7 @@ def test_all_flag_reports_invalid_when_a_skills_source_fails_its_schema(tmp_path
     skills_dir = fake_root / "features" / "dotnet" / "skills"
     skills_dir.mkdir(parents=True)
     ss = fake_root / "features" / "dotnet" / "skills-source.json"
-    ss.write_text(json.dumps({"not": "matching the schema"}), encoding="utf-8")
+    _test_write(ss, json.dumps({"not": "matching the schema"}), encoding="utf-8")
 
     rc = validate.main(["--all", "--root", str(fake_root)])
 
@@ -137,8 +138,7 @@ def test_all_validates_stack_mcp_and_stack_json(tmp_path, root, load_script, cap
     validate = load_script("tooling/validate.py")
     fake_root = _copy_real_schemas(tmp_path, root)
     (fake_root / "features" / "dotnet").mkdir(parents=True)
-    (fake_root / "features" / "dotnet" / "stack-mcp.json").write_text(
-        json.dumps({"servers": "not a list"}), encoding="utf-8")
+    _test_write(fake_root / "features" / "dotnet" / "stack-mcp.json", json.dumps({"servers": "not a list"}), encoding="utf-8")
 
     rc = validate.main(["--all", "--root", str(fake_root)])
 
@@ -151,8 +151,7 @@ def test_all_validates_the_agent_capability_matrix(tmp_path, root, load_script, 
     validate = load_script("tooling/validate.py")
     fake_root = _copy_real_schemas(tmp_path, root)
     (fake_root / "features" / "common").mkdir(parents=True, exist_ok=True)
-    (fake_root / "features" / "common" / "support.json").write_text(
-        json.dumps({"description": "d", "agents": {"claude": {"name": "c"}}}), encoding="utf-8")
+    _test_write(fake_root / "features" / "common" / "support.json", json.dumps({"description": "d", "agents": {"claude": {"name": "c"}}}), encoding="utf-8")
 
     rc = validate.main(["--all", "--root", str(fake_root)])
 
@@ -165,8 +164,7 @@ def test_all_validates_stack_descriptors(tmp_path, root, load_script, capsys):
     validate = load_script("tooling/validate.py")
     fake_root = _copy_real_schemas(tmp_path, root)
     (fake_root / "features" / "python").mkdir(parents=True)
-    (fake_root / "features" / "python" / "stack.json").write_text(
-        json.dumps({"nope": True}), encoding="utf-8")
+    _test_write(fake_root / "features" / "python" / "stack.json", json.dumps({"nope": True}), encoding="utf-8")
 
     rc = validate.main(["--all", "--root", str(fake_root)])
 
@@ -240,8 +238,7 @@ def test_a_relative_link_in_an_inlined_catalog_body_is_a_violation(tmp_path, roo
     validate = load_script("tooling/validate.py")
     d = tmp_path / "features" / "demo" / "invariants"
     d.mkdir(parents=True)
-    (d / "rule.md").write_text(
-        "# A rule\n\nSee [the other one](../../common/invariants/other.md).\n", encoding="utf-8")
+    _test_write(d / "rule.md", "# A rule\n\nSee [the other one](../../common/invariants/other.md).\n", encoding="utf-8")
 
     gaps = validate.inlined_relative_links(tmp_path)
 
@@ -253,8 +250,7 @@ def test_an_absolute_url_in_an_inlined_catalog_body_is_allowed(tmp_path, load_sc
     validate = load_script("tooling/validate.py")
     d = tmp_path / "features" / "demo" / "invariants"
     d.mkdir(parents=True)
-    (d / "rule.md").write_text(
-        "# A rule\n\nSee [the docs](https://example.com/x.md).\n", encoding="utf-8")
+    _test_write(d / "rule.md", "# A rule\n\nSee [the docs](https://example.com/x.md).\n", encoding="utf-8")
 
     assert validate.inlined_relative_links(tmp_path) == []
 
@@ -270,8 +266,7 @@ def test_a_relative_link_in_an_mcp_body_is_a_violation_too(tmp_path, load_script
     validate = load_script("tooling/validate.py")
     d = tmp_path / "features" / "common" / "mcp" / "demo"
     d.mkdir(parents=True)
-    (d / "server.md").write_text("## Demo\n\nSee [setup](../../../docs/setup.md).\n",
-                                 encoding="utf-8")
+    _test_write(d / "server.md", "## Demo\n\nSee [setup](../../../docs/setup.md).\n", encoding="utf-8")
 
     gaps = validate.inlined_relative_links(tmp_path)
 

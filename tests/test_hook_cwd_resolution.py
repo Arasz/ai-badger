@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 ROOT = Path(__file__).resolve().parents[1]
 HOOKS_PATH = ROOT / "features" / "common" / "hooks" / "ai_badger_hooks.py"
@@ -39,13 +40,12 @@ def _scaffolded_project(tmp_path: Path, framework_version: str = "0.0.1") -> Pat
     project = tmp_path / "proj"
     aib = project / ".ai-badger"
     aib.mkdir(parents=True)
-    (aib / "manifest.json").write_text(
-        json.dumps({"frameworkVersion": framework_version, "entries": []}), encoding="utf-8")
+    _test_write(aib / "manifest.json", json.dumps({"frameworkVersion": framework_version, "entries": []}), encoding="utf-8")
     return project
 
 
 def _with_index(project: Path) -> Path:
-    (project / ".ai-badger" / "mcp-tools.json").write_text(json.dumps({
+    _test_write(project / ".ai-badger" / "mcp-tools.json", json.dumps({
         "version": "0.1.0",
         "sources": [{
             "name": "rider",
@@ -143,7 +143,7 @@ def test_post_tool_observer_finds_the_index_when_hermes_sends_no_cwd(
                        ("AUDIT_FILE", "debug/audit.jsonl")):
         monkeypatch.setattr(dl, attr, tmp_path / name)
     dl.DEBUG_DIR.mkdir(parents=True, exist_ok=True)
-    dl.STATE_FILE.write_text(json.dumps({
+    _test_write(dl.STATE_FILE, json.dumps({
         "enabled": True, "scope": "user", "project": None,
         "expires_at": dl.iso(dl.now() + dl.timedelta(seconds=3600)),
     }), encoding="utf-8")

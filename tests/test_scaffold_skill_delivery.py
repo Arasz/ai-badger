@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 SCRIPTS = "features/common/skills/welcome-ai-badger/scripts"
 
@@ -86,7 +87,7 @@ def test_skill_delivery_preserves_a_project_owned_seed_once_file(tmp_path, load_
     delivery, ctx = _delivery(load_script, root, tmp_path / "proj", skills=("prompt-markers",))
     delivery.scaffold_skills()
     marker = ctx.aib / "skills" / "prompt-markers" / "markers-context.json"
-    marker.write_text('{"mine": true}\n', encoding="utf-8")
+    _test_write(marker, '{"mine": true}\n', encoding="utf-8")
 
     delivery.scaffold_skills()
 
@@ -163,7 +164,7 @@ def test_the_hermes_relink_stays_reachable_where_its_callers_look(tmp_path, load
     target = tmp_path / "proj"
     skill = target / ".ai-badger" / "skills" / "task"
     skill.mkdir(parents=True)
-    (skill / "SKILL.md").write_text("# task\n", encoding="utf-8")
+    _test_write(skill / "SKILL.md", "# task\n", encoding="utf-8")
     home = tmp_path / "home"
     home.mkdir()
 

@@ -6,6 +6,7 @@ import re
 import pytest
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 
 def _sole_index(content, anchor):
@@ -128,7 +129,7 @@ def test_code_review_checklist_roundtrip_reconstructs_original(make_scaffolder):
 
     # Write project-local.md with the incident lessons from the original skill
     project_local = target / ".ai-badger" / "skills" / skill_name / "project-local.md"
-    project_local.write_text("""
+    _test_write(project_local, """
 ## Phase 10: Incident Lessons (Project-Specific)
 
 ### 10.1 DI Registration Crash (2026-07-24)

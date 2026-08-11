@@ -14,6 +14,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 # `features` and `.lefthook` hold every raw call there has ever been; the first three hold
 # none. A scope that covers only the clean directories cannot report the defect it exists for.
@@ -115,7 +116,7 @@ def test_run_git_answers_for_the_directory_it_was_given_not_the_exported_one(
     """The failure in one line: with GIT_DIR exported, a subdirectory becomes its own root."""
     bl = load_script("engine/badger_lib.py")
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
-    (tmp_path / ".gitignore").write_text("build/\n", encoding="utf-8")
+    _test_write(tmp_path / ".gitignore", "build/\n", encoding="utf-8")
     nested = tmp_path / "pkg" / "build"
     nested.mkdir(parents=True)
     monkeypatch.setenv("GIT_DIR", str(tmp_path / ".git"))
@@ -146,8 +147,7 @@ def test_the_scanner_sees_every_spelling_of_a_raw_git_call(tmp_path, shape):
     dropped into gates/, which the whole-tree test passed with.
     """
     probe = tmp_path / "probe.py"
-    probe.write_text(f"import subprocess\n\n\ndef stray(d):\n    {BYPASSES[shape]}\n",
-                     encoding="utf-8")
+    _test_write(probe, f"import subprocess\n\n\ndef stray(d):\n    {BYPASSES[shape]}\n", encoding="utf-8")
 
     assert [name for name, _ in _git_calls(tmp_path, "probe.py")] == ["stray"]
 
@@ -164,7 +164,7 @@ NOT_A_STRIP = {
 def test_an_env_that_is_not_the_strip_is_still_a_stray(tmp_path, shape):
     """`env=` alone proves nothing: `env=os.environ` passes GIT_DIR straight through."""
     probe = tmp_path / "probe.py"
-    probe.write_text(f"import os\nimport subprocess\n\n\ndef stray():\n"
+    _test_write(probe, f"import os\nimport subprocess\n\n\ndef stray():\n"
                      f"    {NOT_A_STRIP[shape]}\n", encoding="utf-8")
 
     assert [name for name, _ in _git_calls(tmp_path, "probe.py")] == ["stray"]
@@ -181,7 +181,7 @@ STRIPPED = {
 def test_a_spawn_that_strips_gits_env_is_not_a_stray(tmp_path, shape):
     """Otherwise a shipped script could only comply by importing a framework it may not have."""
     probe = tmp_path / "probe.py"
-    probe.write_text(f"import os\nimport subprocess\n\n\ndef fine():\n"
+    _test_write(probe, f"import os\nimport subprocess\n\n\ndef fine():\n"
                      f"    {STRIPPED[shape]}\n", encoding="utf-8")
 
     assert list(_git_calls(tmp_path, "probe.py")) == []
@@ -232,7 +232,7 @@ def test_every_standalone_git_env_drops_the_same_names(rel, load_script):
 def test_the_scanner_ignores_a_spawn_that_is_not_git(tmp_path):
     """Otherwise the whole-tree test above would fail on every subprocess in the repo."""
     probe = tmp_path / "probe.py"
-    probe.write_text('import subprocess\n\n\ndef fine(d):\n'
+    _test_write(probe, 'import subprocess\n\n\ndef fine(d):\n'
                      '    subprocess.Popen(["python3", "-c", "pass"])\n', encoding="utf-8")
 
     assert list(_git_calls(tmp_path, "probe.py")) == []

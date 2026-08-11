@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 COMPONENT = "ai_badger_hooks/mcp_retrieval"
 
@@ -25,7 +26,7 @@ COMPONENT = "ai_badger_hooks/mcp_retrieval"
 def _write_index(project: Path, data: dict) -> None:
     aib = project / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
-    (aib / "mcp-tools.json").write_text(json.dumps(data), encoding="utf-8")
+    _test_write(aib / "mcp-tools.json", json.dumps(data), encoding="utf-8")
 
 
 def _sample_index() -> dict:
@@ -68,7 +69,7 @@ def _enable(dl, tmp_path, monkeypatch):
     dl.DEBUG_DIR.mkdir(parents=True, exist_ok=True)
     state = {"enabled": True, "scope": "user", "project": None,
               "expires_at": dl.iso(dl.now() + dl.timedelta(seconds=3600))}
-    dl.STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
+    _test_write(dl.STATE_FILE, json.dumps(state), encoding="utf-8")
     monkeypatch.delenv(dl.DEBUG_ENV, raising=False)
     monkeypatch.delenv(dl.REDACT_ENV, raising=False)
 
@@ -211,7 +212,7 @@ class TestLegacyIndexIsDistinguishableFromAbsent:
         project = tmp_path / "proj"
         aib = project / ".ai-badger"
         aib.mkdir(parents=True)
-        (aib / "mcp-tools.yaml").write_text("sources: []\n", encoding="utf-8")
+        _test_write(aib / "mcp-tools.yaml", "sources: []\n", encoding="utf-8")
 
         hooks.pre_llm_inject_context(cwd=str(project), message="build the solution")
 

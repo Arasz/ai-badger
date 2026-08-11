@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from conftest import _test_write
 
 
 def _index(stacks: dict) -> dict:
@@ -27,7 +28,7 @@ def _stack(detection_signals=None, requires=None) -> dict:
 def test_detect_stacks_matches_data_driven_glob_signal(tmp_path, load_script):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = _index({"widget": _stack(detection_signals=["*.widget"])})
-    (tmp_path / "thing.widget").write_text("x", encoding="utf-8")
+    _test_write(tmp_path / "thing.widget", "x", encoding="utf-8")
 
     assert detect.detect_stacks(tmp_path, index) == ["widget"]
 
@@ -35,7 +36,7 @@ def test_detect_stacks_matches_data_driven_glob_signal(tmp_path, load_script):
 def test_detect_stacks_no_match_when_signal_absent(tmp_path, load_script):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = _index({"widget": _stack(detection_signals=["*.widget"])})
-    (tmp_path / "unrelated.txt").write_text("x", encoding="utf-8")
+    _test_write(tmp_path / "unrelated.txt", "x", encoding="utf-8")
 
     assert detect.detect_stacks(tmp_path, index) == []
 
@@ -43,7 +44,7 @@ def test_detect_stacks_no_match_when_signal_absent(tmp_path, load_script):
 def test_detect_stacks_skips_common_stack(tmp_path, load_script):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = _index({"common": _stack(detection_signals=["*.md"])})
-    (tmp_path / "README.md").write_text("x", encoding="utf-8")
+    _test_write(tmp_path / "README.md", "x", encoding="utf-8")
 
     # "common" is always scaffolded separately by scaffold.py; detect_stacks must not report it
     assert detect.detect_stacks(tmp_path, index) == []
@@ -53,7 +54,7 @@ def test_detect_stacks_prose_signals_with_spaces_are_not_used_as_globs(tmp_path,
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     # a prose-only signal (contains spaces) can never match a file glob; must not error or match
     index = _index({"widget": _stack(detection_signals=["widget usage present"])})
-    (tmp_path / "widget usage present").write_text("x", encoding="utf-8")
+    _test_write(tmp_path / "widget usage present", "x", encoding="utf-8")
 
     assert detect.detect_stacks(tmp_path, index) == []
 
@@ -65,7 +66,7 @@ def test_detect_stacks_ignores_claude_dir_python_scripts(tmp_path, load_script, 
 
     scripts_dir = tmp_path / ".claude" / "skills" / "task" / "scripts"
     scripts_dir.mkdir(parents=True)
-    (scripts_dir / "tracker.py").write_text("# agent tooling\n", encoding="utf-8")
+    _test_write(scripts_dir / "tracker.py", "# agent tooling\n", encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -81,10 +82,10 @@ def test_detect_stacks_ignores_ai_badger_dir_python_scripts(tmp_path, load_scrip
 
     scripts_dir = tmp_path / ".ai-badger" / "skills" / "task" / "scripts"
     scripts_dir.mkdir(parents=True)
-    (scripts_dir / "tracker_lib.py").write_text("# agent tooling\n", encoding="utf-8")
+    _test_write(scripts_dir / "tracker_lib.py", "# agent tooling\n", encoding="utf-8")
     markers_dir = tmp_path / ".ai-badger" / "skills" / "prompt-markers" / "scripts"
     markers_dir.mkdir(parents=True)
-    (markers_dir / "markers.py").write_text("# agent tooling\n", encoding="utf-8")
+    _test_write(markers_dir / "markers.py", "# agent tooling\n", encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -99,10 +100,10 @@ def test_detect_stacks_ignores_the_refresh_backup_directory(tmp_path, load_scrip
 
     bckp_scripts = tmp_path / ".ai-badger.bckp" / "skills" / "maintain-agent-instructions" / "scripts"
     bckp_scripts.mkdir(parents=True)
-    (bckp_scripts / "check-agent-drift.mjs").write_text("// agent tooling\n", encoding="utf-8")
+    _test_write(bckp_scripts / "check-agent-drift.mjs", "// agent tooling\n", encoding="utf-8")
     bckp_py = tmp_path / ".ai-badger.bckp" / "skills" / "task" / "scripts"
     bckp_py.mkdir(parents=True)
-    (bckp_py / "tracker_lib.py").write_text("# agent tooling\n", encoding="utf-8")
+    _test_write(bckp_py / "tracker_lib.py", "# agent tooling\n", encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -115,11 +116,11 @@ def test_detect_stacks_ignores_node_modules_and_venv_contents(tmp_path, load_scr
 
     nm = tmp_path / "node_modules" / "some-pkg"
     nm.mkdir(parents=True)
-    (nm / "setup.cfg").write_text("[metadata]\n", encoding="utf-8")
+    _test_write(nm / "setup.cfg", "[metadata]\n", encoding="utf-8")
 
     venv = tmp_path / ".venv" / "lib" / "site-packages"
     venv.mkdir(parents=True)
-    (venv / "requirements.txt").write_text("foo==1.0\n", encoding="utf-8")
+    _test_write(venv / "requirements.txt", "foo==1.0\n", encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -145,7 +146,7 @@ def test_detect_stacks_python_via_pyproject_toml(tmp_path, load_script, root):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
 
-    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
+    _test_write(tmp_path / "pyproject.toml", "[project]\nname = 'x'\n", encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -156,7 +157,7 @@ def test_detect_stacks_dotnet_via_csproj(tmp_path, load_script, root):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
 
-    (tmp_path / "App.csproj").write_text("<Project />", encoding="utf-8")
+    _test_write(tmp_path / "App.csproj", "<Project />", encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -169,7 +170,7 @@ def test_detect_stacks_changelog_via_versioned_changelog_tree(tmp_path, load_scr
     index = detect.bl.read_index(root)
 
     (tmp_path / "docs" / "changelog").mkdir(parents=True)
-    (tmp_path / "docs" / "changelog" / "0.1.0-x.md").write_text("x\n", encoding="utf-8")
+    _test_write(tmp_path / "docs" / "changelog" / "0.1.0-x.md", "x\n", encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -180,7 +181,7 @@ def test_detect_stacks_no_changelog_without_the_tree(tmp_path, load_script, root
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
 
-    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
+    _test_write(tmp_path / "pyproject.toml", "[project]\nname = 'x'\n", encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -191,8 +192,7 @@ def test_detect_stacks_no_changelog_without_the_tree(tmp_path, load_script, root
 def test_detect_stacks_react_via_package_json_dependency(tmp_path, load_script, root):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
-    (tmp_path / "package.json").write_text(
-        json.dumps({"dependencies": {"react": "^18.0.0"}}), encoding="utf-8")
+    _test_write(tmp_path / "package.json", json.dumps({"dependencies": {"react": "^18.0.0"}}), encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -202,8 +202,7 @@ def test_detect_stacks_react_via_package_json_dependency(tmp_path, load_script, 
 def test_detect_stacks_ts_via_package_json_dev_dependency(tmp_path, load_script, root):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
-    (tmp_path / "package.json").write_text(
-        json.dumps({"devDependencies": {"typescript": "^5.0.0"}}), encoding="utf-8")
+    _test_write(tmp_path / "package.json", json.dumps({"devDependencies": {"typescript": "^5.0.0"}}), encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -213,8 +212,7 @@ def test_detect_stacks_ts_via_package_json_dev_dependency(tmp_path, load_script,
 def test_detect_stacks_angular_via_scoped_dependency(tmp_path, load_script, root):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
-    (tmp_path / "package.json").write_text(
-        json.dumps({"dependencies": {"@angular/core": "^17.0.0"}}), encoding="utf-8")
+    _test_write(tmp_path / "package.json", json.dumps({"dependencies": {"@angular/core": "^17.0.0"}}), encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -224,7 +222,7 @@ def test_detect_stacks_angular_via_scoped_dependency(tmp_path, load_script, root
 def test_detect_stacks_angular_via_angular_json_presence(tmp_path, load_script, root):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
-    (tmp_path / "angular.json").write_text("{}", encoding="utf-8")
+    _test_write(tmp_path / "angular.json", "{}", encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -234,8 +232,7 @@ def test_detect_stacks_angular_via_angular_json_presence(tmp_path, load_script, 
 def test_detect_stacks_cosmos_via_package_json_dependency(tmp_path, load_script, root):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
-    (tmp_path / "package.json").write_text(
-        json.dumps({"dependencies": {"@azure/cosmos": "^4.0.0"}}), encoding="utf-8")
+    _test_write(tmp_path / "package.json", json.dumps({"dependencies": {"@azure/cosmos": "^4.0.0"}}), encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -245,8 +242,7 @@ def test_detect_stacks_cosmos_via_package_json_dependency(tmp_path, load_script,
 def test_detect_stacks_cosmos_via_csproj_content(tmp_path, load_script, root):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
-    (tmp_path / "App.csproj").write_text(
-        '<Project><ItemGroup><PackageReference Include="Microsoft.Azure.Cosmos" /></ItemGroup>'
+    _test_write(tmp_path / "App.csproj", '<Project><ItemGroup><PackageReference Include="Microsoft.Azure.Cosmos" /></ItemGroup>'
         "</Project>", encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
@@ -257,8 +253,7 @@ def test_detect_stacks_cosmos_via_csproj_content(tmp_path, load_script, root):
 def test_detect_stacks_azure_via_dependency_name_substring(tmp_path, load_script, root):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
-    (tmp_path / "package.json").write_text(
-        json.dumps({"dependencies": {"@azure/functions": "^4.0.0"}}), encoding="utf-8")
+    _test_write(tmp_path / "package.json", json.dumps({"dependencies": {"@azure/functions": "^4.0.0"}}), encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -273,8 +268,7 @@ def test_detect_stacks_angular_via_package_json_in_subdirectory(tmp_path, load_s
     index = detect.bl.read_index(root)
     frontend = tmp_path / "frontend"
     frontend.mkdir()
-    (frontend / "package.json").write_text(
-        json.dumps({"dependencies": {"@angular/core": "^17.0.0"}}), encoding="utf-8")
+    _test_write(frontend / "package.json", json.dumps({"dependencies": {"@angular/core": "^17.0.0"}}), encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -286,7 +280,7 @@ def test_detect_stacks_angular_via_angular_json_in_subdirectory(tmp_path, load_s
     index = detect.bl.read_index(root)
     frontend = tmp_path / "frontend"
     frontend.mkdir()
-    (frontend / "angular.json").write_text("{}", encoding="utf-8")
+    _test_write(frontend / "angular.json", "{}", encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -300,8 +294,7 @@ def test_detect_stacks_react_via_package_json_in_subdirectory(tmp_path, load_scr
     index = detect.bl.read_index(root)
     frontend = tmp_path / "frontend"
     frontend.mkdir()
-    (frontend / "package.json").write_text(
-        json.dumps({"dependencies": {"react": "^18.0.0"}}), encoding="utf-8")
+    _test_write(frontend / "package.json", json.dumps({"dependencies": {"react": "^18.0.0"}}), encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -315,8 +308,7 @@ def test_detect_stacks_package_json_under_node_modules_is_ignored(tmp_path, load
     index = detect.bl.read_index(root)
     vendored = tmp_path / "node_modules" / "@angular" / "core"
     vendored.mkdir(parents=True)
-    (vendored / "package.json").write_text(
-        json.dumps({"dependencies": {"@angular/core": "^17.0.0"}}), encoding="utf-8")
+    _test_write(vendored / "package.json", json.dumps({"dependencies": {"@angular/core": "^17.0.0"}}), encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -326,9 +318,8 @@ def test_detect_stacks_package_json_under_node_modules_is_ignored(tmp_path, load
 def test_detect_stacks_dedupes_when_glob_and_dependency_both_match(tmp_path, load_script, root):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
-    (tmp_path / "package.json").write_text(
-        json.dumps({"dependencies": {"react": "^18.0.0"}}), encoding="utf-8")
-    (tmp_path / "App.tsx").write_text("export default {};\n", encoding="utf-8")
+    _test_write(tmp_path / "package.json", json.dumps({"dependencies": {"react": "^18.0.0"}}), encoding="utf-8")
+    _test_write(tmp_path / "App.tsx", "export default {};\n", encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, index)
 
@@ -401,7 +392,7 @@ def test_expand_requires_react_pulls_in_ts_and_node_from_real_index(load_script,
 def test_detect_agents_claude_via_claude_md(tmp_path, load_script, monkeypatch):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: tmp_path / "empty-home"))
-    (tmp_path / "CLAUDE.md").write_text("# guidance\n", encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", "# guidance\n", encoding="utf-8")
 
     assert detect.detect_agents(tmp_path) == ["claude"]
 
@@ -499,7 +490,7 @@ def test_detect_commands_dotnet_defaults_without_package_json(tmp_path, load_scr
 
 def test_detect_commands_npm_scripts_without_bun_lock(tmp_path, load_script):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
-    (tmp_path / "package.json").write_text(json.dumps({
+    _test_write(tmp_path / "package.json", json.dumps({
         "scripts": {"build": "vite build", "test": "vitest", "lint": "eslint .", "dev": "vite"}
     }), encoding="utf-8")
 
@@ -513,10 +504,10 @@ def test_detect_commands_npm_scripts_without_bun_lock(tmp_path, load_script):
 
 def test_detect_commands_bun_scripts_with_bun_lock(tmp_path, load_script):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
-    (tmp_path / "package.json").write_text(json.dumps({
+    _test_write(tmp_path / "package.json", json.dumps({
         "scripts": {"build": "vite build", "test": "vitest"}
     }), encoding="utf-8")
-    (tmp_path / "bun.lock").write_text("", encoding="utf-8")
+    _test_write(tmp_path / "bun.lock", "", encoding="utf-8")
 
     cmds = detect.detect_commands(tmp_path, [])
 
@@ -526,7 +517,7 @@ def test_detect_commands_bun_scripts_with_bun_lock(tmp_path, load_script):
 
 def test_detect_commands_run_prefers_dev_over_start(tmp_path, load_script):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
-    (tmp_path / "package.json").write_text(json.dumps({
+    _test_write(tmp_path / "package.json", json.dumps({
         "scripts": {"dev": "vite", "start": "node server.js"}
     }), encoding="utf-8")
 
@@ -537,7 +528,7 @@ def test_detect_commands_run_prefers_dev_over_start(tmp_path, load_script):
 
 def test_detect_commands_run_falls_back_to_start(tmp_path, load_script):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
-    (tmp_path / "package.json").write_text(json.dumps({
+    _test_write(tmp_path / "package.json", json.dumps({
         "scripts": {"start": "node server.js"}
     }), encoding="utf-8")
 
@@ -548,10 +539,10 @@ def test_detect_commands_run_falls_back_to_start(tmp_path, load_script):
 
 def test_detect_commands_dotnet_setdefault_does_not_override_package_json(tmp_path, load_script):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
-    (tmp_path / "package.json").write_text(json.dumps({
+    _test_write(tmp_path / "package.json", json.dumps({
         "scripts": {"build": "vite build"}
     }), encoding="utf-8")
-    (tmp_path / "bun.lock").write_text("", encoding="utf-8")
+    _test_write(tmp_path / "bun.lock", "", encoding="utf-8")
 
     cmds = detect.detect_commands(tmp_path, ["dotnet"])
 
@@ -565,7 +556,7 @@ def test_main_emits_valid_proposed_config_json(tmp_path, load_script, root, monk
     monkeypatch.setattr(detect.Path, "home", staticmethod(lambda: tmp_path / "empty-home"))
     target = tmp_path / "target-repo"
     target.mkdir()
-    (target / "App.csproj").write_text("<Project />", encoding="utf-8")
+    _test_write(target / "App.csproj", "<Project />", encoding="utf-8")
 
     rc = detect.main(["--target", str(target), "--root", str(root)])
 

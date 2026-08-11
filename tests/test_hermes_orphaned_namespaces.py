@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 SCRIPTS = "features/common/skills/welcome-ai-badger/scripts"
 REFRESH = "features/common/skills/den-refresh/scripts/refresh.py"
@@ -45,7 +46,7 @@ def _project(tmp_path, name, skills=("task", "prompt-markers")):
     root = tmp_path / name / ".ai-badger" / "skills"
     for skill in skills:
         (root / skill).mkdir(parents=True)
-        (root / skill / "SKILL.md").write_text(f"# {skill}\n", encoding="utf-8")
+        _test_write(root / skill / "SKILL.md", f"# {skill}\n", encoding="utf-8")
     return root
 
 
@@ -63,7 +64,7 @@ def _hermes_category(hermes, name="react"):
     """A directory of Hermes's own: real skill folders, no symlink anywhere in it."""
     category = hermes / name
     (category / "hooks-discipline").mkdir(parents=True)
-    (category / "hooks-discipline" / "SKILL.md").write_text("# hand-written\n", encoding="utf-8")
+    _test_write(category / "hooks-discipline" / "SKILL.md", "# hand-written\n", encoding="utf-8")
     return category
 
 
@@ -145,7 +146,7 @@ def test_a_hermes_authored_skill_beside_dead_links_survives_the_prune(tmp_path, 
     namespace = _orphan(tmp_path, hermes)
     authored = namespace / "agent-skill-discovery"
     authored.mkdir()
-    (authored / "SKILL.md").write_text("# hermes-authored\n", encoding="utf-8")
+    _test_write(authored / "SKILL.md", "# hermes-authored\n", encoding="utf-8")
 
     found = delivery.prune_namespaces()
 

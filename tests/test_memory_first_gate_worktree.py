@@ -11,6 +11,7 @@ from __future__ import annotations
 import subprocess
 
 import pytest
+from conftest import _test_write
 
 _GIT_ENV = ["-c", "user.email=test@example.com", "-c", "user.name=Test"]
 
@@ -34,7 +35,7 @@ def repo_with_worktree(tmp_path):
     main_repo = tmp_path / "main-repo"
     main_repo.mkdir()
     _git("init", "-q", cwd=main_repo)
-    (main_repo / "README.md").write_text("hello\n", encoding="utf-8")
+    _test_write(main_repo / "README.md", "hello\n", encoding="utf-8")
     _git("add", "README.md", cwd=main_repo)
     _git("commit", "-q", "-m", "initial commit", cwd=main_repo)
 

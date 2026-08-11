@@ -13,6 +13,7 @@ import sys
 from unittest.mock import patch
 
 import pytest
+from conftest import _test_write
 
 HOOKS = "features/common/hooks"
 PLUGIN_FILES = ("ai_badger_hooks.py", "learned_skills_sync.py")
@@ -21,9 +22,8 @@ PLUGIN_FILES = ("ai_badger_hooks.py", "learned_skills_sync.py")
 def _fake_root(path, version, breaking=()):
     """A framework root carrying just the two files the skew check reads."""
     path.mkdir(parents=True, exist_ok=True)
-    (path / "VERSION").write_text(version + "\n", encoding="utf-8")
-    (path / "BREAKING_VERSIONS").write_text(
-        "# comment\n" + "".join(f"{v}\n" for v in breaking), encoding="utf-8")
+    _test_write(path / "VERSION", version + "\n", encoding="utf-8")
+    _test_write(path / "BREAKING_VERSIONS", "# comment\n" + "".join(f"{v}\n" for v in breaking), encoding="utf-8")
     return path
 
 
@@ -36,7 +36,7 @@ def _copies(path, recorded=None):
         record = {"frameworkRoot": "/somewhere"}
         if recorded:
             record["copiedFromVersion"] = recorded
-        manifest.write_text(json.dumps(record), encoding="utf-8")
+        _test_write(manifest, json.dumps(record), encoding="utf-8")
     return path
 
 
@@ -130,7 +130,7 @@ def test_an_unparseable_record_is_not_skew(tmp_path, load_script):
     root = _fake_root(tmp_path / "fw", "0.40.0")
     copies = tmp_path / "plugins"
     (copies / ".ai-badger").mkdir(parents=True)
-    (copies / ".ai-badger" / "manifest.json").write_text("{not json", encoding="utf-8")
+    _test_write(copies / ".ai-badger" / "manifest.json", "{not json", encoding="utf-8")
 
     assert bl.copy_skew(copies, root) == (bl.COPY_SKEW_OK, None)
 
@@ -178,8 +178,7 @@ def test_a_non_string_recorded_version_is_not_skew(tmp_path, load_script):
     root = _fake_root(tmp_path / "fw", "0.40.0", breaking=["0.37.0"])
     copies = tmp_path / "plugins"
     (copies / ".ai-badger").mkdir(parents=True)
-    (copies / ".ai-badger" / "manifest.json").write_text(
-        json.dumps({"frameworkRoot": "/x", "copiedFromVersion": 123}), encoding="utf-8")
+    _test_write(copies / ".ai-badger" / "manifest.json", json.dumps({"frameworkRoot": "/x", "copiedFromVersion": 123}), encoding="utf-8")
 
     assert bl.copy_skew(copies, root) == (bl.COPY_SKEW_OK, None)
 
@@ -256,7 +255,7 @@ def _shape_d_install(tmp_path, root, name, recorded, current, breaking=("0.37.0"
     shutil.copy2(root / HOOKS / name, copies / name)
     manifest = copies / ".ai-badger" / "manifest.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
-    manifest.write_text(json.dumps(
+    _test_write(manifest, json.dumps(
         {"frameworkRoot": str(fw), "copiedFromVersion": recorded}), encoding="utf-8")
     return copies / name
 

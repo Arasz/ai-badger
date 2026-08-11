@@ -12,6 +12,7 @@ files derive from templates the third-party `code-review-graph` package auto-ins
 from __future__ import annotations
 
 import pytest
+from conftest import _test_write
 
 DOCUMENTATION_SKILLS = ("scaffold-documentation", "update-documentation",
                         "migrate-documentation")
@@ -96,14 +97,14 @@ class TestScopeIsReadFromTheSkillItself:
     def test_an_undeclared_scope_reads_as_none(self, tmp_path, bl):
         d = tmp_path / "s"
         d.mkdir()
-        (d / "SKILL.md").write_text("---\nname: s\n---\nbody\n", encoding="utf-8")
+        _test_write(d / "SKILL.md", "---\nname: s\n---\nbody\n", encoding="utf-8")
 
         assert bl.skill_scope_in(d) is None
 
     def test_a_value_outside_the_two_scopes_reads_as_none(self, tmp_path, bl):
         d = tmp_path / "s"
         d.mkdir()
-        (d / "SKILL.md").write_text("---\nname: s\nscope: maybe\n---\nbody\n", encoding="utf-8")
+        _test_write(d / "SKILL.md", "---\nname: s\nscope: maybe\n---\nbody\n", encoding="utf-8")
 
         assert bl.skill_scope_in(d) is None
 
@@ -114,8 +115,7 @@ class TestScopeIsReadFromTheSkillItself:
     def test_a_declared_scope_is_read_back(self, tmp_path, bl, written, expected):
         d = tmp_path / "s"
         d.mkdir()
-        (d / "SKILL.md").write_text(
-            f"---\nname: s\nscope: {written}\n---\nbody\n", encoding="utf-8")
+        _test_write(d / "SKILL.md", f"---\nname: s\nscope: {written}\n---\nbody\n", encoding="utf-8")
 
         assert bl.skill_scope_in(d) == expected
 

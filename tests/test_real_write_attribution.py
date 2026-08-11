@@ -21,6 +21,7 @@ import json
 import os
 
 import pytest
+from conftest import _test_write
 
 
 def _tracker(load_script):
@@ -138,11 +139,8 @@ class TestTheFixtureSeparatesTheTwo:
         import conftest
 
         log = tmp_path / "writes.jsonl"
-        log.write_text(
-            json.dumps({"path": "/repo/.ai-badger/task-tracking/executed-tasks.json",
-                        "pid": 1, "test": "tests/test_leaky.py::test_it (call)"}) + "\n",
-            encoding="utf-8",
-        )
+        _test_write(log, json.dumps({"path": "/repo/.ai-badger/task-tracking/executed-tasks.json",
+                        "pid": 1, "test": "tests/test_leaky.py::test_it (call)"}) + "\n", encoding="utf-8")
 
         assert conftest.suite_attributed_writes(log) == [
             "tests/test_leaky.py::test_it (call) -> "
@@ -159,12 +157,9 @@ class TestTheFixtureSeparatesTheTwo:
         import conftest
 
         log = tmp_path / "writes.jsonl"
-        log.write_text(
-            '{"path": "/a", "pid": 1, "test": "t_one"}\n'
+        _test_write(log, '{"path": "/a", "pid": 1, "test": "t_one"}\n'
             '{"path": "/b", "pid": 2, "test": "t_tw\n'
-            '{"path": "/c", "pid": 3, "test": "t_three"}\n',
-            encoding="utf-8",
-        )
+            '{"path": "/c", "pid": 3, "test": "t_three"}\n', encoding="utf-8")
 
         offenders = conftest.suite_attributed_writes(log)
 

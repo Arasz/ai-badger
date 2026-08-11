@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_SCRIPTS = ROOT / "features" / "common" / "skills" / "task" / "scripts"
@@ -44,7 +45,7 @@ def _replica(tmp_path):
                     ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     marker = repo / ".ai-badger" / "config.json"
     marker.parent.mkdir(parents=True)
-    marker.write_text("{}", encoding="utf-8")
+    _test_write(marker, "{}", encoding="utf-8")
 
     _git(repo, "init", "-b", "main")
     _git(repo, "config", "user.email", "test@example.invalid")

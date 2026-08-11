@@ -24,6 +24,7 @@ import json
 import sys
 
 import pytest
+from conftest import _test_write
 
 
 @pytest.fixture
@@ -70,7 +71,7 @@ def test_invalid_stdin_json_returns_zero(stop_hook, monkeypatch):
 
 def test_started_task_promotes_to_in_progress_with_checkpoint(stop_hook, monkeypatch, tmp_path):
     transcript = tmp_path / "t.jsonl"
-    transcript.write_text("", encoding="utf-8")
+    _test_write(transcript, "", encoding="utf-8")
     _write_state(
         stop_hook,
         tasks=[{
@@ -92,7 +93,7 @@ def test_started_task_promotes_to_in_progress_with_checkpoint(stop_hook, monkeyp
 
 
 def test_finished_task_without_state_json_update_blocks_once(stop_hook, monkeypatch, tmp_path, capsys):
-    (tmp_path / "CLAUDE.md").write_text("short\n", encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", "short\n", encoding="utf-8")
     _write_state(stop_hook, tasks=[{
         "taskId": "T01", "sessionId": "sid-1", "state": "FINISHED",
         "startedAt": stop_hook.lib.now_iso(),
@@ -112,7 +113,7 @@ def test_finished_task_without_state_json_update_blocks_once(stop_hook, monkeypa
 def test_finished_task_claude_md_over_budget_blocks_with_compaction_reason(
     stop_hook, monkeypatch, tmp_path, capsys
 ):
-    (tmp_path / "CLAUDE.md").write_text("x" * 20000, encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", "x" * 20000, encoding="utf-8")
     _write_state(stop_hook, tasks=[{
         "taskId": "T01", "sessionId": "sid-1", "state": "FINISHED",
         "startedAt": stop_hook.lib.now_iso(), "stateJsonUpdated": True,
@@ -134,8 +135,8 @@ def test_finished_task_reports_every_over_budget_agent_file(
     stop_hook, monkeypatch, tmp_path, capsys
 ):
     """HERMES.md was 24-26 lines over budget with nothing checking it (F-36)."""
-    (tmp_path / "CLAUDE.md").write_text("short\n", encoding="utf-8")
-    (tmp_path / "HERMES.md").write_text("x" * 20000, encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", "short\n", encoding="utf-8")
+    _test_write(tmp_path / "HERMES.md", "x" * 20000, encoding="utf-8")
     _write_state(stop_hook, tasks=[{
         "taskId": "T01", "sessionId": "sid-1", "state": "FINISHED",
         "startedAt": stop_hook.lib.now_iso(), "stateJsonUpdated": True,
@@ -150,7 +151,7 @@ def test_finished_task_reports_every_over_budget_agent_file(
 
 
 def test_finished_task_clean_state_produces_no_nag(stop_hook, monkeypatch, tmp_path, capsys):
-    (tmp_path / "CLAUDE.md").write_text("short\n", encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", "short\n", encoding="utf-8")
     _write_state(stop_hook, tasks=[{
         "taskId": "T01", "sessionId": "sid-1", "state": "FINISHED",
         "startedAt": stop_hook.lib.now_iso(), "stateJsonUpdated": True,
@@ -163,7 +164,7 @@ def test_finished_task_clean_state_produces_no_nag(stop_hook, monkeypatch, tmp_p
 
 
 def test_reminders_already_sent_do_not_nag_again(stop_hook, monkeypatch, tmp_path, capsys):
-    (tmp_path / "CLAUDE.md").write_text("x" * 20000, encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", "x" * 20000, encoding="utf-8")
     _write_state(stop_hook, tasks=[{
         "taskId": "T01", "sessionId": "sid-1", "state": "FINISHED",
         "startedAt": stop_hook.lib.now_iso(),
@@ -179,7 +180,7 @@ def test_reminders_already_sent_do_not_nag_again(stop_hook, monkeypatch, tmp_pat
 def test_stop_hook_active_flag_suppresses_finished_task_enforcement(
     stop_hook, monkeypatch, tmp_path, capsys
 ):
-    (tmp_path / "CLAUDE.md").write_text("x" * 20000, encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", "x" * 20000, encoding="utf-8")
     _write_state(stop_hook, tasks=[{
         "taskId": "T01", "sessionId": "sid-1", "state": "FINISHED",
         "startedAt": stop_hook.lib.now_iso(),
@@ -279,7 +280,7 @@ class TestTranscriptIsNotScannedGratuitously:
         self, stop_hook, monkeypatch, tmp_path
     ):
         transcript = tmp_path / "t.jsonl"
-        transcript.write_text("", encoding="utf-8")
+        _test_write(transcript, "", encoding="utf-8")
         reads = _count_transcript_reads(stop_hook, monkeypatch)
         _write_state(stop_hook, tasks=[{
             "taskId": "T01", "sessionId": "other-session", "state": "IN_PROGRESS",
@@ -297,7 +298,7 @@ class TestTranscriptIsNotScannedGratuitously:
         self, stop_hook, monkeypatch, tmp_path
     ):
         transcript = tmp_path / "t.jsonl"
-        transcript.write_text("", encoding="utf-8")
+        _test_write(transcript, "", encoding="utf-8")
         reads = _count_transcript_reads(stop_hook, monkeypatch)
         _write_state(
             stop_hook,
@@ -336,7 +337,7 @@ class TestPayloadFieldNamesAreNeverIndexed:
 
     def test_camel_case_payload_still_checkpoints(self, stop_hook, monkeypatch, tmp_path):
         transcript = tmp_path / "t.jsonl"
-        transcript.write_text("", encoding="utf-8")
+        _test_write(transcript, "", encoding="utf-8")
         _write_state(
             stop_hook,
             tasks=[{"taskId": "T01", "sessionId": "sid-1", "state": "STARTED",
@@ -355,7 +356,7 @@ class TestPayloadFieldNamesAreNeverIndexed:
     def test_camel_case_stop_hook_active_still_suppresses_enforcement(
         self, stop_hook, monkeypatch, tmp_path, capsys
     ):
-        (tmp_path / "CLAUDE.md").write_text("x" * 20000, encoding="utf-8")
+        _test_write(tmp_path / "CLAUDE.md", "x" * 20000, encoding="utf-8")
         _write_state(stop_hook, tasks=[{
             "taskId": "T01", "sessionId": "sid-1", "state": "FINISHED",
             "startedAt": stop_hook.lib.now_iso(),
@@ -373,7 +374,7 @@ class TestPayloadFieldNamesAreNeverIndexed:
     ):
         """Only `SessionEnd` disables the block channel; anything unrecognised keeps it,
         because losing enforcement silently is the worse failure."""
-        (tmp_path / "CLAUDE.md").write_text("short\n", encoding="utf-8")
+        _test_write(tmp_path / "CLAUDE.md", "short\n", encoding="utf-8")
         _write_state(stop_hook, tasks=[{
             "taskId": "T01", "sessionId": "sid-1", "state": "FINISHED",
             "startedAt": stop_hook.lib.now_iso(),
@@ -393,7 +394,7 @@ class TestSessionEndIsCheckpointOnly:
 
     def test_session_end_checkpoints_and_promotes(self, stop_hook, monkeypatch, tmp_path):
         transcript = tmp_path / "t.jsonl"
-        transcript.write_text("", encoding="utf-8")
+        _test_write(transcript, "", encoding="utf-8")
         _write_state(
             stop_hook,
             tasks=[{"taskId": "T01", "sessionId": "sid-1", "state": "STARTED",
@@ -413,7 +414,7 @@ class TestSessionEndIsCheckpointOnly:
     def test_session_end_never_prints_a_block_and_spends_no_one_shot_flag(
         self, stop_hook, monkeypatch, tmp_path, capsys
     ):
-        (tmp_path / "CLAUDE.md").write_text("x" * 20000, encoding="utf-8")
+        _test_write(tmp_path / "CLAUDE.md", "x" * 20000, encoding="utf-8")
         _write_state(stop_hook, tasks=[{
             "taskId": "T01", "sessionId": "sid-1", "state": "FINISHED",
             "startedAt": stop_hook.lib.now_iso(),
@@ -467,7 +468,7 @@ class TestAZeroCheckpointNeverOverwritesAGoodOne:
         transcript = tmp_path / "t.jsonl"
         empty_usage = {"input_tokens": 0, "output_tokens": 0,
                        "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}
-        transcript.write_text("\n".join(
+        _test_write(transcript, "\n".join(
             json.dumps({"type": "assistant", "message": {"usage": empty_usage}})
             for _ in range(3)
         ) + "\n", encoding="utf-8")
@@ -505,7 +506,7 @@ class TestAZeroCheckpointNeverOverwritesAGoodOne:
         self, stop_hook, monkeypatch, tmp_path
     ):
         transcript = tmp_path / "t.jsonl"
-        transcript.write_text(json.dumps({
+        _test_write(transcript, json.dumps({
             "type": "assistant",
             "message": {"usage": {"input_tokens": 10, "output_tokens": 20,
                                   "cache_read_input_tokens": 30,
@@ -537,7 +538,7 @@ class TestTheBlockBudgetIsFinite:
                 "startedAt": stop_hook.lib.now_iso()}
 
     def test_a_block_increments_the_sessions_counter(self, stop_hook, monkeypatch, tmp_path):
-        (tmp_path / "CLAUDE.md").write_text("short\n", encoding="utf-8")
+        _test_write(tmp_path / "CLAUDE.md", "short\n", encoding="utf-8")
         _write_state(stop_hook, tasks=[self._finished_task(stop_hook, "T01")])
 
         _run_hook(stop_hook, monkeypatch, {"session_id": "sid-1"})
@@ -548,7 +549,7 @@ class TestTheBlockBudgetIsFinite:
     def test_no_block_is_emitted_once_the_budget_is_spent(
         self, stop_hook, monkeypatch, tmp_path, capsys
     ):
-        (tmp_path / "CLAUDE.md").write_text("short\n", encoding="utf-8")
+        _test_write(tmp_path / "CLAUDE.md", "short\n", encoding="utf-8")
         _write_state(stop_hook, tasks=[self._finished_task(stop_hook, "T01")])
         tasks = stop_hook.lib.load_tasks()
         tasks[stop_hook.BLOCK_COUNTS_KEY] = {"sid-1": stop_hook.MAX_BLOCKS_PER_SESSION}
@@ -564,7 +565,7 @@ class TestTheBlockBudgetIsFinite:
     ):
         """The reminder is worth sending later; burning its one shot on a block the platform
         will ignore throws the message away."""
-        (tmp_path / "CLAUDE.md").write_text("short\n", encoding="utf-8")
+        _test_write(tmp_path / "CLAUDE.md", "short\n", encoding="utf-8")
         _write_state(stop_hook, tasks=[self._finished_task(stop_hook, "T01")])
         tasks = stop_hook.lib.load_tasks()
         tasks[stop_hook.BLOCK_COUNTS_KEY] = {"sid-1": stop_hook.MAX_BLOCKS_PER_SESSION}
@@ -577,7 +578,7 @@ class TestTheBlockBudgetIsFinite:
     def test_another_sessions_spent_budget_does_not_gag_this_one(
         self, stop_hook, monkeypatch, tmp_path, capsys
     ):
-        (tmp_path / "CLAUDE.md").write_text("short\n", encoding="utf-8")
+        _test_write(tmp_path / "CLAUDE.md", "short\n", encoding="utf-8")
         _write_state(stop_hook, tasks=[self._finished_task(stop_hook, "T01")])
         tasks = stop_hook.lib.load_tasks()
         tasks[stop_hook.BLOCK_COUNTS_KEY] = {"other": stop_hook.MAX_BLOCKS_PER_SESSION}

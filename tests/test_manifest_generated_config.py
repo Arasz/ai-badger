@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 LEGACY_COPILOT = Path(".github") / "copilot" / "mcp-config.json"
 
@@ -33,7 +34,7 @@ def _write_manifest(target: Path, generated_config) -> None:
     """Leave the manifest an earlier run would have written, carrying *generated_config*."""
     aib = target / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
-    (aib / "manifest.json").write_text(json.dumps({
+    _test_write(aib / "manifest.json", json.dumps({
         "$schema": "../schemas/manifest.schema.json",
         "frameworkVersion": "0.40.0",
         "frameworkCommit": None,
@@ -92,7 +93,7 @@ def test_the_user_global_proposal_is_never_recorded(make_scaffolder):
 def test_a_refused_merge_records_nothing(make_scaffolder):
     """The record is of writes: a file protected from a write is not recorded as written."""
     target = make_scaffolder.target
-    (target / ".mcp.json").write_text(json.dumps({"mcpServers": []}), encoding="utf-8")
+    _test_write(target / ".mcp.json", json.dumps({"mcpServers": []}), encoding="utf-8")
 
     _, result = _run(make_scaffolder)
 
@@ -104,7 +105,7 @@ def test_a_refused_merge_records_nothing(make_scaffolder):
 def test_an_untracked_generated_config_is_still_recorded(make_scaffolder):
     """`.mcp.json` is gitignored in some repos: the record is about writes, not tracking."""
     target = make_scaffolder.target
-    (target / ".gitignore").write_text(".mcp.json\n", encoding="utf-8")
+    _test_write(target / ".gitignore", ".mcp.json\n", encoding="utf-8")
     subprocess.run(["git", "init", "-q", str(target)], check=True)
 
     _, result = _run(make_scaffolder)
@@ -123,9 +124,7 @@ def test_an_earlier_versions_record_survives_a_run_that_does_not_rewrite_the_fil
     target = make_scaffolder.target
     (target / LEGACY_COPILOT).parent.mkdir(parents=True, exist_ok=True)
     # A hand shape, so this run leaves the file alone rather than retiring it.
-    (target / LEGACY_COPILOT).write_text(
-        json.dumps({"mcpServers": {"mine": {"type": "http", "url": "https://example.invalid"}}}),
-        encoding="utf-8")
+    _test_write(target / LEGACY_COPILOT, json.dumps({"mcpServers": {"mine": {"type": "http", "url": "https://example.invalid"}}}), encoding="utf-8")
     _write_manifest(target, [{"path": LEGACY_COPILOT.as_posix(),
                               "destination": ".github/copilot/mcp-config.json",
                               "frameworkVersion": "0.40.0"}])
@@ -141,9 +140,7 @@ def test_a_record_dies_with_the_file_it_names(make_scaffolder):
     """The retirement case: the file goes, so the record goes with it."""
     target = make_scaffolder.target
     (target / LEGACY_COPILOT).parent.mkdir(parents=True, exist_ok=True)
-    (target / LEGACY_COPILOT).write_text(
-        json.dumps({"mcpServers": {"pyright": {"command": "uvx", "args": ["x"]}}}),
-        encoding="utf-8")
+    _test_write(target / LEGACY_COPILOT, json.dumps({"mcpServers": {"pyright": {"command": "uvx", "args": ["x"]}}}), encoding="utf-8")
     _write_manifest(target, [{"path": LEGACY_COPILOT.as_posix(),
                               "destination": ".github/copilot/mcp-config.json",
                               "frameworkVersion": "0.40.0"}])
@@ -160,7 +157,7 @@ def test_a_record_dies_with_the_file_it_names(make_scaffolder):
 def test_a_recorded_config_the_project_edited_is_still_the_projects(make_scaffolder):
     """A record licenses nothing: the merge keeps every hand-written key it found."""
     target = make_scaffolder.target
-    (target / ".mcp.json").write_text(json.dumps({
+    _test_write(target / ".mcp.json", json.dumps({
         "mcpServers": {"mine": {"command": "echo mine"}},
         "somethingElse": {"kept": True},
     }), encoding="utf-8")
@@ -181,10 +178,10 @@ def test_drift_says_nothing_about_a_recorded_generated_config(load_script, tmp_p
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
     (fw / "features").mkdir(parents=True)
-    (fw / "VERSION").write_text("0.40.0\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.40.0\n", encoding="utf-8")
     proj = tmp_path / "proj"
     proj.mkdir()
-    (proj / ".mcp.json").write_text("{}\n", encoding="utf-8")
+    _test_write(proj / ".mcp.json", "{}\n", encoding="utf-8")
     manifest = {
         "frameworkVersion": "0.40.0", "agents": ["claude"], "entries": [],
         "generatedConfig": [{"path": ".mcp.json", "destination": ".mcp.json",

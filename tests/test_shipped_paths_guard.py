@@ -12,6 +12,7 @@ from __future__ import annotations
 import subprocess
 
 import pytest
+from conftest import _test_write
 
 
 def _git(repo, *args):
@@ -30,7 +31,7 @@ def _track(repo, relpath, text):
     """Write *text* to *relpath* and stage it — `git ls-files` needs no commit."""
     path = repo / relpath
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    _test_write(path, text, encoding="utf-8")
     _git(repo, "add", "-A")
     return path
 

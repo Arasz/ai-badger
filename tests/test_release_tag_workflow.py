@@ -18,6 +18,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github/workflows/release-tag.yml"
@@ -111,7 +112,7 @@ def run_annotate(tmp_path, subject: str, version: str) -> str:
     repo.mkdir()
     git = ["git", "-c", "user.email=t@example.invalid", "-c", "user.name=t"]
     subprocess.run(git + ["init", "-q"], cwd=repo, check=True)
-    (repo / "VERSION").write_text(f"{version}\n", encoding="utf-8")
+    _test_write(repo / "VERSION", f"{version}\n", encoding="utf-8")
     subprocess.run(git + ["add", "VERSION"], cwd=repo, check=True)
     subprocess.run(git + ["commit", "-q", "--no-verify", "-m", subject], cwd=repo, check=True)
 
@@ -158,7 +159,7 @@ class TestReleaseSubjectAnnotation:
         repo.mkdir()
         git = ["git", "-c", "user.email=t@example.invalid", "-c", "user.name=t"]
         subprocess.run(git + ["init", "-q"], cwd=repo, check=True)
-        (repo / "VERSION").write_text("0.73.0\n", encoding="utf-8")
+        _test_write(repo / "VERSION", "0.73.0\n", encoding="utf-8")
         subprocess.run(git + ["add", "VERSION"], cwd=repo, check=True)
         subprocess.run(git + ["commit", "-q", "--no-verify", "-m", "fix: stale (0.1.2) (#1)"],
                        cwd=repo, check=True)

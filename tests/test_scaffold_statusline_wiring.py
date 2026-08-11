@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 CAPTURE = "task/scripts/statusline_capture.py"
@@ -51,7 +52,7 @@ def _delegate(target):
 def _write_settings(target, data):
     path = target / ".claude" / "settings.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data), encoding="utf-8")
+    _test_write(path, json.dumps(data), encoding="utf-8")
     return path
 
 
@@ -104,9 +105,7 @@ def test_the_user_level_statusline_becomes_the_delegate_when_the_project_has_non
         target, fake_home, make_scaffolder):
     user_settings = fake_home / ".claude" / "settings.json"
     user_settings.parent.mkdir(parents=True, exist_ok=True)
-    user_settings.write_text(
-        json.dumps({"statusLine": {"type": "command", "command": "~/.claude/statusline.sh"}}),
-        encoding="utf-8")
+    _test_write(user_settings, json.dumps({"statusLine": {"type": "command", "command": "~/.claude/statusline.sh"}}), encoding="utf-8")
 
     _run(make_scaffolder, _capture_config())
 
@@ -118,7 +117,7 @@ def test_an_unreadable_user_settings_file_is_reported_not_silently_ignored(
     """Reading no delegate out of a broken file would drop the user's renderer without a word."""
     user_settings = fake_home / ".claude" / "settings.json"
     user_settings.parent.mkdir(parents=True, exist_ok=True)
-    user_settings.write_text("{ not json", encoding="utf-8")
+    _test_write(user_settings, "{ not json", encoding="utf-8")
 
     notes = _run(make_scaffolder, _capture_config())
 
@@ -176,7 +175,7 @@ def test_display_options_of_the_replaced_statusline_are_preserved(target, make_s
 @pytest.mark.usefixtures("fake_home")
 def test_an_unreadable_settings_file_is_refused_with_a_note(target, make_scaffolder):
     path = _write_settings(target, {})
-    path.write_text("{ not json", encoding="utf-8")
+    _test_write(path, "{ not json", encoding="utf-8")
 
     notes = _run(make_scaffolder, _capture_config())
 
@@ -275,7 +274,7 @@ def test_dropping_claude_from_the_agents_unwires_the_capture(target, make_scaffo
 def test_unwiring_refuses_an_unreadable_settings_file_with_a_note(target, make_scaffolder):
     _run(make_scaffolder, _capture_config())
     path = target / ".claude" / "settings.json"
-    path.write_text("{ not json", encoding="utf-8")
+    _test_write(path, "{ not json", encoding="utf-8")
 
     notes = _run(make_scaffolder, _capture_config(enabled=False))
 
@@ -301,7 +300,7 @@ def test_config_schema_accepts_the_statusline_capture_key(tmp_path, root, load_s
     instance = tmp_path / "config.json"
     config = _config(stacks=["python"])
     config["statusLineCapture"] = {"enabled": True}
-    instance.write_text(json.dumps(config), encoding="utf-8")
+    _test_write(instance, json.dumps(config), encoding="utf-8")
 
     rc = validate.main(["--kind", "config", "--root", str(tmp_path), str(instance)])
 

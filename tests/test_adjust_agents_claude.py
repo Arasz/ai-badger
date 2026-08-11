@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 ADJUSTER = "features/claude/adjustments/adjust_agents.py"
 
@@ -59,7 +60,7 @@ def _context(root: Path, target: Path, *, agents=("claude",)) -> dict:
 def _persona(target: Path, name: str, body: str) -> Path:
     path = target / ".ai-badger" / "agents" / f"{name}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(body, encoding="utf-8")
+    _test_write(path, body, encoding="utf-8")
     return path
 
 
@@ -84,7 +85,7 @@ def _frontmatter(text: str) -> str:
 def _write_manifest(target: Path, targets) -> None:
     path = target / ".ai-badger" / "manifest.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"entries": [{"target": t} for t in targets]}), encoding="utf-8")
+    _test_write(path, json.dumps({"entries": [{"target": t} for t in targets]}), encoding="utf-8")
 
 
 # ── delivery ──────────────────────────────────────────────────────────────────
@@ -234,8 +235,7 @@ def test_a_hand_written_agent_file_is_left_untouched_and_reported(tmp_path, root
     target = _project(tmp_path)
     mine = target / ".claude" / "agents" / "architect.md"
     mine.parent.mkdir(parents=True, exist_ok=True)
-    mine.write_text("---\nname: architect\ndescription: mine\n---\n\nHand written.\n",
-                    encoding="utf-8")
+    _test_write(mine, "---\nname: architect\ndescription: mine\n---\n\nHand written.\n", encoding="utf-8")
     original = mine.read_bytes()
 
     result = adjust_agents.adjust(_context(root, target))
@@ -253,7 +253,7 @@ def test_a_file_recorded_in_the_prior_manifest_is_ours_to_rewrite(tmp_path, root
     _write_manifest(target, [".claude/agents/architect.md"])
     stale = target / ".claude" / "agents" / "architect.md"
     stale.parent.mkdir(parents=True, exist_ok=True)
-    stale.write_text("stale\n", encoding="utf-8")
+    _test_write(stale, "stale\n", encoding="utf-8")
 
     result = adjust_agents.adjust(_context(root, target))
 

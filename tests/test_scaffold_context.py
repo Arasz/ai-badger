@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 SCRIPTS = "features/common/skills/welcome-ai-badger/scripts"
 
@@ -76,8 +77,8 @@ def test_each_collaborator_works_with_no_scaffolder_in_scope(tmp_path, load_scri
 
     skill = target / ".ai-badger" / "skills" / "probe"
     skill.mkdir(parents=True)
-    (skill / "SKILL.md").write_text("# probe\n", encoding="utf-8")
-    (skill / "project-local.md").write_text("## local\n", encoding="utf-8")
+    _test_write(skill / "SKILL.md", "# probe\n", encoding="utf-8")
+    _test_write(skill / "project-local.md", "## local\n", encoding="utf-8")
     extensions.append_project_local("probe", skill)
     assert "## local" in (skill / "SKILL.md").read_text(encoding="utf-8")
 
@@ -106,10 +107,10 @@ def test_extensions_is_built_from_a_context_alone(load_script, root, make_scaffo
 
     skill = target / ".ai-badger" / "skills" / "probe"
     skill.mkdir(parents=True)
-    (skill / "SKILL.md").write_text("# probe\n\n<!-- MERGE_EXTENSIONS -->\n", encoding="utf-8")
+    _test_write(skill / "SKILL.md", "# probe\n\n<!-- MERGE_EXTENSIONS -->\n", encoding="utf-8")
     ext = skill / "extensions" / "one"
     ext.mkdir(parents=True)
-    (ext / "extension.md").write_text("## Added\n\nbody\n", encoding="utf-8")
+    _test_write(ext / "extension.md", "## Added\n\nbody\n", encoding="utf-8")
     extensions.merge_extensions("probe", skill)
 
     assert "## Added" in (skill / "SKILL.md").read_text(encoding="utf-8")
@@ -130,7 +131,7 @@ def test_statusline_wiring_is_built_from_a_context_alone(tmp_path, load_script, 
 
     capture = ctx.aib / "skills" / module.CAPTURE_SCRIPT
     capture.parent.mkdir(parents=True)
-    capture.write_text("", encoding="utf-8")
+    _test_write(capture, "", encoding="utf-8")
     statusline.wire()
     settings = target / ".claude" / "settings.json"
     assert module.is_capture_command(

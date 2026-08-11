@@ -1,5 +1,6 @@
 """The shared Scaffolder factory: defaults, overrides, and the shared-target contract."""
 from __future__ import annotations
+from conftest import _test_write
 
 
 def test_factory_defaults_produce_a_runnable_scaffolder(make_scaffolder):
@@ -43,7 +44,7 @@ def test_repeated_calls_share_one_target_without_recreating_it(make_scaffolder):
     """Two scaffolders over one target: the second must not recreate the directory."""
     first = make_scaffolder()
     sentinel = make_scaffolder.target / "sentinel"
-    sentinel.write_text("untouched", encoding="utf-8")
+    _test_write(sentinel, "untouched", encoding="utf-8")
 
     second = make_scaffolder()
 

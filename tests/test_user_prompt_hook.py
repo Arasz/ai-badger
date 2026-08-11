@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import json
+from conftest import _test_write
 
 TEST_MARKERS_CONTEXT = {
     "markers": [
@@ -24,8 +25,7 @@ TEST_MARKERS_CONTEXT = {
 
 def _write_markers_context(path, data=None):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data if data is not None else TEST_MARKERS_CONTEXT),
-                     encoding="utf-8")
+    _test_write(path, json.dumps(data if data is not None else TEST_MARKERS_CONTEXT), encoding="utf-8")
 
 
 def _call_main(module, monkeypatch, payload):
@@ -119,7 +119,7 @@ def test_invalid_markers_context_json_is_silent_failure(tmp_path, load_script, m
                                                           capsys):
     hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
     config_path = tmp_path / "markers-context.json"
-    config_path.write_text("{not valid json", encoding="utf-8")
+    _test_write(config_path, "{not valid json", encoding="utf-8")
     monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
 
     rc = _run_main_never_raises(hook, monkeypatch, {"prompt": "h: test", "cwd": str(tmp_path)})

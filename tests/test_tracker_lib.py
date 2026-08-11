@@ -14,6 +14,7 @@ import os
 import threading
 from datetime import timedelta
 from pathlib import Path
+from conftest import _test_write
 
 
 def _redirect(tl, tmp_path):
@@ -53,7 +54,7 @@ def _write_transcript(path, records):
                 }
             },
         }))
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _test_write(path, "\n".join(lines) + "\n", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +77,7 @@ def test_resolve_project_root_env_wins_over_cwd_walk(load_script, tmp_path):
     env_project.mkdir()
     cwd_project = tmp_path / "cwd-project"
     (cwd_project / ".ai-badger").mkdir(parents=True)
-    (cwd_project / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+    _test_write(cwd_project / ".ai-badger" / "config.json", "{}", encoding="utf-8")
 
     resolved = tl.resolve_project_root(
         env={"CLAUDE_PROJECT_DIR": str(env_project)}, cwd=cwd_project,
@@ -89,7 +90,7 @@ def test_resolve_project_root_ignores_claude_project_dir_pointing_nowhere(load_s
     tl = _load(load_script, tmp_path)
     cwd_project = tmp_path / "cwd-project"
     (cwd_project / ".ai-badger").mkdir(parents=True)
-    (cwd_project / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+    _test_write(cwd_project / ".ai-badger" / "config.json", "{}", encoding="utf-8")
 
     resolved = tl.resolve_project_root(
         env={"CLAUDE_PROJECT_DIR": str(tmp_path / "does-not-exist")}, cwd=cwd_project,
@@ -102,7 +103,7 @@ def test_resolve_project_root_walks_cwd_up_to_ai_badger_config_marker(load_scrip
     tl = _load(load_script, tmp_path)
     project_root = tmp_path / "project"
     (project_root / ".ai-badger").mkdir(parents=True)
-    (project_root / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+    _test_write(project_root / ".ai-badger" / "config.json", "{}", encoding="utf-8")
     nested_cwd = project_root / "src" / "deep" / "nested"
     nested_cwd.mkdir(parents=True)
 
@@ -116,10 +117,10 @@ def test_resolve_project_root_nearest_ancestor_wins_when_nested(load_script, tmp
     tl = _load(load_script, tmp_path)
     outer_root = tmp_path / "outer"
     (outer_root / ".ai-badger").mkdir(parents=True)
-    (outer_root / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+    _test_write(outer_root / ".ai-badger" / "config.json", "{}", encoding="utf-8")
     inner_root = outer_root / "vendor" / "nested-project"
     (inner_root / ".ai-badger").mkdir(parents=True)
-    (inner_root / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+    _test_write(inner_root / ".ai-badger" / "config.json", "{}", encoding="utf-8")
     cwd = inner_root / "src"
     cwd.mkdir(parents=True)
 
@@ -158,7 +159,7 @@ def test_resolve_project_root_regression_plugin_cache_does_not_misroot(load_scri
 
     real_project = tmp_path / "real-project"
     (real_project / ".ai-badger").mkdir(parents=True)
-    (real_project / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+    _test_write(real_project / ".ai-badger" / "config.json", "{}", encoding="utf-8")
     cwd = real_project / "src"
     cwd.mkdir()
 
@@ -267,7 +268,7 @@ def test_load_json_returns_default_when_file_is_malformed(load_script, tmp_path)
     tl = _load(load_script, tmp_path)
     tl.ensure_data_dir()
     bad = tl.DATA_DIR / "bad.json"
-    bad.write_text("{not valid json", encoding="utf-8")
+    _test_write(bad, "{not valid json", encoding="utf-8")
 
     assert tl.load_json(bad, {"fallback": True}) == {"fallback": True}
 
@@ -336,7 +337,7 @@ def test_load_config_returns_empty_dict_when_missing(load_script, tmp_path):
 def test_load_config_returns_empty_dict_when_unreadable(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
     tl.CONFIG_JSON.parent.mkdir(parents=True, exist_ok=True)
-    tl.CONFIG_JSON.write_text("{ this is not json", encoding="utf-8")
+    _test_write(tl.CONFIG_JSON, "{ this is not json", encoding="utf-8")
 
     assert tl.load_config() == {}
 
@@ -344,7 +345,7 @@ def test_load_config_returns_empty_dict_when_unreadable(load_script, tmp_path):
 def test_load_config_returns_saved_profile(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
     tl.CONFIG_JSON.parent.mkdir(parents=True, exist_ok=True)
-    tl.CONFIG_JSON.write_text(json.dumps({"stacks": ["dotnet"]}), encoding="utf-8")
+    _test_write(tl.CONFIG_JSON, json.dumps({"stacks": ["dotnet"]}), encoding="utf-8")
 
     assert tl.load_config() == {"stacks": ["dotnet"]}
 
@@ -442,7 +443,7 @@ def test_parse_transcript_usage_empty_path_returns_zeroed_result(load_script, tm
 def test_parse_transcript_usage_empty_existing_file_is_found_but_zeroed(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
     transcript = tmp_path / "empty.jsonl"
-    transcript.write_text("", encoding="utf-8")
+    _test_write(transcript, "", encoding="utf-8")
 
     result = tl.parse_transcript_usage(str(transcript))
 
@@ -481,7 +482,7 @@ def test_parse_transcript_usage_aggregates_main_chain_and_sidechain_messages(loa
             }},
         }),
     ]
-    transcript.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _test_write(transcript, "\n".join(lines) + "\n", encoding="utf-8")
 
     result = tl.parse_transcript_usage(str(transcript))
 
@@ -595,7 +596,7 @@ def test_claude_md_stats_when_file_missing(load_script, tmp_path):
 
 def test_claude_md_stats_within_budget(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
-    tl.CLAUDE_MD.write_text("line one\nline two\n", encoding="utf-8")
+    _test_write(tl.CLAUDE_MD, "line one\nline two\n", encoding="utf-8")
 
     stats = tl.claude_md_stats()
 
@@ -605,7 +606,7 @@ def test_claude_md_stats_within_budget(load_script, tmp_path):
 
 def test_claude_md_stats_over_line_budget(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
-    tl.CLAUDE_MD.write_text("x\n" * (tl.CLAUDE_MD_MAX_LINES + 5), encoding="utf-8")
+    _test_write(tl.CLAUDE_MD, "x\n" * (tl.CLAUDE_MD_MAX_LINES + 5), encoding="utf-8")
 
     stats = tl.claude_md_stats()
 
@@ -625,7 +626,7 @@ def test_state_json_updated_since_false_when_file_missing(load_script, tmp_path)
 def test_state_json_updated_since_true_when_mtime_after_started_at(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
     tl.STATE_JSON.parent.mkdir(parents=True, exist_ok=True)
-    tl.STATE_JSON.write_text("{}", encoding="utf-8")
+    _test_write(tl.STATE_JSON, "{}", encoding="utf-8")
 
     started_at = "2000-01-01T00:00:00+00:00"
 
@@ -635,7 +636,7 @@ def test_state_json_updated_since_true_when_mtime_after_started_at(load_script, 
 def test_state_json_updated_since_false_when_mtime_before_started_at(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
     tl.STATE_JSON.parent.mkdir(parents=True, exist_ok=True)
-    tl.STATE_JSON.write_text("{}", encoding="utf-8")
+    _test_write(tl.STATE_JSON, "{}", encoding="utf-8")
 
     started_at = "2999-01-01T00:00:00+00:00"
 
@@ -660,7 +661,7 @@ def test_save_current_session_records_transcript_cwd_and_pid(load_script, tmp_pa
 def test_save_current_session_prunes_entries_with_dead_pids(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
     tl.ensure_data_dir()
-    tl.CURRENT_SESSION.write_text(json.dumps({
+    _test_write(tl.CURRENT_SESSION, json.dumps({
         "sessions": {
             "old-dead": {
                 "transcriptPath": "/tmp/old.jsonl", "cwd": "/old", "pid": 999999999,
@@ -679,7 +680,7 @@ def test_save_current_session_prunes_entries_with_dead_pids(load_script, tmp_pat
 def test_save_current_session_keeps_entries_with_alive_pids(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
     tl.ensure_data_dir()
-    tl.CURRENT_SESSION.write_text(json.dumps({
+    _test_write(tl.CURRENT_SESSION, json.dumps({
         "sessions": {
             "alive-sid": {
                 "transcriptPath": "/tmp/alive.jsonl", "cwd": "/alive", "pid": os.getpid(),
@@ -737,7 +738,7 @@ def test_transcript_source_returns_none_with_no_registered_source(load_script, t
 
 def test_over_budget_docs_is_empty_when_every_file_fits(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
-    tl.CLAUDE_MD.write_text("short\n", encoding="utf-8")
+    _test_write(tl.CLAUDE_MD, "short\n", encoding="utf-8")
 
     assert tl.over_budget_docs() == []
 
@@ -745,11 +746,11 @@ def test_over_budget_docs_is_empty_when_every_file_fits(load_script, tmp_path):
 def test_over_budget_docs_reports_hermes_and_copilot_files(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
     fat = "x\n" * (tl.CLAUDE_MD_MAX_LINES + 5)
-    (tmp_path / "HERMES.md").write_text(fat, encoding="utf-8")
+    _test_write(tmp_path / "HERMES.md", fat, encoding="utf-8")
     copilot = tmp_path / ".github" / "copilot-instructions.md"
     copilot.parent.mkdir(parents=True, exist_ok=True)
-    copilot.write_text(fat, encoding="utf-8")
-    tl.CLAUDE_MD.write_text("short\n", encoding="utf-8")
+    _test_write(copilot, fat, encoding="utf-8")
+    _test_write(tl.CLAUDE_MD, "short\n", encoding="utf-8")
 
     names = sorted(Path(s["path"]).name for s in tl.over_budget_docs())
 
@@ -769,7 +770,7 @@ def test_over_budget_docs_ignores_files_that_do_not_exist(load_script, tmp_path)
 
 def _write_config(tl, payload):
     tl.CONFIG_JSON.parent.mkdir(parents=True, exist_ok=True)
-    tl.CONFIG_JSON.write_text(payload, encoding="utf-8")
+    _test_write(tl.CONFIG_JSON, payload, encoding="utf-8")
 
 
 def test_doc_budget_falls_back_to_the_constants_without_config(load_script, tmp_path):
@@ -790,7 +791,7 @@ def test_doc_budget_reads_an_override_from_config(load_script, tmp_path):
 
 def test_an_override_lifts_a_file_that_was_over_budget(load_script, tmp_path):
     tl = _load(load_script, tmp_path)
-    tl.CLAUDE_MD.write_text("x\n" * (tl.CLAUDE_MD_MAX_LINES + 14), encoding="utf-8")
+    _test_write(tl.CLAUDE_MD, "x\n" * (tl.CLAUDE_MD_MAX_LINES + 14), encoding="utf-8")
     assert tl.over_budget_docs(), "fixture must start over the default budget"
     lifted = tl.CLAUDE_MD_MAX_LINES + 50  # clears the fixture's +14, and never equals the default
 
@@ -852,7 +853,7 @@ def test_spawn_detached_appends_child_output_to_the_log(load_script, tmp_path, m
     """The poller's log must survive a relaunch, so the handle is opened for append."""
     tl = _load(load_script, tmp_path)
     log = tmp_path / "poll.log"
-    log.write_text("earlier\n", encoding="utf-8")
+    _test_write(log, "earlier\n", encoding="utf-8")
     captured = {}
 
     def _fake(*_args, **kwargs):

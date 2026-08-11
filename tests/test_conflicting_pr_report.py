@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / ".github/scripts/conflicting_pr_report.py"
@@ -230,7 +231,7 @@ class TestTheCommandLine:
 
     def test_it_reads_a_payload_from_a_file(self, tmp_path):
         source = tmp_path / "prs.json"
-        source.write_text(json.dumps(payload(pull_request(341, "CONFLICTING"))), encoding="utf-8")
+        _test_write(source, json.dumps(payload(pull_request(341, "CONFLICTING"))), encoding="utf-8")
 
         proc = self._run(["--from", str(source)])
 

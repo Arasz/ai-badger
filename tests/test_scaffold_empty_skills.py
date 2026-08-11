@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 SCRIPT = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 
@@ -22,7 +23,7 @@ def test_an_empty_skills_flag_relinks_the_previously_scaffolded_set(
         tmp_path, load_script, root, capsys):
     scaffold = load_script(SCRIPT)
     config_path = tmp_path / "config.json"
-    config_path.write_text(json.dumps(_config()), encoding="utf-8")
+    _test_write(config_path, json.dumps(_config()), encoding="utf-8")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -42,7 +43,7 @@ def test_reusing_the_manifest_set_is_stated_on_stdout(tmp_path, load_script, roo
     # node has no stack-local skills: the recovered set is exactly the manifest's,
     # so "reused 2 skill(s)" pins the recovery path (dotnet would add stack-local
     # skills on top of the recovered set).
-    config_path.write_text(json.dumps(_config(stacks=["node"])), encoding="utf-8")
+    _test_write(config_path, json.dumps(_config(stacks=["node"])), encoding="utf-8")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -64,7 +65,7 @@ def test_an_empty_skills_flag_on_a_fresh_target_still_exits_zero(
     # A stack WITHOUT stack-local skills keeps the assertion meaningful: dotnet now
     # ships stack-local skills (dotnet-mcp-server etc.), which a fresh scaffold
     # delivers even with an empty --skills — that is the designed stack-local route.
-    config_path.write_text(json.dumps(_config(stacks=["node"])), encoding="utf-8")
+    _test_write(config_path, json.dumps(_config(stacks=["node"])), encoding="utf-8")
     target = tmp_path / "proj"
     target.mkdir()
 
@@ -77,12 +78,12 @@ def test_an_unreadable_manifest_is_reported_and_destroys_nothing(
     """A manifest that cannot be parsed must not read as "reused 0 skill(s)"."""
     scaffold = load_script(SCRIPT)
     config_path = tmp_path / "config.json"
-    config_path.write_text(json.dumps(_config()), encoding="utf-8")
+    _test_write(config_path, json.dumps(_config()), encoding="utf-8")
     target = tmp_path / "proj"
     target.mkdir()
 
     assert _run(scaffold, config_path, target, root, "task,prompt-markers") == 0
-    (target / ".ai-badger" / "manifest.json").write_text("{not json", encoding="utf-8")
+    _test_write(target / ".ai-badger" / "manifest.json", "{not json", encoding="utf-8")
     capsys.readouterr()
 
     assert _run(scaffold, config_path, target, root, "") == 0

@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from conftest import ROOT
+from conftest import _test_write
 
 # Substrings that may never appear anywhere under features/.
 #
@@ -115,7 +116,7 @@ HARVEST_SAMPLES = pytest.mark.parametrize("relative, line", [
 def _seed(root: Path, relative: str, line: str) -> None:
     path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"# reference\n\n{line}\n", encoding="utf-8")
+    _test_write(path, f"# reference\n\n{line}\n", encoding="utf-8")
 
 
 @HARVEST_SAMPLES
@@ -136,11 +137,9 @@ def test_banned_string_scanner_allows_legitimate_framework_voice(tmp_path):
 def test_orphan_scanner_catches_a_reference_no_skill_names(tmp_path):
     skill = tmp_path / "features/dotnet/skills/dotnet-domain-modeling"
     (skill / "references").mkdir(parents=True)
-    (skill / "SKILL.md").write_text(
-        "# s\n\nWhen classifying, read `references/deterministic-classification-pipeline.md`.\n",
-        encoding="utf-8")
-    (skill / "references/deterministic-classification-pipeline.md").write_text("x", "utf-8")
-    (skill / "references/llm-classifier-integration.md").write_text("x", "utf-8")
+    _test_write(skill / "SKILL.md", "# s\n\nWhen classifying, read `references/deterministic-classification-pipeline.md`.\n", encoding="utf-8")
+    _test_write(skill / "references/deterministic-classification-pipeline.md", "x")
+    _test_write(skill / "references/llm-classifier-integration.md", "x")
 
     orphans = unreferenced_reference_files(tmp_path)
 

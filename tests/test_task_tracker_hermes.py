@@ -17,6 +17,7 @@ import subprocess
 import sys
 
 import pytest
+from conftest import _test_write
 
 TRACKER_RELPATH = "features/common/skills/task/scripts/task_tracker.py"
 LIB_RELPATH = "features/common/skills/task/scripts/tracker_lib.py"
@@ -457,7 +458,7 @@ class TestCliUnderHermes:
         # finish requires state.json updated since start
         state = tmp_path / ".ai-badger" / "state.json"
         state.parent.mkdir(parents=True, exist_ok=True)
-        state.write_text("{}")
+        _test_write(state, "{}")
         _run_args(monkeypatch, tt, "finish", "T-H2", "--force")
 
         usage = json.loads(tt.lib.TOKEN_USAGE.read_text())["tasks"]

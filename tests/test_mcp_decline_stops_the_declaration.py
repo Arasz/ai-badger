@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from conftest import _test_write
 
 MCP_JSON = Path(".mcp.json")
 COPILOT = Path(".github") / "mcp.json"
@@ -35,15 +36,13 @@ def _config(agents=None, decline=None):
 def _declare(tmp_path, *servers):
     stack = tmp_path / "features" / "python"
     stack.mkdir(parents=True, exist_ok=True)
-    (stack / "stack-mcp.json").write_text(
-        json.dumps({"servers": [dict(s, declare=True) for s in servers]}), encoding="utf-8")
+    _test_write(stack / "stack-mcp.json", json.dumps({"servers": [dict(s, declare=True) for s in servers]}), encoding="utf-8")
 
 
 def _scaf(make_scaffolder, tmp_path, config):
     index_path = tmp_path / "index.json"
     if not index_path.exists():
-        index_path.write_text(json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}),
-                              encoding="utf-8")
+        _test_write(index_path, json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8")
     return make_scaffolder(root=tmp_path, target=make_scaffolder.target, config=config)
 
 
@@ -72,7 +71,7 @@ def test_declining_a_server_removes_the_entry_a_previous_scaffold_wrote(make_sca
     """Merge-only would keep launching it; the decline has to reach the file that exists."""
     target = make_scaffolder.target
     _declare(tmp_path, {"name": "keep", "command": "echo keep"})
-    (target / MCP_JSON).write_text(json.dumps({"mcpServers": {
+    _test_write(target / MCP_JSON, json.dumps({"mcpServers": {
         "keep": {"command": "echo keep"}, "drop": {"command": "echo drop"}}}), encoding="utf-8")
     scaf = _scaf(make_scaffolder, tmp_path, _config(decline=["drop"]))
 
@@ -142,11 +141,9 @@ def _install_probe_adjustment(tmp_path: Path, agent: str) -> None:
     """A throwaway adjustment for *agent* that dumps the context keys it was handed."""
     directory = tmp_path / "features" / agent / "adjustments"
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / "adjustment.json").write_text(json.dumps({"agent": agent, "adjustments": [
-        {"feature": "mcp", "description": "probe", "script": "adjust_probe.py"}]}),
-        encoding="utf-8")
-    (directory / "adjust_probe.py").write_text(
-        "import json\n"
+    _test_write(directory / "adjustment.json", json.dumps({"agent": agent, "adjustments": [
+        {"feature": "mcp", "description": "probe", "script": "adjust_probe.py"}]}), encoding="utf-8")
+    _test_write(directory / "adjust_probe.py", "import json\n"
         "from pathlib import Path\n"
         "def adjust(context):\n"
         "    Path(context['framework_root'], 'probe.json').write_text(json.dumps({\n"
@@ -154,8 +151,7 @@ def _install_probe_adjustment(tmp_path: Path, agent: str) -> None:
         "        'mcp_declined': context['mcp_declined'],\n"
         "        'mcp_servers': context['mcp_servers'],\n"
         "    }), encoding='utf-8')\n"
-        "    return {'applied': False, 'files': [], 'notes': 'probe'}\n",
-        encoding="utf-8")
+        "    return {'applied': False, 'files': [], 'notes': 'probe'}\n", encoding="utf-8")
 
 
 def test_the_adjustment_context_carries_the_declarations_and_the_declines(make_scaffolder,

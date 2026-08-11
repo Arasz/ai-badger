@@ -9,6 +9,7 @@ import json
 import shutil
 
 import pytest
+from conftest import _test_write
 
 
 def _copy_real_schemas(tmp_path, root):
@@ -22,7 +23,7 @@ def _write_hooks_manifest(tmp_path):
     """A complete manifest: since 0.88.4 a tree with no hooks-manifest.json fails --all."""
     d = tmp_path / "features" / "common" / "hooks"
     d.mkdir(parents=True, exist_ok=True)
-    (d / "hooks-manifest.json").write_text(json.dumps({"hooks": [
+    _test_write(d / "hooks-manifest.json", json.dumps({"hooks": [
         {"name": "demo-hook", "agents": {
             agent: {"type": "hooks-json", "entry": "hooks.json", "event": "SessionStart",
                     "script": "demo_hook.py"}
@@ -59,7 +60,7 @@ def _write_skill(tmp_path, name="my-skill", fm_name=None, description="Use when 
     if frontmatter_extra:
         fm += frontmatter_extra
     fm += "---\n"
-    (d / "SKILL.md").write_text(fm + body, encoding="utf-8")
+    _test_write(d / "SKILL.md", fm + body, encoding="utf-8")
     return d
 
 
@@ -134,7 +135,7 @@ def test_description_required(tmp_path, load_script):
     d = _write_skill(tmp_path, body=_GOOD_BODY)
     text = d.joinpath("SKILL.md").read_text(encoding="utf-8")
     text = text.replace("description: >-\n  Use when testing the skills lint.\n", "")
-    d.joinpath("SKILL.md").write_text(text, encoding="utf-8")
+    _test_write(d.joinpath("SKILL.md"), text, encoding="utf-8")
 
     bad = _lint(lint, tmp_path)
 
@@ -266,7 +267,7 @@ def test_frontmatter_missing_keys_reported(tmp_path, load_script):
     text = d.joinpath("SKILL.md").read_text(encoding="utf-8")
     text = text.replace("license: MIT\n", "").replace(
         "    related_skills: []\n", "").replace("platforms: [linux, macos, windows]\n", "")
-    d.joinpath("SKILL.md").write_text(text, encoding="utf-8")
+    _test_write(d.joinpath("SKILL.md"), text, encoding="utf-8")
 
     bad = _lint(lint, tmp_path)
 
@@ -287,7 +288,7 @@ def test_a_metadata_key_carrying_an_inline_value_is_reported_not_passed(tmp_path
     lint = load_script("gates/skills_lint.py")
     d = _write_skill(tmp_path, body=_GOOD_BODY)
     path = d / "SKILL.md"
-    path.write_text(path.read_text(encoding="utf-8").replace(
+    _test_write(path, path.read_text(encoding="utf-8").replace(
         "metadata:\n", "metadata: an inline value no reader can reconcile\n"), encoding="utf-8")
 
     assert lint.frontmatter_fields(path.read_text(encoding="utf-8")) is None
@@ -297,8 +298,7 @@ def test_a_metadata_key_carrying_an_inline_value_is_reported_not_passed(tmp_path
 def test_unparseable_frontmatter_is_reported_not_passed(tmp_path, load_script):
     lint = load_script("gates/skills_lint.py")
     d = _write_skill(tmp_path, body=_GOOD_BODY)
-    d.joinpath("SKILL.md").write_text(
-        "---\nname: my-skill\nno closing fence here\n", encoding="utf-8")
+    _test_write(d.joinpath("SKILL.md"), "---\nname: my-skill\nno closing fence here\n", encoding="utf-8")
 
     bad = _lint(lint, tmp_path)
 

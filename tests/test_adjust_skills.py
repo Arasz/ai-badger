@@ -8,6 +8,7 @@ destroy, and not crash on — anything else. Mirrors scaffold._owns_link's contr
 from __future__ import annotations
 
 import json
+from conftest import _test_write
 
 
 def _project(tmp_path, skills=("task",), manifest_targets=()):
@@ -16,11 +17,11 @@ def _project(tmp_path, skills=("task",), manifest_targets=()):
     for name in skills:
         skill = aib / "skills" / name
         skill.mkdir(parents=True)
-        (skill / "SKILL.md").write_text(f"# {name}\n", encoding="utf-8")
+        _test_write(skill / "SKILL.md", f"# {name}\n", encoding="utf-8")
     entries = [{"feature": "adjustments", "stack": "copilot", "name": name,
                 "source": "", "target": t, "frameworkVersion": "0.21.0", "hash": "0" * 64}
                for name, t in manifest_targets]
-    (aib / "manifest.json").write_text(json.dumps({"entries": entries}), encoding="utf-8")
+    _test_write(aib / "manifest.json", json.dumps({"entries": entries}), encoding="utf-8")
     return target
 
 
@@ -51,7 +52,7 @@ def test_foreign_github_skills_dir_is_preserved(tmp_path, load_script, root):
     target = _project(tmp_path)
     foreign = target / ".github" / "skills" / "task"
     foreign.mkdir(parents=True)
-    (foreign / "SKILL.md").write_text("# hand-written by the user\n", encoding="utf-8")
+    _test_write(foreign / "SKILL.md", "# hand-written by the user\n", encoding="utf-8")
 
     result = adjust_skills.adjust(_context(root, target))
 
@@ -66,7 +67,7 @@ def test_plain_file_destination_is_reported_not_crashed(tmp_path, load_script, r
     target = _project(tmp_path)
     collision = target / ".github" / "skills" / "task"
     collision.parent.mkdir(parents=True)
-    collision.write_text("not a directory\n", encoding="utf-8")
+    _test_write(collision, "not a directory\n", encoding="utf-8")
 
     result = adjust_skills.adjust(_context(root, target))
 
@@ -107,7 +108,7 @@ def test_a_directory_the_manifest_records_as_ours_is_replaced(tmp_path, load_scr
     target = _project(tmp_path, manifest_targets=(("task", ".github/skills/task"),))
     ours = target / ".github" / "skills" / "task"
     ours.mkdir(parents=True)
-    (ours / "SKILL.md").write_text("# stale copy we placed\n", encoding="utf-8")
+    _test_write(ours / "SKILL.md", "# stale copy we placed\n", encoding="utf-8")
 
     result = adjust_skills.adjust(_context(root, target))
 

@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
+from conftest import _test_write
 
 SCRIPT = "features/common/skills/welcome-ai-badger/scripts/dependency_check.py"
 
@@ -43,9 +44,7 @@ def dep_root(tmp_path):
         ]
     }
     (tmp_path / "features" / "common").mkdir(parents=True)
-    (tmp_path / "features" / "common" / "dependencies.json").write_text(
-        json.dumps(deps), encoding="utf-8"
-    )
+    _test_write(tmp_path / "features" / "common" / "dependencies.json", json.dumps(deps), encoding="utf-8")
     return tmp_path
 
 
@@ -253,9 +252,7 @@ def dep_root_optional(tmp_path):
         ]
     }
     (tmp_path / "features" / "common").mkdir(parents=True)
-    (tmp_path / "features" / "common" / "dependencies.json").write_text(
-        json.dumps(deps), encoding="utf-8"
-    )
+    _test_write(tmp_path / "features" / "common" / "dependencies.json", json.dumps(deps), encoding="utf-8")
     return tmp_path
 
 

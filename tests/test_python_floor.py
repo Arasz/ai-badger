@@ -9,6 +9,7 @@ import ast
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -66,8 +67,7 @@ def test_no_builtin_generic_subscript_executes_at_import(path):
 
 def test_the_checker_itself_can_fail(tmp_path):
     probe = tmp_path / "probe.py"
-    probe.write_text("from __future__ import annotations\nAlias = dict[str, int]\n",
-                     encoding="utf-8")
+    _test_write(probe, "from __future__ import annotations\nAlias = dict[str, int]\n", encoding="utf-8")
     assert _runtime_builtin_generic_lines(probe) == [2]
 
 
@@ -112,6 +112,6 @@ def test_no_method_newer_than_the_floor_is_called(path):
 def test_the_method_checker_can_fail(tmp_path):
     """Without this, the check above passes on a repo that simply never calls one."""
     probe = tmp_path / "probe.py"
-    probe.write_text('x = "ab^{}".removesuffix("^{}")\n', encoding="utf-8")
+    _test_write(probe, 'x = "ab^{}".removesuffix("^{}")\n', encoding="utf-8")
 
     assert _late_method_calls(probe) == [(1, "removesuffix")]

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from conftest import _test_write
 
 SCRIPT = "features/common/skills/mcp-index/scripts/mcp_index.py"
 LISTINGS = "features/common/skills/mcp-index/scripts/host_listings.py"
@@ -39,7 +40,7 @@ def _read_index(project: Path) -> dict:
 def _write_index(project: Path, data: dict) -> None:
     aib = project / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
-    (aib / "mcp-tools.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
+    _test_write(aib / "mcp-tools.json", json.dumps(data, indent=2), encoding="utf-8")
 
 
 def _source(index: dict, name: str) -> dict:

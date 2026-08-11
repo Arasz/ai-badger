@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from conftest import _test_write
 
 
 @pytest.fixture
@@ -46,7 +47,7 @@ def _sample_index() -> dict:
 def _write_index(project, data: dict) -> None:
     aib = project / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
-    (aib / "mcp-tools.json").write_text(json.dumps(data), encoding="utf-8")
+    _test_write(aib / "mcp-tools.json", json.dumps(data), encoding="utf-8")
 
 
 class TestLoadMcpIndex:
@@ -69,7 +70,7 @@ class TestLoadMcpIndex:
         project = tmp_path / "proj"
         aib = project / ".ai-badger"
         aib.mkdir(parents=True)
-        (aib / "mcp-tools.json").write_text("{not json", encoding="utf-8")
+        _test_write(aib / "mcp-tools.json", "{not json", encoding="utf-8")
         assert ce.load_mcp_index(str(project)) is None
 
 
@@ -78,13 +79,13 @@ class TestLegacyDetection:
         project = tmp_path / "proj"
         aib = project / ".ai-badger"
         aib.mkdir(parents=True)
-        (aib / "mcp-tools.yaml").write_text("sources: []\n", encoding="utf-8")
+        _test_write(aib / "mcp-tools.yaml", "sources: []\n", encoding="utf-8")
         assert ce.has_legacy_unmigrated_index(str(project)) is True
 
     def test_json_present_is_not_legacy_even_with_yaml_alongside(self, ce, tmp_path):
         project = tmp_path / "proj"
         _write_index(project, _sample_index())
-        (project / ".ai-badger" / "mcp-tools.yaml").write_text("sources: []\n", encoding="utf-8")
+        _test_write(project / ".ai-badger" / "mcp-tools.yaml", "sources: []\n", encoding="utf-8")
         assert ce.has_legacy_unmigrated_index(str(project)) is False
 
     def test_nothing_at_all_is_not_legacy(self, ce, tmp_path):

@@ -14,6 +14,7 @@ import subprocess
 import sys
 
 import pytest
+from conftest import _test_write
 
 TRACKER_RELPATH = "features/common/skills/task/scripts/task_tracker.py"
 LIB_RELPATH = "features/common/skills/task/scripts/tracker_lib.py"
@@ -82,7 +83,7 @@ class TestResolveOwnSessionClaude:
         tl.CURRENT_SESSION = tmp_path / ".ai-badger" / "task-tracking" / "current-session.json"
         cs.register(tl)
         tl.ensure_data_dir()
-        tl.CURRENT_SESSION.write_text(json.dumps({
+        _test_write(tl.CURRENT_SESSION, json.dumps({
             "sessions": {"sid-1": {"transcriptPath": "/tmp/a.jsonl", "cwd": "/a",
                                    "pid": 424242}}}), encoding="utf-8")
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-1")
@@ -116,7 +117,7 @@ class TestResolveOwnSessionClaude:
         cs.register(tl)
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         tl.ensure_data_dir()
-        tl.CURRENT_SESSION.write_text(json.dumps({
+        _test_write(tl.CURRENT_SESSION, json.dumps({
             "sessions": {"anc-sid": {"transcriptPath": "/tmp/a.jsonl", "cwd": "/a",
                                      "pid": 424242}}}), encoding="utf-8")
         tl._own_pid_ancestry = lambda max_depth=12: [1, 424242]
@@ -137,7 +138,7 @@ class TestResolveOwnSessionClaude:
         monkeypatch.chdir(tmp_path)
         tl._own_pid_ancestry = lambda max_depth=12: []
         tl.ensure_data_dir()
-        tl.CURRENT_SESSION.write_text(json.dumps({
+        _test_write(tl.CURRENT_SESSION, json.dumps({
             "sessions": {"cwd-sid": {"transcriptPath": "/tmp/c.jsonl", "cwd": str(tmp_path)}},
         }), encoding="utf-8")
 
@@ -157,7 +158,7 @@ class TestResolveOwnSessionClaude:
         monkeypatch.chdir(tmp_path)
         tl._own_pid_ancestry = lambda max_depth=12: []
         tl.ensure_data_dir()
-        tl.CURRENT_SESSION.write_text(json.dumps({
+        _test_write(tl.CURRENT_SESSION, json.dumps({
             "sessions": {
                 "sid-a": {"transcriptPath": "/tmp/a.jsonl", "cwd": str(tmp_path)},
                 "sid-b": {"transcriptPath": "/tmp/b.jsonl", "cwd": str(tmp_path)},
@@ -188,7 +189,7 @@ class TestClaudeCli:
     def test_start_under_claude_records_transcript_checkpoint_and_claude_resume(
             self, tt, monkeypatch, tmp_path):
         transcript = tmp_path / "s.jsonl"
-        transcript.write_text(json.dumps({
+        _test_write(transcript, json.dumps({
             "type": "assistant",
             "message": {"usage": {"input_tokens": 900, "output_tokens": 100,
                                   "cache_read_input_tokens": 0,
@@ -231,7 +232,7 @@ class TestClaudeCli:
 
     def test_finish_under_claude_computes_usage(self, tt, monkeypatch, tmp_path):
         transcript = tmp_path / "s2.jsonl"
-        transcript.write_text(json.dumps({
+        _test_write(transcript, json.dumps({
             "type": "assistant",
             "message": {"usage": {"input_tokens": 900, "output_tokens": 100,
                                   "cache_read_input_tokens": 0,
@@ -242,7 +243,7 @@ class TestClaudeCli:
         _run(monkeypatch, tt, "start", "T-C3", "--no-worktree", "--no-cron",
              "--transcript-path", str(transcript))
         # The transcript grows as the task's work lands.
-        transcript.write_text(json.dumps({
+        _test_write(transcript, json.dumps({
             "type": "assistant",
             "message": {"usage": {"input_tokens": 1900, "output_tokens": 300,
                                   "cache_read_input_tokens": 0,
@@ -251,7 +252,7 @@ class TestClaudeCli:
         }) + "\n", encoding="utf-8")
         state = tmp_path / ".ai-badger" / "state.json"
         state.parent.mkdir(parents=True, exist_ok=True)
-        state.write_text("{}")
+        _test_write(state, "{}")
         _run(monkeypatch, tt, "finish", "T-C3", "--force")
 
         usage = json.loads(tt.lib.TOKEN_USAGE.read_text())["tasks"]

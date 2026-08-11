@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 ENGINE_MODULES = ("badger_lib.py", "frontmatter.py", "framework_copies.py",
                   "unsafe_literals.py")
@@ -65,7 +66,7 @@ def test_the_root_predicate_anchors_on_the_engine(root, load_script, tmp_path):
     old_layout = tmp_path / "old"
     for name in ("schemas", "features", "scripts"):
         (old_layout / name).mkdir(parents=True)
-    (old_layout / "scripts" / "badger_lib.py").write_text("", encoding="utf-8")
+    _test_write(old_layout / "scripts" / "badger_lib.py", "", encoding="utf-8")
     assert not lib.is_framework_root(old_layout)
 
 

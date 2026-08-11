@@ -10,6 +10,7 @@ import shutil
 from pathlib import Path
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 # Enough of a framework to scaffold from and safe to mutate — the shared checkout is not.
 _FRAMEWORK_TREE = ("features", "schemas", "engine", "tooling", "hooks", "skills",
@@ -45,7 +46,7 @@ def _manifest_with_entry(target, source_rel, target_rel, entry_hash):
             "frameworkVersion": "0.2.0", "hash": entry_hash,
         }],
     }
-    (aib / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    _test_write(aib / "manifest.json", json.dumps(manifest), encoding="utf-8")
     return manifest
 
 
@@ -55,13 +56,13 @@ def test_compare_reports_changed_when_framework_source_differs(tmp_path, load_sc
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
     src = fw / "features" / "common" / "invariants" / "x.md"
-    src.write_text("original\n", encoding="utf-8")
+    _test_write(src, "original\n", encoding="utf-8")
     original_hash = bl.sha256_file(src)
 
     proj = tmp_path / "proj"
     manifest = _manifest_with_entry(proj, "features/common/invariants/x.md",
                                     ".ai-badger/invariants/x.md", original_hash)
-    src.write_text("upstream changed\n", encoding="utf-8")
+    _test_write(src, "upstream changed\n", encoding="utf-8")
 
     result = drift.compare(fw, manifest)
 
@@ -75,7 +76,7 @@ def test_compare_silent_when_source_unchanged(tmp_path, load_script):
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
     src = fw / "features" / "common" / "invariants" / "x.md"
-    src.write_text("stable\n", encoding="utf-8")
+    _test_write(src, "stable\n", encoding="utf-8")
 
     proj = tmp_path / "proj"
     manifest = _manifest_with_entry(proj, "features/common/invariants/x.md",
@@ -108,7 +109,7 @@ def test_compare_reports_directory_entry_as_skipped_not_changed(tmp_path, load_s
     fw = tmp_path / "fw"
     skill_dir = fw / "features" / "common" / "skills" / "task"
     skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text("content\n", encoding="utf-8")
+    _test_write(skill_dir / "SKILL.md", "content\n", encoding="utf-8")
 
     # Compute the correct hash
     fingerprint = bl.dir_content_hash(skill_dir)
@@ -156,13 +157,13 @@ def test_compare_changed_file_entry_does_not_appear_in_skipped(tmp_path, load_sc
     fw = tmp_path / "fw"
     (fw / "features" / "common" / "invariants").mkdir(parents=True)
     src = fw / "features" / "common" / "invariants" / "x.md"
-    src.write_text("original\n", encoding="utf-8")
+    _test_write(src, "original\n", encoding="utf-8")
     original_hash = bl.sha256_file(src)
 
     proj = tmp_path / "proj"
     manifest = _manifest_with_entry(proj, "features/common/invariants/x.md",
                                     ".ai-badger/invariants/x.md", original_hash)
-    src.write_text("upstream changed\n", encoding="utf-8")
+    _test_write(src, "upstream changed\n", encoding="utf-8")
 
     result = drift.compare(fw, manifest)
 
@@ -177,8 +178,8 @@ def test_main_exits_zero_when_only_skipped_entries(tmp_path, load_script, capsys
     fw = tmp_path / "fw"
     skill_dir = fw / "features" / "common" / "skills" / "task"
     skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text("content\n", encoding="utf-8")
-    (fw / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(skill_dir / "SKILL.md", "content\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.2.0\n", encoding="utf-8")
 
     # Compute correct hash
     fingerprint = bl.dir_content_hash(skill_dir)
@@ -205,9 +206,7 @@ def test_main_exits_zero_when_only_skipped_entries(tmp_path, load_script, capsys
         }],
     }
     (proj / ".ai-badger").mkdir(parents=True)
-    (proj / ".ai-badger" / "manifest.json").write_text(
-        json.dumps(manifest), encoding="utf-8"
-    )
+    _test_write(proj / ".ai-badger" / "manifest.json", json.dumps(manifest), encoding="utf-8")
 
     rc = drift.main(["--root", str(fw), "--target", str(proj)])
 
@@ -224,12 +223,12 @@ def test_main_prints_genuinely_clean_message_when_nothing_skipped(
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
     fw.mkdir()
-    (fw / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.2.0\n", encoding="utf-8")
 
     proj = tmp_path / "proj"
     aib = proj / ".ai-badger"
     aib.mkdir(parents=True)
-    (aib / "manifest.json").write_text(json.dumps({
+    _test_write(aib / "manifest.json", json.dumps({
         "frameworkVersion": "0.2.0", "frameworkCommit": None, "frameworkDirty": False,
         "agents": ["claude"], "entries": [],
     }), encoding="utf-8")
@@ -247,12 +246,12 @@ def test_main_returns_usage_error_on_corrupt_manifest(tmp_path, load_script, cap
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
     fw.mkdir()
-    (fw / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.2.0\n", encoding="utf-8")
 
     proj = tmp_path / "proj"
     aib = proj / ".ai-badger"
     aib.mkdir(parents=True)
-    (aib / "manifest.json").write_text("{not json", encoding="utf-8")
+    _test_write(aib / "manifest.json", "{not json", encoding="utf-8")
 
     rc = drift.main(["--root", str(fw), "--target", str(proj)])
 
@@ -295,12 +294,12 @@ def test_main_reports_invalid_entry_count_in_output(tmp_path, load_script, capsy
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
     fw.mkdir()
-    (fw / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.2.0\n", encoding="utf-8")
 
     proj = tmp_path / "proj"
     aib = proj / ".ai-badger"
     aib.mkdir(parents=True)
-    (aib / "manifest.json").write_text(json.dumps({
+    _test_write(aib / "manifest.json", json.dumps({
         "frameworkVersion": "0.2.0", "frameworkCommit": None, "frameworkDirty": False,
         "agents": ["claude"],
         "entries": [{"feature": "invariants", "stack": "common", "name": "no-hash",
@@ -323,7 +322,7 @@ def test_compare_detects_changed_dir_by_hash(tmp_path, load_script):
     fw = tmp_path / "fw"
     skill_dir = fw / "features" / "common" / "skills" / "my-skill"
     skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text("v2 content\n")
+    _test_write(skill_dir / "SKILL.md", "v2 content\n")
 
     # Manifest has a different hash
     manifest = {
@@ -348,7 +347,7 @@ def test_compare_passes_unchanged_dir(tmp_path, load_script):
     fw = tmp_path / "fw"
     skill_dir = fw / "features" / "common" / "skills" / "my-skill"
     skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text("content\n")
+    _test_write(skill_dir / "SKILL.md", "content\n")
 
     # Compute the expected hash
     fingerprint = bl.dir_content_hash(skill_dir)
@@ -387,16 +386,16 @@ def test_an_extension_pruned_from_the_project_is_not_drift(tmp_path, load_script
     skill_src = fw / "features" / "common" / "skills" / "task"
     (skill_src / "extensions" / "github").mkdir(parents=True)
     (skill_src / "scripts").mkdir(parents=True)
-    (skill_src / "SKILL.md").write_text("# task skill\n")
-    (skill_src / "scripts" / "tracker.py").write_text("print('track')\n")
-    (skill_src / "extensions" / "github" / "extension.md").write_text("# GitHub ext\n")
+    _test_write(skill_src / "SKILL.md", "# task skill\n")
+    _test_write(skill_src / "scripts" / "tracker.py", "print('track')\n")
+    _test_write(skill_src / "extensions" / "github" / "extension.md", "# GitHub ext\n")
 
     # Scaffolded target: same skill but WITHOUT extensions (pruned by config)
     target = tmp_path / "proj"
     skill_tgt = target / ".ai-badger" / "skills" / "task"
     (skill_tgt / "scripts").mkdir(parents=True)
-    (skill_tgt / "SKILL.md").write_text("# task skill\n")
-    (skill_tgt / "scripts" / "tracker.py").write_text("print('track')\n")
+    _test_write(skill_tgt / "SKILL.md", "# task skill\n")
+    _test_write(skill_tgt / "scripts" / "tracker.py", "print('track')\n")
 
     # Manifest records both hashes, as scaffold.record() does
     exclude = bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
@@ -468,7 +467,7 @@ def test_a_manifest_target_outside_the_project_is_not_hashed(tmp_path, load_scri
     (target / ".ai-badger").mkdir(parents=True)
     outside = tmp_path / "outside"
     outside.mkdir()
-    (outside / "secret.md").write_text("not ours\n", encoding="utf-8")
+    _test_write(outside / "secret.md", "not ours\n", encoding="utf-8")
 
     manifest = {
         "frameworkVersion": "0.1.0",
@@ -515,8 +514,7 @@ def test_a_skill_changed_in_the_framework_is_reported_as_drift(
                              skills=["task"]).run(generated_at="2026-07-28T00:00:00Z")
 
     moved = fw / "features" / "common" / "skills" / "task" / "scripts" / "task_tracker.py"
-    moved.write_text(moved.read_text(encoding="utf-8") + "# upstream moved on\n",
-                     encoding="utf-8")
+    _test_write(moved, moved.read_text(encoding="utf-8") + "# upstream moved on\n", encoding="utf-8")
 
     compared = drift.compare(fw, result["manifest"], target=target)
 
@@ -534,7 +532,7 @@ def test_a_project_edit_to_its_own_copy_is_not_framework_drift(
                              skills=["task"]).run(generated_at="2026-07-28T00:00:00Z")
 
     edited = target / ".ai-badger" / "skills" / "task" / "scripts" / "task_tracker.py"
-    edited.write_text(edited.read_text(encoding="utf-8") + "# ours\n", encoding="utf-8")
+    _test_write(edited, edited.read_text(encoding="utf-8") + "# ours\n", encoding="utf-8")
 
     compared = drift.compare(fw, result["manifest"], target=target)
 
@@ -547,7 +545,7 @@ def test_a_version_only_difference_is_drift(tmp_path, load_script):
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
     fw.mkdir()
-    (fw / "VERSION").write_text("0.4.0\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.4.0\n", encoding="utf-8")
 
     result = drift.compare(fw, {"frameworkVersion": "0.3.0", "entries": []})
 
@@ -559,10 +557,10 @@ def test_main_reports_drift_when_only_the_version_moved(tmp_path, load_script, c
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
     fw.mkdir()
-    (fw / "VERSION").write_text("0.4.0\n", encoding="utf-8")
+    _test_write(fw / "VERSION", "0.4.0\n", encoding="utf-8")
     proj = tmp_path / "proj"
     (proj / ".ai-badger").mkdir(parents=True)
-    (proj / ".ai-badger" / "manifest.json").write_text(json.dumps({
+    _test_write(proj / ".ai-badger" / "manifest.json", json.dumps({
         "frameworkVersion": "0.3.0", "frameworkCommit": None, "frameworkDirty": False,
         "agents": ["claude"], "entries": [],
     }), encoding="utf-8")
@@ -576,7 +574,7 @@ def test_main_reports_drift_when_only_the_version_moved(tmp_path, load_script, c
 def _write_project_config(target, config):
     aib = target / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
-    (aib / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    _test_write(aib / "config.json", json.dumps(config), encoding="utf-8")
 
 
 def test_a_config_edit_since_the_scaffold_is_drift(tmp_path, load_script):
@@ -624,7 +622,7 @@ def test_a_reformatted_config_is_not_drift(tmp_path, load_script):
     aib = proj / ".ai-badger"
     aib.mkdir(parents=True)
     reformatted = dict(reversed(list(config.items())))
-    (aib / "config.json").write_text(json.dumps(reformatted, indent=4), encoding="utf-8")
+    _test_write(aib / "config.json", json.dumps(reformatted, indent=4), encoding="utf-8")
 
     result = drift.compare(fw, {"entries": [], "configHash": recorded}, target=proj)
 
@@ -652,8 +650,7 @@ def test_one_changed_source_is_reported_once_however_many_entries_share_it(
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
     fw = tmp_path / "fw"
     (fw / "features" / "copilot" / "adjustments").mkdir(parents=True)
-    (fw / "features" / "copilot" / "adjustments" / "adjust_skills.py").write_text(
-        "upstream moved on\n", encoding="utf-8")
+    _test_write(fw / "features" / "copilot" / "adjustments" / "adjust_skills.py", "upstream moved on\n", encoding="utf-8")
     source_rel = "features/copilot/adjustments/adjust_skills.py"
     manifest = {"entries": [
         {"feature": "adjustments", "stack": "copilot", "name": f"adjustments/s{i}",
@@ -677,7 +674,7 @@ def test_compare_notes_a_not_yet_migrated_legacy_mcp_index(tmp_path, load_script
     fw.mkdir()
     proj = tmp_path / "proj"
     (proj / ".ai-badger").mkdir(parents=True)
-    (proj / ".ai-badger" / "mcp-tools.yaml").write_text("sources: []\n", encoding="utf-8")
+    _test_write(proj / ".ai-badger" / "mcp-tools.yaml", "sources: []\n", encoding="utf-8")
 
     result = drift.compare(fw, {"entries": []}, target=proj)
 
@@ -691,7 +688,7 @@ def test_compare_is_silent_once_migrated_to_json(tmp_path, load_script):
     fw.mkdir()
     proj = tmp_path / "proj"
     (proj / ".ai-badger").mkdir(parents=True)
-    (proj / ".ai-badger" / "mcp-tools.json").write_text("{}", encoding="utf-8")
+    _test_write(proj / ".ai-badger" / "mcp-tools.json", "{}", encoding="utf-8")
 
     result = drift.compare(fw, {"entries": []}, target=proj)
 
@@ -720,21 +717,21 @@ def _mcp_index_shaped(tmp_path, bl):
     fw = tmp_path / "fw"
     skill_src = fw / "features" / "common" / "skills" / "mcp-index"
     (skill_src / "scripts").mkdir(parents=True)
-    (skill_src / "SKILL.md").write_text("# mcp-index\n", encoding="utf-8")
-    (skill_src / "scripts" / "mcp_index.py").write_text("print('index')\n", encoding="utf-8")
+    _test_write(skill_src / "SKILL.md", "# mcp-index\n", encoding="utf-8")
+    _test_write(skill_src / "scripts" / "mcp_index.py", "print('index')\n", encoding="utf-8")
 
     proj = tmp_path / "proj"
     skill_tgt = proj / ".ai-badger" / "skills" / "mcp-index"
     (skill_tgt / "scripts").mkdir(parents=True)
-    (skill_tgt / "SKILL.md").write_text("# mcp-index\n", encoding="utf-8")
-    (skill_tgt / "scripts" / "mcp_index.py").write_text("print('index')\n", encoding="utf-8")
+    _test_write(skill_tgt / "SKILL.md", "# mcp-index\n", encoding="utf-8")
+    _test_write(skill_tgt / "scripts" / "mcp_index.py", "print('index')\n", encoding="utf-8")
 
     exclude = bl.SKILL_EXCLUDE_PATTERNS + ["extensions"]
     tgt_print = bl.dir_content_hash(skill_tgt, exclude=exclude)
     src_print = bl.dir_content_hash(skill_src, exclude=exclude)
 
     # Only now does adjust_retrieval.py copy a shared module in beside the skill's own.
-    (skill_tgt / "scripts" / "bm25.py").write_text("# retrieval\n", encoding="utf-8")
+    _test_write(skill_tgt / "scripts" / "bm25.py", "# retrieval\n", encoding="utf-8")
 
     manifest = {
         "frameworkVersion": "0.53.1",
@@ -780,7 +777,7 @@ def test_editing_the_skill_itself_is_still_a_local_modification(tmp_path, load_s
     bl = load_script("engine/badger_lib.py")
     fw, proj, manifest = _mcp_index_shaped(tmp_path, bl)
     edited = proj / ".ai-badger" / "skills" / "mcp-index" / "scripts" / "mcp_index.py"
-    edited.write_text("print('locally improved')\n", encoding="utf-8")
+    _test_write(edited, "print('locally improved')\n", encoding="utf-8")
 
     result = drift.compare(fw, manifest, target=proj)
 
@@ -795,7 +792,7 @@ def test_nested_entry_does_not_make_new_parent_directories_local_modification(
     fw, proj, manifest = _mcp_index_shaped(tmp_path, bl)
     nested = proj / ".ai-badger" / "skills" / "mcp-index" / "generated" / "newdir" / "file.py"
     nested.parent.mkdir(parents=True)
-    nested.write_text("generated by another entry\n", encoding="utf-8")
+    _test_write(nested, "generated by another entry\n", encoding="utf-8")
     manifest["entries"].append({
         "feature": "adjustments", "stack": "claude", "name": "generated/newdir/file.py",
         "source": "features/claude/adjustments/adjust_retrieval.py",
@@ -831,7 +828,7 @@ def test_an_empty_directory_the_scaffolder_left_is_not_a_local_modification(
     # The adjustment now writes beneath it, so `helpers/` becomes an ancestor of a path
     # another entry owns and holds no file this entry owns.
     (skill / "helpers" / "gen").mkdir()
-    (skill / "helpers" / "gen" / "adj.py").write_text("# generated\n", encoding="utf-8")
+    _test_write(skill / "helpers" / "gen" / "adj.py", "# generated\n", encoding="utf-8")
     manifest["entries"].append({
         "feature": "adjustments", "stack": "claude",
         "name": "adjustments/.ai-badger/skills/mcp-index/helpers/gen/adj.py",
@@ -856,7 +853,7 @@ def test_a_project_edit_to_a_preserved_file_is_not_local_modification(
                              skills=["prompt-markers"]).run(generated_at="2026-07-28T00:00:00Z")
 
     marker = target / ".ai-badger" / "skills" / "prompt-markers" / "markers-context.json"
-    marker.write_text('{"markers": {"h": "ours"}}\n', encoding="utf-8")
+    _test_write(marker, '{"markers": {"h": "ours"}}\n', encoding="utf-8")
 
     compared = drift.compare(fw, result["manifest"], target=target)
 
@@ -875,7 +872,7 @@ def test_a_project_edit_to_a_generated_file_in_that_same_skill_is_still_reported
                              skills=["prompt-markers"]).run(generated_at="2026-07-28T00:00:00Z")
 
     edited = target / ".ai-badger" / "skills" / "prompt-markers" / "SKILL.md"
-    edited.write_text(edited.read_text(encoding="utf-8") + "\n# ours\n", encoding="utf-8")
+    _test_write(edited, edited.read_text(encoding="utf-8") + "\n# ours\n", encoding="utf-8")
 
     compared = drift.compare(fw, result["manifest"], target=target)
 

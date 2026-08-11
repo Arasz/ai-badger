@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 REFRESH = "features/common/skills/den-refresh/scripts/refresh.py"
@@ -210,8 +211,7 @@ def test_the_offered_description_is_the_skills_own_frontmatter(load_script, root
 def test_skill_description_reads_a_folded_block(tmp_path, load_script):
     bl = load_script("engine/badger_lib.py")
     skill_md = tmp_path / "SKILL.md"
-    skill_md.write_text(
-        "---\nname: probe\ndescription: >-\n  first line\n  second line\nversion: 1.0.0\n---\n"
+    _test_write(skill_md, "---\nname: probe\ndescription: >-\n  first line\n  second line\nversion: 1.0.0\n---\n"
         "# body\n", encoding="utf-8")
 
     assert bl.skill_description(skill_md) == "first line second line"
@@ -220,7 +220,7 @@ def test_skill_description_reads_a_folded_block(tmp_path, load_script):
 def test_skill_description_reads_a_plain_scalar(tmp_path, load_script):
     bl = load_script("engine/badger_lib.py")
     skill_md = tmp_path / "SKILL.md"
-    skill_md.write_text("---\nname: probe\ndescription: one liner\n---\n", encoding="utf-8")
+    _test_write(skill_md, "---\nname: probe\ndescription: one liner\n---\n", encoding="utf-8")
 
     assert bl.skill_description(skill_md) == "one liner"
 
@@ -239,7 +239,7 @@ def test_skill_description_degrades_to_none_rather_than_raising(tmp_path, load_s
     for name, body in cases.items():
         path = tmp_path / name
         if body is not None:
-            path.write_text(body, encoding="utf-8")
+            _test_write(path, body, encoding="utf-8")
 
         assert bl.skill_description(path) is None, name
 
@@ -257,7 +257,7 @@ def _edit_config(target, **updates):
     config_path = target / ".ai-badger" / "config.json"
     on_disk = json.loads(config_path.read_text(encoding="utf-8"))
     on_disk.update(updates)
-    config_path.write_text(json.dumps(on_disk), encoding="utf-8")
+    _test_write(config_path, json.dumps(on_disk), encoding="utf-8")
     return on_disk
 
 

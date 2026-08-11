@@ -14,6 +14,7 @@ import re
 import sys
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 
 def _load(load_script, root, relpath):
@@ -29,7 +30,7 @@ def _scaffold_task_scripts(target):
     scripts_dir.mkdir(parents=True, exist_ok=True)
     for script in ("stop_hook.py", "session_start_hook.py", "drift_notice_hook.py",
                    "user_prompt_hook.py"):
-        (scripts_dir / script).write_text("", encoding="utf-8")
+        _test_write(scripts_dir / script, "", encoding="utf-8")
 
 
 def _wired(tmp_path, load_script, root):

@@ -15,6 +15,7 @@ import json
 import sys
 
 import pytest
+from conftest import _test_write
 
 HOOK_PATH = "features/common/skills/mcp-index/scripts/context_enrichment_hook.py"
 COMPONENT = "ai_badger_hooks/mcp_retrieval"
@@ -23,7 +24,7 @@ COMPONENT = "ai_badger_hooks/mcp_retrieval"
 def _write_index(project, data: dict) -> None:
     aib = project / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
-    (aib / "mcp-tools.json").write_text(json.dumps(data), encoding="utf-8")
+    _test_write(aib / "mcp-tools.json", json.dumps(data), encoding="utf-8")
 
 
 def _sample_index() -> dict:
@@ -82,7 +83,7 @@ def _enable(dl, tmp_path, monkeypatch):
     dl.DEBUG_DIR.mkdir(parents=True, exist_ok=True)
     state = {"enabled": True, "scope": "user", "project": None,
               "expires_at": dl.iso(dl.now() + dl.timedelta(seconds=3600))}
-    dl.STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
+    _test_write(dl.STATE_FILE, json.dumps(state), encoding="utf-8")
     monkeypatch.delenv(dl.DEBUG_ENV, raising=False)
     monkeypatch.delenv(dl.REDACT_ENV, raising=False)
 
@@ -189,7 +190,7 @@ class TestHitGateNoTermsAbsentAreDistinguishable:
         project = tmp_path / "proj"
         aib = project / ".ai-badger"
         aib.mkdir(parents=True)
-        (aib / "mcp-tools.yaml").write_text("sources: []\n", encoding="utf-8")
+        _test_write(aib / "mcp-tools.yaml", "sources: []\n", encoding="utf-8")
 
         rc = _run_main(hook, monkeypatch,
                         {"prompt": "build the solution", "cwd": str(project)})

@@ -16,6 +16,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from conftest import _test_write
 
 SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 
@@ -43,7 +44,7 @@ def _scaf(make_scaffolder, root, target, config):
     """
     index_path = root / "index.json"
     if not index_path.exists():
-        index_path.write_text(json.dumps({
+        _test_write(index_path, json.dumps({
             "frameworkVersion": "0.1.0",
             "stacks": {},
         }), encoding="utf-8")
@@ -58,9 +59,7 @@ def _write_mcp_servers(stack_dir, servers):
     """
     stack_dir.mkdir(parents=True, exist_ok=True)
     data = {"servers": [dict(srv, declare=True) for srv in servers]}
-    (stack_dir / "stack-mcp.json").write_text(
-        json.dumps(data, indent=2), encoding="utf-8"
-    )
+    (stack_dir / "stack-mcp.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 # ── collect_catalog_mcp_servers ───────────────────────────────────────────────
@@ -292,7 +291,7 @@ def test_mcp_json_merge_preserves_existing(tmp_path, make_scaffolder):
     target = make_scaffolder.target
 
     existing = {"mcpServers": {"my-server": {"command": "echo existing"}}}
-    (target / ".mcp.json").write_text(json.dumps(existing), encoding="utf-8")
+    _test_write(target / ".mcp.json", json.dumps(existing), encoding="utf-8")
 
     py_dir = tmp_path / "features" / "python"
     _write_mcp_servers(py_dir, [{"name": "pyright", "command": "uvx mcp-server-pyright"}])
@@ -429,7 +428,7 @@ def test_claude_user_proposal_does_not_touch_an_existing_file(tmp_path, make_sca
     home = tmp_path / "home"
     (home / ".claude").mkdir(parents=True)
     existing = json.dumps({"mcpServers": {"old": {"command": "echo old"}}})
-    (home / ".claude" / "settings.json").write_text(existing, encoding="utf-8")
+    _test_write(home / ".claude" / "settings.json", existing, encoding="utf-8")
 
     _, proposal = _claude_user_proposal(
         tmp_path, make_scaffolder, {"new": {"name": "new", "command": "echo new",
@@ -485,7 +484,7 @@ def test_copilot_mcp_json_merge_preserves_existing(tmp_path, make_scaffolder):
     github_dir.mkdir(parents=True)
 
     existing = {"mcpServers": {"old": {"command": "echo old"}}}
-    (github_dir / "mcp.json").write_text(json.dumps(existing), encoding="utf-8")
+    _test_write(github_dir / "mcp.json", json.dumps(existing), encoding="utf-8")
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
                   _config(stacks=["python"], agents=["copilot"]))
@@ -726,8 +725,7 @@ class TestCwdIsNotGenerated:
         worktree = self._project(tmp_path, "wt")
         server = {"name": "srv", "command": "uvx mcp-server-pyright"}
         _scaffold_mcp_json_from(make_scaffolder, tmp_path, main, server)
-        (worktree / ".mcp.json").write_text(
-            (main / ".mcp.json").read_text(encoding="utf-8"), encoding="utf-8")
+        _test_write(worktree / ".mcp.json", (main / ".mcp.json").read_text(encoding="utf-8"), encoding="utf-8")
 
         _scaffold_mcp_json_from(make_scaffolder, tmp_path, worktree, server)
 
@@ -738,7 +736,7 @@ class TestCwdIsNotGenerated:
             self, tmp_path, monkeypatch, load_script, make_scaffolder):
         _no_user_tool_dirs(monkeypatch, load_script)
         target = self._project(tmp_path, "proj")
-        (target / ".mcp.json").write_text(json.dumps({"mcpServers": {"srv": {
+        _test_write(target / ".mcp.json", json.dumps({"mcpServers": {"srv": {
             "command": "uvx", "args": ["mcp-server-pyright"],
             "cwd": str(tmp_path / "deleted-worktree")}}}), encoding="utf-8")
 
@@ -764,7 +762,7 @@ class TestCwdIsNotGenerated:
         """Preserving cwd must not freeze the rest of a stale entry."""
         _no_user_tool_dirs(monkeypatch, load_script)
         main = self._project(tmp_path, "proj")
-        (main / ".mcp.json").write_text(json.dumps({"mcpServers": {"srv": {
+        _test_write(main / ".mcp.json", json.dumps({"mcpServers": {"srv": {
             "command": "stale-command", "cwd": str(main)}}}), encoding="utf-8")
 
         _scaffold_mcp_json_from(

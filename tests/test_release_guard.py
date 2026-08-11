@@ -8,6 +8,7 @@ from __future__ import annotations
 import subprocess
 
 import pytest
+from conftest import _test_write
 
 
 def _git(repo, *args):
@@ -37,11 +38,11 @@ def test_latest_release_tag_selects_highest_semver_not_lexicographic_or_latest_d
     release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
 
-    (repo / "VERSION").write_text("0.10.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.10.0\n", encoding="utf-8")
     _commit_all(repo, "v0.10.0")
     _tag(repo, "ai-badger--v0.10.0")  # tagged first (older), but the higher semver
 
-    (repo / "VERSION").write_text("0.9.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.9.0\n", encoding="utf-8")
     _commit_all(repo, "v0.9.0")
     _tag(repo, "ai-badger--v0.9.0")  # tagged later (newer), but the lower semver
 
@@ -53,7 +54,7 @@ def test_latest_release_tag_selects_highest_semver_not_lexicographic_or_latest_d
 def test_no_release_tag_passes_with_explanatory_message(tmp_path, load_script, capsys):
     release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
-    (repo / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.1.0\n", encoding="utf-8")
     _commit_all(repo, "init")
 
     rc = release_guard.main(["--root", str(repo)])
@@ -66,13 +67,13 @@ def test_no_release_tag_passes_with_explanatory_message(tmp_path, load_script, c
 def test_fails_when_shipped_path_changed_without_version_bump(tmp_path, load_script, capsys):
     release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
-    (repo / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.1.0\n", encoding="utf-8")
     (repo / "skills").mkdir()
-    (repo / "skills" / "a.md").write_text("a\n", encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "a\n", encoding="utf-8")
     _commit_all(repo, "release 0.1.0")
     _tag(repo, "ai-badger--v0.1.0")
 
-    (repo / "skills" / "a.md").write_text("changed\n", encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "changed\n", encoding="utf-8")
     _commit_all(repo, "tweak a skill, forgot to bump")
 
     rc = release_guard.main(["--root", str(repo)])
@@ -86,14 +87,14 @@ def test_fails_when_shipped_path_changed_without_version_bump(tmp_path, load_scr
 def test_passes_when_shipped_path_changed_and_version_was_bumped(tmp_path, load_script, capsys):
     release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
-    (repo / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.1.0\n", encoding="utf-8")
     (repo / "skills").mkdir()
-    (repo / "skills" / "a.md").write_text("a\n", encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "a\n", encoding="utf-8")
     _commit_all(repo, "release 0.1.0")
     _tag(repo, "ai-badger--v0.1.0")
 
-    (repo / "skills" / "a.md").write_text("changed\n", encoding="utf-8")
-    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "changed\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.2.0\n", encoding="utf-8")
     _commit_all(repo, "tweak a skill + bump")
 
     rc = release_guard.main(["--root", str(repo)])
@@ -104,15 +105,15 @@ def test_passes_when_shipped_path_changed_and_version_was_bumped(tmp_path, load_
 def test_passes_when_only_non_shipped_paths_changed_without_a_bump(tmp_path, load_script):
     release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
-    (repo / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.1.0\n", encoding="utf-8")
     (repo / "skills").mkdir()
-    (repo / "skills" / "a.md").write_text("a\n", encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "a\n", encoding="utf-8")
     (repo / "docs").mkdir()
-    (repo / "docs" / "notes.md").write_text("n\n", encoding="utf-8")
+    _test_write(repo / "docs" / "notes.md", "n\n", encoding="utf-8")
     _commit_all(repo, "release 0.1.0")
     _tag(repo, "ai-badger--v0.1.0")
 
-    (repo / "docs" / "notes.md").write_text("edited\n", encoding="utf-8")
+    _test_write(repo / "docs" / "notes.md", "edited\n", encoding="utf-8")
     _commit_all(repo, "docs only, no bump needed")
 
     rc = release_guard.main(["--root", str(repo)])
@@ -125,20 +126,19 @@ def test_several_commits_can_land_at_one_unreleased_version_against_last_tag(
 ):
     release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
-    (repo / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.1.0\n", encoding="utf-8")
     (repo / "skills").mkdir()
-    (repo / "skills" / "a.md").write_text("a\n", encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "a\n", encoding="utf-8")
     _commit_all(repo, "release 0.1.0")
     _tag(repo, "ai-badger--v0.1.0")
 
-    (repo / "skills" / "a.md").write_text("first PR change\n", encoding="utf-8")
-    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "first PR change\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.2.0\n", encoding="utf-8")
     _commit_all(repo, "PR1: bump + change")
 
     assert release_guard.main(["--root", str(repo)]) == 0
 
-    (repo / "skills" / "a.md").write_text("second PR change, same unreleased version\n",
-                                           encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "second PR change, same unreleased version\n", encoding="utf-8")
     _commit_all(repo, "PR2: more change, still 0.2.0")
 
     # compared against the last release TAG (still 0.1.0), not the previous commit, so this
@@ -149,9 +149,9 @@ def test_several_commits_can_land_at_one_unreleased_version_against_last_tag(
 def _released_repo(path):
     """A repo at 0.1.0 with one shipped file, tagged — the guard's happy starting state."""
     repo = _init_repo(path)
-    (repo / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.1.0\n", encoding="utf-8")
     (repo / "skills").mkdir()
-    (repo / "skills" / "a.md").write_text("a\n", encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "a\n", encoding="utf-8")
     _commit_all(repo, "release 0.1.0")
     _tag(repo, "ai-badger--v0.1.0")
     return repo
@@ -213,15 +213,15 @@ def test_git_failure_reports_the_command_and_stderr(tmp_path, load_script, capsy
 def _changelog(repo, *versions):
     (repo / "docs" / "changelog").mkdir(parents=True, exist_ok=True)
     for version in versions:
-        (repo / "docs" / "changelog" / f"{version}-slug.md").write_text("x\n", encoding="utf-8")
+        _test_write(repo / "docs" / "changelog" / f"{version}-slug.md", "x\n", encoding="utf-8")
 
 
 def test_versions_documented_but_never_tagged_fail_the_guard(tmp_path, load_script, capsys):
     release_guard = load_script("gates/release_guard.py")
     repo = _released_repo(tmp_path)
     _changelog(repo, "0.1.0", "0.2.0", "0.3.0", "0.4.0")
-    (repo / "VERSION").write_text("0.4.0\n", encoding="utf-8")
-    (repo / "skills" / "a.md").write_text("changed\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.4.0\n", encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "changed\n", encoding="utf-8")
     _commit_all(repo, "several releases documented, none tagged")
 
     rc = release_guard.main(["--root", str(repo)])
@@ -240,7 +240,7 @@ def test_an_untagged_release_fails_even_when_the_shipped_surface_is_unchanged(
     release_guard = load_script("gates/release_guard.py")
     repo = _released_repo(tmp_path)
     _changelog(repo, "0.1.0", "0.2.0", "0.3.0")
-    (repo / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.3.0\n", encoding="utf-8")
     _commit_all(repo, "docs-only follow-up; skills/ untouched since 0.1.0")
 
     rc = release_guard.main(["--root", str(repo)])
@@ -256,7 +256,7 @@ def test_a_changelog_entry_for_the_tagged_version_is_not_reported(tmp_path, load
     release_guard = load_script("gates/release_guard.py")
     repo = _released_repo(tmp_path)
     _changelog(repo, "0.1.0", "0.2.0")
-    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.2.0\n", encoding="utf-8")
     _commit_all(repo, "one release in flight, its predecessor tagged")
 
     rc = release_guard.main(["--root", str(repo)])
@@ -270,8 +270,8 @@ def test_the_version_in_flight_alone_is_not_reported_as_untagged(tmp_path, load_
     release_guard = load_script("gates/release_guard.py")
     repo = _released_repo(tmp_path)
     _changelog(repo, "0.1.0", "0.2.0")
-    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
-    (repo / "skills" / "a.md").write_text("changed\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.2.0\n", encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "changed\n", encoding="utf-8")
     _commit_all(repo, "one unreleased version, the normal case")
 
     rc = release_guard.main(["--root", str(repo)])
@@ -314,7 +314,7 @@ def test_a_tag_only_on_this_machine_is_reported(tmp_path, load_script):
     repo = tmp_path / "repo"
     repo.mkdir()
     _init_repo(repo)
-    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.2.0\n", encoding="utf-8")
     _commit_all(repo, "first")
     _tag(repo, "ai-badger--v0.1.0")
     remote = _bare_remote(tmp_path)
@@ -330,7 +330,7 @@ def test_a_tag_on_the_remote_is_not_reported(tmp_path, load_script):
     repo = tmp_path / "repo"
     repo.mkdir()
     _init_repo(repo)
-    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.2.0\n", encoding="utf-8")
     _commit_all(repo, "first")
     _tag(repo, "ai-badger--v0.1.0")
     remote = _bare_remote(tmp_path)
@@ -347,7 +347,7 @@ def test_no_remote_is_not_a_failure(tmp_path, load_script):
     repo = tmp_path / "repo"
     repo.mkdir()
     _init_repo(repo)
-    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.2.0\n", encoding="utf-8")
     _commit_all(repo, "first")
     _tag(repo, "ai-badger--v0.1.0")
 
@@ -360,7 +360,7 @@ def test_only_release_tags_are_considered(tmp_path, load_script):
     repo = tmp_path / "repo"
     repo.mkdir()
     _init_repo(repo)
-    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.2.0\n", encoding="utf-8")
     _commit_all(repo, "first")
     _tag(repo, "scratch-marker")
     remote = _bare_remote(tmp_path)
@@ -385,7 +385,7 @@ def test_the_newest_local_tag_is_never_reported(tmp_path, load_script):
     repo = tmp_path / "repo"
     repo.mkdir()
     _init_repo(repo)
-    (repo / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.3.0\n", encoding="utf-8")
     _commit_all(repo, "first")
     _tag(repo, "ai-badger--v0.3.0")
     remote = _bare_remote(tmp_path)
@@ -401,7 +401,7 @@ def test_a_tag_the_remote_moved_past_is_reported(tmp_path, load_script):
     repo = tmp_path / "repo"
     repo.mkdir()
     _init_repo(repo)
-    (repo / "VERSION").write_text("0.3.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.3.0\n", encoding="utf-8")
     _commit_all(repo, "first")
     _tag(repo, "ai-badger--v0.2.0")
     _tag(repo, "ai-badger--v0.3.0")
@@ -422,14 +422,14 @@ def test_fails_when_version_goes_backwards(tmp_path, load_script, capsys):
     """
     release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
-    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.2.0\n", encoding="utf-8")
     (repo / "skills").mkdir()
-    (repo / "skills" / "a.md").write_text("a\n", encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "a\n", encoding="utf-8")
     _commit_all(repo, "release 0.2.0")
     _tag(repo, "ai-badger--v0.2.0")
 
-    (repo / "skills" / "a.md").write_text("changed\n", encoding="utf-8")
-    (repo / "VERSION").write_text("0.1.9\n", encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "changed\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.1.9\n", encoding="utf-8")
     _commit_all(repo, "tweak a skill + move VERSION backwards")
 
     rc = release_guard.main(["--root", str(repo)])
@@ -443,13 +443,13 @@ def test_fails_when_version_equals_an_older_released_tag(tmp_path, load_script):
     """Re-using a released version is the same defect wearing a different number."""
     release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
-    (repo / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.2.0\n", encoding="utf-8")
     (repo / "skills").mkdir()
-    (repo / "skills" / "a.md").write_text("a\n", encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "a\n", encoding="utf-8")
     _commit_all(repo, "release 0.2.0")
     _tag(repo, "ai-badger--v0.2.0")
 
-    (repo / "skills" / "a.md").write_text("changed\n", encoding="utf-8")
+    _test_write(repo / "skills" / "a.md", "changed\n", encoding="utf-8")
     _commit_all(repo, "tweak a skill, VERSION untouched")
 
     assert release_guard.main(["--root", str(repo)]) == 1
@@ -461,7 +461,7 @@ def test_a_tagged_repo_with_no_version_file_fails_with_a_message_not_a_traceback
     """`(root / "VERSION").read_text()` raised FileNotFoundError straight out of the gate (D7)."""
     release_guard = load_script("gates/release_guard.py")
     repo = _init_repo(tmp_path)
-    (repo / "VERSION").write_text("0.1.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "0.1.0\n", encoding="utf-8")
     _commit_all(repo, "release 0.1.0")
     _tag(repo, "ai-badger--v0.1.0")
     (repo / "VERSION").unlink()

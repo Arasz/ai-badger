@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 
 class TestInstallSkills:
@@ -19,7 +20,7 @@ class TestInstallSkills:
         # common stack with skills-source and skills
         common_src = features / "common"
         (common_src / "skills").mkdir(parents=True)
-        (common_src / "skills-source.json").write_text(json.dumps({
+        _test_write(common_src / "skills-source.json", json.dumps({
             "sources": [
                 {"name": "test-marketplace", "type": "marketplace",
                  "source": "https://example.com/market", "support": ["claude"]},
@@ -29,7 +30,7 @@ class TestInstallSkills:
                  "source": "https://common.example.com", "support": "common"},
             ]
         }))
-        (common_src / "skills.json").write_text(json.dumps({
+        _test_write(common_src / "skills.json", json.dumps({
             "skills": [
                 {"name": "skill-a", "source": "test-marketplace", "scope": "default",
                  "description": "Skill A"},
@@ -40,7 +41,7 @@ class TestInstallSkills:
 
         # Agent plugin instructions
         (features / "claude").mkdir(parents=True)
-        (features / "claude" / "plugins-instructions.json").write_text(json.dumps({
+        _test_write(features / "claude" / "plugins-instructions.json", json.dumps({
             "agent": "claude",
             "instructions": {
                 "marketplace": {"commands": [
@@ -52,7 +53,7 @@ class TestInstallSkills:
         }))
 
         (features / "hermes").mkdir(parents=True)
-        (features / "hermes" / "plugins-instructions.json").write_text(json.dumps({
+        _test_write(features / "hermes" / "plugins-instructions.json", json.dumps({
             "agent": "hermes",
             "instructions": {
                 "hub": {"commands": ["hermes skills install {name} --source {source}"]},
@@ -136,10 +137,8 @@ class TestInstallSkills:
         ip = load_script("tooling/install_plugins.py")
         features = tmp_path / "features" / "common" / "skills"
         features.mkdir(parents=True)
-        (tmp_path / "features" / "common" / "skills-source.json").write_text(
-            json.dumps({"sources": []}))
-        (tmp_path / "features" / "common" / "skills.json").write_text(
-            json.dumps({"skills": []}))
+        _test_write(tmp_path / "features" / "common" / "skills-source.json", json.dumps({"sources": []}))
+        _test_write(tmp_path / "features" / "common" / "skills.json", json.dumps({"skills": []}))
         (tmp_path / "schemas").symlink_to(root / "schemas")
         config = {"agents": ["claude"], "stacks": ["common"], "skillScope": "default"}
 
@@ -154,13 +153,12 @@ class TestInstallSkills:
         features.mkdir(parents=True)
         (features / "skills").mkdir(parents=True)
         (tmp_path / "schemas").symlink_to(root / "schemas")
-        (features / "skills-source.json").write_text(json.dumps({"sources": []}))
-        (features / "skills.json").write_text(json.dumps({
+        _test_write(features / "skills-source.json", json.dumps({"sources": []}))
+        _test_write(features / "skills.json", json.dumps({
             "skills": [{"name": "orphan", "source": "nonexistent"}]
         }))
         (tmp_path / "features" / "claude").mkdir(parents=True)
-        (tmp_path / "features" / "claude" / "plugins-instructions.json").write_text(
-            json.dumps({"agent": "claude", "instructions": {}}))
+        _test_write(tmp_path / "features" / "claude" / "plugins-instructions.json", json.dumps({"agent": "claude", "instructions": {}}))
         config = {"agents": ["claude"], "stacks": ["common"], "skillScope": "default"}
 
         result = ip.install_skills(tmp_path, config, dry_run=True)
@@ -174,17 +172,16 @@ class TestInstallSkills:
         features.mkdir(parents=True)
         (features / "skills").mkdir(parents=True)
         (tmp_path / "schemas").symlink_to(root / "schemas")
-        (features / "skills-source.json").write_text(json.dumps({
+        _test_write(features / "skills-source.json", json.dumps({
             "sources": [{"name": "hub", "type": "hub",
                          "source": "https://hub.example.com", "support": ["claude"]}]
         }))
-        (features / "skills.json").write_text(json.dumps({
+        _test_write(features / "skills.json", json.dumps({
             "skills": [{"name": "x", "source": "hub"}]
         }))
         (tmp_path / "features" / "claude").mkdir(parents=True)
         # Claude has no 'hub' instruction
-        (tmp_path / "features" / "claude" / "plugins-instructions.json").write_text(
-            json.dumps({"agent": "claude",
+        _test_write(tmp_path / "features" / "claude" / "plugins-instructions.json", json.dumps({"agent": "claude",
                         "instructions": {"marketplace": {"commands": ["cmd"]}}}))
         config = {"agents": ["claude"], "stacks": ["common"], "skillScope": "default"}
 
@@ -251,15 +248,15 @@ class TestMissingNameTemplate:
         features = tmp_path / "features" / "common"
         features.mkdir(parents=True)
         (tmp_path / "schemas").symlink_to(root / "schemas")
-        (features / "skills-source.json").write_text(json.dumps({
+        _test_write(features / "skills-source.json", json.dumps({
             "sources": [{"name": "by-url", "type": "url",
                          "source": "https://example.com/pack", "support": ["claude"]}]
         }))
-        (features / "skills.json").write_text(json.dumps({
+        _test_write(features / "skills.json", json.dumps({
             "skills": [{"name": "packaged-skill", "source": "by-url"}]
         }))
         (tmp_path / "features" / "claude").mkdir(parents=True)
-        (tmp_path / "features" / "claude" / "plugins-instructions.json").write_text(json.dumps({
+        _test_write(tmp_path / "features" / "claude" / "plugins-instructions.json", json.dumps({
             "agent": "claude",
             "instructions": {"url": {"commands": ["claude plugin install {source}"]}},
         }))
@@ -284,15 +281,15 @@ class TestConfigDrivenCommonStack:
         features = tmp_path / "features" / stack_name
         features.mkdir(parents=True)
         (tmp_path / "schemas").symlink_to(root / "schemas")
-        (features / "skills-source.json").write_text(json.dumps({
+        _test_write(features / "skills-source.json", json.dumps({
             "sources": [{"name": "market", "type": "marketplace",
                          "source": "https://example.com/m", "support": ["claude"]}]
         }))
-        (features / "skills.json").write_text(json.dumps({
+        _test_write(features / "skills.json", json.dumps({
             "skills": [{"name": "house-skill", "source": "market"}]
         }))
         (tmp_path / "features" / "claude").mkdir(parents=True)
-        (tmp_path / "features" / "claude" / "plugins-instructions.json").write_text(json.dumps({
+        _test_write(tmp_path / "features" / "claude" / "plugins-instructions.json", json.dumps({
             "agent": "claude",
             "instructions": {"marketplace": {"commands": [
                 "claude plugin marketplace add {source}",
@@ -355,7 +352,7 @@ class TestNoShellInterpretation:
         target = tmp_path / "proj"
         target.mkdir()
         config = target / "config.json"
-        config.write_text(json.dumps({
+        _test_write(config, json.dumps({
             "$schema": "./schemas/config.schema.json", "frameworkVersion": "0.1.0",
             "project": {"name": "p", "summary": "s", "domain": "d"},
             "stacks": ["python"], "agents": ["claude"],

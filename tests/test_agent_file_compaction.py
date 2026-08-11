@@ -15,6 +15,7 @@ import sys
 import types
 
 import pytest
+from conftest import _test_write
 
 RENDERING = "features/common/skills/welcome-ai-badger/scripts/template_rendering.py"
 
@@ -38,8 +39,7 @@ def _ctx(root):
 def test_path_instructions_render_the_glob_that_says_when_to_read_the_file(
         rendering, tmp_path):
     path = tmp_path / "python.instructions.md"
-    path.write_text("---\ndescription: 'Python.'\napplyTo: '**/*.py'\n---\n\n# Python\n",
-                    encoding="utf-8")
+    _test_write(path, "---\ndescription: 'Python.'\napplyTo: '**/*.py'\n---\n\n# Python\n", encoding="utf-8")
 
     slots = rendering.TemplateRendering(_ctx(tmp_path)).compute_doc_slots([], [path])
 
@@ -50,7 +50,7 @@ def test_path_instructions_render_the_glob_that_says_when_to_read_the_file(
 def test_a_file_without_a_glob_still_names_itself(rendering, tmp_path):
     """No `applyTo` means no trigger to state; the row must not silently disappear."""
     path = tmp_path / "documentation.instructions.md"
-    path.write_text("---\ndescription: 'Docs.'\n---\n\n# Docs\n", encoding="utf-8")
+    _test_write(path, "---\ndescription: 'Docs.'\n---\n\n# Docs\n", encoding="utf-8")
 
     slots = rendering.TemplateRendering(_ctx(tmp_path)).compute_doc_slots([], [path])
 

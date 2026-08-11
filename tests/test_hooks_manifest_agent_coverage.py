@@ -12,6 +12,7 @@ is_yaml) means a reason key existing is not enough — its text is checked too.
 from __future__ import annotations
 
 import json
+from conftest import _test_write
 
 
 def test_the_real_manifest_has_no_unexplained_gaps(root, load_script):
@@ -42,7 +43,7 @@ def test_an_agent_missing_from_a_hook_with_no_exemption_is_a_gap(tmp_path, load_
 
     manifest_dir = tmp_path / "features" / "common" / "hooks"
     manifest_dir.mkdir(parents=True)
-    (manifest_dir / "hooks-manifest.json").write_text(json.dumps({
+    _test_write(manifest_dir / "hooks-manifest.json", json.dumps({
         "hooks": [
             {"name": "solo-hook", "agents": {
                 "claude": {"type": "hooks-json", "entry": "hooks.json",
@@ -66,7 +67,7 @@ def test_a_recorded_exemption_closes_the_gap(tmp_path, load_script, monkeypatch)
 
     manifest_dir = tmp_path / "features" / "common" / "hooks"
     manifest_dir.mkdir(parents=True)
-    (manifest_dir / "hooks-manifest.json").write_text(json.dumps({
+    _test_write(manifest_dir / "hooks-manifest.json", json.dumps({
         "hooks": [
             {"name": "solo-hook", "agents": {
                 "claude": {"type": "hooks-json", "entry": "hooks.json",
@@ -88,7 +89,7 @@ def test_all_flag_fails_when_a_hook_has_an_unexplained_gap(tmp_path, root, load_
     shutil.copytree(root / "schemas", tmp_path / "schemas")
     manifest_dir = tmp_path / "features" / "common" / "hooks"
     manifest_dir.mkdir(parents=True)
-    (manifest_dir / "hooks-manifest.json").write_text(json.dumps({
+    _test_write(manifest_dir / "hooks-manifest.json", json.dumps({
         "hooks": [
             {"name": "solo-hook", "agents": {
                 "claude": {"type": "hooks-json", "entry": "hooks.json",

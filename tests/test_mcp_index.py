@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from conftest import _test_write
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -20,7 +21,7 @@ def _write_index(project: Path, data: dict) -> Path:
     aib = project / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
     path = aib / "mcp-tools.json"
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    _test_write(path, json.dumps(data, indent=2), encoding="utf-8")
     return path
 
 
@@ -34,7 +35,7 @@ def _write_legacy_yaml(project: Path, data: dict) -> Path:
     aib = project / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
     path = aib / "mcp-tools.yaml"
-    path.write_text(yaml.dump(data, sort_keys=False, default_flow_style=False), encoding="utf-8")
+    _test_write(path, yaml.dump(data, sort_keys=False, default_flow_style=False), encoding="utf-8")
     return path
 
 
@@ -847,10 +848,7 @@ def test_cmd_migrate_refuses_without_pyyaml_when_content_is_unparseable(tmp_path
     aib = tmp_path / ".ai-badger"
     aib.mkdir(parents=True)
     # A construct outside the subset this parser understands (a YAML flow-style list).
-    (aib / "mcp-tools.yaml").write_text(
-        "version: 0.1.0\ngenerated_at: '2026-01-01T00:00:00Z'\nsources: [1, 2, 3]\n",
-        encoding="utf-8",
-    )
+    _test_write(aib / "mcp-tools.yaml", "version: 0.1.0\ngenerated_at: '2026-01-01T00:00:00Z'\nsources: [1, 2, 3]\n", encoding="utf-8")
     mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     monkeypatch.setattr(mod, "yaml", None)
 
@@ -865,7 +863,7 @@ def test_cmd_migrate_refusal_message_names_both_remedies(tmp_path, load_script, 
                                                           capsys):
     aib = tmp_path / ".ai-badger"
     aib.mkdir(parents=True)
-    (aib / "mcp-tools.yaml").write_text("sources: [1, 2, 3]\n", encoding="utf-8")
+    _test_write(aib / "mcp-tools.yaml", "sources: [1, 2, 3]\n", encoding="utf-8")
     mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     monkeypatch.setattr(mod, "yaml", None)
 

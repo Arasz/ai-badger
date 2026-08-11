@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 SCRIPT = "features/common/skills/commit-reminder/scripts/commit_reminder.py"
 
@@ -179,14 +180,14 @@ def test_load_state_missing_file_returns_empty_dict(commit_reminder, tmp_path, m
 
 def test_load_state_corrupt_json_returns_empty_dict(commit_reminder, tmp_path, monkeypatch):
     state_file = tmp_path / "state.json"
-    state_file.write_text("{not valid json", encoding="utf-8")
+    _test_write(state_file, "{not valid json", encoding="utf-8")
     monkeypatch.setattr(commit_reminder, "STATE_FILE", state_file)
     assert commit_reminder.load_state() == {}
 
 
 def test_load_state_non_dict_json_returns_empty_dict(commit_reminder, tmp_path, monkeypatch):
     state_file = tmp_path / "state.json"
-    state_file.write_text("[1, 2, 3]", encoding="utf-8")
+    _test_write(state_file, "[1, 2, 3]", encoding="utf-8")
     monkeypatch.setattr(commit_reminder, "STATE_FILE", state_file)
     assert commit_reminder.load_state() == {}
 

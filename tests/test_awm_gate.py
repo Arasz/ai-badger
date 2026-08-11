@@ -18,6 +18,7 @@ from __future__ import annotations
 import io
 import json
 from datetime import datetime, timedelta, timezone
+from conftest import _test_write
 
 
 def _patch_state_paths(module, monkeypatch, tmp_path):
@@ -31,7 +32,7 @@ def _patch_state_paths(module, monkeypatch, tmp_path):
 
 def _write_state(state_file, state):
     state_file.parent.mkdir(parents=True, exist_ok=True)
-    state_file.write_text(json.dumps(state), encoding="utf-8")
+    _test_write(state_file, json.dumps(state), encoding="utf-8")
 
 
 def _read_decisions(decisions_file):

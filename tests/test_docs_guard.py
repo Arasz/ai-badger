@@ -8,28 +8,27 @@ reachable from its own index.
 from __future__ import annotations
 
 import pytest
+from conftest import _test_write
 
 
 def _repo(tmp_path, version="1.2.3"):
     """A minimal tree the guard considers clean: one changelog entry, indexed, at VERSION."""
-    (tmp_path / "VERSION").write_text(f"{version}\n", encoding="utf-8")
+    _test_write(tmp_path / "VERSION", f"{version}\n", encoding="utf-8")
     (tmp_path / "tooling").mkdir()
-    (tmp_path / "tooling" / "real.py").write_text("x = 1\n", encoding="utf-8")
+    _test_write(tmp_path / "tooling" / "real.py", "x = 1\n", encoding="utf-8")
     # Present so `.ai-badger/…` proves the framework-surface whitelist, not mere absence.
     (tmp_path / ".ai-badger").mkdir()
     changelog = tmp_path / "docs" / "changelog"
     changelog.mkdir(parents=True)
-    (changelog / f"{version}-thing.md").write_text("# thing\n", encoding="utf-8")
-    (changelog / "README.md").write_text(
-        f"| Version | Entry |\n|---|---|\n| {version} | [thing]({version}-thing.md) |\n",
-        encoding="utf-8")
+    _test_write(changelog / f"{version}-thing.md", "# thing\n", encoding="utf-8")
+    _test_write(changelog / "README.md", f"| Version | Entry |\n|---|---|\n| {version} | [thing]({version}-thing.md) |\n", encoding="utf-8")
     return tmp_path
 
 
 def _doc(repo, relpath, text):
     path = repo / relpath
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    _test_write(path, text, encoding="utf-8")
     return path
 
 
@@ -146,8 +145,7 @@ def test_paths_inside_fenced_code_blocks_are_ignored(tmp_path, guard):
 def test_an_exempted_path_is_not_flagged(tmp_path, guard):
     repo = _repo(tmp_path)
     _doc(repo, "docs/index.md", "`tooling/does_not_exist.py` and [gone](gone.md)\n")
-    (repo / ".docs-guard-ignore").write_text(
-        "# deliberately absent\ntooling/does_not_exist.py\ndocs/gone.md\n", encoding="utf-8")
+    _test_write(repo / ".docs-guard-ignore", "# deliberately absent\ntooling/does_not_exist.py\ndocs/gone.md\n", encoding="utf-8")
 
     assert guard.main(["--root", str(repo)]) == 0
 
@@ -165,7 +163,7 @@ def test_an_exempted_document_is_not_scanned(tmp_path, guard):
     """
     repo = _repo(tmp_path)
     _doc(repo, "docs/old-record.md", "[gone](../nowhere.md) and `tooling/gone.py`\n")
-    (repo / ".docs-guard-ignore").write_text("docs/old-record.md\n", encoding="utf-8")
+    _test_write(repo / ".docs-guard-ignore", "docs/old-record.md\n", encoding="utf-8")
 
     assert guard.main(["--root", str(repo)]) == 0
 
@@ -211,7 +209,7 @@ def test_a_changelog_entry_missing_from_the_index_fails(tmp_path, guard, capsys)
 
 def test_the_current_version_without_a_changelog_entry_fails(tmp_path, guard, capsys):
     repo = _repo(tmp_path)
-    (repo / "VERSION").write_text("1.3.0\n", encoding="utf-8")
+    _test_write(repo / "VERSION", "1.3.0\n", encoding="utf-8")
 
     rc = guard.main(["--root", str(repo)])
 

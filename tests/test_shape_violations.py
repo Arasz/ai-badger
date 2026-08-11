@@ -10,6 +10,7 @@ from __future__ import annotations
 import subprocess
 
 import pytest
+from conftest import _test_write
 
 FRONTMATTER = """\
 ---
@@ -21,9 +22,9 @@ description: >-
 
 
 def _skill(src, name: str) -> None:
-    (src / "SKILL.md").write_text(FRONTMATTER.format(name=name), encoding="utf-8")
+    _test_write(src / "SKILL.md", FRONTMATTER.format(name=name), encoding="utf-8")
     (src / "references").mkdir()
-    (src / "references" / "details.md").write_text("# details\n", encoding="utf-8")
+    _test_write(src / "references" / "details.md", "# details\n", encoding="utf-8")
 
 
 def _render(module, src, dest, name: str) -> None:
@@ -74,7 +75,7 @@ class TestShapeViolations:
         src.mkdir()
         _skill(src, "shape-test")
         _render(mod, src, dest, "shape-test")
-        (dest / "stray.txt").write_text("not shipped\n", encoding="utf-8")
+        _test_write(dest / "stray.txt", "not shipped\n", encoding="utf-8")
         assert "unexpected stray.txt" in mod.shape_violations(src, dest, "shape-test")
 
     def test_bootstrap_shape_has_no_full_body(self, tmp_path, load_script):
@@ -85,7 +86,7 @@ class TestShapeViolations:
         _render(mod, src, dest, "den-refresh")
         assert not (dest / "SKILL.full.md").exists()
         assert mod.shape_violations(src, dest, "den-refresh") == []
-        (dest / "SKILL.full.md").write_text("stale\n", encoding="utf-8")
+        _test_write(dest / "SKILL.full.md", "stale\n", encoding="utf-8")
         assert "unexpected SKILL.full.md" in mod.shape_violations(src, dest, "den-refresh")
 
     def test_a_source_without_frontmatter_is_not_a_shape_violation(
@@ -94,7 +95,7 @@ class TestShapeViolations:
         mod = load_script("tooling/sync_plugin_skills.py")
         src, dest = tmp_path / "src", tmp_path / "dest"
         src.mkdir()
-        (src / "SKILL.md").write_text("no frontmatter here\n", encoding="utf-8")
+        _test_write(src / "SKILL.md", "no frontmatter here\n", encoding="utf-8")
         _render(mod, src, dest, "shape-test")
         assert not (dest / "SKILL.full.md").exists()  # renderer left it alone
         assert mod.shape_violations(src, dest, "shape-test") == []
@@ -110,7 +111,7 @@ class TestShapeReachesEveryDepth:
         _skill(src, "shape-test")
         _render(mod, src, dest, "shape-test")
         (dest / "scripts" / "tests").mkdir(parents=True)
-        (dest / "scripts" / "tests" / "payload.py").write_text("x = 1\n", encoding="utf-8")
+        _test_write(dest / "scripts" / "tests" / "payload.py", "x = 1\n", encoding="utf-8")
 
         assert mod.check_skill(src, dest, "shape-test") is None  # excluded from the hash
         assert "unexpected scripts/tests/payload.py" in mod.shape_violations(
@@ -168,7 +169,7 @@ class TestDeclaredExtraFiles:
         mod = load_script("tooling/sync_plugin_skills.py")
         src, plugin, dest = _plugin_tree(tmp_path, "shape-test")
         extra = tmp_path / "session_source.py"
-        extra.write_text("# the declared source\n", encoding="utf-8")
+        _test_write(extra, "# the declared source\n", encoding="utf-8")
         monkeypatch.setitem(mod.PLUGIN_EXTRA_FILES, "shape-test",
                             [(extra, "scripts/session_source.py")])
         monkeypatch.setattr(mod, "_ship_extra_files", lambda *_: None)
@@ -187,7 +188,7 @@ class TestDeclaredExtraFiles:
         mod = load_script("tooling/sync_plugin_skills.py")
         src, plugin, dest = _plugin_tree(tmp_path, "shape-test")
         extra = tmp_path / "session_source.py"
-        extra.write_text("# the declared source\n", encoding="utf-8")
+        _test_write(extra, "# the declared source\n", encoding="utf-8")
         monkeypatch.setitem(mod.PLUGIN_EXTRA_FILES, "shape-test",
                             [(extra, "scripts/session_source.py")])
         _render(mod, src, dest, "shape-test")
@@ -208,14 +209,14 @@ class TestGitIgnoredEntriesAreNotShippedContent:
     @staticmethod
     def _tree(mod, tmp_path):
         subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
-        (tmp_path / ".gitignore").write_text("__pycache__/\n*.pyc\n", encoding="utf-8")
+        _test_write(tmp_path / ".gitignore", "__pycache__/\n*.pyc\n", encoding="utf-8")
         src, _, dest = _plugin_tree(tmp_path, "shape-test")
         _render(mod, src, dest, "shape-test")
         (dest / "scripts" / "tests").mkdir(parents=True)
-        (dest / "scripts" / "tests" / "payload.py").write_text("x = 1\n", encoding="utf-8")
+        _test_write(dest / "scripts" / "tests" / "payload.py", "x = 1\n", encoding="utf-8")
         cache = dest / "scripts" / "__pycache__"
         cache.mkdir()
-        (cache / "helper.cpython-310.pyc").write_bytes(b"\x00")
+        _test_write(cache / "helper.cpython-310.pyc", b"\x00")
         return src, dest
 
     def test_a_committed_tests_directory_is_still_reported(self, tmp_path, load_script):
@@ -281,7 +282,7 @@ class TestCheckAllWiring:
         assert mod.check_all() == 0  # control: a freshly rendered copy is in sync
 
         (dest / "references" / "tests").mkdir()
-        (dest / "references" / "tests" / "helper.py").write_text("x = 1\n", encoding="utf-8")
+        _test_write(dest / "references" / "tests" / "helper.py", "x = 1\n", encoding="utf-8")
 
         assert mod.check_skill(src, dest, "shape-test") is None
         assert mod.check_all() == 1

@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 
 # ------------------------------------------------------------------------- new-file creation
@@ -175,8 +176,8 @@ def _framework_tree(path, version):
     """A directory the framework-root predicate accepts, carrying a VERSION."""
     for name in ("schemas", "features", "engine"):
         (path / name).mkdir(parents=True, exist_ok=True)
-    (path / "engine" / "badger_lib.py").write_text("", encoding="utf-8")
-    (path / "VERSION").write_text(version + "\n", encoding="utf-8")
+    _test_write(path / "engine" / "badger_lib.py", "", encoding="utf-8")
+    _test_write(path / "VERSION", version + "\n", encoding="utf-8")
     return path
 
 
@@ -189,7 +190,7 @@ def test_scaffold_names_a_competing_framework_cache_and_deletes_nothing(
     monkeypatch.setenv("HOME", str(home))
     cache = _framework_tree(home / ".ai-badger" / "framework", "0.13.0")
     config_path = tmp_path / "config.json"
-    config_path.write_text(json.dumps(_config(stacks=["python"])), encoding="utf-8")
+    _test_write(config_path, json.dumps(_config(stacks=["python"])), encoding="utf-8")
     target = tmp_path / "proj"
     target.mkdir()
 

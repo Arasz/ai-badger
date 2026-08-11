@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 
 def _make_root(tmp_path, version=None):
@@ -14,9 +15,9 @@ def _make_root(tmp_path, version=None):
     (tmp_path / "schemas").mkdir(parents=True, exist_ok=True)
     (tmp_path / "features").mkdir(parents=True, exist_ok=True)
     (tmp_path / "engine").mkdir(parents=True, exist_ok=True)
-    (tmp_path / "engine" / "badger_lib.py").write_text("", encoding="utf-8")
+    _test_write(tmp_path / "engine" / "badger_lib.py", "", encoding="utf-8")
     if version is not None:
-        (tmp_path / "VERSION").write_text(f"{version}\n", encoding="utf-8")
+        _test_write(tmp_path / "VERSION", f"{version}\n", encoding="utf-8")
     return tmp_path
 
 
@@ -24,8 +25,7 @@ def _make_scaffold(project, framework_root):
     """Write the .ai-badger/manifest.json a scaffold run leaves behind, root recorded."""
     aib = project / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
-    (aib / "manifest.json").write_text(
-        json.dumps({"frameworkRoot": str(framework_root)}), encoding="utf-8")
+    _test_write(aib / "manifest.json", json.dumps({"frameworkRoot": str(framework_root)}), encoding="utf-8")
     return aib
 
 
@@ -222,7 +222,7 @@ def test_a_recorded_root_may_be_relative_to_the_scaffolded_project(tmp_path, loa
     project = _make_root(tmp_path / "self-hosted")
     aib = project / ".ai-badger"
     aib.mkdir()
-    (aib / "manifest.json").write_text(json.dumps({"frameworkRoot": "."}), encoding="utf-8")
+    _test_write(aib / "manifest.json", json.dumps({"frameworkRoot": "."}), encoding="utf-8")
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
 
     assert bl.recorded_root(aib) == project.resolve()
@@ -246,7 +246,7 @@ def _scaffold_recording_version(project, version, framework_root=None):
     record = {"frameworkVersion": version}
     if framework_root is not None:
         record["frameworkRoot"] = str(framework_root)
-    (aib / "manifest.json").write_text(json.dumps(record), encoding="utf-8")
+    _test_write(aib / "manifest.json", json.dumps(record), encoding="utf-8")
     return aib
 
 
@@ -390,7 +390,7 @@ class TestEnsureFrameworkCache:
         bl = load_script("engine/badger_lib.py")
         installed = tmp_path / "plugin"
         (installed / "engine").mkdir(parents=True)
-        (installed / "VERSION").write_text("0.19.0\n", encoding="utf-8")
+        _test_write(installed / "VERSION", "0.19.0\n", encoding="utf-8")
         calls = []
         monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "cache")
         monkeypatch.setattr(bl.subprocess, "run", self._recording_clone(tmp_path, calls))
@@ -428,7 +428,7 @@ class TestEnsureFrameworkCache:
 def test_dump_json_is_atomic_under_write_failure(tmp_path, load_script, monkeypatch):
     bl = load_script("engine/badger_lib.py")
     path = tmp_path / "manifest.json"
-    path.write_text('{"entries": ["the user\'s data"]}\n', encoding="utf-8")
+    _test_write(path, '{"entries": ["the user\'s data"]}\n', encoding="utf-8")
     before = path.read_text(encoding="utf-8")
 
     def exploding_replace(*args, **kwargs):  # pylint: disable=unused-argument
@@ -446,7 +446,7 @@ def test_dump_json_is_atomic_under_write_failure(tmp_path, load_script, monkeypa
 def test_dump_json_leaves_the_target_untouched_when_serialisation_fails(tmp_path, load_script):
     bl = load_script("engine/badger_lib.py")
     path = tmp_path / "index.json"
-    path.write_text('{"generated": true}\n', encoding="utf-8")
+    _test_write(path, '{"generated": true}\n', encoding="utf-8")
 
     with pytest.raises(TypeError):
         bl.dump_json(path, {"bad": object()})
@@ -458,7 +458,7 @@ def test_dump_json_leaves_the_target_untouched_when_serialisation_fails(tmp_path
 def test_atomic_write_text_preserves_the_file_mode(tmp_path, load_script):
     bl = load_script("engine/badger_lib.py")
     path = tmp_path / "hook.sh"
-    path.write_text("old\n", encoding="utf-8")
+    _test_write(path, "old\n", encoding="utf-8")
     path.chmod(0o755)
 
     bl.atomic_write_text(path, "new\n")
@@ -515,7 +515,7 @@ def test_sha256_text_matches_hashlib(load_script):
 def test_sha256_file_matches_hashlib_for_a_file(tmp_path, load_script):
     bl = load_script("engine/badger_lib.py")
     f = tmp_path / "f.txt"
-    f.write_bytes(b"some bytes")
+    _test_write(f, b"some bytes")
 
     assert bl.sha256_file(f) == hashlib.sha256(b"some bytes").hexdigest()
 
@@ -524,9 +524,9 @@ def test_sha256_file_is_deterministic_for_a_directory(tmp_path, load_script):
     bl = load_script("engine/badger_lib.py")
     d = tmp_path / "d"
     d.mkdir()
-    (d / "a.txt").write_text("A", encoding="utf-8")
+    _test_write(d / "a.txt", "A", encoding="utf-8")
     (d / "sub").mkdir()
-    (d / "sub" / "b.txt").write_text("B", encoding="utf-8")
+    _test_write(d / "sub" / "b.txt", "B", encoding="utf-8")
 
     first = bl.sha256_file(d)
     second = bl.sha256_file(d)
@@ -538,10 +538,10 @@ def test_sha256_file_directory_hash_changes_when_content_changes(tmp_path, load_
     bl = load_script("engine/badger_lib.py")
     d = tmp_path / "d"
     d.mkdir()
-    (d / "a.txt").write_text("A", encoding="utf-8")
+    _test_write(d / "a.txt", "A", encoding="utf-8")
     before = bl.sha256_file(d)
 
-    (d / "a.txt").write_text("A-changed", encoding="utf-8")
+    _test_write(d / "a.txt", "A-changed", encoding="utf-8")
     after = bl.sha256_file(d)
 
     assert before != after
@@ -551,19 +551,18 @@ def test_sha256_file_directory_hash_depends_on_relative_names_not_absolute_path(
     bl = load_script("engine/badger_lib.py")
     d1 = tmp_path / "one" / "d"
     d1.mkdir(parents=True)
-    (d1 / "a.txt").write_text("A", encoding="utf-8")
+    _test_write(d1 / "a.txt", "A", encoding="utf-8")
 
     d2 = tmp_path / "two" / "somewhere" / "d"
     d2.mkdir(parents=True)
-    (d2 / "a.txt").write_text("A", encoding="utf-8")
+    _test_write(d2 / "a.txt", "A", encoding="utf-8")
 
     assert bl.sha256_file(d1) == bl.sha256_file(d2)
 
 
 def test_read_index_loads_index_json_from_root(tmp_path, load_script):
     bl = load_script("engine/badger_lib.py")
-    (tmp_path / "index.json").write_text(json.dumps({"frameworkVersion": "1.0.0", "stacks": {}}),
-                                          encoding="utf-8")
+    _test_write(tmp_path / "index.json", json.dumps({"frameworkVersion": "1.0.0", "stacks": {}}), encoding="utf-8")
 
     idx = bl.read_index(tmp_path)
 
@@ -596,13 +595,13 @@ def test_validate_returns_readable_sorted_errors_when_instance_is_invalid(load_s
 def test_validate_file_reads_both_json_files_and_validates(tmp_path, load_script):
     bl = load_script("engine/badger_lib.py")
     schema_path = tmp_path / "s.schema.json"
-    schema_path.write_text(json.dumps({"type": "object", "required": ["x"]}), encoding="utf-8")
+    _test_write(schema_path, json.dumps({"type": "object", "required": ["x"]}), encoding="utf-8")
     instance_path = tmp_path / "i.json"
-    instance_path.write_text(json.dumps({"x": 1}), encoding="utf-8")
+    _test_write(instance_path, json.dumps({"x": 1}), encoding="utf-8")
 
     assert bl.validate_file(instance_path, schema_path) == []
 
-    instance_path.write_text(json.dumps({}), encoding="utf-8")
+    _test_write(instance_path, json.dumps({}), encoding="utf-8")
     assert bl.validate_file(instance_path, schema_path) != []
 
 
@@ -616,9 +615,7 @@ def test_check_schemas_selfvalid_accepts_the_real_framework_schemas(root, load_s
 
 def test_check_schemas_selfvalid_flags_a_broken_schema(tmp_path, load_script):
     bl = load_script("engine/badger_lib.py")
-    (tmp_path / "broken.schema.json").write_text(
-        json.dumps({"type": "not-a-real-type"}), encoding="utf-8"
-    )
+    _test_write(tmp_path / "broken.schema.json", json.dumps({"type": "not-a-real-type"}), encoding="utf-8")
 
     problems = bl.check_schemas_selfvalid(tmp_path)
 
@@ -691,13 +688,13 @@ def test_dir_content_hash_excludes_patterns(tmp_path, load_script):
     bl = load_script("engine/badger_lib.py")
     d = tmp_path / "skill"
     d.mkdir()
-    (d / "SKILL.md").write_text("content\n")
+    _test_write(d / "SKILL.md", "content\n")
     (d / "scripts").mkdir()
-    (d / "scripts" / "main.py").write_text("print('hi')\n")
+    _test_write(d / "scripts" / "main.py", "print('hi')\n")
     (d / "tests").mkdir()
-    (d / "tests" / "test_main.py").write_text("assert True\n")
+    _test_write(d / "tests" / "test_main.py", "assert True\n")
     (d / "evals").mkdir()
-    (d / "evals" / "evals.json").write_text("{}\n")
+    _test_write(d / "evals" / "evals.json", "{}\n")
 
     result = bl.dir_content_hash(d, exclude=["tests", "evals"])
 
@@ -711,10 +708,10 @@ def test_dir_content_hash_deterministic(tmp_path, load_script):
     bl = load_script("engine/badger_lib.py")
     d1 = tmp_path / "a"
     d1.mkdir()
-    (d1 / "file.md").write_text("hello\n")
+    _test_write(d1 / "file.md", "hello\n")
     d2 = tmp_path / "b"
     d2.mkdir()
-    (d2 / "file.md").write_text("hello\n")
+    _test_write(d2 / "file.md", "hello\n")
 
     h1 = bl.dir_content_hash(d1)
     h2 = bl.dir_content_hash(d2)
@@ -728,10 +725,10 @@ def test_dir_content_hash_differs_on_content_change(tmp_path, load_script):
     bl = load_script("engine/badger_lib.py")
     d1 = tmp_path / "a"
     d1.mkdir()
-    (d1 / "file.md").write_text("v1\n")
+    _test_write(d1 / "file.md", "v1\n")
     d2 = tmp_path / "b"
     d2.mkdir()
-    (d2 / "file.md").write_text("v2\n")
+    _test_write(d2 / "file.md", "v2\n")
 
     h1 = bl.dir_content_hash(d1)
     h2 = bl.dir_content_hash(d2)
@@ -744,14 +741,14 @@ def test_dir_content_hash_same_when_excluded_files_differ(tmp_path, load_script)
     bl = load_script("engine/badger_lib.py")
     d1 = tmp_path / "a"
     d1.mkdir()
-    (d1 / "SKILL.md").write_text("content\n")
+    _test_write(d1 / "SKILL.md", "content\n")
     (d1 / "tests").mkdir()
-    (d1 / "tests" / "test_v1.py").write_text("v1\n")
+    _test_write(d1 / "tests" / "test_v1.py", "v1\n")
     d2 = tmp_path / "b"
     d2.mkdir()
-    (d2 / "SKILL.md").write_text("content\n")
+    _test_write(d2 / "SKILL.md", "content\n")
     (d2 / "tests").mkdir()
-    (d2 / "tests" / "test_v2.py").write_text("v2\n")
+    _test_write(d2 / "tests" / "test_v2.py", "v2\n")
 
     h1 = bl.dir_content_hash(d1, exclude=["tests"])
     h2 = bl.dir_content_hash(d2, exclude=["tests"])
@@ -765,14 +762,14 @@ def test_dir_content_hash_exclude_rel_skips_that_path_only(tmp_path, load_script
     d = tmp_path / "skill"
     (d / "scripts").mkdir(parents=True)
     (d / "vendor").mkdir()
-    (d / "SKILL.md").write_text("content\n")
-    (d / "scripts" / "bm25.py").write_text("placed by an adjustment\n")
-    (d / "vendor" / "bm25.py").write_text("the project's own\n")
+    _test_write(d / "SKILL.md", "content\n")
+    _test_write(d / "scripts" / "bm25.py", "placed by an adjustment\n")
+    _test_write(d / "vendor" / "bm25.py", "the project's own\n")
 
     result = bl.dir_content_hash(d, exclude_rel=["scripts/bm25.py"])
 
     assert result["file_count"] == 2  # SKILL.md + vendor/bm25.py
-    (d / "scripts" / "bm25.py").write_text("a later framework version\n")
+    _test_write(d / "scripts" / "bm25.py", "a later framework version\n")
     assert bl.dir_content_hash(d, exclude_rel=["scripts/bm25.py"]) == result
 
 
@@ -781,9 +778,9 @@ def test_dir_content_hash_exclude_rel_skips_a_whole_subtree(tmp_path, load_scrip
     bl = load_script("engine/badger_lib.py")
     d = tmp_path / "skill"
     (d / "extras" / "deep").mkdir(parents=True)
-    (d / "SKILL.md").write_text("content\n")
-    (d / "extras" / "one.py").write_text("1\n")
-    (d / "extras" / "deep" / "two.py").write_text("2\n")
+    _test_write(d / "SKILL.md", "content\n")
+    _test_write(d / "extras" / "one.py", "1\n")
+    _test_write(d / "extras" / "deep" / "two.py", "2\n")
 
     result = bl.dir_content_hash(d, exclude_rel=["extras"])
 
@@ -802,8 +799,8 @@ def test_dir_content_hash_still_counts_a_directory_a_nested_entry_created(tmp_pa
     bl = load_script("engine/badger_lib.py")
     d = tmp_path / "skill"
     (d / "generated" / "newdir").mkdir(parents=True)
-    (d / "SKILL.md").write_text("content\n")
-    (d / "generated" / "newdir" / "file.py").write_text("nested\n")
+    _test_write(d / "SKILL.md", "content\n")
+    _test_write(d / "generated" / "newdir" / "file.py", "nested\n")
 
     result = bl.dir_content_hash(d, exclude_rel=["generated/newdir/file.py"])
 
@@ -816,8 +813,8 @@ def test_dir_content_hash_keeps_a_directory_that_also_holds_an_owned_file(tmp_pa
     bl = load_script("engine/badger_lib.py")
     d = tmp_path / "skill"
     (d / "scripts").mkdir(parents=True)
-    (d / "scripts" / "mine.py").write_text("owned\n")
-    (d / "scripts" / "adjusted.py").write_text("nested\n")
+    _test_write(d / "scripts" / "mine.py", "owned\n")
+    _test_write(d / "scripts" / "adjusted.py", "nested\n")
 
     result = bl.dir_content_hash(d, exclude_rel=["scripts/adjusted.py"])
 
@@ -831,8 +828,8 @@ def test_dir_content_hash_ignores_an_exclude_rel_naming_the_directory_itself(
     bl = load_script("engine/badger_lib.py")
     d = tmp_path / "skill"
     (d / "scripts").mkdir(parents=True)
-    (d / "SKILL.md").write_text("content\n")
-    (d / "scripts" / "helper.py").write_text("helper\n")
+    _test_write(d / "SKILL.md", "content\n")
+    _test_write(d / "scripts" / "helper.py", "helper\n")
     baseline = bl.dir_content_hash(d)
 
     for degenerate in ("", "."):
@@ -844,10 +841,10 @@ def test_skill_exclude_patterns_ignore_os_droppings(tmp_path, load_script):
     bl = load_script("engine/badger_lib.py")
     d = tmp_path / "skill"
     d.mkdir()
-    (d / "SKILL.md").write_text("content\n")
+    _test_write(d / "SKILL.md", "content\n")
     before = bl.dir_content_hash(d, exclude=bl.SKILL_EXCLUDE_PATTERNS)
 
-    (d / ".DS_Store").write_bytes(b"\x00\x01macos")
+    _test_write(d / ".DS_Store", b"\x00\x01macos")
 
     assert bl.dir_content_hash(d, exclude=bl.SKILL_EXCLUDE_PATTERNS) == before
 
@@ -975,7 +972,7 @@ class TestReadVersion:
 
     def test_it_returns_the_stripped_version(self, load_script, tmp_path):
         bl = load_script("engine/badger_lib.py")
-        (tmp_path / "VERSION").write_text("0.93.0\n", encoding="utf-8")
+        _test_write(tmp_path / "VERSION", "0.93.0\n", encoding="utf-8")
 
         assert bl.read_version(tmp_path) == "0.93.0"
 
@@ -993,7 +990,7 @@ class TestReadVersion:
     def test_an_empty_file_refuses_too(self, load_script, tmp_path):
         """An empty VERSION read as the version "" and compared clean against every tag."""
         bl = load_script("engine/badger_lib.py")
-        (tmp_path / "VERSION").write_text("\n", encoding="utf-8")
+        _test_write(tmp_path / "VERSION", "\n", encoding="utf-8")
 
         with pytest.raises(bl.MissingVersion):
             bl.read_version(tmp_path)
@@ -1001,7 +998,7 @@ class TestReadVersion:
     def test_undecodable_bytes_refuse_too(self, load_script, tmp_path):
         """UnicodeDecodeError is a ValueError, not an OSError — it escaped the first guard."""
         bl = load_script("engine/badger_lib.py")
-        (tmp_path / "VERSION").write_bytes(b"\xff\xfe0.1.0")
+        _test_write(tmp_path / "VERSION", b"\xff\xfe0.1.0")
 
         with pytest.raises(bl.MissingVersion):
             bl.read_version(tmp_path)

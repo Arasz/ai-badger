@@ -10,6 +10,7 @@ import hashlib
 import json
 
 import pytest
+from conftest import _test_write
 
 
 @pytest.fixture
@@ -35,8 +36,7 @@ def _record(event="hit", query="take a screenshot of the page", returned="", pro
 
 def _write_log(tmp_path, records):
     path = tmp_path / "audit.jsonl"
-    path.write_text(
-        "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+    _test_write(path, "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
     return path
 
 
@@ -49,7 +49,7 @@ def test_load_records_parses_one_json_object_per_line(harvester, tmp_path):
 
 def test_load_records_skips_unparseable_lines(harvester, tmp_path):
     path = tmp_path / "audit.jsonl"
-    path.write_text('not json\n' + json.dumps(_record()) + '\n', encoding="utf-8")
+    _test_write(path, 'not json\n' + json.dumps(_record()) + '\n', encoding="utf-8")
     assert len(harvester.load_records(path)) == 1
 
 

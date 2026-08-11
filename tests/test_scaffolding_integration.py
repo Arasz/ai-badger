@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from conftest import _test_write
 
 
 def _minimal_config(agents=None):
@@ -25,18 +26,16 @@ def _make_test_framework(tmp_path, root, scaffolding_json=None):
     features = tmp_path / "features"
     test_agent = features / "test-agent"
     (test_agent / "templates").mkdir(parents=True)
-    (test_agent / "templates" / "hello.md").write_text("# Hello from test-agent\n", encoding="utf-8")
-    (test_agent / "templates" / "hello.tmpl").write_text(
-        "# {{PROJECT_NAME}} — hello\n", encoding="utf-8")
+    _test_write(test_agent / "templates" / "hello.md", "# Hello from test-agent\n", encoding="utf-8")
+    _test_write(test_agent / "templates" / "hello.tmpl", "# {{PROJECT_NAME}} — hello\n", encoding="utf-8")
     if scaffolding_json:
-        (test_agent / "scaffolding.json").write_text(
-            json.dumps(scaffolding_json), encoding="utf-8")
-    (test_agent / "stack.json").write_text(json.dumps({
+        _test_write(test_agent / "scaffolding.json", json.dumps(scaffolding_json), encoding="utf-8")
+    _test_write(test_agent / "stack.json", json.dumps({
         "name": "test-agent", "description": "test",
     }), encoding="utf-8")
 
     shutil.copytree(root / "schemas", tmp_path / "schemas")
-    (tmp_path / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(tmp_path / "VERSION", "0.2.0\n", encoding="utf-8")
     index = {
         "$schema": "./schemas/index.schema.json",
         "frameworkVersion": "0.2.0",
@@ -44,7 +43,7 @@ def _make_test_framework(tmp_path, root, scaffolding_json=None):
             {"name": "prompt-markers", "path": "features/common/skills/prompt-markers"}
         ]}},
     }
-    (tmp_path / "index.json").write_text(json.dumps(index), encoding="utf-8")
+    _test_write(tmp_path / "index.json", json.dumps(index), encoding="utf-8")
     pm_src = root / "features" / "common" / "skills" / "prompt-markers"
     pm_dst = tmp_path / "features" / "common" / "skills" / "prompt-markers"
     shutil.copytree(pm_src, pm_dst)
@@ -274,7 +273,7 @@ def test_scaffolder_seed_once_preserves_existing_file(tmp_path, root, make_scaff
     })
     target = make_scaffolder.target
     # Pre-existing file
-    (target / "HELLO.md").write_text("my custom content\n", encoding="utf-8")
+    _test_write(target / "HELLO.md", "my custom content\n", encoding="utf-8")
 
     config = _minimal_config(agents=["test-agent"])
     scaf = make_scaffolder(root=fw, config=config)

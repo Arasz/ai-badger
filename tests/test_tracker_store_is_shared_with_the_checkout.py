@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 ROOT = Path(__file__).resolve().parents[1]
 TRACKER = ROOT / "features" / "common" / "skills" / "task" / "scripts" / "task_tracker.py"
@@ -39,7 +40,7 @@ def _checkout_and_worktree(tmp_path):
     _git(checkout, "config", "user.name", "Test")
     marker = checkout / ".ai-badger" / "config.json"
     marker.parent.mkdir(parents=True)
-    marker.write_text("{}", encoding="utf-8")
+    _test_write(marker, "{}", encoding="utf-8")
     _git(checkout, "add", ".ai-badger/config.json")
     _git(checkout, "commit", "-m", "marker")
 
@@ -61,13 +62,13 @@ def _register(checkout: Path, task_id: str) -> Path:
     """
     tracking = checkout / ".ai-badger" / "task-tracking"
     tracking.mkdir(parents=True, exist_ok=True)
-    (tracking / "executed-tasks.json").write_text(json.dumps({"tasks": [{
+    _test_write(tracking / "executed-tasks.json", json.dumps({"tasks": [{
         "taskId": task_id,
         "state": "IN_PROGRESS",
         "startedAt": "2026-08-07T00:00:00+00:00",
         "sessionId": "s-1",
     }]}), encoding="utf-8")
-    (tracking / "token-usage.json").write_text(json.dumps({"tasks": [{
+    _test_write(tracking / "token-usage.json", json.dumps({"tasks": [{
         "taskId": task_id,
         "sessionId": "s-1",
         "trackingSource": "claude",
@@ -156,7 +157,7 @@ def test_a_project_that_is_not_a_git_repo_resolves_to_itself(load_script, tmp_pa
     """No git, no collapse — and no traceback either."""
     project = tmp_path / "plain"
     (project / ".ai-badger").mkdir(parents=True)
-    (project / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+    _test_write(project / ".ai-badger" / "config.json", "{}", encoding="utf-8")
     tl = load_script(SOURCE)
 
     assert tl.resolve_project_root(env={}, cwd=project) == project
@@ -172,7 +173,7 @@ def test_a_git_checkout_without_the_marker_above_it_is_not_adopted(load_script, 
     _git(outer, "init", "-b", "main")
     nested = outer / "vendor" / "nested-project"
     (nested / ".ai-badger").mkdir(parents=True)
-    (nested / ".ai-badger" / "config.json").write_text("{}", encoding="utf-8")
+    _test_write(nested / ".ai-badger" / "config.json", "{}", encoding="utf-8")
     tl = load_script(SOURCE)
 
     assert tl.resolve_project_root(env={}, cwd=nested) == nested
@@ -192,14 +193,14 @@ def test_a_worktree_of_a_repo_that_is_not_an_ai_badger_project_stays_where_it_is
     _git(host, "init", "-b", "main")
     _git(host, "config", "user.email", "test@example.invalid")
     _git(host, "config", "user.name", "Test")
-    (host / "README.md").write_text("# not an ai-badger project\n", encoding="utf-8")
+    _test_write(host / "README.md", "# not an ai-badger project\n", encoding="utf-8")
     _git(host, "add", "README.md")
     _git(host, "commit", "-m", "host")
     vendored = host / "vendor" / "proj"
     _git(host, "worktree", "add", "-b", "vendored", str(vendored))
     marker = vendored / ".ai-badger" / "config.json"
     marker.parent.mkdir(parents=True)
-    marker.write_text("{}", encoding="utf-8")
+    _test_write(marker, "{}", encoding="utf-8")
 
     assert not (host / ".ai-badger" / "config.json").is_file(), "the host must not be a project"
     assert tracker.collapse_worktree(vendored) == vendored

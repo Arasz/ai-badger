@@ -17,6 +17,7 @@ import re
 import sys
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 
 def _load(load_script, root, relpath):
@@ -32,7 +33,7 @@ def _scaffold_mcp_index_and_prompt_markers(target):
                           ("prompt-markers", "user_prompt_hook.py")):
         scripts_dir = target / ".ai-badger" / "skills" / skill / "scripts"
         scripts_dir.mkdir(parents=True, exist_ok=True)
-        (scripts_dir / script).write_text("", encoding="utf-8")
+        _test_write(scripts_dir / script, "", encoding="utf-8")
 
 
 def test_claude_wires_context_enrichment_and_prompt_markers_both(tmp_path, load_script, root):

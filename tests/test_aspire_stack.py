@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 ROOT = Path(__file__).resolve().parents[1]
 DETECT = "features/common/skills/welcome-ai-badger/scripts/detect.py"
@@ -27,7 +28,7 @@ def _real_index():
 ])
 def test_an_apphost_marks_a_repository_as_aspire(tmp_path, load_script, filename):
     detect = load_script(DETECT)
-    (tmp_path / filename).write_text("x", encoding="utf-8")
+    _test_write(tmp_path / filename, "x", encoding="utf-8")
 
     assert "aspire" in detect.detect_stacks(tmp_path, _real_index())
 
@@ -35,7 +36,7 @@ def test_an_apphost_marks_a_repository_as_aspire(tmp_path, load_script, filename
 def test_a_dotnet_repository_without_an_apphost_is_not_aspire(tmp_path, load_script):
     """`aspire` must not fire on every .NET repo, or the MCP prose reaches projects with no AppHost."""
     detect = load_script(DETECT)
-    (tmp_path / "MyApp.csproj").write_text("x", encoding="utf-8")
+    _test_write(tmp_path / "MyApp.csproj", "x", encoding="utf-8")
 
     stacks = detect.detect_stacks(tmp_path, _real_index())
 

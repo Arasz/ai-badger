@@ -11,6 +11,7 @@ import json
 from unittest.mock import patch
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 
 # ---------------------------------------------------------------------- the declared server
@@ -41,11 +42,10 @@ def test_scaffold_catalog_tool_generates_mcp_json(make_scaffolder):
 def test_the_catalog_declaration_is_what_reaches_a_stack_scoped_scaffold(make_scaffolder,
                                                                          tmp_path):
     """What `collect_external_tools` used to do for a stack, `stack-mcp.json` does now."""
-    (tmp_path / "index.json").write_text(
-        json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8")
+    _test_write(tmp_path / "index.json", json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8")
     stack = tmp_path / "features" / "python"
     stack.mkdir(parents=True)
-    (stack / "stack-mcp.json").write_text(json.dumps({"servers": [{
+    _test_write(stack / "stack-mcp.json", json.dumps({"servers": [{
         "name": "stack-tool", "command": "echo stack-tool", "declare": True,
     }]}), encoding="utf-8")
 

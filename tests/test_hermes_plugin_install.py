@@ -13,6 +13,7 @@ import json
 import sys
 from pathlib import Path
 from unittest.mock import patch
+from conftest import _test_write
 
 PLUGIN_DIR_NAME = "ai-badger"
 USER_PLUGIN_FILES = ("ai_badger_hooks.py", "learned_skills_sync.py", "debug_log.py")
@@ -101,7 +102,7 @@ def test_scaffold_refreshes_stale_hermes_plugin(tmp_path, root, make_scaffolder)
     plugin = _plugin_dir(home)
     plugin.mkdir(parents=True)
     for name in USER_PLUGIN_FILES:
-        (plugin / name).write_text("# stale copy\n", encoding="utf-8")
+        _test_write(plugin / name, "# stale copy\n", encoding="utf-8")
 
     scaf = make_scaffolder(config=_config(["hermes"]), skills=["task"], install=True)
     with patch("pathlib.Path.home", return_value=home):
@@ -163,7 +164,7 @@ def test_adjust_hooks_removes_stale_memory_grade_copies(
     stale_dirs = (target / ".ai-badger" / "hooks", _plugin_dir(home))
     for dst_dir in stale_dirs:
         dst_dir.mkdir(parents=True, exist_ok=True)
-        (dst_dir / "memory_grade.py").write_text("# stale copy\n", encoding="utf-8")
+        _test_write(dst_dir / "memory_grade.py", "# stale copy\n", encoding="utf-8")
 
     with patch("pathlib.Path.home", return_value=home):
         adjust_hooks.adjust(_adjust_context(root, target, ["hermes"]))
@@ -294,11 +295,11 @@ def test_legacy_flat_copies_are_removed(tmp_path, load_script, root):
     home = tmp_path / "home"
     plugins = home / ".hermes" / "plugins"
     plugins.mkdir(parents=True)
-    (plugins / "ai_badger_hooks.py").write_text("# legacy flat copy\n", encoding="utf-8")
-    (plugins / "memory_grade.py").write_text("# legacy flat copy\n", encoding="utf-8")
+    _test_write(plugins / "ai_badger_hooks.py", "# legacy flat copy\n", encoding="utf-8")
+    _test_write(plugins / "memory_grade.py", "# legacy flat copy\n", encoding="utf-8")
     legacy_manifest = plugins / ".ai-badger"
     legacy_manifest.mkdir()
-    (legacy_manifest / "manifest.json").write_text("{}", encoding="utf-8")
+    _test_write(legacy_manifest / "manifest.json", "{}", encoding="utf-8")
 
     with patch("pathlib.Path.home", return_value=home):
         adjust_hooks.adjust(_adjust_context(root, target, ["hermes"]))

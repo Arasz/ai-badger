@@ -8,6 +8,7 @@ which is what `ensure-work-is-committed` reads to tell a parent a subagent is st
 from __future__ import annotations
 
 import json
+from conftest import _test_write
 
 
 SCRIPT = "features/common/skills/commit-reminder/scripts/commit_reminder.py"
@@ -128,7 +129,7 @@ class TestOldStateStillLoads:
     def test_a_bare_integer_marker_is_read_as_an_entry(self, load_script, tmp_path, monkeypatch):
         cr = load_script(SCRIPT)
         state = tmp_path / "state.json"
-        state.write_text(json.dumps({str(tmp_path): 4}), encoding="utf-8")
+        _test_write(state, json.dumps({str(tmp_path): 4}), encoding="utf-8")
         monkeypatch.setattr(cr, "STATE_FILE", state)
 
         entry = cr.get_entry(str(tmp_path))

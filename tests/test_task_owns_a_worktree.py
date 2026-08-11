@@ -16,6 +16,7 @@ from __future__ import annotations
 import subprocess
 
 import pytest
+from conftest import _test_write
 
 
 def _git(cwd, *args):
@@ -30,7 +31,7 @@ def _repo(tmp_path):
     _git(repo, "init", "-q", "-b", "main")
     _git(repo, "config", "user.email", "t@example.com")
     _git(repo, "config", "user.name", "T")
-    (repo / "README.md").write_text("seed\n", encoding="utf-8")
+    _test_write(repo / "README.md", "seed\n", encoding="utf-8")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "seed")
     return repo
@@ -141,7 +142,7 @@ class TestFinishRefusesToDestroyWork:
     def test_an_uncommitted_file_blocks_removal(self, tmp_path, tracker):
         repo = _repo(tmp_path)
         path = tracker.ensure_worktree(repo, "issue-42", "task/issue-42-thing")
-        (path / "wip.txt").write_text("half a thought\n", encoding="utf-8")
+        _test_write(path / "wip.txt", "half a thought\n", encoding="utf-8")
 
         removed, reason = tracker.release_worktree(repo, "issue-42")
 
@@ -153,7 +154,7 @@ class TestFinishRefusesToDestroyWork:
         """A committed-but-unpushed change is exactly what a dirty check on `status` misses."""
         repo = _repo(tmp_path)
         path = tracker.ensure_worktree(repo, "issue-42", "task/issue-42-thing")
-        (path / "done.txt").write_text("finished\n", encoding="utf-8")
+        _test_write(path / "done.txt", "finished\n", encoding="utf-8")
         _git(path, "add", "-A")
         _git(path, "commit", "-q", "-m", "real work")
 
@@ -184,7 +185,7 @@ class TestTheBlockerIsAboutThisWorktreeOnly:
         """
         repo = _repo(tmp_path)
         noisy = tracker.ensure_worktree(repo, "noisy", "task/noisy")
-        (noisy / "theirs.txt").write_text("elsewhere\n", encoding="utf-8")
+        _test_write(noisy / "theirs.txt", "elsewhere\n", encoding="utf-8")
         _git(noisy, "add", "-A")
         _git(noisy, "commit", "-q", "-m", "someone else's work")
         quiet = tracker.ensure_worktree(repo, "quiet", "task/quiet")
@@ -207,12 +208,12 @@ class TestTheBlockerIsAboutThisWorktreeOnly:
         _git(repo, "push", "-q", "origin", "main")
 
         noisy = tracker.ensure_worktree(repo, "noisy", "task/noisy")
-        (noisy / "theirs.txt").write_text("elsewhere\n", encoding="utf-8")
+        _test_write(noisy / "theirs.txt", "elsewhere\n", encoding="utf-8")
         _git(noisy, "add", "-A")
         _git(noisy, "commit", "-q", "-m", "someone else's unpushed work")
 
         pushed = tracker.ensure_worktree(repo, "pushed", "task/pushed")
-        (pushed / "mine.txt").write_text("done\n", encoding="utf-8")
+        _test_write(pushed / "mine.txt", "done\n", encoding="utf-8")
         _git(pushed, "add", "-A")
         _git(pushed, "commit", "-q", "-m", "my work")
         _git(pushed, "push", "-q", "-u", "origin", "task/pushed")
@@ -224,7 +225,7 @@ class TestTheBlockerIsAboutThisWorktreeOnly:
         """Merged work is not lost by removing the directory that produced it."""
         repo = _repo(tmp_path)
         path = tracker.ensure_worktree(repo, "merged-one", "task/merged")
-        (path / "done.txt").write_text("finished\n", encoding="utf-8")
+        _test_write(path / "done.txt", "finished\n", encoding="utf-8")
         _git(path, "add", "-A")
         _git(path, "commit", "-q", "-m", "real work")
         _git(repo, "merge", "--ff-only", "task/merged")
@@ -245,7 +246,7 @@ class TestASquashMergedWorktreeIsNotBlocked:
         side: content lands on main, but the branch's own commit is nobody's ancestor."""
         repo = _repo(tmp_path)
         path = tracker.ensure_worktree(repo, "issue-42", "task/issue-42-thing")
-        (path / "feature.txt").write_text("shipped\n", encoding="utf-8")
+        _test_write(path / "feature.txt", "shipped\n", encoding="utf-8")
         _git(path, "add", "-A")
         _git(path, "commit", "-q", "-m", "add feature")
 
@@ -260,16 +261,16 @@ class TestASquashMergedWorktreeIsNotBlocked:
         and refuse anyway — this must still recognise nothing here is unique."""
         repo = _repo(tmp_path)
         path = tracker.ensure_worktree(repo, "p2-research", "task/p2-research")
-        (path / "one.txt").write_text("one\n", encoding="utf-8")
+        _test_write(path / "one.txt", "one\n", encoding="utf-8")
         _git(path, "add", "-A")
         _git(path, "commit", "-q", "-m", "commit one")
-        (path / "two.txt").write_text("two\n", encoding="utf-8")
+        _test_write(path / "two.txt", "two\n", encoding="utf-8")
         _git(path, "add", "-A")
         _git(path, "commit", "-q", "-m", "commit two")
 
         _git(repo, "merge", "-q", "--squash", "task/p2-research")
         _git(repo, "commit", "-q", "-m", "squash merge of task/p2-research")
-        (repo / "unrelated.txt").write_text("later\n", encoding="utf-8")
+        _test_write(repo / "unrelated.txt", "later\n", encoding="utf-8")
         _git(repo, "add", "-A")
         _git(repo, "commit", "-q", "-m", "unrelated later change")
 
@@ -283,14 +284,14 @@ class TestASquashMergedWorktreeIsNotBlocked:
         (`tests/test_task_owns_a_worktree.py::TestFinishRefusesToDestroyWork`) still applies."""
         repo = _repo(tmp_path)
         landed = tracker.ensure_worktree(repo, "landed", "task/landed")
-        (landed / "shipped.txt").write_text("shipped\n", encoding="utf-8")
+        _test_write(landed / "shipped.txt", "shipped\n", encoding="utf-8")
         _git(landed, "add", "-A")
         _git(landed, "commit", "-q", "-m", "shipped work")
         _git(repo, "merge", "-q", "--squash", "task/landed")
         _git(repo, "commit", "-q", "-m", "squash merge of task/landed")
 
         cooking = tracker.ensure_worktree(repo, "cooking", "task/cooking")
-        (cooking / "wip.txt").write_text("not shipped yet\n", encoding="utf-8")
+        _test_write(cooking / "wip.txt", "not shipped yet\n", encoding="utf-8")
         _git(cooking, "add", "-A")
         _git(cooking, "commit", "-q", "-m", "still cooking")
 
@@ -305,7 +306,7 @@ class TestTheChecksCouldFail:
         repo = _repo(tmp_path)
         clean = tracker.ensure_worktree(repo, "clean-one", "task/clean")
         dirty = tracker.ensure_worktree(repo, "dirty-one", "task/dirty")
-        (dirty / "wip.txt").write_text("x\n", encoding="utf-8")
+        _test_write(dirty / "wip.txt", "x\n", encoding="utf-8")
 
         assert tracker.worktree_blockers(clean) == []
         assert tracker.worktree_blockers(dirty) != []

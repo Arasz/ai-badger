@@ -12,6 +12,7 @@ from unittest.mock import patch
 import pytest
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 
@@ -134,7 +135,7 @@ def test_an_edited_copy_of_a_declined_invariant_is_left_in_place(make_scaffolder
     """Only what ai-badger placed and the project never touched may be removed."""
     target, _ = _scaffold(make_scaffolder, _config(agents=["claude"]))
     edited = target / ".ai-badger" / "invariants" / "tdd-mandatory.md"
-    edited.write_text("# ours now\n", encoding="utf-8")
+    _test_write(edited, "# ours now\n", encoding="utf-8")
 
     _, result = _scaffold(make_scaffolder, _excluding(invariants=["tdd-mandatory"]))
 
@@ -259,7 +260,7 @@ def _excluded_project(make_scaffolder):
     config = _excluding(skills=["call-behaviorist"])
     target, result = _scaffold(make_scaffolder, config,
                                skills=["task", "call-behaviorist"])
-    (target / ".ai-badger" / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    _test_write(target / ".ai-badger" / "config.json", json.dumps(config), encoding="utf-8")
     return target, result["manifest"]
 
 

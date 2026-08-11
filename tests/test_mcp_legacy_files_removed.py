@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 CATALOG_SERVER = "code-review-graph"
 RETIRED = ("mcp-servers.json", "external-tools.json")
@@ -23,11 +24,10 @@ def _mcp(make_scaffolder, **kwargs):
 
 def _stack_shipping(tmp_path, filename, payload):
     """A framework root whose `python` stack still ships one retired declaration file."""
-    (tmp_path / "index.json").write_text(
-        json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8")
+    _test_write(tmp_path / "index.json", json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8")
     stack = tmp_path / "features" / "python"
     stack.mkdir(parents=True, exist_ok=True)
-    (stack / filename).write_text(json.dumps(payload), encoding="utf-8")
+    _test_write(stack / filename, json.dumps(payload), encoding="utf-8")
     return tmp_path
 
 
@@ -183,8 +183,7 @@ def test_the_retired_file_is_named_once_however_often_the_declarations_are_read(
 def test_an_unparseable_retired_file_is_still_named(make_scaffolder, tmp_path):
     """The check is presence, not content — a retired file is never parsed again."""
     root = _stack_shipping(tmp_path, "mcp-servers.json", {"servers": []})
-    (root / "features" / "python" / "mcp-servers.json").write_text(
-        '{"servers": [', encoding="utf-8")
+    _test_write(root / "features" / "python" / "mcp-servers.json", '{"servers": [', encoding="utf-8")
     scaf = make_scaffolder(root=root, config=_config(stacks=["python"], agents=["claude"]))
 
     scaf.mcp.declared_servers()

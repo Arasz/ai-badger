@@ -3,17 +3,18 @@ from __future__ import annotations
 
 import json
 import shutil
+from conftest import _test_write
 
 
 def _write_json(path, data):
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    _test_write(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def _make_synced_root(tmp_path, root, load_script, version="0.2.0"):
     """A synthetic framework tree where all four version literals already agree at `version`."""
     shutil.copytree(root / "schemas", tmp_path / "schemas")
     (tmp_path / "features").mkdir()
-    (tmp_path / "VERSION").write_text(f"{version}\n", encoding="utf-8")
+    _test_write(tmp_path / "VERSION", f"{version}\n", encoding="utf-8")
 
     plugin_dir = tmp_path / ".claude-plugin"
     plugin_dir.mkdir()
@@ -94,7 +95,7 @@ def test_check_fails_when_marketplace_json_desynced(tmp_path, root, load_script,
 def test_check_fails_when_index_json_not_regenerated_after_version_bump(tmp_path, root, load_script):
     version_sync = load_script("tooling/version_sync.py")
     fake_root = _make_synced_root(tmp_path, root, load_script, version="0.1.0")
-    (fake_root / "VERSION").write_text("0.2.0\n", encoding="utf-8")
+    _test_write(fake_root / "VERSION", "0.2.0\n", encoding="utf-8")
 
     plugin_path = fake_root / ".claude-plugin" / "plugin.json"
     data = json.loads(plugin_path.read_text(encoding="utf-8"))
@@ -117,7 +118,7 @@ def test_check_fails_when_index_json_not_regenerated_after_version_bump(tmp_path
 def test_sync_writes_all_targets_correctly_from_version(tmp_path, root, load_script):
     version_sync = load_script("tooling/version_sync.py")
     fake_root = _make_synced_root(tmp_path, root, load_script, version="0.1.0")
-    (fake_root / "VERSION").write_text("0.5.0\n", encoding="utf-8")
+    _test_write(fake_root / "VERSION", "0.5.0\n", encoding="utf-8")
 
     rc = version_sync.main(["--root", str(fake_root)])
 
@@ -151,7 +152,7 @@ def test_sync_only_writes_matching_marketplace_entries_by_name(tmp_path, root, l
         "keywords": [],
     })
     _write_json(mp_path, mdata)
-    (fake_root / "VERSION").write_text("0.5.0\n", encoding="utf-8")
+    _test_write(fake_root / "VERSION", "0.5.0\n", encoding="utf-8")
 
     version_sync.main(["--root", str(fake_root)])
 
@@ -185,9 +186,7 @@ def _stamp_the_scaffold(tmp_path, version):
     aib = tmp_path / ".ai-badger"
     aib.mkdir(exist_ok=True)
     _write_json(aib / "manifest.json", {"frameworkVersion": version, "entries": []})
-    (tmp_path / "CLAUDE.md").write_text(
-        f"# p\n\n> Scaffolded by ai-badger {version}. Source of truth: `.ai-badger/CLAUDE.md`.\n",
-        encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", f"# p\n\n> Scaffolded by ai-badger {version}. Source of truth: `.ai-badger/CLAUDE.md`.\n", encoding="utf-8")
 
 
 def test_a_manifest_left_at_the_previous_release_is_reported(tmp_path, root, load_script, capsys):
@@ -212,9 +211,7 @@ def test_a_stale_scaffolded_by_line_is_reported(tmp_path, root, load_script, cap
     version_sync = load_script("tooling/version_sync.py")
     _make_synced_root(tmp_path, root, load_script, version="0.3.0")
     _stamp_the_scaffold(tmp_path, "0.3.0")
-    (tmp_path / "CLAUDE.md").write_text(
-        "# p\n\n> Scaffolded by ai-badger 0.2.0. Source of truth: `.ai-badger/CLAUDE.md`.\n",
-        encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", "# p\n\n> Scaffolded by ai-badger 0.2.0. Source of truth: `.ai-badger/CLAUDE.md`.\n", encoding="utf-8")
 
     rc = version_sync.check(tmp_path, "0.3.0")
 
@@ -247,8 +244,6 @@ def test_prose_describing_the_stamp_is_not_mistaken_for_one(tmp_path, root, load
     version_sync = load_script("tooling/version_sync.py")
     _make_synced_root(tmp_path, root, load_script, version="0.3.0")
     _stamp_the_scaffold(tmp_path, "0.3.0")
-    (tmp_path / "CONTRIBUTING.md").write_text(
-        "The scaffolder writes `Scaffolded by ai-badger <v>` into every generated file.\n",
-        encoding="utf-8")
+    _test_write(tmp_path / "CONTRIBUTING.md", "The scaffolder writes `Scaffolded by ai-badger <v>` into every generated file.\n", encoding="utf-8")
 
     assert version_sync.check(tmp_path, "0.3.0") == 0

@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.116.0",
+  "frameworkVersion": "0.116.1",
   "stacks": {
     "angular": {
       "personas": [
@@ -475,6 +475,10 @@
         {
           "name": "debug_log",
           "path": "features/common/hooks/debug_log.py"
+        },
+        {
+          "name": "follow_through",
+          "path": "features/common/hooks/follow_through.py"
         },
         {
           "name": "hooks-manifest",

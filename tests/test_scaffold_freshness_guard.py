@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 ROOT = Path(__file__).resolve().parents[1]
 GATE = ROOT / "gates" / "scaffold_freshness_guard.py"
@@ -96,7 +97,7 @@ def test_a_fresh_tree_passes(fresh_repo):
 def test_a_skill_source_gaining_a_file_fails_naming_the_missing_mirror_path(mutable_repo):
     """The #204 incident: a file lands in a skill's source and nothing re-scaffolds."""
     added = mutable_repo / SKILL_SOURCE / "scripts" / "added_after_scaffold.py"
-    added.write_text('"""Added after the last self-scaffold."""\n', encoding="utf-8")
+    _test_write(added, '"""Added after the last self-scaffold."""\n', encoding="utf-8")
 
     done = _run_gate(mutable_repo)
 
@@ -109,8 +110,7 @@ def test_a_skill_source_gaining_a_file_fails_naming_the_missing_mirror_path(muta
 def test_a_source_edit_without_rescaffold_is_reported_as_stale(mutable_repo):
     """The mirror still matches what the last scaffold wrote, so the change is upstream."""
     skill_md = mutable_repo / SKILL_SOURCE / "SKILL.md"
-    skill_md.write_text(skill_md.read_text(encoding="utf-8") + "\nMoved ahead.\n",
-                        encoding="utf-8")
+    _test_write(skill_md, skill_md.read_text(encoding="utf-8") + "\nMoved ahead.\n", encoding="utf-8")
 
     done = _run_gate(mutable_repo)
 
@@ -123,8 +123,7 @@ def test_a_source_edit_without_rescaffold_is_reported_as_stale(mutable_repo):
 def test_a_hand_edited_mirror_is_reported_as_such(mutable_repo):
     """The source never moved, so a mirror that re-scaffolds differently was edited here."""
     mirror_md = mutable_repo / SKILL_MIRROR / "SKILL.md"
-    mirror_md.write_text(mirror_md.read_text(encoding="utf-8") + "\nEdited in place.\n",
-                         encoding="utf-8")
+    _test_write(mirror_md, mirror_md.read_text(encoding="utf-8") + "\nEdited in place.\n", encoding="utf-8")
 
     done = _run_gate(mutable_repo)
 
@@ -136,7 +135,7 @@ def test_a_hand_edited_mirror_is_reported_as_such(mutable_repo):
 def test_version_stamp_churn_alone_is_exempt(mutable_repo):
     """A version bump re-stamps manifest, config and agent docs; none of that is staleness."""
     index = mutable_repo / "index.json"
-    index.write_text(index.read_text(encoding="utf-8").replace(
+    _test_write(index, index.read_text(encoding="utf-8").replace(
         '"frameworkVersion": "', '"frameworkVersion": "9', 1), encoding="utf-8")
 
     done = _run_gate(mutable_repo)
@@ -169,8 +168,7 @@ def test_a_root_git_cannot_enumerate_refuses_loudly(tmp_path):
 
 def test_the_gate_never_mutates_the_tree_it_checks(mutable_repo):
     """The comparison must happen in a throwaway copy, even when it finds staleness."""
-    (mutable_repo / SKILL_SOURCE / "scripts" / "added_after_scaffold.py").write_text(
-        '"""Added after the last self-scaffold."""\n', encoding="utf-8")
+    _test_write(mutable_repo / SKILL_SOURCE / "scripts" / "added_after_scaffold.py", '"""Added after the last self-scaffold."""\n', encoding="utf-8")
     before = _git(mutable_repo, "status", "--porcelain")
 
     _run_gate(mutable_repo)
@@ -200,9 +198,8 @@ def _seed_hermes_home(home: Path) -> None:
     """An operator's installed Hermes plugin, as the gate would find it on a real machine."""
     plugin = home / ".hermes" / "plugins" / "ai-badger"
     (plugin / ".ai-badger").mkdir(parents=True)
-    (plugin / "ai_badger_hooks.py").write_text("# the operator's install\n", encoding="utf-8")
-    (plugin / ".ai-badger" / "manifest.json").write_text(
-        '{"frameworkRoot": "/the/operators/checkout"}\n', encoding="utf-8")
+    _test_write(plugin / "ai_badger_hooks.py", "# the operator's install\n", encoding="utf-8")
+    _test_write(plugin / ".ai-badger" / "manifest.json", '{"frameworkRoot": "/the/operators/checkout"}\n', encoding="utf-8")
     (home / ".hermes" / "skills" / "ai-badger").mkdir(parents=True)
 
 
@@ -245,8 +242,7 @@ def test_the_printed_remediation_produces_a_tree_the_gate_then_passes(mutable_re
     on their PATH this test cannot fail for the reason it was written. Only the interpreter is
     substituted: `python3` on an operator's PATH has the dependencies.
     """
-    (mutable_repo / SKILL_SOURCE / "scripts" / "added_after_scaffold.py").write_text(
-        '"""Added after the last self-scaffold."""\n', encoding="utf-8")
+    _test_write(mutable_repo / SKILL_SOURCE / "scripts" / "added_after_scaffold.py", '"""Added after the last self-scaffold."""\n', encoding="utf-8")
     failed = _run_gate(mutable_repo)
     assert failed.returncode == 1, failed.stdout + failed.stderr
 

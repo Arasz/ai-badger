@@ -8,6 +8,7 @@ checks the one thing a machine can — that the change touched tests at all.
 from __future__ import annotations
 
 import subprocess
+from conftest import _test_write
 
 
 def _git(repo, *args):
@@ -22,7 +23,7 @@ def _repo(tmp_path):
     (tmp_path / "engine").mkdir()
     (tmp_path / "features").mkdir()
     (tmp_path / "tests").mkdir()
-    (tmp_path / "README.md").write_text("start\n", encoding="utf-8")
+    _test_write(tmp_path / "README.md", "start\n", encoding="utf-8")
     _git(tmp_path, "add", "-A")
     _git(tmp_path, "commit", "-q", "-m", "base")
     return tmp_path
@@ -32,7 +33,7 @@ def _commit(repo, files, message="change"):
     for rel, text in files.items():
         path = repo / rel
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
+        _test_write(path, text, encoding="utf-8")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", message)
 
@@ -125,7 +126,7 @@ def test_a_new_untracked_code_file_counts_as_a_change(tmp_path, load_script, cap
     """`git diff` does not list untracked files; a brand-new script must still count."""
     guard = load_script("gates/tdd_guard.py")
     repo = _repo(tmp_path)
-    (repo / "engine" / "brand_new.py").write_text("x = 1\n", encoding="utf-8")
+    _test_write(repo / "engine" / "brand_new.py", "x = 1\n", encoding="utf-8")
 
     rc = guard.main(["--root", str(repo), "--base", "main"])
 
@@ -136,7 +137,7 @@ def test_a_new_untracked_code_file_counts_as_a_change(tmp_path, load_script, cap
 def test_a_new_untracked_test_file_satisfies_the_gate(tmp_path, load_script):
     guard = load_script("gates/tdd_guard.py")
     repo = _repo(tmp_path)
-    (repo / "engine" / "brand_new.py").write_text("x = 1\n", encoding="utf-8")
-    (repo / "tests" / "test_brand_new.py").write_text("def test_x(): pass\n", encoding="utf-8")
+    _test_write(repo / "engine" / "brand_new.py", "x = 1\n", encoding="utf-8")
+    _test_write(repo / "tests" / "test_brand_new.py", "def test_x(): pass\n", encoding="utf-8")
 
     assert guard.main(["--root", str(repo), "--base", "main"]) == 0

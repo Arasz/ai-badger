@@ -8,6 +8,7 @@ import stat
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 
 def _load(load_script, tmp_path, monkeypatch):
@@ -29,7 +30,7 @@ def _enable(dl, scope="user", project=None, expires_in=3600):
         "project": project,
         "expires_at": dl.iso(dl.now() + dl.timedelta(seconds=expires_in)),
     }
-    dl.STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
+    _test_write(dl.STATE_FILE, json.dumps(state), encoding="utf-8")
 
 
 def _records(dl):
@@ -207,7 +208,7 @@ class TestItCannotHurtTheHostHook:
     def test_unreadable_state_is_treated_as_disabled(self, load_script, tmp_path, monkeypatch):
         dl = _load(load_script, tmp_path, monkeypatch)
         dl.DEBUG_DIR.mkdir(parents=True, exist_ok=True)
-        dl.STATE_FILE.write_text("{not json", encoding="utf-8")
+        _test_write(dl.STATE_FILE, "{not json", encoding="utf-8")
 
         dl.log_event("some/hook", "start")
 
@@ -289,8 +290,7 @@ class TestAScaffoldedProjectKnowsItsVersion:
     def _scaffold(self, tmp_path, version="0.35.2"):
         scripts = tmp_path / "proj" / ".ai-badger" / "skills" / "s" / "scripts"
         scripts.mkdir(parents=True, exist_ok=True)
-        (tmp_path / "proj" / ".ai-badger" / "manifest.json").write_text(
-            json.dumps({"frameworkVersion": version}), encoding="utf-8")
+        _test_write(tmp_path / "proj" / ".ai-badger" / "manifest.json", json.dumps({"frameworkVersion": version}), encoding="utf-8")
         return scripts / "debug_log.py"
 
     def test_the_manifest_supplies_the_version_when_no_version_file_exists(
@@ -304,7 +304,7 @@ class TestAScaffoldedProjectKnowsItsVersion:
         """A scaffolded repo may version itself; that number is not ai-badger's."""
         dl = _load(load_script, tmp_path, monkeypatch)
         start = self._scaffold(tmp_path)
-        (tmp_path / "proj" / "VERSION").write_text("9.9.9", encoding="utf-8")
+        _test_write(tmp_path / "proj" / "VERSION", "9.9.9", encoding="utf-8")
 
         assert dl.framework_version(start) == "0.35.2"
 
@@ -314,7 +314,7 @@ class TestAScaffoldedProjectKnowsItsVersion:
         dl = _load(load_script, tmp_path, monkeypatch)
         hooks = tmp_path / "src" / "features" / "common" / "hooks"
         hooks.mkdir(parents=True, exist_ok=True)
-        (tmp_path / "src" / "VERSION").write_text("9.9.9", encoding="utf-8")
+        _test_write(tmp_path / "src" / "VERSION", "9.9.9", encoding="utf-8")
 
         assert dl.framework_version(hooks / "debug_log.py") == "9.9.9"
 
@@ -451,8 +451,7 @@ class TestProjectIdentity:
     def _scaffolded(self, tmp_path, name="probe"):
         aib = tmp_path / "proj" / ".ai-badger"
         aib.mkdir(parents=True, exist_ok=True)
-        (aib / "config.json").write_text(
-            json.dumps({"project": {"name": name}}), encoding="utf-8")
+        _test_write(aib / "config.json", json.dumps({"project": {"name": name}}), encoding="utf-8")
         return str(tmp_path / "proj")
 
     def test_the_project_name_is_recorded_when_scaffolded(self, load_script, tmp_path,
@@ -506,8 +505,7 @@ class TestUserScopeInstalls:
         monkeypatch.setattr(dl, "is_user_scope", lambda: False)
         aib = tmp_path / "proj" / ".ai-badger"
         aib.mkdir(parents=True, exist_ok=True)
-        (aib / "config.json").write_text(json.dumps({"project": {"name": "svc"}}),
-                                         encoding="utf-8")
+        _test_write(aib / "config.json", json.dumps({"project": {"name": "svc"}}), encoding="utf-8")
 
         dl.log_event("h", "start", project=str(tmp_path / "proj"))
 

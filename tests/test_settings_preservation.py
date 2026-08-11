@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 
@@ -46,9 +47,7 @@ def fake_home(tmp_path, monkeypatch):
 def _scaf(make_scaffolder, root, target, config):
     index_path = root / "index.json"
     if not index_path.exists():
-        index_path.write_text(
-            json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8"
-        )
+        _test_write(index_path, json.dumps({"frameworkVersion": "0.1.0", "stacks": {}}), encoding="utf-8")
     return make_scaffolder(root=root, target=target, config=config)
 
 
@@ -67,7 +66,7 @@ def _place_hook_scripts(root, target):
                 rel = hook["command"].split("/features/common/skills/", 1)[-1].rstrip('"')
                 script = target / ".ai-badger" / "skills" / rel
                 script.parent.mkdir(parents=True, exist_ok=True)
-                script.write_text("", encoding="utf-8")
+                _test_write(script, "", encoding="utf-8")
 
 
 # ── project .claude/settings.json (hook_wiring) ───────────────────────────────
@@ -79,7 +78,7 @@ def test_wire_hooks_aborts_on_unparseable_settings(tmp_path, root, make_scaffold
     (target / ".claude").mkdir(parents=True)
     settings_path = target / ".claude" / "settings.json"
     original = b'{"permissions":{"deny":["Bash"]}},,,'
-    settings_path.write_bytes(original)
+    _test_write(settings_path, original)
     _place_hook_scripts(root, target)
 
     scaf = _scaf(make_scaffolder, root, target, _config(agents=["claude"]))
@@ -101,7 +100,7 @@ def test_the_hermes_user_config_is_neither_read_nor_written(root, fake_home, mak
     config_path = fake_home / ".hermes" / "config.yaml"
     config_path.parent.mkdir(parents=True)
     original = b"mcp_servers: {broken: [\n"
-    config_path.write_bytes(original)
+    _test_write(config_path, original)
 
     scaf = _scaf(make_scaffolder, root, make_scaffolder.target, _config(agents=["hermes"]))
     scaf.run(generated_at="2026-07-30T00:00:00Z")
@@ -124,7 +123,7 @@ def test_user_settings_are_neither_read_nor_written(root, fake_home, make_scaffo
     settings_path = fake_home / ".claude" / "settings.json"
     settings_path.parent.mkdir(parents=True)
     original = b'{"permissions":{"deny":["Bash"]}},,,'
-    settings_path.write_bytes(original)
+    _test_write(settings_path, original)
 
     scaf = _scaf(make_scaffolder, root, target, _config(agents=["claude"]))
     scaf.mcp.propose_claude_mcp_user(
@@ -145,14 +144,11 @@ def test_unparseable_mcp_json_is_never_rewritten(tmp_path, make_scaffolder):
     target = make_scaffolder.target
     stack_dir = tmp_path / "features" / "python"
     stack_dir.mkdir(parents=True)
-    (stack_dir / "stack-mcp.json").write_text(
-        json.dumps({"servers": [{"name": "pyright", "command": "uvx mcp-server-pyright",
-                                 "declare": True}]}),
-        encoding="utf-8",
-    )
+    _test_write(stack_dir / "stack-mcp.json", json.dumps({"servers": [{"name": "pyright", "command": "uvx mcp-server-pyright",
+                                 "declare": True}]}), encoding="utf-8")
     mcp_path = target / ".mcp.json"
     original = b'{"mcpServers": {"mine": {"command": "x"}},,,'
-    mcp_path.write_bytes(original)
+    _test_write(mcp_path, original)
 
     scaf = _scaf(make_scaffolder, tmp_path, target, _config(agents=["claude"]))
     scaf.mcp.generate_mcp_json()
@@ -168,7 +164,7 @@ def test_unparseable_copilot_mcp_json_is_never_rewritten(tmp_path, make_scaffold
     config_path = target / ".github" / "mcp.json"
     config_path.parent.mkdir(parents=True)
     original = b'{"mcpServers": {"mine": {"command": "x"}},,,'
-    config_path.write_bytes(original)
+    _test_write(config_path, original)
 
     scaf = _scaf(make_scaffolder, tmp_path, target, _config(agents=["copilot"]))
     scaf.mcp.generate_copilot_mcp_json(

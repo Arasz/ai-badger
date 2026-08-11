@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from conftest import _test_write
 
 
 @pytest.fixture
@@ -42,16 +43,13 @@ SYNTHETIC_FIXTURES = [
 
 def _write_fixtures(tmp_path, fixtures):
     path = tmp_path / "fixtures.jsonl"
-    path.write_text(
-        "\n".join(json.dumps(f) for f in fixtures) + "\n",
-        encoding="utf-8",
-    )
+    _test_write(path, "\n".join(json.dumps(f) for f in fixtures) + "\n", encoding="utf-8")
     return path
 
 
 def _write_index(tmp_path, index):
     path = tmp_path / "index.json"
-    path.write_text(json.dumps(index), encoding="utf-8")
+    _test_write(path, json.dumps(index), encoding="utf-8")
     return path
 
 
@@ -67,7 +65,7 @@ def test_load_fixtures_parses_one_json_object_per_line(retrieval_eval, tmp_path)
 
 def test_load_fixtures_skips_blank_lines(retrieval_eval, tmp_path):
     path = tmp_path / "fixtures.jsonl"
-    path.write_text('{"query": "a", "expect": []}\n\n\n', encoding="utf-8")
+    _test_write(path, '{"query": "a", "expect": []}\n\n\n', encoding="utf-8")
 
     assert retrieval_eval.load_fixtures(path) == [{"query": "a", "expect": []}]
 

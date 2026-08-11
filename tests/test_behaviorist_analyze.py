@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from conftest import _test_write
 
 
 def _load(load_script, tmp_path, monkeypatch):
@@ -17,7 +18,7 @@ def _load(load_script, tmp_path, monkeypatch):
 
 def _write(beh, records):
     lines = [json.dumps(r) for r in records]
-    beh.dl.AUDIT_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _test_write(beh.dl.AUDIT_FILE, "\n".join(lines) + "\n", encoding="utf-8")
 
 
 DEFAULT_TS = "2026-07-27T09:00:00+00:00"
@@ -72,10 +73,10 @@ def _register(tmp_path, scripts, config=SETTINGS, event="SessionStart"):
     for relpath, body in scripts.items():
         script = root / relpath
         script.parent.mkdir(parents=True, exist_ok=True)
-        script.write_text(body, encoding="utf-8")
+        _test_write(script, body, encoding="utf-8")
     path = root / config
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"hooks": {event: [{"hooks": [
+    _test_write(path, json.dumps({"hooks": {event: [{"hooks": [
         {"type": "command", "command": f'python3 "${{CLAUDE_PROJECT_DIR}}/{relpath}"'}
         for relpath in scripts
     ]}]}}), encoding="utf-8")
@@ -281,11 +282,11 @@ class TestNotYetInstrumentedIsNotAFailure:
     def _wire(self, tmp_path, script_name, body):
         aib = tmp_path / "proj" / ".ai-badger"
         (aib / "hooks").mkdir(parents=True, exist_ok=True)
-        (aib / "hooks" / "hooks.json").write_text(json.dumps({
+        _test_write(aib / "hooks" / "hooks.json", json.dumps({
             "hooks": {"SessionStart": [{"hooks": [
                 {"type": "command", "command": f'python3 "{tmp_path}/proj/{script_name}"'}]}]}
         }), encoding="utf-8")
-        (tmp_path / "proj" / script_name).write_text(body, encoding="utf-8")
+        _test_write(tmp_path / "proj" / script_name, body, encoding="utf-8")
         return str(tmp_path / "proj")
 
     def test_an_uninstrumented_hook_is_reported_as_such_not_as_broken(self, load_script,

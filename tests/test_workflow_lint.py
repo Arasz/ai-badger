@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
 SCRIPT = Path(__file__).resolve().parents[1] / "gates" / "workflow_lint.py"
@@ -25,7 +26,7 @@ def _lint(load_script):
 def _workflow(root: Path, text: str, name: str = "ci.yml") -> Path:
     path = root / ".github" / "workflows" / name
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    _test_write(path, text, encoding="utf-8")
     return path
 
 

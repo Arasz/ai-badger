@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 
 KEEP_A = "keep-region-alpha-3f9c"
@@ -16,7 +17,7 @@ KEEP_NOISE = "keep-region-noise-b40e"
 def test_scaffold_preserves_hand_authored_claude_md_by_default(make_scaffolder):
     target = make_scaffolder.target
     hand_authored = "# My Curated Guidance\n\nDo not touch this.\n"
-    (target / "CLAUDE.md").write_text(hand_authored, encoding="utf-8")
+    _test_write(target / "CLAUDE.md", hand_authored, encoding="utf-8")
 
     result = make_scaffolder().run(generated_at="2026-07-19T00:00:00Z")
 
@@ -27,7 +28,7 @@ def test_scaffold_preserves_hand_authored_claude_md_by_default(make_scaffolder):
 
 def test_scaffold_overwrite_replaces_hand_authored_claude_md(make_scaffolder):
     target = make_scaffolder.target
-    (target / "CLAUDE.md").write_text("# My Curated Guidance\n", encoding="utf-8")
+    _test_write(target / "CLAUDE.md", "# My Curated Guidance\n", encoding="utf-8")
 
     make_scaffolder(overwrite=True).run(generated_at="2026-07-19T00:00:00Z")
 
@@ -54,8 +55,7 @@ def test_scaffold_managed_file_refreshes_on_second_run_without_overwrite(make_sc
 def test_scaffold_warns_about_nonstandard_copilot_instructions(make_scaffolder):
     """When a repo has COPILOT_INSTRUCTIONS.md at root, the scaffolder should warn."""
     # Create a non-standard Copilot instruction file at root
-    (make_scaffolder.target / "COPILOT_INSTRUCTIONS.md").write_text(
-        "# My Copilot Rules\n", encoding="utf-8")
+    _test_write(make_scaffolder.target / "COPILOT_INSTRUCTIONS.md", "# My Copilot Rules\n", encoding="utf-8")
 
     result = make_scaffolder(config=_config(agents=["copilot"])).run(
         generated_at="2026-07-24T00:00:00Z")
@@ -137,7 +137,7 @@ def _scaffold(make_scaffolder, **kwargs):
 
 
 def _append(path, text):
-    path.write_text(path.read_text(encoding="utf-8") + text, encoding="utf-8")
+    _test_write(path, path.read_text(encoding="utf-8") + text, encoding="utf-8")
 
 
 def test_keep_region_in_source_of_truth_survives_rescaffold(make_scaffolder):

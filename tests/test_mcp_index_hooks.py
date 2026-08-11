@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -32,7 +33,7 @@ def _write_mcp_index(project: Path, data: dict) -> Path:
     aib = project / ".ai-badger"
     aib.mkdir(parents=True, exist_ok=True)
     path = aib / "mcp-tools.json"
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    _test_write(path, json.dumps(data, indent=2), encoding="utf-8")
     return path
 
 
@@ -123,7 +124,7 @@ def test_load_index_ignores_a_legacy_yaml_only_project(hooks, tmp_path):
     not a fallback read — the same outcome a missing index already produces."""
     aib = tmp_path / ".ai-badger"
     aib.mkdir(parents=True)
-    (aib / "mcp-tools.yaml").write_text("sources: []\n", encoding="utf-8")
+    _test_write(aib / "mcp-tools.yaml", "sources: []\n", encoding="utf-8")
 
     assert hooks._load_mcp_index(str(tmp_path)) is None
 
@@ -132,7 +133,7 @@ def test_load_index_degrades_to_none_on_malformed_json(hooks, tmp_path):
     """A corrupt mcp-tools.json degrades to None rather than raising."""
     aib = tmp_path / ".ai-badger"
     aib.mkdir(parents=True)
-    (aib / "mcp-tools.json").write_text("{not valid json", encoding="utf-8")
+    _test_write(aib / "mcp-tools.json", "{not valid json", encoding="utf-8")
 
     assert hooks._load_mcp_index(str(tmp_path)) is None
 

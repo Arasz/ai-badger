@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 HOOKS = "features/common/hooks/ai_badger_hooks.py"
 
@@ -56,7 +57,7 @@ def hooks_module(tmp_path, root):
 def _stage_sibling(hooks_module, tmp_path, filename, source):
     """Write a sibling module beside the scratch copy of ai_badger_hooks.py."""
     hooks_dir = Path(hooks_module.__file__).resolve().parent
-    (hooks_dir / filename).write_text(source, encoding="utf-8")
+    _test_write(hooks_dir / filename, source, encoding="utf-8")
 
 
 # --------------------------------------------------------------------------- broken: loud

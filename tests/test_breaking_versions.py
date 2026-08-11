@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+from conftest import _test_write
 
 
 # --- badger_lib breaking version helpers ---
@@ -53,21 +54,21 @@ class TestRefreshBreakingChange:
         """When crossing a breaking version, backup .ai-badger/ to .ai-badger.bckp/."""
         refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
 
-        (tmp_path / "VERSION").write_text("0.7.0\n")
-        (tmp_path / "BREAKING_VERSIONS").write_text("0.7.0\n")
+        _test_write(tmp_path / "VERSION", "0.7.0\n")
+        _test_write(tmp_path / "BREAKING_VERSIONS", "0.7.0\n")
 
         # Set up a target with old version
         target = tmp_path / "target"
         aib = target / ".ai-badger"
         aib.mkdir(parents=True)
-        (aib / "config.json").write_text(json.dumps({
+        _test_write(aib / "config.json", json.dumps({
             "frameworkVersion": "0.6.0",
             "project": {"name": "test"},
             "stacks": [],
             "agents": ["claude"],
         }))
         # Write a file that should be backed up
-        (aib / "state.json").write_text("{}")
+        _test_write(aib / "state.json", "{}")
 
         result = refresh.check_breaking_and_backup(tmp_path, target)
 
@@ -81,13 +82,13 @@ class TestRefreshBreakingChange:
         """A routine refresh rewrites the same files a breaking one does — back it up too (F-25)."""
         refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
 
-        (tmp_path / "VERSION").write_text("0.7.1\n")
-        (tmp_path / "BREAKING_VERSIONS").write_text("0.7.0\n")
+        _test_write(tmp_path / "VERSION", "0.7.1\n")
+        _test_write(tmp_path / "BREAKING_VERSIONS", "0.7.0\n")
 
         target = tmp_path / "target"
         aib = target / ".ai-badger"
         aib.mkdir(parents=True)
-        (aib / "config.json").write_text(json.dumps({"frameworkVersion": "0.7.0"}))
+        _test_write(aib / "config.json", json.dumps({"frameworkVersion": "0.7.0"}))
 
         result = refresh.check_breaking_and_backup(tmp_path, target)
 

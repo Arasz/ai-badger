@@ -17,6 +17,7 @@ import json
 import sys
 
 import pytest
+from conftest import _test_write
 
 
 @pytest.fixture
@@ -43,7 +44,7 @@ def test_missing_claude_md_reports_zero_and_is_within_budget(compact, monkeypatc
 
 
 def test_claude_md_within_default_budget_exits_zero(compact, monkeypatch, capsys, tmp_path):
-    (tmp_path / "CLAUDE.md").write_text("# Notes\n\nShort and sweet.\n", encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", "# Notes\n\nShort and sweet.\n", encoding="utf-8")
 
     rc = _run(compact, monkeypatch, [])
 
@@ -54,8 +55,7 @@ def test_claude_md_within_default_budget_exits_zero(compact, monkeypatch, capsys
 def test_claude_md_over_char_budget_exits_one(compact, monkeypatch, capsys, tmp_path):
     # Derived from the shipped default, not pinned: a raised default must not quietly make the
     # input fit and turn this into a test that cannot fail.
-    (tmp_path / "CLAUDE.md").write_text("x" * (compact.lib.CLAUDE_MD_MAX_CHARS + 1),
-                                        encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", "x" * (compact.lib.CLAUDE_MD_MAX_CHARS + 1), encoding="utf-8")
 
     rc = _run(compact, monkeypatch, [])
 
@@ -68,7 +68,7 @@ def test_claude_md_over_char_budget_exits_one(compact, monkeypatch, capsys, tmp_
 
 def test_claude_md_over_line_budget_exits_one(compact, monkeypatch, capsys, tmp_path):
     text = "\n".join(f"line {i}" for i in range(compact.lib.CLAUDE_MD_MAX_LINES + 1))
-    (tmp_path / "CLAUDE.md").write_text(text, encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", text, encoding="utf-8")
 
     rc = _run(compact, monkeypatch, [])
 
@@ -81,7 +81,7 @@ def test_claude_md_over_line_budget_exits_one(compact, monkeypatch, capsys, tmp_
 
 def test_custom_max_chars_override_lowers_the_budget(compact, monkeypatch, capsys, tmp_path):
     # "short text" is comfortably within every default budget on its own.
-    (tmp_path / "CLAUDE.md").write_text("short text", encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", "short text", encoding="utf-8")
 
     rc = _run(compact, monkeypatch, ["--max-chars", "5"])
 
@@ -97,7 +97,7 @@ def test_custom_max_lines_override_raises_the_budget(compact, monkeypatch, capsy
     over_default = compact.lib.CLAUDE_MD_MAX_LINES + 1
     override = over_default * 2
     text = "\n".join(f"line {i}" for i in range(over_default))
-    (tmp_path / "CLAUDE.md").write_text(text, encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", text, encoding="utf-8")
 
     rc = _run(compact, monkeypatch, ["--max-lines", str(override)])
 
@@ -111,10 +111,9 @@ def test_a_cli_budget_beats_the_projects_agentDocs_override(  # pylint: disable=
         compact, monkeypatch, capsys, tmp_path):  # spells the config key, so camelCase stays
     # A project's own agentDocs.maxLines (120) must not shadow an explicit CLI override (500).
     text = "\n".join(f"line {i}" for i in range(200))
-    (tmp_path / "CLAUDE.md").write_text(text, encoding="utf-8")
+    _test_write(tmp_path / "CLAUDE.md", text, encoding="utf-8")
     (tmp_path / ".ai-badger").mkdir()
-    (tmp_path / ".ai-badger" / "config.json").write_text(
-        json.dumps({"agentDocs": {"maxLines": 120}}), encoding="utf-8")
+    _test_write(tmp_path / ".ai-badger" / "config.json", json.dumps({"agentDocs": {"maxLines": 120}}), encoding="utf-8")
 
     rc = _run(compact, monkeypatch, ["--max-lines", "500"])
 

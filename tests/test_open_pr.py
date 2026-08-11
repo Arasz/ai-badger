@@ -10,6 +10,7 @@ from __future__ import annotations
 from unittest.mock import Mock, patch
 
 import pytest
+from conftest import _test_write
 
 
 def _argv(checkout, branch="feed/my-feature", title="Add my-feature", body_file="body.md",
@@ -32,7 +33,7 @@ def _argv(checkout, branch="feed/my-feature", title="Add my-feature", body_file=
 def _contribution(checkout, rel="features/common/skills/thing/SKILL.md", body="# thing\n"):
     path = checkout / rel
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(body, encoding="utf-8")
+    _test_write(path, body, encoding="utf-8")
     return rel
 
 
@@ -189,7 +190,7 @@ def test_a_clean_contribution_stages_only_the_declared_paths(tmp_path, load_scri
     checkout = tmp_path / "checkout"
     checkout.mkdir()
     rel = _contribution(checkout)
-    (checkout / "index.json").write_text("{}\n", encoding="utf-8")
+    _test_write(checkout / "index.json", "{}\n", encoding="utf-8")
 
     with patch("subprocess.run") as mock_run:
         mock_run.return_value = Mock(returncode=0)
@@ -206,7 +207,7 @@ def test_an_unrelated_dirty_file_is_not_staged(tmp_path, load_script):
     checkout = tmp_path / "checkout"
     checkout.mkdir()
     rel = _contribution(checkout)
-    (checkout / "unrelated-local-note.md").write_text("private\n", encoding="utf-8")
+    _test_write(checkout / "unrelated-local-note.md", "private\n", encoding="utf-8")
 
     with patch("subprocess.run") as mock_run:
         mock_run.return_value = Mock(returncode=0)

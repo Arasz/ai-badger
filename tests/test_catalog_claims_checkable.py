@@ -11,6 +11,7 @@ import json
 import subprocess
 
 import pytest
+from conftest import _test_write
 
 
 def _config(**over):
@@ -37,8 +38,7 @@ def test_a_config_selecting_a_stack_outside_the_catalog_fails_validation(
     """The rule lived only in config.schema.json's description string, so nothing enforced it."""
     validate = load_script("tooling/validate.py")
     instance = tmp_path / "config.json"
-    instance.write_text(json.dumps(_config(stacks=["python", "not-a-real-stack"])),
-                        encoding="utf-8")
+    _test_write(instance, json.dumps(_config(stacks=["python", "not-a-real-stack"])), encoding="utf-8")
 
     rc = validate.main(["--kind", "config", "--root", str(root), str(instance)])
 
@@ -50,8 +50,7 @@ def test_a_config_selecting_a_stack_outside_the_catalog_fails_validation(
 def test_a_config_selecting_only_catalog_stacks_still_passes(tmp_path, root, load_script):
     validate = load_script("tooling/validate.py")
     instance = tmp_path / "config.json"
-    instance.write_text(json.dumps(_config(stacks=["python", "github", "dotnet"])),
-                        encoding="utf-8")
+    _test_write(instance, json.dumps(_config(stacks=["python", "github", "dotnet"])), encoding="utf-8")
 
     assert validate.main(["--kind", "config", "--root", str(root), str(instance)]) == 0
 
@@ -64,7 +63,7 @@ def test_an_agent_name_is_a_catalog_stack_too_and_must_exist(tmp_path, root, loa
     instance = tmp_path / "config.json"
     cfg = _config()
     cfg["agents"] = ["copilot"]
-    instance.write_text(json.dumps(cfg), encoding="utf-8")
+    _test_write(instance, json.dumps(cfg), encoding="utf-8")
     assert validate.main(["--kind", "config", "--root", str(root), str(instance)]) == 0
 
     assert validate.config_stack_gaps(root, _config(stacks=["python"], agents=["ghost"]))
@@ -90,7 +89,7 @@ def test_a_features_directory_with_nothing_indexable_is_reported(tmp_path, root,
     validate = load_script("tooling/validate.py")
     shell = tmp_path / "features" / "ghost"
     shell.mkdir(parents=True)
-    (shell / "skills.json").write_text('{"skills": []}', encoding="utf-8")
+    _test_write(shell / "skills.json", '{"skills": []}', encoding="utf-8")
 
     gaps = validate.catalog_stack_gaps(tmp_path)
 
@@ -102,7 +101,7 @@ def test_a_dot_directory_under_features_is_not_a_candidate_stack(tmp_path, root,
     validate = load_script("tooling/validate.py")
     stray = tmp_path / "features" / ".ai-badger" / "task-tracking"
     stray.mkdir(parents=True)
-    (stray / "poll_limit.pid").write_text("1234", encoding="utf-8")
+    _test_write(stray / "poll_limit.pid", "1234", encoding="utf-8")
 
     assert validate.catalog_stack_gaps(tmp_path) == []
 
@@ -114,7 +113,7 @@ def _committed_catalog(tmp_path):
         subprocess.run(["git", "-C", str(tmp_path), "config", key, value], check=True)
     stack = tmp_path / "features" / "python" / "skills" / "demo"
     stack.mkdir(parents=True)
-    (stack / "SKILL.md").write_text("# demo\n", encoding="utf-8")
+    _test_write(stack / "SKILL.md", "# demo\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "catalog"], check=True)
     return tmp_path
@@ -127,7 +126,7 @@ def test_an_untracked_directory_under_features_cannot_fail_validation(
     checkout = _committed_catalog(tmp_path)
     scratch = checkout / "features" / "scratchdir"
     scratch.mkdir()
-    (scratch / "skills.json").write_text('{"skills": []}', encoding="utf-8")
+    _test_write(scratch / "skills.json", '{"skills": []}', encoding="utf-8")
 
     assert validate.catalog_stack_gaps(checkout) == []
 
@@ -139,7 +138,7 @@ def test_a_committed_directory_the_index_cannot_deliver_is_still_reported(
     checkout = _committed_catalog(tmp_path)
     ghost = checkout / "features" / "ghoststack"
     ghost.mkdir()
-    (ghost / "skills.json").write_text('{"skills": []}', encoding="utf-8")
+    _test_write(ghost / "skills.json", '{"skills": []}', encoding="utf-8")
     subprocess.run(["git", "-C", str(checkout), "add", "-A"], check=True)
     subprocess.run(["git", "-C", str(checkout), "commit", "-qm", "ghoststack"], check=True)
 
@@ -156,7 +155,7 @@ def test_a_committed_dot_directory_is_not_a_candidate_stack_either(
     checkout = _committed_catalog(tmp_path)
     stray = checkout / "features" / ".ai-badger"
     stray.mkdir()
-    (stray / "config.json").write_text("{}", encoding="utf-8")
+    _test_write(stray / "config.json", "{}", encoding="utf-8")
     subprocess.run(["git", "-C", str(checkout), "add", "-Af"], check=True)
     subprocess.run(["git", "-C", str(checkout), "commit", "-qm", "local state"], check=True)
 
@@ -194,7 +193,7 @@ def test_a_new_unschemad_json_under_features_is_a_violation(tmp_path, load_scrip
     validate = load_script("tooling/validate.py")
     stray = tmp_path / "features" / "python" / "surprise.json"
     stray.parent.mkdir(parents=True)
-    stray.write_text("{}", encoding="utf-8")
+    _test_write(stray, "{}", encoding="utf-8")
 
     gaps = validate.unschemad_feature_json(tmp_path)
 
@@ -240,13 +239,10 @@ def test_no_stack_points_at_an_artifact_from_an_undeclared_stack(root, load_scri
 def test_a_reference_to_another_stacks_persona_is_reported(tmp_path, root, load_script):
     validate = load_script("tooling/validate.py")
     (tmp_path / "features" / "azure" / "personas").mkdir(parents=True)
-    (tmp_path / "features" / "azure" / "personas" / "cloud-infra-engineer.md").write_text(
-        "# persona", encoding="utf-8")
+    _test_write(tmp_path / "features" / "azure" / "personas" / "cloud-infra-engineer.md", "# persona", encoding="utf-8")
     (tmp_path / "features" / "dotnet" / "personas").mkdir(parents=True)
-    (tmp_path / "features" / "dotnet" / "stack.json").write_text(
-        json.dumps({"name": "dotnet", "requires": []}), encoding="utf-8")
-    (tmp_path / "features" / "dotnet" / "personas" / "dotnet-engineer.md").write_text(
-        "ask the cloud-infra-engineer instead", encoding="utf-8")
+    _test_write(tmp_path / "features" / "dotnet" / "stack.json", json.dumps({"name": "dotnet", "requires": []}), encoding="utf-8")
+    _test_write(tmp_path / "features" / "dotnet" / "personas" / "dotnet-engineer.md", "ask the cloud-infra-engineer instead", encoding="utf-8")
 
     gaps = validate.cross_stack_reference_gaps(tmp_path)
 
@@ -257,13 +253,10 @@ def test_declaring_the_requires_clears_the_cross_stack_reference(tmp_path, load_
     """The rule is about the declared closure, not about the word being forbidden."""
     validate = load_script("tooling/validate.py")
     (tmp_path / "features" / "azure" / "personas").mkdir(parents=True)
-    (tmp_path / "features" / "azure" / "personas" / "cloud-infra-engineer.md").write_text(
-        "# persona", encoding="utf-8")
+    _test_write(tmp_path / "features" / "azure" / "personas" / "cloud-infra-engineer.md", "# persona", encoding="utf-8")
     (tmp_path / "features" / "dotnet" / "personas").mkdir(parents=True)
-    (tmp_path / "features" / "dotnet" / "stack.json").write_text(
-        json.dumps({"name": "dotnet", "requires": ["azure"]}), encoding="utf-8")
-    (tmp_path / "features" / "dotnet" / "personas" / "dotnet-engineer.md").write_text(
-        "ask the cloud-infra-engineer instead", encoding="utf-8")
+    _test_write(tmp_path / "features" / "dotnet" / "stack.json", json.dumps({"name": "dotnet", "requires": ["azure"]}), encoding="utf-8")
+    _test_write(tmp_path / "features" / "dotnet" / "personas" / "dotnet-engineer.md", "ask the cloud-infra-engineer instead", encoding="utf-8")
 
     assert validate.cross_stack_reference_gaps(tmp_path) == []
 

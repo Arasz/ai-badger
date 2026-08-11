@@ -9,6 +9,7 @@ in the manifest, pruned, or overwritten.
 from __future__ import annotations
 
 from scaffold_helpers import _config
+from conftest import _test_write
 
 STATIC = "# Static classes only\n\nPrefer sealed records and pure functions over mutable classes.\n"
 
@@ -36,7 +37,7 @@ def test_a_local_invariant_renders_demoted_inside_the_section(make_scaffolder):
     target = make_scaffolder.target
     local = _local(target)
     local.mkdir(parents=True)
-    (local / "static-classes.md").write_text(STATIC, encoding="utf-8")
+    _test_write(local / "static-classes.md", STATIC, encoding="utf-8")
 
     target, _ = _scaffold(make_scaffolder, _config(agents=["claude"]))
     claude_md = (target / "CLAUDE.md").read_text(encoding="utf-8")
@@ -54,7 +55,7 @@ def test_a_local_invariant_renders_demoted_inside_the_section(make_scaffolder):
 def test_local_invariants_render_after_all_framework_invariants(make_scaffolder):
     local = _local(make_scaffolder.target)
     local.mkdir(parents=True)
-    (local / "static-classes.md").write_text(STATIC, encoding="utf-8")
+    _test_write(local / "static-classes.md", STATIC, encoding="utf-8")
 
     target, _ = _scaffold(make_scaffolder, _config(agents=["claude"]))
     section = _invariants_section((target / "CLAUDE.md").read_text(encoding="utf-8"))
@@ -67,8 +68,8 @@ def test_local_invariants_render_after_all_framework_invariants(make_scaffolder)
 def test_local_invariants_render_in_sorted_order(make_scaffolder):
     local = _local(make_scaffolder.target)
     local.mkdir(parents=True)
-    (local / "beta.md").write_text("# Beta rule\n\nSecond file.\n", encoding="utf-8")
-    (local / "alpha.md").write_text("# Alpha rule\n\nFirst file.\n", encoding="utf-8")
+    _test_write(local / "beta.md", "# Beta rule\n\nSecond file.\n", encoding="utf-8")
+    _test_write(local / "alpha.md", "# Alpha rule\n\nFirst file.\n", encoding="utf-8")
 
     target, result = _scaffold(make_scaffolder, _config(agents=["claude"]))
     section = _invariants_section((target / "CLAUDE.md").read_text(encoding="utf-8"))
@@ -80,11 +81,11 @@ def test_local_invariants_render_in_sorted_order(make_scaffolder):
 def test_rescaffold_renders_edited_local_invariants_and_leaves_the_files_alone(make_scaffolder):
     local = _local(make_scaffolder.target)
     local.mkdir(parents=True)
-    (local / "static-classes.md").write_text(STATIC, encoding="utf-8")
+    _test_write(local / "static-classes.md", STATIC, encoding="utf-8")
     _scaffold(make_scaffolder, _config(agents=["claude"]))
 
     edited = "# Static classes only\n\nEdited: still no mutable state.\n"
-    (local / "static-classes.md").write_text(edited, encoding="utf-8")
+    _test_write(local / "static-classes.md", edited, encoding="utf-8")
     target, result = _scaffold(make_scaffolder, _config(agents=["claude"]))
 
     section = _invariants_section((target / "CLAUDE.md").read_text(encoding="utf-8"))
@@ -99,8 +100,7 @@ def test_rescaffold_renders_edited_local_invariants_and_leaves_the_files_alone(m
 def test_a_local_invariant_sharing_a_delivered_name_is_reported(make_scaffolder, root):
     local = _local(make_scaffolder.target)
     local.mkdir(parents=True)
-    (local / "tdd-mandatory.md").write_text(
-        "# TDD is mandatory\n\nProject-local body line.\n", encoding="utf-8")
+    _test_write(local / "tdd-mandatory.md", "# TDD is mandatory\n\nProject-local body line.\n", encoding="utf-8")
 
     target, result = _scaffold(make_scaffolder, _config(agents=["claude"]))
 
@@ -137,7 +137,7 @@ def test_an_empty_local_dir_keeps_the_slot_sane(make_scaffolder, root):
 def test_a_whitespace_only_local_file_is_skipped_not_rendered(make_scaffolder, root):
     local = _local(make_scaffolder.target)
     local.mkdir(parents=True)
-    (local / "blank.md").write_text(" \n\t\n  \n", encoding="utf-8")
+    _test_write(local / "blank.md", " \n\t\n  \n", encoding="utf-8")
 
     target, _ = _scaffold(make_scaffolder, _config_without_invariants(root))
     section = _invariants_section((target / "CLAUDE.md").read_text(encoding="utf-8"))
@@ -150,7 +150,7 @@ def test_a_local_invariant_replaces_the_fallback_when_framework_invariants_are_e
         make_scaffolder, root):
     local = _local(make_scaffolder.target)
     local.mkdir(parents=True)
-    (local / "static-classes.md").write_text(STATIC, encoding="utf-8")
+    _test_write(local / "static-classes.md", STATIC, encoding="utf-8")
 
     target, _ = _scaffold(make_scaffolder, _config_without_invariants(root))
     section = _invariants_section((target / "CLAUDE.md").read_text(encoding="utf-8"))
@@ -163,7 +163,7 @@ def test_a_local_invariant_replaces_the_fallback_when_framework_invariants_are_e
 def test_local_invariants_reach_hermes_md_too(make_scaffolder):
     local = _local(make_scaffolder.target)
     local.mkdir(parents=True)
-    (local / "static-classes.md").write_text(STATIC, encoding="utf-8")
+    _test_write(local / "static-classes.md", STATIC, encoding="utf-8")
 
     target, _ = _scaffold(make_scaffolder, _config(agents=["claude", "hermes"]))
     hermes_md = (target / "HERMES.md").read_text(encoding="utf-8")
@@ -176,7 +176,7 @@ def test_local_invariants_never_enter_the_manifest_and_survive_rescaffold_byte_i
         make_scaffolder):
     local = _local(make_scaffolder.target)
     local.mkdir(parents=True)
-    (local / "static-classes.md").write_text(STATIC, encoding="utf-8")
+    _test_write(local / "static-classes.md", STATIC, encoding="utf-8")
 
     target, result = _scaffold(make_scaffolder, _config(agents=["claude"]))
     entries = result["manifest"]["entries"]

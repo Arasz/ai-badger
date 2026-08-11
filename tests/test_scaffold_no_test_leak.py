@@ -7,6 +7,7 @@ end-to-end.
 from __future__ import annotations
 
 import json
+from conftest import _test_write
 
 
 def _minimal_config() -> dict:
@@ -27,13 +28,13 @@ def _minimal_config() -> dict:
 def test_scaffold_excludes_test_files_from_skills(tmp_path, root, make_scaffolder):
     skill_scripts = root / "features" / "common" / "skills" / "task" / "scripts"
     planted = skill_scripts / "test_should_not_scaffold.py"
-    planted.write_text("def test_noop():\n    assert True\n", encoding="utf-8")
+    planted.write_text("def test_noop():\n    assert True\n", encoding="utf-8")  # deliberate real-repo write
     try:
         target = tmp_path / "proj"
         (target / "src").mkdir(parents=True)
-        (target / "src" / "A.cs").write_text("public class A {}\n", encoding="utf-8")
+        _test_write(target / "src" / "A.cs", "public class A {}\n", encoding="utf-8")
         config_path = target / "config.json"
-        config_path.write_text(json.dumps(_minimal_config()), encoding="utf-8")
+        _test_write(config_path, json.dumps(_minimal_config()), encoding="utf-8")
 
         scaf = make_scaffolder(target=target, config=json.loads(config_path.read_text()),
                                skills=["task"])
@@ -53,9 +54,9 @@ def test_scaffold_excludes_evals_from_skills(tmp_path, make_scaffolder):
 
     target = tmp_path / "proj"
     (target / "src").mkdir(parents=True)
-    (target / "src" / "A.cs").write_text("public class A {}\n", encoding="utf-8")
+    _test_write(target / "src" / "A.cs", "public class A {}\n", encoding="utf-8")
     config_path = target / "config.json"
-    config_path.write_text(json.dumps(_minimal_config()), encoding="utf-8")
+    _test_write(config_path, json.dumps(_minimal_config()), encoding="utf-8")
 
     scaf = make_scaffolder(target=target, config=json.loads(config_path.read_text()),
                                skills=["task"])

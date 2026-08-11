@@ -7,6 +7,7 @@ placed there; a hand-committed skill shadowing a managed one must survive and be
 from __future__ import annotations
 
 import json
+from conftest import _test_write
 
 SCRIPT = "features/claude/adjustments/adjust_skills.py"
 
@@ -17,11 +18,11 @@ def _project(tmp_path, skills=("task",), manifest_targets=()):
     for name in skills:
         skill = aib / "skills" / name
         skill.mkdir(parents=True)
-        (skill / "SKILL.md").write_text(f"# {name}\n", encoding="utf-8")
+        _test_write(skill / "SKILL.md", f"# {name}\n", encoding="utf-8")
     entries = [{"feature": "adjustments", "stack": "claude", "name": name,
                 "source": "", "target": t, "frameworkVersion": "0.33.0", "hash": "0" * 64}
                for name, t in manifest_targets]
-    (aib / "manifest.json").write_text(json.dumps({"entries": entries}), encoding="utf-8")
+    _test_write(aib / "manifest.json", json.dumps({"entries": entries}), encoding="utf-8")
     return target
 
 
@@ -55,7 +56,7 @@ def test_link_resolves_to_the_managed_copy_not_a_snapshot(tmp_path, load_script,
     adjust_skills.adjust(_context(root, target))
 
     managed = target / ".ai-badger" / "skills" / "task" / "SKILL.md"
-    managed.write_text("# task, refreshed\n", encoding="utf-8")
+    _test_write(managed, "# task, refreshed\n", encoding="utf-8")
     through_link = target / ".claude" / "skills" / "task" / "SKILL.md"
     assert through_link.read_text(encoding="utf-8") == "# task, refreshed\n"
 
@@ -65,7 +66,7 @@ def test_hand_committed_skill_directory_is_not_clobbered(tmp_path, load_script, 
     target = _project(tmp_path)
     shadow = target / ".claude" / "skills" / "task"
     shadow.mkdir(parents=True)
-    (shadow / "SKILL.md").write_text("# 0.18.1-era snapshot\n", encoding="utf-8")
+    _test_write(shadow / "SKILL.md", "# 0.18.1-era snapshot\n", encoding="utf-8")
 
     result = adjust_skills.adjust(_context(root, target))
 
@@ -80,7 +81,7 @@ def test_a_shadowed_skill_does_not_stop_the_rest(tmp_path, load_script, root):
     target = _project(tmp_path, skills=("task", "den-refresh"))
     shadow = target / ".claude" / "skills" / "task"
     shadow.mkdir(parents=True)
-    (shadow / "SKILL.md").write_text("# hand-committed\n", encoding="utf-8")
+    _test_write(shadow / "SKILL.md", "# hand-committed\n", encoding="utf-8")
 
     result = adjust_skills.adjust(_context(root, target, skills=("task", "den-refresh")))
 
@@ -95,7 +96,7 @@ def test_unrelated_third_party_skills_survive(tmp_path, load_script, root):
     target = _project(tmp_path)
     foreign = target / ".claude" / "skills" / "explore-codebase"
     foreign.mkdir(parents=True)
-    (foreign / "SKILL.md").write_text("# code-review-graph\n", encoding="utf-8")
+    _test_write(foreign / "SKILL.md", "# code-review-graph\n", encoding="utf-8")
 
     adjust_skills.adjust(_context(root, target))
 
@@ -124,7 +125,7 @@ def test_plain_file_destination_is_reported_not_crashed(tmp_path, load_script, r
     target = _project(tmp_path)
     collision = target / ".claude" / "skills" / "task"
     collision.parent.mkdir(parents=True)
-    collision.write_text("not a directory\n", encoding="utf-8")
+    _test_write(collision, "not a directory\n", encoding="utf-8")
 
     result = adjust_skills.adjust(_context(root, target))
 
@@ -165,7 +166,7 @@ def test_a_directory_the_manifest_records_as_ours_is_replaced(tmp_path, load_scr
     target = _project(tmp_path, manifest_targets=(("task", ".claude/skills/task"),))
     ours = target / ".claude" / "skills" / "task"
     ours.mkdir(parents=True)
-    (ours / "SKILL.md").write_text("# stale copy we placed\n", encoding="utf-8")
+    _test_write(ours / "SKILL.md", "# stale copy we placed\n", encoding="utf-8")
 
     result = adjust_skills.adjust(_context(root, target))
 
@@ -210,7 +211,7 @@ def test_a_foreign_entry_survives_an_empty_skill_list(tmp_path, load_script, roo
     adjust_skills.adjust(_context(root, target, skills=("task",)))
     foreign = target / ".claude" / "skills" / "explore-codebase"
     foreign.mkdir(parents=True)
-    (foreign / "SKILL.md").write_text("# code-review-graph\n", encoding="utf-8")
+    _test_write(foreign / "SKILL.md", "# code-review-graph\n", encoding="utf-8")
 
     adjust_skills.adjust(_context(root, target, skills=()))
 

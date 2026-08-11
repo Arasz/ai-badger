@@ -6,6 +6,7 @@ never recommend pruning a skill it had no way to see.
 from __future__ import annotations
 
 import json
+from conftest import _test_write
 
 SCRIPT = "features/common/skills/den-refresh/scripts/skill_usage.py"
 
@@ -25,8 +26,7 @@ def _store(home, project, dir_name=None):
 
 
 def _transcript(directory, records, name="session.jsonl"):
-    (directory / name).write_text(
-        "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+    _test_write(directory / name, "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
     return directory / name
 
 
@@ -170,9 +170,7 @@ def test_an_unparseable_transcript_line_never_breaks_the_scan(tmp_path, load_scr
     project = tmp_path / "proj"
     project.mkdir()
     store = _store(tmp_path / "home", project)
-    (store / "broken.jsonl").write_text(
-        "{not json at all\n" + json.dumps(_skill_call("task", cwd=project)) + "\n",
-        encoding="utf-8")
+    _test_write(store / "broken.jsonl", "{not json at all\n" + json.dumps(_skill_call("task", cwd=project)) + "\n", encoding="utf-8")
 
     report = usage.report(project, DELIVERED, store=tmp_path / "home" / ".claude" / "projects",
                           hooks=NO_HOOKS)

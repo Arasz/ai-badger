@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from conftest import _test_write
 
 ADJUSTER = "features/hermes/adjustments/adjust_task.py"
 SOURCE_MODULE = "features/hermes/adjustments/hermes_session_source.py"
@@ -111,16 +112,14 @@ def test_guarded_import_registers_a_present_sibling_source(load_script, root, mo
     scripts_dir.mkdir()
     shutil.copy2(root / "features/common/skills/task/scripts/tracker_lib.py",
                  scripts_dir / "tracker_lib.py")
-    (scripts_dir / "probe_session_source.py").write_text(
-        "def register(tracker_lib):\n"
+    _test_write(scripts_dir / "probe_session_source.py", "def register(tracker_lib):\n"
         "    tracker_lib.register_session_source(\n"
         "        'probe', env_var='PROBE_SESSION_ID',\n"
         "        resolve=lambda: {'sessionId': 'p-1', 'transcriptPath': None}\n"
         "        if __import__('os').environ.get('PROBE_SESSION_ID') else {},\n"
         "        checkpoint=lambda session: {},\n"
         "        resume=lambda session_id: f'probe --resume {session_id}',\n"
-        "        delegation_usage=None)\n",
-        encoding="utf-8")
+        "        delegation_usage=None)\n", encoding="utf-8")
     monkeypatch.syspath_prepend(str(scripts_dir))
     monkeypatch.setenv("PROBE_SESSION_ID", "p-1")
 

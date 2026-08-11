@@ -6,6 +6,7 @@ import shutil
 
 import jsonschema
 import pytest
+from conftest import _test_write
 
 
 def _make_fake_root(tmp_path, root):
@@ -15,33 +16,33 @@ def _make_fake_root(tmp_path, root):
 
     dotnet_skills = features / "dotnet" / "skills" / "greet"
     dotnet_skills.mkdir(parents=True)
-    (dotnet_skills / "SKILL.md").write_text("# greet\n", encoding="utf-8")
+    _test_write(dotnet_skills / "SKILL.md", "# greet\n", encoding="utf-8")
 
     dotnet_personas = features / "dotnet" / "personas"
     dotnet_personas.mkdir(parents=True)
-    (dotnet_personas / "reviewer.md").write_text("# reviewer\n", encoding="utf-8")
-    (dotnet_personas / "README.md").write_text("# readme, must be excluded\n", encoding="utf-8")
+    _test_write(dotnet_personas / "reviewer.md", "# reviewer\n", encoding="utf-8")
+    _test_write(dotnet_personas / "README.md", "# readme, must be excluded\n", encoding="utf-8")
 
     dotnet_invariants = features / "dotnet" / "invariants"
     dotnet_invariants.mkdir(parents=True)
-    (dotnet_invariants / "no-secrets.md").write_text("# no secrets\n", encoding="utf-8")
+    _test_write(dotnet_invariants / "no-secrets.md", "# no secrets\n", encoding="utf-8")
 
     dotnet_instructions = features / "dotnet" / "instructions"
     dotnet_instructions.mkdir(parents=True)
-    (dotnet_instructions / "style.md").write_text("# style\n", encoding="utf-8")
+    _test_write(dotnet_instructions / "style.md", "# style\n", encoding="utf-8")
 
     dotnet_hooks = features / "dotnet" / "hooks"
     dotnet_hooks.mkdir(parents=True)
-    (dotnet_hooks / "hooks-manifest.json").write_text(json.dumps({
+    _test_write(dotnet_hooks / "hooks-manifest.json", json.dumps({
         "hooks": [{"name": "test-hook", "agents": {"hermes": {"type": "plugin", "entry": "test.py"}}}]
     }), encoding="utf-8")
 
     dotnet_templates = features / "dotnet" / "templates"
     dotnet_templates.mkdir(parents=True)
-    (dotnet_templates / "Program.cs").write_text("// template\n", encoding="utf-8")
-    (dotnet_templates / "README.md").write_text("# readme, must be excluded\n", encoding="utf-8")
+    _test_write(dotnet_templates / "Program.cs", "// template\n", encoding="utf-8")
+    _test_write(dotnet_templates / "README.md", "# readme, must be excluded\n", encoding="utf-8")
 
-    (features / "dotnet" / "stack.json").write_text(json.dumps({
+    _test_write(features / "dotnet" / "stack.json", json.dumps({
         "name": "dotnet",
         "description": ".NET stack",
         "detectionSignals": ["*.csproj"],
@@ -50,7 +51,7 @@ def _make_fake_root(tmp_path, root):
     # a stack with only a stack.json (no feature dirs) must still surface via meta
     metaonly = features / "metaonly"
     metaonly.mkdir(parents=True)
-    (metaonly / "stack.json").write_text(json.dumps({
+    _test_write(metaonly / "stack.json", json.dumps({
         "name": "metaonly",
         "description": "meta-only stack",
     }), encoding="utf-8")
@@ -58,9 +59,9 @@ def _make_fake_root(tmp_path, root):
     # common skills under features/common/skills/ (no longer at repo root)
     common_skill = tmp_path / "features" / "common" / "skills" / "wave"
     common_skill.mkdir(parents=True)
-    (common_skill / "SKILL.md").write_text("# wave\n", encoding="utf-8")
+    _test_write(common_skill / "SKILL.md", "# wave\n", encoding="utf-8")
 
-    (tmp_path / "VERSION").write_text("1.2.3\n", encoding="utf-8")
+    _test_write(tmp_path / "VERSION", "1.2.3\n", encoding="utf-8")
 
     return tmp_path
 
@@ -119,7 +120,7 @@ class TestLegacyExtensionDirs:
     def _legacy(self, fake_root, base="greet", ext="loud"):
         d = fake_root / "features" / "dotnet" / "skills" / f"{base}-extensions" / ext
         d.mkdir(parents=True)
-        (d / "marker.txt").write_text("ext\n", encoding="utf-8")
+        _test_write(d / "marker.txt", "ext\n", encoding="utf-8")
         return d
 
     def test_the_generated_index_carries_no_extensions_field(self, tmp_path, root, load_script):
@@ -225,7 +226,7 @@ def test_main_check_reports_stale_after_tree_changes(tmp_path, root, load_script
 
     new_skill = fake_root / "features" / "dotnet" / "skills" / "new-one"
     new_skill.mkdir(parents=True)
-    (new_skill / "SKILL.md").write_text("# new\n", encoding="utf-8")
+    _test_write(new_skill / "SKILL.md", "# new\n", encoding="utf-8")
 
     rc = index_build.main(["--root", str(fake_root), "--check"])
 
