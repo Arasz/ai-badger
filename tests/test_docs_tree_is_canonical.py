@@ -150,14 +150,14 @@ class TestEveryMapIsComplete:
         """A concurrent write into docs/ mid-run must not flip these red — only commits count."""
         scratch_dir = _docs(root) / "zz_scratch_untracked_dir"
         scratch_file = _docs(root) / "reference" / "zz-scratch-untracked.md"
-        scratch_dir.mkdir()
+        scratch_dir.mkdir(exist_ok=True)
         scratch_file.write_text("scratch", encoding="utf-8")  # deliberate real-repo write
         try:
             self.test_no_directory_sits_outside_the_map(root)
             self.test_the_root_readme_names_every_directory(root)
             self.test_a_directory_readme_names_every_file_beside_it(root, "reference")
         finally:
-            scratch_file.unlink()
+            scratch_file.unlink(missing_ok=True)
             scratch_dir.rmdir()
 
     @pytest.mark.parametrize("name,least", sorted(INDEXED_DIRS.items()))
