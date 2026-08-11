@@ -4,102 +4,218 @@
       "name": "drift-notice",
       "description": "Detect framework version drift on session start",
       "agents": {
-        "claude": { "type": "plugin-hooks-json", "entry": "hooks.json", "event": "SessionStart", "script": "drift_notice_hook.py" },
-        "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "on_session_start" },
-        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "sessionStart", "script": "drift_notice_hook.py" }
+        "claude": {
+          "type": "plugin-hooks-json",
+          "entry": "hooks.json",
+          "event": "SessionStart",
+          "script": "drift_notice_hook.py"
+        },
+        "hermes": {
+          "type": "plugin",
+          "entry": "ai_badger_hooks.py",
+          "method": "on_session_start"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "sessionStart",
+          "script": "drift_notice_hook.py"
+        }
       }
     },
     {
       "name": "session-start-tracking",
       "description": "Record the session id and transcript, surface unfinished tracked tasks, and start the usage-limit poller",
       "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "SessionStart", "script": "session_start_hook.py" }
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "SessionStart",
+          "script": "session_start_hook.py"
+        }
       }
     },
     {
       "name": "task-checkpoint",
       "description": "Checkpoint a tracked task's token usage at the end of every assistant turn, and block once when a finished task left state.json or the agent docs unattended",
       "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "Stop", "script": "stop_hook.py" }
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "Stop",
+          "script": "stop_hook.py"
+        }
       }
     },
     {
       "name": "task-checkpoint-session-end",
       "description": "Flush the tracked task's token checkpoint when the session ends, catching the interrupted final turn Stop never fires for",
       "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "SessionEnd", "script": "stop_hook.py" }
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "SessionEnd",
+          "script": "stop_hook.py"
+        }
       }
     },
     {
       "name": "context-enrichment",
       "description": "Inject framework context, including MCP tool recommendations, into every LLM turn",
       "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "UserPromptSubmit", "script": "context_enrichment_hook.py" },
-        "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "pre_llm_call" },
-        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "userPromptSubmitted", "script": "context_enrichment_hook.py" }
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "UserPromptSubmit",
+          "script": "context_enrichment_hook.py"
+        },
+        "hermes": {
+          "type": "plugin",
+          "entry": "ai_badger_hooks.py",
+          "method": "pre_llm_call"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "userPromptSubmitted",
+          "script": "context_enrichment_hook.py"
+        }
       }
     },
     {
       "name": "prompt-markers",
       "description": "Detect prompt markers (h:, f:, e:) and inject behavior context",
       "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "UserPromptSubmit", "script": "user_prompt_hook.py" },
-        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "userPromptSubmitted", "script": "user_prompt_hook.py" }
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "UserPromptSubmit",
+          "script": "user_prompt_hook.py"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "userPromptSubmitted",
+          "script": "user_prompt_hook.py"
+        }
       }
     },
     {
       "name": "dispatch-gate",
       "description": "Deny a subagent dispatch that names no model and whose subagent type has no model lane, so no delegation silently inherits the session model",
       "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PreToolUse", "script": "dispatch_gate_hook.py" }
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "PreToolUse",
+          "script": "dispatch_gate_hook.py"
+        }
       }
     },
     {
       "name": "commit-reminder",
       "description": "Nudge toward smaller, more frequent commits once uncommitted file count crosses a threshold",
       "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PostToolUse", "script": "commit_reminder_hook.py" },
-        "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "post_tool_call" },
-        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "postToolUse", "script": "commit_reminder_hook.py" }
-      }
-    },
-    {
-      "name": "memory-grade",
-      "description": "Grade every memory_search's usefulness into a machine-wide quality log",
-      "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PostToolUse", "script": "memory_grade_hook.py" },
-        "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "post_tool_call" },
-        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "postToolUse", "script": "memory_grade_hook.py" }
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "PostToolUse",
+          "script": "commit_reminder_hook.py"
+        },
+        "hermes": {
+          "type": "plugin",
+          "entry": "ai_badger_hooks.py",
+          "method": "post_tool_call"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "postToolUse",
+          "script": "commit_reminder_hook.py"
+        }
       }
     },
     {
       "name": "generated-file-guard",
       "description": "Refuse a hand edit to a file the scaffold generated, naming the features/ source to edit instead",
       "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PreToolUse", "script": "generated_file_guard.py" }
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "PreToolUse",
+          "script": "generated_file_guard.py"
+        }
       }
     },
     {
       "name": "memory-first-gate",
       "description": "Block repo text-search tools until the session consulted memory_search (3-strike pass-through)",
       "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PreToolUse", "script": "memory_first_gate_hook.py" },
-        "hermes": { "type": "plugin", "entry": "ai_badger_hooks.py", "method": "pre_tool_call_memory_gate" },
-        "copilot": { "type": "hooks-json", "entry": "hooks.json", "event": "preToolUse", "script": "memory_first_gate_hook.py", "matcher": "grep|rg|Glob|bash" }
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "PreToolUse",
+          "script": "memory_first_gate_hook.py"
+        },
+        "hermes": {
+          "type": "plugin",
+          "entry": "ai_badger_hooks.py",
+          "method": "pre_tool_call_memory_gate"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "preToolUse",
+          "script": "memory_first_gate_hook.py",
+          "matcher": "grep|rg|Glob|bash"
+        }
+      }
+    },
+    {
+      "name": "memory-first-gate-marker",
+      "description": "Record the memory-first gate's consulted marker after a memory_search call (PostToolUse)",
+      "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "PostToolUse",
+          "script": "memory_first_gate_post_hook.py"
+        },
+        "hermes": {
+          "type": "plugin",
+          "entry": "ai_badger_hooks.py",
+          "method": "post_tool_call"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "postToolUse",
+          "script": "memory_first_gate_post_hook.py"
+        }
       }
     },
     {
       "name": "blast-radius-kill-guard",
       "description": "Deny an unscoped process kill or shared-cache reap while more than one agent lane is live, with a 3-denial escape valve per command",
       "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PreToolUse", "script": "blast_radius_kill_guard.py" }
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "PreToolUse",
+          "script": "blast_radius_kill_guard.py"
+        }
       }
     },
     {
       "name": "cross-worktree-dirty-warning",
       "description": "Warn, never block, when the file an edit targets is also dirty in another worktree of this repo",
       "agents": {
-        "claude": { "type": "hooks-json", "entry": "hooks.json", "event": "PreToolUse", "script": "cross_worktree_dirty_warning.py" }
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "PreToolUse",
+          "script": "cross_worktree_dirty_warning.py"
+        }
       }
     }
   ]

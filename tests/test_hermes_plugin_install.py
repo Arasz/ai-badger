@@ -19,7 +19,6 @@ USER_PLUGIN_FILES = ("ai_badger_hooks.py", "learned_skills_sync.py", "debug_log.
 SHARED_SKILL_FILES = (
     ("commit-reminder", "commit_reminder.py"),
     ("commit-reminder", "impact_estimator.py"),
-    ("ai-raccoon-memory", "memory_grade.py"),
     ("ai-raccoon-memory", "memory_first_gate.py"),
 )
 RETRIEVAL_FILES = ("tokenizer.py", "bm25.py", "mcp_matcher.py")
@@ -154,16 +153,24 @@ def test_adjust_hooks_copies_shared_skill_modules_to_project_hooks_dir(
         assert dst.read_text(encoding="utf-8") == _skill_script(root, skill, name)
 
 
-def test_adjust_hooks_copies_memory_grade_to_project_and_plugin_dirs(
+def test_adjust_hooks_removes_stale_memory_grade_copies(
         tmp_path, load_script, root):
-    """The memory-grade sibling must land beside ai_badger_hooks.py in both destinations."""
+    """The removed memory-grade sibling must be deleted, not copied, from both destinations."""
     adjust_hooks = load_script("features/hermes/adjustments/adjust_hooks.py")
     _, target, home = _run_adjust(adjust_hooks, tmp_path, root)
 
-    for dst in (target / ".ai-badger" / "hooks" / "memory_grade.py",
-                _plugin_dir(home) / "memory_grade.py"):
-        assert dst.read_text(encoding="utf-8") == _skill_script(
-            root, "ai-raccoon-memory", "memory_grade.py")
+    # Stale copies from the pre-removal install must not survive a re-run either.
+    stale_dirs = (target / ".ai-badger" / "hooks", _plugin_dir(home))
+    for dst_dir in stale_dirs:
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        (dst_dir / "memory_grade.py").write_text("# stale copy\n", encoding="utf-8")
+
+    with patch("pathlib.Path.home", return_value=home):
+        adjust_hooks.adjust(_adjust_context(root, target, ["hermes"]))
+
+    for dst_dir in stale_dirs:
+        assert not (dst_dir / "memory_grade.py").exists(), \
+            f"stale memory_grade.py survived at {dst_dir / 'memory_grade.py'}"
 
 
 def test_adjust_hooks_copies_shared_skill_modules_into_plugin_dir(

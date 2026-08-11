@@ -30,14 +30,6 @@ def fake_gate(hooks, monkeypatch, load_script, tmp_path):
 
 
 @pytest.fixture
-def fake_memory_grade(hooks, monkeypatch, load_script):
-    """The real memory_grade module (the single is_memory_search matcher)."""
-    real = load_script("features/common/skills/ai-raccoon-memory/scripts/memory_grade.py")
-    monkeypatch.setitem(sys.modules, hooks.MEMORY_GRADE_MODULE_NAME, real)
-    return real
-
-
-@pytest.fixture
 def fresh(hooks):
     """Reset the per-session gate state before each test."""
     hooks.reset_gate_state()
@@ -75,7 +67,7 @@ def test_register_wires_pre_tool_call(hooks, fresh):
 
 
 def test_search_files_blocked_before_memory_consulted(
-        hooks, fake_gate, fake_memory_grade, fresh, proj_a, monkeypatch):
+        hooks, fake_gate, fresh, proj_a, monkeypatch):
     monkeypatch.chdir(proj_a)
 
     out = hooks.pre_tool_call_memory_gate(
@@ -86,7 +78,7 @@ def test_search_files_blocked_before_memory_consulted(
 
 
 def test_memory_search_call_unblocks_text_search(
-        hooks, fake_gate, fake_memory_grade, fresh, proj_a, monkeypatch):
+        hooks, fake_gate, fresh, proj_a, monkeypatch):
     monkeypatch.chdir(proj_a)
     hooks.post_tool_observer(
         function_name="mcp__ai_raccoon__memory_search",
@@ -98,7 +90,7 @@ def test_memory_search_call_unblocks_text_search(
 
 
 def test_colon_spelling_of_memory_search_also_unblocks(
-        hooks, fake_gate, fake_memory_grade, fresh, proj_a, monkeypatch):
+        hooks, fake_gate, fresh, proj_a, monkeypatch):
     monkeypatch.chdir(proj_a)
     hooks.post_tool_observer(tool_name="ai-raccoon:memory_search", args={}, result="")
 
@@ -107,7 +99,7 @@ def test_colon_spelling_of_memory_search_also_unblocks(
 
 
 def test_non_search_tools_never_blocked(
-        hooks, fake_gate, fake_memory_grade, fresh, proj_a, monkeypatch):
+        hooks, fake_gate, fresh, proj_a, monkeypatch):
     monkeypatch.chdir(proj_a)
     for tool_name, args in (("read_file", {"path": "a.cs"}),
                             ("write_file", {"path": "a.cs"}),
@@ -117,7 +109,7 @@ def test_non_search_tools_never_blocked(
 
 
 def test_terminal_grep_blocked_build_passes(
-        hooks, fake_gate, fake_memory_grade, fresh, proj_a, monkeypatch):
+        hooks, fake_gate, fresh, proj_a, monkeypatch):
     monkeypatch.chdir(proj_a)
 
     out = hooks.pre_tool_call_memory_gate(
@@ -129,7 +121,7 @@ def test_terminal_grep_blocked_build_passes(
 
 
 def test_three_strikes_pass_through(
-        hooks, fake_gate, fake_memory_grade, fresh, proj_a, monkeypatch):
+        hooks, fake_gate, fresh, proj_a, monkeypatch):
     monkeypatch.chdir(proj_a)
     for _ in range(fake_gate.MAX_DENIALS):
         out = hooks.pre_tool_call_memory_gate(
@@ -141,7 +133,7 @@ def test_three_strikes_pass_through(
 
 
 def test_session_start_resets_the_gate(
-        hooks, fake_gate, fake_memory_grade, fresh, proj_a, monkeypatch):
+        hooks, fake_gate, fresh, proj_a, monkeypatch):
     monkeypatch.chdir(proj_a)
     hooks.post_tool_observer(
         function_name="mcp__ai_raccoon__memory_search", function_args={}, result="")
@@ -157,7 +149,7 @@ def test_session_start_resets_the_gate(
 
 
 def test_missing_gate_module_fails_open(
-        hooks, fake_memory_grade, fresh, proj_a, monkeypatch):
+        hooks, fresh, proj_a, monkeypatch):
     monkeypatch.chdir(proj_a)
     monkeypatch.setattr(hooks, "_load_memory_first_gate", lambda: None)
 
@@ -166,7 +158,7 @@ def test_missing_gate_module_fails_open(
 
 
 def test_unblocked_state_is_keyed_per_project(
-        hooks, fake_gate, fake_memory_grade, fresh, proj_a, proj_b, monkeypatch):
+        hooks, fake_gate, fresh, proj_a, proj_b, monkeypatch):
     monkeypatch.chdir(proj_a)
     hooks.post_tool_observer(
         function_name="mcp__ai_raccoon__memory_search", function_args={}, result="")
