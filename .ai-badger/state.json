@@ -1,7 +1,14 @@
 {
-  "lastUpdated": "2026-08-09",
-  "next": "Design-review follow-ups (docs/work/2026-08-06-memory-skill-design-review.md): queryClass field + expected-source note contract in the grade log, per-source aggregation recipe in memory-quality-logging, consolidate the triplicated hook knowledge, and feed-badger the hooks-subsystem.md reference fix.",
+  "lastUpdated": "2026-08-12",
+  "next": "semantica-integration follow-ups: PR review, merge, and phase-5 documentation-gap audit (CLAUDE.md/HERMES.md agent docs). Also: test the skill in a real session with semantica MCP server connected.",
   "completedTasks": [
+    {
+      "id": "semantica-integration",
+      "title": "Semantica MCP server catalog entry + integration skill (0.116.3)",
+      "summary": "Researched, installed, and integrated Semantica (MIT, v0.6.5) as a common MCP server in ai-badger. Created catalog entry (meta.json, server.md, tools.json with 11 tools — excluding broken get_graph_analytics), wired into common stack-mcp.json, and derived a Hermes integration skill (semantica-knowledge-graph, scope:default). MoE-reviewed: 2 parallel expert reviews (architect + test-engineer) with APPROVE-WITH-FIXES, all findings addressed. TDD: 41 tests RED first, then GREEN. Dogfooded: verified state accumulation, decision chaining, entity extraction across MCP calls. Key insight: MCP server is in-memory per process — state accumulates within a session but no import mechanism exists; export is archival only. Durable facts go to AiRaccoon.",
+      "version": "0.116.3",
+      "date": "2026-08-12"
+    },
     {
       "id": "full-project-review",
       "title": "Full-project MoE review: charter, 7 expert reports, integrated plan",
