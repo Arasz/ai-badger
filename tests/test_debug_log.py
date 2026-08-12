@@ -360,7 +360,10 @@ class TestEveryScaffoldedHookAttributesItsRecords:
 
     def _run(self, load_script, tmp_path, monkeypatch, script, payload):
         hook = load_script(script)
-        dl = hook.debug_log
+        dl = getattr(hook, "debug_log", None)
+        if dl is None:
+            dl = load_script("features/common/hooks/debug_log.py")
+            setattr(hook, "debug_log", dl)
         for attr, value in (("DEBUG_DIR", tmp_path / "debug"),
                             ("STATE_FILE", tmp_path / "debug" / "state.json"),
                             ("AUDIT_FILE", tmp_path / "debug" / "audit.jsonl")):

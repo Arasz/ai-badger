@@ -468,6 +468,10 @@
           "path": "features/common/templates/delegation.md.tmpl"
         },
         {
+          "name": "semantica-graph.json.tmpl",
+          "path": "features/common/templates/semantica-graph.json.tmpl"
+        },
+        {
           "name": "state.json",
           "path": "features/common/templates/state.json"
         }
