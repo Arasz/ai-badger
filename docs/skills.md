@@ -1,19 +1,19 @@
 # Skills
 
-This page catalogs 37 skills — everything under `features/common/skills/` and
+This page catalogs 38 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-36 live under `features/common/skills/` and split by the `scope:` each declares in its own
+37 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**14 are `default`** and arrive in every scaffolded project without being asked for, and
+**15 are `default`** and arrive in every scaffolded project without being asked for, and
 **22 are `optIn`** — catalogued, but written only when a project names them. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 37 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **51** files:
-the 37 above plus 14 more that belong to a single stack and arrive only with it — 11 under
+**These 37 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **53** files:
+the 38 above plus 15 more that belong to a single stack and arrive only with it — 11 under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/` and 1 under `features/mcp/skills/`.
-Those 14 have no row below and are documented by their own `SKILL.md`. Derive the number rather
+Those 15 have no row below and are documented by their own `SKILL.md`. Derive the number rather
 than trusting this sentence: `python3 gates/skills_lint.py` prints how many `SKILL.md` files the
 catalog holds.
 
@@ -79,6 +79,7 @@ names it, **claude-only** when the stack decides.
 | [maintain-agent-instructions](#maintain-agent-instructions) | Reconcile CLAUDE.md/Copilot/Hermes instruction files against one model | default | by name (or CI) |
 | [mcp-index](#mcp-index) | Curate the MCP tool index a hook uses to recommend tools per turn | default | by name; feeds a `pre_llm_call` hook |
 | [ai-raccoon-memory](#ai-raccoon-memory) | Project memory server: search memory first, write durable facts with source paths, watch a docs directory | default | by name |
+| [semantica-knowledge-graph](#semantica-knowledge-graph) | Session-scoped knowledge graph: record decisions with provenance, trace causal chains, extract entities from conversations | default | by name |
 | [auto-wm](#auto-wm) | Auto-approve tool calls in partner/away mode | claude-only | by name (`/auto-wm`); installs a `PreToolUse` hook once enabled |
 | [scaffold-documentation](#scaffold-documentation) | Create the canonical `docs/` tree in a repo that has none | opt-in | by name |
 | [update-documentation](#update-documentation) | Change documentation to match something that already changed | opt-in | by name |
@@ -413,6 +414,27 @@ promoted with `memory_share`, never automatically.
 **When to use it.** Any session in a project that has the server installed — the MCP entry is
 declared when `ai-raccoon` is on PATH. Install it with
 `dotnet tool install -g arasz.ai-raccoon`.
+
+---
+
+### semantica-knowledge-graph
+
+[`SKILL.md`](../features/common/skills/semantica-knowledge-graph/SKILL.md)
+
+**What it is.** Semantica (MIT, v0.6.5+) is a session-scoped knowledge graph MCP server
+(`python3 -m semantica.mcp_server`). It records decisions with W3C PROV-O provenance,
+extracts entities and relations from text, traces causal chains, and runs forward-chaining
+reasoning over an in-memory graph that accumulates across tool calls within a session.
+
+**What it does.** The graph is session-scoped — no import mechanism exists, so `export_graph`
+produces archival snapshots only. Durable facts go to AiRaccoon (`memory_write`). Four
+workflows: decision recording (record rationale + link to affected components), entity
+extraction from documents (needs torch/transformers for full NLP), decision archaeology
+(query past decisions and trace causal ancestry), and graph export for audit trails.
+
+**When to use it.** Reasoning over structured project knowledge — a decision was made and
+its rationale should be traceable, entities need extracting from a document, or a causal
+chain answers "why did we do this?". Install with `pip install semantica`.
 
 ---
 

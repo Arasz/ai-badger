@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.116.2",
+  "frameworkVersion": "0.116.3",
   "stacks": {
     "angular": {
       "personas": [
@@ -312,6 +312,11 @@
           "scope": "optIn"
         },
         {
+          "name": "semantica-knowledge-graph",
+          "path": "features/common/skills/semantica-knowledge-graph",
+          "scope": "default"
+        },
+        {
           "name": "spec-driven-refactoring",
           "path": "features/common/skills/spec-driven-refactoring",
           "scope": "optIn"
@@ -509,6 +514,10 @@
         {
           "name": "hermes",
           "path": "features/common/mcp/hermes"
+        },
+        {
+          "name": "semantica",
+          "path": "features/common/mcp/semantica"
         }
       ]
     },
