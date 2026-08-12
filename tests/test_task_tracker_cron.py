@@ -73,6 +73,15 @@ def tt(load_script, root, monkeypatch, tmp_path):
 def _run(monkeypatch, module, *args):
     """Call task_tracker's main() in-process (no subprocess) with the given CLI args."""
     monkeypatch.setattr(sys, "argv", ["task_tracker.py", *args])
+    lib = module.lib
+    monkeypatch.setitem(lib.SESSION_SOURCES, "claude", {
+        "env_var": "CLAUDE_SESSION_ID",
+        "resolve": lambda *a: None,
+        "checkpoint": lambda *a: {"sessionId": "s1", "transcriptPath": "t", "contextTokens": 0},
+        "resume": lambda *a: None,
+        "delegation_usage": lambda *a: None,
+        "transcript": lambda *a: None,
+    })
     return module.main()
 
 
