@@ -36,8 +36,7 @@ After both complete:
 ### Gotchas (experiments)
 - **Pre-build tool state before dispatching** — if a tool needs setup (like
   a graph index build), do it in the worktree before the agent starts,
-  otherwise the agent wastes tokens on setup or fails. See
-  `references/code-review-graph-setup.md` for macOS-specific install notes.
+  otherwise the agent wastes tokens on setup or fails.
 - **Log file timestamps differ from agent timestamps** — the log records wall
   clock time, but agent transcript timestamps are more reliable for comparing
   pacing. Use the log for tool-count comparison, transcripts for timing.

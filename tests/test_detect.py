@@ -550,6 +550,53 @@ def test_detect_commands_dotnet_setdefault_does_not_override_package_json(tmp_pa
     assert cmds["test"] == "dotnet test"     # dotnet default fills the gap
 
 
+# ------------------------------------------------------------- smart .venv tool-only detection
+def test_detect_stacks_suppresses_python_when_venv_contains_only_mcp_tool_packages(tmp_path, load_script, root):
+    """A .venv created in a non-Python project (e.g. .NET) solely for MCP tools like code-review-graph
+    or semantica must not falsely trigger python stack detection when no user Python manifest exists."""
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
+    index = detect.bl.read_index(root)
+
+    _test_write(tmp_path / "App.csproj", "<Project />", encoding="utf-8")
+
+    # Create a .venv containing only code_review_graph and mcp tool dists
+    dist = tmp_path / ".venv" / "lib" / "python3.12" / "site-packages" / "code_review_graph-2.3.7.dist-info"
+    dist.mkdir(parents=True)
+    mcp_dist = tmp_path / ".venv" / "lib" / "python3.12" / "site-packages" / "mcp-1.0.0.dist-info"
+    mcp_dist.mkdir(parents=True)
+
+    stacks = detect.detect_stacks(tmp_path, index)
+
+    assert "dotnet" in stacks
+    assert "python" not in stacks
+
+
+def test_detect_stacks_retains_python_when_venv_contains_user_packages(tmp_path, load_script, root):
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
+    index = detect.bl.read_index(root)
+
+    # .venv contains a non-mcp user package (e.g., fastapi)
+    dist = tmp_path / ".venv" / "lib" / "python3.12" / "site-packages" / "fastapi-0.100.0.dist-info"
+    dist.mkdir(parents=True)
+
+    stacks = detect.detect_stacks(tmp_path, index)
+
+    assert "python" in stacks
+
+
+def test_detect_stacks_retains_python_when_user_manifest_exists_even_with_tool_venv(tmp_path, load_script, root):
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
+    index = detect.bl.read_index(root)
+
+    _test_write(tmp_path / "pyproject.toml", "[project]\nname = 'demo'\n", encoding="utf-8")
+    dist = tmp_path / ".venv" / "lib" / "python3.12" / "site-packages" / "code_review_graph-2.3.7.dist-info"
+    dist.mkdir(parents=True)
+
+    stacks = detect.detect_stacks(tmp_path, index)
+
+    assert "python" in stacks
+
+
 # ------------------------------------------------------------------------------- main()
 def test_main_emits_valid_proposed_config_json(tmp_path, load_script, root, monkeypatch, capsys):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")

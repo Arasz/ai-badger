@@ -141,13 +141,13 @@ class TestTheScaffoldReportsIt:
         scaf = make_scaffolder(install=True)
         scaf.run(generated_at="2026-08-01T00:00:00Z")
 
-        assert any("import code_review_graph" in n for n in scaf.ctx.notes)
+        assert any("check.py" in n for n in scaf.ctx.notes)
 
     def test_the_report_names_where_to_get_it(self, make_scaffolder):
         scaf = make_scaffolder(install=True)
         scaf.run(generated_at="2026-08-01T00:00:00Z")
 
-        assert any("pip install code-review-graph" in n for n in scaf.ctx.notes)
+        assert any("install.py" in n for n in scaf.ctx.notes)
 
 
 class TestABadCatalogEntryDoesNotCrashTheScaffold:

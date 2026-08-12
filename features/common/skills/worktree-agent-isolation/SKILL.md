@@ -257,4 +257,3 @@ Servers/processes a subagent starts in background (watch patterns like "Applicat
 ## References
 
 - `references/ab-agent-experiment.md` — A/B agent experiment pattern (tool comparison in parallel worktrees); read when running A/B agent experiments.
-- `references/code-review-graph-setup.md` — macOS install notes for the graph tool used in experiments; read when installing code-review-graph on macOS.

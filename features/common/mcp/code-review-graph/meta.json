@@ -4,8 +4,8 @@
   "package": "code-review-graph",
   "description": "Persistent incremental knowledge graph over a repository: Tree-sitter parsing, structural queries (callers, dependents, tests), change detection and impact analysis. Language-agnostic, so it is declared by the common stack rather than any one technology's.",
   "prerequisite": {
-    "summary": "the code-review-graph Python distribution, importable by the interpreter that runs the launch command",
-    "check": "python3 -c 'import code_review_graph'",
-    "install": "python3 -m pip install code-review-graph"
+    "summary": "Python 3.10+ virtual environment with code-review-graph installed",
+    "check": "python3 features/common/mcp/code-review-graph/scripts/check.py",
+    "install": "python3 features/common/mcp/code-review-graph/scripts/install.py"
   }
 }
