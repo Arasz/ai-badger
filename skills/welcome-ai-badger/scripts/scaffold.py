@@ -563,6 +563,13 @@ class Scaffolder:
             self.notes.append(f"venv python: {venv_python}")
         return result
 
+    def copy_engine_and_schemas(self) -> None:
+        """Copy engine/ and schemas/ into .ai-badger/ for self-contained validation."""
+        for sub in ("schemas", "engine"):
+            src, dst = self.root / sub, self.aib / sub
+            if src.is_dir():
+                shutil.copytree(src, dst, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".*", "*.pyc", "__pycache__"))
+
     # -- adjustments ----------------------------------------------------------------
     def run_adjustments(self) -> None:
         """Run agent-specific adjustments declared in features/<agent>/adjustments/.
@@ -715,23 +722,17 @@ class Scaffolder:
         self.run_adjustments()
         self._record_progress("hooks")
         plugin_cmds = self.install_plugins()
-
-        # Check and install feature dependencies
         dep_result = self._check_dependencies()
-
-        # copy the config into place (source of truth for the skills), stamped with the
-        # version that actually wrote it — the incoming value describes an earlier run.
         written_config = dict(self.config)
         written_config["frameworkVersion"] = self.index["frameworkVersion"]
         bl.dump_json(self.aib / "config.json", written_config)
-
         self.mcp.generate_mcp_json()
         self._record_progress("config-and-mcp")
-
         project_servers, user_servers = self.mcp.split_servers_by_scope(
             self.mcp.declared_servers())
         self.mcp.propose_claude_mcp_user(user_servers)
         self.mcp.generate_copilot_mcp_json(project_servers)
+        self.copy_engine_and_schemas()
 
         manifest = {
             "$schema": "../schemas/manifest.schema.json",
@@ -813,10 +814,7 @@ def main(argv=None) -> int:
                 )
             except (ValueError, OSError) as exc:
                 skills = []
-                cli_notes.append(
-                    f"--skills was empty and the manifest at {manifest_path} could not be read "
-                    f"({exc}) — scaffolding no skills; nothing already linked was removed"
-                )
+                cli_notes.append(f"--skills empty, manifest at {manifest_path} could not be read ({exc})")
     scaf = Scaffolder(root, target, config, skills, install=not args.no_install,
                       overwrite=args.overwrite_agent_files,
                       reset_seed_files=args.reset_seed_files,
@@ -829,8 +827,7 @@ def main(argv=None) -> int:
     if result["availableOptIn"]:
         print("  opt-in skills available (not installed):")
         for skill in result["availableOptIn"]:
-            print(f"    - {skill['name']}: {skill['description']}")
-            print(f"      add it with: {skill['configEdit']}")
+            print(f"    - {skill['name']}: {skill['description']}\n      add it with: {skill['configEdit']}")
     if result["pluginCommands"]:
         import install_plugins as ip_lib  # pylint: disable=import-outside-toplevel
         print("  plugin setup commands (run per chosen scope):")

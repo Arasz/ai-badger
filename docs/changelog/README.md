@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.116.4 | [Semantica Export Hook & Schema Distribution](0.116.4-semantica-export-hook-and-schema-distribution.md) |
 | 0.116.3 | [Semantica MCP Server + Integration Skill](0.116.3-semantica-integration.md) |
 | 0.116.2 | [0.116.2](0.116.2-follow-through-hook.md) |
 | 0.116.1 | [test write gate](0.116.1-test-write-gate.md) |

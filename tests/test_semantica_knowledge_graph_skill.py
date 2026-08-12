@@ -153,6 +153,29 @@ def test_skill_has_escalation_section():
     assert has_escalation
 
 
+def test_skill_explains_local_extraction_options():
+    """Body explains Option 2 agent-guided extraction and code-review-graph for code."""
+    text = _skill_text()
+    assert "code-review-graph" in text
+    assert "add_entity" in text and "add_relationship" in text
+
+
+def test_skill_explains_export_hook_and_airaccoon_watch_pattern():
+    """Body explains exporting graph to JSON file, seeding it, and watching via memory_watch_add."""
+    text = _skill_text()
+    assert "memory_watch_add" in text or "watch" in text.lower()
+    assert "export" in text.lower()
+    assert "json" in text.lower()
+    assert "AiRaccoon" in text or "ai-raccoon" in text
+
+
+def test_skill_explains_no_import_and_process_isolation():
+    """Body explains in-memory process isolation and 'no import' session-scoped lifecycle."""
+    text = _skill_text()
+    assert "session-scoped" in text.lower() or "in-memory" in text.lower()
+    assert "no import" in text.lower() or "import_graph" in text.lower()
+
+
 # ── size ─────────────────────────────────────────────────────────────────────
 
 def test_skill_under_500_lines():

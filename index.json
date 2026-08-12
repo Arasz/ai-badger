@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.116.3",
+  "frameworkVersion": "0.116.4",
   "stacks": {
     "angular": {
       "personas": [
@@ -466,6 +466,10 @@
         {
           "name": "delegation.md.tmpl",
           "path": "features/common/templates/delegation.md.tmpl"
+        },
+        {
+          "name": "semantica-graph.json.tmpl",
+          "path": "features/common/templates/semantica-graph.json.tmpl"
         },
         {
           "name": "state.json",
