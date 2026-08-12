@@ -1,6 +1,6 @@
 # Delegation map — ai-badger
 
-> Scaffolded by ai-badger 0.116.2. Regenerated on every scaffold; do not edit.
+> Scaffolded by ai-badger 0.116.3. Regenerated on every scaffold; do not edit.
 
 ## Stacks
 
@@ -34,3 +34,4 @@ python, js, github, claude, hermes, ts, node, changelog
 - `ai-raccoon` — AiRaccoon is the project memory server
 - `code-review-graph` — This project has a knowledge graph
 - `hermes` — Read operations use Hermes's session store and work without a running gateway; sending messages needs the gateway and its platform adapters
+- `semantica` — Semantica is the project knowledge graph

@@ -21,6 +21,14 @@
       "availability": {
         "command": "ai-raccoon"
       }
+    },
+    {
+      "name": "semantica",
+      "command": "python3 -m semantica.mcp_server",
+      "declare": true,
+      "availability": {
+        "command": "python3"
+      }
     }
   ]
 }

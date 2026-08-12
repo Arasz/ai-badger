@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../../schemas/mcp-server-tools.schema.json",
+  "server": "semantica",
+  "tools": [
+    {"name": "get_graph_summary", "intent": "Orientation entry point: graph statistics, entity/relation counts, domain overview — before any specific query.", "tags": ["read"]},
+    {"name": "extract_entities", "intent": "Named entity extraction from arbitrary text — feed in a document, conversation excerpt, or design spec and get structured entities back.", "tags": ["write", "search"]},
+    {"name": "extract_relations", "intent": "Extract triplet relations (subject-predicate-object) from text — builds the graph's edge structure from unstructured content.", "tags": ["write", "search"]},
+    {"name": "add_entity", "intent": "Manually add a knowledge graph node with properties — for facts the agent knows but that aren't in text to extract.", "tags": ["write"]},
+    {"name": "add_relationship", "intent": "Manually add an edge between two existing entities — link concepts the agent connected through reasoning.", "tags": ["write"]},
+    {"name": "record_decision", "intent": "Persist an architectural decision as a provenance-tracked node with context, rationale, alternatives, and constraints.", "tags": ["write"]},
+    {"name": "query_decisions", "intent": "Search the decision history by keyword, date range, or domain — 'what did we decide about authentication?'", "tags": ["search"]},
+    {"name": "find_precedents", "intent": "Semantic precedent lookup — 'has a decision like this been made before?' Returns similar past decisions ranked by relevance.", "tags": ["search", "semantic"]},
+    {"name": "get_causal_chain", "intent": "Full causal ancestry of a decision or entity — trace every 'because' back to root assumptions.", "tags": ["navigation", "diagnostic"]},
+    {"name": "run_reasoning", "intent": "Forward-chaining IF/THEN rules over the graph — derive new facts, check consistency, or flag conflicts.", "tags": ["run", "batch"]},
+    {"name": "export_graph", "intent": "Export the current graph in RDF, JSON, or Parquet format for archival snapshots or audit trails.", "tags": ["write", "files"]}
+  ]
+}

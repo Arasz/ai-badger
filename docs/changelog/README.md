@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.116.3 | [Semantica MCP Server + Integration Skill](0.116.3-semantica-integration.md) |
 | 0.116.2 | [0.116.2](0.116.2-follow-through-hook.md) |
 | 0.116.1 | [test write gate](0.116.1-test-write-gate.md) |
 | 0.116.0 | [memory-grade file logging removed (metrics will replace it)](0.116.0-memory-grade-file-logging-removed.md) |
