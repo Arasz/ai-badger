@@ -44,13 +44,9 @@ When making an architectural or design decision:
 
 When analyzing a document, conversation, or spec for structured facts:
 
-1. `extract_entities(text)` → structured entity list
-2. `extract_relations(text)` → triplet relations
-3. `get_graph_summary()` → verify the graph reflects the extraction
-
-Note: `extract_entities` and `extract_relations` need `torch` and `transformers` for
-full NLP. Without them, entity extraction returns types without names and relation
-extraction returns empty. Install with `pip install torch transformers`.
+- **Option A (Agent-Guided — Recommended)**: Use LLM reasoning to extract domain concepts and call `add_entity(name, entity_type, properties)` and `add_relationship(source, target, relationship_type)`. Zero extra dependencies, instantaneous, zero cold-start.
+- **Option B (Native Local ML)**: Call `extract_entities(text)` / `extract_relations(text)`. Requires `pip install torch transformers` for local PyTorch/HuggingFace models (no LLM keys required). Without ML deps, returns degraded/empty results.
+- Verify graph with `get_graph_summary()`.
 
 ### 3. Decision archaeology
 

@@ -153,6 +153,20 @@ def test_skill_has_escalation_section():
     assert has_escalation
 
 
+def test_skill_explains_local_extraction_options():
+    """Body explains local extraction options (torch/transformers vs agent-driven add_entity)."""
+    text = _skill_text()
+    assert "torch" in text or "transformers" in text or "Agent-guided" in text or "agent-driven" in text.lower()
+    assert "add_entity" in text and "add_relationship" in text
+
+
+def test_skill_explains_no_import_and_process_isolation():
+    """Body explains in-memory process isolation and 'no import' session-scoped lifecycle."""
+    text = _skill_text()
+    assert "session-scoped" in text.lower() or "in-memory" in text.lower()
+    assert "no import" in text.lower() or "import_graph" in text.lower()
+
+
 # ── size ─────────────────────────────────────────────────────────────────────
 
 def test_skill_under_500_lines():

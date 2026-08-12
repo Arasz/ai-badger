@@ -36,6 +36,7 @@ or `incidents/`. Kind is not a subject, and those five were tried and removed �
 | `2026-08-12-semantica-integration-plan-review-architect.md` | Architecture review of the integration plan: 9 findings (2 CRITICAL — broken `get_graph_analytics`, no import for exported graphs; 2 HIGH — state accumulation unverified, extraction degradation misattributed; 3 MEDIUM; 2 LOW). Verdict: APPROVE-WITH-FIXES. |
 | `2026-08-12-semantica-integration-plan-review-test.md` | Test-engineer review of the integration plan: 18 findings (5 HIGH — RED-GREEN cycle unenforceable, no sensitivity tests, missing `validate.py --all` in gate chain, evidence findings untested, dogfooding Scenario 2 impossible). Verdict: APPROVE-WITH-FIXES. |
 | `2026-08-12-semantica-integration-moe-synthesis.md` | Synthesis of both MoE reviews into 19 combined findings with remediation actions and an adjusted execution order (Scenario 0 first, Lane C RED before A+B, revised dogfooding scenarios). |
+| `2026-08-12-semantica-integration-part2-extraction-and-lifecycle.md` | Research and analysis record for semantica-integration-part2: evaluation of local extraction options (Option 2 Agent-Guided recommended vs Option 1 torch/transformers), process isolation mechanics (100% in-memory per stdio process), "no import" lifecycle consequences (exports are archival only), and complementarity rules vs AiRaccoon. |
 
 The first three are generated HTML forms rather than prose. They are kept because the form *is* the
 record: each carries its decisions verbatim, and the reviewer's verdicts were ingested from them.
