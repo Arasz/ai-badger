@@ -9,6 +9,16 @@
         "*"
       ]
     },
+    "semantica": {
+      "command": "python3",
+      "args": [
+        "-m",
+        "semantica.mcp_server"
+      ],
+      "tools": [
+        "*"
+      ]
+    },
     "hermes": {
       "command": "hermes",
       "args": [
@@ -21,16 +31,6 @@
     },
     "ai-raccoon": {
       "command": "ai-raccoon",
-      "tools": [
-        "*"
-      ]
-    },
-    "semantica": {
-      "command": "python3",
-      "args": [
-        "-m",
-        "semantica.mcp_server"
-      ],
       "tools": [
         "*"
       ]
