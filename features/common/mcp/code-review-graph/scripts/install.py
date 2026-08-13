@@ -83,6 +83,14 @@ def ensure_venv(target_dir: Path, py_exe: str) -> Path:
     return venv_py
 
 
+def ensure_pip(venv_py: Path) -> None:
+    """Ensure pip is available in venv_py."""
+    verify_pip = subprocess.run([str(venv_py), "-m", "pip", "--version"], capture_output=True, check=False)
+    if verify_pip.returncode != 0:
+        print(f"Bootstrapping pip in {venv_py} via ensurepip...")
+        subprocess.run([str(venv_py), "-m", "ensurepip", "--default-pip"], capture_output=True, check=False)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Install code-review-graph in target environment."""
     parser = argparse.ArgumentParser(description="Install code-review-graph MCP server.")
@@ -98,6 +106,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         venv_py = ensure_venv(target_dir, py_exe)
+        ensure_pip(venv_py)
         print(f"Installing code-review-graph using {venv_py}...")
 
         # Run pip install inside venv

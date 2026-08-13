@@ -24,10 +24,10 @@
     },
     {
       "name": "semantica",
-      "command": "python3 -m semantica.mcp_server",
+      "command": "semantica mcp start",
       "declare": true,
       "availability": {
-        "command": "python3"
+        "command": "semantica"
       }
     }
   ]
