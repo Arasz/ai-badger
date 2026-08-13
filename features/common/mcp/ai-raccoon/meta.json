@@ -7,6 +7,18 @@
   "prerequisite": {
     "summary": "the ai-raccoon global .NET tool",
     "check": "ai-raccoon --version",
-    "install": "dotnet tool install -g ai-raccoon"
+    "install": "dotnet tool install -g ai-raccoon",
+    "local": {
+      "summary": "Local .NET tool manifest installation",
+      "check": "dotnet tool run ai-raccoon --version",
+      "install": "dotnet tool install ai-raccoon --local",
+      "command": "dotnet tool install ai-raccoon --local"
+    },
+    "global": {
+      "summary": "Global .NET tool installation",
+      "check": "ai-raccoon --version",
+      "install": "dotnet tool install -g ai-raccoon",
+      "command": "dotnet tool install -g ai-raccoon"
+    }
   }
 }
