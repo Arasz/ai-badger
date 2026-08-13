@@ -2,11 +2,25 @@
   "$schema": "../../../../schemas/mcp-server.schema.json",
   "name": "semantica",
   "package": "semantica",
-  "description": "Graph-native knowledge graph infrastructure: entity extraction, relationship modeling, decision intelligence with W3C PROV-O provenance, causal reasoning, and ontology governance — served over MCP stdio.",
+  "description": "Graph-native knowledge graph infrastructure: entity extraction, relationship modeling, decision intelligence with W3C PROV-O provenance, causal reasoning, and ontology governance \u2014 served over MCP stdio.",
   "homepage": "https://github.com/semantica-agi/semantica",
   "prerequisite": {
     "summary": "Python 3.10+ virtual environment with semantica installed",
     "check": "python3 features/common/mcp/semantica/scripts/check.py",
-    "install": "python3 features/common/mcp/semantica/scripts/install.py"
+    "install": "python3 features/common/mcp/semantica/scripts/install.py",
+    "local": {
+      "summary": "Local virtual environment (.venv) using uv or python -m venv",
+      "check": "python3 features/common/mcp/semantica/scripts/check.py",
+      "install": "python3 features/common/mcp/semantica/scripts/install.py",
+      "uv": "uv venv .venv && uv pip install semantica",
+      "command": "python3 features/common/mcp/semantica/scripts/install.py --target ."
+    },
+    "global": {
+      "summary": "Global user-scoped tool install via uv tool install or pipx",
+      "check": "semantica --version",
+      "install": "uv tool install semantica",
+      "uv": "uv tool install semantica",
+      "command": "uv tool install semantica"
+    }
   }
 }

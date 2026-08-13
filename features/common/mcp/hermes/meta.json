@@ -7,7 +7,20 @@
   "prerequisite": {
     "summary": "the Hermes Agent CLI, which provides the `hermes mcp serve` command",
     "check": "hermes --version",
-    "install": "https://hermes-agent.nousresearch.com/docs/getting-started/installation"
+    "install": "https://hermes-agent.nousresearch.com/docs/getting-started/installation",
+    "local": {
+      "summary": "Hermes Agent CLI in local project environment",
+      "check": "hermes --version",
+      "install": "pip install hermes-agent",
+      "uv": "uv tool install hermes-agent",
+      "command": "pip install hermes-agent"
+    },
+    "global": {
+      "summary": "Global Hermes Agent CLI installation",
+      "check": "hermes --version",
+      "install": "https://hermes-agent.nousresearch.com/docs/getting-started/installation",
+      "uv": "uv tool install hermes-agent",
+      "command": "uv tool install hermes-agent"
+    }
   }
 }
-

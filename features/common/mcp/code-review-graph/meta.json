@@ -6,6 +6,20 @@
   "prerequisite": {
     "summary": "Python 3.10+ virtual environment with code-review-graph installed",
     "check": "python3 features/common/mcp/code-review-graph/scripts/check.py",
-    "install": "python3 features/common/mcp/code-review-graph/scripts/install.py"
+    "install": "python3 features/common/mcp/code-review-graph/scripts/install.py",
+    "local": {
+      "summary": "Local virtual environment (.venv) using uv or python -m venv",
+      "check": "python3 features/common/mcp/code-review-graph/scripts/check.py",
+      "install": "python3 features/common/mcp/code-review-graph/scripts/install.py",
+      "uv": "uv venv .venv && uv pip install code-review-graph",
+      "command": "python3 features/common/mcp/code-review-graph/scripts/install.py --target ."
+    },
+    "global": {
+      "summary": "Global user-scoped tool install via uv tool install or pipx",
+      "check": "code-review-graph --version",
+      "install": "uv tool install code-review-graph",
+      "uv": "uv tool install code-review-graph",
+      "command": "uv tool install code-review-graph"
+    }
   }
 }
