@@ -41,6 +41,7 @@ or `incidents/`. Kind is not a subject, and those five were tried and removed â€
 | `2026-08-12-semantica-export-hook-and-watch-plan-review-architect.md` | Architecture review of the export hook plan (architect subagent): 3 findings (tempfile process-isolation, soft exit 0, template validation), verdict APPROVE-WITH-FIXES. |
 | `2026-08-12-semantica-export-hook-and-watch-plan-review-test.md` | Test engineer review of the export hook plan (test-engineer subagent): 3 findings (hyphenated import spec, sensitivity tests, gate chain), verdict APPROVE-WITH-FIXES. |
 | `2026-08-12-semantica-export-hook-and-watch-moe-synthesis.md` | MoE synthesis record for the export hook and watch bridge plan: consensus APPROVED with all 5 findings remediated and verified. |
+| `2026-08-12-semantica-live-integration-test-report.md` | Manual live end-to-end integration test report: 6-node graph payload construction, export_semantica_graph.py execution, ai-raccoon watch bridge registration, SQLite memory.db ingestion, and live memory_search queries with high-score recall. |
 
 The first three are generated HTML forms rather than prose. They are kept because the form *is* the
 record: each carries its decisions verbatim, and the reviewer's verdicts were ingested from them.
