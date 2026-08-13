@@ -422,7 +422,7 @@ declared when `ai-raccoon` is on PATH. Install it with
 [`SKILL.md`](../features/common/skills/semantica-knowledge-graph/SKILL.md)
 
 **What it is.** Semantica (MIT, v0.6.5+) is a session-scoped knowledge graph MCP server
-(`python3 -m semantica.mcp_server`). It records decisions with W3C PROV-O provenance,
+(`semantica mcp start`). It records decisions with W3C PROV-O provenance,
 extracts entities and relations from text, traces causal chains, and runs forward-chaining
 reasoning over an in-memory graph that accumulates across tool calls within a session.
 

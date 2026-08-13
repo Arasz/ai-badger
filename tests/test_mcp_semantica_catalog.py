@@ -167,7 +167,7 @@ def test_semantica_stack_entry_has_required_fields():
         (ROOT / "features/common/stack-mcp.json").read_text(encoding="utf-8")
     )
     sem = next(s for s in stack["servers"] if s["name"] == "semantica")
-    assert sem.get("command") == "python3 -m semantica.mcp_server"
+    assert sem.get("command") == "semantica mcp start"
     assert sem.get("declare") is True
 
 

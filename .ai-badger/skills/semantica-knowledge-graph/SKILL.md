@@ -1,0 +1,78 @@
+---
+name: semantica-knowledge-graph
+description: >-
+  Use when reasoning over structured project knowledge — record decisions with provenance,
+  trace causal chains, extract entities from conversations, or run graph analytics.
+  Complements AiRaccoon memory (recall) with structured reasoning (connections and causality).
+version: 0.1.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
+scope: default
+metadata:
+  hermes:
+    tags: [knowledge-graph, decision-tracking, causal-reasoning, provenance]
+    related_skills: [ai-raccoon-memory, mcp-index, hermes-mcp-setup]
+---
+
+# semantica-knowledge-graph
+
+Semantica is a session-scoped knowledge graph MCP server (MIT, v0.6.5+). Every MCP invocation shares one in-memory graph — entities, relationships, and decisions accumulate within a session but do not survive a process restart.
+
+## When NOT to Use
+
+- A one-off fact lookup — use `memory_search` (AiRaccoon) first.
+- No decision or extraction needed — skip graph ceremony.
+- Durable facts outliving the session — write to AiRaccoon (`memory_write`).
+
+## Workflows
+
+### 1. Decision recording
+1. `record_decision(category="...", scenario="...", reasoning="...", outcome="...", confidence=0.85)`
+2. `add_entity` for key concepts
+3. `add_relationship(source="...", target="...", relationship_type="...")`
+4. Cite decision id in commits or PRs for traceability
+
+### 2. Entity extraction
+- **Option 2 (Agent-Guided — Primary)**: Use LLM reasoning to extract domain concepts and call `add_entity` + `add_relationship`. Zero extra dependencies, instantaneous, zero cold-start.
+- **For Code Structures**: Use `code-review-graph` MCP tools (`semantic_search_nodes_tool`, `find_callers`, `find_dependents`) for code symbol graphs.
+- **Option 1 (Native Local ML)**: Optional `extract_entities` / `extract_relations` via PyTorch/HuggingFace (`pip install torch transformers`). Degrades if ML deps missing.
+- Verify with `get_graph_summary()`.
+
+### 3. Decision archaeology
+1. `query_decisions(query="keyword")` → find decisions
+2. `get_causal_chain(decision_id="...")` → trace ancestry
+3. `find_precedents(scenario="...")` → check prior patterns
+
+### 4. Graph export & AiRaccoon persistence pattern
+To prevent data loss from Semantica's ephemeral in-memory process:
+1. **Export as a hook / procedure**: Call `export_graph(format="json")` and save to `.ai-raccoon/semantica-graph.json`.
+2. **Watch via AiRaccoon**: Register `memory_watch_add(project_id="...", path="<path>/semantica-graph.json")`.
+3. **Structural JSON Integration**: AiRaccoon automatically ingests the JSON file, parses node/edge hierarchies and decision outcomes, and embeds them into AiRaccoon's persistent SQLite memory bank (`memory.db`).
+4. **Cross-Session Retrieval**: In future sessions, `memory_search` in AiRaccoon returns both textual decision rationale AND exact structural JSON graph relations.
+
+## Escalation by result
+
+- **Graph empty** → `get_graph_summary` returns zero nodes; record decision or entities first
+- **No precedent** → record decision now so it becomes a precedent for next time
+- **Causal chain incomplete** → add missing intermediate entities/relationships, re-query
+
+## AiRaccoon complementarity
+
+- AiRaccoon (`memory_search`): "what do we know?" — semantic recall over indexed docs
+- Semantica (`query_decisions`): "how are things connected?" — structured reasoning over graph
+- Durable facts → `memory_write` (AiRaccoon); ephemeral causal reasoning → Semantica
+
+## Gotchas
+
+- **Session-scoped only**: in-memory graph dies on process exit. No `import_graph` mechanism exists.
+- **Extraction ML deps**: `extract_entities` needs `torch` + `transformers`, not LLM API keys.
+- **Parameter names**: `add_relationship` uses `source`/`target`, not `source_id`/`target_id`.
+- **Known issue**: `get_graph_analytics` unavailable in 0.6.5 — use `get_graph_summary`.
+
+## Verification Checklist
+
+- [ ] `get_graph_summary` returns node/edge counts reflecting session activity
+- [ ] At least one decision recorded and findable via `query_decisions`
+- [ ] AiRaccoon `memory_search` and Semantica `query_decisions` return complementary results
+- [ ] `export_graph` produces valid JSON snapshot for AiRaccoon watch ingestion

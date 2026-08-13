@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.116.6 | [Semantica MCP Command Alignment](0.116.6-semantica-mcp-command-fix.md) |
 | 0.116.5 | [Code-Review-Graph MCP Scripts & Smart .venv Stack Detection](0.116.5-code-review-graph-mcp-scripts.md) |
 | 0.116.4 | [Semantica Export Hook & Schema Distribution](0.116.4-semantica-export-hook-and-schema-distribution.md) |
 | 0.116.3 | [Semantica MCP Server + Integration Skill](0.116.3-semantica-integration.md) |
