@@ -258,3 +258,15 @@ def test_debug_logging_is_noop_when_unavailable(tmp_path, load_script, monkeypat
 
     rc = _call_main(hook, monkeypatch, {"prompt": "h: check the cache", "cwd": str(tmp_path)})
     assert rc == 0
+
+
+def test_queue_and_important_markers_are_detected(load_script):
+    """Canonical markers-context.json defines q:/queue: and i!:/important!: markers."""
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    markers = hook.load_markers_context().get("markers", [])
+
+    q_match = hook.match_marker("q: run this after current work", markers)
+    assert q_match is not None and q_match[0]["id"] == "queue"
+
+    imp_match = hook.match_marker("i!: stop everything now", markers)
+    assert imp_match is not None and imp_match[0]["id"] == "important"

@@ -242,6 +242,11 @@
           "scope": "default"
         },
         {
+          "name": "humanizer",
+          "path": "features/common/skills/humanizer",
+          "scope": "default"
+        },
+        {
           "name": "maintain-agent-instructions",
           "path": "features/common/skills/maintain-agent-instructions",
           "scope": "default"

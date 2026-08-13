@@ -1,17 +1,17 @@
 # Skills
 
-This page catalogs 38 skills — everything under `features/common/skills/` and
+This page catalogs 39 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-37 live under `features/common/skills/` and split by the `scope:` each declares in its own
+38 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**15 are `default`** and arrive in every scaffolded project without being asked for, and
+**16 are `default`** and arrive in every scaffolded project without being asked for, and
 **22 are `optIn`** — catalogued, but written only when a project names them. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 37 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **53** files:
-the 38 above plus 15 more that belong to a single stack and arrive only with it — 11 under
+**These 38 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **54** files:
+the 39 above plus 15 more that belong to a single stack and arrive only with it — 11 under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/` and 1 under `features/mcp/skills/`.
 Those 15 have no row below and are documented by their own `SKILL.md`. Derive the number rather
 than trusting this sentence: `python3 gates/skills_lint.py` prints how many `SKILL.md` files the
@@ -68,6 +68,7 @@ names it, **claude-only** when the stack decides.
 | [welcome-ai-badger](#welcome-ai-badger) | Scaffold `.ai-badger/` into a repo for the first time | default | by name |
 | [den-refresh](#den-refresh) | Pull framework updates into an already-scaffolded repo | default | by name |
 | [feed-badger](#feed-badger) | Contribute project-agnostic improvements back to the catalog | default | by name |
+| [humanizer](#humanizer) | Strip AI writing artifacts, apply research-grounded humanization levers, and adopt a natural voice | default | by name |
 | [task](#task) | Run one backlog task end to end with model delegation | default | by name (`/task <id>`) |
 | [create-task-spec](#create-task-spec) | Interrogate an idea into a Gherkin specification plus a manifest `task` consumes | default | by name |
 | [owner-gate-review](#owner-gate-review) | Turn a document's open decisions into a per-decision review form | default | by name |
@@ -160,6 +161,16 @@ PR (`git` branch/commit/push plus `gh pr create --draft`).
 
 **When to use it.** Something learned in this repo — a new skill, persona, invariant,
 instruction, or fix — is project-agnostic and worth contributing back.
+
+### humanizer
+
+[`SKILL.md`](../features/common/skills/humanizer/SKILL.md)
+
+**What it is.** Anti-AI writing and natural voice editing skill grounded in empirical text detection research.
+
+**What it does.** Applies 9 humanization levers (burstiness injection, anti-vocabulary/n-gram purge, zero em-dash rule, active clause conversion, structural flattening, specificity insertion) and a two-pass self-audit protocol to make AI-generated or edited prose sound natural, human, and direct.
+
+**When to use it.** Writing or editing documentation, READMEs, tutorials, how-tos, release notes, or PR descriptions.
 
 ---
 

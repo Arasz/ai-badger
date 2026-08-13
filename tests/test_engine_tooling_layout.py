@@ -11,7 +11,7 @@ from conftest import _test_write
 
 ENGINE_MODULES = ("badger_lib.py", "frontmatter.py", "framework_copies.py",
                   "unsafe_literals.py")
-TOOLING_SCRIPTS = ("changelog_index.py", "fixture_harvest.py", "index_build.py",
+TOOLING_SCRIPTS = ("changelog_index.py", "convert_mcp_prerequisites.py", "fixture_harvest.py", "index_build.py",
                    "install_plugins.py", "retrieval_eval.py", "sync_plugin_skills.py",
                    "validate.py", "version_sync.py")
 

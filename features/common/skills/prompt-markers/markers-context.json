@@ -17,6 +17,18 @@
       "prefixes": ["e:", "extension:"],
       "behavior": "scope-extension",
       "inject": "EXTENSION: The user is extending the current task's scope. Analyze this new requirement. Try to incorporate it into the current unit of work if it fits, or suggest splitting it into a follow-up task if it's too large."
+    },
+    {
+      "id": "queue",
+      "prefixes": ["q:", "queue:"],
+      "behavior": "queued-task",
+      "inject": "QUEUED TASK: The user has provided a task to queue for execution after completing your current work. Finish your active task first. Once finished, analyze and execute this queued instruction, incorporating context from all prior work."
+    },
+    {
+      "id": "important",
+      "prefixes": ["i!:", "important!:"],
+      "behavior": "immediate-interrupt",
+      "inject": "IMPORTANT / INTERRUPT: STOP IMMEDIATELY. Pause or cancel any running commands, background processes, or ongoing subtasks. Read this message carefully and react to it immediately before resuming or doing anything else."
     }
   ]
 }
