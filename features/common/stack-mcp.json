@@ -24,10 +24,10 @@
     },
     {
       "name": "semantica",
-      "command": "semantica mcp start",
+      "command": "semantica-mcp",
       "declare": true,
       "availability": {
-        "command": "semantica"
+        "command": "semantica-mcp"
       }
     }
   ]
