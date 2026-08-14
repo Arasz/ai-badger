@@ -1,0 +1,5 @@
+{
+  "skill": "complete-project-scope-code-review",
+  "extension": "github",
+  "requires": ["sourceControl.platform==github", "sourceControl.repoUrl"]
+}

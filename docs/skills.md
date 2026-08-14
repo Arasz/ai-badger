@@ -10,10 +10,10 @@ This page catalogs 39 skills — everything under `features/common/skills/` and
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 38 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **54** files:
-the 39 above plus 15 more that belong to a single stack and arrive only with it — 11 under
+**These 38 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **53** files:
+the 39 above plus 14 more that belong to a single stack and arrive only with it — 11 under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/` and 1 under `features/mcp/skills/`.
-Those 15 have no row below and are documented by their own `SKILL.md`. Derive the number rather
+Those 14 have no row below and are documented by their own `SKILL.md`. Derive the number rather
 than trusting this sentence: `python3 gates/skills_lint.py` prints how many `SKILL.md` files the
 catalog holds.
 
@@ -92,7 +92,7 @@ names it, **claude-only** when the stack decides.
 | [evidence-first-research](#evidence-first-research) | Produce a dated research record whose findings are graded by how they are known | opt-in | by name |
 | [research-record-audit](#research-record-audit) | Re-derive a written record's claims from its cited sources | opt-in | by name |
 | [multi-lane-report-assembly](#multi-lane-report-assembly) | Assemble parallel research or review lanes into one evidence-graded record | opt-in | by name |
-| [parallel-expert-review](#parallel-expert-review) | Review a change through an architect and a domain engineer in parallel | opt-in | by name |
+| [complete-project-scope-code-review](#complete-project-scope-code-review) | Review a whole project through parallel expert lanes, an adversarial pass, and a waved plan | opt-in | by name |
 | [code-review-evidence](#code-review-evidence) | Catch claims about wrapped libraries and tests that assert their own input | opt-in | by name |
 | [review-gate-diff-verification](#review-gate-diff-verification) | Establish a branch diff's true base before a gate judges it | opt-in | by name |
 | [design-gate-audit](#design-gate-audit) | Audit a design doc's acceptance gates before anyone builds against them | opt-in | by name |
@@ -586,17 +586,27 @@ dedupes cross-cutting themes, and renumbers with a pass over the stale cross-ref
 **When to use it.** Two or more dispatched lanes have each returned graded finding blocks that
 have to become a single deliverable a strict renderer will parse.
 
-### parallel-expert-review
+### complete-project-scope-code-review
 
-[`SKILL.md`](../features/common/skills/parallel-expert-review/SKILL.md)
+[`SKILL.md`](../features/common/skills/complete-project-scope-code-review/SKILL.md)
 
-**What it is.** Reviews a change or a plan through two subagents at once — an architect on
-structure, composition, naming and separation, and a domain engineer on idiomatic patterns,
-correctness and edge cases — then integrates the two. Disagreements are resolved on evidence,
-not on which agent argued harder.
+**What it is.** A review campaign for a whole codebase rather than a diff. It measures a
+ground-truth baseline, derives its lane roster from the repository instead of a fixed list,
+dispatches read-only expert lanes on the evidence-first grade contract, integrates them, then
+runs an adversarial pass whose job is to falsify the record and publish what it refuted.
+Severity is calibrated against the live system — a defect that has never fired is real but is
+not a hotfix — and the plan that follows is itself reviewed twice before anyone builds. Its
+`references/` carry the eight failure modes it exists to catch: circular benchmarks, vacuous
+gates, specifications that encode the defect, join defects, in-sample numbers, findings that
+turn out to be refutations, silent ratchets, and expectations pinned where they should be
+derived. Stack, agent and platform specifics arrive from config-gated extensions.
 
-**When to use it.** A PR review with architecture concerns, a pre-refactor assessment, or a plan
-review where structure and implementation both carry risk.
+**When to use it.** The whole project is the target and the findings will become work someone
+implements. For one diff, use `review-changes` with `code-review-checklist`; for one design
+document's gates, `design-gate-audit`.
+
+**Replaces `parallel-expert-review`,** whose lane-dispatch job is this skill's Phase 1 and whose
+plan-review variant is its Phase 5.
 
 ### code-review-evidence
 

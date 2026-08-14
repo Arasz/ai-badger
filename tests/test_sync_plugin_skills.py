@@ -341,9 +341,10 @@ class TestCatalogRouting:
         not default — they must never silently ship to every scaffolded project."""
         bl = load_script("engine/badger_lib.py")
 
-        for name in ("artifact-verification", "code-review-evidence", "design-gate-audit",
+        for name in ("artifact-verification", "code-review-evidence",
+                     "complete-project-scope-code-review", "design-gate-audit",
                      "documentation-drift-audit", "multi-lane-report-assembly",
-                     "parallel-expert-review", "pre-push-gate-debugging",
+                     "pre-push-gate-debugging",
                      "research-record-audit", "review-gate-diff-verification",
                      "scripts-tooling-refactor", "spec-driven-refactoring",
                      "sqlite-bank-space-diagnosis", "sqlite-schema-review",
