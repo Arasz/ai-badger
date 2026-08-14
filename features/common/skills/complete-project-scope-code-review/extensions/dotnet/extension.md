@@ -5,7 +5,7 @@ skill's stack-neutral steps to .NET.
 
 **Activates when:** `.ai-badger/config.json` lists `dotnet` in `stacks`.
 
-## dotnet: ground truth and lane tooling
+## @stack: dotnet: ground truth and lane tooling
 
 **Phase 0 baseline.** Run `commands.build` and `commands.test` from config and record the exact
 counts — a .NET suite reports `passed / failed / skipped` and a duration, and all four numbers
@@ -33,7 +33,7 @@ project reference graph, and whether the domain project has any package referenc
   tracing every hit has filed a number, not a finding.
 - MSBuild binlog tooling when the build itself is the suspect.
 
-## dotnet: traps that produced real join defects
+## @stack: dotnet: traps that produced real join defects
 
 **Default interface members do not participate in derived-class dispatch.** Adding a member to an
 interface as a DIM is the standard way to avoid touching every fake — and it is exactly what makes
@@ -76,7 +76,7 @@ different thing and are fine.
 it created is being removed — the step still runs on existing databases. Leave it as a historical
 no-op and add a new step.
 
-## dotnet: the deletion package
+## @stack: dotnet: the deletion package
 
 Whole-project reviews on .NET codebases routinely find that the highest-leverage change is
 deletion. Two rules learned the hard way:

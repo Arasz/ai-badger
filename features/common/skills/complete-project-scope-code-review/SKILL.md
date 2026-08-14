@@ -256,6 +256,8 @@ Each of these happened, most more than once. They are the reason for the phases 
    or it is a second source of truth that drifts silently. A hand-maintained copy is a defect with
    a delay fuse.
 
+<!-- EXT:stack -->
+
 ## Gotchas
 
 - **The base moves under you.** If the trunk merges during the review, the squashed result can

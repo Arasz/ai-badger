@@ -4,7 +4,7 @@ This is a **config-gated extension** of the base skill, not a standalone skill.
 
 **Activates when:** `sourceControl.platform == "github"` and `sourceControl.repoUrl` is set.
 
-## github: the campaign branch and its PR
+## @stack: github: the campaign branch and its PR
 
 A project-scope review produces one long-lived **campaign branch** off the default branch, with
 each work package merged into it from its own lane branch. That shape — rather than one PR per
@@ -18,7 +18,7 @@ joins happen somewhere you control before anything reaches the trunk.
   amending the entry ships unrecorded under a number that claims to describe it.
 - Never push to the default branch.
 
-## github: integrating a base that moves under you
+## @stack: github: integrating a base that moves under you
 
 The default branch will move during a campaign this long. That is the single most productive
 source of join defects, and it needs treating as a merge to review rather than a chore.
@@ -43,7 +43,7 @@ the build will not catch:
 Diff each resolved file against **both** parents afterwards and account for every line that
 disappeared. Then run the affected suites, not just the build.
 
-## github: review rounds and merge
+## @stack: github: review rounds and merge
 
 If the project uses an automated reviewer, run the campaign PR through it once per wave rather than
 once at the end — a 40-file wave gets a useful review, a 400-file campaign does not. Triage a whole
@@ -57,7 +57,7 @@ it. A resolved-in-code thread left open is indistinguishable from an ignored one
 Squash-merge the campaign once a review round returns with no new findings since the last pushed
 commit and the merged-tree gates are green.
 
-## github: workflow findings the review should file
+## @stack: github: workflow findings the review should file
 
 A project-scope review is the right moment to check the CI definition itself, because nothing else
 ever does:

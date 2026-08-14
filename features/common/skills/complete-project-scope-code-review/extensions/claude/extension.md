@@ -5,7 +5,7 @@ lanes and roles; this binds them to Claude's dispatch mechanics.
 
 **Activates when:** `.ai-badger/config.json` lists `claude` in `agents`.
 
-## claude: which model runs which lane
+## @stack: claude: which model runs which lane
 
 The base skill's lanes split cleanly into two cost tiers, and the split is the largest lever in a
 campaign this size.
@@ -27,7 +27,7 @@ The seven-lane session this skill comes from ran three Opus lanes and four Sonne
 Opus adversarial pass. The adversarial pass is the one to never economise on: it refuted or
 corrected six claims that would otherwise have driven implementation.
 
-## claude: isolation, and the hazards that travel with it
+## @stack: claude: isolation, and the hazards that travel with it
 
 Every lane gets **its own worktree** and **its own workspace id** in any shared notes or memory
 store. Use the Agent tool's own isolation rather than creating worktrees by hand — a manual step
@@ -48,7 +48,7 @@ squash-merged from outside the session.
 widens without bound starves the work already running, and lane failures at depth three are
 invisible.
 
-## claude: reading a lane's real output
+## @stack: claude: reading a lane's real output
 
 Subagent transcripts are written beside the session's, not inside it, at
 `<transcript-dir>/<session-id>/subagents/agent-<id>.jsonl` with a paired `agent-<id>.meta.json`
@@ -65,7 +65,7 @@ mostly `general-purpose` is not routing to the project's personas whatever the c
 includes `CLAUDE.md` and the project's state file; rewriting them mid-campaign turns every
 subsequent lane's cache read into a fresh write. Update them between phases, not during one.
 
-## claude: the review documents are the artefact
+## @stack: claude: the review documents are the artefact
 
 A campaign this long outlives its session. Write the integrated review, the plan and its revisions
 into the project's docs tree as you go, and put the integration reasoning into merge commit
