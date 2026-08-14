@@ -125,6 +125,43 @@ def test_non_edit_tool_never_calls_git_or_writes_pending(
     assert not pending_file.exists()
 
 
+def test_non_edit_tool_writes_no_commit_reminder_audit_record(
+        tmp_path, monkeypatch, hooks, pending_file, fake_commit_reminder):
+    """The skip branch fired on every non-edit tool call and flooded the audit log.
+
+    Measured 2026-08-14: 3404 records, 68.1% of a 5000-record log, evicting every
+    other component's evidence from the window.
+    """
+    seen = []
+    monkeypatch.setattr(hooks, "_debug",
+                        lambda component, event, **f: seen.append((component, event, f)))
+
+    hooks.post_tool_observer(tool_name="terminal", result="ok", duration_ms=3,
+                             cwd=str(tmp_path))
+
+    assert [s for s in seen if s[0] == "ai_badger_hooks/commit_reminder"] == []
+
+
+def test_commit_reminder_audit_records_always_name_their_project(
+        tmp_path, monkeypatch, hooks, pending_file, fake_commit_reminder,
+        fake_impact_estimator):
+    """A record naming no project belongs to no project and is dropped from every analysis.
+
+    3014 of 3404 records carried no `project` — 100% of the log's unattributed total.
+    """
+    seen = []
+    monkeypatch.setattr(hooks, "_debug",
+                        lambda component, event, **f: seen.append((component, event, f)))
+
+    hooks.post_tool_observer(tool_name="Edit", result="ok", duration_ms=3,
+                             cwd=str(tmp_path))
+
+    records = [s for s in seen if s[0] == "ai_badger_hooks/commit_reminder"]
+    assert records, "an edit tool must still be recorded"
+    for _component, event, fields in records:
+        assert fields.get("project"), f"{event} record names no project: {fields}"
+
+
 def test_post_tool_observer_is_inert_without_commit_reminder_module(
         tmp_path, monkeypatch, hooks, pending_file):
     monkeypatch.setattr(hooks, "_load_commit_reminder", lambda: None)
