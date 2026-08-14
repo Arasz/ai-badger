@@ -131,6 +131,47 @@ class TestTheCwdIsPartOfTheIsolationFloor:
             f"the cwd walk found a project root at {resolved} instead of falling through"
 
 
+class TestNoHookCanWriteTheRealErrorLog:
+    """The other half of B7: the guard above reports a leak, this stops one happening.
+
+    Every hook wraps its body in a bare `except Exception` that appends to
+    `Path.home() / ".ai-badger" / "hook-errors.log"` and exits 0, and several tests raise
+    inside a hook on purpose — `test_registration_failure_does_not_block_the_prompt` alone
+    accounts for 227 of the 241 historical entries. What keeps those writes out of the
+    operator's log is that `$HOME` is redirected before any hook module is loaded, and until
+    now nothing asserted that.
+
+    The hook list is derived, not written down: a new hook that spells the path itself is
+    covered the day it lands.
+    """
+
+    @staticmethod
+    def _hooks_that_write_the_log():
+        found = [p for p in (REAL_PROJECT_ROOT / "features").rglob("*.py")
+                 if "HOOK_ERRORS_FILE" in p.read_text(encoding="utf-8", errors="ignore")]
+        assert found, "no hook defines HOOK_ERRORS_FILE — this guard is watching nothing"
+        return found
+
+    def test_every_hook_resolves_its_error_log_away_from_the_real_home(self, load_script):
+        offenders = []
+        for path in self._hooks_that_write_the_log():
+            rel = path.relative_to(REAL_PROJECT_ROOT).as_posix()
+            target = getattr(load_script(rel), "HOOK_ERRORS_FILE", None)
+            if target is None or REAL_HOME in Path(target).parents:
+                offenders.append(f"{rel} -> {target}")
+        assert not offenders, (
+            "these hooks would append a swallowed exception to the operator's real log:\n  "
+            + "\n  ".join(offenders))
+
+    def test_the_redirected_home_is_where_they_land(self, load_script):
+        """Paired with the case above: proves the assertion is about redirection, not absence."""
+        hook = load_script(
+            self._hooks_that_write_the_log()[0].relative_to(REAL_PROJECT_ROOT).as_posix())
+
+        assert Path.home() in hook.HOOK_ERRORS_FILE.parents
+        assert Path.home() != REAL_HOME, "the session $HOME redirect is not in effect"
+
+
 class TestTheRealHookErrorLogIsSurfaced:
     """241 swallowed hook exceptions accumulated in `~/.ai-badger/hook-errors.log` unread (B7)."""
 
