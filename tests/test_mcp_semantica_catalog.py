@@ -167,8 +167,22 @@ def test_semantica_stack_entry_has_required_fields():
         (ROOT / "features/common/stack-mcp.json").read_text(encoding="utf-8")
     )
     sem = next(s for s in stack["servers"] if s["name"] == "semantica")
-    assert sem.get("command") == "semantica mcp start"
+    assert sem.get("command") == "semantica-mcp"
     assert sem.get("declare") is True
+
+
+def test_semantica_command_is_not_the_daemonising_cli_subcommand():
+    """`semantica mcp start` must never be the launch command.
+
+    It spawns `python -m mcp.server` (the MCP SDK's empty stub, which hardcodes the
+    trio backend) and daemonises via Popen — so it serves no semantica tools and
+    cannot speak stdio. See docs/changelog/0.117.1-semantica-mcp-launch-fix.md.
+    """
+    stack = json.loads(
+        (ROOT / "features/common/stack-mcp.json").read_text(encoding="utf-8")
+    )
+    sem = next(s for s in stack["servers"] if s["name"] == "semantica")
+    assert "mcp start" not in sem.get("command", "")
 
 
 # ── validate.py integration ─────────────────────────────────────────────────

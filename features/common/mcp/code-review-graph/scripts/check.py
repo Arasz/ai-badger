@@ -42,6 +42,24 @@ def find_crg_executable(target: Path | None = None) -> str | None:
     return None
 
 
+def can_serve(exe: str) -> bool:
+    """Report whether `exe serve` can actually start the MCP server.
+
+    `--version` stays green when a co-installed mcp>=2 clobbers fastmcp, so the
+    only honest probe is the serve entrypoint itself: with stdin at EOF it exits
+    0 when healthy and non-zero on the import failure.
+    """
+    try:
+        with open(os.devnull, "rb") as devnull:
+            res = subprocess.run(
+                [exe, "serve"], stdin=devnull, capture_output=True,
+                text=True, timeout=60, check=False,
+            )
+        return res.returncode == 0
+    except (subprocess.SubprocessError, OSError):
+        return False
+
+
 def can_import_crg() -> bool:
     """Check if code_review_graph is importable by current Python."""
     try:
@@ -63,13 +81,16 @@ def main(argv: list[str] | None = None) -> int:
 
     exe = find_crg_executable(target_dir)
     if exe:
-        try:
-            res = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=5, check=False)
-            if res.returncode == 0:
-                print(f"code-review-graph ready: {res.stdout.strip() or exe}")
-                return 0
-        except (subprocess.SubprocessError, OSError):
-            pass
+        if can_serve(exe):
+            print(f"code-review-graph ready: {exe}")
+            return 0
+        print(
+            f"code-review-graph at {exe} is installed but cannot serve. Most often a "
+            "co-installed mcp>=2 has broken fastmcp (code-review-graph requires mcp<2); "
+            "reinstall it into an environment of its own.",
+            file=sys.stderr,
+        )
+        return 1
 
     if can_import_crg():
         print("code-review-graph importable in Python environment")

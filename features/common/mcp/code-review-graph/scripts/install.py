@@ -56,6 +56,28 @@ def find_suitable_python() -> str | None:
     return None
 
 
+def find_uv() -> str | None:
+    """Return the uv executable if it is on PATH."""
+    return shutil.which("uv")
+
+
+def verify_serves(exe: Path | str) -> bool:
+    """Report whether `exe serve` can actually start the MCP server.
+
+    The executable existing proves nothing: a co-installed mcp>=2 clobbers
+    fastmcp and leaves the CLI working while `serve` dies on import.
+    """
+    try:
+        with open(os.devnull, "rb") as devnull:
+            res = subprocess.run(
+                [str(exe), "serve"], stdin=devnull, capture_output=True,
+                text=True, timeout=60, check=False,
+            )
+        return res.returncode == 0
+    except (subprocess.SubprocessError, OSError):
+        return False
+
+
 def get_venv_python(venv_dir: Path) -> Path:
     """Return path to python binary inside venv_dir."""
     if os.name == "nt":
@@ -106,29 +128,41 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         venv_py = ensure_venv(target_dir, py_exe)
-        ensure_pip(venv_py)
-        print(f"Installing code-review-graph using {venv_py}...")
+        uv_exe = find_uv()
 
-        # Run pip install inside venv
-        cmd = [str(venv_py), "-m", "pip", "install", "--upgrade", "code-review-graph"]
+        # uv resolves the full dependency set in one pass; pip is the fallback.
+        if uv_exe:
+            print(f"Installing code-review-graph with uv into {venv_py.parent.parent}...")
+            cmd = [uv_exe, "pip", "install", "--upgrade",
+                   "--python", str(venv_py), "code-review-graph"]
+        else:
+            ensure_pip(venv_py)
+            print(f"Installing code-review-graph using {venv_py}...")
+            cmd = [str(venv_py), "-m", "pip", "install", "--upgrade", "code-review-graph"]
+
         res = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if res.returncode != 0:
-            print(f"ERROR: pip install failed:\n{res.stderr}", file=sys.stderr)
+            print(f"ERROR: install failed:\n{res.stderr}", file=sys.stderr)
             return 1
 
         crg_exe = get_venv_crg(target_dir / ".venv")
-        if crg_exe.exists():
-            print(f"SUCCESS: code-review-graph installed at {crg_exe}")
-            return 0
+        if not crg_exe.exists():
+            print("ERROR: Installation finished but no code-review-graph executable was produced.", file=sys.stderr)
+            return 1
 
-        # Fallback check via venv python -m code_review_graph
-        verify_res = subprocess.run([str(venv_py), "-c", "import code_review_graph"], capture_output=True, check=False)
-        if verify_res.returncode == 0:
-            print("SUCCESS: code-review-graph module installed in venv.")
-            return 0
+        if not verify_serves(crg_exe):
+            print(
+                f"ERROR: {crg_exe} was installed but cannot serve. code-review-graph "
+                "requires mcp<2; if this environment also holds a package that pulls "
+                "mcp>=2 (semantica, for one), fastmcp breaks and the MCP server will "
+                "not connect. Give code-review-graph an environment of its own — "
+                "`uv tool install code-review-graph`.",
+                file=sys.stderr,
+            )
+            return 1
 
-        print("ERROR: Installation finished but code-review-graph could not be verified.", file=sys.stderr)
-        return 1
+        print(f"SUCCESS: code-review-graph installed at {crg_exe} and verified to serve.")
+        return 0
 
     except Exception as ex:  # pylint: disable=broad-exception-caught
         print(f"ERROR: Failed to install code-review-graph: {ex}", file=sys.stderr)
