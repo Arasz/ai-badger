@@ -616,6 +616,18 @@ def cmd_update(target: str, from_json: Optional[str] = None,
     return 0
 
 
+def _split_tool_ref(tool_ref: str) -> tuple[str, str]:
+    """Split `server:tool` on the LAST colon, so a decorated server name survives.
+
+    `claude mcp list` decorates a plugin-provided server as `plugin:<plugin>:<server>`, and
+    splitting on the first colon resolved that to a server literally named `plugin` — every
+    tag/intent call against a plugin server failed with "server 'plugin' not found". A tool
+    name never contains a colon, so the last one is always the separator.
+    """
+    server_name, _, tool_name = tool_ref.rpartition(":")
+    return server_name, tool_name
+
+
 def cmd_tag(target: str, tool_ref: str, tags: list[str]) -> int:
     """Set tags for a specific tool."""
     if not tags:
@@ -647,7 +659,7 @@ def cmd_tag(target: str, tool_ref: str, tags: list[str]) -> int:
         )
         return 2
 
-    server_name, tool_name = tool_ref.split(":", 1)
+    server_name, tool_name = _split_tool_ref(tool_ref)
     for source in index.get("sources", []):
         if source["name"] == server_name:
             if tool_name in source["tools"]:
@@ -696,7 +708,7 @@ def cmd_intent(target: str, tool_ref: str, intent: str) -> int:
         )
         return 2
 
-    server_name, tool_name = tool_ref.split(":", 1)
+    server_name, tool_name = _split_tool_ref(tool_ref)
     for source in index.get("sources", []):
         if source["name"] == server_name:
             if tool_name in source["tools"]:
