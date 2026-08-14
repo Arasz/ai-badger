@@ -341,6 +341,41 @@ def test_tag_fails_on_unknown_tool(tmp_path, load_script):
     assert rc != 0
 
 
+def test_tag_addresses_a_plugin_decorated_server(tmp_path, load_script):
+    """A `plugin:<plugin>:<server>` name is the server, not a server called `plugin`."""
+    _write_index(tmp_path, {
+        "version": "0.1.0",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "sources": [{
+            "name": "plugin:terraform:terraform",
+            "tools": {
+                "list_workspaces": {"tags": ["general"], "intent": "A tool"},
+            },
+        }],
+    })
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    rc = mod.main(["tag", "plugin:terraform:terraform:list_workspaces", "read", "search",
+                   "--target", str(tmp_path)])
+    assert rc == 0
+
+    tool = _read_index(tmp_path)["sources"][0]["tools"]["list_workspaces"]
+    assert set(tool["tags"]) == {"read", "search"}
+    assert tool["origin"] == "manual"
+
+
+def test_tag_names_the_whole_server_when_it_is_absent(tmp_path, load_script, capsys):
+    """The 'not found' message must name the server asked for, not its first segment."""
+    _write_index(tmp_path, {
+        "version": "0.1.0",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "sources": [{"name": "rider", "tools": {}}],
+    })
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    rc = mod.main(["tag", "plugin:nope:nope:some_tool", "read", "--target", str(tmp_path)])
+    assert rc != 0
+    assert "plugin:nope:nope" in capsys.readouterr().err
+
+
 # ── intent ─────────────────────────────────────────────────────────────────
 
 def test_intent_sets_intent(tmp_path, load_script):
@@ -378,6 +413,28 @@ def test_intent_rejects_too_short(tmp_path, load_script):
     mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
     rc = mod.main(["intent", "rider:tool_a", "short", "--target", str(tmp_path)])
     assert rc != 0
+
+
+def test_intent_addresses_a_plugin_decorated_server(tmp_path, load_script):
+    """`intent` splits a tool reference the same way `tag` does, so it needs the same cover."""
+    _write_index(tmp_path, {
+        "version": "0.1.0",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "sources": [{
+            "name": "plugin:dotnet-msbuild:binlog",
+            "tools": {
+                "binlog_overview": {"tags": ["build"], "intent": "Old intent"},
+            },
+        }],
+    })
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    rc = mod.main(["intent", "plugin:dotnet-msbuild:binlog:binlog_overview",
+                   "Build status, duration and project count", "--target", str(tmp_path)])
+    assert rc == 0
+
+    tool = _read_index(tmp_path)["sources"][0]["tools"]["binlog_overview"]
+    assert tool["intent"] == "Build status, duration and project count"
+    assert tool["origin"] == "manual"
 
 
 # ── update ─────────────────────────────────────────────────────────────────
