@@ -70,6 +70,8 @@ This project understands prompt markers (see `.ai-badger/skills/prompt-markers`)
 - `q:` / `queue:` — a queued instruction to analyze and run after active work completes.
 - `i!:` / `important!:` — immediate emergency interrupt: STOP, pause/cancel active tasks, and react instantly.
 
+A marker is expanded by a `UserPromptSubmit` hook, which fires only when a message **starts a turn**. A message sent **mid-turn** — queued while work is already running — reaches the model as an attachment and never passes through that hook, so its marker is never expanded. Apply the behaviour above yourself whenever you see a marker arrive that way.
+
 {{MCP_INSTRUCTIONS}}
 
 ## Framework

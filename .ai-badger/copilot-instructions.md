@@ -4,7 +4,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.8+ scr
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.118.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
+> Scaffolded by ai-badger 0.118.1. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
 ## Non-negotiable invariants
 
@@ -108,6 +108,10 @@ This project understands prompt markers (see `.ai-badger/skills/prompt-markers`)
 - `h:` / `hint:` — a lead to validate before acting (research first).
 - `f:` / `feedback:` — a high-priority correction; adjust immediately.
 - `e:` / `extension:` — a request to expand the current task's scope.
+- `q:` / `queue:` — a queued instruction to analyze and run after active work completes.
+- `i!:` / `important!:` — immediate emergency interrupt: STOP, pause/cancel active tasks, and react instantly.
+
+A marker is expanded by a `UserPromptSubmit` hook, which fires only when a message **starts a turn**. A message sent **mid-turn** — queued while work is already running — reaches the model as an attachment and never passes through that hook, so its marker is never expanded. Apply the behaviour above yourself whenever you see a marker arrive that way.
 
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph
