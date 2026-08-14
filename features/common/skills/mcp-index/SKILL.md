@@ -188,13 +188,28 @@ hermes answers `error: unrecognized arguments: --json` (measured 2026-07, issue 
 
 | order | source | what it carries |
 |---|---|---|
-| 1 | `hermes mcp list --json` | server names **and their tools** — the only source that can |
+| 1 | `hermes mcp list --json` | server names **and their tools** — the only listing that can |
 | 2 | `claude mcp list` | every server, plus a reachability phrase per server; no tools. Health-checks each server first (~14s for 17) |
 | 3 | `hermes mcp list` | server names and an enabled flag, from the text table; no tools |
 
 `--host hermes` or `--host claude` restricts the chain to one CLI — use it when the other is slow,
 noisy, or listing the wrong project's servers. `--from-json <document>` skips the hosts entirely and
 reads a saved `hermes mcp list --json` document.
+
+### `--discover` — ask each server for its own tools
+
+No remaining *listing* carries tool names, but `hermes mcp test <server>` does. Pass `--discover`
+to `init` or `update` and every server the listing left unenumerated is asked directly:
+
+```bash
+python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py init --target <project-root> --discover
+```
+
+It is opt-in because it costs one connection per server (measured: 11 servers, ~20s, 128 tools
+recovered from a listing that carried none). A server hermes does not have in its own config — a
+plugin- or connector-provided one — cannot be tested; it keeps `tools_known` False, is named in
+the output, and falls back to the catalog seed. `hermes mcp test` **exits 0 even when it fails**,
+so only its printed `Tools discovered` block is treated as an answer.
 
 If no source answers, both commands **refuse** and print what each one said — a missing CLI, a
 non-zero exit with its error line, or an empty listing. They never write a half-index.

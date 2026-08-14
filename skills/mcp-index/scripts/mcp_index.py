@@ -202,6 +202,14 @@ def _report_quiet_sources(index: dict[str, Any]) -> None:
 
 # ── MCP tool discovery ──────────────────────────────────────────────────────
 
+def _discover_tools(servers: list[dict[str, Any]]) -> None:
+    """Enrich a names-only listing with `hermes mcp test`, one subprocess per server."""
+    print(f"Asking `hermes mcp test` for the tools of {len(servers)} server(s) — "
+          "one connection each.", file=sys.stderr)
+    for note in hl.enrich_with_hermes_test(servers):
+        print(f"  ({note})", file=sys.stderr)
+
+
 def _fetch_mcp_tools(from_json: Optional[str] = None,
                      host: Optional[str] = None) -> list[dict[str, Any]]:
     """The servers a host CLI reports, or a refusal naming every source that was asked.
@@ -426,9 +434,11 @@ def _note_missing_catalog(catalog: dict[str, dict[str, dict[str, Any]]]) -> None
 
 
 def cmd_init(target: str, from_json: Optional[str] = None,
-             host: Optional[str] = None) -> int:
+             host: Optional[str] = None, discover: bool = False) -> int:
     """Create a new index from the current MCP tool list."""
     servers = _fetch_mcp_tools(from_json, host)
+    if discover:
+        _discover_tools(servers)
     catalog = load_catalog(FRAMEWORK_ROOT)
     _note_missing_catalog(catalog)
 
@@ -583,7 +593,7 @@ def _update_source(source: dict[str, Any], server: Optional[dict[str, Any]],
 
 
 def cmd_update(target: str, from_json: Optional[str] = None,
-               host: Optional[str] = None) -> int:
+               host: Optional[str] = None, discover: bool = False) -> int:
     """Update index: add new tools, mark removed ones, restate status, preserve manual tags."""
     index, err = _read_index_safe(target)
     if err:
@@ -591,9 +601,11 @@ def cmd_update(target: str, from_json: Optional[str] = None,
         return 1
     if index is None:
         print("No existing index. Running init instead.", file=sys.stderr)
-        return cmd_init(target, from_json, host)
+        return cmd_init(target, from_json, host, discover)
 
     servers = _fetch_mcp_tools(from_json, host)
+    if discover:
+        _discover_tools(servers)
     catalog = load_catalog(FRAMEWORK_ROOT)
     _note_missing_catalog(catalog)
     listed = {s.get("name", ""): s for s in servers}
@@ -906,7 +918,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             return 2
         from_json = _flag_value(remaining, "--from-json")
         run = cmd_init if cmd == "init" else cmd_update
-        return run(target, from_json, host)
+        return run(target, from_json, host, "--discover" in remaining)
 
     if cmd == "validate":
         return cmd_validate(target)

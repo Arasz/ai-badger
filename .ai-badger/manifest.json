@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.119.0",
-  "frameworkCommit": "abe2141b2795cddc41b81fae921f72a95c49d6a7",
+  "frameworkCommit": "26590920d525ec7b7a15aa6a1a251ee7aa827943",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -545,12 +545,12 @@
       "source": "features/common/skills/mcp-index",
       "target": ".ai-badger/skills/mcp-index",
       "frameworkVersion": "0.119.0",
-      "hash": "d7aceaccc4df5736039d91fd5975a2d2ae019ece791263b07cc92972db4fdf26",
+      "hash": "b88adb467f656e0df47f0aeafe6ac2e68d8b7cb8094818b5382a858db6db1a55",
       "dirMeta": {
         "file_count": 9,
         "dir_count": 2
       },
-      "sourceHash": "d7aceaccc4df5736039d91fd5975a2d2ae019ece791263b07cc92972db4fdf26",
+      "sourceHash": "b88adb467f656e0df47f0aeafe6ac2e68d8b7cb8094818b5382a858db6db1a55",
       "sourceMeta": {
         "file_count": 9,
         "dir_count": 2
