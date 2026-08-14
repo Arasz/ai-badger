@@ -72,7 +72,8 @@ def test_the_base_skill_names_no_stack_or_agent_specific_command(root):
     base = (root / "features" / "common" / "skills" / SKILL / "SKILL.md").read_text(
         encoding="utf-8")
     for token in ("dotnet test", "dotnet build", "npm ", "pytest", "gh pr", "C#", "Dapper",
-                  "Opus", "Sonnet", "Haiku", "GitHub"):
+                  "Opus", "Sonnet", "Haiku", "GitHub", ".NET", "React", "Terraform", "SQLite",
+                  "Roslyn", "TypeScript"):
         assert token not in base, f"base SKILL.md names {token!r} — it belongs in an extension"
 
 

@@ -66,9 +66,9 @@ brief says)"* — so a lane knows which half of its input has been checked.
 
 **Derive the lane roster from the repository, never from this list.** Read the project's own
 stacks, personas and top-level directories, and open one lane per distinct expertise the code
-actually demands. A fixed roster reviews the project you expected. A .NET service with a React
-front end and Terraform infrastructure needs different lanes from a single-runtime library, and
-both need lanes nobody would have guessed without looking.
+actually demands. A fixed roster reviews the project you expected. A service with a separate
+front end and its own infrastructure definitions needs different lanes from a single-runtime
+library, and both need lanes nobody would have guessed without looking.
 
 Lanes that recur: architecture/layering, domain algorithm (retrieval, scoring, whatever the
 product's hard part is), the primary language's code quality, data access, test-suite QA, the
