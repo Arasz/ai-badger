@@ -20,7 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.117.1 | [Semantica MCP Launch Command Fix](0.117.1-semantica-mcp-launch-fix.md) |
+| 0.117.1 | [MCP Launch and Install Fixes](0.117.1-semantica-mcp-launch-fix.md) |
 | 0.117.0 | [Structured Local and Global MCP Prerequisite Install Options](0.117.0-mcp-prerequisite-local-global.md) |
 | 0.116.6 | [Semantica MCP Command Alignment](0.116.6-semantica-mcp-command-fix.md) |
 | 0.116.5 | [Code-Review-Graph MCP Scripts & Smart .venv Stack Detection](0.116.5-code-review-graph-mcp-scripts.md) |
