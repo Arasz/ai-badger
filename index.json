@@ -197,6 +197,11 @@
           "scope": "default"
         },
         {
+          "name": "complete-project-scope-code-review",
+          "path": "features/common/skills/complete-project-scope-code-review",
+          "scope": "optIn"
+        },
+        {
           "name": "create-task-spec",
           "path": "features/common/skills/create-task-spec",
           "scope": "default"
