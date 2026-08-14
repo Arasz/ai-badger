@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.118.1 | [The Standing Marker List Is Now Compared Against the Catalog](0.118.1-prompt-marker-standing-list.md) |
 | 0.118.0 | [Audit Log Flood Fix and Permanent Debug Logging](0.118.0-audit-log-flood-and-permanent-logging.md) |
 | 0.117.1 | [MCP Launch and Install Fixes](0.117.1-semantica-mcp-launch-fix.md) |
 | 0.117.0 | [Structured Local and Global MCP Prerequisite Install Options](0.117.0-mcp-prerequisite-local-global.md) |

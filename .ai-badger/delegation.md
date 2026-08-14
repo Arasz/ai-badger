@@ -1,6 +1,6 @@
 # Delegation map — ai-badger
 
-> Scaffolded by ai-badger 0.118.0. Regenerated on every scaffold; do not edit.
+> Scaffolded by ai-badger 0.118.1. Regenerated on every scaffold; do not edit.
 
 ## Stacks
 
