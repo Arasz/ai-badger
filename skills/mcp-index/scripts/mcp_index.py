@@ -393,7 +393,29 @@ def _index_source(server: dict[str, Any],
         tool["name"]: describe_tool(name, tool["name"], tool.get("description", ""), catalog)
         for tool in server.get("tools", [])
     }
+    _seed_from_catalog(entry, server, catalog)
     return entry
+
+
+def _seed_from_catalog(source: dict[str, Any], server: Optional[dict[str, Any]],
+                       catalog: dict[str, dict[str, dict[str, Any]]]) -> list[str]:
+    """Fill a server the host declined to enumerate from the catalog; return the seeded names.
+
+    Only when `tools_known` is False. A listing that carries tool detail is authoritative —
+    including when it reports none — so the catalog never contradicts one, only stands in for
+    a listing that has nothing to say (issue #188).
+    """
+    if server is None or server.get("tools_known", True):
+        return []
+    name = source["name"]
+    tools = source.setdefault("tools", {})
+    seeded = []
+    for tool, curated in td.catalog_tools(catalog, name).items():
+        if tool in tools:  # an existing entry — manual, catalog or removed — outranks the seed
+            continue
+        tools[tool] = describe_tool(name, tool, curated.get("intent", ""), catalog)
+        seeded.append(f"{name}:{tool}")
+    return seeded
 
 
 def _note_missing_catalog(catalog: dict[str, dict[str, dict[str, Any]]]) -> None:
@@ -554,6 +576,7 @@ def _update_source(source: dict[str, Any], server: Optional[dict[str, Any]],
     was = source.get("status")
     source["status"] = ABSENT if server is None else td.server_status(server)
     changes = _sync_tools(source, server, catalog) + (1 if source["status"] != was else 0)
+    changes += len(_seed_from_catalog(source, server, catalog))
     redescribed = _redescribe_from_catalog(source, catalog)
     _reorder_source(source)
     return changes + len(redescribed), redescribed

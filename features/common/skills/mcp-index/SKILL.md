@@ -88,7 +88,8 @@ python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py init --target <project-
 ```
 
 Asks the host CLIs for their MCP servers (see *Where the server list comes from* below), describes
-each tool from the catalog where it can and by name heuristics otherwise, records each server's
+each tool from the catalog where it can and by name heuristics otherwise, seeds a server the
+listing named without tool detail from the catalog (see `update`), records each server's
 `status`, and writes `.ai-badger/mcp-tools.json`. Prints which listing answered and which sources
 were skipped, then how many tools were tagged as `general` and which servers reported no tools.
 
@@ -109,6 +110,12 @@ A listing that carries **no tool detail at all** (every source but `hermes mcp l
 tell "this server is gone" from "this is another host's listing", so a source it does not name is
 **left untouched** — same status, same tools — and named in the output. Only a listing that carries
 tools can move a source to `absent` and its tools to `removed`.
+
+A server such a listing **does** name is **seeded from the mcp catalog**: the catalog stands in for
+a host that declined to enumerate, so a curated server is not stranded with `tools: {}`. The seed
+is a floor, never an override — an existing entry wins whatever its `origin`, a `removed` tool
+stays removed, an uncatalogued server stays empty, and a listing that carries tool detail is taken
+as the whole truth even when it reports none.
 
 **Completion criterion:** All current MCP tools appear in the index; removed tools have `status: removed`.
 
