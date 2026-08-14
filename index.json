@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.118.2",
+  "frameworkVersion": "0.119.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -275,11 +275,6 @@
           "name": "owner-gate-review",
           "path": "features/common/skills/owner-gate-review",
           "scope": "default"
-        },
-        {
-          "name": "parallel-expert-review",
-          "path": "features/common/skills/parallel-expert-review",
-          "scope": "optIn"
         },
         {
           "name": "pre-push-gate-debugging",

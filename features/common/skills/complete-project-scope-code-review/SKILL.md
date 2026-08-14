@@ -127,6 +127,11 @@ not a hotfix. Before ranking anything, query the live system read-only: does the
 writes to have any rows? Has the flag it depends on ever been set? Is the feature reachable at all
 in the shipped configuration?
 
+Where the live system is a managed service rather than a file you can open, "read-only" is an
+access decision with a cost — say which instrument you used (a direct query, telemetry, logs, a
+staging replica) and grade the answer accordingly. An `UNVERIFIED` calibration is a legitimate
+result; a calibration inferred from the code is not one at all.
+
 State the result as *loaded, not fired* when that is what it is. This changes urgency and
 sequencing; it must not change the finding. Two blockers on the source session had never fired in
 production — which made the campaign a planned release rather than a hotfix, and surfaced a
@@ -196,9 +201,28 @@ tree, not the branches:
   fixture stops being able to build it the moment another branch adds a constraint it does not
   know to drop; the test then fails in arrange, not assert.
 - **Check the dispatch, not just the compile.** A method added on one side and a fake extended on
-  the other can compile and still never be called. See the dotnet extension for the C# shape of
-  this trap.
+  the other can compile and still never be called. Your stack's extension names the concrete
+  shape this takes.
 - Write the integration reasoning into the merge commit. It is the only place that survives.
+
+## Phase 8 — Record the decisions
+
+Every conclusion that changes how the system is built becomes a decision record in whatever form
+the project already keeps, and each one **names what it supersedes**. A campaign this size
+routinely contradicts earlier decisions; a superseding record that does not say so leaves two
+live answers.
+
+Three rules learned by getting them wrong:
+
+- **Separate what was measured from what was not, inside one record.** A decision that deletes
+  two things — one measured to fail, one that never ran and therefore could not be evaluated —
+  must not let the measurement carry both. Removing unreachable code is a maintenance argument,
+  not an efficacy one, and a record that blurs them will be quoted as if it measured both.
+- **Record refuted directions, not just the chosen one.** A reader who cannot see that an
+  alternative was tested and lost will propose it again. Include your own rejected argument.
+- **A decision resting on a circular benchmark can be overturned mid-implementation.** When that
+  happens, supersede rather than amend, and say which measurement changed the verdict. Note where
+  the deleted code is recoverable from.
 
 ## The failure modes this exists to catch
 
@@ -270,3 +294,5 @@ Each of these happened, most more than once. They are the reason for the phases 
   turns out to be a refutation.
 - `references/lane-brief.md` — the dispatch brief template and the lane output contract; read it
   before dispatching the first lane.
+- `references/owner-gate-form-lifecycle.md` — how a decision form gets generated, opened and
+  ingested without losing a late question; read it when Phase 5 routes questions to an owner.
