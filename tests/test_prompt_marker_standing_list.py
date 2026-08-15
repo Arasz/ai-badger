@@ -37,10 +37,21 @@ def _markers():
     return json.loads(MARKERS_FILE.read_text(encoding="utf-8"))["markers"]
 
 
-def _agent_files():
-    found = [p for p in ROOT.rglob("*.md")
-             if ".ai-badger/worktrees" not in p.as_posix()
-             and "/node_modules/" not in p.as_posix()
+def _excluded(path, root) -> bool:
+    """True for a copy that is not this checkout's own — matched *below* root, never above it.
+
+    The suite runs from `.ai-badger/worktrees/<name>/` as often as from the checkout itself
+    (see `conftest.REAL_CHECKOUTS`), and matching the absolute path put every file in such a
+    run behind the filter: the segment is in the root, so all seven agent files vanished and
+    the "no agent instruction file" guard fired on a tree that had them all.
+    """
+    rel = path.relative_to(root).as_posix()
+    return rel.startswith(".ai-badger/worktrees/") or "node_modules/" in rel
+
+
+def _agent_files(root=ROOT):
+    found = [p for p in root.rglob("*.md")
+             if not _excluded(p, root)
              and SENTINEL in p.read_text(encoding="utf-8", errors="ignore")]
     assert found, f"no agent instruction file mentions {SENTINEL!r}"
     return found
@@ -92,3 +103,34 @@ def test_agent_files_say_a_mid_turn_marker_bypasses_the_hook():
         f"these agent files list the markers but never say the hook can miss one: "
         f"{', '.join(sorted(silent))}"
     )
+
+
+class TestTheScanFindsThisCheckoutsOwnFiles:
+    """The filter drops nested copies, and must not drop the checkout it is scanning.
+
+    `.gitignore` calls `.ai-badger/worktrees/` "the agent-neutral place the /task skill puts
+    them", and `conftest.REAL_CHECKOUTS` says the suite runs from there as often as from the
+    checkout. Matching the absolute path conflated "a worktree below me" with "I am a
+    worktree", so following the repo's own convention turned all six cases below red.
+    """
+
+    def _tree(self, tmp_path):
+        for rel in ("CLAUDE.md", ".ai-badger/worktrees/wt/CLAUDE.md",
+                    "node_modules/pkg/CLAUDE.md"):
+            path = tmp_path / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"{SENTINEL}\n", encoding="utf-8")
+        return tmp_path
+
+    def test_a_nested_worktree_copy_is_still_excluded(self, tmp_path):
+        found = _agent_files(self._tree(tmp_path))
+
+        assert [p.relative_to(tmp_path).as_posix() for p in found] == ["CLAUDE.md"]
+
+    def test_a_checkout_that_is_itself_a_worktree_scans_its_own_files(self, tmp_path):
+        """The regression: every path under such a root carries the segment."""
+        root = self._tree(tmp_path / ".ai-badger" / "worktrees" / "stack-discovery")
+
+        found = _agent_files(root)
+
+        assert [p.relative_to(root).as_posix() for p in found] == ["CLAUDE.md"]
