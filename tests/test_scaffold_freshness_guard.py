@@ -282,3 +282,46 @@ def test_the_rescaffold_points_hermes_home_away_from_the_operators(tmp_path, loa
     assert hermes_home == work.parent / "hermes-home"
     assert Path.home() not in hermes_home.parents, \
         "the re-scaffold would resolve the operator's own Hermes user scope"
+
+
+def test_a_deleted_but_unstaged_file_is_not_reported_as_present(tmp_path, load_script):
+    """`git ls-files -c` lists the index, so an unstaged deletion reads as a file that still
+    exists — and the gate then reports a phantom difference no re-scaffold can clear."""
+    guard = load_script(GATE)
+    repo = tmp_path / "repo"
+    (repo / "sub").mkdir(parents=True)
+    _test_write(repo / "sub" / "gone.py", '"""deleted below."""\n', encoding="utf-8")
+    _test_write(repo / "sub" / "kept.py", '"""stays."""\n', encoding="utf-8")
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "both files")
+    (repo / "sub" / "gone.py").unlink()          # deleted, deliberately NOT staged
+
+    listed = guard.tracked_and_untracked(repo)
+
+    assert "sub/kept.py" in listed
+    assert "sub/gone.py" not in listed, (
+        "a file deleted from the working tree but still in the index was reported as present")
+
+
+def test_a_symlink_is_still_reported(tmp_path, load_script):
+    """The filter must key on lexistence: this repo ships symlinks, and a dangling one is still
+    a path the scaffold placed."""
+    guard = load_script(GATE)
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    _test_write(repo / "real.py", '"""target."""\n', encoding="utf-8")
+    (repo / "good-link").symlink_to("real.py")
+    (repo / "dangling-link").symlink_to("nowhere.py")
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "links")
+
+    listed = guard.tracked_and_untracked(repo)
+
+    assert "good-link" in listed
+    assert "dangling-link" in listed, "a dangling symlink is still a path the scaffold placed"

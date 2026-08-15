@@ -88,7 +88,13 @@ class Finding(NamedTuple):
 
 
 def tracked_and_untracked(root: Path) -> List[str]:
-    """Every path git reports as tracked or untracked-but-not-ignored, repo-relative."""
+    """Every path git reports as tracked or untracked-but-not-ignored, repo-relative.
+
+    `ls-files -c` reads the index, so a file deleted from the working tree but not yet staged
+    still appears; keeping it makes the gate report a phantom difference no re-scaffold clears.
+    Filtered on lexistence rather than existence, because a dangling symlink is still a path
+    the scaffold placed.
+    """
     try:
         proc = bl.run_git(["ls-files", "-co", "--exclude-standard", "-z"], root, text=False)
     except OSError as exc:
@@ -96,7 +102,8 @@ def tracked_and_untracked(root: Path) -> List[str]:
     if proc.returncode != 0:
         detail = proc.stderr.decode("utf-8", errors="replace").strip()
         raise Refusal(f"GIT COMMAND FAILED in {root}: {detail}")
-    return [chunk.decode("utf-8") for chunk in proc.stdout.split(b"\0") if chunk]
+    return [rel for rel in (chunk.decode("utf-8") for chunk in proc.stdout.split(b"\0") if chunk)
+            if os.path.lexists(root / rel)]
 
 
 def ignored_in(root: Path, paths: Sequence[str]) -> frozenset:
