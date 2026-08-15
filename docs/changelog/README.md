@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.123.0 | [The Push Stops Re-Proving What CI Proves](0.123.0-the-push-stops-re-proving-what-ci-proves.md) |
 | 0.122.0 | [the floor claim was false](0.122.0-the-floor-claim-was-false.md) · [The Gate Bounds Its Own Wall Clock](0.122.0-the-gate-bounds-its-own-wall-clock.md) |
 | 0.121.3 | [Design Lens Skills, and a Canonical `.github/mcp.json`](0.121.3-design-lens-skills-and-canonical-mcp-json.md) |
 | 0.121.2 | [pytest-xdist Is Now a Declared Dependency](0.121.2-declare-pytest-xdist.md) |

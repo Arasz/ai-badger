@@ -96,66 +96,9 @@ def test_branch_deletion_runs_nothing():
     assert done.stdout.strip() == "DELETION"
 
 
-def test_gate_own_files_route_to_every_lane():
-    """A change to the gate itself must run everything, or a broken gate hides silently."""
-    head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
-                          cwd=str(REPO), check=True).stdout.strip()
-    # Find the commit that last touched .lefthook/ and use its parent as base,
-    # so the diff includes gate files and want_all triggers.
-    last_gate = subprocess.run(["git", "log", "-1", "--format=%H", "--", ".lefthook/"],
-                               capture_output=True, text=True, cwd=str(REPO),
-                               check=False).stdout.strip()
-    if not last_gate:
-        pytest.skip("no .lefthook/ commit in history")
-    base = f"{last_gate}~1"
-    selected = _run("lanes", stdin=f"refs/heads/x {head} refs/heads/x {base}\n").stdout.split()
-    # Gate file changes must select every lane, or a broken gate hides silently.
-    for lane in ("pytest", "pylint", "js", "docs", "release", "paths", "scaffold", "validate"):
-        assert lane in selected
-
-
 def _git(*args):
     return subprocess.run(["git", *args], capture_output=True, text=True, cwd=str(REPO),
                           check=True).stdout
-
-
-def _docs_only_commit():
-    """The most recent commit whose diff is confined to docs/*.md, if history has one."""
-    for sha in _git("log", "-40", "--format=%H").split():
-        changed = _git("diff", "--name-only", f"{sha}~1", sha).split()
-        if changed and all(p.startswith("docs/") and p.endswith(".md") for p in changed):
-            return sha
-    return None
-
-
-def test_docs_only_change_skips_the_expensive_lanes():
-    """Change detection must actually narrow, or the gate is `all` wearing a disguise.
-
-    Asserted over a synthetic path list rather than mined out of `git log`: the history
-    version searched the last 40 commits for a docs-only one and `pytest.skip`ped when it
-    found none, so the day this repo's history moved past the last docs-only commit the
-    check would stop running and report green for it (measured 2026-08-07: depth 11).
-    """
-    selected = _lanes_for_paths(["docs/design/a-note.md", "docs/changelog/README.md"])
-
-    assert "docs" in selected
-    for expensive in ("pytest", "pylint", "js"):
-        assert expensive not in selected, f"a docs-only change still ran {expensive}: {selected}"
-
-
-def test_the_history_mined_docs_commit_agrees_with_the_synthetic_one():
-    """The synthetic list above stands in for a real diff, so the two must still agree.
-
-    Skips only when history holds no docs-only commit — and the invariant itself is asserted
-    unconditionally above, so a skip here costs a corroboration, not the check.
-    """
-    sha = _docs_only_commit()
-    if sha is None:
-        pytest.skip("no docs-only commit in recent history")
-    from_refs = _run("lanes", stdin=f"refs/heads/x {sha} refs/heads/x {sha}~1\n").stdout.split()
-    changed = _git("diff", "--name-only", f"{sha}~1", sha).split()
-
-    assert from_refs == _lanes_for_paths(changed), f"{from_refs} vs {changed}"
 
 
 @pytest.mark.parametrize("lane", ["version-sync", "index", "plugin-skills", "deps", "docs",
@@ -380,62 +323,6 @@ def test_summary_log_records_failed_lanes():
     assert "release" in line.split("failed:")[1]
 
 
-# ── a release-only push ─────────────────────────────────────────────────────────
-#
-# Measured 2026-08-07 at 43fbfb49, `verify.sh all` end to end: 778s wall clock — pytest 664s,
-# pylint 104s, the other eleven lanes 10s between them. So 85% of the gate is the full suite,
-# and a release commit reaches it through the `*.json|VERSION` route — VERSION, the three
-# version literals, index.json and the regenerated changelog index are all that changes.
-#
-# Those artifacts are produced by generators that already have dedicated lanes: version-sync,
-# index, changelog (inside docs), release. Running the suite to re-prove what four lanes just
-# proved is the one narrowing worth making, and it is deliberately the *only* one — every other
-# route still runs everything, because a gate that stops verifying is invisible until it matters.
-
-RELEASE_ONLY_PATHS = [
-    "VERSION",
-    "index.json",
-    ".claude-plugin/plugin.json",
-    ".claude-plugin/marketplace.json",
-    "docs/changelog/0.99.0-probe.md",
-    "docs/changelog/README.md",
-]
-
-
-def _lanes_for_paths(paths):
-    """Run the selector against a synthetic changed-path list."""
-    return _run("lanes-for", stdin="".join(f"{p}\n" for p in paths)).stdout.split()
-
-
-def test_a_release_only_push_skips_the_full_suite():
-    selected = _lanes_for_paths(RELEASE_ONLY_PATHS)
-
-    assert "pytest" not in selected, f"selected {selected}"
-    for cheap in ("version-sync", "index", "release", "docs"):
-        assert cheap in selected, f"{cheap} must still run: {selected}"
-
-
-def test_one_source_file_alongside_a_release_restores_the_full_suite():
-    """The narrowing is about what a release touches, not about releases."""
-    selected = _lanes_for_paths(RELEASE_ONLY_PATHS + ["engine/badger_lib.py"])
-
-    assert "pytest" in selected
-
-
-def test_a_hand_written_json_still_runs_the_full_suite():
-    """Only the generated release artifacts are exempt; a schema edit is not one."""
-    selected = _lanes_for_paths(["schemas/config.schema.json"])
-
-    assert "pytest" in selected
-
-
-def test_a_scaffold_stamp_alone_does_not_exempt_a_source_change():
-    """`.ai-badger/` is regenerated too, but it mirrors sources that must still be tested."""
-    selected = _lanes_for_paths([".ai-badger/manifest.json", "features/common/skills/x/SKILL.md"])
-
-    assert "pytest" in selected
-
-
 # ── the validate lane covers the agent-instruction validators ───────────────────
 #
 # Both .mjs validators ran in no gate at all until 0.91.0 (review finding A7): only their unit
@@ -483,16 +370,80 @@ def test_the_validate_lane_fails_when_an_agent_instruction_validator_fails(tmp_p
     assert done.returncode != 0, f"a failing validator was swallowed:\n{done.stdout}"
 
 
+# ── the local lane set ──────────────────────────────────────────────────────────
+#
+# pytest was selected in 209 of the 225 pre-push rows in logs/lefthook.log; those runs are p50
+# 89s against p50 4s for the 16 without it. Both lanes already run in CI on every push to every
+# branch (.github/workflows/pylint.yml runs `verify.sh pytest` and `verify.sh pylint`), on the
+# 3.10 this project floors at rather than whatever the developer's machine has — so the local
+# copy is slower than the push and proves less than the run it duplicates.
+
+CI_OWNED = ("pytest", "pylint")
+
+
+def _advertised_lanes():
+    """Every lane the gate advertises, read off its own usage line rather than restated here."""
+    for line in _run("--help").stdout.splitlines():
+        if "one of:" in line:
+            return line.split("one of:", 1)[1].split()
+    raise AssertionError("usage no longer advertises the lane list, so nothing here is derived")
+
+
+def _selected_for_a_push(env=None):
+    """The lanes a push would run, over a ref pair whose diff is empty by construction.
+
+    HEAD against HEAD publishes content (so it is not the deletion case) and diffs to nothing,
+    so no assertion below depends on what happens to be committed on the branch it runs from.
+    """
+    head = _git("rev-parse", "HEAD").strip()
+    return _run("lanes", stdin=f"refs/heads/x {head} refs/heads/x {head}\n",
+                env=env).stdout.split()
+
+
+def test_a_push_leaves_pytest_and_pylint_to_ci():
+    """The whole point: a push must not spend 89s re-proving what CI proves better."""
+    selected = _selected_for_a_push()
+
+    assert selected, "the gate selected no lane at all, so the assertions below prove nothing"
+    for lane in CI_OWNED:
+        assert lane not in selected, f"a push still runs {lane} locally: {selected}"
+
+
+def test_a_push_runs_every_other_lane():
+    """No routing left: the local set is the advertised lanes minus the two CI owns.
+
+    Derived from the usage line, so a lane added to `$LANES` and forgotten here cannot pass.
+    """
+    selected = _selected_for_a_push()
+    expected = [lane for lane in _advertised_lanes() if lane not in CI_OWNED]
+
+    assert expected, "no lanes were derived from usage, so this compares nothing"
+    assert selected == expected, f"{selected} != {expected}"
+
+
+@pytest.mark.parametrize("lane", CI_OWNED)
+def test_a_ci_owned_lane_is_still_invocable_by_hand(lane):
+    """`pylint.yml` invokes each by name; dropping it from `$LANES` makes that step exit 2."""
+    done = _run(lane, env={"VERIFY_SKIP": lane})
+
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert lane in done.stdout
+
+
+def test_all_still_runs_the_ci_owned_lanes():
+    """`all` means every lane. Only the push selection narrows, and CI reads `$LANES` from
+    this script to build the lane list its `gates` job walks."""
+    out = _run("all", env={"VERIFY_SKIP": ",".join(_advertised_lanes())}).stdout
+    named = {line.split()[1] for line in out.splitlines() if "skipped (VERIFY_SKIP)" in line}
+
+    for lane in CI_OWNED:
+        assert lane in named, f"`verify.sh all` no longer runs {lane}: {sorted(named)}"
+
+
 # ── --risk actually changes which lanes run ─────────────────────────────────────
 #
 # `--risk` was parsed, persisted and printed by task_tracker.py and consumed by nothing
 # (review finding A8). The gate now asks the tracker, so the flag buys what it claims.
-
-RISK_DROPPED = ("pytest",)
-# `--risk` buys speed with coverage, not with the cheap checks: skills/task/SKILL.md keeps
-# "formatting, fast tests and the lint/rule check", and pytest is 664s of a 778s gate.
-RISK_KEPT = ("pylint", "validate", "docs", "release", "tdd")
-
 
 def _risk_stub(tmp_path, task_id=""):
     """A stand-in for `$PY` that answers the risk query with `task_id` (empty = risk off)."""
@@ -500,57 +451,51 @@ def _risk_stub(tmp_path, task_id=""):
     return {"AIB_PYTHON": _shim(tmp_path / "py-stub", body)}
 
 
-def _lanes_for(tmp_path, paths, task_id=""):
-    """The selector over a pinned path list. `lanes` diffs the real branch; this cannot.
+def test_a_risk_task_drops_the_lane_it_names(tmp_path):
+    """Same push, risk off then on, so only the flag can explain the difference."""
+    env = {"VERIFY_RISK_DROPPED": "journey"}
+    offered = _selected_for_a_push({**_risk_stub(tmp_path), **env})
+    selected = _selected_for_a_push({**_risk_stub(tmp_path, "TASK-1"), **env})
 
-    These tests are about `--risk`, not about what happens to be committed. Reading the branch
-    meant a docs-only diff offered no `pytest` and no `pylint`, so the assertions measured the
-    file-type narrowing and blocked every documentation PR (found by the docs sweep at 0.97.0).
+    assert "journey" in offered, (
+        f"journey was not offered even without --risk, so its absence proves nothing "
+        f"about the flag: {offered}")
+    assert "journey" not in selected, f"--risk left journey in: {selected}"
+
+
+def test_a_risk_task_keeps_every_other_lane(tmp_path):
+    """`--risk` trades away what it names and nothing else."""
+    env = {"VERIFY_RISK_DROPPED": "journey"}
+    offered = _selected_for_a_push({**_risk_stub(tmp_path), **env})
+    selected = _selected_for_a_push({**_risk_stub(tmp_path, "TASK-1"), **env})
+
+    assert selected == [lane for lane in offered if lane != "journey"], \
+        f"--risk changed more than the lane it names: {offered} -> {selected}"
+
+
+def test_a_risk_run_that_drops_nothing_announces_nothing(tmp_path):
+    """`pytest` is the only lane `--risk` trades away and no push runs it, so there is no
+    trade to announce. Machinery claiming a safety trade it is not making is worse than absent.
     """
-    return _run("lanes-for", stdin="\n".join(paths) + "\n",
-                env=_risk_stub(tmp_path, task_id)).stdout.split()
-
-
-# One `.py` and one `.md`, so every lane in RISK_DROPPED and RISK_KEPT is on the table.
-PINNED_PATHS = ("engine/badger_lib.py", "docs/README.md")
-
-
-def test_a_risk_task_drops_the_slow_lanes(tmp_path):
-    """Same pinned paths, risk off then on, so only the flag can explain the difference."""
-    offered = _lanes_for(tmp_path, PINNED_PATHS)
-    selected = _lanes_for(tmp_path, PINNED_PATHS, "TASK-1")
-
-    for lane in RISK_DROPPED:
-        assert lane in offered, (
-            f"{lane} was not offered even without --risk, so its absence proves nothing "
-            f"about the flag: {offered}")
-        assert lane not in selected, f"--risk left {lane} in: {selected}"
-
-
-def test_without_a_risk_task_the_slow_lanes_still_run(tmp_path):
-    """The narrowing must be the flag's doing, not the selector's."""
-    selected = _lanes_for(tmp_path, PINNED_PATHS)
-
-    for lane in RISK_DROPPED:
-        assert lane in selected, f"{lane} vanished without --risk: {selected}"
-
-
-def test_a_risk_task_keeps_the_cheap_lanes(tmp_path):
-    """`--risk` trades the suite away, not the checks that cost seconds."""
-    offered = _lanes_for(tmp_path, PINNED_PATHS)
-    selected = _lanes_for(tmp_path, PINNED_PATHS, "TASK-1")
-
-    for lane in RISK_KEPT:
-        assert lane in offered, f"{lane} was not offered at all: {offered}"
-        assert lane in selected, f"--risk dropped {lane}, which costs nothing: {selected}"
-
-
-def test_a_risk_run_says_so_and_names_the_task(tmp_path):
-    """A reduced gate that looks like a full one is the failure mode worth guarding."""
     out = _run("pre-push", env=_risk_stub(tmp_path, "TASK-1")).stdout
 
-    assert "risk" in out.lower()
-    assert "TASK-1" in out
+    assert "limited gates" not in out, f"--risk claimed a trade it did not make:\n{out}"
+
+
+def test_a_risk_run_that_drops_a_local_lane_says_so_and_names_it(tmp_path):
+    """The other half: the notice above is silent because the dropped set is empty, not
+    because the notice is gone. A reduced gate that looks like a full one is the real failure.
+    """
+    out = _run("pre-push", env={**_risk_stub(tmp_path, "TASK-1"),
+                                "VERIFY_RISK_DROPPED": "journey"}).stdout
+    notice = [line for line in out.splitlines() if "limited gates" in line]
+
+    assert len(notice) == 1, f"expected exactly one notice, got {notice}:\n{out}"
+    assert "TASK-1" in notice[0], notice[0]
+    # The notice must name what this run actually dropped. Asserting it anywhere in `out`
+    # passes against the old unconditional notice, because the lane list prints below it.
+    assert "journey" in notice[0], notice[0]
+    assert "pytest" not in notice[0], f"the notice still restates a lane no push runs: {notice[0]}"
 
 
 # ── the wall-clock deadline ─────────────────────────────────────────────────────

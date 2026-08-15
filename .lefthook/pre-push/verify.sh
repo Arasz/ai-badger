@@ -55,13 +55,34 @@ HOOK="lane"
 RUN_LANES=""
 RUN_START=$(date +%s)
 
-# Cheap lanes first so a typo fails fast, before pylint and pytest.
+# Every lane. `all` runs these, `verify.sh <lane>` dispatches them, and the `gates` job in
+# .github/workflows/pylint.yml reads this line to build the list it walks — so a lane missing
+# here runs nowhere.
 readonly LANES="version-sync index plugin-skills deps docs release paths workflows validate scaffold journey tdd js pylint pytest"
 
-# Lanes `--risk` trades away. Measured 2026-08-07 at 43fbfb49: `verify.sh all` is 778s wall
-# clock, of which pytest is 664s — so this is the one lane whose removal changes the number.
-# The full suite is still owed before integrating; see skills/task/SKILL.md.
-readonly RISK_DROPPED_LANES="pytest"
+# `$1` minus every lane named in `$2`, order preserved.
+_without_lanes() {
+    local lane dropped keep=""
+    for lane in $1; do
+        for dropped in $2; do
+            [ "$lane" = "$dropped" ] && lane=""
+        done
+        [ -n "$lane" ] && keep="$keep $lane"
+    done
+    printf '%s' "${keep# }"
+}
+
+# Lanes CI owns, so a push does not. pylint.yml runs `verify.sh pytest` and `verify.sh pylint`
+# on every push to every branch, against the 3.10 this project floors at rather than whatever
+# the developer happens to have — a local pass proves less than the CI run it duplicates.
+readonly CI_ONLY_LANES="pylint pytest"
+
+# What a push runs: derived, so a lane added to $LANES joins it without a second edit.
+readonly LOCAL_LANES="$(_without_lanes "$LANES" "$CI_ONLY_LANES")"
+
+# Lanes `--risk` trades away, on top of the ones a push already leaves to CI. Overridable so
+# the notice in `main` can be proven to fire, not merely proven silent.
+readonly RISK_DROPPED_LANES="${VERIFY_RISK_DROPPED:-pytest}"
 
 # The tracker entry `task_tracker.py start --risk` writes is the only record of that choice.
 readonly RISK_QUERY=".lefthook/pre-push/risk_mode.py"
@@ -259,8 +280,7 @@ lane_docs() {
 
 # Mirrors CI: non-test Python only, 10.00 required. An empty file list means the index is
 # wrong, not that the tree is clean, so it fails rather than reporting a 0s pass.
-# `-j 0` fans out over every core: measured 2026-08-07 back to back on 234 files, 232s serial
-# against 62s parallel, same verdict.
+# `-j 0` fans out over every core, same verdict as serial.
 lane_pylint() {
     local files
     files="$(git ls-files '*.py' | grep -v '^tests/')"
@@ -393,92 +413,24 @@ run_lanes() {
 
 # --------------------------------------------------------------------------- change detection
 
-# Emits the paths this push would publish. Reads git's pre-push stdin protocol
-# (<local ref> <local sha> <remote ref> <remote sha>); falls back to the merge base
-# with BASE_REF when invoked by hand with no stdin.
-# Returns 3 when every ref on stdin was a deletion, which is not the same as no stdin:
-# a deletion publishes no content, so the gate must run nothing rather than everything.
-_changed_paths() {
-    local lref lsha rref rsha lines=0 refs=0 base
+# True when git's pre-push stdin protocol (<local ref> <local sha> <remote ref> <remote sha>)
+# says every ref on it is a branch deletion — an all-zero local sha. A deletion publishes no
+# content, so the gate runs nothing rather than everything. No stdin at all is a hand-run, not
+# a deletion.
+#
+# The only routing left. Selecting among the local lanes by changed path bought one second (the
+# js lane, the sole lane the table still gated once pylint and pytest left the local set) and
+# cost sixty lines whose failure mode is a gate that quietly stops verifying.
+_deletion_only() {
+    local lref lsha rref rsha lines=0 refs=0
     while read -r lref lsha rref rsha; do
         [ -n "${lref:-}" ] || continue
         lines=1
         case "$lsha" in
-            *[!0]*) ;;
-            *) continue ;;   # all-zero local sha: branch deletion
-        esac
-        refs=1
-        case "${rsha:-}" in
-            *[!0]*) git diff --name-only "$rsha" "$lsha" ;;
-            *) base="$(git merge-base "$BASE_REF" "$lsha" 2>/dev/null)"
-               if [ -n "$base" ]; then
-                   git diff --name-only "$base" "$lsha"
-               else
-                   git diff --name-only "$(git hash-object -t tree /dev/null)" "$lsha"
-               fi ;;
+            *[!0]*) refs=1 ;;
         esac
     done
-    if [ "$lines" -eq 1 ] && [ "$refs" -eq 0 ]; then
-        return 3
-    fi
-    if [ "$lines" -eq 0 ]; then
-        base="$(git merge-base "$BASE_REF" HEAD 2>/dev/null)"
-        [ -n "$base" ] && git diff --name-only "$base" HEAD
-        git diff --name-only HEAD
-    fi
-    return 0
-}
-
-# Maps changed paths to the lanes that can see them. The gate's own files, and CI's,
-# route to run-everything: a broken gate is invisible until something stops being verified.
-# Artifacts a release regenerates, each already proven by a lane of its own: version-sync for
-# the three literals, index for index.json, docs for the changelog index, release for the tag
-# and bump. Re-running the suite to re-prove what those four just proved is the one narrowing
-# worth making — measured 2026-08-07 at 43fbfb49, `verify.sh all` is 778s wall clock and pytest
-# is 664s of it. (The "49s of a 75s gate" this comment claimed until 0.91.0 was never true of
-# any run anyone watched.) Deliberately the only narrowing: anything not on this list still
-# routes to the full suite, because a gate that quietly stops verifying is invisible until the
-# day it matters.
-_is_release_artifact() {
-    case "$1" in
-        VERSION|index.json|.claude-plugin/*.json) return 0 ;;
-        docs/changelog/*.md) return 0 ;;
-        *) return 1 ;;
-    esac
-}
-
-_lanes_for() {
-    local path want_all=0 py=0 mjs=0 md=0 json=0 any=0 nonrelease=0
-    while read -r path; do
-        [ -n "$path" ] || continue
-        any=1
-        _is_release_artifact "$path" || nonrelease=1
-        case "$path" in
-            .github/workflows/*|.lefthook/*|lefthook.yml) want_all=1 ;;
-            *.mjs)  mjs=1 ;;
-            *.py)   py=1 ;;
-            *.md)   md=1 ;;
-            *.json|schemas/*|VERSION) json=1 ;;
-            *)      json=1 ;;
-        esac
-    done
-    # Every changed path is a regenerated release artifact: the dedicated lanes cover it.
-    if [ "$any" -eq 1 ] && [ "$nonrelease" -eq 0 ]; then
-        json=0
-        py=0
-    fi
-    if [ "$want_all" -eq 1 ] || [ "$any" -eq 0 ]; then
-        printf '%s\n' "$LANES"
-        return 0
-    fi
-    # The whole-tree guards are seconds each and catch cross-file breakage, so they always run.
-    local lanes="version-sync index plugin-skills deps docs release paths workflows validate scaffold journey tdd"
-    [ "$mjs" -eq 1 ] && lanes="$lanes js"
-    [ "$py" -eq 1 ] && lanes="$lanes pylint pytest"
-    [ "$json" -eq 1 ] && lanes="$lanes pytest"
-    [ "$md" -eq 1 ] && lanes="$lanes"
-    printf '%s\n' "$lanes" | tr ' ' '\n' | awk 'NF && !seen[$0]++' | tr '\n' ' '
-    printf '\n'
+    [ "$lines" -eq 1 ] && [ "$refs" -eq 0 ]
 }
 
 # --------------------------------------------------------------------------- limited gates
@@ -491,32 +443,16 @@ _risk_task() {
         --branch "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" 2>/dev/null
 }
 
-# The lanes minus the ones `--risk` trades away.
-_without_risk_lanes() {
-    local lane dropped keep=""
-    for lane in $1; do
-        for dropped in $RISK_DROPPED_LANES; do
-            [ "$lane" = "$dropped" ] && lane=""
-        done
-        [ -n "$lane" ] && keep="$keep $lane"
-    done
-    printf '%s' "${keep# }"
-}
-
 # Prints the space-separated lanes `pre-push` would run, or the word DELETION.
 # Consumes stdin, so it runs exactly once per invocation.
 _select_lanes() {
-    local changed rc lanes
-    mkdir -p "$LOG_DIR"
-    changed="$LOG_DIR/changed-paths.txt"
-    _changed_paths >"$changed"
-    rc=$?
-    if [ "$rc" -eq 3 ]; then
+    local lanes
+    if _deletion_only; then
         printf 'DELETION\n'
         return 0
     fi
-    lanes="$(sort -u "$changed" | _lanes_for | sed 's/ *$//')"
-    [ -n "$(_risk_task)" ] && lanes="$(_without_risk_lanes "$lanes")"
+    lanes="$LOCAL_LANES"
+    [ -n "$(_risk_task)" ] && lanes="$(_without_lanes "$lanes" "$RISK_DROPPED_LANES")"
     printf '%s\n' "$lanes"
 }
 
@@ -600,11 +536,13 @@ doctor() {
 
 usage() {
     printf 'usage: %s <subcommand>\n\n' "$SELF"
-    printf '  pre-push     lanes selected from the changed paths (reads git pre-push stdin)\n'
+    printf '  pre-push     the local lanes; a branch deletion runs none (reads pre-push stdin)\n'
     printf '  lanes        print what pre-push would run, without running it\n'
-    printf '  all          every lane, no change detection\n'
+    printf '  all          every lane, including the ones a push leaves to CI\n'
     printf '  doctor       environment and hook integrity\n'
     printf '  <lane>       one of: %s\n' "$LANES"
+    printf '               of those, %s run in CI on every push and not in the local hook\n' \
+        "$CI_ONLY_LANES"
     printf '  mutation     features/common/retrieval/ only; never in the lanes above, run by hand\n\n'
     printf '  env: VERIFY_SKIP=lane[,lane]  SKIP_VERIFY=1  VERIFY_BASE=<ref>  AIB_PYTHON=<path>\n'
     printf '       VERIFY_DEADLINE=<seconds>   whole-gate wall clock, default %s; exit %s\n' \
@@ -627,14 +565,6 @@ main() {
             return $rc ;;
         lanes)
             _select_lanes; return $? ;;
-        # The selector over a path list on stdin, skipping git entirely — so the routing can be
-        # asserted against paths that need not exist in any commit.
-        lanes-for)
-            # The whole selector, not half of it: `--risk` narrows here exactly as it does in
-            # _select_lanes, so a test can pin the changed paths and still measure the flag.
-            lanes="$(sort -u | _lanes_for | sed 's/ *$//')"
-            [ -n "$(_risk_task)" ] && lanes="$(_without_risk_lanes "$lanes")"
-            printf '%s\n' "$lanes"; return 0 ;;
         pre-push)
             # Before change detection, not after: a Ctrl-C during it must still name the hook.
             HOOK="pre-push"
@@ -648,12 +578,16 @@ main() {
                 "")       printf 'verify: nothing to verify\n'; return 0 ;;
             esac
             printf '\xe2\x96\xb8 verify pre-push: %s\n' "$lanes"
-            local rc risk
+            local rc risk dropped
             risk="$(_risk_task)"
-            if [ -n "$risk" ]; then
+            # What this run actually gave up, not what RISK_DROPPED_LANES names: those lanes
+            # are mostly ones no push runs anyway, and announcing a trade that was not made is
+            # worse than announcing nothing.
+            dropped="$(_without_lanes "$LOCAL_LANES" "$lanes")"
+            if [ -n "$risk" ] && [ -n "$dropped" ]; then
                 HOOK="risk"
                 printf '  limited gates: %s is a --risk task, so %s did not run.\n' \
-                    "$risk" "$RISK_DROPPED_LANES"
+                    "$risk" "$dropped"
                 printf '  You still owe the full suite before integrating.\n'
             fi
             run_lanes "$lanes"; rc=$?
