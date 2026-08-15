@@ -413,14 +413,9 @@ run_lanes() {
 
 # --------------------------------------------------------------------------- change detection
 
-# True when git's pre-push stdin protocol (<local ref> <local sha> <remote ref> <remote sha>)
-# says every ref on it is a branch deletion — an all-zero local sha. A deletion publishes no
-# content, so the gate runs nothing rather than everything. No stdin at all is a hand-run, not
-# a deletion.
-#
-# The only routing left. Selecting among the local lanes by changed path bought one second (the
-# js lane, the sole lane the table still gated once pylint and pytest left the local set) and
-# cost sixty lines whose failure mode is a gate that quietly stops verifying.
+# True when every ref on git's pre-push stdin (<local ref> <local sha> <remote ref> <remote sha>)
+# is a branch deletion — an all-zero local sha. No stdin at all is a hand-run, not a deletion.
+# The only routing left; why the rest went is in docs/changelog/0.123.0-*.md.
 _deletion_only() {
     local lref lsha rref rsha lines=0 refs=0
     while read -r lref lsha rref rsha; do
