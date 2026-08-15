@@ -197,3 +197,6 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+import os, sys, json  # deliberate unused imports for the pylint failure

@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.123.0",
+  "frameworkVersion": "0.0.0-deliberately-stale",
   "stacks": {
     "angular": {
       "personas": [
@@ -47,7 +47,7 @@
         }
       ],
       "meta": {
-        "description": "Aspire: orchestration for distributed .NET apps — an AppHost describes the resources a solution runs, and the CLI runs, inspects and publishes them.",
+        "description": "Aspire: orchestration for distributed .NET apps \u2014 an AppHost describes the resources a solution runs, and the CLI runs, inspects and publishes them.",
         "detectionSignals": [
           "apphost.cs",
           "AppHost.cs",
