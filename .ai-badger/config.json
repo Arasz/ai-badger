@@ -69,7 +69,9 @@
       "evidence-first-research",
       "explore-codebase",
       "refactor-safely",
-      "review-changes"
+      "review-changes",
+      "complete-project-scope-code-review",
+      "worktree-agent-isolation"
     ]
   }
 }
