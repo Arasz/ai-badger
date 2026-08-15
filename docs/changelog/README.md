@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.124.0 | [The Journey Moves To CI And `--risk` Is Deleted](0.124.0-the-journey-moves-to-ci-and-risk-is-deleted.md) |
 | 0.123.1 | [Pin astroid Below pylint's Ceiling](0.123.1-pin-astroid-below-pylints-ceiling.md) |
 | 0.123.0 | [The Push Stops Re-Proving What CI Proves](0.123.0-the-push-stops-re-proving-what-ci-proves.md) |
 | 0.122.0 | [the floor claim was false](0.122.0-the-floor-claim-was-false.md) · [The Gate Bounds Its Own Wall Clock](0.122.0-the-gate-bounds-its-own-wall-clock.md) |

@@ -72,20 +72,15 @@ _without_lanes() {
     printf '%s' "${keep# }"
 }
 
-# Lanes CI owns, so a push does not. pylint.yml runs `verify.sh pytest` and `verify.sh pylint`
-# on every push to every branch, against the 3.10 this project floors at rather than whatever
-# the developer happens to have — a local pass proves less than the CI run it duplicates.
-readonly CI_ONLY_LANES="pylint pytest"
+# Lanes CI owns, so a push does not — the same three the `gates` job in pylint.yml skips
+# because each has a job of its own. pylint.yml runs `verify.sh pytest` and `verify.sh pylint`,
+# consumer-journey.yml runs gates/consumer_journey.py; all three are `on: [push]` with no branch
+# filter, on the 3.10 this project floors at rather than whatever the developer happens to have.
+# A local pass proves less than the CI run it duplicates, and costs the push the most time.
+readonly CI_ONLY_LANES="pylint pytest journey"
 
 # What a push runs: derived, so a lane added to $LANES joins it without a second edit.
 readonly LOCAL_LANES="$(_without_lanes "$LANES" "$CI_ONLY_LANES")"
-
-# Lanes `--risk` trades away, on top of the ones a push already leaves to CI. Overridable so
-# the notice in `main` can be proven to fire, not merely proven silent.
-readonly RISK_DROPPED_LANES="${VERIFY_RISK_DROPPED:-pytest}"
-
-# The tracker entry `task_tracker.py start --risk` writes is the only record of that choice.
-readonly RISK_QUERY=".lefthook/pre-push/risk_mode.py"
 
 # --------------------------------------------------------------------------- python
 
@@ -428,27 +423,16 @@ _deletion_only() {
     [ "$lines" -eq 1 ] && [ "$refs" -eq 0 ]
 }
 
-# --------------------------------------------------------------------------- limited gates
-
-# The task id that put this branch into `--risk` mode, or nothing. Empty means the full gate,
-# and every failure mode of the query — no tracker, no branch, no python — resolves that way.
-_risk_task() {
-    [ -n "${PY:-}" ] && [ -f "$RISK_QUERY" ] || return 0
-    "$PY" "$RISK_QUERY" --root "$PWD" \
-        --branch "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" 2>/dev/null
-}
+# --------------------------------------------------------------------------- selection
 
 # Prints the space-separated lanes `pre-push` would run, or the word DELETION.
 # Consumes stdin, so it runs exactly once per invocation.
 _select_lanes() {
-    local lanes
     if _deletion_only; then
         printf 'DELETION\n'
         return 0
     fi
-    lanes="$LOCAL_LANES"
-    [ -n "$(_risk_task)" ] && lanes="$(_without_lanes "$lanes" "$RISK_DROPPED_LANES")"
-    printf '%s\n' "$lanes"
+    printf '%s\n' "$LOCAL_LANES"
 }
 
 # --------------------------------------------------------------------------- doctor
@@ -573,18 +557,7 @@ main() {
                 "")       printf 'verify: nothing to verify\n'; return 0 ;;
             esac
             printf '\xe2\x96\xb8 verify pre-push: %s\n' "$lanes"
-            local rc risk dropped
-            risk="$(_risk_task)"
-            # What this run actually gave up, not what RISK_DROPPED_LANES names: those lanes
-            # are mostly ones no push runs anyway, and announcing a trade that was not made is
-            # worse than announcing nothing.
-            dropped="$(_without_lanes "$LOCAL_LANES" "$lanes")"
-            if [ -n "$risk" ] && [ -n "$dropped" ]; then
-                HOOK="risk"
-                printf '  limited gates: %s is a --risk task, so %s did not run.\n' \
-                    "$risk" "$dropped"
-                printf '  You still owe the full suite before integrating.\n'
-            fi
+            local rc
             run_lanes "$lanes"; rc=$?
             _log_run "$rc"
             return $rc ;;
