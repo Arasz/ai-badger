@@ -297,17 +297,29 @@ YAML, so it stays runnable by hand, in CI and by an agent:
 
 | Command | Does |
 |---|---|
-| `verify.sh all` | Every lane, including the two a push leaves to CI. |
+| `verify.sh all` | Every lane, including the ones a push leaves to CI. |
 | `verify.sh pre-push` | The local lanes. A branch deletion runs none. |
 | `verify.sh lanes` | Prints what `pre-push` would run, without running it. |
 | `verify.sh <lane>` | One lane — `pytest`, `pylint`, `docs`, `release`, `tdd`, `js`, … |
 | `verify.sh doctor` | Environment and hook integrity. |
 
-**`pytest` and `pylint` are not in the local set.** `.github/workflows/pylint.yml` runs
-`verify.sh pytest` and `verify.sh pylint` on every push to every branch, against the Python
-this project floors at rather than whatever your machine has — so the local copy took the
-longest and proved the least. Run either by hand (`verify.sh pytest`) when you want it before
-pushing; `verify.sh all` still runs both.
+**`pytest`, `pylint` and `journey` are not in the local set.** `.github/workflows/pylint.yml`
+runs `verify.sh pytest` and `verify.sh pylint` on every push to every branch, against the Python
+this project floors at rather than whatever your machine has — so the local copy took the longest
+and proved the least. `.github/workflows/consumer-journey.yml` runs `journey` the same way. Run
+any of them by hand (`verify.sh pytest`) when you want it before pushing; `verify.sh all` still
+runs all three.
+
+The list is derived, not restated: `CI_ONLY_LANES` names what CI owns and `LOCAL_LANES` is
+`$LANES` minus that, so a lane added to `$LANES` joins the push with no second edit. Two tests
+hold CI and the hook to the same answer — the `gates` job's skip list must equal `CI_ONLY_LANES`,
+and every lane it skips must be run by another push-triggered workflow. `verify.sh --help` prints
+the current split rather than a copy of it.
+
+**A push is bounded.** `VERIFY_DEADLINE` (default 1200s) kills the whole lane process *group* and
+writes its row to `logs/lefthook.log` before doing so, exiting 124. Killing only the direct child
+left an orphaned pytest at PPID 1 that outlived `git push`, lefthook and `verify.sh` — and wrote
+no row at all, which is why the log's timings were survivorship-biased for as long as they were.
 
 Only `pre-push` is wired. `pre-commit` deliberately stays with the pre-commit framework: it
 already runs eight of these gates and chains to code-review-graph, and `lefthook install` renames
@@ -323,9 +335,9 @@ unskippable: it fails the push until you bump `VERSION` yourself. Do that in a c
 When a lane fails it prints how to reproduce it, where the log is, and how to bypass it:
 
 ```
-VERIFY_SKIP=pytest git push   # skip one lane
-SKIP_VERIFY=1 git push        # skip every lane
-git push --no-verify          # skip the hook entirely
+VERIFY_SKIP=scaffold git push   # skip one lane
+SKIP_VERIFY=1 git push          # skip every lane
+git push --no-verify            # skip the hook entirely
 ```
 
 Use them when a lane is broken for reasons unrelated to your change, and say so in the PR — CI
