@@ -1,0 +1,13 @@
+{
+  "name": "ux",
+  "description": "Product design of the human-facing surface: user flows, information architecture, interaction states, microcopy and visual coherence. Detected from UI component files; add it by hand for a command-line or terminal surface, which no file extension announces.",
+  "detectionSignals": [
+    "*.tsx",
+    "*.jsx",
+    "*.vue",
+    "*.svelte",
+    "*.razor"
+  ],
+  "requires": [],
+  "commands": {}
+}

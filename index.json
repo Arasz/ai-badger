@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.120.0",
+  "frameworkVersion": "0.121.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -959,6 +959,36 @@
           "build": "tsc -p .",
           "lint": "eslint ."
         }
+      }
+    },
+    "ux": {
+      "invariants": [
+        {
+          "name": "design-every-reachable-state",
+          "path": "features/ux/invariants/design-every-reachable-state.md"
+        },
+        {
+          "name": "record-deliberate-design-choices",
+          "path": "features/ux/invariants/record-deliberate-design-choices.md"
+        }
+      ],
+      "instructions": [
+        {
+          "name": "ux.instructions",
+          "path": "features/ux/instructions/ux.instructions.md"
+        }
+      ],
+      "meta": {
+        "description": "Product design of the human-facing surface: user flows, information architecture, interaction states, microcopy and visual coherence. Detected from UI component files; add it by hand for a command-line or terminal surface, which no file extension announces.",
+        "detectionSignals": [
+          "*.tsx",
+          "*.jsx",
+          "*.vue",
+          "*.svelte",
+          "*.razor"
+        ],
+        "requires": [],
+        "commands": {}
       }
     }
   }

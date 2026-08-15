@@ -92,7 +92,7 @@ wrong claim in a PR body passes every one of them. That still needs a reviewer.
 ## Supported stacks
 
 `angular`, `aspire`, `azure`, `changelog`, `cosmos`, `css`, `dotnet`, `github`, `js`, `mcp`,
-`node`, `python`, `react`, `terraform`, `ts` — plus **`common`** for stack-agnostic content and
+`node`, `python`, `react`, `terraform`, `ts`, `ux` — plus **`common`** for stack-agnostic content and
 agent-specific stacks (`claude`, `copilot`, `hermes`). Derive it rather than quoting this line:
 `ls features/`.
 
@@ -277,7 +277,7 @@ flowchart TB
     SCH["schemas/*.schema.json"]
     subgraph CAT["catalog: features/{stack|common}/{feature}"]
       COMMON["common/\npersonas·invariants·instructions·hooks·templates"]
-      STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · github · angular"]
+      STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · ux · github · angular"]
     end
     SKILLSDIR["features/common/skills/\n14 default: welcome · feed · task · create-task-spec · maintain\n· prompt-markers · den-refresh · mcp-index · code-review-checklist\n· call-behaviorist · owner-gate-review · commit-reminder · differential-feature-refactor · ai-raccoon-memory\n22 optIn (scope: optIn in each SKILL.md): the documentation three\n· review-changes · explore-codebase · debug-issue · refactor-safely\n· evidence-first-research · 16 more — see docs/skills.md"]
     CLAUDESKILLS["features/claude/skills/\nauto-wm"]
