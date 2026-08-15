@@ -35,6 +35,7 @@ LINT_EXEMPT_PY_ROOTS = GENERATED_PY_ROOTS | {"tests"}
 # documented `lint` command. One lint behaviour everywhere — issue #183.
 LINT_SELECTION = "git ls-files '*.py' | grep -v '^tests/'"
 LINT_RUNNERS = (".github/workflows/pylint.yml", ".lefthook/pre-push/verify.sh")
+GATE_SCRIPT = ".lefthook/pre-push/verify.sh"
 
 
 def _tracked_python_roots(root: Path) -> Set[str]:
@@ -79,10 +80,21 @@ def test_documented_lint_command_enumerates_files_like_ci(root):
 
 
 def test_ci_and_lefthook_select_the_same_files_as_the_documented_command(root):
-    """Three runners, one selection string — a divergence here is a gate that passes locally."""
+    """One selection string — a divergence here is a gate that passes locally.
+
+    A runner may state the selection or delegate to one that does; it may not state a
+    different one. CI delegates since 0.122.0, so the copy it used to keep is gone.
+    """
+    assert LINT_SELECTION in (root / GATE_SCRIPT).read_text(encoding="utf-8"), \
+        f"{GATE_SCRIPT} does not use the shared lint selection"
     for relative in LINT_RUNNERS:
         text = (root / relative).read_text(encoding="utf-8")
-        assert LINT_SELECTION in text, f"{relative} does not use the shared lint selection"
+        if LINT_SELECTION in text:
+            continue
+        assert GATE_SCRIPT in text, (
+            f"{relative} neither states the shared lint selection nor delegates to {GATE_SCRIPT}")
+        assert "ls-files '*.py'" not in text, (
+            f"{relative} states its own python selection instead of {LINT_SELECTION!r}")
 
 
 def test_lint_selection_covers_every_directory_holding_our_python(root):

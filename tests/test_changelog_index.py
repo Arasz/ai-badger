@@ -242,9 +242,18 @@ def test_every_entry_file_appears_exactly_once_in_the_committed_index(root):
 
 @pytest.mark.parametrize("relpath", WIRING)
 def test_the_check_runs_wherever_the_other_generated_artifacts_are_checked(root, relpath):
-    """A generator nothing runs is a generator that goes stale silently."""
+    """A generator nothing runs is a generator that goes stale silently.
+
+    A wiring file may run the check itself or delegate to one that does; CI delegates to the
+    gate script since 0.122.0, so the step it used to spell out is gone.
+    """
+    gate = ".lefthook/pre-push/verify.sh"
     text = (root / relpath).read_text(encoding="utf-8")
-    assert "changelog_index.py" in text, f"{relpath} does not run changelog_index.py"
+    if "changelog_index.py" in text:
+        return
+    assert gate in text, f"{relpath} neither runs changelog_index.py nor delegates to {gate}"
+    assert "changelog_index.py" in (root / gate).read_text(encoding="utf-8"), \
+        f"{relpath} delegates to {gate}, which does not run changelog_index.py either"
 
 
 def test_the_script_runs_as_a_cli_from_the_repository_root(root):

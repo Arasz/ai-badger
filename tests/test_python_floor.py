@@ -1,9 +1,12 @@
-"""Every shipped module must import on Python 3.8, the floor engine/requirements.txt implies.
+"""Every shipped module must import on Python 3.10, the floor engine/requirements.txt implies.
 
 `from __future__ import annotations` defers annotations, so `dict[str, Any]` is safe *there* —
 but an executed expression like a module-level alias `X = dict[str, ...]` subscripts the builtin
-at import time and raises TypeError on 3.8. Local dev runs 3.14 and never notices; CI's 3.8 lane
-does (issue #183's third axis). This test is the local tripwire.
+at import time and raises TypeError below 3.9 (PEP 585). The floor has been 3.9+ since it moved
+to 3.10, so this specific pattern can no longer trip the check — it stays as a tripwire in case
+the floor is ever lowered again, and pairs with the call-time check below for methods that
+*can* still land after today's floor. Local dev runs 3.14 and never notices a floor violation of
+either kind on its own; CI's oldest lane does (issue #183's third axis).
 """
 import ast
 from pathlib import Path
@@ -61,7 +64,7 @@ def test_no_builtin_generic_subscript_executes_at_import(path):
     lines = _runtime_builtin_generic_lines(path)
     assert not lines, (
         f"{path.relative_to(ROOT)} subscripts a builtin generic at runtime on line(s) {lines}; "
-        f"that raises TypeError on Python 3.8 — use typing.Dict/List or defer the expression"
+        f"that raises TypeError below Python 3.9 — use typing.Dict/List or defer the expression"
     )
 
 
@@ -71,27 +74,34 @@ def test_the_checker_itself_can_fail(tmp_path):
     assert _runtime_builtin_generic_lines(probe) == [2]
 
 
-# ── methods that did not exist on 3.8 ───────────────────────────────────────────
+# ── methods that did not exist on the floor ─────────────────────────────────────
 #
-# The subscript check above catches a TypeError at *import*. A 3.9-only method call fails at
-# *call* time instead, so it passes import, passes a local 3.14 run, and fails only in CI's 3.8
-# lane — which is exactly how `str.removesuffix` reached a pull request from this repo on
-# 2026-08-01. Same floor, different failure mode, so it needs its own check.
+# The subscript check above catches a TypeError at *import*. A too-new method call fails at
+# *call* time instead, so it passes import, passes a local 3.14 run, and fails only in CI's
+# oldest lane — which is exactly how `str.removesuffix` (3.9+, and 3.9 was still newer than the
+# floor at the time) reached a pull request from this repo on 2026-08-01. Same floor, different
+# failure mode, so it needs its own check. The floor moved to 3.10 on 2026-08-15, which is why
+# `removesuffix`/`removeprefix` (3.9+) are no longer listed below — they are within the floor now.
 
-# name -> the version that introduced it. Method calls only: a same-named method on someone
-# else's class would be a false positive, which is why the message says "if this is not str".
-METHODS_ADDED_AFTER_3_8 = {
-    "removesuffix": "3.9",
-    "removeprefix": "3.9",
-}
+# name -> the version that introduced it. Only methods newer than today's 3.10 floor belong
+# here. Method calls only: a same-named method on someone else's class would be a false
+# positive (e.g. `ast.walk` is a module function, not `pathlib.Path.walk` (3.12+), and has
+# existed since 3.4 — do not add "walk" here without checking for collisions first), which is
+# why the message says "if this is not the type that added it". Empty for now: nothing in this
+# codebase currently calls a method introduced after the floor.
+METHODS_ADDED_AFTER_3_10 = {}
 
 
-def _late_method_calls(path: Path):
-    """(line, name) for every attribute call naming a method added after the floor."""
+def _late_method_calls(path: Path, banned=METHODS_ADDED_AFTER_3_10):
+    """(line, name) for every attribute call naming a method in *banned*.
+
+    *banned* defaults to the production floor list but is injectable so the mechanism test
+    below does not need a real post-floor stdlib method to exercise the detector.
+    """
     found = []
     for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-            if node.func.attr in METHODS_ADDED_AFTER_3_8:
+            if node.func.attr in banned:
                 found.append((node.lineno, node.func.attr))
     return found
 
@@ -101,17 +111,23 @@ def test_no_method_newer_than_the_floor_is_called(path):
     calls = _late_method_calls(path)
     assert not calls, (
         f"{path.relative_to(ROOT)} calls "
-        + ", ".join(f"`.{name}()` (Python {METHODS_ADDED_AFTER_3_8[name]}+) on line {line}"
+        + ", ".join(f"`.{name}()` (Python {METHODS_ADDED_AFTER_3_10[name]}+) on line {line}"
                     for line, name in calls)
-        + ". The floor is 3.8, and this fails at call time rather than import, so a local run "
-          "on a newer interpreter will not notice. Use slicing or a conditional instead. "
-          "(If this is not a str, rename the local or add it to an allowlist here.)"
+        + ". The floor is 3.10, and this fails at call time rather than import, so a local run "
+          "on a newer interpreter will not notice. Use an alternative instead. "
+          "(If this is not the type that added it, rename the local or add it to an allowlist here.)"
     )
 
 
 def test_the_method_checker_can_fail(tmp_path):
-    """Without this, the check above passes on a repo that simply never calls one."""
-    probe = tmp_path / "probe.py"
-    _test_write(probe, 'x = "ab^{}".removesuffix("^{}")\n', encoding="utf-8")
+    """Without this, the check above passes on a repo that simply never calls one.
 
-    assert _late_method_calls(probe) == [(1, "removesuffix")]
+    Uses a synthetic banned-method name rather than a real post-3.10 stdlib method: the
+    production list is empty today (nothing in this codebase is known to violate the current
+    floor), and inventing a real one here would make this test's correctness depend on
+    guessing right about a future Python release instead of on the detector's own logic.
+    """
+    probe = tmp_path / "probe.py"
+    _test_write(probe, "x.frobnicate()\n", encoding="utf-8")
+
+    assert _late_method_calls(probe, banned={"frobnicate": "9999.9"}) == [(1, "frobnicate")]

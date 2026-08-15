@@ -319,3 +319,23 @@ WP54 splits `badger_lib.py` into `catalog.py` / `fingerprint.py` / `versioning.p
   messages users actually see. The facade is load-bearing, not tidiness.
 - Do it after Waves 7 and 8, as planned. Wave 7's `resolve_framework_root()` and Wave 8's
   feature-type registry both land in this file first.
+
+---
+
+## Amendment — 2026-08-15: the floor moved to 3.10
+
+**Status:** Accepted. The "Python 3.8 floor" line in the constraints above is left standing as
+the record of what was decided and why; it is no longer current.
+
+`engine/requirements.txt` declares `jsonschema>=4.26.0`, and that release requires Python
+>=3.10 — proven by a CI run on this repo, where pip on the 3.8 and 3.9 legs reported `No
+matching distribution found for jsonschema>=4.26.0`. A user on 3.8 or 3.9 following the
+documented `pip install -r engine/requirements.txt` got an error, not a package. The mismatch
+had gone unnoticed because `.github/workflows/pylint.yml` hand-installed a bare, unpinned
+`jsonschema` instead of reading the requirements file, so CI stayed green on all three legs
+regardless.
+
+The owner decided to drop 3.8 and 3.9 support rather than pin `jsonschema` back down: the
+floor is now **Python 3.10**. This does not reopen the decision above — no `[project]` table,
+no distribution, `scripts/` stays a directory of standalone modules — it only raises the
+interpreter version those modules are required to run on.

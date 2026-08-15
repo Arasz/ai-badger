@@ -7,8 +7,10 @@ under /bin/bash, which on macOS is 3.2.
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 import tempfile
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import List
@@ -30,17 +32,28 @@ _LOG_DIR = tempfile.mkdtemp(prefix="verify-gate-tests-")
 _LOG_SUMMARY = str(Path(_LOG_DIR) / "lefthook.log")
 
 
-def _run(*args, stdin="", env=None):
-    """Invoke the gate under /bin/bash with a clean, non-skipping environment."""
+def _gate_env(env=None):
+    """A clean, non-skipping, redirected environment for the gate.
+
+    One source, so a caller that builds its own cannot quietly stop redirecting the logs.
+    """
     environ = dict(os.environ)
     environ.pop("VERIFY_SKIP", None)
     environ.pop("SKIP_VERIFY", None)
+    # Same reason as the two above: an outer gate run exports its own deadline, and a nested
+    # run inheriting a nearly-spent one would time out for a reason no test asked for.
+    environ.pop("VERIFY_DEADLINE", None)
     environ["VERIFY_LOG_DIR"] = _LOG_DIR
     environ["VERIFY_LOG_SUMMARY"] = _LOG_SUMMARY
     environ.update(env or {})
+    return environ
+
+
+def _run(*args, stdin="", env=None):
+    """Invoke the gate under /bin/bash with a clean, non-skipping environment."""
     return subprocess.run(
-        ["/bin/bash", str(GATE), *args],
-        input=stdin, capture_output=True, text=True, cwd=str(REPO), env=environ, check=False)
+        ["/bin/bash", str(GATE), *args], input=stdin, capture_output=True, text=True,
+        cwd=str(REPO), env=_gate_env(env), check=False)
 
 
 def test_gate_is_executable():
@@ -538,3 +551,128 @@ def test_a_risk_run_says_so_and_names_the_task(tmp_path):
 
     assert "risk" in out.lower()
     assert "TASK-1" in out
+
+
+# ── the wall-clock deadline ─────────────────────────────────────────────────────
+#
+# 2026-08-15: a pre-push run reached the pytest lane and was still sitting there 23 minutes
+# later with no output. Its process had PPID 1 — git push, lefthook and verify.sh had all
+# exited and the lane outlived every one of them. logs/lefthook.log held 225 pre-push rows and
+# not one of them was that run: `_log_summary` is only reached after `run_lanes` returns, so a
+# hung or killed run is invisible by construction and every surviving row is a survivor.
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def _nonempty(path: Path) -> bool:
+    return path.exists() and path.stat().st_size > 0
+
+
+def _reap(pid: int) -> None:
+    """Leave no `sleep 600` behind when the assertion that follows it fails."""
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except OSError:
+        pass
+
+
+def _hanging_python(tmp_path):
+    """An AIB_PYTHON that never returns, so only the deadline can end the lane.
+
+    600s against a 1s deadline: no threshold here is close enough to flake under load.
+    """
+    return _shim(tmp_path / "py-hang", "sleep 600")
+
+
+def test_a_lane_past_the_deadline_is_killed(tmp_path):
+    """The gate must bound its own wall clock; nothing outside it was found to."""
+    started = time.monotonic()
+    done = _run("release", env={"AIB_PYTHON": _hanging_python(tmp_path),
+                                "VERIFY_DEADLINE": "1"})
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 15, f"a 1s deadline let the gate run {elapsed:.0f}s"
+    assert done.returncode == 124, (
+        f"a deadline kill must be distinguishable from a lane's own failure — expected 124, "
+        f"got {done.returncode}:\n{done.stdout}\n{done.stderr}")
+    assert "TIMEOUT" in done.stdout, done.stdout
+    assert "release" in done.stdout, f"the timeout never named the lane in flight:\n{done.stdout}"
+
+
+def test_a_timed_out_run_still_writes_a_summary_row(tmp_path):
+    """The survivorship fix: the row is written before the kill, so a killed shell keeps it."""
+    summary = tmp_path / "lefthook.log"
+    _run("release", env={"AIB_PYTHON": _hanging_python(tmp_path), "VERIFY_DEADLINE": "1",
+                         "VERIFY_LOG_SUMMARY": str(summary)})
+
+    assert summary.exists(), "a run the deadline killed left no trace in the summary log"
+    rows = [row for row in summary.read_text(encoding="utf-8").splitlines() if row.strip()]
+    assert len(rows) == 1, "expected exactly one row, got:\n" + "\n".join(rows)
+    fields = [field.strip() for field in rows[0].split("|")]
+    assert fields[3] == "TIMEOUT", rows[0]
+    assert "release" in fields[-1], f"the row does not name the lane in flight: {rows[0]}"
+
+
+def test_the_deadline_kills_the_whole_process_group(tmp_path):
+    """The observed orphan: killing the direct child reparents its children onto PID 1."""
+    pidfile = tmp_path / "grandchild.pid"
+    shim = _shim(tmp_path / "py-spawn", f'sleep 600 &\nprintf "%s" "$!" >{pidfile}\nwait')
+    started = time.monotonic()
+    _run("release", env={"AIB_PYTHON": shim, "VERIFY_DEADLINE": "1"})
+    elapsed = time.monotonic() - started
+
+    assert pidfile.exists(), "the shim started no grandchild, so this proves nothing"
+    # Without this the grandchild is dead because it slept out its 600s, not because anything
+    # killed it, and the assertion below would pass against a gate with no deadline at all.
+    assert elapsed < 15, f"the deadline never fired ({elapsed:.0f}s), so nothing was killed"
+    pid = int(pidfile.read_text(encoding="utf-8"))
+    try:
+        for _ in range(50):
+            if not _alive(pid):
+                break
+            time.sleep(0.1)
+        assert not _alive(pid), (
+            f"the lane's grandchild (pid {pid}) outlived the deadline kill — this is the "
+            "orphan on PID 1 the deadline exists to prevent")
+    finally:
+        _reap(pid)
+
+
+def test_an_operator_interrupt_still_writes_a_summary_row(tmp_path):
+    """The other way a run ends with no row. The deadline is set far away, so only the signal
+    can end this one."""
+    summary = tmp_path / "lefthook.log"
+    log_dir = tmp_path / "gate-logs"
+    env = _gate_env({"AIB_PYTHON": _hanging_python(tmp_path), "VERIFY_DEADLINE": "300",
+                     "VERIFY_LOG_DIR": str(log_dir), "VERIFY_LOG_SUMMARY": str(summary)})
+    gate = subprocess.Popen(  # pylint: disable=consider-using-with
+        ["/bin/bash", str(GATE), "release"], cwd=str(REPO), env=env,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        # Non-empty, not merely present: the file is created by the redirect a moment before the
+        # pgid lands in it, and signalling inside that window tests a different thing — a trap
+        # with nothing to kill — rather than the one this case is about.
+        started = time.monotonic()
+        while not _nonempty(log_dir / "current-pgid") and time.monotonic() - started < 60:
+            time.sleep(0.05)
+        assert _nonempty(log_dir / "current-pgid"), \
+            "the lane never reached the point of having a process group, so this proves nothing"
+        gate.send_signal(signal.SIGTERM)
+        out, _err = gate.communicate(timeout=60)
+    finally:
+        if gate.poll() is None:
+            gate.kill()
+
+    assert gate.returncode == 130, out
+    assert "interrupted" in out, out
+    rows = [row for row in summary.read_text(encoding="utf-8").splitlines() if row.strip()]
+    assert len(rows) == 1, "expected exactly one row, got:\n" + "\n".join(rows)
+    fields = [field.strip() for field in rows[0].split("|")]
+    assert fields[3] == "ABORT", rows[0]
+    assert "release" in fields[-1], f"the row does not name the lane in flight: {rows[0]}"

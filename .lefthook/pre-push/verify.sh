@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ai-badger local quality gate. One subcommand per lane; `pre-push` selects lanes from
 # the changed paths, `all` runs every lane, `doctor` checks the environment and hooks.
-# Contract: exit 0 = pass, non-zero = fail. No other exit code means anything.
+# Contract: exit 0 = pass, 124 = the whole-gate deadline killed the lane in flight, any other
+# non-zero = a lane failed. Nothing outside those three means anything.
 # Targets bash 3.2 (macOS system bash): no associative arrays, no ${var,,}.
 set -uo pipefail
 
@@ -27,6 +28,32 @@ readonly BASE_REF="${VERIFY_BASE:-origin/main}"
 # Redirectable for the same reason as LOG_DIR: the pytest lane runs this script, and an
 # unredirectable summary collects rows for pushes that never happened.
 readonly LOG_SUMMARY="${VERIFY_LOG_SUMMARY:-logs/lefthook.log}"
+
+# One number bounds the whole push. Fifteen per-lane thresholds would be a hand-maintained list
+# nothing ever compares against reality, which is the failure the derive-or-delete invariant
+# names.
+#
+# 1200s from the 225 pre-push rows in logs/lefthook.log (measured 2026-08-15): median 85s,
+# p90 267s, p95 388s, p99 563s, max 841s. Zero of the 225 exceed 1200s, so this kills nothing
+# that has ever legitimately run, while still ending the 2026-08-15 hang — noticed at ~1500s and
+# never going to finish — 5 minutes sooner than the operator did. Those rows only exist for runs
+# that FINISHED, which is the bias this whole change exists to fix, so the true tail is longer
+# than the one measured and the headroom is deliberate.
+#
+# It is a floor, not a ceiling: what already SIGKILLs this hook on wall clock could not be
+# established (no lefthook job timeout, no BASH_*_TIMEOUT_MS, ulimit -t unlimited, TMOUT unset,
+# no launchd job), so a kill from outside can still land first and leave no row.
+readonly DEADLINE="${VERIFY_DEADLINE:-1200}"
+
+# GNU timeout's convention, reserved for a deadline kill so it can never be confused with a lane
+# that exited 143 on its own. Non-zero, so lefthook still refuses the push.
+readonly EXIT_TIMEOUT=124
+
+# What the watchdog and the signal trap need to name the run they are ending. run_lanes owns
+# RUN_LANES and RUN_START; main sets HOOK before calling it.
+HOOK="lane"
+RUN_LANES=""
+RUN_START=$(date +%s)
 
 # Cheap lanes first so a typo fails fast, before pylint and pytest.
 readonly LANES="version-sync index plugin-skills deps docs release paths workflows validate scaffold journey tdd js pylint pytest"
@@ -87,18 +114,99 @@ _fail_block() {
     printf '    logs:       %s\n\n' "$log"
 }
 
+# One row per invocation. `result` is PASS, FAIL, TIMEOUT or ABORT; `note` is written verbatim,
+# so a caller says `failed:pytest` or `timeout:pytest` and the reader can tell them apart.
 _log_summary() {
-    local hook=$1 lanes=$2 result=$3 elapsed=$4 failed=${5:-}
+    local hook=$1 lanes=$2 result=$3 elapsed=$4 note=${5:-}
     mkdir -p "$(dirname "$LOG_SUMMARY")"
-    if [ -n "$failed" ]; then
-        printf '%s | %-10s | %s | %s | %ss | failed:%s\n' \
-            "$(date '+%Y-%m-%d %H:%M:%S')" "$hook" "$lanes" "$result" "$elapsed" "$failed" \
+    if [ -n "$note" ]; then
+        printf '%s | %-10s | %s | %s | %ss | %s\n' \
+            "$(date '+%Y-%m-%d %H:%M:%S')" "$hook" "$lanes" "$result" "$elapsed" "$note" \
             >>"$LOG_SUMMARY"
     else
         printf '%s | %-10s | %s | %s | %ss\n' \
             "$(date '+%Y-%m-%d %H:%M:%S')" "$hook" "$lanes" "$result" "$elapsed" \
             >>"$LOG_SUMMARY"
     fi
+}
+
+# The row for a run that finished on its own. A timed-out one already has its row: the watchdog
+# wrote it before signalling, so a shell that dies with the group cannot lose it.
+_log_run() {
+    local rc=$1
+    [ "$rc" -eq "$EXIT_TIMEOUT" ] && return 0
+    _log_summary "$HOOK" "$RUN_LANES" "$([ "$rc" -eq 0 ] && echo PASS || echo FAIL)" \
+        "$(( $(date +%s) - RUN_START ))" "${_FAILED_LANES:+failed:$_FAILED_LANES}"
+}
+
+# --------------------------------------------------------------------------- deadline
+
+# The process group of a backgrounded job, or nothing when ps cannot say.
+_pgid_of() {
+    local pgid
+    pgid="$(ps -o pgid= -p "$1" 2>/dev/null | tr -d ' ')"
+    case "$pgid" in
+        ''|*[!0-9]*) return 1 ;;
+        *) printf '%s' "$pgid" ;;
+    esac
+}
+
+readonly MY_PGID="$(_pgid_of $$)"
+
+# Signals a whole process group. Refuses a malformed id and refuses this shell's own group,
+# which would take the git push above us down with it.
+_signal_group() {
+    local sig=$1 pgid=$2
+    case "$pgid" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$pgid" = "${MY_PGID:-}" ] && return 1
+    kill "-$sig" "-$pgid" 2>/dev/null
+    return 0
+}
+
+# TERM, then KILL whatever ignored it. The group, never the single child: killing the direct
+# child is what left a pytest running under PID 1 after git push, lefthook and this script had
+# all exited (2026-08-15) — its own children never saw the signal.
+_kill_group() {
+    _signal_group TERM "$1" || return 0
+    sleep 3
+    _signal_group KILL "$1"
+}
+
+# Fires once per run, DEADLINE seconds in. Writes the summary row BEFORE it signals, because the
+# shell may not survive to write one: that row is the only record a hung run leaves, and
+# _log_summary is otherwise reached only after run_lanes returns.
+_watchdog() {
+    local hook=$1 lanes=$2 lane pgid
+    sleep "$DEADLINE"
+    lane="$(cat "$LOG_DIR/current-lane" 2>/dev/null)"
+    pgid="$(cat "$LOG_DIR/current-pgid" 2>/dev/null)"
+    : >"$LOG_DIR/timed-out"
+    printf '\n  \xe2\x9c\x97 %-14s TIMEOUT after %ss\n' "${lane:-?}" "$DEADLINE"
+    _log_summary "$hook" "$lanes" "TIMEOUT" "$DEADLINE" "timeout:${lane:-?}"
+    _kill_group "$pgid"
+}
+
+# An operator's Ctrl-C is the other way a run ends with no row. Same order as the watchdog:
+# write first, then take the lane's group down rather than leaving it behind.
+_on_signal() {
+    trap - INT TERM
+    local lane pgid
+    lane="$(cat "$LOG_DIR/current-lane" 2>/dev/null)"
+    pgid="$(cat "$LOG_DIR/current-pgid" 2>/dev/null)"
+    # Before anything else: an armed watchdog outlives this shell, holds its stdout open for the
+    # rest of the deadline, and then fires against a process group that is long gone.
+    _signal_group TERM "$(cat "$LOG_DIR/watchdog-pgid" 2>/dev/null)"
+    printf '\n  interrupted (%s)%s\n' "$1" "${lane:+ during $lane}"
+    _log_summary "$HOOK" "$RUN_LANES" "ABORT" "$(( $(date +%s) - RUN_START ))" \
+        "signal:$1 ${lane:-none}"
+    # Job control makes the shell announce every job it reaps on the way out ("Terminated: 15
+    # lane_cmd ..."), which reads as an error the operator caused rather than the one they asked
+    # for. Nothing after this point has anything of its own to say.
+    exec 2>/dev/null
+    _kill_group "$pgid"
+    exit 130
 }
 
 # --------------------------------------------------------------------------- lanes
@@ -205,9 +313,11 @@ lane_tdd() {
     "$PY" gates/tdd_guard.py --base "$BASE_REF"
 }
 
-# Runs one lane, captures its log, and prints the failure block. Returns the lane's verdict.
+# Runs one lane, captures its log, and prints the failure block. Returns the lane's verdict,
+# or EXIT_TIMEOUT when the watchdog ended it — read off the marker file, never inferred from
+# the 143 a lane can just as well exit with on its own.
 run_lane() {
-    local lane=$1 start elapsed log
+    local lane=$1 start elapsed log rc lane_pid
     if _skipped "$lane"; then
         printf '  \xe2\x88\x92 %-14s skipped (VERIFY_SKIP)\n' "$lane"
         return 0
@@ -215,11 +325,29 @@ run_lane() {
     mkdir -p "$LOG_DIR"
     log="$LOG_DIR/$lane.log"
     start=$(date +%s)
-    if lane_cmd "$lane" >"$log" 2>&1; then
-        printf '  \xe2\x9c\x93 %-14s %ss\n' "$lane" "$(( $(date +%s) - start ))"
+    # Job control gives the lane a process group of its own, so the watchdog can take down
+    # everything it spawned without signalling this shell or the git push above it.
+    set -m
+    lane_cmd "$lane" >"$log" 2>&1 &
+    lane_pid=$!
+    set +m
+    _pgid_of "$lane_pid" >"$LOG_DIR/current-pgid"
+    wait "$lane_pid" 2>/dev/null
+    rc=$?
+    : >"$LOG_DIR/current-pgid"
+    elapsed=$(( $(date +%s) - start ))
+    if [ -f "$LOG_DIR/timed-out" ]; then
+        sed 's/^/      /' "$log"
+        printf '\n    the %ss deadline ended this lane; no check failed.\n' "$DEADLINE"
+        printf '    logs:       %s\n' "$log"
+        printf '    raise it:   VERIFY_DEADLINE=%s git push\n' "$(( DEADLINE * 4 ))"
+        printf '    bypass:     VERIFY_SKIP=%s git push\n\n' "$lane"
+        return "$EXIT_TIMEOUT"
+    fi
+    if [ "$rc" -eq 0 ]; then
+        printf '  \xe2\x9c\x93 %-14s %ss\n' "$lane" "$elapsed"
         return 0
     fi
-    elapsed=$(( $(date +%s) - start ))
     printf '  \xe2\x9c\x97 %-14s %ss\n' "$lane" "$elapsed"
     sed 's/^/      /' "$log"
     _fail_block "$lane" "$elapsed" "$log"
@@ -228,20 +356,38 @@ run_lane() {
 
 # Runs the named lanes and returns non-zero if any failed. Never swallows a verdict.
 # Sets _FAILED_LANES for callers that need the names (e.g. _log_summary).
+# One watchdog for the whole run, not one per lane: DEADLINE bounds the push, and the lane it
+# names comes from the file this loop keeps current.
 run_lanes() {
-    local lane failed="" start
+    local lane failed="" rc dog_pid dog_pgid
     _FAILED_LANES=""
-    start=$(date +%s)
+    mkdir -p "$LOG_DIR"
+    rm -f "$LOG_DIR/timed-out"
+    RUN_START=$(date +%s)
+    RUN_LANES="$*"
+    set -m
+    _watchdog "$HOOK" "$RUN_LANES" &
+    dog_pid=$!
+    set +m
+    dog_pgid="$(_pgid_of "$dog_pid")"
+    printf '%s' "$dog_pgid" >"$LOG_DIR/watchdog-pgid"
     for lane in $@; do
-        run_lane "$lane" || failed="$failed $lane"
+        printf '%s' "$lane" >"$LOG_DIR/current-lane"
+        run_lane "$lane"; rc=$?
+        [ "$rc" -eq "$EXIT_TIMEOUT" ] && return "$EXIT_TIMEOUT"
+        [ "$rc" -eq 0 ] || failed="$failed $lane"
     done
+    # Its own group, so the watchdog's sleep dies with it instead of lingering as exactly the
+    # kind of orphan this mechanism exists to prevent.
+    _signal_group TERM "$dog_pgid"
+    : >"$LOG_DIR/watchdog-pgid"
     printf '\n'
     if [ -n "$failed" ]; then
         _FAILED_LANES="$failed"
-        printf 'FAILED after %ss:%s\n' "$(( $(date +%s) - start ))" "$failed"
+        printf 'FAILED after %ss:%s\n' "$(( $(date +%s) - RUN_START ))" "$failed"
         return 1
     fi
-    printf 'ok - all lanes passed (%ss)\n' "$(( $(date +%s) - start ))"
+    printf 'ok - all lanes passed (%ss)\n' "$(( $(date +%s) - RUN_START ))"
     return 0
 }
 
@@ -461,19 +607,23 @@ usage() {
     printf '  <lane>       one of: %s\n' "$LANES"
     printf '  mutation     features/common/retrieval/ only; never in the lanes above, run by hand\n\n'
     printf '  env: VERIFY_SKIP=lane[,lane]  SKIP_VERIFY=1  VERIFY_BASE=<ref>  AIB_PYTHON=<path>\n'
+    printf '       VERIFY_DEADLINE=<seconds>   whole-gate wall clock, default %s; exit %s\n' \
+        "$DEADLINE" "$EXIT_TIMEOUT"
 }
 
 main() {
     local cmd="${1:-}" lanes
+    trap '_on_signal INT' INT
+    trap '_on_signal TERM' TERM
     case "$cmd" in
         ""|-h|--help|help) usage; return 0 ;;
         doctor) doctor; return $? ;;
         all)
             printf '\xe2\x96\xb8 verify all\n'
-            local rc start
-            start=$(date +%s)
+            local rc
+            HOOK="all"
             run_lanes "$LANES"; rc=$?
-            _log_summary "all" "$LANES" "$([ $rc -eq 0 ] && echo PASS || echo FAIL)" "$(( $(date +%s) - start ))" "$_FAILED_LANES"
+            _log_run "$rc"
             return $rc ;;
         lanes)
             _select_lanes; return $? ;;
@@ -486,6 +636,8 @@ main() {
             [ -n "$(_risk_task)" ] && lanes="$(_without_risk_lanes "$lanes")"
             printf '%s\n' "$lanes"; return 0 ;;
         pre-push)
+            # Before change detection, not after: a Ctrl-C during it must still name the hook.
+            HOOK="pre-push"
             if [ -n "${SKIP_VERIFY:-}" ]; then
                 printf 'verify: skipped (SKIP_VERIFY=%s)\n' "$SKIP_VERIFY"
                 return 0
@@ -496,27 +648,26 @@ main() {
                 "")       printf 'verify: nothing to verify\n'; return 0 ;;
             esac
             printf '\xe2\x96\xb8 verify pre-push: %s\n' "$lanes"
-            local rc start risk hook="pre-push"
+            local rc risk
             risk="$(_risk_task)"
             if [ -n "$risk" ]; then
-                hook="risk"
+                HOOK="risk"
                 printf '  limited gates: %s is a --risk task, so %s did not run.\n' \
                     "$risk" "$RISK_DROPPED_LANES"
                 printf '  You still owe the full suite before integrating.\n'
             fi
-            start=$(date +%s)
             run_lanes "$lanes"; rc=$?
-            _log_summary "$hook" "$lanes" "$([ $rc -eq 0 ] && echo PASS || echo FAIL)" "$(( $(date +%s) - start ))" "$_FAILED_LANES"
+            _log_run "$rc"
             return $rc ;;
         *)
             # "mutation" is invocable by hand without joining $LANES (and therefore without
             # ever running via `all` or `pre-push`) — see lane_mutation above.
             case " $LANES mutation " in
                 *" $cmd "*)
-                    local rc start
-                    start=$(date +%s)
+                    local rc
+                    HOOK="lane"
                     run_lanes "$cmd"; rc=$?
-                    _log_summary "lane" "$cmd" "$([ $rc -eq 0 ] && echo PASS || echo FAIL)" "$(( $(date +%s) - start ))" "$_FAILED_LANES"
+                    _log_run "$rc"
                     return $rc ;;
                 *) printf 'unknown subcommand: %s\n\n' "$cmd" >&2; usage >&2; return 2 ;;
             esac ;;

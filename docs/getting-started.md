@@ -39,7 +39,7 @@ pulls generalizable improvements back out.
   `.ai-badger/` plus copies at conventional paths — a one-file demo repo produced 71 entries at
   `0.97.0`, and a real project produces more. They are meant to be committed.
 
-Requirements: **Python 3.8+** (CI floor) and the two dependencies in
+Requirements: **Python 3.10+** (CI floor) and the two dependencies in
 [`engine/requirements.txt`](../engine/requirements.txt).
 
 ---

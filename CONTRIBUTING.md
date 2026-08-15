@@ -25,7 +25,7 @@ Two things to know before you start, because they shape everything below:
 
 ## Setup
 
-Python **3.8+** (CI runs 3.8, 3.9 and 3.10) and Node (for the two `.mjs` gate scripts).
+Python **3.10+** (the CI floor) and Node (for the two `.mjs` gate scripts).
 
 ```bash
 git clone https://github.com/Arasz/ai-badger
@@ -407,8 +407,8 @@ tests live in 40 *other* files — an artefact of the harness, not a gap in the 
 
 **No threshold, no score, no CI job, and it is not in `$LANES`** — `verify.sh mutation` never
 runs on push or in CI, and nothing here can fail a build. mutmut's own maintainer has said teams
-that put it in CI eventually "throw it all away as it's useless," and this repo's floor
-(Python 3.8) predates mutmut's own floor (3.10) regardless. A mutation *score* is not reported
+that put it in CI eventually "throw it all away as it's useless," and the subprocess-trampoline
+crash described above would block it regardless. A mutation *score* is not reported
 either, matching Google's public reasoning for not publishing one: "it is neither concrete nor
 actionable, and it does not guide testing." Treat a run's summary as a lead, not a grade.
 

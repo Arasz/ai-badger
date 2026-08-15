@@ -14,9 +14,9 @@ top-level name into one of three buckets:
   * THIRD-PARTY — everything else, INCLUDING a name that resolves nowhere. An absent module is
     not proof of innocence: a missing dependency is exactly what it looks like.
 
-Stdlib detection cannot use `sys.stdlib_module_names` — it landed in 3.10 and this repo's floor
-is 3.8 (the CI matrix runs 3.8/3.9/3.10). Instead each name is resolved with
-`importlib.util.find_spec` and its origin located: no origin at all means built-in or frozen;
+Stdlib detection uses `importlib.util.find_spec` and its origin, not `sys.stdlib_module_names`
+(available since this repo's floor moved to 3.10, but not adopted here — this approach needs
+no floor-conditional branch and was left as is): no origin at all means built-in or frozen;
 a path under site-packages means third-party; a path under `sysconfig`'s stdlib means stdlib.
 Site-packages is tested FIRST because in a system install it sits *inside* the stdlib directory.
 
