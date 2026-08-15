@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.125.0",
-  "frameworkCommit": "515415e143ecc627f323f1ff4fd2bf28c8a5d8ad",
+  "frameworkCommit": "de48f37de4b31756117afeea029edce275a99e8f",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -723,12 +723,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.125.0",
-      "hash": "395c254d48265b1a7edb26ab56fd79fbfe8e55b0be3b3e0bf7d776fdf94aaea1",
+      "hash": "5ce323459794225eb15660b7bc377bd83e204ed266b844c766a8a20cc63777b3",
       "dirMeta": {
         "file_count": 20,
         "dir_count": 2
       },
-      "sourceHash": "395c254d48265b1a7edb26ab56fd79fbfe8e55b0be3b3e0bf7d776fdf94aaea1",
+      "sourceHash": "5ce323459794225eb15660b7bc377bd83e204ed266b844c766a8a20cc63777b3",
       "sourceMeta": {
         "file_count": 20,
         "dir_count": 2
@@ -1141,7 +1141,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/ai-raccoon-memory",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1150,7 +1150,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/call-behaviorist",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1159,7 +1159,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/code-review-checklist",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1168,7 +1168,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/commit-reminder",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1177,7 +1177,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/create-task-spec",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1186,7 +1186,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/den-refresh",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1195,7 +1195,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/differential-feature-refactor",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1204,7 +1204,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/feed-badger",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1213,7 +1213,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/humanizer",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1222,7 +1222,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/maintain-agent-instructions",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1231,7 +1231,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/mcp-index",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1240,7 +1240,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/owner-gate-review",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1249,7 +1249,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/prompt-markers",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1258,7 +1258,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/semantica-knowledge-graph",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1267,7 +1267,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/task",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1276,7 +1276,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/welcome-ai-badger",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1285,7 +1285,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/complete-project-scope-code-review",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1294,7 +1294,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/debug-issue",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1303,7 +1303,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/evidence-first-research",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1312,7 +1312,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/explore-codebase",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1321,7 +1321,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/migrate-documentation",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1330,7 +1330,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/refactor-safely",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1339,7 +1339,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/review-changes",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1348,7 +1348,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/scaffold-documentation",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1357,7 +1357,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/update-documentation",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1366,7 +1366,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/worktree-agent-isolation",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1375,7 +1375,7 @@
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/auto-wm",
       "frameworkVersion": "0.125.0",
-      "hash": "189a50a955ff7346727da38b4ff7cccd2c1d556c1ce468b894fb96360c9b207e"
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1438,7 +1438,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/ai-raccoon-memory",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1447,7 +1447,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/call-behaviorist",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1456,7 +1456,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/code-review-checklist",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1465,7 +1465,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/commit-reminder",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1474,7 +1474,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/create-task-spec",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1483,7 +1483,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/den-refresh",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1492,7 +1492,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/differential-feature-refactor",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1501,7 +1501,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/feed-badger",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1510,7 +1510,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/humanizer",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1519,7 +1519,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/maintain-agent-instructions",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1528,7 +1528,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/mcp-index",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1537,7 +1537,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/owner-gate-review",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1546,7 +1546,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/prompt-markers",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1555,7 +1555,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/semantica-knowledge-graph",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1564,7 +1564,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/task",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1573,7 +1573,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/welcome-ai-badger",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1582,7 +1582,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/complete-project-scope-code-review",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1591,7 +1591,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/debug-issue",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1600,7 +1600,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/evidence-first-research",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1609,7 +1609,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/explore-codebase",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1618,7 +1618,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/migrate-documentation",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1627,7 +1627,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/refactor-safely",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1636,7 +1636,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/review-changes",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1645,7 +1645,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/scaffold-documentation",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1654,7 +1654,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/update-documentation",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1663,7 +1663,7 @@
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/worktree-agent-isolation",
       "frameworkVersion": "0.125.0",
-      "hash": "957952a7a244a3109158d98642e69b1fb89510ed5cc96958786e29fbfb2e406a"
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",

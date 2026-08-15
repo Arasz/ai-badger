@@ -60,8 +60,12 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         dst.symlink_to(os.path.relpath(src, dst.parent))
         linked.append(skill_name)
 
-    pruned = _prune(claude_skills, skills, skills_root, owned_targets)
-    left = _owned_entries(claude_skills, skills_root, owned_targets) if not skills else []
+    # `prune` is the scaffolder saying whether `skills` is evidence of what this project
+    # wants. A run that could not read the manifest still delivers its stacks' skills, so a
+    # non-empty list is not proof on its own — see Scaffolder.prune_discovery (#129).
+    may_prune = context.get("prune", True) and bool(skills)
+    pruned = _prune(claude_skills, skills, skills_root, owned_targets) if may_prune else []
+    left = [] if may_prune else _owned_entries(claude_skills, skills_root, owned_targets)
 
     notes = []
     if linked:
@@ -73,7 +77,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         )
     if left:
         notes.append(
-            f"skills is empty — left {len(left)} link(s) untouched "
+            f"this run cannot vouch for the delivered list — left {len(left)} link(s) untouched "
             f"({', '.join('.claude/skills/' + n for n in left)}); to stop delivering a "
             f"skill use config.exclude.skills instead"
         )
