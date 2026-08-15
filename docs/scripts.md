@@ -1,6 +1,6 @@
 # ai-badger scripts — how to run them and their tests
 
-All scripts are plain Python 3.8+ standalone files (no install step). The framework validates
+All scripts are plain Python 3.10+ standalone files (no install step). The framework validates
 JSON against `schemas/` with `jsonschema`, so install that once:
 
 ```bash
@@ -133,7 +133,7 @@ python3 -m pytest -q                 # runs tests/ (configured via pyproject tes
 python3 -m pytest tests/test_scaffold_no_test_leak.py -q   # a single test
 ```
 
-Lint (CI runs this on Python 3.8/3.9/3.10, tests excluded — they keep their own conventions).
+Lint (CI runs this against the floor, Python 3.10, tests excluded — they keep their own conventions).
 The file selection below is the *only* one: CI, the lefthook `pylint` lane and the `lint` command
 in [`CLAUDE.md`](../CLAUDE.md) all share it, so a green local run means a green build. Naming
 directories instead would silently skip the `.ai-badger/` and `skills/` mirror trees (issue #183).

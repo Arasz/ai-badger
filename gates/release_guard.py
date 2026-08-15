@@ -106,7 +106,7 @@ def unpushed_release_tags(root: Path) -> List[str]:
         listing = _git(root, "ls-remote", "--tags", "origin")
     except GitCommandFailed:
         return []
-    # `[:-3]` rather than `removesuffix("^{}")`: that method is 3.9+ and the floor is 3.8.
+    # `[:-3]` rather than `removesuffix("^{}")`: same result, no version-specific API to depend on.
     # The dereferenced-tag line for an annotated tag ends in `^{}` and names the same tag.
     remote = set()
     for line in listing.splitlines():
