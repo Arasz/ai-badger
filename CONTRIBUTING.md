@@ -479,6 +479,36 @@ Scoped instructions live in `.ai-badger/instructions/` — read
 `python.instructions.md`, `javascript.instructions.md`, or `documentation.instructions.md`
 before editing files of that kind.
 
+### Two concurrent PRs always conflict. Regenerate, never hand-merge.
+
+Every release bumps `VERSION`, regenerates `index.json`, and adds a row to
+`docs/changelog/README.md`, so any two PRs open at once collide on all three by construction. On
+2026-08-15, eight commits touched each of them and four separate merges conflicted.
+
+They are derived files. Hand-resolving them produces marker damage rather than a resolution, and a
+following `git add -A` then stages files still containing `<<<<<<<`. Resolve arbitrarily, then
+regenerate from source:
+
+```bash
+git checkout --ours VERSION index.json docs/changelog/README.md   # side does not matter
+echo "<the version you intend>" > VERSION
+AI_BADGER_MCP_AVAILABILITY=all python3 features/common/skills/welcome-ai-badger/scripts/scaffold.py \
+    --config .ai-badger/config.json --target . --root . --no-install --skills ''
+python3 tooling/version_sync.py && python3 tooling/index_build.py && python3 tooling/changelog_index.py
+python3 tooling/version_sync.py          # again: the scaffold stamps CLAUDE.md from the synced manifests
+```
+
+Two traps this does not cover:
+
+- **`.ai-badger/config.json` is source, not generated.** Taking either side of a conflict there
+  silently drops the other side's `include.skills` entries — no marker, no gate, and nothing
+  regenerates them back. Diff it against `main` after any merge.
+- **A squash-merged base orphans everything built on it.** The merge-base predates the flattened
+  commit, so `git merge origin/main` replays the whole merged branch and produces enormous conflict
+  counts over a small real difference — 187 hunks over 19 files, on one occasion. Check
+  `git diff origin/main..origin/<branch> --stat` first: if that is small, rebuild rather than merge
+  (`git worktree add -b fix/x origin/main`, then `git diff` piped through `git apply`).
+
 ## Architecture decisions
 
 Decisions that would otherwise get re-litigated are recorded as ADRs in
