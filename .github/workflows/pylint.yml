@@ -11,6 +11,8 @@ jobs:
   # job that aborts at its first failing step. Each job invokes `.lefthook/pre-push/verify.sh`
   # — the same gate a developer's pre-push hook runs — so the set of checks lives in exactly
   # one place: $LANES in that script. Nothing here re-lists lane names or their commands.
+  # Dependencies are likewise read from engine/requirements.txt + engine/requirements-dev.txt
+  # instead of a fourth hand-typed pip-install list.
   tests:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -32,7 +34,11 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pylint pytest jsonschema pyyaml
+        pip install -r engine/requirements.txt -r engine/requirements-dev.txt
+    - name: Show the interpreter verify.sh will resolve
+      run: |
+        echo "command -v python3: $(command -v python3)"
+        python3 --version
     - name: verify.sh pytest
       run: bash .lefthook/pre-push/verify.sh pytest
 
@@ -54,7 +60,11 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pylint pytest jsonschema pyyaml
+        pip install -r engine/requirements.txt -r engine/requirements-dev.txt
+    - name: Show the interpreter verify.sh will resolve
+      run: |
+        echo "command -v python3: $(command -v python3)"
+        python3 --version
     - name: verify.sh pylint
       run: bash .lefthook/pre-push/verify.sh pylint
 
@@ -76,7 +86,11 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pylint pytest jsonschema pyyaml
+        pip install -r engine/requirements.txt -r engine/requirements-dev.txt
+    - name: Show the interpreter verify.sh will resolve
+      run: |
+        echo "command -v python3: $(command -v python3)"
+        python3 --version
     - name: Run every remaining lane, reporting every failure in this one job
       run: |
         # tdd_guard compares against main; checkout's fetch-depth: 0 does not guarantee a
