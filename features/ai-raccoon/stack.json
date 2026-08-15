@@ -1,0 +1,12 @@
+{
+  "name": "ai-raccoon",
+  "description": "AiRaccoon: developing the AiRaccoon memory server itself — the hand-run verification of a live build that automated tests cannot reach, because it needs a real install, a real server and a real bank. Projects that merely consume AiRaccoon as a memory server want the common ai-raccoon-memory skill instead.",
+  "detectionSignals": [
+    "AiRaccoon.slnx",
+    "AiRaccoon.csproj"
+  ],
+  "requires": [
+    "dotnet",
+    "mcp"
+  ]
+}

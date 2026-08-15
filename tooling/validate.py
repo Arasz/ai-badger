@@ -76,6 +76,11 @@ FEATURE_JSON_WITHOUT_SCHEMA: Dict[str, str] = {
     "features/*/templates/state.json":
         "the seed body of a scaffolded project's .ai-badger/state.json; owned by the tracker "
         "that reads it in the consumer project, and it carries no framework-side contract",
+    "features/*/skills/*/templates/*.json":
+        "a seed body the skill tells its reader to copy out and fill in, not framework input: "
+        "the filled copy lives in the consumer project and the blank one is only ever read by "
+        "the human following the skill. Its shape is pinned by that skill's own tests, which "
+        "assert what a schema cannot — that a field stays unanswerable-by-default",
 }
 
 # Stacks whose files are not checked for cross-stack references, and why.
