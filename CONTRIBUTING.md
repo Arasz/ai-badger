@@ -297,11 +297,17 @@ YAML, so it stays runnable by hand, in CI and by an agent:
 
 | Command | Does |
 |---|---|
-| `verify.sh all` | Every lane, no change detection. |
-| `verify.sh pre-push` | Only the lanes the pushed commits can affect. |
+| `verify.sh all` | Every lane, including the two a push leaves to CI. |
+| `verify.sh pre-push` | The local lanes. A branch deletion runs none. |
 | `verify.sh lanes` | Prints what `pre-push` would run, without running it. |
 | `verify.sh <lane>` | One lane — `pytest`, `pylint`, `docs`, `release`, `tdd`, `js`, … |
 | `verify.sh doctor` | Environment and hook integrity. |
+
+**`pytest` and `pylint` are not in the local set.** `.github/workflows/pylint.yml` runs
+`verify.sh pytest` and `verify.sh pylint` on every push to every branch, against the Python
+this project floors at rather than whatever your machine has — so the local copy took the
+longest and proved the least. Run either by hand (`verify.sh pytest`) when you want it before
+pushing; `verify.sh all` still runs both.
 
 Only `pre-push` is wired. `pre-commit` deliberately stays with the pre-commit framework: it
 already runs eight of these gates and chains to code-review-graph, and `lefthook install` renames
