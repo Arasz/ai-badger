@@ -31,10 +31,19 @@ readonly LOG_SUMMARY="${VERIFY_LOG_SUMMARY:-logs/lefthook.log}"
 
 # One number bounds the whole push. Fifteen per-lane thresholds would be a hand-maintained list
 # nothing ever compares against reality, which is the failure the derive-or-delete invariant
-# names. 90s because nothing outside the gate was found to bound it: lefthook.yml declares no
-# job timeout, no BASH_*_TIMEOUT_MS is set, and no ulimit/TMOUT/launchd watchdog applies — so
-# the ceiling this has to fire below is unknown as of 2026-08-15, and 90s is a guess at it.
-readonly DEADLINE="${VERIFY_DEADLINE:-90}"
+# names.
+#
+# 1200s from the 225 pre-push rows in logs/lefthook.log (measured 2026-08-15): median 85s,
+# p90 267s, p95 388s, p99 563s, max 841s. Zero of the 225 exceed 1200s, so this kills nothing
+# that has ever legitimately run, while still ending the 2026-08-15 hang — noticed at ~1500s and
+# never going to finish — 5 minutes sooner than the operator did. Those rows only exist for runs
+# that FINISHED, which is the bias this whole change exists to fix, so the true tail is longer
+# than the one measured and the headroom is deliberate.
+#
+# It is a floor, not a ceiling: what already SIGKILLs this hook on wall clock could not be
+# established (no lefthook job timeout, no BASH_*_TIMEOUT_MS, ulimit -t unlimited, TMOUT unset,
+# no launchd job), so a kill from outside can still land first and leave no row.
+readonly DEADLINE="${VERIFY_DEADLINE:-1200}"
 
 # GNU timeout's convention, reserved for a deadline kill so it can never be confused with a lane
 # that exited 143 on its own. Non-zero, so lefthook still refuses the push.
