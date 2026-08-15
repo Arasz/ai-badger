@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.121.3 | [Design Lens Skills, and a Canonical `.github/mcp.json`](0.121.3-design-lens-skills-and-canonical-mcp-json.md) |
 | 0.121.0 | [design is its own lens](0.121.0-design-is-its-own-lens.md) |
 | 0.120.0 | [the index can see tools again](0.120.0-the-index-can-see-tools-again.md) |
 | 0.119.0 | [One Skill For A Whole-Project Review](0.119.0-one-skill-for-a-whole-project-review.md) |
