@@ -7,9 +7,15 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  # Three independent jobs so one push shows every failure as its own red X, instead of one
+  # job that aborts at its first failing step. Each job invokes `.lefthook/pre-push/verify.sh`
+  # — the same gate a developer's pre-push hook runs — so the set of checks lives in exactly
+  # one place: $LANES in that script. Nothing here re-lists lane names or their commands.
+  tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.8", "3.9", "3.10"]
     steps:
@@ -17,6 +23,7 @@ jobs:
       with:
         # release_guard.py needs tags to find the last ai-badger--v* release; the default
         # fetch-depth: 1 does not fetch them, which would make the guard silently pass.
+        # (This job only runs pytest, but every job here shares the same checkout step.)
         fetch-depth: 0
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -26,58 +33,87 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install pylint pytest jsonschema pyyaml
-    - name: Analysing the code with pylint (scripts only; tests keep their own conventions)
+    - name: verify.sh pytest
+      run: bash .lefthook/pre-push/verify.sh pytest
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.9", "3.10"]
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        fetch-depth: 0
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
       run: |
-        pylint -j 0 $(git ls-files '*.py' | grep -v '^tests/')
-    - name: Run tests with pytest
+        python -m pip install --upgrade pip
+        pip install pylint pytest jsonschema pyyaml
+    - name: verify.sh pylint
+      run: bash .lefthook/pre-push/verify.sh pylint
+
+  # Every lane except pytest and pylint (each has its own matrixed job above) and journey
+  # (covered by consumer-journey.yml on its own push trigger — running it here too would
+  # verify the same thing twice). 3.10 only, matching what pylint.yml ran the .mjs agent-
+  # instruction validators and the js lane on before this restructure.
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        fetch-depth: 0
+    - name: Set up Python 3.10
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: "3.10"
+    - name: Install dependencies
       run: |
-        pytest -q
-    - name: index.json is up to date
+        python -m pip install --upgrade pip
+        pip install pylint pytest jsonschema pyyaml
+    - name: Run every remaining lane, reporting every failure in this one job
       run: |
-        python3 tooling/index_build.py --check
-    - name: docs/changelog/README.md's table matches the entry files
-      run: |
-        python3 tooling/changelog_index.py --check
-    - name: Shipped .claude/skills/ copy matches features/
-      run: |
-        python3 tooling/sync_plugin_skills.py --check
-    - name: Framework tree validates against its schemas
-      run: |
-        python3 tooling/validate.py --all
-    - name: Agent instruction files match the model
-      if: matrix.python-version == '3.10'
-      run: |
-        node features/common/skills/maintain-agent-instructions/scripts/validate-agent-instructions.mjs
-        node features/common/skills/maintain-agent-instructions/scripts/check-agent-drift.mjs
-    - name: Version literals (plugin.json, marketplace.json, index.json) agree with VERSION
-      run: |
-        python3 tooling/version_sync.py --check
-    - name: Docs guard - links, repo paths and the changelog index still resolve
-      run: |
-        python3 gates/docs_guard.py
-    - name: Release guard - shipped surface change requires a VERSION bump
-      run: |
-        python3 gates/release_guard.py
-    - name: Shipped-paths guard - no machine-specific absolute path in a tracked file
-      run: |
-        python3 gates/shipped_paths_guard.py
-    - name: Scaffold-freshness guard - re-scaffolding this repo changes nothing but stamps
-      run: |
-        python3 gates/scaffold_freshness_guard.py
-    - name: Dependency guard - every third-party import is declared in engine/requirements.txt
-      run: |
-        python3 gates/deps_guard.py
-    - name: Workflow lint - every action pinned to a SHA, every job scoped
-      run: |
-        python3 gates/workflow_lint.py
-    - name: JS gate scripts have tests
-      if: matrix.python-version == '3.10'
-      run: |
-        node --test "tests/js/*.test.mjs"
-    - name: TDD guard - code change requires a test change
-      if: matrix.python-version == '3.10' && github.ref != 'refs/heads/main'
-      run: |
-        # checkout's fetch-depth: 0 does not guarantee a remote-tracking ref for main.
-        # A failed fetch is not silently tolerated: the guard then reports COULD NOT RUN.
+        # tdd_guard compares against main; checkout's fetch-depth: 0 does not guarantee a
+        # remote-tracking ref for it. A failed fetch is not silently tolerated: the guard
+        # then reports COULD NOT RUN.
         git fetch --no-tags origin main:refs/remotes/origin/main || true
-        python3 gates/tdd_guard.py --base origin/main
+
+        all_lanes="$(sed -n 's/^readonly LANES="\(.*\)"$/\1/p' .lefthook/pre-push/verify.sh)"
+        if [ -z "$all_lanes" ]; then
+          echo "could not read LANES from .lefthook/pre-push/verify.sh" >&2
+          exit 1
+        fi
+
+        rc=0
+        failed=""
+        for lane in $all_lanes; do
+          case "$lane" in
+            pytest|pylint) continue ;;   # own jobs above
+            journey) continue ;;         # consumer-journey.yml already runs this on push
+            tdd)
+              # Mirrors the guard's own main-branch exemption: a push straight to main has
+              # no PR to demand a paired test change against.
+              if [ "${GITHUB_REF:-}" = "refs/heads/main" ]; then
+                echo "-- tdd: skipped (push to main)"
+                continue
+              fi
+              ;;
+          esac
+          echo "::group::verify $lane"
+          if ! bash .lefthook/pre-push/verify.sh "$lane"; then
+            rc=1
+            failed="$failed $lane"
+          fi
+          echo "::endgroup::"
+        done
+
+        if [ -n "$failed" ]; then
+          echo "FAILED lanes:$failed" >&2
+        fi
+        exit "$rc"
