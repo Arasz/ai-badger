@@ -91,8 +91,8 @@ wrong claim in a PR body passes every one of them. That still needs a reviewer.
 
 ## Supported stacks
 
-`angular`, `aspire`, `azure`, `changelog`, `cosmos`, `css`, `dotnet`, `github`, `js`, `mcp`,
-`node`, `python`, `react`, `terraform`, `ts`, `ux` — plus **`common`** for stack-agnostic content and
+`ai-raccoon`, `angular`, `aspire`, `azure`, `changelog`, `cosmos`, `css`, `dotnet`, `github`, `js`,
+`mcp`, `node`, `python`, `react`, `terraform`, `ts`, `ux` — plus **`common`** for stack-agnostic content and
 agent-specific stacks (`claude`, `copilot`, `hermes`). Derive it rather than quoting this line:
 `ls features/`.
 
