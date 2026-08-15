@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.121.0 | [design is its own lens](0.121.0-design-is-its-own-lens.md) |
 | 0.120.0 | [the index can see tools again](0.120.0-the-index-can-see-tools-again.md) |
 | 0.119.0 | [One Skill For A Whole-Project Review](0.119.0-one-skill-for-a-whole-project-review.md) |
 | 0.118.2 | [Hook-Error-Log Isolation Is Now Pinned](0.118.2-hook-error-log-isolation-pinned.md) |
