@@ -378,15 +378,38 @@ def test_the_validate_lane_fails_when_an_agent_instruction_validator_fails(tmp_p
 # 3.10 this project floors at rather than whatever the developer's machine has — so the local
 # copy is slower than the push and proves less than the run it duplicates.
 
-CI_OWNED = ("pytest", "pylint")
+def _usage_lanes(marker, tail=None):
+    """The lane names the gate's own usage line advertises after `marker`.
+
+    Read off the script rather than restated here: a list in this file mirroring one in the
+    script drifts the moment someone edits one side, and nothing notices.
+    """
+    for line in _run("--help").stdout.splitlines():
+        if marker in line:
+            rest = line.split(marker, 1)[1]
+            return (rest.split(tail, 1)[0] if tail else rest).split()
+    raise AssertionError(f"usage no longer advertises {marker!r}, so nothing here is derived")
 
 
 def _advertised_lanes():
-    """Every lane the gate advertises, read off its own usage line rather than restated here."""
-    for line in _run("--help").stdout.splitlines():
-        if "one of:" in line:
-            return line.split("one of:", 1)[1].split()
-    raise AssertionError("usage no longer advertises the lane list, so nothing here is derived")
+    """Every lane the gate has."""
+    return _usage_lanes("one of:")
+
+
+def _ci_owned_lanes():
+    """The lanes CI owns, which a push therefore does not run."""
+    return _usage_lanes("of those,", tail=" run in CI")
+
+
+CI_OWNED = _ci_owned_lanes()
+
+
+def test_usage_names_the_ci_owned_lanes_as_real_lanes():
+    """Both derivations come off the same usage text, so a typo in either would quietly
+    empty a loop below and leave every assertion in this section vacuously true."""
+    assert CI_OWNED, "usage advertises no CI-owned lane, so the tests below assert nothing"
+    assert set(CI_OWNED) <= set(_advertised_lanes()), \
+        f"usage calls {CI_OWNED} CI-owned but does not list them as lanes"
 
 
 def _selected_for_a_push(env=None):
@@ -451,25 +474,39 @@ def _risk_stub(tmp_path, task_id=""):
     return {"AIB_PYTHON": _shim(tmp_path / "py-stub", body)}
 
 
+def _a_local_lane(tmp_path):
+    """Some lane a push actually runs, taken from the gate's own selection.
+
+    Naming one outright coupled these tests to a lane that may later move to `CI_ONLY_LANES`,
+    at which point `--risk` would correctly drop nothing and they would fail for that reason
+    rather than for a broken flag.
+    """
+    offered = _selected_for_a_push(_risk_stub(tmp_path))
+    assert offered, "the gate offered no lane at all, so there is none for --risk to drop"
+    return offered[-1]
+
+
 def test_a_risk_task_drops_the_lane_it_names(tmp_path):
     """Same push, risk off then on, so only the flag can explain the difference."""
-    env = {"VERIFY_RISK_DROPPED": "journey"}
+    env = {"VERIFY_RISK_DROPPED": _a_local_lane(tmp_path)}
+    victim = env["VERIFY_RISK_DROPPED"]
     offered = _selected_for_a_push({**_risk_stub(tmp_path), **env})
     selected = _selected_for_a_push({**_risk_stub(tmp_path, "TASK-1"), **env})
 
-    assert "journey" in offered, (
-        f"journey was not offered even without --risk, so its absence proves nothing "
+    assert victim in offered, (
+        f"{victim} was not offered even without --risk, so its absence proves nothing "
         f"about the flag: {offered}")
-    assert "journey" not in selected, f"--risk left journey in: {selected}"
+    assert victim not in selected, f"--risk left {victim} in: {selected}"
 
 
 def test_a_risk_task_keeps_every_other_lane(tmp_path):
     """`--risk` trades away what it names and nothing else."""
-    env = {"VERIFY_RISK_DROPPED": "journey"}
+    env = {"VERIFY_RISK_DROPPED": _a_local_lane(tmp_path)}
+    victim = env["VERIFY_RISK_DROPPED"]
     offered = _selected_for_a_push({**_risk_stub(tmp_path), **env})
     selected = _selected_for_a_push({**_risk_stub(tmp_path, "TASK-1"), **env})
 
-    assert selected == [lane for lane in offered if lane != "journey"], \
+    assert selected == [lane for lane in offered if lane != victim], \
         f"--risk changed more than the lane it names: {offered} -> {selected}"
 
 
@@ -486,16 +523,19 @@ def test_a_risk_run_that_drops_a_local_lane_says_so_and_names_it(tmp_path):
     """The other half: the notice above is silent because the dropped set is empty, not
     because the notice is gone. A reduced gate that looks like a full one is the real failure.
     """
+    victim = _a_local_lane(tmp_path)
     out = _run("pre-push", env={**_risk_stub(tmp_path, "TASK-1"),
-                                "VERIFY_RISK_DROPPED": "journey"}).stdout
+                                "VERIFY_RISK_DROPPED": victim}).stdout
     notice = [line for line in out.splitlines() if "limited gates" in line]
 
     assert len(notice) == 1, f"expected exactly one notice, got {notice}:\n{out}"
     assert "TASK-1" in notice[0], notice[0]
     # The notice must name what this run actually dropped. Asserting it anywhere in `out`
     # passes against the old unconditional notice, because the lane list prints below it.
-    assert "journey" in notice[0], notice[0]
-    assert "pytest" not in notice[0], f"the notice still restates a lane no push runs: {notice[0]}"
+    assert victim in notice[0], notice[0]
+    for lane in CI_OWNED:
+        assert lane not in notice[0], \
+            f"the notice still restates {lane}, which no push runs: {notice[0]}"
 
 
 # ── the wall-clock deadline ─────────────────────────────────────────────────────
