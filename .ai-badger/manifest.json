@@ -12,7 +12,7 @@
   ],
   "skillScope": "default",
   "pluginScope": "default",
-  "configHash": "5f4047cb5469b70054ea89183250298d88c2e18d80f6ca9acddebee50fa36530",
+  "configHash": "19032516c746803011d3e67fa774b89eaf8b5185f7e98711216da79e40ffbdf3",
   "generatedConfig": [
     {
       "path": ".claude/settings.json",
@@ -630,12 +630,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.122.0",
-      "hash": "d3f507ccebbd402ee50d9e6611a3c8664ab3e522f7ee5f4300c80bc2ca4748e2",
+      "hash": "60ef73ed02f52d9de720c6fd12d2887430ede555968c33a1e5b88a420c91a6df",
       "dirMeta": {
         "file_count": 16,
         "dir_count": 2
       },
-      "sourceHash": "d3f507ccebbd402ee50d9e6611a3c8664ab3e522f7ee5f4300c80bc2ca4748e2",
+      "sourceHash": "60ef73ed02f52d9de720c6fd12d2887430ede555968c33a1e5b88a420c91a6df",
       "sourceMeta": {
         "file_count": 16,
         "dir_count": 2
@@ -765,12 +765,12 @@
       "source": "features/common/skills/evidence-first-research",
       "target": ".ai-badger/skills/evidence-first-research",
       "frameworkVersion": "0.122.0",
-      "hash": "503576e96721bc93820c89bb8a8f81d6bb43311409ac185725947c57c7d3580a",
+      "hash": "e793d67b7b8659649ae226b9b636e62d660242ae117fcbd20907e77170f29f39",
       "dirMeta": {
         "file_count": 4,
         "dir_count": 2
       },
-      "sourceHash": "503576e96721bc93820c89bb8a8f81d6bb43311409ac185725947c57c7d3580a",
+      "sourceHash": "e793d67b7b8659649ae226b9b636e62d660242ae117fcbd20907e77170f29f39",
       "sourceMeta": {
         "file_count": 4,
         "dir_count": 2
