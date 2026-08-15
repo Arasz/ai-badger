@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.121.2 | [pytest-xdist Is Now a Declared Dependency](0.121.2-declare-pytest-xdist.md) |
 | 0.121.1 | [The ai-raccoon Guidance Named a Parameter the Server Does Not Have](0.121.1-ai-raccoon-parameter-name.md) |
 | 0.121.0 | [design is its own lens](0.121.0-design-is-its-own-lens.md) |
 | 0.120.0 | [the index can see tools again](0.120.0-the-index-can-see-tools-again.md) |
