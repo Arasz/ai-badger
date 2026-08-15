@@ -57,7 +57,7 @@ def test_deny_reason_names_main_checkout_from_worktree_cwd(gate, repo_with_workt
     main_repo, worktree_path = repo_with_worktree
     decision = gate.build_decision("claude", "Grep", {}, "s1", cwd=str(worktree_path))
     reason = decision["hookSpecificOutput"]["permissionDecisionReason"]
-    assert f"project_id={main_repo.name}" in reason
+    assert f"projectId={main_repo.name}" in reason
     assert worktree_path.name not in reason
 
 
