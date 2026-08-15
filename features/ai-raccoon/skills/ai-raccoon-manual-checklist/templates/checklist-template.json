@@ -1,5 +1,5 @@
 {
-  "_note": "Copy to docs/work/checklist/<yyyy-mm-dd>-<subject>.json. Never fill this file in place. status is pass|fail|skipped; accepted stays null until a human answers it, so an unfinished run is visibly unfinished. Delete any item whose feature no longer exists rather than skipping it.",
+  "_note": "Copy to docs/work/checklist/<yyyy-mm-dd>-<subject>.json. Never fill this file in place. status is pass|fail|skipped|substituted; substituted means checked by a different instrument than the item names, and its reason must say which. accepted stays null until a human answers it, so an unfinished run is visibly unfinished. Delete any item whose feature no longer exists rather than skipping it.",
   "run": {
     "date": "",
     "branch": "",
@@ -13,6 +13,16 @@
     "mcp-prompt-count": "",
     "note": "Produced by scripts/derive-facts.sh at run time, never typed from memory or a previous run."
   },
+  "findings-against-prior-runs": [
+    {
+      "_example": "Delete this example. One entry per thing an earlier run got wrong — a verdict, a reason, or a step that could not have failed. A checklist that can only describe the current build cannot report that the last checklist lied.",
+      "prior-run": "",
+      "prior-claim": "",
+      "what-is-actually-true": "",
+      "evidence": "",
+      "so-what": ""
+    }
+  ],
   "items": [
     {
       "item": "build-and-install-global-package",

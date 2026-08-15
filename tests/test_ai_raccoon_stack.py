@@ -67,6 +67,46 @@ def test_the_catalog_indexes_the_checklist_under_the_ai_raccoon_stack():
     assert [s["name"] for s in stack["skills"]] == ["ai-raccoon-manual-checklist"]
 
 
+class TestTheSkillCarriesWhatRunningItTaught:
+    """Each of these was a defect found by executing the checklist against a live 1.19.1 build,
+    not by reading it. Losing any of them means re-learning it the same way."""
+
+    def _body(self):
+        return (SKILL / "SKILL.md").read_text(encoding="utf-8")
+
+    def test_it_says_a_filter_test_needs_a_negative_control(self):
+        assert "negative control" in self._body()
+
+    def test_it_says_a_retrieval_query_must_defeat_keyword_match(self):
+        body = self._body()
+
+        assert "BM25" in body
+        assert "keyword match cannot carry" in body
+
+    def test_it_says_an_empty_list_proves_nothing(self):
+        assert "An empty list is a weak check" in self._body()
+
+    def test_it_forbids_inheriting_a_prior_verdicts_reason(self):
+        """A reason right about the outcome and wrong about the cause survived a release."""
+        assert "Never inherit a prior verdict's reason" in self._body()
+
+    def test_it_names_every_root_a_stale_copy_can_load_from(self):
+        """The deletion that retired the predecessors missed the Hermes skill root, and that
+        copy was the first hit for the next person who searched."""
+        body = self._body()
+
+        for root in (".ai-badger/skills/learned/", ".claude/skills/",
+                     "~/.claude/skills/", "~/.hermes/skills/"):
+            assert root in body, root
+
+    def test_it_names_the_data_root_as_the_isolation_axis(self):
+        """Lanes parallelise safely; the skill read as if it had to be worked serially."""
+        body = self._body()
+
+        assert "parallel" in body
+        assert "--data-root" in body
+
+
 class TestTheDerivationScriptFailsLoudly:
     """Defence against the first rot: facts pinned by hand. A derivation that silently
     reports 0 is worse than one that pins a stale number, because 0 looks derived."""
@@ -142,6 +182,23 @@ class TestTheTemplateKeepsItsAntiRotDefences:
         """Sixth rot: a copy that lost its templates/ directory left step 1 pointing at nothing."""
         assert (SKILL / "templates/checklist-template.json").is_file()
         assert "templates/checklist-template.json" in (SKILL / "SKILL.md").read_text(encoding="utf-8")
+
+    def test_a_run_can_report_that_an_earlier_run_was_wrong(self):
+        """Found by running it: three of the most valuable outputs of a live run were about prior
+        runs being wrong, and the template had nowhere to put them."""
+        template = _template()
+
+        assert "findings-against-prior-runs" in template
+        for field in ("prior-claim", "what-is-actually-true", "evidence"):
+            assert field in template["findings-against-prior-runs"][0], field
+
+    def test_status_can_express_a_substitution(self):
+        """Checked-by-another-instrument is neither pass nor skipped; folding it into either
+        one misreports the run."""
+        note = _template()["_note"]
+
+        assert "substituted" in note
+        assert "pass|fail|skipped|substituted" in note
 
     def test_results_never_land_in_a_bank_directory(self):
         """Seventh rot: reports written into .ai-raccoon/, which is where banks live."""

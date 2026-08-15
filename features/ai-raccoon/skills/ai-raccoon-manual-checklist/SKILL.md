@@ -68,7 +68,12 @@ These three protect the person running the checklist, not the checklist:
    - `command` — the exact command or tool call you ran.
    - `evidence` — the output you read, verbatim, trimmed to the deciding lines.
    - `observed-result` — what it means.
-   - `status` — `pass`, `fail` or `skipped`. A `skipped` needs a reason; it is not a pass.
+   - `status` — `pass`, `fail`, `skipped` or `substituted`. A `skipped` needs a reason; it is not
+     a pass. `substituted` means the behaviour was checked by a different instrument than the item
+     names — an automated test standing in for a path you could not drive live, say. Folding that
+     into `pass` overstates it and into `skipped` understates it, so it gets its own word, and the
+     reason must name the instrument. Record any deliberate deviation from the item's stated
+     method the same way.
    - `accepted` + `acceptance-reason` — whether the observed result is acceptable, and why. A
      `fail` may still be accepted as a known, tracked defect, as long as the reason names where it
      is tracked.
@@ -76,12 +81,46 @@ These three protect the person running the checklist, not the checklist:
    `accepted` starts as `null`, meaning nobody has answered yet. Leave it null until you decide;
    a run with any null left in it is unfinished, not a run with no objections.
 
-4. Items whose feature no longer exists get **deleted from the template**, not marked skipped. A
+4. **Never inherit a prior verdict's reason.** Where an item was `partial`, `fail`, `skipped` or
+   `substituted` last time, re-derive *why* against the source in front of you before reusing the
+   explanation. A previous run blamed a job's cadence for three event ids never firing; the real
+   cause was that they log only when there is something to purge, and a fresh bank has nothing.
+   The outcome matched, so the wrong mechanism survived a release — and it discouraged seeding the
+   data that would have exercised them. A reason that is right about the outcome and wrong about
+   the cause is the hardest kind of stale fact to see.
+
+   When a run finds that an earlier one was wrong, that belongs in `findings-against-prior-runs`,
+   not buried in an item. A checklist that can only describe the current build cannot report that
+   the last checklist lied, and those findings are often the most valuable thing a run produces.
+
+5. Items whose feature no longer exists get **deleted from the template**, not marked skipped. A
    step for a removed feature is worse than no step: it either fails forever and gets waved
    through, or it quietly "passes" against nothing.
 
-5. Report counts by status, and every `fail` with its evidence line. A run where some item has no
-   `command` or no `evidence` is not complete — say so instead of reporting a total.
+6. Report counts by status, every `fail` with its evidence line, and every finding against a prior
+   run. A run where some item has no `command` or no `evidence` is not complete — say so instead
+   of reporting a total.
+
+Items are independent, so lanes can run in parallel against one packed binary. The axis that keeps
+them from colliding is the data root: give every lane its own `--data-root`, and nothing else needs
+coordinating.
+
+## Making an item able to fail
+
+Most of these steps can be written so that they pass whether or not the feature works. Three
+shapes account for nearly all of it:
+
+- **A filter needs a negative control.** Feed clean content alongside the shapes you expect
+  rejected. A policy that rejects *everything* passes a rejection-only test, and looks healthiest
+  exactly when it is most broken.
+- **A semantic-retrieval query must be one that keyword match cannot carry.** Query for
+  "an antique navigation instrument reflecting evening light in a stargazing room" against content
+  that says "astrolabe", "lamplight", "observatory" — no literal overlap, so a dead vector leg
+  actually fails the item. A query sharing words with the stored text passes on BM25 alone and
+  tells you nothing about the half you meant to test.
+- **An empty list is a weak check.** A queue or candidate list on a fresh bank returns `[]`
+  whether it works or is broken. Create the thing first, then assert on its content — the score,
+  the reasons, the identity — not on the shape of the response.
 
 ## Scope
 
@@ -131,6 +170,15 @@ because its absence already caused a silent failure:
 - **Two drifting copies.** Two directories each held a copy, and one had lost its `templates/`
   directory entirely, so its own step 1 pointed at a file that was not there. → one copy, and the
   template ships beside the skill.
+
+**Retiring a checklist skill means deleting it from every root it can load from**, not from the
+one you were looking at. The deletion that removed the two `.ai-badger/skills/learned/` copies
+missed `~/.hermes/skills/`, where a third copy is still installed, still carries its `templates/`,
+and still pins an expected version three minors stale. It was the *first* hit for someone
+searching for this checklist, and they began executing it. Enumerate the roots — the project's
+`.ai-badger/skills/learned/`, `.claude/skills/`, `~/.claude/skills/`, `~/.hermes/skills/` — and
+confirm the removal in each. The stale copy wins whoever searches first, so a copy you did not
+delete is not dormant; it is the one in use.
 
 ## Gotchas
 
