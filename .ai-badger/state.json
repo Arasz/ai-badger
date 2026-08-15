@@ -1,6 +1,6 @@
 {
   "lastUpdated": "2026-08-15",
-  "next": "Two mechanical follow-ups from gate-speed: (1) every PR collides on VERSION, index.json and docs/changelog/README.md by construction - the resolution is always regenerate-never-hand-merge, so it could be automated; (2) scaffold_freshness_guard reports a phantom failure on unstaged deletions because it enumerates tracked files via git - `git add -A` clears it, re-scaffolding does not.",
+  "next": "Untrack index.json and docs/changelog/README.md if it holds. Both are derived from committed sources, and untracking them removes two of the three files every concurrent PR collides on (eight commits touched each on 2026-08-15; four merges conflicted). 0.124.0 documented the manual recipe in CONTRIBUTING.md instead, because the better fix needs evidence first: find what actually reads index.json from a FRESH CLONE before it is built - the plugin loader, mcp-index, retrieval_eval, and any consumer following the documented install - and the same for the changelog README. A custom merge driver was considered and rejected: .gitattributes distributes but merge.<name>.driver config does not, so every clone needs local setup and without it git silently falls back to a normal merge.",
   "completedTasks": [
     {
       "id": "gate-speed",
