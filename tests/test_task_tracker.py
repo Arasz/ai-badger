@@ -751,83 +751,75 @@ def test_full_lifecycle_start_subagent_finish_grade(tt, monkeypatch, tmp_path, c
     assert "FINISHED" in status_out
 
 
-class TestTheRiskSwitchRunsGatesInLimitedMode:
-    """`--risk` trades gate coverage for speed, so it has to be recorded and readable.
+class TestALegacyRiskFieldIsIgnored:
+    """`--risk` went in 0.123.0. Entries written before it carry `"risk": true` on disk.
 
-    A task running on formatting + fast tests only, with nothing on screen saying so, is the
-    dangerous shape: the next person reads a green run as a full one.
+    Reading is where a removed field breaks a store: `.ai-badger/task-tracking/` is real,
+    long-lived state nobody migrates, so the tracker has to treat the field as an unknown key
+    and carry on. Ignored on read rather than migrated away — the entries are a historical
+    record, and rewriting them to drop one inert key is a write with no behaviour behind it.
     """
 
-    def test_start_records_the_switch_on_the_task_entry(self, tt, monkeypatch, tmp_path):
-        _no_cron_recorder(monkeypatch, tt)
+    @staticmethod
+    def _legacy_entry(tt, task_id):
+        """Stamp `risk` onto an entry the way a pre-0.123.0 `start --risk` would have.
 
-        code = _run(monkeypatch, tt, "start", "RISK-1", "--risk", "--no-worktree",
-                    "--branch", "feat/risky", "--session-id", "sid-r1",
-                    "--transcript-path", str(tmp_path / "r1.jsonl"))
+        Written by hand because no code path produces one any more — which is exactly why a
+        removal tested only against new entries proves nothing about the store on disk.
+        """
+        tasks = tt.lib.load_tasks()
+        tt.lib.find_entry(tasks, task_id)["risk"] = True
+        tt.lib.save_json(tt.lib.EXECUTED_TASKS, tasks)
 
-        assert code == 0
-        entry = tt.lib.find_entry(tt.lib.load_tasks(), "RISK-1")
-        assert entry["risk"] is True
-        assert entry["branch"] == "feat/risky"  # the switch does not eat the other fields
-
-    def test_a_task_that_did_not_ask_for_it_is_not_marked(self, tt, monkeypatch, tmp_path):
-        """Absent means false, not missing-and-therefore-anything."""
-        _no_cron_recorder(monkeypatch, tt)
-
-        _run(monkeypatch, tt, "start", "RISK-2", "--no-worktree", "--session-id", "sid-r2",
-             "--transcript-path", str(tmp_path / "r2.jsonl"))
-
-        entry = tt.lib.find_entry(tt.lib.load_tasks(), "RISK-2")
-        assert entry["risk"] is False
-
-    def test_the_switch_survives_a_resume_and_a_later_start(self, tt, monkeypatch, tmp_path):
-        """Resuming a task must not quietly restore full gates the run was never sized for."""
-        _no_cron_recorder(monkeypatch, tt)
-        transcript = tmp_path / "r3.jsonl"
-        _run(monkeypatch, tt, "start", "RISK-3", "--risk", "--no-worktree",
-             "--session-id", "sid-r3", "--transcript-path", str(transcript))
-        _run(monkeypatch, tt, "reattach", "RISK-3", "--session-id", "sid-r3b",
-             "--transcript-path", str(transcript))
-
-        code = _run(monkeypatch, tt, "start", "RISK-3", "--no-worktree",
-                    "--session-id", "sid-r3b", "--transcript-path", str(transcript))
-
-        assert code == 0
-        entry = tt.lib.find_entry(tt.lib.load_tasks(), "RISK-3")
-        assert entry["risk"] is True
-        assert entry["sessionId"] == "sid-r3b"
-
-    def test_a_later_start_can_raise_the_switch_on_a_task_that_began_without_it(
-        self, tt, monkeypatch, tmp_path
-    ):
-        _no_cron_recorder(monkeypatch, tt)
-        transcript = tmp_path / "r4.jsonl"
-        _run(monkeypatch, tt, "start", "RISK-4", "--no-worktree", "--session-id", "sid-r4",
-             "--transcript-path", str(transcript))
-
-        _run(monkeypatch, tt, "start", "RISK-4", "--risk", "--no-worktree",
-             "--session-id", "sid-r4", "--transcript-path", str(transcript))
-
-        assert tt.lib.find_entry(tt.lib.load_tasks(), "RISK-4")["risk"] is True
-
-    def test_status_names_the_risky_task_and_leaves_the_others_alone(
+    def test_status_still_lists_a_task_carrying_the_removed_field(
         self, tt, monkeypatch, tmp_path, capsys
     ):
-        """Two tasks, one switched: absence has to be absence, not an empty store."""
+        """The two failures that matter: crashing on the entry, or dropping it silently."""
         _no_cron_recorder(monkeypatch, tt)
-        _run(monkeypatch, tt, "start", "RISK-5", "--risk", "--no-worktree",
-             "--session-id", "sid-r5", "--transcript-path", str(tmp_path / "r5.jsonl"))
-        _run(monkeypatch, tt, "start", "SAFE-5", "--no-worktree", "--session-id", "sid-s5",
-             "--transcript-path", str(tmp_path / "s5.jsonl"))
+        _run(monkeypatch, tt, "start", "LEGACY-1", "--no-worktree", "--session-id", "sid-l1",
+             "--transcript-path", str(tmp_path / "l1.jsonl"))
+        _run(monkeypatch, tt, "start", "PLAIN-1", "--no-worktree", "--session-id", "sid-p1",
+             "--transcript-path", str(tmp_path / "p1.jsonl"))
+        self._legacy_entry(tt, "LEGACY-1")
         capsys.readouterr()
 
-        assert _run(monkeypatch, tt, "status") == 0
+        assert _run(monkeypatch, tt, "status") == 0, "status crashed on a legacy risk field"
 
         out = capsys.readouterr().out
-        risky = next(line for line in out.splitlines() if line.startswith("RISK-5"))
-        safe = next(line for line in out.splitlines() if line.startswith("SAFE-5"))
-        assert "risk=on" in risky
-        assert "risk" not in safe
+        legacy = next(line for line in out.splitlines() if line.startswith("LEGACY-1"))
+        assert "PLAIN-1" in out, "the plain task vanished, so this compares nothing"
+        assert "risk" not in legacy, \
+            f"the removed field still reaches the status line: {legacy}"
+
+    def test_the_field_survives_on_disk_untouched(self, tt, monkeypatch, tmp_path):
+        """Ignored, not migrated: reading the store must not quietly rewrite the record."""
+        _no_cron_recorder(monkeypatch, tt)
+        _run(monkeypatch, tt, "start", "LEGACY-2", "--no-worktree", "--session-id", "sid-l2",
+             "--transcript-path", str(tmp_path / "l2.jsonl"))
+        self._legacy_entry(tt, "LEGACY-2")
+
+        _run(monkeypatch, tt, "status")
+
+        assert tt.lib.find_entry(tt.lib.load_tasks(), "LEGACY-2")["risk"] is True
+
+    def test_start_no_longer_accepts_the_flag(self, tt, monkeypatch, tmp_path):
+        """A flag that buys nothing must fail loudly, not be silently accepted and ignored."""
+        _no_cron_recorder(monkeypatch, tt)
+
+        with pytest.raises(SystemExit) as raised:
+            _run(monkeypatch, tt, "start", "GONE-1", "--risk", "--no-worktree",
+                 "--session-id", "sid-g1", "--transcript-path", str(tmp_path / "g1.jsonl"))
+
+        assert raised.value.code != 0
+
+    def test_a_new_task_gets_no_risk_field_at_all(self, tt, monkeypatch, tmp_path):
+        """Not `False` — absent. A field nothing reads should stop being written."""
+        _no_cron_recorder(monkeypatch, tt)
+
+        _run(monkeypatch, tt, "start", "FRESH-1", "--no-worktree", "--session-id", "sid-f1",
+             "--transcript-path", str(tmp_path / "f1.jsonl"))
+
+        assert "risk" not in tt.lib.find_entry(tt.lib.load_tasks(), "FRESH-1")
 
 
 class TestTheStatusLineShowsTheModelMix:

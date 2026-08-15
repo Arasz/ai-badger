@@ -7,6 +7,7 @@ under /bin/bash, which on macOS is 3.2.
 from __future__ import annotations
 
 import os
+import re
 import signal
 import subprocess
 import tempfile
@@ -412,6 +413,97 @@ def test_usage_names_the_ci_owned_lanes_as_real_lanes():
         f"usage calls {CI_OWNED} CI-owned but does not list them as lanes"
 
 
+# ── the hook's CI-owned set and CI's own skip list are one rule in two files ─────
+#
+# The `gates` job in pylint.yml walks $LANES and skips the lanes that have a job of their own.
+# The hook drops a lane because CI owns it. Both lists name "lanes CI runs separately", and
+# nothing compared them — so a lane could leave the hook, stay in the gates job's skip list,
+# and be run by nothing at all.
+
+WORKFLOWS = REPO / ".github" / "workflows"
+
+
+def _gates_job_skips():
+    """Lanes the `gates` job skips outright, so some other job must own each of them.
+
+    Only the unconditional arms: the `tdd` arm skips inside an `if` on the main branch and is
+    still run by this job on every other push.
+    """
+    text = (WORKFLOWS / "pylint.yml").read_text(encoding="utf-8")
+    skipped = []
+    for arm in re.findall(r"^\s*([a-z|-]+)\)\s*continue\s*;;", text, re.M):
+        skipped += arm.split("|")
+    return skipped
+
+
+def _push_triggered_workflows():
+    """Every workflow that fires on a push to *any* branch, as text.
+
+    A `branches:` filter disqualifies it: `release-tag.yml` is `push: branches: [main]`, and a
+    lane covered only there is not covered on the feature branch someone is actually pushing.
+    That "every push to every branch" is the whole basis on which a lane leaves the local hook.
+
+    Read as text rather than parsed: pyyaml is an optional dependency in this repo, and a test
+    that silently no-ops when it is absent is worse than no test.
+    """
+    found = {}
+    for path in sorted(WORKFLOWS.glob("*.y*ml")):
+        text = path.read_text(encoding="utf-8")
+        if re.search(r"^on:[^\n]*\bpush\b", text, re.M):
+            found[path.name] = text
+            continue
+        block = re.search(r"^on:\s*\n((?:[ \t]+[^\n]*\n|\n)*)", text, re.M)
+        if not block:
+            continue
+        push = re.search(r"^(\s+)push:\s*\n((?:\1\s+[^\n]*\n|\n)*)", block.group(1), re.M)
+        if push and not re.search(r"^\s+branches:", push.group(2), re.M):
+            found[path.name] = text
+    return found
+
+
+def _lane_needles(lane):
+    """The strings a workflow would contain if it ran `lane` directly."""
+    from test_every_check_can_fail import scripts_a_lane_runs  # pylint: disable=import-outside-toplevel
+
+    owner = scripts_a_lane_runs(GATE.read_text(encoding="utf-8"))
+    return [f"verify.sh {lane}"] + [script for script, own in owner.items() if own == lane]
+
+
+def test_the_push_trigger_reader_finds_both_spellings():
+    """Both forms are in use here; a reader that missed one would call a covered lane naked."""
+    found = _push_triggered_workflows()
+
+    assert "pylint.yml" in found, "the inline `on: [push]` spelling was not recognised"
+    assert "consumer-journey.yml" in found, "a push-triggered workflow was missed"
+    assert "release-tag.yml" not in found, \
+        "a workflow restricted to `branches: [main]` was counted as covering every push"
+
+
+def test_every_lane_the_gates_job_skips_is_run_by_another_push_job():
+    """The hole this pair exists to close: skipped there and owned nowhere else."""
+    skipped = _gates_job_skips()
+    on_push = _push_triggered_workflows()
+
+    assert skipped, "read no skip out of the gates job, so this proves nothing"
+    assert on_push, "found no push-triggered workflow, so this proves nothing"
+    naked = [lane for lane in skipped
+             if not any(needle in text for text in on_push.values()
+                        for needle in _lane_needles(lane))]
+    assert not naked, (
+        f"the gates job skips {naked} and no other push-triggered job runs them, so no push "
+        f"verifies them at all")
+
+
+def test_the_gates_job_skips_exactly_the_lanes_the_hook_leaves_to_ci():
+    """Two lists, one rule: a lane CI runs in a job of its own is a lane the hook need not run.
+
+    Disagreement means one side is wrong, and which one is not knowable from either file alone.
+    """
+    assert sorted(_gates_job_skips()) == sorted(CI_OWNED), (
+        f"pylint.yml's gates job skips {sorted(_gates_job_skips())} but the hook leaves "
+        f"{sorted(CI_OWNED)} to CI")
+
+
 def _selected_for_a_push(env=None):
     """The lanes a push would run, over a ref pair whose diff is empty by construction.
 
@@ -463,79 +555,34 @@ def test_all_still_runs_the_ci_owned_lanes():
         assert lane in named, f"`verify.sh all` no longer runs {lane}: {sorted(named)}"
 
 
-# ── --risk actually changes which lanes run ─────────────────────────────────────
+# ── the gate has no reduced mode ────────────────────────────────────────────────
 #
-# `--risk` was parsed, persisted and printed by task_tracker.py and consumed by nothing
-# (review finding A8). The gate now asks the tracker, so the flag buys what it claims.
-
-def _risk_stub(tmp_path, task_id=""):
-    """A stand-in for `$PY` that answers the risk query with `task_id` (empty = risk off)."""
-    body = f'printf "%s" "{task_id}"' if task_id else "exit 0"
-    return {"AIB_PYTHON": _shim(tmp_path / "py-stub", body)}
+# `--risk` (0.99.0 to 0.123.0) let a tracker entry shrink the gate. By the time pytest left the
+# local set it dropped nothing, while the push still printed "limited gates: <task> is a --risk
+# task, so pytest did not run" — machinery announcing a safety trade it was not making. It is
+# gone, along with risk_mode.py and the tracker field. The local set is now the local set.
 
 
-def _a_local_lane(tmp_path):
-    """Some lane a push actually runs, taken from the gate's own selection.
+def test_no_environment_variable_narrows_the_push_selection(tmp_path):
+    """A hostile environment: the variables the reduced mode used, and a `$PY` that claims
+    every branch is a risk task. Nothing may move the selection."""
+    plain = _selected_for_a_push()
 
-    Naming one outright coupled these tests to a lane that may later move to `CI_ONLY_LANES`,
-    at which point `--risk` would correctly drop nothing and they would fail for that reason
-    rather than for a broken flag.
-    """
-    offered = _selected_for_a_push(_risk_stub(tmp_path))
-    assert offered, "the gate offered no lane at all, so there is none for --risk to drop"
-    return offered[-1]
+    assert plain, "the gate selected no lane, so a narrowing would be indistinguishable"
+    hostile = _selected_for_a_push({
+        "VERIFY_RISK_DROPPED": plain[-1],
+        "AIB_PYTHON": _shim(tmp_path / "py-claims-risk", 'printf "%s" "TASK-1"'),
+    })
 
-
-def test_a_risk_task_drops_the_lane_it_names(tmp_path):
-    """Same push, risk off then on, so only the flag can explain the difference."""
-    env = {"VERIFY_RISK_DROPPED": _a_local_lane(tmp_path)}
-    victim = env["VERIFY_RISK_DROPPED"]
-    offered = _selected_for_a_push({**_risk_stub(tmp_path), **env})
-    selected = _selected_for_a_push({**_risk_stub(tmp_path, "TASK-1"), **env})
-
-    assert victim in offered, (
-        f"{victim} was not offered even without --risk, so its absence proves nothing "
-        f"about the flag: {offered}")
-    assert victim not in selected, f"--risk left {victim} in: {selected}"
+    assert hostile == plain, f"something still narrows the push selection: {plain} -> {hostile}"
 
 
-def test_a_risk_task_keeps_every_other_lane(tmp_path):
-    """`--risk` trades away what it names and nothing else."""
-    env = {"VERIFY_RISK_DROPPED": _a_local_lane(tmp_path)}
-    victim = env["VERIFY_RISK_DROPPED"]
-    offered = _selected_for_a_push({**_risk_stub(tmp_path), **env})
-    selected = _selected_for_a_push({**_risk_stub(tmp_path, "TASK-1"), **env})
+def test_a_push_never_announces_a_limited_gate(tmp_path):
+    """The other half of the same removal: no trade claimed, because none is made."""
+    out = _run("pre-push", env={
+        "AIB_PYTHON": _shim(tmp_path / "py-claims-risk", 'printf "%s" "TASK-1"')}).stdout
 
-    assert selected == [lane for lane in offered if lane != victim], \
-        f"--risk changed more than the lane it names: {offered} -> {selected}"
-
-
-def test_a_risk_run_that_drops_nothing_announces_nothing(tmp_path):
-    """`pytest` is the only lane `--risk` trades away and no push runs it, so there is no
-    trade to announce. Machinery claiming a safety trade it is not making is worse than absent.
-    """
-    out = _run("pre-push", env=_risk_stub(tmp_path, "TASK-1")).stdout
-
-    assert "limited gates" not in out, f"--risk claimed a trade it did not make:\n{out}"
-
-
-def test_a_risk_run_that_drops_a_local_lane_says_so_and_names_it(tmp_path):
-    """The other half: the notice above is silent because the dropped set is empty, not
-    because the notice is gone. A reduced gate that looks like a full one is the real failure.
-    """
-    victim = _a_local_lane(tmp_path)
-    out = _run("pre-push", env={**_risk_stub(tmp_path, "TASK-1"),
-                                "VERIFY_RISK_DROPPED": victim}).stdout
-    notice = [line for line in out.splitlines() if "limited gates" in line]
-
-    assert len(notice) == 1, f"expected exactly one notice, got {notice}:\n{out}"
-    assert "TASK-1" in notice[0], notice[0]
-    # The notice must name what this run actually dropped. Asserting it anywhere in `out`
-    # passes against the old unconditional notice, because the lane list prints below it.
-    assert victim in notice[0], notice[0]
-    for lane in CI_OWNED:
-        assert lane not in notice[0], \
-            f"the notice still restates {lane}, which no push runs: {notice[0]}"
+    assert "limited gates" not in out, f"the gate still claims a reduced run:\n{out}"
 
 
 # ── the wall-clock deadline ─────────────────────────────────────────────────────
