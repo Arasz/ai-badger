@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.127.0",
-  "frameworkCommit": "1b31510fcdb80dba63f6dcec931e88a8e4ece575",
+  "frameworkCommit": "c98afd3b6a2ddf114de8157ba7e4a29982c65312",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -933,14 +933,14 @@
       "source": "features/common/skills/worktree-agent-isolation",
       "target": ".ai-badger/skills/worktree-agent-isolation",
       "frameworkVersion": "0.127.0",
-      "hash": "fabf407b8be5f895a7198d784210a2a487a7975fc9d68ffa8e59b696e80a8256",
+      "hash": "2a3c54e9d11114287bd43e2a429007e9cf54cb0e1ddaf5b95adaa06fc3534fce",
       "dirMeta": {
-        "file_count": 11,
+        "file_count": 13,
         "dir_count": 2
       },
-      "sourceHash": "fabf407b8be5f895a7198d784210a2a487a7975fc9d68ffa8e59b696e80a8256",
+      "sourceHash": "2a3c54e9d11114287bd43e2a429007e9cf54cb0e1ddaf5b95adaa06fc3534fce",
       "sourceMeta": {
-        "file_count": 11,
+        "file_count": 13,
         "dir_count": 2
       },
       "projectOwned": [
