@@ -5,5 +5,5 @@ pylint>=4.0.6
 # pylint's own ceiling, restated so a direct `pip install -U astroid` cannot cross it.
 # Above it every pylint run dies with NodeNG.infer() got an unexpected keyword argument 'asname'.
 astroid<4.1
-pytest>=7.0.0
+pytest>=9.1.1
 pytest-xdist>=3.8.0
