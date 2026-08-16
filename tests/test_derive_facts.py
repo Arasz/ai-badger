@@ -35,10 +35,12 @@ def _derive(load_script):
 
 
 def _tree(tmp_path, *, tools="[McpServerTool] a;", prompts="[McpServerPrompt] c;",
-          version="9.9.9", csproj=True, tools_dir=True, prompts_dir=True):
+          version="9.9.9", csproj=True, tools_dir=True, prompts_dir=True, version_file=None):
     """A fake AiRaccoon tree; each keyword removes exactly one thing the script requires."""
     src = tmp_path / "src/AiRaccoon"
     src.mkdir(parents=True, exist_ok=True)
+    if version_file is not None:
+        _test_write(tmp_path / "VERSION", version_file, encoding="utf-8")
     if csproj:
         _test_write(src / "AiRaccoon.csproj",
                     f"<Project><PropertyGroup><PackageVersion>{version}</PackageVersion>"
@@ -190,12 +192,18 @@ class TestEveryFailureIsLoudAndNonZero:
     def test_an_empty_package_version(self, derive, capsys, tmp_path):
         tree = _tree(tmp_path, version="")
 
-        self._fails(derive, capsys, tree, "no literal <PackageVersion> in")
+        self._fails(derive, capsys, tree, "no version in")
 
     def test_an_unresolved_msbuild_placeholder_version(self, derive, capsys, tmp_path):
         tree = _tree(tmp_path, version="$(Version)")
 
-        self._fails(derive, capsys, tree, "no literal <PackageVersion> in")
+        self._fails(derive, capsys, tree, "no version in")
+
+    def test_neither_a_csproj_element_nor_a_version_file(self, derive, capsys, tmp_path):
+        tree = _tree(tmp_path, version="")
+
+        self._fails(derive, capsys, tree, "no version in")
+
 
     def test_zero_tools(self, derive, capsys, tmp_path):
         tree = _tree(tmp_path, tools="public class Nothing { }")
@@ -280,3 +288,34 @@ class TestTheSkillPointsAtTheScriptThatExists:
 
         assert "scripts/derive-facts.py" in body
         assert "fails loudly" in body
+
+
+class TestTheVersionFile:
+    """ai-raccoon moved the version out of the csproj into a VERSION file at the repo root
+    (7cfaefca, 'publish reads VERSION, not the csproj element'). The script kept reading the
+    element, so it failed loudly on the very tree it ships for -- correct, but unusable."""
+
+    def test_it_falls_back_to_the_version_file(self, derive, capsys, tmp_path):
+        tree = _tree(tmp_path, version="", version_file="1.20.1\n")
+
+        assert derive.main([str(tree)]) == 0
+        assert "version=1.20.1" in capsys.readouterr().out
+
+    def test_it_strips_surrounding_whitespace(self, derive, capsys, tmp_path):
+        tree = _tree(tmp_path, version="", version_file="  1.21.0  \n\n")
+
+        assert derive.main([str(tree)]) == 0
+        assert "version=1.21.0" in capsys.readouterr().out
+
+    def test_an_empty_version_file_is_not_a_version(self, derive, capsys, tmp_path):
+        tree = _tree(tmp_path, version="", version_file="   \n")
+
+        assert derive.main([str(tree)]) == 1
+        assert "no version in" in capsys.readouterr().err
+
+    def test_the_csproj_element_still_wins_when_present(self, derive, capsys, tmp_path):
+        """A tree carrying both is not ambiguous: the element is the explicit, local statement."""
+        tree = _tree(tmp_path, version="9.9.9", version_file="1.0.0\n")
+
+        assert derive.main([str(tree)]) == 0
+        assert "version=9.9.9" in capsys.readouterr().out
