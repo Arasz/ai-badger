@@ -6,12 +6,12 @@ dependency pass rather than in a glob signal.
 
 The checklist template assertions below exist because the two predecessor checklists rotted in
 exactly these ways. Each defence is prose in SKILL.md and a check here, so a later "tidy-up"
-that drops one goes red instead of going unnoticed.
+that drops one goes red instead of going unnoticed. The skill's fact-derivation script has its
+own suite in `test_derive_facts.py`.
 """
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -20,7 +20,6 @@ from conftest import _test_write
 ROOT = Path(__file__).resolve().parents[1]
 DETECT = "features/common/skills/welcome-ai-badger/scripts/detect.py"
 SKILL = ROOT / "features/ai-raccoon/skills/ai-raccoon-manual-checklist"
-DERIVE = SKILL / "scripts/derive-facts.sh"
 
 
 def _real_index():
@@ -105,51 +104,6 @@ class TestTheSkillCarriesWhatRunningItTaught:
 
         assert "parallel" in body
         assert "--data-root" in body
-
-
-class TestTheDerivationScriptFailsLoudly:
-    """Defence against the first rot: facts pinned by hand. A derivation that silently
-    reports 0 is worse than one that pins a stale number, because 0 looks derived."""
-
-    def _run(self, tree):
-        return subprocess.run([str(DERIVE), str(tree)], capture_output=True, text=True, check=False)
-
-    def _fake_tree(self, tmp_path, tool_source, prompt_source):
-        src = tmp_path / "src/AiRaccoon"
-        (src / "Tools").mkdir(parents=True, exist_ok=True)
-        (src / "Prompts").mkdir(parents=True, exist_ok=True)
-        _test_write(src / "AiRaccoon.csproj",
-                    "<Project><PropertyGroup><PackageVersion>9.9.9</PackageVersion>"
-                    "</PropertyGroup></Project>", encoding="utf-8")
-        _test_write(src / "Tools/Tools.cs", tool_source, encoding="utf-8")
-        _test_write(src / "Prompts/Prompts.cs", prompt_source, encoding="utf-8")
-        return tmp_path
-
-    def test_it_derives_the_version_and_the_counts(self, tmp_path):
-        tree = self._fake_tree(tmp_path, "[McpServerTool] a; [McpServerTool] b;",
-                               "[McpServerPrompt] c;")
-
-        result = self._run(tree)
-
-        assert result.returncode == 0, result.stderr
-        assert "version=9.9.9" in result.stdout
-        assert "mcp-tool-count=2" in result.stdout
-        assert "mcp-prompt-count=1" in result.stdout
-
-    def test_a_missing_tree_fails_instead_of_reporting_nothing(self, tmp_path):
-        result = self._run(tmp_path / "nowhere")
-
-        assert result.returncode != 0
-        assert "no csproj" in result.stderr
-
-    def test_a_tree_with_no_tools_fails_instead_of_reporting_zero(self, tmp_path):
-        """The trap the old awk pipeline fell into: a moved path summed to a confident 0."""
-        tree = self._fake_tree(tmp_path, "public class Nothing { }", "[McpServerPrompt] c;")
-
-        result = self._run(tree)
-
-        assert result.returncode != 0
-        assert "zero [McpServerTool]" in result.stderr
 
 
 class TestTheTemplateKeepsItsAntiRotDefences:

@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.127.0 | [derive-facts Is Python, With Tests That Can Fail](0.127.0-derive-facts-is-python-with-tests-that-can-fail.md) |
 | 0.126.0 | [A Stack's Skills Reach The Agent](0.126.0-a-stacks-skills-reach-the-agent.md) |
 | 0.125.0 | [A Stack For Building AiRaccoon, Not Using It](0.125.0-a-stack-for-building-airaccoon-not-using-it.md) |
 | 0.124.0 | [The Journey Moves To CI And `--risk` Is Deleted](0.124.0-the-journey-moves-to-ci-and-risk-is-deleted.md) |
