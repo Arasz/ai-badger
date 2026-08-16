@@ -151,6 +151,21 @@ class TestTheDerivationScriptFailsLoudly:
         assert result.returncode != 0
         assert "zero [McpServerTool]" in result.stderr
 
+    def test_a_doc_comment_mentioning_the_attribute_does_not_inflate_the_count(self, tmp_path):
+        """McpToolInventory.cs documents the attribute it reflects over, so the literal token
+        `[McpServerTool` appears in a `///` line too. That line is prose, not a tool."""
+        tool_source = (
+            "/// Derived by reflection over this assembly's own `[McpServerTool]` attributes.\n"
+            "[McpServerTool] a;\n"
+            "[McpServerTool] b;\n"
+        )
+        tree = self._fake_tree(tmp_path, tool_source, "[McpServerPrompt] c;")
+
+        result = self._run(tree)
+
+        assert result.returncode == 0, result.stderr
+        assert "mcp-tool-count=2" in result.stdout
+
 
 class TestTheTemplateKeepsItsAntiRotDefences:
 

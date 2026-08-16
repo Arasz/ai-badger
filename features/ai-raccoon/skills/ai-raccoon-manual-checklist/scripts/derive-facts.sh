@@ -23,8 +23,13 @@ version="$(sed -n 's/.*<PackageVersion>\(.*\)<\/PackageVersion>.*/\1/p' "$csproj
 [ -n "$version" ] && [ "$version" != '$(Version)' ] || fail "no literal <PackageVersion> in $csproj"
 
 count_attribute() {
+    # Matches whole lines first, not just occurrences, so a comment line can be dropped before
+    # counting the per-line uses on what remains. A doc comment that names the attribute in
+    # prose (McpToolInventory.cs's does, on purpose) would otherwise count as a use of it.
     local dir="$1" attribute="$2" total
-    total="$(grep -rho "\[$attribute" --include='*.cs' "$dir" | wc -l | tr -d ' ')"
+    total="$(grep -rh "\[$attribute" --include='*.cs' "$dir" \
+        | grep -v '^[[:space:]]*\(///\|//\|\*\)' \
+        | grep -o "\[$attribute" | wc -l | tr -d ' ')"
     [ "$total" -gt 0 ] || fail "zero [$attribute] found under $dir"
     echo "$total"
 }
