@@ -280,3 +280,17 @@ def test_ai_raccoon_memory_skill_is_indexed(root, load_script):
     assert {"name": "ai-raccoon-memory", "path": "features/common/skills/ai-raccoon-memory",
             "scope": "default"} in items
     assert (skill / "SKILL.md").is_file()
+
+
+def test_ai_raccoon_memory_skill_watch_ritual_names_semantica_dir(root):
+    """The watch-on-docs ritual also watches the .semantica/ directory."""
+    skill_md = root / "features" / "common" / "skills" / "ai-raccoon-memory" / "SKILL.md"
+    body = skill_md.read_text(encoding="utf-8")
+    assert ".semantica/" in body
+    assert "memory_watch_add" in body
+
+
+def test_ai_raccoon_memory_skill_watch_ritual_detects_missing_semantica_dir():
+    """A watch ritual that never names .semantica/ is detected as wrong."""
+    body = "## 1. Watch-on-docs ritual\n\nmemory_watch_add(projectId, <abs path to docs>)\n"
+    assert ".semantica/" not in body
