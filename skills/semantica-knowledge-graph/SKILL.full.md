@@ -46,10 +46,11 @@ Semantica is a session-scoped knowledge graph MCP server (MIT, v0.6.5+). Every M
 
 ### 4. Graph export & AiRaccoon persistence pattern
 To prevent data loss from Semantica's ephemeral in-memory process:
-1. **Export as a hook / procedure**: Call `export_graph(format="json")` and save to `.ai-raccoon/semantica-graph.json`.
-2. **Watch via AiRaccoon**: Register `memory_watch_add(project_id="...", path="<path>/semantica-graph.json")`.
-3. **Structural JSON Integration**: AiRaccoon automatically ingests the JSON file, parses node/edge hierarchies and decision outcomes, and embeds them into AiRaccoon's persistent SQLite memory bank (`memory.db`).
+1. **Export auto-saves per session**: Call `export_graph(format="json")`. The export hook auto-saves each result to `.semantica/<session>.json` — per-session and timestamped, so parallel sessions and subagents never collide.
+2. **Watch the directory once**: The `ai-raccoon-memory` skill registers a one-time directory watch on `.semantica/` via `memory_watch_add(projectId, <absolute path to .semantica>)`; re-adding is a no-op.
+3. **Structural JSON Integration**: AiRaccoon ingests every new `.semantica/` file, parses node/edge hierarchies and decision outcomes, and embeds them into its persistent SQLite memory bank (`memory.db`).
 4. **Cross-Session Retrieval**: In future sessions, `memory_search` in AiRaccoon returns both textual decision rationale AND exact structural JSON graph relations.
+5. **`.semantica/` is local staging**: gitignore `.semantica/` in the consumer repo — the durable record lives in ai-raccoon memory, not the repo.
 
 ## Escalation by result
 
@@ -75,4 +76,4 @@ To prevent data loss from Semantica's ephemeral in-memory process:
 - [ ] `get_graph_summary` returns node/edge counts reflecting session activity
 - [ ] At least one decision recorded and findable via `query_decisions`
 - [ ] AiRaccoon `memory_search` and Semantica `query_decisions` return complementary results
-- [ ] `export_graph` produces valid JSON snapshot for AiRaccoon watch ingestion
+- [ ] `export_graph` auto-saves to `.semantica/` (per-session, timestamped) for AiRaccoon directory-watch ingestion
