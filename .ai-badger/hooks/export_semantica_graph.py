@@ -26,6 +26,20 @@ DEFAULT_SEED = {
     },
 }
 
+NUDGE_LINE = (
+    "[ai-badger] Semantica is configured: record key decisions via record_decision and "
+    "call export_graph(format=json) before finishing — dumps auto-save to .semantica/ "
+    "and are indexed."
+)
+
+
+def semantica_indexed(index) -> bool:
+    """True when any index source's last ':' token is 'semantica' (bare or decorated)."""
+    return any(
+        (source.get("name") or "").rsplit(":", 1)[-1] == "semantica"
+        for source in (index or {}).get("sources", [])
+    )
+
 
 def is_export_graph(tool_name) -> bool:
     """True for any naming spelling of the export_graph tool; never other tools."""

@@ -98,7 +98,7 @@ def test_missing_autosave_module_means_no_write(hooks, tmp_path, monkeypatch):
     assert not (tmp_path / ".semantica").exists()
 
 
-def test_pre_llm_nudge_injected_once_and_reset(hooks, tmp_path, monkeypatch):
+def test_pre_llm_nudge_injected_once_and_reset(hooks, export_module, tmp_path, monkeypatch):
     """The Semantica nudge is once-per-session, gated on the index, and cleared by reset."""
     monkeypatch.setattr(hooks, "_load_mcp_index",
                         lambda cwd: {"sources": [{"name": "semantica"}]})
@@ -115,7 +115,7 @@ def test_pre_llm_nudge_injected_once_and_reset(hooks, tmp_path, monkeypatch):
     assert "Semantica" in (again or {}).get("context", "")
 
 
-def test_pre_llm_nudge_gated_on_index(hooks, tmp_path, monkeypatch):
+def test_pre_llm_nudge_gated_on_index(hooks, export_module, tmp_path, monkeypatch):
     """No semantica source in the index (or no index) -> no nudge."""
     monkeypatch.setattr(hooks, "_load_mcp_index",
                         lambda cwd: {"sources": [{"name": "other"}]})
@@ -129,10 +129,10 @@ def test_pre_llm_nudge_gated_on_index(hooks, tmp_path, monkeypatch):
                                                             message="hello")["context"]
 
 
-def test_semantica_indexed_matches_only_the_semantica_last_token(hooks):
+def test_semantica_indexed_matches_only_the_semantica_last_token(export_module):
     """Bare 'semantica' and 'plugin:semantica:semantica' match; 'semantica-fork' does not."""
-    assert hooks._semantica_indexed({"sources": [{"name": "semantica"}]})
-    assert hooks._semantica_indexed({"sources": [{"name": "plugin:semantica:semantica"}]})
-    assert not hooks._semantica_indexed({"sources": [{"name": "semantica-fork"}]})
-    assert not hooks._semantica_indexed(None)
-    assert not hooks._semantica_indexed({"sources": []})
+    assert export_module.semantica_indexed({"sources": [{"name": "semantica"}]})
+    assert export_module.semantica_indexed({"sources": [{"name": "plugin:semantica:semantica"}]})
+    assert not export_module.semantica_indexed({"sources": [{"name": "semantica-fork"}]})
+    assert not export_module.semantica_indexed(None)
+    assert not export_module.semantica_indexed({"sources": []})

@@ -632,15 +632,11 @@ def pre_llm_inject_context(
         )
 
     # Semantica nudge — once per session, gated on the index naming a semantica source.
-    # Fires before the prompt-gated block so an empty-prompt turn 1 still surfaces it.
     if "semantica" not in _session_hints_shown:
         _session_hints_shown.add("semantica")
-        if _semantica_indexed(index):
-            parts.append(
-                "[ai-badger] Semantica is configured: record key decisions via "
-                "record_decision and call export_graph(format=json) before finishing — "
-                "dumps auto-save to .semantica/ and are indexed."
-            )
+        semantica = _load_semantica_export()
+        if semantica is not None and semantica.semantica_indexed(index):
+            parts.append(semantica.NUDGE_LINE)
 
     # MCP tool index recommendations
     if prompt:
@@ -884,8 +880,7 @@ def _maybe_record_follow_through(tool_name: str, result: str, cwd: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Semantica export autosave — Hermes post_tool_call wiring; the unwrap and
-# atomic-write logic lives in the sibling export_semantica_graph.py module.
+# Semantica export autosave — dispatch only; logic in the sibling export module.
 # ---------------------------------------------------------------------------
 
 SEMANTICA_EXPORT_MODULE_NAME = "ai_badger_semantica_export"
@@ -895,25 +890,6 @@ def _load_semantica_export() -> Optional[Any]:
     """Import the sibling semantica export module lazily; None when absent or broken."""
     return _load_sibling_module(SEMANTICA_EXPORT_MODULE_NAME, "export_semantica_graph.py",
                                 "semantica export autosave")
-
-
-def _maybe_autosave_semantica(tool_name: str, result: str, session_id: Optional[str],
-                              cwd: str) -> None:
-    """Auto-save an export_graph result to .semantica/<session>.json; no-op when absent."""
-    module = _load_semantica_export()
-    if module is None:
-        return
-    module.autosave_export(tool_name, result, session_id, Path(_project_cwd(cwd)))
-
-
-def _semantica_indexed(index: Optional[dict[str, Any]]) -> bool:
-    """True when any index source name ends in the last token 'semantica'."""
-    if index is None:
-        return False
-    return any(
-        (source.get("name") or "").rsplit(":", 1)[-1] == "semantica"
-        for source in index.get("sources", [])
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -976,7 +952,9 @@ def post_tool_observer(tool_name: str = "", result: str = "",
         logger.warning("follow-through record failed", exc_info=True)
 
     try:
-        _maybe_autosave_semantica(tool_name, result, session_id, cwd)
+        semantica = _load_semantica_export()
+        if semantica is not None:
+            semantica.autosave_export(tool_name, result, session_id, Path(_project_cwd(cwd)))
     except Exception:  # pylint: disable=broad-exception-caught
         logger.warning("semantica export autosave failed", exc_info=True)
 
