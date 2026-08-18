@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.128.1",
-  "frameworkCommit": "6e57dc4d18ed98c31fadf89f4ec77bda3a7484db",
+  "frameworkCommit": "83f655a85bf4e76557ac3d3d0e6600934a1ab786",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1762,7 +1762,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/ai_badger_hooks.py",
       "frameworkVersion": "0.128.1",
-      "hash": "6b8cdf4befc8691ffeacebc4ad4ef2455339bb5c2adfc58e4df815197578d4af"
+      "hash": "404059772b3ef074692f5564368fa75b905cb430da3ff61c12b35e413415b177"
     },
     {
       "feature": "adjustments",
@@ -1771,7 +1771,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/mcp_index_hook.py",
       "frameworkVersion": "0.128.1",
-      "hash": "6b8cdf4befc8691ffeacebc4ad4ef2455339bb5c2adfc58e4df815197578d4af"
+      "hash": "404059772b3ef074692f5564368fa75b905cb430da3ff61c12b35e413415b177"
     },
     {
       "feature": "adjustments",
@@ -1780,7 +1780,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/debug_log.py",
       "frameworkVersion": "0.128.1",
-      "hash": "6b8cdf4befc8691ffeacebc4ad4ef2455339bb5c2adfc58e4df815197578d4af"
+      "hash": "404059772b3ef074692f5564368fa75b905cb430da3ff61c12b35e413415b177"
     },
     {
       "feature": "adjustments",
@@ -1789,7 +1789,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/commit_reminder.py",
       "frameworkVersion": "0.128.1",
-      "hash": "6b8cdf4befc8691ffeacebc4ad4ef2455339bb5c2adfc58e4df815197578d4af"
+      "hash": "404059772b3ef074692f5564368fa75b905cb430da3ff61c12b35e413415b177"
     },
     {
       "feature": "adjustments",
@@ -1798,7 +1798,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/impact_estimator.py",
       "frameworkVersion": "0.128.1",
-      "hash": "6b8cdf4befc8691ffeacebc4ad4ef2455339bb5c2adfc58e4df815197578d4af"
+      "hash": "404059772b3ef074692f5564368fa75b905cb430da3ff61c12b35e413415b177"
     },
     {
       "feature": "adjustments",
@@ -1807,7 +1807,16 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/memory_first_gate.py",
       "frameworkVersion": "0.128.1",
-      "hash": "6b8cdf4befc8691ffeacebc4ad4ef2455339bb5c2adfc58e4df815197578d4af"
+      "hash": "404059772b3ef074692f5564368fa75b905cb430da3ff61c12b35e413415b177"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "hermes",
+      "name": "adjustments/.ai-badger/hooks/export_semantica_graph.py",
+      "source": "features/hermes/adjustments/adjust_hooks.py",
+      "target": ".ai-badger/hooks/export_semantica_graph.py",
+      "frameworkVersion": "0.128.1",
+      "hash": "404059772b3ef074692f5564368fa75b905cb430da3ff61c12b35e413415b177"
     },
     {
       "feature": "adjustments",
@@ -1816,7 +1825,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/tokenizer.py",
       "frameworkVersion": "0.128.1",
-      "hash": "6b8cdf4befc8691ffeacebc4ad4ef2455339bb5c2adfc58e4df815197578d4af"
+      "hash": "404059772b3ef074692f5564368fa75b905cb430da3ff61c12b35e413415b177"
     },
     {
       "feature": "adjustments",
@@ -1825,7 +1834,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/bm25.py",
       "frameworkVersion": "0.128.1",
-      "hash": "6b8cdf4befc8691ffeacebc4ad4ef2455339bb5c2adfc58e4df815197578d4af"
+      "hash": "404059772b3ef074692f5564368fa75b905cb430da3ff61c12b35e413415b177"
     },
     {
       "feature": "adjustments",
@@ -1834,7 +1843,7 @@
       "source": "features/hermes/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/mcp_matcher.py",
       "frameworkVersion": "0.128.1",
-      "hash": "6b8cdf4befc8691ffeacebc4ad4ef2455339bb5c2adfc58e4df815197578d4af"
+      "hash": "404059772b3ef074692f5564368fa75b905cb430da3ff61c12b35e413415b177"
     },
     {
       "feature": "adjustments",
