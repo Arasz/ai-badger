@@ -21,6 +21,7 @@ SHARED_SKILL_FILES = (
     ("commit-reminder", "commit_reminder.py"),
     ("commit-reminder", "impact_estimator.py"),
     ("ai-raccoon-memory", "memory_first_gate.py"),
+    ("semantica-knowledge-graph", "export_semantica_graph.py"),
 )
 RETRIEVAL_FILES = ("tokenizer.py", "bm25.py", "mcp_matcher.py")
 
@@ -196,6 +197,12 @@ def test_adjust_hooks_still_copies_project_hooks_alongside_shared_skill_modules(
     assert {name for _, name in SHARED_SKILL_FILES}.issubset({
         f.rsplit("/", 1)[-1] for f in result["files"]
     })
+
+
+def test_shared_skill_files_matches_production_shipping_list(load_script):
+    """Derive-or-delete: the test-side SHARED_SKILL_FILES must mirror the production tuple."""
+    adjust_hooks = load_script("features/hermes/adjustments/adjust_hooks.py")
+    assert set(SHARED_SKILL_FILES) == set(adjust_hooks.SHARED_SKILL_MODULES)
 
 
 def _retrieval_module(root, name):

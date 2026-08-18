@@ -169,6 +169,15 @@ def test_skill_explains_export_hook_and_airaccoon_watch_pattern():
     assert "AiRaccoon" in text or "ai-raccoon" in text
 
 
+def test_skill_explains_semantica_directory_watch():
+    """Body names .semantica/ as a watched directory — not the old single-file path."""
+    text = _skill_text()
+    assert ".semantica/" in text
+    assert "directory" in text.lower()
+    assert "memory_watch_add" in text
+    assert ".ai-raccoon/semantica-graph.json" not in text
+
+
 def test_skill_explains_no_import_and_process_isolation():
     """Body explains in-memory process isolation and 'no import' session-scoped lifecycle."""
     text = _skill_text()
@@ -230,6 +239,12 @@ scope: project
         """A body without '## Gotchas' is detected."""
         text = "# Title\n\nSome content without gotchas.\n"
         assert "## Gotchas" not in text
+
+    def test_old_single_file_wording_can_fail(self):
+        """A body still naming the old single-file path is detected as wrong."""
+        text = "# Title\n\nExport to .ai-raccoon/semantica-graph.json and watch that file.\n"
+        assert ".semantica/" not in text
+        assert ".ai-raccoon/semantica-graph.json" in text
 
     def test_over_500_lines_can_fail(self):
         """A body over 500 lines is detected."""

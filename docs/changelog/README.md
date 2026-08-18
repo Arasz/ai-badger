@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.129.0 | [Semantica Gets Used, And Its Graph Survives The Session](0.129.0-semantica-session-graph-persistence.md) |
 | 0.128.1 | [derive-facts Reads the VERSION File](0.128.1-derive-facts-reads-the-version-file.md) |
 | 0.128.0 | [Background QoS and a Derived Worker Budget](0.128.0-background-qos-and-worker-budget.md) |
 | 0.127.0 | [derive-facts Is Python, With Tests That Can Fail](0.127.0-derive-facts-is-python-with-tests-that-can-fail.md) |

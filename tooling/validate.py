@@ -200,6 +200,10 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                    "hook only ever warns and Copilot's hook protocol has no channel that puts a "
                    "non-blocking note in front of the model.",
     },
+    "semantica-export-autosave": {
+        "claude": "PostToolUse can see the result but the port is deferred — issue #418.",
+        "copilot": "postToolUse can see the result but the port is deferred — issue #418.",
+    },
 }
 
 PROVENANCE_KEYS = ("frameworkCommit", "frameworkDirty")

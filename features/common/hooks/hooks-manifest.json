@@ -240,6 +240,17 @@
           "script": "memory_grade_hook.py"
         }
       }
+    },
+    {
+      "name": "semantica-export-autosave",
+      "description": "Auto-save the Semantica graph dump from export_graph to .semantica/<session>.json",
+      "agents": {
+        "hermes": {
+          "type": "plugin",
+          "entry": "ai_badger_hooks.py",
+          "method": "post_tool_call"
+        }
+      }
     }
   ]
 }
