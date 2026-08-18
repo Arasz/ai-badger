@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated_at": "2026-08-05T21:00:23Z",
+  "generated_at": "2026-08-18T09:52:09Z",
   "sources": [
     {
       "name": "code-review-graph",
@@ -690,7 +690,7 @@
     },
     {
       "name": "plugin:terraform:terraform",
-      "status": "unknown",
+      "status": "unreachable",
       "tools": {}
     },
     {
@@ -711,12 +711,233 @@
     {
       "name": "hermes",
       "status": "unknown",
-      "tools": {}
+      "tools": {
+        "conversations_list": {
+          "tags": [
+            "search",
+            "read"
+          ],
+          "intent": "List active messaging conversations, optionally filtered by platform or name.",
+          "origin": "catalog"
+        },
+        "conversation_get": {
+          "tags": [
+            "read"
+          ],
+          "intent": "Inspect one conversation's details using its session key.",
+          "origin": "catalog"
+        },
+        "messages_read": {
+          "tags": [
+            "read"
+          ],
+          "intent": "Read recent message history from a selected conversation.",
+          "origin": "catalog"
+        },
+        "attachments_fetch": {
+          "tags": [
+            "read"
+          ],
+          "intent": "Fetch non-text attachments from a specific message.",
+          "origin": "catalog"
+        },
+        "events_poll": {
+          "tags": [
+            "read"
+          ],
+          "intent": "Poll for new conversation or approval events after a cursor.",
+          "origin": "catalog"
+        },
+        "events_wait": {
+          "tags": [
+            "read"
+          ],
+          "intent": "Wait for the next conversation or approval event with a bounded timeout.",
+          "origin": "catalog"
+        },
+        "messages_send": {
+          "tags": [
+            "write"
+          ],
+          "intent": "Send a text message through a connected platform target.",
+          "origin": "catalog"
+        },
+        "channels_list": {
+          "tags": [
+            "search",
+            "read"
+          ],
+          "intent": "List available messaging targets across connected platforms.",
+          "origin": "catalog"
+        },
+        "permissions_list_open": {
+          "tags": [
+            "read"
+          ],
+          "intent": "List pending approval requests observed by the bridge session.",
+          "origin": "catalog"
+        },
+        "permissions_respond": {
+          "tags": [
+            "write",
+            "unsafe"
+          ],
+          "intent": "Allow or deny a pending approval request.",
+          "origin": "catalog"
+        }
+      }
     },
     {
       "name": "ai-raccoon",
       "status": "unknown",
-      "tools": {}
+      "tools": {
+        "memory_write": {
+          "tags": [
+            "write"
+          ],
+          "intent": "Persist a durable, project-scoped fact with its source path — one fact per entry, never raw chatter.",
+          "origin": "catalog"
+        },
+        "memory_search": {
+          "tags": [
+            "search",
+            "semantic"
+          ],
+          "intent": "Search project/shared memory (scope=all, project, or shared) with 2-3 formulations before web or code search.",
+          "origin": "catalog"
+        },
+        "memory_list": {
+          "tags": [
+            "read"
+          ],
+          "intent": "List entries in a project's memory bank, optionally filtered.",
+          "origin": "catalog"
+        },
+        "memory_stats": {
+          "tags": [
+            "read"
+          ],
+          "intent": "Report bank size and entry counts for a project.",
+          "origin": "catalog"
+        },
+        "memory_share": {
+          "tags": [
+            "write"
+          ],
+          "intent": "Promote a durable, cross-project entry to the shared tier — curated and never swept.",
+          "origin": "catalog"
+        },
+        "memory_delete": {
+          "tags": [
+            "write",
+            "unsafe"
+          ],
+          "intent": "Delete a specific memory entry by id.",
+          "origin": "catalog"
+        },
+        "memory_delete_context": {
+          "tags": [
+            "write",
+            "unsafe"
+          ],
+          "intent": "Delete entries by context; requires full access mode.",
+          "origin": "catalog"
+        },
+        "memory_ingest_file": {
+          "tags": [
+            "write",
+            "files",
+            "batch"
+          ],
+          "intent": "Bulk-load a file's contents into project memory as entries.",
+          "origin": "catalog"
+        },
+        "memory_ingest_directory": {
+          "tags": [
+            "write",
+            "files",
+            "batch"
+          ],
+          "intent": "Bulk-load every supported file under a directory into project memory.",
+          "origin": "catalog"
+        },
+        "memory_embed_pending": {
+          "tags": [
+            "run",
+            "batch",
+            "slow"
+          ],
+          "intent": "Embed pending entries; omit the limit argument to process all.",
+          "origin": "catalog"
+        },
+        "memory_workspace_begin": {
+          "tags": [
+            "write"
+          ],
+          "intent": "Start an isolated workspace outbox for in-progress notes.",
+          "origin": "catalog"
+        },
+        "memory_workspace_status": {
+          "tags": [
+            "read"
+          ],
+          "intent": "List what the active workspace outbox holds.",
+          "origin": "catalog"
+        },
+        "memory_workspace_consolidate": {
+          "tags": [
+            "write"
+          ],
+          "intent": "Finish a workspace: keep durable facts, promote cross-project ones with memory_share, drop the rest.",
+          "origin": "catalog"
+        },
+        "memory_workspace_discard": {
+          "tags": [
+            "write",
+            "unsafe"
+          ],
+          "intent": "Discard an active workspace and its outbox without consolidating.",
+          "origin": "catalog"
+        },
+        "memory_sweep": {
+          "tags": [
+            "write",
+            "batch"
+          ],
+          "intent": "Remove old, low-rated project entries; shared entries are exempt.",
+          "origin": "catalog"
+        },
+        "memory_sync": {
+          "tags": [
+            "run"
+          ],
+          "intent": "Exchange memory snapshots with cloud storage when configured.",
+          "origin": "catalog"
+        },
+        "memory_watch_add": {
+          "tags": [
+            "write",
+            "files"
+          ],
+          "intent": "Register an absolute path to mirror into memory; the initial scan runs in the background.",
+          "origin": "catalog"
+        },
+        "memory_watch_status": {
+          "tags": [
+            "read"
+          ],
+          "intent": "Report watch state (scanning/healthy/retrying/stopped) for a project; empty when none.",
+          "origin": "catalog"
+        },
+        "memory_watch_remove": {
+          "tags": [
+            "write",
+            "files"
+          ],
+          "intent": "Stop mirroring a watched path; a no-op when the path is not watched.",
+          "origin": "catalog"
+        }
+      }
     },
     {
       "name": "dotnet-sdk",
@@ -742,6 +963,137 @@
       "name": "superpowers",
       "status": "disabled",
       "tools": {}
+    },
+    {
+      "name": "claude.ai Google Drive",
+      "status": "unknown",
+      "url": "https://drivemcp.googleapis.com/mcp/v1",
+      "tools": {}
+    },
+    {
+      "name": "claude.ai Microsoft 365",
+      "status": "unauthenticated",
+      "url": "https://microsoft365.mcp.claude.com/mcp",
+      "tools": {}
+    },
+    {
+      "name": "claude.ai Google Calendar",
+      "status": "unknown",
+      "url": "https://calendarmcp.googleapis.com/mcp/v1",
+      "tools": {}
+    },
+    {
+      "name": "claude.ai Calendly",
+      "status": "unauthenticated",
+      "url": "https://mcp.calendly.com",
+      "tools": {}
+    },
+    {
+      "name": "claude.ai Indeed",
+      "status": "unauthenticated",
+      "url": "https://mcp.indeed.com/claude/mcp",
+      "tools": {}
+    },
+    {
+      "name": "claude.ai Vercel",
+      "status": "unknown",
+      "url": "https://mcp.vercel.com",
+      "tools": {}
+    },
+    {
+      "name": "claude.ai Gmail",
+      "status": "unknown",
+      "url": "https://gmailmcp.googleapis.com/mcp/v1",
+      "tools": {}
+    },
+    {
+      "name": "semantica",
+      "status": "unknown",
+      "tools": {
+        "get_graph_summary": {
+          "tags": [
+            "read"
+          ],
+          "intent": "Orientation entry point: graph statistics, entity/relation counts, domain overview — before any specific query.",
+          "origin": "catalog"
+        },
+        "extract_entities": {
+          "tags": [
+            "write",
+            "search"
+          ],
+          "intent": "Named entity extraction from arbitrary text — feed in a document, conversation excerpt, or design spec and get structured entities back.",
+          "origin": "catalog"
+        },
+        "extract_relations": {
+          "tags": [
+            "write",
+            "search"
+          ],
+          "intent": "Extract triplet relations (subject-predicate-object) from text — builds the graph's edge structure from unstructured content.",
+          "origin": "catalog"
+        },
+        "add_entity": {
+          "tags": [
+            "write"
+          ],
+          "intent": "Manually add a knowledge graph node with properties — for facts the agent knows but that aren't in text to extract.",
+          "origin": "catalog"
+        },
+        "add_relationship": {
+          "tags": [
+            "write"
+          ],
+          "intent": "Manually add an edge between two existing entities — link concepts the agent connected through reasoning.",
+          "origin": "catalog"
+        },
+        "record_decision": {
+          "tags": [
+            "write"
+          ],
+          "intent": "Persist an architectural decision as a provenance-tracked node with context, rationale, alternatives, and constraints.",
+          "origin": "catalog"
+        },
+        "query_decisions": {
+          "tags": [
+            "search"
+          ],
+          "intent": "Search the decision history by keyword, date range, or domain — 'what did we decide about authentication?'",
+          "origin": "catalog"
+        },
+        "find_precedents": {
+          "tags": [
+            "search",
+            "semantic"
+          ],
+          "intent": "Semantic precedent lookup — 'has a decision like this been made before?' Returns similar past decisions ranked by relevance.",
+          "origin": "catalog"
+        },
+        "get_causal_chain": {
+          "tags": [
+            "navigation",
+            "diagnostic"
+          ],
+          "intent": "Full causal ancestry of a decision or entity — trace every 'because' back to root assumptions.",
+          "origin": "catalog"
+        },
+        "run_reasoning": {
+          "tags": [
+            "run",
+            "batch"
+          ],
+          "intent": "Forward-chaining IF/THEN rules over the graph — derive new facts, check consistency, or flag conflicts.",
+          "origin": "catalog"
+        },
+        "export_graph": {
+          "tags": [
+            "write",
+            "files"
+          ],
+          "intent": "Export the current graph in RDF, JSON, or Parquet format for archival snapshots or audit trails.",
+          "origin": "catalog"
+        }
+      }
     }
   ]
 }
