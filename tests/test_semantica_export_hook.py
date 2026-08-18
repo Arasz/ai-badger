@@ -106,6 +106,17 @@ def test_main_cli_defaults_to_semantica_dir(tmp_path, monkeypatch):
     assert files[0].is_file()
 
 
+def test_main_cli_stages_temp_outside_semantica_dir(tmp_path, monkeypatch):
+    """The CLI temp file must not land under .semantica/ (a directory watch ingests .tmp)."""
+    monkeypatch.chdir(tmp_path)
+    assert main(["--json", '{"nodes": []}']) == 0
+
+    semantica_dir = tmp_path / ".semantica"
+    assert sorted(p.name for p in semantica_dir.iterdir()) == sorted(
+        p.name for p in semantica_dir.glob("semantica-graph-*.json"))
+    assert list(tmp_path.glob("*.tmp*")) == []
+
+
 def test_main_cli_returns_zero_on_exception(monkeypatch):
     """CLI main logs error and returns 0 when unexpected exception occurs."""
     def _failing_export(*args, **kwargs):

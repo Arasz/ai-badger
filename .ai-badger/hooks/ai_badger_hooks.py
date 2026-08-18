@@ -634,9 +634,12 @@ def pre_llm_inject_context(
     # Semantica nudge — once per session, gated on the index naming a semantica source.
     if "semantica" not in _session_hints_shown:
         _session_hints_shown.add("semantica")
-        semantica = _load_semantica_export()
-        if semantica is not None and semantica.semantica_indexed(index):
-            parts.append(semantica.NUDGE_LINE)
+        try:
+            semantica = _load_semantica_export()
+            if semantica is not None and semantica.semantica_indexed(index):
+                parts.append(semantica.NUDGE_LINE)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning("semantica nudge failed", exc_info=True)
 
     # MCP tool index recommendations
     if prompt:
