@@ -170,11 +170,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.target:
         target_file = Path(args.target)
+        temp_dir = None
     else:
         target_file = Path.cwd() / SEMANTICA_DIR / f"semantica-graph-{_now_slug()}.json"
+        # Stage the temp outside .semantica/ so a directory watch never ingests a .tmp.
+        temp_dir = Path.cwd()
 
     try:
-        exported = export_graph(target_path=target_file, raw_json=args.json)
+        exported = export_graph(target_path=target_file, raw_json=args.json, temp_dir=temp_dir)
         print(f"Semantica graph snapshot exported to {exported}")
         return 0
     except Exception as exc:  # pylint: disable=broad-exception-caught

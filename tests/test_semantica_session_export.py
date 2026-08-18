@@ -129,6 +129,17 @@ def test_pre_llm_nudge_gated_on_index(hooks, export_module, tmp_path, monkeypatc
                                                             message="hello")["context"]
 
 
+def test_nudge_fails_open_on_stale_module(hooks, tmp_path, monkeypatch):
+    """A stale sibling lacking semantica_indexed must not abort pre-LLM context injection."""
+    monkeypatch.setitem(sys.modules, hooks.SEMANTICA_EXPORT_MODULE_NAME, object())
+    monkeypatch.setattr(hooks, "_load_mcp_index",
+                        lambda cwd: {"sources": [{"name": "semantica"}]})
+    hooks.reset_session_hints()
+
+    context = hooks.pre_llm_inject_context(cwd=str(tmp_path), message="hello")
+    assert "/usage" in (context or {}).get("context", "")
+
+
 def test_semantica_indexed_matches_only_the_semantica_last_token(export_module):
     """Bare 'semantica' and 'plugin:semantica:semantica' match; 'semantica-fork' does not."""
     assert export_module.semantica_indexed({"sources": [{"name": "semantica"}]})
