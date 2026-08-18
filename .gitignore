@@ -39,3 +39,5 @@ mutants/
 .github/**/*.bak-*
 # mcp writer's safety copy of the ignored .mcp.json before a rewrite (mcp_tools.py)
 .mcp.json.bak-*
+# local Semantica session-graph staging dir; the durable record lives in ai-raccoon memory
+.semantica/
