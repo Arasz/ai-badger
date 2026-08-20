@@ -1,7 +1,14 @@
 {
-  "lastUpdated": "2026-08-20T13:40:00.000000+00:00",
+  "lastUpdated": "2026-08-20T14:10:00.000000+00:00",
   "next": "Port Semantica auto-save + nudge to Claude/Copilot nudge arm (#418 remaining half): the autosave shim shipped in 0.130.0; the once-per-session nudge needs marker-file state for claude/copilot (shell hook per invocation). Also: re-check semantica-agi/semantica PR #1151 (export_graph fix) and bump the version floor once a fixed release exists.",
   "completedTasks": [
+    {
+      "id": "semantica-moe-followup",
+      "title": "Fold MoE review findings into semantica integration (shim cwd, resolved-env probe, error diagnostic) — 0.130.1",
+      "pr": 422,
+      "merged": "2026-08-20",
+      "summary": "MoE review of the 0.130.0 plan arrived after that merge (architect + test-engineer, both APPROVE-WITH-FIXES). Most findings were already folded in 0.130.0; three survived and shipped in 0.130.1: (1) shim wrote .semantica/ under os.getcwd() — PostToolUse payloads carry no cwd and the hook process cwd is the agent launcher; now resolves CLAUDE_PROJECT_DIR -> payload cwd -> no write (commit_reminder_hook pattern). (2) check.py export probe ran in ambient python, which cannot import semantica for uv-tool/pipx installs — warning never fired in the common case (verified: probe returned True false-success before, False against real 0.6.5 now); probe shells out to interpreter beside resolved exe with timeout. (3) skipped error results now diagnosed on stderr (one line, never stdout). Tests: shim subprocess tests for 3 resolution paths; check.py tests proving resolved-interpreter probe + silent-when-unresolvable; stderr diagnostic tests. Full suite 4094/0. NIT acknowledged: default-declaration pin test duplicates existing test_stack_mcp_includes_semantica (left as-is, no churn). Nudge for claude/copilot remains deferred (documented 0.130.0). Also tagged ai-badger--v0.130.0 at 8a41a121 (release guard)."
+    },
     {
       "id": "semantica-integration-fix",
       "title": "Semantica integration: fix upstream export bugs, wire claude/copilot, default-enable (0.130.0)",
