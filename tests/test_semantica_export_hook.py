@@ -253,6 +253,13 @@ def test_autosave_export_skips_error_inside_envelope(tmp_path):
     assert not (tmp_path / SEMANTICA_DIR).exists()
 
 
+def test_autosave_export_skips_error_inside_structured_content(tmp_path):
+    """An error inside a structuredContent envelope writes nothing."""
+    result = {"structuredContent": {"error": "boom"}}
+    assert autosave_export("export_graph", result, "sess-1", tmp_path) is None
+    assert not (tmp_path / SEMANTICA_DIR).exists()
+
+
 def test_autosave_export_skips_empty_result(tmp_path):
     """An empty/None result writes nothing and returns None."""
     assert autosave_export("export_graph", None, "sess-1", tmp_path) is None

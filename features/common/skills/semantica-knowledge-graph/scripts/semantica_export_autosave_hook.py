@@ -28,6 +28,8 @@ _EXPORT_SCRIPT = Path(__file__).resolve().parent / "export_semantica_graph.py"
 
 def _load_export_module():
     """Import export_semantica_graph.py from this hook's own directory."""
+    if not _EXPORT_SCRIPT.is_file():
+        return None
     spec = importlib.util.spec_from_file_location("ai_badger_semantica_export_hook", _EXPORT_SCRIPT)
     if spec is None or spec.loader is None:
         return None

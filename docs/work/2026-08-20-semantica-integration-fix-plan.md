@@ -68,20 +68,21 @@ Tests (RED first):
     that reads the PostToolUse JSON payload, extracts tool name/result/session, and calls
     `autosave_export`.
   - copilot: `hooks-json` `postToolUse` → same shim.
-- Nudge for claude/copilot: add a semantica nudge line to `context_enrichment_hook.py`
-  (UserPromptSubmit, mirrors the hermes pre_llm_inject_context nudge, index-gated).
 - Tests: manifest validation (both blocks present), shim unit test with a fake PostToolUse
   JSON payload (valid export writes a dump; error result writes nothing).
+- Nudge for claude/copilot: DEFERRED to a follow-up PR (changelog 0.130.0 "Deferred") —
+  the once-per-session nudge needs marker-file state because claude/copilot run the hook
+  as a fresh process per invocation.
 
-### U3 — ai-badger: version floor + default distribution
-- `meta.json`, `install.py`, `check.py`, `convert_mcp_prerequisites.py`: floor at
-  `semantica>=0.6.7` (the release carrying U0) — install/check fail with an actionable
-  message when older.
-- `check.py`: add a functional probe that imports the installed semantica and verifies
-  `_tool_export_graph`-style json export works (catch the 0.6.5/0.6.6 breakage with a
-  message pointing at the fix).
-- Confirm semantica stays declared by default in `stack-mcp.json` (already true) and add a
-  test pinning that (guard against accidental removal).
+### U3 — ai-badger: functional probe + default distribution (no fail-closed floor)
+- `check.py`: functional probe (`export_graph_works` via `_probe_export_graph`, calling the
+  installed server's `_tool_export_graph` directly) — WARN + exit 0 when the 0.6.5/0.6.6
+  export bug is present, since the graph tools still work. Deliberately NO hard version
+  floor: `semantica>=0.6.7` does not exist yet (bug is on upstream main too), and a floor
+  would fail closed for everyone until the external PR lands. The meta.json/install.py
+  floor idea was dropped for that reason (architect MUST-FIX folded).
+- `test_semantica_is_declared_by_default_in_the_common_stack` pins semantica in
+  `stack-mcp.json` (guard against accidental removal).
 
 ### U4 — docs + changelog + VERSION
 - SKILL.md gotchas: document the upstream export_graph bug + fixed version requirement.

@@ -101,3 +101,40 @@ def test_garbage_stdin_exits_zero(tmp_path):
     )
     assert result.returncode == 0
     assert not (tmp_path / ".semantica").exists()
+
+
+def test_missing_sibling_module_exits_zero(tmp_path):
+    """A hook copy without export_semantica_graph.py beside it exits 0 silently."""
+    import shutil
+
+    isolated = tmp_path / "isolated"
+    isolated.mkdir()
+    shutil.copy2(HOOK_PATH, isolated / "semantica_export_autosave_hook.py")
+
+    payload = {"tool_name": "export_graph", "tool_response": "{}", "session_id": "s"}
+    result = subprocess.run(
+        [sys.executable, str(isolated / "semantica_export_autosave_hook.py")],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert not (tmp_path / ".semantica").exists()
+
+
+def test_non_dict_payload_exits_zero(tmp_path):
+    """A JSON-array stdin payload exits 0 without touching the filesystem."""
+    result = subprocess.run(
+        [sys.executable, str(HOOK_PATH)],
+        input="[1, 2, 3]",
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert not (tmp_path / ".semantica").exists()

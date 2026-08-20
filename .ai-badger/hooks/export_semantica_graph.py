@@ -105,7 +105,13 @@ def extract_graph_json(result) -> dict | None:
         return None
     if "structuredContent" in result:
         inner = result["structuredContent"]
-        return inner if isinstance(inner, dict) else None
+        if isinstance(inner, dict):
+            # Same inner-error guard as the "result" branch — a structured
+            # error payload must never be saved as a graph dump.
+            if inner.get("error") is not None or inner.get("isError"):
+                return None
+            return inner
+        return None
     return result
 
 

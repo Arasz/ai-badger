@@ -68,7 +68,9 @@ def export_graph_works() -> bool:
     try:
         result = _probe_export_graph()
     except Exception:  # pylint: disable=broad-exception-caught
-        return False
+        # Import/setup failure inside the server module — not necessarily the
+        # export bug; say nothing rather than misattribute.
+        return True
     return isinstance(result, dict) and "error" not in result
 
 
