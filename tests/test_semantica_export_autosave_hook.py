@@ -8,6 +8,7 @@ stdin payload — and that it never fails a tool call (exit 0 on every path).
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -23,14 +24,24 @@ HOOK_PATH = (
 )
 
 
-def _run_hook(payload: dict, cwd: Path) -> subprocess.CompletedProcess:
-    """Run the shim with payload JSON on stdin, cwd set to cwd."""
+def _run_hook(payload: dict, cwd: Path, env: dict | None = None) -> subprocess.CompletedProcess:
+    """Run the shim with payload JSON on stdin, cwd set to cwd.
+
+    CLAUDE_PROJECT_DIR is stripped by default: conftest points it at a scratch
+    project, and these tests exercise the payload-cwd resolution path. Tests
+    that want the env path merge it in via *env*.
+    """
+    child_env = dict(os.environ)
+    child_env.pop("CLAUDE_PROJECT_DIR", None)
+    if env:
+        child_env.update(env)
     return subprocess.run(
         [sys.executable, str(HOOK_PATH)],
         input=json.dumps(payload),
         capture_output=True,
         text=True,
         cwd=str(cwd),
+        env=child_env,
         timeout=30,
         check=False,
     )
@@ -42,6 +53,7 @@ def test_claude_spelling_writes_dump(tmp_path):
         "tool_name": "export_graph",
         "tool_response": '{"result": "{\\"nodes\\": [{\\"id\\": \\"n1\\"}]}"}',
         "session_id": "claude-sess-1",
+        "cwd": str(tmp_path),
     }
     result = _run_hook(payload, tmp_path)
 
@@ -58,6 +70,7 @@ def test_copilot_spelling_writes_dump(tmp_path):
         "toolName": "mcp__semantica__export_graph",
         "toolResponse": '{"result": "{\\"edges\\": []}"}',
         "sessionId": "copilot-sess-2",
+        "cwd": str(tmp_path),
     }
     result = _run_hook(payload, tmp_path)
 
@@ -81,6 +94,7 @@ def test_error_payload_writes_nothing(tmp_path):
         "tool_name": "export_graph",
         "tool_response": '{"result": "{\\"error\\": \\"boom\\"}"}',
         "session_id": "s",
+        "cwd": str(tmp_path),
     }
     result = _run_hook(payload, tmp_path)
 
@@ -138,3 +152,53 @@ def test_non_dict_payload_exits_zero(tmp_path):
     )
     assert result.returncode == 0
     assert not (tmp_path / ".semantica").exists()
+
+
+def test_payload_without_cwd_writes_nothing(tmp_path, monkeypatch):
+    """PostToolUse payloads carry no cwd; without CLAUDE_PROJECT_DIR the hook skips.
+
+    The hook's process cwd is arbitrary (the agent's launcher), so writing
+    .semantica/ under os.getcwd() would scatter dumps across the machine. The
+    resolved project dir is CLAUDE_PROJECT_DIR, else the payload's cwd — with
+    neither, no write.
+    """
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    payload = {"tool_name": "export_graph",
+               "tool_response": '{"result": "{\\"nodes\\": []}"}',
+               "session_id": "s"}
+    result = _run_hook(payload, tmp_path)
+
+    assert result.returncode == 0
+    assert not (tmp_path / ".semantica").exists()
+
+
+def test_claude_project_dir_env_directs_the_dump(tmp_path):
+    """CLAUDE_PROJECT_DIR wins over the process cwd for the dump location."""
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+
+    payload = {"tool_name": "export_graph",
+               "tool_response": '{"result": "{\\"nodes\\": [{\\"id\\": \\"n1\\"}]}"}',
+               "session_id": "sess-env"}
+    result = _run_hook(payload, tmp_path, env={"CLAUDE_PROJECT_DIR": str(project_dir)})
+
+    assert result.returncode == 0
+    dumps = list((project_dir / ".semantica").glob("sess-env-*.json"))
+    assert len(dumps) == 1
+    assert not (tmp_path / ".semantica").exists()
+
+
+def test_payload_cwd_directs_the_dump(tmp_path):
+    """The payload's own cwd field directs the dump when CLAUDE_PROJECT_DIR is unset."""
+    project_dir = tmp_path / "payload-project"
+    project_dir.mkdir()
+
+    payload = {"tool_name": "export_graph",
+               "tool_response": '{"result": "{\\"nodes\\": []}"}',
+               "session_id": "sess-cwd",
+               "cwd": str(project_dir)}
+    result = _run_hook(payload, tmp_path)
+
+    assert result.returncode == 0
+    dumps = list((project_dir / ".semantica").glob("sess-cwd-*.json"))
+    assert len(dumps) == 1

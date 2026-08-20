@@ -260,6 +260,32 @@ def test_autosave_export_skips_error_inside_structured_content(tmp_path):
     assert not (tmp_path / SEMANTICA_DIR).exists()
 
 
+def test_autosave_export_diagnoses_skipped_error_on_stderr(tmp_path, capsys):
+    """A skipped error result leaves a one-line diagnostic on stderr (never stdout).
+
+    The bridge died silently for weeks before the 0.130.0 work; an error result
+    that writes nothing must at least say so, or the failure is invisible again.
+    """
+    result = '{"result": "{\\"error\\": \\"JSONExporter.export() missing 1 required positional argument: \'file_path\'\\"}"}'
+    assert autosave_export("export_graph", result, "sess-1", tmp_path) is None
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "export_graph" in captured.err
+    assert "skipped" in captured.err
+
+
+def test_autosave_export_is_silent_on_valid_result(tmp_path, capsys):
+    """A successful dump writes no diagnostic — silence is the healthy state."""
+    result = '{"result": "{\\"nodes\\": []}"}'
+    path = autosave_export("mcp__semantica__export_graph", result, "sess-1", tmp_path)
+
+    assert path is not None
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+
+
 def test_autosave_export_skips_empty_result(tmp_path):
     """An empty/None result writes nothing and returns None."""
     assert autosave_export("export_graph", None, "sess-1", tmp_path) is None
