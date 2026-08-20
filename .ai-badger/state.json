@@ -1,7 +1,14 @@
 {
-  "lastUpdated": "2026-08-18",
-  "next": "Port Semantica auto-save + nudge to Claude/Copilot (#418): their PostToolUse/postToolUse event sees the result, so a thin stdin-JSON shim calling export_semantica_graph.autosave_export + a context_enrichment_hook.py nudge + a manifest entry with real claude/copilot blocks (replacing the #414-#417 exemptions).",
+  "lastUpdated": "2026-08-20T13:40:00.000000+00:00",
+  "next": "Port Semantica auto-save + nudge to Claude/Copilot nudge arm (#418 remaining half): the autosave shim shipped in 0.130.0; the once-per-session nudge needs marker-file state for claude/copilot (shell hook per invocation). Also: re-check semantica-agi/semantica PR #1151 (export_graph fix) and bump the version floor once a fixed release exists.",
   "completedTasks": [
+    {
+      "id": "semantica-integration-fix",
+      "title": "Semantica integration: fix upstream export bugs, wire claude/copilot, default-enable (0.130.0)",
+      "pr": 421,
+      "merged": "2026-08-20",
+      "summary": "Semantica was integrated but dormant: empty graph, no .semantica/ dumps, dead AiRaccoon bridge. Root causes found by live testing: (1) UPSTREAM semantica 0.6.5/0.6.6 export_graph broken on every format — json branch calls JSONExporter().export(graph) without file_path (TypeError), RDF branches pass the ContextGraph object to exporters needing the kg dict (AttributeError), and all branches print a rich progress bar to stdout corrupting stdio MCP framing (300s client timeout; SEMANTICA_DISABLE_PROGRESS=1 silences it). Fixed upstream in semantica-agi/semantica PR #1151 (to_kg_dict conversion + json.dumps + forced progress disable), still open upstream. (2) ai-badger autosave hook wrote error payloads as graph dumps (extract_graph_json checked error only on the outer envelope; inner {\"result\": \"{\"error\": ...}\"} passed through) — fixed RED->GREEN, plus the structuredContent envelope got the same guard after review. (3) autosave was hermes-only; claude/copilot deferred (#418) — shipped a stdin-JSON PostToolUse shim (semantica_export_autosave_hook.py) wired in hooks-manifest + source hooks.json, exemptions deleted from validate.py. (4) check.py now probes the installed server export branch (export_graph_works) and warns+exits 0 when broken — deliberately no fail-closed version floor (0.6.7 does not exist; architect MUST-FIX). (5) default distribution pinned by test_semantica_is_declared_by_default_in_the_common_stack. MoE plan review (architect + test-engineer, both APPROVE-WITH-FIXES) + code-reviewer gate (APPROVE-WITH-FIXES, 5 findings folded: structuredContent guard, shim missing-sibling crash path, honest probe, nudge deferral documented, plan-doc drift). Full suite 4087 passed / 0 failed; all CI lanes green. Follow-ups: ai-raccoon den-refreshed to 0.130.0, .semantica/ watch registered (scope added, watch enable), .gitignore updated, user-level hermes plugin refreshed to 0.130.0. Deferred: once-per-session claude/copilot nudge (needs marker-file state; changelog notes it)."
+    },
     {
       "id": "semantica-session-export",
       "title": "Semantica session-graph persistence: .semantica/ per-session dumps + auto-save hook (0.129.0-0.129.1)",
