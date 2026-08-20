@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.129.1",
-  "frameworkCommit": "2dd52288325eff635115bbfb96fa98ba91be9224",
+  "frameworkCommit": "1e04317e6c1a3422a81ebd308192967732464e7d",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -609,14 +609,14 @@
       "source": "features/common/skills/semantica-knowledge-graph",
       "target": ".ai-badger/skills/semantica-knowledge-graph",
       "frameworkVersion": "0.129.1",
-      "hash": "0eecf953f1c7def3b54c4412943c77e4169229249268358c0470a35ae5ec3ef9",
+      "hash": "7065c7d410f15d676f6a984dd8ce4fed8fbcca00e518e21242d5eaa0486a2da4",
       "dirMeta": {
-        "file_count": 2,
+        "file_count": 3,
         "dir_count": 1
       },
-      "sourceHash": "0eecf953f1c7def3b54c4412943c77e4169229249268358c0470a35ae5ec3ef9",
+      "sourceHash": "7065c7d410f15d676f6a984dd8ce4fed8fbcca00e518e21242d5eaa0486a2da4",
       "sourceMeta": {
-        "file_count": 2,
+        "file_count": 3,
         "dir_count": 1
       },
       "projectOwned": [

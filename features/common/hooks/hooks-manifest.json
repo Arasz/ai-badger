@@ -245,10 +245,22 @@
       "name": "semantica-export-autosave",
       "description": "Auto-save the Semantica graph dump from export_graph to .semantica/<session>.json",
       "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "PostToolUse",
+          "script": "semantica_export_autosave_hook.py"
+        },
         "hermes": {
           "type": "plugin",
           "entry": "ai_badger_hooks.py",
           "method": "post_tool_call"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "postToolUse",
+          "script": "semantica_export_autosave_hook.py"
         }
       }
     }
