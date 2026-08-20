@@ -95,7 +95,14 @@ def extract_graph_json(result) -> dict | None:
                 inner = json.loads(inner)
             except json.JSONDecodeError:
                 return None
-        return inner if isinstance(inner, dict) else None
+        if isinstance(inner, dict):
+            # The inner payload may itself carry the error (observed live 2026-08-20:
+            # an export_graph failure arrives as {"result": "{\"error\": ...}"} and was
+            # previously saved as a graph dump).
+            if inner.get("error") is not None or inner.get("isError"):
+                return None
+            return inner
+        return None
     if "structuredContent" in result:
         inner = result["structuredContent"]
         return inner if isinstance(inner, dict) else None
