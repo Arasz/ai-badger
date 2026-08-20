@@ -9,6 +9,7 @@ Exit code: 0 = ready, 1 = missing or incompatible environment.
 from __future__ import annotations
 
 import importlib
+import json
 import os
 import shutil
 import subprocess
@@ -63,10 +64,51 @@ def _probe_export_graph() -> dict:
     return server._tool_export_graph({"format": "json"})
 
 
-def export_graph_works() -> bool:
-    """True when the installed semantica's export_graph json branch works."""
+def _interpreter_for_executable(exe: str) -> str | None:
+    """The python interpreter beside *exe* (uv-tool / pipx / venv layout).
+
+    A uv-tool or pipx install's `semantica` executable lives in its own venv,
+    whose interpreter sits in the same bin directory; an ambient python cannot
+    import semantica there, so the probe must shell out to this interpreter.
+    None when the layout is unrecognised — warn nothing rather than misattribute.
+    """
+    bin_dir = Path(exe).resolve().parent
+    for name in ("python", "python3", "python.exe"):
+        candidate = bin_dir / name
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+def _probe_in_interpreter(interpreter: str) -> dict:
+    """Run the export_graph probe inside *interpreter* (the resolved env)."""
+    snippet = (
+        "import json; from semantica import mcp_server; "
+        "print(json.dumps(mcp_server._tool_export_graph({'format': 'json'})))"
+    )
+    res = subprocess.run(
+        [interpreter, "-c", snippet], capture_output=True, text=True, timeout=10,
+        check=False)
+    if res.returncode != 0:
+        raise RuntimeError(f"probe failed in {interpreter}: {res.stderr[:200]}")
+    return json.loads(res.stdout.strip().splitlines()[-1])
+
+
+def export_graph_works(exe: str | None = None) -> bool:
+    """True when the installed semantica's export_graph json branch works.
+
+    With *exe* (a resolved semantica executable), probe inside that install's
+    own interpreter — the only env where semantica is importable for uv-tool /
+    pipx installs. Without it, probe in-process (importable-venv path).
+    """
     try:
-        result = _probe_export_graph()
+        if exe:
+            interpreter = _interpreter_for_executable(exe)
+            if interpreter is None:
+                return True
+            result = _probe_in_interpreter(interpreter)
+        else:
+            result = _probe_export_graph()
     except Exception:  # pylint: disable=broad-exception-caught
         # Import/setup failure inside the server module — not necessarily the
         # export bug; say nothing rather than misattribute.
@@ -90,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
             res = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=5, check=False)
             if res.returncode == 0:
                 print(f"semantica ready: {res.stdout.strip() or exe}")
-                if not export_graph_works():
+                if not export_graph_works(exe=exe):
                     print(
                         "WARNING: the installed semantica's export_graph tool is broken "
                         "(upstream bug: JSONExporter.export() called without file_path; "
