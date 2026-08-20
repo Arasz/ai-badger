@@ -142,6 +142,23 @@ def test_the_generated_mcp_json_is_byte_identical_across_two_renders(make_scaffo
     assert CATALOG_SERVER in json.loads(after)["mcpServers"]
 
 
+def test_semantica_is_declared_by_default_in_the_common_stack(root):
+    """Semantica ships in the default stack: removing it must be a deliberate act.
+
+    The common stack-mcp.json declares semantica with `declare: true` behind an
+    availability gate on `semantica-mcp`, so every scaffolded project gets the
+    server proposed (claude approved, hermes/copilot proposed) whenever the
+    binary is present. A regression here silently drops the knowledge graph
+    from every future project.
+    """
+    stack_file = root / "features" / "common" / "stack-mcp.json"
+    payload = json.loads(stack_file.read_text(encoding="utf-8"))
+
+    semantica = next(s for s in payload["servers"] if s["name"] == "semantica")
+    assert semantica.get("declare") is True
+    assert semantica["command"] == "semantica-mcp"
+
+
 def test_the_byte_identity_check_can_fail(make_scaffolder, monkeypatch):
     """A check that cannot fail is not a check (0.21.0)."""
     before = _real_mcp_json(make_scaffolder)
