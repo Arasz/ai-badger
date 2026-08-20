@@ -70,6 +70,11 @@ To prevent data loss from Semantica's ephemeral in-memory process:
 - **Extraction ML deps**: `extract_entities` needs `torch` + `transformers`, not LLM API keys.
 - **Parameter names**: `add_relationship` uses `source`/`target`, not `source_id`/`target_id`.
 - **Known issue**: `get_graph_analytics` unavailable in 0.6.5 — use `get_graph_summary`.
+- **Upstream export bug (0.6.5/0.6.6)**: `export_graph(format="json")` errors
+  (`JSONExporter.export() missing ... 'file_path'`) — fixed after 0.6.6; until then the
+  hook skips the dump; graph tools work; `check.py` probes and warns.
+- **All agents auto-save**: export autosave is wired for Hermes (plugin), Claude Code
+  (PostToolUse), Copilot (postToolUse) — every `export_graph` result lands in `.semantica/`.
 
 ## Verification Checklist
 

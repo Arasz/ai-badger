@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.130.0 | [Semantica: export autosave reaches Claude & Copilot; upstream export bug probed](0.130.0-semantica-export-autosave-all-agents.md) |
 | 0.129.1 | [Semantica Hook: Guard the Nudge Arm, Stage the CLI Temp Outside `.semantica/`](0.129.1-semantica-hook-guard-and-cli-temp.md) |
 | 0.129.0 | [Semantica Gets Used, And Its Graph Survives The Session](0.129.0-semantica-session-graph-persistence.md) |
 | 0.128.1 | [derive-facts Reads the VERSION File](0.128.1-derive-facts-reads-the-version-file.md) |

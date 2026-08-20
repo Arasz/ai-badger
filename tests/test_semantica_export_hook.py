@@ -238,6 +238,28 @@ def test_autosave_export_skips_error_payload(tmp_path):
     assert not (tmp_path / SEMANTICA_DIR).exists()
 
 
+def test_autosave_export_skips_error_inside_envelope(tmp_path):
+    """An error INSIDE the double-encoded envelope writes nothing.
+
+    Regression: the Hermes transport wraps the MCP result as
+    {"result": "<json>"}; an inner {"error": ...} dict previously passed
+    extract_graph_json's outer-only error check and was saved as a graph dump
+    (observed live 2026-08-20: .semantica/<session>*.json containing the
+    JSONExporter.export() TypeError).
+    """
+    result = ('{"result": "{\\"error\\": \\"JSONExporter.export() missing 1 required '
+              "positional argument: 'file_path'\\\"}\"}")
+    assert autosave_export("export_graph", result, "sess-1", tmp_path) is None
+    assert not (tmp_path / SEMANTICA_DIR).exists()
+
+
+def test_autosave_export_skips_error_inside_structured_content(tmp_path):
+    """An error inside a structuredContent envelope writes nothing."""
+    result = {"structuredContent": {"error": "boom"}}
+    assert autosave_export("export_graph", result, "sess-1", tmp_path) is None
+    assert not (tmp_path / SEMANTICA_DIR).exists()
+
+
 def test_autosave_export_skips_empty_result(tmp_path):
     """An empty/None result writes nothing and returns None."""
     assert autosave_export("export_graph", None, "sess-1", tmp_path) is None

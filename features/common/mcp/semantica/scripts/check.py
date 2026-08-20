@@ -51,6 +51,29 @@ def can_import_semantica() -> bool:
         return False
 
 
+def _probe_export_graph() -> dict:
+    """Call the installed MCP server's export_graph handler directly.
+
+    Deterministic probe for the upstream 0.6.5/0.6.6 breakage: the json branch
+    calls JSONExporter().export(graph) with no file_path and returns
+    {"error": ...}. A fixed version returns {"format": ..., "data": ...}.
+    Returns the handler's dict; raises on import/setup failure.
+    """
+    server = importlib.import_module("semantica.mcp_server")
+    return server._tool_export_graph({"format": "json"})
+
+
+def export_graph_works() -> bool:
+    """True when the installed semantica's export_graph json branch works."""
+    try:
+        result = _probe_export_graph()
+    except Exception:  # pylint: disable=broad-exception-caught
+        # Import/setup failure inside the server module — not necessarily the
+        # export bug; say nothing rather than misattribute.
+        return True
+    return isinstance(result, dict) and "error" not in result
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run prerequisite check for semantica."""
     target_dir = Path.cwd()
@@ -67,12 +90,28 @@ def main(argv: list[str] | None = None) -> int:
             res = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=5, check=False)
             if res.returncode == 0:
                 print(f"semantica ready: {res.stdout.strip() or exe}")
+                if not export_graph_works():
+                    print(
+                        "WARNING: the installed semantica's export_graph tool is broken "
+                        "(upstream bug: JSONExporter.export() called without file_path; "
+                        "fixed in a release after 0.6.6). The graph tools still work; "
+                        "auto-saved .semantica/ dumps are skipped until it is fixed.",
+                        file=sys.stderr,
+                    )
                 return 0
         except (subprocess.SubprocessError, OSError):
             pass
 
     if can_import_semantica():
         print("semantica module importable in Python environment")
+        if not export_graph_works():
+            print(
+                "WARNING: the installed semantica's export_graph tool is broken "
+                "(upstream bug: JSONExporter.export() called without file_path; "
+                "fixed in a release after 0.6.6). The graph tools still work; "
+                "auto-saved .semantica/ dumps are skipped until it is fixed.",
+                file=sys.stderr,
+            )
         return 0
 
     print("semantica is not installed or not in PATH / .venv", file=sys.stderr)

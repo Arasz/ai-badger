@@ -128,6 +128,15 @@
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/ai-raccoon-memory/scripts/memory_grade_hook.py\""
           }
         ]
+      },
+      {
+        "matcher": "export_graph",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/semantica-knowledge-graph/scripts/semantica_export_autosave_hook.py\""
+          }
+        ]
       }
     ]
   }
