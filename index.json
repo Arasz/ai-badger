@@ -1009,6 +1009,44 @@
         "requires": [],
         "commands": {}
       }
+    },
+    "vue": {
+      "personas": [
+        {
+          "name": "frontend-engineer",
+          "path": "features/vue/personas/frontend-engineer.md"
+        }
+      ],
+      "invariants": [
+        {
+          "name": "accessibility-enforced-by-tests",
+          "path": "features/vue/invariants/accessibility-enforced-by-tests.md"
+        },
+        {
+          "name": "presentational-components-never-fetch",
+          "path": "features/vue/invariants/presentational-components-never-fetch.md"
+        }
+      ],
+      "instructions": [
+        {
+          "name": "vue.instructions",
+          "path": "features/vue/instructions/vue.instructions.md"
+        }
+      ],
+      "meta": {
+        "description": "Vue 3 UI framework: single-file components with <script setup>, Composition API, Pinia state, Vue Router.",
+        "detectionSignals": [
+          "*.vue"
+        ],
+        "requires": [
+          "ts",
+          "node"
+        ],
+        "commands": {
+          "test": "bun run test",
+          "build": "bun run build"
+        }
+      }
     }
   }
 }
