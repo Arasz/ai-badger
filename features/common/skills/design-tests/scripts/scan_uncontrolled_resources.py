@@ -2,7 +2,7 @@
 """Grep for the isolation controls `design-tests` Stage 4 declares — time, network, fs, env,
 random, shared state — across the test files a design or review pass just produced or is judging.
 
-Categories and patterns are MoE-4-benchmark.md §5.5(a)'s C#/TS lists, transcribed verbatim; the
+Categories and patterns follow the ruleset's isolation rules (review-tests references/universal.md, T1-ISO-*); the
 five isolation controls are `references/universal.md` group `T1-ISO-*`. Python 3 stdlib only —
 this file ships to every scaffolded consumer project, which never has ai-badger's own `engine/`
 on its path (ADR-0005).
@@ -41,8 +41,14 @@ MAJOR = "major"
 MITIGATED = "mitigated"
 
 # Mitigation groups: a marker found anywhere in the raw file text downgrades every hit in that
-# group, in that file, to `mitigated`. Limited to the three concrete examples MoE-4 §5.5(a) names
+# group, in that file, to `mitigated`. Limited to the three concrete mitigations the ruleset names
 # — a fake clock, a fake-timer call, an MSW handler — rather than inventing more (ask-if-simpler).
+#
+# `sleep-or-delay` is file-wide-mitigable only for TS (`vi.useFakeTimers()` etc. really do
+# control `setTimeout`/`setInterval` and a `setTimeout`-backed sleep). On the C# side a fake
+# `TimeProvider` never intercepts `Thread.Sleep` or `Task.Delay(int)` — both still hit the real
+# OS timer — so `Thread.Sleep` is its own `thread-sleep` category (NEVER_MITIGABLE below) and a
+# `Task.Delay` hit is judged per call by `_task_delay_is_mitigated`, not by this file-wide table.
 TIME_MITIGATION_RE = re.compile(
     r"FakeTimeProvider|useFakeTimers|vi\.useFakeTimers|jest\.useFakeTimers")
 NETWORK_MITIGATION_RE = re.compile(r"server\.use\(|setupServer\(|\bmsw\b")
@@ -51,7 +57,21 @@ MITIGATION_GROUPS = {
     "sleep-or-delay": TIME_MITIGATION_RE,
     "network": NETWORK_MITIGATION_RE,
 }
-NEVER_MITIGABLE = {"wall-clock-assertion"}
+NEVER_MITIGABLE = {"wall-clock-assertion", "thread-sleep"}
+
+# A `Task.Delay` call is mitigated only when that same call passes a TimeProvider argument (the
+# .NET idiom for a delay the test controls), or the file drives a fake clock's `.Advance(...)` —
+# never by a bare `FakeTimeProvider` field sitting unused elsewhere in the file (W2-04).
+_TASK_DELAY_TIMEPROVIDER_ARG_RE = re.compile(r"Task\.Delay\s*\([^)]*\b[Tt]imeProvider\b")
+_FAKE_TIME_ADVANCE_RE = re.compile(r"FakeTimeProvider")
+_ADVANCE_CALL_RE = re.compile(r"\.Advance\s*\(")
+
+
+def _task_delay_is_mitigated(line: str, full_text: str) -> bool:
+    """C# `Task.Delay` only — see the module-level comment above `MITIGATION_GROUPS`."""
+    if _TASK_DELAY_TIMEPROVIDER_ARG_RE.search(line):
+        return True
+    return bool(_FAKE_TIME_ADVANCE_RE.search(full_text) and _ADVANCE_CALL_RE.search(full_text))
 
 
 @dataclass(frozen=True)
@@ -75,8 +95,11 @@ _CATEGORIES: List[Tuple[str, str, frozenset, List[str]]] = [
     ("stopwatch", MAJOR, frozenset(CS_EXTENSIONS), [
         r"new\s+Stopwatch", r"Stopwatch\.StartNew", r"\.ElapsedMilliseconds", r"\.Elapsed\b",
     ]),
+    ("thread-sleep", MAJOR, frozenset(CS_EXTENSIONS), [
+        r"Thread\.Sleep",
+    ]),
     ("sleep-or-delay", MAJOR, frozenset(CS_EXTENSIONS), [
-        r"Thread\.Sleep", r"Task\.Delay\s*\(\s*[0-9]",
+        r"Task\.Delay\s*\(\s*[0-9]",
     ]),
     ("sleep-or-delay", MAJOR, frozenset(TS_EXTENSIONS), [
         r"\bsetTimeout\b", r"\bsetInterval\b", r"await\s+new\s+Promise\(r\s*=>\s*setTimeout",
@@ -130,11 +153,21 @@ _CATEGORIES: List[Tuple[str, str, frozenset, List[str]]] = [
         r"static\s+(?!readonly)\w+\s+\w+\s*(=|;)",
     ]),
     # Never mitigable — T1-ISO-01, always blocker regardless of file context.
+    # No `\b` tightening here: real C# code writes `FromMilliseconds`/`ElapsedMilliseconds`
+    # as single compound identifiers, so a suffix-anchored `\bMilliseconds\b`/`\bElapsed\b`
+    # would go dark on exactly the calls this category exists to catch. No concrete C# false
+    # positive was found in review (unlike the TS `ms`-substring case, W2-02) — left as-is.
     ("wall-clock-assertion", BLOCKER, frozenset(CS_EXTENSIONS), [
         r"Assert.*Elapsed", r"Should.*Elapsed", r"BeLessThan.*Milliseconds",
     ]),
+    # `duration`/`elapsed`/`took` are anchored on both sides so a variable that merely ends in
+    # those letters (`items`, `terms`, `navItems`, ...) cannot match; `ms` additionally requires
+    # a numeric comparator on the same `expect(...)` call, since a bare `\bms\b` boundary alone
+    # still matches nothing useful without one (W2-02 — 0/9 precision on the unanchored form).
     ("wall-clock-assertion", BLOCKER, frozenset(TS_EXTENSIONS), [
-        r"expect\(.*(duration|elapsed|took|ms)\)",
+        r"expect\([^)]*\b(duration|elapsed|took)\b[^)]*\)",
+        r"expect\([^)]*\bms\b[^)]*\)\s*\.\s*"
+        r"(toBeLessThan|toBeGreaterThan|toBeLessThanOrEqual|toBeGreaterThanOrEqual)\s*\(\s*\d",
     ]),
 ]
 
@@ -143,7 +176,14 @@ _COMPILED = [
     for category, severity, exts, patterns in _CATEGORIES
 ]
 
-_LINE_COMMENT_RE = re.compile(r"//.*$")
+# A `//` only starts a line comment when it opens the line or follows whitespace, and never
+# when it is immediately preceded by `:` — the shape of `https://` and `http://` inside a string
+# literal (W2-06: an unconditional `//.*$` blanked the network patterns' only live match, since
+# every `https?://` URL was truncated at its own `//`). Still a heuristic, not a tokenizer: it
+# does not track string literals in general, so a `//` glued to other punctuation inside a
+# string (`"a//b"`) can still be mis-treated as code either way. Acceptable for a scanner whose
+# findings are data for a human to read, never a gate (see the module docstring).
+_LINE_COMMENT_RE = re.compile(r"(?:^|(?<=\s))(?<!:)//.*$")
 _BLOCK_COMMENT_START_RE = re.compile(r"/\*")
 _BLOCK_COMMENT_END_RE = re.compile(r"\*/")
 
@@ -151,9 +191,9 @@ _BLOCK_COMMENT_END_RE = re.compile(r"\*/")
 def _strip_comments(text: str) -> List[str]:
     """Return `text`'s lines with `//...` and `/* ... */` spans blanked out.
 
-    A heuristic, not a tokenizer — it does not track string literals, so `"//"` inside a string
-    is (rarely) mis-treated as a comment start. Acceptable for a scanner whose findings are data
-    for a human to read, never a gate (see the module docstring).
+    A heuristic, not a tokenizer — it does not track string literals, so a `//` glued to other
+    text inside a string can still be mis-treated as a comment start. Acceptable for a scanner
+    whose findings are data for a human to read, never a gate (see the module docstring).
     """
     out: List[str] = []
     in_block = False
@@ -201,9 +241,18 @@ def scan_text(text: str, filename: str) -> List[Finding]:
     for category, severity, exts, patterns in _COMPILED:
         if ext not in exts:
             continue
-        mitigated = category in mitigation_groups_present and category not in NEVER_MITIGABLE
+        file_wide_mitigated = (
+            category in mitigation_groups_present and category not in NEVER_MITIGABLE
+        )
+        per_call_delay_check = category == "sleep-or-delay" and ext in CS_EXTENSIONS
         for lineno, stripped in enumerate(stripped_lines, start=1):
             if any(p.search(stripped) for p in patterns):
+                if category in NEVER_MITIGABLE:
+                    mitigated = False
+                elif per_call_delay_check:
+                    mitigated = _task_delay_is_mitigated(stripped, text)
+                else:
+                    mitigated = file_wide_mitigated
                 findings.append(Finding(
                     file=filename, line=lineno, category=category,
                     severity=MITIGATED if mitigated else severity,

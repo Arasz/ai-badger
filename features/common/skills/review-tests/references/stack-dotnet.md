@@ -238,8 +238,8 @@ it instead of re-deriving its output by hand:
 
 ## Aspire and local orchestration
 
-#### `T3-NET-27` — Drive an Aspire stack with `DistributedApplicationTestingBuilder.CreateAsync()` and wait with `ResourceNotificationService.WaitForResourceAsync(name, KnownResourceStates.Running)` — never a sleep.
-- *design:* use the readiness API; it exists precisely so tests stop guessing.
+#### `T3-NET-27` — Drive an Aspire stack with `DistributedApplicationTestingBuilder` and wait via `ResourceNotificationService.WaitForResourceAsync` — never a sleep.
+- *design:* build with `DistributedApplicationTestingBuilder.CreateAsync()`, wait with `ResourceNotificationService.WaitForResourceAsync(name, KnownResourceStates.Running)` — the readiness API exists precisely so tests stop guessing.
 - *review:* a sleep-based wait races the container and produces the exact intermittent failure the API was built to remove.
 - *check:* `grep -rn "Thread.Sleep\|Task.Delay" ` in orchestration test setup.
 - **severity:** major · **evidence:** strong · **flag:** auto

@@ -7,10 +7,10 @@ browser plus an axe scan); several of these rules exist precisely because that r
 ever partial coverage — axe finds roughly 57% of issues and 30-40% of WCAG criteria — so a green
 scan is never treated as "accessible" on its own.
 
-*Deliberate note: `kind-accessibility.md`, not `kind-a11y.md` (V3), and this file's rule-id group
-is `T2-ACC-*`, not `T2-A11Y-*` — the id regex `^T2-[A-Z]{3,4}-\d{2}$` admits letters only, so the
-literal `A11Y` example in `MoE-2-ruleset.md` §5 would itself be an uncheckable id. `archetypes.md`
-has been updated to cite `T2-ACC-*` accordingly.*
+*Deliberate note: `kind-accessibility.md`, not `kind-a11y.md`, and this file's rule-id group
+is `T2-ACC-*`, not `T2-A11Y-*` — the id regex `^T2-[A-Z]{3,4}-\d{2}$` admits letters only, so a
+literal `A11Y` id would itself be uncheckable. `archetypes.md` has been updated to cite
+`T2-ACC-*` accordingly.*
 
 **`T2-ACC-01` — Query by role first; test id is the last resort.**
 - *design:* resolve every query through the accessibility tree (role + accessible name), then label, then visible text; reach for a test-id query only when no accessible query can find the element.

@@ -108,17 +108,18 @@ def _skill_root(which: str, root: Path, tmp_path: Path) -> Path:
 def test_rules_json_carries_no_prose(rules_index, root, tmp_path, which):
     """AC5/F9: no value in rules.json exceeds 200 characters — the no-prose guard. Checked
     against both the synthetic fixture and the real shipped ruleset: fixture-only scope is what
-    let the real `T1-ISO-05.title` (206 chars) ship unnoticed. `title` alone gets a slightly
-    higher bound (220) — a deliberate, recorded exception (F9): shortening that title is
-    universal.md content, owned by a different lane in this wave, not this script."""
+    let the real `T1-ISO-05.title` (206 chars) ship unnoticed. W2-09: a prior revision widened
+    `title`'s bound to 220 to admit that one violating datum instead of shortening it — a
+    residue tolerance is a fudge factor (`derive-or-delete-the-list`); `T1-ISO-05`'s title was
+    shortened instead (the moved clause now lives on its `design:` line) and the bound is flat
+    200 for every field, `title` included."""
     fixture = _skill_root(which, root, tmp_path)
     _run(rules_index, fixture)
     index = json.loads((fixture / "rules.json").read_text(encoding="utf-8"))
     for record in index:
         for key, value in record.items():
             text = json.dumps(value)
-            bound = 220 if key == "title" else 200
-            assert len(text) <= bound, f"{record['id']}.{key} is {len(text)} chars: {text!r}"
+            assert len(text) <= 200, f"{record['id']}.{key} is {len(text)} chars: {text!r}"
 
 
 @pytest.mark.parametrize("which", ["fixture", "real"])
@@ -601,6 +602,113 @@ def test_check_fires_on_a_corrupted_copy_of_the_real_tree(rules_index, root, tmp
 # A little parser robustness beyond the seven named classes.
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# F5 part (1): [EMPTY-CHECK] — a `check:` that is blank or only a flag word with no falsifier.
+# ---------------------------------------------------------------------------
+
+def test_empty_check_violation_bare_flag_word(rules_index, root, tmp_path, capsys):
+    """A `check:` reduced to a bare flag word (`auto`, `argued`, `auto-unless-listed`, with or
+    without a trailing period) carries no runnable falsifier — this is the regression F5 left
+    unguarded: the data was cleaned up but nothing stops it coming back."""
+    fixture = _copy_fixture(root, tmp_path, "emptycheckflag")
+    universal = fixture / "references" / "universal.md"
+    original = universal.read_text(encoding="utf-8")
+    universal.write_text(
+        original.replace(
+            "- *check:* auto — grep for `NotThrow` / `assertDoesNotThrow` as the sole "
+            "assertion.\n",
+            "- *check:* auto\n", 1),
+        encoding="utf-8")
+
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 1
+    assert "[EMPTY-CHECK] T1-AAA-01" in out
+
+    universal.write_text(original, encoding="utf-8")
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0
+
+
+def test_empty_check_violation_blank(rules_index, root, tmp_path, capsys):
+    """A `check:` line present but with nothing after the colon is also EMPTY-CHECK (in
+    addition to MISSING-FIELD, which already catches an absent `check:` bullet entirely)."""
+    fixture = _copy_fixture(root, tmp_path, "emptycheckblank")
+    universal = fixture / "references" / "universal.md"
+    original = universal.read_text(encoding="utf-8")
+    universal.write_text(
+        original.replace(
+            "- *check:* auto — grep for `NotThrow` / `assertDoesNotThrow` as the sole "
+            "assertion.\n",
+            "- *check:* \n", 1),
+        encoding="utf-8")
+
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 1
+    assert "[EMPTY-CHECK] T1-AAA-01" in out
+
+    universal.write_text(original, encoding="utf-8")
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0
+
+
+def test_empty_check_retired_placeholder_requires_retired_field(rules_index, root, tmp_path, capsys):
+    """`check: retired — not applicable.` is the one flag-shaped value that is legal — but only
+    on a rule that actually carries `retired:`. The same text on a live rule is still a
+    placeholder and must fire."""
+    fixture = _copy_fixture(root, tmp_path, "emptycheckretiredword")
+    universal = fixture / "references" / "universal.md"
+    original = universal.read_text(encoding="utf-8")
+    universal.write_text(
+        original.replace(
+            "- *check:* auto — grep for `NotThrow` / `assertDoesNotThrow` as the sole "
+            "assertion.\n",
+            "- *check:* retired — not applicable.\n", 1),
+        encoding="utf-8")
+
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 1
+    assert "[EMPTY-CHECK] T1-AAA-01" in out
+
+    universal.write_text(original, encoding="utf-8")
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0
+
+
+def test_empty_check_retired_placeholder_is_allowed_when_retired(rules_index, root, tmp_path, capsys):
+    """The positive case: a genuinely retired rule's `check: retired — not applicable.` is not
+    a violation."""
+    fixture = _copy_fixture(root, tmp_path, "emptycheckretiredok")
+    kind = fixture / "references" / "kind-widget.md"
+    original = kind.read_text(encoding="utf-8")
+    kind.write_text(
+        original.replace(
+            "- *check:* auto-unless-listed — grep production for the widget's construction "
+            "sites; a listed exception is not a violation.\n",
+            "- *check:* retired — not applicable.\n"
+        ).replace(
+            "- **severity:** blocker · **evidence:** strong · **flag:** argued · "
+            "**parent:** `T1-AAA-01`\n",
+            "- **severity:** blocker · **evidence:** strong · **flag:** argued · "
+            "**parent:** `T1-AAA-01`\n"
+            "- *retired:* 2026-08-22 — superseded.\n",
+            1),
+        encoding="utf-8")
+
+    # Regenerate first, same as test_absorbs_shape_tolerates_prose_annotated_forms: the point
+    # here is the absence of [EMPTY-CHECK] (a structural check), not drift against the
+    # fixture's committed rules.json (a different, unrelated concern — adding `retired:` also
+    # changes the committed record).
+    _run(rules_index, fixture)
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0, out
+    assert "EMPTY-CHECK" not in out
+
+    kind.write_text(original, encoding="utf-8")
+    _run(rules_index, fixture)
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0
+
+
 def test_duplicate_id_is_flagged(rules_index, root, tmp_path, capsys):
     fixture = _copy_fixture(root, tmp_path, "dupid")
     universal = fixture / "references" / "universal.md"
@@ -680,6 +788,41 @@ def test_bad_meta_violation(rules_index, root, tmp_path, capsys):
     universal.write_text(original, encoding="utf-8")
     rc, out = _run_captured(capsys, rules_index, fixture, "--check")
     assert rc == 0
+
+
+# ---------------------------------------------------------------------------
+# W2-05: a retired rule must be an unmistakable record in rules.json, not merely inferred
+# from a "RETIRED ..." title prefix — while staying excluded from the review walk (already
+# the case per `is_retired`; this proves it end to end against the generated JSON too).
+# ---------------------------------------------------------------------------
+
+def test_retired_rule_carries_the_field_in_rules_json_and_is_absent_from_the_review_walk(
+        rules_index, root, tmp_path):
+    fixture = _copy_fixture(root, tmp_path, "retired")
+    kind = fixture / "references" / "kind-widget.md"
+    original = kind.read_text(encoding="utf-8")
+    kind.write_text(
+        original.replace(
+            "- **severity:** blocker · **evidence:** strong · **flag:** argued · "
+            "**parent:** `T1-AAA-01`\n",
+            "- **severity:** blocker · **evidence:** strong · **flag:** argued · "
+            "**parent:** `T1-AAA-01`\n"
+            "- *retired:* 2026-08-22 — superseded by a better falsifier; "
+            "see `governance.md` \"Retiring a rule\".\n",
+            1),
+        encoding="utf-8")
+
+    _run(rules_index, fixture)
+    index = json.loads((fixture / "rules.json").read_text(encoding="utf-8"))
+    by_id = {r["id"]: r for r in index}
+    assert by_id["T2-WID-01"]["retired"] == (
+        "2026-08-22 — superseded by a better falsifier; see `governance.md` \"Retiring a rule\"."
+    )
+
+    walk = (fixture / "references" / "walk-review.md").read_text(encoding="utf-8")
+    assert "T2-WID-01" not in walk
+
+    kind.write_text(original, encoding="utf-8")
 
 
 def test_slash_joined_key_applies_one_value_to_every_named_field(rules_index, root, tmp_path):

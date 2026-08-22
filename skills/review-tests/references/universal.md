@@ -170,8 +170,8 @@ governance rule with no design action — see `governance.md`).
 - *absorbs:* `U-ISO-05`, `F-TIME-04`, L2 `T4`
 - *cites:* archetypes `A03`, `A04`
 - *meta:* pass=2 order=11 phase=4
-**`T1-ISO-05` — Tests pass in any order and alone. No shared mutable state without an unconditional reset; a test that cannot be parallel-safe is explicitly serialized and the reason is recorded at the serialization point.**
-- *design:* rebuild starting state from scratch in preference to relying on teardown — a teardown failure is easy to swallow silently. Anything a test *arms* (fake timers, global stubs, storage, env) is restored in a shared, unconditional teardown, not in the happy path.
+**`T1-ISO-05` — Tests pass in any order and alone. No shared mutable state without an unconditional reset.**
+- *design:* a test that cannot be parallel-safe is explicitly serialized and the reason is recorded at the serialization point. Rebuild starting state from scratch in preference to relying on teardown — a teardown failure is easy to swallow silently. Anything a test *arms* (fake timers, global stubs, storage, env) is restored in a shared, unconditional teardown, not in the happy path.
 - *review:* an armed fake timer that leaks does not fail cleanly — it stalls every timer-driven update in that worker until each later test times out, which reads exactly like machine contention.
 - *check:* auto — run shuffled and run each failure alone; grep mutable `static` fields, module globals, singletons, step-definition class state; confirm `useRealTimers`/`restoreAllMocks`/`localStorage.clear` are in the *global* `afterEach`.
 - **severity:** blocker · **evidence:** strong · **flag:** auto

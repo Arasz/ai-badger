@@ -6,12 +6,12 @@ the scenario was written *before* the code as a captured conversation, or *after
 automation wearing Gherkin's syntax. `T2-BDD-09` is this kind's instance of `T1-STR-03` for a
 dormant scenario specifically — see `parent:` for the full body.
 
-**`T2-BDD-01` — RETIRED 2026-08-22: evidence withdrawn — cross-role authorship is not observable from a diff, and the cited authority is one source (Cucumber's own docs and its author), not two independent ones.**
+**`T2-BDD-01` — RETIRED 2026-08-22: evidence withdrawn — cross-role authorship isn't diff-observable; the cited authority is one source, not two independent ones.**
 - *design:* n/a — retired.
 - *review:* n/a — retired.
 - *check:* retired — not applicable.
 - **severity:** major · **evidence:** strong · **flag:** argued · **parent:** `T1-SCO-01`
-- *retired:* 2026-08-22 — no diff-checkable falsifier for a real-world collaboration-composition claim; see `governance.md` "Retiring a rule".
+- *retired:* 2026-08-22 — no diff-checkable falsifier; the cited authority is one source (Cucumber docs and its author), not two independent ones; see `governance.md` "Retiring a rule".
 - *cites:* Cucumber docs; Hellesøy "world's most misunderstood collaboration tool".
 - *meta:* pass=3 order=14
 

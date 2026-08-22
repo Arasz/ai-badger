@@ -1,19 +1,19 @@
 # Skills
 
-This page catalogs 40 skills — everything under `features/common/skills/` and
+This page catalogs 42 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-39 live under `features/common/skills/` and split by the `scope:` each declares in its own
+41 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**17 are `default`** and arrive in every scaffolded project without being asked for, and
+**19 are `default`** and arrive in every scaffolded project without being asked for, and
 **22 are `optIn`** — catalogued, but written only when a project names them. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 39 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **54** files:
-the 40 above plus 14 more that belong to a single stack and arrive only with it — 11 under
-`features/dotnet/skills/`, 2 under `features/hermes/skills/` and 1 under `features/mcp/skills/`.
-Those 14 have no row below and are documented by their own `SKILL.md`. Derive the number rather
+**These 41 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **57** files:
+the 42 above plus 15 more that belong to a single stack and arrive only with it — 11 under
+`features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/` and 1 under `features/ai-raccoon/skills/`.
+Those 15 have no row below and are documented by their own `SKILL.md`. Derive the number rather
 than trusting this sentence: `python3 gates/skills_lint.py` prints how many `SKILL.md` files the
 catalog holds.
 
@@ -21,7 +21,7 @@ Those four numbers, and every row of the table below, are checked against the de
 `tests/test_docs_match_the_catalog.py`. A skill added to the catalog without a row here fails
 that test, and so does a row naming a skill the catalog no longer has — **but only for the
 common and `claude` stacks**: that test's `STACK_LOCAL_SKILL_DIRS` names `claude` alone, so the
-14 `dotnet`/`hermes`/`mcp` skills are outside its reach and their absence here fails nothing.
+15 stack-local skills are outside its reach and their absence here fails nothing.
 
 An `optIn` skill is asked for by name in `.ai-badger/config.json`:
 
@@ -73,6 +73,8 @@ names it, **claude-only** when the stack decides.
 | [create-task-spec](#create-task-spec) | Interrogate an idea into a Gherkin specification plus a manifest `task` consumes | default | by name |
 | [owner-gate-review](#owner-gate-review) | Turn a document's open decisions into a per-decision review form | default | by name |
 | [differential-feature-refactor](#differential-feature-refactor) | Reconcile a drifted feature against its ratified design before refactoring | default | by name |
+| [design-tests](#design-tests) | Design and write tests to a fail-under-a-plausible-bug standard, target named or not | default | by name |
+| [review-tests](#review-tests) | Judge tests that already exist against one shared ruleset and hand back an improvement plan | default | by name |
 | [code-review-checklist](#code-review-checklist) | Aviation-style pass/fail checklist for a PR or diff | default | by name (a reference to work through) |
 | [prompt-markers](#prompt-markers) | Detect `h:`/`f:`/`e:` prefixes and inject the matching behaviour | default | hook (`UserPromptSubmit`) |
 | [commit-reminder](#commit-reminder) | Command a commit once uncommitted work crosses a threshold | default | hook (`PostToolUse`) |
@@ -259,6 +261,47 @@ not the deliverable.
 **When to use it.** Two parallel implementations of the same thing exist, code reads as dead but
 may be a ratified extension point, an architecture nobody can tell from accumulated cruft, or a
 refactor is about to be scoped off review documents instead of decisions.
+
+### design-tests
+
+[`SKILL.md`](../features/common/skills/design-tests/SKILL.md)
+
+**What it is.** Gets a test suite designed and written to one standard — a test earns its place
+by failing under a plausible bug — whether or not a target is named, and finishes green rather
+than stopping at the first red.
+
+**What it does.** Stage 0 works out a target when none is named (an uncommitted change, a bug
+report, a coverage artifact, or a risk-ranked candidate set); Stages 1–4 fix the contract, the
+behaviour list, the oracle, and the isolation plan; Stage 5 writes one test at a time, watched
+failing before it is made to pass, using `scripts/red_proof.py` to prove RED against existing
+production code; Stage 6 self-reviews the result with `review-tests`' own walk and
+`scripts/scan_uncontrolled_resources.py`. It shares one ruleset
+(`../review-tests/references/`) with `review-tests` rather than duplicating it.
+
+**When to use it.** "write tests for X", "add coverage here", "what should I test", a new
+behaviour with no test yet, a bug that needs a reproduction test, or a bare "write some tests"
+with nothing named. Not for judging tests that already exist (`review-tests`) or diagnosing one
+already-flaky failure (`dotnet-flaky-test-diagnosis`).
+
+### review-tests
+
+[`SKILL.md`](../features/common/skills/review-tests/SKILL.md)
+
+**What it is.** Judges tests that already exist against one shared ruleset and hands back an
+improvement plan — green is the symptom, not the verdict — and never writes a fix itself.
+
+**What it does.** Resolves its scope from a directory, a file list, a diff/PR/branch, or a named
+symbol, and refuses to run with nothing named. Walks the suite cheapest-falsifier-first across
+nine passes (0–8): can the suite claim anything, can any test fail, determinism, name-vs-body,
+oracles, doubles, states/wiring, cost/hygiene, then the verdict. Reads
+`references/walk-review.md` and the matching `kind-*.md`/`stack-*.md` files only when a pass or
+a finding needs them, and writes one fixed-column improvement plan per
+`references/plan-format.md`.
+
+**When to use it.** Reviewing a PR or diff that changes test files, checking whether an existing
+test suite actually covers its contract, finding flaky/non-deterministic tests, or converting
+vague "we need better tests" requests into actionable improvement tasks. Not for designing a
+new suite from scratch (`design-tests`) or writing the production fixes.
 
 ### code-review-checklist
 
