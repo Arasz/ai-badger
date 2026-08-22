@@ -13,6 +13,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/principles.md",
     "line": 6
   },
@@ -35,6 +36,7 @@
     "pass": 1,
     "order": 1,
     "phase": "6",
+    "retired": null,
     "file": "references/universal.md",
     "line": 7
   },
@@ -54,6 +56,7 @@
     "pass": 2,
     "order": 1,
     "phase": "review-only",
+    "retired": null,
     "file": "references/universal.md",
     "line": 16
   },
@@ -75,6 +78,7 @@
     "pass": 1,
     "order": 2,
     "phase": null,
+    "retired": null,
     "file": "references/kind-widget.md",
     "line": 7
   }

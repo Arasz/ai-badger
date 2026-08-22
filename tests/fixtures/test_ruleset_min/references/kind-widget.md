@@ -7,7 +7,7 @@ rules populate the design walk.
 **`T2-WID-01` — Widget rules require a construction-site test.**
 - *design:* one test constructs the input the way production does — not by hand.
 - *review:* grep production for the widget's construction sites.
-- *check:* auto-unless-listed.
+- *check:* auto-unless-listed — grep production for the widget's construction sites; a listed exception is not a violation.
 - **severity:** blocker · **evidence:** strong · **flag:** argued · **parent:** `T1-AAA-01`
 - *absorbs:* `K-WID-01`
 - *cites:* `governance.md`

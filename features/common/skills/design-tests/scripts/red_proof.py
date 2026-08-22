@@ -3,11 +3,12 @@
 
 `design-tests` Stage 5 calls this whenever production code already exists, so RED cannot come
 from a missing implementation — the RED has to be manufactured, watched, and reverted. This is
-the one script in the skill that edits tracked source (SYNTHESIS.md ruling E2), so it carries a
-durable journal: the original content is written to `.design-tests/red-proof.journal.json`
-*before* the file is touched, the file is reverted in a `finally` so a normal failure still
-restores it, and on start an existing journal is restored from and the run refuses to proceed —
-so a process killed mid-proof (e.g. `SIGKILL`, which no `finally` can catch) leaves recoverable
+the one script in the skill that edits tracked source (a deliberate choice, recorded in the 0.132.0 changelog), so it carries a
+durable journal: the original content is written to `.design-tests/red-proof.journal.json` and
+fsynced *before* the file is touched — if the journal cannot be written, the run refuses and the
+file is never mutated — the file is reverted in a `finally` so a normal failure still restores
+it, and on start an existing journal is restored from and the run refuses to proceed — so a
+process killed mid-proof (e.g. `SIGKILL`, which no `finally` can catch) leaves recoverable
 evidence instead of a silently mutated production file, and the next invocation heals it rather
 than piling a second mutation on top.
 
@@ -39,6 +40,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -56,10 +58,9 @@ BUILD_BREAK_MARKERS = (
 # --------------------------------------------------------------------------- pure-ish helpers
 
 
-def apply_mutation(path: Path, line: int, replace: str, with_: str) -> str:
-    """Replace `replace` with `with_` once, on 1-indexed `line` of `path`. Returns the original
-    file text and mutates the file in place. Raises ValueError if the target cannot be found."""
-    original = path.read_text(encoding="utf-8")
+def _mutated_text(original: str, path: Path, line: int, replace: str, with_: str) -> str:
+    """Pure: `original` with `replace` swapped for `with_` once, on 1-indexed `line`. `path` is
+    used only in error messages. Raises ValueError if the target cannot be found."""
     lines = original.splitlines(keepends=True)
     if line < 1 or line > len(lines):
         raise ValueError(f"line {line} is out of range ({path} has {len(lines)} lines)")
@@ -67,8 +68,21 @@ def apply_mutation(path: Path, line: int, replace: str, with_: str) -> str:
     if replace not in target:
         raise ValueError(f"{replace!r} not found on line {line} of {path}: {target!r}")
     lines[line - 1] = target.replace(replace, with_, 1)
-    path.write_text("".join(lines), encoding="utf-8")
+    return "".join(lines)
+
+
+def apply_mutation(path: Path, line: int, replace: str, with_: str) -> str:
+    """Replace `replace` with `with_` once, on 1-indexed `line` of `path`. Returns the original
+    file text and mutates the file in place. Raises ValueError if the target cannot be found."""
+    original = path.read_text(encoding="utf-8")
+    path.write_text(_mutated_text(original, path, line, replace, with_), encoding="utf-8")
     return original
+
+
+def _write_mutated_file(path: Path, text: str) -> None:
+    """The one call in `main` that actually mutates the target — always after the journal for
+    that mutation has already been written and fsynced (see `write_journal`)."""
+    path.write_text(text, encoding="utf-8")
 
 
 def journal_path(repo_root: Path) -> Path:
@@ -76,6 +90,9 @@ def journal_path(repo_root: Path) -> Path:
 
 
 def write_journal(repo_root: Path, target: Path, original_content: str) -> None:
+    """Write the pre-mutation journal and fsync it before returning, so a crash immediately
+    after this call still leaves the journal durable on disk — never after `target` is mutated
+    (W2-03: call this before any write to `target`, never after)."""
     jp = journal_path(repo_root)
     jp.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -84,7 +101,10 @@ def write_journal(repo_root: Path, target: Path, original_content: str) -> None:
         "sha256": hashlib.sha256(original_content.encode("utf-8")).hexdigest(),
         "written_at": datetime.now(timezone.utc).isoformat(),
     }
-    jp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    with open(jp, "w", encoding="utf-8") as f:
+        f.write(json.dumps(payload, indent=2))
+        f.flush()
+        os.fsync(f.fileno())
 
 
 def read_journal(repo_root: Path) -> Optional[dict]:
@@ -195,15 +215,29 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 4
 
     try:
-        original = apply_mutation(resolved_target, args.line, args.replace, args.with_)
+        original = resolved_target.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"ERROR: {exc}")
+        return 4
+
+    try:
+        mutated_text = _mutated_text(original, resolved_target, args.line, args.replace, args.with_)
     except ValueError as exc:
         print(f"ERROR: {exc}")
         return 4
 
-    write_journal(repo_root, resolved_target, original)
+    # Journal first, mutation second (W2-03): if the journal cannot be written, the target is
+    # never touched, so there is nothing to restore.
+    try:
+        write_journal(repo_root, resolved_target, original)
+    except OSError as exc:
+        print(f"ERROR: could not write the red-proof journal at {journal_path(repo_root)} — "
+              f"refusing to mutate {resolved_target} without one: {exc}")
+        return 4
 
     status = "reddened"
     try:
+        _write_mutated_file(resolved_target, mutated_text)
         red = run_command(args.run, repo_root)
         _print_run("mutated", red)
         if red.returncode == 0:

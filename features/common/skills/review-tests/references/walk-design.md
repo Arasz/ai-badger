@@ -27,7 +27,7 @@
 - **T1-ISO-02** — Never sleep to synchronise. Poll a condition with a timeout, gate on a latch the test controls, or sync on a signal the system itself emits. (severity: blocker, flag: auto-unless-listed)
 - **T1-ISO-03** — Non-determinism enters through an injected, pinned source: an injected clock for time, a seeded generator for randomness — and the instant and the seed are printed on failure. (severity: blocker, flag: auto)
 - **T1-ISO-04** — Culture, timezone and locale are pinned wherever the test parses, formats, sorts or compares text, dates or money — and at least one case runs under a non-default one. (severity: major, flag: auto)
-- **T1-ISO-05** — Tests pass in any order and alone. No shared mutable state without an unconditional reset; a test that cannot be parallel-safe is explicitly serialized and the reason is recorded at the serialization point. (severity: blocker, flag: auto)
+- **T1-ISO-05** — Tests pass in any order and alone. No shared mutable state without an unconditional reset. (severity: blocker, flag: auto)
 - **T1-ISO-06** — Every shared external resource is namespaced per run or per worker and destroyed on teardown: port, path, database, container, volume, queue, task hub, orchestration instance. (severity: blocker, flag: auto)
 - **T1-ISO-07** — No test reads ambient environment: no hardcoded absolute paths, no inherited env vars, no host network, no real credentials, no live third-party. (severity: major, flag: auto)
 - **T1-CST-01** — Every test declares its size, and the size's constraints are enforced. (severity: major, flag: auto)

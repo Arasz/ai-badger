@@ -13,6 +13,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/principles.md",
     "line": 9
   },
@@ -30,6 +31,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/principles.md",
     "line": 12
   },
@@ -47,6 +49,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/principles.md",
     "line": 15
   },
@@ -64,6 +67,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/principles.md",
     "line": 18
   },
@@ -81,6 +85,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/principles.md",
     "line": 21
   },
@@ -98,6 +103,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/principles.md",
     "line": 24
   },
@@ -115,6 +121,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/principles.md",
     "line": 27
   },
@@ -132,6 +139,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/principles.md",
     "line": 30
   },
@@ -152,6 +160,7 @@
     "pass": 7,
     "order": 28,
     "phase": "4",
+    "retired": null,
     "file": "references/universal.md",
     "line": 278
   },
@@ -176,6 +185,7 @@
     "pass": 7,
     "order": 29,
     "phase": "1",
+    "retired": null,
     "file": "references/universal.md",
     "line": 286
   },
@@ -197,6 +207,7 @@
     "pass": 0,
     "order": 3,
     "phase": "8",
+    "retired": null,
     "file": "references/universal.md",
     "line": 294
   },
@@ -221,6 +232,7 @@
     "pass": 0,
     "order": 4,
     "phase": "8",
+    "retired": null,
     "file": "references/universal.md",
     "line": 302
   },
@@ -246,6 +258,7 @@
     "pass": 0,
     "order": 1,
     "phase": "4",
+    "retired": null,
     "file": "references/universal.md",
     "line": 310
   },
@@ -266,6 +279,7 @@
     "pass": 6,
     "order": 27,
     "phase": "7",
+    "retired": null,
     "file": "references/universal.md",
     "line": 318
   },
@@ -289,6 +303,7 @@
     "pass": 1,
     "order": 10,
     "phase": "5",
+    "retired": null,
     "file": "references/universal.md",
     "line": 216
   },
@@ -314,6 +329,7 @@
     "pass": 5,
     "order": 20,
     "phase": "5",
+    "retired": null,
     "file": "references/universal.md",
     "line": 224
   },
@@ -336,6 +352,7 @@
     "pass": 5,
     "order": 21,
     "phase": "5",
+    "retired": null,
     "file": "references/universal.md",
     "line": 232
   },
@@ -357,6 +374,7 @@
     "pass": 5,
     "order": 22,
     "phase": "5",
+    "retired": null,
     "file": "references/universal.md",
     "line": 240
   },
@@ -381,6 +399,7 @@
     "pass": 2,
     "order": 11,
     "phase": "4",
+    "retired": null,
     "file": "references/universal.md",
     "line": 141
   },
@@ -407,6 +426,7 @@
     "pass": 2,
     "order": 11,
     "phase": "4",
+    "retired": null,
     "file": "references/universal.md",
     "line": 149
   },
@@ -432,6 +452,7 @@
     "pass": 2,
     "order": 11,
     "phase": "4",
+    "retired": null,
     "file": "references/universal.md",
     "line": 157
   },
@@ -456,6 +477,7 @@
     "pass": 2,
     "order": 11,
     "phase": "4",
+    "retired": null,
     "file": "references/universal.md",
     "line": 165
   },
@@ -463,7 +485,7 @@
     "id": "T1-ISO-05",
     "layer": "1",
     "group": "ISO",
-    "title": "Tests pass in any order and alone. No shared mutable state without an unconditional reset; a test that cannot be parallel-safe is explicitly serialized and the reason is recorded at the serialization point.",
+    "title": "Tests pass in any order and alone. No shared mutable state without an unconditional reset.",
     "severity": "blocker",
     "evidence": "strong",
     "flag": "auto",
@@ -482,6 +504,7 @@
     "pass": 2,
     "order": 11,
     "phase": "4",
+    "retired": null,
     "file": "references/universal.md",
     "line": 173
   },
@@ -503,6 +526,7 @@
     "pass": 2,
     "order": 11,
     "phase": "4",
+    "retired": null,
     "file": "references/universal.md",
     "line": 181
   },
@@ -523,6 +547,7 @@
     "pass": 2,
     "order": 11,
     "phase": "4",
+    "retired": null,
     "file": "references/universal.md",
     "line": 189
   },
@@ -545,6 +570,7 @@
     "pass": 2,
     "order": 12,
     "phase": "review-only",
+    "retired": null,
     "file": "references/universal.md",
     "line": 197
   },
@@ -566,6 +592,7 @@
     "pass": 0,
     "order": 2,
     "phase": "review-only",
+    "retired": null,
     "file": "references/universal.md",
     "line": 205
   },
@@ -588,6 +615,7 @@
     "pass": 1,
     "order": 5,
     "phase": "6",
+    "retired": null,
     "file": "references/universal.md",
     "line": 82
   },
@@ -609,6 +637,7 @@
     "pass": 4,
     "order": 16,
     "phase": "3",
+    "retired": null,
     "file": "references/universal.md",
     "line": 90
   },
@@ -635,6 +664,7 @@
     "pass": 4,
     "order": 17,
     "phase": "3",
+    "retired": null,
     "file": "references/universal.md",
     "line": 98
   },
@@ -654,6 +684,7 @@
     "pass": 4,
     "order": 18,
     "phase": "3",
+    "retired": null,
     "file": "references/universal.md",
     "line": 106
   },
@@ -675,6 +706,7 @@
     "pass": 4,
     "order": 19,
     "phase": "3",
+    "retired": null,
     "file": "references/universal.md",
     "line": 114
   },
@@ -694,6 +726,7 @@
     "pass": 1,
     "order": 6,
     "phase": "7",
+    "retired": null,
     "file": "references/universal.md",
     "line": 122
   },
@@ -718,6 +751,7 @@
     "pass": 1,
     "order": 7,
     "phase": "6",
+    "retired": null,
     "file": "references/universal.md",
     "line": 130
   },
@@ -739,6 +773,7 @@
     "pass": 8,
     "order": 30,
     "phase": "7",
+    "retired": null,
     "file": "references/universal.md",
     "line": 329
   },
@@ -761,6 +796,7 @@
     "pass": 8,
     "order": 31,
     "phase": "7",
+    "retired": null,
     "file": "references/universal.md",
     "line": 337
   },
@@ -785,6 +821,7 @@
     "pass": 1,
     "order": 9,
     "phase": "7",
+    "retired": null,
     "file": "references/universal.md",
     "line": 345
   },
@@ -804,6 +841,7 @@
     "pass": 8,
     "order": 32,
     "phase": "7",
+    "retired": null,
     "file": "references/universal.md",
     "line": 353
   },
@@ -826,6 +864,7 @@
     "pass": 3,
     "order": 14,
     "phase": "7",
+    "retired": null,
     "file": "references/universal.md",
     "line": 23
   },
@@ -847,6 +886,7 @@
     "pass": 3,
     "order": 13,
     "phase": "6",
+    "retired": null,
     "file": "references/universal.md",
     "line": 31
   },
@@ -869,6 +909,7 @@
     "pass": 3,
     "order": 15,
     "phase": "1",
+    "retired": null,
     "file": "references/universal.md",
     "line": 39
   },
@@ -892,6 +933,7 @@
     "pass": 6,
     "order": 23,
     "phase": "2",
+    "retired": null,
     "file": "references/universal.md",
     "line": 47
   },
@@ -917,6 +959,7 @@
     "pass": 6,
     "order": 24,
     "phase": "2",
+    "retired": null,
     "file": "references/universal.md",
     "line": 55
   },
@@ -938,6 +981,7 @@
     "pass": 6,
     "order": 25,
     "phase": "6",
+    "retired": null,
     "file": "references/universal.md",
     "line": 63
   },
@@ -957,6 +1001,7 @@
     "pass": 6,
     "order": 26,
     "phase": "3",
+    "retired": null,
     "file": "references/universal.md",
     "line": 71
   },
@@ -987,6 +1032,7 @@
     "pass": 7,
     "order": 28,
     "phase": "6",
+    "retired": null,
     "file": "references/universal.md",
     "line": 251
   },
@@ -1009,6 +1055,7 @@
     "pass": 1,
     "order": 8,
     "phase": "6",
+    "retired": null,
     "file": "references/universal.md",
     "line": 259
   },
@@ -1029,6 +1076,7 @@
     "pass": 7,
     "order": 28,
     "phase": "review-only",
+    "retired": null,
     "file": "references/universal.md",
     "line": 267
   },
@@ -1048,6 +1096,7 @@
     "pass": 0,
     "order": 1,
     "phase": null,
+    "retired": null,
     "file": "references/kind-accessibility.md",
     "line": 15
   },
@@ -1065,6 +1114,7 @@
     "pass": 0,
     "order": 1,
     "phase": null,
+    "retired": null,
     "file": "references/kind-accessibility.md",
     "line": 23
   },
@@ -1084,6 +1134,7 @@
     "pass": 6,
     "order": 24,
     "phase": null,
+    "retired": null,
     "file": "references/kind-accessibility.md",
     "line": 30
   },
@@ -1101,6 +1152,7 @@
     "pass": 0,
     "order": 1,
     "phase": null,
+    "retired": null,
     "file": "references/kind-accessibility.md",
     "line": 37
   },
@@ -1118,6 +1170,7 @@
     "pass": 0,
     "order": 1,
     "phase": null,
+    "retired": null,
     "file": "references/kind-accessibility.md",
     "line": 44
   },
@@ -1137,6 +1190,7 @@
     "pass": 6,
     "order": 24,
     "phase": null,
+    "retired": null,
     "file": "references/kind-accessibility.md",
     "line": 51
   },
@@ -1156,6 +1210,7 @@
     "pass": 4,
     "order": 17,
     "phase": null,
+    "retired": null,
     "file": "references/kind-accessibility.md",
     "line": 59
   },
@@ -1175,6 +1230,7 @@
     "pass": 8,
     "order": 30,
     "phase": null,
+    "retired": null,
     "file": "references/kind-architecture.md",
     "line": 9
   },
@@ -1192,6 +1248,7 @@
     "pass": 1,
     "order": 9,
     "phase": null,
+    "retired": null,
     "file": "references/kind-architecture.md",
     "line": 17
   },
@@ -1209,6 +1266,7 @@
     "pass": 1,
     "order": 9,
     "phase": null,
+    "retired": null,
     "file": "references/kind-architecture.md",
     "line": 25
   },
@@ -1226,6 +1284,7 @@
     "pass": 8,
     "order": 32,
     "phase": null,
+    "retired": null,
     "file": "references/kind-architecture.md",
     "line": 33
   },
@@ -1243,6 +1302,7 @@
     "pass": 0,
     "order": 3,
     "phase": null,
+    "retired": null,
     "file": "references/kind-architecture.md",
     "line": 41
   },
@@ -1262,6 +1322,7 @@
     "pass": 6,
     "order": 23,
     "phase": null,
+    "retired": null,
     "file": "references/kind-architecture.md",
     "line": 49
   },
@@ -1269,7 +1330,7 @@
     "id": "T2-BDD-01",
     "layer": "2",
     "group": "BDD",
-    "title": "RETIRED 2026-08-22: evidence withdrawn — cross-role authorship is not observable from a diff, and the cited authority is one source (Cucumber's own docs and its author), not two independent ones.",
+    "title": "RETIRED 2026-08-22: evidence withdrawn — cross-role authorship isn't diff-observable; the cited authority is one source, not two independent ones.",
     "severity": "major",
     "evidence": "strong",
     "flag": "argued",
@@ -1279,6 +1340,7 @@
     "pass": 3,
     "order": 14,
     "phase": null,
+    "retired": "2026-08-22 — no diff-checkable falsifier; the cited authority is one source (Cucumber docs and its author), not two independent ones; see `governance.md` \"Retiring a rule\".",
     "file": "references/kind-bdd.md",
     "line": 9
   },
@@ -1296,6 +1358,7 @@
     "pass": 3,
     "order": 14,
     "phase": null,
+    "retired": "2026-08-22 — subsumed by `T2-BDD-03`'s falsifier; see `governance.md` \"Retiring a rule\".",
     "file": "references/kind-bdd.md",
     "line": 18
   },
@@ -1313,6 +1376,7 @@
     "pass": 8,
     "order": 30,
     "phase": null,
+    "retired": null,
     "file": "references/kind-bdd.md",
     "line": 27
   },
@@ -1330,6 +1394,7 @@
     "pass": 3,
     "order": 14,
     "phase": null,
+    "retired": "2026-08-22 — no diff-checkable falsifier for a real-world discovery-composition claim; see `governance.md` \"Retiring a rule\".",
     "file": "references/kind-bdd.md",
     "line": 35
   },
@@ -1347,6 +1412,7 @@
     "pass": 3,
     "order": 15,
     "phase": null,
+    "retired": null,
     "file": "references/kind-bdd.md",
     "line": 44
   },
@@ -1364,6 +1430,7 @@
     "pass": 3,
     "order": 15,
     "phase": null,
+    "retired": null,
     "file": "references/kind-bdd.md",
     "line": 52
   },
@@ -1381,6 +1448,7 @@
     "pass": 7,
     "order": 29,
     "phase": null,
+    "retired": null,
     "file": "references/kind-bdd.md",
     "line": 60
   },
@@ -1398,6 +1466,7 @@
     "pass": 7,
     "order": 28,
     "phase": null,
+    "retired": "2026-08-22 — an opinion about team composition over a project's lifetime, not a rule with a checkable falsifier; see `governance.md` \"Retiring a rule\".",
     "file": "references/kind-bdd.md",
     "line": 69
   },
@@ -1415,6 +1484,7 @@
     "pass": 7,
     "order": 28,
     "phase": null,
+    "retired": null,
     "file": "references/kind-bdd.md",
     "line": 78
   },
@@ -1432,6 +1502,7 @@
     "pass": 7,
     "order": 29,
     "phase": null,
+    "retired": null,
     "file": "references/kind-contract.md",
     "line": 9
   },
@@ -1449,6 +1520,7 @@
     "pass": 5,
     "order": 21,
     "phase": null,
+    "retired": null,
     "file": "references/kind-contract.md",
     "line": 17
   },
@@ -1466,6 +1538,7 @@
     "pass": 1,
     "order": 10,
     "phase": null,
+    "retired": null,
     "file": "references/kind-contract.md",
     "line": 25
   },
@@ -1483,6 +1556,7 @@
     "pass": 1,
     "order": 10,
     "phase": null,
+    "retired": null,
     "file": "references/kind-contract.md",
     "line": 32
   },
@@ -1500,6 +1574,7 @@
     "pass": 6,
     "order": 27,
     "phase": null,
+    "retired": null,
     "file": "references/kind-contract.md",
     "line": 40
   },
@@ -1517,6 +1592,7 @@
     "pass": 1,
     "order": 10,
     "phase": null,
+    "retired": null,
     "file": "references/kind-contract.md",
     "line": 48
   },
@@ -1536,6 +1612,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-end-to-end.md",
     "line": 14
   },
@@ -1553,6 +1630,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-end-to-end.md",
     "line": 21
   },
@@ -1570,6 +1648,7 @@
     "pass": 3,
     "order": 15,
     "phase": null,
+    "retired": null,
     "file": "references/kind-end-to-end.md",
     "line": 28
   },
@@ -1587,6 +1666,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-end-to-end.md",
     "line": 35
   },
@@ -1604,6 +1684,7 @@
     "pass": 5,
     "order": 21,
     "phase": null,
+    "retired": null,
     "file": "references/kind-end-to-end.md",
     "line": 42
   },
@@ -1621,6 +1702,7 @@
     "pass": 2,
     "order": 12,
     "phase": null,
+    "retired": null,
     "file": "references/kind-end-to-end.md",
     "line": 49
   },
@@ -1638,6 +1720,7 @@
     "pass": 7,
     "order": 29,
     "phase": null,
+    "retired": null,
     "file": "references/kind-end-to-end.md",
     "line": 57
   },
@@ -1655,6 +1738,7 @@
     "pass": 6,
     "order": 24,
     "phase": null,
+    "retired": null,
     "file": "references/kind-end-to-end.md",
     "line": 65
   },
@@ -1672,6 +1756,7 @@
     "pass": 1,
     "order": 5,
     "phase": null,
+    "retired": null,
     "file": "references/kind-end-to-end.md",
     "line": 72
   },
@@ -1689,6 +1774,7 @@
     "pass": 0,
     "order": 1,
     "phase": null,
+    "retired": null,
     "file": "references/kind-integration.md",
     "line": 9
   },
@@ -1706,6 +1792,7 @@
     "pass": 0,
     "order": 1,
     "phase": null,
+    "retired": null,
     "file": "references/kind-integration.md",
     "line": 17
   },
@@ -1723,6 +1810,7 @@
     "pass": 7,
     "order": 29,
     "phase": null,
+    "retired": null,
     "file": "references/kind-integration.md",
     "line": 25
   },
@@ -1742,6 +1830,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-integration.md",
     "line": 33
   },
@@ -1759,6 +1848,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-integration.md",
     "line": 41
   },
@@ -1776,6 +1866,7 @@
     "pass": 0,
     "order": 4,
     "phase": null,
+    "retired": null,
     "file": "references/kind-integration.md",
     "line": 49
   },
@@ -1793,6 +1884,7 @@
     "pass": 0,
     "order": 3,
     "phase": null,
+    "retired": null,
     "file": "references/kind-integration.md",
     "line": 56
   },
@@ -1810,6 +1902,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-integration.md",
     "line": 64
   },
@@ -1827,6 +1920,7 @@
     "pass": 7,
     "order": 28,
     "phase": null,
+    "retired": null,
     "file": "references/kind-performance.md",
     "line": 10
   },
@@ -1844,6 +1938,7 @@
     "pass": 0,
     "order": 1,
     "phase": null,
+    "retired": null,
     "file": "references/kind-performance.md",
     "line": 18
   },
@@ -1861,6 +1956,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-performance.md",
     "line": 26
   },
@@ -1878,6 +1974,7 @@
     "pass": 4,
     "order": 17,
     "phase": null,
+    "retired": null,
     "file": "references/kind-performance.md",
     "line": 34
   },
@@ -1895,6 +1992,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-performance.md",
     "line": 42
   },
@@ -1912,6 +2010,7 @@
     "pass": 8,
     "order": 32,
     "phase": null,
+    "retired": null,
     "file": "references/kind-performance.md",
     "line": 50
   },
@@ -1929,6 +2028,7 @@
     "pass": 0,
     "order": 3,
     "phase": null,
+    "retired": null,
     "file": "references/kind-performance.md",
     "line": 58
   },
@@ -1946,6 +2046,7 @@
     "pass": 4,
     "order": 16,
     "phase": null,
+    "retired": null,
     "file": "references/kind-performance.md",
     "line": 66
   },
@@ -1963,6 +2064,7 @@
     "pass": 0,
     "order": 2,
     "phase": null,
+    "retired": null,
     "file": "references/kind-performance.md",
     "line": 74
   },
@@ -1980,6 +2082,7 @@
     "pass": 4,
     "order": 16,
     "phase": null,
+    "retired": null,
     "file": "references/kind-property.md",
     "line": 8
   },
@@ -1997,6 +2100,7 @@
     "pass": 8,
     "order": 30,
     "phase": null,
+    "retired": null,
     "file": "references/kind-property.md",
     "line": 16
   },
@@ -2014,6 +2118,7 @@
     "pass": 1,
     "order": 8,
     "phase": null,
+    "retired": null,
     "file": "references/kind-property.md",
     "line": 23
   },
@@ -2031,6 +2136,7 @@
     "pass": 8,
     "order": 30,
     "phase": null,
+    "retired": null,
     "file": "references/kind-property.md",
     "line": 31
   },
@@ -2048,6 +2154,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-property.md",
     "line": 39
   },
@@ -2065,6 +2172,7 @@
     "pass": 3,
     "order": 14,
     "phase": null,
+    "retired": null,
     "file": "references/kind-snapshot.md",
     "line": 8
   },
@@ -2082,6 +2190,7 @@
     "pass": 3,
     "order": 14,
     "phase": null,
+    "retired": null,
     "file": "references/kind-snapshot.md",
     "line": 16
   },
@@ -2099,6 +2208,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-snapshot.md",
     "line": 23
   },
@@ -2116,6 +2226,7 @@
     "pass": 8,
     "order": 31,
     "phase": null,
+    "retired": null,
     "file": "references/kind-snapshot.md",
     "line": 30
   },
@@ -2133,6 +2244,7 @@
     "pass": 7,
     "order": 28,
     "phase": null,
+    "retired": null,
     "file": "references/kind-snapshot.md",
     "line": 37
   },
@@ -2150,6 +2262,7 @@
     "pass": 0,
     "order": 1,
     "phase": null,
+    "retired": null,
     "file": "references/kind-snapshot.md",
     "line": 45
   },
@@ -2169,6 +2282,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-time.md",
     "line": 10
   },
@@ -2186,6 +2300,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-time.md",
     "line": 18
   },
@@ -2203,6 +2318,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-time.md",
     "line": 25
   },
@@ -2222,6 +2338,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-time.md",
     "line": 32
   },
@@ -2239,6 +2356,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-time.md",
     "line": 40
   },
@@ -2256,6 +2374,7 @@
     "pass": 4,
     "order": 18,
     "phase": null,
+    "retired": null,
     "file": "references/kind-time.md",
     "line": 47
   },
@@ -2273,6 +2392,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-time.md",
     "line": 54
   },
@@ -2290,6 +2410,7 @@
     "pass": 1,
     "order": 6,
     "phase": null,
+    "retired": null,
     "file": "references/kind-time.md",
     "line": 61
   },
@@ -2307,6 +2428,7 @@
     "pass": 1,
     "order": 6,
     "phase": null,
+    "retired": null,
     "file": "references/kind-time.md",
     "line": 68
   },
@@ -2324,6 +2446,7 @@
     "pass": 7,
     "order": 29,
     "phase": null,
+    "retired": null,
     "file": "references/kind-time.md",
     "line": 75
   },
@@ -2341,6 +2464,7 @@
     "pass": 7,
     "order": 28,
     "phase": null,
+    "retired": null,
     "file": "references/kind-unit.md",
     "line": 9
   },
@@ -2358,6 +2482,7 @@
     "pass": 5,
     "order": 21,
     "phase": null,
+    "retired": null,
     "file": "references/kind-unit.md",
     "line": 17
   },
@@ -2377,6 +2502,7 @@
     "pass": 7,
     "order": 28,
     "phase": null,
+    "retired": null,
     "file": "references/kind-unit.md",
     "line": 25
   },
@@ -2394,6 +2520,7 @@
     "pass": 7,
     "order": 29,
     "phase": null,
+    "retired": null,
     "file": "references/kind-unit.md",
     "line": 34
   },
@@ -2411,6 +2538,7 @@
     "pass": 1,
     "order": 5,
     "phase": null,
+    "retired": null,
     "file": "references/kind-unit.md",
     "line": 42
   },
@@ -2428,6 +2556,7 @@
     "pass": 2,
     "order": 11,
     "phase": null,
+    "retired": null,
     "file": "references/kind-unit.md",
     "line": 50
   },
@@ -2445,6 +2574,7 @@
     "pass": 1,
     "order": 8,
     "phase": null,
+    "retired": null,
     "file": "references/kind-unit.md",
     "line": 58
   },
@@ -2462,6 +2592,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-cosmos.md",
     "line": 14
   },
@@ -2479,6 +2610,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-azure-functions.md",
     "line": 15
   },
@@ -2498,6 +2630,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 49
   },
@@ -2517,6 +2650,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 56
   },
@@ -2536,6 +2670,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 63
   },
@@ -2555,6 +2690,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 70
   },
@@ -2574,6 +2710,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 77
   },
@@ -2593,6 +2730,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 84
   },
@@ -2612,6 +2750,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 91
   },
@@ -2631,6 +2770,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 98
   },
@@ -2650,6 +2790,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 107
   },
@@ -2669,6 +2810,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 114
   },
@@ -2688,6 +2830,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 121
   },
@@ -2707,6 +2850,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 128
   },
@@ -2726,6 +2870,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 135
   },
@@ -2745,6 +2890,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 144
   },
@@ -2764,6 +2910,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 151
   },
@@ -2783,6 +2930,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 158
   },
@@ -2802,6 +2950,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 165
   },
@@ -2821,6 +2970,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 172
   },
@@ -2840,6 +2990,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 181
   },
@@ -2859,6 +3010,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 188
   },
@@ -2878,6 +3030,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 195
   },
@@ -2897,6 +3050,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 202
   },
@@ -2916,6 +3070,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 211
   },
@@ -2935,6 +3090,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 218
   },
@@ -2954,6 +3110,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 225
   },
@@ -2973,6 +3130,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 232
   },
@@ -2980,7 +3138,7 @@
     "id": "T3-NET-27",
     "layer": "3",
     "group": "NET",
-    "title": "Drive an Aspire stack with `DistributedApplicationTestingBuilder.CreateAsync()` and wait with `ResourceNotificationService.WaitForResourceAsync(name, KnownResourceStates.Running)` — never a sleep.",
+    "title": "Drive an Aspire stack with `DistributedApplicationTestingBuilder` and wait via `ResourceNotificationService.WaitForResourceAsync` — never a sleep.",
     "severity": "major",
     "evidence": "strong",
     "flag": "auto",
@@ -2992,6 +3150,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 241
   },
@@ -3011,6 +3170,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 248
   },
@@ -3030,6 +3190,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 255
   },
@@ -3049,6 +3210,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 264
   },
@@ -3068,6 +3230,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 271
   },
@@ -3087,6 +3250,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 278
   },
@@ -3106,6 +3270,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 285
   },
@@ -3125,6 +3290,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 292
   },
@@ -3144,6 +3310,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 299
   },
@@ -3163,6 +3330,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 306
   },
@@ -3182,6 +3350,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 315
   },
@@ -3201,6 +3370,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 322
   },
@@ -3220,6 +3390,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 329
   },
@@ -3239,6 +3410,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 336
   },
@@ -3258,6 +3430,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 343
   },
@@ -3277,6 +3450,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 350
   },
@@ -3296,6 +3470,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 357
   },
@@ -3315,6 +3490,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 366
   },
@@ -3334,6 +3510,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 373
   },
@@ -3353,6 +3530,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 380
   },
@@ -3370,6 +3548,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 389
   },
@@ -3387,6 +3566,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-dotnet.md",
     "line": 396
   },
@@ -3406,6 +3586,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 67
   },
@@ -3425,6 +3606,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 74
   },
@@ -3444,6 +3626,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 81
   },
@@ -3463,6 +3646,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 88
   },
@@ -3482,6 +3666,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 95
   },
@@ -3501,6 +3686,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 102
   },
@@ -3520,6 +3706,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 109
   },
@@ -3539,6 +3726,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 116
   },
@@ -3558,6 +3746,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 125
   },
@@ -3577,6 +3766,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 132
   },
@@ -3596,6 +3786,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 139
   },
@@ -3615,6 +3806,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 146
   },
@@ -3634,6 +3826,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 153
   },
@@ -3653,6 +3846,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 160
   },
@@ -3672,6 +3866,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 169
   },
@@ -3691,6 +3886,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 176
   },
@@ -3710,6 +3906,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 183
   },
@@ -3729,6 +3926,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 190
   },
@@ -3748,6 +3946,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 197
   },
@@ -3767,6 +3966,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 204
   },
@@ -3786,6 +3986,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 211
   },
@@ -3805,6 +4006,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 218
   },
@@ -3824,6 +4026,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 225
   },
@@ -3843,6 +4046,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 234
   },
@@ -3862,6 +4066,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 241
   },
@@ -3881,6 +4086,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 248
   },
@@ -3900,6 +4106,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 255
   },
@@ -3919,6 +4126,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 262
   },
@@ -3938,6 +4146,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 269
   },
@@ -3957,6 +4166,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 276
   },
@@ -3976,6 +4186,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 283
   },
@@ -3995,6 +4206,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 290
   },
@@ -4014,6 +4226,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 299
   },
@@ -4033,6 +4246,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 306
   },
@@ -4052,6 +4266,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 313
   },
@@ -4071,6 +4286,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 320
   },
@@ -4090,6 +4306,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 327
   },
@@ -4109,6 +4326,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 336
   },
@@ -4128,6 +4346,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 343
   },
@@ -4147,6 +4366,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 350
   },
@@ -4166,6 +4386,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 357
   },
@@ -4185,6 +4406,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-ts-react-browser.md",
     "line": 364
   },
@@ -4202,6 +4424,7 @@
     "pass": null,
     "order": null,
     "phase": null,
+    "retired": null,
     "file": "references/stack-terraform.md",
     "line": 10
   }

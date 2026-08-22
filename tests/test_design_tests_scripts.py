@@ -41,7 +41,7 @@ class TestScanFindsTheCatalogedPatterns:
 
     def test_csharp_thread_sleep_is_flagged(self, scan):
         hits = scan.scan_text("Thread.Sleep(50);\n", "Foo.cs")
-        assert any(h.category == "sleep-or-delay" for h in hits)
+        assert any(h.category == "thread-sleep" for h in hits)
 
     def test_csharp_unseeded_random_is_flagged(self, scan):
         hits = scan.scan_text("var r = new Random();\n", "Foo.cs")
@@ -131,6 +131,115 @@ class TestMitigationDowngrade:
         assert time_hits and all(not h.mitigated for h in time_hits)
 
 
+class TestWallClockAssertionPrecision:
+    """W2-02: `expect\\(.*(duration|elapsed|took|ms)\\)` matched `ms` as an unanchored substring,
+    so any `expect(...)` call over a variable whose name merely ends in those two letters fired
+    as a `NEVER_MITIGABLE` blocker. 0/9 precision on a real suite; these five are that suite's
+    own false positives, reduced to a minimal repro."""
+
+    @pytest.mark.parametrize("line", [
+        "expect(items).toHaveLength(3);",
+        "expect(decoded.claims).toEqual(payload);",
+        "expect(searchParamsSeen.some((params) => params.has('x'))).toBe(true);",
+        "expect(visibleNavItems(state)).toStrictEqual(navItems);",
+        "expect(terms).toMatch(/google calendar/i);",
+    ])
+    def test_identifiers_ending_in_ms_are_not_flagged_as_wall_clock_assertions(self, scan, line):
+        hits = scan.scan_text(line + "\n", "foo.test.ts")
+        assert not any(h.category == "wall-clock-assertion" for h in hits), hits
+
+    def test_expect_elapsed_still_fires(self, scan):
+        hits = scan.scan_text("expect(elapsed).toBeLessThan(50);\n", "foo.test.ts")
+        assert any(h.category == "wall-clock-assertion" for h in hits)
+
+    def test_expect_took_still_fires(self, scan):
+        hits = scan.scan_text("expect(took).toBeLessThanOrEqual(100);\n", "foo.test.ts")
+        assert any(h.category == "wall-clock-assertion" for h in hits)
+
+    def test_expect_date_now_delta_still_produces_a_finding(self, scan):
+        # Caught via wall-clock-now (the literal `Date.now()` pattern), not this category —
+        # the point is the anchoring fix must not silently drop it from the scan altogether.
+        hits = scan.scan_text("expect(Date.now() - start).toBeLessThan(200);\n", "foo.test.ts")
+        assert hits, "a Date.now() delta assertion must still be reported"
+
+
+class TestWallClockAssertionCsPrecision:
+    """W2-02 asked for the same precision pass on the C# patterns. Verified and found already
+    precise: none of the three C# patterns reference a bare `ms`, only the literal words
+    `Elapsed`/`Milliseconds` — so there is no unanchored-substring class to fix here (unlike TS).
+    Locking that in with a regression test rather than changing the regex, since real C# code
+    writes `FromMilliseconds`/`ElapsedMilliseconds` as one compound identifier and a `\b`
+    boundary around those words would go dark on exactly the calls this category exists to
+    catch (tried, reverted — see the comment above the C# pattern list)."""
+
+    def test_a_var_containing_ms_as_a_substring_is_not_flagged(self, scan):
+        hits = scan.scan_text("Assert.Equal(expectedTerms, actualTerms);\n", "Foo.cs")
+        assert not any(h.category == "wall-clock-assertion" for h in hits)
+
+    def test_elapsed_milliseconds_still_fires(self, scan):
+        hits = scan.scan_text("Assert.True(sw.ElapsedMilliseconds < 50);\n", "Foo.cs")
+        assert any(h.category == "wall-clock-assertion" for h in hits)
+
+
+class TestNetworkPatternSeesUrlsInsideStrings:
+    """W2-06: the comment stripper blanked `//` inside `https://`, so both network patterns
+    (C# and TS) could never match a live external URL reached via anything but a bare call."""
+
+    def test_a_csharp_https_call_is_flagged_as_network(self, scan):
+        hits = scan.scan_text(
+            'var r = await client.GetAsync("https://api.example.com/x");\n', "Foo.cs")
+        assert any(h.category == "network" for h in hits), hits
+
+    def test_a_ts_https_call_is_flagged_as_network(self, scan):
+        hits = scan.scan_text('await axios.get("https://api.example.com/x");\n', "foo.test.ts")
+        assert any(h.category == "network" for h in hits), hits
+
+    def test_a_url_inside_a_real_line_comment_is_still_not_flagged(self, scan):
+        hits = scan.scan_text("// https://example.com in a comment\n", "Foo.cs")
+        assert hits == []
+
+
+class TestFakeTimeProviderMitigationIsCategorySpecific:
+    """W2-04: `FakeTimeProvider` anywhere in the file downgraded every `Thread.Sleep` and
+    `Task.Delay(n)` to `mitigated`, though a fake `TimeProvider` intercepts neither — both hit
+    the real OS timer. `Thread.Sleep` is split into its own never-mitigated category; a
+    `Task.Delay` call is mitigated only when that same call carries a TimeProvider argument, or
+    the file drives it via `FakeTimeProvider...Advance(`."""
+
+    def test_thread_sleep_is_never_mitigated_even_with_faketimeprovider_in_scope(self, scan):
+        text = "private readonly FakeTimeProvider _clock = new();\nThread.Sleep(100);\n"
+        hits = scan.scan_text(text, "Foo.cs")
+        sleep_hits = [h for h in hits if h.category == "thread-sleep"]
+        assert sleep_hits and all(not h.mitigated for h in sleep_hits)
+
+    def test_task_delay_with_no_timeprovider_argument_is_not_mitigated_by_a_bare_field(self, scan):
+        text = "private readonly FakeTimeProvider _clock = new();\nawait Task.Delay(250);\n"
+        hits = scan.scan_text(text, "Foo.cs")
+        delay_hits = [h for h in hits if h.category == "sleep-or-delay"]
+        assert delay_hits and all(not h.mitigated for h in delay_hits)
+
+    def test_task_delay_passing_a_timeprovider_argument_is_mitigated(self, scan):
+        hits = scan.scan_text("await Task.Delay(250, timeProvider);\n", "Foo.cs")
+        delay_hits = [h for h in hits if h.category == "sleep-or-delay"]
+        assert delay_hits and all(h.mitigated for h in delay_hits)
+
+    def test_task_delay_is_mitigated_when_the_file_drives_faketimeprovider_advance(self, scan):
+        text = (
+            "private readonly FakeTimeProvider _clock = new();\n"
+            "_clock.Advance(TimeSpan.FromMilliseconds(250));\n"
+            "await Task.Delay(250);\n"
+        )
+        hits = scan.scan_text(text, "Foo.cs")
+        delay_hits = [h for h in hits if h.category == "sleep-or-delay"]
+        assert delay_hits and all(h.mitigated for h in delay_hits)
+
+    def test_ts_settimeout_is_still_mitigated_by_fake_timers_file_wide(self, scan):
+        text = "vi.useFakeTimers();\nsetTimeout(cb, 100);\n"
+        hits = scan.scan_text(text, "foo.test.ts")
+        delay_hits = [h for h in hits if h.category == "sleep-or-delay"]
+        assert delay_hits and all(h.mitigated for h in delay_hits)
+
+
 class TestCommentsAreExcluded:
     """MoE-4 §5.5(a): "regex over the test tree, comments and strings excluded"."""
 
@@ -145,7 +254,7 @@ class TestCommentsAreExcluded:
 
     def test_code_after_a_line_comment_marker_on_the_same_line_is_still_scanned(self, scan):
         hits = scan.scan_text("Thread.Sleep(1); // deliberate\n", "Foo.cs")
-        assert any(h.category == "sleep-or-delay" for h in hits)
+        assert any(h.category == "thread-sleep" for h in hits)
 
 
 class TestCliBehaviour:
@@ -327,6 +436,61 @@ class TestBuildBreakHeuristic:
                                               stdout="Assert.Equal() Failure\nExpected: 1\nActual: 2",
                                               stderr="")
         assert not rp.looks_like_build_break(result)
+
+
+class TestJournalWrittenBeforeMutation:
+    """W2-03: `apply_mutation` ran before `write_journal`, and `write_journal` sat outside the
+    `try/finally` — a raise there left the target mutated with no journal to recover from. The
+    fix must write the journal, from the pre-mutation original bytes, before the target file is
+    ever touched."""
+
+    def _run_cmd(self):
+        return (
+            f'{sys.executable} -c "import sys; '
+            "c = open('target.txt').read(); "
+            "sys.exit(1 if 'MUTATED' in c else 0)\""
+        )
+
+    def test_a_journal_write_failure_leaves_the_target_byte_identical(self, rp, tmp_path, monkeypatch):
+        repo = _git_repo(tmp_path)
+        target = _commit_file(repo, "target.txt", "ORIGINAL\n")
+        original_bytes = target.read_bytes()
+
+        def boom(*_args, **_kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(rp, "write_journal", boom)
+
+        rc = rp.main([
+            "--file", str(target), "--line", "1", "--replace", "ORIGINAL", "--with", "MUTATED",
+            "--run", self._run_cmd(), "--root", str(repo),
+        ])
+
+        assert rc == 4
+        assert target.read_bytes() == original_bytes, "the target must never be mutated when " \
+            "the journal could not be written"
+        assert not (repo / ".design-tests" / "red-proof.journal.json").exists()
+
+    def test_the_journal_exists_on_disk_before_the_target_is_mutated(self, rp, tmp_path, monkeypatch):
+        repo = _git_repo(tmp_path)
+        target = _commit_file(repo, "target.txt", "ORIGINAL\n")
+
+        seen = {}
+        real_write = rp._write_mutated_file
+
+        def spy(path, text):
+            seen["journal_existed"] = rp.read_journal(repo) is not None
+            return real_write(path, text)
+
+        monkeypatch.setattr(rp, "_write_mutated_file", spy)
+
+        rc = rp.main([
+            "--file", str(target), "--line", "1", "--replace", "ORIGINAL", "--with", "MUTATED",
+            "--run", self._run_cmd(), "--root", str(repo),
+        ])
+
+        assert rc == 0
+        assert seen.get("journal_existed") is True
 
 
 class TestMainEndToEnd:

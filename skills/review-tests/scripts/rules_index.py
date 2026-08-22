@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Generate rules.json and the two ruleset walks from references/*.md; --check verifies.
 
-Markdown is the source of truth (MoE-2-ruleset.md §3.3, SYNTHESIS.md ruling C). Every rule in
+Markdown is the source of truth (see `governance.md` "`rules.json` — the one condition it
+exists under"). Every rule in
 `references/{principles,universal,kind-*,stack-*}.md` is a heading — one of
 
     #### `<id>` — <title>            (stack-dotnet.md's convention)
@@ -17,24 +18,28 @@ retired, rationale, and the single machine-read line
     - *meta:* pass=<0-8> order=<int> phase=<1-8 or review-only>
 
 (universal.md's own header names this "the machine-read line": `pass`/`order` place a rule in
-`walk-review.md`, `phase` places it in `walk-design.md`). Only L1 rules carry `phase` — per
-MoE-2-ruleset.md §6, "Same 40 rules" populate the design walk, never a kind/stack specialisation.
+`walk-review.md`, `phase` places it in `walk-design.md`). Only L1 rules carry `phase` — the
+design walk is populated from `universal.md`'s L1 rules only, never a kind/stack specialisation.
 `parent`/`invariant` are single ids, or — rarely, on a stack rule that specialises two L1/L2
 rules at once — a comma-separated list; every named id is checked individually. A key may also
 join two or three of `design`/`review`/`check` with a slash (`- *design/review/check:* ...`,
 `stack-terraform.md`'s "already stated in full elsewhere, cited not restated" shorthand) — the
 one value is applied to every named field. L0 principles (`T0-nn`, no group segment) carry only
-`title` and, optionally, `cites` — MoE-2-ruleset.md §1.4 is explicit that a principle is
-invariant-style, not rule-style, and has no `check`. They are parsed into rules.json for lookup
+`title` and, optionally, `cites` — a principle is invariant-style, not rule-style, and has no
+`check`. They are parsed into rules.json for lookup
 but never placed in a walk. An unrecognised key, or a `*meta:*` value that is not the integer it
 claims to be, is a `--check` violation (`[UNKNOWN-FIELD]` / `[BAD-META]`, F8) rather than a
 silent drop.
 
 This script emits three committed artefacts, in `references/` unless noted:
   - `../rules.json`     — one record per rule: id, layer, group, title, severity, evidence,
-                          flag, parent, absorbs[], archetypes[], pass, order, phase, file, line.
-                          No prose, ever — the moment a rationale is written into it, it is a
-                          second source of truth and must be deleted (MoE-2-ruleset.md §3.3).
+                          flag, parent, absorbs[], archetypes[], pass, order, phase, retired,
+                          file, line. `retired` carries the tombstone date/reason verbatim (or
+                          `null` for a live rule) so a consumer can tell the two apart without
+                          parsing `title` — no prose beyond that one field, ever: the moment a
+                          rationale is written into it, it is a second source of truth and must
+                          be deleted (`governance.md` "`rules.json` — the one condition it
+                          exists under").
   - `walk-review.md`    — passes 0-8, rules ordered by (pass, order); a rule whose `parent:`
                           shares its parent's pass renders indented under it.
   - `walk-design.md`    — steps 1-8 from `phase:`, omitting `phase: review-only`.
@@ -61,14 +66,18 @@ additionally fails on:
   9. a rule missing a field its layer requires, or carrying an unrecognised key — F8:
      `[MISSING-FIELD]` / `[UNKNOWN-FIELD]`. L0 needs only id/title; L1 needs severity, evidence,
      flag, check, pass, order; L2/L3 need severity, evidence, flag, check, parent.
+  10. a `check:` that is blank, or collapsed to one of `flag:`'s own words (`argued`, `auto`,
+      `auto-unless-listed`) with no falsifier attached — `[EMPTY-CHECK]` (F5). The one legal
+      flag-shaped value, `retired — not applicable.`, is allowed only on a rule that itself
+      carries `retired:`.
   and on a parsed-rule count of zero (an index built from a moved/renamed directory must not
-  report a clean, empty pass — MoE-2-ruleset.md §3.3, "prove the checker fails").
+  report a clean, empty pass — see invariant `prove-the-check-fails`).
 
 Absorbs id grammar (class 4), derived from `grep -ho 'absorbs:.*' references/*.md` over the real
 tree, not invented: `P[1-8]`; `U-[A-Z]{3}-nn`; `K-[A-Z]{3,4}-nn`; `N-[A-Z]{2,4}-nn`;
 `F-[A-Z0-9]{3,4}-nn` (the digit-tolerant form covers `F-E2E-nn` — a source-lane id predating
 this ruleset's own digit-free `kind-end-to-end.md`/`T2-ETE-*` renaming, kept verbatim as
-history); an L2-sources short id `[URPTBDS]<1-2 digits>`, optionally prefixed literal `L2 `; or
+history); a legacy short id (`[URPTBDS]<1-2 digits>`, optionally prefixed literal `L2 `); or
 an id already known to the parsed set (a `T…` rule id). Matched at the *start* of the token —
 trailing prose the source lanes attached (`F-E2E-05's general form`, `N-MUT-02 parent`) is
 tolerated, not required to be absent.
@@ -151,8 +160,8 @@ _REQUIRED_DISPLAY = {"pass_": "pass"}
 
 @dataclass
 class Rule:
-    """One parsed rule record. `pass_`/`order`/`phase` are the SYNTHESIS.md ruling-C fields
-    that place the rule in a generated walk; they are absent (None) for L0 principles."""
+    """One parsed rule record. `pass_`/`order`/`phase` place the rule in a generated walk
+    (`walk-review.md`/`walk-design.md`); they are absent (None) for L0 principles."""
 
     id: str
     title: str
@@ -520,6 +529,36 @@ def check_filenames(root: Path) -> List[str]:
     return out
 
 
+# F5 part (1): a `check:` collapsed to a bare flag word carries no runnable falsifier — the
+# word belongs in `flag:`, not in `check:`. The one legal flag-shaped value is the retired
+# tombstone's own placeholder, and only on a rule that actually carries `retired:`.
+_CHECK_FLAG_WORDS = {"argued", "auto", "auto-unless-listed"}
+_RETIRED_CHECK_PLACEHOLDER = "retired — not applicable."
+
+
+def check_empty_check(rules: List[Rule]) -> List[str]:
+    """F5: `[EMPTY-CHECK]` — `check:` is blank, or reduced to one of `flag:`'s own words with no
+    falsifier attached. L0 principles carry no `check:` by design and are skipped; a genuinely
+    missing `check:` on L1-L3 is also `[MISSING-FIELD]`, deliberately — the two classes name
+    different defects (absent vs. present-but-useless)."""
+    out = []
+    for r in rules:
+        if r.layer == "0":
+            continue
+        check = (r.check or "").strip()
+        if not check:
+            out.append(f"[EMPTY-CHECK] {r.id} check: is blank — no runnable falsifier")
+            continue
+        if check == _RETIRED_CHECK_PLACEHOLDER:
+            if r.is_retired:
+                continue
+            out.append(f"[EMPTY-CHECK] {r.id} check: {check!r} but the rule carries no retired:")
+            continue
+        if check.rstrip(".") in _CHECK_FLAG_WORDS:
+            out.append(f"[EMPTY-CHECK] {r.id} check: {check!r} is a flag word, not a falsifier")
+    return out
+
+
 def check_zero_rules(rules: List[Rule]) -> List[str]:
     if not rules:
         return ["[ZERO-RULES] parsed 0 rules — check the references/ directory path and file names"]
@@ -580,6 +619,7 @@ def run_structural_checks(root: Path, rules: List[Rule],
     out += check_filenames(root)
     out += check_bad_archetypes(root, rules)
     out += check_missing_fields(rules)
+    out += check_empty_check(rules)
     return out
 
 
@@ -599,7 +639,8 @@ def _invert_archetypes(archetype_map: Dict[str, List[str]], known_ids: set) -> D
 
 
 def build_index(rules: List[Rule], archetype_map: Optional[Dict[str, List[str]]] = None) -> list:
-    """rules.json content: structural fields only, no prose (MoE-2-ruleset.md §3.3)."""
+    """rules.json content: structural fields only, no prose (`governance.md` "`rules.json` —
+    the one condition it exists under")."""
     known_ids = {r.id for r in rules}
     rule_archetypes = _invert_archetypes(archetype_map or {}, known_ids)
     out = []
@@ -618,6 +659,7 @@ def build_index(rules: List[Rule], archetype_map: Optional[Dict[str, List[str]]]
             "pass": r.pass_,
             "order": r.order,
             "phase": r.phase,
+            "retired": r.retired,
             "file": r.file,
             "line": r.line,
         })
