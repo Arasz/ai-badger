@@ -1,10 +1,11 @@
 ---
 name: review-tests
 description: >-
-  Use when tests that already exist have to be reviewed against the ruleset and turned into an
-  improvement plan — "are these tests any good", "review the tests in this PR", a coverage number
-  nobody trusts, a gate nobody has watched fail, or a test file a reviewer flagged. Takes a
-  directory, a file list, a diff, or "the tests for X". Not for writing new tests (design-tests).
+  Use when tests that already exist have to be judged rather than written — "are these tests any
+  good", "review the tests in this PR", "why did the suite stay green while that shipped", a
+  coverage number nobody trusts, a gate nobody has watched fail, a lane that flakes, or a test
+  file a reviewer flagged. Takes a directory, a file list, a diff, or "the tests for X"; refuses
+  to run with no target. Returns findings, not edits.
 version: 1.0.0
 author: ai-badger
 license: MIT
@@ -12,8 +13,8 @@ platforms: [linux, macos, windows]
 scope: default
 metadata:
   hermes:
-    tags: [testing, test-quality, review, mutation]
-    related_skills: [design-tests]
+    tags: [testing, test-quality, review, mutation, flakiness]
+    related_skills: [design-tests, code-review-checklist, review-changes, task]
 ---
 
 > **This is the generic copy.** If this project has been scaffolded, prefer the unprefixed

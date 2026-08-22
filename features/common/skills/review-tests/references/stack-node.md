@@ -14,7 +14,7 @@ access) — cited here rather than restated as a test rule.
 
 ## How to contribute a rule
 
-Read `governance.md` §9.1 before adding anything: a stack rule needs a `parent:`
+Read `governance.md` §"Adding a rule" before adding anything: a stack rule needs a `parent:`
 L1/L2 id, a real proven failure (a repro, an incident, or an authoritative
 source read directly — not a vendor-blog paraphrase), and a falsifying `check:`.
 An empty stack file is better than an invented one.

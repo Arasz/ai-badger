@@ -16,10 +16,10 @@ cited here rather than restated as a test rule.
 - *design:* verify the binding's key exists in the **host's** configuration surface (`local.settings.json` / app settings), not the worker process's own config.
 - *review:* a test asserting the binding fires proves nothing if the binding itself never resolved — check for silent disablement, not just absence of error.
 - *check:* trigger the function through the real host config path at least once; a worker-config-only test cannot catch this.
-- **severity:** minor (see note above on the stub severity cap) · **evidence:** strong
+- **severity:** minor (see note above on the stub severity cap) · **evidence:** strong · **flag:** argued
 - *parent:* `T1-CST-05` · *cites:* `evidence.md` (functions-binding-expression-config)
 
 ## How to contribute a rule
 
-Read `governance.md` §9.1 before adding anything: a stack rule needs a `parent:`
+Read `governance.md` §"Adding a rule" before adding anything: a stack rule needs a `parent:`
 L1/L2 id, a real proven failure, and a falsifying `check:`.

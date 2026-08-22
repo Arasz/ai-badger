@@ -15,7 +15,7 @@
 ## Step 3
 
 - **T1-ORC-02** — The expected value is derived independently of the code under test. (severity: blocker, flag: argued)
-- **T1-ORC-03** — Assert the tightest predicate the contract allows: no slack a plausible regression fits through, and an exact count wherever the count is the contract. (severity: major; **blocker** where the loose bound guards a safety or privacy property, flag: argued)
+- **T1-ORC-03** — Assert the tightest predicate the contract allows: no slack a plausible regression fits through, and an exact count wherever the count is the contract. (severity: blocker, flag: argued)
 - **T1-ORC-04** — A negative or absence assertion is paired with a positive that proves the code ran. (severity: blocker, flag: auto)
 - **T1-ORC-05** — Exception assertions name the exact type and the discriminating detail; every narrowed production catch filter gets a negative test. (severity: major, flag: auto)
 - **T1-SCO-07** — Assert at least one secondary observable: a neighbouring field, an emitted event, a counter, related state. (severity: major, flag: argued)
@@ -24,8 +24,8 @@
 
 - **T1-CST-05** — The runner must be able to observe the property asserted. (severity: blocker, flag: auto)
 - **T1-ISO-01** — Never assert on wall-clock time: no millisecond budget, no p95, no ratio of one duration to another. A real budget lives in a dedicated lane, excluded from the default run. (severity: blocker, flag: auto)
-- **T1-ISO-02** — Never sleep to synchronise. Poll a condition with a timeout, gate on a latch the test controls, or sync on a signal the system itself emits. (severity: blocker (unit/integration/e2e); major (documented external rate limit), flag: auto-unless-listed)
-- **T1-ISO-03** — Non-determinism enters through an injected, pinned source: an injected clock for time, a seeded generator for randomness — and the instant and the seed are printed on failure. (severity: major; **blocker** where the ambient read is inside the assertion's path, flag: auto)
+- **T1-ISO-02** — Never sleep to synchronise. Poll a condition with a timeout, gate on a latch the test controls, or sync on a signal the system itself emits. (severity: blocker, flag: auto-unless-listed)
+- **T1-ISO-03** — Non-determinism enters through an injected, pinned source: an injected clock for time, a seeded generator for randomness — and the instant and the seed are printed on failure. (severity: blocker, flag: auto)
 - **T1-ISO-04** — Culture, timezone and locale are pinned wherever the test parses, formats, sorts or compares text, dates or money — and at least one case runs under a non-default one. (severity: major, flag: auto)
 - **T1-ISO-05** — Tests pass in any order and alone. No shared mutable state without an unconditional reset; a test that cannot be parallel-safe is explicitly serialized and the reason is recorded at the serialization point. (severity: blocker, flag: auto)
 - **T1-ISO-06** — Every shared external resource is namespaced per run or per worker and destroyed on teardown: port, path, database, container, volume, queue, task hub, orchestration instance. (severity: blocker, flag: auto)
@@ -44,7 +44,7 @@
 - **T1-ORC-01** — Every test asserts something that can distinguish right from wrong. (severity: blocker, flag: auto)
 - **T1-ORC-07** — The asserted observable must have been produced by the act. (severity: blocker, flag: argued)
 - **T1-STR-02** — No degenerate fixture: the parameter under test is at a value where the mechanism can be observed at all. (severity: blocker, flag: argued)
-- **T1-SCO-02** — The test's name is a claim; the body proves every half of it. (severity: blocker when the name asserts the opposite of the truth; major when a claimed half is unasserted; minor when merely vague, flag: argued)
+- **T1-SCO-02** — The test's name is a claim; the body proves every half of it. (severity: blocker, flag: argued)
 - **T1-SCO-06** — Every rule, filter, allowlist or predicate has at least one test driving the real production input-building path. (severity: blocker, flag: argued)
 - **T1-STR-01** — One act, visibly separated arrange/act/assert, no control flow in the body except idiomatic parametrization, and the varied input readable at the call site. (severity: minor, flag: auto-unless-listed)
 

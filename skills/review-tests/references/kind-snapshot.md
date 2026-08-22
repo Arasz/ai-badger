@@ -8,7 +8,7 @@ technique inside the artifacts it can legitimately speak for (per ruling C7 — 
 **`T2-SNAP-01` — A snapshot is a change detector by construction; use it only where the whole shape is the contract.**
 - *design:* reach for a snapshot when the artifact itself is the deliverable — a serialized API response, a generated file, a rendered document — never as a stand-in for a business-logic assertion.
 - *review:* the snapshot cannot say which part of a diff mattered; standing in for business-logic assertions is the misuse.
-- *check:* argued.
+- *check:* does the snapshot stand in for a business-logic assertion — no separate, explicit assertion on the specific facts a reviewer cares about anywhere in the test? Evidence: read the test — a snapshot with zero companion assertions on business-meaningful fields is the violation.
 - **severity:** major · **evidence:** strong · **flag:** argued · **parent:** `T1-SCO-01`
 - *cites:* Google TotT *Change-Detector Tests*; ruling C7.
 - *meta:* pass=3 order=14
@@ -16,7 +16,7 @@ technique inside the artifacts it can legitimately speak for (per ruling C7 — 
 **`T2-SNAP-02` — Pair every snapshot with explicit assertions on the business facts that matter.**
 - *design:* write the specific assertion first, add the snapshot alongside it — never instead of it.
 - *review:* the snapshot then catches unanticipated structural change while the explicit assertions carry the meaning, and a reviewer can tell which failure is which.
-- *check:* argued.
+- *check:* does at least one explicit, non-snapshot assertion exist alongside the snapshot, naming a specific business fact? Evidence: read the test body — a snapshot with no companion `Should`/`Assert` on a named field is the violation.
 - **severity:** major · **evidence:** strong · **flag:** argued · **parent:** `T1-SCO-01`
 - *meta:* pass=3 order=14
 
@@ -37,7 +37,7 @@ technique inside the artifacts it can legitimately speak for (per ruling C7 — 
 **`T2-SNAP-05` — Keep snapshots small enough to read; a growing snapshot count is a quality metric in its own right.**
 - *design:* prefer several small, targeted snapshots over one sprawling one.
 - *review:* a snapshot too large to read at review time has already stopped doing its job.
-- *check:* argued.
+- *check:* is a `.verified` file too long for a reviewer to read the whole diff at PR time? Evidence: the line count of the changed `.verified` file — a large, sprawling snapshot with no smaller targeted alternative is the violation; there is no fixed threshold, only whether a reviewer can actually read it.
 - *rationale:* weak evidence — practice consensus, no first-party or measured citation; caps at `major`.
 - **severity:** minor · **evidence:** weak · **flag:** argued · **parent:** `T1-STR-01`
 - *meta:* pass=7 order=28

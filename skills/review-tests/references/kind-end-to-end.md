@@ -21,7 +21,7 @@ report for the full reasoning and the cross-lane fix this implies for `archetype
 **`T2-ETE-02` — No duration-based wait, and no network-quiet signal, as a readiness check.**
 - *design:* wait on a locator or a response, never on a fixed duration or on the network going idle.
 - *review:* a duration wait is a wall-clock assertion in disguise; a network-quiet signal is unreliable with polling, websockets, or a refetching client.
-- *check:* auto.
+- *check:* `grep -rn 'waitForTimeout\|networkidle' <e2e dir>` — any hit is the violation; the fix is a locator- or response-based wait.
 - **severity:** major · **evidence:** strong · **flag:** auto · **parent:** `T1-ISO-02`
 - *meta:* pass=2 order=11
 
@@ -35,7 +35,7 @@ report for the full reasoning and the cross-lane fix this implies for `archetype
 **`T2-ETE-04` — Each spec is fully isolated: its own context, its own stubs, no ordering dependency.**
 - *design:* give every spec a fresh browser context and its own stub setup; never mutate shared logged-in state across specs.
 - *review:* run shuffled and with each spec repeated — a spec that only passes after another one ran is this kind's instance of `T1-ISO-05`.
-- *check:* auto-unless-listed.
+- *check:* run the suite shuffled and with each spec repeated in isolation — does any spec fail alone, or pass only after another one ran first? Evidence: the shuffled/isolated re-run's pass/fail delta against the normal run.
 - **severity:** major · **evidence:** strong · **flag:** auto-unless-listed · **parent:** `T1-ISO-05`
 - *meta:* pass=2 order=11
 
@@ -49,7 +49,7 @@ report for the full reasoning and the cross-lane fix this implies for `archetype
 **`T2-ETE-06` — Trace on first retry; retries are bounded and are not a flake-hiding device.**
 - *design:* configure a trace capture on the first retry, cap retries at one or two, and file a defect for any spec that only passes on retry.
 - *review:* retry is a diagnostic (a trace on first retry); quarantine with an expiry is the disposition — retries never substitute for it (ruling C18).
-- *check:* auto-unless-listed.
+- *check:* does the runner config cap `retries` at 1–2 and set a first-retry trace capture? Evidence: `grep -n 'retries\|trace' <playwright config>` — no cap, or no first-retry trace, is the violation; a spec passing only under retry with no filed defect id is the same finding.
 - **severity:** major · **evidence:** strong · **flag:** auto-unless-listed · **parent:** `T1-ISO-08`
 - *cites:* ruling C18.
 - *meta:* pass=2 order=12

@@ -1,13 +1,13 @@
 # L1 — Universal (40)
 
 The always-loaded review/design spine. Stack- and kind-independent — every project that installs
-`review-tests` or `design-tests` loads this file on every invocation. Transcribed from
-`docs/work/2026-08-22-qa-testing-skills-synthesis.md` §0/§1 and its `MoE-2-ruleset.md` §2.2.
+`review-tests` or `design-tests` loads this file on every invocation. Distilled from this
+ruleset's own research; see `governance.md` (the rule-adding bar) and `evidence.md` (the failures behind each `evidence: strong` rule).
 
 **Id scheme.** `T<layer>-<GROUP>-<nn>`. Groups: `SCO` scope & intent · `ORC` oracles & assertions ·
 `ISO` isolation & determinism · `DBL` doubles · `STR` structure · `CST` cost, placement &
 visibility · `PRF` proof. Numbers are allocated once and never reused or renumbered; retirement
-leaves a tombstone (`governance.md` §retiring).
+leaves a tombstone (`governance.md` §"Retiring a rule").
 
 **Field key.** `design:` what to do when writing · `review:` what to look for · `check:` the
 falsifier · `flag:` `auto` (a command decides, report it) / `auto-unless-listed` (a command
@@ -23,7 +23,7 @@ governance rule with no design action — see `governance.md`).
 **`T1-SCO-01` — Name the one-line production edit that reddens this test; if the only edit you can name is an intentional decision, it is a change detector, not a test.**
 - *design:* before writing the body, name the edit. Cannot → you are writing decoration.
 - *review:* per assertion, name the edit. `expect(MAX_RETRIES).toBe(5)` fails this: the only edit is a decision.
-- *check:* argued, with a grep prior — assertions whose expected side references the same constant, resource, or literal production reads. Worst-case shape proven in jsaa: asserting the prompt string *contains* `"NEVER invent"`, a guard against deleting the instruction, not against disobeying it.
+- *check:* argued, with a grep prior — assertions whose expected side references the same constant, resource, or literal production reads. Worst-case shape: asserting a prompt string *contains* an instruction like `"NEVER invent"`, which guards against deleting the instruction, not against disobeying it.
 - **severity:** blocker · **evidence:** strong · **flag:** argued
 - *absorbs:* `U-SCO-01`, `U-SCO-05`, `U-ASR-08`, L2 `U4`
 - *cites:* invariant `prove-the-check-fails`; TotT *Change-Detector Tests Considered Harmful*; `evidence.md` (cv-truthfulness-gate-design)
@@ -63,7 +63,7 @@ governance rule with no design action — see `governance.md`).
 **`T1-SCO-06` — Every rule, filter, allowlist or predicate has at least one test driving the real production input-building path.**
 - *design:* one test constructs the input the way production does — not by hand.
 - *review:* grep production for the rule type's construction sites; if every test builds inputs by hand, the wiring is untested. Mutation-check by *unwiring the input*, not by breaking the rule.
-- *check:* auto-unless-listed.
+- *check:* auto-unless-listed — grep production for the rule/predicate type's construction sites; for the rule under review, does at least one test call that exact construction path rather than `new RuleType(...)`/a hand-built instance? A rule type never constructed outside test code is the exception this flag allows.
 - **severity:** blocker · **evidence:** strong · **flag:** argued
 - *absorbs:* `U-SCO-07`
 - *cites:* `evidence.md` (check-the-inputs-not-just-the-rule) — `AtsDomainRule` admitted **0 of 22** real messages; `BlockedSenderRule`'s input collection was populated by nothing, anywhere
@@ -71,7 +71,7 @@ governance rule with no design action — see `governance.md`).
 **`T1-SCO-07` — Assert at least one secondary observable: a neighbouring field, an emitted event, a counter, related state.**
 - *design:* a function can return the right thing and still be wrong. Widen the behaviour radius by one.
 - *review:* count assertions touching something other than the return value; near-zero across a suite means shallow regardless of coverage.
-- *check:* argued.
+- *check:* per test, does at least one assertion touch something other than the primary return value — a neighbouring field, an emitted event, a counter? Evidence: count non-return-value assertions across the suite; a suite near zero is the violation regardless of its coverage percentage.
 - **severity:** major · **evidence:** strong · **flag:** argued
 - *absorbs:* `U-SCO-09`
 - *cites:* ai-badger `personas/test-engineer.md`
@@ -101,7 +101,7 @@ governance rule with no design action — see `governance.md`).
 - *check:* auto-unless-listed — `ShouldBeGreaterThan|toBeGreaterThan|<|>` in assertions, plus `toHaveBeenCalled()`/`Received()` with no count.
 - **severity:** major; **blocker** where the loose bound guards a safety or privacy property · **evidence:** strong · **flag:** argued
 - *absorbs:* `U-ASR-05`, `U-ASR-10` (count clause), `U-PRF-09`, `F-INT-09`, L2 `T7`
-- *cites:* jsaa test-quality findings §2 — every `CheapClassifier` confidence pinned at `>0.8` against a documented 0.90 invariant; `Long_excerpt_is_truncated_for_data_minimization` asserts `Length < 5000` against a 2000-char limit, admitting a 2.45× increase in PII shipped to a third party
+- *cites:* `evidence.md` (loose-assertion-bound-admits-regression)
 - *meta:* pass=4 order=17 phase=3
 **`T1-ORC-04` — A negative or absence assertion is paired with a positive that proves the code ran.**
 - *design:* "correctly shared nothing" and "did nothing at all" must produce different results.
@@ -117,7 +117,7 @@ governance rule with no design action — see `governance.md`).
 - *check:* auto — `Throws<Exception>|raises(Exception)|toThrow(Error)` with no matcher; `Assert.Fail(` inside a catch.
 - **severity:** major · **evidence:** strong · **flag:** auto
 - *absorbs:* `U-ASR-07`
-- *cites:* jsaa test-quality findings §2 — the "no Gmail connection" filter could be broadened to a bare `catch (InvalidOperationException)`, swallowing every genuine ingest bug, with the suite green; `code-review-checklist` Phase 3.1 (no assert-in-catch)
+- *cites:* `evidence.md` (broad-catch-swallows-real-bugs); `code-review-checklist` Phase 3.1 (no assert-in-catch)
 - *meta:* pass=4 order=19 phase=3
 **`T1-ORC-06` — Prove the arrange actually reaches the branch under test.**
 - *design:* assert the precondition that makes the competing branches inapplicable, or delete the branch and watch the test redden.
@@ -125,7 +125,7 @@ governance rule with no design action — see `governance.md`).
 - *check:* argued, verified by deletion (delete the branch, re-run the named test).
 - **severity:** blocker · **evidence:** strong · **flag:** argued
 - *absorbs:* `U-ASR-11`
-- *cites:* jsaa test-quality findings §1–§2 — four proven instances: a precedence test whose body said `"extending an offer"` against a `"extend an offer"` competitor (the ordering it claimed to test was never exercised); a recipient-alias test that also set a byte-identical sender, so `MatchByRecipientAlias` could be deleted; a gate-5 test that tripped gate 3 first; a cross-user isolation test whose transport ignored `userId`
+- *cites:* `evidence.md` (arrange-does-not-reach-branch-under-test)
 - *meta:* pass=1 order=6 phase=7
 **`T1-ORC-07` — The asserted observable must have been produced by the act.**
 - *design:* wait on, and assert, a value only the awaited work can produce — a sibling field, a changed label, a captured request body.
@@ -208,7 +208,7 @@ governance rule with no design action — see `governance.md`).
 - *check:* the diagnosis record names the failing fraction, the raised-timeout re-run, and the baseline commit.
 - **severity:** major · **evidence:** strong · **flag:** argued
 - *absorbs:* `U-ISO-11`, `U-ISO-12`, `F-ENV-07`
-- *cites:* `evidence.md` (load-vs-broken-build) — misdiagnosed twice in opposite directions in one jsaa day, at a cost of hours
+- *cites:* `evidence.md` (load-vs-broken-build) — misdiagnosed twice in opposite directions in one day, at a cost of hours
 - *meta:* pass=0 order=2 phase=review-only
 ---
 
@@ -219,7 +219,7 @@ governance rule with no design action — see `governance.md`).
 - *check:* auto — for each port interface, grep for a shared abstract contract suite; assert the meta-test exists.
 - **severity:** blocker · **evidence:** strong · **flag:** auto
 - *absorbs:* `U-DBL-04`, `K-CTR-03`, `K-CTR-04`, `F-NET-05`, L2 `U18`
-- *cites:* jsaa test-quality findings §3 — the in-memory repo applied `filter.Since` and ordered `ReceivedAt` **desc**; Cosmos silently dropped the filter and ordered `CreatedAt` **asc**. `ListSignals_filters_by_since` and `ListSignals_orders_by_received_at_desc` were both green against a fake that contradicts production. jsaa's `RepositoryContractCoverageTests` is the shape to copy.
+- *cites:* `evidence.md` (fake-contradicts-production-backend)
 - *meta:* pass=1 order=10 phase=5
 **`T1-DBL-02` — A double's behaviour is a claim about production: it honours every parameter the real thing honours, is concurrency-safe when the SUT fans out, and is never degenerate.**
 - *design:* a fake with real behaviour (tenancy, optimistic concurrency, dedupe indexing) catches handler bugs a stub cannot. Promote duplicated stubs into one shared chassis.
@@ -227,7 +227,7 @@ governance rule with no design action — see `governance.md`).
 - *check:* auto-unless-listed — diff each fake method's parameter list against the parameters it actually reads; check collections used under `Task.Run`/`Parallel.*`/`Promise.all` are lock-guarded or concurrent types.
 - **severity:** blocker · **evidence:** strong · **flag:** argued
 - *absorbs:* `U-DBL-05`, `U-ISO-09`, `U-DBL-07`, `U-ASR-10`'s fake-artifact clause
-- *cites:* jsaa test-quality findings §1 — `Same_user_isolation_between_users` passes because it queries a *different* user, not because the signal carries the right one; `FakeGmailTransport.FetchMessagesSinceAsync` ignores `userId` entirely, so hardcoding `UserId = "user-1"` in production leaves it green. Class A of `dotnet-flaky-test-diagnosis`.
+- *cites:* `evidence.md` (double-ignores-parameter); Class A of `dotnet-flaky-test-diagnosis`
 - *meta:* pass=5 order=20 phase=5
 **`T1-DBL-03` — Stub at a boundary you own, at the lowest level that removes the cost, and never in the pure-domain layer.**
 - *design:* wrap the third-party type and fake the wrapper; stub at the network/transport boundary, not at your own API module. Name what each double removes — time, network, cost, nondeterminism. "It was easier" is not an answer.
@@ -235,7 +235,7 @@ governance rule with no design action — see `governance.md`).
 - *check:* auto — mock constructions naming external namespaces/packages; `vi.mock("@/api/...")` / `stubGlobal("fetch")`; mocking-library imports under the domain test tree.
 - **severity:** major · **evidence:** strong · **flag:** auto
 - *absorbs:* `U-DBL-01`, `U-DBL-03`, `U-DBL-08`, `F-NET-01`
-- *cites:* TotT *Don't Mock Types You Don't Own*; GOOS; invariant `clean-architecture-layering`; MSW best practices. jsaa's Domain has zero mocking and 84.7% line coverage.
+- *cites:* TotT *Don't Mock Types You Don't Own*; GOOS; invariant `clean-architecture-layering`; MSW best practices.
 - *meta:* pass=5 order=21 phase=5
 **`T1-DBL-04` — A mock earns an assertion only when the call is itself the observable contract; never assert call sequences or counts as a proxy for an outcome.**
 - *design:* outbound side effects that *are* the contract (an email sent, a message published, a payment charged, an audit record written) are legitimately asserted on the double — there is no other observable. Inbound/incidental calls (`SaveChangesAsync`, a repository read) are asserted as state.
@@ -262,7 +262,7 @@ governance rule with no design action — see `governance.md`).
 - *check:* argued — per test, is the parameter under test observable at this value? Then read the builder's defaults.
 - **severity:** blocker · **evidence:** strong · **flag:** argued
 - *absorbs:* `U-STR-07`, `U-STR-08`
-- *cites:* jsaa test-quality findings §4 — `Diff_matches_positions_by_company_and_title` uses one position per side, so duplicate-company handling is untested; every `ProfileProjector` case uses a fully populated fixture, so empty-template is untested
+- *cites:* `evidence.md` (degenerate-fixture-hides-untested-path)
 - *meta:* pass=1 order=8 phase=6
 **`T1-STR-03` — A skipped test carries a reason, a tracking id and a re-enable condition; its code is unverified until it runs.**
 - *design:* re-enabling is a required step of the change that lifts the block, not a follow-up.
@@ -286,7 +286,7 @@ governance rule with no design action — see `governance.md`).
 **`T1-CST-02` — Every test names the defect it catches that no cheaper and no existing test catches.**
 - *design:* push each test to the cheapest level that can observe its defect, and add exactly one level above for wiring. Write the integration test first to pin the behaviour end to end, then push the branch coverage down.
 - *review:* three shapes — (a) the answer is "the library author's bug" (delete or relabel as a named characterization test); (b) the answer duplicates a cheaper test (two tests that always redden together are one test); (c) an expensive test asserting what the fake already asserted has bought a container for nothing.
-- *check:* argued.
+- *check:* for the test under review, name the defect it alone catches. Evidence: delete the test — does any other test in the suite redden? If not, or if the only failure it could catch is a third-party library's own bug, it is the violation.
 - **severity:** minor · **evidence:** strong · **flag:** argued
 - *absorbs:* `U-SCO-04`, `U-CST-02`, `U-CST-06`, `K-INT-03`, `F-E2E-07`, L2 `R8`
 - *cites:* Vocke *Practical Test Pyramid*; ruling C1
@@ -353,8 +353,8 @@ governance rule with no design action — see `governance.md`).
 **`T1-PRF-04` — A gate whose failure blocks nothing is documentation; say so or wire it in.**
 - *design:* name, before building it, what a failure of this gate stops.
 - *review:* trace whether a failure fails a build, a merge, or nothing. Advisory output counts as documentation, not as a guarantee.
-- *check:* argued.
+- *check:* does this gate's non-zero exit appear in a CI job, pre-commit hook, or branch-protection required check — anywhere its failure actually blocks a build or merge? Evidence: `grep -rn '<gate command>' .github/workflows/ .pre-commit-config.yaml` — no hit means the gate is documentation, not a guarantee.
 - **severity:** major · **evidence:** strong · **flag:** argued
 - *absorbs:* `U-PRF-07`
-- *cites:* invariant `proof-of-done`; `evidence.md` (cv-truthfulness-gate-design) — jsaa declined to fold a truthfulness checker into a `QualityReport` whose own prompt calls it "advisory — it never blocks anything"
+- *cites:* invariant `proof-of-done`; `evidence.md` (cv-truthfulness-gate-design) — a truthfulness checker was left out of a quality report whose own prompt calls it "advisory — it never blocks anything"
 - *meta:* pass=8 order=32 phase=7

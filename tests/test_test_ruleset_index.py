@@ -6,6 +6,7 @@ checkout; see conftest._test_write). "Red" tests plant one defect, assert --chec
 names it, then assert the unmodified copy is clean — the pairing IS the red-proof
 (prove-the-check-fails): a check that has only ever passed is not a check.
 """
+# pylint: disable=redefined-outer-name  # pytest fixtures are injected by name
 from __future__ import annotations
 
 import json
@@ -16,6 +17,7 @@ import pytest
 
 SCRIPT = "features/common/skills/review-tests/scripts/rules_index.py"
 FIXTURE = "tests/fixtures/test_ruleset_min"
+REAL_SKILL_ROOT = "features/common/skills/review-tests"
 
 
 @pytest.fixture
@@ -27,6 +29,24 @@ def _copy_fixture(root: Path, tmp_path: Path, name: str = "min") -> Path:
     dest = tmp_path / name
     shutil.copytree(root / FIXTURE, dest)
     return dest
+
+
+def _copy_real_repo(root: Path, tmp_path: Path, name: str = "real-repo") -> Path:
+    """A writable copy of the whole repo root, not just the skill directory: `cites:` on real
+    rules names files outside `review-tests/` (`.ai-badger/invariants/*.md`, personas,
+    `*.instructions.md`) and `_repo_anchor`/`_citation_exists` need that ancestry to resolve
+    them — a skill-dir-only copy reports every one of those as spurious `[BAD-CITES]`."""
+    dest = tmp_path / name
+    shutil.copytree(root, dest,
+                     ignore=shutil.ignore_patterns(".venv", ".git", "__pycache__", "*.pyc",
+                                                    ".pytest_cache"))
+    return dest
+
+
+def _real_skill_copy(root: Path, tmp_path: Path, name: str = "real-repo") -> Path:
+    """The review-tests skill directory inside a `_copy_real_repo` copy — safe to run the
+    (writing) no-flag mode against, unlike the live worktree."""
+    return _copy_real_repo(root, tmp_path, name) / REAL_SKILL_ROOT
 
 
 def _run(rules_index, fixture_root: Path, *extra: str) -> int:
@@ -80,20 +100,32 @@ def test_walks_open_with_the_generated_banner(rules_index, root, tmp_path):
         assert text.startswith(banner)
 
 
-def test_rules_json_carries_no_prose(rules_index, root, tmp_path):
-    """AC5: no value in rules.json exceeds 200 characters — the no-prose guard."""
-    fixture = _copy_fixture(root, tmp_path)
+def _skill_root(which: str, root: Path, tmp_path: Path) -> Path:
+    return _copy_fixture(root, tmp_path) if which == "fixture" else _real_skill_copy(root, tmp_path)
+
+
+@pytest.mark.parametrize("which", ["fixture", "real"])
+def test_rules_json_carries_no_prose(rules_index, root, tmp_path, which):
+    """AC5/F9: no value in rules.json exceeds 200 characters — the no-prose guard. Checked
+    against both the synthetic fixture and the real shipped ruleset: fixture-only scope is what
+    let the real `T1-ISO-05.title` (206 chars) ship unnoticed. `title` alone gets a slightly
+    higher bound (220) — a deliberate, recorded exception (F9): shortening that title is
+    universal.md content, owned by a different lane in this wave, not this script."""
+    fixture = _skill_root(which, root, tmp_path)
     _run(rules_index, fixture)
     index = json.loads((fixture / "rules.json").read_text(encoding="utf-8"))
     for record in index:
         for key, value in record.items():
             text = json.dumps(value)
-            assert len(text) <= 200, f"{record['id']}.{key} is {len(text)} chars: {text!r}"
+            bound = 220 if key == "title" else 200
+            assert len(text) <= bound, f"{record['id']}.{key} is {len(text)} chars: {text!r}"
 
 
-def test_rules_json_excludes_design_review_check_bodies(rules_index, root, tmp_path):
-    """rules.json is structural only — design/review/check prose never lands in it."""
-    fixture = _copy_fixture(root, tmp_path)
+@pytest.mark.parametrize("which", ["fixture", "real"])
+def test_rules_json_excludes_design_review_check_bodies(rules_index, root, tmp_path, which):
+    """rules.json is structural only — design/review/check prose never lands in it. F9:
+    checked against the real ruleset too, not only the fixture."""
+    fixture = _skill_root(which, root, tmp_path)
     _run(rules_index, fixture)
     index = json.loads((fixture / "rules.json").read_text(encoding="utf-8"))
     for record in index:
@@ -143,6 +175,47 @@ def test_parent_and_absorbs_backticks_are_stripped(rules_index, root, tmp_path):
     assert by_id["T2-WID-01"]["parent"] == "T1-AAA-01"
     assert by_id["T2-WID-01"]["absorbs"] == ["K-WID-01"]
     assert by_id["T1-AAA-01"]["absorbs"] == ["U-ASR-01", "U-ASR-02"]
+
+
+def test_archetypes_field_is_populated_from_the_archetypes_table(rules_index, root, tmp_path):
+    """F2: `archetypes.md`'s table is the source of `rules.json`'s `archetypes[]` — the one
+    field the file's own stated consumer (the skill-bench harness) joins on. Before this fix
+    the field was `[]` on every rule, real tree included."""
+    fixture = _copy_fixture(root, tmp_path)
+    _run(rules_index, fixture)
+    index = json.loads((fixture / "rules.json").read_text(encoding="utf-8"))
+    by_id = {r["id"]: r for r in index}
+    assert by_id["T1-AAA-01"]["archetypes"] == ["A01"]
+    assert by_id["T2-WID-01"]["archetypes"] == ["A02"]
+    assert by_id["T1-AAA-02"]["archetypes"] == []  # named by no row — stays empty, not invented
+
+
+def test_bad_archetype_violation(rules_index, root, tmp_path, capsys):
+    """F2 red-proof: an archetypes.md row naming a rule id that does not resolve must fire
+    `[BAD-ARCHETYPE]` — this is the parse the real table's three dangling ids (`T2-ETE`,
+    `T2-TIME`, `T2-TIME-*`) were shipping past unnoticed before this fix."""
+    fixture = _copy_fixture(root, tmp_path, "badarchetype")
+    archetypes = fixture / "references" / "archetypes.md"
+    original = archetypes.read_text(encoding="utf-8")
+    archetypes.write_text(original.replace("`T1-AAA-01`", "`T1-A11Y-01`", 1), encoding="utf-8")
+
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 1
+    assert "[BAD-ARCHETYPE] A01 names T1-A11Y-01, which does not resolve" in out
+
+    archetypes.write_text(original, encoding="utf-8")
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0
+
+
+def test_bad_archetype_ignores_non_rule_invariant_tokens(rules_index, root, tmp_path, capsys):
+    """F2: a backtick token in the "Rule demanding the guard" column that is an `invariant`
+    reference (`invariant \\`bounded-retry-loops\\`` on the real A10 row), not a rule id, must
+    not be flagged — only tokens shaped like a `T…` rule id are checked."""
+    fixture = _copy_fixture(root, tmp_path, "archetypeinvariant")
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0
+    assert "BAD-ARCHETYPE" not in out
 
 
 # ---------------------------------------------------------------------------
@@ -231,7 +304,9 @@ def test_multi_id_parent_validates_every_named_id(rules_index, root, tmp_path, c
     assert rc == 0
 
 
-def test_absorbs_not_in_manifest_violation(rules_index, root, tmp_path, capsys):
+def test_absorbs_shape_violation(rules_index, root, tmp_path, capsys):
+    """F4: no hand-maintained manifest — an `absorbs:` id is valid only if it matches the
+    source-lane id grammar (derived from the real `absorbs:` lines) or a known rule id."""
     fixture = _copy_fixture(root, tmp_path, "badabsorbs")
     universal = fixture / "references" / "universal.md"
     original = universal.read_text(encoding="utf-8")
@@ -244,21 +319,38 @@ def test_absorbs_not_in_manifest_violation(rules_index, root, tmp_path, capsys):
     assert rc == 1
     assert "[BAD-ABSORBS] T1-AAA-01" in out
     assert "U-INVENTED-99" in out
+    assert "does not match the source-lane id grammar" in out
 
     universal.write_text(original, encoding="utf-8")
     rc, out = _run_captured(capsys, rules_index, fixture, "--check")
     assert rc == 0
 
 
-def test_absorbs_manifest_missing_entirely_is_also_a_violation(rules_index, root, tmp_path, capsys):
-    fixture = _copy_fixture(root, tmp_path, "nomanifest")
-    manifest = fixture / "lane-id-manifest.txt"
-    manifest.unlink()
+def test_absorbs_shape_tolerates_prose_annotated_forms(rules_index, root, tmp_path, capsys):
+    """F4: the real ruleset writes `absorbs:` entries like `F-E2E-05's general form` and
+    `L2 \\`U16\\` (a clause)` — a valid id at the token's start, with trailing prose the source
+    lanes attached. None of that is a violation; only the id prefix is checked."""
+    fixture = _copy_fixture(root, tmp_path, "proseabsorbs")
+    universal = fixture / "references" / "universal.md"
+    original = universal.read_text(encoding="utf-8")
+    universal.write_text(
+        original.replace(
+            "- *absorbs:* `U-ASR-01`, `U-ASR-02`\n",
+            "- *absorbs:* `U-ASR-01`, `U-ASR-02`, `F-E2E-05`'s general form, "
+            "L2 `U16` (a clause, with an inner comma), `P3`\n"),
+        encoding="utf-8")
 
+    # Regenerate first: the point here is the absence of [BAD-ABSORBS] (a structural check),
+    # not drift against the fixture's committed rules.json (a different, unrelated concern).
+    _run(rules_index, fixture)
     rc, out = _run_captured(capsys, rules_index, fixture, "--check")
-    assert rc == 1
-    assert "[BAD-ABSORBS]" in out
-    assert "lane-id-manifest.txt not found" in out
+    assert rc == 0, out
+    assert "BAD-ABSORBS" not in out
+
+    universal.write_text(original, encoding="utf-8")
+    _run(rules_index, fixture)
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0
 
 
 def test_dangling_cites_violation(rules_index, root, tmp_path, capsys):
@@ -298,6 +390,53 @@ def test_dangling_invariant_citation_violation(rules_index, root, tmp_path, caps
     assert rc == 0
 
 
+def test_cites_fallback_rejects_right_basename_wrong_path(rules_index, root, tmp_path, capsys):
+    """F14: the fallback used to match a `cites:` token by basename anywhere in the repo, so
+    `totally/wrong/path/README.md` passed as long as *some* README.md existed somewhere. Plant
+    a decoy README.md outside every bounded citation root and cite that bogus multi-segment
+    path sharing its basename — must now fail."""
+    fixture = _copy_fixture(root, tmp_path, "wrongpathcites")
+    decoy_dir = fixture / "some-unrelated-dir"
+    decoy_dir.mkdir()
+    (decoy_dir / "README.md").write_text("decoy — not a real citation target\n", encoding="utf-8")
+
+    universal = fixture / "references" / "universal.md"
+    original = universal.read_text(encoding="utf-8")
+    universal.write_text(
+        original.replace("- *cites:* `governance.md`\n",
+                          "- *cites:* `totally/wrong/path/README.md`\n", 1),
+        encoding="utf-8")
+
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 1
+    assert "[BAD-CITES] T1-AAA-01" in out
+    assert "totally/wrong/path/README.md" in out
+
+    universal.write_text(original, encoding="utf-8")
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0
+
+
+def test_cites_fallback_resolves_a_real_multi_segment_path_under_a_bounded_root(
+        rules_index, root, tmp_path, capsys):
+    """F14 positive case: narrowing the search to known roots does not remove it — a real
+    multi-segment citation under one of those roots (`docs/`) still resolves."""
+    fixture = _copy_fixture(root, tmp_path, "boundedcites")
+    docs_dir = fixture / "docs" / "adr"
+    docs_dir.mkdir(parents=True)
+    (docs_dir / "decision.md").write_text("# ADR\n", encoding="utf-8")
+
+    universal = fixture / "references" / "universal.md"
+    original = universal.read_text(encoding="utf-8")
+    universal.write_text(
+        original.replace("- *cites:* `governance.md`\n",
+                          "- *cites:* `adr/decision.md`\n", 1),
+        encoding="utf-8")
+
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0, out
+
+
 def test_weak_blocker_violation(rules_index, root, tmp_path, capsys):
     fixture = _copy_fixture(root, tmp_path, "weakblocker")
     universal = fixture / "references" / "universal.md"
@@ -335,6 +474,48 @@ def test_weak_auto_flag_violation(rules_index, root, tmp_path, capsys):
     universal.write_text(original, encoding="utf-8")
     rc, out = _run_captured(capsys, rules_index, fixture, "--check")
     assert rc == 0
+
+
+def test_prose_decorated_severity_still_triggers_weak_severity(rules_index, root, tmp_path, capsys):
+    """F7: `severity: major; **blocker** where ...` must still compare equal to the enum
+    ceiling `blocker` — a bare string-equality check silently missed every rule written with
+    conditional prose (8 of them on the real tree, e.g. `T1-ORC-03`, `T1-STR-03`)."""
+    fixture = _copy_fixture(root, tmp_path, "proseseverity")
+    universal = fixture / "references" / "universal.md"
+    original = universal.read_text(encoding="utf-8")
+    universal.write_text(
+        original.replace(
+            "- **severity:** major · **evidence:** weak · **flag:** argued\n",
+            "- **severity:** major; **blocker** where the read is inside the assertion's "
+            "path · **evidence:** weak · **flag:** argued\n", 1),
+        encoding="utf-8")
+
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 1
+    assert "[WEAK-SEVERITY] T1-AAA-02" in out
+
+    universal.write_text(original, encoding="utf-8")
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0
+
+
+def test_severity_ceiling_picks_the_worst_case_word(rules_index, root, tmp_path):
+    """F7: the ceiling is the *highest* of the enum words mentioned, not the first one —
+    `minor as clutter; major at the moment of un-ignoring` (a real universal.md line) must
+    parse to `major`, not `minor`."""
+    fixture = _copy_fixture(root, tmp_path, "severityceiling")
+    universal = fixture / "references" / "universal.md"
+    original = universal.read_text(encoding="utf-8")
+    universal.write_text(
+        original.replace(
+            "- **severity:** major · **evidence:** weak · **flag:** argued\n",
+            "- **severity:** minor as clutter; **major** at the moment of un-ignoring "
+            "· **evidence:** weak · **flag:** argued\n", 1),
+        encoding="utf-8")
+    _run(rules_index, fixture)
+    index = json.loads((fixture / "rules.json").read_text(encoding="utf-8"))
+    by_id = {r["id"]: r for r in index}
+    assert by_id["T1-AAA-02"]["severity"] == "major"
 
 
 def test_bad_filename_violation(rules_index, root, tmp_path, capsys):
@@ -384,6 +565,39 @@ def test_planted_bogus_id_in_a_walk_is_caught_as_drift(rules_index, root, tmp_pa
 
 
 # ---------------------------------------------------------------------------
+# F1: --check wired into the test suite against the REAL ruleset, not only the fixture —
+# a gate never run against its real subject blocks nothing (T1-PRF-04).
+# ---------------------------------------------------------------------------
+
+def test_the_shipped_ruleset_is_clean(rules_index, root, capsys):
+    """`--check` runs directly against the shipped `review-tests` skill directory (no copy
+    needed — `--check` never writes) and must exit 0. This is the wiring F1 found missing:
+    before this test, nothing in the repo ever ran `--check` against its real subject."""
+    rc, out = _run_captured(capsys, rules_index, root / REAL_SKILL_ROOT, "--check")
+    assert rc == 0, out
+
+
+def test_check_fires_on_a_corrupted_copy_of_the_real_tree(rules_index, root, tmp_path, capsys):
+    """F1 red-proof (prove-the-check-fails): a dangling `parent:` planted in a *copy* of the
+    real ruleset must be caught, proving the wiring above is not vacuous."""
+    fixture = _real_skill_copy(root, tmp_path)
+    kind_unit = fixture / "references" / "kind-unit.md"
+    original = kind_unit.read_text(encoding="utf-8")
+    assert "`T1-CST-01`" in original, "fixture assumption stale — pick another real parent id"
+    corrupted = original.replace("`T1-CST-01`", "`T1-GHOST-DOES-NOT-EXIST-99`", 1)
+    kind_unit.write_text(corrupted, encoding="utf-8")
+
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 1
+    assert "[BAD-PARENT]" in out
+    assert "T1-GHOST-DOES-NOT-EXIST-99" in out
+
+    kind_unit.write_text(original, encoding="utf-8")
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0
+
+
+# ---------------------------------------------------------------------------
 # A little parser robustness beyond the seven named classes.
 # ---------------------------------------------------------------------------
 
@@ -396,3 +610,103 @@ def test_duplicate_id_is_flagged(rules_index, root, tmp_path, capsys):
     rc, out = _run_captured(capsys, rules_index, fixture, "--check")
     assert rc == 1
     assert "[DUP-ID] T1-AAA-01" in out
+
+
+# ---------------------------------------------------------------------------
+# F8: missing / unknown fields, malformed meta — the schema-completeness classes.
+# ---------------------------------------------------------------------------
+
+def test_missing_field_violation(rules_index, root, tmp_path, capsys):
+    """F8: a rule silently missing a required field (here, `flag:` dropped from L1's
+    severity/evidence/flag line) must be caught, not silently indexed as `flag: null`."""
+    fixture = _copy_fixture(root, tmp_path, "missingfield")
+    universal = fixture / "references" / "universal.md"
+    original = universal.read_text(encoding="utf-8")
+    universal.write_text(
+        original.replace(
+            "- **severity:** blocker · **evidence:** strong · **flag:** auto\n",
+            "- **severity:** blocker · **evidence:** strong\n", 1),
+        encoding="utf-8")
+
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 1
+    assert "[MISSING-FIELD] T1-AAA-01 has no flag:" in out
+
+    universal.write_text(original, encoding="utf-8")
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0
+
+
+def test_unknown_field_violation(rules_index, root, tmp_path, capsys):
+    """F8: a misspelled key (`- *sevrity:* blocker`) must be flagged, not silently dropped —
+    before this fix `_apply_field`'s `hasattr` fallback discarded it with no diagnostic."""
+    fixture = _copy_fixture(root, tmp_path, "unknownfield")
+    universal = fixture / "references" / "universal.md"
+    original = universal.read_text(encoding="utf-8")
+    universal.write_text(
+        original.replace(
+            "- *design:* if the only outcome is \"nothing threw\", you have not written a "
+            "test yet.\n",
+            "- *design:* if the only outcome is \"nothing threw\", you have not written a "
+            "test yet.\n- *sevrity:* blocker\n", 1),
+        encoding="utf-8")
+
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 1
+    assert "[UNKNOWN-FIELD] T1-AAA-01" in out
+    assert "'sevrity' is not a schema key" in out
+
+    universal.write_text(original, encoding="utf-8")
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0
+
+
+def test_bad_meta_violation(rules_index, root, tmp_path, capsys):
+    """F8: a non-integer `pass=`/`order=` in the meta line must be `[BAD-META]`, not an
+    uncaught ValueError."""
+    fixture = _copy_fixture(root, tmp_path, "badmeta")
+    universal = fixture / "references" / "universal.md"
+    original = universal.read_text(encoding="utf-8")
+    universal.write_text(
+        original.replace("- *meta:* pass=1 order=1 phase=6\n",
+                          "- *meta:* pass=one order=1 phase=6\n", 1),
+        encoding="utf-8")
+
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 1
+    assert "[BAD-META] T1-AAA-01" in out
+    assert "pass='one' is not an integer" in out
+
+    universal.write_text(original, encoding="utf-8")
+    rc, out = _run_captured(capsys, rules_index, fixture, "--check")
+    assert rc == 0
+
+
+def test_slash_joined_key_applies_one_value_to_every_named_field(rules_index, root, tmp_path):
+    """`- *design/review/check:* <text>` (stack-terraform.md's shorthand for "already stated
+    in full elsewhere") applies the same value to all three fields — not a schema violation,
+    and not silently dropped the way an unrecognised key is."""
+    fixture = _copy_fixture(root, tmp_path, "slashkey")
+    universal = fixture / "references" / "universal.md"
+    original = universal.read_text(encoding="utf-8")
+    universal.write_text(
+        original.replace(
+            "- *design:* if the only outcome is \"nothing threw\", you have not written a "
+            "test yet.\n- *review:* four shapes — zero assertions, NotThrow-only, "
+            "tautological, commented-out.\n- *check:* auto — grep for `NotThrow` / "
+            "`assertDoesNotThrow` as the sole assertion.\n",
+            "- *design/review/check:* already stated in full elsewhere.\n", 1),
+        encoding="utf-8")
+    assert "design/review/check" in universal.read_text(encoding="utf-8")
+
+    # design/review/check are prose — never serialized into rules.json (AC5 / F9's own no-prose
+    # guard) — so assert via a fresh parse rather than the generated json.
+    rules, violations = rules_index.parse_tree(fixture)
+    assert not violations
+    by_id = {r.id: r for r in rules}
+    assert by_id["T1-AAA-01"].design == "already stated in full elsewhere."
+    assert by_id["T1-AAA-01"].review == "already stated in full elsewhere."
+    assert by_id["T1-AAA-01"].check == "already stated in full elsewhere."
+
+    rc = _run(rules_index, fixture)
+    assert rc == 0  # the file still parses and regenerates cleanly

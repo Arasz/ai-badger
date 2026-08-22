@@ -16,6 +16,10 @@ Lane ids from the source lanes (`U-*`, `K-*`, `N-*`, `F-*`, `P1..P8`) survive **
 `absorbs:` fields. That is what makes the consolidation auditable and lets a reviewer holding
 `U-ASR-13` resolve it to `T1-ORC-07`.
 
+An `absorbs:` entry is validated by shape, not against a hand-maintained list: it must match the
+source-lane id grammar (`[UKNF]-[A-Z]{2,4}-\d{2}` or `P[1-8]`) or resolve to a known rule id — the
+checker derives nothing from a hand list.
+
 ## Adding a rule
 
 A candidate becomes a rule only with all five:
@@ -107,8 +111,8 @@ hyphens only, **no digits**. `badger_lib.py`'s `SIBLING_REFERENCE_RE` (the mecha
 `design-tests` cite `../review-tests/references/<file>.md` as a co-install dependency) only
 recognises that shape; a filename with a digit — `kind-a11y.md` was the proposed and rejected one —
 still ships via `scaffold.py`, but the citation to it becomes invisible to the catalog's
-dangling-reference guard. That is the #266 dangling-reference class exactly. This is why the
-accessibility kind file is `kind-accessibility.md`, never `kind-a11y.md`.
+dangling-reference guard — the same dangling-reference class this governance file exists to close.
+This is why the accessibility kind file is `kind-accessibility.md`, never `kind-a11y.md`.
 
 ## L4 — project-local rules
 
