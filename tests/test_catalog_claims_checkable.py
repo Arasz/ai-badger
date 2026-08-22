@@ -210,6 +210,16 @@ def test_every_feature_json_exemption_matches_a_file_that_exists(root, load_scri
     assert inert == [], f"these exemptions cover no file: {inert}"
 
 
+def test_the_generated_rules_index_is_a_declared_exemption(root, load_script):
+    """review-tests/rules.json is emitted by rules_index.py and verified by its --check; the
+    markdown is the truth, so the validator exempts it by name rather than by a schema."""
+    validate = load_script("tooling/validate.py")
+
+    covered = {p for pattern in validate.FEATURE_JSON_WITHOUT_SCHEMA for p in root.glob(pattern)}
+
+    assert root / "features/common/skills/review-tests/rules.json" in covered
+
+
 def test_every_feature_json_exemption_states_a_reason(root, load_script):
     validate = load_script("tooling/validate.py")
 
