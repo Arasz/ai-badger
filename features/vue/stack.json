@@ -1,0 +1,10 @@
+{
+  "name": "vue",
+  "description": "Vue 3 UI framework: single-file components with <script setup>, Composition API, Pinia state, Vue Router.",
+  "detectionSignals": ["*.vue"],
+  "requires": ["ts", "node"],
+  "commands": {
+    "test": "bun run test",
+    "build": "bun run build"
+  }
+}
