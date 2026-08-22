@@ -117,6 +117,15 @@ SKILL_GROUPS: Dict[str, Tuple[str, ...]] = {
         "update-documentation",
         "migrate-documentation",
     ),
+    # One ruleset, two skills, both `scope: default`: `design-tests` writes tests, `review-tests`
+    # judges them, and both read the same rules under review-tests/references/ (SYNTHESIS.md
+    # ruling A). Grouping protects that cross-reference the same way `documentation` protects its
+    # three — naming either skill alone would otherwise install one half of a pair that cites the
+    # other.
+    "testing": (
+        "design-tests",
+        "review-tests",
+    ),
 }
 
 

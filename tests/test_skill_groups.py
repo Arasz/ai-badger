@@ -111,6 +111,42 @@ class TestAGroupIsInstalledWhole:
         assert lib.expand_skill_groups([]) == set()
 
 
+TESTING_TWO = {"design-tests", "review-tests"}
+
+
+class TestTheTestingGroupIsInstalledWhole:
+    """`design-tests` and `review-tests` share one ruleset (SYNTHESIS.md ruling A) and are
+    grouped for the same reason the documentation three are: neither works with the other
+    absent from disk, so `SKILL_GROUPS["testing"]` makes naming either one install both.
+    """
+
+    @pytest.mark.parametrize("named", sorted(TESTING_TWO))
+    def test_naming_either_member_installs_both(self, load_script, named):
+        lib = load_script("engine/badger_lib.py")
+
+        assert lib.expand_skill_groups([named]) == TESTING_TWO
+
+    def test_naming_the_group_installs_both_members(self, load_script):
+        lib = load_script("engine/badger_lib.py")
+
+        assert lib.expand_skill_groups(["testing"]) == TESTING_TWO
+
+    def test_the_group_name_itself_is_not_installed(self, load_script):
+        lib = load_script("engine/badger_lib.py")
+
+        assert "testing" not in lib.expand_skill_groups(["testing"])
+
+    def test_both_members_declare_scope_default(self, load_script, root):
+        """Ruling I: `scope: default` is how "required" is achieved — availability, not a
+        third mechanism. Both skills must ship unasked, or the invariant call sites (task
+        Phase 1/3, code-review-checklist §3.1) would be pointing at an opt-in skill.
+        """
+        lib = load_script("engine/badger_lib.py")
+        skills_dir = root / "features" / "common" / "skills"
+
+        assert TESTING_TWO <= set(lib.default_skills_in(skills_dir))
+
+
 class TestEveryCitedSiblingIsInTheSameGroup:
     """The guard that keeps the declaration honest as the catalog changes.
 
