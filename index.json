@@ -405,6 +405,10 @@
           "path": "features/common/personas/delegator.md"
         },
         {
+          "name": "qa",
+          "path": "features/common/personas/qa.md"
+        },
+        {
           "name": "test-engineer",
           "path": "features/common/personas/test-engineer.md"
         }
@@ -477,6 +481,10 @@
         {
           "name": "tdd-mandatory",
           "path": "features/common/invariants/tdd-mandatory.md"
+        },
+        {
+          "name": "tests-are-designed-and-reviewed",
+          "path": "features/common/invariants/tests-are-designed-and-reviewed.md"
         },
         {
           "name": "traceable-releases",
@@ -697,6 +705,10 @@
         {
           "name": "dotnet-engineer",
           "path": "features/dotnet/personas/dotnet-engineer.md"
+        },
+        {
+          "name": "qa-backend",
+          "path": "features/dotnet/personas/qa-backend.md"
         }
       ],
       "invariants": [
@@ -920,6 +932,10 @@
         {
           "name": "frontend-engineer",
           "path": "features/react/personas/frontend-engineer.md"
+        },
+        {
+          "name": "qa-frontend",
+          "path": "features/react/personas/qa-frontend.md"
         }
       ],
       "invariants": [

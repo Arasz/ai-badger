@@ -1,0 +1,8 @@
+# Fixed manifest of legacy lane ids this fixture's `absorbs:` fields may cite.
+# One id per line; '#' starts a comment; blank lines ignored.
+# Real ruleset: SYNTHESIS.md risk 1 — this is what stops a transcription agent from inventing
+# a plausible-looking absorbed id that was never in the source lane documents.
+U-ASR-01
+U-ASR-02
+U-ISO-01
+K-WID-01
