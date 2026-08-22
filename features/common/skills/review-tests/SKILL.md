@@ -176,6 +176,38 @@ cite its id beside the rule rather than describing the shape from scratch.
 
 <!-- EXT:archetypes -->
 
+## Reference map
+
+Every file under `references/` is loaded only when a pass or a finding points at it; none is read up front.
+
+- `references/principles.md` — when a finding needs the principle (`T0-*`) behind it named.
+- `references/universal.md` — when a finding cites a `T1-*` rule and you need its `check:` verbatim.
+- `references/kind-unit.md` — only when pass 0 names the suite under review as that kind.
+- `references/kind-integration.md` — only when pass 0 names the suite under review as that kind.
+- `references/kind-contract.md` — only when pass 0 names the suite under review as that kind.
+- `references/kind-architecture.md` — only when pass 0 names the suite under review as that kind.
+- `references/kind-property.md` — only when pass 0 names the suite under review as that kind.
+- `references/kind-snapshot.md` — only when pass 0 names the suite under review as that kind.
+- `references/kind-performance.md` — only when pass 0 names the suite under review as that kind.
+- `references/kind-time.md` — only when pass 0 names the suite under review as that kind.
+- `references/kind-bdd.md` — only when pass 0 names the suite under review as that kind.
+- `references/kind-end-to-end.md` — only when pass 0 names the suite under review as that kind.
+- `references/kind-accessibility.md` — only when pass 0 names the suite under review as that kind.
+- `references/stack-dotnet.md` — when the project stack is dotnet.
+- `references/stack-ts-react-browser.md` — when the project stack is react or ts in a browser.
+- `references/stack-azure-functions.md` — when that stack is present; it is a stub and says so.
+- `references/stack-cosmos.md` — when that stack is present; it is a stub and says so.
+- `references/stack-node.md` — when that stack is present; it is a stub and says so.
+- `references/stack-python.md` — when that stack is present; it is a stub and says so.
+- `references/stack-terraform.md` — when that stack is present; it is a stub and says so.
+- `references/archetypes.md` — when a finding matches a bug archetype and you need its proof mutation.
+- `references/evidence.md` — when a reviewer asks why a rule exists; it holds the proven failures rules cite.
+- `references/walk-review.md` — before pass 0, as the generated pass order.
+- `references/walk-design.md` — only when the plan proposes a new test and you need the creation order.
+- `references/plan-format.md` — before writing the improvement plan.
+- `references/conflicts.md` — when two rules appear to contradict each other.
+- `references/governance.md` — when a rule must be added, retired, or a stack extended.
+
 ## The improvement plan
 
 One table, columns fixed. Read `references/plan-format.md` **before** writing the first row — it
