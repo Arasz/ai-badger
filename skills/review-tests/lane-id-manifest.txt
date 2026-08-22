@@ -1,0 +1,325 @@
+# Source-lane ids absorbed into the T-prefixed ruleset during consolidation.
+# Derived from references/*.md absorbs: lists and the lane research docs (L2/L3a/L3b).
+B1
+B2
+B3
+B4
+B5
+B6
+B7
+B8
+D1
+D2
+D3
+D4
+D5
+D6
+D7
+D8
+F-E2E-01
+F-E2E-02
+F-E2E-03
+F-E2E-04
+F-E2E-05
+F-E2E-05's general form
+F-E2E-06
+F-E2E-06's retry clause
+F-E2E-07
+F-E2E-08
+F-E2E-08 (archetype B10)
+F-E2E-09
+F-ENV-01
+F-ENV-02
+F-ENV-03
+F-ENV-04
+F-ENV-05
+F-ENV-06
+F-ENV-07
+F-INT-01
+F-INT-02
+F-INT-03
+F-INT-04
+F-INT-05
+F-INT-06
+F-INT-07
+F-INT-08
+F-INT-09
+F-INT-09 (archetype B09)
+F-NET-01
+F-NET-02
+F-NET-03
+F-NET-04
+F-NET-05
+F-NET-06
+F-NET-06's general form
+F-NET-07
+F-NET-08
+F-NET-09
+F-NET-10
+F-NET-10's rationale
+F-QRY-01
+F-QRY-02
+F-QRY-03
+F-QRY-03's per-state requirement
+F-QRY-04
+F-QRY-05
+F-QRY-06
+F-QRY-07
+F-SNAP-01
+F-SNAP-02
+F-SNAP-03
+F-SNAP-04
+F-SNAP-05
+F-SNAP-05's zero-match clause
+F-TIME-01
+F-TIME-02
+F-TIME-03
+F-TIME-04
+F-TIME-05
+F-TYPE-01
+F-TYPE-02
+F-TYPE-03
+F-TYPE-04
+F-TYPE-05
+K-ARC-01
+K-ARC-02
+K-ARC-03
+K-ARC-04
+K-ARC-05
+K-ARC-06
+K-CTR-01
+K-CTR-02
+K-CTR-03
+K-CTR-04
+K-CTR-05
+K-INT-01
+K-INT-02
+K-INT-03
+K-INT-04
+K-INT-05
+K-INT-06
+K-INT-06's emulator clause
+K-INT-07
+K-INT-07's scheduling clause
+K-INT-08
+K-PRP-01
+K-PRP-02
+K-PRP-03
+K-PRP-04
+K-PRP-05
+K-SNP-01
+K-SNP-02
+K-SNP-03
+K-SNP-04
+K-SNP-05
+K-UNI-01
+K-UNI-01's enforcement clause
+K-UNI-02
+K-UNI-03
+K-UNI-04
+K-UNI-05
+L2 P7
+L2 R4
+L2 R8
+L2 T1
+L2 T2
+L2 T4
+L2 T5
+L2 T7
+L2 U1 (decomposed; "FIRST" as a mnemonic is cut — see governance.md)
+L2 U10
+L2 U11
+L2 U12
+L2 U13
+L2 U14
+L2 U15 (a test's own timeout throws a distinguishable type
+L2 U16
+L2 U18
+L2 U2
+L2 U22
+L2 U3
+L2 U4
+L2 U7
+N-ARC-01
+N-ARC-02
+N-ASP-01
+N-ASP-02
+N-ASP-03
+N-ASY-01
+N-ASY-02
+N-ASY-03
+N-ASY-04
+N-ASY-05
+N-ASY-05 (archetype B10)
+N-CFG-01
+N-COV-01
+N-CUL-01
+N-CUL-01 (archetype B5)
+N-CUL-02
+N-DATA-01
+N-DATA-01 parent
+N-DATA-02
+N-DATA-03
+N-DATA-04
+N-DBL-01
+N-GRD-01
+N-LOG-01
+N-MUT-01
+N-MUT-02
+N-MUT-02 parent
+N-MUT-03
+N-TIME-01
+N-TIME-02
+N-TIME-03
+N-TIME-04
+N-TIME-05
+N-TST-01
+N-VER-01
+N-WAF-01
+N-WAF-02
+N-WAF-03
+N-WAF-04
+N-XU-01
+N-XU-02
+N-XU-03
+N-XU-04
+N-XU-05
+N-XU-06
+N-XU-07
+N-XU-08
+P1
+P10
+P11
+P2
+P3
+P4
+P5
+P6
+P7
+P8
+P9
+R1
+R2
+R3
+R4
+R5
+R6
+R7
+R8
+S1
+S2
+S3
+S4
+T1
+T10
+T11
+T12
+T2
+T3
+T4
+T5
+T6
+T7
+T8
+T9
+U-ASR-01
+U-ASR-02
+U-ASR-03
+U-ASR-04
+U-ASR-05
+U-ASR-06
+U-ASR-07
+U-ASR-08
+U-ASR-09
+U-ASR-10
+U-ASR-10 (count clause)
+U-ASR-10's fake-artifact clause
+U-ASR-11
+U-ASR-12
+U-ASR-13
+U-ASR-14
+U-CST-01
+U-CST-02
+U-CST-03
+U-CST-04
+U-CST-05
+U-CST-06
+U-CST-07
+U-CST-08
+U-DBL-01
+U-DBL-02
+U-DBL-03
+U-DBL-04
+U-DBL-05
+U-DBL-06
+U-DBL-07
+U-DBL-08
+U-ISO-01
+U-ISO-02
+U-ISO-03
+U-ISO-04
+U-ISO-05
+U-ISO-06
+U-ISO-07
+U-ISO-08
+U-ISO-09
+U-ISO-10
+U-ISO-11
+U-ISO-12
+U-ISO-13
+U-PRF-01
+U-PRF-02
+U-PRF-03
+U-PRF-04
+U-PRF-05
+U-PRF-06
+U-PRF-07
+U-PRF-08
+U-PRF-09
+U-PRF-10
+U-SCO-01
+U-SCO-02
+U-SCO-03
+U-SCO-04
+U-SCO-05
+U-SCO-06
+U-SCO-07
+U-SCO-08
+U-SCO-09
+U-SCO-10
+U-STR-01
+U-STR-02
+U-STR-03
+U-STR-04
+U-STR-05
+U-STR-06
+U-STR-07
+U-STR-08
+U-STR-08's readability clause
+U-STR-09
+U-STR-10
+U-STR-11
+U1
+U10
+U11
+U12
+U13
+U14
+U15
+U16
+U17
+U18
+U19
+U2
+U20
+U21
+U22
+U23
+U3
+U4
+U5
+U6
+U7
+U8
+U9
+never the assertion's)

@@ -61,6 +61,9 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ sc
 - **TDD is mandatory** — Write a failing, behavior-focused test before any production code change.
   → `.ai-badger/invariants/tdd-mandatory.md`
 
+- **Tests are designed before they are written, and judged after** — A test list comes out of the acceptance criteria before the first test is written — each row naming the failure mode it targets and the mutation that will prove it real, via `design-tests` — and a change that adds or alters tests is not done until `review-tests` has asked whether that suite could have gone red.
+  → `.ai-badger/invariants/tests-are-designed-and-reviewed.md`
+
 - **Releases are traceable** — Every release records the version it went out at and what changed in it, using whatever version marker and release notes this project already keeps.
   → `.ai-badger/invariants/traceable-releases.md`
 

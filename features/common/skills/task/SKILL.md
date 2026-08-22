@@ -185,7 +185,8 @@ reduced rigor since high-reasoning delegation wasn't possible.
    **Every point carries acceptance criteria and a quality gate** — what must be true, and the run
    that proves it. A point without them is a wish. Where a point needs a specification or a design
    before it can be built, produce one, and look for an installed skill that formalises that shape
-   before writing a bespoke document.
+   before writing a bespoke document. Before the first failing test, run `design-tests` on the
+   acceptance criteria — the test list is part of the plan, not of the implementation.
 
 ## Phase 2 — Execute
 
@@ -208,7 +209,9 @@ delegate a review to a high-reasoning agent (the `code-reviewer` persona) with t
 acceptance criteria, relevant architecture docs, and the build/test output. Ask it to judge
 implementation correctness (logic, edge cases, test honesty) and architecture (layer purity,
 consistency with docs). Fix findings (trivial yourself, substantial via a subagent), re-run
-build/test, then proceed.
+build/test, then proceed. If the diff adds or changes test files, also delegate `review-tests`
+on those files to `qa` (or the stack's `qa-backend`/`qa-frontend`) and treat a `blocker` finding
+the same as a red build.
 
 ### Review every join, not just every part
 
