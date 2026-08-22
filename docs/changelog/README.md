@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.131.1 | [ai-raccoon-memory relays the code-engine-not-configured warning](0.131.1-ai-raccoon-memory-relays-code-engine-warning.md) |
 | 0.131.0 | [vue stack](0.131.0-vue-stack.md) |
 | 0.130.1 | [Semantica: shim resolves the project dir; export probe runs in the resolved env](0.130.1-semantica-moe-followups.md) |
 | 0.130.0 | [Semantica: export autosave reaches Claude & Copilot; upstream export bug probed](0.130.0-semantica-export-autosave-all-agents.md) |
