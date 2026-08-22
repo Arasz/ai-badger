@@ -20,6 +20,7 @@ re-scaffold.
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.131.0 | [vue stack](0.131.0-vue-stack.md) |
 | 0.130.1 | [Semantica: shim resolves the project dir; export probe runs in the resolved env](0.130.1-semantica-moe-followups.md) |
 | 0.130.0 | [Semantica: export autosave reaches Claude & Copilot; upstream export bug probed](0.130.0-semantica-export-autosave-all-agents.md) |
 | 0.129.1 | [Semantica Hook: Guard the Nudge Arm, Stage the CLI Temp Outside `.semantica/`](0.129.1-semantica-hook-guard-and-cli-temp.md) |
