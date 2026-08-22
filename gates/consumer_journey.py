@@ -277,6 +277,7 @@ class Journey:
         config["personaRouting"] = [
             {"work": "Design and decomposition", "agent": "architect"},
             {"work": "Test strategy and the failing test", "agent": "test-engineer"},
+            {"work": "Test-suite design and test-quality audit", "agent": "qa"},
             {"work": "Quality gate before merge", "agent": "code-reviewer"},
         ]
         self.config.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")

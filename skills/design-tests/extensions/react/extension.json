@@ -1,0 +1,5 @@
+{
+  "skill": "design-tests",
+  "extension": "react",
+  "requires": ["stacks=react"]
+}

@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.130.1",
-  "frameworkCommit": "57b5469b73501795dc8dd8f02e828ca979dbc00c",
+  "frameworkCommit": "3224a77b53671b13403be81bfe43255f1246d8b6",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -65,7 +65,7 @@
       "source": "features/common/personas/qa.md",
       "target": ".ai-badger/agents/qa.md",
       "frameworkVersion": "0.130.1",
-      "hash": "a761b516413130580fcc55d7b3c1d09b19bb771d38693748c27f5bbbf3b776ae"
+      "hash": "e0296badc65b68fcde208bc50942d19246209be1512135c7c3cd94d4656d299d"
     },
     {
       "feature": "personas",
@@ -74,7 +74,7 @@
       "source": "features/common/personas/test-engineer.md",
       "target": ".ai-badger/agents/test-engineer.md",
       "frameworkVersion": "0.130.1",
-      "hash": "2f97c410831957da723ba6f11d906e25c17a0ac3998e379e3f18e66c5db0c2af"
+      "hash": "8df5503d534d58c1163b3e65ebc45c7186b045c99c264792a35f27312c3ff3bf"
     },
     {
       "feature": "personas",
@@ -317,7 +317,7 @@
       "source": "features/common/invariants/tests-are-designed-and-reviewed.md",
       "target": ".ai-badger/invariants/tests-are-designed-and-reviewed.md",
       "frameworkVersion": "0.130.1",
-      "hash": "76aefc093c2f81b4f458cb87f9830187f5ea88d0ad253471424f38811937b8cb"
+      "hash": "a82e811b46d4a5ef67b845cc03cf2f1bd57df68d64f73c299a0fe80349c056ef"
     },
     {
       "feature": "invariants",
@@ -395,12 +395,12 @@
       "source": "features/common/skills/code-review-checklist",
       "target": ".ai-badger/skills/code-review-checklist",
       "frameworkVersion": "0.130.1",
-      "hash": "cd938504b6e13430c63503360dc7950426c841becfc40235c72dedbe744d1c01",
+      "hash": "acde6a75780407f5b69ea72b548d21fcb994cb0c42623348e82d41b51691e0b5",
       "dirMeta": {
         "file_count": 3,
         "dir_count": 1
       },
-      "sourceHash": "adf1ed33f0298a99d5fb8ec9b28f423bcb2422b84e103c5ee46110b90036c46b",
+      "sourceHash": "e38ae4fe36e1f03162f0b2362f99c8a4a962e895fabfdb8cdcf713f69e374bd7",
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 1

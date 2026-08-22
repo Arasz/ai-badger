@@ -198,7 +198,20 @@ script. Fill in:
 - `stacks` — trim what detection over-guessed, add what it missed.
 - `personaRouting` — `[{ "work": "...", "agent": "..." }]`, mapping kinds of work to the personas
   that will be scaffolded (`architect`, `test-engineer`, `code-reviewer`, plus each stack's
-  engineer persona).
+  engineer persona). A project that scaffolds the `qa` family routes test-related work to it
+  rather than to `test-engineer`, which stays scoped to writing the tests inside a feature
+  change:
+
+  ```jsonc
+  { "work": "Test-suite design from acceptance criteria; test-quality audit; mutation verification",
+    "agent": "qa" },
+  { "work": "Backend test design/review — runner, isolation, emulator and contract tests",
+    "agent": "qa-backend" },
+  { "work": "Frontend test design/review — component, network-stub, a11y and browser-only claims",
+    "agent": "qa-frontend" },
+  { "work": "Writing tests inside a feature change (TDD red step)",
+    "agent": "test-engineer" }
+  ```
 - `commands` — `build` / `test` / `lint` / `run`. The `task` skill reads these.
 - `sourceControl` — setting `platform: "github"` with a `repoUrl` activates the `task` skill's
   GitHub PR/issue extension at scaffold time.

@@ -17,7 +17,7 @@ or `T1-ISO-0x` finding rather than new content — follow the `parent:` pointer 
 **`T2-INTG-02` — Schema and migrations are applied by the same mechanism production uses.**
 - *design:* run the real migration tool against the test database; never a schema-sync shortcut.
 - *review:* a schema built by an ad hoc "create everything" call tests a database that will never exist in production.
-- *check:* argued.
+- *check:* is the test schema created by an ad hoc `EnsureCreated()`/hand-rolled DDL call rather than the production migration tool? Evidence: `grep -rn 'EnsureCreated\|CREATE TABLE' <test setup>` with no call to the real migration runner is the violation.
 - **severity:** major · **evidence:** strong · **flag:** argued · **parent:** `T1-CST-05`
 - *cites:* dotnet-claude-kit `testing`.
 - *meta:* pass=0 order=1
@@ -25,7 +25,7 @@ or `T1-ISO-0x` finding rather than new content — follow the `parent:` pointer 
 **`T2-INTG-03` — Assert the thing only the real backend can prove.**
 - *design:* name, before writing the test, the defect this level catches that a fake-backed unit test cannot.
 - *review:* query text, predicate semantics, partition/tenancy arguments, constraints, rollback, ordering, collation — a test re-asserting what the fake already asserts bought a container for nothing.
-- *check:* argued.
+- *check:* name the defect this level catches that a fake-backed unit test cannot. Evidence: run the equivalent test against the fake — if it also passes, the integration test asserts nothing the fake couldn't already, and is the violation.
 - **severity:** major · **evidence:** strong · **flag:** argued · **parent:** `T1-CST-02`
 - *cites:* `evidence.md` (test-suite-shape).
 - *meta:* pass=7 order=29
@@ -33,7 +33,7 @@ or `T1-ISO-0x` finding rather than new content — follow the `parent:` pointer 
 **`T2-INTG-04` — Wait on a readiness signal, never on a delay; wait before the first call, not after the first failure.**
 - *design:* use the engine's own readiness API (a health check, a notification service) as the sync point.
 - *review:* a fixed delay before the first call is the same defect as a sleep mid-test — it just moves.
-- *check:* auto-unless-listed.
+- *check:* `grep -rn 'Task.Delay\|Thread.Sleep\|sleep(' <fixture setup>` before the first call — any hit is the violation; the fix is the engine's own readiness/health-check wait.
 - **severity:** blocker · **evidence:** strong · **flag:** auto-unless-listed · **parent:** `T1-ISO-02`
 - *absorbs:* `N-ASP-01`
 - *meta:* pass=2 order=11
@@ -56,7 +56,7 @@ or `T1-ISO-0x` finding rather than new content — follow the `parent:` pointer 
 **`T2-INTG-07` — The integration lane is excluded from the PR gate only if what it covers is named, and it runs somewhere on a schedule.**
 - *design:* wire the lane into a nightly or scheduled run before excluding it from the PR gate; name what it covers in the same change.
 - *review:* an excluded lane with no schedule and no coverage statement is a lane nobody is watching.
-- *check:* auto-unless-listed.
+- *check:* is the integration lane referenced in a scheduled/nightly CI job, and does a document name what it covers? Evidence: `grep -n 'schedule:' .github/workflows/*.yml` for the lane's job, plus the coverage statement's location — either missing is the violation.
 - **severity:** major · **evidence:** strong · **flag:** auto-unless-listed · **parent:** `T1-CST-03`
 - *cites:* `evidence.md` (test-suite-shape).
 - *meta:* pass=0 order=3
@@ -64,7 +64,7 @@ or `T1-ISO-0x` finding rather than new content — follow the `parent:` pointer 
 **`T2-INTG-08` — One shared expensive fixture per class, disposed deterministically; never one container per test method.**
 - *design:* stand the container up once per class (`IClassFixture`/equivalent), and tear it down in a lifecycle hook, not a happy-path line.
 - *review:* a container per test method is the cost `T1-CST-02` exists to catch; a shared fixture with no deterministic teardown leaks into the next run.
-- *check:* argued.
+- *check:* is a new container instance constructed inside a `[Fact]`/test-method body rather than a class-level fixture (`IClassFixture`/`IAsyncLifetime`)? Evidence: grep the container type's constructor calls against test-method bodies.
 - **severity:** minor · **evidence:** strong · **flag:** argued · **parent:** `T1-ISO-06`
 - *cites:* dotnet-claude-kit `testing`.
 - *meta:* pass=2 order=11

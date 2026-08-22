@@ -15,10 +15,10 @@ rather than restated as a test rule.
 - *design:* name, in the test, the lane that proves the query text and partition-key argument against the real Cosmos emulator or account.
 - *review:* this is `N-DATA-04`'s stack form — a port-contract test against a fake is an echo; a wrong partition key or predicate passes every fake test.
 - *check:* grep the query method across unit fakes and integration suites — if only the fake references it, the query is untested.
-- **severity:** minor (see note above on the stub severity cap) · **evidence:** strong
+- **severity:** minor (see note above on the stub severity cap) · **evidence:** strong · **flag:** auto
 - *parent:* `T2-INTG-03` · *cites:* `evidence.md` (test-suite-shape); `cosmos.instructions.md`
 
 ## How to contribute a rule
 
-Read `governance.md` §9.1 before adding anything: a stack rule needs a `parent:`
+Read `governance.md` §"Adding a rule" before adding anything: a stack rule needs a `parent:`
 L1/L2 id, a real proven failure, and a falsifying `check:`.

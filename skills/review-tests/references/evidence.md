@@ -193,3 +193,77 @@ enforcement and none of them actually verified provenance, so fabricated content
 real template still validated as schema-correct. The general lesson: coverage percentage measures
 exposure, not verification, and a single blended number for a whole codebase can average away exactly
 the surface most worth protecting.
+
+### loose-assertion-bound-admits-regression
+
+A numeric assertion bound set one or more orders of magnitude looser than the value production
+actually enforces admits a real regression while staying green: a confidence threshold asserted at
+a round, arbitrary cutoff passed even after the documented invariant tightened well past it, and a
+length assertion left several times the actual configured limit, silently permitting a
+multiple-times increase in truncated content before the assertion would ever fail. The fix is to
+pin the assertion at the production value itself, not one convenient round number away from it, and
+to widen it — deliberately, by class — only where legitimate variation demands it.
+
+### broad-catch-swallows-real-bugs
+
+A negative-path test that only asserts an exception's base type, or a production `catch` clause
+narrowed no further than a broad built-in exception type, both fail the same way: a later change
+can widen what the code silently treats as "expected and ignored" to include a real, unrelated
+defect, and the test suite stays green because it never distinguished the narrow case it meant to
+test from the general one it now also matches. A connectivity-guard catch clause was found broad
+enough to also swallow a genuine, unrelated processing failure with no test able to tell the
+difference. Every narrowed catch needs a negative test that throws a different instance of the same
+base type through the same path and asserts it still propagates.
+
+### arrange-does-not-reach-branch-under-test
+
+Several independently-found tests each asserted a specific competing branch's precedence,
+isolation, or ordering rule while their own arrange never actually reached that branch — a
+competitor built from a near-identical but not byte-identical value, a field that happened to
+coincide with the value under test so the discriminating case never occurred, one gate's
+precondition satisfied before the gate under test could ever run, and an isolation check whose fake
+ignored the discriminating parameter beneath it. Every one of these tests passed and would have kept
+passing after the production rule was deleted. The only way to confirm an arrange reaches its target
+branch is to delete the branch and watch the specific test redden.
+
+### double-ignores-parameter
+
+A test double that silently ignores one of its constructor or method parameters — most often a
+tenancy or ownership id — makes every test that varies only that parameter pass for the wrong
+reason: the assertion is true regardless of the value, because the double's behaviour never
+depended on it in the first place. This was found live in more than one double at once: an
+isolation test that queried a *different* record and still passed because the fake never filtered
+by the id either, and a hand-set literal id left in production code with nothing able to catch it
+because the fake it was tested against didn't honour that field. A double's behaviour is a claim
+about production and needs the same parameter-honouring guarantee the real thing gives.
+
+### fake-contradicts-production-backend
+
+An in-memory or hand-written fake standing in for a real backend can implement a filter or an
+ordering differently from the production engine — applying a filter the real store silently drops,
+or sorting by a different field or direction — and every test written against the fake stays green
+while the identical assertion would fail against the real thing. The only way to catch this class of
+divergence is a single contract-test suite executed against both the fake and the real backend, so
+the divergence itself becomes the failing test rather than something a reviewer has to notice by
+inspection.
+
+### degenerate-fixture-hides-untested-path
+
+A test fixture built at a degenerate value for the parameter under test — one item where the code
+branches on more-than-one, or a request fully populated where an empty/absent case is what the
+logic actually has to handle — makes the test pass without ever exercising the mechanism it claims
+to cover. A diff-matching test built from one item per side left duplicate-handling entirely
+untested, and a suite whose every fixture was fully populated left the empty-input path with no
+coverage at all despite a green suite. The fix is a fixture at the tightest value the parameter
+under test can meaningfully take, with at least one case deliberately pushed toward empty or absent.
+
+### schema-accepts-everything-no-rejection-test
+
+A schema or contract-parity test suite built entirely from acceptance cases proves only that valid
+input is accepted — it says nothing about whether an invalid shape is rejected, and a schema that
+has quietly grown permissive enough to accept everything passes every one of those tests without
+exception. A parity suite that pinned one discriminated field's accepted values, but carried no
+test asserting a value outside that set was rejected, shipped a selector the backend could not
+actually register — the exact drift the missing rejection case would have caught. Every
+discriminated union or constrained enum in a contract needs at least one assertion that the wrong
+shape is refused, not only that the right one is accepted.

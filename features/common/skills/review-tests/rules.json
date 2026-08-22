@@ -307,7 +307,10 @@
       "U-DBL-07",
       "U-ASR-10's fake-artifact clause"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A07",
+      "A11"
+    ],
     "pass": 5,
     "order": 20,
     "phase": "5",
@@ -372,7 +375,9 @@
       "F-TIME-01",
       "F-NET-10's rationale"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A07"
+    ],
     "pass": 2,
     "order": 11,
     "phase": "4",
@@ -384,7 +389,7 @@
     "layer": "1",
     "group": "ISO",
     "title": "Never sleep to synchronise. Poll a condition with a timeout, gate on a latch the test controls, or sync on a signal the system itself emits.",
-    "severity": "blocker (unit/integration/e2e); major (documented external rate limit)",
+    "severity": "blocker",
     "evidence": "strong",
     "flag": "auto-unless-listed",
     "parent": null,
@@ -394,10 +399,11 @@
       "F-E2E-02",
       "F-NET-10",
       "L2 U14",
-      "L2 U15 (a test's own timeout throws a distinguishable type",
-      "never the assertion's)"
+      "L2 U15 (a test's own timeout throws a distinguishable type, never the assertion's)"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A08"
+    ],
     "pass": 2,
     "order": 11,
     "phase": "4",
@@ -409,7 +415,7 @@
     "layer": "1",
     "group": "ISO",
     "title": "Non-determinism enters through an injected, pinned source: an injected clock for time, a seeded generator for randomness — and the instant and the seed are printed on failure.",
-    "severity": "major; **blocker** where the ambient read is inside the assertion's path",
+    "severity": "blocker",
     "evidence": "strong",
     "flag": "auto",
     "parent": null,
@@ -443,7 +449,10 @@
       "F-TIME-04",
       "L2 T4"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A03",
+      "A04"
+    ],
     "pass": 2,
     "order": 11,
     "phase": "4",
@@ -594,7 +603,9 @@
     "absorbs": [
       "U-ASR-03"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A01"
+    ],
     "pass": 4,
     "order": 16,
     "phase": "3",
@@ -606,7 +617,7 @@
     "layer": "1",
     "group": "ORC",
     "title": "Assert the tightest predicate the contract allows: no slack a plausible regression fits through, and an exact count wherever the count is the contract.",
-    "severity": "major; **blocker** where the loose bound guards a safety or privacy property",
+    "severity": "blocker",
     "evidence": "strong",
     "flag": "argued",
     "parent": null,
@@ -617,7 +628,10 @@
       "F-INT-09",
       "L2 T7"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A10",
+      "A11"
+    ],
     "pass": 4,
     "order": 17,
     "phase": "3",
@@ -655,7 +669,9 @@
     "absorbs": [
       "U-ASR-07"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A09"
+    ],
     "pass": 4,
     "order": 19,
     "phase": "3",
@@ -696,7 +712,9 @@
       "U-ASR-12",
       "F-INT-04"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A13"
+    ],
     "pass": 1,
     "order": 7,
     "phase": "6",
@@ -761,7 +779,9 @@
       "F-SNAP-05's zero-match clause",
       "N-MUT-02 parent"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A18"
+    ],
     "pass": 1,
     "order": 9,
     "phase": "7",
@@ -814,7 +834,7 @@
     "layer": "1",
     "group": "SCO",
     "title": "The test's name is a claim; the body proves every half of it.",
-    "severity": "blocker when the name asserts the opposite of the truth; major when a claimed half is unasserted; minor when merely vague",
+    "severity": "blocker",
     "evidence": "strong",
     "flag": "argued",
     "parent": null,
@@ -864,7 +884,11 @@
     "absorbs": [
       "U-SCO-06"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A05",
+      "A06",
+      "A12"
+    ],
     "pass": 6,
     "order": 23,
     "phase": "2",
@@ -886,7 +910,10 @@
       "F-QRY-03's per-state requirement",
       "F-NET-09"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A05",
+      "A16"
+    ],
     "pass": 6,
     "order": 24,
     "phase": "2",
@@ -905,7 +932,9 @@
     "absorbs": [
       "U-SCO-07"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A17"
+    ],
     "pass": 6,
     "order": 25,
     "phase": "6",
@@ -974,7 +1003,9 @@
       "U-STR-07",
       "U-STR-08"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A02"
+    ],
     "pass": 1,
     "order": 8,
     "phase": "6",
@@ -986,7 +1017,7 @@
     "layer": "1",
     "group": "STR",
     "title": "A skipped test carries a reason, a tracking id and a re-enable condition; its code is unverified until it runs.",
-    "severity": "minor as clutter; **major** at the moment of un-ignoring",
+    "severity": "major",
     "evidence": "strong",
     "flag": "auto",
     "parent": null,
@@ -1011,7 +1042,9 @@
     "flag": "auto-unless-listed",
     "parent": "T1-CST-05",
     "absorbs": [],
-    "archetypes": [],
+    "archetypes": [
+      "A15"
+    ],
     "pass": 0,
     "order": 1,
     "phase": null,
@@ -1045,7 +1078,9 @@
     "flag": "auto-unless-listed",
     "parent": "T1-SCO-05",
     "absorbs": [],
-    "archetypes": [],
+    "archetypes": [
+      "A14"
+    ],
     "pass": 6,
     "order": 24,
     "phase": null,
@@ -1096,7 +1131,9 @@
     "flag": "argued",
     "parent": "T1-SCO-05",
     "absorbs": [],
-    "archetypes": [],
+    "archetypes": [
+      "A15"
+    ],
     "pass": 6,
     "order": 24,
     "phase": null,
@@ -1113,7 +1150,9 @@
     "flag": "auto-unless-listed",
     "parent": "T1-ORC-03",
     "absorbs": [],
-    "archetypes": [],
+    "archetypes": [
+      "A14"
+    ],
     "pass": 4,
     "order": 17,
     "phase": null,
@@ -1130,7 +1169,9 @@
     "flag": "argued",
     "parent": "T1-PRF-01",
     "absorbs": [],
-    "archetypes": [],
+    "archetypes": [
+      "A18"
+    ],
     "pass": 8,
     "order": 30,
     "phase": null,
@@ -1215,7 +1256,9 @@
     "flag": "argued",
     "parent": "T1-SCO-04",
     "absorbs": [],
-    "archetypes": [],
+    "archetypes": [
+      "A06"
+    ],
     "pass": 6,
     "order": 23,
     "phase": null,
@@ -1226,7 +1269,7 @@
     "id": "T2-BDD-01",
     "layer": "2",
     "group": "BDD",
-    "title": "BDD is a collaboration practice; using Gherkin without cross-role input is the most common failure mode and forfeits its value.",
+    "title": "RETIRED 2026-08-22: evidence withdrawn — cross-role authorship is not observable from a diff, and the cited authority is one source (Cucumber's own docs and its author), not two independent ones.",
     "severity": "major",
     "evidence": "strong",
     "flag": "argued",
@@ -1243,7 +1286,7 @@
     "id": "T2-BDD-02",
     "layer": "2",
     "group": "BDD",
-    "title": "The three practices run in order — Discovery, then Formulation, then Automation — and skipping to automation inverts the priority.",
+    "title": "RETIRED 2026-08-22: evidence withdrawn — duplicates `T2-BDD-03`'s diff-checkable falsifier (scenario-vs-implementation commit order) with no independent signal of its own.",
     "severity": "major",
     "evidence": "strong",
     "flag": "argued",
@@ -1254,7 +1297,7 @@
     "order": 14,
     "phase": null,
     "file": "references/kind-bdd.md",
-    "line": 17
+    "line": 18
   },
   {
     "id": "T2-BDD-03",
@@ -1271,13 +1314,13 @@
     "order": 30,
     "phase": null,
     "file": "references/kind-bdd.md",
-    "line": 25
+    "line": 27
   },
   {
     "id": "T2-BDD-04",
     "layer": "2",
     "group": "BDD",
-    "title": "Discovery is collaborative, by a minimum of three distinct roles (a \"Three Amigos\": scope-owner, tester, developer), and is not one meeting at the project's start.",
+    "title": "RETIRED 2026-08-22: evidence withdrawn — discovery-session attendance and role composition are not observable from a diff.",
     "severity": "major",
     "evidence": "strong",
     "flag": "argued",
@@ -1288,7 +1331,7 @@
     "order": 14,
     "phase": null,
     "file": "references/kind-bdd.md",
-    "line": 33
+    "line": 35
   },
   {
     "id": "T2-BDD-05",
@@ -1305,7 +1348,7 @@
     "order": 15,
     "phase": null,
     "file": "references/kind-bdd.md",
-    "line": 41
+    "line": 44
   },
   {
     "id": "T2-BDD-06",
@@ -1322,7 +1365,7 @@
     "order": 15,
     "phase": null,
     "file": "references/kind-bdd.md",
-    "line": 49
+    "line": 52
   },
   {
     "id": "T2-BDD-07",
@@ -1339,13 +1382,13 @@
     "order": 29,
     "phase": null,
     "file": "references/kind-bdd.md",
-    "line": 57
+    "line": 60
   },
   {
     "id": "T2-BDD-08",
     "layer": "2",
     "group": "BDD",
-    "title": "Have the whole team write Gherkin together while conventions are still being established; once conventions stabilize, a dev+tester pair with product-owner review is enough.",
+    "title": "RETIRED 2026-08-22: evidence withdrawn — team-composition-over-time is a team-process opinion with no diff-checkable falsifier.",
     "severity": "minor",
     "evidence": "strong",
     "flag": "argued",
@@ -1356,7 +1399,7 @@
     "order": 28,
     "phase": null,
     "file": "references/kind-bdd.md",
-    "line": 66
+    "line": 69
   },
   {
     "id": "T2-BDD-09",
@@ -1373,7 +1416,7 @@
     "order": 28,
     "phase": null,
     "file": "references/kind-bdd.md",
-    "line": 74
+    "line": 78
   },
   {
     "id": "T2-CTR-01",
@@ -1487,7 +1530,9 @@
     "flag": "auto",
     "parent": "T1-ISO-02",
     "absorbs": [],
-    "archetypes": [],
+    "archetypes": [
+      "A08"
+    ],
     "pass": 2,
     "order": 11,
     "phase": null,
@@ -2118,7 +2163,9 @@
     "flag": "auto-unless-listed",
     "parent": "T1-ISO-03",
     "absorbs": [],
-    "archetypes": [],
+    "archetypes": [
+      "A03"
+    ],
     "pass": 2,
     "order": 11,
     "phase": null,
@@ -2169,7 +2216,9 @@
     "flag": "argued",
     "parent": "T1-ISO-02",
     "absorbs": [],
-    "archetypes": [],
+    "archetypes": [
+      "A13"
+    ],
     "pass": 2,
     "order": 11,
     "phase": null,
@@ -2322,7 +2371,9 @@
     "flag": "argued",
     "parent": "T1-STR-01",
     "absorbs": [],
-    "archetypes": [],
+    "archetypes": [
+      "A01"
+    ],
     "pass": 7,
     "order": 28,
     "phase": null,
@@ -2402,9 +2453,9 @@
     "layer": "3",
     "group": "COSMOS",
     "title": "The partition-key argument and a `WHERE c.userId`-shaped tenancy predicate are proven only against the real store, never a fake or an in-memory repository.",
-    "severity": "minor (see note above on the stub severity cap)",
+    "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T2-INTG-03",
     "absorbs": [],
     "archetypes": [],
@@ -2419,9 +2470,9 @@
     "layer": "3",
     "group": "FUNC",
     "title": "A `%Key%` app-setting binding expression resolves from host config only, never the worker's `appsettings.json`; an unresolved binding is silently disabled.",
-    "severity": "minor (see note above on the stub severity cap)",
+    "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-CST-05",
     "absorbs": [],
     "archetypes": [],
@@ -2438,7 +2489,7 @@
     "title": "Serialize a class with `[CollectionDefinition(Name, DisableParallelization = true)]`; never the per-test `DisableParallelism`.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-05",
     "absorbs": [
       "N-XU-01"
@@ -2457,7 +2508,7 @@
     "title": "Pass `TestContext.Current.CancellationToken` into every awaited call that accepts one.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T2-UNIT-06",
     "absorbs": [
       "N-XU-02"
@@ -2476,7 +2527,7 @@
     "title": "`IAsyncLifetime.InitializeAsync` returns `ValueTask` in xUnit v3; `DisposeAsync` overrides `WebApplicationFactory`.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-CST-06",
     "absorbs": [
       "N-XU-03"
@@ -2495,7 +2546,7 @@
     "title": "`[Theory]` with `[InlineData]`/`[MemberData]` instead of duplicated `[Fact]`s; `MemberData` sources are deterministic and order-independent.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-STR-01",
     "absorbs": [
       "N-XU-04"
@@ -2514,7 +2565,7 @@
     "title": "Categorise with `[Trait]`, and enforce the trait's spelling and placement with a reflection meta-guard.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-CST-03",
     "absorbs": [
       "N-XU-05"
@@ -2533,7 +2584,7 @@
     "title": "One assertion library, house-wide; check the census, not the style guide.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-SCO-02",
     "absorbs": [
       "N-XU-06"
@@ -2552,7 +2603,7 @@
     "title": "Rebuild after editing tests before judging a failure; `--no-build` against a stale assembly reports phantom failures.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-ISO-09",
     "absorbs": [
       "N-XU-07"
@@ -2571,7 +2622,7 @@
     "title": "In a lane, run a scoped filter — never the full suite.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-CST-02",
     "absorbs": [
       "N-XU-08"
@@ -2590,7 +2641,7 @@
     "title": "No `async void` tests, and no `async void` in code under test.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ORC-01",
     "absorbs": [
       "N-ASY-01"
@@ -2609,7 +2660,7 @@
     "title": "Never `.Result` / `.GetAwaiter().GetResult()` / `.Wait()` in a test.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ORC-05",
     "absorbs": [
       "N-ASY-02"
@@ -2628,7 +2679,7 @@
     "title": "Every async assertion is awaited: `await Assert.ThrowsAsync<T>(...)`, `await Should.ThrowAsync<T>(...)`.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ORC-01",
     "absorbs": [
       "N-ASY-03"
@@ -2647,7 +2698,7 @@
     "title": "Do not sprinkle `ConfigureAwait(false)` in test bodies; audit it in the library under test instead.",
     "severity": "minor",
     "evidence": "weak",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-CST-02",
     "absorbs": [
       "N-ASY-04"
@@ -2666,7 +2717,7 @@
     "title": "Cancellation is behaviour: at least one test cancels mid-flight and asserts both the exception and the absence of a partial write.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-SCO-04",
     "absorbs": [
       "N-ASY-05 (archetype B10)"
@@ -2685,7 +2736,7 @@
     "title": "`TimeProvider` is injected; tests use `FakeTimeProvider` from `Microsoft.Extensions.TimeProvider.Testing`.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto-unless-listed",
     "parent": "T1-ISO-03",
     "absorbs": [
       "N-TIME-01"
@@ -2704,7 +2755,7 @@
     "title": "An `Advance` immediately after `StartAsync` is lost; sync on the service's own emitted event, not on a delay.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-02, T1-ORC-03",
     "absorbs": [
       "N-TIME-02"
@@ -2723,7 +2774,7 @@
     "title": "Derive a watchdog's poll tick from its timeout (`tick = min(60s, timeout/4)`), and pin it with a short-timeout test.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-ORC-06",
     "absorbs": [
       "N-TIME-03"
@@ -2742,7 +2793,7 @@
     "title": "Pin a `PeriodicTimer` cadence with split advances; one large advance cannot observe the tick size.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-ORC-06",
     "absorbs": [
       "N-TIME-04"
@@ -2761,7 +2812,7 @@
     "title": "`StopApplication` does not stop a `WebApplication` host — assert the runner-shaped chain, not `ApplicationStopped` directly.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-CST-02",
     "absorbs": [
       "N-TIME-05"
@@ -2780,7 +2831,7 @@
     "title": "Do not use the EF Core InMemory provider. Use SQLite in-memory, Testcontainers, or the repository pattern.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-CST-05",
     "absorbs": [
       "N-DATA-01"
@@ -2799,7 +2850,7 @@
     "title": "Testcontainers images are pinned to a tag matching the production engine's major version; one container per fixture, not per test.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-06",
     "absorbs": [
       "N-DATA-02"
@@ -2818,7 +2869,7 @@
     "title": "Every repository interface has a contract suite bound to both the fake and the real backend, and a meta-test fails when one is missing.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-DBL-01",
     "absorbs": [
       "N-DATA-03"
@@ -2837,7 +2888,7 @@
     "title": "Query text, partition-key arguments and tenancy predicates are proven against the real store, and the lane that proves them is named.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T2-INTG-03",
     "absorbs": [
       "N-DATA-04"
@@ -2856,7 +2907,7 @@
     "title": "Prefer `WebApplicationFactory<Program>` over a hand-built host; replace only boundary services.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T0-08, T2-INTG-03",
     "absorbs": [
       "N-WAF-01"
@@ -2875,7 +2926,7 @@
     "title": "Authentication and identity resolution must be exercised through the real pipeline by at least one test.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-SCO-06, T1-CST-04",
     "absorbs": [
       "N-WAF-02"
@@ -2894,7 +2945,7 @@
     "title": "Outbound HTTP is faked at the `HttpMessageHandler`/WireMock boundary — never a real network call, never a mocked `HttpClient` type.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-DBL-03, T1-ISO-07",
     "absorbs": [
       "N-WAF-03"
@@ -2913,7 +2964,7 @@
     "title": "Assert the response contract: status code, `Location`/headers, problem-details shape — not only the body's happy field.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-SCO-07",
     "absorbs": [
       "N-WAF-04"
@@ -2932,7 +2983,7 @@
     "title": "Drive an Aspire stack with `DistributedApplicationTestingBuilder.CreateAsync()` and wait with `ResourceNotificationService.WaitForResourceAsync(name, KnownResourceStates.Running)` — never a sleep.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T2-INTG-04",
     "absorbs": [
       "N-ASP-01"
@@ -2951,7 +3002,7 @@
     "title": "One AppHost at a time, and check for a second instance first when an emulator misbehaves.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-06",
     "absorbs": [
       "N-ASP-02"
@@ -2970,7 +3021,7 @@
     "title": "Per-worktree data volumes are ephemeral, or explicitly cleaned; a wedged orchestration instance in a persistent volume poisons every later run.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-06",
     "absorbs": [
       "N-ASP-03"
@@ -2989,7 +3040,7 @@
     "title": "Verify a Stryker survivor by hand before writing a test for it.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-PRF-02",
     "absorbs": [
       "N-MUT-01"
@@ -3008,7 +3059,7 @@
     "title": "Scope Stryker by enumerated `--file`, not `--namespace`, and fail the harness when the mutant count is zero.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-PRF-03",
     "absorbs": [
       "N-MUT-02"
@@ -3027,7 +3078,7 @@
     "title": "Mutation runs are scoped and on-demand, not a CI gate; the score is a measurement, not a threshold.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-PRF-04",
     "absorbs": [
       "N-MUT-03"
@@ -3046,7 +3097,7 @@
     "title": "An ArchUnitNET rule must explicitly load every assembly containing the types it forbids, and be proven against a planted violation.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T2-ARCH-01, T2-ARCH-03",
     "absorbs": [
       "N-ARC-01"
@@ -3065,7 +3116,7 @@
     "title": "Prefer the reflection-based assembly-reference test where it expresses the same invariant; delete the ArchUnit sibling that has never fired.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T2-ARCH-04",
     "absorbs": [
       "N-ARC-02"
@@ -3084,7 +3135,7 @@
     "title": "Rank by CRAP, not by coverage percentage, when deciding what to test next.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-CST-04",
     "absorbs": [
       "N-COV-01"
@@ -3103,7 +3154,7 @@
     "title": "Audit for untestable statics as a first-class finding: `DateTime.Now/UtcNow`, `File.*`, `Directory.*`, `Environment.*`, `new HttpClient()`, `Console.*`, `Process.*`, `Guid.NewGuid()`.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-03, T1-ISO-07",
     "absorbs": [
       "N-TST-01"
@@ -3122,7 +3173,7 @@
     "title": "Parse and format with `CultureInfo.InvariantCulture` in production, and prove it with at least one test running under a comma-decimal culture.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-04",
     "absorbs": [
       "N-CUL-01 (archetype B5)"
@@ -3141,7 +3192,7 @@
     "title": "Use `DateTimeOffset` at boundaries and assert the offset/kind, not only the instant.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto-unless-listed",
     "parent": "T1-ISO-04",
     "absorbs": [
       "N-CUL-02"
@@ -3160,7 +3211,7 @@
     "title": "Assert `[LoggerMessage]` `EventId`s via `FakeLogger`, never log message text.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-SCO-01",
     "absorbs": [
       "N-LOG-01"
@@ -3179,7 +3230,7 @@
     "title": "Every hosted service / middleware / options binding gets a DI smoke test.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-CST-06",
     "absorbs": [
       "N-CFG-01"
@@ -3198,7 +3249,7 @@
     "title": "A guard clause's exception type is the contract; assert the type and the parameter name, not the message prose.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ORC-05, T1-SCO-01",
     "absorbs": [
       "N-GRD-01"
@@ -3217,7 +3268,7 @@
     "title": "Verify snapshots: scrub GUIDs and timestamps, commit `.verified` files, review their diffs, and never accept in bulk.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T2-SNAP-03, T2-SNAP-04",
     "absorbs": [
       "N-VER-01"
@@ -3236,7 +3287,7 @@
     "title": "NSubstitute (or the house mocking library) for one-off stubs; hand-written fakes in a shared testing project for ports with behaviour.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-DBL-02, T1-DBL-03",
     "absorbs": [
       "N-DBL-01"
@@ -3255,7 +3306,7 @@
     "title": "For load/stress testing, always use Release configuration, never Debug/Development.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T2-PERF-02",
     "absorbs": [
       "D3"
@@ -3274,7 +3325,7 @@
     "title": "Express NBomber load-test scenarios as plain async C# functions, assert thresholds via percentiles/error rates through the normal test framework, never averages.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T2-PERF-04, T2-PERF-05",
     "absorbs": [
       "D4"
@@ -3293,7 +3344,7 @@
     "title": "Use `dotnet/crank` for ASP.NET Core/.NET runtime-level trend tracking and regression bisection across versions.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T2-PERF-07",
     "absorbs": [
       "D6"
@@ -3312,7 +3363,7 @@
     "title": "Reqnroll is the only live .NET BDD runner; never recommend SpecFlow.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-CST-05",
     "absorbs": [],
     "archetypes": [],
@@ -3329,7 +3380,7 @@
     "title": "`@ignore` is the only Gherkin tag that maps to a skip; every other tag becomes a `Category` trait.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-STR-03",
     "absorbs": [],
     "archetypes": [],
@@ -3346,7 +3397,7 @@
     "title": "Drive interaction with `user-event`, never `fireEvent`.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-SCO-03",
     "absorbs": [
       "F-INT-01"
@@ -3365,7 +3416,7 @@
     "title": "`findBy*` instead of `waitFor(() => getBy*(...))`.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-02",
     "absorbs": [
       "F-INT-02"
@@ -3384,7 +3435,7 @@
     "title": "A `waitFor` callback contains exactly one assertion and no side effects.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-02",
     "absorbs": [
       "F-INT-03"
@@ -3403,7 +3454,7 @@
     "title": "`queryBy*` only for absence.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ORC-01",
     "absorbs": [
       "F-INT-05"
@@ -3422,7 +3473,7 @@
     "title": "`act()` appears only around timer advancement, never around render or user-event.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto-unless-listed",
     "parent": "T1-ISO-03",
     "absorbs": [
       "F-INT-06"
@@ -3441,7 +3492,7 @@
     "title": "An act warning fails the test run.",
     "severity": "major",
     "evidence": "weak",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-ORC-01",
     "absorbs": [
       "F-INT-07"
@@ -3460,7 +3511,7 @@
     "title": "Test the component, not the hook, unless the hook is itself a published unit.",
     "severity": "minor",
     "evidence": "weak",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-SCO-03",
     "absorbs": [
       "F-INT-08"
@@ -3479,7 +3530,7 @@
     "title": "A double-submit / double-click guard has its own test asserting the exact count.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ORC-03",
     "absorbs": [
       "F-INT-09 (archetype B09)"
@@ -3498,7 +3549,7 @@
     "title": "Stub at the network boundary (MSW), never by mocking `fetch` or the API module.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-DBL-03",
     "absorbs": [
       "F-NET-01"
@@ -3517,7 +3568,7 @@
     "title": "Unhandled requests are an error, not a warning.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-PRF-01",
     "absorbs": [
       "F-NET-02"
@@ -3536,7 +3587,7 @@
     "title": "A default handler exists so the fallback is deliberate, and is itself schema-checked.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-ORC-02",
     "absorbs": [
       "F-NET-03"
@@ -3555,7 +3606,7 @@
     "title": "Assert the effect on the UI, and separately assert the request body — never only that the request fired.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-ORC-07",
     "absorbs": [
       "F-NET-04"
@@ -3574,7 +3625,7 @@
     "title": "Route/URL literals are generated, and the generator is verified in CI with a `--check` mode.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-CST-06",
     "absorbs": [
       "F-NET-06"
@@ -3593,7 +3644,7 @@
     "title": "A fresh query client per test, retries off, and no shared cache across tests.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-05",
     "absorbs": [
       "F-NET-07"
@@ -3612,7 +3663,7 @@
     "title": "Never assert appearance, layout, or overflow under happy-dom/jsdom.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-CST-05",
     "absorbs": [
       "F-ENV-01"
@@ -3631,7 +3682,7 @@
     "title": "A class-name assertion is named as a contract test, not implied to be a visual one.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto-unless-listed",
     "parent": "T1-CST-05",
     "absorbs": [
       "F-ENV-02"
@@ -3650,7 +3701,7 @@
     "title": "Media queries, `focus-visible`, `prefers-*` and scroll behaviour are browser-only.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto-unless-listed",
     "parent": "T1-CST-05",
     "absorbs": [
       "F-ENV-03"
@@ -3669,7 +3720,7 @@
     "title": "The DOM-shim bootstrap is itself tested, or at minimum documented as load-bearing.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-CST-01",
     "absorbs": [
       "F-ENV-04"
@@ -3688,7 +3739,7 @@
     "title": "Per-file isolation is on, and shared globals are cleared after every test.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-05",
     "absorbs": [
       "F-ENV-05"
@@ -3707,7 +3758,7 @@
     "title": "A skipped test carries the crash and the re-enable condition inline.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-STR-03",
     "absorbs": [
       "F-ENV-06"
@@ -3726,7 +3777,7 @@
     "title": "Time-dependent behaviour is driven by a fake clock, in the runner that owns one.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-03",
     "absorbs": [
       "F-TIME-02"
@@ -3745,7 +3796,7 @@
     "title": "Fake timers are restored unconditionally, in a shared `afterEach`.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-05",
     "absorbs": [
       "F-TIME-03"
@@ -3764,7 +3815,7 @@
     "title": "Animation is disabled in any test that asserts appearance or position.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-01",
     "absorbs": [
       "F-TIME-05"
@@ -3783,7 +3834,7 @@
     "title": "Web-first assertions only.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T2-ETE-01",
     "absorbs": [
       "F-E2E-01"
@@ -3802,7 +3853,7 @@
     "title": "No `waitForTimeout`, and no `networkidle` as a readiness signal.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-ISO-02",
     "absorbs": [
       "F-E2E-02"
@@ -3821,7 +3872,7 @@
     "title": "Locate by user-visible role/label, not CSS or XPath.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T2-ACC-01",
     "absorbs": [
       "F-E2E-03"
@@ -3840,7 +3891,7 @@
     "title": "Each spec is fully isolated: its own context, its own stubs, no ordering dependency.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-ISO-05",
     "absorbs": [
       "F-E2E-04"
@@ -3859,7 +3910,7 @@
     "title": "Third-party and backend calls are stubbed at the route level.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto-unless-listed",
     "parent": "T1-ISO-07",
     "absorbs": [
       "F-E2E-05"
@@ -3878,7 +3929,7 @@
     "title": "Trace on first retry; retries are bounded and are not a flake-hiding device.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto-unless-listed",
     "parent": "T1-ISO-08",
     "absorbs": [
       "F-E2E-06"
@@ -3897,7 +3948,7 @@
     "title": "E2E covers journeys, not fields.",
     "severity": "minor",
     "evidence": "weak",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-CST-02",
     "absorbs": [
       "F-E2E-07"
@@ -3916,7 +3967,7 @@
     "title": "Routing, unknown routes and the error boundary each have an e2e test.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-SCO-05",
     "absorbs": [
       "F-E2E-08 (archetype B10)"
@@ -3935,7 +3986,7 @@
     "title": "Assert typed lint on the e2e sources.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-PRF-01",
     "absorbs": [
       "F-E2E-09"
@@ -3954,7 +4005,7 @@
     "title": "No DOM snapshot as a behavioural assertion.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T2-SNAP-06",
     "absorbs": [
       "F-SNAP-01"
@@ -3973,7 +4024,7 @@
     "title": "Snapshot only stable, non-visual, serialised artifacts.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T2-SNAP-01",
     "absorbs": [
       "F-SNAP-02"
@@ -3992,7 +4043,7 @@
     "title": "A pixel screenshot baseline is only worth it under a pinned rendering environment.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto-unless-listed",
     "parent": "T2-SNAP-01",
     "absorbs": [
       "F-SNAP-03"
@@ -4011,7 +4062,7 @@
     "title": "Prefer a computed, semantic visual assertion over a pixel diff.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T2-SNAP-01",
     "absorbs": [
       "F-SNAP-04"
@@ -4030,7 +4081,7 @@
     "title": "A design-system rule that lives in `className` strings is guarded by a source scan that first proves it scans something.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-PRF-03",
     "absorbs": [
       "F-SNAP-05"
@@ -4049,7 +4100,7 @@
     "title": "The typechecker is part of the gate, and it is green before the suite is trusted.",
     "severity": "blocker",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto-unless-listed",
     "parent": "T1-PRF-02",
     "absorbs": [
       "F-TYPE-01"
@@ -4068,7 +4119,7 @@
     "title": "Wire types are derived from a runtime schema, and parsing happens at the boundary.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T1-CST-06",
     "absorbs": [
       "F-TYPE-02"
@@ -4087,7 +4138,7 @@
     "title": "A contract-parity test proves the schema rejects the wrong shape, not only that it accepts the right one.",
     "severity": "major",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto",
     "parent": "T2-CTR-06",
     "absorbs": [
       "F-TYPE-03"
@@ -4106,7 +4157,7 @@
     "title": "Type-level expectations are asserted, not assumed.",
     "severity": "minor",
     "evidence": "weak",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-ORC-01",
     "absorbs": [
       "F-TYPE-04"
@@ -4125,7 +4176,7 @@
     "title": "`any` and non-null assertions do not appear in test code either.",
     "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "auto-unless-listed",
     "parent": "T1-STR-02",
     "absorbs": [
       "F-TYPE-05"
@@ -4142,9 +4193,9 @@
     "layer": "3",
     "group": "TF",
     "title": "Add or update a failing `tests/*.tftest.hcl` assertion before changing Terraform behaviour.",
-    "severity": "minor (see note above on the stub severity cap)",
+    "severity": "minor",
     "evidence": "strong",
-    "flag": null,
+    "flag": "argued",
     "parent": "T1-PRF-01",
     "absorbs": [],
     "archetypes": [],

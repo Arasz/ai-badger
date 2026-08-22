@@ -9,7 +9,7 @@ same finding as `T1-DBL-01` and is pointed at rather than restated.
 **`T2-CTR-01` — Two components that deploy independently need a contract test; two that always ship together do not.**
 - *design:* before adding a contract test, name what could change on one side without the other redeploying.
 - *review:* contract tests answer what integration tests cannot answer cheaply — will a provider change break a consumer before either deploys?
-- *check:* argued.
+- *check:* do the two components deploy on independent release cadences (separate CI pipelines/deploy triggers)? Evidence: the deploy config — two components shipping from one atomic pipeline don't need this; two that deploy separately with no contract test between them is the violation.
 - **severity:** major · **evidence:** strong · **flag:** argued · **parent:** `T1-CST-02`
 - *cites:* Vocke *Practical Test Pyramid* (CDC section).
 - *meta:* pass=7 order=29
@@ -17,7 +17,7 @@ same finding as `T1-DBL-01` and is pointed at rather than restated.
 **`T2-CTR-02` — Consumer-driven by default; bi-directional spec comparison only when the provider is third-party or will not run verification.**
 - *design:* reach for CDC first; fall back to spec comparison only when the provider genuinely cannot run your verification.
 - *review:* CDC runs real provider code and catches behavioural issues a static spec comparison cannot.
-- *check:* argued.
+- *check:* is a bi-directional spec-comparison test used against an in-house provider that could instead run CDC verification? Evidence: who owns the provider — spec comparison used by default against an in-house provider, with no attempt at CDC, is the violation.
 - **severity:** minor · **evidence:** strong · **flag:** argued · **parent:** `T1-DBL-03`
 - *cites:* PactFlow CDC-vs-BDCT comparison.
 - *meta:* pass=5 order=21
@@ -25,7 +25,7 @@ same finding as `T1-DBL-01` and is pointed at rather than restated.
 **`T2-CTR-03` — The contract is verified against real provider code, never against a document or a mock of the provider.**
 - *design:* wire the contract test to invoke the provider's real handler, not a description of it.
 - *review:* a contract "verified" against a mock of the provider verifies the mock's author's beliefs, not the provider.
-- *check:* auto.
+- *check:* `grep -rn 'Mock<IProvider>\|Substitute.For<IProvider>' <contract test dir>` — a contract test constructing a mock of the provider interface, rather than invoking the provider's real handler, is the violation.
 - **severity:** blocker · **evidence:** strong · **flag:** auto · **parent:** `T1-DBL-01`
 - *meta:* pass=1 order=10
 
@@ -34,7 +34,7 @@ same finding as `T1-DBL-01` and is pointed at rather than restated.
 - *review:* this is where a fake's divergence hurts most, because nothing else is watching the process boundary.
 - *check:* auto — for each remote-provider double, does the contract suite run against it too?
 - **severity:** blocker · **evidence:** strong · **flag:** auto · **parent:** `T1-DBL-01`
-- *cites:* jsaa test-quality findings §3.
+- *cites:* `evidence.md` (fake-contradicts-production-backend).
 - *meta:* pass=1 order=10
 
 **`T2-CTR-05` — Where no contract test exists, a derivation check is the minimum: the client's route/DTO set is generated from, or diffed against, the server's.**
@@ -49,6 +49,6 @@ same finding as `T1-DBL-01` and is pointed at rather than restated.
 - *design:* for every discriminated union or constrained enum in the contract, assert at least one rejection case.
 - *review:* a schema that accepts everything passes every acceptance-only test — the rejection case is the one that would have caught the drift.
 - *check:* auto — a parity/schema test file with zero rejection assertions is a finding.
-- *rationale:* jsaa's parity suite pins `source: "linkedin"` rejected — the exact drift that shipped a channel selector the backend could not register.
+- *rationale:* `evidence.md` (schema-accepts-everything-no-rejection-test) — a parity suite pinning one field's accepted values with no rejection test shipped a selector the backend could not register.
 - **severity:** major · **evidence:** strong · **flag:** auto · **parent:** `T1-DBL-01`
 - *meta:* pass=1 order=10

@@ -8,12 +8,13 @@ because it has not yet been through the full evidence/parent review a
 researched stack file gets.
 
 #### `T3-TF-01` — Add or update a failing `tests/*.tftest.hcl` assertion before changing Terraform behaviour.
-- *design/review/check:* already stated in full at `terraform.instructions.md` —
-  cited, not restated, per this file's own governance.
-- **severity:** minor (see note above on the stub severity cap) · **evidence:** strong
+- *design:* already stated in full at `terraform.instructions.md` — cited, not restated, per this file's own governance.
+- *review:* already stated in full at `terraform.instructions.md`.
+- *check:* does a red `.tftest.hcl` assertion exist before the behaviour change, per `terraform.instructions.md`'s own TDD discipline?
+- **severity:** minor (see note above on the stub severity cap) · **evidence:** strong · **flag:** argued
 - *parent:* `T1-PRF-01` · *cites:* `terraform.instructions.md`
 
 ## How to contribute a rule
 
-Read `governance.md` §9.1 before adding anything: a stack rule needs a `parent:`
+Read `governance.md` §"Adding a rule" before adding anything: a stack rule needs a `parent:`
 L1/L2 id, a real proven failure, and a falsifying `check:`.

@@ -46,11 +46,11 @@ principle decides.
    not a nit.
 4. **`T0-04`** — The oracle must not come from the code under test. An
    expected value computed by the same mapper passes whatever that mapper does.
-5. **`T0-06`** — Determinism is a property of the test, not of the
+5. **`T0-05`** — Every double is an unverified claim about production.
+   A fake whose filter or ordering differs from the real store documents a system that does not exist.
+6. **`T0-06`** — Determinism is a property of the test, not of the
    machine. Clock, locale, timezone, ports, filesystem, ordering, host
    load — a test that depends on any of them samples the environment.
-6. **`T0-05`** — Every double is an unverified claim about production.
-   A fake whose filter or ordering differs from the real store documents a system that does not exist.
 7. **`T0-07`** — Design the suite around failure modes, not around the
    code's shape. One test per public method produces coverage-touching.
 8. **`T0-08`** — The cheapest test that can *observe* the defect wins; a

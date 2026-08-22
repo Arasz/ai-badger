@@ -29,7 +29,9 @@
       "U-ASR-01",
       "U-ASR-02"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A01"
+    ],
     "pass": 1,
     "order": 1,
     "phase": "6",
@@ -67,7 +69,9 @@
     "absorbs": [
       "K-WID-01"
     ],
-    "archetypes": [],
+    "archetypes": [
+      "A02"
+    ],
     "pass": 1,
     "order": 2,
     "phase": null,

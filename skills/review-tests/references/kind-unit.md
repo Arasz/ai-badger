@@ -58,7 +58,7 @@ specialise `universal.md`'s SCO/CST/ORC/STR/DBL groups; read those bodies there,
 **`T2-UNIT-07` — Tighten a constraint deliberately (pool of 1, capacity of 1) to surface leaks and races in a test rather than in production.**
 - *design:* where the default fixture is generous, add one case at the tightest legal value to force the leak into the open.
 - *review:* this is the deliberate inverse of the no-degenerate-fixture rule — a small value chosen on purpose, not by accident.
-- *check:* argued.
+- *check:* does at least one test set the constrained resource to its tightest legal value (pool size 1, capacity 1, retry budget 0), not only a generous default? Evidence: read the fixture/builder defaults across the suite — a suite with only generous values is the violation.
 - **severity:** minor · **evidence:** strong · **flag:** argued · **parent:** `T1-STR-02`
 - *cites:* Fowler *Eradicating Non-Determinism*.
 - *meta:* pass=1 order=8

@@ -47,14 +47,14 @@ plausible bug:
   element. A degenerate fixture makes the test fail for the wrong reason, and
   leaves it green when the parameter itself stops working.
 
-> This section carries over the discipline in `test-gap-analysis` (step 4b)
-> and `code-testing-agent` from
-> [dotnet/skills](https://github.com/dotnet/skills) (MIT, .NET Foundation).
-
 ## Mutation findings are run, never reasoned
 
 Never report a survivor without applying it, running the narrowest covering test, then reverting.
 The full ruleset and the audit lens now live in `review-tests` — dispatch `qa` for that.
+
+> The two sections above carry over the discipline in `test-gap-analysis`
+> (step 4b) and `code-testing-agent` from
+> [dotnet/skills](https://github.com/dotnet/skills) (MIT, .NET Foundation).
 
 ## Tags
 

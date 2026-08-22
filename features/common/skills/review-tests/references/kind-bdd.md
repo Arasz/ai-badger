@@ -6,19 +6,21 @@ the scenario was written *before* the code as a captured conversation, or *after
 automation wearing Gherkin's syntax. `T2-BDD-09` is this kind's instance of `T1-STR-03` for a
 dormant scenario specifically — see `parent:` for the full body.
 
-**`T2-BDD-01` — BDD is a collaboration practice; using Gherkin without cross-role input is the most common failure mode and forfeits its value.**
-- *design:* do not author a feature file alone; bring in whoever owns the business rule before writing the first scenario.
-- *review:* a feature file whose only author is the person who also wrote the step definitions and the code is automation, not BDD.
-- *check:* argued.
+**`T2-BDD-01` — RETIRED 2026-08-22: evidence withdrawn — cross-role authorship is not observable from a diff, and the cited authority is one source (Cucumber's own docs and its author), not two independent ones.**
+- *design:* n/a — retired.
+- *review:* n/a — retired.
+- *check:* retired — not applicable.
 - **severity:** major · **evidence:** strong · **flag:** argued · **parent:** `T1-SCO-01`
+- *retired:* 2026-08-22 — no diff-checkable falsifier for a real-world collaboration-composition claim; see `governance.md` "Retiring a rule".
 - *cites:* Cucumber docs; Hellesøy "world's most misunderstood collaboration tool".
 - *meta:* pass=3 order=14
 
-**`T2-BDD-02` — The three practices run in order — Discovery, then Formulation, then Automation — and skipping to automation inverts the priority.**
-- *design:* hold the discovery conversation and write the scenario in plain language before touching a step definition.
-- *review:* "conversation > capturing the conversation > automating it" — an automation-first scenario has the priority backwards.
-- *check:* argued.
+**`T2-BDD-02` — RETIRED 2026-08-22: evidence withdrawn — duplicates `T2-BDD-03`'s diff-checkable falsifier (scenario-vs-implementation commit order) with no independent signal of its own.**
+- *design:* n/a — retired.
+- *review:* n/a — retired.
+- *check:* retired — not applicable.
 - **severity:** major · **evidence:** strong · **flag:** argued · **parent:** `T1-SCO-01`
+- *retired:* 2026-08-22 — subsumed by `T2-BDD-03`'s falsifier; see `governance.md` "Retiring a rule".
 - *cites:* Cucumber docs Myths; Dan North via Liz Keogh.
 - *meta:* pass=3 order=14
 
@@ -30,18 +32,19 @@ dormant scenario specifically — see `parent:` for the full body.
 - *cites:* Cucumber docs Myths; Hellesøy.
 - *meta:* pass=8 order=30
 
-**`T2-BDD-04` — Discovery is collaborative, by a minimum of three distinct roles (a "Three Amigos": scope-owner, tester, developer), and is not one meeting at the project's start.**
-- *design:* schedule discovery per feature, not once for the whole project, and bring three perspectives every time.
-- *review:* a discovery session with one role present produces a scenario that reads as that role's assumptions.
-- *check:* argued.
+**`T2-BDD-04` — RETIRED 2026-08-22: evidence withdrawn — discovery-session attendance and role composition are not observable from a diff.**
+- *design:* n/a — retired.
+- *review:* n/a — retired.
+- *check:* retired — not applicable.
 - **severity:** major · **evidence:** strong · **flag:** argued · **parent:** `T1-SCO-01`
+- *retired:* 2026-08-22 — no diff-checkable falsifier for a real-world discovery-composition claim; see `governance.md` "Retiring a rule".
 - *cites:* Cucumber docs (who-does-what).
 - *meta:* pass=3 order=14
 
 **`T2-BDD-05` — Write Gherkin declaratively — describe behaviour, not implementation.**
 - *design:* apply the test "will this wording need to change if the implementation does?" — rewrite if yes.
 - *review:* a step naming a button, a field, or a URL is implementation coupling wearing Gherkin's syntax; it is the same defect `T1-SCO-03` names for code.
-- *check:* argued.
+- *check:* does a step's text name a UI element, selector, URL, or button label instead of describing behaviour? Evidence: grep the `.feature` file for `button`, `click`, a CSS selector, or a literal URL inside step text — any hit is the violation.
 - **severity:** major · **evidence:** strong · **flag:** argued · **parent:** `T1-SCO-03`
 - *cites:* Cucumber docs (better-gherkin).
 - *meta:* pass=3 order=15
@@ -49,7 +52,7 @@ dormant scenario specifically — see `parent:` for the full body.
 **`T2-BDD-06` — Push interaction mechanics down into step definitions; keep the scenario text implementation-agnostic.**
 - *design:* the scenario names the behaviour; the step definition owns which button, which field, which selector.
 - *review:* mechanics in the scenario text is the same coupling `T2-BDD-05` names, at the syntax level rather than the wording level.
-- *check:* auto-unless-listed.
+- *check:* `grep -rn 'button\|selector\|css\|xpath'` against the `.feature` file's own step text (not the step-definition body) — interaction mechanics leaking back into the scenario text is the violation.
 - **severity:** major · **evidence:** strong · **flag:** auto-unless-listed · **parent:** `T1-SCO-03`
 - *cites:* Cucumber docs (better-gherkin).
 - *meta:* pass=3 order=15
@@ -57,17 +60,18 @@ dormant scenario specifically — see `parent:` for the full body.
 **`T2-BDD-07` — BDD/Gherkin pays off when scenarios stay tied to explicit business goals, not just feature-level examples.**
 - *design:* trace each feature file back to a stated business goal (e.g. via Impact Mapping) rather than letting it float as an isolated example set.
 - *review:* a feature with no traceable business goal is a candidate for demotion to a cheaper test.
-- *check:* argued.
+- *check:* does the feature file's header or the linking PR/issue name a business goal it traces to? Evidence: read the `Feature:` description block — no stated goal and no PR/issue link is the violation.
 - *rationale:* weak — search-derived summary, not a first-party primary source; caps at `major`.
 - **severity:** major · **evidence:** weak · **flag:** argued · **parent:** `T1-CST-02`
 - *cites:* Gojko Adzic, Impact Mapping.
 - *meta:* pass=7 order=29
 
-**`T2-BDD-08` — Have the whole team write Gherkin together while conventions are still being established; once conventions stabilize, a dev+tester pair with product-owner review is enough.**
-- *design:* widen authorship early in a project or a new feature area; narrow it once the house style is settled and documented.
-- *review:* a lone author writing Gherkin in a project with no established convention is where drift starts.
-- *check:* argued.
+**`T2-BDD-08` — RETIRED 2026-08-22: evidence withdrawn — team-composition-over-time is a team-process opinion with no diff-checkable falsifier.**
+- *design:* n/a — retired.
+- *review:* n/a — retired.
+- *check:* retired — not applicable.
 - **severity:** minor · **evidence:** strong · **flag:** argued · **parent:** `T1-STR-01`
+- *retired:* 2026-08-22 — an opinion about team composition over a project's lifetime, not a rule with a checkable falsifier; see `governance.md` "Retiring a rule".
 - *cites:* Cucumber docs (who-does-what).
 - *meta:* pass=7 order=28
 

@@ -45,8 +45,8 @@
 ## Pass 2
 
 - **T1-ISO-01** — Never assert on wall-clock time: no millisecond budget, no p95, no ratio of one duration to another. A real budget lives in a dedicated lane, excluded from the default run. (severity: blocker, flag: auto)
-- **T1-ISO-02** — Never sleep to synchronise. Poll a condition with a timeout, gate on a latch the test controls, or sync on a signal the system itself emits. (severity: blocker (unit/integration/e2e); major (documented external rate limit), flag: auto-unless-listed)
-- **T1-ISO-03** — Non-determinism enters through an injected, pinned source: an injected clock for time, a seeded generator for randomness — and the instant and the seed are printed on failure. (severity: major; **blocker** where the ambient read is inside the assertion's path, flag: auto)
+- **T1-ISO-02** — Never sleep to synchronise. Poll a condition with a timeout, gate on a latch the test controls, or sync on a signal the system itself emits. (severity: blocker, flag: auto-unless-listed)
+- **T1-ISO-03** — Non-determinism enters through an injected, pinned source: an injected clock for time, a seeded generator for randomness — and the instant and the seed are printed on failure. (severity: blocker, flag: auto)
 - **T1-ISO-04** — Culture, timezone and locale are pinned wherever the test parses, formats, sorts or compares text, dates or money — and at least one case runs under a non-default one. (severity: major, flag: auto)
 - **T1-ISO-05** — Tests pass in any order and alone. No shared mutable state without an unconditional reset; a test that cannot be parallel-safe is explicitly serialized and the reason is recorded at the serialization point. (severity: blocker, flag: auto)
 - **T1-ISO-06** — Every shared external resource is namespaced per run or per worker and destroyed on teardown: port, path, database, container, volume, queue, task hub, orchestration instance. (severity: blocker, flag: auto)
@@ -73,11 +73,8 @@
 
 ## Pass 3
 
-- **T1-SCO-02** — The test's name is a claim; the body proves every half of it. (severity: blocker when the name asserts the opposite of the truth; major when a claimed half is unasserted; minor when merely vague, flag: argued)
+- **T1-SCO-02** — The test's name is a claim; the body proves every half of it. (severity: blocker, flag: argued)
 - **T1-SCO-01** — Name the one-line production edit that reddens this test; if the only edit you can name is an intentional decision, it is a change detector, not a test. (severity: blocker, flag: argued)
-  - ↳ **T2-BDD-01** — BDD is a collaboration practice; using Gherkin without cross-role input is the most common failure mode and forfeits its value. (severity: major, flag: argued)
-  - ↳ **T2-BDD-02** — The three practices run in order — Discovery, then Formulation, then Automation — and skipping to automation inverts the priority. (severity: major, flag: argued)
-  - ↳ **T2-BDD-04** — Discovery is collaborative, by a minimum of three distinct roles (a "Three Amigos": scope-owner, tester, developer), and is not one meeting at the project's start. (severity: major, flag: argued)
   - ↳ **T2-SNAP-01** — A snapshot is a change detector by construction; use it only where the whole shape is the contract. (severity: major, flag: argued)
   - ↳ **T2-SNAP-02** — Pair every snapshot with explicit assertions on the business facts that matter. (severity: major, flag: argued)
 - **T1-SCO-03** — Test observable behaviour through the surface a caller uses; no reflection into privates, and no test-only seam on a production type. (severity: major, flag: auto)
@@ -90,7 +87,7 @@
 - **T1-ORC-02** — The expected value is derived independently of the code under test. (severity: blocker, flag: argued)
   - ↳ **T2-PERF-08** — Derive a baseline from multiple runs, not one, and gate on a percentage deviation from it rather than a single hard number. (severity: major, flag: argued)
   - ↳ **T2-PRP-01** — Reach for a property test when a law exists; otherwise write examples. (severity: minor, flag: argued)
-- **T1-ORC-03** — Assert the tightest predicate the contract allows: no slack a plausible regression fits through, and an exact count wherever the count is the contract. (severity: major; **blocker** where the loose bound guards a safety or privacy property, flag: argued)
+- **T1-ORC-03** — Assert the tightest predicate the contract allows: no slack a plausible regression fits through, and an exact count wherever the count is the contract. (severity: blocker, flag: argued)
   - ↳ **T2-ACC-07** — Assert the association, not the presence, of a label or description. (severity: major, flag: auto-unless-listed)
   - ↳ **T2-PERF-04** — Assert on percentiles and error rates, not averages. (severity: major, flag: argued)
 - **T1-ORC-04** — A negative or absence assertion is paired with a positive that proves the code ran. (severity: blocker, flag: auto)
@@ -123,8 +120,7 @@
 
 - **T1-CST-01** — Every test declares its size, and the size's constraints are enforced. (severity: major, flag: auto)
 - **T1-STR-01** — One act, visibly separated arrange/act/assert, no control flow in the body except idiomatic parametrization, and the varied input readable at the call site. (severity: minor, flag: auto-unless-listed)
-- **T1-STR-03** — A skipped test carries a reason, a tracking id and a re-enable condition; its code is unverified until it runs. (severity: minor as clutter; **major** at the moment of un-ignoring, flag: auto)
-  - ↳ **T2-BDD-08** — Have the whole team write Gherkin together while conventions are still being established; once conventions stabilize, a dev+tester pair with product-owner review is enough. (severity: minor, flag: argued)
+- **T1-STR-03** — A skipped test carries a reason, a tracking id and a re-enable condition; its code is unverified until it runs. (severity: major, flag: auto)
   - ↳ **T2-BDD-09** — A dormant (`@ignore`/skipped) scenario's step bindings are unverified code; un-ignoring is a required step of the change that lifts the block, not a follow-up. (severity: major, flag: auto)
   - ↳ **T2-PERF-01** — Load tests validate a response-time goal under specified normal concurrent load; stress tests validate stability and graceful recovery under extreme load. Keep the two goals distinct. (severity: major, flag: argued)
   - ↳ **T2-SNAP-05** — Keep snapshots small enough to read; a growing snapshot count is a quality metric in its own right. (severity: minor, flag: argued)
