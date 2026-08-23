@@ -270,3 +270,29 @@ def test_queue_and_important_markers_are_detected(load_script):
 
     imp_match = hook.match_marker("i!: stop everything now", markers)
     assert imp_match is not None and imp_match[0]["id"] == "important"
+
+
+def test_feedback_marker_inject_requires_evidence(load_script):
+    """Rule 3 (grounded feedback): the feedback marker's injected text must require the agent
+    to cite failing output, validator results, or source evidence — not just address the feedback
+    vaguely.  The prompt-rules-ranking-framework-plan mandates this for every f: turn."""
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    markers = hook.load_markers_context().get("markers", [])
+    feedback = next(m for m in markers if m["id"] == "feedback")
+    inject = feedback["inject"].lower()
+    assert any(word in inject for word in ("evidence", "failing", "validator", "error", "source")), (
+        "feedback marker inject must require evidence-backed correction; "
+        f"got: {feedback['inject']!r}"
+    )
+
+
+def test_feedback_marker_inject_requires_referencing_prior_work(load_script):
+    """The feedback marker must instruct the agent to refer back to the specific prior output."""
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    markers = hook.load_markers_context().get("markers", [])
+    feedback = next(m for m in markers if m["id"] == "feedback")
+    inject = feedback["inject"].lower()
+    assert any(word in inject for word in ("refer", "prior", "previous", "history", "session")), (
+        "feedback marker inject must require referencing prior work; "
+        f"got: {feedback['inject']!r}"
+    )

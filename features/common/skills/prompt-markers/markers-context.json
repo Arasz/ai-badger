@@ -10,7 +10,7 @@
       "id": "feedback",
       "prefixes": ["f:", "feedback:"],
       "behavior": "high-priority-adjustment",
-      "inject": "FEEDBACK: The user is providing concrete feedback on previous work, a plan, or an output. This is high priority. Refer back to the session history, identify the specific point, and address it as soon as possible."
+      "inject": "FEEDBACK: The user is providing concrete feedback on previous work, a plan, or an output. This is high priority. Refer back to the session history, identify the specific point, and address it as soon as possible. You MUST cite the failing test, error message, validator output, or source evidence behind the correction before proposing a new patch — vague doubt or 'try again' is not grounded feedback."
     },
     {
       "id": "extension",
