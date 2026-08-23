@@ -36,6 +36,8 @@ try:
 except ImportError:  # pragma: no cover - a missing logger must never break a hook
     debug_log = None
 
+import grounded_feedback as _gf
+
 logger = logging.getLogger("ai_badger_hooks")
 
 
@@ -802,8 +804,6 @@ def _now_iso() -> str:
 
 
 # --- Grounded feedback (Rule 3C) ---
-
-import grounded_feedback as _gf  # pylint: disable=wrong-import-position
 
 
 def _maybe_remind_commit(tool_name: str, cwd: str) -> None:
