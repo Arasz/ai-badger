@@ -306,24 +306,52 @@ def test_count_trailing_feedback_returns_zero_for_empty_state(load_script):
     assert hook.count_trailing_feedback({"history": []}) == 0
 
 
-def test_count_trailing_feedback_counts_consecutive(load_script):
+def test_count_trailing_feedback_reads_the_streak(load_script):
+    """The restart counter is the persisted feedbackStreak, not history length."""
     hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
-    state = {"history": [
-        {"markerId": "hint"},
-        {"markerId": "feedback"},
-        {"markerId": "feedback"},
-    ]}
-    assert hook.count_trailing_feedback(state) == 2
+    assert hook.count_trailing_feedback({"feedbackStreak": 3}) == 3
 
 
-def test_count_trailing_feedback_resets_on_non_feedback(load_script):
+def test_advance_feedback_streak_increments_and_resets(tmp_path, load_script):
     hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
-    state = {"history": [
-        {"markerId": "feedback"},
-        {"markerId": "hint"},
-        {"markerId": "feedback"},
-    ]}
-    assert hook.count_trailing_feedback(state) == 1
+    project = tmp_path / "project"
+    (project / ".ai-badger").mkdir(parents=True)
+    cwd = str(project)
+
+    assert hook.advance_feedback_streak(cwd, is_feedback=True) == 1
+    assert hook.advance_feedback_streak(cwd, is_feedback=True) == 2
+    assert hook.advance_feedback_streak(cwd, is_feedback=True) == 3
+    assert hook.advance_feedback_streak(cwd, is_feedback=False) == 0
+    assert hook.advance_feedback_streak(cwd, is_feedback=True) == 1
+
+
+def test_interleaved_normal_prompt_resets_the_streak(tmp_path, load_script,
+                                                     monkeypatch, capsys):
+    """f: → normal prompt → f: must NOT fire the restart advisory (Copilot review)."""
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    config_path = tmp_path / "markers-context.json"
+    _write_markers_context(config_path, {"markers": [
+        {"id": "hint", "prefixes": ["h:", "hint:"], "inject": "HINT"},
+        {"id": "feedback", "prefixes": ["f:", "feedback:"], "inject": "FEEDBACK"},
+    ]})
+    monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
+
+    project = tmp_path / "project"
+    (project / ".ai-badger").mkdir(parents=True)
+
+    rc = _call_main(hook, monkeypatch, {"prompt": "f: first correction", "cwd": str(project)})
+    assert rc == 0
+    capsys.readouterr()  # discard the first turn's output
+
+    rc = _call_main(hook, monkeypatch, {"prompt": "a normal prompt in between", "cwd": str(project)})
+    assert rc == 0
+    assert capsys.readouterr().out == ""  # silent — no marker
+
+    rc = _call_main(hook, monkeypatch, {"prompt": "f: second correction", "cwd": str(project)})
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    ctx = out["hookSpecificOutput"]["additionalContext"]
+    assert "CONSOLIDATED RESTART ADVISORY" not in ctx
 
 
 def test_consolidated_restart_advisory_injected_after_two_feedback(tmp_path, load_script,
@@ -339,11 +367,12 @@ def test_consolidated_restart_advisory_injected_after_two_feedback(tmp_path, loa
     project = tmp_path / "project"
     (project / ".ai-badger").mkdir(parents=True)
 
-    # Pre-populate marker-state.json with one prior feedback entry
+    # Pre-populate marker-state.json with a prior feedback turn's streak
     state_dir = project / ".ai-badger" / "prompt-markers"
     state_dir.mkdir(parents=True)
     _test_write(state_dir / "marker-state.json", json.dumps({
-        "history": [{"markerId": "feedback", "timestamp": "2026-01-01T00:00:00Z"}]
+        "history": [{"markerId": "feedback", "timestamp": "2026-01-01T00:00:00Z"}],
+        "feedbackStreak": 1,
     }), encoding="utf-8")
 
     rc = _call_main(hook, monkeypatch, {"prompt": "f: this is still wrong", "cwd": str(project)})

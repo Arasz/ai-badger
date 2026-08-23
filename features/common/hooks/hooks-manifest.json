@@ -283,7 +283,8 @@
           "type": "hooks-json",
           "entry": "hooks.json",
           "event": "postToolUse",
-          "script": "grounded_feedback_hook.py"
+          "script": "grounded_feedback_hook.py",
+          "matcher": "bash|Bash"
         }
       }
     }

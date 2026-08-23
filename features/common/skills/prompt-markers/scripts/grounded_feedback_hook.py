@@ -43,12 +43,16 @@ def extract_failure_output(payload: dict) -> str | None:
 
     Returns the output string (up to MAX_OUTPUT_LINES lines / MAX_OUTPUT_CHARS chars)
     or None if there is nothing to capture.
+
+    Supports Claude (tool_response), Copilot (toolResponse), Hermes (tool_result),
+    and generic (result) payload shapes.
     """
-    tool_name = payload.get("tool_name") or payload.get("toolName") or ""
-    if tool_name != "Bash":
+    tool_name = (payload.get("tool_name") or payload.get("toolName") or "").lower()
+    if tool_name not in ("bash", "terminal"):
         return None
 
-    result = payload.get("tool_result") or payload.get("toolOutput") or {}
+    result = (payload.get("tool_response") or payload.get("toolResponse")
+              or payload.get("tool_result") or payload.get("result") or {})
     if not isinstance(result, dict):
         return None
 
@@ -56,11 +60,17 @@ def extract_failure_output(payload: dict) -> str | None:
     if exit_code is None or exit_code == 0:
         return None
 
-    output = result.get("output") or result.get("stdout") or result.get("stderr") or ""
-    if not output or not output.strip():
+    # Combine stdout and stderr when both are present; fall back to output field.
+    parts = []
+    for key in ("output", "stdout", "stderr"):
+        val = result.get(key)
+        if val and val.strip():
+            parts.append(val.strip())
+    output = "\n".join(parts) if parts else ""
+    if not output:
         return None
 
-    lines = output.strip().splitlines()
+    lines = output.splitlines()
     if len(lines) > MAX_OUTPUT_LINES:
         lines = lines[-MAX_OUTPUT_LINES:]
 
@@ -93,7 +103,8 @@ def main() -> int:
         _debug("skip", reason="no_failure_output")
         return 0
 
-    result = payload.get("tool_result") or payload.get("toolOutput") or {}
+    result = (payload.get("tool_response") or payload.get("toolResponse")
+              or payload.get("tool_result") or payload.get("result") or {})
     exit_code = result.get("exit_code") or result.get("exitCode") or "?"
     message = ADVISORY_TEMPLATE.format(exit_code=exit_code, output=output)
 

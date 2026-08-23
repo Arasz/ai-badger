@@ -56,7 +56,7 @@
         "type": "command",
         "bash": "python3 \".ai-badger/skills/prompt-markers/scripts/grounded_feedback_hook.py\"",
         "timeoutSec": 10,
-        "matcher": "Bash"
+        "matcher": "bash|Bash"
       }
     ],
     "preToolUse": [

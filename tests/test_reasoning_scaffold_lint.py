@@ -249,3 +249,24 @@ def test_multiple_file_arguments(load_script, tmp_path):
     code, stdout, _ = _run(load_script, [str(good), str(bad)])
     assert code == 1
     assert str(bad) in stdout
+
+
+def test_negated_policy_line_is_not_flagged(load_script, tmp_path):
+    """A prohibition like `no "think step by step"` is policy, not an instruction (Copilot)."""
+    policy = tmp_path / "policy.md"
+    _test_write(policy, '- **Reasoning scaffolding minimization** — no "think step by step" on '
+                       'reasoning models.\n')
+
+    code, stdout, _ = _run(load_script, [str(policy)])
+
+    assert code == 0, f"negated line wrongly flagged:\n{stdout}"
+    assert str(policy) not in stdout
+
+
+def test_directive_line_still_flagged_after_negation_rule(load_script, tmp_path):
+    """A genuine directive with no negation cue is still reported."""
+    bad = tmp_path / "bad.md"
+    _test_write(bad, "Please think step by step before answering.\n")
+
+    code, stdout, _ = _run(load_script, [str(bad)])
+    assert code == 1

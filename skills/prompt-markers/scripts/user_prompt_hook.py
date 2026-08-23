@@ -127,21 +127,15 @@ def record_transformation(
 
 
 def count_trailing_feedback(state: dict) -> int:
-    """Count consecutive `f:`/`feedback:` entries at the end of marker history.
+    """Count the consecutive feedback-turn streak in marker history.
 
-    Reads the already-recorded history (which includes the current turn's entry
-    if a feedback marker just fired) and counts how many of the most recent
-    entries are feedback markers. Returns 0 if the history is empty or the
-    trailing run is broken by a non-feedback marker.
+    The streak counts consecutive *user turns* that were feedback markers:
+    every recorded entry advances a turn, and a non-feedback turn (a marker of
+    another kind) resets it.  Prompts with no marker never reach this file, so
+    `feedbackStreak` — maintained by main() on every recorded turn — is what
+    carries the count; this function reads it.
     """
-    history = state.get("history", [])
-    count = 0
-    for entry in reversed(history):
-        if entry.get("markerId") == "feedback":
-            count += 1
-        else:
-            break
-    return count
+    return state.get("feedbackStreak", 0)
 
 
 RESTART_THRESHOLD = 2
@@ -151,6 +145,32 @@ RESTART_ADVISORY = (
     "prompt that includes all accepted constraints, the failing evidence, and the "
     "original objective — instead of layering another correction on this stale thread."
 )
+
+
+def advance_feedback_streak(cwd: str, is_feedback: bool) -> int:
+    """Advance the per-project feedback streak by one user turn.
+
+    A feedback turn increments the streak; any other marker resets it to 0.
+    Returns the new streak.  Best-effort: silently returns 0 when no tracking
+    dir exists or the state file is unreadable.
+    """
+    tracking_dir = find_tracking_dir(Path(cwd) if cwd else Path.cwd())
+    if tracking_dir is None:
+        return 0
+    state_file = tracking_dir.joinpath(*STATE_SUBPATH)
+    try:
+        state = json.loads(state_file.read_text()) if state_file.exists() else {}
+    except (OSError, ValueError):
+        state = {}
+    streak = state.get("feedbackStreak", 0) + 1 if is_feedback else 0
+    try:
+        state["feedbackStreak"] = streak
+        state_file.parent.mkdir(parents=True, exist_ok=True)
+        state_file.write_text(json.dumps(state, indent=2) + "\n")
+        state_file.chmod(0o600)
+    except OSError:
+        pass
+    return streak
 
 
 def main() -> int:
@@ -165,6 +185,11 @@ def main() -> int:
     config = load_markers_context()
     matched = match_marker(prompt, config.get("markers", []))
     if matched is None:
+        # No marker: still a user turn — reset the feedback streak so an
+        # interleaved normal prompt breaks a would-be restart advisory.
+        cwd = payload.get("cwd", "")
+        if find_tracking_dir(Path(cwd) if cwd else Path.cwd()) is not None:
+            advance_feedback_streak(cwd, is_feedback=False)
         _debug("skip", reason="no_match")
         return 0
 
@@ -174,20 +199,15 @@ def main() -> int:
     cwd = payload.get("cwd", "")
     record_transformation(cwd, prompt, marker["id"], prefix, injected)
 
-    # Check for consolidated restart: if the last N entries (including this one)
-    # are all feedback markers, append the advisory.
+    # Consolidated restart: track consecutive *user turns* that were feedback.
+    # Every recorded turn advances the streak; non-feedback markers reset it.
     if marker["id"] == "feedback":
-        tracking_dir = find_tracking_dir(Path(cwd) if cwd else Path.cwd())
-        if tracking_dir is not None:
-            state_file = tracking_dir.joinpath(*STATE_SUBPATH)
-            try:
-                state = json.loads(state_file.read_text()) if state_file.exists() else {}
-            except (OSError, ValueError):
-                state = {}
-            consecutive = count_trailing_feedback(state)
-            if consecutive >= RESTART_THRESHOLD:
-                injected += "\n\n" + RESTART_ADVISORY.format(count=consecutive)
-                _debug("restart_advisory", count=consecutive)
+        streak = advance_feedback_streak(cwd, is_feedback=True)
+        if streak >= RESTART_THRESHOLD:
+            injected += "\n\n" + RESTART_ADVISORY.format(count=streak)
+            _debug("restart_advisory", count=streak)
+    else:
+        advance_feedback_streak(cwd, is_feedback=False)
 
     _debug("fire", marker=marker["id"], prefix=prefix)
 

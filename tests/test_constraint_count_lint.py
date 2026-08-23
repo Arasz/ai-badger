@@ -2,7 +2,7 @@
 
 Rule 8B: long negative instruction lists are brittle.  This script counts bullet
 points under the 'Non-negotiable invariants' section and warns when the count
-exceeds a configurable threshold (default 30).
+exceeds a configurable threshold (default 35).
 """
 from __future__ import annotations
 

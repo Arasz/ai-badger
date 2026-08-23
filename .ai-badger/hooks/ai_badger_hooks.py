@@ -36,8 +36,6 @@ try:
 except ImportError:  # pragma: no cover - a missing logger must never break a hook
     debug_log = None
 
-import grounded_feedback as _gf
-
 logger = logging.getLogger("ai_badger_hooks")
 
 
@@ -613,7 +611,8 @@ def pre_llm_inject_context(
     if pending_reminder:
         parts.append(pending_reminder)
 
-    pending_feedback = _gf.pop_pending_feedback(project)
+    gf = _load_grounded_feedback()
+    pending_feedback = None if gf is None else gf.pop_pending_feedback(project)
     if pending_feedback:
         parts.append(pending_feedback)
 
@@ -747,27 +746,41 @@ DEFAULT_COMMIT_ESCALATE_AFTER = 3
 # ratchet): a pending nudge is Hermes-only and clears the moment it is surfaced, a
 # different lifecycle from the marker's threshold-crossing debounce. Keeping them apart
 # means this addition can never corrupt the marker schema the Claude/Copilot hook depends on.
-PENDING_REMINDER_FILE = _gf.PENDING_REMINDER_FILE
+PENDING_REMINDER_FILE = Path.home() / ".ai-badger" / "commit-reminder" / "pending.json"
+
+GROUND_FEEDBACK_MODULE_NAME = "ai_badger_grounded_feedback"
+
+
+def _load_grounded_feedback() -> Optional[Any]:
+    """Import the sibling grounded_feedback module lazily; None when absent, or it's broken."""
+    return _load_sibling_module(GROUND_FEEDBACK_MODULE_NAME, "grounded_feedback.py",
+                                "grounded feedback")
 
 
 def _load_pending_reminders() -> Dict[str, str]:
-    """Load the pending-reminder file; ``{}`` on missing file or bad JSON."""
-    return _gf.load_pending_reminders()
+    """Load the pending-reminder file; ``{}`` on missing file or bad JSON, or no module."""
+    gf = _load_grounded_feedback()
+    return {} if gf is None else gf.load_pending_reminders(PENDING_REMINDER_FILE)
 
 
 def _save_pending_reminders(pending: Dict[str, str]) -> None:
-    """Persist the pending-reminder file."""
-    _gf.save_pending_reminders(pending)
+    """Persist the pending-reminder file; a no-op when the sibling module is absent."""
+    gf = _load_grounded_feedback()
+    if gf is not None:
+        gf.save_pending_reminders(pending, PENDING_REMINDER_FILE)
 
 
 def _set_pending_reminder(project: str, message: str) -> None:
     """Stash ``message`` for ``project``."""
-    _gf.set_pending_reminder(project, message)
+    gf = _load_grounded_feedback()
+    if gf is not None:
+        gf.set_pending_reminder(project, message, PENDING_REMINDER_FILE)
 
 
 def _pop_pending_reminder(project: str) -> Optional[str]:
     """Return and clear the pending reminder for ``project``, or None."""
-    return _gf.pop_pending_reminder(project)
+    gf = _load_grounded_feedback()
+    return None if gf is None else gf.pop_pending_reminder(project, PENDING_REMINDER_FILE)
 
 
 def _load_commit_reminder() -> Optional[Any]:
@@ -801,9 +814,6 @@ def _commit_escalate_after() -> int:
 def _now_iso() -> str:
     """UTC timestamp for the moment a command first went unanswered."""
     return datetime.now(timezone.utc).isoformat()
-
-
-# --- Grounded feedback (Rule 3C) ---
 
 
 def _maybe_remind_commit(tool_name: str, cwd: str) -> None:
@@ -933,7 +943,13 @@ def post_tool_observer(tool_name: str = "", result: str = "",
         logger.warning("commit reminder check failed", exc_info=True)
 
     try:
-        _gf.stash_if_failure(tool_name, result, _project_cwd(cwd), debug_fn=_debug)
+        gf = _load_grounded_feedback()
+        if gf is not None:
+            gf.stash_if_failure(
+                tool_name, result, _project_cwd(cwd),
+                status=str(kwargs.get("status", "ok")),
+                error_type=str(kwargs.get("error_type", "") or ""),
+                debug_fn=_debug)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.warning("grounded feedback stash failed", exc_info=True)
 

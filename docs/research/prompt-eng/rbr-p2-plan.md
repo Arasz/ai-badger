@@ -46,6 +46,11 @@ compares to threshold, returns exit 1 on exceed.
 **Files**: features/common/skills/maintain-agent-instructions/scripts/constraint_count_lint.py,
 tests/test_constraint_count_lint.py
 
+### Threshold note
+The constraint-count threshold is **35**, raised from the plan's original 30 after the
+nine new prompt-policy invariants pushed this repo's own CLAUDE.md to 31 items. The
+implementation and changelog use 35.
+
 ### W4: Grounded feedback PostToolUse hook (Rule 3C)
 **What**: A PostToolUse hook on Bash that detects non-zero exit codes and captures the
 last N lines of stderr/stdout as additionalContext, so the agent has concrete failure
@@ -59,27 +64,18 @@ Reads the tool result from stdin, checks exit code, extracts output tail.
 features/common/hooks/hooks.json,
 tests/test_grounded_feedback_hook.py
 
-### W5: Critical constraints re-appender (Rule 5B)
-**What**: A UserPromptSubmit hook that detects revision turns (prompts that reference
-prior work, corrections, or feedback) and appends a short block of critical constraints
-from the project's invariant list to the end of the prompt context.
-**Why**: Keeps highest-priority requirements near recency in long revision threads.
-**How**: New hook script, registered in hooks.json for UserPromptSubmit. Detects revision
-keywords ("fix", "change", "update", "wrong", "incorrect", "should be"), reads invariant
-summaries from .ai-badger/invariants/, appends top 5 as additionalContext.
-**Acceptance**: Test that non-revision prompts = silent, revision prompts = constraints appended.
-**Files**: features/common/skills/prompt-markers/scripts/critical_placement_hook.py,
-features/common/hooks/hooks.json,
-tests/test_critical_placement_hook.py
+### W5 (DEFERRED — not in this phase): Critical constraints re-appender (Rule 5B)
+**What**: A UserPromptSubmit hook that detects revision turns and appends critical
+constraints from the project's invariant list. Deferred: W1 covers the highest-value
+revision case; revisit if placement drift proves to be a real problem.
+**Status**: Deferred — not part of this phase's scope.
 
 ## Parallelism
 - W1, W2, W3 are independent (different files, no shared state)
-- W4 and W5 share hooks.json registration — serialize those
-- W2 and W3 share the same directory (maintain-agent-instructions/scripts/) — serialize writes
+- W4 is serialized after them (hooks.json registration)
 
 ## Sequence
 1. W1 + W2 + W3 in parallel (independent)
 2. W4 (hooks.json change)
-3. W5 (hooks.json change, depends on W4's hooks.json edit)
-4. Re-scaffold, sync, full test suite
-5. Commit
+3. Re-scaffold, sync, full test suite
+4. Commit

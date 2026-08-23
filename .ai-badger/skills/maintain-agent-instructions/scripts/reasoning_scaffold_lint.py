@@ -39,6 +39,20 @@ _PATTERNS: List[tuple[re.Pattern[str], str]] = [
     ), "chain of thought (as instruction)"),
 ]
 
+# A line carrying any of these negation/prohibition cues is *policy*, not an
+# instruction to the model — e.g. `no "think step by step"` in a rule forbidding
+# the pattern.  Such lines are suppressed rather than reported.
+_NEGATION_RE = re.compile(
+    r"\b(?:no|not|never|avoid|without|don'?t|do not|prohibit\w*|forbid\w*|"
+    r"instead of|no more|drop|remove|omit)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_negated(line: str) -> bool:
+    """True when the line prohibits/references the pattern rather than directing it."""
+    return bool(_NEGATION_RE.search(line))
+
 _EXTENSIONS = {".md", ".json"}
 
 
@@ -58,6 +72,8 @@ def _scan_file(path: Path) -> List[Finding]:
 
     findings: List[Finding] = []
     for lineno, line in enumerate(text.splitlines(), start=1):
+        if _is_negated(line):
+            continue
         for pattern, label in _PATTERNS:
             m = pattern.search(line)
             if m:

@@ -20,7 +20,7 @@ def test_non_bash_tool_is_silent(load_script, monkeypatch, capsys):
     hook = load_script("features/common/skills/prompt-markers/scripts/grounded_feedback_hook.py")
     rc = _call_main(hook, monkeypatch, {
         "tool_name": "Edit",
-        "tool_result": {"exit_code": 1, "output": "error"},
+        "tool_response": {"exit_code": 1, "output": "error"},
     })
     assert rc == 0
     assert capsys.readouterr().out == ""
@@ -30,7 +30,7 @@ def test_zero_exit_code_is_silent(load_script, monkeypatch, capsys):
     hook = load_script("features/common/skills/prompt-markers/scripts/grounded_feedback_hook.py")
     rc = _call_main(hook, monkeypatch, {
         "tool_name": "Bash",
-        "tool_result": {"exit_code": 0, "output": "all good"},
+        "tool_response": {"exit_code": 0, "output": "all good"},
     })
     assert rc == 0
     assert capsys.readouterr().out == ""
@@ -40,7 +40,7 @@ def test_non_zero_exit_captures_output(load_script, monkeypatch, capsys):
     hook = load_script("features/common/skills/prompt-markers/scripts/grounded_feedback_hook.py")
     rc = _call_main(hook, monkeypatch, {
         "tool_name": "Bash",
-        "tool_result": {"exit_code": 1, "output": "FAILED: test_foo broke\nAssertionError: 1 != 2"},
+        "tool_response": {"exit_code": 1, "output": "FAILED: test_foo broke\nAssertionError: 1 != 2"},
     })
     assert rc == 0
     out = json.loads(capsys.readouterr().out)
@@ -54,7 +54,7 @@ def test_empty_output_is_silent(load_script, monkeypatch, capsys):
     hook = load_script("features/common/skills/prompt-markers/scripts/grounded_feedback_hook.py")
     rc = _call_main(hook, monkeypatch, {
         "tool_name": "Bash",
-        "tool_result": {"exit_code": 1, "output": ""},
+        "tool_response": {"exit_code": 1, "output": ""},
     })
     assert rc == 0
     assert capsys.readouterr().out == ""
@@ -65,7 +65,7 @@ def test_output_truncated_to_max_lines(load_script, monkeypatch, capsys):
     long_output = "\n".join(f"line {i}" for i in range(100))
     rc = _call_main(hook, monkeypatch, {
         "tool_name": "Bash",
-        "tool_result": {"exit_code": 1, "output": long_output},
+        "tool_response": {"exit_code": 1, "output": long_output},
     })
     assert rc == 0
     out = json.loads(capsys.readouterr().out)
@@ -86,7 +86,7 @@ def test_tool_name_variant_toolName(load_script, monkeypatch, capsys):
     hook = load_script("features/common/skills/prompt-markers/scripts/grounded_feedback_hook.py")
     rc = _call_main(hook, monkeypatch, {
         "toolName": "Bash",
-        "tool_result": {"exit_code": 2, "output": "command not found"},
+        "toolResponse": {"exit_code": 2, "output": "command not found"},
     })
     assert rc == 0
     out = json.loads(capsys.readouterr().out)
@@ -97,8 +97,37 @@ def test_exit_code_variant_exitCode(load_script, monkeypatch, capsys):
     hook = load_script("features/common/skills/prompt-markers/scripts/grounded_feedback_hook.py")
     rc = _call_main(hook, monkeypatch, {
         "tool_name": "Bash",
-        "tool_result": {"exitCode": 127, "output": "not found"},
+        "tool_response": {"exitCode": 127, "output": "not found"},
     })
     assert rc == 0
     out = json.loads(capsys.readouterr().out)
     assert "exited with code 127" in out["hookSpecificOutput"]["additionalContext"]
+
+
+def test_stderr_combined_with_stdout(load_script, monkeypatch, capsys):
+    """Both streams are preserved when stdout has progress and stderr the diagnostic."""
+    hook = load_script("features/common/skills/prompt-markers/scripts/grounded_feedback_hook.py")
+    rc = _call_main(hook, monkeypatch, {
+        "tool_name": "Bash",
+        "tool_response": {
+            "exit_code": 1,
+            "stdout": "running tests...\n",
+            "stderr": "E   AssertionError: 1 != 2",
+        },
+    })
+    assert rc == 0
+    ctx = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    assert "running tests..." in ctx
+    assert "AssertionError: 1 != 2" in ctx
+
+
+def test_lowercase_bash_tool_name_matches(load_script, monkeypatch, capsys):
+    """Copilot's runtime tool name is lowercase `bash` (Copilot review)."""
+    hook = load_script("features/common/skills/prompt-markers/scripts/grounded_feedback_hook.py")
+    rc = _call_main(hook, monkeypatch, {
+        "tool_name": "bash",
+        "tool_response": {"exit_code": 1, "output": "boom"},
+    })
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert "GROUNDED FEEDBACK" in out["hookSpecificOutput"]["additionalContext"]
