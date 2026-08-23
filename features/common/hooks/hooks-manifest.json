@@ -263,6 +263,29 @@
           "script": "semantica_export_autosave_hook.py"
         }
       }
+    },
+    {
+      "name": "grounded-feedback",
+      "description": "Capture Bash failure output and inject it as grounded feedback evidence for the next correction turn",
+      "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "PostToolUse",
+          "script": "grounded_feedback_hook.py"
+        },
+        "hermes": {
+          "type": "plugin",
+          "entry": "ai_badger_hooks.py",
+          "method": "post_tool_call"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "postToolUse",
+          "script": "grounded_feedback_hook.py"
+        }
+      }
     }
   ]
 }

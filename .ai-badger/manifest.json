@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.135.1",
-  "frameworkCommit": "0a337c4944d224cca27c3acb0fd13cf51d9c56b4",
+  "frameworkCommit": "2d7ba607b9a0b3419b479c02e18ff83bab9784b1",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -665,14 +665,14 @@
       "source": "features/common/skills/maintain-agent-instructions",
       "target": ".ai-badger/skills/maintain-agent-instructions",
       "frameworkVersion": "0.135.1",
-      "hash": "0ef7dc2660bcd38323cdbcdf109f4d1292fdfa4af0f549b9c95fab7e67806119",
+      "hash": "a488ec231ee718a5cd1ab45b4648004da42b199a3886dc515807246af1f252f3",
       "dirMeta": {
-        "file_count": 5,
+        "file_count": 7,
         "dir_count": 2
       },
-      "sourceHash": "0ef7dc2660bcd38323cdbcdf109f4d1292fdfa4af0f549b9c95fab7e67806119",
+      "sourceHash": "a488ec231ee718a5cd1ab45b4648004da42b199a3886dc515807246af1f252f3",
       "sourceMeta": {
-        "file_count": 5,
+        "file_count": 7,
         "dir_count": 2
       },
       "projectOwned": [
@@ -728,14 +728,14 @@
       "source": "features/common/skills/prompt-markers",
       "target": ".ai-badger/skills/prompt-markers",
       "frameworkVersion": "0.135.1",
-      "hash": "ce054392a98a9373d0251c6e937803d090f16c2be4d0e93244b82613c4c6be7c",
+      "hash": "b9aa0d6eff31704b3d8c1de0ca50fff22d5afc3aa60130c9da2f8afeafee189b",
       "dirMeta": {
-        "file_count": 3,
+        "file_count": 4,
         "dir_count": 1
       },
-      "sourceHash": "2575887dd6b149473e16c1dbffa0b55ce46a85e03c0e80746cf0af7965ca4815",
+      "sourceHash": "2abcc08f14b86240f26279caa74dc8c040eeeb3e62db6330c5fad7608d3501ed",
       "sourceMeta": {
-        "file_count": 4,
+        "file_count": 5,
         "dir_count": 1
       },
       "projectOwned": [

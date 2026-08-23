@@ -611,6 +611,10 @@ def pre_llm_inject_context(
     if pending_reminder:
         parts.append(pending_reminder)
 
+    pending_feedback = _pop_pending_feedback(project)
+    if pending_feedback:
+        parts.append(pending_feedback)
+
     # Framework version — see `versions_diverge`; a patch-only bump is silent (B10).
     fw_version = _read_framework_version()
     if fw_version:
@@ -813,6 +817,77 @@ def _pop_pending_reminder(project: str) -> Optional[str]:
     return message
 
 
+# --- Grounded feedback (Rule 3C) ---
+
+PENDING_FEEDBACK_FILE = Path.home() / ".ai-badger" / "pending-feedback.json"
+MAX_FEEDBACK_LINES = 30
+MAX_FEEDBACK_CHARS = 3000
+
+
+def _load_pending_feedback() -> Dict[str, str]:
+    """Load the pending-feedback file; `{}` on missing file, read error, or malformed JSON."""
+    try:
+        raw = PENDING_FEEDBACK_FILE.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_pending_feedback(pending: Dict[str, str]) -> None:
+    """Persist the pending-feedback file, creating parent directories as needed."""
+    PENDING_FEEDBACK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PENDING_FEEDBACK_FILE.write_text(json.dumps(pending), encoding="utf-8")
+
+
+def _set_pending_feedback(project: str, message: str) -> None:
+    """Stash grounded feedback for ``project``, keyed by its resolved absolute path."""
+    pending = _load_pending_feedback()
+    pending[str(Path(project).resolve())] = message
+    _save_pending_feedback(pending)
+
+
+def _pop_pending_feedback(project: str) -> Optional[str]:
+    """Return and clear the pending grounded feedback for ``project``, or None."""
+    pending = _load_pending_feedback()
+    key = str(Path(project).resolve())
+    message = pending.pop(key, None)
+    if message is not None:
+        _save_pending_feedback(pending)
+    return message
+
+
+def _maybe_stash_grounded_feedback(tool_name: str, result: str, cwd: str) -> None:
+    """After a terminal/Bash command with non-zero exit, stash the failure output.
+
+    The stashed output is surfaced in pre_llm_inject_context on the next turn.
+    """
+    normalized = tool_name.lower()
+    if normalized not in ("terminal", "bash"):
+        return
+    if not result or not result.strip():
+        return
+    # Check for non-zero exit — the result string typically contains "exit_code: N"
+    # or the output itself indicates failure
+    lines = result.strip().splitlines()
+    if len(lines) > MAX_FEEDBACK_LINES:
+        lines = lines[-MAX_FEEDBACK_LINES:]
+    truncated = "\n".join(lines)
+    if len(truncated) > MAX_FEEDBACK_CHARS:
+        truncated = truncated[-MAX_FEEDBACK_CHARS:]
+    project = _project_cwd(cwd)
+    message = (
+        "GROUNDED FEEDBACK: The last terminal command produced failure output. "
+        "Use it as evidence for your next correction:\n\n"
+        f"```\n{truncated}\n```"
+    )
+    _set_pending_feedback(project, message)
+    _debug("grounded_feedback", "stashed", project=project, output_lines=len(lines))
+
+
 def _maybe_remind_commit(tool_name: str, cwd: str) -> None:
     """After an edit-shaped tool call, ratchet-check the uncommitted count and stash a nudge.
 
@@ -938,6 +1013,11 @@ def post_tool_observer(tool_name: str = "", result: str = "",
         _maybe_remind_commit(tool_name, cwd)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.warning("commit reminder check failed", exc_info=True)
+
+    try:
+        _maybe_stash_grounded_feedback(tool_name, result, cwd)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("grounded feedback stash failed", exc_info=True)
 
     try:
         _maybe_record_memory_consult(tool_name, args, cwd, session_id)

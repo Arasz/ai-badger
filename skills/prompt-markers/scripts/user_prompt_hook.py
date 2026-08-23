@@ -126,6 +126,33 @@ def record_transformation(
         pass
 
 
+def count_trailing_feedback(state: dict) -> int:
+    """Count consecutive `f:`/`feedback:` entries at the end of marker history.
+
+    Reads the already-recorded history (which includes the current turn's entry
+    if a feedback marker just fired) and counts how many of the most recent
+    entries are feedback markers. Returns 0 if the history is empty or the
+    trailing run is broken by a non-feedback marker.
+    """
+    history = state.get("history", [])
+    count = 0
+    for entry in reversed(history):
+        if entry.get("markerId") == "feedback":
+            count += 1
+        else:
+            break
+    return count
+
+
+RESTART_THRESHOLD = 2
+RESTART_ADVISORY = (
+    "CONSOLIDATED RESTART ADVISORY: This session has had {count} consecutive "
+    "feedback turns. The thread has likely drifted. Restart with a single merged "
+    "prompt that includes all accepted constraints, the failing evidence, and the "
+    "original objective — instead of layering another correction on this stale thread."
+)
+
+
 def main() -> int:
     """Read the hook payload from stdin and emit additionalContext if a marker matched."""
     payload = json.load(sys.stdin)
@@ -144,7 +171,24 @@ def main() -> int:
     marker, prefix = matched
     injected = marker["inject"]
 
-    record_transformation(payload.get("cwd", ""), prompt, marker["id"], prefix, injected)
+    cwd = payload.get("cwd", "")
+    record_transformation(cwd, prompt, marker["id"], prefix, injected)
+
+    # Check for consolidated restart: if the last N entries (including this one)
+    # are all feedback markers, append the advisory.
+    if marker["id"] == "feedback":
+        tracking_dir = find_tracking_dir(Path(cwd) if cwd else Path.cwd())
+        if tracking_dir is not None:
+            state_file = tracking_dir.joinpath(*STATE_SUBPATH)
+            try:
+                state = json.loads(state_file.read_text()) if state_file.exists() else {}
+            except (OSError, ValueError):
+                state = {}
+            consecutive = count_trailing_feedback(state)
+            if consecutive >= RESTART_THRESHOLD:
+                injected += "\n\n" + RESTART_ADVISORY.format(count=consecutive)
+                _debug("restart_advisory", count=consecutive)
+
     _debug("fire", marker=marker["id"], prefix=prefix)
 
     print(json.dumps({

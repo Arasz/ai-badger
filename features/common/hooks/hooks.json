@@ -108,6 +108,16 @@
         ]
       },
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/prompt-markers/scripts/grounded_feedback_hook.py\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "memory_search",
         "hooks": [
           {

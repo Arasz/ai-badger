@@ -296,3 +296,78 @@ def test_feedback_marker_inject_requires_referencing_prior_work(load_script):
         "feedback marker inject must require referencing prior work; "
         f"got: {feedback['inject']!r}"
     )
+
+
+# --- Consolidated restart detection (Rule 2B/2C) ---
+
+def test_count_trailing_feedback_returns_zero_for_empty_state(load_script):
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    assert hook.count_trailing_feedback({}) == 0
+    assert hook.count_trailing_feedback({"history": []}) == 0
+
+
+def test_count_trailing_feedback_counts_consecutive(load_script):
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    state = {"history": [
+        {"markerId": "hint"},
+        {"markerId": "feedback"},
+        {"markerId": "feedback"},
+    ]}
+    assert hook.count_trailing_feedback(state) == 2
+
+
+def test_count_trailing_feedback_resets_on_non_feedback(load_script):
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    state = {"history": [
+        {"markerId": "feedback"},
+        {"markerId": "hint"},
+        {"markerId": "feedback"},
+    ]}
+    assert hook.count_trailing_feedback(state) == 1
+
+
+def test_consolidated_restart_advisory_injected_after_two_feedback(tmp_path, load_script,
+                                                                    monkeypatch, capsys):
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    config_path = tmp_path / "markers-context.json"
+    _write_markers_context(config_path, {"markers": [
+        {"id": "hint", "prefixes": ["h:", "hint:"], "inject": "HINT"},
+        {"id": "feedback", "prefixes": ["f:", "feedback:"], "inject": "FEEDBACK"},
+    ]})
+    monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
+
+    project = tmp_path / "project"
+    (project / ".ai-badger").mkdir(parents=True)
+
+    # Pre-populate marker-state.json with one prior feedback entry
+    state_dir = project / ".ai-badger" / "prompt-markers"
+    state_dir.mkdir(parents=True)
+    _test_write(state_dir / "marker-state.json", json.dumps({
+        "history": [{"markerId": "feedback", "timestamp": "2026-01-01T00:00:00Z"}]
+    }), encoding="utf-8")
+
+    rc = _call_main(hook, monkeypatch, {"prompt": "f: this is still wrong", "cwd": str(project)})
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    ctx = out["hookSpecificOutput"]["additionalContext"]
+    assert "CONSOLIDATED RESTART ADVISORY" in ctx
+    assert "2 consecutive" in ctx
+
+
+def test_no_restart_advisory_after_single_feedback(tmp_path, load_script, monkeypatch, capsys):
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    config_path = tmp_path / "markers-context.json"
+    _write_markers_context(config_path, {"markers": [
+        {"id": "hint", "prefixes": ["h:", "hint:"], "inject": "HINT"},
+        {"id": "feedback", "prefixes": ["f:", "feedback:"], "inject": "FEEDBACK"},
+    ]})
+    monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
+
+    project = tmp_path / "project"
+    (project / ".ai-badger").mkdir(parents=True)
+
+    rc = _call_main(hook, monkeypatch, {"prompt": "f: first correction", "cwd": str(project)})
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    ctx = out["hookSpecificOutput"]["additionalContext"]
+    assert "CONSOLIDATED RESTART ADVISORY" not in ctx
