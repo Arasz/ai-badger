@@ -216,4 +216,3 @@ def record_semantica_nudge_shown(
         return True
     except OSError:
         return False
-
