@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.135.3 | [Copilot round-2 review fixes for #431](0.135.3-copilot-round2-review-fixes.md) |
 | 0.135.2 | [Prompt rules phase 2: hooks and validation scripts](0.135.2-prompt-rules-phase-2-hooks-validation.md) |
 | 0.135.1 | [Prompt policy rules for short-horizon work](0.135.1-prompt-policy-short-horizon-rules.md) |
 | 0.135.0 | [Research-based prompt and persona optimization](0.135.0-research-based-prompt-optimization.md) |

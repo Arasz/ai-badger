@@ -39,19 +39,29 @@ _PATTERNS: List[tuple[re.Pattern[str], str]] = [
     ), "chain of thought (as instruction)"),
 ]
 
-# A line carrying any of these negation/prohibition cues is *policy*, not an
-# instruction to the model — e.g. `no "think step by step"` in a rule forbidding
-# the pattern.  Such lines are suppressed rather than reported.
+# A clause carrying one of these negation/prohibition cues *immediately governing the
+# matched phrase* is policy, not an instruction — e.g. `no "think step by step"` in a
+# rule forbidding the pattern.  Only the text between the last clause boundary and the
+# match is examined, so `Do not skip validation; think step by step` still reports.
 _NEGATION_RE = re.compile(
     r"\b(?:no|not|never|avoid|without|don'?t|do not|prohibit\w*|forbid\w*|"
     r"instead of|no more|drop|remove|omit)\b",
     re.IGNORECASE,
 )
+_CLAUSE_BOUNDARY_RE = re.compile(r"[;:]|--|\b(?:but|however|unless|when|if)\b", re.IGNORECASE)
 
 
-def _is_negated(line: str) -> bool:
-    """True when the line prohibits/references the pattern rather than directing it."""
-    return bool(_NEGATION_RE.search(line))
+def _is_negated(line: str, start: int) -> bool:
+    """True when a negation cue governs the phrase beginning at *start*.
+
+    Looks only at the current clause (text after the last clause boundary and
+    before the match), so an unrelated negated clause does not suppress a real
+    directive later in the line.
+    """
+    clause_start = 0
+    for m in _CLAUSE_BOUNDARY_RE.finditer(line, 0, start):
+        clause_start = m.end()
+    return bool(_NEGATION_RE.search(line[clause_start:start]))
 
 _EXTENSIONS = {".md", ".json"}
 
@@ -72,11 +82,9 @@ def _scan_file(path: Path) -> List[Finding]:
 
     findings: List[Finding] = []
     for lineno, line in enumerate(text.splitlines(), start=1):
-        if _is_negated(line):
-            continue
         for pattern, label in _PATTERNS:
             m = pattern.search(line)
-            if m:
+            if m and not _is_negated(line, m.start()):
                 findings.append(Finding(path=path, line=lineno, match=m.group(0), label=label))
     return findings
 
