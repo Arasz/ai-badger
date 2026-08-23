@@ -118,6 +118,19 @@ def restore_from_journal(journal: dict) -> None:
     Path(journal["path"]).write_text(journal["original_content"], encoding="utf-8")
 
 
+GIT_LOCATION_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+                    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                    "GIT_PREFIX", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES")
+
+
+def git_env(env=None) -> dict:
+    """`env` (default `os.environ`) minus every variable that pins git to another repository."""
+    out = dict(os.environ if env is None else env)
+    for name in GIT_LOCATION_ENV:
+        out.pop(name, None)
+    return out
+
+
 def delete_journal(repo_root: Path) -> None:
     jp = journal_path(repo_root)
     if jp.is_file():
@@ -128,7 +141,7 @@ def find_repo_root(start: Path) -> Path:
     """The nearest git root above `start` (a file or a directory)."""
     cwd = start if start.is_dir() else start.parent
     proc = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=cwd,
-                           capture_output=True, text=True, check=False)
+                           capture_output=True, text=True, check=False, env=git_env())
     if proc.returncode == 0 and proc.stdout.strip():
         return Path(proc.stdout.strip())
     raise RuntimeError(f"no git repository found above {start}")
@@ -152,7 +165,7 @@ def validate_target(repo_root: Path, target: Path) -> Optional[str]:
 def git_is_dirty(repo_root: Path, target: Path) -> bool:
     rel = str(target.resolve().relative_to(repo_root.resolve()))
     proc = subprocess.run(["git", "status", "--porcelain", "--", rel], cwd=repo_root,
-                           capture_output=True, text=True, check=False)
+                           capture_output=True, text=True, check=False, env=git_env())
     return bool(proc.stdout.strip())
 
 

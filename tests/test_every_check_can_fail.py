@@ -485,6 +485,19 @@ def _changelog_index_check(work: Path, provoked: bool) -> Outcome:
     return _run([str(ROOT / "tooling" / "changelog_index.py"), "--root", str(root), "--check"])
 
 
+def _rules_index_check(work: Path, provoked: bool) -> Outcome:
+    """A ruleset artifact (walk-review.md) left stale after generation."""
+    fixture = ROOT / "tests" / "fixtures" / "test_ruleset_min"
+    temp_dir = work / "ruleset"
+    shutil.copytree(fixture, temp_dir)
+    if provoked:
+        _write(temp_dir / "references" / "walk-review.md", "<!-- stale banner -->\n")
+    return _run([
+        str(ROOT / "features" / "common" / "skills" / "review-tests" / "scripts" / "rules_index.py"),
+        "--root", str(temp_dir), "--check",
+    ])
+
+
 # ----------------------------------------------- tooling/validate.py --all (five sub-checks)
 
 # Loaded for HOOK_CAPABLE_AGENTS: spelling the agent names here would let the tuple grow
@@ -799,6 +812,9 @@ REGISTRY: Tuple[Provocation, ...] = (
                 _sync_plugin_skills_check, Signal(exit_code=1, contains="diverged")),
     Provocation("tooling/changelog_index.py --check", "an entry added after the index was built",
                 _changelog_index_check, Signal(exit_code=1, contains="stale")),
+    Provocation("features/common/skills/review-tests/scripts/rules_index.py --check",
+                "walk-review.md left stale after generation",
+                _rules_index_check, Signal(exit_code=1, contains="stale")),
     Provocation("tooling/validate.py --all", "a shipped schema that is not a valid schema",
                 _validate_all_schema_not_self_valid,
                 Signal(exit_code=1, contains="INVALID  schemas self-check")),

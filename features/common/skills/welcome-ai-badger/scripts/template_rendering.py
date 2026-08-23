@@ -202,7 +202,7 @@ class TemplateRendering:
         added by hand is on the map too.
         """
         lines: List[str] = []
-        for path in sorted((self.ctx.aib / "agents").glob("*.md")):
+        for path in sorted((self.ctx.aib / "agents").glob("*.md"), key=lambda p: p.stem):
             fields = frontmatter_fields(path.read_text(encoding="utf-8", errors="ignore"))
             name = fields.get("name") or path.stem
             summary = first_sentence(fields.get("description", ""))
