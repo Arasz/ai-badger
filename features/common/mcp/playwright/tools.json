@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../../schemas/mcp-server-tools.schema.json",
+  "server": "playwright",
+  "tools": [
+    {"name": "browser_navigate", "intent": "Navigate to a URL in the active browser tab.", "tags": ["navigation", "browser"]},
+    {"name": "browser_navigate_back", "intent": "Navigate back to the previous page in session history.", "tags": ["navigation", "browser"]},
+    {"name": "browser_snapshot", "intent": "Capture structured accessibility snapshot of the current page with element ref IDs for text-first interaction.", "tags": ["read", "browser"]},
+    {"name": "browser_find", "intent": "Search the accessibility snapshot of the current page for matching elements by text or role.", "tags": ["search", "browser"]},
+    {"name": "browser_click", "intent": "Click an interactive element by its accessibility snapshot ref ID or coordinates.", "tags": ["run", "browser"]},
+    {"name": "browser_type", "intent": "Type text into an editable input or textarea by its element ref ID.", "tags": ["write", "browser"]},
+    {"name": "browser_fill_form", "intent": "Fill multiple form fields in a single call using element ref IDs.", "tags": ["write", "browser"]},
+    {"name": "browser_select_option", "intent": "Select one or more options in a dropdown select element by value or ref ID.", "tags": ["write", "browser"]},
+    {"name": "browser_hover", "intent": "Hover over an element by its ref ID to trigger hover states or tooltips.", "tags": ["navigation", "browser"]},
+    {"name": "browser_press_key", "intent": "Press a keyboard key (e.g. Enter, Escape, Tab, ArrowDown) on the focused element.", "tags": ["write", "browser"]},
+    {"name": "browser_drag", "intent": "Drag and drop between two elements by source and target ref IDs.", "tags": ["run", "browser"]},
+    {"name": "browser_drop", "intent": "Drop files or MIME-typed data onto a target element by ref ID.", "tags": ["write", "browser"]},
+    {"name": "browser_file_upload", "intent": "Upload one or multiple files into a file input element.", "tags": ["write", "browser"]},
+    {"name": "browser_handle_dialog", "intent": "Accept, dismiss, or respond to browser JavaScript dialogs (alert, confirm, prompt).", "tags": ["run", "browser"]},
+    {"name": "browser_tabs", "intent": "List, create, select, or close browser tabs in the current session.", "tags": ["navigation", "browser"]},
+    {"name": "browser_wait_for", "intent": "Wait for specific text to appear/disappear, element state changes, or time to elapse.", "tags": ["read", "browser"]},
+    {"name": "browser_evaluate", "intent": "Evaluate a JavaScript expression on the page or inside a specific element context.", "tags": ["read", "browser"]},
+    {"name": "browser_run_code_unsafe", "intent": "Execute arbitrary multi-step Playwright scripts directly inside the browser process.", "tags": ["run", "browser", "unsafe"]},
+    {"name": "browser_take_screenshot", "intent": "Capture a visual PNG screenshot of the whole page or a specific element.", "tags": ["read", "browser"]},
+    {"name": "browser_network_requests", "intent": "List all HTTP network requests and responses made by the page since load.", "tags": ["diagnostic", "browser"]},
+    {"name": "browser_network_request", "intent": "Inspect full headers, query parameters, request body, and response payload of a single network request.", "tags": ["diagnostic", "browser"]},
+    {"name": "browser_console_messages", "intent": "Read browser console logs, warnings, errors, and uncaught exceptions.", "tags": ["diagnostic", "browser"]},
+    {"name": "browser_resize", "intent": "Resize the browser viewport dimensions (width, height) to test responsive layouts.", "tags": ["run", "browser"]},
+    {"name": "browser_close", "intent": "Close the active browser page or session.", "tags": ["run", "browser"]}
+  ]
+}

@@ -9,6 +9,16 @@
         "*"
       ]
     },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest"
+      ],
+      "tools": [
+        "*"
+      ]
+    },
     "hermes": {
       "command": "hermes",
       "args": [

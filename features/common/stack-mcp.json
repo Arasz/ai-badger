@@ -29,6 +29,14 @@
       "availability": {
         "command": "semantica-mcp"
       }
+    },
+    {
+      "name": "playwright",
+      "command": "npx -y @playwright/mcp@latest",
+      "declare": true,
+      "availability": {
+        "command": "npx"
+      }
     }
   ]
 }

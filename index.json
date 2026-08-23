@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.131.1",
+  "frameworkVersion": "0.132.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -194,6 +194,11 @@
           "name": "artifact-verification",
           "path": "features/common/skills/artifact-verification",
           "scope": "optIn"
+        },
+        {
+          "name": "browser-usage",
+          "path": "features/common/skills/browser-usage",
+          "scope": "default"
         },
         {
           "name": "call-behaviorist",
@@ -542,6 +547,10 @@
         {
           "name": "hermes",
           "path": "features/common/mcp/hermes"
+        },
+        {
+          "name": "playwright",
+          "path": "features/common/mcp/playwright"
         },
         {
           "name": "semantica",
