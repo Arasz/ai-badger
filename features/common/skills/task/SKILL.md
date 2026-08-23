@@ -55,22 +55,13 @@ assuming its own model.
   visible at a glance.
 - **Delegate to implementation agents** matched to the work, using the personas from
   `config.json`'s `personaRouting`. TDD is mandatory for code.
-- **One-turn specification** — State the objective, constraints, data sources, and success criteria
-  in the first turn; keep the final ask last.
-- **Consolidated restart** — After two failed revision turns, restart with one merged prompt instead
-  of continuing the same thread and compounding drift.
-- **Grounded feedback** — Every correction must cite the failing check, validator output, compiler
-  error, or source evidence behind the change before proposing the next patch.
-- **Critical instruction placement** — Put the highest-priority requirements in the first or last
-  block of the prompt, never buried in the middle.
-- **Reasoning scaffolding minimization** — Avoid prescriptive CoT plans on modern reasoning models
-  unless the task is genuine symbolic reasoning; give the goal and constraints instead.
-- **Reasoning model policy** (Rule 6): when the target model is a reasoning-capable model, do not
-  add "think step by step," prescriptive CoT plans, or few-shot chain-of-thought. State the goal,
-  constraints, and success criteria; let the model reason internally. Use CoT scaffolding only on
-  standard models for math/symbolic tasks where it has verified benefit.
-- **Final output schema separation** — Keep free-form reasoning separate from the final schema and
-  emit the final schema last.
+- **One-turn specification** — State objective, constraints, and success criteria in the first turn.
+- **Consolidated restart** — After two failed revisions, restart with one merged prompt.
+- **Grounded feedback** — Cite the failing check or evidence before proposing a patch.
+- **Critical instruction placement** — Keep requirements in the first or last block.
+- **Reasoning scaffolding minimization** — No CoT on reasoning models unless symbolic reasoning.
+- **Reasoning model policy** (Rule 6): no "think step by step" on reasoning models; state goal and constraints.
+- **Final output schema separation** — Emit the final schema last, separate from reasoning.
 - **Delegate trivial mechanical work** (doc/comment updates, rote refactors, test backfills) to a
   cheap model.
 - **The orchestrating session does directly:** fetch the task, read docs, record token usage, the
@@ -174,15 +165,8 @@ reduced rigor since high-reasoning delegation wasn't possible.
    criteria. Feed both to the planning agent in step 6, and hold the non-deferred scenarios as
    Phase 3's pass condition.
 
-   **Preflight checklist** (Rule 1 — one-turn specification): before dispatching any agent or
-   writing any code, confirm the task brief contains all five blocks. If any are missing, fill
-   them in from the review or ask the user — an incomplete brief is the most expensive way to
-   start a task:
-   - **Objective**: what the task must produce.
-   - **Constraints**: what the task must not break or change.
-   - **Known unknowns**: what needs research before implementation.
-   - **Output contract**: the shape of the deliverable (file, PR, test suite, doc).
-   - **Stop condition**: when the task is done — the gate that proves it.
+   **Preflight checklist** (Rule 1): confirm the brief has objective, constraints, known unknowns,
+   output contract, and stop condition. Fill missing blocks from review or ask the user.
 2. Register: `python3 .ai-badger/skills/task/scripts/task_tracker.py start <taskId> --title "<title>" --branch task/<taskId>-<slug>`.
 3. Ask the user to rename the session to match the task (skip if autonomous).
 4. **Work in the worktree `start` just created** — it prints the path, and it is
@@ -219,13 +203,8 @@ reduced rigor since high-reasoning delegation wasn't possible.
 1. Dispatch implementation subagents per `personaRouting`. Instruct every code subagent to write
    the failing test first (TDD).
 
-   **Operator contract** (Rule 4 — tool schema over persona): every dispatched agent's brief must
-   include these four blocks before any role text or context. Persona prose is optional and should
-   be one short line only:
-   - **Tool names and when-to-use**: which tools the agent should reach for first.
-   - **When-not-to-use / abort criteria**: when to stop trying and escalate.
-   - **Success predicate**: the concrete check that proves the agent's work is done.
-   - **Handoff conditions**: what the agent reports back and in what shape.
+   **Operator contract** (Rule 4): each agent brief must include tool names, abort criteria,
+   success predicate, and handoff conditions. Persona prose is optional, one short line only.
 2. Record each subagent's `total_tokens` on completion:
    `python3 .ai-badger/skills/task/scripts/task_tracker.py subagent <taskId> <total_tokens> --description "<what it did>"`.
    To record a delegation by id instead of a manual count, pass `--delegation <id>`; the
