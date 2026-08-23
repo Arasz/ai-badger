@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.134.0 | [Semantica: once-per-session export nudge for Claude Code and GitHub Copilot](0.134.0-semantica-nudge-claude-copilot.md) |
 | 0.133.0 | [QA personas, `design-tests` + `review-tests`, one layered test ruleset](0.133.0-qa-personas-and-test-skills.md) |
 | 0.132.0 | [playwright-mcp and browser-usage skill](0.132.0-playwright-mcp-and-browser-usage-skill.md) |
 | 0.131.1 | [ai-raccoon-memory relays the code-engine-not-configured warning](0.131.1-ai-raccoon-memory-relays-code-engine-warning.md) |
