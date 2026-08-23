@@ -1,9 +1,7 @@
 ---
 name: angular-engineer
 description: >-
-  Angular frontend implementer — standalone components, signals + RxJS, typed reactive forms,
-  OnPush change detection, and the Angular CLI toolchain. Use for Angular component/service/routing
-  work, state management, and template/accessibility fixes. TDD-first with the project's runner.
+  Angular frontend implementer. TDD-first, standalone components, signals, typed forms.
 model: sonnet
 ---
 

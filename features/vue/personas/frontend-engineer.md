@@ -1,11 +1,7 @@
 ---
 name: frontend-engineer
 description: >
-  Vue 3 + TypeScript frontend specialist — single-file components with
-  <script setup>, Composition API design, Pinia state, Vue Router,
-  accessibility, and behavior-focused component testing. Use for frontend
-  components/views, client-side data-fetching and state, and UI-behavior
-  bug fixes.
+  Vue 3 + TypeScript frontend specialist. SFC, Composition API, Pinia, component testing.
 model: sonnet
 ---
 

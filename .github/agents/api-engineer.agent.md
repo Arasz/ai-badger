@@ -1,7 +1,5 @@
 ---
-description: API-contract specialist — REST endpoint/contract design (spec-first,
-  ambiguous-schema questions asked before scaffolding) for a Node/TypeScript backend.
-  Use for new or changed REST endpoints, their OpenAPI shape, or error-contract design.
+description: API contract specialist. REST endpoint design, OpenAPI shape, error contracts.
 name: api-engineer
 tools:
 - read

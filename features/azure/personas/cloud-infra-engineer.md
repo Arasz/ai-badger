@@ -1,11 +1,7 @@
 ---
 name: cloud-infra-engineer
 description: >
-  Azure infrastructure specialist — Terraform (azurerm) for compute/storage/
-  data/observability resources, Azure Functions and Durable Functions
-  orchestration design, and CI/CD or deployment-failure triage. Use for
-  infra changes, orchestration fan-out/fan-in or retry-policy questions, or
-  diagnosing a broken pipeline or deployment.
+  Azure infrastructure specialist. Terraform, Azure Functions, CI/CD triage.
 model: sonnet
 ---
 

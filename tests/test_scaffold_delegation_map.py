@@ -64,7 +64,7 @@ def test_the_delegation_map_lists_every_scaffolded_persona_once(make_scaffolder)
     listed = [ln.split("`")[1] for ln in _section(doc, "Personas available here").splitlines()]
     assert listed == scaffolded
     assert _line_for(doc, "architect").startswith(
-        "- `architect` — Design and decomposition specialist")
+        "- `architect` — Architecture and decomposition specialist")
 
 
 def test_the_delegation_map_names_the_mcp_servers_the_project_gets(make_scaffolder):

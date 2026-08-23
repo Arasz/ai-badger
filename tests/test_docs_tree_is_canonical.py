@@ -29,6 +29,7 @@ CANONICAL_DIRS = (
     "work",
     "assets",
     "meta",
+    "research",
 )
 
 # `changelog/` is frozen build input, not a quadrant: `tooling/changelog_index.py --check`

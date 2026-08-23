@@ -1,11 +1,7 @@
 ---
 name: frontend-engineer
 description: >
-  React + TypeScript frontend specialist — component and view design,
-  performance-conscious rendering (memoization boundaries, suspense
-  boundaries), accessibility, and state management using the framework's
-  own idioms. Use for frontend components/views, client-side data-fetching
-  and state, and UI-behavior bug fixes.
+  React + TypeScript frontend specialist. Components, rendering, accessibility, state.
 model: sonnet
 ---
 
