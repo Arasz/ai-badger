@@ -53,12 +53,20 @@ def set_pending_feedback(project: str, message: str,
 
 def pop_pending_feedback(project: str,
                          path: Optional[Path] = None) -> Optional[str]:
-    """Return and clear the pending grounded feedback for *project*, or None."""
+    """Return and clear the pending grounded feedback for *project*, or None.
+
+    Fail-open: if persisting the cleared state fails (read-only fs, permissions),
+    the message is still returned — the prompt hook must never break over cleanup.
+    A stale entry then re-surfaces next turn, which is harmless.
+    """
     pending = load_pending_feedback(path)
     key = str(Path(project).resolve())
     message = pending.pop(key, None)
     if message is not None:
-        save_pending_feedback(pending, path)
+        try:
+            save_pending_feedback(pending, path)
+        except OSError:
+            pass
     return message
 
 
@@ -132,10 +140,13 @@ def set_pending_reminder(project: str, message: str,
 
 def pop_pending_reminder(project: str,
                          path: Optional[Path] = None) -> Optional[str]:
-    """Return and clear the pending reminder for *project*, or None."""
+    """Return and clear the pending reminder for *project*, or None.  Fail-open."""
     pending = load_pending_reminders(path)
     key = str(Path(project).resolve())
     message = pending.pop(key, None)
     if message is not None:
-        save_pending_reminders(pending, path)
+        try:
+            save_pending_reminders(pending, path)
+        except OSError:
+            pass
     return message

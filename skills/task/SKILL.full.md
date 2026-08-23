@@ -55,7 +55,8 @@ assuming its own model.
   visible at a glance.
 - **Delegate to implementation agents** matched to the work, using the personas from
   `config.json`'s `personaRouting`. TDD is mandatory for code.
-- **One-turn specification** — State objective, constraints, and success criteria in the first turn.
+- **One-turn specification** — State objective, constraints, data sources, and success criteria in
+  the first turn; keep the final ask last.
 - **Consolidated restart** — After two failed revisions, restart with one merged prompt.
 - **Grounded feedback** — Cite the failing check or evidence before proposing a patch.
 - **Critical instruction placement** — Keep requirements in the first or last block.

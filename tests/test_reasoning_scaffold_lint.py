@@ -263,6 +263,17 @@ def test_negated_policy_line_is_not_flagged(load_script, tmp_path):
     assert str(policy) not in stdout
 
 
+def test_unrelated_negated_clause_does_not_suppress_a_directive(load_script, tmp_path):
+    """`Do not skip X; think step by step` still reports (Copilot round 2)."""
+    mixed = tmp_path / "mixed.md"
+    _test_write(mixed, "Do not skip validation; think step by step before answering.\n")
+
+    code, stdout, _ = _run(load_script, [str(mixed)])
+
+    assert code == 1, f"directive wrongly suppressed:\n{stdout}"
+    assert str(mixed) in stdout
+
+
 def test_directive_line_still_flagged_after_negation_rule(load_script, tmp_path):
     """A genuine directive with no negation cue is still reported."""
     bad = tmp_path / "bad.md"
