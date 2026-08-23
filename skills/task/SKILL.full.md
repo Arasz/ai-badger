@@ -121,27 +121,11 @@ skill, a script the repo already has — check what is installed before writing 
 already exists. This is not permission to add tooling mid-task; it is a reminder that the
 expensive path is often the one nobody checked for a shortcut.
 
-**Cache-aware dispatch:** every agent's request prefix includes your project's always-loaded
-context (CLAUDE.md/AGENTS.md-equivalent instructions, `.ai-badger/state.json`, and any other
-files your project loads on every turn) — keep them byte-stable within a task (never rewrite them
-mid-task; the finish protocol writes state *between* tasks) so they serve as cache reads at
-roughly a tenth of the cost instead of a fresh write. Subagent caches are independent cold starts
-on a ~5-minute TTL, so: prefer one multi-turn subagent over many one-shot dispatches for a
-cluster of related steps (amortises the cold start), and use `/rewind` rather than `/compact` to
-backtrack within a task (rewind reuses the cached prefix; compact pays for a fresh summary
-write). Compact only at task boundaries (Phase 0).
+**Cache-aware dispatch:** keep always-loaded context byte-stable within a task so subagents get
+cache reads (~10× cheaper). Prefer one multi-turn subagent over many one-shot dispatches.
 
-**How a finished task is judged.** `token-usage.json` records `cacheEfficiency`, `modelMix`,
-`outputByModel` and `dispatches`; `python3 .ai-badger/skills/task/scripts/task_tracker.py status` summarises them. Judge a run by its
-**model mix** — the share of output produced by the mid and cheap tiers, over the main transcript
-*and* its subagents together — not by cache efficiency, which does not discriminate. A run whose
-dispatches are mostly `general-purpose` is not routing to this project's personas, whatever
-`personaRouting` says.
-
-Subagent transcripts are written beside the session's, not inside it, so a per-dispatch split is
-available without chasing `parentUuid`. Where those files live, the numbers behind the model-mix
-rule, and why the agent panel's `model` field can disagree with the transcript, are in
-`extensions/claude/extension.md` — read it when interpreting the numbers, not on every dispatch.
+**How a finished task is judged.** Judge by **model mix** — the share of output from mid/cheap
+tiers — not cache efficiency. See `extensions/claude/extension.md` for numbers.
 
 **If you cannot spawn subagents** (you are running as a subagent yourself, or the Agent tool is
 unavailable), do the work directly in-session at whatever model is available — the workflow's
@@ -298,12 +282,8 @@ project's docs against the merged code, fix small drift, and report gaps needing
 - **Never rewrite always-loaded context files (`CLAUDE.md`, `.ai-badger/state.json`) mid-task.**
   Subagent cache reads depend on a byte-stable prefix (~10× cost); rewrite only between tasks.
 - **Two levels of dispatch, no deeper.** A widening agent tree starves the machine.
-- **"Isolated" means per agent, at every depth, on two axes: its own worktree and its own workspace
-  id.** Being *in* a worktree is not the same as each agent having *its own*, and an agent that
-  dispatches further owes its children the same. Disjoint files still share build output and
-  dependency state, so an agent can block on another's half-applied edit and no per-agent gate
-  result can be trusted; a shared workspace id does the same to in-progress notes. Arm any
-  per-directory approval mode for each new path, and re-run the gate on the merged result.
+- **"Isolated" means per agent, at every depth: its own worktree and its own workspace id.**
+  Disjoint files still share build output; arm per-directory approval for each new path.
 
 ## Recovery
 
