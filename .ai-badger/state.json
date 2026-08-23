@@ -1,7 +1,14 @@
 {
-  "lastUpdated": "2026-08-20T14:10:00.000000+00:00",
+  "lastUpdated": "2026-08-23T15:30:00.000000+00:00",
   "next": "Port Semantica auto-save + nudge to Claude/Copilot nudge arm (#418 remaining half): the autosave shim shipped in 0.130.0; the once-per-session nudge needs marker-file state for claude/copilot (shell hook per invocation). Also: re-check semantica-agi/semantica PR #1151 (export_graph fix) and bump the version floor once a fixed release exists.",
   "completedTasks": [
+    {
+      "id": "qa-testing-skills",
+      "title": "QA personas, design-tests + review-tests skills, layered test ruleset — 0.133.0",
+      "pr": 425,
+      "merged": "2026-08-23",
+      "summary": "Consolidated test knowledge into a required (scope: default) skill pair backed by one layered ruleset, with QA personas that specialise by stack. Minor release 0.133.0. (1) Ruleset: review-tests/references/ holds 8 principles (T0-*), 40 universal rules (T1-*), 11 kind files (T2-*), 7 stack files (T3-*), evidence, archetypes, conflicts, and governance. Generated rules.json + walk-review.md + walk-design.md validated by rules_index.py --check (43 test cases). (2) Skills: design-tests (target card decision tree, red_proof journalled mutation, scan_uncontrolled_resources) and review-tests (9-pass walk, plan-format findings table) with dotnet and react extensions; SKILL_GROUPS['testing']. (3) Personas: qa (common), qa-backend (dotnet), qa-frontend (react) with edit rights for mutation testing; test-engineer narrowed; invariant tests-are-designed-and-reviewed; call-site sentences in task Phase 1/3 and code-review-checklist §3.1. Rebased onto 0.132.0 (Playwright MCP); full suite 4227 passed / 0 failed; all 8 CI lanes green; PR #425 merged."
+    },
     {
       "id": "semantica-moe-followup",
       "title": "Fold MoE review findings into semantica integration (shim cwd, resolved-env probe, error diagnostic) — 0.130.1",
