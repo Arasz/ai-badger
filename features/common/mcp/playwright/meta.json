@@ -1,0 +1,24 @@
+{
+  "$schema": "../../../../schemas/mcp-server.schema.json",
+  "name": "playwright",
+  "package": "@playwright/mcp",
+  "description": "Browser automation through the Model Context Protocol: structured accessibility snapshots, element interactions, screenshots, network monitoring, and custom Playwright execution — served over MCP stdio.",
+  "homepage": "https://playwright.dev/docs/getting-started-mcp",
+  "prerequisite": {
+    "summary": "Node.js 20+ and npx (@playwright/mcp)",
+    "check": "npx --version",
+    "install": "https://nodejs.org/ or npm install -g @playwright/mcp@latest",
+    "local": {
+      "summary": "Local package runner via npx @playwright/mcp@latest",
+      "check": "npx --version",
+      "install": "npm install --save-dev @playwright/mcp@latest",
+      "command": "npx @playwright/mcp@latest"
+    },
+    "global": {
+      "summary": "Global or on-demand execution via npx @playwright/mcp@latest",
+      "check": "npx --version",
+      "install": "npm install -g @playwright/mcp@latest",
+      "command": "npx @playwright/mcp@latest"
+    }
+  }
+}

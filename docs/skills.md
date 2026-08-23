@@ -1,17 +1,17 @@
 # Skills
 
-This page catalogs 39 skills — everything under `features/common/skills/` and
+This page catalogs 40 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-38 live under `features/common/skills/` and split by the `scope:` each declares in its own
+39 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**16 are `default`** and arrive in every scaffolded project without being asked for, and
+**17 are `default`** and arrive in every scaffolded project without being asked for, and
 **22 are `optIn`** — catalogued, but written only when a project names them. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 38 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **53** files:
-the 39 above plus 14 more that belong to a single stack and arrive only with it — 11 under
+**These 39 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **54** files:
+the 40 above plus 14 more that belong to a single stack and arrive only with it — 11 under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/` and 1 under `features/mcp/skills/`.
 Those 14 have no row below and are documented by their own `SKILL.md`. Derive the number rather
 than trusting this sentence: `python3 gates/skills_lint.py` prints how many `SKILL.md` files the
@@ -81,6 +81,7 @@ names it, **claude-only** when the stack decides.
 | [mcp-index](#mcp-index) | Curate the MCP tool index a hook uses to recommend tools per turn | default | by name; feeds a `pre_llm_call` hook |
 | [ai-raccoon-memory](#ai-raccoon-memory) | Project memory server: search memory first, write durable facts with source paths, watch a docs directory | default | by name |
 | [semantica-knowledge-graph](#semantica-knowledge-graph) | Session-scoped knowledge graph: record decisions with provenance, trace causal chains, extract entities from conversations | default | by name |
+| [browser-usage](#browser-usage) | Universal browser automation and manual E2E verification via Playwright MCP | default | by name |
 | [auto-wm](#auto-wm) | Auto-approve tool calls in partner/away mode | claude-only | by name (`/auto-wm`); installs a `PreToolUse` hook once enabled |
 | [scaffold-documentation](#scaffold-documentation) | Create the canonical `docs/` tree in a repo that has none | opt-in | by name |
 | [update-documentation](#update-documentation) | Change documentation to match something that already changed | opt-in | by name |
@@ -446,6 +447,16 @@ extraction from documents (needs torch/transformers for full NLP), decision arch
 **When to use it.** Reasoning over structured project knowledge — a decision was made and
 its rationale should be traceable, entities need extracting from a document, or a causal
 chain answers "why did we do this?". Install with `pip install semantica`.
+
+### browser-usage
+
+[`SKILL.md`](../features/common/skills/browser-usage/SKILL.md)
+
+**What it is.** Universal browser automation and manual E2E verification skill using Playwright MCP (`@playwright/mcp`).
+
+**What it does.** Employs a text-first architecture based on structured accessibility tree snapshots and element reference tokens (`[ref=eN]`), enabling LLMs to navigate, click, fill forms, handle dialogs, take screenshots, monitor network requests, and execute custom Playwright scripts without requiring vision models.
+
+**When to use it.** Interacting with live web applications, running manual E2E verification journeys, reproducing browser-specific issues, inspecting network traffic/console errors, and asserting accessibility landmarks across UI states.
 
 ---
 
