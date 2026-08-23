@@ -74,6 +74,9 @@ FEATURE_JSON_WITHOUT_SCHEMA: Dict[str, str] = {
     "features/*/skills/*/evals/*.json":
         "retrieval eval fixtures (ADR-0012), consumed only by the eval harness that ships "
         "beside them; wired into no lane today, so a schema would outlive its only reader",
+    "features/common/retrieval/eval/*.json":
+        "pinned baseline MCP index used by retrieval evaluation suites to ensure evaluation "
+        "reproducibility across consumer repo index sizes",
     "features/*/templates/agent-instructions/schema.json":
         "shipped output, not input: this is the JSON Schema a scaffolded project gets for its "
         "own agent-instructions model, and it is self-validating as a schema",

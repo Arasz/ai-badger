@@ -84,8 +84,12 @@ def test_marker_refuses_empty_session(gate):
     assert not gate.search_consulted(None)
 
 
-def test_marker_path_sanitizes_session_id(gate):
+def test_marker_path_sanitizes_session_id(gate, tmp_path, monkeypatch):
     assert gate.marker_path("a/b").name == "a_b"
+    assert gate.marker_path("a\\b").name == "a_b"
+    assert gate.marker_path("sess:123 a").name == "sess_123_a"
+    assert gate.marker_path(".").name == "_"
+    assert gate.marker_path("..").name == "__"
 
 
 # ------------------------------------------------------------------ project id

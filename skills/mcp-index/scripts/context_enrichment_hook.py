@@ -150,10 +150,10 @@ def main() -> int:
         _record_retrieval(context_enrichment, project, prompt, index, ranked)
         if ranked:
             parts.append(context_enrichment.build_hint(ranked, index))
-    else:
-        _debug("skip", reason="no_prompt")
 
     if not parts:
+        if not prompt:
+            _debug("skip", reason="no_prompt")
         return 0
 
     print(json.dumps({

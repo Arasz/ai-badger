@@ -184,8 +184,12 @@ class TestSemanticaNudgeHelpers:
     def test_semantica_nudge_marker_path_sanitizes_and_handles_empty(self, ce, tmp_path):
         assert ce.semantica_nudge_marker_path(None) == ce.Path("")
         assert ce.semantica_nudge_marker_path("") == ce.Path("")
+        # All non-alphanumeric, non-dot/dash/underscore chars become '_'
         path = ce.semantica_nudge_marker_path("sess/1\\2:3", base_dir=tmp_path)
-        assert path == tmp_path / "sess_1_2:3"
+        assert path == tmp_path / "sess_1_2_3"
+        # Traversal dot-segments are guarded
+        assert ce.semantica_nudge_marker_path(".", base_dir=tmp_path) == tmp_path / "_"
+        assert ce.semantica_nudge_marker_path("..", base_dir=tmp_path) == tmp_path / "__"
 
     def test_semantica_nudge_record_and_check(self, ce, tmp_path):
         assert ce.semantica_nudge_already_shown("sess-1", base_dir=tmp_path) is False
@@ -202,4 +206,3 @@ class TestSemanticaNudgeHelpers:
     def test_nudge_line_matches_contract(self, ce):
         assert "[ai-badger] Semantica is configured:" in ce.NUDGE_LINE
         assert "call export_graph(format=json) before finishing" in ce.NUDGE_LINE
-

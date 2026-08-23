@@ -57,6 +57,7 @@ __all__ = [
     "tags_for_display",
     "build_hint",
     "semantica_indexed",
+    "sanitize_path_segment",
     "semantica_nudge_marker_path",
     "semantica_nudge_already_shown",
     "record_semantica_nudge_shown",
@@ -174,11 +175,28 @@ def semantica_indexed(index: Optional[Dict[str, Any]]) -> bool:
     )
 
 
+def sanitize_path_segment(value: Optional[str]) -> str:
+    """Sanitize a string into a filesystem-safe single path segment.
+
+    Keeps [A-Za-z0-9._-]; substitutes '_' for everything else.
+    Guards dot-only traversal segments: '.' -> '_' and '..' -> '__'.
+    Returns empty string for None or empty inputs.
+    """
+    if not value:
+        return ""
+    sanitized = "".join(
+        ch if ch.isascii() and (ch.isalnum() or ch in "._-") else "_" for ch in str(value)
+    )
+    if sanitized == ".":
+        return "_"
+    if sanitized == "..":
+        return "__"
+    return sanitized
+
+
 def _safe_session(session_id: Optional[str]) -> str:
     """Session id made filesystem-safe; empty string is not a valid marker."""
-    if not session_id:
-        return ""
-    return session_id.replace("/", "_").replace("\\", "_")
+    return sanitize_path_segment(session_id)
 
 
 def semantica_nudge_marker_path(

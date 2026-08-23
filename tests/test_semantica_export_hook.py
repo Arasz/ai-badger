@@ -187,6 +187,12 @@ def test_session_export_target_sanitizes_id(tmp_path):
     assert "/" not in target.name
     assert target.stem.rsplit("-", 1)[0] == "sess_1_2_a"
 
+    # Traversal dot-segments are guarded
+    target_dot = session_export_target(".", tmp_path)
+    assert target_dot.stem.rsplit("-", 1)[0] == "_"
+    target_dotdot = session_export_target("..", tmp_path)
+    assert target_dotdot.stem.rsplit("-", 1)[0] == "__"
+
 
 @pytest.mark.parametrize(
     "result, expected",

@@ -32,7 +32,7 @@ import mcp_matcher  # pylint: disable=wrong-import-position
 from tokenizer import tokenize  # pylint: disable=wrong-import-position
 
 DEFAULT_FIXTURES = Path("features/common/retrieval/eval/mcp_queries.jsonl")
-DEFAULT_INDEX = Path(".ai-badger/mcp-tools.json")
+DEFAULT_INDEX = Path("features/common/retrieval/eval/eval_index.json")
 
 # Tokenized-length buckets, shortest first. Issue #165: the coverage gate's denominator ran
 # over every query term, so it worked on keyword-shaped queries and suppressed correct matches

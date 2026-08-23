@@ -19,7 +19,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES_PATH = ROOT / "features" / "common" / "retrieval" / "eval" / "mcp_queries_long.jsonl"
-INDEX_PATH = ROOT / ".ai-badger" / "mcp-tools.json"
+INDEX_PATH = ROOT / "features" / "common" / "retrieval" / "eval" / "eval_index.json"
 
 VALID_CLASSES = {"embedded-request", "narrative-negative", "adjacent-negative"}
 NEGATIVE_CLASSES = {"narrative-negative", "adjacent-negative"}
