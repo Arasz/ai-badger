@@ -19,7 +19,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES_PATH = ROOT / "features" / "common" / "retrieval" / "eval" / "mcp_queries_observed.jsonl"
-INDEX_PATH = ROOT / ".ai-badger" / "mcp-tools.json"
+INDEX_PATH = ROOT / "features" / "common" / "retrieval" / "eval" / "eval_index.json"
 
 VALID_CLASSES = {"observed-request", "observed-conversational"}
 

@@ -305,7 +305,7 @@ class TestSemanticaNudge:
         assert "[ai-badger] Semantica is configured:" in context
         assert "call export_graph(format=json) before finishing" in context
 
-    def test_copilot_spelling_sessionId_emits_nudge(
+    def test_copilot_spelling_session_id_emits_nudge(
         self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
     ):
         project = tmp_path / "proj"
@@ -404,3 +404,24 @@ class TestSemanticaNudge:
 
         assert capsys.readouterr().out == ""
 
+    def test_nudge_only_on_empty_prompt_does_not_log_skip(
+        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
+    ):
+        """When prompt is empty but nudge fires, telemetry must not log 'skip'."""
+        dl = hook.debug_log
+        _enable(dl, tmp_path, monkeypatch)
+        project = tmp_path / "proj"
+        _write_index(project, self._index_with_semantica())
+
+        _run_main(hook, monkeypatch, {
+            "cwd": str(project),
+            "session_id": "sess-nudge-only",
+        })
+
+        out = json.loads(capsys.readouterr().out)
+        assert "[ai-badger] Semantica is configured:" in out["hookSpecificOutput"]["additionalContext"]
+        # No "skip" event with reason="no_prompt" should have been logged
+        records = _retrieval_records(dl)
+        skip_records = [r for r in records if r.get(dl.KEY_EVENT) == "skip"
+                        and r.get("reason") == "no_prompt"]
+        assert not skip_records, f"unexpected skip records: {skip_records}"

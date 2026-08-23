@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-23  
 **Task:** `semantica-nudge-claude-copilot` (Issue #418 remaining half)  
-**Target Version:** 0.133.0  
+**Target Version:** 0.134.0  
 
 ---
 

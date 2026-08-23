@@ -385,6 +385,7 @@ def test_the_notice_is_silent_when_no_framework_root_resolves(root, tmp_path, mo
     stranded.parent.mkdir(parents=True)
     home.mkdir()
     shutil.copy2(root / "features/common/skills/task/scripts/drift_notice_hook.py", stranded)
+    shutil.copy2(root / "features/common/skills/task/scripts/drift_notice.py", stranded.parent / "drift_notice.py")
     monkeypatch.delenv("AI_BADGER", raising=False)
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
     monkeypatch.chdir(tmp_path)
