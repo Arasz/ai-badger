@@ -6,10 +6,6 @@
 > Stacks: {{STACKS}}
 > Scaffolded by ai-badger {{FRAMEWORK_VERSION}}. Source of truth for this file: `.ai-badger/{{SOURCE_OF_TRUTH}}`.
 
-## Non-negotiable invariants
-
-{{INVARIANTS}}
-
 ## Commands
 
 {{COMMANDS}}
@@ -19,6 +15,8 @@
 Before editing matching files, read the applicable scoped instruction file:
 
 {{PATH_INSTRUCTIONS}}
+
+Additional invariants load contextually via these paths — see `.ai-badger/invariants/` for the full set.
 
 ## Agent delegation
 
@@ -73,6 +71,10 @@ This project understands prompt markers (see `.ai-badger/skills/prompt-markers`)
 A marker is expanded by a `UserPromptSubmit` hook, which fires only when a message **starts a turn**. A message sent **mid-turn** — queued while work is already running — reaches the model as an attachment and never passes through that hook, so its marker is never expanded. Apply the behaviour above yourself whenever you see a marker arrive that way.
 
 {{MCP_INSTRUCTIONS}}
+
+## Non-negotiable invariants
+
+{{INVARIANTS}}
 
 ## Framework
 

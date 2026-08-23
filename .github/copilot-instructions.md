@@ -8,77 +8,6 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ sc
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
 > Scaffolded by ai-badger 0.134.1. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
-## Non-negotiable invariants
-
-- **Ask if a simpler shape would do** — Before calling any design or change finished, ask whether it is over-engineered and what the simpler version would look like.
-  → `.ai-badger/invariants/ask-if-simpler.md`
-
-- **Check the source, not your own reasoning** — Re-read the docs, the data and the code before stating a fact about them — those are what go stale, get misremembered, or change under you.
-  → `.ai-badger/invariants/check-sources-not-yourself.md`
-
-- **Derive the list, or delete it** — A hand-maintained list meant to mirror something else — the gates on disk, the copies of a helper, the skills in the catalog — drifts the moment someone adds to one side and not the other, and nothing notices because nothing compares them.
-  → `.ai-badger/invariants/derive-or-delete-the-list.md`
-
-- **Guard clauses over hand-rolled null checks** — Prefer a dedicated guard/throw-helper for argument validation over hand-rolled `x ?? throw ...` or ad hoc `if (x == null) throw` blocks — a guard reads as intent, not boilerplate, and keeps the exception type/message consistent across the codebase.
-  → `.ai-badger/invariants/guard-clauses.md`
-
-- **Measure only when the measurement pays** — Run your own benchmark or experiment when the time it costs is repaid by the decision it settles, and not otherwise.
-  → `.ai-badger/invariants/measure-when-it-pays.md`
-
-- **Minimal comments** — Keep doc comments to 1-3 lines stating the contract, not the provenance or rationale — point at an ADR or spec doc for the "why" instead of writing an essay inline.
-  → `.ai-badger/invariants/minimal-comments.md`
-
-- **No hand-rolled crypto or security orchestration** — Never implement security/cryptographic orchestration yourself — key derivation, token signing, session/cookie protection, encryption-at-rest schemes.
-  → `.ai-badger/invariants/no-hand-rolled-crypto.md`
-
-- **No hardcoded secrets** — No credentials, connection strings, API keys, or tokens in tracked files, examples, or fixtures.
-  → `.ai-badger/invariants/no-hardcoded-secrets.md`
-
-- **Run what you changed; the pipeline runs the rest** — Run the build and the tests your change touches, and let the pipeline run everything else — a full local sweep buys no coverage the pipeline does not already have and spends the same time twice.
-  → `.ai-badger/invariants/pipeline-runs-the-rest.md`
-
-- **Plain names** — Name things with the simplest accurate word — variables, functions, types, files, folders, flags.
-  → `.ai-badger/invariants/plain-names.md`
-
-- **One PR per task** — Every unit of work ends in a pull request; never push directly to the main/trunk branch.
-  → `.ai-badger/invariants/pr-per-task.md`
-
-- **Done means proven** — Every unit of planned work carries its acceptance criteria and the gate that checks them, named before the work starts.
-  → `.ai-badger/invariants/proof-of-done.md`
-
-- **A check you have not seen fail is not a check** — Put the defect a gate, test or acceptance criterion exists to catch in front of it, watch it go red, take the defect away and watch it go green — a check that has only ever passed is indistinguishable from one whose comparison can produce a single answer that looks like success.
-  → `.ai-badger/invariants/prove-the-check-fails.md`
-
-- **Screaming architecture** — Organize folders and modules by domain/business concept, not by generic technical bucket.
-  → `.ai-badger/invariants/screaming-architecture.md`
-
-- **Small commits, early draft PR** — Commit one coherent work package at a time and push often.
-  → `.ai-badger/invariants/small-commits-early-draft-pr.md`
-
-- **Route state transitions through a state machine** — Where a domain object has explicit states, make the declared transitions the only way it moves between them, and record what triggered each move.
-  → `.ai-badger/invariants/state-transitions-through-a-machine.md`
-
-- **TDD is mandatory** — Write a failing, behavior-focused test before any production code change.
-  → `.ai-badger/invariants/tdd-mandatory.md`
-
-- **Tests are designed before they are written, and judged after** — Green is the floor, not the evidence: a test list comes out of the acceptance criteria before the first test is written (`design-tests`, each row naming the failure mode it targets and the mutation that proves it real), and a change that adds or alters tests is not done until something other than its author has run `review-tests` and asked whether that suite could have gone red.
-  → `.ai-badger/invariants/tests-are-designed-and-reviewed.md`
-
-- **Releases are traceable** — Every release records the version it went out at and what changed in it, using whatever version marker and release notes this project already keeps.
-  → `.ai-badger/invariants/traceable-releases.md`
-
-- **Pin actions to a commit SHA; declare least-privilege permissions** — Every third-party GitHub Action referenced in a workflow is pinned to a full commit SHA, never a tag or branch — a mutable tag is remote code you re-fetch on every run, not a fixed dependency.
-  → `.ai-badger/invariants/pin-actions-to-sha.md`
-
-- **Always bump VERSION and add changelog entry** — Every release — no matter how small — must:
-  1. Bump `VERSION` (semver patch for fixes, minor for features, major for breaking changes)
-  2. Add a `docs/changelog/{version}-{slug}.md` entry describing what changed
-  3. Update `docs/changelog/README.md` if adding a new changelog format convention
-  → `.ai-badger/invariants/version-changelog-required.md`
-
-- **Run Python through the repo .venv** — Python commands in this repo (tests, tooling, gates) run with `.venv/bin/python3` from the main checkout.
-  → `.ai-badger/invariants/local/venv-python.md`
-
 ## Commands
 
 - `test`: `python3 -m pytest -q`
@@ -96,6 +25,8 @@ Before editing matching files, read the applicable scoped instruction file:
 - `skills/**/SKILL.md,**/*.hermes.md,**/HERMES.md,.hermes/**` → `.ai-badger/instructions/hermes.instructions.md`
 - `**/*.ts,**/*.tsx,**/tsconfig.json` → `.ai-badger/instructions/typescript.instructions.md`
 - `**/package.json,**/bun.lock,**/*.mjs,**/*.cjs` → `.ai-badger/instructions/node.instructions.md`
+
+Additional invariants load contextually via these paths — see `.ai-badger/invariants/` for the full set.
 
 ## Agent delegation
 
@@ -173,6 +104,77 @@ or complex interactions, execute custom Playwright scripts with `browser_run_cod
 Each tool's own description covers the rest.
 
 
+
+## Non-negotiable invariants
+
+- **Ask if a simpler shape would do** — Before calling any design or change finished, ask whether it is over-engineered and what the simpler version would look like.
+  → `.ai-badger/invariants/ask-if-simpler.md`
+
+- **Check the source, not your own reasoning** — Re-read the docs, the data and the code before stating a fact about them — those are what go stale, get misremembered, or change under you.
+  → `.ai-badger/invariants/check-sources-not-yourself.md`
+
+- **Derive the list, or delete it** — A hand-maintained list meant to mirror something else — the gates on disk, the copies of a helper, the skills in the catalog — drifts the moment someone adds to one side and not the other, and nothing notices because nothing compares them.
+  → `.ai-badger/invariants/derive-or-delete-the-list.md`
+
+- **Guard clauses over hand-rolled null checks** — Prefer a dedicated guard/throw-helper for argument validation over hand-rolled `x ?? throw ...` or ad hoc `if (x == null) throw` blocks — a guard reads as intent, not boilerplate, and keeps the exception type/message consistent across the codebase.
+  → `.ai-badger/invariants/guard-clauses.md`
+
+- **Measure only when the measurement pays** — Run your own benchmark or experiment when the time it costs is repaid by the decision it settles, and not otherwise.
+  → `.ai-badger/invariants/measure-when-it-pays.md`
+
+- **Minimal comments** — Keep doc comments to 1-3 lines stating the contract, not the provenance or rationale — point at an ADR or spec doc for the "why" instead of writing an essay inline.
+  → `.ai-badger/invariants/minimal-comments.md`
+
+- **Use platform security APIs** — Always use the platform's built-in security and crypto APIs.
+  → `.ai-badger/invariants/no-hand-rolled-crypto.md`
+
+- **Store secrets outside tracked files** — Keep credentials, connection strings, API keys, and tokens in environment variables, secret managers, or user-scoped config.
+  → `.ai-badger/invariants/no-hardcoded-secrets.md`
+
+- **Run what you changed; the pipeline runs the rest** — Run the build and the tests your change touches, and let the pipeline run everything else — a full local sweep buys no coverage the pipeline does not already have and spends the same time twice.
+  → `.ai-badger/invariants/pipeline-runs-the-rest.md`
+
+- **Plain names** — Name things with the simplest accurate word — variables, functions, types, files, folders, flags.
+  → `.ai-badger/invariants/plain-names.md`
+
+- **One PR per task** — Every unit of work ends in a pull request; never push directly to the main/trunk branch.
+  → `.ai-badger/invariants/pr-per-task.md`
+
+- **Done means proven** — Every unit of planned work carries its acceptance criteria and the gate that checks them, named before the work starts.
+  → `.ai-badger/invariants/proof-of-done.md`
+
+- **A check you have not seen fail is not a check** — Put the defect a gate, test or acceptance criterion exists to catch in front of it, watch it go red, take the defect away and watch it go green — a check that has only ever passed is indistinguishable from one whose comparison can produce a single answer that looks like success.
+  → `.ai-badger/invariants/prove-the-check-fails.md`
+
+- **Screaming architecture** — Organize folders and modules by domain/business concept, not by generic technical bucket.
+  → `.ai-badger/invariants/screaming-architecture.md`
+
+- **Small commits, early draft PR** — Commit one coherent work package at a time and push often.
+  → `.ai-badger/invariants/small-commits-early-draft-pr.md`
+
+- **Route state transitions through a state machine** — Where a domain object has explicit states, make the declared transitions the only way it moves between them, and record what triggered each move.
+  → `.ai-badger/invariants/state-transitions-through-a-machine.md`
+
+- **TDD is mandatory** — Write a failing, behavior-focused test before any production code change.
+  → `.ai-badger/invariants/tdd-mandatory.md`
+
+- **Tests are designed before they are written, and judged after** — Green is the floor, not the evidence: a test list comes out of the acceptance criteria before the first test is written (`design-tests`, each row naming the failure mode it targets and the mutation that proves it real), and a change that adds or alters tests is not done until something other than its author has run `review-tests` and asked whether that suite could have gone red.
+  → `.ai-badger/invariants/tests-are-designed-and-reviewed.md`
+
+- **Releases are traceable** — Every release records the version it went out at and what changed in it, using whatever version marker and release notes this project already keeps.
+  → `.ai-badger/invariants/traceable-releases.md`
+
+- **Pin actions to a commit SHA; declare least-privilege permissions** — Every third-party GitHub Action referenced in a workflow is pinned to a full commit SHA, never a tag or branch — a mutable tag is remote code you re-fetch on every run, not a fixed dependency.
+  → `.ai-badger/invariants/pin-actions-to-sha.md`
+
+- **Always bump VERSION and add changelog entry** — Every release — no matter how small — must:
+  1. Bump `VERSION` (semver patch for fixes, minor for features, major for breaking changes)
+  2. Add a `docs/changelog/{version}-{slug}.md` entry describing what changed
+  3. Update `docs/changelog/README.md` if adding a new changelog format convention
+  → `.ai-badger/invariants/version-changelog-required.md`
+
+- **Run Python through the repo .venv** — Python commands in this repo (tests, tooling, gates) run with `.venv/bin/python3` from the main checkout.
+  → `.ai-badger/invariants/local/venv-python.md`
 
 ## Framework
 

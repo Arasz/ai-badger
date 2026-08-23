@@ -1,10 +1,6 @@
 ---
-description: 'Default persona for authoring and maintaining Hermes Agent skills, configuration,
-  and automation. Use for: writing new skills, patching existing ones, configuring
-  cron jobs, setting up gateway platforms, authoring project context files (HERMES.md),
-  debugging Hermes behavior, and writing subagent orchestration patterns. Not for:
-  general coding tasks (use the stack-specific engineer persona), architecture decisions
-  (use architect), test design (use test-engineer).'
+description: Hermes Agent skill and configuration author. Skills, cron, gateway, context
+  files.
 name: hermes-agent-author
 tools:
 - read

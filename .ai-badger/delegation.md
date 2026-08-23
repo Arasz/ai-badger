@@ -8,13 +8,13 @@ python, js, github, claude, hermes, ts, node, changelog
 
 ## Personas available here
 
-- `api-engineer` — API-contract specialist — REST endpoint/contract design (spec-first, ambiguous-schema questions asked before scaffolding) for a Node/TypeScript backend. Lane: sonnet.
-- `architect` — Design and decomposition specialist — architecture decisions (module/layer boundaries, extension-point interfaces, folder structure), ADR authoring, multi-file change blueprints, and well-architected-style trade-off analysis (cost vs resilience vs velocity). Lane: opus.
-- `code-reviewer` — Independent quality and security gate — OWASP Top 10 (plus OWASP LLM Top 10 when an LLM-integration surface is present) review scoped to a targeted plan (pick the 3-5 relevant risk categories for the diff, not a blanket checklist), two-pass performance/anti-pattern analysis, and adversarial verification of AI-generated claims. Lane: opus.
-- `delegator` — Work-routing lead for long, multi-package sessions — decomposes a task into independently verifiable packages, dispatches each to the persona and model lane that fits it, and does only integration, arbitration and gate-running itself. Lane: opus.
-- `hermes-agent-author` — Default persona for authoring and maintaining Hermes Agent skills, configuration, and automation. Lane: sonnet.
-- `qa` — Test-quality authority — designs a suite from acceptance criteria before anyone writes it, and audits an existing suite for whether it can fail at all. Lane: opus.
-- `test-engineer` — Testing specialist — designs test strategy, writes failing tests first, plans phased test coverage (leaf types unmocked → mid-layer with leaf mocks → top-layer), and enforces edit-boundary discipline between test files and production code. Lane: sonnet.
+- `api-engineer` — API contract specialist. Lane: sonnet.
+- `architect` — Architecture and decomposition specialist. Lane: opus.
+- `code-reviewer` — Quality and security review gate. Lane: opus.
+- `delegator` — Work-routing lead for multi-package sessions. Lane: opus.
+- `hermes-agent-author` — Hermes Agent skill and configuration author. Lane: sonnet.
+- `qa` — Test-quality authority. Lane: opus.
+- `test-engineer` — Testing specialist. Lane: sonnet.
 
 ## Routing (config.json personaRouting)
 
@@ -23,6 +23,23 @@ python, js, github, claude, hermes, ts, node, changelog
 - Quality gate before merge, security review, and adversarially verifying a claim this session made about its own work → `code-reviewer`
 - Hermes skills, hooks and gateway configuration, and HERMES.md → `hermes-agent-author`
 - Long, multi-package or autonomous sessions — route work instead of doing it → `delegator`
+
+## Reasoning-model dispatch
+
+When dispatching to a reasoning model (opus, o-series, Claude extended
+thinking, DeepSeek-R1), adjust the prompt:
+
+- **State goals and success criteria only** — strip prescriptive step-by-step
+  plans, CoT scaffolding, and few-shot examples. These constrain the model's
+  internal search and reduce quality.
+- **Keep the system prompt short** — elaborate prompts constrain reasoning
+  model search space (Anthropic). Prefer "what done looks like" over "how to
+  get there."
+- **Use API parameters for depth control** — `reasoning_effort` (OpenAI) or
+  `thinking_budget_tokens` (Anthropic) instead of prompt-side "think harder."
+
+For standard instruction-tuned models (sonnet, flash), the existing
+prescriptive persona descriptions are appropriate.
 
 ## Verifiers
 

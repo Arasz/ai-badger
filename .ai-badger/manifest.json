@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.134.1",
-  "frameworkCommit": "9770850d74b3c93c02ea5d908edbc343a593b308",
+  "frameworkCommit": "acef7b1125631bde67c1239ec1441aa7aa2d03b8",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -38,7 +38,7 @@
       "source": "features/common/personas/architect.md",
       "target": ".ai-badger/agents/architect.md",
       "frameworkVersion": "0.134.1",
-      "hash": "9a7f3647e6c7835278edd1e9cc8e4b35fba834c0975a4b41df42442d65c686f3"
+      "hash": "1d47f81b4d53a220f60ee17e6e8427636e3d586f1f78c05157b71e9c01833741"
     },
     {
       "feature": "personas",
@@ -47,7 +47,7 @@
       "source": "features/common/personas/code-reviewer.md",
       "target": ".ai-badger/agents/code-reviewer.md",
       "frameworkVersion": "0.134.1",
-      "hash": "7193b7bb44533e58330255fc39308b91c4958b860e6878823d81c151796b803e"
+      "hash": "823a5ec4cb71af7acd76d4bfac2e880285785964c2d1a5a0c944e8063aae5d29"
     },
     {
       "feature": "personas",
@@ -56,7 +56,7 @@
       "source": "features/common/personas/delegator.md",
       "target": ".ai-badger/agents/delegator.md",
       "frameworkVersion": "0.134.1",
-      "hash": "ab8f4b5dbe72c43ce81c0709b64825cf7c1740a9f258b3d21e5a8b905e3ab95b"
+      "hash": "1830a8df16f1bc45eba6812245981ad4d5e300e96328a54a2616c6c206d45921"
     },
     {
       "feature": "personas",
@@ -65,7 +65,7 @@
       "source": "features/common/personas/qa.md",
       "target": ".ai-badger/agents/qa.md",
       "frameworkVersion": "0.134.1",
-      "hash": "e0296badc65b68fcde208bc50942d19246209be1512135c7c3cd94d4656d299d"
+      "hash": "1d3e84674719c8b1adee9897ad21a37f8671a9bdf17614b4f79a30d36bb4966f"
     },
     {
       "feature": "personas",
@@ -74,7 +74,7 @@
       "source": "features/common/personas/test-engineer.md",
       "target": ".ai-badger/agents/test-engineer.md",
       "frameworkVersion": "0.134.1",
-      "hash": "8df5503d534d58c1163b3e65ebc45c7186b045c99c264792a35f27312c3ff3bf"
+      "hash": "4bfddd6b66fe2f1d06d1925eee95b92241f21ddf422c59b9552b9287342c1c84"
     },
     {
       "feature": "personas",
@@ -83,7 +83,7 @@
       "source": "features/hermes/personas/hermes-agent-author.md",
       "target": ".ai-badger/agents/hermes-agent-author.md",
       "frameworkVersion": "0.134.1",
-      "hash": "3cb8c4250660ecc7c272725f72267f8450e9da193be5f8d231e90aa17b9a1204"
+      "hash": "359acb4d1f8aee13eb4be46bd257070a520615472c4779593675027dbca3372e"
     },
     {
       "feature": "personas",
@@ -92,7 +92,7 @@
       "source": "features/node/personas/api-engineer.md",
       "target": ".ai-badger/agents/api-engineer.md",
       "frameworkVersion": "0.134.1",
-      "hash": "70bf26f6a6b2f1e0d0e235a3bd527d80cdb9a2fd6b7b6f4fe89f74caa2c5d6bf"
+      "hash": "a0cd913043e8225274df1947c32d97ccad768a0cc15c0ee0b4972570c455d617"
     },
     {
       "feature": "instructions",
@@ -101,7 +101,7 @@
       "source": "features/common/instructions/documentation.instructions.md",
       "target": ".ai-badger/instructions/documentation.instructions.md",
       "frameworkVersion": "0.134.1",
-      "hash": "8780e97580bcf7bc8510f6cf50a1d6c512cf1f38d4c26e141ca25221ecaad56d"
+      "hash": "06cb5308fa64107c49593cebfaff1e88e7649a7838f4e8fa98cee5b082508163"
     },
     {
       "feature": "instructions",
@@ -218,7 +218,7 @@
       "source": "features/common/invariants/no-hand-rolled-crypto.md",
       "target": ".ai-badger/invariants/no-hand-rolled-crypto.md",
       "frameworkVersion": "0.134.1",
-      "hash": "cbf086eeac7d8f6449d58c711b39e2aecbdff6885f4ed8575d090ae6cf8c1996"
+      "hash": "44a7171a823abee72a33e252261a9ab6457fbe23ba65b7527fa52a1cf1e853d0"
     },
     {
       "feature": "invariants",
@@ -227,7 +227,7 @@
       "source": "features/common/invariants/no-hardcoded-secrets.md",
       "target": ".ai-badger/invariants/no-hardcoded-secrets.md",
       "frameworkVersion": "0.134.1",
-      "hash": "b7433087d8f1260ace6a99ca3055286b89c16934e933c5e90834310c86c05e18"
+      "hash": "2c100c80764dc853a9af4a0f27d817b45c85d83a29670981167e9f92c2b8c1f8"
     },
     {
       "feature": "invariants",
@@ -1128,7 +1128,7 @@
       "source": "features/common/templates/delegation.md.tmpl",
       "target": ".ai-badger/delegation.md",
       "frameworkVersion": "0.134.1",
-      "hash": "f8ff555e880966a58ae82aee36f133e3f14a292cc4045f4417b2b817c61a26f2",
+      "hash": "8e107c1d82119f5fc50f5a8e0bdf8d21f728f637ad739bf97d3fb55552c24aa9",
       "seedOnce": false
     },
     {
@@ -1138,7 +1138,7 @@
       "source": "features/claude/templates/CLAUDE.md.tmpl",
       "target": "CLAUDE.md",
       "frameworkVersion": "0.134.1",
-      "hash": "e73e19396130bebb5b59343e05311f14079569fee1d01ebfb0568812ae42f89a",
+      "hash": "9ba151628be53e0075d9a349448feb53756d198a76c71409109dabe77ae3f71f",
       "seedOnce": false
     },
     {
@@ -1148,7 +1148,7 @@
       "source": "features/copilot/templates/copilot-instructions.md.tmpl",
       "target": ".github/copilot-instructions.md",
       "frameworkVersion": "0.134.1",
-      "hash": "e73e19396130bebb5b59343e05311f14079569fee1d01ebfb0568812ae42f89a",
+      "hash": "9ba151628be53e0075d9a349448feb53756d198a76c71409109dabe77ae3f71f",
       "seedOnce": false
     },
     {
@@ -1158,7 +1158,7 @@
       "source": "features/hermes/templates/HERMES.md.tmpl",
       "target": "HERMES.md",
       "frameworkVersion": "0.134.1",
-      "hash": "6ebc217e072cab801918cb02b8e4aa6a7ab9b7d6129b7cf204eee147f5472ee1",
+      "hash": "368baf965faddf3eb1c595b71daa03d94b34e9030322265b6d7baaa871c78a32",
       "seedOnce": false
     },
     {
