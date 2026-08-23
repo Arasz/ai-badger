@@ -747,31 +747,22 @@ DEFAULT_COMMIT_ESCALATE_AFTER = 3
 # different lifecycle from the marker's threshold-crossing debounce. Keeping them apart
 # means this addition can never corrupt the marker schema the Claude/Copilot hook depends on.
 PENDING_REMINDER_FILE = Path.home() / ".ai-badger" / "commit-reminder" / "pending.json"
-
 GROUND_FEEDBACK_MODULE_NAME = "ai_badger_grounded_feedback"
 
 
 def _load_grounded_feedback() -> Optional[Any]:
     """Import the sibling grounded_feedback module lazily; None when absent, or it's broken."""
-    return _load_sibling_module(GROUND_FEEDBACK_MODULE_NAME, "grounded_feedback.py",
-                                "grounded feedback")
+    return _load_sibling_module(GROUND_FEEDBACK_MODULE_NAME, "grounded_feedback.py", "gf")
 
 
 def _load_pending_reminders() -> Dict[str, str]:
-    """Load the pending-reminder file; ``{}`` on missing file or bad JSON, or no module."""
+    """Load the pending-reminder file; ``{}`` on missing/bad JSON or no module."""
     gf = _load_grounded_feedback()
     return {} if gf is None else gf.load_pending_reminders(PENDING_REMINDER_FILE)
 
 
-def _save_pending_reminders(pending: Dict[str, str]) -> None:
-    """Persist the pending-reminder file; a no-op when the sibling module is absent."""
-    gf = _load_grounded_feedback()
-    if gf is not None:
-        gf.save_pending_reminders(pending, PENDING_REMINDER_FILE)
-
-
 def _set_pending_reminder(project: str, message: str) -> None:
-    """Stash ``message`` for ``project``."""
+    """Stash ``message`` for ``project``; a no-op when the sibling module is absent."""
     gf = _load_grounded_feedback()
     if gf is not None:
         gf.set_pending_reminder(project, message, PENDING_REMINDER_FILE)
