@@ -21,8 +21,8 @@ ADJUSTER = "features/claude/adjustments/adjust_agents.py"
 ARCHITECT = """---
 name: architect
 description: >
-  Design and decomposition specialist — architecture decisions, ADR authoring.
-  Read-only: hands finished blueprints to an implementation persona.
+  Architecture and decomposition specialist. Read-only: produces blueprints and
+  ADRs, never edits code.
 disallowedTools: Write, Edit, MultiEdit, NotebookEdit
 ---
 
@@ -36,7 +36,8 @@ Write the ADR before the code.
 TEST_ENGINEER = """---
 name: test-engineer
 description: >
-  Testing specialist — designs test strategy, writes failing tests first.
+  Testing specialist. TDD-first, phased coverage planning, edit-boundary
+  discipline between test and production files.
 ---
 
 # Test Engineer
@@ -124,7 +125,7 @@ def test_name_and_description_survive_delivery(tmp_path, root, load_script):
     front = _frontmatter(_delivered(target, "architect"))
     assert "name: architect\n" in front
     assert "description: >\n" in front
-    assert "Design and decomposition specialist" in front
+    assert "Architecture and decomposition specialist" in front
 
 
 def test_the_managed_header_sits_below_the_frontmatter_never_above_it(tmp_path, root, load_script):
