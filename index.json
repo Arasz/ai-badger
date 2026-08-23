@@ -573,6 +573,10 @@
           "path": "features/common/hooks/follow_through.py"
         },
         {
+          "name": "grounded_feedback",
+          "path": "features/common/hooks/grounded_feedback.py"
+        },
+        {
           "name": "hooks-manifest",
           "path": "features/common/hooks/hooks-manifest.json"
         },

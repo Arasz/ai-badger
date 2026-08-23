@@ -611,7 +611,7 @@ def pre_llm_inject_context(
     if pending_reminder:
         parts.append(pending_reminder)
 
-    pending_feedback = _pop_pending_feedback(project)
+    pending_feedback = _gf.pop_pending_feedback(project)
     if pending_feedback:
         parts.append(pending_feedback)
 
@@ -745,7 +745,27 @@ DEFAULT_COMMIT_ESCALATE_AFTER = 3
 # ratchet): a pending nudge is Hermes-only and clears the moment it is surfaced, a
 # different lifecycle from the marker's threshold-crossing debounce. Keeping them apart
 # means this addition can never corrupt the marker schema the Claude/Copilot hook depends on.
-PENDING_REMINDER_FILE = Path.home() / ".ai-badger" / "commit-reminder" / "pending.json"
+PENDING_REMINDER_FILE = _gf.PENDING_REMINDER_FILE
+
+
+def _load_pending_reminders() -> Dict[str, str]:
+    """Load the pending-reminder file; ``{}`` on missing file or bad JSON."""
+    return _gf.load_pending_reminders()
+
+
+def _save_pending_reminders(pending: Dict[str, str]) -> None:
+    """Persist the pending-reminder file."""
+    _gf.save_pending_reminders(pending)
+
+
+def _set_pending_reminder(project: str, message: str) -> None:
+    """Stash ``message`` for ``project``."""
+    _gf.set_pending_reminder(project, message)
+
+
+def _pop_pending_reminder(project: str) -> Optional[str]:
+    """Return and clear the pending reminder for ``project``, or None."""
+    return _gf.pop_pending_reminder(project)
 
 
 def _load_commit_reminder() -> Optional[Any]:
@@ -781,111 +801,9 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _load_pending_reminders() -> Dict[str, str]:
-    """Load the pending-reminder file; `{}` on missing file, read error, or malformed JSON."""
-    try:
-        raw = PENDING_REMINDER_FILE.read_text(encoding="utf-8")
-    except OSError:
-        return {}
-    try:
-        data = json.loads(raw)
-    except ValueError:
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def _save_pending_reminders(pending: Dict[str, str]) -> None:
-    """Persist the pending-reminder file, creating parent directories as needed."""
-    PENDING_REMINDER_FILE.parent.mkdir(parents=True, exist_ok=True)
-    PENDING_REMINDER_FILE.write_text(json.dumps(pending), encoding="utf-8")
-
-
-def _set_pending_reminder(project: str, message: str) -> None:
-    """Stash ``message`` for ``project``, keyed by its resolved absolute path."""
-    pending = _load_pending_reminders()
-    pending[str(Path(project).resolve())] = message
-    _save_pending_reminders(pending)
-
-
-def _pop_pending_reminder(project: str) -> Optional[str]:
-    """Return and clear the pending reminder for ``project``, or None if there isn't one."""
-    pending = _load_pending_reminders()
-    key = str(Path(project).resolve())
-    message = pending.pop(key, None)
-    if message is not None:
-        _save_pending_reminders(pending)
-    return message
-
-
 # --- Grounded feedback (Rule 3C) ---
 
-PENDING_FEEDBACK_FILE = Path.home() / ".ai-badger" / "pending-feedback.json"
-MAX_FEEDBACK_LINES = 30
-MAX_FEEDBACK_CHARS = 3000
-
-
-def _load_pending_feedback() -> Dict[str, str]:
-    """Load the pending-feedback file; `{}` on missing file, read error, or malformed JSON."""
-    try:
-        raw = PENDING_FEEDBACK_FILE.read_text(encoding="utf-8")
-    except OSError:
-        return {}
-    try:
-        data = json.loads(raw)
-    except ValueError:
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def _save_pending_feedback(pending: Dict[str, str]) -> None:
-    """Persist the pending-feedback file, creating parent directories as needed."""
-    PENDING_FEEDBACK_FILE.parent.mkdir(parents=True, exist_ok=True)
-    PENDING_FEEDBACK_FILE.write_text(json.dumps(pending), encoding="utf-8")
-
-
-def _set_pending_feedback(project: str, message: str) -> None:
-    """Stash grounded feedback for ``project``, keyed by its resolved absolute path."""
-    pending = _load_pending_feedback()
-    pending[str(Path(project).resolve())] = message
-    _save_pending_feedback(pending)
-
-
-def _pop_pending_feedback(project: str) -> Optional[str]:
-    """Return and clear the pending grounded feedback for ``project``, or None."""
-    pending = _load_pending_feedback()
-    key = str(Path(project).resolve())
-    message = pending.pop(key, None)
-    if message is not None:
-        _save_pending_feedback(pending)
-    return message
-
-
-def _maybe_stash_grounded_feedback(tool_name: str, result: str, cwd: str) -> None:
-    """After a terminal/Bash command with non-zero exit, stash the failure output.
-
-    The stashed output is surfaced in pre_llm_inject_context on the next turn.
-    """
-    normalized = tool_name.lower()
-    if normalized not in ("terminal", "bash"):
-        return
-    if not result or not result.strip():
-        return
-    # Check for non-zero exit — the result string typically contains "exit_code: N"
-    # or the output itself indicates failure
-    lines = result.strip().splitlines()
-    if len(lines) > MAX_FEEDBACK_LINES:
-        lines = lines[-MAX_FEEDBACK_LINES:]
-    truncated = "\n".join(lines)
-    if len(truncated) > MAX_FEEDBACK_CHARS:
-        truncated = truncated[-MAX_FEEDBACK_CHARS:]
-    project = _project_cwd(cwd)
-    message = (
-        "GROUNDED FEEDBACK: The last terminal command produced failure output. "
-        "Use it as evidence for your next correction:\n\n"
-        f"```\n{truncated}\n```"
-    )
-    _set_pending_feedback(project, message)
-    _debug("grounded_feedback", "stashed", project=project, output_lines=len(lines))
+import grounded_feedback as _gf  # pylint: disable=wrong-import-position
 
 
 def _maybe_remind_commit(tool_name: str, cwd: str) -> None:
@@ -1015,7 +933,7 @@ def post_tool_observer(tool_name: str = "", result: str = "",
         logger.warning("commit reminder check failed", exc_info=True)
 
     try:
-        _maybe_stash_grounded_feedback(tool_name, result, cwd)
+        _gf.stash_if_failure(tool_name, result, _project_cwd(cwd), debug_fn=_debug)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.warning("grounded feedback stash failed", exc_info=True)
 
