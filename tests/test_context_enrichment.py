@@ -170,3 +170,36 @@ class TestBuildHint:
         hint = ce.build_hint(ranked, index, max_chars=60)
         assert len(hint) <= 60 or "(" not in hint
         assert "s:tool_0" in hint
+
+
+class TestSemanticaNudgeHelpers:
+    def test_semantica_indexed_matches_bare_and_decorated(self, ce):
+        assert ce.semantica_indexed({"sources": [{"name": "semantica"}]}) is True
+        assert ce.semantica_indexed({"sources": [{"name": "plugin:semantica:semantica"}]}) is True
+        assert ce.semantica_indexed({"sources": [{"name": "semantica-fork"}]}) is False
+        assert ce.semantica_indexed({"sources": []}) is False
+        assert ce.semantica_indexed(None) is False
+        assert ce.semantica_indexed({}) is False
+
+    def test_semantica_nudge_marker_path_sanitizes_and_handles_empty(self, ce, tmp_path):
+        assert ce.semantica_nudge_marker_path(None) == ce.Path("")
+        assert ce.semantica_nudge_marker_path("") == ce.Path("")
+        path = ce.semantica_nudge_marker_path("sess/1\\2:3", base_dir=tmp_path)
+        assert path == tmp_path / "sess_1_2:3"
+
+    def test_semantica_nudge_record_and_check(self, ce, tmp_path):
+        assert ce.semantica_nudge_already_shown("sess-1", base_dir=tmp_path) is False
+        assert ce.record_semantica_nudge_shown("sess-1", base_dir=tmp_path) is True
+        assert (tmp_path / "sess-1").is_file()
+        assert ce.semantica_nudge_already_shown("sess-1", base_dir=tmp_path) is True
+
+        # Missing or empty session_id safely returns False without raising
+        assert ce.record_semantica_nudge_shown(None, base_dir=tmp_path) is False
+        assert ce.record_semantica_nudge_shown("", base_dir=tmp_path) is False
+        assert ce.semantica_nudge_already_shown(None, base_dir=tmp_path) is False
+        assert ce.semantica_nudge_already_shown("", base_dir=tmp_path) is False
+
+    def test_nudge_line_matches_contract(self, ce):
+        assert "[ai-badger] Semantica is configured:" in ce.NUDGE_LINE
+        assert "call export_graph(format=json) before finishing" in ce.NUDGE_LINE
+
