@@ -253,3 +253,154 @@ class TestNeverBlocksAndNeverInterceptsTheTool:
         out = json.loads(capsys.readouterr().out)
         keys = set(out["hookSpecificOutput"].keys())
         assert keys == {"hookEventName", "additionalContext"}
+
+
+class TestSemanticaNudge:
+    """Once-per-session Semantica guidance nudge (issue #418)."""
+
+    def _index_with_semantica(self) -> dict:
+        return {
+            "sources": [
+                {
+                    "name": "semantica",
+                    "tools": {
+                        "record_decision": {
+                            "tags": ["decision", "graph"],
+                            "intent": "Record a decision into the Semantica knowledge graph",
+                        },
+                        "export_graph": {
+                            "tags": ["export", "graph"],
+                            "intent": "Export the Semantica knowledge graph",
+                        },
+                    },
+                },
+                {
+                    "name": "rider",
+                    "tools": {
+                        "build_solution": {
+                            "tags": ["build", "dotnet"],
+                            "intent": "Compile the solution and return build errors",
+                        },
+                    },
+                },
+            ]
+        }
+
+    def test_first_prompt_with_semantica_emits_nudge(
+        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
+    ):
+        project = tmp_path / "proj"
+        _write_index(project, self._index_with_semantica())
+
+        rc = _run_main(hook, monkeypatch, {
+            "prompt": "hello world",
+            "cwd": str(project),
+            "session_id": "claude-sess-1",
+        })
+
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
+        context = out["hookSpecificOutput"]["additionalContext"]
+        assert "[ai-badger] Semantica is configured:" in context
+        assert "call export_graph(format=json) before finishing" in context
+
+    def test_copilot_spelling_sessionId_emits_nudge(
+        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
+    ):
+        project = tmp_path / "proj"
+        _write_index(project, self._index_with_semantica())
+
+        rc = _run_main(hook, monkeypatch, {
+            "prompt": "hello world",
+            "cwd": str(project),
+            "sessionId": "copilot-sess-2",
+        })
+
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert "[ai-badger] Semantica is configured:" in out["hookSpecificOutput"]["additionalContext"]
+
+    def test_second_prompt_in_same_session_skips_nudge(
+        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
+    ):
+        project = tmp_path / "proj"
+        _write_index(project, self._index_with_semantica())
+
+        # First prompt: emits nudge
+        _run_main(hook, monkeypatch, {
+            "prompt": "hello turn 1",
+            "cwd": str(project),
+            "session_id": "sess-3",
+        })
+        out1 = json.loads(capsys.readouterr().out)
+        assert "[ai-badger] Semantica is configured:" in out1["hookSpecificOutput"]["additionalContext"]
+
+        # Second prompt in same session with no tool match: emits nothing
+        _run_main(hook, monkeypatch, {
+            "prompt": "hello turn 2",
+            "cwd": str(project),
+            "session_id": "sess-3",
+        })
+        assert capsys.readouterr().out == ""
+
+        # Different session: emits nudge again
+        _run_main(hook, monkeypatch, {
+            "prompt": "hello turn 1 new session",
+            "cwd": str(project),
+            "session_id": "sess-4",
+        })
+        out3 = json.loads(capsys.readouterr().out)
+        assert "[ai-badger] Semantica is configured:" in out3["hookSpecificOutput"]["additionalContext"]
+
+    def test_prompt_with_tool_match_and_nudge_emits_both_separated_by_newline(
+        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
+    ):
+        project = tmp_path / "proj"
+        _write_index(project, self._index_with_semantica())
+
+        _run_main(hook, monkeypatch, {
+            "prompt": "build the solution",
+            "cwd": str(project),
+            "session_id": "sess-both",
+        })
+
+        out = json.loads(capsys.readouterr().out)
+        context = out["hookSpecificOutput"]["additionalContext"]
+        assert "[ai-badger] Semantica is configured:" in context
+        assert "[ai-badger] Relevant MCP tools:" in context
+        assert "rider:build_solution" in context
+        # Both parts are separated by newline
+        lines = context.strip().split("\n")
+        assert len(lines) == 2
+        assert lines[0].startswith("[ai-badger] Semantica is configured:")
+        assert lines[1].startswith("[ai-badger] Relevant MCP tools:")
+
+    def test_empty_prompt_with_semantica_indexed_emits_nudge(
+        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
+    ):
+        project = tmp_path / "proj"
+        _write_index(project, self._index_with_semantica())
+
+        _run_main(hook, monkeypatch, {
+            "cwd": str(project),
+            "session_id": "sess-empty-prompt",
+        })
+
+        out = json.loads(capsys.readouterr().out)
+        assert "[ai-badger] Semantica is configured:" in out["hookSpecificOutput"]["additionalContext"]
+
+    def test_non_semantica_index_never_emits_nudge(
+        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
+    ):
+        project = tmp_path / "proj"
+        _write_index(project, _sample_index())  # rider only, no semantica
+
+        _run_main(hook, monkeypatch, {
+            "prompt": "hello",
+            "cwd": str(project),
+            "session_id": "sess-no-semantica",
+        })
+
+        assert capsys.readouterr().out == ""
+
