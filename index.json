@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.135.3",
+  "frameworkVersion": "0.136.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -273,6 +273,11 @@
         {
           "name": "feed-badger",
           "path": "features/common/skills/feed-badger",
+          "scope": "default"
+        },
+        {
+          "name": "git-work",
+          "path": "features/common/skills/git-work",
           "scope": "default"
         },
         {
