@@ -1,0 +1,85 @@
+[
+  {
+    "id": "T0-01",
+    "layer": "0",
+    "group": null,
+    "title": "A check you have not seen fail is not a check.",
+    "severity": null,
+    "evidence": null,
+    "flag": null,
+    "parent": null,
+    "absorbs": [],
+    "archetypes": [],
+    "pass": null,
+    "order": null,
+    "phase": null,
+    "retired": null,
+    "file": "references/principles.md",
+    "line": 6
+  },
+  {
+    "id": "T1-AAA-01",
+    "layer": "1",
+    "group": "AAA",
+    "title": "Assert something that can distinguish right from wrong.",
+    "severity": "blocker",
+    "evidence": "strong",
+    "flag": "auto",
+    "parent": null,
+    "absorbs": [
+      "U-ASR-01",
+      "U-ASR-02"
+    ],
+    "archetypes": [
+      "A01"
+    ],
+    "pass": 1,
+    "order": 1,
+    "phase": "6",
+    "retired": null,
+    "file": "references/universal.md",
+    "line": 7
+  },
+  {
+    "id": "T1-AAA-02",
+    "layer": "1",
+    "group": "AAA",
+    "title": "Never assert on wall-clock time.",
+    "severity": "major",
+    "evidence": "weak",
+    "flag": "argued",
+    "parent": null,
+    "absorbs": [
+      "U-ISO-01"
+    ],
+    "archetypes": [],
+    "pass": 2,
+    "order": 1,
+    "phase": "review-only",
+    "retired": null,
+    "file": "references/universal.md",
+    "line": 16
+  },
+  {
+    "id": "T2-WID-01",
+    "layer": "2",
+    "group": "WID",
+    "title": "Widget rules require a construction-site test.",
+    "severity": "blocker",
+    "evidence": "strong",
+    "flag": "argued",
+    "parent": "T1-AAA-01",
+    "absorbs": [
+      "K-WID-01"
+    ],
+    "archetypes": [
+      "A02"
+    ],
+    "pass": 1,
+    "order": 2,
+    "phase": null,
+    "retired": null,
+    "file": "references/kind-widget.md",
+    "line": 7
+  }
+]

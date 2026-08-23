@@ -135,6 +135,22 @@ scope, commands from common scripts). The agent then refines it — filling in p
 domain, and persona routing, asking clarifying questions only for genuine ambiguity — before
 handing it to `validate.py`.
 
+A project that scaffolds the `qa` persona family routes test-related work to it instead of
+overloading `test-engineer`, which stays scoped to writing the tests inside a feature change:
+
+```jsonc
+"personaRouting": [
+  { "work": "Test-suite design from acceptance criteria; test-quality audit; mutation verification",
+    "agent": "qa" },
+  { "work": "Backend test design/review — runner, isolation, emulator and contract tests",
+    "agent": "qa-backend" },
+  { "work": "Frontend test design/review — component, network-stub, a11y and browser-only claims",
+    "agent": "qa-frontend" },
+  { "work": "Writing tests inside a feature change (TDD red step)",
+    "agent": "test-engineer" }
+]
+```
+
 ### `manifest.json` — provenance (script writes during scaffold)
 
 Lives at `.ai-badger/manifest.json`. It records exactly what `scaffold.py` put into the project

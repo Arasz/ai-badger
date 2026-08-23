@@ -6,7 +6,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ sc
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.132.0. Source of truth for this file: `.ai-badger/CLAUDE.md`.
+> Scaffolded by ai-badger 0.133.0. Source of truth for this file: `.ai-badger/CLAUDE.md`.
 
 ## Non-negotiable invariants
 
@@ -60,6 +60,9 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ sc
 
 - **TDD is mandatory** — Write a failing, behavior-focused test before any production code change.
   → `.ai-badger/invariants/tdd-mandatory.md`
+
+- **Tests are designed before they are written, and judged after** — Green is the floor, not the evidence: a test list comes out of the acceptance criteria before the first test is written (`design-tests`, each row naming the failure mode it targets and the mutation that proves it real), and a change that adds or alters tests is not done until something other than its author has run `review-tests` and asked whether that suite could have gone red.
+  → `.ai-badger/invariants/tests-are-designed-and-reviewed.md`
 
 - **Releases are traceable** — Every release records the version it went out at and what changed in it, using whatever version marker and release notes this project already keeps.
   → `.ai-badger/invariants/traceable-releases.md`

@@ -1,25 +1,25 @@
+<!-- Managed by ai-badger. Source of truth: tooling/changelog_index.py. Regenerate with: python3 tooling/changelog_index.py -->
+
 # Changelog
 
-All notable changes to the ai-badger framework are documented here. **Each version gets its own
-file, `{version}-{slug}.md`** — there is no single root `CHANGELOG.md`, and adding one is not a
-refactor decision. See "Convention" below.
+All notable changes to the ai-badger framework are documented here.
 
-Because the entries are separate files, this README is the index that reconstructs the release
-timeline. **The table below is generated** — run `python3 tooling/changelog_index.py` after
-adding an entry and commit the result; do not hand-edit it. See
-["The table is generated"](#the-table-is-generated).
+Format: one file per release under `docs/changelog/<version>-<slug>.md`, named after
+the version it went out at. Each file carries:
+- A `# <version> — <title>` heading
+- A classification: **Major** (breaking), **Minor** (additive), or **Patch** (fixes)
+- The date and headline changes
+- Sections for new features, changes, fixes, and upgrade notes where relevant
 
-## Releases, newest first
-
-Versions follow [SemVer](https://semver.org/) as adapted for a catalog rather than an API — see
-[`../../RELEASING.md`](../../RELEASING.md) and
-[ADR-0001](../adr/0001-versioning-and-release-model.md). Pre-1.0, the **minor** slot is the
-breaking slot. Versions listed in [`../../BREAKING_VERSIONS`](../../BREAKING_VERSIONS) require a
-re-scaffold.
+When cutting a release:
+1. Add `docs/changelog/<version>-<slug>.md`
+2. Run `python3 tooling/changelog_index.py` to regenerate the index table below
+3. Commit both files together with the `VERSION` bump
 
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.133.0 | [QA personas, `design-tests` + `review-tests`, one layered test ruleset](0.133.0-qa-personas-and-test-skills.md) |
 | 0.132.0 | [playwright-mcp and browser-usage skill](0.132.0-playwright-mcp-and-browser-usage-skill.md) |
 | 0.131.1 | [ai-raccoon-memory relays the code-engine-not-configured warning](0.131.1-ai-raccoon-memory-relays-code-engine-warning.md) |
 | 0.131.0 | [vue stack](0.131.0-vue-stack.md) |
@@ -246,71 +246,3 @@ re-scaffold.
 | 0.7.1 | [Hermes `external_dirs` registration + den-refresh config update](0.7.1-hermes-external-dirs.md) — *this mechanism was later reverted; see [ADR-0003](../adr/0003-hermes-skill-discovery-via-namespaced-symlinks.md)* |
 | 0.7.0 | [skills sources, hooks, and adjustments](0.7.0-skills-hooks-adjustments.md) · [work summary: skills sources, hooks, and adjustments](0.7.0-work-summary.md) |
 <!-- changelog-index:end -->
-
-Releases before 0.7.0 predate this directory.
-
-**A version may have more than one entry.** `release_guard.py` compares against the last release
-*tag*, not the previous commit, so several PRs can land at one unreleased version — 0.18.0 has
-four. Tag once when the set is complete.
-
-**Not every version here is tagged.** `0.3.0`–`0.19.0` carry no tag and never will; the baseline
-restarts at `ai-badger--v0.20.0`. The post-mortem is
-[`../incidents/2026-07-27-untagged-releases.md`](../incidents/2026-07-27-untagged-releases.md).
-
-## Convention
-
-Every release must:
-
-1. Bump [`VERSION`](../../VERSION) — patch for fixes, minor for anything that changes what
-   scaffolding *does* to a consumer repo.
-2. Add a `docs/changelog/{version}-{slug}.md` entry whose first line is a `# ` title, then run
-   `python3 tooling/changelog_index.py` to put it in the table above.
-3. Add the version to [`BREAKING_VERSIONS`](../../BREAKING_VERSIONS) if a re-scaffold is
-   *required*, not merely recommended.
-4. Run `python3 tooling/version_sync.py` to propagate the version into `plugin.json`,
-   `marketplace.json` and `index.json`.
-
-Whether a change *is* a release is decided by `gates/release_guard.py`, not by judgement: if it
-reports no shipped-surface change since the last release tag, do not bump and do not add an entry.
-
-### Why one file per version
-
-This is a minority convention — the dominant one is a single
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) file at the repo root, and per-file
-changelogs exist mainly to avoid merge conflicts on one growing file, a pressure that a
-one-maintainer project does not feel. It is nevertheless a **non-negotiable invariant** in
-[`CLAUDE.md`](../../CLAUDE.md), and changing it is a maintainer decision rather than a
-housekeeping one. The tradeoff — a per-version file buys room for real prose about *why*, and
-costs you this index — is recorded here so nobody has to rediscover it.
-
-### The table is generated
-
-The entry *files* deliver the conflict avoidance the convention is for; the index row did not.
-Every PR riding one unreleased version edited the same table line, so N concurrent PRs cost N−1
-hand-resolved conflicts on it — five in one session — and a careless resolution dropped an entry
-without any gate noticing (issue #160). So the table is no longer written by hand:
-
-- `python3 tooling/changelog_index.py` regenerates the region between the
-  `<!-- changelog-index:start -->` / `<!-- changelog-index:end -->` markers. Everything outside
-  them, including this prose, is yours.
-- `python3 tooling/changelog_index.py --check` fails when the committed table does not match the
-  files on disk. It runs in pre-commit, in the lefthook `docs` lane and in CI, so a missing row
-  is now a red build rather than a silent omission.
-- **Titles come from the entry's `# ` heading**, with a leading `{version} —` stripped (the
-  Version column already carries it). Retitle the entry, regenerate, and the index follows.
-- **Ordering:** versions semver-descending; several entries at one version join with ` · ` in
-  filename order. Filename rather than commit date so a row is a function of the tree alone —
-  two branches that both add an entry produce the same row whichever lands first.
-- A row annotation goes in the entry, not the table: a single
-  `<!-- index-note: … -->` line is rendered after that entry's link as ` — *…*`.
-  0.7.1's revert notice is the one in use.
-
-A concurrent-PR conflict on the table line is still possible, but it is no longer resolved by
-hand: take either side, re-run the generator, and `--check` proves the result.
-
-### Writing a good entry
-
-Look at [0.25.0](0.25.0-hardening.md) or [0.24.0](0.24.0-outbound-scan.md) for the house style: a
-title that states the change rather than naming the module, a link back to the plan or review that
-motivated it, one section per fix explaining what was wrong *before*, and an explicit
-"behaviour changes worth knowing" section for anything a consumer must act on.

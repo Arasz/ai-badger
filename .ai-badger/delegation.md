@@ -1,6 +1,6 @@
 # Delegation map — ai-badger
 
-> Scaffolded by ai-badger 0.132.0. Regenerated on every scaffold; do not edit.
+> Scaffolded by ai-badger 0.133.0. Regenerated on every scaffold; do not edit.
 
 ## Stacks
 
@@ -13,7 +13,8 @@ python, js, github, claude, hermes, ts, node, changelog
 - `code-reviewer` — Independent quality and security gate — OWASP Top 10 (plus OWASP LLM Top 10 when an LLM-integration surface is present) review scoped to a targeted plan (pick the 3-5 relevant risk categories for the diff, not a blanket checklist), two-pass performance/anti-pattern analysis, and adversarial verification of AI-generated claims. Lane: opus.
 - `delegator` — Work-routing lead for long, multi-package sessions — decomposes a task into independently verifiable packages, dispatches each to the persona and model lane that fits it, and does only integration, arbitration and gate-running itself. Lane: opus.
 - `hermes-agent-author` — Default persona for authoring and maintaining Hermes Agent skills, configuration, and automation. Lane: sonnet.
-- `test-engineer` — Testing specialist — designs test strategy, writes failing tests first, plans phased test coverage (leaf types unmocked → mid-layer with leaf mocks → top-layer), audits test quality/coverage gaps, and enforces edit-boundary discipline between test files and production code. Lane: sonnet.
+- `qa` — Test-quality authority — designs a suite from acceptance criteria before anyone writes it, and audits an existing suite for whether it can fail at all. Lane: opus.
+- `test-engineer` — Testing specialist — designs test strategy, writes failing tests first, plans phased test coverage (leaf types unmocked → mid-layer with leaf mocks → top-layer), and enforces edit-boundary discipline between test files and production code. Lane: sonnet.
 
 ## Routing (config.json personaRouting)
 

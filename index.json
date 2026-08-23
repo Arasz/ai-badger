@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.132.0",
+  "frameworkVersion": "0.133.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -246,6 +246,11 @@
           "scope": "optIn"
         },
         {
+          "name": "design-tests",
+          "path": "features/common/skills/design-tests",
+          "scope": "default"
+        },
+        {
           "name": "differential-feature-refactor",
           "path": "features/common/skills/differential-feature-refactor",
           "scope": "default"
@@ -331,6 +336,11 @@
           "scope": "optIn"
         },
         {
+          "name": "review-tests",
+          "path": "features/common/skills/review-tests",
+          "scope": "default"
+        },
+        {
           "name": "scaffold-documentation",
           "path": "features/common/skills/scaffold-documentation",
           "scope": "optIn"
@@ -393,6 +403,10 @@
         {
           "name": "delegator",
           "path": "features/common/personas/delegator.md"
+        },
+        {
+          "name": "qa",
+          "path": "features/common/personas/qa.md"
         },
         {
           "name": "test-engineer",
@@ -467,6 +481,10 @@
         {
           "name": "tdd-mandatory",
           "path": "features/common/invariants/tdd-mandatory.md"
+        },
+        {
+          "name": "tests-are-designed-and-reviewed",
+          "path": "features/common/invariants/tests-are-designed-and-reviewed.md"
         },
         {
           "name": "traceable-releases",
@@ -687,6 +705,10 @@
         {
           "name": "dotnet-engineer",
           "path": "features/dotnet/personas/dotnet-engineer.md"
+        },
+        {
+          "name": "qa-backend",
+          "path": "features/dotnet/personas/qa-backend.md"
         }
       ],
       "invariants": [
@@ -910,6 +932,10 @@
         {
           "name": "frontend-engineer",
           "path": "features/react/personas/frontend-engineer.md"
+        },
+        {
+          "name": "qa-frontend",
+          "path": "features/react/personas/qa-frontend.md"
         }
       ],
       "invariants": [
