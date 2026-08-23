@@ -55,6 +55,18 @@ assuming its own model.
   visible at a glance.
 - **Delegate to implementation agents** matched to the work, using the personas from
   `config.json`'s `personaRouting`. TDD is mandatory for code.
+- **One-turn specification** — State the objective, constraints, data sources, and success criteria
+  in the first turn; keep the final ask last.
+- **Consolidated restart** — After two failed revision turns, restart with one merged prompt instead
+  of continuing the same thread and compounding drift.
+- **Grounded feedback** — Every correction must cite the failing check, validator output, compiler
+  error, or source evidence behind the change before proposing the next patch.
+- **Critical instruction placement** — Put the highest-priority requirements in the first or last
+  block of the prompt, never buried in the middle.
+- **Reasoning scaffolding minimization** — Avoid prescriptive CoT plans on modern reasoning models
+  unless the task is genuine symbolic reasoning; give the goal and constraints instead.
+- **Final output schema separation** — Keep free-form reasoning separate from the final schema and
+  emit the final schema last.
 - **Delegate trivial mechanical work** (doc/comment updates, rote refactors, test backfills) to a
   cheap model.
 - **The orchestrating session does directly:** fetch the task, read docs, record token usage, the

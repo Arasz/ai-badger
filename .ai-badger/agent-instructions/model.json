@@ -6,7 +6,126 @@
   "instructionSets": {},
   "sharedPolicy": {
     "authoritativeDocs": [],
-    "nonNegotiableInvariants": [],
+    "nonNegotiableInvariants": [
+      {
+        "id": "one-turn-specification",
+        "summary": "One-turn specification: state the objective, constraints, data, and success criteria in the first turn; keep the final ask last.",
+        "patterns": [
+          "objective.*constraints.*success criteria",
+          "first turn.*success criteria",
+          "final ask last"
+        ],
+        "mustAppearIn": [
+          "CLAUDE.md",
+          "copilot-instructions.md"
+        ]
+      },
+      {
+        "id": "consolidated-restart",
+        "summary": "Consolidated restart: after two failed revision turns, restart with a single merged prompt instead of continuing the same thread.",
+        "patterns": [
+          "after two failed revision turns",
+          "restart with a single merged prompt",
+          "consolidated restart"
+        ],
+        "mustAppearIn": [
+          "CLAUDE.md",
+          "copilot-instructions.md"
+        ]
+      },
+      {
+        "id": "grounded-feedback",
+        "summary": "Grounded feedback: every correction must cite failing checks, compiler output, validator output, or source evidence.",
+        "patterns": [
+          "grounded feedback",
+          "failing checks.*validator output",
+          "source evidence"
+        ],
+        "mustAppearIn": [
+          "CLAUDE.md",
+          "copilot-instructions.md"
+        ]
+      },
+      {
+        "id": "tool-schema-success-criteria",
+        "summary": "Tool schema and success criteria outrank persona prose: define explicit tool contracts, stop conditions, and outcome predicates before polishing role text.",
+        "patterns": [
+          "tool schema.*success criteria",
+          "success criteria.*tool schema",
+          "persona prose.*tool schema",
+          "explicit tool contracts.*stop conditions"
+        ],
+        "mustAppearIn": [
+          "CLAUDE.md",
+          "copilot-instructions.md"
+        ]
+      },
+      {
+        "id": "critical-instruction-placement",
+        "summary": "Critical instruction placement: keep the most important requirements in the first or last block; do not bury them in the middle.",
+        "patterns": [
+          "critical instruction placement",
+          "first or last block",
+          "do not bury.*middle"
+        ],
+        "mustAppearIn": [
+          "CLAUDE.md",
+          "copilot-instructions.md"
+        ]
+      },
+      {
+        "id": "reasoning-scaffolding-minimization",
+        "summary": "Reasoning scaffolding minimization: avoid step-by-step CoT plans on modern reasoning models unless the task is genuine symbolic reasoning.",
+        "patterns": [
+          "reasoning scaffolding minimization",
+          "step-by-step CoT",
+          "modern reasoning models"
+        ],
+        "mustAppearIn": [
+          "CLAUDE.md",
+          "copilot-instructions.md"
+        ]
+      },
+      {
+        "id": "final-output-schema-separation",
+        "summary": "Final output schema separation: keep free-form reasoning separate from the final output schema and emit the schema last.",
+        "patterns": [
+          "final output schema separation",
+          "free-form reasoning.*final output schema",
+          "emit the schema last"
+        ],
+        "mustAppearIn": [
+          "CLAUDE.md",
+          "copilot-instructions.md"
+        ]
+      },
+      {
+        "id": "positive-constraints-validation",
+        "summary": "Positive constraints and validation: prefer positive requirements and validator-backed checks over long negative instruction lists.",
+        "patterns": [
+          "positive constraints and validation",
+          "positive requirements",
+          "validator-backed checks"
+        ],
+        "mustAppearIn": [
+          "CLAUDE.md",
+          "copilot-instructions.md"
+        ]
+      },
+      {
+        "id": "few-shot-format-only",
+        "summary": "Few-shot only for format: start zero-shot and use examples only when the output format is the failure mode.",
+        "patterns": [
+          "few-shot only for format",
+          "start zero-shot",
+          "examples only when the output format"
+        ],
+        "mustAppearIn": [
+          "CLAUDE.md",
+          "copilot-instructions.md"
+        ]
+      }
+    ],
     "reviewCategories": []
   },
   "agents": {},

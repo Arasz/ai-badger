@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.135.0",
+  "frameworkVersion": "0.135.1",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -423,8 +423,28 @@
           "path": "features/common/invariants/check-sources-not-yourself.md"
         },
         {
+          "name": "consolidated-restart",
+          "path": "features/common/invariants/consolidated-restart.md"
+        },
+        {
+          "name": "critical-instruction-placement",
+          "path": "features/common/invariants/critical-instruction-placement.md"
+        },
+        {
           "name": "derive-or-delete-the-list",
           "path": "features/common/invariants/derive-or-delete-the-list.md"
+        },
+        {
+          "name": "few-shot-format-only",
+          "path": "features/common/invariants/few-shot-format-only.md"
+        },
+        {
+          "name": "final-output-schema-separation",
+          "path": "features/common/invariants/final-output-schema-separation.md"
+        },
+        {
+          "name": "grounded-feedback",
+          "path": "features/common/invariants/grounded-feedback.md"
         },
         {
           "name": "guard-clauses",
@@ -447,12 +467,20 @@
           "path": "features/common/invariants/no-hardcoded-secrets.md"
         },
         {
+          "name": "one-turn-specification",
+          "path": "features/common/invariants/one-turn-specification.md"
+        },
+        {
           "name": "pipeline-runs-the-rest",
           "path": "features/common/invariants/pipeline-runs-the-rest.md"
         },
         {
           "name": "plain-names",
           "path": "features/common/invariants/plain-names.md"
+        },
+        {
+          "name": "positive-constraints-and-validation",
+          "path": "features/common/invariants/positive-constraints-and-validation.md"
         },
         {
           "name": "pr-per-task",
@@ -465,6 +493,10 @@
         {
           "name": "prove-the-check-fails",
           "path": "features/common/invariants/prove-the-check-fails.md"
+        },
+        {
+          "name": "reasoning-scaffolding-minimization",
+          "path": "features/common/invariants/reasoning-scaffolding-minimization.md"
         },
         {
           "name": "screaming-architecture",
@@ -485,6 +517,10 @@
         {
           "name": "tests-are-designed-and-reviewed",
           "path": "features/common/invariants/tests-are-designed-and-reviewed.md"
+        },
+        {
+          "name": "tool-schema-success-criteria",
+          "path": "features/common/invariants/tool-schema-success-criteria.md"
         },
         {
           "name": "traceable-releases",

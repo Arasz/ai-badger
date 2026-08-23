@@ -1,7 +1,7 @@
 // The drift gate must FAIL when an invariant stops being mentioned (review F-47).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { makeProject, run } from "./helpers.mjs";
 
 const SCRIPT = "check-agent-drift.mjs";
@@ -16,6 +16,54 @@ const TDD_RULE = {
   patterns: ["TDD is mandatory"],
   mustAppearIn: ["CLAUDE.md"],
 };
+
+test("the repo model encodes the prompt-policy rule set for short-horizon work", () => {
+  const modelPath = new URL("../../.ai-badger/agent-instructions/model.json", import.meta.url);
+  const model = JSON.parse(readFileSync(modelPath, "utf8"));
+  const invariants = model.sharedPolicy?.nonNegotiableInvariants ?? [];
+  const expected = [
+    "one-turn specification",
+    "consolidated restart",
+    "grounded feedback",
+    "tool schema and success criteria outrank persona prose",
+    "critical instruction placement",
+    "reasoning scaffolding minimization",
+    "final output schema separation",
+    "positive constraints and validation",
+    "few-shot only for format",
+  ];
+
+  const summaries = invariants.map((item) => item.summary ?? "");
+  for (const expectedRule of expected) {
+    assert.ok(
+      summaries.some((summary) => new RegExp(expectedRule, "i").test(summary)),
+      `repo model should encode the prompt rule: ${expectedRule}`,
+    );
+  }
+});
+
+test("the generated instruction files mention each prompt-rule in the repo policy", () => {
+  const expected = [
+    "one-turn specification",
+    "consolidated restart",
+    "grounded feedback",
+    "tool schema and success criteria outrank persona prose",
+    "critical instruction placement",
+    "reasoning scaffolding minimization",
+    "final output schema separation",
+    "positive constraints and validation",
+    "few-shot only for format",
+  ];
+
+  for (const file of ["CLAUDE.md", "copilot-instructions.md"]) {
+    const path = new URL(`../../.ai-badger/${file}`, import.meta.url);
+    const text = readFileSync(path, "utf8");
+    for (const expectedRule of expected) {
+      assert.match(text, new RegExp(expectedRule, "i"),
+        `expected ${file} to mention the prompt rule: ${expectedRule}`);
+    }
+  }
+});
 
 test("an invariant present in every target file passes", () => {
   const root = makeProject(

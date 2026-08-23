@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.135.1 | [Prompt policy rules for short-horizon work](0.135.1-prompt-policy-short-horizon-rules.md) |
 | 0.135.0 | [Research-based prompt and persona optimization](0.135.0-research-based-prompt-optimization.md) |
 | 0.134.1 | [Path sanitization centralization & Copilot review fixes for #427](0.134.1-semantica-nudge-review-fixes.md) |
 | 0.134.0 | [Semantica: once-per-session export nudge for Claude Code and GitHub Copilot](0.134.0-semantica-nudge-claude-copilot.md) |
