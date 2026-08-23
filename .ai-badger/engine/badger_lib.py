@@ -107,25 +107,12 @@ SIBLING_REFERENCE_RE = re.compile(r"(?<![./])\.\./([a-z][a-z0-9-]*)/references/[
 
 # Skills that cannot do their job alone. Naming any member — or the group — installs all of them.
 #
-# The documentation three read each other's `references/` in place, deliberately: a shared
-# directory beside them would never be indexed and would never ship. That makes the grouping a
-# fact about the catalog, not a convenience. Naming one used to deliver a skill whose every
-# reference path was dangling, with the run reporting success (#266).
+# Grouping protects cross-references between skills that cite each other's references/ in place.
 SKILL_GROUPS: Dict[str, Tuple[str, ...]] = {
-    "documentation": (
-        "scaffold-documentation",
-        "update-documentation",
-        "migrate-documentation",
-    ),
-    # One ruleset, two skills, both `scope: default`: `design-tests` writes tests, `review-tests`
-    # judges them, and both read the same rules under review-tests/references/ (SYNTHESIS.md
-    # ruling A). Grouping protects that cross-reference the same way `documentation` protects its
-    # three — naming either skill alone would otherwise install one half of a pair that cites the
-    # other.
-    "testing": (
-        "design-tests",
-        "review-tests",
-    ),
+    "documentation": ("scaffold-documentation", "update-documentation", "migrate-documentation"),
+    # One ruleset, two default skills: design-tests writes, review-tests judges; both read
+    # review-tests/references/ (SYNTHESIS.md ruling A). Grouping protects cross-citations.
+    "testing": ("design-tests", "review-tests"),
 }
 
 
