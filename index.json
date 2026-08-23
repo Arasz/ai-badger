@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.135.1",
+  "frameworkVersion": "0.135.2",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -571,6 +571,10 @@
         {
           "name": "follow_through",
           "path": "features/common/hooks/follow_through.py"
+        },
+        {
+          "name": "grounded_feedback",
+          "path": "features/common/hooks/grounded_feedback.py"
         },
         {
           "name": "hooks-manifest",
