@@ -256,6 +256,11 @@
           "scope": "default"
         },
         {
+          "name": "documentation",
+          "path": "features/common/skills/documentation",
+          "scope": "optIn"
+        },
+        {
           "name": "documentation-drift-audit",
           "path": "features/common/skills/documentation-drift-audit",
           "scope": "optIn"
@@ -294,11 +299,6 @@
           "name": "mcp-index",
           "path": "features/common/skills/mcp-index",
           "scope": "default"
-        },
-        {
-          "name": "migrate-documentation",
-          "path": "features/common/skills/migrate-documentation",
-          "scope": "optIn"
         },
         {
           "name": "multi-lane-report-assembly",
@@ -346,11 +346,6 @@
           "scope": "default"
         },
         {
-          "name": "scaffold-documentation",
-          "path": "features/common/skills/scaffold-documentation",
-          "scope": "optIn"
-        },
-        {
           "name": "scripts-tooling-refactor",
           "path": "features/common/skills/scripts-tooling-refactor",
           "scope": "optIn"
@@ -379,11 +374,6 @@
           "name": "task",
           "path": "features/common/skills/task",
           "scope": "default"
-        },
-        {
-          "name": "update-documentation",
-          "path": "features/common/skills/update-documentation",
-          "scope": "optIn"
         },
         {
           "name": "welcome-ai-badger",

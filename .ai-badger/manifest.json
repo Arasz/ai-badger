@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.136.0",
-  "frameworkCommit": "964fbc4173703117ed59cd530d88348a0458dd60",
+  "frameworkCommit": "04d5b4b25dc6b30e31a04796659107d115c3db22",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -885,12 +885,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.136.0",
-      "hash": "9474d17a7c3040d0bcf1d10418d5896e5d1a16d0986e8040a203a2a57d10fc52",
+      "hash": "a07b9a91fad5858a27a4a87fc13db82c82ecf1a74e7ecccde6d47928e29b7669",
       "dirMeta": {
         "file_count": 20,
         "dir_count": 2
       },
-      "sourceHash": "9474d17a7c3040d0bcf1d10418d5896e5d1a16d0986e8040a203a2a57d10fc52",
+      "sourceHash": "a07b9a91fad5858a27a4a87fc13db82c82ecf1a74e7ecccde6d47928e29b7669",
       "sourceMeta": {
         "file_count": 20,
         "dir_count": 2
@@ -986,27 +986,6 @@
     {
       "feature": "skills",
       "stack": "common",
-      "name": "migrate-documentation",
-      "source": "features/common/skills/migrate-documentation",
-      "target": ".ai-badger/skills/migrate-documentation",
-      "frameworkVersion": "0.136.0",
-      "hash": "bf4a3fd9a8543e379613bc601a08546618483fe3661c66c08710538ef995f4c1",
-      "dirMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "sourceHash": "bf4a3fd9a8543e379613bc601a08546618483fe3661c66c08710538ef995f4c1",
-      "sourceMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
       "name": "refactor-safely",
       "source": "features/common/skills/refactor-safely",
       "target": ".ai-badger/skills/refactor-safely",
@@ -1041,48 +1020,6 @@
       "sourceMeta": {
         "file_count": 1,
         "dir_count": 0
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
-      "name": "scaffold-documentation",
-      "source": "features/common/skills/scaffold-documentation",
-      "target": ".ai-badger/skills/scaffold-documentation",
-      "frameworkVersion": "0.136.0",
-      "hash": "e74218fa38e1b40aa578cc5aa2238decb034c77ef7d8e75b7841eb7ad9813b43",
-      "dirMeta": {
-        "file_count": 2,
-        "dir_count": 1
-      },
-      "sourceHash": "e74218fa38e1b40aa578cc5aa2238decb034c77ef7d8e75b7841eb7ad9813b43",
-      "sourceMeta": {
-        "file_count": 2,
-        "dir_count": 1
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
-      "name": "update-documentation",
-      "source": "features/common/skills/update-documentation",
-      "target": ".ai-badger/skills/update-documentation",
-      "frameworkVersion": "0.136.0",
-      "hash": "d3bc4b0d08ca83a45b8b8b62a831c663440a319ddf02987c0b79b3a2ff84eb08",
-      "dirMeta": {
-        "file_count": 4,
-        "dir_count": 1
-      },
-      "sourceHash": "d3bc4b0d08ca83a45b8b8b62a831c663440a319ddf02987c0b79b3a2ff84eb08",
-      "sourceMeta": {
-        "file_count": 4,
-        "dir_count": 1
       },
       "projectOwned": [
         "project-local.md"
@@ -1167,6 +1104,27 @@
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 1
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "documentation",
+      "source": "features/common/skills/documentation",
+      "target": ".ai-badger/skills/documentation",
+      "frameworkVersion": "0.136.0",
+      "hash": "d67a367b4191ffc56cb1586f2ab2e38148eac1c8870a880c5134745fa287ea78",
+      "dirMeta": {
+        "file_count": 9,
+        "dir_count": 6
+      },
+      "sourceHash": "d67a367b4191ffc56cb1586f2ab2e38148eac1c8870a880c5134745fa287ea78",
+      "sourceMeta": {
+        "file_count": 9,
+        "dir_count": 6
       },
       "projectOwned": [
         "project-local.md"
@@ -1515,15 +1473,6 @@
     {
       "feature": "adjustments",
       "stack": "claude",
-      "name": "adjustments/.claude/skills/migrate-documentation",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/migrate-documentation",
-      "frameworkVersion": "0.136.0",
-      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
       "name": "adjustments/.claude/skills/refactor-safely",
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/refactor-safely",
@@ -1542,24 +1491,6 @@
     {
       "feature": "adjustments",
       "stack": "claude",
-      "name": "adjustments/.claude/skills/scaffold-documentation",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/scaffold-documentation",
-      "frameworkVersion": "0.136.0",
-      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
-      "name": "adjustments/.claude/skills/update-documentation",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/update-documentation",
-      "frameworkVersion": "0.136.0",
-      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
       "name": "adjustments/.claude/skills/worktree-agent-isolation",
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/worktree-agent-isolation",
@@ -1572,6 +1503,15 @@
       "name": "adjustments/.claude/skills/auto-wm",
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/auto-wm",
+      "frameworkVersion": "0.136.0",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/skills/documentation",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/documentation",
       "frameworkVersion": "0.136.0",
       "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
@@ -1839,15 +1779,6 @@
     {
       "feature": "adjustments",
       "stack": "copilot",
-      "name": "adjustments/.github/skills/migrate-documentation",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/migrate-documentation",
-      "frameworkVersion": "0.136.0",
-      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
       "name": "adjustments/.github/skills/refactor-safely",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/refactor-safely",
@@ -1866,27 +1797,18 @@
     {
       "feature": "adjustments",
       "stack": "copilot",
-      "name": "adjustments/.github/skills/scaffold-documentation",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/scaffold-documentation",
-      "frameworkVersion": "0.136.0",
-      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
-      "name": "adjustments/.github/skills/update-documentation",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/update-documentation",
-      "frameworkVersion": "0.136.0",
-      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
       "name": "adjustments/.github/skills/worktree-agent-isolation",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/worktree-agent-isolation",
+      "frameworkVersion": "0.136.0",
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/documentation",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/documentation",
       "frameworkVersion": "0.136.0",
       "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },

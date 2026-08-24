@@ -49,11 +49,9 @@ NUMBERED_STEP_RE = re.compile(r"^\s*\d+\.\s")
 # Keyed on (skill, the mention line's stripped text), never on a line number — the line-number
 # key `scaffold-documentation:84` pointed at a line that had since gone blank, and nothing said
 # so. test_every_references_exemption_still_names_a_line_that_exists keeps each anchor honest.
-REFERENCES_EXEMPT = {
-    ("scaffold-documentation",
-     "**when placing a skill's reference material**, put it in a `references/` subdirectory "
-     "*inside*"),
-}
+# Empty since 0.137.0: the scaffold-documentation entry left with its skill into the
+# documentation gateway, whose members sit below this lint's reach.
+REFERENCES_EXEMPT = set()
 
 
 def references_without_conditions(lines: List[str], skill_name: str) -> List[str]:
