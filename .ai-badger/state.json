@@ -1,7 +1,21 @@
 {
-  "lastUpdated": "2026-08-23T15:30:00.000000+00:00",
+  "lastUpdated": "2026-08-24T01:20:00.000000+00:00",
   "next": "Port Semantica auto-save + nudge to Claude/Copilot nudge arm (#418 remaining half): the autosave shim shipped in 0.130.0; the once-per-session nudge needs marker-file state for claude/copilot (shell hook per invocation). Also: re-check semantica-agi/semantica PR #1151 (export_graph fix) and bump the version floor once a fixed release exists.",
   "completedTasks": [
+    {
+      "id": "task-skill-refactor",
+      "title": "Task skill PLANNING phase + research stage; new git-work skill (0.136.0)",
+      "pr": 433,
+      "merged": "2026-08-24",
+      "summary": "Restructured task skill per the refactored pipeline (research -> PLANNING -> implement -> review -> qa), run end-to-end via the pipeline itself. Research MoE (2 lanes) mapped the requested order onto phases and measured budget; review MoE (architect + test-engineer, both APPROVE-WITH-FIXES) corrected the plan: budget arithmetic was 2-3x overstated, renumbering sweep needed (extensions, file-schemas.md, task_tracker REMINDER string), git-work must be scope:default not optIn (test_skill_groups dangling-pointer precedent), QA stays conditional for docs-only/no-CI, one checklist not two (derive-or-delete). U1: prompting rules + isolation deep-dive + cache dispatch + slow-suites extracted to references/prompting-rules.md (body 18844->15848 chars). U2: new Phase 2 PLANNING with plan-review step; Entry:/Exit: lines per phase; full cross-ref sweep incl. github/copilot/claude extensions and file-schemas.md. U3 (leaf agent): git-work skill scope:default — push failures w/o gate cause, CI triage, PR lifecycle outside /task, squash conventions, join conflicts; worked cases in references/case-playbooks.md. U4: merged-budget test covers task (runtime-extension shape), VERSION 0.136.0, changelog, docs/skills.md 43 skills. A2 grep gate witnessed RED before GREEN. Copilot review round 1: 2 findings (silent fallback in combined-budget assert, stale tree-count math in docs/skills.md) both fixed. Full suite 4353 passed; all 8 CI lanes green."
+    },
+    {
+      "id": "rbr-p2",
+      "title": "Prompt-rules phase 2 — hooks and validation scripts (0.135.2)",
+      "pr": 431,
+      "merged": "2026-08-23",
+      "summary": "Automated the prompt-policy rules from docs/research/prompt-eng/ as hooks + linters: W1 consolidated-restart detection in user_prompt_hook.py (consecutive user-turn feedbackStreak persisted per project; interleaved normal prompts reset it); W2 reasoning_scaffold_lint.py (scans .md/.json for CoT anti-patterns, suppresses negated policy lines like 'no think step by step', exit 1 on findings); W3 constraint_count_lint.py (counts invariant bullets, threshold 35 — raised from 30 because the nine new prompt-policy invariants pushed this repo's own CLAUDE.md to 31 items); W4 grounded feedback: grounded_feedback_hook.py (Claude/Copilot PostToolUse) + grounded_feedback.py sibling module for Hermes (stash terminal failure output keyed by project, surfaced next turn via pre_llm_inject_context; owner-only 0600 file; only genuine failures via status/error_type). W5 critical-placement hook deferred. Copilot review round produced 15 findings, all addressed (payload keys tool_response/toolResponse/tool_result, lowercase bash matcher for Copilot, stdout+stderr combining, adjust_hooks copies grounded_feedback.py to every deployment shape, plan doc synced to implementation). Two CI-caught regressions during development: pylint too-many-lines on the scaffolded copy (fixed by extracting grounded_feedback.py) and a NameError from a mid-module import order (fixed via lazy sibling loader; witnessed RED in CI tests lane). Final state: full suite 4350 passed / 17 skipped locally; all 8 CI lanes green; squash-merged as 263ef911."
+    },
     {
       "id": "qa-testing-skills",
       "title": "QA personas, design-tests + review-tests skills, layered test ruleset — 0.133.0",
