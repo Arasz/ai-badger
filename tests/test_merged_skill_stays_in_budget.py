@@ -71,7 +71,10 @@ def test_merged_task_body_with_runtime_extension_within_budget(make_scaffolder, 
     body = fm.split(skill_md.read_text(encoding="utf-8")).body or ""
     ext_md = (make_scaffolder.target / ".ai-badger" / "skills" / "task"
               / "extensions" / "github" / "extension.md")
-    combined = body + "\n\n" + (ext_md.read_text(encoding="utf-8") if ext_md.exists() else "")
+    assert ext_md.exists(), (
+        "github extension missing from scaffolded task skill — the combined "
+        "body+extension measurement below would silently degrade to body-only")
+    combined = body + "\n\n" + ext_md.read_text(encoding="utf-8")
 
     proxy = len(combined) / 4
     assert proxy <= lint.MAX_TOKENS * 2, (
