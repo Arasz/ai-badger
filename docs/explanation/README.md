@@ -10,4 +10,5 @@ An explanation that binds a decision is not an explanation — it is an ADR, and
 ## Files
 
 Empty. `../framework-architecture.md` and `../hermes-claude-compatibility.md` are explanation
-pages still at the docs root; re-placing them is a `migrate-documentation` job with its own PR.
+pages still at the docs root; re-placing them is a job for the `documentation`
+gateway's `migrate-documentation` member, with its own PR.

@@ -12,7 +12,7 @@ from conftest import _test_write
 
 SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 REFRESH = "features/common/skills/den-refresh/scripts/refresh.py"
-OPT_IN_SKILL = "update-documentation"
+OPT_IN_SKILL = "documentation"
 
 
 def _including(*names, exclude=None) -> dict:

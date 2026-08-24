@@ -63,8 +63,8 @@ def test_an_empty_skills_flag_on_a_fresh_target_still_exits_zero(
     scaffold = load_script(SCRIPT)
     config_path = tmp_path / "config.json"
     # A stack WITHOUT stack-local skills keeps the assertion meaningful: dotnet now
-    # ships stack-local skills (dotnet-mcp-server etc.), which a fresh scaffold
-    # delivers even with an empty --skills — that is the designed stack-local route.
+    # ships the dotnet-workload gateway, which a fresh scaffold delivers even with
+    # an empty --skills — that is the designed stack-local route.
     _test_write(config_path, json.dumps(_config(stacks=["node"])), encoding="utf-8")
     target = tmp_path / "proj"
     target.mkdir()

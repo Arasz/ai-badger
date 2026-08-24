@@ -71,7 +71,7 @@ The complete map. A directory missing from this table is a directory nobody will
 
 The four quadrants are Diátaxis. The seven root `*.md` files listed earlier have not been
 re-placed into them yet — several are pinned by `README.md` and `CONTRIBUTING.md`, which makes
-that a `migrate-documentation` job with its own PR.
+that a job for the `documentation` gateway's `migrate-documentation` member, with its own PR.
 
 ## What `work/` is, and is not
 

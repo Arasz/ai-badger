@@ -247,6 +247,47 @@ naming a skill that already ships by `default`, is reported as a note and never 
    and its "zero stack-specific literals in the base" rule.
 3. Run `index_build.py` then `validate.py --all`.
 
+## Authoring a gateway ([ADR-0021](adr/0021-gateway-skills.md))
+
+A **gateway** is one registered skill that carries several specialized members one nesting
+level below registration, under its own `references/`. Choose a gateway over flat skills when
+a stack or workflow has accumulated many narrow skills that are rarely needed together and
+whose discovery descriptions crowd the agents' context: members stop registering individually,
+and only the gateway's aggregated description is advertised.
+
+1. Create `features/<stack>/skills/<gateway>/` with a short router `SKILL.md`: it must pass
+   every existing lint rule (`Use when…` description, `## Gotchas`, conditioned `references/`
+   mentions), explain how to read `manifest.json`, and route — it must not accrete member
+   detail (that is ADR-0021's revisit condition).
+2. Add `manifest.json`:
+
+   ```jsonc
+   {
+     "kind": "gateway",
+     "members": [
+       {
+         "name": "<member>",              // must equal its directory name under references/
+         "purpose": "<verbatim copy of the member SKILL.md's description:>",
+         "triggers": ["curated", "keywords"],  // non-empty; this aggregation is the point
+         "paths": { "skill": "references/<member>" }  // optional: scripts, references
+       }
+     ]
+   }
+   ```
+
+   The `purpose` MUST equal the member's frontmatter `description:` byte for byte — rule 13
+   enforces it, so derive the manifest from the members, never restate them.
+3. `git mv` each member skill dir to `<gateway>/references/<member>/`. Members keep their own
+   `references/` and `extensions/`; sibling citations between members still resolve, because
+   they remain siblings.
+4. Gate check: `python3 gates/skills_lint.py` runs rule 13 over the gateway (manifest validity,
+   member paths, orphan detection) while the gateway's own SKILL.md stays under rules 1–12.
+
+Members are deliberately *un*-registered: they appear in no agent's discovery surface. If a
+config names an old member name, `badger_lib.gateway_aliases` — derived from the manifests on
+disk — resolves it to the gateway; two gateways claiming one member name raise rather than
+resolve silently.
+
 ## Checklist before opening a PR
 
 - [ ] `python3 tooling/index_build.py` run, `index.json` diff committed.

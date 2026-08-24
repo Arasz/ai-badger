@@ -82,18 +82,18 @@ def test_a_run_that_cannot_vouch_for_the_list_prunes_nothing(tmp_path, load_scri
     """
     adjust_skills = load_script("features/claude/adjustments/adjust_skills.py")
     target = tmp_path / "proj"
-    for name in ("task", "dotnet-mcp-server"):
+    for name in ("task", "dotnet-workload"):
         (target / ".ai-badger" / "skills" / name).mkdir(parents=True)
         (target / ".ai-badger" / "skills" / name / "SKILL.md").write_text("x", encoding="utf-8")
     context = {"framework_root": root, "config": {"agents": ["claude"]},
                "target_dir": target / ".ai-badger", "target": target,
-               "skills": ["task", "dotnet-mcp-server"]}
+               "skills": ["task", "dotnet-workload"]}
     adjust_skills.adjust(context)
     assert (target / ".claude" / "skills" / "task").is_symlink(), "precondition"
 
     # What the scaffolder passes when the manifest could not be read: the stack still
     # delivers, so the list is non-empty, but it is not evidence.
-    adjust_skills.adjust({**context, "skills": ["dotnet-mcp-server"], "prune": False})
+    adjust_skills.adjust({**context, "skills": ["dotnet-workload"], "prune": False})
 
     assert (target / ".claude" / "skills" / "task").is_symlink()
 

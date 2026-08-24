@@ -11,5 +11,6 @@ If it walks the reader through doing a thing, it belongs in `../how-to/`.
 
 Empty. The framework's reference material still sits at the docs root
 (`../dictionary.md`, `../scripts.md`, `../skills.md`, `../retrieval.md`) and has not yet been
-re-placed — that is a `migrate-documentation` job with its own PR, because several of those
+re-placed — that is a job for the `documentation` gateway's `migrate-documentation`
+member, with its own PR, because several of those
 paths are pinned by `CLAUDE.md` and by `README.md`.
