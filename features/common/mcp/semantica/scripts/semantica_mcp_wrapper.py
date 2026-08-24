@@ -40,7 +40,7 @@ def _patched_tool_export_graph(args: dict) -> dict:
             finally:
                 Path(tmp_path).unlink(missing_ok=True)
         return {"format": fmt, "data": result}
-    except Exception as exc:
+    except Exception as exc:  # pylint: disable=broad-exception-caught
         return {"error": str(exc)}
 
 
