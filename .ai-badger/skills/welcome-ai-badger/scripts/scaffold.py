@@ -257,16 +257,15 @@ class Scaffolder:
     def __init__(self, root: Path, target: Path, config: Dict[str, Any],
                  skills: List[str], install: bool, overwrite: bool = False,
                  reset_seed_files: bool = False, execute: bool = False):
-        # The one enforcement point for config.exclude and config.include: every consumer
-        # reads self.skills or self.items(), so welcome-ai-badger and den-refresh cannot
-        # disagree about what a project declined — or asked for.
-        excluded = bl.exclusions(config)
+        # The enforcement point for config.exclude/include: consumers read self.skills or
+        # self.items(), so welcome-ai-badger and den-refresh cannot disagree about either.
+        aliases = bl.gateway_aliases(root)
+        excluded = bl.exclusions(config, aliases)
         self.included = bl.inclusions(config)
         self.addable_skills = set(bl.opt_in_skills_in(root / "features" / "common" / "skills"))
-        # Grouped skills cannot do their job alone, so naming one installs all of them (#266).
-        # Expanded before the addable filter: an included skill whose citations dangle is worse
-        # than one that was never offered.
-        wanted = bl.expand_skill_groups(self.included["skills"])
+        # Grouped skills install whole (#266), expanded before the addable filter; a stale
+        # member name resolves to the gateway that absorbed it (ADR-0021).
+        wanted = {aliases.get(n, n) for n in bl.expand_skill_groups(self.included["skills"])}
         asked_for = [n for n in sorted(wanted) if n in self.addable_skills]
         offered = list(dict.fromkeys(list(skills) + asked_for))
         # Whether the delivered list is evidence of what the project wants: empty means
@@ -337,7 +336,8 @@ class Scaffolder:
         """Report each inclusion: what it added, and what it could not add — never fatal."""
         self.notes.extend(bl.inclusion_notes(
             self.included["skills"], self.excluded["skills"], self.addable_skills,
-            bl.default_skills_in(self.root / "features" / "common" / "skills")))
+            bl.default_skills_in(self.root / "features" / "common" / "skills"),
+            aliases=bl.gateway_aliases(self.root)))
 
     # -- provenance -----------------------------------------------------------------
     def record(self, feature: str, stack: str, name: str, source: Path, target: Path,

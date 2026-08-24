@@ -1,19 +1,20 @@
 # Skills
 
-This page catalogs 43 skills — everything under `features/common/skills/` and
+This page catalogs 41 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-42 live under `features/common/skills/` and split by the `scope:` each declares in its own
+40 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
 **20 are `default`** and arrive in every scaffolded project without being asked for, and
-**22 are `optIn`** — catalogued, but written only when a project names them. The last one,
+**20 are `optIn`** — catalogued, but written only when a project names them. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 42 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **58** files:
-the 43 above plus 15 more that belong to a single stack and arrive only with it — 11 under
+**These 40 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **46** files:
+the 41 above plus 5 more that belong to a single stack and arrive only with it — the
+`dotnet-workload` gateway under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/` and 1 under `features/ai-raccoon/skills/`.
-Those 15 have no row below and are documented by their own `SKILL.md`. Derive the number rather
+Those 5 have no row below and are documented by their own `SKILL.md`. Derive the number rather
 than trusting this sentence: `python3 gates/skills_lint.py` prints how many `SKILL.md` files the
 catalog holds.
 
@@ -21,9 +22,25 @@ Those four numbers, and every row of the table below, are checked against the de
 `tests/test_docs_match_the_catalog.py`. A skill added to the catalog without a row here fails
 that test, and so does a row naming a skill the catalog no longer has — **but only for the
 common and `claude` stacks**: that test's `STACK_LOCAL_SKILL_DIRS` names `claude` alone, so the
-15 stack-local skills are outside its reach and their absence here fails nothing.
+5 stack-local skills are outside its reach and their absence here fails nothing.
 
 An `optIn` skill is asked for by name in `.ai-badger/config.json`:
+
+```jsonc
+{
+  "include": { "skills": ["documentation"] }
+}
+```
+
+Two skills are **gateways** ([ADR-0021](adr/0021-gateway-skills.md)): they register once and
+carry their specialized members one nesting level deeper, under `references/`, where agents
+never look on their own. The gateway's `SKILL.md` is a short router and its `manifest.json`
+names every member with its triggers; `skills_lint` rule 13 keeps that declaration honest.
+Naming the gateway delivers the whole bundle — members, their reference material and their
+extensions — in one tree.
+
+A config naming a name a gateway absorbed keeps working: `badger_lib.gateway_aliases` is derived
+from the manifests on disk, so
 
 ```jsonc
 {
@@ -31,20 +48,13 @@ An `optIn` skill is asked for by name in `.ai-badger/config.json`:
 }
 ```
 
-Some skills cannot do their job alone and are installed as a group. The three documentation
-skills read each other's `references/` in place, so naming any one of them delivers all three —
-and `"skills": ["documentation"]` asks for the capability without naming them individually:
+resolves to the `documentation` gateway and says so in the scaffold report
+(`included 'update-documentation' — resolved to gateway 'documentation'`). Excluding a stale
+member name declines the gateway the same way. An ambiguous member name claimed by two gateways
+is refused loudly rather than resolved silently.
 
-```jsonc
-{
-  "include": { "skills": ["documentation"] }   // scaffold- + update- + migrate-documentation
-}
-```
-
-Groups are declared in `badger_lib.SKILL_GROUPS`. They group in configuration only: the delivered
-layout stays flat, because a skills directory registers exactly one nesting level and a directory
-without a `SKILL.md` is silently ignored — a nested `documentation/` would be invisible to every
-agent.
+The one remaining group is declared in `badger_lib.SKILL_GROUPS`: `testing` (design-tests +
+review-tests). Groups expand in configuration only: naming either member installs both.
 
 `welcome-ai-badger` and `den-refresh` both honour it, a `config.json` edit is drift so the next
 refresh delivers the skill on its own, and every report lists the `optIn` skills a project has
@@ -86,9 +96,7 @@ names it, **claude-only** when the stack decides.
 | [semantica-knowledge-graph](#semantica-knowledge-graph) | Session-scoped knowledge graph: record decisions with provenance, trace causal chains, extract entities from conversations | default | by name |
 | [browser-usage](#browser-usage) | Universal browser automation and manual E2E verification via Playwright MCP | default | by name |
 | [auto-wm](#auto-wm) | Auto-approve tool calls in partner/away mode | claude-only | by name (`/auto-wm`); installs a `PreToolUse` hook once enabled |
-| [scaffold-documentation](#scaffold-documentation) | Create the canonical `docs/` tree in a repo that has none | opt-in | by name |
-| [update-documentation](#update-documentation) | Change documentation to match something that already changed | opt-in | by name |
-| [migrate-documentation](#migrate-documentation) | Reorganise an existing documentation tree wholesale | opt-in | by name |
+| [documentation](#documentation) | Route to the documentation-workflow member that matches — scaffold the tree, update its documents, or migrate it wholesale | opt-in | by name |
 | [review-changes](#review-changes) | Rank a diff's changed units by blast radius and check the riskiest are tested | opt-in | by name |
 | [explore-codebase](#explore-codebase) | Orient in an unfamiliar codebase before reading it file by file | opt-in | by name |
 | [debug-issue](#debug-issue) | Trace the call chain from a symptom to its entry point before hypothesizing | opt-in | by name |
@@ -506,42 +514,29 @@ chain answers "why did we do this?". Install with `pip install semantica`.
 
 ## Asked for, not shipped (`optIn`)
 
-None of the 22 below is written into a project until `config.include.skills` names it — see the
+None of the 20 below is written into a project until `config.include.skills` names it — see the
 opening of this page for the edit, and
 [`authoring-a-feature.md`](authoring-a-feature.md#default-or-optin) for the mechanism. Every
 scaffold and refresh report lists the ones a project has not installed, so nobody has to know
 they exist in advance.
 
-### scaffold-documentation
+### documentation
 
-[`SKILL.md`](../features/common/skills/scaffold-documentation/SKILL.md)
+[`SKILL.md`](../features/common/skills/documentation/SKILL.md)
 
-**What it is.** The first-run half of the documentation workflow: it creates the canonical
-`docs/` tree, not any document in it.
+**What it is.** The documentation workflow as one gateway: a registered router skill whose
+`manifest.json` names the three specialized members — `scaffold-documentation`,
+`update-documentation` and `migrate-documentation` — living under its `references/`.
 
-**When to use it.** A repository has no documentation tree, the layout is missing or incomplete,
-or a structure check reports absent directories. Not for adding or editing a document.
+**What the members do.** `scaffold-documentation` creates the canonical `docs/` tree, not any
+document in it. `update-documentation` is the steady-state half: documentation changes to match
+something that already changed, and every new page gets decided a home before it is written.
+`migrate-documentation` is the one-off half: an existing tree reorganised wholesale, resumably,
+with accuracy established before anyone relies on it.
 
-### update-documentation
-
-[`SKILL.md`](../features/common/skills/update-documentation/SKILL.md)
-
-**What it is.** The steady-state half: documentation changes to match something that already
-changed, and every new page gets decided a home before it is written.
-
-**When to use it.** After a code change, ADR, schema change or PR lands; when a doc contradicts
-the code; when a fact nobody can source needs one; before creating any new document.
-
-### migrate-documentation
-
-[`SKILL.md`](../features/common/skills/migrate-documentation/SKILL.md)
-
-**What it is.** The one-off half: an existing documentation tree reorganised wholesale, with
-accuracy established before anyone relies on it. Resumable — a migration in progress is picked
-up where it stopped.
-
-**When to use it.** Hundreds of files with no structure, documents that contradict each other, or
-a `docs/` directory nobody can navigate.
+**When to use it.** A repository has no docs tree (scaffold), a doc contradicts the code or a
+change landed without its page (update), or hundreds of files with no structure (migrate).
+Naming any absorbed member name in config resolves to this gateway.
 
 ### review-changes
 

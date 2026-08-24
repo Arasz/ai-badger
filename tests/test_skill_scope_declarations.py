@@ -68,12 +68,16 @@ class TestOneMechanism:
 
 
 class TestPinnedScopes:
-    """Each of the six declares a scope, and it is the one recorded here."""
+    """Each of the six declares a scope, and it is the one recorded here.
 
-    @pytest.mark.parametrize("name", DOCUMENTATION_SKILLS)
-    def test_the_documentation_workflow_is_opt_in(self, root, bl, name):
+    The documentation workflow is a gateway since 0.137.0 (ADR-0021): the registered skill
+    named `documentation` carries the trio under its own `references/`, and the gateway itself
+    is what declares `scope: optIn`.
+    """
+
+    def test_the_documentation_gateway_is_opt_in(self, root, bl):
         assert bl.skill_scope_in(
-            root / "features" / "common" / "skills" / name) == bl.SKILL_SCOPE_OPT_IN
+            root / "features" / "common" / "skills" / "documentation") == bl.SKILL_SCOPE_OPT_IN
 
     @pytest.mark.parametrize("name", NAVIGATION_SKILLS)
     def test_the_navigation_skills_are_opt_in(self, root, bl, name):
@@ -81,8 +85,15 @@ class TestPinnedScopes:
         assert bl.skill_scope_in(
             root / "features" / "common" / "skills" / name) == bl.SKILL_SCOPE_OPT_IN
 
-    def test_every_one_of_the_six_lives_in_the_common_catalog(self, root):
-        for name in DOCUMENTATION_SKILLS + NAVIGATION_SKILLS:
+    @pytest.mark.parametrize("name", DOCUMENTATION_SKILLS)
+    def test_every_documentation_member_travels_inside_the_gateway(self, root, name):
+        member = (root / "features" / "common" / "skills" / "documentation" / "references"
+                  / name)
+        assert (member / "SKILL.md").is_file(), (
+            f"{name} left the documentation gateway without this file being re-homed")
+
+    def test_every_one_of_the_navigation_skills_lives_in_the_common_catalog(self, root):
+        for name in NAVIGATION_SKILLS:
             assert (root / "features" / "common" / "skills" / name / "SKILL.md").is_file()
 
 

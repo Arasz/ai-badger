@@ -68,16 +68,37 @@ def banned_string_hits(root: Path):
 
 
 def unreferenced_reference_files(root: Path):
-    """Relative paths of references/ files their own SKILL.md never names."""
+    """Relative paths of references/ files their own SKILL.md never names.
+
+    Gateway skills (a level-1 dir carrying manifest.json, ADR-0021) hold their members one
+    nesting level deeper, so each *member* is scanned against its own SKILL.md; the gateway's
+    routing tree itself (member dirs, their extensions/) is rule 13's and R3's to account for.
+    """
+    import json
+
     orphans = []
+
+    def _scan(skill_dir: Path):
+        body = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+        references = skill_dir / "references"
+        if references.is_dir():
+            orphans.extend(ref.relative_to(root).as_posix()
+                           for ref in sorted(references.rglob("*"))
+                           if ref.is_file() and ref.name not in body)
+
     for skill_md in sorted((root / "features").glob("*/skills/*/SKILL.md")):
-        body = skill_md.read_text(encoding="utf-8")
-        references = skill_md.parent / "references"
-        if not references.is_dir():
+        skill_dir = skill_md.parent
+        manifest = skill_dir / "manifest.json"
+        try:
+            is_gateway = manifest.is_file() and json.loads(
+                manifest.read_text(encoding="utf-8")).get("kind") == "gateway"
+        except ValueError:
+            is_gateway = False
+        if not is_gateway:
+            _scan(skill_dir)
             continue
-        orphans.extend(ref.relative_to(root).as_posix()
-                       for ref in sorted(references.rglob("*"))
-                       if ref.is_file() and ref.name not in body)
+        for member in sorted((skill_dir / "references").glob("*/SKILL.md")):
+            _scan(member.parent)
     return orphans
 
 
@@ -96,19 +117,26 @@ def test_every_reference_file_is_named_by_its_skill():
 
 # --- could-fail: the scanners must reject the text the harvest actually shipped -------------
 
-# Verbatim from the 0.86.0 harvest, one per rule the scanner enforces.
+# Verbatim from the 0.86.0 harvest, one per rule the scanner enforces. Paths follow ADR-0021:
+# the dotnet skills live inside the dotnet-workload gateway's references/ since 0.137.0.
 HARVEST_SAMPLES = pytest.mark.parametrize("relative, line", [
-    ("features/dotnet/skills/dotnet-domain-modeling/references/injectable-components-pattern.md",
+    ("features/dotnet/skills/dotnet-workload/references/dotnet-domain-modeling/"
+     "references/injectable-components-pattern.md",
      "internal static partial class the config dispatcher"),
-    ("features/dotnet/skills/dotnet-domain-modeling/references/injectable-components-pattern.md",
+    ("features/dotnet/skills/dotnet-workload/references/dotnet-domain-modeling/"
+     "references/injectable-components-pattern.md",
      "public interface the encryption command interface"),
-    ("features/dotnet/skills/dotnet-mcp-server/references/mcp-csharp-sdk-2.0-apis.md",
+    ("features/dotnet/skills/dotnet-workload/references/dotnet-mcp-server/"
+     "references/mcp-csharp-sdk-2.0-apis.md",
      "Repo: `~/RiderProjects/ai-raccon/the project`, worktree `.ai-badger/worktrees/x`"),
-    ("features/dotnet/skills/dotnet-system-commandline/references/ga-api.md",
+    ("features/dotnet/skills/dotnet-workload/references/dotnet-system-commandline/"
+     "references/ga-api.md",
      "args for the the MCP server. The GA release differs sharply from the beta."),
-    ("features/dotnet/skills/dotnet-domain-modeling/references/cosmos-persistence.md",
+    ("features/dotnet/skills/dotnet-workload/references/dotnet-domain-modeling/"
+     "references/cosmos-persistence.md",
      "namespace JobSearchAiAssistant.Infrastructure.LinkedIn;"),
-    ("features/dotnet/skills/dotnet-domain-modeling/references/cosmos-persistence.md",
+    ("features/dotnet/skills/dotnet-workload/references/dotnet-domain-modeling/"
+     "references/cosmos-persistence.md",
      "When adding a new Cosmos-backed entity to this project, follow this exact sequence."),
 ])
 
