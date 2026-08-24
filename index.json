@@ -702,48 +702,8 @@
     "dotnet": {
       "skills": [
         {
-          "name": "dotnet-bdd-testing",
-          "path": "features/dotnet/skills/dotnet-bdd-testing"
-        },
-        {
-          "name": "dotnet-domain-modeling",
-          "path": "features/dotnet/skills/dotnet-domain-modeling"
-        },
-        {
-          "name": "dotnet-flaky-test-diagnosis",
-          "path": "features/dotnet/skills/dotnet-flaky-test-diagnosis"
-        },
-        {
-          "name": "dotnet-hosted-service-review",
-          "path": "features/dotnet/skills/dotnet-hosted-service-review"
-        },
-        {
-          "name": "dotnet-hosted-service-testing",
-          "path": "features/dotnet/skills/dotnet-hosted-service-testing"
-        },
-        {
-          "name": "dotnet-logger-message-design",
-          "path": "features/dotnet/skills/dotnet-logger-message-design"
-        },
-        {
-          "name": "dotnet-mcp-server",
-          "path": "features/dotnet/skills/dotnet-mcp-server"
-        },
-        {
-          "name": "dotnet-sqlcipher-encryption",
-          "path": "features/dotnet/skills/dotnet-sqlcipher-encryption"
-        },
-        {
-          "name": "dotnet-system-commandline",
-          "path": "features/dotnet/skills/dotnet-system-commandline"
-        },
-        {
-          "name": "dotnet-tool-publishing",
-          "path": "features/dotnet/skills/dotnet-tool-publishing"
-        },
-        {
-          "name": "observability-contract-review",
-          "path": "features/dotnet/skills/observability-contract-review"
+          "name": "dotnet-workload",
+          "path": "features/dotnet/skills/dotnet-workload"
         }
       ],
       "personas": [
