@@ -1,3 +1,5 @@
+# gateway_aliases() pushed past 1000 lines; trim before removing this disable
+# pylint: disable=too-many-lines
 """Shared helpers for ai-badger scripts.
 
 Deterministic and offline (Python 3.10+, the floor CI tests): scripts must be runnable wherever
