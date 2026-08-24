@@ -1,17 +1,17 @@
 # Skills
 
-This page catalogs 42 skills — everything under `features/common/skills/` and
+This page catalogs 43 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-41 live under `features/common/skills/` and split by the `scope:` each declares in its own
+42 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**19 are `default`** and arrive in every scaffolded project without being asked for, and
+**20 are `default`** and arrive in every scaffolded project without being asked for, and
 **22 are `optIn`** — catalogued, but written only when a project names them. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 41 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **57** files:
-the 42 above plus 15 more that belong to a single stack and arrive only with it — 11 under
+**These 42 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **58** files:
+the 43 above plus 15 more that belong to a single stack and arrive only with it — 11 under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/` and 1 under `features/ai-raccoon/skills/`.
 Those 15 have no row below and are documented by their own `SKILL.md`. Derive the number rather
 than trusting this sentence: `python3 gates/skills_lint.py` prints how many `SKILL.md` files the
@@ -70,6 +70,7 @@ names it, **claude-only** when the stack decides.
 | [feed-badger](#feed-badger) | Contribute project-agnostic improvements back to the catalog | default | by name |
 | [humanizer](#humanizer) | Strip AI writing artifacts, apply research-grounded humanization levers, and adopt a natural voice | default | by name |
 | [task](#task) | Run one backlog task end to end with model delegation | default | by name (`/task <id>`) |
+| [git-work](#git-work) | Recover push failures, triage red CI, and run the PR lifecycle outside a tracked task | default | by name |
 | [create-task-spec](#create-task-spec) | Interrogate an idea into a Gherkin specification plus a manifest `task` consumes | default | by name |
 | [owner-gate-review](#owner-gate-review) | Turn a document's open decisions into a per-decision review form | default | by name |
 | [differential-feature-refactor](#differential-feature-refactor) | Reconcile a drifted feature against its ratified design before refactoring | default | by name |
@@ -769,6 +770,20 @@ when a lane's buffered output hides the real error.
 
 **When to use it.** A pre-push quality gate is blocking `git push`, or one lane fails and the hook
 output does not say why.
+
+### git-work
+
+[`SKILL.md`](../features/common/skills/git-work/SKILL.md)
+
+**What it is.** Git work outside the quality gate: non-fast-forward push recovery with the
+force-with-lease decision, branch-protection and auth rejections, crashed-hook replay, CI failure
+triage (`gh run view --log-failed`, reproduce-vs-rerun, env-only failures, flake attribution), the
+draft-to-squash PR lifecycle with reviewer-quota fallback, squash-merge conventions, and
+join-time conflict resolution on plain branches — with worked cases from this repo's history in
+`references/case-playbooks.md`.
+
+**When to use it.** A push fails for a reason the quality gate did not cause, CI goes red on a
+pushed branch, or a PR moves through review and merge outside the tracked-task flow.
 
 ### sqlite-schema-review
 
