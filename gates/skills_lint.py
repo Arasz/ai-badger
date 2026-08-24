@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Fail when a catalog SKILL.md breaks one of the twelve conventions the framework relies on.
+"""Fail when a catalog SKILL.md breaks one of the thirteen conventions the framework relies on.
 
-A repo gate, not a schema check: it reads prose and frontmatter rather than validating JSON,
-which is why it no longer lives in tooling/validate.py. `validate.py --all` still reports it,
+Thirteen rules here is distinct from rule 10's eight required frontmatter keys. A repo gate,
+not a schema check: it reads prose and frontmatter rather than validating JSON manifests
+beyond their own structure, which is why it no longer lives in tooling/validate.py.
+`validate.py --all` still reports it,
 so CI and the pre-push lane cover it exactly as before; this file is what they both call.
 
 Usage: skills_lint.py [--root <dir>]
@@ -13,7 +15,7 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 # The engine lives in engine/: is_framework_root anchors on engine/badger_lib.py (ADR-0011).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
@@ -141,6 +143,102 @@ def skill_files(root: Path) -> List[Path]:
     return sorted(root.glob(SKILLS_GLOB))
 
 
+# ---------------------------------------------------------------------------
+# Rule 13 — gateway manifest validation. A level-1 skill dir carrying manifest.json is a
+# gateway; its members live under references/<member>/, one nesting level below registration,
+# so the manifest is the only declaration they exist. Everything here derives from disk.
+# ---------------------------------------------------------------------------
+GATEWAY_KIND = "gateway"
+GATEWAY_MANIFEST = "manifest.json"
+GATEWAY_REFERENCES_DIR = "references"
+MEMBER_OPTIONAL_PATHS = ("scripts", "references")
+
+
+def _member_problems(skill_dir: Path, rel: str, member: Dict[str, Any],
+                     seen: Dict[str, int]) -> List[str]:
+    """Rule-13 violations for one member entry."""
+    problems: List[str] = []
+    name = member.get("name")
+    if not isinstance(name, str) or not NAME_RE.fullmatch(name or ""):
+        return [f"{rel}: rule 13: member name {name!r} must match the skill name grammar"]
+    seen[name] = seen.get(name, 0) + 1
+    if seen[name] > 1:
+        problems.append(
+            f"{rel}: rule 13: member name {name!r} appears more than once — "
+            f"member names must be unique within the manifest")
+    paths = member.get("paths")
+    if not isinstance(paths, dict) or not isinstance(paths.get("skill"), str):
+        return problems + [f"{rel}: rule 13: member {name!r} needs paths.skill naming "
+                           f"its directory under {GATEWAY_REFERENCES_DIR}/"]
+    expected = f"{GATEWAY_REFERENCES_DIR}/{name}"
+    if paths["skill"] != expected:
+        problems.append(
+            f"{rel}: rule 13: member {name!r} paths.skill {paths['skill']!r} does not "
+            f"match its directory name (expected {expected!r})")
+    skill_md = skill_dir / paths["skill"] / "SKILL.md"
+    if not skill_md.is_file():
+        problems.append(
+            f"{rel}: rule 13: member {name!r} points at {paths['skill']}/SKILL.md, "
+            f"which does not exist")
+    else:
+        purpose = member.get("purpose")
+        declared = bl.skill_description(skill_md)
+        if not isinstance(purpose, str) or not purpose:
+            problems.append(
+                f"{rel}: rule 13: member {name!r} has no purpose — it must equal the "
+                f"member's frontmatter description verbatim")
+        elif purpose != declared:
+            problems.append(
+                f"{rel}: rule 13: member {name!r} purpose differs from its SKILL.md "
+                f"description — copy it verbatim, never paraphrase")
+    triggers = member.get("triggers")
+    if not isinstance(triggers, list) or not triggers or \
+            not all(isinstance(t, str) and t for t in triggers):
+        problems.append(
+            f"{rel}: rule 13: member {name!r} triggers must be a non-empty list of strings")
+    for key in MEMBER_OPTIONAL_PATHS:
+        optional = paths.get(key)
+        if optional is not None and not (skill_dir / optional).exists():
+            problems.append(
+                f"{rel}: rule 13: member {name!r} paths.{key} {optional!r} does not exist")
+    return problems
+
+
+def gateway_manifest_violations(root: Path) -> List[str]:
+    """Rule 13 across every gateway candidate: features/*/skills/*/manifest.json on disk."""
+    violations: List[str] = []
+    for manifest_path in sorted(root.glob(f"features/*/skills/*/{GATEWAY_MANIFEST}")):
+        skill_dir = manifest_path.parent
+        rel = skill_dir.relative_to(root).as_posix()
+        try:
+            manifest = bl.load_json(manifest_path)
+        except (OSError, ValueError) as exc:
+            violations.append(f"{rel}: rule 13: {GATEWAY_MANIFEST} is not valid JSON: {exc}")
+            continue
+        if manifest.get("kind") != GATEWAY_KIND:
+            violations.append(
+                f"{rel}: rule 13: {GATEWAY_MANIFEST} must declare \"kind\": \"{GATEWAY_KIND}\"")
+        members = manifest.get("members")
+        if not isinstance(members, list) or not members:
+            violations.append(f"{rel}: rule 13: members must be a non-empty list")
+            continue
+        seen: Dict[str, int] = {}
+        for member in members:
+            if not isinstance(member, dict):
+                violations.append(f"{rel}: rule 13: each member must be an object")
+                continue
+            violations.extend(_member_problems(skill_dir, rel, member, seen))
+        references = skill_dir / GATEWAY_REFERENCES_DIR
+        if references.is_dir():
+            claimed = set(seen)
+            for child in sorted(references.iterdir()):
+                if child.is_dir() and child.name not in claimed:
+                    violations.append(
+                        f"{rel}: rule 13: orphan member dir {child.name!r} under "
+                        f"{GATEWAY_REFERENCES_DIR}/ is named by no manifest member")
+    return violations
+
+
 def skills_lint(root: Path) -> List[str]:
     """Convention violations across catalog SKILL.md files (plan G4 rules 1-10, plus 11-12).
 
@@ -209,6 +307,7 @@ def skills_lint(root: Path) -> List[str]:
                 f"{rel}: rule 12: no readable scope: key — a common-stack skill declares "
                 f"{bl.SKILL_SCOPE_DEFAULT!r} (ships unasked) or {bl.SKILL_SCOPE_OPT_IN!r} "
                 f"(ships when a project names it) in its own frontmatter")
+    violations.extend(gateway_manifest_violations(root))
     return violations
 
 
