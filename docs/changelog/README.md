@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.137.1 | [semantica export_graph wrapper fix](0.137.1-semantica-export-graph-wrapper.md) |
 | 0.137.0 | [consolidate-stack-skills: two gateway skills replace fourteen registrations](0.137.0-consolidate-stack-skills.md) |
 | 0.136.0 | [task skill: PLANNING phase, research stage, git-work skill](0.136.0-task-skill-planning-phase-and-git-work.md) |
 | 0.135.3 | [Copilot round-2 review fixes for #431](0.135.3-copilot-round2-review-fixes.md) |

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 import types
+from pathlib import Path
 from unittest.mock import patch
 
 
@@ -150,3 +151,22 @@ def test_semantica_install_script_creates_venv_and_installs(tmp_path, load_scrip
          patch("subprocess.run", return_value=FakeCompletedProcess()):
         ret = install.main(["--target", str(tmp_path)])
         assert ret == 0
+
+
+def test_wrapper_fallback_saves_export_when_native_broken(tmp_path, load_script):
+    """When the native probe returns an error, export_graph_works tries the wrapper."""
+    check = load_script("features/common/mcp/semantica/scripts/check.py")
+
+    broken = {"error": "JSONExporter.export() missing file_path"}
+    fixed = {"format": "json", "data": '{"nodes": []}'}
+
+    with patch.object(check, "_probe_export_graph", return_value=broken), \
+         patch.object(check, "_wrapper_script_path", return_value=Path("/nonexistent")), \
+         patch.object(check, "_probe_wrapper_in_interpreter", return_value=fixed):
+        # Wrapper exists and works → export_graph_works should return True
+        assert check.export_graph_works(exe="/fake/semantica") is True
+
+    with patch.object(check, "_probe_export_graph", return_value=broken), \
+         patch.object(check, "_wrapper_script_path", return_value=None):
+        # No wrapper → export_graph_works should return False
+        assert check.export_graph_works() is False
