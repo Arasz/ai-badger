@@ -1,8 +1,8 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.137.1",
-  "frameworkCommit": "5580c35ffe4bd6b54a89a8f2fcc7acaddaeba9d4",
-  "frameworkDirty": true,
+  "frameworkCommit": "c1fad70dd0390878a505ca6e9a5d4af4d769b9e1",
+  "frameworkDirty": false,
   "frameworkRoot": ".",
   "generatedAt": null,
   "agents": [
@@ -1131,6 +1131,27 @@
       ]
     },
     {
+      "feature": "skills",
+      "stack": "common",
+      "name": "git-work",
+      "source": "features/common/skills/git-work",
+      "target": ".ai-badger/skills/git-work",
+      "frameworkVersion": "0.137.1",
+      "hash": "2f1f9c92d6e957fb119d49a8e678147f32591981c7acf931c71d15c1e76b9de5",
+      "dirMeta": {
+        "file_count": 2,
+        "dir_count": 1
+      },
+      "sourceHash": "2f1f9c92d6e957fb119d49a8e678147f32591981c7acf931c71d15c1e76b9de5",
+      "sourceMeta": {
+        "file_count": 2,
+        "dir_count": 1
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
       "feature": "templates",
       "stack": "common",
       "name": "agent-instructions/schema.json",
@@ -1518,6 +1539,15 @@
     {
       "feature": "adjustments",
       "stack": "claude",
+      "name": "adjustments/.claude/skills/git-work",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/git-work",
+      "frameworkVersion": "0.137.1",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
       "name": "adjustments/.ai-badger/skills/mcp-index/scripts/tokenizer.py",
       "source": "features/claude/adjustments/adjust_retrieval.py",
       "target": ".ai-badger/skills/mcp-index/scripts/tokenizer.py",
@@ -1809,6 +1839,15 @@
       "name": "adjustments/.github/skills/documentation",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/documentation",
+      "frameworkVersion": "0.137.1",
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/git-work",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/git-work",
       "frameworkVersion": "0.137.1",
       "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
