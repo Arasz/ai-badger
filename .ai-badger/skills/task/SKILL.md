@@ -346,9 +346,8 @@ project's docs against the merged code, fix small drift, and report gaps needing
 `task_tracker.py` records the task's session id and resume command. Pass `--cron` to `start` to
 install a resume cron. After resume, run `task_tracker.py reattach <taskId>` first, then continue.
 
-> **Extensions:** source-control PR/review/issue behavior in `extensions/github/`, and the
-> Claude model-lane definitions in `extensions/claude/extension.md` — embedded by
-> `welcome-ai-badger` when `config.json` supplies data.
+> **Extensions:** PR/review/issue behavior in `extensions/github/`, model lanes in
+> `extensions/claude/extension.md` — embedded by `welcome-ai-badger` per `config.json`.
 
 ## Verification Checklist
 

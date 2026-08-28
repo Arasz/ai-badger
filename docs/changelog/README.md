@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.142.0 | [v0.142.0 — pi review fixes (2026-08-28)](0.142.0-pi-review-fixes.md) |
 | 0.141.0 | [v0.141.0 — pi agent registration and feature directory (2026-08-28)](0.141.0-pi-agent-support.md) |
 | 0.140.1 | [v0.140.1 — Comment-hygiene invariant rewrite (2026-08-28)](0.140.1-comment-hygiene-invariant.md) |
 | 0.140.0 | [Hermes cannot be gated per dispatch, and its isolation switch is off by default](0.140.0-hermes-cannot-be-gated-per-dispatch.md) · [Task skill default loop: effort levels, MoE panels, task-ID derivation](0.140.0-task-skill-default-loop.md) |
