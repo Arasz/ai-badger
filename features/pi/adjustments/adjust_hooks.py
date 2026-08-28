@@ -82,18 +82,11 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     hooks_dir = framework_root / "features" / "common" / "hooks"
     files = []
     hook_scripts = [
-        "drift_notice_hook.py",
-        "user_prompt_hook.py",
-        "dispatch_gate_hook.py",
-        "stop_hook.py",
-        "session_start_hook.py",
-        "commit_reminder_hook.py",
-        "memory_first_gate_hook.py",
-        "memory_first_gate_post_hook.py",
-        "memory_grade_hook.py",
-        "grounded_feedback_hook.py",
-        "semantica_export_autosave_hook.py",
-        "context_enrichment_hook.py",
+        "ai_badger_hooks.py",
+        "mcp_index_hook.py",
+        "debug_log.py",
+        "grounded_feedback.py",
+        "hermes_isolation.py",
     ]
     for hook_file in hook_scripts:
         src = hooks_dir / hook_file
