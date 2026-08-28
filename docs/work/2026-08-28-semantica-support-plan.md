@@ -4,6 +4,8 @@
 **Task:** continue-semantica-support-fixes
 **Evidence:** `docs/work/2026-08-28-semantica-support-research.md` (MEASURED / READ / HYPOTHESIS labelled)
 **Target version:** 0.138.0 (minor — see rationale at the end)
+> Shipped as **0.139.0**: PR #436 took 0.138.0 while this branch was in flight.
+> The minor-versus-patch reasoning below is unaffected.
 
 ## Summary
 
