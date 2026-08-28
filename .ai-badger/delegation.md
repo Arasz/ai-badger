@@ -1,6 +1,6 @@
 # Delegation map — ai-badger
 
-> Scaffolded by ai-badger 0.137.1. Regenerated on every scaffold; do not edit.
+> Scaffolded by ai-badger 0.138.0. Regenerated on every scaffold; do not edit.
 
 ## Stacks
 
@@ -23,6 +23,15 @@ python, js, github, claude, hermes, ts, node, changelog
 - Quality gate before merge, security review, and adversarially verifying a claim this session made about its own work → `code-reviewer`
 - Hermes skills, hooks and gateway configuration, and HERMES.md → `hermes-agent-author`
 - Long, multi-package or autonomous sessions — route work instead of doing it → `delegator`
+
+## Parallel dispatch
+
+Lanes running at the same time need their own tree, not just their own files:
+agents sharing a checkout share its build output, so a green run proves nothing
+about the change that produced it. Dispatch with your agent tool's native
+`isolation` rather than a hand-made worktree. The `dispatch-gate` hook denies a
+write-capable dispatch that names none while a sibling lane is live; read-only
+lanes are exempt. Worked cases live in `.ai-badger/skills/worktree-agent-isolation`.
 
 ## Reasoning-model dispatch
 
