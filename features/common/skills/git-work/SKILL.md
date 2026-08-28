@@ -39,6 +39,10 @@ that file, then replay the operation once.
 **Auth** failures (403/404 on a repo you can see) mean expired credentials; refresh via the
 platform CLI (`gh auth status`, `gh auth login`) before retrying.
 
+**Frozen remote-tracking refs** (`git fetch` reports success but `origin/<branch>` never moves)
+means `.git/config` lost `remote.origin.fetch` or a `[branch]` section — diagnose and repair via
+`references/git-config-repair.md`.
+
 ## CI failure triage
 
 - Read only what failed: `gh run view <id> --log-failed`.
