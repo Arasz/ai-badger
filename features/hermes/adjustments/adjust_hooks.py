@@ -19,9 +19,9 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 PROJECT_HOOKS = ("ai_badger_hooks.py", "mcp_index_hook.py", "debug_log.py",
-                 "grounded_feedback.py")
+                 "grounded_feedback.py", "hermes_isolation.py")
 USER_PLUGINS = ("ai_badger_hooks.py", "learned_skills_sync.py", "debug_log.py",
-                "follow_through.py", "grounded_feedback.py")
+                "follow_through.py", "grounded_feedback.py", "hermes_isolation.py")
 
 # Files that live under a skill's own scripts/ dir, not features/common/hooks/, but must
 # still land beside ai_badger_hooks.py in both destinations so its lazy sibling-import

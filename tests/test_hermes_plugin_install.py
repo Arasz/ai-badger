@@ -384,3 +384,42 @@ def test_no_install_leaves_no_hermes_skill_links_behind(tmp_path, root, make_sca
         scaf.run(generated_at="2026-07-26T00:00:00Z")
 
     assert not (home / ".hermes" / "skills").exists()
+
+
+def test_every_lazily_loaded_sibling_is_copied_beside_the_plugin(root, load_script):
+    """A sibling module that is not in a copy list is silently never loaded.
+
+    `_load_sibling_module` fails open by design: absent file, no error, returns None. That
+    is right for an older scaffold, and lethal for a NEW module — the feature ships, the
+    tests pass against the source tree, and the installed plugin never runs it. Exactly the
+    "registered with no agent" shape this repo keeps hitting.
+
+    So derive the expectation instead of trusting the lists: every filename
+    `ai_badger_hooks.py` passes to `_load_sibling_module` must be copied into both the
+    project hooks dir and the user plugin dir by some list in adjust_hooks.
+    """
+    import re
+
+    adjust_hooks = load_script("features/hermes/adjustments/adjust_hooks.py")
+    source = (root / "features" / "common" / "hooks" / "ai_badger_hooks.py").read_text(
+        encoding="utf-8")
+
+    wanted = set(re.findall(r'_load_sibling_module\(\s*[^,]+,\s*"([^"]+\.py)"', source))
+    assert wanted, "no sibling loads found — the regex stopped matching, not the code"
+
+    # Scoped to ~/.hermes/plugins/ai-badger/, the copy Hermes demonstrably loads: it is the
+    # directory plugin adjust_hooks installs and the one holding a live __init__.py. NOT
+    # unioned with PROJECT_HOOKS — a union would pass a module that reaches .ai-badger/hooks/
+    # and never reaches the plugin dir, which is the gap worth catching.
+    #
+    # The .ai-badger/hooks/ copy is deliberately narrower, not a second copy of this set:
+    # follow_through.py and learned_skills_sync.py ship to the plugin dir only. Asserting
+    # parity there would be asserting an equivalence the scaffolder does not claim.
+    shipped = (set(adjust_hooks.USER_PLUGINS)
+               | {name for _, name in adjust_hooks.SHARED_SKILL_MODULES}
+               | set(adjust_hooks.RETRIEVAL_MODULES))
+
+    missing = sorted(wanted - shipped)
+    assert missing == [], (
+        f"ai_badger_hooks lazily loads {missing}, which adjust_hooks never copies into "
+        "~/.hermes/plugins/ai-badger/. The installed plugin would silently skip it.")

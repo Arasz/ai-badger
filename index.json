@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.139.0",
+  "frameworkVersion": "0.140.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -570,6 +570,10 @@
         {
           "name": "grounded_feedback",
           "path": "features/common/hooks/grounded_feedback.py"
+        },
+        {
+          "name": "hermes_isolation",
+          "path": "features/common/hooks/hermes_isolation.py"
         },
         {
           "name": "hooks-manifest",
