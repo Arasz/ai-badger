@@ -47,6 +47,7 @@ or `incidents/`. Kind is not a subject, and those five were tried and removed �
 | `2026-08-20-semantica-integration-fix-plan.md` | Plan (task semantica-integration-fix): U0 upstream semantica export_graph bug fix (json branch TypeError + RDF progress-bar stdout corruption — both live in 0.6.5/0.6.6/main), U1 reject error payloads inside the export envelope (proven live), U2 wire claude/copilot autosave + nudge (#418), U3 functional export probe in check.py + default-distribution pin, U4 docs/changelog, U5 den-refresh + watch + user-level update. |
 | `2026-08-23-semantica-nudge-claude-copilot-plan.md` | Implementation plan for #418 remaining half: port Semantica once-per-session export guidance nudge to Claude Code and GitHub Copilot via context_enrichment_hook.py marker state. |
 | `2026-08-23-research-based-prompt-refactor-plan.md` | Research-based refactor plan: synthesized 4 prompt-engineering research documents, audited personas/invariants/templates against evidence, identified 10 gaps and 10 prioritized changes. |
+| `2026-08-28-pi-harness-support.md` | Research record (#437): can ai-badger's workflow be delivered inside the `pi` harness through pi extensions, what it costs, and whether it belongs in this repository — six parallel research lanes plus an orchestrator spike against pi 0.84.3, every figure carrying how it is known. |
 
 
 The first three are generated HTML forms rather than prose. They are kept because the form *is* the
