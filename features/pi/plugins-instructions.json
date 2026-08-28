@@ -1,12 +1,12 @@
 {
   "agent": "pi",
   "instructions": {
-    "npm": {
-      "description": "Install from npm",
+    "marketplace": {
+      "description": "Install pi packages from npm marketplace",
       "commands": ["pi install npm:{source}"]
     },
-    "git": {
-      "description": "Install from git repository",
+    "tap": {
+      "description": "Add pi package from git repository",
       "commands": ["pi install git:github.com:{source}"]
     }
   }
