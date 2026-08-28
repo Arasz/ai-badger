@@ -5,22 +5,22 @@
   "description": "Graph-native knowledge graph infrastructure: entity extraction, relationship modeling, decision intelligence with W3C PROV-O provenance, causal reasoning, and ontology governance \u2014 served over MCP stdio.",
   "homepage": "https://github.com/semantica-agi/semantica",
   "prerequisite": {
-    "summary": "Python 3.10+ virtual environment with semantica installed",
+    "summary": "Python 3.10-3.13 with semantica installed (gensim ships no cp314 wheel)",
     "check": "python3 features/common/mcp/semantica/scripts/check.py",
     "install": "python3 features/common/mcp/semantica/scripts/install.py",
     "local": {
-      "summary": "Local virtual environment (.venv) using uv or python -m venv",
+      "summary": "Local virtual environment (.venv) on Python 3.10-3.13, using uv or python -m venv",
       "check": "python3 features/common/mcp/semantica/scripts/check.py",
       "install": "python3 features/common/mcp/semantica/scripts/install.py",
-      "uv": "uv venv .venv && uv pip install semantica",
+      "uv": "uv venv --python 3.13 .venv && uv pip install semantica",
       "command": "python3 features/common/mcp/semantica/scripts/install.py --target ."
     },
     "global": {
-      "summary": "Global user-scoped tool install via uv tool install or pipx",
+      "summary": "Global user-scoped tool install via uv tool install or pipx, pinned to Python 3.13 \u2014 semantica depends on gensim 4.4.0, which publishes no cp314 wheel, so an unpinned install builds it from source and fails on uv's default interpreter",
       "check": "semantica --version",
-      "install": "uv tool install semantica",
-      "uv": "uv tool install semantica",
-      "command": "uv tool install semantica"
+      "install": "uv tool install --python 3.13 semantica",
+      "uv": "uv tool install --python 3.13 semantica",
+      "command": "uv tool install --python 3.13 semantica"
     }
   }
 }
