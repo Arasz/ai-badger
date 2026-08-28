@@ -29,6 +29,7 @@ The library every bootstrap shim imports, and the anchor of the framework-root p
 | `index_build.py` | Rebuild `index.json` from the `features/` catalog (source of truth). | `python3 tooling/index_build.py` — add `--check` to fail if stale (CI). |
 | `validate.py` | Validate config / catalog JSON against `schemas/`. | `python3 tooling/validate.py --all` or `--kind config <file>`. |
 | `version_sync.py` | Propagate `VERSION` into `plugin.json`, `marketplace.json`, `index.json`. | `python3 tooling/version_sync.py` — `--check` fails CI on mismatch. |
+| `test_pi_hook_fires.py` | Phase 0 pi trust-sentinel probe: user-scope extensions fire, project-local blocked (needs a `pi` binary; not CI-wired). | `python3 tooling/test_pi_hook_fires.py`. |
 | `changelog_index.py` | Regenerate the release table in `docs/changelog/README.md` from the entry files (issue #160). | `python3 tooling/changelog_index.py` — `--check` fails when the table is stale. |
 | `sync_plugin_skills.py` | Refresh the published `skills/` copy from `features/`. | `python3 tooling/sync_plugin_skills.py` — `--check` fails on divergence. |
 | `install_plugins.py` | Resolve per-agent skill install commands from `plugins-instructions.json`. Print-only; `scaffold.py --execute` runs them. | `python3 tooling/install_plugins.py --config <config.json>` |
