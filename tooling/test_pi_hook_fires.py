@@ -20,11 +20,15 @@ PROBE_EXTENSION = """import type { ExtensionAPI } from "@earendil-works/pi-codin
 import { writeFileSync } from "fs"
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
-    writeFileSync("/tmp/pi-badger-probe-sentinel", "LOADED\\n", "utf-8")
+    writeFileSync("/tmp/pi-badger-probe-sentinel", "LOADED\n", "utf-8")
     ctx.ui.notify("Badger probe: LOADED", "info")
   })
 }
 """
+
+if "--help" in sys.argv or "-h" in sys.argv:
+    print(__doc__)
+    sys.exit(0)
 
 
 def clean_sentinel():
