@@ -15,6 +15,11 @@
       "feature": "task",
       "description": "Embed pi session source into task skill",
       "script": "adjust_task.py"
+    },
+    {
+      "feature": "cron",
+      "description": "Install pi cron extension (Bun.cron() with launchd fallback)",
+      "script": "adjust_cron.py"
     }
   ]
 }

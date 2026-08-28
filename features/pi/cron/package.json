@@ -1,0 +1,16 @@
+{
+  "name": "ai-badger-cron",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cron scheduler for pi coding agent — uses Bun.cron() or fallback launchd",
+  "main": "index.ts",
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

@@ -908,10 +908,42 @@
       }
     },
     "pi": {
+      "instructions": [
+        {
+          "name": "pi.instructions",
+          "path": "features/pi/instructions/pi.instructions.md"
+        }
+      ],
+      "templates": [
+        {
+          "name": "AGENTS.override.md.tmpl",
+          "path": "features/pi/templates/AGENTS.override.md.tmpl"
+        }
+      ],
       "adjustments": [
+        {
+          "name": "adjust_cron",
+          "path": "features/pi/adjustments/adjust_cron.py"
+        },
+        {
+          "name": "adjust_hooks",
+          "path": "features/pi/adjustments/adjust_hooks.py"
+        },
+        {
+          "name": "adjust_mcp",
+          "path": "features/pi/adjustments/adjust_mcp.py"
+        },
+        {
+          "name": "adjust_task",
+          "path": "features/pi/adjustments/adjust_task.py"
+        },
         {
           "name": "adjustment",
           "path": "features/pi/adjustments/adjustment.json"
+        },
+        {
+          "name": "pi_session_source",
+          "path": "features/pi/adjustments/pi_session_source.py"
         }
       ],
       "meta": {

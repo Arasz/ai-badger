@@ -1,6 +1,6 @@
 {
   "agent": "pi",
-  "description": "pi coding agent discovery files: AGENTS.override.md and CLAUDE.md at project root.",
+  "description": "pi coding agent context file: AGENTS.override.md at project root.",
   "files": [
     {
       "source": "templates/AGENTS.override.md.tmpl",
