@@ -22,6 +22,11 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/task/scripts/drift_notice_hook.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/git-work/scripts/git_config_health_hook.py\"",
+            "timeout": 10
           }
         ]
       }
@@ -92,6 +97,16 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/worktree-agent-isolation/scripts/cross_worktree_dirty_warning.py\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/git-work/scripts/git_internals_guard.py\"",
             "timeout": 10
           }
         ]

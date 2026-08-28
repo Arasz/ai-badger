@@ -54,7 +54,19 @@ def test_copilot_session_start_wires_drift_notice_not_session_tracking(tmp_path,
     hooks = json.loads(
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     commands = [h["bash"] for h in hooks["hooks"]["sessionStart"]]
-    assert [c.rstrip('"').rsplit("/", 1)[-1] for c in commands] == ["drift_notice_hook.py"]
+    wired = sorted(c.rstrip('"').rsplit("/", 1)[-1] for c in commands)
+    # Derived from the manifest, not restated: a hardcoded list here breaks on every new
+    # copilot sessionStart hook, which says nothing about the claude-only leak being tested.
+    manifest = json.loads(
+        (root / "features" / "common" / "hooks" / "hooks-manifest.json").read_text("utf-8"))
+    expected = sorted(
+        entry["agents"]["copilot"]["script"]
+        for entry in manifest["hooks"]
+        if entry.get("agents", {}).get("copilot", {}).get("event") == "sessionStart"
+    )
+    assert wired == expected
+    # The point of the test: the claude-only tracking hook never reaches copilot.
+    assert "session_start_hook.py" not in wired
 
 
 def test_two_manifest_entries_on_one_event_both_survive(tmp_path, load_script):

@@ -19,10 +19,11 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.142.0 | [v0.142.0 — pi review fixes (2026-08-28)](0.142.0-pi-review-fixes.md) |
+| 0.143.0 | [v0.143.0 — pi review fixes (2026-08-28)](0.143.0-pi-review-fixes.md) |
+| 0.142.0 | [v0.142.0 — git-dir guard review fixes: false positives, bypasses, and an honest fail-open story](0.142.0-git-dir-guard-review-fixes.md) |
 | 0.141.0 | [v0.141.0 — pi agent registration and feature directory (2026-08-28)](0.141.0-pi-agent-support.md) |
 | 0.140.1 | [v0.140.1 — Comment-hygiene invariant rewrite (2026-08-28)](0.140.1-comment-hygiene-invariant.md) |
-| 0.140.0 | [Hermes cannot be gated per dispatch, and its isolation switch is off by default](0.140.0-hermes-cannot-be-gated-per-dispatch.md) · [Task skill default loop: effort levels, MoE panels, task-ID derivation](0.140.0-task-skill-default-loop.md) |
+| 0.140.0 | [Git owns its own storage](0.140.0-git-owns-its-own-storage.md) · [Hermes cannot be gated per dispatch, and its isolation switch is off by default](0.140.0-hermes-cannot-be-gated-per-dispatch.md) · [Task skill default loop: effort levels, MoE panels, task-ID derivation](0.140.0-task-skill-default-loop.md) |
 | 0.139.0 | [semantica 0.6.6: transport fix, install pin, and an honesty pass](0.139.0-semantica-0-6-6-honesty-and-transport-fix.md) |
 | 0.138.0 | [a contract with no gate behind it](0.138.0-a-contract-with-no-gate-behind-it.md) |
 | 0.137.1 | [semantica export_graph wrapper fix](0.137.1-semantica-export-graph-wrapper.md) |

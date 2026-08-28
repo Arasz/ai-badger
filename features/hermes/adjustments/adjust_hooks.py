@@ -32,6 +32,7 @@ SHARED_SKILL_MODULES = (
     ("commit-reminder", "impact_estimator.py"),
     ("ai-raccoon-memory", "memory_first_gate.py"),
     ("semantica-knowledge-graph", "export_semantica_graph.py"),
+    ("git-work", "git_internals_guard.py"),
 )
 
 # Modules the framework used to ship but no longer does; every adjust run must delete

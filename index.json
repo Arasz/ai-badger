@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.142.0",
+  "frameworkVersion": "0.143.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -452,6 +452,10 @@
         {
           "name": "minimal-comments",
           "path": "features/common/invariants/minimal-comments.md"
+        },
+        {
+          "name": "never-hand-edit-the-git-dir",
+          "path": "features/common/invariants/never-hand-edit-the-git-dir.md"
         },
         {
           "name": "no-hand-rolled-crypto",

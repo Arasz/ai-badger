@@ -76,7 +76,7 @@ def test_user_scope_without_approve() -> bool:
     ext_file = user_ext_dir / "badger-probe.ts"
     backup = None
     if ext_file.exists():
-        backup = ext_file.read_text()
+        backup = ext_file.read_text(encoding="utf-8")
     ext_file.write_text(PROBE_EXTENSION)
 
     try:
