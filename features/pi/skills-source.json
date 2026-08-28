@@ -1,0 +1,10 @@
+{
+  "sources": [
+    {
+      "name": "pi-packages",
+      "type": "marketplace",
+      "source": "npm:@earendil-works/pi-coding-agent",
+      "support": ["pi"]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "agent": "pi",
+  "instructions": {
+    "npm": {
+      "description": "Install from npm",
+      "commands": ["pi install npm:{source}"]
+    },
+    "git": {
+      "description": "Install from git repository",
+      "commands": ["pi install git:github.com:{source}"]
+    }
+  }
+}

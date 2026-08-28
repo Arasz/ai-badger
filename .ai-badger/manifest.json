@@ -1,8 +1,8 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.140.0",
-  "frameworkCommit": "545cf40a809513063f90b560fcc1c1f3f6504528",
-  "frameworkDirty": false,
+  "frameworkCommit": "0233a434944ca38e81dfac823a96d23da4475fa3",
+  "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
   "agents": [
@@ -426,237 +426,6 @@
       "target": ".ai-badger/invariants/version-changelog-required.md",
       "frameworkVersion": "0.140.0",
       "hash": "bb1ccec43e0f06d48ccff2e7505be608037dbfacf3e852f66c4c44a0adb36412"
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
-      "name": "complete-project-scope-code-review",
-      "source": "features/common/skills/complete-project-scope-code-review",
-      "target": ".ai-badger/skills/complete-project-scope-code-review",
-      "frameworkVersion": "0.140.0",
-      "hash": "58bad655e7ed050fb96d25d5375a3c1f88aa4cbb9f543bf8951ce3a47f1e668c",
-      "dirMeta": {
-        "file_count": 4,
-        "dir_count": 1
-      },
-      "sourceHash": "4bf2bdda47f59e0c24845ad2ad2ee4d59469d1648e458ba237b9fe84b9ac335b",
-      "sourceMeta": {
-        "file_count": 4,
-        "dir_count": 1
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
-      "name": "debug-issue",
-      "source": "features/common/skills/debug-issue",
-      "target": ".ai-badger/skills/debug-issue",
-      "frameworkVersion": "0.140.0",
-      "hash": "5b770545aa95cdf346f1cf0a648795010f58e18443806b109db9676d59e369e7",
-      "dirMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "sourceHash": "5b770545aa95cdf346f1cf0a648795010f58e18443806b109db9676d59e369e7",
-      "sourceMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
-      "name": "documentation",
-      "source": "features/common/skills/documentation",
-      "target": ".ai-badger/skills/documentation",
-      "frameworkVersion": "0.140.0",
-      "hash": "d67a367b4191ffc56cb1586f2ab2e38148eac1c8870a880c5134745fa287ea78",
-      "dirMeta": {
-        "file_count": 9,
-        "dir_count": 6
-      },
-      "sourceHash": "d67a367b4191ffc56cb1586f2ab2e38148eac1c8870a880c5134745fa287ea78",
-      "sourceMeta": {
-        "file_count": 9,
-        "dir_count": 6
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
-      "name": "evidence-first-research",
-      "source": "features/common/skills/evidence-first-research",
-      "target": ".ai-badger/skills/evidence-first-research",
-      "frameworkVersion": "0.140.0",
-      "hash": "e793d67b7b8659649ae226b9b636e62d660242ae117fcbd20907e77170f29f39",
-      "dirMeta": {
-        "file_count": 4,
-        "dir_count": 2
-      },
-      "sourceHash": "e793d67b7b8659649ae226b9b636e62d660242ae117fcbd20907e77170f29f39",
-      "sourceMeta": {
-        "file_count": 4,
-        "dir_count": 2
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
-      "name": "explore-codebase",
-      "source": "features/common/skills/explore-codebase",
-      "target": ".ai-badger/skills/explore-codebase",
-      "frameworkVersion": "0.140.0",
-      "hash": "9984f3f3df314c37fb978b5ca0f0b952841d345580cb7e82b9c0c5a95bae6a35",
-      "dirMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "sourceHash": "9984f3f3df314c37fb978b5ca0f0b952841d345580cb7e82b9c0c5a95bae6a35",
-      "sourceMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
-      "name": "refactor-safely",
-      "source": "features/common/skills/refactor-safely",
-      "target": ".ai-badger/skills/refactor-safely",
-      "frameworkVersion": "0.140.0",
-      "hash": "1ecb1c5f78e168284adbb83201ef075684eeacf356ba9d9736d2cf39ed5114ab",
-      "dirMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "sourceHash": "1ecb1c5f78e168284adbb83201ef075684eeacf356ba9d9736d2cf39ed5114ab",
-      "sourceMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
-      "name": "review-changes",
-      "source": "features/common/skills/review-changes",
-      "target": ".ai-badger/skills/review-changes",
-      "frameworkVersion": "0.140.0",
-      "hash": "13f779cc4bd353277d4ee717cfc008f0649f3d1d826e2096d4eff9a4a966cda1",
-      "dirMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "sourceHash": "13f779cc4bd353277d4ee717cfc008f0649f3d1d826e2096d4eff9a4a966cda1",
-      "sourceMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
-      "name": "worktree-agent-isolation",
-      "source": "features/common/skills/worktree-agent-isolation",
-      "target": ".ai-badger/skills/worktree-agent-isolation",
-      "frameworkVersion": "0.140.0",
-      "hash": "808cb7f9fc28d239a81ff6f1ebf7d505474246c9e3cf5cd4be65005bddde7f0f",
-      "dirMeta": {
-        "file_count": 13,
-        "dir_count": 2
-      },
-      "sourceHash": "808cb7f9fc28d239a81ff6f1ebf7d505474246c9e3cf5cd4be65005bddde7f0f",
-      "sourceMeta": {
-        "file_count": 13,
-        "dir_count": 2
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "claude",
-      "name": "auto-wm",
-      "source": "features/claude/skills/auto-wm",
-      "target": ".ai-badger/skills/auto-wm",
-      "frameworkVersion": "0.140.0",
-      "hash": "9e9f94638808a2a3ff0fc06bccedf9efcd4d7f003518e1694935314bf2ebafae",
-      "dirMeta": {
-        "file_count": 5,
-        "dir_count": 2
-      },
-      "sourceHash": "9e9f94638808a2a3ff0fc06bccedf9efcd4d7f003518e1694935314bf2ebafae",
-      "sourceMeta": {
-        "file_count": 5,
-        "dir_count": 2
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "hermes",
-      "name": "cron-watchdog-authoring",
-      "source": "features/hermes/skills/cron-watchdog-authoring",
-      "target": ".ai-badger/skills/cron-watchdog-authoring",
-      "frameworkVersion": "0.140.0",
-      "hash": "1273ebc74b64837a4d8ecc65b19be0f99c0b0358b845d78a65c17c1de68ba706",
-      "dirMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "sourceHash": "1273ebc74b64837a4d8ecc65b19be0f99c0b0358b845d78a65c17c1de68ba706",
-      "sourceMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "hermes",
-      "name": "hermes-plugin-development",
-      "source": "features/hermes/skills/hermes-plugin-development",
-      "target": ".ai-badger/skills/hermes-plugin-development",
-      "frameworkVersion": "0.140.0",
-      "hash": "cfdc0482a6beacf39ba2951d3a4040e30f4468a2ae71cddb7647b9c78670e273",
-      "dirMeta": {
-        "file_count": 3,
-        "dir_count": 1
-      },
-      "sourceHash": "cfdc0482a6beacf39ba2951d3a4040e30f4468a2ae71cddb7647b9c78670e273",
-      "sourceMeta": {
-        "file_count": 3,
-        "dir_count": 1
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
     },
     {
       "feature": "skills",
@@ -1137,15 +906,246 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.140.0",
-      "hash": "f63b022f0671e9e375f859ddd6b42eac2ec18d23134fad31347e37f87c359a98",
+      "hash": "34f3403c9357a396b99c7d94edcf37233854156a6467e36301532a3d46f124de",
       "dirMeta": {
         "file_count": 20,
         "dir_count": 2
       },
-      "sourceHash": "f63b022f0671e9e375f859ddd6b42eac2ec18d23134fad31347e37f87c359a98",
+      "sourceHash": "34f3403c9357a396b99c7d94edcf37233854156a6467e36301532a3d46f124de",
       "sourceMeta": {
         "file_count": 20,
         "dir_count": 2
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "complete-project-scope-code-review",
+      "source": "features/common/skills/complete-project-scope-code-review",
+      "target": ".ai-badger/skills/complete-project-scope-code-review",
+      "frameworkVersion": "0.140.0",
+      "hash": "58bad655e7ed050fb96d25d5375a3c1f88aa4cbb9f543bf8951ce3a47f1e668c",
+      "dirMeta": {
+        "file_count": 4,
+        "dir_count": 1
+      },
+      "sourceHash": "4bf2bdda47f59e0c24845ad2ad2ee4d59469d1648e458ba237b9fe84b9ac335b",
+      "sourceMeta": {
+        "file_count": 4,
+        "dir_count": 1
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "debug-issue",
+      "source": "features/common/skills/debug-issue",
+      "target": ".ai-badger/skills/debug-issue",
+      "frameworkVersion": "0.140.0",
+      "hash": "5b770545aa95cdf346f1cf0a648795010f58e18443806b109db9676d59e369e7",
+      "dirMeta": {
+        "file_count": 1,
+        "dir_count": 0
+      },
+      "sourceHash": "5b770545aa95cdf346f1cf0a648795010f58e18443806b109db9676d59e369e7",
+      "sourceMeta": {
+        "file_count": 1,
+        "dir_count": 0
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "documentation",
+      "source": "features/common/skills/documentation",
+      "target": ".ai-badger/skills/documentation",
+      "frameworkVersion": "0.140.0",
+      "hash": "d67a367b4191ffc56cb1586f2ab2e38148eac1c8870a880c5134745fa287ea78",
+      "dirMeta": {
+        "file_count": 9,
+        "dir_count": 6
+      },
+      "sourceHash": "d67a367b4191ffc56cb1586f2ab2e38148eac1c8870a880c5134745fa287ea78",
+      "sourceMeta": {
+        "file_count": 9,
+        "dir_count": 6
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "evidence-first-research",
+      "source": "features/common/skills/evidence-first-research",
+      "target": ".ai-badger/skills/evidence-first-research",
+      "frameworkVersion": "0.140.0",
+      "hash": "e793d67b7b8659649ae226b9b636e62d660242ae117fcbd20907e77170f29f39",
+      "dirMeta": {
+        "file_count": 4,
+        "dir_count": 2
+      },
+      "sourceHash": "e793d67b7b8659649ae226b9b636e62d660242ae117fcbd20907e77170f29f39",
+      "sourceMeta": {
+        "file_count": 4,
+        "dir_count": 2
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "explore-codebase",
+      "source": "features/common/skills/explore-codebase",
+      "target": ".ai-badger/skills/explore-codebase",
+      "frameworkVersion": "0.140.0",
+      "hash": "9984f3f3df314c37fb978b5ca0f0b952841d345580cb7e82b9c0c5a95bae6a35",
+      "dirMeta": {
+        "file_count": 1,
+        "dir_count": 0
+      },
+      "sourceHash": "9984f3f3df314c37fb978b5ca0f0b952841d345580cb7e82b9c0c5a95bae6a35",
+      "sourceMeta": {
+        "file_count": 1,
+        "dir_count": 0
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "refactor-safely",
+      "source": "features/common/skills/refactor-safely",
+      "target": ".ai-badger/skills/refactor-safely",
+      "frameworkVersion": "0.140.0",
+      "hash": "1ecb1c5f78e168284adbb83201ef075684eeacf356ba9d9736d2cf39ed5114ab",
+      "dirMeta": {
+        "file_count": 1,
+        "dir_count": 0
+      },
+      "sourceHash": "1ecb1c5f78e168284adbb83201ef075684eeacf356ba9d9736d2cf39ed5114ab",
+      "sourceMeta": {
+        "file_count": 1,
+        "dir_count": 0
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "review-changes",
+      "source": "features/common/skills/review-changes",
+      "target": ".ai-badger/skills/review-changes",
+      "frameworkVersion": "0.140.0",
+      "hash": "13f779cc4bd353277d4ee717cfc008f0649f3d1d826e2096d4eff9a4a966cda1",
+      "dirMeta": {
+        "file_count": 1,
+        "dir_count": 0
+      },
+      "sourceHash": "13f779cc4bd353277d4ee717cfc008f0649f3d1d826e2096d4eff9a4a966cda1",
+      "sourceMeta": {
+        "file_count": 1,
+        "dir_count": 0
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
+      "name": "worktree-agent-isolation",
+      "source": "features/common/skills/worktree-agent-isolation",
+      "target": ".ai-badger/skills/worktree-agent-isolation",
+      "frameworkVersion": "0.140.0",
+      "hash": "808cb7f9fc28d239a81ff6f1ebf7d505474246c9e3cf5cd4be65005bddde7f0f",
+      "dirMeta": {
+        "file_count": 13,
+        "dir_count": 2
+      },
+      "sourceHash": "808cb7f9fc28d239a81ff6f1ebf7d505474246c9e3cf5cd4be65005bddde7f0f",
+      "sourceMeta": {
+        "file_count": 13,
+        "dir_count": 2
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "claude",
+      "name": "auto-wm",
+      "source": "features/claude/skills/auto-wm",
+      "target": ".ai-badger/skills/auto-wm",
+      "frameworkVersion": "0.140.0",
+      "hash": "9e9f94638808a2a3ff0fc06bccedf9efcd4d7f003518e1694935314bf2ebafae",
+      "dirMeta": {
+        "file_count": 5,
+        "dir_count": 2
+      },
+      "sourceHash": "9e9f94638808a2a3ff0fc06bccedf9efcd4d7f003518e1694935314bf2ebafae",
+      "sourceMeta": {
+        "file_count": 5,
+        "dir_count": 2
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "hermes",
+      "name": "cron-watchdog-authoring",
+      "source": "features/hermes/skills/cron-watchdog-authoring",
+      "target": ".ai-badger/skills/cron-watchdog-authoring",
+      "frameworkVersion": "0.140.0",
+      "hash": "1273ebc74b64837a4d8ecc65b19be0f99c0b0358b845d78a65c17c1de68ba706",
+      "dirMeta": {
+        "file_count": 1,
+        "dir_count": 0
+      },
+      "sourceHash": "1273ebc74b64837a4d8ecc65b19be0f99c0b0358b845d78a65c17c1de68ba706",
+      "sourceMeta": {
+        "file_count": 1,
+        "dir_count": 0
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "hermes",
+      "name": "hermes-plugin-development",
+      "source": "features/hermes/skills/hermes-plugin-development",
+      "target": ".ai-badger/skills/hermes-plugin-development",
+      "frameworkVersion": "0.140.0",
+      "hash": "cfdc0482a6beacf39ba2951d3a4040e30f4468a2ae71cddb7647b9c78670e273",
+      "dirMeta": {
+        "file_count": 3,
+        "dir_count": 1
+      },
+      "sourceHash": "cfdc0482a6beacf39ba2951d3a4040e30f4468a2ae71cddb7647b9c78670e273",
+      "sourceMeta": {
+        "file_count": 3,
+        "dir_count": 1
       },
       "projectOwned": [
         "project-local.md"
@@ -1283,87 +1283,6 @@
       "target": ".claude/agents/test-engineer.md",
       "frameworkVersion": "0.140.0",
       "hash": "586d103646aa85952bea3a1957df906c312bae3238b75730bd1364e5e40766ba"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
-      "name": "adjustments/.claude/skills/complete-project-scope-code-review",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/complete-project-scope-code-review",
-      "frameworkVersion": "0.140.0",
-      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
-      "name": "adjustments/.claude/skills/debug-issue",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/debug-issue",
-      "frameworkVersion": "0.140.0",
-      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
-      "name": "adjustments/.claude/skills/documentation",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/documentation",
-      "frameworkVersion": "0.140.0",
-      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
-      "name": "adjustments/.claude/skills/evidence-first-research",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/evidence-first-research",
-      "frameworkVersion": "0.140.0",
-      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
-      "name": "adjustments/.claude/skills/explore-codebase",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/explore-codebase",
-      "frameworkVersion": "0.140.0",
-      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
-      "name": "adjustments/.claude/skills/refactor-safely",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/refactor-safely",
-      "frameworkVersion": "0.140.0",
-      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
-      "name": "adjustments/.claude/skills/review-changes",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/review-changes",
-      "frameworkVersion": "0.140.0",
-      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
-      "name": "adjustments/.claude/skills/worktree-agent-isolation",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/worktree-agent-isolation",
-      "frameworkVersion": "0.140.0",
-      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
-      "name": "adjustments/.claude/skills/auto-wm",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/auto-wm",
-      "frameworkVersion": "0.140.0",
-      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
     {
       "feature": "adjustments",
@@ -1548,6 +1467,87 @@
     {
       "feature": "adjustments",
       "stack": "claude",
+      "name": "adjustments/.claude/skills/complete-project-scope-code-review",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/complete-project-scope-code-review",
+      "frameworkVersion": "0.140.0",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/skills/debug-issue",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/debug-issue",
+      "frameworkVersion": "0.140.0",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/skills/documentation",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/documentation",
+      "frameworkVersion": "0.140.0",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/skills/evidence-first-research",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/evidence-first-research",
+      "frameworkVersion": "0.140.0",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/skills/explore-codebase",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/explore-codebase",
+      "frameworkVersion": "0.140.0",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/skills/refactor-safely",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/refactor-safely",
+      "frameworkVersion": "0.140.0",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/skills/review-changes",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/review-changes",
+      "frameworkVersion": "0.140.0",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/skills/worktree-agent-isolation",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/worktree-agent-isolation",
+      "frameworkVersion": "0.140.0",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
+      "name": "adjustments/.claude/skills/auto-wm",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/auto-wm",
+      "frameworkVersion": "0.140.0",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
       "name": "adjustments/.ai-badger/skills/mcp-index/scripts/tokenizer.py",
       "source": "features/claude/adjustments/adjust_retrieval.py",
       "target": ".ai-badger/skills/mcp-index/scripts/tokenizer.py",
@@ -1598,78 +1598,6 @@
       "target": ".github/hooks/ai-badger-hooks.json",
       "frameworkVersion": "0.140.0",
       "hash": "11563d5ea1a94f1f793df3d0680252c951bbbf3e1ddcbc20ea4c67e857964cc7"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
-      "name": "adjustments/.github/skills/complete-project-scope-code-review",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/complete-project-scope-code-review",
-      "frameworkVersion": "0.140.0",
-      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
-      "name": "adjustments/.github/skills/debug-issue",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/debug-issue",
-      "frameworkVersion": "0.140.0",
-      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
-      "name": "adjustments/.github/skills/documentation",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/documentation",
-      "frameworkVersion": "0.140.0",
-      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
-      "name": "adjustments/.github/skills/evidence-first-research",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/evidence-first-research",
-      "frameworkVersion": "0.140.0",
-      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
-      "name": "adjustments/.github/skills/explore-codebase",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/explore-codebase",
-      "frameworkVersion": "0.140.0",
-      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
-      "name": "adjustments/.github/skills/refactor-safely",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/refactor-safely",
-      "frameworkVersion": "0.140.0",
-      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
-      "name": "adjustments/.github/skills/review-changes",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/review-changes",
-      "frameworkVersion": "0.140.0",
-      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
-      "name": "adjustments/.github/skills/worktree-agent-isolation",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/worktree-agent-isolation",
-      "frameworkVersion": "0.140.0",
-      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
     {
       "feature": "adjustments",
@@ -1848,6 +1776,78 @@
       "name": "adjustments/.github/skills/welcome-ai-badger",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/welcome-ai-badger",
+      "frameworkVersion": "0.140.0",
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/complete-project-scope-code-review",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/complete-project-scope-code-review",
+      "frameworkVersion": "0.140.0",
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/debug-issue",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/debug-issue",
+      "frameworkVersion": "0.140.0",
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/documentation",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/documentation",
+      "frameworkVersion": "0.140.0",
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/evidence-first-research",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/evidence-first-research",
+      "frameworkVersion": "0.140.0",
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/explore-codebase",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/explore-codebase",
+      "frameworkVersion": "0.140.0",
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/refactor-safely",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/refactor-safely",
+      "frameworkVersion": "0.140.0",
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/review-changes",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/review-changes",
+      "frameworkVersion": "0.140.0",
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/worktree-agent-isolation",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/worktree-agent-isolation",
       "frameworkVersion": "0.140.0",
       "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },

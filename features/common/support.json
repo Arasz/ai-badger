@@ -1,7 +1,7 @@
 {
   "$schema": "../../schemas/support.schema.json",
   "description": "Agent capability matrix: what each agent supports and what ai-badger scaffolds for it.",
-  "lastUpdated": "2026-07-26",
+  "lastUpdated": "2026-08-28",
   "agents": {
     "claude": {
       "name": "Claude Code",
@@ -215,6 +215,72 @@
         "feedbackLoop": {
           "supported": "partial",
           "mechanism": "Copilot coding agent can create PRs, but no programmatic feed-badger integration",
+          "aiBadgerSupport": false
+        }
+      }
+    },
+    "pi": {
+      "name": "pi",
+      "vendor": "Earendil Works",
+      "capabilities": {
+        "instructions": {
+          "supported": true,
+          "mechanism": "AGENTS.md, CLAUDE.md, AGENTS.override.md",
+          "aiBadgerSupport": true,
+          "scaffoldedFile": "AGENTS.override.md"
+        },
+        "invariants": {
+          "supported": true,
+          "mechanism": "AGENTS.override.md sections + AGENTS.md",
+          "aiBadgerSupport": true
+        },
+        "scopedInstructions": {
+          "supported": false,
+          "mechanism": null,
+          "aiBadgerSupport": false
+        },
+        "personas": {
+          "supported": true,
+          "mechanism": "subagent extension — native child processes with cwd/model/tools",
+          "aiBadgerSupport": true
+        },
+        "hooks": {
+          "supported": true,
+          "mechanism": "Extension events: input, tool_call, tool_result, session_start, session_shutdown, agent_settled (34 events total, superset of Claude)",
+          "configPath": "~/.pi/agent/extensions/",
+          "aiBadgerSupport": true,
+          "wiredBy": "pi/adjustments/adjust_hooks.py"
+        },
+        "skills": {
+          "supported": true,
+          "mechanism": "SKILL.md YAML frontmatter, Agent Skills standard (79/79 load unmodified from .claude/skills/)",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "scaffold.py + pi/adjustments/adjust_skills.py"
+        },
+        "customAgents": {
+          "supported": true,
+          "mechanism": "~/.pi/agent/agents/*.agent.md with frontmatter (model, tools, mcp-servers)",
+          "aiBadgerSupport": false
+        },
+        "plugins": {
+          "supported": true,
+          "mechanism": "pi install npm: or pi install git:",
+          "aiBadgerSupport": false
+        },
+        "mcpServers": {
+          "supported": "partial",
+          "mechanism": "Via pi-mcp-tools extension (settings.json mcp key), not native",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "pi/adjustments/adjust_mcp.py — maps .mcp.json to settings.json format"
+        },
+        "cacheAwareDispatch": {
+          "supported": false,
+          "mechanism": null,
+          "aiBadgerSupport": false
+        },
+        "feedbackLoop": {
+          "supported": false,
+          "mechanism": "No programmatic feed-badger integration",
           "aiBadgerSupport": false
         }
       }

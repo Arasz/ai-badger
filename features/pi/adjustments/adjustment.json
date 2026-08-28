@@ -1,0 +1,20 @@
+{
+  "agent": "pi",
+  "adjustments": [
+    {
+      "feature": "hooks",
+      "description": "Install pi extension hooks for ai-badger (shell-out adapter translating events)",
+      "script": "adjust_hooks.py"
+    },
+    {
+      "feature": "mcp",
+      "description": "Map .mcp.json to pi-mcp-tools settings.json format",
+      "script": "adjust_mcp.py"
+    },
+    {
+      "feature": "task",
+      "description": "Embed pi session source into task skill",
+      "script": "adjust_task.py"
+    }
+  ]
+}

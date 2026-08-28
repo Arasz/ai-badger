@@ -1,0 +1,12 @@
+{
+  "agent": "pi",
+  "description": "pi coding agent discovery files: AGENTS.override.md and CLAUDE.md at project root.",
+  "files": [
+    {
+      "source": "templates/AGENTS.override.md.tmpl",
+      "target": "AGENTS.override.md",
+      "managed": true,
+      "template": true
+    }
+  ]
+}

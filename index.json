@@ -907,6 +907,27 @@
         }
       }
     },
+    "pi": {
+      "adjustments": [
+        {
+          "name": "adjustment",
+          "path": "features/pi/adjustments/adjustment.json"
+        }
+      ],
+      "meta": {
+        "description": "pi coding agent: minimal agent harness by @earendil-works — unified LLM API, agent loop, TUI, coding agent CLI. Supports any provider (OpenRouter, Anthropic, DeepSeek, Copilot, etc.).",
+        "detectionSignals": [
+          ".pi",
+          "~/.pi/agent"
+        ],
+        "requires": [],
+        "commands": {
+          "run": "pi",
+          "build": "pi doctor",
+          "test": "pi doctor"
+        }
+      }
+    },
     "python": {
       "instructions": [
         {
