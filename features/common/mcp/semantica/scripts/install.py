@@ -14,7 +14,6 @@ import os
 import shutil
 import subprocess
 import sys
-import venv
 from pathlib import Path
 
 
@@ -70,10 +69,20 @@ def ensure_venv(target_dir: Path, py_exe: str) -> Path:
 
     if not venv_py.exists():
         print(f"Creating Python virtual environment in {venv_dir} using {py_exe}...")
-        builder = venv.EnvBuilder(with_pip=True)
-        builder.create(venv_dir)
+        subprocess.run([py_exe, "-m", "venv", str(venv_dir)], check=True)
 
     return venv_py
+
+
+def explain_install_failure(stderr: str) -> str:
+    """A one-line cause for a pip failure this project has seen before, else empty."""
+    if "ma_version_tag" in stderr and "gensim" in stderr.lower():
+        return (
+            "Cause: gensim has no wheel for this Python and its source build needs "
+            "ma_version_tag, removed from PyDictObject in CPython 3.14. Re-run with a "
+            "Python that has a gensim wheel (3.13 or lower at the time of writing)."
+        )
+    return ""
 
 
 def ensure_pip(venv_py: Path) -> None:
@@ -107,6 +116,9 @@ def main(argv: list[str] | None = None) -> int:
         res = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if res.returncode != 0:
             print(f"ERROR: pip install failed:\n{res.stderr}", file=sys.stderr)
+            explanation = explain_install_failure(res.stderr)
+            if explanation:
+                print(explanation, file=sys.stderr)
             return 1
 
         # Verify semantica importability via venv python

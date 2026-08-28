@@ -52,6 +52,14 @@ def can_import_semantica() -> bool:
         return False
 
 
+EXPORT_BROKEN_WARNING = (
+    "WARNING: this semantica build's export_graph tool is broken in every format "
+    "(json: JSONExporter.export() called without file_path; turtle/json-ld: "
+    "'ContextGraph' object has no attribute 'get'). No fixed release is known. "
+    "The graph tools are unaffected; auto-saved .semantica/ dumps are skipped."
+)
+
+
 def _probe_export_graph() -> dict:
     """Call the installed MCP server's export_graph handler directly.
 
@@ -62,32 +70,6 @@ def _probe_export_graph() -> dict:
     """
     server = importlib.import_module("semantica.mcp_server")
     return server._tool_export_graph({"format": "json"})
-
-
-def _wrapper_script_path() -> Path | None:
-    """Return the path to semantica_mcp_wrapper.py if it exists."""
-    candidate = (
-        Path(__file__).resolve().parent / "semantica_mcp_wrapper.py"
-    )
-    return candidate if candidate.is_file() else None
-
-
-def _probe_wrapper_in_interpreter(interpreter: str) -> dict:
-    """Run the wrapper's patched export_graph probe inside *interpreter*."""
-    wrapper = _wrapper_script_path()
-    if wrapper is None:
-        raise FileNotFoundError("semantica_mcp_wrapper.py not found")
-    snippet = (
-        f"import sys; sys.path.insert(0, {str(wrapper.parent)!r}); "
-        f"from semantica_mcp_wrapper import _patched_tool_export_graph; "
-        f"import json; print(json.dumps(_patched_tool_export_graph({{'format': 'json'}})))"
-    )
-    res = subprocess.run(
-        [interpreter, "-c", snippet], capture_output=True, text=True, timeout=15,
-        check=False)
-    if res.returncode != 0:
-        raise RuntimeError(f"wrapper probe failed in {interpreter}: {res.stderr[:200]}")
-    return json.loads(res.stdout.strip().splitlines()[-1])
 
 
 def _interpreter_for_executable(exe: str) -> str | None:
@@ -121,13 +103,14 @@ def _probe_in_interpreter(interpreter: str) -> dict:
 
 
 def export_graph_works(exe: str | None = None) -> bool:
-    """True when the installed semantica's export_graph json branch works.
+    """True when the installed semantica's export_graph works.
 
-    With *exe* (a resolved semantica executable), probe inside that install's
-    own interpreter — the only env where semantica is importable for uv-tool /
-    pipx installs. Without it, probe in-process (importable-venv path).
+    With *exe* (a resolved semantica executable), probe inside that install's own
+    interpreter — the only env where semantica is importable for uv-tool / pipx
+    installs. Without it, probe in-process (importable-venv path).
 
-    If the native probe fails, try the wrapper script as a fallback.
+    There is deliberately no wrapper fallback: nothing launches the wrapper, so
+    consulting it would report a capability the running server does not have.
     """
     try:
         if exe:
@@ -141,23 +124,6 @@ def export_graph_works(exe: str | None = None) -> bool:
         # Import/setup failure inside the server module — not necessarily the
         # export bug; say nothing rather than misattribute.
         return True
-    if isinstance(result, dict) and "error" not in result:
-        return True
-    # Native probe returned an error — try the wrapper fallback.
-    try:
-        if exe:
-            interpreter = _interpreter_for_executable(exe)
-            if interpreter is None:
-                return False
-            result = _probe_wrapper_in_interpreter(interpreter)
-        else:
-            wrapper = _wrapper_script_path()
-            if wrapper is None:
-                return False
-            from semantica_mcp_wrapper import _patched_tool_export_graph  # pylint: disable=import-outside-toplevel
-            result = _patched_tool_export_graph({"format": "json"})
-    except Exception:  # pylint: disable=broad-exception-caught
-        return False
     return isinstance(result, dict) and "error" not in result
 
 
@@ -178,13 +144,7 @@ def main(argv: list[str] | None = None) -> int:
             if res.returncode == 0:
                 print(f"semantica ready: {res.stdout.strip() or exe}")
                 if not export_graph_works(exe=exe):
-                    print(
-                        "WARNING: the installed semantica's export_graph tool is broken "
-                        "(upstream bug: JSONExporter.export() called without file_path; "
-                        "fixed in a release after 0.6.6). No wrapper workaround found; "
-                        "auto-saved .semantica/ dumps are skipped until it is fixed.",
-                        file=sys.stderr,
-                    )
+                    print(EXPORT_BROKEN_WARNING, file=sys.stderr)
                 return 0
         except (subprocess.SubprocessError, OSError):
             pass
@@ -192,13 +152,7 @@ def main(argv: list[str] | None = None) -> int:
     if can_import_semantica():
         print("semantica module importable in Python environment")
         if not export_graph_works():
-            print(
-                "WARNING: the installed semantica's export_graph tool is broken "
-                "(upstream bug: JSONExporter.export() called without file_path; "
-                "fixed in a release after 0.6.6). No wrapper workaround found; "
-                "auto-saved .semantica/ dumps are skipped until it is fixed.",
-                file=sys.stderr,
-            )
+            print(EXPORT_BROKEN_WARNING, file=sys.stderr)
         return 0
 
     print("semantica is not installed or not in PATH / .venv", file=sys.stderr)
