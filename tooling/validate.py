@@ -173,7 +173,7 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                   "delegation.worktree_isolation, default false — which is a session-wide "
                   "setting, not a dispatch argument; ai_badger_hooks warns on session start when "
                   "it is off. Why the previous reason here was wrong: "
-                  "docs/changelog/0.139.0-hermes-cannot-be-gated-per-dispatch.md.",
+                  "docs/changelog/0.140.0-hermes-cannot-be-gated-per-dispatch.md.",
         "copilot": "Acknowledged gap on the model-lane half, a wall on the enforcement half: "
                    "Copilot does fire preToolUse and does keep a model in .github/agents/"
                    "*.agent.md frontmatter, so reading the lane is possible and simply has not "

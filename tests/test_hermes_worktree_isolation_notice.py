@@ -25,11 +25,19 @@ import pytest
 from conftest import _test_write
 
 HOOKS = "features/common/hooks/ai_badger_hooks.py"
+ISOLATION = "features/common/hooks/hermes_isolation.py"
 
 
 @pytest.fixture
 def hooks(load_script, tmp_path, monkeypatch):
-    """The plugin with HERMES_HOME redirected — never the real ~/.hermes."""
+    """The isolation module with HERMES_HOME redirected — never the real ~/.hermes."""
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes"))
+    return load_script(ISOLATION)
+
+
+@pytest.fixture
+def plugin(load_script, tmp_path, monkeypatch):
+    """The plugin itself, for the two tests about the notice reaching a session start."""
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes"))
     return load_script(HOOKS)
 
@@ -128,24 +136,24 @@ def test_an_unreadable_config_is_silent(hooks, tmp_path):
     assert hooks.subagents_share_one_tree() is False
 
 
-def test_the_notice_names_the_key_and_the_file(hooks, tmp_path, caplog):
+def test_the_notice_names_the_key_and_the_file(plugin, tmp_path, caplog):
     """A warning that does not say what to change is a nag."""
     _config(tmp_path, "delegation:\n  max_iterations: 250\n")
 
     with caplog.at_level("INFO"):
-        hooks.on_session_start_drift_notice(cwd=str(tmp_path))
+        plugin.on_session_start_drift_notice(cwd=str(tmp_path))
 
     logged = caplog.text
     assert "worktree_isolation" in logged, logged
     assert "delegation" in logged, logged
 
 
-def test_the_notice_never_writes_to_the_config(hooks, tmp_path):
+def test_the_notice_never_writes_to_the_config(hooks, plugin, tmp_path):
     """ai-badger does not own ~/.hermes/config.yaml (see 0.89.0)."""
     home = _config(tmp_path, "delegation:\n  max_iterations: 250\n")
     before = (home / "config.yaml").read_bytes()
 
     hooks.subagents_share_one_tree()
-    hooks.on_session_start_drift_notice(cwd=str(tmp_path))
+    plugin.on_session_start_drift_notice(cwd=str(tmp_path))
 
     assert (home / "config.yaml").read_bytes() == before
