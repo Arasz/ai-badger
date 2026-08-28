@@ -34,6 +34,94 @@ Scripts live in this skill's `scripts/`. Read `references/file-schemas.md` befor
 - Work the user wants done inline in this session
 - Anything where the token-tracked pipeline's overhead exceeds the task — use the plain workflow
 
+## Default Loop
+
+Every task follows one of two effort-level loops. The loop is the spine; the phases below
+(Phase 0–6) detail how its steps are executed.
+
+Before starting, **ask the user if this is a low-effort or high-effort task**. Default to
+low-effort unless the task is complex, risky, or multi-package.
+
+### Low-effort loop
+
+prepare → analyze → plan → plan review → implementation → review implementation →
+apply fixes → pr → gates → close task → reflect → merge
+
+### High-effort loop
+
+prepare → analyze → plan (MoE) → plan review (MoE) → implementation →
+review implementation (MoE) → apply fixes → QA: test quality & coverage → pr →
+gates → close task → reflect → merge
+
+Integration step: always required in the high-effort variant. Every plan's last package
+is the integration package that ensures all packages are correctly integrated with
+cross-package test coverage.
+
+### Step definitions
+
+**prepare** — First step after effort selection. Create an isolated worktree from a fresh
+`main`, push the branch to origin, and create a draft PR. See Phase 1.
+
+**analyze** — Analyze the task content. Derive a `taskId` using the formula below (see
+*Task-ID derivation*). Extract scope, constraints, success criteria. See Phase 1.
+
+**plan** — Create a detailed plan. Split the work into **packages** (units of work, each
+delivering a mergable piece) and **subpackages** (partial units of work). Every package
+contains its test scenarios. The **last package is always the integration package** — it
+ensures all packages are correctly integrated and includes cross-package integration
+tests. Each package has its own acceptance criteria; the plan's top-level acceptance
+criterion is: *all packages' ACs are checked and met*. See Phase 2.
+
+**plan review (MoE)** — In the high-effort variant, delegation is to a mixture-of-experts
+panel (default 3 experts) matching the task's subject area. At least one different expert
+is used for plan review vs. plan authoring. See Phase 2 step 2.
+
+**implementation** — The code phase. How it is executed depends on the coordinator agent
+and persona routing. TDD is mandatory. See Phase 3.
+
+**review implementation** — Code review. In the low-effort variant, a single subagent. In
+the high-effort variant, an MoE panel (default 3 experts, at least one different from the
+plan MoE). See Phase 4.
+
+**QA: test quality & coverage** — High-effort only. Dedicated quality assessment of test
+coverage and test honesty (can the tests actually fail?). See Phase 4.
+
+**apply fixes** — Fold review findings back into the code. Trivial fixes directly; larger
+fixes via a subagent. Re-run build/test. See Phase 4.
+
+**pr** — Prepare the PR for review, ensure CI runs. See Phase 3 and Phase 5.
+
+**gates** — Run the configured quality gates. Default: local full test suite. Check CI
+state before running. Gate implementation is per-repo (from `config.json`'s
+`commands.build/test/lint`). See Phase 4.
+
+**close task** — Close tracking, remove worktree (if clean), update state files. See
+Phase 5.
+
+**reflect** — After closing, examine what was learned. Check AiRaccoon memory for the
+current workspace, query semantica entries if available, and review the session history.
+Distil: what should be remembered? What durable facts belong in memory? Anything worth
+promoting to shared context? This step continuously gathers improved knowledge across
+tasks.
+
+**merge** — Final merge of the PR. See Phase 5.
+
+### Task-ID derivation
+
+`taskId` is **derived during the analyze step**, not provided by the user. Formula:
+
+    {repo-alias}-{key}
+
+- **repo-alias:** A short constant for the repository. Examples: `jsaa` (job-search-ai-assistant),
+  `aib` (ai-badger), `air` (ai-raccoon), `ahp` (arasz-home-page). There is no pre-defined list;
+  the alias is whatever was first used for this repo and is then constant thereafter.
+  To determine the alias: check `config.json`'s `sourceControl.repoAlias` if set, or check
+  memory for a previously recorded alias for this repo, or derive from the repo name.
+- **key:** 5 words that convey the task's purpose. An approximation — used for identification,
+  not precise description. Hyphenated lowercase slug.
+
+Example: `aib-default-loop` for adding the default loop to the ai-badger task skill.
+
 ## Config contract (read first)
 
 From `.ai-badger/config.json`:
@@ -110,11 +198,21 @@ reduced rigor since high-reasoning delegation wasn't possible.
 ## Phase 1 — Start
 
 Entry: previous task finished or parked; clean-enough context.
-Exit: tracker STARTED, worktree exists, five preflight blocks present, research
-record gathered.
+Exit: effort level chosen, tracker STARTED, worktree exists, five preflight blocks present,
+research record gathered, taskId derived.
 
-1. Resolve the task (an issue URL, or freeform text used as scope/title; cross-check the project
-   board via the source-control extension if active). Read the referenced docs.
+1. **Determine effort level.** Apply the Default Loop rule: ask the user if this is low-effort
+   or high-effort. Default to low-effort unless the task is complex, risky, or multi-package.
+   (Skip ask if autonomous; assume low-effort.)
+2. **Analyze the task.** Resolve the task (an issue URL, or freeform text used as scope/title;
+   cross-check the project board via the source-control extension if active). Read the
+   referenced docs.
+
+   **Derive the taskId** per the Task-ID derivation formula. Determine the repo alias
+   (check `config.json`'s `sourceControl.repoAlias`, or memory, or derive from repo name).
+   Compose the key from 5 words conveying purpose. Validate the result is unique vs. existing
+   tracking entries.
+
    **If the argument is a path to a `spec.json` written by `create-task-spec`,** read it and its
    companion `.feature` file instead of treating the path as a title: the manifest supplies the
    scope, out-of-scope, constraints and deferred decisions, and the spec supplies the acceptance
@@ -123,9 +221,9 @@ record gathered.
 
    **Preflight checklist** (Rule 1): confirm the brief has objective, constraints, known unknowns,
    output contract, and stop condition. Fill missing blocks from review or ask the user.
-2. Register: `python3 .ai-badger/skills/task/scripts/task_tracker.py start <taskId> --title "<title>" --branch task/<taskId>-<slug>`.
-3. Ask the user to rename the session to match the task (skip if autonomous).
-4. **Work in the worktree `start` just created** — it prints the path, and it is
+3. Register: `python3 .ai-badger/skills/task/scripts/task_tracker.py start <taskId> --title "<title>" --branch task/<taskId>-<slug>`.
+4. Ask the user to rename the session to match the task (skip if autonomous).
+5. **Work in the worktree `start` just created** — it prints the path, and it is
    `.ai-badger/worktrees/<taskId>` on the branch you passed to `--branch`. Every command for
    the rest of the task runs there, not in the main checkout.
 
@@ -150,10 +248,22 @@ record gathered.
 ## Phase 2 — PLANNING
 
 Entry: research record exists with sources cited.
-Exit: reviewed plan; every point carries criteria and a gate; parallelism named.
+Exit: reviewed plan; every point carries criteria and a gate; parallelism named; plan split
+into packages and subpackages.
 
 1. **Plan from what the research found.** Delegate decomposition to a high-reasoning agent (the
    `architect` persona), feeding it the task body, the research record and doc excerpts.
+
+   **Split the plan into packages.** Each package is a unit of work delivering a mergable piece.
+   Subpackages are partial units within a package. Every package contains its test scenarios.
+   The **last package is always the integration package** — it ensures all packages are
+   correctly integrated and includes cross-package integration tests. Each package has its own
+   acceptance criteria; the plan's top-level acceptance criterion is: *all packages' ACs are
+   checked and met*.
+
+   In the **low-effort** variant, a single high-reasoning agent creates the plan.
+   In the **high-effort** variant, delegate to an MoE panel (default 3 experts) matching the
+   task's subject area.
 
    Split the plan into sections that can be worked independently, and say which may run at the
    same time. Parallelism has to be designed in; it does not arrive on its own.
@@ -163,13 +273,14 @@ Exit: reviewed plan; every point carries criteria and a gate; parallelism named.
    before it can be built, produce one, and look for an installed skill that formalises that shape
    before writing a bespoke document. Before the first failing test, run `design-tests` on the
    acceptance criteria — the test list is part of the plan, not of the implementation.
-2. **Plan review before dispatch.** Hand the drafted plan to a second high-reasoning agent (or a
-   small review MoE — different experts than wrote it) and have it attack structure, feasibility,
-   budget arithmetic, and testability. Fold MUST/SHOULD findings back into the plan before any
-   implementation dispatch. This is the same join discipline Phase 4 applies later, applied early
-   where a defect costs least. When consolidating reviewed plan sections into lane briefs, follow
-   `references/lane-dispatch-brief.md` — sections sharing a file serialise, the rest
-   parallelise.
+2. **Plan review before dispatch.** In the **low-effort** variant, hand the drafted plan to a
+   second high-reasoning agent for review. In the **high-effort** variant, delegate to an MoE
+   panel (default 3 experts, at least one different from the plan-authoring experts) and have it
+   attack structure, feasibility, budget arithmetic, and testability. Fold MUST/SHOULD findings
+   back into the plan before any implementation dispatch. This is the same join discipline
+   Phase 4 applies later, applied early where a defect costs least. When consolidating reviewed
+   plan sections into lane briefs, follow `references/lane-dispatch-brief.md` — sections sharing
+   a file serialise, the rest parallelise.
 
 ## Phase 3 — Execute
 
@@ -191,18 +302,26 @@ Exit: reviewed plan; every point carries criteria and a gate; parallelism named.
 ## Phase 4 — Quality gate
 
 Entry: all plan points implemented and committed in the worktree.
-Exit: CI green (or documented local-gate equivalent); review findings fixed or filed.
+Exit: CI green (or documented local-gate equivalent); review findings fixed or filed; QA
+test quality reviewed (high-effort variant).
 
-Run the configured `commands.build` and `commands.test` yourself and capture output. Then
-delegate a review to a high-reasoning agent (the `code-reviewer` persona) with the diff,
-acceptance criteria, relevant architecture docs, and the build/test output. Ask it to judge
-implementation correctness (logic, edge cases, test honesty) and architecture (layer purity,
-consistency with docs). Fix findings (trivial yourself, substantial via a subagent), re-run
-build/test, then proceed. If the diff adds or changes test files, also delegate `review-tests`
-on those files to `qa` (or the stack's `qa-backend`/`qa-frontend`) and treat a `blocker` finding
-the same as a red build. Docs-only tasks with no test changes skip `review-tests`; projects
-without CI fall back to the full local lane set as the pass condition. When push, CI, or PR
-trouble arises during this phase, follow the `git-work` skill before improvising.
+1. Run the configured `commands.build` and `commands.test` yourself and capture output.
+2. **Review implementation.** In the **low-effort** variant, delegate review to a
+   high-reasoning agent (the `code-reviewer` persona) with the diff, acceptance criteria,
+   relevant architecture docs, and the build/test output. In the **high-effort** variant,
+   delegate to an MoE panel (default 3 experts, at least one different from the plan MoE
+   and plan review MoE). Ask it to judge implementation correctness (logic, edge cases, test
+   honesty) and architecture (layer purity, consistency with docs).
+3. **QA: test quality & coverage** (high-effort variant only). After the implementation review,
+   delegate a dedicated quality assessment of test coverage and test honesty — can the tests
+   actually fail? Are there gaps in coverage? See `review-tests` skill.
+4. **Apply fixes.** Fix findings (trivial yourself, substantial via a subagent), re-run
+   build/test, then proceed. If the diff adds or changes test files, also delegate
+   `review-tests` on those files to `qa` (or the stack's `qa-backend`/`qa-frontend`) and treat
+   a `blocker` finding the same as a red build. Docs-only tasks with no test changes skip
+   `review-tests`; projects without CI fall back to the full local lane set as the pass
+   condition. When push, CI, or PR trouble arises during this phase, follow the `git-work`
+   skill before improvising.
 
 ### Review every join, not just every part
 
@@ -242,11 +361,16 @@ Exit: merged, state updated, tracking closed.
    also removes the task's worktree — **unless it still holds work that exists nowhere else**, in
    which case it refuses, says what it found, and leaves the directory alone. Read the
    `worktree.keptBecause` field in the output; a kept worktree means something is unmerged or
-   uncommitted, not that cleanup failed. Resolve it and re-run, or pass `--keep-worktree` when you
+   uncommitted, not that failed cleanup. Resolve it and re-run, or pass `--keep-worktree` when you
    are deliberately leaving it in place.
-5. Ask the user to grade the skill 0–5: `python3 .ai-badger/skills/task/scripts/task_tracker.py grade <taskId> <0-5>`
+5. **Reflect.** Examine what was learned during this task. Check AiRaccoon memory for the
+   current workspace, query semantica entries if available, and review the session history.
+   Distil: what should be remembered as durable facts? Write any cross-task learnings to
+   memory. Promote high-value entries to shared context if applicable. Record decisions in
+   semantica.
+6. Ask the user to grade the skill 0–5: `python3 .ai-badger/skills/task/scripts/task_tracker.py grade <taskId> <0-5>`
    (skip/leave unset if autonomous).
-6. Report the task's token cost and recommend `/compact` or a fresh session before the next
+7. Report the task's token cost and recommend `/compact` or a fresh session before the next
    task — this is the default ending. **Authorized auto-continue** (alternative path, only when
    an observable condition holds: the `auto-wm` skill's autonomic/partner mode is active, or the
    user's original invocation explicitly said to continue to the next task): after Phase 6
@@ -291,6 +415,10 @@ machine-run gates that close the task.
 
 - [ ] `python3 .ai-badger/skills/task/scripts/task_tracker.py status` shows the task finished and `.ai-badger/state.json` reflects it
 - [ ] All work lives in the worktree `start` created — no stray commits on the main checkout's branch
-- [ ] Every plan point's acceptance gate ran
+- [ ] Every plan point's acceptance gate ran; plan was split into packages with the last being integration
+- [ ] Task-ID derived per the `{repo-alias}-{key}` formula and is unique
+- [ ] Effort level was determined (low or high) before implementation began
+- [ ] High-effort tasks ran QA test quality & coverage step
+- [ ] `reflect` step examined memory, semantica, and session history for learnings
 - [ ] `finish` left no worktree with unmerged or uncommitted work — `keptBecause` empty or resolved
 - [ ] Token cost reported and compact/fresh-session advice given (or the auto-continue condition held)
