@@ -165,10 +165,15 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                    "would fire correctly and find nothing to write.",
     },
     "dispatch-gate": {
-        "hermes": "Nothing to gate: Hermes has no custom-agent files (support.json customAgents "
-                  "supported=false), so a dispatch names no subagent type whose model lane could "
-                  "cover it, and its subagent roles (leaf/orchestrator) carry no per-dispatch "
-                  "model parameter for a hook to find missing.",
+        "hermes": "Nothing per-dispatch to gate, verified against Hermes 0.20.6's own schema "
+                  "rather than inferred: DELEGATE_TASK_SCHEMA's per-task properties are exactly "
+                  "goal, context and output_schema (tools/delegate_tool.py), so a delegate_task "
+                  "call carries neither a model nor an isolation argument a pre_tool_call hook "
+                  "could find missing. Hermes does isolate subagents, but by config — "
+                  "delegation.worktree_isolation, default false — which is a session-wide "
+                  "setting, not a dispatch argument; ai_badger_hooks warns on session start when "
+                  "it is off. Why the previous reason here was wrong: "
+                  "docs/changelog/0.139.0-hermes-cannot-be-gated-per-dispatch.md.",
         "copilot": "Acknowledged gap on the model-lane half, a wall on the enforcement half: "
                    "Copilot does fire preToolUse and does keep a model in .github/agents/"
                    "*.agent.md frontmatter, so reading the lane is possible and simply has not "

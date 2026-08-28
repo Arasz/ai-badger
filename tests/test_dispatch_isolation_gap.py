@@ -121,14 +121,9 @@ class TestWorktreeIsolationIsEnforced:
             "with no gate behind it.")
 
 
-TASK_B = ("needs a live delegate_task pre_tool_call payload before it can be fixed — "
-          "see docs/changelog/0.138.0-a-contract-with-no-gate-behind-it.md, \"Still open: Hermes\"")
-
-
 class TestHermesHasNoDispatchEnforcement:
     """The user's first symptom: under Hermes, dispatch instructions are unenforced."""
 
-    @pytest.mark.xfail(reason=TASK_B, strict=True)
     def test_the_hermes_exemption_reason_distinguishes_hermes_from_claude(self, root,
                                                                          load_script):
         """`customAgents supported=false` cannot be why Hermes is exempt: Claude is too.
@@ -151,22 +146,18 @@ class TestHermesHasNoDispatchEnforcement:
             f"{hermes_flag}, but claude records customAgents={claude_flag} and is gated "
             f"regardless. Reason text: {reason!r}")
 
-    @pytest.mark.xfail(reason=TASK_B, strict=True)
-    def test_the_hermes_plugin_gates_dispatch(self, root):
-        """Hermes' pre_tool_call is wired only to the memory-first gate.
+    def test_the_hermes_plugin_surfaces_the_isolation_setting(self, root):
+        """Hermes cannot be gated per dispatch, so the plugin warns about the config instead.
 
-        `delegate_task` — Hermes' dispatch primitive per the task skill's hermes
-        extension — passes through `pre_tool_call` like any other tool call, so a gate is
-        possible. None exists, so every instruction about how a Hermes subagent is
-        dispatched is advisory.
+        This test used to demand a `pre_tool_call` dispatch gate. Hermes 0.20.6's
+        DELEGATE_TASK_SCHEMA settles that there is nothing to gate: the per-task properties
+        are exactly goal, context and output_schema. Isolation is real but session-wide —
+        `delegation.worktree_isolation`, default false — so the only honest lever is telling
+        the user it is off.
         """
         source = (root / HERMES_PLUGIN).read_text(encoding="utf-8")
-        pre_tool_callbacks = [
-            line for line in source.splitlines()
-            if 'register_hook("pre_tool_call"' in line
-        ]
-        assert pre_tool_callbacks, "hermes plugin registers no pre_tool_call at all"
 
-        assert any("dispatch" in line or "isolation" in line for line in pre_tool_callbacks), (
-            "hermes plugin's only pre_tool_call callbacks are "
-            f"{pre_tool_callbacks}; nothing gates delegate_task dispatches.")
+        assert "worktree_isolation" in source, (
+            "the hermes plugin says nothing about delegation.worktree_isolation, so a user "
+            "whose subagents all share one checkout is never told")
+        assert "def subagents_share_one_tree" in source

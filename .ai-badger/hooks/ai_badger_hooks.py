@@ -1,7 +1,7 @@
 """Hermes plugin hooks for ai-badger framework integration.
 
 Provides feature-parity with Claude Code hooks:
-- on_session_start: drift notice (Tier 1, ADR-0001 decision 5)
+- on_session_start: drift notice (Tier 1, ADR-0001 decision 5) + Hermes subagent-isolation notice
 - pre_llm_call: inject framework version context, usage hints, and MCP tool index recommendations
 - pre_tool_call: memory-first gate — block text search until the session consulted memory_search
 - post_tool_call: log tool usage, index hit/miss metrics, and learned-skill sync
@@ -379,6 +379,71 @@ def pre_tool_call_memory_gate(tool_name: str = "", args: Optional[Dict[str, Any]
     return gate.build_decision("hermes", tool_name, args or {}, None, cwd=project)
 
 
+# ---------------------------------------------------------------------------
+# Hermes subagent isolation — delegation.worktree_isolation
+# ---------------------------------------------------------------------------
+
+HERMES_HOME_ENV = "HERMES_HOME"
+DELEGATION_BLOCK = "delegation:"
+ISOLATION_KEY = "worktree_isolation:"
+
+ISOLATION_NOTICE = (
+    "ai-badger: Hermes subagents share this working copy. "
+    "delegation.worktree_isolation is not enabled in %s, so parallel delegate_task "
+    "children all run in one checkout and a green run proves nothing about its own "
+    "change. Add under `delegation:` in that file:  worktree_isolation: true"
+)
+
+
+def _hermes_config_path() -> Path:
+    """$HERMES_HOME/config.yaml, else ~/.hermes/config.yaml — the same rule adjust_hooks uses."""
+    override = os.environ.get(HERMES_HOME_ENV, "").strip()
+    home = Path(override).expanduser() if override else Path.home() / ".hermes"
+    return home / "config.yaml"
+
+
+def _delegation_block(lines: list) -> list:
+    """The indented lines under a top-level `delegation:`, empty when there is no such block.
+
+    Scanned rather than parsed: `import yaml` is deliberately kept off this hook's path.
+    Stops at the next top-level key, so the same setting under another mapping is not read
+    as this one. Comment lines are kept — no comment can start with the key being matched,
+    and a guard no test can exercise is not a guard.
+    """
+    block: list = []
+    inside = False
+    for line in lines:
+        stripped = line.strip()
+        if not inside:
+            if stripped == DELEGATION_BLOCK:
+                inside = True
+            continue
+        if line[:1] not in (" ", "\t"):
+            break
+        if stripped:
+            block.append(stripped)
+    return block
+
+
+def subagents_share_one_tree() -> bool:
+    """True when Hermes is configured here and delegated children will share one checkout.
+
+    False when the key is on, when there is no Hermes config, and on any read error — a
+    notice that cannot read its input must not guess. Never writes: ai-badger does not own
+    this file.
+    """
+    path = _hermes_config_path()
+    try:
+        raw = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    for entry in _delegation_block(raw.splitlines()):
+        if entry.startswith(ISOLATION_KEY):
+            value = entry[len(ISOLATION_KEY):].partition("#")[0].strip().lower()
+            return value not in ("true", "yes", "on", "1")
+    return True
+
+
 def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
     """Check for framework version drift (see `versions_diverge`) on every session start.
 
@@ -389,6 +454,9 @@ def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
     reset_gate_state()
     project = _project_cwd(cwd)
     _debug("ai_badger_hooks/session_start", "start", project=project)
+    if subagents_share_one_tree():
+        _debug("ai_badger_hooks/session_start", "shared_tree", project=project)
+        logger.info(ISOLATION_NOTICE, _hermes_config_path())
     scaffold_ver = _read_scaffold_version(project)
     fw_version = _read_framework_version()
     if not scaffold_ver or not fw_version or not versions_diverge(scaffold_ver, fw_version):
