@@ -122,7 +122,7 @@ delegation, not by assuming your own model.
 - **Delegate trivial mechanical work** (doc updates, rote refactors, test backfills) to a cheap model.
 - **The orchestrating session does directly:** fetch the task, read docs, record token usage,
   per-subagent completion checks, build/test, and tiny surgical fixes.
-- The ten prompting rules govern every brief. Read `references/prompting-rules.md`.
+- The ten prompting rules govern every brief. Read `references/prompting-rules.md` before composing briefs.
 
 Roles, not models. Which concrete model fills each is bound by the agent-specific extension.
 
