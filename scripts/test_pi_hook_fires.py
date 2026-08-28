@@ -43,6 +43,7 @@ def run_pi(workdir: str, extension_path: str, use_approve: bool = False) -> int:
         capture_output=True,
         text=True,
         timeout=30,
+        check=False,
     )
     return result.returncode
 
@@ -71,7 +72,7 @@ def test_user_scope_without_approve() -> bool:
     ext_file = user_ext_dir / "badger-probe.ts"
     backup = None
     if ext_file.exists():
-        backup = ext_file.read_text()
+        backup = ext_file.read_text(encoding="utf-8")
     ext_file.write_text(PROBE_EXTENSION)
 
     try:
@@ -82,7 +83,7 @@ def test_user_scope_without_approve() -> bool:
         if not os.path.exists(SENTINEL_FILE):
             print(f"FAIL (Run B): sentinel NOT written — user-scope extension did NOT fire (rc={rc})")
             return False
-        sentinel_content = Path(SENTINEL_FILE).read_text().strip()
+        sentinel_content = Path(SENTINEL_FILE).read_text(encoding="utf-8").strip()
         print(f"OK (Run B): sentinel written with '{sentinel_content}' — user-scope extension fires (rc={rc})")
         return True
     finally:
@@ -106,9 +107,8 @@ def main():
     if a_ok and b_ok:
         print("PASS: Trust sentinel test — user-scope extensions fire, project-local blocked.")
         return 0
-    else:
-        print("FAIL: Trust sentinel test did not pass. See findings above.")
-        return 1
+    print("FAIL: Trust sentinel test did not pass. See findings above.")
+    return 1
 
 
 if __name__ == "__main__":
