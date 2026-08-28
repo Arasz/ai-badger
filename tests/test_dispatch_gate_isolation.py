@@ -180,3 +180,37 @@ def test_a_lane_keeping_write_is_gated_even_when_it_bans_editing(hook, monkeypat
                _dispatch(tmp_path, subagent_type="planner", tool_use_id="toolu_2"))
 
     assert "deny" in out, out
+
+
+def test_isolated_siblings_do_not_make_a_plain_dispatch_parallel(hook, monkeypatch, tmp_path):
+    """Lanes that took their own worktree are not in the shared tree, so they are not siblings.
+
+    Found in review: recording every dispatch regardless would count four isolated lanes as
+    four occupants of a tree none of them is in, and deny the one dispatch actually alone.
+    """
+    _lane(tmp_path, "test-engineer")
+    for n in (1, 2, 3):
+        _run(hook, monkeypatch,
+             _dispatch(tmp_path, tool_use_id=f"toolu_{n}", isolation="worktree"))
+
+    out = _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_4"))
+
+    assert out == "", f"a lone lane beside three isolated ones must pass, got {out!r}"
+
+
+def test_read_only_siblings_still_count_as_occupants(hook, monkeypatch, tmp_path):
+    """A read-only lane is exempt from needing isolation, but it is still in the shared tree.
+
+    Found in review: exempting before recording meant a writer arriving beside two reviewers
+    saw an empty ledger. It cannot disturb *them* by being read-only — but they can be
+    disturbed by it, which is the direction that matters.
+    """
+    _lane(tmp_path, "code-reviewer", template=READ_LANE)
+    _lane(tmp_path, "test-engineer")
+    for n in (1, 2):
+        _run(hook, monkeypatch,
+             _dispatch(tmp_path, subagent_type="code-reviewer", tool_use_id=f"toolu_{n}"))
+
+    out = _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_3"))
+
+    assert "deny" in out, f"a writer joining two reviewers in one tree must be denied, got {out!r}"

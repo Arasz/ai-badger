@@ -131,18 +131,26 @@ def is_read_only(path: Path) -> bool:
 
 def isolation_verdict(payload: Dict[str, Any], tool_input: Dict[str, Any],
                       root: Optional[str], subagent_type: str) -> Optional[str]:
-    """The deny reason when this dispatch would join a fan-out unisolated, else None."""
+    """The deny reason when this dispatch would join a fan-out unisolated, else None.
+
+    Order matters. An isolated lane gets its own worktree, so it never joins the shared tree
+    and is not recorded — four isolated lanes plus one plain dispatch is one lane in the
+    shared tree, not five. A read-only lane *does* occupy the shared tree, so it is recorded
+    before being exempted: it cannot disturb anyone itself, but a writer arriving beside it
+    can disturb it.
+    """
     isolation = tool_input.get("isolation")
     if isinstance(isolation, str) and isolation.strip():
-        return None
-
-    lane = lane_file(root, subagent_type)
-    if lane is not None and is_read_only(lane):
         return None
 
     session_id = payload.get("session_id")
     tool_use_id = payload.get("tool_use_id") or ""
     dispatch_ledger.record(session_id, tool_use_id)
+
+    lane = lane_file(root, subagent_type)
+    if lane is not None and is_read_only(lane):
+        return None
+
     lanes = dispatch_ledger.concurrent(session_id, tool_use_id) + 1
     if lanes < 2:
         return None
@@ -161,7 +169,7 @@ def _deny(reason: str) -> None:
 
 
 def decide(payload: Dict[str, Any]) -> int:
-    """Print a deny decision iff an Agent dispatch names no model and no lane covers it."""
+    """Print a deny decision iff the dispatch names no model, or joins a fan-out unisolated."""
     if not isinstance(payload, dict):
         return 0
     if (payload.get("tool_name") or payload.get("toolName")) not in DISPATCH_TOOLS:
@@ -190,7 +198,8 @@ def decide(payload: Dict[str, Any]) -> int:
         _deny(reason)
         return 0
 
-    _debug("allow", project=root, subagentType=subagent_type, why="model_and_isolation")
+    _debug("allow", project=root, subagentType=subagent_type,
+           why="explicit_model" if (isinstance(model, str) and model.strip()) else "lane_file")
     return 0
 
 
