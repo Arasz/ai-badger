@@ -7,6 +7,12 @@
         "bash": "python3 \".ai-badger/skills/task/scripts/drift_notice_hook.py\"",
         "timeoutSec": 10,
         "matcher": "startup|resume"
+      },
+      {
+        "type": "command",
+        "bash": "python3 \".ai-badger/skills/git-work/scripts/git_config_health_hook.py\"",
+        "timeoutSec": 10,
+        "matcher": "startup|resume"
       }
     ],
     "userPromptSubmitted": [

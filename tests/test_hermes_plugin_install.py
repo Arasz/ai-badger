@@ -22,6 +22,7 @@ SHARED_SKILL_FILES = (
     ("commit-reminder", "impact_estimator.py"),
     ("ai-raccoon-memory", "memory_first_gate.py"),
     ("semantica-knowledge-graph", "export_semantica_graph.py"),
+    ("git-work", "git_internals_guard.py"),
 )
 RETRIEVAL_FILES = ("tokenizer.py", "bm25.py", "mcp_matcher.py")
 
@@ -274,10 +275,16 @@ def test_plugin_init_reexports_register(tmp_path, load_script, root):
     ctx = _FakeCtx()
     init_mod.register(ctx)
     assert [name for name, _ in ctx.hooks] == [
-        "on_session_start", "pre_llm_call", "pre_tool_call", "post_tool_call"]
-    # The registered callbacks are the copied module's functions, not stubs.
-    assert ctx.hooks[3][1].__name__ == "post_tool_observer"
-    assert ctx.hooks[2][1].__name__ == "pre_tool_call_memory_gate"
+        "on_session_start", "pre_llm_call", "pre_tool_call", "pre_tool_call",
+        "post_tool_call"]
+    # The registered callbacks are the copied module's functions, not stubs. Keyed by hook
+    # name, not by position: pre_tool_call carries two arms and a third would shift indexes.
+    by_hook = {}
+    for name, callback in ctx.hooks:
+        by_hook.setdefault(name, []).append(callback.__name__)
+    assert by_hook["post_tool_call"] == ["post_tool_observer"]
+    assert by_hook["pre_tool_call"] == ["pre_tool_call_memory_gate",
+                                        "pre_tool_call_git_internals_guard"]
 
 
 def test_manifest_recorded_inside_plugin_dir(tmp_path, load_script, root):

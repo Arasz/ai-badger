@@ -22,6 +22,7 @@ The plugin self-locates the framework root with the shared `_bootstrap_lib()` sh
 in the plugin dir's own .ai-badger/manifest.json is what answers (ADR-0007 shape D).
 """
 
+# pylint: disable=too-many-lines  # registration surface: one thin callback per hook arm
 from __future__ import annotations
 
 import importlib.util
@@ -52,14 +53,18 @@ def _debug(component: str, event: str, **fields) -> None:
 
 # Sibling module names already reported broken this process — logged once, not once per call.
 _broken_siblings: set = set()
+# Sibling module names already reported missing this process — logged once, not once per call.
+_missing_siblings: set = set()
 
 
 def _load_sibling_module(module_name: str, filename: str, label: str) -> Optional[Any]:
     """Import a sibling module beside this file, lazily and cached; None when absent or broken.
 
-    Absent (no file) fails open in silence — an older scaffold legitimately lacks it. Broken
-    (raises on import) logs "<label> disabled" once per process via logger.warning and _debug,
-    then keeps returning None without re-attempting the import.
+    Absent (no file) fails open too — an older scaffold legitimately lacks it — but logs
+    "<label> missing" ONCE per process (a silently inert registered hook is this repo's
+    recurring defect; observable beats silent). Broken (raises on import) logs
+    "<label> disabled" once per process via logger.warning and _debug; both then keep
+    returning None without re-attempting the import.
     """
     cached = sys.modules.get(module_name)
     if cached is not None:
@@ -68,6 +73,11 @@ def _load_sibling_module(module_name: str, filename: str, label: str) -> Optiona
         return None
     path = Path(__file__).resolve().parent / filename
     if not path.is_file():
+        if module_name not in _missing_siblings:
+            _missing_siblings.add(module_name)
+            logger.warning("%s missing: %s was not found beside %s — the hook is inert",
+                           label, filename, Path(__file__).name)
+            _debug("ai_badger_hooks/sibling_load", "missing", module=module_name, label=label)
         return None
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
@@ -391,6 +401,20 @@ def _load_hermes_isolation():
     """The sibling module that reads delegation.worktree_isolation; None when absent."""
     return _load_sibling_module(HERMES_ISOLATION_MODULE_NAME, "hermes_isolation.py",
                                 "Hermes subagent-isolation notice")
+
+# ---------------------------------------------------------------------------
+# Git-internals guard — the rule and its Hermes name/arg map live in the sibling
+# module, the way the memory gate's build_decision("hermes", ...) does.
+# ---------------------------------------------------------------------------
+
+GIT_INTERNALS_GUARD_MODULE_NAME = "git_internals_guard"
+
+
+def pre_tool_call_git_internals_guard(**kwargs: Any) -> Optional[Dict[str, str]]:
+    """Block a Hermes call that would hand-write a git dir; None allows. Never raises."""
+    guard = _load_sibling_module(GIT_INTERNALS_GUARD_MODULE_NAME, "git_internals_guard.py",
+                                 "git internals guard")
+    return guard.hermes_decision(**kwargs) if guard is not None else None
 
 
 def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
@@ -1013,6 +1037,7 @@ def register(ctx: Any) -> None:
     ctx.register_hook("on_session_start", on_session_start_drift_notice)
     ctx.register_hook("pre_llm_call", pre_llm_inject_context)
     ctx.register_hook("pre_tool_call", pre_tool_call_memory_gate)
+    ctx.register_hook("pre_tool_call", pre_tool_call_git_internals_guard)
     ctx.register_hook("post_tool_call", post_tool_observer)
     logger.info("ai-badger hooks registered: on_session_start, pre_llm_call, "
                 "pre_tool_call, post_tool_call")

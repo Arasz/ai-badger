@@ -221,6 +221,18 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                    "hook only ever warns and Copilot's hook protocol has no channel that puts a "
                    "non-blocking note in front of the model.",
     },
+    "git-internals-guard": {
+        "copilot": "A wall, not a gap: Copilot fires preToolUse but its hook protocol has no "
+                   "block-with-reason channel, and a refusal naming `git config`/`git remote` as "
+                   "the transactional route is this guard's entire output. A silent block would "
+                   "leave the agent retrying the same hand edit with no idea why it vanished.",
+    },
+    "git-config-health": {
+        "hermes": "Acknowledged gap, not a design limit: the check is pure git (`git config "
+                  "--get` against the common dir) and agent-independent, so it would work on "
+                  "on_session_start — the Hermes dispatcher already carries drift-notice there "
+                  "and a second notice needs a channel decision that has not been made.",
+    },
 }
 
 PROVENANCE_KEYS = ("frameworkCommit", "frameworkDirty")

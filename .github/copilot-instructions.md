@@ -6,7 +6,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ sc
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.141.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
+> Scaffolded by ai-badger 0.142.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
 ## Commands
 
@@ -140,6 +140,9 @@ Each tool's own description covers the rest.
 
 - **Minimal comments** — Write a doc comment as the 1-3 line contract an editor shows on hover — what the thing is and how to use it — and never let a PR, issue or ticket reference appear anywhere in it.
   → `.ai-badger/invariants/minimal-comments.md`
+
+- **Let git write git's own storage** — Write a git dir through `git config`, `git remote` and `git branch --set-upstream-to`, each of which takes the config lock and rewrites only the key it was given.
+  → `.ai-badger/invariants/never-hand-edit-the-git-dir.md`
 
 - **Use platform security APIs** — Always use the platform's built-in security and crypto APIs.
   → `.ai-badger/invariants/no-hand-rolled-crypto.md`
