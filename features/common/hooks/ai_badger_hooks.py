@@ -22,6 +22,7 @@ The plugin self-locates the framework root with the shared `_bootstrap_lib()` sh
 in the plugin dir's own .ai-badger/manifest.json is what answers (ADR-0007 shape D).
 """
 
+# pylint: disable=too-many-lines  # registration surface: one thin callback per hook arm
 from __future__ import annotations
 
 import importlib.util
@@ -391,6 +392,20 @@ def _load_hermes_isolation():
     """The sibling module that reads delegation.worktree_isolation; None when absent."""
     return _load_sibling_module(HERMES_ISOLATION_MODULE_NAME, "hermes_isolation.py",
                                 "Hermes subagent-isolation notice")
+
+# ---------------------------------------------------------------------------
+# Git-internals guard — the rule and its Hermes name/arg map live in the sibling
+# module, the way the memory gate's build_decision("hermes", ...) does.
+# ---------------------------------------------------------------------------
+
+GIT_INTERNALS_GUARD_MODULE_NAME = "git_internals_guard"
+
+
+def pre_tool_call_git_internals_guard(**kwargs: Any) -> Optional[Dict[str, str]]:
+    """Block a Hermes call that would hand-write a git dir; None allows. Never raises."""
+    guard = _load_sibling_module(GIT_INTERNALS_GUARD_MODULE_NAME, "git_internals_guard.py",
+                                 "git internals guard")
+    return guard.hermes_decision(**kwargs) if guard is not None else None
 
 
 def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
@@ -1013,6 +1028,7 @@ def register(ctx: Any) -> None:
     ctx.register_hook("on_session_start", on_session_start_drift_notice)
     ctx.register_hook("pre_llm_call", pre_llm_inject_context)
     ctx.register_hook("pre_tool_call", pre_tool_call_memory_gate)
+    ctx.register_hook("pre_tool_call", pre_tool_call_git_internals_guard)
     ctx.register_hook("post_tool_call", post_tool_observer)
     logger.info("ai-badger hooks registered: on_session_start, pre_llm_call, "
                 "pre_tool_call, post_tool_call")

@@ -290,6 +290,56 @@ def bash_violation(tool_name: str, tool_input: Dict[str, Any],
     return find_violation(command, cwd)
 
 
+# --------------------------------------------------------------------------------------------
+# Hermes: the same rule, reached under Hermes' own tool names.
+# --------------------------------------------------------------------------------------------
+
+# Hermes tool -> the argument naming a path it would write, per the tool schemas in
+# hermes-agent/tools/file_tools.py. `terminal` needs no row: its name is already in
+# BASH_TOOLS and its argument is already `command`.
+HERMES_PATH_ARGS = {"write_file": "path", "patch": "path"}
+# Hermes tool -> an argument whose string hides the write, with no argv path anywhere: a
+# Python program (`execute_code`) or a V4A patch body naming its files (`patch`, mode=patch).
+HERMES_CODE_ARGS = {"execute_code": "code", "patch": "patch"}
+HERMES_WORKDIR_ARG = "workdir"
+
+
+def hermes_violation(tool_name: str, tool_input: Dict[str, Any],
+                     cwd: Optional[str]) -> Optional[str]:
+    """Why this Hermes call hand-writes a git dir, or None. Translates names, not the rule."""
+    reason = bash_violation(tool_name, tool_input, cwd)
+    if reason is not None:
+        return reason
+    path = tool_input.get(HERMES_PATH_ARGS.get(tool_name, ""))
+    if isinstance(path, str) and path.strip() and is_protected(path, cwd):
+        return f"{tool_name} targets {path}"
+    code = tool_input.get(HERMES_CODE_ARGS.get(tool_name, ""))
+    if isinstance(code, str) and code.strip():
+        target = code_target([code], cwd)
+        if target is not None:
+            return f"a `{tool_name}` payload writes {target}"
+    return None
+
+
+def hermes_decision(tool_name: str = "", args: Optional[Dict[str, Any]] = None,
+                    **_kwargs: Any) -> Optional[Dict[str, str]]:
+    """A Hermes pre_tool_call block decision, or None to allow. Fails open on everything."""
+    try:
+        if os.environ.get(OVERRIDE_ENV, "").strip():
+            return None
+        tool_input = args if isinstance(args, dict) else {}
+        workdir = tool_input.get(HERMES_WORKDIR_ARG)
+        detail = hermes_violation(
+            str(tool_name or ""), tool_input,
+            workdir if isinstance(workdir, str) and workdir.strip() else None)
+        if detail is None:
+            return None
+        return {"action": "block",
+                "message": DENY_REASON.format(detail=detail, override=OVERRIDE_ENV)}
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
+
+
 def decide(payload: Dict[str, Any]) -> int:
     """Print a deny decision iff the call would hand-write a git dir. Always returns 0."""
     if not isinstance(payload, dict):

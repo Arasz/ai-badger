@@ -297,6 +297,11 @@
           "entry": "hooks.json",
           "event": "PreToolUse",
           "script": "git_internals_guard.py"
+        },
+        "hermes": {
+          "type": "plugin",
+          "entry": "ai_badger_hooks.py",
+          "method": "pre_tool_call_git_internals_guard"
         }
       }
     },
