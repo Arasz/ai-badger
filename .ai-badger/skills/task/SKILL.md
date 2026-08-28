@@ -54,73 +54,53 @@ review implementation (MoE) → apply fixes → QA: test quality & coverage → 
 gates → close task → reflect → merge
 
 Integration step: always required in the high-effort variant. Every plan's last package
-is the integration package that ensures all packages are correctly integrated with
-cross-package test coverage.
+is the integration package.
 
 ### Step definitions
 
-**prepare** — First step after effort selection. Create an isolated worktree from a fresh
-`main`, push the branch to origin, and create a draft PR. See Phase 1.
+**prepare** — Create isolated worktree from fresh `main`, push branch, create draft PR.
 
-**analyze** — Analyze the task content. Derive a `taskId` using the formula below (see
-*Task-ID derivation*). Extract scope, constraints, success criteria. See Phase 1.
+**analyze** — Derive `taskId` (`{repo-alias}-{key}`). Extract scope, constraints, criteria.
 
-**plan** — Create a detailed plan. Split the work into **packages** (units of work, each
-delivering a mergable piece) and **subpackages** (partial units of work). Every package
-contains its test scenarios. The **last package is always the integration package** — it
-ensures all packages are correctly integrated and includes cross-package integration
-tests. Each package has its own acceptance criteria; the plan's top-level acceptance
-criterion is: *all packages' ACs are checked and met*. See Phase 2.
+**plan** — Split work into **packages** (mergable units) and **subpackages**. Last package is the
+**integration package** with cross-package tests. Every package has ACs; plan AC: all checked+met.
 
-**plan review (MoE)** — In the high-effort variant, delegation is to a mixture-of-experts
-panel (default 3 experts) matching the task's subject area. At least one different expert
-is used for plan review vs. plan authoring. See Phase 2 step 2.
+**plan review (MoE)** — High-effort: MoE panel (3 experts, subject-matched). At least one expert
+different from plan authoring.
 
-**implementation** — The code phase. How it is executed depends on the coordinator agent
-and persona routing. TDD is mandatory. See Phase 3.
+**implementation** — Code phase per persona routing. TDD mandatory.
 
-**review implementation** — Code review. In the low-effort variant, a single subagent. In
-the high-effort variant, an MoE panel (default 3 experts, at least one different from the
-plan MoE). See Phase 4.
+**review implementation** — Low-effort: single subagent. High-effort: MoE panel (3 experts, at
+least one different from plan MoE).
 
-**QA: test quality & coverage** — High-effort only. Dedicated quality assessment of test
-coverage and test honesty (can the tests actually fail?). See Phase 4.
+**QA: test quality & coverage** — High-effort only. Assess test honesty and coverage gaps.
 
-**apply fixes** — Fold review findings back into the code. Trivial fixes directly; larger
-fixes via a subagent. Re-run build/test. See Phase 4.
+**apply fixes** — Fold review findings into code. Trivial directly, larger via subagent. Re-run
+build/test.
 
-**pr** — Prepare the PR for review, ensure CI runs. See Phase 3 and Phase 5.
+**pr** — Prepare PR for review, ensure CI runs.
 
-**gates** — Run the configured quality gates. Default: local full test suite. Check CI
-state before running. Gate implementation is per-repo (from `config.json`'s
-`commands.build/test/lint`). See Phase 4.
+**gates** — Per-repo gates from `config.json` (`commands.build/test/lint`). Default: local full
+suite. Check CI state before running.
 
-**close task** — Close tracking, remove worktree (if clean), update state files. See
-Phase 5.
+**close task** — Close tracking, remove clean worktree, update state files.
 
-**reflect** — After closing, examine what was learned. Check AiRaccoon memory for the
-current workspace, query semantica entries if available, and review the session history.
-Distil: what should be remembered? What durable facts belong in memory? Anything worth
-promoting to shared context? This step continuously gathers improved knowledge across
-tasks.
+**reflect** — Check memory, semantica, session history. Distil durable facts. Promote to shared
+context.
 
-**merge** — Final merge of the PR. See Phase 5.
+**merge** — Final PR merge.
 
 ### Task-ID derivation
 
-`taskId` is **derived during the analyze step**, not provided by the user. Formula:
+`taskId` is **derived during the analyze step**. Formula:
 
     {repo-alias}-{key}
 
-- **repo-alias:** A short constant for the repository. Examples: `jsaa` (job-search-ai-assistant),
-  `aib` (ai-badger), `air` (ai-raccoon), `ahp` (arasz-home-page). There is no pre-defined list;
-  the alias is whatever was first used for this repo and is then constant thereafter.
-  To determine the alias: check `config.json`'s `sourceControl.repoAlias` if set, or check
-  memory for a previously recorded alias for this repo, or derive from the repo name.
-- **key:** 5 words that convey the task's purpose. An approximation — used for identification,
-  not precise description. Hyphenated lowercase slug.
+- **repo-alias:** Constant per repo. Examples: `jsaa`, `aib`, `air`, `ahp`. Determined by checking
+  `config.json`'s `sourceControl.repoAlias`, memory, or deriving from repo name.
+- **key:** 5 words conveying purpose. Hyphenated lowercase slug.
 
-Example: `aib-default-loop` for adding the default loop to the ai-badger task skill.
+Example: `aib-default-loop`.
 
 ## Config contract (read first)
 
@@ -134,59 +114,31 @@ From `.ai-badger/config.json`:
 
 ## Model & delegation policy
 
-Spend high-reasoning capacity on plans, decomposition, and review — not on typing
-implementations. The orchestrating session obtains that reasoning by explicit delegation, not by
-assuming its own model.
+Spend high-reasoning capacity on plans and reviews, not implementations. Obtain reasoning via
+delegation, not by assuming your own model.
 
-- **Delegate to a high-reasoning agent** (planning/decomposition in Phase 2; the final
-  correctness + architecture gate in Phase 4). Prefix such calls' description to keep the model
-  visible at a glance.
-- **Delegate to implementation agents** matched to the work, using the personas from
-  `config.json`'s `personaRouting`. TDD is mandatory for code.
-- The ten prompting rules (one-turn specification, consolidated restart, grounded feedback,
-  schema-last output, positive constraints) govern every brief you write.
-- **Delegate trivial mechanical work** (doc/comment updates, rote refactors, test backfills) to a
-  cheap model.
-- **The orchestrating session does directly:** fetch the task, read docs, record token usage, the
-  lightweight per-subagent completion check, run the configured build/test, and tiny surgical
-  fixes found during the quality gate.
+- **Delegate to a high-reasoning agent** for planning (Phase 2) and the quality gate (Phase 4).
+- **Delegate to implementation agents** per `config.json`'s `personaRouting`. TDD mandatory.
+- **Delegate trivial mechanical work** (doc updates, rote refactors, test backfills) to a cheap model.
+- **The orchestrating session does directly:** fetch the task, read docs, record token usage,
+  per-subagent completion checks, build/test, and tiny surgical fixes.
+- The ten prompting rules govern every brief. Read `references/prompting-rules.md`.
 
-Read `references/prompting-rules.md` before composing any subagent brief — it carries each
-rule's rationale plus the full agent-isolation contract.
+Roles, not models. Which concrete model fills each is bound by the agent-specific extension.
 
-These are roles, not models. Which concrete model fills each role — and why the subscription's
-metering makes that the cheap choice rather than merely the fast one — is bound by the
-agent-specific extension for your coding agent (`extensions/claude/` for Claude).
+Subagent prompts must be self-contained: scope, ACs, files, TDD rules, report-back shape. Parallelise
+independent subagents. **Split work so it *can* run in parallel** — name shared-file sections
+(serialise) vs disjoint ones (parallel).
 
-Subagent prompts must be self-contained: scope, acceptance criteria, files/docs to read, the
-project's TDD + code-style rules (point them at CLAUDE.md), and what to report back. Run
-independent subagents in parallel.
+**Isolate every agent, at every depth: its own worktree and its own workspace id.** Disjoint files
+are not isolation — shared build output means a green run proves nothing. Two levels max.
 
-**Split work so it *can* run in parallel.** A large item that one agent works through in sequence
-is usually several items that could have run at once. Do the split while planning, and name which
-sections share a file — those serialise, the rest do not.
+**Write the brief so the lane can improve on it.** Before dispatching an end-to-end lane, read
+`references/lane-dispatch-brief.md`.
 
-**Isolate every agent, at every depth: its own worktree and its own workspace id** in shared
-stores. Disjoint files are not isolation — shared build output means no green run proves anything
-about its own change. Two dispatch levels maximum. Follow `worktree-agent-isolation` when
-running parallel lanes; it owns the worked cases and the failure modes.
+**Reach for what exists.** A code graph, MCP server, or existing skill beats writing from scratch.
 
-**Write the brief so the lane can improve on it.** Before dispatching an agent that owns a
-unit of work end to end, read `references/lane-dispatch-brief.md` — it carries the prompt
-shape, and the reason each part of it is there.
-
-**Reach for whatever tool makes the work smaller.** A code graph, an MCP server, an existing
-skill, a script the repo already has — check what is installed before writing something that
-already exists. This is not permission to add tooling mid-task; it is a reminder that the
-expensive path is often the one nobody checked for a shortcut.
-
-**How a finished task is judged.** Judge by **model mix** — the share of output from mid/cheap
-tiers — not cache efficiency. See `extensions/claude/extension.md` for numbers.
-
-**If you cannot spawn subagents** (you are running as a subagent yourself, or the Agent tool is
-unavailable), do the work directly in-session at whatever model is available — the workflow's
-tracking and finish protocol still apply, but note in your summary that planning/review ran at
-reduced rigor since high-reasoning delegation wasn't possible.
+**If you cannot spawn subagents**, work directly in-session. Note reduced rigor in your summary.
 
 ## Phase 0 — Context hygiene
 
@@ -201,17 +153,12 @@ Entry: previous task finished or parked; clean-enough context.
 Exit: effort level chosen, tracker STARTED, worktree exists, five preflight blocks present,
 research record gathered, taskId derived.
 
-1. **Determine effort level.** Apply the Default Loop rule: ask the user if this is low-effort
-   or high-effort. Default to low-effort unless the task is complex, risky, or multi-package.
-   (Skip ask if autonomous; assume low-effort.)
-2. **Analyze the task.** Resolve the task (an issue URL, or freeform text used as scope/title;
-   cross-check the project board via the source-control extension if active). Read the
-   referenced docs.
+1. **Determine effort level.** Ask user low or high. Default low. (Skip if autonomous.)
+2. **Analyze the task.** Resolve the task (issue URL or freeform scope/title). Read referenced docs.
 
-   **Derive the taskId** per the Task-ID derivation formula. Determine the repo alias
-   (check `config.json`'s `sourceControl.repoAlias`, or memory, or derive from repo name).
-   Compose the key from 5 words conveying purpose. Validate the result is unique vs. existing
-   tracking entries.
+   **Derive the taskId** per the derivation formula. Determine repo alias
+   (check `config.json`'s `sourceControl.repoAlias`, memory, or derive from repo name).
+   Compose the key from 5 words conveying purpose. Validate uniqueness vs existing entries.
 
    **If the argument is a path to a `spec.json` written by `create-task-spec`,** read it and its
    companion `.feature` file instead of treating the path as a title: the manifest supplies the
@@ -227,15 +174,13 @@ research record gathered, taskId derived.
    `.ai-badger/worktrees/<taskId>` on the branch you passed to `--branch`. Every command for
    the rest of the task runs there, not in the main checkout.
 
-   This step used to read "create/switch to the task branch", and `start` recorded the branch name
-   without creating anything. A recorded name that nothing creates is worse than no field: `status`
-   reports the branch, so the tracker looks like it is managing something it never touched. On
-   2026-08-01 that put two commits on `main` in one session. Pass `--no-worktree` if you genuinely
-   want the old behaviour; the branch is still recorded either way.
+   This step used to read "create/switch to the task branch". `start` records the branch name
+   without creating anything — on 2026-08-01 that put two commits on `main`. `--no-worktree`
+   reverts to the old behaviour.
 
-   A worktree is also what makes concurrent sessions safe. Sessions share one checkout, so a second
-   agent switching branches mid-run changes the files under the first one — measured the same day:
-   a push failed because the tree moved to `main` while its tests were running.
+   A worktree is also what makes concurrent sessions safe. Sessions sharing one checkout let
+   a second agent switch branches mid-run — the same day: a push failed because the tree moved
+   to `main` while its tests ran.
 5. **Research before you plan, and plan the review first** (`evidence-first-research`
    formalises the method for non-trivial tasks; dispatch it rather than re-describing it).
    Write down what has to be checked to answer the task — every point in the request, and
@@ -325,19 +270,17 @@ test quality reviewed (high-effort variant).
 
 ### Review every join, not just every part
 
-Each time separate work is combined — the review findings into a plan, several plan sections into
-one change, several subagents' branches into one PR — check that the combination still works.
-Parts that each passed alone routinely fail together: two branches pick the same version, one
-renames what another calls, a guard passes on each half and fails on the whole.
+Each time work is combined — review findings into a plan, sections into one change, branches
+into one PR — check the combination. Parts that pass alone fail together: two branches pick
+the same version, one renames what another calls, a guard passes on each half and fails whole.
 
-Run the checks against the combined result, not against the pieces you already ran them on.
+Run checks against the combined result, not the pieces.
 
-**Then stop checking.** Execute what the plan says rather than re-reading it for reassurance; a
-third pass over your own reasoning finds much less than the first and costs the same. Re-verify
-after an integration when there is a reason to — something changed underneath, a claim is load
-bearing, a check has never actually been seen to fail. **Facts are the exception**: anything
-taken from documentation, an earlier run, or someone else's research gets re-checked against its
-source every time, because that is what goes stale while your reasoning stays put.
+**Then stop checking.** Execute the plan rather than re-reading it. A third pass over your own
+reasoning finds less than the first and costs the same. Re-verify after integration only when
+something changed, a claim is load-bearing, or a check has never been seen to fail. **Facts
+are the exception**: anything from docs, an earlier run, or another's research gets re-checked
+every time — that is what goes stale while your reasoning stays put.
 
 ### The slow suites
 
@@ -390,23 +333,18 @@ project's docs against the merged code, fix small drift, and report gaps needing
   branch that does not exist (2026-08-01: two commits landed on `main`).
 - **`finish` refuses and keeps the worktree when it holds work that exists nowhere else.** Read the
   `worktree.keptBecause` field; a kept worktree is unmerged or uncommitted work, not failed cleanup.
-- **Never rewrite always-loaded context files (`CLAUDE.md`, `.ai-badger/state.json`) mid-task.**
-  Subagent cache reads depend on a byte-stable prefix (~10× cost); rewrite only between tasks.
+- **Never rewrite always-loaded context files (`CLAUDE.md`, `.ai-badger/state.json`) mid-task.** Cache
+  reads depend on byte-stable prefix (~10× cost); rewrite only between tasks.
 - **Two levels of dispatch, no deeper.** A widening agent tree starves the machine.
-- **"Isolated" means per agent, at every depth: its own worktree and its own workspace id.**
-  Disjoint files still share build output; arm per-directory approval for each new path.
+- **Isolated = per-agent worktree + per-agent workspace id.** Shared build output defeats isolation.
 
 ## Recovery
 
-`task_tracker.py` records each task's session id and resume command. Pass `--cron` to `start` to
-also install a resume cron that watches for stalled sessions — it is opt-in, since it writes to
-your crontab. If you wake in a resumed session mid-task, run
-`python3 .ai-badger/skills/task/scripts/task_tracker.py reattach <taskId>` first, then continue.
+`task_tracker.py` records the task's session id and resume command. Pass `--cron` to `start` to
+install a resume cron. After resume, run `task_tracker.py reattach <taskId>` first, then continue.
 
-> **Extensions:** source-control PR/issue/review-loop behavior and agent-specific model lanes
-> are defined in `extensions/<name>/` and are embedded by `welcome-ai-badger` only when
-> `config.json` supplies the required data. The base skill above stays platform-, stack- and
-> model-neutral.
+> **Extensions:** source-control PR/review/issue behavior and model lane definitions
+> in `extensions/<name>/`, embedded by `welcome-ai-badger` when `config.json` supplies data.
 
 ## Verification Checklist
 
