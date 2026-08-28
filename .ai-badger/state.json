@@ -1,7 +1,15 @@
 {
-  "lastUpdated": "2026-08-28T21:15:00.000000+00:00",
+  "lastUpdated": "2026-08-28T20:46:29.986321+00:00",
   "next": "Open from the pi work: (1) add 'pi' arms to hooks-manifest.json only if the runtime-adapter pattern proves insufficient (research F23/plan Phase 5 — deliberately deferred, forces 4 hand-maintained lists + 16 arms); (2) gate/pi_trust_gate.py — automate the F20 run A/B pair (scripts/test_pi_hook_fires.py written, not CI-wired); (3) live-test pi install of our fork extension (pi install git:github.com/Arasz/pi-mcp-tools) against pi 0.84.3; (4) does pi 'input' fire for mid-turn queued messages (needs provider credentials)?; (5) carried from semantica: features/common/mcp/code-review-graph/meta.json unreachable-prerequisite-path defect.",
   "completedTasks": [
+    {
+      "taskId": "pr446-ci-red-fixes",
+      "title": "Fix CI red on PR #446: gutted manifest restored + docs/work map rows",
+      "version": null,
+      "pr": "https://github.com/Arasz/ai-badger/pull/447",
+      "outcome": "PR #446's tests job failed 6/4600: the four red-is-required tests of tests/test_scaffold_freshness_guard.py plus its provocation registry row ('expected exit 1, got 0') and the docs/work README map test. Root cause was data, not code: merge e365ba32 resolved the .ai-badger/manifest.json conflict by gutting it (skills 46->18, adjustments 95->45, .claude/.github skills namespace links deleted, junk rows like common/skills.json recorded as skills). Because the freshness guard's re-scaffold runs with --skills '' and reuses the committed manifest's skill list, welcome-ai-badger fell out of delivery and the guard had almost nothing to compare — so it PASSed known-bad trees. Fix: git checkout 3acb66f8 -- .ai-badger/manifest.json (last pre-merge manifest), self-scaffold with AI_BADGER_MCP_AVAILABILITY=all (guard: 1882 paths, PASS; known-bad provocations fail it again), plus six docs/work/README.md rows. Verified: full suite 4600 passed/17 skipped locally, PR #447 CI green including the previously red job, mergeable CLEAN. Stacked on task/aib-pi-review-fixes so merging lands the fix on the PR-446 branch. COORDINATION: the aib-pi-review-fixes worktree's three unpushed commits (52a4bcee plan rev3, f0ddd82c RED pi tests, d0361f49 is already an ancestor) sit on the CI-red head cf239ae4 — rebase that lane onto task/pr446-ci-red-fixes before pushing or the gutted manifest re-lands. Traps hit: gh pr create --body with a backtick heredoc executes command substitutions inside the body (use --body-file); gh run watch on a fresh PR grabs the fast Labeler run, not the tests run.",
+      "session": "hermes-cli 2026-08-28 (separate fix lane off the PR head; task aib-pi-review-fixes owned by a concurrent agent)"
+    },
     {
       "taskId": "aib-incident-guard-review-fixes",
       "title": "git-dir guard review fixes F1-F9 — backups allowed, bypasses closed, fail-open made honest",
