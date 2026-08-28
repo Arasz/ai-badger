@@ -154,10 +154,19 @@ class TestHermesHasNoDispatchEnforcement:
         are exactly goal, context and output_schema. Isolation is real but session-wide —
         `delegation.worktree_isolation`, default false — so the only honest lever is telling
         the user it is off.
-        """
-        source = (root / HERMES_PLUGIN).read_text(encoding="utf-8")
 
-        assert "worktree_isolation" in source, (
-            "the hermes plugin says nothing about delegation.worktree_isolation, so a user "
-            "whose subagents all share one checkout is never told")
-        assert "def subagents_share_one_tree" in source
+        Checks the sibling module and the load, not the plugin's own source: the check was
+        extracted to `hermes_isolation.py` when it pushed ai_badger_hooks past pylint's
+        1000-line ceiling.
+        """
+        module = root / "features/common/hooks/hermes_isolation.py"
+        assert module.is_file(), "the isolation check module is gone"
+        assert "def subagents_share_one_tree" in module.read_text(encoding="utf-8")
+
+        # And the plugin must actually load it — a sibling nothing imports is dead code,
+        # because _load_sibling_module fails open and would never say so.
+        source = (root / HERMES_PLUGIN).read_text(encoding="utf-8")
+        assert "hermes_isolation.py" in source, (
+            "the hermes plugin never loads the isolation module, so a user whose subagents "
+            "all share one checkout is never told")
+        assert "subagents_share_one_tree()" in source

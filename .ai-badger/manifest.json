@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.140.0",
-  "frameworkCommit": "227354bf584eb35b8fa12ffbd9066eac8a9d73a4",
+  "frameworkCommit": "4a64ad42bc0282e688dc8abc807814cd43e7939d",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
