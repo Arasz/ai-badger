@@ -15,6 +15,8 @@ import pytest
 from conftest import _test_write
 
 CATALOG_DIR = "features/common/mcp/semantica"
+# gensim 4.4.0 publishes no cp314 wheel; 3.13 is the ceiling that still has one.
+PIN = "--python 3.13"
 ROOT = Path(__file__).resolve().parent.parent
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -185,6 +187,69 @@ def test_semantica_command_is_not_the_daemonising_cli_subcommand():
     assert "mcp start" not in sem.get("command", "")
 
 
+def test_prerequisite_commands_are_runnable_in_a_consumer_project():
+    """No prerequisite command may point inside the ai-badger tree.
+
+    note_declared_prerequisites interpolates these strings into a note shown in the
+    consumer's own project, but MCP catalog directories are never copied there — the
+    scaffold reads them in place from the framework checkout. A consumer following
+    `python3 features/common/mcp/semantica/scripts/install.py` gets "No such file or
+    directory".
+    """
+    meta = json.loads(_catalog_file("meta.json").read_text(encoding="utf-8"))
+    prereq = meta["prerequisite"]
+    commands = [prereq.get("check"), prereq.get("install")]
+    for scope in ("local", "global"):
+        commands += [prereq[scope].get(k) for k in ("check", "install", "command")]
+    for cmd in [c for c in commands if c]:
+        assert "features/common/mcp/" not in cmd, (
+            f"prerequisite command reaches into the framework tree: {cmd!r}"
+        )
+
+
+def test_semantica_install_commands_pin_the_interpreter():
+    """Every documented install command pins an interpreter with gensim wheels.
+
+    semantica depends on gensim 4.4.0, which publishes macOS arm64 wheels only for
+    cp39-cp313. An unpinned `uv tool install semantica` resolves to uv's default
+    interpreter (3.14 as of 2026-08), falls back to building gensim from source, and
+    fails: `ma_version_tag` was removed from PyDictObject in CPython 3.14. uv then
+    tears the tool env down and leaves the ~/.local/bin symlinks dangling, which
+    surfaces as an ENOENT on a path that still appears to exist. Measured in
+    docs/work/2026-08-28-semantica-support-research.md (F1).
+    """
+    meta = json.loads(_catalog_file("meta.json").read_text(encoding="utf-8"))
+    prereq = meta["prerequisite"]
+    for key in ("install", "uv", "command"):
+        assert PIN in prereq["global"][key], (
+            f"prerequisite.global.{key} must pin the interpreter: {prereq['global'][key]!r}"
+        )
+    assert PIN in prereq["local"]["uv"], (
+        f"prerequisite.local.uv must pin the interpreter: {prereq['local']['uv']!r}"
+    )
+
+
+def test_semantica_declares_the_progress_kill_switch():
+    """The semantica MCP entry disables the progress bar that corrupts stdio.
+
+    semantica's RDF export writes a progress bar to stdout, which is the MCP
+    JSON-RPC transport. Measured: an export_graph(format=json-ld) call over a live
+    stdio session returns NOTHING — the frame is destroyed, not merely errored —
+    while the same call with SEMANTICA_DISABLE_PROGRESS=1 returns a clean error
+    response. Stdout bytes for that export: 183 without the var, 0 with it. See
+    docs/work/2026-08-28-semantica-support-research.md (F4, A1).
+
+    The plumbing that carries `env` to every destination is already proven by
+    tests/test_stack_mcp_servers.py::test_env_reaches_every_destination; this test
+    locks only the declaration.
+    """
+    stack = json.loads(
+        (ROOT / "features/common/stack-mcp.json").read_text(encoding="utf-8")
+    )
+    sem = next(s for s in stack["servers"] if s["name"] == "semantica")
+    assert sem.get("env", {}).get("SEMANTICA_DISABLE_PROGRESS") == "1"
+
+
 # ── validate.py integration ─────────────────────────────────────────────────
 
 def test_semantica_catalog_validation_remains_green():
@@ -226,6 +291,15 @@ class TestCatalogChecksCanFail:
         }
         names = [t["name"] for t in tools["tools"]]
         assert len(names) != len(set(names))
+
+    def test_an_unpinned_install_command_can_fail(self):
+        """The pin assertion detects a command that omits the interpreter."""
+        assert PIN not in "uv tool install semantica"
+
+    def test_a_missing_progress_switch_can_fail(self):
+        """The env assertion detects an entry that omits the kill switch."""
+        entry = {"name": "semantica", "command": "semantica-mcp", "declare": True}
+        assert entry.get("env", {}).get("SEMANTICA_DISABLE_PROGRESS") != "1"
 
     def test_bad_tag_can_fail(self):
         """A tag outside the closed vocabulary is detected."""

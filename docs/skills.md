@@ -495,6 +495,9 @@ produces archival snapshots only. Durable facts go to AiRaccoon (`memory_write`)
 workflows: decision recording (record rationale + link to affected components), entity
 extraction from documents (needs torch/transformers for full NLP), decision archaeology
 (query past decisions and trace causal ancestry), and graph export for audit trails.
+On semantica 0.6.6 the export half is inert: `export_graph` errors in every format
+upstream, so `.semantica/` stays empty until that is fixed. The other three workflows
+are unaffected.
 
 **When to use it.** Reasoning over structured project knowledge — a decision was made and
 its rationale should be traceable, entities need extracting from a document, or a causal

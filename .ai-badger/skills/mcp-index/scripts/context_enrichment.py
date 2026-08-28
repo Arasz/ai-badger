@@ -34,9 +34,8 @@ MAX_HINT_CHARS = 300
 MAX_TOP_CANDIDATES_CHARS = 200
 
 NUDGE_LINE = (
-    "[ai-badger] Semantica is configured: record key decisions via record_decision and "
-    "call export_graph(format=json) before finishing — dumps auto-save to .semantica/ "
-    "and are indexed."
+    "[ai-badger] Semantica is configured: record key decisions via record_decision — "
+    "they stay queryable this session via query_decisions and find_precedents."
 )
 
 SEMANTICA_NUDGE_DIR = Path.home() / ".ai-badger" / "semantica-nudge"

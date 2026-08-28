@@ -37,6 +37,9 @@
     },
     "semantica": {
       "command": "semantica-mcp",
+      "env": {
+        "SEMANTICA_DISABLE_PROGRESS": "1"
+      },
       "tools": [
         "*"
       ]

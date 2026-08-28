@@ -153,20 +153,80 @@ def test_semantica_install_script_creates_venv_and_installs(tmp_path, load_scrip
         assert ret == 0
 
 
-def test_wrapper_fallback_saves_export_when_native_broken(tmp_path, load_script):
-    """When the native probe returns an error, export_graph_works tries the wrapper."""
+def test_the_venv_is_built_with_the_interpreter_that_was_chosen(tmp_path, load_script):
+    """ensure_venv must build with py_exe, not with whatever is running.
+
+    It printed py_exe and then called venv.EnvBuilder(), which uses the running
+    interpreter — so any interpreter selection upstream was decorative. On a machine
+    whose default python is 3.14 that silently produces a venv where semantica's
+    gensim dependency has no wheel and its source build fails.
+    """
+    install = load_script("features/common/mcp/semantica/scripts/install.py")
+    recorded = []
+
+    def fake_run(cmd, **kwargs):
+        recorded.append(cmd)
+        (tmp_path / ".venv" / "bin").mkdir(parents=True, exist_ok=True)
+        (tmp_path / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    with patch.object(install.subprocess, "run", side_effect=fake_run):
+        install.ensure_venv(tmp_path, "/fake/python3.13")
+
+    flat = [part for cmd in recorded for part in cmd]
+    assert "/fake/python3.13" in flat, (
+        f"ensure_venv never invoked the chosen interpreter; recorded: {recorded}"
+    )
+
+
+def test_a_gensim_build_failure_names_its_cause(tmp_path, load_script, capsys):
+    """A pip failure carrying the gensim source-build signature explains itself.
+
+    Deliberately a diagnostic, not a version gate: hardcoding an upper bound would
+    have to agree with gensim's wheel matrix and nothing compares them, so it would
+    block a working interpreter the day a cp314 wheel ships.
+    """
+    install = load_script("features/common/mcp/semantica/scripts/install.py")
+    stderr = (
+        "gensim/models/word2vec_inner.c:1686:65: error: no member named "
+        "'ma_version_tag' in 'struct PyDictObject'\n"
+    )
+    assert "gensim" in install.explain_install_failure(stderr).lower()
+    assert "wheel" in install.explain_install_failure(stderr).lower()
+    assert install.explain_install_failure("some unrelated pip error") == ""
+
+
+# ── check.py: no fallback may rescue a broken native probe ──────────────────
+
+def test_no_fallback_rescues_a_broken_native_probe(tmp_path, load_script):
+    """A working wrapper must not make check.py report a broken export as healthy.
+
+    The wrapper patches export_graph in-process, but nothing launches it: the MCP
+    entry runs the `semantica-mcp` console script. So a fallback that consults the
+    wrapper reports a capability the running server does not have, and the warning
+    that should reach the user is suppressed.
+
+    Red-state note: this test builds a real bin layout so
+    _interpreter_for_executable resolves (otherwise export_graph_works short-circuits
+    to True and proves nothing), and discriminates on the wrapper snippet so the
+    native probe fails while the wrapper probe succeeds.
+    """
     check = load_script("features/common/mcp/semantica/scripts/check.py")
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    exe = bindir / "semantica"
+    exe.write_text("", encoding="utf-8")
+    (bindir / "python").write_text("", encoding="utf-8")
 
-    broken = {"error": "JSONExporter.export() missing file_path"}
-    fixed = {"format": "json", "data": '{"nodes": []}'}
+    broken = '{"error": "JSONExporter.export() missing 1 required positional argument"}'
+    healthy = '{"format": "json", "data": "{}"}'
 
-    with patch.object(check, "_probe_export_graph", return_value=broken), \
-         patch.object(check, "_wrapper_script_path", return_value=Path("/nonexistent")), \
-         patch.object(check, "_probe_wrapper_in_interpreter", return_value=fixed):
-        # Wrapper exists and works → export_graph_works should return True
-        assert check.export_graph_works(exe="/fake/semantica") is True
+    def fake_run(cmd, **kwargs):
+        snippet = cmd[-1] if len(cmd) > 2 else ""
+        payload = healthy if "semantica_mcp_wrapper" in snippet else broken
+        return types.SimpleNamespace(returncode=0, stdout=payload + "\n", stderr="")
 
-    with patch.object(check, "_probe_export_graph", return_value=broken), \
-         patch.object(check, "_wrapper_script_path", return_value=None):
-        # No wrapper → export_graph_works should return False
-        assert check.export_graph_works() is False
+    with patch.object(check.subprocess, "run", side_effect=fake_run):
+        assert check.export_graph_works(exe=str(exe)) is False, (
+            "a wrapper the launch path never uses must not rescue the probe"
+        )

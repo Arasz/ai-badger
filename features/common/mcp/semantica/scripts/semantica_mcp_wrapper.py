@@ -5,6 +5,18 @@ Upstream 0.6.5-0.6.6: _tool_export_graph calls JSONExporter().export(graph)
 without file_path, but export() requires it.  This wrapper monkeypatches the
 json branch to convert the graph to a dict and write to a tempfile.
 
+Measured on 0.6.6, 2026-08-28: the RDF branch below does NOT work either --
+export_to_rdf raises "'ContextGraph' object has no attribute 'get'" for turtle
+and json-ld alike, and writes a progress bar to stdout. Only the json branch
+this wrapper patches is known to work. See
+docs/work/2026-08-28-semantica-support-research.md (F3, F5).
+
+This file is NOT on any launch path: features/common/stack-mcp.json declares the
+`semantica-mcp` console script, and MCP catalog directories are never copied into
+a scaffolded project. It is kept as a hand-runnable workaround, and check.py
+deliberately does not consult it -- a fallback here would report a capability the
+running server does not have.
+
 Launch: python semantica_mcp_wrapper.py  (or via Hermes MCP config)
 """
 from __future__ import annotations

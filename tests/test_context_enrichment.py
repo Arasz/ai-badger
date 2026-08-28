@@ -205,4 +205,40 @@ class TestSemanticaNudgeHelpers:
 
     def test_nudge_line_matches_contract(self, ce):
         assert "[ai-badger] Semantica is configured:" in ce.NUDGE_LINE
-        assert "call export_graph(format=json) before finishing" in ce.NUDGE_LINE
+        assert "record_decision" in ce.NUDGE_LINE
+
+    def test_the_nudge_does_not_instruct_a_call_that_always_fails(self, ce):
+        """export_graph errors in every format on semantica 0.6.6.
+
+        This line is injected on every prompt of every session, so instructing the
+        call means instructing a guaranteed failure. Measured in
+        docs/work/2026-08-28-semantica-support-research.md (F3, F6).
+        """
+        assert "export_graph" not in ce.NUDGE_LINE
+
+    def test_every_nudge_definition_agrees(self):
+        """All NUDGE_LINE definitions under features/ carry identical text.
+
+        Derived, not hardcoded to a known pair: the copies exist because the files
+        are delivered to different destinations and cannot import one another, so
+        the list is discovered by scanning rather than maintained by hand.
+        """
+        import ast
+        from pathlib import Path as _Path
+        root = _Path(__file__).resolve().parent.parent
+        found = {}
+        for path in (root / "features").rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Assign):
+                    continue
+                names = [t.id for t in node.targets if isinstance(t, ast.Name)]
+                if "NUDGE_LINE" not in names:
+                    continue
+                value = ast.literal_eval(node.value)
+                found[str(path.relative_to(root))] = value
+        assert len(found) >= 2, f"expected several definitions, found {list(found)}"
+        assert len(set(found.values())) == 1, (
+            "NUDGE_LINE definitions have drifted:\n"
+            + "\n".join(f"  {k}: {v!r}" for k, v in found.items())
+        )

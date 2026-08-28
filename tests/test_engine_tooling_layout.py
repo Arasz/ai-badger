@@ -11,7 +11,7 @@ from conftest import _test_write
 
 ENGINE_MODULES = ("badger_lib.py", "frontmatter.py", "framework_copies.py",
                   "unsafe_literals.py")
-TOOLING_SCRIPTS = ("changelog_index.py", "convert_mcp_prerequisites.py", "fixture_harvest.py", "index_build.py",
+TOOLING_SCRIPTS = ("changelog_index.py", "fixture_harvest.py", "index_build.py",
                    "install_plugins.py", "retrieval_eval.py", "sync_plugin_skills.py",
                    "validate.py", "version_sync.py")
 
@@ -56,6 +56,23 @@ def test_every_tooling_script_resolves_the_engine_from_its_new_home(root, name):
     combined = proc.stdout + proc.stderr
     assert proc.returncode == 0, f"{name}: exit {proc.returncode}\n{combined}"
     assert "Traceback" not in combined and "ImportError" not in combined, f"{name}: {combined}"
+
+
+@pytest.mark.parametrize("name", TOOLING_SCRIPTS)
+def test_no_tooling_script_mutates_the_repo_when_asked_for_help(root, name, tmp_path):
+    """`--help` must not be a write. The suite runs every tooling script against the
+    real checkout, so a script that acts on any invocation edits the tree under the
+    tests — and reverts whatever a maintainer just changed, silently, because its
+    hardcoded copy of the data still looks like the committed one.
+    """
+    scratch = tmp_path / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(root), str(scratch)],
+                   check=True, capture_output=True)
+    subprocess.run([sys.executable, str(scratch / "tooling" / name), "--help"],
+                   cwd=str(scratch), capture_output=True, text=True, check=False)
+    dirty = subprocess.run(["git", "status", "--porcelain"], cwd=str(scratch),
+                           capture_output=True, text=True, check=True).stdout.strip()
+    assert not dirty, f"{name} --help modified the working tree:\n{dirty}"
 
 
 def test_the_root_predicate_anchors_on_the_engine(root, load_script, tmp_path):
