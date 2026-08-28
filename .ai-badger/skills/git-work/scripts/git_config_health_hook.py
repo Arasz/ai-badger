@@ -80,6 +80,14 @@ def _current_branch(cwd: str) -> Optional[str]:
     return _run_git(["symbolic-ref", "--short", "-q", "HEAD"], cwd)
 
 
+def _remote_branch_exists(repo_dir: str, branch: str) -> bool:
+    """True when refs/remotes/origin/<branch> exists -- the same probe the repair playbook's
+    multi-branch loop uses. A branch with no remote counterpart has never been pushed, and
+    its missing branch.<name>.merge is the normal state, not lost plumbing."""
+    return _run_git(["rev-parse", "--verify", "-q", f"refs/remotes/origin/{branch}"],
+                    repo_dir) is not None
+
+
 def config_health_notice(cwd: str) -> Optional[str]:
     """One combined warning for a lost `remote.origin.fetch` and/or `branch.<name>.merge`, or
     None when the repo is healthy, has no remote at all, or *cwd* is not a git repo."""
@@ -98,7 +106,12 @@ def config_health_notice(cwd: str) -> Optional[str]:
         )
 
     branch = _current_branch(cwd)  # cwd, not repo_dir: HEAD is per-worktree, unlike config
-    if branch and not _config_get(repo_dir, f"branch.{branch}.merge"):
+    if branch and not _config_get(repo_dir, f"branch.{branch}.merge") \
+            and _remote_branch_exists(repo_dir, branch):
+        # Warn only when origin/<branch> exists: on an unpushed branch (`git switch -c`,
+        # `git worktree add -b`) the missing tracking section is normal repo state, and the
+        # old prescription failed anyway -- `--set-upstream-to=origin/<branch>` exits 128
+        # when the remote branch does not exist.
         findings.append(
             f"branch.{branch}.merge is unset: `git pull` has no upstream. Repair: "
             f"git branch --set-upstream-to=origin/{branch}"

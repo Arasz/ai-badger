@@ -165,13 +165,29 @@ def test_allowed_calls_return_none(hooks, guard, repo, tool_name, args):
 # H4 — the fail-open contract: missing module, exception, human override
 # ---------------------------------------------------------------------------
 
-def test_a_missing_guard_module_allows(hooks, repo, monkeypatch):
-    """No `guard` fixture here: an older scaffold has no sibling to load, and must not stall."""
-    monkeypatch.delitem(sys.modules, hooks.GIT_INTERNALS_GUARD_MODULE_NAME, raising=False)
-    monkeypatch.setattr(hooks, "_load_sibling_module", lambda *a, **k: None)
+def test_a_missing_guard_module_allows_and_is_observable(hooks, repo, monkeypatch, caplog):
+    """F2 — an older scaffold has no sibling to load: allow, never stall, but log ONCE.
+    Silent-when-missing made a registered guard inert with no diagnostic anywhere."""
+    import logging
 
-    assert call(hooks, "write_file",
-                {"path": str(repo / ".git" / "config"), "content": ""}) is None
+    monkeypatch.delitem(sys.modules, hooks.GIT_INTERNALS_GUARD_MODULE_NAME, raising=False)
+
+    with caplog.at_level(logging.WARNING, logger="ai_badger_hooks"):
+        assert call(hooks, "write_file",
+                    {"path": str(repo / ".git" / "config"), "content": ""}) is None
+
+    missing_logs = [r for r in caplog.records
+                    if "git_internals_guard" in r.getMessage()
+                    and "missing" in r.getMessage().lower()]
+    assert missing_logs, "a missing guard module went unlogged"
+
+    # once per process, not once per call
+    with caplog.at_level(logging.WARNING, logger="ai_badger_hooks"):
+        assert call(hooks, "write_file",
+                    {"path": str(repo / ".git" / "config"), "content": ""}) is None
+    assert len([r for r in caplog.records
+                if "git_internals_guard" in r.getMessage()
+                and "missing" in r.getMessage().lower()]) == 1
 
 
 def test_a_raising_guard_allows(hooks, guard, repo, monkeypatch):
@@ -199,6 +215,28 @@ def test_a_non_dict_args_payload_allows(hooks, guard, repo):
     """Hermes normalises args to a dict, but a malformed payload must not raise here."""
     assert call(hooks, "write_file", None) is None
     assert call(hooks, "write_file", "not-a-dict") is None
+
+
+def test_an_oversized_execute_code_payload_fails_open_like_a_shell_command(
+    hooks, guard, repo,
+):
+    """F3b — find_violation caps its input at MAX_COMMAND (B19): the lexer is superlinear and
+    Hermes fails CLOSED on a pre_tool_call timeout, so an oversized payload must fail open the
+    same way, not be scanned anyway. The write instruction sits past the cap: a guard that
+    scans it (the pre-fix behaviour) blocks; one that honours the bound allows."""
+    code = ("x" * (guard.MAX_COMMAND + 1)) + " open('.git/config', 'w')"
+
+    assert call(hooks, "execute_code", {"code": code}) is None
+
+
+def test_an_execute_code_payload_just_under_the_cap_is_still_scanned(hooks, guard, repo):
+    """The companion: the bound is a cap, not an amnesty — under it, a write to a git dir is
+    still refused, so the cap cannot be grown to swallow real payloads."""
+    code = "x" * (guard.MAX_COMMAND - 100) + " open('.git/config', 'w').write('')"
+
+    decision = call(hooks, "execute_code", {"code": code})
+
+    assert blocked(decision), decision
 
 
 # ---------------------------------------------------------------------------
@@ -263,11 +301,34 @@ def test_the_arm_allows_when_the_guard_was_never_staged(plugin_dir, repo):
         args={"path": str(repo / ".git" / "config"), "content": ""}) is None
 
 
-def test_the_installer_copies_the_guard_into_the_plugin_dir(load_script):
-    """Derive-or-delete: the arm is dead unless the sibling ships with the plugin."""
-    adjust_hooks = load_script("features/hermes/adjustments/adjust_hooks.py")
+def test_the_installer_copies_the_guard_into_the_plugin_dir(load_script, root, tmp_path):
+    """F9b — the arm is dead unless the sibling actually ships: run the installer against a
+    tmp_path plugin dir and assert the file lands, not just that the mapping names it."""
+    import shutil
 
+    adjust_hooks = load_script("features/hermes/adjustments/adjust_hooks.py")
     assert ("git-work", "git_internals_guard.py") in adjust_hooks.SHARED_SKILL_MODULES
+
+    staged = tmp_path / "plugin"
+    staged.mkdir()
+    shutil.copy2(root / "features/common/hooks/ai_badger_hooks.py",
+                 staged / "ai_badger_hooks.py")
+    project = tmp_path / "proj"
+    (project / ".ai-badger").mkdir(parents=True)
+    context = {
+        "framework_root": root,
+        "config": {"agents": ["hermes"]},
+        "feature_dir": root / "features" / "hermes" / "adjustments",
+        "target_dir": project / ".ai-badger",
+        "target": project,
+        "skills": [],
+        "index": {},
+        "install": False,  # keep the test hermetic: no writes to the real ~/.hermes
+    }
+    adjust_hooks.adjust(context)
+
+    assert (project / ".ai-badger" / "hooks" / "git_internals_guard.py").is_file(), (
+        "the installer did not copy the guard beside the hook it arms")
 
 
 # ---------------------------------------------------------------------------

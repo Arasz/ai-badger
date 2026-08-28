@@ -48,5 +48,5 @@ Skips any local branch with no matching remote branch instead of failing on it.
 Opening `.git/config` in a text editor to restore the missing lines is what caused this in the
 first place — a mistyped or partial save drops everything the edit didn't touch. `git config
 --edit` is the same trap: it opens the identical raw file in your editor, not a safe interface to
-it. Use `git config`, `git remote`, and `git branch --set-upstream-to` above — each writes
+it, and the git-internals guard refuses it alongside the rest. Use `git config`, `git remote`, and `git branch --set-upstream-to` above — each writes
 through git's own lock file and touches only the key it's given.

@@ -289,9 +289,7 @@ def test_b2_a_heredoc_rewrite_is_refused(guard, repo, capsys):
     "mv x .git/config",                               # B8
     "dd if=/dev/null of=.git/config",
     "ln -sf /tmp/x .git/config",
-    "touch .git/config",
-    "chmod 000 .git/config",
-    "chown me .git/config",
+    "sed --in-place 's/a/b/' .git/config",   # B3, long form (F7a)
     "install -m 644 /tmp/x .git/config",
 ])
 def test_b3_to_b8_a_mutating_program_with_a_git_dir_path_is_refused(guard, repo, command, capsys):
@@ -339,6 +337,7 @@ def test_b11_git_remote_set_url_is_allowed(guard, repo, capsys):
 
 @pytest.mark.parametrize("command", [
     "git config --file .git/config --list",   # B12
+    "git config --list",                       # B12 (F8 companion: config without --edit)
     "cat .git/config",                        # B13
     "grep url .git/config",                   # B14
     "git show HEAD:.git/config",
@@ -400,10 +399,63 @@ def test_b19_an_oversized_command_makes_no_decision(guard, repo, capsys):
              "an oversized command must fail open rather than burn the hook timeout")
 
 
-def test_b20_lefthook_install_is_allowed(guard, repo, capsys):
-    """B20 — the one in-repo writer of `.git/hooks`, and it is not a hand edit."""
-    _allowed(guard, _bash("lefthook install", cwd=repo), capsys,
-             "`install` is a subcommand here, not the install(1) program")
+@pytest.mark.parametrize("command", [
+    "cp .git/config /tmp/backup",
+    "cp -r .git /tmp/gitbackup",
+    "ln -s .git/hooks/x /tmp/y",
+    "chmod -R 700 .git",
+    "touch .git/config",
+    "python3 -c \"print(open('.git/HEAD').read())\"",
+], ids=["cp-source", "cp-recursive", "ln-symlink", "chmod", "touch", "python-read"])
+def test_b23_backups_permission_changes_and_pure_reads_are_allowed(guard, repo, command, capsys):
+    """B23 (F4) — the guard refuses writes, not the backup a human takes first.
+
+    `cp`/`mv`/`ln`/`install` name their WRITE in the last non-flag argument, so their earlier
+    path arguments are sources to be read. `chmod`/`chown`/`touch` cannot lose the config's
+    contents and each refused an ordinary command, so they are not mutators at all. A
+    `python3 -c` one-liner is only a write when its code string also carries a write-indicator
+    token — `open(...,'w')`, `write`, `unlink`, ... — so a pure read passes.
+    """
+    _allowed(guard, _bash(command, cwd=repo), capsys, f"{command} was refused")
+
+
+@pytest.mark.parametrize("command", [
+    "sudo -n rm .git/config",
+    "env -u FOO rm .git/config",
+    "command -p rm .git/config",
+], ids=["sudo-flag", "env-u", "command-p"])
+def test_b24_flags_on_a_skippable_wrapper_do_not_hide_the_program(guard, repo, command, capsys):
+    """B24 (F5) — a flag on `sudo`/`env`/`command` is the wrapper's own argument, so the
+    first non-flag token after it is still the program. Stopping the skip at the flag made
+    `sudo -n rm .git/config` a one-character bypass of B6."""
+    _deny_reason(guard, _bash(command, cwd=repo), capsys)
+
+
+def test_b25_a_cd_inside_a_subshell_does_not_outlive_it(guard, repo, capsys):
+    """B25 (F7b) — `(cd .git) ; rm config` runs `rm config` in the repo root; the subshell's
+    `cd` ended with the subshell. Restoring the cursor when `)` closes is exact for
+    well-formed commands, and an unmatched `)` is ignored."""
+    _allowed(guard, _bash("(cd .git) ; rm config", cwd=repo), capsys,
+             "the subshell's cd must not move the rest of the line")
+
+
+def test_b26_a_deep_ref_inside_a_bare_repo_is_still_protected(guard, bare, capsys):
+    """B26 (F6) — rule 3 walks up from dirname(path); a deep ref layout inside a bare repo
+    must still land on the git dir inside the ancestor bound. Pins MAX_ANCESTORS from
+    silently regressing below the counted shape (9 ancestors here)."""
+    assert guard.MAX_ANCESTORS >= 9, "the ancestor bound no longer covers this ref layout"
+    deep = bare / "refs/remotes/origin/a/b/c/d/e/ref"
+
+    _deny_reason(guard, _edit(deep), capsys)
+
+
+def test_b27_git_config_edit_opens_the_raw_file_and_is_refused(guard, repo, capsys):
+    """B27 (F8) — the docs single out `git config --edit` as the same raw-file trap; the
+    guard now agrees instead of allowing every `git ...` unconditionally."""
+    reason = _deny_reason(guard, _bash("git config --edit", cwd=repo), capsys)
+    assert "git config --edit" in reason
+
+    _deny_reason(guard, _bash("git config -e", cwd=repo), capsys)
 
 
 def test_b21_a_non_bash_tool_carrying_a_command_makes_no_decision(guard, repo, capsys):

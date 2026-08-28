@@ -1,9 +1,10 @@
 """Sibling-module loading in ai_badger_hooks.py (`_load_memory_first_gate` and friends).
 
-A missing sibling (an older scaffold) must fail open in silence. A broken one (syntax error,
-or a module that raises at import time) must be loud instead: the memory-first gate's failure
-must say "gate disabled" (the acceptance criterion), and every loader must report a broken
-module exactly once per process rather than re-logging on every call.
+A missing sibling (an older scaffold) must fail open — allow, never stall — but say ONCE that
+it did (F2: a silently inert registered hook is this repo's recurring defect). A broken one
+(syntax error, or a module that raises at import time) must be loud: the memory-first gate's
+failure must say "gate disabled" (the acceptance criterion), and every loader must report a
+broken module exactly once per process rather than re-logging on every call.
 """
 from __future__ import annotations
 
@@ -94,14 +95,20 @@ def test_a_sibling_that_raises_at_import_time_is_also_caught(hooks_module, tmp_p
     assert any("gate disabled" in record.message for record in caplog.records)
 
 
-# ------------------------------------------------------------------------- absent: silent
-def test_an_absent_sibling_logs_nothing(hooks_module, caplog):
+# ------------------------------------------------------------------ absent: fail open, once
+
+def test_an_absent_sibling_fails_open_and_logs_once(hooks_module, caplog):
+    """F2 - no sibling file means no gate (an older scaffold), but the absence is observable."""
     caplog.set_level(logging.DEBUG, logger="ai_badger_hooks")
 
     result = hooks_module._load_memory_first_gate()
 
     assert result is None
-    assert caplog.records == []
+    missing = [r for r in caplog.records if "missing" in r.getMessage().lower()]
+    assert missing, "an absent sibling went unlogged"
+    # once per process, not once per call
+    hooks_module._load_memory_first_gate()
+    assert len([r for r in caplog.records if "missing" in r.getMessage().lower()]) == 1
 
 
 # ------------------------------------------------------------------------- healthy: loads

@@ -13,7 +13,10 @@ process's environment. The harness spawns the hook; an agent's inline `VAR=1 <cm
 the variable in the tool's own process, which is a different process that this one never sees.
 Only a human exporting it in the session's environment can disarm the gate.
 
-Fails open everywhere: a PreToolUse hook that dies blocks the tool it gates.
+Fails open on the Claude arm — an exception or a dead hook never blocks the tool. On the
+Hermes arm this module also fails open per call, but Hermes itself fails CLOSED on a
+pre_tool_call timeout, so a slow scan (an oversized payload) would block the tool: the
+MAX_COMMAND bound on every Hermes path exists for that reason, not only for lexer cost.
 """
 from __future__ import annotations
 
@@ -31,7 +34,9 @@ OVERRIDE_ENV = "AI_BADGER_ALLOW_GIT_DIR_EDITS"
 # A git dir is recognisable by what git puts in it, whatever it is called.
 GIT_DIR_MARKERS = ("HEAD", "objects", "refs")
 # The structural probe stats the filesystem, so the walk is bounded rather than unbounded.
-MAX_ANCESTORS = 8
+# The bound is also a correctness floor: a bare repo's `refs/remotes/origin/a/b/c/d/e/ref` sits
+# 9 directories above the git dir (test_b26 pins this), so lowering it opens a silent blind spot.
+MAX_ANCESTORS = 12
 
 # The lexer below duplicates blast_radius_kill_guard.py's idioms on purpose: the scaffold copies
 # each skill directory independently, so a shared import would not survive delivery.
@@ -47,16 +52,31 @@ MAX_DEPTH = 3
 # Programs that write a file named in their arguments, mapped to the flags that make them do so
 # (an empty tuple: always). Completeness is an explicit non-goal — an unlisted command is
 # allowed, so add rows as incidents teach us new ones.
+# `chmod`/`chown`/`touch` are deliberately absent: none can lose the config's contents, and each
+# refused an ordinary command (`chmod -R 700 .git`) for no protective gain.
 MUTATORS: Dict[str, Tuple[str, ...]] = {
-    "tee": (), "truncate": (), "dd": (), "cp": (), "mv": (), "rm": (), "ln": (),
-    "install": (), "touch": (), "chmod": (), "chown": (),
-    "sed": ("-i",), "perl": ("-i",),
+    "tee": (), "truncate": (), "dd": (), "rm": (),
+    "cp": (), "mv": (), "ln": (), "install": (),
+    "sed": ("-i", "--in-place"), "perl": ("-i",),
 }
+# Programs whose write lands in the LAST non-flag argument; every earlier path is a source to be
+# read. Scanning their sources refused `cp .git/config /tmp/backup` — the backup a human takes
+# before a repair — and called the source a write target in the message.
+DEST_ONLY = frozenset(("cp", "mv", "ln", "install"))
 # Interpreters whose write hides inside a code string, where no argv path ever appears.
 INTERPRETERS = frozenset(("python", "python3", "perl", "ruby", "node", "awk"))
 CODE_FLAG_LETTERS = frozenset("ce")
 # Path-shaped words inside a code string. Deliberately narrow: it must not match whole sentences.
 CODE_WORD = re.compile(r"[\w.~/+-]+")
+# A code string is only a write when it also carries one of these. Without it the scanner refused
+# `python3 -c "print(open('.git/HEAD').read())"` — a read — and called it a write.
+CODE_WRITE_HINT = re.compile(
+    r"""["'][waxr]\+?["']|\bw\+?["']|>>?|\b(?:write\w*|truncate|unlink|remove|rename|
+        replace|rmtree|mkdir|makedirs|dump|copyfile|copy2?|move|chmod|symlink|link|touch|
+        create|save|flush|print\s*\(\s*[^)]*,\s*file\s*=)\b|\*\*\*\s*
+        (?:Update|Add|Delete|Move)\s+File""",
+    re.VERBOSE,
+)
 
 DENY_REASON = (
     "Git internals guard: {detail}. That is git's own storage, and a hand write there loses "
@@ -135,7 +155,8 @@ def tokenize(text: str) -> List[str]:
 
 
 def scan(tokens: List[str]) -> List[Tuple[str, Any]]:
-    """One line as ordered events: ("write", redirect target) and ("run", segment tokens).
+    """One line as ordered events: ("write", redirect target), ("group", "(" or ")") and
+    ("run", segment tokens).
 
     Ordered rather than grouped because a `cd` earlier in the line moves where a later
     relative write lands.
@@ -149,6 +170,15 @@ def scan(tokens: List[str]) -> List[Tuple[str, Any]]:
             if index + 1 < len(tokens):
                 events.append(("write", tokens[index + 1]))
             index += 2
+            continue
+        if token in ("(", ")"):
+            # A subshell boundary, not a segment separator: find_violation saves and
+            # restores the cd cursor across it.
+            if current:
+                events.append(("run", current))
+                current = []
+            events.append(("group", token))
+            index += 1
             continue
         if token in CONTROL:
             if current:
@@ -164,11 +194,25 @@ def scan(tokens: List[str]) -> List[Tuple[str, Any]]:
 
 
 def split_command(tokens: List[str]) -> Optional[Tuple[str, List[str]]]:
-    """(program, args) for a segment, past env assignments, `sudo`-likes and any path prefix."""
-    for index, token in enumerate(tokens):
-        if ENV_ASSIGN.match(token) or token in SKIPPABLE:
+    """(program, args) for a segment, past env assignments, `sudo`-likes and any path prefix.
+
+    While inside a skippable prefix, the wrapper's own flags (`sudo -n`, `command -p`) are
+    consumed too: returning one as the program made `sudo -n rm .git/config` a bypass.
+    `env -u NAME` and `env NAME=v` each take a following word, which is consumed with them.
+    """
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if ENV_ASSIGN.match(token):
+            index += 1
             continue
-        return token.rsplit("/", 1)[-1], tokens[index + 1:]
+        if token not in SKIPPABLE:
+            return token.rsplit("/", 1)[-1], tokens[index + 1:]
+        index += 1
+        if token == "env" and index < len(tokens) and tokens[index] == "-u":
+            index += 2  # `env -u NAME` takes a following word
+        while index < len(tokens) and tokens[index].startswith("-"):
+            index += 1  # the wrapper's own flags (`sudo -n`, `command -p`) are not the program
     return None
 
 
@@ -191,9 +235,21 @@ def mutator_target(program: str, args: List[str], cwd: Optional[str]) -> Optiona
     flags = MUTATORS.get(program)
     if flags is None:
         return None
-    if flags and not any(arg.startswith(flag) for arg in args for flag in flags):
+    # Long forms count: `--in-place` must match like `-i`, else `sed --in-place ...` is
+    # allowed while `sed -i ...` denies. `-i.bak` (attached suffix) matches the same way.
+    if flags and not any(arg == flag or arg.startswith(flag)
+                         for arg in args for flag in flags):
         return None
-    for arg in args:
+    arguments = args
+    if program in DEST_ONLY:
+        # The write lands in the LAST non-flag argument; every earlier path is a source to
+        # be read. Scanning sources refused `cp .git/config /tmp/backup` and called the
+        # source a write target in the message.
+        tail = [arg for arg in args if not arg.startswith("-")]
+        if not tail:
+            return None
+        arguments = [tail[-1]]
+    for arg in arguments:
         candidate = arg.split("=", 1)[1] if ENV_ASSIGN.match(arg) else arg  # dd's `of=<path>`
         if is_protected(candidate, cwd):
             return candidate
@@ -201,7 +257,15 @@ def mutator_target(program: str, args: List[str], cwd: Optional[str]) -> Optiona
 
 
 def code_target(args: List[str], cwd: Optional[str]) -> Optional[str]:
-    """The protected path an interpreter one-liner names, or None."""
+    """The protected path an interpreter one-liner WRITES, or None.
+
+    A code string counts as a write only when it also carries a CODE_WRITE_HINT token, so a
+    pure read (`print(open('.git/HEAD').read())`) is allowed and the deny message never calls
+    a read a write.
+    """
+    joined = " ".join(args)
+    if not CODE_WRITE_HINT.search(joined):
+        return None
     for arg in args:
         for word in CODE_WORD.findall(arg):
             if is_protected(word, cwd):
@@ -225,6 +289,11 @@ def segment_violation(tokens: List[str], cwd: Optional[str], depth: int) -> Opti
         return None
     program, args = split
     if program == "git":
+        if args and args[0] == "config" and any(a in ("--edit", "-e") for a in args[1:]):
+            # `git config --edit` opens the raw config file in an editor -- the same
+            # whole-file rewrite the invariant and the repair playbook both name as a trap.
+            # Every other git invocation stays allowed: git's own writes are the repair route.
+            return "git config --edit opens the raw config file in an editor"
         return None  # git's own writes are atomic and intentional; they are the repair route
     if program in SHELLS and depth > 0:
         index = dash_c_index(args)
@@ -249,10 +318,18 @@ def find_violation(command: str, cwd: Optional[str] = None,
         return None
     for line in command.splitlines():
         cursor = cwd
+        subshell: List[Optional[str]] = []  # saved cursors for open `( ` groups
         for kind, value in scan(tokenize(line)):
             if kind == "write":
                 if is_protected(value, cursor):
                     return f"a shell redirect would overwrite {value}"
+                continue
+            if kind == "group" and value == "(":
+                subshell.append(cursor)
+                continue
+            if kind == "group" and value == ")":
+                # A subshell's `cd` ends with the subshell: restore the cursor saved at `(`.
+                cursor = subshell.pop() if subshell else cursor
                 continue
             moved = chdir_target(value, cursor)
             if moved is not None:
@@ -314,7 +391,9 @@ def hermes_violation(tool_name: str, tool_input: Dict[str, Any],
     if isinstance(path, str) and path.strip() and is_protected(path, cwd):
         return f"{tool_name} targets {path}"
     code = tool_input.get(HERMES_CODE_ARGS.get(tool_name, ""))
-    if isinstance(code, str) and code.strip():
+    if isinstance(code, str) and code.strip() and len(code) <= MAX_COMMAND:
+        # Hermes fails CLOSED on a pre_tool_call timeout; the lexer is superlinear, so the
+        # payload gets the same bound find_violation applies to shell commands.
         target = code_target([code], cwd)
         if target is not None:
             return f"a `{tool_name}` payload writes {target}"

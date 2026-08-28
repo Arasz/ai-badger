@@ -92,11 +92,47 @@ def test_h2_silent_when_origin_and_fetch_refspec_and_upstream_are_healthy(tmp_pa
     assert notice is None
 
 
+# --- H3a (F1/F9a): origin present, refspec healthy, branch never pushed -> SILENT ---
+# A branch created by `git switch -c` / `git worktree add -b` that has not been pushed has no
+# branch.<name>.merge and no refs/remotes/origin/<branch>: that is the NORMAL state of every
+# unpushed branch on a healthy repo, not lost plumbing.
+
+def test_h3a_silent_for_an_unpushed_branch_on_a_healthy_repo(tmp_path, hook):
+    repo = _init_repo(tmp_path)
+    _add_origin(repo)  # fetch refspec healthy
+    _set_upstream(repo, "main")
+    _git(repo, "switch", "-qc", "feature")
+
+    notice = hook.config_health_notice(str(repo))
+
+    assert notice is None, (
+        "an unpushed branch is normal repo state, not lost tracking plumbing")
+
+
+# --- H3b (F1): a LOST tracking section -- the remote branch exists, branch.merge unset -- still warns ---
+
+def test_h3b_warns_when_the_upstream_exists_but_the_tracking_section_is_lost(tmp_path, hook):
+    """The truncated-config incident's branch-side shape: the branch WAS pushed (origin/main
+    exists), then branch.main.merge was lost. origin/main is faked with update-ref because
+    the point under test is the lost section, not the push."""
+    repo = _init_repo(tmp_path)
+    _add_origin(repo)
+    _set_upstream(repo, "main")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")  # origin/main exists
+    _git(repo, "config", "--unset", "branch.main.merge")  # the loss under test
+
+    notice = hook.config_health_notice(str(repo))
+
+    assert notice is not None
+    assert "branch.main.merge" in notice
+
+
 # --- H3: origin present, branch.<cur>.merge absent -> warning ---
 
 def test_h3_warns_with_repair_command_when_branch_merge_is_unset(tmp_path, hook):
     repo = _init_repo(tmp_path)
     _add_origin(repo)  # fetch refspec stays healthy so this test isolates B2
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")  # branch was pushed
 
     notice = hook.config_health_notice(str(repo))
 
@@ -111,6 +147,7 @@ def test_h3_and_h1_can_both_fire_as_one_notice(tmp_path, hook):
     repo = _init_repo(tmp_path)
     _add_origin(repo)
     _unset_fetch_refspec(repo)
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")  # branch was pushed
     # branch.main.merge is left unset too -- both symptoms present
 
     notice = hook.config_health_notice(str(repo))
@@ -181,6 +218,7 @@ def test_h7_correct_verdict_inside_a_linked_worktree(tmp_path, hook):
     _unset_fetch_refspec(main_repo)  # B1 broken -- shared, visible from any worktree
     worktree = tmp_path / "wt"
     _git(main_repo, "worktree", "add", "-q", str(worktree), "-b", "feature")
+    _git(main_repo, "update-ref", "refs/remotes/origin/feature", "HEAD")  # branch was pushed
     # branch.feature.merge is left unset -- B2 broken too, and must name "feature", not "main"
 
     notice = hook.config_health_notice(str(worktree))
@@ -220,6 +258,7 @@ def test_main_uses_payload_cwd_not_claude_project_dir_inside_a_worktree_session(
     _set_upstream(main_repo, "main")  # main's own branch is healthy
     worktree = tmp_path / "wt"
     _git(main_repo, "worktree", "add", "-q", str(worktree), "-b", "feature")
+    _git(main_repo, "update-ref", "refs/remotes/origin/feature", "HEAD")  # branch was pushed
     # branch.feature.merge left unset -- the worktree's branch is the broken one
 
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(main_repo))

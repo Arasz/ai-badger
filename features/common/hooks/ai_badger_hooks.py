@@ -53,14 +53,18 @@ def _debug(component: str, event: str, **fields) -> None:
 
 # Sibling module names already reported broken this process — logged once, not once per call.
 _broken_siblings: set = set()
+# Sibling module names already reported missing this process — logged once, not once per call.
+_missing_siblings: set = set()
 
 
 def _load_sibling_module(module_name: str, filename: str, label: str) -> Optional[Any]:
     """Import a sibling module beside this file, lazily and cached; None when absent or broken.
 
-    Absent (no file) fails open in silence — an older scaffold legitimately lacks it. Broken
-    (raises on import) logs "<label> disabled" once per process via logger.warning and _debug,
-    then keeps returning None without re-attempting the import.
+    Absent (no file) fails open too — an older scaffold legitimately lacks it — but logs
+    "<label> missing" ONCE per process (a silently inert registered hook is this repo's
+    recurring defect; observable beats silent). Broken (raises on import) logs
+    "<label> disabled" once per process via logger.warning and _debug; both then keep
+    returning None without re-attempting the import.
     """
     cached = sys.modules.get(module_name)
     if cached is not None:
@@ -69,6 +73,11 @@ def _load_sibling_module(module_name: str, filename: str, label: str) -> Optiona
         return None
     path = Path(__file__).resolve().parent / filename
     if not path.is_file():
+        if module_name not in _missing_siblings:
+            _missing_siblings.add(module_name)
+            logger.warning("%s missing: %s was not found beside %s — the hook is inert",
+                           label, filename, Path(__file__).name)
+            _debug("ai_badger_hooks/sibling_load", "missing", module=module_name, label=label)
         return None
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
