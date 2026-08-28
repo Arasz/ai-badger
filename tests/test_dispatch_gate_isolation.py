@@ -144,11 +144,22 @@ def test_a_missing_model_still_denies_for_model(hook, monkeypatch, tmp_path):
 
 
 def test_a_broken_ledger_does_not_block(hook, monkeypatch, tmp_path):
-    """An unreadable ledger reports no siblings, so the dispatch proceeds."""
-    _lane(tmp_path, "test-engineer")
-    hook.dispatch_ledger.LEDGER_DIR = tmp_path / "missing" / "deeper"
+    """A ledger that cannot be read reports no siblings, so a dispatch beside one proceeds.
 
-    assert _run(hook, monkeypatch, _dispatch(tmp_path)) == ""
+    The first version of this test pointed LEDGER_DIR at a missing directory and called it
+    unreadable — but `record` creates the directory, and the single dispatch was allowed on
+    `lanes == 1` regardless. Deleting its setup line left it green: it was
+    `test_a_lone_write_dispatch_is_allowed` in a different hat. Now the sibling is real and
+    the ledger is genuinely unreadable (its path is a directory), so the assertion turns on
+    fail-open and nothing else.
+    """
+    _lane(tmp_path, "test-engineer")
+    _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_1"))
+    ledger_file = hook.dispatch_ledger.ledger_path("sess_1")
+    ledger_file.unlink()
+    ledger_file.mkdir()
+
+    assert _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_2")) == ""
 
 
 def test_a_lane_disallowing_only_non_write_tools_is_still_gated(hook, monkeypatch, tmp_path):
@@ -214,3 +225,83 @@ def test_read_only_siblings_still_count_as_occupants(hook, monkeypatch, tmp_path
     out = _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_3"))
 
     assert "deny" in out, f"a writer joining two reviewers in one tree must be denied, got {out!r}"
+
+
+def test_only_dispatches_that_proceed_enter_the_ledger(hook, monkeypatch, tmp_path):
+    """A denied dispatch never becomes a lane, so it must not occupy the ledger.
+
+    Blocker found in review. `record` ran before the verdict, so every denial added a
+    phantom occupant that nothing ever removed — and the count only grows inside the window.
+    Reproduced end to end: allow, deny, then two *lone* dispatches both denied, told "3
+    lanes" and "4 lanes" when one lane existed. That is exactly the noise the
+    parallelism-only ruling was chosen to avoid.
+    """
+    _lane(tmp_path, "test-engineer")
+    _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_1"))
+    _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_2"))
+    _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_3"))
+
+    entries = hook.dispatch_ledger.ledger_path("sess_1").read_text(
+        encoding="utf-8").strip().splitlines()
+    assert len(entries) == 1, f"only the allowed dispatch belongs in the ledger, got {entries}"
+
+
+def test_a_denial_does_not_inflate_the_reported_lane_count(hook, monkeypatch, tmp_path):
+    """The deny text states a number, so the number has to be true.
+
+    With denials recorded, the second refusal claimed one more lane than the first even
+    though no lane had started in between.
+    """
+    _lane(tmp_path, "test-engineer")
+    _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_1"))
+    first = _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_2"))
+
+    second = _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_3"))
+
+    assert "2 agent lanes" in first, first
+    assert "2 agent lanes" in second, second
+
+
+def test_a_subagent_type_with_no_lane_file_is_not_gated(hook, monkeypatch, tmp_path):
+    """Built-in and plugin agents own no lane file, so the gate cannot prove they write.
+
+    Found in review: every one of them was classified write-capable, so a parallel `Explore`
+    fan-out — the most idiomatic parallel dispatch in this harness — was denied and told to
+    take a git worktree per read-only search. Erring quiet here is deliberate: the gate fires
+    where it can prove the lane writes, and a missed `general-purpose` fan-out is a smaller
+    cost than denying correct work, which is what gets a gate switched off.
+    """
+    _lane(tmp_path, "test-engineer")
+    for n in (1, 2, 3):
+        out = _run(hook, monkeypatch,
+                   _dispatch(tmp_path, subagent_type="Explore", tool_use_id=f"toolu_{n}"))
+        assert out == "", f"Explore dispatch {n} was denied: {out!r}"
+
+
+def test_an_unknown_lane_still_counts_as_an_occupant_for_a_writer(hook, monkeypatch,
+                                                                  tmp_path):
+    """Not gating an unknown type is not the same as pretending it is not in the tree."""
+    _lane(tmp_path, "test-engineer")
+    for n in (1, 2):
+        _run(hook, monkeypatch,
+             _dispatch(tmp_path, subagent_type="Explore", tool_use_id=f"toolu_{n}"))
+
+    out = _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_3"))
+
+    assert "deny" in out, f"a writer joining two Explore lanes must be denied, got {out!r}"
+
+
+def test_a_lane_that_keeps_notebook_edit_is_not_read_only(hook, monkeypatch, tmp_path):
+    """Found by review mutation: dropping NotebookEdit from WRITE_TOOLS survived the suite.
+
+    Because the check is `all`, a missing entry makes the exemption *more* permissive.
+    """
+    _lane(tmp_path, "notebooker", template=(
+        "---\nname: notebooker\ndescription: a persona\nmodel: opus\n"
+        "disallowedTools: Write, Edit, MultiEdit\n---\n\nBody.\n"))
+    _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_1"))
+
+    out = _run(hook, monkeypatch,
+               _dispatch(tmp_path, subagent_type="notebooker", tool_use_id="toolu_2"))
+
+    assert "deny" in out, out

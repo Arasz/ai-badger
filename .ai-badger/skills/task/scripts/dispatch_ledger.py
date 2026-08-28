@@ -1,13 +1,10 @@
 """Per-session ledger of recent Agent dispatches, so a gate can tell fan-out from a lone lane.
 
-Append-only with a time window rather than PreToolUse/PostToolUse pairing: pairing would
-track an agent's real lifetime but depends on `PostToolUse` firing for `Agent`, and a
-missed pair leaves a stale entry that wedges the gate closed for every later dispatch. A
-window cannot wedge — entries age out on their own. It catches what matters because
-parallel dispatch is expressed as several `Agent` calls in one assistant message, so
-siblings land milliseconds apart.
+Append-only: one `O_APPEND` write per dispatch, counted within a time window. Every read
+fails open (0 siblings) — a gate that cannot read its own state must allow.
 
-Every read fails open (0 siblings): a gate that cannot read its own state must allow.
+Why a window and not PreToolUse/PostToolUse pairing, and why append rather than rewrite:
+`docs/changelog/0.138.0-a-contract-with-no-gate-behind-it.md`.
 """
 from __future__ import annotations
 
@@ -17,25 +14,21 @@ from typing import Optional
 
 LEDGER_DIR = Path.home() / ".ai-badger" / "dispatch-lanes"
 
-# Entries older than this are dropped when the file is next written. Only a housekeeping
-# bound on file size — the window passed to concurrent() is what decides parallelism.
+# Housekeeping only; the window passed to concurrent() is what decides parallelism.
 PRUNE_SECONDS = 3600.0
 
-# How long a recorded dispatch keeps counting as a live lane. Unmeasured: it stands in for
-# "is that agent still running", which only a PostToolUse pairing could answer exactly.
-# Too short misses a sibling that is genuinely still running; too long denies a dispatch
-# whose sibling has already finished. The cost of the second is one retry carrying
-# isolation="worktree" — which is the right call anyway — so this errs long. If Agent turns
-# out to fire PostToolUse reliably, releasing the entry there makes the window a fallback
-# rather than the primary signal, and the number stops mattering.
+# Rewriting is the one operation that can lose a concurrent append, so it waits for length.
+PRUNE_ABOVE_ENTRIES = 500
+
+# How long a recorded dispatch keeps counting as a live lane. UNMEASURED estimate standing
+# in for "is that agent still running"; errs long. Tradeoff: `docs/changelog/0.138.0-a-contract-with-no-gate-behind-it.md`.
 DEFAULT_WINDOW_SECONDS = 90.0
 
 
 def _safe_session(session_id: Optional[str]) -> str:
     """Session id made filesystem-safe; the empty string is not a valid ledger.
 
-    Keeps [A-Za-z0-9._-]; substitutes '_' for everything else, and guards the dot-only
-    traversal segments. Same rule as the memory-first gate's marker names.
+    Keeps [A-Za-z0-9._-] and guards dot-only segments. Same rule as memory-first's markers.
     """
     if not session_id:
         return ""
@@ -56,10 +49,13 @@ def ledger_path(session_id: Optional[str]) -> Path:
 
 
 def _entries(path: Path) -> list[tuple[float, str]]:
-    """Parsed `<ts> <tool_use_id>` lines; unreadable or malformed input yields nothing."""
+    """Parsed `<ts> <tool_use_id>` lines; unreadable or malformed input yields nothing.
+
+    Catches `ValueError` too — `UnicodeDecodeError` is one, and it used to escape `record`.
+    """
     try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError:
+        raw = path.read_text(encoding="utf-8", errors="replace")
+    except (OSError, ValueError):
         return []
     parsed: list[tuple[float, str]] = []
     for line in raw.splitlines():
@@ -73,25 +69,40 @@ def _entries(path: Path) -> list[tuple[float, str]]:
     return parsed
 
 
-def record(session_id: Optional[str], tool_use_id: str, now: Optional[float] = None) -> bool:
-    """Append this dispatch to its session's ledger, pruning anything past PRUNE_SECONDS.
+def _prune(path: Path, stamp: float) -> None:
+    """Drop entries past PRUNE_SECONDS, only once the file exceeds PRUNE_ABOVE_ENTRIES.
 
-    False on a missing session id or IO failure — recording is best-effort, and a failure
-    to record can only ever make the gate quieter.
+    The one rewrite that can lose a concurrent append, so it stays off a fan-out's path.
+    """
+    entries = _entries(path)
+    if len(entries) <= PRUNE_ABOVE_ENTRIES:
+        return
+    kept = [entry for entry in entries if 0 <= stamp - entry[0] <= PRUNE_SECONDS]
+    try:
+        path.write_text("".join(f"{ts} {tid}\n" for ts, tid in kept), encoding="utf-8")
+    except OSError:
+        return
+
+
+def record(session_id: Optional[str], tool_use_id: str, now: Optional[float] = None) -> bool:
+    """Append this dispatch to its session's ledger; False on no session id or IO failure.
+
+    One `O_APPEND` write of one short line, which POSIX makes atomic below PIPE_BUF.
     """
     path = ledger_path(session_id)
     if not path.name or not tool_use_id:
         return False
     stamp = time.time() if now is None else now
-    kept = [entry for entry in _entries(path) if stamp - entry[0] <= PRUNE_SECONDS]
-    kept.append((stamp, str(tool_use_id)))
+    # A newline in the id would forge extra entries.
+    tid = str(tool_use_id).replace("\n", "_").replace("\r", "_")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            "".join(f"{ts} {tid}\n" for ts, tid in kept), encoding="utf-8")
-        return True
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(f"{stamp} {tid}\n")
     except OSError:
         return False
+    _prune(path, stamp)
+    return True
 
 
 def concurrent(session_id: Optional[str], tool_use_id: str,
@@ -104,8 +115,9 @@ def concurrent(session_id: Optional[str], tool_use_id: str,
     if not path.name:
         return 0
     stamp = time.time() if now is None else now
+    # `0 <=` too: a backward clock step leaves entries ahead of now, counted forever.
     siblings = {
         tid for ts, tid in _entries(path)
-        if tid != str(tool_use_id) and stamp - ts <= window
+        if tid != str(tool_use_id) and 0 <= stamp - ts <= window
     }
     return len(siblings)

@@ -32,6 +32,7 @@ import io
 import json
 
 import pytest
+from conftest import _test_write
 
 HOOK_PATH = "features/common/skills/task/scripts/dispatch_gate_hook.py"
 HOOKS_JSON = "features/common/hooks/hooks.json"
@@ -75,9 +76,14 @@ class TestWorktreeIsolationIsEnforced:
         Before the fix `decide()` returned as soon as it saw a `model` and never looked at
         `isolation` — the whole of the user's "no worktree isolation is used if I didn't
         mention it". The first dispatch establishes the fan-out; the second is the one the
-        gate must refuse.
+        gate must refuse. The lane file is what proves the persona writes — the gate needs
+        positive proof, and a type with no lane file is left alone.
         """
         hook.dispatch_ledger.LEDGER_DIR = tmp_path / "dispatch-lanes"
+        agents = tmp_path / ".claude" / "agents"
+        agents.mkdir(parents=True, exist_ok=True)
+        _test_write(agents / "test-engineer.md",
+                    "---\nname: test-engineer\ndescription: d\nmodel: sonnet\n---\n\nB.\n")
         _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_1"), capsys)
 
         out = _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_2"), capsys)
@@ -115,7 +121,8 @@ class TestWorktreeIsolationIsEnforced:
             "with no gate behind it.")
 
 
-TASK_B = "Task B: needs a live delegate_task pre_tool_call payload before it can be fixed"
+TASK_B = ("needs a live delegate_task pre_tool_call payload before it can be fixed — "
+          "see docs/changelog/0.138.0-a-contract-with-no-gate-behind-it.md, \"Still open: Hermes\"")
 
 
 class TestHermesHasNoDispatchEnforcement:

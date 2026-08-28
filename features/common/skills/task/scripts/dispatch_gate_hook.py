@@ -7,15 +7,11 @@ the agent definition's `model:` frontmatter, so injecting would override the per
 are the framework's preferred defaulting layer. A denial is shown to the model, which retries.
 
 The isolation half enforces prompting-rules.md's "dispatch using your agent tool's native
-isolation" only under parallelism — a lone sequential lane shares the tree with nobody, and
-denying it would make the gate noisy enough to be switched off. Read-only lanes are exempt,
-derived from their `disallowedTools` frontmatter rather than a persona list that would drift.
+isolation", but only under this session's own fan-out, counted by dispatch_ledger. Read-only
+lanes are exempt, derived from `disallowedTools` frontmatter rather than a persona list.
 
-Parallelism means *this session's* fan-out, counted by dispatch_ledger. A machine-wide live
-session count was tried and cut: /tmp/cc-socks carries no cwd, so sessions in unrelated repos
-count too, and it read 6 on an idle machine — the gate would never have opened. Two sessions
-colliding in one checkout is a different harm, already covered by cross_worktree_dirty_warning
-and by the task skill giving each task its own worktree.
+Why parallelism-only, why the machine-wide session count was cut, and why gating needs
+positive proof that a lane writes: `docs/changelog/0.138.0-a-contract-with-no-gate-behind-it.md`.
 """
 from __future__ import annotations
 
@@ -40,6 +36,11 @@ FRONTMATTER_FENCE = "---"
 MODEL_KEY = "model:"
 
 DISALLOWED_KEY = "disallowedTools:"
+
+# Mirrors the harness's file-touching tools. A hand-kept list with nothing to derive it from
+# and nothing to compare it against — a conscious exception to derive-or-delete-the-list.
+# Consumed with all(), so a MISSING entry widens the read-only exemption rather than
+# narrowing it; tests/test_dispatch_gate_isolation.py pins that direction.
 WRITE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
 
 DENY_REASON = (
@@ -109,10 +110,9 @@ def declares_model(path: Path) -> bool:
 def is_read_only(path: Path) -> bool:
     """True when the lane's frontmatter disallows *every* tool that could touch a file.
 
-    Derived rather than listed: a persona named here would drift the moment someone adds a
-    read-only lane and forgets this file. All of WRITE_TOOLS, not any: `architect` disallows
-    Edit/MultiEdit/NotebookEdit but keeps Write, so it can still add a file to a shared tree
-    and break a sibling's build — exempting it on a partial list would be exempting a writer.
+    All of WRITE_TOOLS, not any: `architect` bans Edit/MultiEdit/NotebookEdit but keeps
+    Write, and a lane that can still create a file is a writer. Only the single-line
+    comma form of `disallowedTools:` is understood, which is what every lane here uses.
     """
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -133,11 +133,11 @@ def isolation_verdict(payload: Dict[str, Any], tool_input: Dict[str, Any],
                       root: Optional[str], subagent_type: str) -> Optional[str]:
     """The deny reason when this dispatch would join a fan-out unisolated, else None.
 
-    Order matters. An isolated lane gets its own worktree, so it never joins the shared tree
-    and is not recorded — four isolated lanes plus one plain dispatch is one lane in the
-    shared tree, not five. A read-only lane *does* occupy the shared tree, so it is recorded
-    before being exempted: it cannot disturb anyone itself, but a writer arriving beside it
-    can disturb it.
+    Records only a dispatch that will really enter the shared tree: not an isolated lane
+    (own worktree) and not a denied one (never starts). Gates only a lane a lane file proves
+    writes; an unknown type is left alone but still counts as an occupant.
+
+    What each of those three rules was getting wrong before: `docs/changelog/0.138.0-a-contract-with-no-gate-behind-it.md`.
     """
     isolation = tool_input.get("isolation")
     if isinstance(isolation, str) and isolation.strip():
@@ -145,16 +145,15 @@ def isolation_verdict(payload: Dict[str, Any], tool_input: Dict[str, Any],
 
     session_id = payload.get("session_id")
     tool_use_id = payload.get("tool_use_id") or ""
-    dispatch_ledger.record(session_id, tool_use_id)
 
     lane = lane_file(root, subagent_type)
-    if lane is not None and is_read_only(lane):
-        return None
-
+    writes = lane is not None and not is_read_only(lane)
     lanes = dispatch_ledger.concurrent(session_id, tool_use_id) + 1
-    if lanes < 2:
-        return None
-    return ISOLATION_DENY_REASON.format(lanes=lanes, subagent_type=subagent_type)
+    if writes and lanes >= 2:
+        return ISOLATION_DENY_REASON.format(lanes=lanes, subagent_type=subagent_type)
+
+    dispatch_ledger.record(session_id, tool_use_id)
+    return None
 
 
 def _deny(reason: str) -> None:

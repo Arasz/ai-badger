@@ -91,3 +91,77 @@ def test_a_missing_session_id_records_nothing(ledger):
     unrelated dispatches into one bucket and deny them all."""
     assert ledger.record("", "toolu_1", now=1000.0) is False
     assert ledger.concurrent("", "toolu_1", now=1000.0, window=WINDOW) == 0
+
+
+def test_concurrent_records_all_survive(ledger, tmp_path):
+    """Eight lanes recording at once must yield eight entries.
+
+    Found in review: `record` was read-modify-write, which drops entries under exactly the
+    condition the ledger exists for — the docstring's own "siblings land milliseconds apart"
+    is the same statement as "these hook processes overlap". Measured 7/8 surviving on one
+    run and 8/8 on the next, so the gate was a coin flip rather than a consistent failure.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(lambda n: ledger.record("sess_race", f"toolu_{n}", now=1000.0),
+                      range(8)))
+
+    assert ledger.concurrent("sess_race", "none", now=1000.0, window=WINDOW) == 8
+
+
+def test_a_session_id_cannot_escape_the_ledger_dir(ledger):
+    """The sanitizer is a security control, so it needs a test that fails without it.
+
+    Found by review mutation: replacing `_safe_session` with `str(session_id)` survived the
+    whole suite, and `../../pwned` would then write outside LEDGER_DIR.
+    """
+    path = ledger.ledger_path("../../pwned")
+
+    # `.resolve()` on both sides: `LEDGER_DIR / "../../pwned"` contains LEDGER_DIR in its
+    # unnormalised `.parents`, so the lexical form of this assertion passed for a path that
+    # escapes to /tmp/pwned. The first version of this test did exactly that.
+    assert ledger.LEDGER_DIR.resolve() in path.resolve().parents, path.resolve()
+    assert "/" not in path.name and ".." != path.name, path.name
+
+
+def test_a_malformed_line_does_not_break_the_ledger(ledger):
+    """Found by review mutation: dropping the `except ValueError` guard survived the suite.
+
+    A single bad line would then raise out of both record and concurrent, disabling the gate
+    for the whole session.
+    """
+    ledger.record("sess_a", "toolu_1", now=1000.0)
+    ledger.ledger_path("sess_a").write_text("not-a-timestamp toolu_x\n1000.0 toolu_2\n",
+                                            encoding="utf-8")
+
+    assert ledger.concurrent("sess_a", "toolu_1", now=1000.0, window=WINDOW) == 1
+
+
+def test_invalid_utf8_does_not_raise(ledger):
+    """`_entries` promised "unreadable or malformed input yields nothing" but caught only
+    OSError; UnicodeDecodeError is a ValueError and escaped, leaving the ledger permanently
+    dead for the session because record could not rewrite it either."""
+    ledger.record("sess_a", "toolu_1", now=1000.0)
+    ledger.ledger_path("sess_a").write_bytes(b"\xff\xfe bad bytes\n")
+
+    assert ledger.concurrent("sess_a", "toolu_1", now=1000.0, window=WINDOW) == 0
+    assert ledger.record("sess_a", "toolu_2", now=1000.1) is True
+
+
+def test_an_entry_from_the_future_is_not_counted(ledger):
+    """A backward clock step (NTP, suspend/resume) left entries that never age out.
+
+    `stamp - ts <= window` admits every negative delta, so the claim that "a window cannot
+    wedge" was false across a clock correction.
+    """
+    ledger.record("sess_a", "toolu_1", now=2000.0)
+
+    assert ledger.concurrent("sess_a", "toolu_2", now=1000.0, window=WINDOW) == 0
+
+
+def test_a_newline_in_the_tool_use_id_cannot_forge_an_entry(ledger):
+    """One record must add exactly one countable lane, whatever the id contains."""
+    ledger.record("sess_a", "toolu_a\n1000.0 phantom", now=1000.0)
+
+    assert ledger.concurrent("sess_a", "other", now=1000.0, window=WINDOW) == 1
