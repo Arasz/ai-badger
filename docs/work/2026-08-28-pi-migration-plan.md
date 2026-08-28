@@ -10,7 +10,7 @@ Every factual claim below carries how it is known: MEASURED (run and observed), 
 
 ## Phase 0 — Trust sentinel test (WRITTEN)
 
-Script at `scripts/test_pi_hook_fires.py` implements the F20 run A/B pair:
+Script at `tooling/test_pi_hook_fires.py` implements the F20 run A/B pair:
 - **Run A:** project-local `.pi/extensions/` without `--approve` → sentinel NOT written (negative control)
 - **Run B:** user scope `~/.pi/agent/extensions/` without `--approve` → sentinel IS written
 - Exit 0 if both correct, 1 otherwise
@@ -92,7 +92,7 @@ Per user instruction: **stay with old naming.** No `harnesses` alias. No rename.
 
 ## Key measurements needed
 
-1. **Phase 0 priority:** Run `scripts/test_pi_hook_fires.py` — does user-scope extension fire in headless mode? (F20 reproduction)
+1. **Phase 0 priority:** Run `tooling/test_pi_hook_fires.py` — does user-scope extension fire in headless mode? (F20 reproduction)
 2. **Phase 2 prerequisite:** Install `pi-mcp-tools` — does `pi install npm:@zhafron/pi-mcp-tools` work with pi 0.84.3?
 3. **Phase 2 prerequisite:** Does `input` fire for queued messages? (needs provider credentials)
 4. **Phase 3 prerequisite:** Does `Bun.cron()` work with pi's runtime?
