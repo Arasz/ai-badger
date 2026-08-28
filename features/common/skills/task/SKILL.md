@@ -41,8 +41,9 @@ Scripts live in this skill's `scripts/`. Read `references/file-schemas.md` befor
 Every task follows one of two effort-level loops. The loop is the spine; the phases below
 (Phase 0–6) detail how its steps are executed.
 
-Before starting, **ask the user if this is a low-effort or high-effort task**. Default to
-low-effort unless the task is complex, risky, or multi-package.
+Before starting, **ask the user if this is a low-effort or high-effort task**. When autonomous
+(no user to ask), derive the effort after the analyze step — a best-effort estimate matching
+effort to task scope.
 
 ### Low-effort loop
 
@@ -155,7 +156,7 @@ Entry: previous task finished or parked; clean-enough context.
 Exit: effort level chosen, tracker STARTED, worktree exists, five preflight blocks present,
 research record gathered, taskId derived.
 
-1. **Determine effort level.** Ask user low or high. Default low. (Skip if autonomous.)
+1. **Determine effort level.** Ask user low or high. When autonomous, derive after analyze.
 2. **Analyze the task.** Resolve the task (issue URL or freeform scope/title). Read referenced docs.
 
    **Derive the taskId** per the derivation formula. Determine repo alias
