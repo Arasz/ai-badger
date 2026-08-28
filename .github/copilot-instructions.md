@@ -6,7 +6,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ sc
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.137.1. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
+> Scaffolded by ai-badger 0.138.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
 ## Commands
 
@@ -36,6 +36,7 @@ Additional invariants load contextually via these paths — see `.ai-badger/inva
 - Hermes skills, hooks and gateway configuration, and HERMES.md → `hermes-agent-author`
 - Long, multi-package or autonomous sessions — route work instead of doing it → `delegator`
 - Every dispatch names its `model` — the delegation map is `.ai-badger/delegation.md`.
+- Parallel dispatches each name their own `isolation` — lanes sharing a tree share its build output.
 
 ## Prompt markers
 

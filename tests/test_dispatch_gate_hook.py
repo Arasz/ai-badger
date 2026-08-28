@@ -21,10 +21,17 @@ NO_LANE = "---\nname: {name}\ndescription: a persona\n---\n\nBody.\n"
 
 
 @pytest.fixture
-def hook(load_script, monkeypatch):
-    """The hook with `$CLAUDE_PROJECT_DIR` cleared, so the fabricated payload `cwd` decides."""
+def hook(load_script, monkeypatch, tmp_path):
+    """The hook with `$CLAUDE_PROJECT_DIR` cleared, so the fabricated payload `cwd` decides.
+
+    The dispatch ledger is redirected into tmp_path as well: the gate records every dispatch
+    it sees, and these tests reuse one session id, so a shared ledger would let each test's
+    dispatch count as the next test's parallel sibling.
+    """
     monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
-    return load_script(HOOK_PATH)
+    module = load_script(HOOK_PATH)
+    module.dispatch_ledger.LEDGER_DIR = tmp_path / "dispatch-lanes"
+    return module
 
 
 def _run(hook, monkeypatch, payload):
@@ -208,7 +215,11 @@ def test_a_non_agent_tool_is_never_gated(hook, monkeypatch, capsys, tmp_path):
 
 def test_the_deny_is_recorded_against_the_project_it_came_from(
         hook, monkeypatch, capsys, tmp_path):
-    """An unattributed record pools into every project's analysis and skews all of them."""
+    """An unattributed record pools into every project's analysis and skews all of them.
+
+    `why` joined the deny record when the isolation half landed: the gate now denies for two
+    different reasons and a log that cannot tell them apart cannot answer which one fired.
+    """
     calls = []
 
     class FakeDebugLog:
@@ -226,7 +237,7 @@ def test_the_deny_is_recorded_against_the_project_it_came_from(
     capsys.readouterr()
 
     assert calls == [("dispatch_gate_hook", "deny", str(tmp_path),
-                      {"subagentType": "architect"})], calls
+                      {"subagentType": "architect", "why": "no_model"})], calls
 
 
 def test_a_tool_name_the_matcher_never_sends_stays_ungated(hook, monkeypatch, capsys, tmp_path):

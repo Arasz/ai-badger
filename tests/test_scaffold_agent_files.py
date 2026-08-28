@@ -260,3 +260,38 @@ def test_empty_persona_routing_renders_as_absent_not_as_a_policy(make_scaffolder
     content = (make_scaffolder.target / "CLAUDE.md").read_text(encoding="utf-8")
     assert "_Default routing._" not in content
     assert "personaRouting" in content
+
+
+ISOLATION_LINE = ("- Parallel dispatches each name their own `isolation` — lanes sharing a "
+                  "tree share its build output.")
+
+
+def test_agent_docs_carry_the_isolation_rule(make_scaffolder):
+    """The isolation contract has to live where the model always reads it.
+
+    It was prose in `task/SKILL.md` only, which loads when the skill is invoked and then
+    competes with everything else in context; "worktree" appeared zero times in CLAUDE.md and
+    HERMES.md. The gate in `dispatch_gate_hook` enforces it, but a gate that denies without
+    the rule being stated anywhere just looks arbitrary. One line, inside the 256-line budget
+    (HERMES.md sat at 245).
+    """
+    make_scaffolder().run(generated_at="2026-07-19T00:00:00Z")
+
+    content = (make_scaffolder.target / "CLAUDE.md").read_text(encoding="utf-8")
+    assert ISOLATION_LINE in content
+
+
+def test_both_discovery_templates_carry_the_isolation_rule(root):
+    """Fixing one template and not the other is undone by the next scaffold.
+
+    Same trap `test_prompt_marker_standing_list` exists for: that list drifted when Hermes was
+    updated and Claude was left listing three markers. These two templates are a hand-kept
+    pair with nothing comparing them, so this compares them.
+    """
+    templates = (root / "features/common/templates/CLAUDE.md.tmpl",
+                 root / "features/common/templates/HERMES.md.tmpl")
+
+    missing = [path.name for path in templates
+               if ISOLATION_LINE not in path.read_text(encoding="utf-8")]
+
+    assert missing == [], f"isolation rule missing from {missing}"
