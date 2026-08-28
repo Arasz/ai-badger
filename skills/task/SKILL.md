@@ -2,9 +2,11 @@
 name: task
 description: >-
   Use when the user wants to start, continue, or finish a backlog task — "/task <id>", "start
-  task X", "work on the next task", "finish this task". Runs it end-to-end as a cleanly
-  separated, token-tracked unit of work with model delegation: a high-reasoning model plans and
-  reviews, implementation models do the hands-on work. Project specifics come from
+  task X", "work on the next task", "finish this task". Runs it end-to-end as a
+  token-tracked unit of work with two effort levels (low/high), plan packaging with
+  mandatory integration package, MoE panels for high-effort, and automated task-ID
+  derivation ({repo-alias}-{key}). Delegates planning/review to high-reasoning models
+  and implementation to persona-routed agents. Project specifics from
   .ai-badger/config.json; source-control and PR behaviour from config-gated extensions.
 version: 1.0.0
 author: ai-badger

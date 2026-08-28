@@ -1,7 +1,12 @@
+# pylint: disable=too-many-lines
+# A hook dispatcher: its length is the number of hooks it fans out to, not one long
+# routine. Each subsystem already lives in a lazily-loaded sibling (see
+# _load_sibling_module); what remains here is the wiring. Same precedent as
+# engine/badger_lib.py.
 """Hermes plugin hooks for ai-badger framework integration.
 
 Provides feature-parity with Claude Code hooks:
-- on_session_start: drift notice (Tier 1, ADR-0001 decision 5)
+- on_session_start: drift notice (Tier 1, ADR-0001 decision 5) + Hermes subagent-isolation notice
 - pre_llm_call: inject framework version context, usage hints, and MCP tool index recommendations
 - pre_tool_call: memory-first gate — block text search until the session consulted memory_search
 - post_tool_call: log tool usage, index hit/miss metrics, and learned-skill sync
@@ -379,6 +384,15 @@ def pre_tool_call_memory_gate(tool_name: str = "", args: Optional[Dict[str, Any]
     return gate.build_decision("hermes", tool_name, args or {}, None, cwd=project)
 
 
+HERMES_ISOLATION_MODULE_NAME = "ai_badger_hermes_isolation"
+
+
+def _load_hermes_isolation():
+    """The sibling module that reads delegation.worktree_isolation; None when absent."""
+    return _load_sibling_module(HERMES_ISOLATION_MODULE_NAME, "hermes_isolation.py",
+                                "Hermes subagent-isolation notice")
+
+
 def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
     """Check for framework version drift (see `versions_diverge`) on every session start.
 
@@ -389,6 +403,10 @@ def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
     reset_gate_state()
     project = _project_cwd(cwd)
     _debug("ai_badger_hooks/session_start", "start", project=project)
+    isolation = _load_hermes_isolation()
+    if isolation is not None and isolation.subagents_share_one_tree():
+        _debug("ai_badger_hooks/session_start", "shared_tree", project=project)
+        logger.info(isolation.ISOLATION_NOTICE, isolation.hermes_config_path())
     scaffold_ver = _read_scaffold_version(project)
     fw_version = _read_framework_version()
     if not scaffold_ver or not fw_version or not versions_diverge(scaffold_ver, fw_version):

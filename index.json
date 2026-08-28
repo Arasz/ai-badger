@@ -572,6 +572,10 @@
           "path": "features/common/hooks/grounded_feedback.py"
         },
         {
+          "name": "hermes_isolation",
+          "path": "features/common/hooks/hermes_isolation.py"
+        },
+        {
           "name": "hooks-manifest",
           "path": "features/common/hooks/hooks-manifest.json"
         },

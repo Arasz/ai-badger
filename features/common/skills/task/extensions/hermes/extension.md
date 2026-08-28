@@ -48,6 +48,34 @@ delegate_task(
 )
 ```
 
+## Subagent isolation — one config key, not a dispatch argument
+
+`delegate_task` cannot express isolation. Verified against Hermes 0.20.6's own
+`DELEGATE_TASK_SCHEMA` (`tools/delegate_tool.py`): the per-task properties are exactly
+`goal`, `context` and `output_schema`. There is no `worktree`, `cwd`, `sandbox` or
+`isolation` argument, so the base skill's "dispatch using your agent tool's native
+isolation" has no per-call form here, and no `pre_tool_call` hook can gate it.
+
+Hermes does isolate subagents, but session-wide:
+
+```yaml
+delegation:
+  worktree_isolation: true   # default: false
+```
+
+With it on, each delegated child gets its own git worktree from the parent's commit, so
+parallel children never contend for one working copy. With it off — the default —
+`delegate_tool.py` seeds every child's cwd from the parent's, and every lane shares the
+checkout. Git-only and local-backend-only; elsewhere it degrades silently to the shared
+workspace.
+
+**Turn it on before running lanes in parallel.** `ai_badger_hooks` warns on session start
+when it is unset or false. ai-badger never writes this file — it is user-global Hermes
+config, and a "read-only" gate that wrote to `$HOME` bricked this plugin once (0.89.0).
+
+Until it is on, the honest fallback is to delegate sequentially, or to `cd` into a worktree
+before delegating so the child inherits that directory rather than the main checkout.
+
 ## Token tracking
 
 Instead of Claude's token counters, use Hermes:
