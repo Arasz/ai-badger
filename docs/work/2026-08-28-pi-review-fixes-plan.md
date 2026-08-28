@@ -10,7 +10,7 @@
 - `docs/work/2026-08-28-aib-pi-review-fixes-moe-python.md` (python lane)
 - `docs/work/2026-08-28-pi-review-fixes-test-strategy.md` (test lane)
 - `docs/work/2026-08-28-pi-review-fixes-fork-plan.md` (fork lane — copy into the worktree from the main checkout's `docs/work/2026-08-28-pi-review-fixes-fork-plan.md` at commit time; the fork lane wrote it to the main tree by mistake)
-- `docs/work/2026-08-28-pi-full-support-gaps.md` (gap audit) — PENDING, folds into §7
+- `docs/work/2026-08-28-pi-full-support-gaps.md` (gap audit — written by the orchestrator after two lane attempts failed; evidence cited in-doc)
 
 ## 1. Questions the task asked, answered up front
 
@@ -92,14 +92,26 @@ Branch `fix/mcp-review-findings-11-18` from `b07d425`; one commit per WP, `npx v
 - Wave 3: E integration (single tree, serial).
 - Every dispatch names its model; lanes get their own worktree/workspace id; shared-file sections serialise per `lane-dispatch-brief.md`.
 
-## 7. Full-support gap packages — PENDING (gap audit `docs/work/2026-08-28-pi-full-support-gaps.md`)
+## 7. Full-support gap packages (see `2026-08-28-pi-full-support-gaps.md` for full detail)
+
+Four replacement blockers (hooks, skills, MCP, unattended) close via the planned adapter/away/cron packages plus three new gap packages:
+
+| # | Package | Effort | Mechanism (simple usable form) | Wave |
+|---|---|---|---|---|
+| G1 | skills delivery | S/M | `adjust_skills.py` merges project `.ai-badger/skills/` into pi settings `skills` array (settings entries are NOT trust-gated → works headless); `support.json` pi.skills flips true | 1 (python lane) |
+| G2 | MCP apply | S | `adjust_mcp.py` merges servers into settings `mcp` key when `install=True` (shared `pi_settings.py` helper); snippet kept for `--no-install` | 1 (python lane) |
+| G3 | real token checkpoints | M, timeboxed | `pi_session_source` reads usage from `~/.pi/agent/sessions/<id>` if the format exposes it; else documented zeroes | 2 |
+| G4 | hook-arm coverage contract | S | coverage table in adapter docstring + 1 pytest pinning adapter events vs manifest arms (new arm ⇒ visible decision) | 1/2 |
+| G5 | persona agent files | DEFERRED | user-global agents dir collides per-project; usable path already exists (delegation map + `pi -p --mode json` child procs) | — |
+
+Deferred-parity rows and per-item justifications: gap audit §2 checklist.
 
 ## 8. Owner decisions (G0)
 
-1. support.json `aiBadgerSupport` flip for `pi.skills` (D8) lands honest-now, flips true in G1 — confirm.
+1. support.json `aiBadgerSupport` flip for `pi.skills` (D8) lands honest-now, flips true when G1 ships — confirm.
 2. D18: do TS gates (`bun test features/pi`, tsc) join the pre-push gate in this task or a follow-up?
-3. From the gap audit: MCP proposal→apply flip, skills-delivery mechanism choice, persona agents, checkpoint scope — defaults proposed there; owner approves/overrides.
-4. Fork Q1/Q3/Q4/Q5/Q6 (live-SDK semantics; warn-vs-create; healthcheck 5s; no-changelog bump; upstream-offer) — defaults in the fork plan; owner may override.
+3. Gap-audit decisions (defaults proposed, owner may override): (a) G1+G2 write `~/.pi/agent/settings.json` directly (claude/hermes precedent, merge semantics) vs proposal-only; (b) G3 timebox attempt real checkpoints vs accept documented zeroes; (c) G5 deferral accepted.
+4. Fork Q1/Q3/Q4/Q5/Q6 — ANSWERED autonomously (see fork plan; Q1 live-verify, Q3 warn, Q4 5s, Q5 bump-only, Q6 no upstream offer).
 
 ## 9. Risks
 
