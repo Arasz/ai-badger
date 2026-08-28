@@ -40,8 +40,8 @@ that file, then replay the operation once.
 platform CLI (`gh auth status`, `gh auth login`) before retrying.
 
 **Frozen remote-tracking refs** (`git fetch` reports success but `origin/<branch>` never moves)
-means `.git/config` lost `remote.origin.fetch` or a `[branch]` section — diagnose and repair via
-`references/git-config-repair.md`.
+means `.git/config` lost `remote.origin.fetch` or a `[branch]` section. Read
+`references/git-config-repair.md` when that happens, before editing the file by hand.
 
 ## CI failure triage
 

@@ -19,6 +19,16 @@
             "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/session_start_hook.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task/scripts/session_start_hook.py\"; elif [ -f \".ai-badger/skills/task/scripts/session_start_hook.py\" ]; then python3 \".ai-badger/skills/task/scripts/session_start_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/task/scripts/session_start_hook.py not found - hook skipped\"}'; fi"
           }
         ]
+      },
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/git-work/scripts/git_config_health_hook.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/git-work/scripts/git_config_health_hook.py\"; elif [ -f \".ai-badger/skills/git-work/scripts/git_config_health_hook.py\" ]; then python3 \".ai-badger/skills/git-work/scripts/git_config_health_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/git-work/scripts/git_config_health_hook.py not found - hook skipped\"}'; fi",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -163,6 +173,16 @@
           {
             "type": "command",
             "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/worktree-agent-isolation/scripts/cross_worktree_dirty_warning.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/worktree-agent-isolation/scripts/cross_worktree_dirty_warning.py\"; elif [ -f \".ai-badger/skills/worktree-agent-isolation/scripts/cross_worktree_dirty_warning.py\" ]; then python3 \".ai-badger/skills/worktree-agent-isolation/scripts/cross_worktree_dirty_warning.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/worktree-agent-isolation/scripts/cross_worktree_dirty_warning.py not found - hook skipped\"}'; fi",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/git-work/scripts/git_internals_guard.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/git-work/scripts/git_internals_guard.py\"; elif [ -f \".ai-badger/skills/git-work/scripts/git_internals_guard.py\" ]; then python3 \".ai-badger/skills/git-work/scripts/git_internals_guard.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/git-work/scripts/git_internals_guard.py not found - hook skipped\"}'; fi",
             "timeout": 10
           }
         ]

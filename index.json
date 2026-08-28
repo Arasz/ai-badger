@@ -454,6 +454,10 @@
           "path": "features/common/invariants/minimal-comments.md"
         },
         {
+          "name": "never-hand-edit-the-git-dir",
+          "path": "features/common/invariants/never-hand-edit-the-git-dir.md"
+        },
+        {
           "name": "no-hand-rolled-crypto",
           "path": "features/common/invariants/no-hand-rolled-crypto.md"
         },
