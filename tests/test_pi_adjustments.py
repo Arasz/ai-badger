@@ -61,10 +61,10 @@ def test_adjust_hooks_no_pi(load_script):
     assert not result["applied"]
 
 
-def test_adjust_hooks_with_pi(load_script, root):
-    """adjust_hooks copies hook scripts into target when pi in config."""
+def test_adjust_hooks_with_pi(load_script, root, tmp_path):
+    """adjust_hooks copies hook scripts into a temp target when pi in config."""
     adjust = load_script("features/pi/adjustments/adjust_hooks.py")
-    target_dir = root / ".ai-badger"
+    target_dir = tmp_path / ".ai-badger"
     context = {
         "config": {"agents": ["pi"]},
         "framework_root": root,
@@ -88,10 +88,10 @@ def test_adjust_task_no_pi(load_script):
     assert not result["applied"]
 
 
-def test_adjust_task_with_pi(load_script, root):
-    """adjust_task copies pi_session_source.py when pi in config."""
+def test_adjust_task_with_pi(load_script, root, tmp_path):
+    """adjust_task copies pi_session_source.py into a temp target when pi in config."""
     adjust = load_script("features/pi/adjustments/adjust_task.py")
-    target_dir = root / ".ai-badger"
+    target_dir = tmp_path / ".ai-badger"
     context = {
         "config": {"agents": ["pi"]},
         "framework_root": root,
