@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.143.0 | [v0.143.0 — pi review fixes (2026-08-28)](0.143.0-pi-review-fixes.md) |
 | 0.142.0 | [v0.142.0 — git-dir guard review fixes: false positives, bypasses, and an honest fail-open story](0.142.0-git-dir-guard-review-fixes.md) |
 | 0.141.0 | [v0.141.0 — pi agent registration and feature directory (2026-08-28)](0.141.0-pi-agent-support.md) |
 | 0.140.1 | [v0.140.1 — Comment-hygiene invariant rewrite (2026-08-28)](0.140.1-comment-hygiene-invariant.md) |
