@@ -4,7 +4,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ sc
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.140.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
+> Scaffolded by ai-badger 0.140.1. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
 ## Commands
 
@@ -136,7 +136,7 @@ Each tool's own description covers the rest.
 - **Measure only when the measurement pays** — Run your own benchmark or experiment when the time it costs is repaid by the decision it settles, and not otherwise.
   → `.ai-badger/invariants/measure-when-it-pays.md`
 
-- **Minimal comments** — Keep doc comments to 1-3 lines stating the contract, not the provenance or rationale — point at an ADR or spec doc for the "why" instead of writing an essay inline.
+- **Minimal comments** — Write a doc comment as the 1-3 line contract an editor shows on hover — what the thing is and how to use it — and never let a PR, issue or ticket reference appear anywhere in it.
   → `.ai-badger/invariants/minimal-comments.md`
 
 - **Use platform security APIs** — Always use the platform's built-in security and crypto APIs.
