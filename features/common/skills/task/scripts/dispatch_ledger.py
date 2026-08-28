@@ -21,6 +21,15 @@ LEDGER_DIR = Path.home() / ".ai-badger" / "dispatch-lanes"
 # bound on file size — the window passed to concurrent() is what decides parallelism.
 PRUNE_SECONDS = 3600.0
 
+# How long a recorded dispatch keeps counting as a live lane. Unmeasured: it stands in for
+# "is that agent still running", which only a PostToolUse pairing could answer exactly.
+# Too short misses a sibling that is genuinely still running; too long denies a dispatch
+# whose sibling has already finished. The cost of the second is one retry carrying
+# isolation="worktree" — which is the right call anyway — so this errs long. If Agent turns
+# out to fire PostToolUse reliably, releasing the entry there makes the window a fallback
+# rather than the primary signal, and the number stops mattering.
+DEFAULT_WINDOW_SECONDS = 90.0
+
 
 def _safe_session(session_id: Optional[str]) -> str:
     """Session id made filesystem-safe; the empty string is not a valid ledger.
@@ -86,7 +95,7 @@ def record(session_id: Optional[str], tool_use_id: str, now: Optional[float] = N
 
 
 def concurrent(session_id: Optional[str], tool_use_id: str,
-               now: Optional[float] = None, window: float = 90.0) -> int:
+               now: Optional[float] = None, window: float = DEFAULT_WINDOW_SECONDS) -> int:
     """How many *other* dispatches this session recorded inside `window` seconds.
 
     Counts distinct tool_use_ids so a retried dispatch never counts as its own sibling.

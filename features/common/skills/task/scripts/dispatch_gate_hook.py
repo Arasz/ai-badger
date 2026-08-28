@@ -1,9 +1,21 @@
 #!/usr/bin/env python3
-"""PreToolUse gate on Agent dispatches: no subagent may inherit the session model by accident.
+"""PreToolUse gate on Agent dispatches: no subagent inherits the session model, and no
+write-capable lane joins a parallel fan-out sharing one tree.
 
 Denies rather than injecting a default via `updatedInput`: a per-invocation `model` outranks
 the agent definition's `model:` frontmatter, so injecting would override the persona lanes that
 are the framework's preferred defaulting layer. A denial is shown to the model, which retries.
+
+The isolation half enforces prompting-rules.md's "dispatch using your agent tool's native
+isolation" only under parallelism — a lone sequential lane shares the tree with nobody, and
+denying it would make the gate noisy enough to be switched off. Read-only lanes are exempt,
+derived from their `disallowedTools` frontmatter rather than a persona list that would drift.
+
+Parallelism means *this session's* fan-out, counted by dispatch_ledger. A machine-wide live
+session count was tried and cut: /tmp/cc-socks carries no cwd, so sessions in unrelated repos
+count too, and it read 6 on an idle machine — the gate would never have opened. Two sessions
+colliding in one checkout is a different harm, already covered by cross_worktree_dirty_warning
+and by the task skill giving each task its own worktree.
 """
 from __future__ import annotations
 
@@ -20,15 +32,27 @@ try:
 except ImportError:  # pragma: no cover - a missing logger must never break a hook
     debug_log = None
 
+import dispatch_ledger  # pylint: disable=wrong-import-position
+
 COMPONENT = "dispatch_gate_hook"
 DISPATCH_TOOLS = ("Agent",)
 FRONTMATTER_FENCE = "---"
 MODEL_KEY = "model:"
 
+DISALLOWED_KEY = "disallowedTools:"
+WRITE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+
 DENY_REASON = (
     "Dispatch declares no model and subagent type '{subagent_type}' has no model lane. "
     "Pass model explicitly ('haiku' for mechanical work, 'sonnet' for spec-driven work, "
     "'opus' for derivation) — see .ai-badger/delegation.md."
+)
+
+ISOLATION_DENY_REASON = (
+    "{lanes} agent lanes are live and this dispatch to write-capable '{subagent_type}' names "
+    "no isolation, so it would share a tree — and a build output — with them. Pass "
+    "isolation=\"worktree\". If these lanes were meant to run one after another, run them "
+    "sequentially instead. See .ai-badger/skills/worktree-agent-isolation."
 )
 
 
@@ -82,6 +106,60 @@ def declares_model(path: Path) -> bool:
     return False
 
 
+def is_read_only(path: Path) -> bool:
+    """True when the lane's frontmatter disallows *every* tool that could touch a file.
+
+    Derived rather than listed: a persona named here would drift the moment someone adds a
+    read-only lane and forgets this file. All of WRITE_TOOLS, not any: `architect` disallows
+    Edit/MultiEdit/NotebookEdit but keeps Write, so it can still add a file to a shared tree
+    and break a sibling's build — exempting it on a partial list would be exempting a writer.
+    """
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:  # pragma: no cover - an unreadable lane declares nothing
+        return False
+    if not lines or lines[0].strip() != FRONTMATTER_FENCE:
+        return False
+    for line in lines[1:]:
+        if line.strip() == FRONTMATTER_FENCE:
+            return False
+        if line.startswith(DISALLOWED_KEY):
+            declared = {tool.strip() for tool in line[len(DISALLOWED_KEY):].split(",")}
+            return all(tool in declared for tool in WRITE_TOOLS)
+    return False
+
+
+def isolation_verdict(payload: Dict[str, Any], tool_input: Dict[str, Any],
+                      root: Optional[str], subagent_type: str) -> Optional[str]:
+    """The deny reason when this dispatch would join a fan-out unisolated, else None."""
+    isolation = tool_input.get("isolation")
+    if isinstance(isolation, str) and isolation.strip():
+        return None
+
+    lane = lane_file(root, subagent_type)
+    if lane is not None and is_read_only(lane):
+        return None
+
+    session_id = payload.get("session_id")
+    tool_use_id = payload.get("tool_use_id") or ""
+    dispatch_ledger.record(session_id, tool_use_id)
+    lanes = dispatch_ledger.concurrent(session_id, tool_use_id) + 1
+    if lanes < 2:
+        return None
+    return ISOLATION_DENY_REASON.format(lanes=lanes, subagent_type=subagent_type)
+
+
+def _deny(reason: str) -> None:
+    """Emit the PreToolUse deny decision the model is shown."""
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        }
+    }))
+
+
 def decide(payload: Dict[str, Any]) -> int:
     """Print a deny decision iff an Agent dispatch names no model and no lane covers it."""
     if not isinstance(payload, dict):
@@ -98,23 +176,21 @@ def decide(payload: Dict[str, Any]) -> int:
 
     root = project_root(payload)
     model = tool_input.get("model")
-    if isinstance(model, str) and model.strip():
-        _debug("allow", project=root, subagentType=subagent_type, why="explicit_model")
-        return 0
-
     lane = lane_file(root, subagent_type)
-    if lane is not None and declares_model(lane):
-        _debug("allow", project=root, subagentType=subagent_type, why="lane_file")
+    has_model = (isinstance(model, str) and model.strip()) or (
+        lane is not None and declares_model(lane))
+    if not has_model:
+        _debug("deny", project=root, subagentType=subagent_type, why="no_model")
+        _deny(DENY_REASON.format(subagent_type=subagent_type))
         return 0
 
-    _debug("deny", project=root, subagentType=subagent_type)
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": DENY_REASON.format(subagent_type=subagent_type),
-        }
-    }))
+    reason = isolation_verdict(payload, tool_input, root, subagent_type)
+    if reason is not None:
+        _debug("deny", project=root, subagentType=subagent_type, why="no_isolation")
+        _deny(reason)
+        return 0
+
+    _debug("allow", project=root, subagentType=subagent_type, why="model_and_isolation")
     return 0
 
 
