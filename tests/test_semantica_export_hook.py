@@ -207,6 +207,10 @@ def test_session_export_target_sanitizes_id(tmp_path):
         ("[]", None),
         (None, None),
         (123, None),
+        # A bare MCP content envelope matched none of the guarded shapes and fell
+        # through, so a failed export was saved to .semantica/ as if it were a graph.
+        ('{"content": [{"type": "text", "text": "{\\"error\\": \\"boom\\"}"}]}', None),
+        ({"content": [{"type": "text", "text": '{"error": "boom"}'}]}, None),
     ],
 )
 def test_extract_graph_json(result, expected):
@@ -317,3 +321,25 @@ class TestExportHookChecksCanFail:
         first = session_export_target("sess-1", tmp_path)
         second = session_export_target("sess-1", tmp_path)
         assert first == second
+
+
+def test_a_content_envelope_error_writes_nothing(tmp_path, capsys):
+    """A failed export arriving in a bare content envelope must not be saved.
+
+    extract_graph_json guarded outer error/isError, "result" and "structuredContent",
+    then fell through to `return result` for anything else. A live MCP payload of the
+    shape {"content": [{"type": "text", "text": "{\"error\": ...}"}]} matched none of
+    them, so the envelope was written to .semantica/ as a graph — and silently, since
+    _error_payload_error did not look inside it either.
+    """
+    payload = {"content": [{"type": "text",
+                            "text": '{"error": "\'ContextGraph\' object has no attribute \'get\'"}'}]}
+    assert autosave_export("mcp__semantica__export_graph", payload, "sess-1", tmp_path) is None
+    assert not list((tmp_path / ".semantica").glob("*.json"))
+    assert "ContextGraph" in capsys.readouterr().err
+
+
+def test_an_unrecognized_payload_shape_is_reported(tmp_path, capsys):
+    """A skipped write must never be silent — that is the 0.130.0 failure mode."""
+    assert autosave_export("mcp__semantica__export_graph", {"surprise": 1}, "s", tmp_path) is None
+    assert "[ai-badger]" in capsys.readouterr().err

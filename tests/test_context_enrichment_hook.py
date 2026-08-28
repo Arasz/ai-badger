@@ -303,7 +303,7 @@ class TestSemanticaNudge:
         assert out["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
         context = out["hookSpecificOutput"]["additionalContext"]
         assert "[ai-badger] Semantica is configured:" in context
-        assert "call export_graph(format=json) before finishing" in context
+        assert "record_decision" in context and "export_graph" not in context
 
     def test_copilot_spelling_session_id_emits_nudge(
         self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
