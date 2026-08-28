@@ -187,6 +187,26 @@ def test_semantica_command_is_not_the_daemonising_cli_subcommand():
     assert "mcp start" not in sem.get("command", "")
 
 
+def test_prerequisite_commands_are_runnable_in_a_consumer_project():
+    """No prerequisite command may point inside the ai-badger tree.
+
+    note_declared_prerequisites interpolates these strings into a note shown in the
+    consumer's own project, but MCP catalog directories are never copied there — the
+    scaffold reads them in place from the framework checkout. A consumer following
+    `python3 features/common/mcp/semantica/scripts/install.py` gets "No such file or
+    directory".
+    """
+    meta = json.loads(_catalog_file("meta.json").read_text(encoding="utf-8"))
+    prereq = meta["prerequisite"]
+    commands = [prereq.get("check"), prereq.get("install")]
+    for scope in ("local", "global"):
+        commands += [prereq[scope].get(k) for k in ("check", "install", "command")]
+    for cmd in [c for c in commands if c]:
+        assert "features/common/mcp/" not in cmd, (
+            f"prerequisite command reaches into the framework tree: {cmd!r}"
+        )
+
+
 def test_semantica_install_commands_pin_the_interpreter():
     """Every documented install command pins an interpreter with gensim wheels.
 

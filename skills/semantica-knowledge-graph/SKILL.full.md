@@ -46,7 +46,7 @@ Semantica is a session-scoped knowledge graph MCP server (MIT, v0.6.5+). In-memo
 
 ### 4. Graph export & AiRaccoon persistence pattern
 To prevent data loss from Semantica's ephemeral process:
-1. **Export auto-saves per session**: Call `export_graph(format="json")`. The export hook auto-saves each result to `.semantica/<session>.json` — per-session and timestamped, so parallel sessions and subagents never collide.
+1. **Export auto-saves per session**: the export hook auto-saves each `export_graph` result to `.semantica/<session>.json` — per-session and timestamped, so parallel sessions and subagents never collide. Note that `export_graph` errors in every format on semantica 0.6.6 (see Gotchas), so this pipeline is wired but produces nothing until upstream is fixed.
 2. **Watch the directory once**: The `ai-raccoon-memory` skill registers a one-time directory watch on `.semantica/` via `memory_watch_add(projectId, <absolute path to .semantica>)`; re-adding is a no-op.
 3. **Structural JSON Integration**: AiRaccoon ingests every `.semantica/` file, parses graphs and decisions, and embeds them into its persistent SQLite memory bank (`memory.db`).
 4. **Cross-Session Retrieval**: `memory_search` in AiRaccoon returns both textual decision rationale and structural JSON graph relations.
@@ -70,9 +70,17 @@ To prevent data loss from Semantica's ephemeral process:
 - **Extraction ML deps**: `extract_entities` needs `torch` + `transformers`, not LLM API keys.
 - **Parameter names**: `add_relationship` uses `source`/`target`, not `source_id`/`target_id`.
 - **Known issue**: `get_graph_analytics` unavailable in 0.6.5 — use `get_graph_summary`.
-- **Upstream export bug (0.6.5/0.6.6)**: `export_graph(format="json")` errors
-  (`JSONExporter.export() missing ... 'file_path'`) — fixed after 0.6.6; until then the
-  hook skips the dump; graph tools work; `check.py` probes and warns.
+- **Upstream export bug (0.6.5/0.6.6)**: **every** `export_graph` format errors, not
+  just json. Measured on 0.6.6: `json` → `JSONExporter.export() missing ... 'file_path'`;
+  `turtle` and `json-ld` → `'ContextGraph' object has no attribute 'get'`. No fixed
+  release is known. The graph tools are unaffected, the hook skips the dump, and
+  `check.py` probes and warns.
+- **The RDF branch writes to stdout**: it emits a progress bar on the MCP JSON-RPC
+  transport, so an `export_graph(format="json-ld")` call returns nothing at all rather
+  than an error. The MCP entry declares `SEMANTICA_DISABLE_PROGRESS=1` to prevent this;
+  keep it if you hand-write a launch config.
+- **`.semantica/` stays empty on 0.6.6.** That is the upstream bug above, not a broken
+  bridge — the autosave wiring is live and resumes when export_graph is fixed.
 - **All agents auto-save and nudge**: export autosave is wired for Hermes (plugin),
   Claude Code (PostToolUse), Copilot (postToolUse) — every `export_graph` result lands in
   `.semantica/`. The once-per-session export guidance nudge is active across all three hosts.
