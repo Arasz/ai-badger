@@ -287,6 +287,36 @@
           "matcher": "bash|Bash"
         }
       }
+    },
+    {
+      "name": "git-internals-guard",
+      "description": "Refuse any hand-modification of a git dir - .git/config, HEAD, refs, the worktree pointer file, and the global git config - so the config is only ever written transactionally by git itself",
+      "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "PreToolUse",
+          "script": "git_internals_guard.py"
+        }
+      }
+    },
+    {
+      "name": "git-config-health",
+      "description": "Warn at session start when the repository lost remote.origin.fetch or its branch tracking - a fetch that still reports success while refs/remotes/origin/* silently stops moving",
+      "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "SessionStart",
+          "script": "git_config_health_hook.py"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "sessionStart",
+          "script": "git_config_health_hook.py"
+        }
+      }
     }
   ]
 }
