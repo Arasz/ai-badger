@@ -20,6 +20,7 @@ When cutting a release:
 | Version | Entry |
 |---|---|
 | 0.140.0 | [Hermes cannot be gated per dispatch, and its isolation switch is off by default](0.140.0-hermes-cannot-be-gated-per-dispatch.md) |
+| 0.139.0 | [semantica 0.6.6: transport fix, install pin, and an honesty pass](0.139.0-semantica-0-6-6-honesty-and-transport-fix.md) |
 | 0.138.0 | [a contract with no gate behind it](0.138.0-a-contract-with-no-gate-behind-it.md) |
 | 0.137.1 | [semantica export_graph wrapper fix](0.137.1-semantica-export-graph-wrapper.md) |
 | 0.137.0 | [consolidate-stack-skills: two gateway skills replace fourteen registrations](0.137.0-consolidate-stack-skills.md) |
