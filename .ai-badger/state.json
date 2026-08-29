@@ -1,6 +1,6 @@
 {
   "lastUpdated": "2026-08-29",
-  "next": "Open from the pi work: (1) fork-side default projectId for ai-raccoon tools (pi sessions must pass it explicitly today); (2) pi arms in hooks-manifest.json decision; (3) live-verify the pi session-signals abort->next-turn handoff with one real interactive f!: mid-delegation; (4) keep ai-badger's vendored adapter in sync with the integration repo canonical via publish --check.",
+  "next": "Open follow-ups after the 2026-08-29 batch: (1) IMPLEMENT the default-projectId-from-cwd resolver in ~/RiderProjects/ai-raccoon \u2014 design committed there (docs/plans/default-projectid-from-cwd.md, 2cda253b); seam is ToolGate.RequireAsync, needs dotnet-engineer lane + tests; (2) pi stack parity (user e:, queued): pi discovers the same ai-badger MCP tools as Claude Code \u2014 MCP config + skills discovery defined by the project scaffold; (3) after the resolver ships: pi sessions stop passing projectId explicitly. DONE in this batch: ADR-0022 (pi arms hooks dynamically, 8f724f61); session-signals abort live-verified via pi --mode rpc (facts in memory hash 90ca00cb); vendored adapter publish --check in sync.",
   "completedTasks": [
     {
       "taskId": "aib-prompt-markers-importance-token-grammar",
