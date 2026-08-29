@@ -129,10 +129,14 @@ async function gateOutcomes(
     cwd: ctx.cwd,
     sessionId: process.env.PI_SESSION_ID ?? "",
   });
-  const commands = commandsForTool(gates.commands, payload.tool_name);
-  return Promise.all(
+  const broken: string[] = [];
+  const commands = commandsForTool(gates.commands, payload.tool_name, (reason) => broken.push(reason));
+  const outcomes = await Promise.all(
     commands.map((command) => runGate(command, payload, { cwd: ctx.cwd, signal: ctx.signal })),
   );
+  // A matcher that does not compile skips its command; that is reported like a gate error
+  // rather than vanishing, so a typo'd shipped matcher cannot silently gate nothing.
+  return [...broken.map((reason): GateOutcome => ({ kind: "error", reason })), ...outcomes];
 }
 
 export default async function (pi: ExtensionAPI) {

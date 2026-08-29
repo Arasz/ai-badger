@@ -32,7 +32,7 @@ export const TOOL_NAME = "delegate";
 export const AGENTS_DIR = [".pi", "agents"];
 
 /** Output kept from the child, so one runaway subagent cannot flood the parent's context. */
-export const MAX_OUTPUT_BYTES = 64 * 1024;
+export const MAX_OUTPUT_CHARS = 64 * 1024;
 
 export interface Persona {
   name: string;
@@ -48,6 +48,12 @@ export interface PersonaScan {
   errors: string[];
   /** Set when the directory itself is absent — a different failure from an unparseable file. */
   missingDir?: string;
+  /**
+   * One line per persona shadowed by an earlier file with the same `name`. pi resolves agents
+   * by name, so the shadowed file is dead weight; the line exists because a silent shadow is
+   * exactly the kind of thing this extension's audit trail exists to end.
+   */
+  duplicates?: string[];
 }
 
 type PersonaFrontmatter = { name?: unknown; description?: unknown };
@@ -100,9 +106,26 @@ export function scanPersonas(cwd: string): PersonaScan {
       scan.errors.push(`${name} could not be read (${String(error)})`);
       continue;
     }
-    const parsed = parsePersona(text, filePath);
+    let parsed: Persona | { error: string };
+    try {
+      parsed = parsePersona(text, filePath);
+    } catch (error) {
+      // pi's parseFrontmatter has no internal guard: one malformed-YAML file would otherwise
+      // kill the whole delegate call instead of degrading to this line.
+      scan.errors.push(`${name} could not be parsed (${String(error)})`);
+      continue;
+    }
     if ("error" in parsed) {
       scan.errors.push(parsed.error);
+      continue;
+    }
+    const shadowed = scan.personas.find((p) => p.name === parsed.name);
+    if (shadowed) {
+      scan.duplicates ??= [];
+      scan.duplicates.push(
+        `${parsed.name}: ${basename(filePath)} is shadowed by ${basename(shadowed.filePath)} ` +
+        `and will never be delegated to`,
+      );
       continue;
     }
     scan.personas.push(parsed);
@@ -153,8 +176,8 @@ export function piInvocation(
   return { command: "pi", args };
 }
 
-/** Keep the last `MAX_OUTPUT_BYTES` of a child's output; the tail is where its answer is. */
-export function capOutput(text: string, limit: number = MAX_OUTPUT_BYTES): string {
+/** Keep the last `MAX_OUTPUT_CHARS` characters of a child's output; the tail is the answer. */
+export function capOutput(text: string, limit: number = MAX_OUTPUT_CHARS): string {
   if (text.length <= limit) return text;
   return `[...${text.length - limit} earlier characters dropped]\n${text.slice(-limit)}`;
 }
@@ -254,6 +277,9 @@ export default function (pi: ExtensionAPI) {
       }
       for (const error of scan.errors) {
         ctx.ui.notify(`ai-badger: persona skipped — ${error}`, "warning");
+      }
+      for (const duplicate of scan.duplicates ?? []) {
+        ctx.ui.notify(`ai-badger: duplicate persona — ${duplicate}`, "warning");
       }
 
       const persona = scan.personas.find((p) => p.name === params.agent);

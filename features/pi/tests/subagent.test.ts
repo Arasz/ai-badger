@@ -105,12 +105,43 @@ describe("scanPersonas", () => {
     const agents = join(dir, ...AGENTS_DIR);
     mkdirSync(agents, { recursive: true });
     writeFileSync(join(agents, "architect.md"), SCAFFOLDED);
-    writeFileSync(join(agents, "broken.md"), "no frontmatter here\n");
+    writeFileSync(join(agents, "broken.md"), "no frontmatter here\\n");
 
     const scan = scanPersonas(dir);
 
     expect(scan.personas.map((p) => p.name)).toEqual(["architect"]);
     expect(scan.errors).toEqual(["broken.md has no `name` in its frontmatter"]);
+  });
+
+  test("a frontmatter that is invalid YAML is reported, and the rest still load", () => {
+    const agents = join(dir, ...AGENTS_DIR);
+    mkdirSync(agents, { recursive: true });
+    writeFileSync(join(agents, "architect.md"), SCAFFOLDED);
+    writeFileSync(join(agents, "broken.md"), "---\ndescription: [unclosed\n---\n\nbody\n");
+
+    const scan = scanPersonas(dir);
+
+    expect(scan.personas.map((p) => p.name)).toEqual(["architect"]);
+    expect(scan.errors).toHaveLength(1);
+    expect(scan.errors[0]).toContain("broken.md could not be parsed");
+  });
+
+  test("two files claiming the same name keep the first and name the shadowed one", () => {
+    const agents = join(dir, ...AGENTS_DIR);
+    mkdirSync(agents, { recursive: true });
+    writeFileSync(join(agents, "a-architect.md"), SCAFFOLDED);
+    writeFileSync(
+      join(agents, "b-architect.md"),
+      "---\nname: architect\ndescription: A shadow\n---\n\nx\n",
+    );
+
+    const scan = scanPersonas(dir);
+
+    expect(scan.personas.map((p) => p.name)).toEqual(["architect"]);
+    expect(scan.personas[0].filePath).toContain("a-architect.md");
+    expect(scan.duplicates).toHaveLength(1);
+    expect(scan.duplicates?.[0]).toContain("a-architect.md");
+    expect(scan.duplicates?.[0]).toContain("b-architect.md");
   });
 });
 
@@ -177,6 +208,12 @@ describe("output handling", () => {
     const capped = capOutput("abcdefghij", 4);
 
     expect(capped).toBe("[...6 earlier characters dropped]\nghij");
+  });
+
+  test("capOutput's budget is counted in characters, matching how it slices", () => {
+    expect(capOutput("aé".repeat(3), 4)).toBe(
+      "[...2 earlier characters dropped]\naéaé",
+    );
   });
 
   test("capOutput leaves output under the limit alone", () => {

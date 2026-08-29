@@ -66,14 +66,22 @@ export function preToolUseCommands(hooksJson: unknown): HookCommand[] {
   return out;
 }
 
-/** The commands whose matcher covers `toolName`; a matcher-less entry always runs. */
-export function commandsForTool(commands: HookCommand[], toolName: string): string[] {
+/** The commands whose matcher covers `toolName`; a matcher-less entry always runs.
+ * `onBrokenMatcher` receives one line per entry skipped because its regex did not compile —
+ * a shipped-matcher typo would otherwise gate nothing, invisibly. */
+export function commandsForTool(
+  commands: HookCommand[],
+  toolName: string,
+  onBrokenMatcher?: (reason: string) => void,
+): string[] {
   return commands
     .filter((entry) => {
       if (!entry.matcher) return true;
       try {
         return new RegExp(`^(?:${entry.matcher})$`).test(toolName);
-      } catch {
+      } catch (error) {
+        onBrokenMatcher?.(`ai-badger: hook matcher /${entry.matcher}/ is not a valid regex ` +
+          `(${String(error)}) — its command is skipped`);
         return false;
       }
     })

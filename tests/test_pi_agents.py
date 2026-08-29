@@ -130,6 +130,20 @@ def test_missing_persona_source_is_reported_as_a_loud_error(agents_arm, tmp_path
     assert str(tmp_path / ".ai-badger" / "agents") in result["notes"]
 
 
+def test_an_empty_persona_source_says_what_it_found(agents_arm, tmp_path):
+    """A `.ai-badger/agents/` that exists but holds no persona says so, and does not create
+    `.pi/agents/` — a directory of nothing would be scaffolding noise, not a capability."""
+    (tmp_path / ".ai-badger" / "agents").mkdir(parents=True)
+
+    result = agents_arm.adjust(_context(tmp_path))
+
+    assert result["applied"] is False
+    assert result["files"] == []
+    assert "no personas in" in result["notes"]
+    assert str(tmp_path / ".ai-badger" / "agents") in result["notes"]
+    assert not (tmp_path / ".pi").exists()
+
+
 def test_no_install_still_writes_the_project_agents(agents_arm, project):
     """`--no-install` must not suppress this arm: `.pi/agents/` is project state, not user state.
 

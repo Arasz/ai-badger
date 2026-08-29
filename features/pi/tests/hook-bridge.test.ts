@@ -58,11 +58,14 @@ describe("hooks.json is the list of gates, not a hardcoded copy of it", () => {
     expect(commandsForTool(commands, "BashOutput")).toEqual(["python3 always.py"]);
   });
 
-  test("an unparseable matcher regex is skipped, not crashed on", () => {
+  test("an unparseable matcher regex is skipped, not crashed on, and the skip is reported", () => {
     const commands = preToolUseCommands({
       hooks: { PreToolUse: [{ matcher: "([", hooks: [{ command: "python3 broken.py" }] }] },
     });
-    expect(commandsForTool(commands, "Bash")).toEqual([]);
+    const broken: string[] = [];
+    expect(commandsForTool(commands, "Bash", (reason) => broken.push(reason))).toEqual([]);
+    expect(broken).toHaveLength(1);
+    expect(broken[0]).toContain("([");
   });
 });
 

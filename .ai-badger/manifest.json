@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.144.0",
-  "frameworkCommit": "a171a2e7bc03b7fe8ff89d3d5ac88b4227b8a1d7",
+  "frameworkCommit": "686f1d0a5bf38e4c833b234ac15a3d6964e13523",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -2121,7 +2121,7 @@
       "source": "features/pi/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/ai_badger_hooks.py",
       "frameworkVersion": "0.144.0",
-      "hash": "7db76f609c96677a8d71e63d6872ef111156933fba6741405238785b1170f1e4"
+      "hash": "20590022488890df85e3d6af4b5ff3eaaefe74e09ee805040dc842ea1af05bbc"
     },
     {
       "feature": "adjustments",
@@ -2130,7 +2130,7 @@
       "source": "features/pi/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/mcp_index_hook.py",
       "frameworkVersion": "0.144.0",
-      "hash": "7db76f609c96677a8d71e63d6872ef111156933fba6741405238785b1170f1e4"
+      "hash": "20590022488890df85e3d6af4b5ff3eaaefe74e09ee805040dc842ea1af05bbc"
     },
     {
       "feature": "adjustments",
@@ -2139,7 +2139,7 @@
       "source": "features/pi/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/debug_log.py",
       "frameworkVersion": "0.144.0",
-      "hash": "7db76f609c96677a8d71e63d6872ef111156933fba6741405238785b1170f1e4"
+      "hash": "20590022488890df85e3d6af4b5ff3eaaefe74e09ee805040dc842ea1af05bbc"
     },
     {
       "feature": "adjustments",
@@ -2148,7 +2148,7 @@
       "source": "features/pi/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/grounded_feedback.py",
       "frameworkVersion": "0.144.0",
-      "hash": "7db76f609c96677a8d71e63d6872ef111156933fba6741405238785b1170f1e4"
+      "hash": "20590022488890df85e3d6af4b5ff3eaaefe74e09ee805040dc842ea1af05bbc"
     },
     {
       "feature": "adjustments",
@@ -2157,7 +2157,7 @@
       "source": "features/pi/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/hermes_isolation.py",
       "frameworkVersion": "0.144.0",
-      "hash": "7db76f609c96677a8d71e63d6872ef111156933fba6741405238785b1170f1e4"
+      "hash": "20590022488890df85e3d6af4b5ff3eaaefe74e09ee805040dc842ea1af05bbc"
     },
     {
       "feature": "adjustments",
