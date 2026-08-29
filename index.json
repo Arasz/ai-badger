@@ -938,6 +938,10 @@
           "path": "features/pi/adjustments/adjust_mcp.py"
         },
         {
+          "name": "adjust_skills",
+          "path": "features/pi/adjustments/adjust_skills.py"
+        },
+        {
           "name": "adjust_task",
           "path": "features/pi/adjustments/adjust_task.py"
         },
@@ -948,6 +952,10 @@
         {
           "name": "pi_session_source",
           "path": "features/pi/adjustments/pi_session_source.py"
+        },
+        {
+          "name": "pi_settings",
+          "path": "features/pi/adjustments/pi_settings.py"
         }
       ],
       "meta": {

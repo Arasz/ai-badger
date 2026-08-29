@@ -1,4 +1,5 @@
 """Tests for pi agent adjustments: MCP, hooks, task, cron."""
+# pylint: disable=protected-access,redefined-outer-name  # module internals + fixture reuse; see pyproject.toml
 from __future__ import annotations
 
 import json
@@ -37,6 +38,26 @@ def pi_user_extensions(load_script, tmp_path, monkeypatch):
     return types.SimpleNamespace(hooks=hooks, cron=cron, hooks_dir=hooks_dir, cron_dir=cron_dir)
 
 
+@pytest.fixture
+def pi_settings_modules(load_script, tmp_path, monkeypatch):
+    """Load adjust_skills and adjust_mcp with pi_settings.SETTINGS_PATH redirected to tmp_path.
+
+    Both modules do ``import pi_settings`` after inserting their own directory onto
+    ``sys.path``; Python's import cache means that resolves to one shared module object no
+    matter which of the two files triggers the first import, so patching the attribute on
+    either module's ``pi_settings`` reference redirects both. No test using this fixture may
+    write to the real ``~/.pi/agent/settings.json``.
+    """
+    skills = load_script("features/pi/adjustments/adjust_skills.py")
+    mcp = load_script("features/pi/adjustments/adjust_mcp.py")
+
+    settings_path = tmp_path / "pi" / "agent" / "settings.json"
+    monkeypatch.setattr(skills.pi_settings, "SETTINGS_PATH", settings_path)
+    monkeypatch.setattr(mcp.pi_settings, "SETTINGS_PATH", settings_path)
+
+    return types.SimpleNamespace(skills=skills, mcp=mcp, settings_path=settings_path)
+
+
 def test_adjust_mcp_no_pi_in_config(load_script):
     """adjust_mcp returns unapplied when pi is not in config.agents."""
     adjust = load_script("features/pi/adjustments/adjust_mcp.py")
@@ -54,7 +75,12 @@ def test_adjust_mcp_no_declarations(load_script):
 
 
 def test_adjust_mcp_proposes_servers(load_script):
-    """adjust_mcp returns applied with notes when pi and servers declared."""
+    """adjust_mcp returns applied with notes when pi and servers declared.
+
+    install: False — this test exercises the printed-snippet path specifically; G2's
+    settings-merge path (install=True) has its own tests under pi_settings_modules, which
+    monkeypatch pi_settings.SETTINGS_PATH so nothing here can reach the real home directory.
+    """
     adjust = load_script("features/pi/adjustments/adjust_mcp.py")
     context = {
         "config": {"agents": ["pi"]},
@@ -62,6 +88,7 @@ def test_adjust_mcp_proposes_servers(load_script):
             "filesystem": {"command": "npx -y @modelcontextprotocol/server-filesystem /tmp"},
         },
         "mcp_declined": [],
+        "install": False,
     }
     result = adjust.adjust(context)
     assert result["applied"]
@@ -69,7 +96,10 @@ def test_adjust_mcp_proposes_servers(load_script):
 
 
 def test_adjust_mcp_respects_decline(load_script):
-    """adjust_mcp excludes declined servers from proposal."""
+    """adjust_mcp excludes declined servers from proposal.
+
+    install: False for the same reason as test_adjust_mcp_proposes_servers above.
+    """
     adjust = load_script("features/pi/adjustments/adjust_mcp.py")
     context = {
         "config": {"agents": ["pi"]},
@@ -78,6 +108,7 @@ def test_adjust_mcp_respects_decline(load_script):
             "github": {"command": "npx server-github"},
         },
         "mcp_declined": ["github"],
+        "install": False,
     }
     result = adjust.adjust(context)
     assert result["applied"]
@@ -413,3 +444,186 @@ def test_adjust_mcp_command_with_unbalanced_quote_raises_value_error(load_script
 
     with pytest.raises(ValueError):
         adjust_mcp._server_entry("filesystem", {"command": 'npx "--flag'})
+
+
+# ---------------------------------------------------------------------------
+# G1/G2 — pi_settings.py's read/merge/write contract, and the two adjustments (adjust_skills,
+# adjust_mcp install=True) that write through it. Every test here writes to a tmp_path settings
+# file; test_pi_settings_write_does_not_touch_real_home is the one that proves it.
+# ---------------------------------------------------------------------------
+
+def test_pi_settings_write_is_atomic_on_failure(load_script, tmp_path, monkeypatch):
+    """A failed write leaves the original file intact and no temp file behind."""
+    pi_settings = load_script("features/pi/adjustments/pi_settings.py")
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"theme": "dark"}), encoding="utf-8")
+
+    def _boom(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(pi_settings.os, "replace", _boom)
+
+    with pytest.raises(OSError):
+        pi_settings.write_settings(path, {"theme": "dark", "skills": ["/x"]})
+
+    # The original content survives untouched — no truncation, no partial write.
+    assert json.loads(path.read_text(encoding="utf-8")) == {"theme": "dark"}
+    # No leftover .tmp file: the finally-block cleanup ran.
+    leftovers = [p for p in tmp_path.iterdir() if p != path]
+    assert leftovers == [], leftovers
+
+
+def test_pi_settings_merge_skills_path_creates_file_when_absent(load_script, tmp_path):
+    """A missing settings.json (and its parent dirs) is created holding just the merged key."""
+    pi_settings = load_script("features/pi/adjustments/pi_settings.py")
+    path = tmp_path / "pi" / "agent" / "settings.json"
+    assert not path.exists()
+
+    settings = pi_settings.merge_skills_path(pi_settings.load_settings(path), "/proj/skills")
+    pi_settings.write_settings(path, settings)
+
+    assert path.is_file()
+    assert json.loads(path.read_text(encoding="utf-8")) == {"skills": ["/proj/skills"]}
+
+
+def test_pi_settings_merge_skills_path_is_idempotent(load_script, tmp_path):
+    """Merging the same path twice adds it once."""
+    pi_settings = load_script("features/pi/adjustments/pi_settings.py")
+    path = tmp_path / "settings.json"
+
+    for _ in range(2):
+        settings = pi_settings.merge_skills_path(pi_settings.load_settings(path), "/proj/skills")
+        pi_settings.write_settings(path, settings)
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["skills"] == ["/proj/skills"]
+
+
+def test_pi_settings_merge_preserves_unknown_keys(load_script, tmp_path):
+    """lastChangelogVersion and theme — the real file's actual content — survive a merge."""
+    pi_settings = load_script("features/pi/adjustments/pi_settings.py")
+    path = tmp_path / "settings.json"
+    path.write_text(
+        json.dumps({"lastChangelogVersion": "0.140.0", "theme": "dark"}), encoding="utf-8")
+
+    settings = pi_settings.merge_skills_path(pi_settings.load_settings(path), "/proj/skills")
+    pi_settings.write_settings(path, settings)
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["lastChangelogVersion"] == "0.140.0"
+    assert data["theme"] == "dark"
+    assert data["skills"] == ["/proj/skills"]
+
+
+def test_adjust_skills_install_true_merges_skills_path(pi_settings_modules, tmp_path):
+    """install: True merges the project's .ai-badger/skills/ path into settings.json."""
+    context = {
+        "config": {"agents": ["pi"]},
+        "target_dir": tmp_path / ".ai-badger",
+        "install": True,
+    }
+
+    result = pi_settings_modules.skills.adjust(context)
+
+    assert result["applied"]
+    data = json.loads(pi_settings_modules.settings_path.read_text(encoding="utf-8"))
+    assert str(tmp_path / ".ai-badger" / "skills") in data["skills"]
+
+
+def test_adjust_skills_install_false_is_noop(pi_settings_modules, tmp_path):
+    """install: False is a documented no-op, not an error — user-global state is left alone."""
+    context = {
+        "config": {"agents": ["pi"]},
+        "target_dir": tmp_path / ".ai-badger",
+        "install": False,
+    }
+
+    result = pi_settings_modules.skills.adjust(context)
+
+    assert result["applied"] is False
+    assert not pi_settings_modules.settings_path.exists()
+
+
+def test_adjust_mcp_install_true_merges_into_settings(pi_settings_modules):
+    """install: True merges declared servers into settings.json's mcp key."""
+    context = {
+        "config": {"agents": ["pi"]},
+        "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+        "mcp_declined": [],
+        "install": True,
+    }
+
+    result = pi_settings_modules.mcp.adjust(context)
+
+    assert result["applied"]
+    data = json.loads(pi_settings_modules.settings_path.read_text(encoding="utf-8"))
+    assert data["mcp"]["filesystem"]["command"] == ["npx", "-y", "server"]
+    # The doc-honesty clause: pi core has no consumer for this key.
+    assert "no consumer in pi core" in result["notes"]
+
+
+def test_adjust_mcp_install_true_preserves_existing_settings(pi_settings_modules):
+    """The merge is additive: other mcp entries and unknown top-level keys survive."""
+    pi_settings_modules.settings_path.parent.mkdir(parents=True, exist_ok=True)
+    pi_settings_modules.settings_path.write_text(json.dumps({
+        "lastChangelogVersion": "0.100.0",
+        "theme": "dark",
+        "mcp": {"other-server": {"type": "remote", "url": "https://example.com"}},
+    }), encoding="utf-8")
+
+    context = {
+        "config": {"agents": ["pi"]},
+        "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+        "mcp_declined": [],
+        "install": True,
+    }
+    pi_settings_modules.mcp.adjust(context)
+
+    data = json.loads(pi_settings_modules.settings_path.read_text(encoding="utf-8"))
+    assert data["lastChangelogVersion"] == "0.100.0"
+    assert data["theme"] == "dark"
+    assert "other-server" in data["mcp"]
+    assert "filesystem" in data["mcp"]
+
+
+def test_adjust_mcp_install_true_is_idempotent(pi_settings_modules):
+    """Running the merge twice leaves a single, unduplicated entry for the same server."""
+    context = {
+        "config": {"agents": ["pi"]},
+        "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+        "mcp_declined": [],
+        "install": True,
+    }
+
+    pi_settings_modules.mcp.adjust(context)
+    pi_settings_modules.mcp.adjust(context)
+
+    data = json.loads(pi_settings_modules.settings_path.read_text(encoding="utf-8"))
+    assert list(data["mcp"].keys()) == ["filesystem"]
+
+
+def test_pi_settings_write_does_not_touch_real_home(pi_settings_modules):
+    """The fixture's redirect actually held: the real settings.json is untouched by G1/G2.
+
+    This suite has leaked writes into the real $HOME before (see conftest's REAL_HOME /
+    REAL_WRITE_LOG machinery for the general guard); this test asserts the specific case G1/G2
+    introduce — a settings.json merge — leaves the developer's real file exactly as it was.
+    """
+    real_settings = _REAL_HOME / ".pi" / "agent" / "settings.json"
+    before = real_settings.read_bytes() if real_settings.exists() else None
+
+    context = {
+        "config": {"agents": ["pi"]},
+        "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+        "mcp_declined": [],
+        "install": True,
+    }
+    pi_settings_modules.mcp.adjust(context)
+    pi_settings_modules.skills.adjust({
+        "config": {"agents": ["pi"]},
+        "target_dir": Path("/tmp/does-not-matter/.ai-badger"),
+        "install": True,
+    })
+
+    after = real_settings.read_bytes() if real_settings.exists() else None
+    assert before == after

@@ -1,7 +1,10 @@
 """pi session source for the /task tracker (installed by the pi adjustment).
 
 pi has no session database (no state.db, no SQLite store). The session source
-reads the PI_SESSION_ID env var for identification and provides a resume command.
+reads the PI_SESSION_ID env var for identification and provides a resume command:
+`pi -p --session {id}` — measured against pi 0.84.3, `--resume, -r` takes NO
+argument (it opens an interactive selector), so a trailing id there is a separate,
+silently-ignored argv token. `--session <path|id>` accepts a partial UUID.
 All token tracking values are zeroed — pi does not expose per-session token usage
 through an env var or file API.
 
@@ -27,7 +30,7 @@ def register(tracker_lib) -> None:
         env_var=PI_SESSION_ENV,
         resolve=_resolve,
         checkpoint=lambda session: _zeroed_checkpoint(session["sessionId"]),
-        resume=lambda session_id: f"pi -p --resume {session_id}",
+        resume=lambda session_id: f"pi -p --session {session_id}",
         delegation_usage=lambda delegation_id: None,
     )
 

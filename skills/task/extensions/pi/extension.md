@@ -18,15 +18,18 @@ The reference subagent implementation is at `examples/extensions/subagent/` in t
 
 ## Session management
 
-- Resume work: `pi --resume <session_id>` or `pi -p` (most recent)
+- Resume work: `pi -p --session <session_id>` — `--resume, -r` takes no argument (it opens an
+  interactive selector); `--session <path|id>` accepts a partial UUID
 - pi has no built-in `/branch` or `/fork` — use git worktrees for parallel work
 - Context compression: automatic by default
 
 ## Token tracking
 
-pi does not expose per-session token usage through an env var or file API.
-The task tracker reports zeroes for pi sessions. Record token usage manually
-with `task_tracker.py subagent <taskId> <total_tokens>`.
+pi does not expose per-session token usage through an API, but the session JSONL does carry
+it — `usage` on assistant entries in `~/.pi/agent/sessions/--<path>--/<timestamp>_<uuid>.jsonl`
+(pi `docs/session-format.md`). The task tracker currently reports zeroes for pi sessions;
+record usage manually with `task_tracker.py subagent <taskId> <total_tokens>` until a JSONL
+reader ships.
 
 ## Hook integration
 

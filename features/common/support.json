@@ -246,20 +246,20 @@
         },
         "hooks": {
           "supported": true,
-          "mechanism": "Extension events: input, tool_call, tool_result, session_start, session_shutdown, agent_settled (34 events total, superset of Claude)",
+          "mechanism": "Extension events the adapter subscribes to: input, tool_call, tool_result, session_start, session_shutdown, agent_settled — see pi's extension API docs for the full event set",
           "configPath": "~/.pi/agent/extensions/",
           "aiBadgerSupport": true,
           "wiredBy": "pi/adjustments/adjust_hooks.py"
         },
         "skills": {
           "supported": true,
-          "mechanism": "SKILL.md YAML frontmatter, Agent Skills standard (79/79 load unmodified from .claude/skills/)",
+          "mechanism": "SKILL.md YAML frontmatter, Agent Skills standard — pi does not read .claude/skills/ directly; adjust_skills.py merges this project's .ai-badger/skills/ path into the settings.json skills array (the one discovery route that is not trust-gated)",
           "aiBadgerSupport": true,
           "scaffoldedBy": "scaffold.py + pi/adjustments/adjust_skills.py"
         },
         "customAgents": {
           "supported": true,
-          "mechanism": "~/.pi/agent/agents/*.agent.md with frontmatter (model, tools, mcp-servers)",
+          "mechanism": "~/.pi/agent/agents/*.md with frontmatter (model, tools, mcp-servers)",
           "aiBadgerSupport": false
         },
         "plugins": {
@@ -269,9 +269,9 @@
         },
         "mcpServers": {
           "supported": "partial",
-          "mechanism": "Via pi-mcp-tools extension (settings.json mcp key), not native",
+          "mechanism": "Via pi-mcp-tools extension (settings.json mcp key); that key has no consumer in pi core",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "pi/adjustments/adjust_mcp.py — maps .mcp.json to settings.json format"
+          "scaffoldedBy": "pi/adjustments/adjust_mcp.py — merges into ~/.pi/agent/settings.json's mcp key (install=True) or prints the snippet (--no-install)"
         },
         "cacheAwareDispatch": {
           "supported": false,
