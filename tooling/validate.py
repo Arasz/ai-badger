@@ -66,6 +66,16 @@ FEATURE_JSON_WITHOUT_SCHEMA: Dict[str, str] = {
         "gateway manifest (ADR-0021); its structure — kind, members, paths, purpose "
         "byte-equality, orphans — is validated by skills_lint rule 13, and a JSON Schema here "
         "would be a second copy of that shape",
+    "features/*/tsconfig.json":
+        "TypeScript compiler configuration for a feature's own type-check gate; its shape is "
+        "the TypeScript vendor's contract and tsc itself is the validator that reads it",
+    "features/pi/package.json":
+        "the bun/tsc gate harness manifest for features/pi — a workspace manifest pinning "
+        "typescript and the pi package so the TS lane's gates can run; it configures a "
+        "toolchain, not a feature, and ai-badger's schema machinery never reads it",
+    "features/*/adjustments/adapter/package.json":
+        "pi hooks adapter package.json — a pi extension manifest like the cron one below; "
+        "pi discovers the extension by its index.ts, so this file is npm's contract, not ours",
     "features/*/cron/package.json":
         "pi cron extension package.json — a pi extension manifest, not a feature-config "
         "JSON; validates against npm's package.json schema and is never read by ai-badger's "
@@ -373,6 +383,11 @@ def config_stack_gaps(root: Path, config: Dict) -> List[str]:
             for key, names in selected.items() for name in names if name not in known]
 
 
+def _is_vendored(path: Path) -> bool:
+    """A dependency directory is a build artifact, not catalog the framework ships."""
+    return "node_modules" in path.parts
+
+
 def unschemad_feature_json(root: Path) -> List[str]:
     """JSON under features/ that no schema validates and no exemption names (the review's A16)."""
     features_root = root / "features"
@@ -383,7 +398,8 @@ def unschemad_feature_json(root: Path) -> List[str]:
     covered |= {p for pattern in FEATURE_JSON_WITHOUT_SCHEMA for p in root.glob(pattern)}
     return [f"{p.relative_to(root).as_posix()}: matched by no schema — add a SCHEMA_INSTANCES "
             f"glob or an entry in FEATURE_JSON_WITHOUT_SCHEMA with a reason"
-            for p in sorted(features_root.rglob("*.json")) if p not in covered]
+            for p in sorted(features_root.rglob("*.json"))
+            if p not in covered and not _is_vendored(p)]
 
 
 def _stack_requires(root: Path, stack: str) -> List[str]:

@@ -171,6 +171,22 @@ def test_every_json_under_features_is_schemad_or_exempt_by_name(root, load_scrip
     assert validate.unschemad_feature_json(root) == []
 
 
+def test_vendored_dependencies_are_not_catalog_content(tmp_path, load_script):
+    """A node_modules/ under features/ is a build artifact, not catalog the framework ships.
+
+    features/pi carries a bun tsconfig gate, so running that gate materialises
+    features/pi/node_modules/ — hundreds of third-party package.json files that no ai-badger
+    schema will ever describe. Before this, running the TS gate turned the Python suite red,
+    so the two gates could not both be run in one tree.
+    """
+    validate = load_script("tooling/validate.py")
+    vendored = tmp_path / "features" / "pi" / "node_modules" / "some-dep"
+    vendored.mkdir(parents=True)
+    (vendored / "package.json").write_text('{"name": "some-dep"}', encoding="utf-8")
+
+    assert validate.unschemad_feature_json(tmp_path) == []
+
+
 @pytest.mark.parametrize("rel", [
     "features/common/hooks/hooks.json",
     "features/common/mcp-tags.json",
