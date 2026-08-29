@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.144.0",
-  "frameworkCommit": "9c30bed16fd5779a2180467975a62a6233619a17",
+  "frameworkCommit": "a171a2e7bc03b7fe8ff89d3d5ac88b4227b8a1d7",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -2167,6 +2167,69 @@
       "target": ".ai-badger/skills/task/scripts/pi_session_source.py",
       "frameworkVersion": "0.144.0",
       "hash": "2bd0f5658ef29832a925ee1b5c8894df9e7e966994a7488b0debb195b22ac421"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "pi",
+      "name": "adjustments/.pi/agents/api-engineer.md",
+      "source": "features/pi/adjustments/adjust_agents.py",
+      "target": ".pi/agents/api-engineer.md",
+      "frameworkVersion": "0.144.0",
+      "hash": "36e6c8e861b5c630e639cfc86c90c85f90d1e891d8cf68a2eeb4e70f6a02ad0e"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "pi",
+      "name": "adjustments/.pi/agents/architect.md",
+      "source": "features/pi/adjustments/adjust_agents.py",
+      "target": ".pi/agents/architect.md",
+      "frameworkVersion": "0.144.0",
+      "hash": "36e6c8e861b5c630e639cfc86c90c85f90d1e891d8cf68a2eeb4e70f6a02ad0e"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "pi",
+      "name": "adjustments/.pi/agents/code-reviewer.md",
+      "source": "features/pi/adjustments/adjust_agents.py",
+      "target": ".pi/agents/code-reviewer.md",
+      "frameworkVersion": "0.144.0",
+      "hash": "36e6c8e861b5c630e639cfc86c90c85f90d1e891d8cf68a2eeb4e70f6a02ad0e"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "pi",
+      "name": "adjustments/.pi/agents/delegator.md",
+      "source": "features/pi/adjustments/adjust_agents.py",
+      "target": ".pi/agents/delegator.md",
+      "frameworkVersion": "0.144.0",
+      "hash": "36e6c8e861b5c630e639cfc86c90c85f90d1e891d8cf68a2eeb4e70f6a02ad0e"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "pi",
+      "name": "adjustments/.pi/agents/hermes-agent-author.md",
+      "source": "features/pi/adjustments/adjust_agents.py",
+      "target": ".pi/agents/hermes-agent-author.md",
+      "frameworkVersion": "0.144.0",
+      "hash": "36e6c8e861b5c630e639cfc86c90c85f90d1e891d8cf68a2eeb4e70f6a02ad0e"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "pi",
+      "name": "adjustments/.pi/agents/qa.md",
+      "source": "features/pi/adjustments/adjust_agents.py",
+      "target": ".pi/agents/qa.md",
+      "frameworkVersion": "0.144.0",
+      "hash": "36e6c8e861b5c630e639cfc86c90c85f90d1e891d8cf68a2eeb4e70f6a02ad0e"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "pi",
+      "name": "adjustments/.pi/agents/test-engineer.md",
+      "source": "features/pi/adjustments/adjust_agents.py",
+      "target": ".pi/agents/test-engineer.md",
+      "frameworkVersion": "0.144.0",
+      "hash": "36e6c8e861b5c630e639cfc86c90c85f90d1e891d8cf68a2eeb4e70f6a02ad0e"
     },
     {
       "feature": "skills",

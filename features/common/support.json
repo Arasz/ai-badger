@@ -1,7 +1,7 @@
 {
   "$schema": "../../schemas/support.schema.json",
   "description": "Agent capability matrix: what each agent supports and what ai-badger scaffolds for it.",
-  "lastUpdated": "2026-08-28",
+  "lastUpdated": "2026-08-29",
   "agents": {
     "claude": {
       "name": "Claude Code",
@@ -241,8 +241,9 @@
         },
         "personas": {
           "supported": true,
-          "mechanism": "subagent extension — native child processes with cwd/model/tools",
-          "aiBadgerSupport": true
+          "mechanism": "pi core has no persona feature of its own; agent files are read by a subagent extension. ai-badger ships its own (features/pi/subagent/index.ts, installed user-scope at ~/.pi/agent/extensions/ai-badger-subagent/) which registers one delegation tool and reads <project>/.pi/agents/*.md itself through fs — not through pi's trust-gated project resource loader — so the personas load in headless `pi -p` runs with no trust decision saved",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "pi/adjustments/adjust_agents.py — writes <project>/.pi/agents/*.md and installs the subagent extension user-scope"
         },
         "hooks": {
           "supported": true,
@@ -259,8 +260,9 @@
         },
         "customAgents": {
           "supported": true,
-          "mechanism": "~/.pi/agent/agents/*.md with frontmatter (model, tools, mcp-servers)",
-          "aiBadgerSupport": false
+          "mechanism": "<project>/.pi/agents/*.md and ~/.pi/agent/agents/*.md, `name`/`description` frontmatter plus a body used as the agent's prompt; discovery and dispatch belong to whichever subagent extension is installed, not to pi core",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "pi/adjustments/adjust_agents.py — writes <project>/.pi/agents/*.md and installs the subagent extension user-scope"
         },
         "plugins": {
           "supported": true,
