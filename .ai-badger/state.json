@@ -1,7 +1,19 @@
 {
-  "lastUpdated": "2026-08-28T20:46:29.986321+00:00",
-  "next": "Open from the pi work: (1) add 'pi' arms to hooks-manifest.json only if the runtime-adapter pattern proves insufficient (research F23/plan Phase 5 — deliberately deferred, forces 4 hand-maintained lists + 16 arms); (2) gate/pi_trust_gate.py — automate the F20 run A/B pair (scripts/test_pi_hook_fires.py written, not CI-wired); (3) live-test pi install of our fork extension (pi install git:github.com/Arasz/pi-mcp-tools) against pi 0.84.3; (4) does pi 'input' fire for mid-turn queued messages (needs provider credentials)?; (5) carried from semantica: features/common/mcp/code-review-graph/meta.json unreachable-prerequisite-path defect.",
+  "lastUpdated": "2026-08-29T15:20:00+00:00",
+  "next": "Open from the pi work: (1) fork-side default projectId for ai-raccoon tools (pi sessions must pass it explicitly today; a fork default or env would remove the trap); (2) pi arms in hooks-manifest.json only if the runtime-adapter pattern proves insufficient (deferred, research F23); (3) live-test pi install of our fork extension (pi install git:github.com/Arasz/pi-mcp-tools) against current pi; (4) carried from semantica: features/common/mcp/code-review-graph/meta.json unreachable-prerequisite-path defect.",
   "completedTasks": [
+    {
+      "taskId": "aib-pi-review-fixes",
+      "title": "pi becomes a harness that runs — F1-F18 + G3/G4/G5 + 3-lane review cycle (0.144.0)",
+      "version": "0.144.0",
+      "pr": "https://github.com/Arasz/ai-badger/pull/449",
+      "outcome": "Rebuilt on task/aib-pi-review-fixes-v2 after #446's squash orphaned the lanes (work moved by patch, never merged). Folded G3 (session-usage checkpoints), G4 (hook-arm coverage contract) and G5 (personas to .pi/agents/*.md + ai-badger's own subagent extension reading them via node:fs, so they work headless). Validate exemption for features/*/subagent/package.json (npm's contract, like cron/adapter). 3-lane MoE review then fixed everything it found: MUST — invalid-YAML persona crashed the whole delegate call (scan now degrades per file); G4's rename catch was mutation-weak — new derived equality (stamped literal == loader group) witnessed RED under PreToolUse->PostToolUse; adapter entry point driven by 6 real-handler tests; 3 false claims corrected (adapter subscribes to tool_call only; invariants reach pi via root CLAUDE.md; defaultProjectTrust is 'ask' not 'unset'). Witnessed live, not asserted: headless delegation parent->delegate tool->child pi; skills catalog via settings entry; pi -p --session partial-uuid round trip; git-dir guard deny inside a real session; launchd cron fire (marker 15:15); MCP memory round trip through the fork extension. Cutover traps recorded: cron.json schema is jobs[].title/command (not name/task); schedules expanding past 366 StartCalendarInterval dicts are rejected by design; pi sessions must pass projectId='ai-badger' explicitly to ai-raccoon tools — the fork passes calls through and a missing id lands in a phantom session-UUID context. Settings skills path moved off the doomed worktree to the main checkout; pi-cron reinstalled byte-identical to the repaired source.",
+      "session": "hermes-cli 2026-08-29 (resume session continuing the 08-28 task via its resume record)"
+    },
+    {
+      "id": "sheepdog-bootstrap-dotnet-agent-harness-repo",
+      "title": "Bootstrap ai-sheepdog: research + .NET agent-harness skeleton"
+    },
     {
       "taskId": "pr446-ci-red-fixes",
       "title": "Fix CI red on PR #446: gutted manifest restored + docs/work map rows",
