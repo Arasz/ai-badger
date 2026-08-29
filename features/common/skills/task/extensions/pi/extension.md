@@ -25,11 +25,14 @@ The reference subagent implementation is at `examples/extensions/subagent/` in t
 
 ## Token tracking
 
-pi does not expose per-session token usage through an API, but the session JSONL does carry
-it — `usage` on assistant entries in `~/.pi/agent/sessions/--<path>--/<timestamp>_<uuid>.jsonl`
-(pi `docs/session-format.md`). The task tracker currently reports zeroes for pi sessions;
-record usage manually with `task_tracker.py subagent <taskId> <total_tokens>` until a JSONL
-reader ships.
+pi does not expose per-session token usage through an API. The task tracker's pi session
+source reads it from the session JSONL instead:
+`~/.pi/agent/sessions/--<cwd-with-slashes-as-dashes>--/<timestamp>_<uuid>.jsonl`, one JSON
+object per line. A `"type": "message"` line carries the usage, nested under `message.usage`
+(not a top-level key), with pi's own field names — `input`/`output`/`cacheRead`/`cacheWrite`,
+not Anthropic's `input_tokens`/`output_tokens`. The reader sums `message.usage` across every
+such line in the file matching `PI_SESSION_ID`, and degrades to zero — never raises — on a
+missing directory, missing file, or a line that is not valid JSON.
 
 ## Hook integration
 

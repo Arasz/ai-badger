@@ -621,6 +621,214 @@ def test_adjust_mcp_install_true_is_idempotent(pi_settings_modules):
     assert list(data["mcp"].keys()) == ["filesystem"]
 
 
+# ---------------------------------------------------------------------------
+# G3 — real token checkpoints, read from the pi session JSONL
+# (~/.pi/agent/sessions/--<cwd-with-slashes-as-dashes>--/<timestamp>_<uuid>.jsonl). Every test
+# below patches SESSIONS_DIR to tmp_path; none may touch the real ~/.pi/agent/sessions/.
+# ---------------------------------------------------------------------------
+
+# A field-for-field copy of the real assistant `message` entry measured live this session
+# against a logged-in pi 0.84.3 (openrouter) headless run — pi's own field names
+# (input/output/cacheRead/cacheWrite/totalTokens), not Anthropic's. A future rename of these
+# keys must fail this fixture's test, not silently sum to zero.
+_REAL_USAGE_MESSAGE = {
+    "type": "message",
+    "id": "01a04cfa-c9e4-7fa0-a78c-96f9cb41ba01",
+    "parentId": "01a04cfa-c9e4-7fa0-a78c-96f9cb41ba00",
+    "timestamp": "2026-08-29T10-05-01-000Z",
+    "message": {
+        "role": "assistant",
+        "usage": {
+            "input": 449, "output": 23, "cacheRead": 701, "cacheWrite": 0, "reasoning": 20,
+            "totalTokens": 1173,
+            "cost": {
+                "input": 0.000426, "output": 9.2e-05, "cacheRead": 0.000112,
+                "cacheWrite": 0, "total": 0.000630,
+            },
+        },
+    },
+}
+
+
+@pytest.fixture
+def pi_sessions_dir(load_script, tmp_path, monkeypatch):
+    """Load pi_session_source with SESSIONS_DIR redirected under tmp_path.
+
+    Same idiom as pi_user_extensions above: SESSIONS_DIR is a module-level Path.home()-based
+    constant, rebuilt once at import time, so the test patches the attribute on the module
+    object load_script hands back — after load, before any call. No test using this fixture
+    may read the real ~/.pi/agent/sessions/.
+    """
+    source = load_script("features/pi/adjustments/pi_session_source.py")
+    sessions_dir = tmp_path / "pi" / "agent" / "sessions"
+    monkeypatch.setattr(source, "SESSIONS_DIR", sessions_dir)
+    return types.SimpleNamespace(source=source, sessions_dir=sessions_dir)
+
+
+def _write_session_file(project_dir: Path, uuid: str, lines: list[dict],
+                         timestamp: str = "2026-08-29T10-04-59-236Z") -> Path:
+    project_dir.mkdir(parents=True, exist_ok=True)
+    path = project_dir / f"{timestamp}_{uuid}.jsonl"
+    path.write_text("\n".join(json.dumps(line) for line in lines) + "\n", encoding="utf-8")
+    return path
+
+
+def _project_dir(sessions_dir: Path, cwd: str) -> Path:
+    return sessions_dir / ("--" + cwd.strip("/").replace("/", "-") + "--")
+
+
+def test_pi_session_source_checkpoint_sums_real_shape_fixture(pi_sessions_dir, monkeypatch):
+    """A multi-entry JSONL built from the real measured shape sums correctly across messages."""
+    monkeypatch.setenv("PI_SESSION_ID", "01a04cfa-c9e4-7fa0-a78c-96f9cb41ba0b")
+    cwd = "/Users/arasz/RiderProjects/ai-badger"
+    monkeypatch.chdir("/")  # source must not depend on the real process cwd for this test
+    project_dir = _project_dir(pi_sessions_dir.sessions_dir, cwd)
+    second = dict(_REAL_USAGE_MESSAGE)
+    second["message"] = dict(_REAL_USAGE_MESSAGE["message"])
+    second["message"]["usage"] = dict(_REAL_USAGE_MESSAGE["message"]["usage"])
+    second["message"]["usage"]["input"] = 100
+    second["message"]["usage"]["output"] = 50
+    second["message"]["usage"]["cacheRead"] = 200
+    second["message"]["usage"]["cacheWrite"] = 10
+    lines = [
+        {"type": "session", "version": 1, "id": "01a04cfa-c9e4-7fa0-a78c-96f9cb41ba0b",
+         "timestamp": "2026-08-29T10-04-59-236Z", "cwd": cwd},
+        {"type": "model_change", "id": "x", "parentId": None,
+         "timestamp": "2026-08-29T10-04-59-300Z", "provider": "openrouter",
+         "modelId": "anthropic/claude-sonnet-4.5"},
+        {"type": "thinking_level_change", "id": "y", "parentId": "x",
+         "timestamp": "2026-08-29T10-04-59-400Z", "level": "medium"},
+        _REAL_USAGE_MESSAGE,
+        second,
+    ]
+    _write_session_file(project_dir, "01a04cfa-c9e4-7fa0-a78c-96f9cb41ba0b", lines)
+
+    checkpoint = pi_sessions_dir.source._checkpoint_for_cwd(
+        "01a04cfa-c9e4-7fa0-a78c-96f9cb41ba0b", cwd)
+
+    assert checkpoint["cumulative"]["inputTokens"] == 449 + 100
+    assert checkpoint["cumulative"]["outputTokens"] == 23 + 50
+    assert checkpoint["cumulative"]["cacheReadTokens"] == 701 + 200
+    assert checkpoint["cumulative"]["cacheCreationTokens"] == 0 + 10
+    assert checkpoint["assistantMessages"] == 2
+
+
+def test_pi_session_source_checkpoint_ignores_entries_without_usage(pi_sessions_dir):
+    cwd = "/proj"
+    project_dir = _project_dir(pi_sessions_dir.sessions_dir, cwd)
+    lines = [
+        {"type": "session", "id": "sess-1", "timestamp": "t", "cwd": cwd},
+        {"type": "message", "id": "m1", "parentId": None, "timestamp": "t",
+         "message": {"role": "user", "content": "hi"}},
+        _REAL_USAGE_MESSAGE,
+    ]
+    _write_session_file(project_dir, "sess-1", lines)
+
+    checkpoint = pi_sessions_dir.source._checkpoint_for_cwd("sess-1", cwd)
+
+    assert checkpoint["assistantMessages"] == 1
+    assert checkpoint["cumulative"]["inputTokens"] == 449
+
+
+def test_pi_session_source_checkpoint_skips_malformed_line_and_sums_rest(pi_sessions_dir):
+    cwd = "/proj"
+    project_dir = _project_dir(pi_sessions_dir.sessions_dir, cwd)
+    project_dir.mkdir(parents=True)
+    path = project_dir / "t_sess-2.jsonl"
+    good = json.dumps(_REAL_USAGE_MESSAGE)
+    path.write_text(good + "\n" + "{not valid json\n" + good + "\n", encoding="utf-8")
+
+    checkpoint = pi_sessions_dir.source._checkpoint_for_cwd("sess-2", cwd)
+
+    assert checkpoint["assistantMessages"] == 2
+    assert checkpoint["cumulative"]["inputTokens"] == 449 * 2
+
+
+def test_pi_session_source_checkpoint_missing_dir_yields_zeroes(pi_sessions_dir):
+    """SESSIONS_DIR itself does not exist at all."""
+    checkpoint = pi_sessions_dir.source._checkpoint_for_cwd("no-such-session", "/nowhere")
+
+    assert checkpoint["assistantMessages"] == 0
+    assert checkpoint["cumulative"] == {
+        "inputTokens": 0, "outputTokens": 0, "cacheReadTokens": 0, "cacheCreationTokens": 0,
+    }
+
+
+def test_pi_session_source_checkpoint_missing_file_yields_zeroes(pi_sessions_dir):
+    """The project directory exists but no file's uuid suffix matches the session id."""
+    cwd = "/proj"
+    project_dir = _project_dir(pi_sessions_dir.sessions_dir, cwd)
+    _write_session_file(project_dir, "other-uuid", [_REAL_USAGE_MESSAGE])
+
+    checkpoint = pi_sessions_dir.source._checkpoint_for_cwd("does-not-match", cwd)
+
+    assert checkpoint["assistantMessages"] == 0
+    assert checkpoint["cumulative"]["inputTokens"] == 0
+
+
+def test_pi_session_source_checkpoint_empty_file_yields_zeroes(pi_sessions_dir):
+    cwd = "/proj"
+    project_dir = _project_dir(pi_sessions_dir.sessions_dir, cwd)
+    _write_session_file(project_dir, "sess-empty", [])
+
+    checkpoint = pi_sessions_dir.source._checkpoint_for_cwd("sess-empty", cwd)
+
+    assert checkpoint["assistantMessages"] == 0
+
+
+def test_pi_session_source_finds_right_file_by_uuid_suffix_among_several(pi_sessions_dir):
+    """Several session files sit in one project directory; the id picks the matching one."""
+    cwd = "/proj"
+    project_dir = _project_dir(pi_sessions_dir.sessions_dir, cwd)
+    other = dict(_REAL_USAGE_MESSAGE)
+    other["message"] = dict(_REAL_USAGE_MESSAGE["message"])
+    other["message"]["usage"] = dict(_REAL_USAGE_MESSAGE["message"]["usage"])
+    other["message"]["usage"]["input"] = 999999
+    _write_session_file(project_dir, "aaaaaaaa-0000-0000-0000-000000000000", [other],
+                         timestamp="2026-08-29T09-00-00-000Z")
+    _write_session_file(project_dir, "01a04cfa-c9e4-7fa0-a78c-96f9cb41ba0b",
+                         [_REAL_USAGE_MESSAGE], timestamp="2026-08-29T10-04-59-236Z")
+
+    # Partial/prefix match: pi's own --session <path|id> accepts a partial UUID (measured,
+    # pi 0.84.3 --help); a prefix of the real file's uuid must resolve to that file, not the
+    # other one sitting alongside it.
+    checkpoint = pi_sessions_dir.source._checkpoint_for_cwd("01a04cfa-c9e4", cwd)
+
+    assert checkpoint["cumulative"]["inputTokens"] == 449
+
+
+def test_pi_session_source_zeroed_checkpoint_shape_matches_real_checkpoint_shape(pi_sessions_dir):
+    """The zeroes fallback and the real-data path return the exact same key set."""
+    zeroed = pi_sessions_dir.source._zeroed_checkpoint("sess-1")
+    real = pi_sessions_dir.source._checkpoint_for_cwd("no-such-session", "/nowhere")
+
+    assert set(zeroed) == set(real)
+    assert set(zeroed["cumulative"]) == set(real["cumulative"])
+
+
+def test_pi_session_source_checkpoint_uses_session_env_and_own_cwd(pi_sessions_dir, monkeypatch):
+    """The wired `checkpoint` lambda reads PI_SESSION_ID and the process cwd, end to end."""
+    cwd = str(Path.cwd())
+    project_dir = _project_dir(pi_sessions_dir.sessions_dir, cwd)
+    _write_session_file(project_dir, "wired-session-1", [_REAL_USAGE_MESSAGE])
+
+    calls = []
+
+    class FakeTrackerLib:
+        @staticmethod
+        def register_session_source(name, env_var, resolve, checkpoint, resume,
+                                     delegation_usage):
+            calls.append((name, env_var, resolve, checkpoint, resume, delegation_usage))
+
+    pi_sessions_dir.source.register(FakeTrackerLib)
+    checkpoint_fn = calls[0][3]
+
+    result = checkpoint_fn({"sessionId": "wired-session-1"})
+
+    assert result["cumulative"]["inputTokens"] == 449
+    assert result["assistantMessages"] == 1
+
+
 def test_pi_settings_write_does_not_touch_real_home(pi_settings_modules):
     """The fixture's redirect actually held: the real settings.json is untouched by G1/G2.
 

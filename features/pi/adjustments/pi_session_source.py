@@ -1,12 +1,21 @@
 """pi session source for the /task tracker (installed by the pi adjustment).
 
-pi has no session database (no state.db, no SQLite store). The session source
-reads the PI_SESSION_ID env var for identification and provides a resume command:
-`pi -p --session {id}` — measured against pi 0.84.3, `--resume, -r` takes NO
-argument (it opens an interactive selector), so a trailing id there is a separate,
-silently-ignored argv token. `--session <path|id>` accepts a partial UUID.
-All token tracking values are zeroed — pi does not expose per-session token usage
-through an env var or file API.
+pi has no session database (no state.db, no SQLite store). The session source reads the
+PI_SESSION_ID env var for identification and provides a resume command:
+`pi -p --session {id}` — measured against pi 0.84.3, `--resume, -r` takes NO argument (it
+opens an interactive selector), so a trailing id there is a separate, silently-ignored argv
+token. `--session <path|id>` accepts a partial UUID.
+
+Token usage is read from pi's own session JSONL, not from an API — pi exposes no per-session
+token endpoint. Each session writes to
+`~/.pi/agent/sessions/--<cwd-with-slashes-as-dashes>--/<ISO-timestamp>_<uuid>.jsonl`; one JSON
+object per line, `type` field per line, and an assistant turn is a `"type": "message"` entry
+carrying a `message.usage` object (`input`/`output`/`cacheRead`/`cacheWrite`/`totalTokens` —
+pi's own field names, not Anthropic's `input_tokens`/`output_tokens`). The checkpoint sums
+`message.usage` across every such entry in the session file matching PI_SESSION_ID. Any read
+failure (missing dir, missing file, unreadable or non-JSON line) degrades to an all-zero
+checkpoint rather than raising — a checkpoint reader that crashes is worse than one that
+reports zero.
 
 The pi adjustment (features/pi/adjustments/adjust_task.py) copies this module into
 the scaffolded .ai-badger/skills/task/scripts/pi_session_source.py, where
@@ -14,9 +23,19 @@ tracker_lib's discovery import finds and asks it to register(lib).
 """
 from __future__ import annotations
 
+import json
 import os
+from pathlib import Path
 
 PI_SESSION_ENV = "PI_SESSION_ID"
+SESSIONS_DIR = Path.home() / ".pi" / "agent" / "sessions"
+
+_ZERO_CUMULATIVE = {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadTokens": 0,
+    "cacheCreationTokens": 0,
+}
 
 
 def register(tracker_lib) -> None:
@@ -29,7 +48,7 @@ def register(tracker_lib) -> None:
         "pi",
         env_var=PI_SESSION_ENV,
         resolve=_resolve,
-        checkpoint=lambda session: _zeroed_checkpoint(session["sessionId"]),
+        checkpoint=lambda session: _checkpoint_for_cwd(session["sessionId"], os.getcwd()),
         resume=lambda session_id: f"pi -p --session {session_id}",
         delegation_usage=lambda delegation_id: None,
     )
@@ -43,17 +62,97 @@ def _resolve() -> dict:
     return {}
 
 
-def _zeroed_checkpoint(session_id: str) -> dict:
-    """Checkpoint shape with all zeros — pi provides no token data."""
+def _project_session_dir(cwd: str) -> Path:
+    """The session directory pi writes for `cwd`: `--<cwd-with-slashes-as-dashes>--`."""
+    return SESSIONS_DIR / ("--" + cwd.strip("/").replace("/", "-") + "--")
+
+
+def _find_session_file(session_id: str, cwd: str) -> Path | None:
+    """Locate the session JSONL whose filename's uuid suffix matches `session_id`.
+
+    Filenames are `<ISO-timestamp>_<uuid>.jsonl`; the uuid is the text after the last
+    underscore. An exact uuid match wins; otherwise the first uuid that *starts with*
+    session_id is used — a partial/prefix match, mirroring how pi's own `--session <path|id>`
+    accepts a partial UUID. Any directory-listing failure (missing dir, permission error)
+    yields no match rather than raising.
+    """
+    if not session_id:
+        return None
+    project_dir = _project_session_dir(cwd)
+    try:
+        candidates = sorted(project_dir.glob("*.jsonl"))
+    except OSError:
+        return None
+
+    prefix_match: Path | None = None
+    for candidate in candidates:
+        _, _, uuid_part = candidate.stem.rpartition("_")
+        if not uuid_part:
+            continue
+        if uuid_part == session_id:
+            return candidate
+        if prefix_match is None and uuid_part.startswith(session_id):
+            prefix_match = candidate
+    return prefix_match
+
+
+def _sum_usage(path: Path) -> dict:
+    """Sum `message.usage` across every `type: message` line in `path` that carries one.
+
+    A line that is not valid JSON, or whose `usage` is missing or not an object, is skipped
+    individually — it does not abort the rest of the file.
+    """
+    cumulative = dict(_ZERO_CUMULATIVE)
+    messages = 0
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {"cumulative": cumulative, "assistantMessages": 0}
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(record, dict) or record.get("type") != "message":
+            continue
+        usage = (record.get("message") or {}).get("usage")
+        if not isinstance(usage, dict):
+            continue
+        messages += 1
+        cumulative["inputTokens"] += usage.get("input") or 0
+        cumulative["outputTokens"] += usage.get("output") or 0
+        cumulative["cacheReadTokens"] += usage.get("cacheRead") or 0
+        cumulative["cacheCreationTokens"] += usage.get("cacheWrite") or 0
+
+    return {"cumulative": cumulative, "assistantMessages": messages}
+
+
+def _checkpoint_for_cwd(session_id: str, cwd: str) -> dict:
+    """Checkpoint built from the real session JSONL, zeroed on any read failure."""
+    path = _find_session_file(session_id, cwd)
+    if path is None:
+        return _zeroed_checkpoint(session_id)
+
+    summary = _sum_usage(path)
+    return {
+        "timestamp": "",
+        "contextTokens": 0,
+        "assistantMessages": summary["assistantMessages"],
+        "byModel": {},
+        "cumulative": summary["cumulative"],
+    }
+
+
+def _zeroed_checkpoint(session_id: str) -> dict:  # pylint: disable=unused-argument
+    """Checkpoint shape with all zeros — the tolerant fallback when no session file is found."""
     return {
         "timestamp": "",
         "contextTokens": 0,
         "assistantMessages": 0,
         "byModel": {},
-        "cumulative": {
-            "inputTokens": 0,
-            "outputTokens": 0,
-            "cacheReadTokens": 0,
-            "cacheCreationTokens": 0,
-        },
+        "cumulative": dict(_ZERO_CUMULATIVE),
     }

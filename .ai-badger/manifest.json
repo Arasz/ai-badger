@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.144.0",
-  "frameworkCommit": "7c5c6f66584a78df7fe8797eff764f291f0aeef4",
+  "frameworkCommit": "9c30bed16fd5779a2180467975a62a6233619a17",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -925,7 +925,7 @@
       "source": "features/common/skills/task/extensions/pi/extension.md",
       "target": ".ai-badger/skills/task/extensions/pi/extension.md",
       "frameworkVersion": "0.144.0",
-      "hash": "f7d653ec1bb51e9d992c2958ccdcaf9fe37b69bd880b3911f7258f7831774778"
+      "hash": "c6d415b8f44b264c4870394acfabf16ab06d29eaa6343ae8bc492381697616d3"
     },
     {
       "feature": "skills",
