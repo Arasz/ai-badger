@@ -16,6 +16,21 @@ import pytest
 _REAL_HOME = Path.home()
 
 
+def _real_extension_state(name: str):
+    """A fingerprint of a real ~/.pi/agent/extensions/<name>/ dir: filenames and their bytes.
+
+    Asserting the directory does not EXIST would be a different claim, and a false one: once
+    ai-badger is installed for pi on a developer's machine — the state this whole feature
+    exists to produce — that directory is supposed to be there. What a test may claim is that
+    IT did not write to it, so the check is before-and-after, matching
+    test_pi_settings_write_does_not_touch_real_home.
+    """
+    root = _REAL_HOME / ".pi" / "agent" / "extensions" / name
+    if not root.is_dir():
+        return None
+    return {p.name: p.read_bytes() for p in sorted(root.iterdir()) if p.is_file()}
+
+
 @pytest.fixture
 def pi_user_extensions(load_script, tmp_path, monkeypatch):
     """Load adjust_hooks and adjust_cron with USER_EXTENSIONS_DIR redirected under tmp_path.
@@ -251,11 +266,13 @@ def test_adjust_hooks_with_pi_install_copies_adapter(pi_user_extensions, root, t
         "install": True,
     }
 
+    before = _real_extension_state("ai-badger")
+
     result = pi_user_extensions.hooks.adjust(context)
 
     # Secondary observable (behaviour radius), checked first so a functional assertion
     # failing below can never mask a real-home leak: the fixture's redirect actually held.
-    assert not (_REAL_HOME / ".pi" / "agent" / "extensions" / "ai-badger").exists()
+    assert _real_extension_state("ai-badger") == before
 
     # Hook scripts still land in target_dir/hooks/ regardless of the adapter's fate.
     hook_files = [f for f in result["files"] if "hook" in f]
@@ -285,10 +302,12 @@ def test_adjust_cron_with_pi_install_copies_extension_incl_run_job(
         "install": True,
     }
 
+    before = _real_extension_state("pi-cron")
+
     result = pi_user_extensions.cron.adjust(context)
 
     # Secondary observable, checked first for the same reason as the hooks test above.
-    assert not (_REAL_HOME / ".pi" / "agent" / "extensions" / "pi-cron").exists()
+    assert _real_extension_state("pi-cron") == before
 
     assert result["applied"]
     manifest = pi_user_extensions.cron_dir / "package.json"
