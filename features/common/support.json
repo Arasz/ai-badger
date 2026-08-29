@@ -231,7 +231,7 @@
         },
         "invariants": {
           "supported": true,
-          "mechanism": "AGENTS.override.md sections + AGENTS.md",
+          "mechanism": "root CLAUDE.md (pi loads AGENTS.md, AGENTS.override.md and CLAUDE.md); the AGENTS.override.md keep region carries none of the invariant text itself",
           "aiBadgerSupport": true
         },
         "scopedInstructions": {
@@ -247,7 +247,7 @@
         },
         "hooks": {
           "supported": true,
-          "mechanism": "Extension events the adapter subscribes to: input, tool_call, tool_result, session_start, session_shutdown, agent_settled — see pi's extension API docs for the full event set",
+          "mechanism": "Extension events the adapter subscribes to: tool_call — see pi's extension API docs for the full event set",
           "configPath": "~/.pi/agent/extensions/",
           "aiBadgerSupport": true,
           "wiredBy": "pi/adjustments/adjust_hooks.py"

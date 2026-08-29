@@ -144,6 +144,53 @@ def test_an_empty_persona_source_says_what_it_found(agents_arm, tmp_path):
     assert not (tmp_path / ".pi").exists()
 
 
+def test_an_unparseable_persona_source_is_skipped_with_a_note(agents_arm, project):
+    """A source file with no frontmatter is skipped and named, never a silent hole."""
+    (project / ".ai-badger" / "agents" / "broken.md").write_text(
+        "no frontmatter at all\n", encoding="utf-8")
+
+    result = agents_arm.adjust(_context(project))
+
+    assert (project / ".pi" / "agents" / "architect.md").is_file()
+    assert "skipped broken.md" in result["notes"]
+
+
+def test_the_manifest_record_makes_a_delivered_file_ours(agents_arm, project):
+    """A delivered file recorded in the previous run's manifest.json is refreshed even if a
+    later edit removed its managed header — ownership comes from the manifest too."""
+    agents_arm.adjust(_context(project))
+    dst = project / ".pi" / "agents" / "architect.md"
+    dst.write_text(
+        dst.read_text(encoding="utf-8").replace(
+            "<!-- Managed by ai-badger. Source of truth: .ai-badger/agents/architect.",
+            "<!-- different banner. Source: .ai-badger/agents/architect."),
+        encoding="utf-8")
+    assert "Managed by ai-badger" not in dst.read_text(encoding="utf-8")
+    # The previous run's manifest records the delivered target — that record, not the
+    # header, is what keeps the file ours once the header is gone.
+    (project / ".ai-badger" / "manifest.json").write_text(
+        json.dumps({"entries": [
+            {"feature": "adjustments", "stack": "pi",
+             "name": "adjustments/.pi/agents/architect.md",
+             "source": "features/pi/adjustments/adjust_agents.py",
+             "target": ".pi/agents/architect.md"}]}),
+        encoding="utf-8")
+
+    result = agents_arm.adjust(_context(project))
+
+    assert ".pi/agents/architect.md" in result["files"]
+    assert "Managed by ai-badger" in dst.read_text(encoding="utf-8")
+
+
+def test_a_corrupt_manifest_is_tolerated_not_fatal(agents_arm, project):
+    """A manifest.json that does not parse degrades to header-based ownership detection."""
+    (project / ".ai-badger" / "manifest.json").write_text("{not json", encoding="utf-8")
+
+    result = agents_arm.adjust(_context(project))
+
+    assert (project / ".pi" / "agents" / "architect.md").is_file()
+
+
 def test_no_install_still_writes_the_project_agents(agents_arm, project):
     """`--no-install` must not suppress this arm: `.pi/agents/` is project state, not user state.
 

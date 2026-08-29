@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.144.0",
-  "frameworkCommit": "686f1d0a5bf38e4c833b234ac15a3d6964e13523",
+  "frameworkCommit": "d10136186ea728b272cbef4d7a7e27ad3c4cdee8",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -2175,7 +2175,7 @@
       "source": "features/pi/adjustments/adjust_agents.py",
       "target": ".pi/agents/api-engineer.md",
       "frameworkVersion": "0.144.0",
-      "hash": "36e6c8e861b5c630e639cfc86c90c85f90d1e891d8cf68a2eeb4e70f6a02ad0e"
+      "hash": "682ef6807e1cb8fb2f4f9dc8da48ba78efb5a8cbde6061c118aebb8fa85e0770"
     },
     {
       "feature": "adjustments",
@@ -2184,7 +2184,7 @@
       "source": "features/pi/adjustments/adjust_agents.py",
       "target": ".pi/agents/architect.md",
       "frameworkVersion": "0.144.0",
-      "hash": "36e6c8e861b5c630e639cfc86c90c85f90d1e891d8cf68a2eeb4e70f6a02ad0e"
+      "hash": "682ef6807e1cb8fb2f4f9dc8da48ba78efb5a8cbde6061c118aebb8fa85e0770"
     },
     {
       "feature": "adjustments",
@@ -2193,7 +2193,7 @@
       "source": "features/pi/adjustments/adjust_agents.py",
       "target": ".pi/agents/code-reviewer.md",
       "frameworkVersion": "0.144.0",
-      "hash": "36e6c8e861b5c630e639cfc86c90c85f90d1e891d8cf68a2eeb4e70f6a02ad0e"
+      "hash": "682ef6807e1cb8fb2f4f9dc8da48ba78efb5a8cbde6061c118aebb8fa85e0770"
     },
     {
       "feature": "adjustments",
@@ -2202,7 +2202,7 @@
       "source": "features/pi/adjustments/adjust_agents.py",
       "target": ".pi/agents/delegator.md",
       "frameworkVersion": "0.144.0",
-      "hash": "36e6c8e861b5c630e639cfc86c90c85f90d1e891d8cf68a2eeb4e70f6a02ad0e"
+      "hash": "682ef6807e1cb8fb2f4f9dc8da48ba78efb5a8cbde6061c118aebb8fa85e0770"
     },
     {
       "feature": "adjustments",
@@ -2211,7 +2211,7 @@
       "source": "features/pi/adjustments/adjust_agents.py",
       "target": ".pi/agents/hermes-agent-author.md",
       "frameworkVersion": "0.144.0",
-      "hash": "36e6c8e861b5c630e639cfc86c90c85f90d1e891d8cf68a2eeb4e70f6a02ad0e"
+      "hash": "682ef6807e1cb8fb2f4f9dc8da48ba78efb5a8cbde6061c118aebb8fa85e0770"
     },
     {
       "feature": "adjustments",
@@ -2220,7 +2220,7 @@
       "source": "features/pi/adjustments/adjust_agents.py",
       "target": ".pi/agents/qa.md",
       "frameworkVersion": "0.144.0",
-      "hash": "36e6c8e861b5c630e639cfc86c90c85f90d1e891d8cf68a2eeb4e70f6a02ad0e"
+      "hash": "682ef6807e1cb8fb2f4f9dc8da48ba78efb5a8cbde6061c118aebb8fa85e0770"
     },
     {
       "feature": "adjustments",
@@ -2229,7 +2229,7 @@
       "source": "features/pi/adjustments/adjust_agents.py",
       "target": ".pi/agents/test-engineer.md",
       "frameworkVersion": "0.144.0",
-      "hash": "36e6c8e861b5c630e639cfc86c90c85f90d1e891d8cf68a2eeb4e70f6a02ad0e"
+      "hash": "682ef6807e1cb8fb2f4f9dc8da48ba78efb5a8cbde6061c118aebb8fa85e0770"
     },
     {
       "feature": "skills",

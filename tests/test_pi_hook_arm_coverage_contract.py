@@ -93,6 +93,12 @@ def test_adapter_subscribes_to_at_least_one_pi_event(root):
     assert events, "no pi.on(...) call sites found in adapter/index.ts"
 
 
+def _adapter_payload_loader_groups(root: Path) -> set[str]:
+    """The hooks.json group key(s) the adapter's dynamic loader actually reads."""
+    source = (root / ADAPTER_BRIDGE_TS).read_text(encoding="utf-8")
+    return set(re.findall(r"hooks\?\.(\w+)", source))
+
+
 def test_adapter_claude_event_name_is_a_real_manifest_event_family(root):
     """The Claude-vocabulary event name the adapter hardcodes must still exist in the manifest.
 
@@ -108,6 +114,27 @@ def test_adapter_claude_event_name_is_a_real_manifest_event_family(root):
     assert adapter_claude_events <= manifest_claude_families, (
         f"adapter/hook-bridge.ts hardcodes {adapter_claude_events!r}, which is not among the "
         f"manifest's own claude event families {manifest_claude_families!r}"
+    )
+
+
+def test_adapter_stamps_exactly_the_event_family_its_loader_reads(root):
+    """The payload stamp and the hooks.json group the loader reads must be the same family.
+
+    A rename on the manifest side is caught by the membership test above (the stamped name
+    would fall outside the manifest's families). This test closes the other direction, which
+    a subset check cannot see: renaming the stamped literal to PostToolUse stays inside the
+    manifest's families (they include PostToolUse) while the loader still reads the PreToolUse
+    group — the two sides would silently stop meaning the same event. The loader's group key
+    is regexed from hook-bridge.ts's own `hooks?.<Group>` read, so both sides of the equality
+    are derived, not copied.
+    """
+    stamped = _adapter_claude_event_names(root)
+    loader_groups = _adapter_payload_loader_groups(root)
+
+    assert loader_groups == {"PreToolUse"}, loader_groups
+    assert stamped == loader_groups, (
+        f"hook-bridge.ts stamps {stamped!r} but its loader reads the {loader_groups!r} group "
+        f"of hooks.json — a rename on one side has broken the correspondence"
     )
 
 

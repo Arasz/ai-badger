@@ -195,4 +195,4 @@ def _notes(written: List[str], refused: List[str], unparsed: List[str],
             f"skipped {', '.join(sorted(unparsed))} — no name/description frontmatter to "
             f"build a pi agent definition from"
         )
-    return "; ".join(notes) or "no personas delivered"
+    return "; ".join(notes)

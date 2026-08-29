@@ -190,16 +190,18 @@ export interface ChildResult {
   spawnError?: string;
 }
 
-function runPi(
+/** Run the delegated child. `spawnFn` is injectable so tests drive the real handler. */
+export function runPi(
   args: string[],
   cwd: string,
   signal: AbortSignal | undefined,
+  spawnFn: typeof spawn = spawn,
 ): Promise<ChildResult> {
   return new Promise((settle) => {
     const invocation = piInvocation(args);
     let child;
     try {
-      child = spawn(invocation.command, invocation.args, {
+      child = spawnFn(invocation.command, invocation.args, {
         cwd,
         shell: false,
         signal,
