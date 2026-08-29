@@ -3,14 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Cron scheduler for pi coding agent — uses Bun.cron() or fallback launchd",
+  "description": "Cron scheduler for pi: in-process Bun.cron when running under bun, self-managed launchd agents otherwise. pi discovers the entry as ~/.pi/agent/extensions/<name>/index.ts; this manifest records metadata only and does not register the entry.",
   "main": "index.ts",
   "dependencies": {
     "@earendil-works/pi-coding-agent": "*"
-  },
-  "pi": {
-    "extensions": [
-      "./index.ts"
-    ]
   }
 }
