@@ -149,3 +149,57 @@ Deferred-parity rows and per-item justifications: gap audit §2 checklist.
 7. Task resume: `pi -p --session <id>` resumes a recorded session; the tracker's resume command round-trips.
 
 **G0:** owner approval via f:-corrections (received: scope corrections, replace-hermes signal, dump-to-main instruction); implementation proceeds on the autonomous defaults stated in §8.
+
+---
+
+## 11. Rev 3 — orchestrator plan review (2026-08-28, takeover session)
+
+All rev-2 facts re-measured live this session against pi 0.84.3, not carried from the lane docs.
+Confirmed unchanged: node shebang; `--resume` takes no argument while `--session <path|id>` does;
+`~/.pi/agent/settings.json` = `{lastChangelogVersion, theme}`; `extensions/` empty; settings
+`skills`/`extensions` arrays documented; **no `mcp` key anywhere in pi's docs** (V10); adapter dir
+absent; `run-job.ts` absent; plist carries no scheduling key; `if (job.noAgent)` is a truthy check.
+
+### Findings folded into the plan
+
+| # | Finding | Disposition |
+|---|---|---|
+| R-MUST-1 | D5's fail-loud rule names only `adjust_hooks`; `adjust_cron._install_user_extension` carries the identical F6 defect (`if not install or not cron_dir.is_dir(): return []`, then a soft `applied: False`) | **D5 extended to both modules.** A missing `features/pi/cron/` dir is an `ERROR:` note naming the dir. Wave-0 test T3 gains a cron twin (T3b). |
+| R-MUST-2 | D1 never records why the adapter is user-scope, though pi offers project-local `.pi/extensions/*/index.ts` | **Rationale pinned in D1:** project-local extensions are trust-gated, and `docs/settings.md` states `-p` / `--mode json` / `--mode rpc` ignore project resources entirely under the default `defaultProjectTrust: "ask"`. A project-local adapter would gate nothing in exactly the headless runs away-mode exists for. |
+| R-MUST-3 | §10 never inspects trust state, which cutover steps 4–5 depend on | **§10 gains step 0:** record `~/.pi/agent/trust.json` and `defaultProjectTrust` for this repo before the other checks; a headless-inclusive daily loop needs a saved decision or `"always"`. |
+| R-SHOULD-4 | D3's bun rung keeps `join(__dirname, "run-job.ts")` inside an ESM module (`"type": "module"`), where `__dirname` is undefined unless jiti shims it — an untested branch of exactly the F1/F6 shape | **D3 amended:** resolve via `new URL("run-job.ts", import.meta.url)`. No measurement is owed for a rung that cannot fire under node; the fragile idiom goes regardless. |
+| R-SHOULD-5 | `package.json` does not register a global-subdirectory extension — pi discovers `~/.pi/agent/extensions/*/index.ts` directly; `pi.extensions` is package-loading machinery | **B-SHOULD-8 upgraded:** `index.ts` is *mandatory*, not a convention. `adjust_hooks`'s docstring (which today advertises `adapter.ts`) is part of WP1's edit. |
+| R-SHOULD-6 | G5's row named one precondition; there are three | See G5 below — owner resolved by widening scope. |
+| R-SHOULD-7 | One PR carries 18 findings + 5 gap packages + a regen sweep, with 12 live worktrees and a changelog README row that conflicts per concurrent PR | **Hedge, not a blocker:** split at the Wave-1/Wave-2 seam if CI turns noisy. |
+| R-NIT-8 | Worktree was one commit behind main | Merged (`3c3b5934`). |
+
+### Owner decisions (asked and answered this session)
+
+- **§8.2 / D18 — TS gates:** CI and this task's gate list only; they do **not** join the pre-push
+  hook. Pre-push stays fast and push keeps working without `bun` on PATH.
+- **§8.3c / G5 — resolved by widening, not deferring.** Owner: *"make them not inert — implement
+  the extension as a part of G5."* The three preconditions that made delivered persona files dead
+  (pi's subagent extension is example-status and uninstalled; it reads project agents only under
+  `agentScope: "project"|"both"`; `.pi/agents/` is project-local and therefore trust-gated) are
+  removed by shipping ai-badger's own extension rather than depending on pi's example.
+
+### G5 (revised) — persona agents that actually run
+
+Two parts, both in Wave 2:
+
+1. `features/pi/adjustments/adjust_agents.py` writes the scaffolded personas into
+   `<project>/.pi/agents/*.md`, mirroring copilot's `.github/agents/*.agent.md` and claude's
+   `.claude/agents/*.md` (source of truth stays `.ai-badger/agents/`).
+2. `features/pi/subagent/index.ts` — ai-badger's **own** minimal subagent extension, installed
+   user-scope at `~/.pi/agent/extensions/ai-badger-subagent/` by the same install path as the
+   adapter and cron. It reads `<cwd>/.pi/agents/*.md` **itself, through `fs`**, so pi's project-trust
+   gate never applies — that is what makes the files live headless. It registers one delegation tool
+   that spawns `pi -p` with the persona's prompt.
+
+   pi's 35 KB example is **not** vendored: copying a third party's example into the framework buys
+   parallel streaming, cost accounting and workflow prompts that ai-badger's delegation map does not
+   ask for, and owes us its maintenance forever. The simple usable form is one file.
+
+Gates: personas discovered from a scaffolded `.pi/agents/` in a temp project; one witnessed
+delegation running headless (`pi -p`) with **no** trust decision saved — the proof that the
+trust-gate bypass is real and not asserted.

@@ -13,37 +13,34 @@ return format.
 
 Extension structure:
   ~/.pi/agent/extensions/ai-badger/
-    adapter.ts        # main entry, event translation + shell-out
-    package.json      # declares adapter.ts as pi extension
+    index.ts           # main entry — pi discovers exactly this filename for a subdirectory
+                        # extension (~/.pi/agent/extensions/<name>/index.ts) and nothing else
+    package.json        # extension manifest
 """
 from __future__ import annotations
 
-import json
 import shutil
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 
 ADAPTER_DIR = "adapter"
 USER_EXTENSIONS_DIR = Path.home() / ".pi" / "agent" / "extensions" / "ai-badger"
 
 
-def _framework_version(framework_root: Path) -> str:
-    try:
-        return (framework_root / "VERSION").read_text(encoding="utf-8").strip()
-    except OSError:
-        return ""
-
-
-def _install_user_extension(framework_root: Path, adapter_dir: Path, install: bool) -> list[str]:
+def _install_user_extension(
+        adapter_dir: Path, install: bool) -> Tuple[list[str], Optional[str]]:
     """Copy the pi extension adapter to ~/.pi/agent/extensions/ai-badger/.
 
-    A no-op under --no-install: this is user-global state.
+    Returns (installed_filenames, error_note). install=False is a documented no-op — this is
+    user-global state, deliberately left untouched — and returns ([], None), not an error. A
+    missing adapter_dir under install=True is reported as an ERROR note naming the path: the
+    prior silent `[]` return let a missing adapter ship with `applied: True` (F6).
     """
     if not install:
-        return []
+        return [], None
 
     if not adapter_dir.is_dir():
-        return []
+        return [], f"ERROR: pi extension adapter directory not found: {adapter_dir}"
 
     USER_EXTENSIONS_DIR.mkdir(parents=True, exist_ok=True)
     installed: list[str] = []
@@ -53,7 +50,7 @@ def _install_user_extension(framework_root: Path, adapter_dir: Path, install: bo
             shutil.copy2(item, USER_EXTENSIONS_DIR / item.name)
             installed.append(item.name)
 
-    return installed
+    return installed, None
 
 
 def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
@@ -97,10 +94,13 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
             files.append(str(dst.relative_to(target_dir.parent)))
 
     # Install user-scope extension
-    installed = _install_user_extension(framework_root, adapter_dir,
-                                        context.get("install", True))
+    installed, install_error = _install_user_extension(adapter_dir, context.get("install", True))
 
+    # The error note leads, so a failed install is never masked by an otherwise-honest
+    # partial success (D5: applied stays true when the hook scripts still landed).
     notes = []
+    if install_error:
+        notes.append(install_error)
     if files:
         notes.append(f"Installed {len(files)} hook script(s) into .ai-badger/hooks/")
     if installed:
@@ -111,4 +111,5 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     if not notes:
         return {"applied": False, "files": [], "notes": "No hook files found"}
 
-    return {"applied": True, "files": files, "notes": "; ".join(notes)}
+    applied = bool(files or installed)
+    return {"applied": applied, "files": files, "notes": "; ".join(notes)}

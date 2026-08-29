@@ -20,6 +20,16 @@
       "feature": "cron",
       "description": "Install pi cron extension (Bun.cron() with launchd fallback)",
       "script": "adjust_cron.py"
+    },
+    {
+      "feature": "skills",
+      "description": "Merge project .ai-badger/skills/ path into pi's user-global settings skills array",
+      "script": "adjust_skills.py"
+    },
+    {
+      "feature": "agents",
+      "description": "Deliver ai-badger personas to <project>/.pi/agents/*.md for the subagent extension",
+      "script": "adjust_agents.py"
     }
   ]
 }

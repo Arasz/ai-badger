@@ -1,0 +1,12 @@
+{
+  "name": "ai-badger-subagent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Delegation to ai-badger personas scaffolded into <project>/.pi/agents/. pi discovers the entry as ~/.pi/agent/extensions/<name>/index.ts; this manifest records metadata only and does not register the entry.",
+  "main": "index.ts",
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  }
+}

@@ -46,7 +46,8 @@ SCANNED_SUFFIXES = {".md", ".json", ".py", ".cs", ".yml", ".yaml", ".sh", ".tmpl
 def _text_files(root: Path):
     """Every scannable file under root/features, sorted."""
     return sorted(p for p in (root / "features").rglob("*")
-                  if p.is_file() and p.suffix in SCANNED_SUFFIXES)
+                  if p.is_file() and p.suffix in SCANNED_SUFFIXES
+                  and "node_modules" not in p.parts)
 
 
 def banned_string_hits(root: Path):

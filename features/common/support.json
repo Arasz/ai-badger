@@ -1,7 +1,7 @@
 {
   "$schema": "../../schemas/support.schema.json",
   "description": "Agent capability matrix: what each agent supports and what ai-badger scaffolds for it.",
-  "lastUpdated": "2026-08-28",
+  "lastUpdated": "2026-08-29",
   "agents": {
     "claude": {
       "name": "Claude Code",
@@ -231,7 +231,7 @@
         },
         "invariants": {
           "supported": true,
-          "mechanism": "AGENTS.override.md sections + AGENTS.md",
+          "mechanism": "root CLAUDE.md (pi loads AGENTS.md, AGENTS.override.md and CLAUDE.md); the AGENTS.override.md keep region carries none of the invariant text itself",
           "aiBadgerSupport": true
         },
         "scopedInstructions": {
@@ -241,26 +241,28 @@
         },
         "personas": {
           "supported": true,
-          "mechanism": "subagent extension — native child processes with cwd/model/tools",
-          "aiBadgerSupport": true
+          "mechanism": "pi core has no persona feature of its own; agent files are read by a subagent extension. ai-badger ships its own (features/pi/subagent/index.ts, installed user-scope at ~/.pi/agent/extensions/ai-badger-subagent/) which registers one delegation tool and reads <project>/.pi/agents/*.md itself through fs — not through pi's trust-gated project resource loader — so the personas load in headless `pi -p` runs with no trust decision saved",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "pi/adjustments/adjust_agents.py — writes <project>/.pi/agents/*.md and installs the subagent extension user-scope"
         },
         "hooks": {
           "supported": true,
-          "mechanism": "Extension events: input, tool_call, tool_result, session_start, session_shutdown, agent_settled (34 events total, superset of Claude)",
+          "mechanism": "Extension events the adapter subscribes to: tool_call — see pi's extension API docs for the full event set",
           "configPath": "~/.pi/agent/extensions/",
           "aiBadgerSupport": true,
           "wiredBy": "pi/adjustments/adjust_hooks.py"
         },
         "skills": {
           "supported": true,
-          "mechanism": "SKILL.md YAML frontmatter, Agent Skills standard (79/79 load unmodified from .claude/skills/)",
+          "mechanism": "SKILL.md YAML frontmatter, Agent Skills standard — pi does not read .claude/skills/ directly; adjust_skills.py merges this project's .ai-badger/skills/ path into the settings.json skills array (the one discovery route that is not trust-gated)",
           "aiBadgerSupport": true,
           "scaffoldedBy": "scaffold.py + pi/adjustments/adjust_skills.py"
         },
         "customAgents": {
           "supported": true,
-          "mechanism": "~/.pi/agent/agents/*.agent.md with frontmatter (model, tools, mcp-servers)",
-          "aiBadgerSupport": false
+          "mechanism": "<project>/.pi/agents/*.md and ~/.pi/agent/agents/*.md, `name`/`description` frontmatter plus a body used as the agent's prompt; discovery and dispatch belong to whichever subagent extension is installed, not to pi core",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "pi/adjustments/adjust_agents.py — writes <project>/.pi/agents/*.md and installs the subagent extension user-scope"
         },
         "plugins": {
           "supported": true,
@@ -269,9 +271,9 @@
         },
         "mcpServers": {
           "supported": "partial",
-          "mechanism": "Via pi-mcp-tools extension (settings.json mcp key), not native",
+          "mechanism": "Via pi-mcp-tools extension (settings.json mcp key); that key has no consumer in pi core",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "pi/adjustments/adjust_mcp.py — maps .mcp.json to settings.json format"
+          "scaffoldedBy": "pi/adjustments/adjust_mcp.py — merges into ~/.pi/agent/settings.json's mcp key (install=True) or prints the snippet (--no-install)"
         },
         "cacheAwareDispatch": {
           "supported": false,
