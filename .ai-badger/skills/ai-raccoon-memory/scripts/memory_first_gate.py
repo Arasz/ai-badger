@@ -47,6 +47,24 @@ _MCP_PREFIX = "mcp__"
 _DOUBLE_UNDERSCORE = "__"
 
 
+_PI_MCP_PREFIX = "mcp_"
+
+
+def _pi_mcp_spelling_matches(tool_name: str, target: str) -> bool:
+    """True when `target` is a trailing underscore-joined segment of pi's MCP spelling.
+
+    pi names MCP tools `mcp_<server>_<tool>` (single underscores) and a server name may
+    itself contain underscores, so the tool part is not a fixed suffix — it is matched as
+    any trailing `_`-joined tail of the spelling. Claude's `mcp__server__tool` spelling is
+    handled by the branch above; this is the pi shape (verified live: the payload the pi
+    bridge carries names the tool `mcp_ai-raccoon_memory_search`).
+    """
+    if not tool_name.startswith(_PI_MCP_PREFIX) or tool_name.startswith(_MCP_PREFIX):
+        return False
+    parts = tool_name[len(_PI_MCP_PREFIX):].split("_")
+    return any("_".join(parts[i:]) == target for i in range(1, len(parts)))
+
+
 def is_memory_search(tool_name: Any) -> bool:
     """True for any naming spelling of the memory_search tool; never matches other tools."""
     if not isinstance(tool_name, str):
@@ -56,7 +74,7 @@ def is_memory_search(tool_name: Any) -> bool:
         name = name[len(_MCP_PREFIX):].split(_DOUBLE_UNDERSCORE, 1)[-1]
     if ":" in name:
         name = name.rsplit(":", 1)[-1]
-    return name == "memory_search"
+    return name == "memory_search" or _pi_mcp_spelling_matches(tool_name, "memory_search")
 
 _REASON = (
     "Memory-first gate: run memory_search (projectId={project_id}) before repo text "

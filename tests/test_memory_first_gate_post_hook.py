@@ -83,7 +83,9 @@ def test_missing_session_id_is_silent_noop(hook, gate, monkeypatch):
 
 class TestMatcher:
     def test_matches_only_memory_search(self, gate):
-        for name in ("memory_search", "mcp__x__memory_search", "a:b:memory_search"):
+        for name in ("memory_search", "mcp__x__memory_search", "a:b:memory_search",
+                     "mcp_ai-raccoon_memory_search", "mcp_ai_raccoon_memory_search"):
             assert gate.is_memory_search(name), name
-        for name in ("memory_write", "memory_search_extra", "search", "", 42, None):
+        for name in ("memory_write", "memory_search_extra", "search", "", 42, None,
+                     "mcp_ai-raccoon_memory_search_extra", "mcp_write"):
             assert not gate.is_memory_search(name), name

@@ -32,7 +32,15 @@ def _is_memory_search(tool_name: str) -> bool:
         name = name[len("mcp__"):].split("__", 1)[-1]
     if ":" in name:
         name = name.rsplit(":", 1)[-1]
-    return name == "memory_search"
+    if name == "memory_search":
+        return True
+    # pi spells MCP tool names `mcp_<server>_<tool>` (single underscores) and a server name
+    # may itself contain underscores, so the tool part is matched as any trailing `_`-joined
+    # tail of the spelling (verified live: pi carries `mcp_ai-raccoon_memory_search`).
+    if not tool_name.startswith("mcp_") or tool_name.startswith("mcp__"):
+        return False
+    parts = tool_name[len("mcp_"):].split("_")
+    return any("_".join(parts[i:]) == "memory_search" for i in range(1, len(parts)))
 
 
 def _is_read_file(tool_name: str) -> bool:

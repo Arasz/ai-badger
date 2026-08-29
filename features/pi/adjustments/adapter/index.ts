@@ -1,6 +1,10 @@
 /**
  * ai-badger hooks adapter for pi: runs the project's Claude-shaped PreToolUse gates before
- * every tool call and maps their decision back onto pi's `{ block, reason }` contract.
+ * every tool call and maps their decision back onto pi's `{ block, reason }` contract, and
+ * runs the PostToolUse entries (marker recorders, memory telemetry) after every tool result
+ * — advisory only, never touching the result. Both arms read the project's
+ * `.ai-badger/hooks/hooks.json` at event time; both carry the same session id, because the
+ * consulted marker a post arm records is looked up by the pre arm.
  *
  * Installed user-scope at `~/.pi/agent/extensions/ai-badger/index.ts`, never project-local:
  * `.pi/extensions/` is trust-gated, and pi's settings docs state that `-p`, `--mode json` and
@@ -16,11 +20,17 @@ import {
   commandsForTool,
   createAwayState,
   parseHookStdout,
+  postCommandsForTool,
+  postToolUseCommands,
   preToolUseCommands,
   resolve,
+  resolvePost,
+  resolveSessionId,
   toClaudePayload,
+  toClaudePostPayload,
   type GateOutcome,
   type HookCommand,
+  type PostOutcome,
 } from "./hook-bridge.ts";
 
 const GATE_TIMEOUT_MS = 5000;
@@ -29,7 +39,7 @@ const HOOKS_CONFIG = [".ai-badger", "hooks", "hooks.json"];
 /** Projects already reported as having no hook config; absence is announced once, not per call. */
 const absenceReported = new Set<string>();
 
-type Gates = { commands: HookCommand[] } | { absent: string } | { broken: string };
+type Gates = { pre: HookCommand[]; post: HookCommand[] } | { absent: string } | { broken: string };
 
 function loadGates(cwd: string): Gates {
   const path = join(cwd, ...HOOKS_CONFIG);
@@ -40,7 +50,8 @@ function loadGates(cwd: string): Gates {
     return { absent: `${path} does not exist` };
   }
   try {
-    return { commands: preToolUseCommands(JSON.parse(raw)) };
+    const parsed = JSON.parse(raw);
+    return { pre: preToolUseCommands(parsed), post: postToolUseCommands(parsed) };
   } catch (error) {
     return { broken: `${path} is not valid JSON (${String(error)})` };
   }
@@ -127,16 +138,95 @@ async function gateOutcomes(
 
   const payload = toClaudePayload(event, {
     cwd: ctx.cwd,
-    sessionId: process.env.PI_SESSION_ID ?? "",
+    sessionId: resolveSessionId(ctx, process.env),
   });
   const broken: string[] = [];
-  const commands = commandsForTool(gates.commands, payload.tool_name, (reason) => broken.push(reason));
+  const commands = commandsForTool(gates.pre, payload.tool_name, (reason) => broken.push(reason));
   const outcomes = await Promise.all(
     commands.map((command) => runGate(command, payload, { cwd: ctx.cwd, signal: ctx.signal })),
   );
   // A matcher that does not compile skips its command; that is reported like a gate error
   // rather than vanishing, so a typo'd shipped matcher cannot silently gate nothing.
   return [...broken.map((reason): GateOutcome => ({ kind: "error", reason })), ...outcomes];
+}
+
+/** Run one PostToolUse command, converting every failure mode into a reportable outcome.
+ * Mirrors runGate's spawn discipline but never parses a decision: post hooks are advisory
+ * side effects (marker recording, telemetry), and their stdout is theirs alone. */
+function runPostHook(
+  command: string,
+  payload: unknown,
+  ctx: { cwd: string; signal: AbortSignal | undefined },
+): Promise<PostOutcome> {
+  return new Promise((settle) => {
+    let child;
+    try {
+      child = spawn("/bin/sh", ["-c", command], {
+        cwd: ctx.cwd,
+        env: { ...process.env, CLAUDE_PROJECT_DIR: ctx.cwd },
+        signal: ctx.signal,
+        timeout: GATE_TIMEOUT_MS,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } catch (error) {
+      settle({ kind: "error", reason: `${command} could not start (${String(error)})` });
+      return;
+    }
+
+    let stderr = "";
+    child.stdout?.resume(); // drain: post hooks may print; nobody parses it
+    child.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", (error) => {
+      settle({ kind: "error", reason: `${command} failed (${String(error)})` });
+    });
+    child.on("close", (code, signal) => {
+      if (signal) {
+        settle({ kind: "error", reason: `${command} was killed after ${GATE_TIMEOUT_MS}ms` });
+        return;
+      }
+      if (code !== 0) {
+        settle({
+          kind: "error",
+          reason: `${command} exited ${code}: ${stderr.trim().slice(-400) || "(no stderr)"}`,
+        });
+        return;
+      }
+      settle({ kind: "ok" });
+    });
+
+    child.stdin?.on("error", () => {});
+    try {
+      child.stdin?.end(JSON.stringify(payload));
+    } catch {
+      // same case, thrown synchronously
+    }
+  });
+}
+
+/** Every post-hook outcome for one tool result. A missing hooks config stays silent here —
+ * the pre arm already reports absence once per cwd, and post hooks are advisory. */
+async function postHookOutcomes(
+  event: { toolName: string; input?: Record<string, unknown>; content?: unknown },
+  ctx: ExtensionContext,
+): Promise<PostOutcome[]> {
+  const gates = loadGates(ctx.cwd);
+  if ("broken" in gates) return [{ kind: "error", reason: gates.broken }];
+  if ("absent" in gates) return [];
+
+  const payload = toClaudePostPayload(event, {
+    cwd: ctx.cwd,
+    sessionId: resolveSessionId(ctx, process.env),
+  });
+  const broken: string[] = [];
+  const commands = postCommandsForTool(gates.post, payload.tool_name, (reason) =>
+    broken.push(reason),
+  );
+  const outcomes = await Promise.all(
+    commands.map((command) => runPostHook(command, payload, { cwd: ctx.cwd, signal: ctx.signal })),
+  );
+  return [...broken.map((reason): PostOutcome => ({ kind: "error", reason })), ...outcomes];
 }
 
 export default async function (pi: ExtensionAPI) {
@@ -181,6 +271,19 @@ export default async function (pi: ExtensionAPI) {
       if (!approved) return { block: true, reason: resolution.reason ?? "declined" };
     }
     return undefined;
+  });
+
+  pi.on("tool_result", async (event, ctx) => {
+    const outcomes = await postHookOutcomes(
+      {
+        toolName: event.toolName,
+        input: (event.input ?? {}) as Record<string, unknown>,
+        content: (event as { content?: unknown }).content,
+      },
+      ctx,
+    );
+    for (const notice of resolvePost(outcomes).notices) ctx.ui.notify(notice, "warning");
+    return undefined; // advisory: the tool result is never modified
   });
 
   if (!apiComplete) return;

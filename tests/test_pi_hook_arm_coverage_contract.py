@@ -16,21 +16,19 @@ either, for the same reason).
 implement it; hermes and copilot both need a new arm added by hand for every hook they cover,
 and `tooling/validate.py`'s `HOOK_CAPABLE_AGENTS = ("claude", "hermes", "copilot")` is exactly
 that per-agent, per-hook completeness check. pi's adapter takes a structurally different
-approach (D1): it registers exactly one `pi.on("tool_call", ...)` handler that *dynamically*
-reads the project's `.ai-badger/hooks/hooks.json` at call time and runs every PreToolUse
-command it finds — no per-hook-name registration exists to compare against the manifest's
-arms, and adding "pi" as a fourth `HOOK_CAPABLE_AGENTS` member would ask for something the
-adapter was deliberately built not to need. So "pi" is absent from both sides today, on
-purpose, and this file asserts that absence rather than fabricating a false equivalence between
-a set of pi extension-API event names and a set of agent identifiers — two different kinds of
-thing that happen to both be called "coverage" in prose.
+approach (D1): it registers one `pi.on(...)` handler per arm — `tool_call` runs every
+PreToolUse command, `tool_result` runs every PostToolUse command — both *dynamically* reading
+the project's `.ai-badger/hooks/hooks.json` at event time — no per-hook-name registration
+exists to compare against the manifest's arms, and adding "pi" as a fourth
+`HOOK_CAPABLE_AGENTS` member would ask for something the adapter was deliberately built not
+to need. So "pi" is absent from both sides today, on purpose, and this file asserts that
+absence rather than fabricating a false equivalence between a set of pi extension-API event
+names and a set of agent identifiers — two different kinds of thing that happen to both be
+called "coverage" in prose.
 
 What still gets checked, and what would actually go red:
   - the adapter keeps at least one live `pi.on(...)` subscription (a regression to zero would
     mean the extension loads and does nothing);
-  - the Claude-vocabulary event name the adapter hardcodes into every gate payload
-    (`hook_event_name: "PreToolUse"`) is still one of the event families the manifest's own
-    claude arms actually use — catching a rename on either side;
   - "pi" staying out of both `HOOK_CAPABLE_AGENTS` and the manifest's arms, together — if one
     side ever adds it without the other, that is exactly the kind of silent drift this file
     exists to catch, and it is reported here as a real design decision to reconcile, not
@@ -99,12 +97,13 @@ def _adapter_payload_loader_groups(root: Path) -> set[str]:
     return set(re.findall(r"hooks\?\.(\w+)", source))
 
 
-def test_adapter_claude_event_name_is_a_real_manifest_event_family(root):
-    """The Claude-vocabulary event name the adapter hardcodes must still exist in the manifest.
+def test_adapter_claude_event_names_are_real_manifest_event_families(root):
+    """The Claude-vocabulary event names the adapter hardcodes must still exist in the manifest.
 
-    hook-bridge.ts's toClaudePayload always stamps `hook_event_name: "PreToolUse"` onto the
-    JSON it hands the Python hooks; if hooks-manifest.json's own claude arms ever renamed that
-    family (or the adapter typo'd it), the two would silently stop meaning the same event.
+    hook-bridge.ts stamps `hook_event_name` onto the JSON it hands the Python hooks —
+    "PreToolUse" on the pre arm, "PostToolUse" on the post arm; if hooks-manifest.json's own
+    claude arms ever renamed those families (or the adapter typo'd one), the two would
+    silently stop meaning the same event.
     """
     adapter_claude_events = _adapter_claude_event_names(root)
     manifest = _hooks_manifest(root)
@@ -117,23 +116,24 @@ def test_adapter_claude_event_name_is_a_real_manifest_event_family(root):
     )
 
 
-def test_adapter_stamps_exactly_the_event_family_its_loader_reads(root):
-    """The payload stamp and the hooks.json group the loader reads must be the same family.
+def test_adapter_stamps_exactly_the_event_families_its_loaders_read(root):
+    """Each payload stamp and the hooks.json group its loader reads must be the same family.
 
     A rename on the manifest side is caught by the membership test above (the stamped name
     would fall outside the manifest's families). This test closes the other direction, which
-    a subset check cannot see: renaming the stamped literal to PostToolUse stays inside the
-    manifest's families (they include PostToolUse) while the loader still reads the PreToolUse
-    group — the two sides would silently stop meaning the same event. The loader's group key
-    is regexed from hook-bridge.ts's own `hooks?.<Group>` read, so both sides of the equality
-    are derived, not copied.
+    a subset check cannot see: renaming a stamped literal to a family the manifest knows but
+    the loader does not read would keep the membership check green while the two sides
+    silently stop meaning the same event. Each arm's correspondence is derived:
+    hook-bridge.ts must read `hooks?.PreToolUse` for the payload it stamps "PreToolUse" onto
+    and `hooks?.PostToolUse` for the "PostToolUse" one — both sides regexed from source, so
+    an arm added on one side without the other goes red here.
     """
     stamped = _adapter_claude_event_names(root)
     loader_groups = _adapter_payload_loader_groups(root)
 
-    assert loader_groups == {"PreToolUse"}, loader_groups
+    assert loader_groups == {"PreToolUse", "PostToolUse"}, loader_groups
     assert stamped == loader_groups, (
-        f"hook-bridge.ts stamps {stamped!r} but its loader reads the {loader_groups!r} group "
+        f"hook-bridge.ts stamps {stamped!r} but its loaders read the {loader_groups!r} groups "
         f"of hooks.json — a rename on one side has broken the correspondence"
     )
 
@@ -151,9 +151,9 @@ def test_pi_is_not_a_hooks_manifest_arm_today(root):
     assert non_claude_arms, "expected at least one non-claude arm (hermes/copilot) to exist"
     assert "pi" not in non_claude_arms, (
         f"'pi' now appears as a hooks-manifest arm ({non_claude_arms!r}) — the adapter's "
-        f"single dynamic pi.on('tool_call', ...) handler and the manifest's per-hook-name arm "
-        f"model have diverged from the D1 design; reconcile which one is authoritative before "
-        f"changing this assertion"
+        f"dynamic per-arm pi.on('tool_call'/'tool_result', ...) handlers and the manifest's "
+        f"per-hook-name arm model have diverged from the D1 design; reconcile which one is "
+        f"authoritative before changing this assertion"
     )
 
 
@@ -189,3 +189,16 @@ def test_adapter_event_set_and_manifest_arms_are_different_kinds_of_set(root):
         f"now share a spelling — re-examine whether they still mean different things before "
         f"trusting this test's framing"
     )
+
+
+def test_adapter_subscribes_to_the_event_per_arm_it_loads(root):
+    """The pre arm needs a tool_call subscription and the post arm a tool_result one.
+
+    A missing subscription means that arm silently does nothing: after 0.144.0's post arm
+    (the pi twin of Claude's PostToolUse marker recording), a tool_result handler that
+    vanished would put pi back to a gate that denies text search forever — the marker the
+    post arm records is the only thing that unlocks it.
+    """
+    events = _adapter_pi_on_events(root)
+
+    assert {"tool_call", "tool_result"} <= events, events

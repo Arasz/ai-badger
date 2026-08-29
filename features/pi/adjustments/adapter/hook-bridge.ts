@@ -16,15 +16,17 @@ export type GateOutcome =
   | { kind: "error"; reason: string }
   | { kind: "absent"; reason: string };
 
-/** One PreToolUse entry from `.ai-badger/hooks/hooks.json`: a shell command and its matcher. */
+/** One PreToolUse/PostToolUse entry from `.ai-badger/hooks/hooks.json`: a shell command and its matcher. */
 export interface HookCommand {
   matcher?: string;
   command: string;
 }
 
-/** The five keys ai-badger's hook scripts actually read from stdin. */
-export interface ClaudeHookPayload {
-  hook_event_name: "PreToolUse";
+/** The five keys ai-badger's hook scripts actually read from stdin. The event name is a
+ * parameter so the post payload can extend this interface without weakening either arm's
+ * literal (default stays "PreToolUse", the shape the pre gates parse). */
+export interface ClaudeHookPayload<Event extends "PreToolUse" | "PostToolUse" = "PreToolUse"> {
+  hook_event_name: Event;
   session_id: string;
   cwd: string;
   tool_name: string;
@@ -39,6 +41,24 @@ export interface Resolution {
   autoApproved: boolean;
 }
 
+/** The PostToolUse payload: the five pre keys plus the result, which the shipped
+ * memory grade hook reads as `payload.get("result") or payload.get("response")`
+ * and Claude names `tool_response` — carried under all three spellings it might parse. */
+export interface ClaudePostHookPayload extends ClaudeHookPayload<"PostToolUse"> {
+  hook_event_name: "PostToolUse";
+  tool_response: string;
+  response: string;
+}
+
+/** What one post-hook run produced. Post hooks are advisory: errors are outcomes to
+ * report, never decisions — nothing here can block, ask, or approve a tool call. */
+export type PostOutcome = { kind: "ok" } | { kind: "error"; reason: string };
+
+export interface PostResolution {
+  /** One line per post-hook failure. The tool result itself is never touched. */
+  notices: string[];
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -48,9 +68,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Reading the file is what keeps this from becoming a second, drifting copy of the gate list.
  */
 export function preToolUseCommands(hooksJson: unknown): HookCommand[] {
-  if (!isRecord(hooksJson)) return [];
-  const hooks = isRecord(hooksJson.hooks) ? hooksJson.hooks : undefined;
-  const groups = hooks?.PreToolUse;
+  return collectCommands(preToolUseGroups(hooksJson));
+}
+
+/**
+ * The PostToolUse entries (marker recorders, memory telemetry, guards) from the same
+ * hooks.json, in file order. Advisory scripts — run for their side effects, never parsed
+ * for decisions.
+ */
+export function postToolUseCommands(hooksJson: unknown): HookCommand[] {
+  return collectCommands(postToolUseGroups(hooksJson));
+}
+
+function preToolUseGroups(hooksJson: unknown): unknown {
+  const hooks = isRecord(hooksJson) && isRecord(hooksJson.hooks) ? hooksJson.hooks : undefined;
+  return hooks?.PreToolUse;
+}
+
+function postToolUseGroups(hooksJson: unknown): unknown {
+  const hooks = isRecord(hooksJson) && isRecord(hooksJson.hooks) ? hooksJson.hooks : undefined;
+  return hooks?.PostToolUse;
+}
+
+function collectCommands(groups: unknown): HookCommand[] {
   if (!Array.isArray(groups)) return [];
 
   const out: HookCommand[] = [];
@@ -73,19 +113,60 @@ export function commandsForTool(
   commands: HookCommand[],
   toolName: string,
   onBrokenMatcher?: (reason: string) => void,
+  opts?: { mcpSuffix?: boolean },
 ): string[] {
+  // An mcp_-prefixed name is additionally matched against its trailing segments, so a
+  // shipped matcher like `memory_search` also fires for the MCP spellings hosts deliver
+  // (pi: `mcp_ai-raccoon_memory_search`, Claude: `mcp__ai-raccoon__memory_search`). The
+  // segment tails are still anchored (no substring drift), and the full name is always
+  // tried first, so plain built-in matchers behave exactly as before.
+  const candidates = opts?.mcpSuffix ? matcherCandidates(toolName) : [toolName];
   return commands
     .filter((entry) => {
       if (!entry.matcher) return true;
+      let regex: RegExp;
       try {
-        return new RegExp(`^(?:${entry.matcher})$`).test(toolName);
+        regex = new RegExp(`^(?:${entry.matcher})$`);
       } catch (error) {
         onBrokenMatcher?.(`ai-badger: hook matcher /${entry.matcher}/ is not a valid regex ` +
           `(${String(error)}) — its command is skipped`);
         return false;
       }
+      return candidates.some((name) => regex.test(name));
     })
     .map((entry) => entry.command);
+}
+
+/** Post-side matcher selection: the same anchored rules plus MCP-suffix awareness,
+ * because the matchers the shipped PostToolUse entries use (`memory_search`,
+ * `export_graph`) name MCP tools that pi delivers as `mcp__<server>__<tool>`. */
+export function postCommandsForTool(
+  commands: HookCommand[],
+  toolName: string,
+  onBrokenMatcher?: (reason: string) => void,
+): string[] {
+  return commandsForTool(commands, toolName, onBrokenMatcher, { mcpSuffix: true });
+}
+
+/** The names an mcp_-prefixed tool spelling may be matched by: the full name plus every
+ * trailing separator-joined tail of its body, in both host spellings (pi delimits with
+ * single underscores, Claude with double), because a server name may itself contain an
+ * underscore and the tool part therefore has no fixed position. Non-MCP names yield only
+ * themselves. */
+function matcherCandidates(toolName: string): string[] {
+  const candidates = new Set<string>([toolName]);
+  const body = toolName.startsWith("mcp__")
+    ? toolName.slice(5)
+    : toolName.startsWith("mcp_")
+      ? toolName.slice(4)
+      : null;
+  if (body !== null) {
+    for (const separator of ["_", "__"]) {
+      const parts = body.split(separator);
+      for (let i = 1; i < parts.length; i++) candidates.add(parts.slice(i).join(separator));
+    }
+  }
+  return [...candidates];
 }
 
 const TOOL_NAMES: Record<string, string> = {
@@ -164,6 +245,57 @@ export function toClaudePayload(
     tool_name: claudeToolName(event.toolName),
     tool_input: claudeToolInput(event.toolName, event.input),
   };
+}
+
+/** The PostToolUse twin of `toClaudePayload`: same tool shape, plus the result under
+ * every key spelling a shipped post hook reads. The pre and post payloads must carry
+ * the SAME `session_id` — the marker the post arm records is looked up by the pre arm. */
+export function toClaudePostPayload(
+  event: { toolName: string; input?: Record<string, unknown>; content?: unknown },
+  ctx: { cwd: string; sessionId: string },
+): ClaudePostHookPayload {
+  const content = event.content === undefined || event.content === null
+    ? ""
+    : typeof event.content === "string"
+      ? event.content
+      : JSON.stringify(event.content);
+  return {
+    hook_event_name: "PostToolUse",
+    session_id: ctx.sessionId,
+    cwd: ctx.cwd,
+    tool_name: claudeToolName(event.toolName),
+    tool_input: claudeToolInput(event.toolName, event.input ?? {}),
+    tool_response: content,
+    response: content,
+  };
+}
+
+/** The session id every hook payload carries. pi's own session id (via the session
+ * manager) is the authority; `PI_SESSION_ID` is the fallback; empty is the documented
+ * last resort. The empty string is why the empty-session contract exists in the gate:
+ * an empty id cannot record a marker or count denials, so a real id matters wherever
+ * pi can provide one. Never throws — an older build's session manager shape must not
+ * take down the payload. */
+export function resolveSessionId(
+  ctx: { sessionManager?: { getSessionId?: () => string } },
+  env: Record<string, string | undefined>,
+): string {
+  try {
+    const id = ctx.sessionManager?.getSessionId?.();
+    if (typeof id === "string" && id) return id;
+  } catch {
+    // fall through to the env fallback
+  }
+  return env.PI_SESSION_ID ?? "";
+}
+
+/** Post outcomes into user-facing lines. Deliberately carries no action: a post hook
+ * failure is reported and the tool result is left exactly as the tool produced it. */
+export function resolvePost(outcomes: PostOutcome[]): PostResolution {
+  const notices = outcomes
+    .filter((outcome) => outcome.kind === "error")
+    .map((outcome) => `ai-badger: post hook failed, result unaffected — ${outcome.reason}`);
+  return { notices };
 }
 
 function decisionFrom(parsed: unknown): GateDecision {

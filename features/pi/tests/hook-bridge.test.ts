@@ -5,10 +5,16 @@ import {
   claudeToolName,
   commandsForTool,
   parseHookStdout,
+  postCommandsForTool,
+  postToolUseCommands,
   preToolUseCommands,
   resolve,
+  resolvePost,
+  resolveSessionId,
   toClaudePayload,
+  toClaudePostPayload,
   type GateOutcome,
+  type PostOutcome,
 } from "../adjustments/adapter/hook-bridge.ts";
 
 describe("hooks.json is the list of gates, not a hardcoded copy of it", () => {
@@ -66,6 +72,172 @@ describe("hooks.json is the list of gates, not a hardcoded copy of it", () => {
     expect(commandsForTool(commands, "Bash", (reason) => broken.push(reason))).toEqual([]);
     expect(broken).toHaveLength(1);
     expect(broken[0]).toContain("([");
+  });
+});
+
+describe("PostToolUse commands come from hooks.json the same way", () => {
+  const hooksJson = {
+    hooks: {
+      PreToolUse: [
+        { matcher: "Grep|Glob|Bash", hooks: [{ type: "command", command: "python3 pre.py" }] },
+      ],
+      PostToolUse: [
+        { matcher: "memory_search", hooks: [{ type: "command", command: "python3 marker.py" }] },
+        { matcher: "Read|ReadFile", hooks: [{ type: "command", command: "python3 grade.py" }] },
+        { hooks: [{ type: "command", command: "python3 always-post.py" }] },
+      ],
+      Stop: [{ hooks: [{ type: "command", command: "python3 stop.py" }] }],
+    },
+  };
+
+  test("only PostToolUse entries are collected — pre and stop entries stay out", () => {
+    const commands = postToolUseCommands(hooksJson);
+    expect(commands.map((c) => c.command)).toEqual([
+      "python3 marker.py",
+      "python3 grade.py",
+      "python3 always-post.py",
+    ]);
+  });
+
+  test("a missing or malformed hooks.json yields no post hooks rather than throwing", () => {
+    expect(postToolUseCommands(null)).toEqual([]);
+    expect(postToolUseCommands({ hooks: { PostToolUse: 7 } })).toEqual([]);
+  });
+
+  test("a matcher-less post entry always runs, like on the pre side", () => {
+    const commands = postToolUseCommands(hooksJson);
+    expect(postCommandsForTool(commands, "mcp__x__memory_search")).toContain(
+      "python3 always-post.py",
+    );
+    expect(postCommandsForTool(commands, "Read")).toContain("python3 always-post.py");
+  });
+});
+
+describe("post matchers also recognize mcp__-prefixed tool names by their bare suffix", () => {
+  const commands = [{ matcher: "memory_search", command: "python3 marker.py" }];
+
+  test("the shipped `memory_search` matcher fires for mcp__ai-raccoon__memory_search", () => {
+    expect(postCommandsForTool(commands, "mcp__ai-raccoon__memory_search")).toEqual([
+      "python3 marker.py",
+    ]);
+  });
+
+  test("pi's single-underscore MCP spelling fires too — that is what pi actually delivers", () => {
+    expect(postCommandsForTool(commands, "mcp_ai-raccoon_memory_search")).toEqual([
+      "python3 marker.py",
+    ]);
+    expect(postCommandsForTool(commands, "mcp_ai_raccoon_memory_search")).toEqual([
+      "python3 marker.py",
+    ]);
+  });
+
+  test("anchored semantics survive: a suffix match is not a substring match", () => {
+    expect(postCommandsForTool(commands, "memory_search_extra")).toEqual([]);
+    expect(postCommandsForTool(commands, "not_memory_search")).toEqual([]);
+    expect(postCommandsForTool(commands, "mcp_ai-raccoon_memory_search_extra")).toEqual([]);
+  });
+
+  test("a non-MCP tool name is matched exactly as on the pre side", () => {
+    expect(postCommandsForTool(commands, "memory_search")).toEqual(["python3 marker.py"]);
+    expect(postCommandsForTool([{ matcher: "Bash", command: "x.py" }], "BashOutput")).toEqual([]);
+  });
+
+  test("an unparseable post matcher is skipped and reported like a pre one", () => {
+    const broken: string[] = [];
+    const out = postCommandsForTool(
+      [{ matcher: "([", command: "x.py" }],
+      "Bash",
+      (reason) => broken.push(reason),
+    );
+    expect(out).toEqual([]);
+    expect(broken).toHaveLength(1);
+    expect(broken[0]).toContain("([");
+  });
+});
+
+describe("the post payload carries what the shipped PostToolUse hooks parse", () => {
+  test("exact key set: event name, ids, tool shape, and the result mirror the grade hook reads", () => {
+    const payload = toClaudePostPayload(
+      { toolName: "bash", input: { command: "ls" }, content: "out" },
+      { cwd: "/repo", sessionId: "sess-1" },
+    );
+    expect(payload).toEqual({
+      hook_event_name: "PostToolUse",
+      session_id: "sess-1",
+      cwd: "/repo",
+      tool_name: "Bash",
+      tool_input: { command: "ls" },
+      tool_response: "out",
+      response: "out",
+    });
+  });
+
+  test("a structured result is stringified; a missing one is an empty string", () => {
+    const structured = toClaudePostPayload(
+      { toolName: "my_mcp_tool", input: {}, content: { results: [] } },
+      { cwd: "/repo", sessionId: "s" },
+    );
+    expect(structured.tool_response).toBe('{"results":[]}');
+    expect(structured.response).toBe('{"results":[]}');
+    const missing = toClaudePostPayload(
+      { toolName: "read", input: {} },
+      { cwd: "/repo", sessionId: "s" },
+    );
+    expect(missing.tool_response).toBe("");
+    expect(missing.response).toBe("");
+  });
+
+  test("tool input goes through the same claude-shape mapping as the pre payload", () => {
+    const payload = toClaudePostPayload(
+      { toolName: "read", input: { path: "/a/b.py" }, content: "x" },
+      { cwd: "/repo", sessionId: "s" },
+    );
+    expect(payload.tool_input).toEqual({ file_path: "/a/b.py" });
+  });
+});
+
+describe("session id resolution: sessionManager first, then env, never a crash", () => {
+  test("ctx.sessionManager.getSessionId() wins — marker and denials must key on pi's own id", () => {
+    expect(resolveSessionId({ sessionManager: { getSessionId: () => "pi-1" } }, {})).toBe("pi-1");
+  });
+
+  test("falls back to PI_SESSION_ID when the manager is missing, empty, or throws", () => {
+    const env = { PI_SESSION_ID: "env-1" };
+    expect(resolveSessionId({}, env)).toBe("env-1");
+    expect(resolveSessionId({ sessionManager: {} }, env)).toBe("env-1");
+    expect(resolveSessionId({ sessionManager: { getSessionId: () => "" } }, env)).toBe("env-1");
+    expect(
+      resolveSessionId(
+        {
+          sessionManager: {
+            getSessionId: () => {
+              throw new Error("old build");
+            },
+          },
+        },
+        env,
+      ),
+    ).toBe("env-1");
+  });
+
+  test("an empty string — not undefined — when nothing is available", () => {
+    expect(resolveSessionId({}, {})).toBe("");
+  });
+});
+
+describe("post outcomes are advisory: reported, never blocking", () => {
+  const postError: PostOutcome = { kind: "error", reason: "marker.py exited 1" };
+
+  test("a clean run reports nothing", () => {
+    expect(resolvePost([])).toEqual({ notices: [] });
+    expect(resolvePost([{ kind: "ok" }])).toEqual({ notices: [] });
+  });
+
+  test("every failure is a notice — and there is no action key to misuse for blocking", () => {
+    const r = resolvePost([postError, postError]);
+    expect(r.notices).toHaveLength(2);
+    expect(r.notices[0]).toContain("marker.py exited 1");
+    expect(Object.keys(r)).toEqual(["notices"]);
   });
 });
 
