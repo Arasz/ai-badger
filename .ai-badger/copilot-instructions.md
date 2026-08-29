@@ -4,7 +4,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ sc
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, ts, node, changelog
-> Scaffolded by ai-badger 0.145.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
+> Scaffolded by ai-badger 0.146.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
 ## Commands
 
@@ -44,7 +44,10 @@ This project understands prompt markers (see `.ai-badger/skills/prompt-markers`)
 - `f:` / `feedback:` — a high-priority correction; adjust immediately.
 - `e:` / `extension:` — a request to expand the current task's scope.
 - `q:` / `queue:` — a queued instruction to analyze and run after active work completes.
+- `i:` / `important:` — important: high priority, do not drop it; handle at the next natural boundary.
 - `i!:` / `important!:` — immediate emergency interrupt: STOP, pause/cancel active tasks, and react instantly.
+
+Every marker accepts an **importance token**: insert `!` before the colon (`f!:`, `queue!:`) to make that marker interrupt-grade — preempt current work and handle it first. On pi the session-signals extension aborts the running turn for you; here, treat a `!`-marker as preempting whatever is in flight — never queue it silently behind work already running.
 
 A marker is expanded by a `UserPromptSubmit` hook, which fires only when a message **starts a turn**. A message sent **mid-turn** — queued while work is already running — reaches the model as an attachment and never passes through that hook, so its marker is never expanded. Apply the behaviour above yourself whenever you see a marker arrive that way.
 

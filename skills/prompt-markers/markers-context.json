@@ -1,34 +1,50 @@
 {
-  "markers": [
-    {
-      "id": "hint",
-      "prefixes": ["h:", "hint:"],
-      "behavior": "research-first",
-      "inject": "HINT: The user has provided a potential insight or suggestion. Do not take it as a command. You MUST perform a quick, cheap research pass (search the project, check relevant files/docs) to validate this before proceeding. Report your findings."
-    },
-    {
-      "id": "feedback",
-      "prefixes": ["f:", "feedback:"],
-      "behavior": "high-priority-adjustment",
-      "inject": "FEEDBACK: The user is providing concrete feedback on previous work, a plan, or an output. This is high priority. Refer back to the session history, identify the specific point, and address it as soon as possible. You MUST cite the failing test, error message, validator output, or source evidence behind the correction before proposing a new patch — vague doubt or 'try again' is not grounded feedback."
-    },
-    {
-      "id": "extension",
-      "prefixes": ["e:", "extension:"],
-      "behavior": "scope-extension",
-      "inject": "EXTENSION: The user is extending the current task's scope. Analyze this new requirement. Try to incorporate it into the current unit of work if it fits, or suggest splitting it into a follow-up task if it's too large."
-    },
-    {
-      "id": "queue",
-      "prefixes": ["q:", "queue:"],
-      "behavior": "queued-task",
-      "inject": "QUEUED TASK: The user has provided a task to queue for execution after completing your current work. Finish your active task first. Once finished, analyze and execute this queued instruction, incorporating context from all prior work."
-    },
-    {
-      "id": "important",
-      "prefixes": ["i!:", "important!:"],
-      "behavior": "immediate-interrupt",
-      "inject": "IMPORTANT / INTERRUPT: STOP IMMEDIATELY. Pause or cancel any running commands, background processes, or ongoing subtasks. Read this message carefully and react to it immediately before resuming or doing anything else."
-    }
-  ]
+ "markers": [
+  {
+   "id": "hint",
+   "prefixes": [
+    "h:",
+    "hint:"
+   ],
+   "behavior": "research-first",
+   "inject": "HINT: The user has provided a potential insight or suggestion. Do not take it as a command. You MUST perform a quick, cheap research pass (search the project, check relevant files/docs) to validate this before proceeding. Report your findings."
+  },
+  {
+   "id": "feedback",
+   "prefixes": [
+    "f:",
+    "feedback:"
+   ],
+   "behavior": "high-priority-adjustment",
+   "inject": "FEEDBACK: The user is providing concrete feedback on previous work, a plan, or an output. This is high priority. Refer back to the session history, identify the specific point, and address it as soon as possible. You MUST cite the failing test, error message, validator output, or source evidence behind the correction before proposing a new patch \u2014 vague doubt or 'try again' is not grounded feedback."
+  },
+  {
+   "id": "extension",
+   "prefixes": [
+    "e:",
+    "extension:"
+   ],
+   "behavior": "scope-extension",
+   "inject": "EXTENSION: The user is extending the current task's scope. Analyze this new requirement. Try to incorporate it into the current unit of work if it fits, or suggest splitting it into a follow-up task if it's too large."
+  },
+  {
+   "id": "queue",
+   "prefixes": [
+    "q:",
+    "queue:"
+   ],
+   "behavior": "queued-task",
+   "inject": "QUEUED TASK: The user has provided a task to queue for execution after completing your current work. Finish your active task first. Once finished, analyze and execute this queued instruction, incorporating context from all prior work."
+  },
+  {
+   "id": "important",
+   "prefixes": [
+    "i:",
+    "important:"
+   ],
+   "behavior": "high-priority-attention",
+   "inject": "IMPORTANT: The user flags this as important. Treat it as high priority \u2014 do not drop it, and handle it as soon as the current step reaches a natural boundary. It does not ask you to cancel work in flight.",
+   "injectInterrupt": "IMPORTANT / INTERRUPT: STOP IMMEDIATELY. Pause or cancel any running commands, background processes, or ongoing subtasks. Read this message carefully and react to it immediately before resuming or doing anything else."
+  }
+ ]
 }

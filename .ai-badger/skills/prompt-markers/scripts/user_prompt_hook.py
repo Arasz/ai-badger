@@ -46,6 +46,15 @@ def _debug(event: str, **fields) -> None:
 SKILL_DIR = Path(__file__).resolve().parent.parent
 MARKERS_CONTEXT_FILE = SKILL_DIR / "markers-context.json"
 
+# Appended to a marker's inject text when the prompt used the importance token (`!` between
+# alias and colon) and the marker defines no dedicated interrupt text. The pi-side
+# session-signals extension aborts the running turn for `!`-markers; hosts without a
+# mid-turn hook get this instruction instead — the model preempts what is in flight.
+IMPORTANCE_SUFFIX = (
+    "\n\nIMPORTANCE: interrupt-grade — the user marked this with ! to preempt current "
+    "work. Break off what is running and handle this before anything else."
+)
+
 # Convention shared with the rest of an ai-badger-scaffolded project: a project-tracking
 # directory at the repo root named ".ai-badger". Transformations are recorded there only if the
 # project has actually adopted that convention (directory already exists) — this hook never
@@ -66,21 +75,35 @@ def load_markers_context() -> dict:
         return json.load(fh)
 
 
-def match_marker(prompt: str, markers: list[dict]) -> tuple[dict, str] | None:
-    """Return the (marker, matched prefix) whose prefix leads `prompt`, or None.
+def _prefix_candidates(prefix: str) -> list[str]:
+    """The spellings one catalog prefix matches: itself, and its interrupt variant with a
+    `!` inserted before the trailing colon (`f:` also matches `f!:`). The importance token
+    is grammar, not catalog: every marker can carry it without enumerating variants in
+    markers-context.json."""
+    if prefix.endswith(":"):
+        return [prefix, prefix[:-1] + "!:"]
+    return [prefix]
 
-    A single-letter prefix must be followed by whitespace or end of prompt, so a
-    Windows path (`H:\\Projects\\foo.py …`) is not read as `h:` (F-21).
+
+def match_marker(prompt: str, markers: list[dict]) -> tuple[dict, str, bool] | None:
+    """Return the (marker, matched prefix, bang) whose prefix leads `prompt`, or None.
+
+    `bang` is True when the prompt used the importance token (`f!:`). A single-letter
+    prefix must be followed by whitespace or end of prompt, so a Windows path
+    (`H:\\Projects\\foo.py …`) is not read as `h:` (F-21); the guard counts only the
+    alias letters, so its `!`-variant (`h!:`) is guarded identically.
     """
     prompt_trimmed = prompt.strip().lower()
     for marker in markers:
         for prefix in marker.get("prefixes", []):
-            if not prompt_trimmed.startswith(prefix.lower()):
-                continue
-            rest = prompt_trimmed[len(prefix):]
-            if len(prefix.rstrip(":")) == 1 and rest and not rest[0].isspace():
-                continue
-            return marker, prefix
+            for candidate in _prefix_candidates(prefix.lower()):
+                if not prompt_trimmed.startswith(candidate):
+                    continue
+                rest = prompt_trimmed[len(candidate):]
+                alias_len = len(candidate.rstrip(":").rstrip("!"))
+                if alias_len == 1 and rest and not rest[0].isspace():
+                    continue
+                return marker, candidate, candidate.endswith("!:")
     return None
 
 
@@ -94,7 +117,7 @@ def find_tracking_dir(start: Path) -> Path | None:
 
 
 def record_transformation(
-    cwd: str, prompt: str, marker_id: str, prefix: str, injected: str
+    cwd: str, prompt: str, marker_id: str, prefix: str, injected: str, bang: bool = False
 ) -> None:
     """Best-effort audit trail. Skips silently if the project has no tracking dir."""
     tracking_dir = find_tracking_dir(Path(cwd) if cwd else Path.cwd())
@@ -115,6 +138,7 @@ def record_transformation(
         "originalPrompt": prompt,
         "matchedPrefix": prefix,
         "markerId": marker_id,
+        "bang": bang,
         "injectedContext": injected,
     })
     state["history"] = state["history"][-MAX_HISTORY:]
@@ -193,11 +217,15 @@ def main() -> int:
         _debug("skip", reason="no_match")
         return 0
 
-    marker, prefix = matched
+    marker, prefix, bang = matched
     injected = marker["inject"]
+    if bang:
+        # A dedicated interrupt text (the important marker's emergency instruction) wins;
+        # otherwise the marker's meaning carries the generic preemption suffix.
+        injected = marker.get("injectInterrupt") or injected + IMPORTANCE_SUFFIX
 
     cwd = payload.get("cwd", "")
-    record_transformation(cwd, prompt, marker["id"], prefix, injected)
+    record_transformation(cwd, prompt, marker["id"], prefix, injected, bang)
 
     # Consolidated restart: track consecutive *user turns* that were feedback.
     # Every recorded turn advances the streak; non-feedback markers reset it.
@@ -209,7 +237,7 @@ def main() -> int:
     else:
         advance_feedback_streak(cwd, is_feedback=False)
 
-    _debug("fire", marker=marker["id"], prefix=prefix)
+    _debug("fire", marker=marker["id"], prefix=prefix, bang=bang)
 
     print(json.dumps({
         "hookSpecificOutput": {

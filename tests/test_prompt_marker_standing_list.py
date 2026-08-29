@@ -46,7 +46,11 @@ def _excluded(path, root) -> bool:
     the "no agent instruction file" guard fired on a tree that had them all.
     """
     rel = path.relative_to(root).as_posix()
-    return rel.startswith(".ai-badger/worktrees/") or "node_modules/" in rel
+    # .ai-badger.bckp/ holds den-refresh's frozen pre-refresh snapshots: agent-file copies
+    # by design, never maintained — policing them would freeze the catalog with them.
+    return (rel.startswith(".ai-badger/worktrees/")
+            or rel.startswith(".ai-badger.bckp/")
+            or "node_modules/" in rel)
 
 
 def _agent_files(root=ROOT):
