@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.144.0 | [v0.144.0 — pi becomes a harness that runs (2026-08-29)](0.144.0-pi-becomes-a-harness-that-runs.md) |
 | 0.143.0 | [v0.143.0 — pi review fixes (2026-08-28)](0.143.0-pi-review-fixes.md) |
 | 0.142.0 | [v0.142.0 — git-dir guard review fixes: false positives, bypasses, and an honest fail-open story](0.142.0-git-dir-guard-review-fixes.md) |
 | 0.141.0 | [v0.141.0 — pi agent registration and feature directory (2026-08-28)](0.141.0-pi-agent-support.md) |
