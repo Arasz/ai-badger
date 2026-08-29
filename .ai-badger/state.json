@@ -1,7 +1,13 @@
 {
   "lastUpdated": "2026-08-29",
-  "next": "Open from the pi work: (1) prompt-markers framework grammar: add ! importance token to markers-context.json + user_prompt_hook.py + templates standing list + its tests (pi side shipped in pi-badger-integration @ 81ead09); (2) fork-side default projectId for ai-raccoon tools; (3) pi arms in hooks-manifest.json decision; (4) keep ai-badger's vendored adapter in sync with pi-badger-integration canonical via publish --check.",
+  "next": "Open from the pi work: (1) fork-side default projectId for ai-raccoon tools (pi sessions must pass it explicitly today); (2) pi arms in hooks-manifest.json decision; (3) live-verify the pi session-signals abort->next-turn handoff with one real interactive f!: mid-delegation; (4) keep ai-badger's vendored adapter in sync with the integration repo canonical via publish --check.",
   "completedTasks": [
+    {
+      "taskId": "aib-prompt-markers-importance-token-grammar",
+      "title": "prompt-markers: ! importance token on every marker (framework grammar)",
+      "finished": "2026-08-29",
+      "summary": "Framework grammar for the marker importance token (pi side shipped in the integration repo). match_marker builds each catalog prefix's !-variant and returns (marker, prefix, bang); bang injects injectInterrupt (important marker) or inject + IMPORTANCE_SUFFIX. Catalog: important splits into i:/important: base + i!:/important!: interrupt. Templates, agent standing lists and SKILL.md updated. DISCOVERED: markers-context.json is seed-once (#15) and this repo's deployed copy had frozen at three markers \u2014 q:/i!: never fired through the local hook; re-seeded. Also: standing-list test excludes .ai-badger.bckp/ snapshots; 0.145.0 tag applied retroactively. Release 0.146.0 (f1305bd9), full suite 4674 passed."
+    },
     {
       "taskId": "aib-pi-marker-importance-delegation-status",
       "title": "pi extension: marker ! importance (mid-turn interrupt) + delegation working status",
