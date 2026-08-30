@@ -828,3 +828,56 @@ def test_delegation_usage_happy_path_exit_settled_run(pi_subagent_logs_dir):
         "apiCalls": 2,
         "at": 1788123491019,
     }
+
+
+def test_delegation_usage_run_without_any_settled_marker_returns_none(pi_subagent_logs_dir):
+    """T2 — header + usage events but neither exit nor agent_settled → None (run still live).
+
+    Kills a parser that records mid-run: the M1 respec makes a settled marker mandatory.
+    """
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-2", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-2"),
+        _assistant_message_end(),
+    ])
+
+    assert pi_subagent_logs_dir.source._delegation_usage("d-2") is None
+
+
+def test_delegation_usage_spawn_error_returns_none(pi_subagent_logs_dir):
+    """T3 — spawnError means the child never ran: no record, not even a zeroed one."""
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-3", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-3"),
+        {"type": "spawnError", "error": "pi: command not found"},
+    ])
+
+    assert pi_subagent_logs_dir.source._delegation_usage("d-3") is None
+
+
+def test_delegation_usage_exit_with_signal_still_records_real_spend(pi_subagent_logs_dir):
+    """T4 — a killed run's exit line (signal present) settles it: the tokens are real spend.
+
+    Kills a completed-only filter (exitCode == 0 or signal-absent requirement) that would
+    refuse exactly the aborted-spent runs cost recording exists for.
+    """
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-4", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-4"),
+        _assistant_message_end(input_=500, output=10),
+        {"type": "exit", "exitCode": None, "signal": "SIGKILL", "endedAt": 1788123500000},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-4")
+
+    assert record is not None
+    assert record["totalTokens"] == 510
+    assert record["at"] == 1788123500000
+
+
+def test_delegation_usage_zero_total_returns_none(pi_subagent_logs_dir):
+    """T5 — exit present but no usage events (the all-elided log) → None, not fabricated zeros."""
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-5", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-5"),
+        {"type": "tee-elided", "droppedBytes": 5542477},
+        {"type": "exit", "exitCode": 0, "endedAt": 1788123491019},
+    ])
+
+    assert pi_subagent_logs_dir.source._delegation_usage("d-5") is None

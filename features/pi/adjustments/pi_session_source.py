@@ -62,12 +62,14 @@ def _delegation_usage(delegation_id: str) -> dict | None:
     api_calls = 0
     model = None
     ended_at = None
+    settled = False
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
             continue
         record = json.loads(line)
         if record.get("type") == "exit":
+            settled = True
             ended_at = record.get("endedAt")
             continue
         if record.get("type") != "message_end":
@@ -82,6 +84,8 @@ def _delegation_usage(delegation_id: str) -> dict | None:
             candidate = message.get("model")
             if isinstance(candidate, str) and candidate:
                 model = candidate
+    if not settled or not total:
+        return None
     return {"totalTokens": total, "model": model, "apiCalls": api_calls, "at": ended_at}
 
 
