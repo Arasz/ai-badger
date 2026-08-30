@@ -1,0 +1,8 @@
+CAPABILITY_RESOURCES_DISCOVER (installed marker)
+
+This file is the installed capability marker for the adapter's ungated
+`resources_discover` skills contribution: the ai-badger migration adjustments
+gate on its presence in ~/.pi/agent/extensions/ai-badger/ (never on a version
+number). Absent marker ⇒ skip-with-warning, never remove.
+
+Shipped by ai-badger task aib-pi-stack-mcp-skills-parity, package P2 (2026-08-30).

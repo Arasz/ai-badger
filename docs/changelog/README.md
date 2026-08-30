@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.148.0 | [pi discovery is project-scoped: the fork reads `.mcp.json`, the adapter serves project skills, the scaffold stops writing global state](0.148.0-pi-project-scoped-mcp-and-skills.md) |
 | 0.147.0 | [status-report skill: mid-task status without waiting for the task](0.147.0-status-report-skill.md) |
 | 0.146.0 | [prompt markers: importance token (`!`) on every marker](0.146.0-prompt-markers-importance-token.md) |
 | 0.145.0 | [pi PostToolUse arm: memory_search actually unlocks text search](0.145.0-pi-post-tool-use-arm.md) |

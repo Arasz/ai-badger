@@ -8,7 +8,7 @@
     },
     {
       "feature": "mcp",
-      "description": "Map .mcp.json to pi-mcp-tools settings.json format",
+      "description": "Migration-only: remove this project's shape-matched entries from ~/.pi/agent/settings.json's 'mcp' key (gated on the installed pi-mcp-tools fork's project-scope capability marker); --no-install prints the removal proposal",
       "script": "adjust_mcp.py"
     },
     {
@@ -18,7 +18,7 @@
     },
     {
       "feature": "skills",
-      "description": "Merge project .ai-badger/skills/ path into pi's user-global settings skills array",
+      "description": "Migration-only: remove this project's .ai-badger/skills path from pi's user-global settings skills array (gated on the installed adapter's resources_discover capability marker)",
       "script": "adjust_skills.py"
     },
     {
