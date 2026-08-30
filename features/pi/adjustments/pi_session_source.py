@@ -17,6 +17,22 @@ failure (missing dir, missing file, unreadable or non-JSON line) degrades to an 
 checkpoint rather than raising — a checkpoint reader that crashes is worse than one that
 reports zero.
 
+Delegation tokens are read from the subagent logs the delegation runner tees —
+`~/.pi/agent/subagent-logs/<runId>.jsonl`, the R4 contract written by
+pi-badger-integration's delegation-runner (a frozen cross-repo format: consumed read-only,
+never rewritten). Each line is one JSON object: a `run` header, child pi `--mode json`
+events (assistant turns end in a `message_end` whose `message` carries `model` and a
+`usage` with `input`/`output`/cache fields), optional `tee-elided` byte-cap markers, blank
+lines, and a settled marker: an `exit` line (any exitCode, `signal` when killed) **or** a
+bare `agent_settled` line — a TUI-side abort (`settleAborted`) writes no `exit` line, so
+requiring `exit` alone would refuse exactly the aborted-but-spent runs this reader exists
+for; `spawnError` (child never ran) and markerless logs record nothing, as does a settled
+log with no usage. `totalTokens` is the sum of `usage.input + usage.output` across
+assistant `message_end` events — pi's own `usage.totalTokens` is cache-inclusive, and
+input+output is what hermes's source records, so cache tokens are excluded for cross-source
+parity. `at` is `exit.endedAt`, else the last assistant `message_end.timestamp`, else the
+header `startedAt` — epoch milliseconds (pi's log timestamps), not an ISO string.
+
 The pi adjustment (features/pi/adjustments/adjust_task.py) copies this module into
 the scaffolded .ai-badger/skills/task/scripts/pi_session_source.py, where
 tracker_lib's discovery import finds and asks it to register(lib).
@@ -56,7 +72,17 @@ def register(tracker_lib) -> None:
 
 
 def _delegation_usage(delegation_id: str) -> dict | None:
-    """Token record for one pi delegation run, parsed from its subagent log."""
+    """Token record `{totalTokens, model, apiCalls, at}` for one delegation run, or None.
+
+    Parses `SUBAGENT_LOGS_DIR/<id>.jsonl` (see module docstring for the log contract).
+    Returns None when the id is not a bare filename component (path-traversal guard —
+    real ids are `d-<n>`), the log is missing or unreadable, the run never settled (`exit`
+    or `agent_settled` marker required; `spawnError` counts as never ran), or the settled
+    total is 0 — the caller must refuse rather than record a fabricated number.
+    `totalTokens` sums `usage.input + usage.output` across assistant `message_end` events;
+    cache tokens are excluded for cross-source parity with hermes (pi's own
+    `usage.totalTokens` is cache-inclusive).
+    """
     if (not delegation_id or delegation_id in (".", "..")
             or "/" in delegation_id or "\\" in delegation_id):
         return None
