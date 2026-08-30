@@ -13,7 +13,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
@@ -243,6 +243,20 @@ export default async function (pi: ExtensionAPI) {
 
   const apiComplete = typeof pi.registerCommand === "function";
   let apiWarned = false;
+
+  // Skills contribution (plan §1 M4, decision D2): UNGATED. pi honors
+  // source-verified skillPaths in all modes (agent-session.js:1920-1941) and
+  // derives the event from the session cwd (runner.js:935-947), so the handler
+  // reads event.cwd and never the extension context — no ctx.cwd, no
+  // isProjectTrusted(): the effective trust decision is installing this adapter
+  // user-globally (ADR-0023's recorded asymmetry, calibrated by the pre-existing
+  // hooks-shell-command channel, ADR-0022). Absent-safe: a project without
+  // .ai-badger/skills contributes no paths and never throws.
+  pi.on("resources_discover", (event) => {
+    const skillsDir = join(event.cwd, ".ai-badger", "skills");
+    if (!existsSync(skillsDir)) return { skillPaths: [] };
+    return { skillPaths: [skillsDir] };
+  });
 
   pi.on("tool_call", async (event, ctx) => {
     if (!apiWarned && !apiComplete) {
