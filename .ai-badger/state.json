@@ -1,7 +1,13 @@
 {
-  "lastUpdated": "2026-08-29",
+  "lastUpdated": "2026-08-30",
   "next": "Open follow-ups after the 2026-08-29 batch: (1) IMPLEMENT the default-projectId-from-cwd resolver in ~/RiderProjects/ai-raccoon \u2014 design committed there (docs/plans/default-projectid-from-cwd.md, 2cda253b); seam is ToolGate.RequireAsync, needs dotnet-engineer lane + tests; (2) pi stack parity (user e:, queued): pi discovers the same ai-badger MCP tools as Claude Code \u2014 MCP config + skills discovery defined by the project scaffold; (3) after the resolver ships: pi sessions stop passing projectId explicitly. DONE in this batch: ADR-0022 (pi arms hooks dynamically, 8f724f61); session-signals abort live-verified via pi --mode rpc (facts in memory hash 90ca00cb); vendored adapter publish --check in sync.",
   "completedTasks": [
+    {
+      "taskId": "aib-interrupt-grade-status-report-skill",
+      "title": "status-report skill: interrupt-grade mid-task status snapshot, default scope",
+      "finished": "2026-08-30",
+      "summary": "New default-scope common skill status-report: answers 'where are we?' mid-task in one cheap read \u2014 current task (latest IN_PROGRESS wins, other open visible), progress checklist (plan packages + checkbox counts, newest-file-fallback marked), next (state.json verbatim), delegation (recorded subagents, lane worktrees for open taskIds only, live sessions). stdlib-only script, exit-0-everywhere, per-section degradation. Important-by-default contract: never deferred to task end, never delegated. Review round 1 fixed lane prefix over-match (-lane- only), stat() race, fallback-marker pin. DISCOVERED: skill delivery resolves via index.json \u2014 index BEFORE self-scaffold or the new skill silently skips delivery (guard cannot see it, --skills '' reuses manifest). Also: v0.146.0 had never been tagged (squash #450 carried 4 unpushed local commits); tagged f1305bd9 and pushed. Release 0.147.0 (squash 77dc19bf, tag d7ba6a59), CI green."
+    },
     {
       "taskId": "aib-prompt-markers-importance-token-grammar",
       "title": "prompt-markers: ! importance token on every marker (framework grammar)",
