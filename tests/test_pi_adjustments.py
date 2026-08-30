@@ -992,3 +992,46 @@ def test_delegation_usage_assistant_end_without_model_records_model_none(
     assert record is not None
     assert record["model"] is None
     assert record["totalTokens"] == 15
+
+
+def test_delegation_usage_missing_dir_or_file_returns_none(pi_subagent_logs_dir):
+    """T11 — machines without the extension have no logs dir at all: both misses → None.
+
+    A missing dir is the pre-release state of every machine today; a raise there would
+    crash the tracker's `subagent --delegation` flow instead of refusing cleanly.
+    """
+    assert pi_subagent_logs_dir.source._delegation_usage("d-1") is None  # dir absent
+
+    pi_subagent_logs_dir.logs_dir.mkdir(parents=True)  # dir present, file absent
+    assert pi_subagent_logs_dir.source._delegation_usage("d-404") is None
+
+
+def test_delegation_usage_wired_through_register(pi_subagent_logs_dir):
+    """T12 — register() hands tracker_lib the real parser, not the None stub.
+
+    Mirrors test_pi_session_source_checkpoint_uses_session_env_and_own_cwd: the callable
+    captured from register must resolve a delegation id through the (patched) logs dir
+    end-to-end, killing a wiring that leaves `lambda delegation_id: None` in place.
+    """
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-1", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-1"),
+        _assistant_message_end(input_=10, output=5),
+        {"type": "exit", "exitCode": 0, "endedAt": 1788123491019},
+    ])
+    calls = []
+
+    class FakeTrackerLib:
+        @staticmethod
+        def register_session_source(name, env_var, resolve, checkpoint, resume,
+                                     delegation_usage):
+            calls.append((name, env_var, resolve, checkpoint, resume, delegation_usage))
+
+    pi_subagent_logs_dir.source.register(FakeTrackerLib)
+
+    assert calls[0][0] == "pi"
+    assert calls[0][5]("d-1") == {
+        "totalTokens": 15,
+        "model": "z-ai/glm-5.3-flash",
+        "apiCalls": 1,
+        "at": 1788123491019,
+    }

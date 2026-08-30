@@ -51,7 +51,7 @@ def register(tracker_lib) -> None:
         resolve=_resolve,
         checkpoint=lambda session: _checkpoint_for_cwd(session["sessionId"], os.getcwd()),
         resume=lambda session_id: f"pi -p --session {session_id}",
-        delegation_usage=lambda delegation_id: None,
+        delegation_usage=_delegation_usage,
     )
 
 
@@ -66,7 +66,11 @@ def _delegation_usage(delegation_id: str) -> dict | None:
     model = None
     ended_at = None
     settled = False
-    for line in path.read_text(encoding="utf-8").splitlines():
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in lines:
         line = line.strip()
         if not line:
             continue
