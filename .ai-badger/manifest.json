@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.147.0",
-  "frameworkCommit": "ee2625bb60dadba81f50da43ddaaae0c1751f9a1",
+  "frameworkCommit": "bef957886039893810d29bd55095095d7c443529",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -844,12 +844,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.147.0",
-      "hash": "4127c4112c5e74b0c15e881a3b6059da61be8f52325ebf63319c81317e62aa18",
+      "hash": "c71bb756677da42b9f9b2fea71abc1c5ee8f5ddc3b5a83fca498e4d3bc9cc6bd",
       "dirMeta": {
         "file_count": 18,
         "dir_count": 2
       },
-      "sourceHash": "4127c4112c5e74b0c15e881a3b6059da61be8f52325ebf63319c81317e62aa18",
+      "sourceHash": "c71bb756677da42b9f9b2fea71abc1c5ee8f5ddc3b5a83fca498e4d3bc9cc6bd",
       "sourceMeta": {
         "file_count": 18,
         "dir_count": 2
@@ -2205,7 +2205,7 @@
       "source": "features/pi/adjustments/adjust_task.py",
       "target": ".ai-badger/skills/task/scripts/pi_session_source.py",
       "frameworkVersion": "0.147.0",
-      "hash": "2bd0f5658ef29832a925ee1b5c8894df9e7e966994a7488b0debb195b22ac421"
+      "hash": "3f2edfc2086bc2cc944790211911f5d15623786d28511160e405c5d39511a4ec"
     },
     {
       "feature": "adjustments",

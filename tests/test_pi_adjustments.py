@@ -1062,3 +1062,18 @@ def test_delegation_usage_agent_settled_without_exit_line_records(pi_subagent_lo
         "apiCalls": 1,
         "at": 1788122405772,
     }
+
+def test_delegation_usage_at_falls_back_to_header_started_at(pi_subagent_logs_dir):
+    """T14 — the third leg of the `at` chain: no exit.endedAt (agent_settled only) and a
+    message_end without a timestamp → the run header's startedAt. Defensive but contract-§6."""
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-2", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-2", agent="qa", persona="qa",
+             task="t", startedAt=1788120000000),
+        _assistant_message_end(input_=10, output=5, timestamp=None),
+        {"type": "agent_settled"},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-2")
+
+    assert record == {"totalTokens": 15, "model": "z-ai/glm-5.3-flash", "apiCalls": 1,
+                      "at": 1788120000000}

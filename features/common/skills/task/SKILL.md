@@ -237,9 +237,10 @@ into packages and subpackages.
 
    **Operator contract** (Rule 4): each agent brief must include tool names, abort criteria,
    success predicate, and handoff conditions. Persona prose is optional, one short line only.
-2. Record each subagent's `total_tokens`: `task_tracker.py subagent <taskId> <n>` or `--delegation <id>` (receipt id).
-   Interactive pi delegations return receipts by default; the answer lands as a
-   `delegation-result` followUp (`details.usage` = input+output); `background:false` blocks.
+2. Record the lane's `total_tokens`:
+   `python3 .ai-badger/skills/task/scripts/task_tracker.py subagent <taskId> <n>` or `--delegation <id>`.
+   Interactive pi delegations return receipts by default; the `delegation-result` followUp carries
+   `details.usage` (input+output); `background:false` blocks.
 3. Review each result at the seams (matches plan? acceptance criteria?). Send follow-ups back
    rather than rewriting, unless the fix is a few lines.
 4. Commit and push per work package (small commits). If the source-control extension is active,
