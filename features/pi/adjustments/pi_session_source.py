@@ -66,6 +66,8 @@ def _delegation_usage(delegation_id: str) -> dict | None:
     model = None
     ended_at = None
     settled = False
+    started_at = None
+    last_assistant_ts = None
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError:
@@ -78,11 +80,18 @@ def _delegation_usage(delegation_id: str) -> dict | None:
             record = json.loads(line)
         except ValueError:
             continue
-        if record.get("type") == "exit":
+        rtype = record.get("type")
+        if rtype == "exit":
             settled = True
             ended_at = record.get("endedAt")
             continue
-        if record.get("type") != "message_end":
+        if rtype == "agent_settled":
+            settled = True
+            continue
+        if rtype == "run":
+            started_at = record.get("startedAt")
+            continue
+        if rtype != "message_end":
             continue
         message = record.get("message") or {}
         if message.get("role") != "assistant":
@@ -92,13 +101,16 @@ def _delegation_usage(delegation_id: str) -> dict | None:
             continue
         total += (usage.get("input") or 0) + (usage.get("output") or 0)
         api_calls += 1
+        last_assistant_ts = message.get("timestamp")
         if model is None:
             candidate = message.get("model")
             if isinstance(candidate, str) and candidate:
                 model = candidate
     if not settled or not total:
         return None
-    return {"totalTokens": total, "model": model, "apiCalls": api_calls, "at": ended_at}
+    at = ended_at if ended_at is not None else last_assistant_ts
+    return {"totalTokens": total, "model": model, "apiCalls": api_calls,
+            "at": at if at is not None else started_at}
 
 
 def _resolve() -> dict:

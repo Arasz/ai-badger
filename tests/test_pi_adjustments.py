@@ -1035,3 +1035,30 @@ def test_delegation_usage_wired_through_register(pi_subagent_logs_dir):
         "apiCalls": 1,
         "at": 1788123491019,
     }
+
+
+def test_delegation_usage_agent_settled_without_exit_line_records(pi_subagent_logs_dir):
+    """T13 — the M1 witness: a TUI-aborted run (agent_settled, NO exit line) records.
+
+    Field-for-field the real d-1.jsonl shape: run header, one assistant message_end with
+    its real usage block, the bare agent_settled line, NO exit line, trailing blank line.
+    settleAborted (delegation-runner.ts) writes no exit line, yet the aborted run's tokens
+    are real spend — an exit-line-only settled policy refuses exactly this log. `at` falls
+    back to the last assistant message_end.timestamp (epoch ms): there is no exit.endedAt.
+    """
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-1", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-1", agent="architect", persona="architect",
+             task="Author an implementation plan (no code changes)", startedAt=1788122400000),
+        _assistant_message_end(input_=403, output=8485, timestamp=1788122405772),
+        {"type": "agent_settled"},
+        "",
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-1")
+
+    assert record == {
+        "totalTokens": 403 + 8485,
+        "model": "z-ai/glm-5.3-flash",
+        "apiCalls": 1,
+        "at": 1788122405772,
+    }
