@@ -67,7 +67,10 @@ def _delegation_usage(delegation_id: str) -> dict | None:
         line = line.strip()
         if not line:
             continue
-        record = json.loads(line)
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
         if record.get("type") == "exit":
             settled = True
             ended_at = record.get("endedAt")

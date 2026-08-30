@@ -881,3 +881,44 @@ def test_delegation_usage_zero_total_returns_none(pi_subagent_logs_dir):
     ])
 
     assert pi_subagent_logs_dir.source._delegation_usage("d-5") is None
+
+
+def test_delegation_usage_skips_malformed_line_and_sums_rest(pi_subagent_logs_dir):
+    """T6 — a malformed line between good lines is skipped individually, not fatal.
+
+    Same tolerance as _sum_usage: one bad line must not zero out or abort the whole log.
+    """
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-6", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-6"),
+        "{not valid json",
+        _assistant_message_end(input_=10, output=5, timestamp=1788122400001),
+        "} also bad {",
+        _assistant_message_end(input_=7, output=3, timestamp=1788122405000),
+        {"type": "exit", "exitCode": 0, "endedAt": 1788123491019},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-6")
+
+    assert record is not None
+    assert record["totalTokens"] == 25
+    assert record["apiCalls"] == 2
+
+
+def test_delegation_usage_tee_elided_marker_parsed_and_ignored(pi_subagent_logs_dir):
+    """T7 — the byte-cap marker is a legal unknown type: parse past it, count tail usage.
+
+    The elided middle's usage lines legitimately don't sum; usage around the marker must.
+    """
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-7", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-7"),
+        _assistant_message_end(input_=10, output=5, timestamp=1788122400001),
+        {"type": "tee-elided", "droppedBytes": 5542477},
+        _assistant_message_end(input_=7, output=3, timestamp=1788122405000),
+        {"type": "exit", "exitCode": 0, "endedAt": 1788123491019},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-7")
+
+    assert record is not None
+    assert record["totalTokens"] == 25
+    assert record["apiCalls"] == 2
