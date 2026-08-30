@@ -96,7 +96,7 @@ def _delegation_usage(delegation_id: str) -> dict | None:
     last_assistant_ts = None
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
+    except (OSError, ValueError):
         return None
     for line in lines:
         line = line.strip()
@@ -105,6 +105,8 @@ def _delegation_usage(delegation_id: str) -> dict | None:
         try:
             record = json.loads(line)
         except ValueError:
+            continue
+        if not isinstance(record, dict):  # same tolerance as _sum_usage: a valid-JSON non-object skips
             continue
         rtype = record.get("type")
         if rtype == "exit":
@@ -120,6 +122,8 @@ def _delegation_usage(delegation_id: str) -> dict | None:
         if rtype != "message_end":
             continue
         message = record.get("message") or {}
+        if not isinstance(message, dict):
+            continue
         if message.get("role") != "assistant":
             continue
         usage = message.get("usage")
@@ -191,7 +195,7 @@ def _sum_usage(path: Path) -> dict:
     messages = 0
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
+    except (OSError, ValueError):
         return {"cumulative": cumulative, "assistantMessages": 0}
 
     for line in lines:

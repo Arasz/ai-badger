@@ -1512,3 +1512,38 @@ def test_delegation_usage_at_falls_back_to_header_started_at(pi_subagent_logs_di
 
     assert record == {"totalTokens": 15, "model": "z-ai/glm-5.3-flash", "apiCalls": 1,
                       "at": 1788120000000}
+
+
+def test_delegation_usage_model_takes_the_first_non_empty(pi_subagent_logs_dir):
+    """F5 fold — plan contract §4: model is the FIRST non-empty message.model, not last-wins."""
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-2", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-2", agent="qa", persona="qa",
+             task="t", startedAt=1788120000000),
+        _assistant_message_end(model="first/model", input_=10, output=5, timestamp=1788120001000),
+        _assistant_message_end(model="second/model", input_=20, output=6, timestamp=1788120002000),
+        {"type": "exit", "exitCode": 0, "endedAt": 1788120003000},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-2")
+
+    assert record == {"totalTokens": 41, "model": "first/model", "apiCalls": 2,
+                      "at": 1788120003000}
+
+
+def test_delegation_usage_skips_valid_json_non_object_lines(pi_subagent_logs_dir):
+    """F3/F4 fold — a valid-JSON non-object line (list) and a non-dict message are skipped,
+    same tolerance as _sum_usage; neither may raise the CLI down."""
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-2", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-2", agent="qa", persona="qa",
+             task="t", startedAt=1788120000000),
+        "[1, 2, 3]",
+        {"type": "message_end", "message": "a string, not a dict"},
+        _assistant_message_end(model="z-ai/glm-5.3-flash", input_=10, output=5,
+                               timestamp=1788120001000),
+        {"type": "exit", "exitCode": 0, "endedAt": 1788120002000},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-2")
+
+    assert record == {"totalTokens": 15, "model": "z-ai/glm-5.3-flash", "apiCalls": 1,
+                      "at": 1788120002000}
