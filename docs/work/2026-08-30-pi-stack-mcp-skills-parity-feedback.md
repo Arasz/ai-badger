@@ -1,6 +1,6 @@
 # Refinement feedback — pi stack parity — 5 design decisions
 
-<!-- refinement-form: owner-gate:aib-pi-stack-mcp-skills-parity:v1 · saved 2026-08-30T18:52:25.908Z · answered 5/5 -->
+<!-- refinement-form: owner-gate:aib-pi-stack-mcp-skills-parity:v1 · saved 2026-08-30T18:52:26.608Z · answered 5/5 -->
 
 Source document: `docs/work/2026-08-30-pi-stack-mcp-skills-parity-plan.md (+ premortem + test strategy in the same directory)`
 
@@ -59,7 +59,6 @@ _(none)_
 _(none — every item has a verdict)_
 
 <!-- end refinement feedback -->
-
-<!-- provenance: the reviewer's browser save did not reach this path; the reviewer pasted the
-     complete feedback block into the orchestrating session at 2026-08-30, and the orchestrator
-     persisted it here verbatim (end marker verified before ingest). -->
+<!-- provenance: saved by the review form (2026-08-30T18:52:26Z) via the browser-remembered
+directory grant, which pointed at the main checkout's docs/work rather than this worktree;
+moved here verbatim by the orchestrator. -->
