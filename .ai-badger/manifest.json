@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.147.0",
-  "frameworkCommit": "ef86d040dccde905db956e80b60e709c3e6c76ea",
+  "frameworkCommit": "ee2625bb60dadba81f50da43ddaaae0c1751f9a1",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -57,7 +57,7 @@
       "source": "features/common/personas/delegator.md",
       "target": ".ai-badger/agents/delegator.md",
       "frameworkVersion": "0.147.0",
-      "hash": "1830a8df16f1bc45eba6812245981ad4d5e300e96328a54a2616c6c206d45921"
+      "hash": "51b9551b2062219dbb453fec2ba0e5af1f5efac4632de50c2226d3a69b1bedd8"
     },
     {
       "feature": "personas",
@@ -844,12 +844,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.147.0",
-      "hash": "430f9aa174868dc5f9cb52454fa2d76ab46cf93cfa2ed289509fde25806dda02",
+      "hash": "4127c4112c5e74b0c15e881a3b6059da61be8f52325ebf63319c81317e62aa18",
       "dirMeta": {
         "file_count": 18,
         "dir_count": 2
       },
-      "sourceHash": "430f9aa174868dc5f9cb52454fa2d76ab46cf93cfa2ed289509fde25806dda02",
+      "sourceHash": "4127c4112c5e74b0c15e881a3b6059da61be8f52325ebf63319c81317e62aa18",
       "sourceMeta": {
         "file_count": 18,
         "dir_count": 2

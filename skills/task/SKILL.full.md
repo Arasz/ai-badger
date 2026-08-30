@@ -237,11 +237,9 @@ into packages and subpackages.
 
    **Operator contract** (Rule 4): each agent brief must include tool names, abort criteria,
    success predicate, and handoff conditions. Persona prose is optional, one short line only.
-2. Record each subagent's `total_tokens` on completion:
-   `python3 .ai-badger/skills/task/scripts/task_tracker.py subagent <taskId> <total_tokens> --description "<what it did>"`.
-   To record a delegation by id instead of a manual count, pass `--delegation <id>`; the
-   session source that owns the task decides how the delegation's tokens are read. The two
-   are mutually exclusive.
+2. Record each subagent's `total_tokens`: `task_tracker.py subagent <taskId> <n>` or `--delegation <id>` (receipt id).
+   Interactive pi delegations return receipts by default; the answer lands as a
+   `delegation-result` followUp (`details.usage` = input+output); `background:false` blocks.
 3. Review each result at the seams (matches plan? acceptance criteria?). Send follow-ups back
    rather than rewriting, unless the fix is a few lines.
 4. Commit and push per work package (small commits). If the source-control extension is active,
@@ -333,7 +331,9 @@ project's docs against the merged code, fix small drift, and report gaps needing
 ## Gotchas
 
 - **`start` with `--no-worktree` records a branch name nothing creates.** `status` then reports a
-  branch that does not exist (2026-08-01: two commits landed on `main`).
+  branch that does not exist.
+- **Interactive pi delegation = receipt, not answer.** Answers land as
+  `delegation-result` followUps; review seams as they land.
 - **`finish` refuses and keeps the worktree when it holds work that exists nowhere else.** Read the
   `worktree.keptBecause` field; a kept worktree is unmerged or uncommitted work, not failed cleanup.
 - **Never rewrite always-loaded context files (`CLAUDE.md`, `.ai-badger/state.json`) mid-task.** Cache
