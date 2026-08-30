@@ -1,26 +1,25 @@
-"""Adjustment: apply (or propose) the MCP server block for pi's settings.json.
+"""Adjustment: migration-only removal of this project's MCP entries from pi's settings.json.
 
-pi core reads no MCP configuration at all; the 'mcp' key in ~/.pi/agent/settings.json is
-consumed solely by the third-party pi-mcp-tools extension — zero occurrences across pi's own
-docs and dist. ai-badger generates .mcp.json for the project, but pi has no project-level MCP
-config, so this adjustment maps the declared servers into the pi-mcp-tools format and, when
-install=True, merges them into settings.json via the shared pi_settings helper (atomic,
-idempotent, unknown-key-preserving). Under --no-install the merge is skipped and the snippet is
-printed instead, for the user to apply by hand.
+The pi-mcp-tools fork reads the project's .mcp.json directly at session_start (claude→fork
+conversion, ${HOME} expanded, project-over-global merge), so the 'mcp' key in
+~/.pi/agent/settings.json is no longer scaffold-written — it is user-owned fallback state for
+forks that cannot read .mcp.json yet. A re-scaffold therefore MIGRATES: it removes exactly the
+entries this project's scaffold once wrote, and touches nothing else.
 
-Config format (pi-mcp-tools):
-  {
-    "mcp": {
-      "<serverName>": {
-        "type": "local" | "remote",
-        "command": ["npx", "-y", "<package>", ...],
-        "env": { ... },
-        "cwd": "...",
-        "enabled": true,
-        "toolPrefix": "mcp_<server>"
-      }
-    }
-  }
+Removal is shape-aware (plan M5/R10): for each declared name the entry is regenerated exactly
+as _server_entry would write it today; the global entry is removed only when it matches that
+shape (deep-equal on enabled/toolPrefix/type/url/env/cwd; command compared shlex-split or
+literal, tolerating the historical split→shlex drift c7d0d528). A same-named entry that does
+not match is a user edit — warn-and-leave, never destroyed. Nothing new is ever written: a
+removal pass with nothing matching leaves the file byte-identical, and no settings.json is
+created where none exists.
+
+Per-extension version gate (plan M5, R8+R9): removal runs only when the installed fork carries
+the project-scope capability marker
+~/.pi/agent/extensions/pi-mcp-tools/.ai-badger-capability-project-scope-mcp. A fork without it
+still reads only the global 'mcp' key, so removing the entries would leave the machine with no
+MCP at all — skip-with-warning instead. Under --no-install the removal proposal is printed and
+nothing is written.
 """
 from __future__ import annotations
 
@@ -33,14 +32,32 @@ from typing import Any, Dict, List
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pi_settings  # pylint: disable=wrong-import-position
 
-MERGED_HEADER = (
-    "{count} MCP server(s) declared for this project were merged into {path}'s 'mcp' key. "
-    "That key has no consumer in pi core — it is read solely by the pi-mcp-tools extension."
+FORK_EXTENSION_DIR = Path.home() / ".pi" / "agent" / "extensions" / "pi-mcp-tools"
+CAPABILITY_MARKER = FORK_EXTENSION_DIR / ".ai-badger-capability-project-scope-mcp"
+
+REMOVED_HEADER = (
+    "Removed {count} shape-matched MCP server(s) this project had merged into {path}'s "
+    "'mcp' key: the installed pi-mcp-tools fork reads the project's .mcp.json directly, so "
+    "the global entries are legacy scaffold state."
+)
+NOT_PRESENT_HEADER = (
+    "{names}: not present in {path}'s 'mcp' key — nothing to remove."
+)
+DRIFTED_HEADER = (
+    "{names}: left in place — the installed entry does not match what this scaffold would "
+    "write today (a user edit or a drifted shape). Not removed."
+)
+GATE_WARNING = (
+    "The installed pi-mcp-tools extension at {dir} predates project-scope .mcp.json reading "
+    "(capability marker .ai-badger-capability-project-scope-mcp missing), so its global "
+    "'mcp' entries are still its only configuration — they were left in place. Re-run after "
+    "updating the extension to migrate this project's entries off the global key."
 )
 PROPOSAL_HEADER = (
-    "{count} MCP server(s) are declared for this project. pi reads MCP configuration "
-    "from ~/.pi/agent/settings.json under the 'mcp' key (pi-mcp-tools extension only, "
-    "not pi core). Merge this into your settings.json:"
+    "{count} MCP server(s) are declared for this project. The pi-mcp-tools fork reads the "
+    "project's .mcp.json directly; this scaffold no longer merges into ~/.pi/agent/settings.json. "
+    "A subsequent install run would remove these shape-matched entries from the 'mcp' key "
+    "(pi-mcp-tools extension only, not pi core):"
 )
 DECLINE_HEADER = (
     "config.mcp.decline names {names}. These servers are excluded from the proposal."
@@ -50,8 +67,9 @@ DECLINE_HEADER = (
 def _server_entry(name: str, server: Dict[str, Any]) -> Dict[str, Any]:
     """Convert an ai-badger MCP server declaration into pi-mcp-tools format.
 
-    Raises ValueError on an unbalanced quote — a malformed declaration to report per-adjustment,
-    not to mangle silently.
+    Also the shape-matcher's generator: a global entry is removable iff it equals what this
+    function writes today (see module docstring). Raises ValueError on an unbalanced quote —
+    a malformed declaration to report per-adjustment, not to mangle silently.
     """
     entry: Dict[str, Any] = {
         "enabled": True,
@@ -79,7 +97,8 @@ def _server_entry(name: str, server: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
-    """Merge (install=True) or print (--no-install) the pi-mcp-tools settings.json block.
+    """Remove (install=True) or print a removal proposal for (--no-install) this project's
+    shape-matched entries in pi's settings.json 'mcp' key.
 
     Args:
         context: {
@@ -103,14 +122,28 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
                 "notes": "no MCP server declared and none declined — nothing to propose"}
 
     sections: List[str] = []
+    applied = True
     if declared:
         mcp_entries = {name: _server_entry(name, declared[name]) for name in sorted(declared)}
         if context.get("install", True):
-            settings = pi_settings.load_settings(pi_settings.SETTINGS_PATH)
-            settings = pi_settings.merge_mcp_servers(settings, mcp_entries)
-            pi_settings.write_settings(pi_settings.SETTINGS_PATH, settings)
-            sections.append(MERGED_HEADER.format(
-                count=len(declared), path=pi_settings.SETTINGS_PATH))
+            if not CAPABILITY_MARKER.exists():
+                applied = False
+                sections.append(GATE_WARNING.format(dir=FORK_EXTENSION_DIR))
+            else:
+                settings = pi_settings.load_settings(pi_settings.SETTINGS_PATH)
+                settings, removed, warned = pi_settings.remove_mcp_servers(
+                    settings, mcp_entries)
+                if removed:
+                    pi_settings.write_settings(pi_settings.SETTINGS_PATH, settings)
+                    sections.append(REMOVED_HEADER.format(
+                        count=len(removed), path=pi_settings.SETTINGS_PATH))
+                    sections.append(f"removed: {', '.join(removed)}")
+                if warned:
+                    sections.append(DRIFTED_HEADER.format(names=", ".join(warned)))
+                absent = [n for n in sorted(mcp_entries) if n not in removed + warned]
+                if absent:
+                    sections.append(NOT_PRESENT_HEADER.format(
+                        names=", ".join(absent), path=pi_settings.SETTINGS_PATH))
         else:
             sections.append(PROPOSAL_HEADER.format(count=len(declared)))
             sections.append(json.dumps({"mcp": mcp_entries}, indent=2))
@@ -118,7 +151,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         sections.append(DECLINE_HEADER.format(names=", ".join(declined)))
 
     return {
-        "applied": True,
+        "applied": applied,
         "files": [],
         "notes": "\n".join(sections),
     }
