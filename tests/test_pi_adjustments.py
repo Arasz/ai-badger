@@ -922,3 +922,73 @@ def test_delegation_usage_tee_elided_marker_parsed_and_ignored(pi_subagent_logs_
     assert record is not None
     assert record["totalTokens"] == 25
     assert record["apiCalls"] == 2
+
+
+@pytest.mark.parametrize("bad_id", ["../d-1", "..", ""])
+def test_delegation_usage_rejects_non_filename_ids_without_opening_target(
+        pi_subagent_logs_dir, bad_id):
+    """T8 — ids that are not bare filename components are refused, unread.
+
+    A sentinel log holding real usage sits at the exact path a naive
+    ``SUBAGENT_LOGS_DIR / f"{bad_id}.jsonl"`` join would open; the parser must return None
+    and leave the sentinel byte-identical (path-traversal guard; real ids are d-<n>).
+    """
+    logs_dir = pi_subagent_logs_dir.logs_dir
+    naive_target = logs_dir / f"{bad_id}.jsonl"
+    naive_target.parent.mkdir(parents=True, exist_ok=True)
+    naive_target.write_text("\n".join([
+        json.dumps(dict(_DELEGATION_RUN_HEADER, runId="d-1")),
+        json.dumps(_assistant_message_end()),
+        json.dumps({"type": "exit", "exitCode": 0, "endedAt": 1788123491019}),
+    ]) + "\n", encoding="utf-8")
+    before = naive_target.read_bytes()
+
+    assert pi_subagent_logs_dir.source._delegation_usage(bad_id) is None
+    assert naive_target.read_bytes() == before
+
+
+def test_delegation_usage_non_assistant_message_end_not_counted(pi_subagent_logs_dir):
+    """T9 — role-blind summing is the bug: a non-assistant message_end never counts.
+
+    The user-role event deliberately carries a usage block — the non-assistant × has-usage
+    intersection the role check exists for; usage-presence alone must not admit it.
+    """
+    user_end_with_usage = {
+        "type": "message_end",
+        "message": {
+            "role": "user",
+            "content": [{"type": "text", "text": "hi"}],
+            "usage": {"input": 999999, "output": 0, "cacheRead": 0, "cacheWrite": 0},
+            "timestamp": 1788122400000,
+        },
+    }
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-9", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-9"),
+        user_end_with_usage,
+        _assistant_message_end(input_=10, output=5),
+        {"type": "exit", "exitCode": 0, "endedAt": 1788123491019},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-9")
+
+    assert record is not None
+    assert record["totalTokens"] == 15
+    assert record["apiCalls"] == 1
+
+
+def test_delegation_usage_assistant_end_without_model_records_model_none(
+        pi_subagent_logs_dir):
+    """T10 — pi's model field is optional in loose streams: the record survives, model None."""
+    event = _assistant_message_end(input_=10, output=5)
+    del event["message"]["model"]
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-10", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-10"),
+        event,
+        {"type": "exit", "exitCode": 0, "endedAt": 1788123491019},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-10")
+
+    assert record is not None
+    assert record["model"] is None
+    assert record["totalTokens"] == 15

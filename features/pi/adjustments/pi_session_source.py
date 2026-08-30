@@ -57,6 +57,9 @@ def register(tracker_lib) -> None:
 
 def _delegation_usage(delegation_id: str) -> dict | None:
     """Token record for one pi delegation run, parsed from its subagent log."""
+    if (not delegation_id or delegation_id in (".", "..")
+            or "/" in delegation_id or "\\" in delegation_id):
+        return None
     path = SUBAGENT_LOGS_DIR / f"{delegation_id}.jsonl"
     total = 0
     api_calls = 0
@@ -78,6 +81,8 @@ def _delegation_usage(delegation_id: str) -> dict | None:
         if record.get("type") != "message_end":
             continue
         message = record.get("message") or {}
+        if message.get("role") != "assistant":
+            continue
         usage = message.get("usage")
         if not isinstance(usage, dict):
             continue
