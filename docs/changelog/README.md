@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.147.0 | [status-report skill: mid-task status without waiting for the task](0.147.0-status-report-skill.md) |
 | 0.146.0 | [prompt markers: importance token (`!`) on every marker](0.146.0-prompt-markers-importance-token.md) |
 | 0.145.0 | [pi PostToolUse arm: memory_search actually unlocks text search](0.145.0-pi-post-tool-use-arm.md) |
 | 0.144.0 | [v0.144.0 — pi becomes a harness that runs (2026-08-29)](0.144.0-pi-becomes-a-harness-that-runs.md) |
