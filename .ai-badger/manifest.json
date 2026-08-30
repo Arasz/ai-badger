@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.146.0",
-  "frameworkCommit": "0e6e7e5cfc6fb7a43bd057fcd1645b18ad2c13c5",
+  "frameworkCommit": "334c84c2ddcdb647063d3140347daa26fcb68bea",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -819,6 +819,27 @@
     {
       "feature": "skills",
       "stack": "common",
+      "name": "status-report",
+      "source": "features/common/skills/status-report",
+      "target": ".ai-badger/skills/status-report",
+      "frameworkVersion": "0.146.0",
+      "hash": "86ff29748bf80f17b4851dbcea44735acfe49b057c5b542d2e0b6350ba2c98ce",
+      "dirMeta": {
+        "file_count": 2,
+        "dir_count": 1
+      },
+      "sourceHash": "86ff29748bf80f17b4851dbcea44735acfe49b057c5b542d2e0b6350ba2c98ce",
+      "sourceMeta": {
+        "file_count": 2,
+        "dir_count": 1
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
       "name": "task",
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
@@ -1487,6 +1508,15 @@
     {
       "feature": "adjustments",
       "stack": "claude",
+      "name": "adjustments/.claude/skills/status-report",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/status-report",
+      "frameworkVersion": "0.146.0",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
       "name": "adjustments/.claude/skills/task",
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/task",
@@ -1796,6 +1826,15 @@
       "name": "adjustments/.github/skills/semantica-knowledge-graph",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/semantica-knowledge-graph",
+      "frameworkVersion": "0.146.0",
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/status-report",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/status-report",
       "frameworkVersion": "0.146.0",
       "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },

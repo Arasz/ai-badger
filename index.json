@@ -371,6 +371,11 @@
           "scope": "optIn"
         },
         {
+          "name": "status-report",
+          "path": "features/common/skills/status-report",
+          "scope": "default"
+        },
+        {
           "name": "task",
           "path": "features/common/skills/task",
           "scope": "default"
