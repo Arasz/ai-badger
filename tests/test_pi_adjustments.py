@@ -728,3 +728,337 @@ def test_pi_settings_write_does_not_touch_real_home(pi_settings_modules):
 
     after = real_settings.read_bytes() if real_settings.exists() else None
     assert before == after
+
+
+# ---------------------------------------------------------------------------
+# P1 — pi_session_source.delegation_usage: the delegation token record, parsed
+# from ~/.pi/agent/subagent-logs/<runId>.jsonl — the R4 frozen cross-repo
+# contract written by pi-badger-integration's delegation runner (consumed
+# read-only). Every test here patches SUBAGENT_LOGS_DIR to tmp_path; none may
+# read or write the real ~/.pi/agent/subagent-logs/. Log shapes are field-for-
+# field copies of real delegation logs measured this session (d-1/d-5).
+# ---------------------------------------------------------------------------
+
+_DELEGATION_RUN_HEADER = {
+    "type": "run",
+    "runId": "d-1",
+    "agent": "test-engineer",
+    "persona": "test-engineer",
+    "task": "implement the parser",
+    "argv": ["/usr/local/bin/pi", "-p", "--mode", "json"],
+    "cwd": "/proj",
+    "pid": 30886,
+    "startedAt": 1788123428467,
+    "sessionId": "01a05458-65a6-75dc-a54b-3da2168521ec",
+}
+
+
+def _assistant_message_end(model="z-ai/glm-5.3-flash", input_=403, output=8485,
+                           timestamp=1788122405772):
+    """An assistant message_end event, field-for-field the shape pi 0.84.4 emits (d-1/d-5).
+
+    usage.totalTokens is deliberately pi's own cache-INCLUSIVE count (input+output+cacheRead,
+    = 80120 for the defaults — the real d-1 values), so any mutant that sums it instead of
+    input+output produces a different number and fails.
+    """
+    return {
+        "type": "message_end",
+        "message": {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "ok"}],
+            "api": "openai-completions",
+            "provider": "openrouter",
+            "model": model,
+            "usage": {
+                "input": input_, "output": output, "cacheRead": 71232, "cacheWrite": 0,
+                "reasoning": 3616, "totalTokens": input_ + output + 71232,
+                "cost": {"input": 3.0225e-05, "output": 0.00212125,
+                         "cacheRead": 0.00106848, "cacheWrite": 0, "total": 0.003219955},
+            },
+            "stopReason": "stop",
+            "timestamp": timestamp,
+            "responseId": "gen-1788122405-64HOwDFJfbuYgktM0Pm6",
+        },
+    }
+
+
+def _write_delegation_log(logs_dir: Path, run_id: str, lines: list) -> Path:
+    """Write one subagent log; str entries pass through verbatim (blank/malformed lines)."""
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    path = logs_dir / f"{run_id}.jsonl"
+    text = "\n".join(line if isinstance(line, str) else json.dumps(line) for line in lines)
+    path.write_text(text + "\n", encoding="utf-8")
+    return path
+
+
+@pytest.fixture
+def pi_subagent_logs_dir(load_script, tmp_path, monkeypatch):
+    """Load pi_session_source with SUBAGENT_LOGS_DIR redirected under tmp_path.
+
+    Same idiom as pi_sessions_dir above: SUBAGENT_LOGS_DIR is a module-level Path.home()-based
+    constant, rebuilt once at import time, so the test patches the attribute on the module
+    object load_script hands back — after load, before any call. No test using this fixture
+    may read or write the real ~/.pi/agent/subagent-logs/.
+    """
+    source = load_script("features/pi/adjustments/pi_session_source.py")
+    logs_dir = tmp_path / "pi" / "agent" / "subagent-logs"
+    monkeypatch.setattr(source, "SUBAGENT_LOGS_DIR", logs_dir)
+    return types.SimpleNamespace(source=source, logs_dir=logs_dir)
+
+
+def test_delegation_usage_happy_path_exit_settled_run(pi_subagent_logs_dir):
+    """T1 — a settled run with two assistant turns returns the full record.
+
+    Pins the whole record shape (totalTokens/model/apiCalls/at) in one equality: kills a
+    stub that returns None or an empty dict, and any wrong key or value. totalTokens is the
+    input+output sum (hermes parity), NOT pi's cache-inclusive usage.totalTokens.
+    """
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-1", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-1"),
+        _assistant_message_end(input_=100, output=23, timestamp=1788122400001),
+        _assistant_message_end(input_=200, output=50, timestamp=1788122405000),
+        {"type": "exit", "exitCode": 0, "endedAt": 1788123491019},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-1")
+
+    assert record == {
+        "totalTokens": 100 + 23 + 200 + 50,
+        "model": "z-ai/glm-5.3-flash",
+        "apiCalls": 2,
+        "at": 1788123491019,
+    }
+
+
+def test_delegation_usage_run_without_any_settled_marker_returns_none(pi_subagent_logs_dir):
+    """T2 — header + usage events but neither exit nor agent_settled → None (run still live).
+
+    Kills a parser that records mid-run: the M1 respec makes a settled marker mandatory.
+    """
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-2", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-2"),
+        _assistant_message_end(),
+    ])
+
+    assert pi_subagent_logs_dir.source._delegation_usage("d-2") is None
+
+
+def test_delegation_usage_spawn_error_returns_none(pi_subagent_logs_dir):
+    """T3 — spawnError means the child never ran: no record, not even a zeroed one."""
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-3", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-3"),
+        {"type": "spawnError", "error": "pi: command not found"},
+    ])
+
+    assert pi_subagent_logs_dir.source._delegation_usage("d-3") is None
+
+
+def test_delegation_usage_exit_with_signal_still_records_real_spend(pi_subagent_logs_dir):
+    """T4 — a killed run's exit line (signal present) settles it: the tokens are real spend.
+
+    Kills a completed-only filter (exitCode == 0 or signal-absent requirement) that would
+    refuse exactly the aborted-spent runs cost recording exists for.
+    """
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-4", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-4"),
+        _assistant_message_end(input_=500, output=10),
+        {"type": "exit", "exitCode": None, "signal": "SIGKILL", "endedAt": 1788123500000},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-4")
+
+    assert record is not None
+    assert record["totalTokens"] == 510
+    assert record["at"] == 1788123500000
+
+
+def test_delegation_usage_zero_total_returns_none(pi_subagent_logs_dir):
+    """T5 — exit present but no usage events (the all-elided log) → None, not fabricated zeros."""
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-5", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-5"),
+        {"type": "tee-elided", "droppedBytes": 5542477},
+        {"type": "exit", "exitCode": 0, "endedAt": 1788123491019},
+    ])
+
+    assert pi_subagent_logs_dir.source._delegation_usage("d-5") is None
+
+
+def test_delegation_usage_skips_malformed_line_and_sums_rest(pi_subagent_logs_dir):
+    """T6 — a malformed line between good lines is skipped individually, not fatal.
+
+    Same tolerance as _sum_usage: one bad line must not zero out or abort the whole log.
+    """
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-6", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-6"),
+        "{not valid json",
+        _assistant_message_end(input_=10, output=5, timestamp=1788122400001),
+        "} also bad {",
+        _assistant_message_end(input_=7, output=3, timestamp=1788122405000),
+        {"type": "exit", "exitCode": 0, "endedAt": 1788123491019},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-6")
+
+    assert record is not None
+    assert record["totalTokens"] == 25
+    assert record["apiCalls"] == 2
+
+
+def test_delegation_usage_tee_elided_marker_parsed_and_ignored(pi_subagent_logs_dir):
+    """T7 — the byte-cap marker is a legal unknown type: parse past it, count tail usage.
+
+    The elided middle's usage lines legitimately don't sum; usage around the marker must.
+    """
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-7", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-7"),
+        _assistant_message_end(input_=10, output=5, timestamp=1788122400001),
+        {"type": "tee-elided", "droppedBytes": 5542477},
+        _assistant_message_end(input_=7, output=3, timestamp=1788122405000),
+        {"type": "exit", "exitCode": 0, "endedAt": 1788123491019},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-7")
+
+    assert record is not None
+    assert record["totalTokens"] == 25
+    assert record["apiCalls"] == 2
+
+
+@pytest.mark.parametrize("bad_id", ["../d-1", "..", ""])
+def test_delegation_usage_rejects_non_filename_ids_without_opening_target(
+        pi_subagent_logs_dir, bad_id):
+    """T8 — ids that are not bare filename components are refused, unread.
+
+    A sentinel log holding real usage sits at the exact path a naive
+    ``SUBAGENT_LOGS_DIR / f"{bad_id}.jsonl"`` join would open; the parser must return None
+    and leave the sentinel byte-identical (path-traversal guard; real ids are d-<n>).
+    """
+    logs_dir = pi_subagent_logs_dir.logs_dir
+    naive_target = logs_dir / f"{bad_id}.jsonl"
+    naive_target.parent.mkdir(parents=True, exist_ok=True)
+    naive_target.write_text("\n".join([
+        json.dumps(dict(_DELEGATION_RUN_HEADER, runId="d-1")),
+        json.dumps(_assistant_message_end()),
+        json.dumps({"type": "exit", "exitCode": 0, "endedAt": 1788123491019}),
+    ]) + "\n", encoding="utf-8")
+    before = naive_target.read_bytes()
+
+    assert pi_subagent_logs_dir.source._delegation_usage(bad_id) is None
+    assert naive_target.read_bytes() == before
+
+
+def test_delegation_usage_non_assistant_message_end_not_counted(pi_subagent_logs_dir):
+    """T9 — role-blind summing is the bug: a non-assistant message_end never counts.
+
+    The user-role event deliberately carries a usage block — the non-assistant × has-usage
+    intersection the role check exists for; usage-presence alone must not admit it.
+    """
+    user_end_with_usage = {
+        "type": "message_end",
+        "message": {
+            "role": "user",
+            "content": [{"type": "text", "text": "hi"}],
+            "usage": {"input": 999999, "output": 0, "cacheRead": 0, "cacheWrite": 0},
+            "timestamp": 1788122400000,
+        },
+    }
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-9", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-9"),
+        user_end_with_usage,
+        _assistant_message_end(input_=10, output=5),
+        {"type": "exit", "exitCode": 0, "endedAt": 1788123491019},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-9")
+
+    assert record is not None
+    assert record["totalTokens"] == 15
+    assert record["apiCalls"] == 1
+
+
+def test_delegation_usage_assistant_end_without_model_records_model_none(
+        pi_subagent_logs_dir):
+    """T10 — pi's model field is optional in loose streams: the record survives, model None."""
+    event = _assistant_message_end(input_=10, output=5)
+    del event["message"]["model"]
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-10", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-10"),
+        event,
+        {"type": "exit", "exitCode": 0, "endedAt": 1788123491019},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-10")
+
+    assert record is not None
+    assert record["model"] is None
+    assert record["totalTokens"] == 15
+
+
+def test_delegation_usage_missing_dir_or_file_returns_none(pi_subagent_logs_dir):
+    """T11 — machines without the extension have no logs dir at all: both misses → None.
+
+    A missing dir is the pre-release state of every machine today; a raise there would
+    crash the tracker's `subagent --delegation` flow instead of refusing cleanly.
+    """
+    assert pi_subagent_logs_dir.source._delegation_usage("d-1") is None  # dir absent
+
+    pi_subagent_logs_dir.logs_dir.mkdir(parents=True)  # dir present, file absent
+    assert pi_subagent_logs_dir.source._delegation_usage("d-404") is None
+
+
+def test_delegation_usage_wired_through_register(pi_subagent_logs_dir):
+    """T12 — register() hands tracker_lib the real parser, not the None stub.
+
+    Mirrors test_pi_session_source_checkpoint_uses_session_env_and_own_cwd: the callable
+    captured from register must resolve a delegation id through the (patched) logs dir
+    end-to-end, killing a wiring that leaves `lambda delegation_id: None` in place.
+    """
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-1", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-1"),
+        _assistant_message_end(input_=10, output=5),
+        {"type": "exit", "exitCode": 0, "endedAt": 1788123491019},
+    ])
+    calls = []
+
+    class FakeTrackerLib:
+        @staticmethod
+        def register_session_source(name, env_var, resolve, checkpoint, resume,
+                                     delegation_usage):
+            calls.append((name, env_var, resolve, checkpoint, resume, delegation_usage))
+
+    pi_subagent_logs_dir.source.register(FakeTrackerLib)
+
+    assert calls[0][0] == "pi"
+    assert calls[0][5]("d-1") == {
+        "totalTokens": 15,
+        "model": "z-ai/glm-5.3-flash",
+        "apiCalls": 1,
+        "at": 1788123491019,
+    }
+
+
+def test_delegation_usage_agent_settled_without_exit_line_records(pi_subagent_logs_dir):
+    """T13 — the M1 witness: a TUI-aborted run (agent_settled, NO exit line) records.
+
+    Field-for-field the real d-1.jsonl shape: run header, one assistant message_end with
+    its real usage block, the bare agent_settled line, NO exit line, trailing blank line.
+    settleAborted (delegation-runner.ts) writes no exit line, yet the aborted run's tokens
+    are real spend — an exit-line-only settled policy refuses exactly this log. `at` falls
+    back to the last assistant message_end.timestamp (epoch ms): there is no exit.endedAt.
+    """
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-1", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-1", agent="architect", persona="architect",
+             task="Author an implementation plan (no code changes)", startedAt=1788122400000),
+        _assistant_message_end(input_=403, output=8485, timestamp=1788122405772),
+        {"type": "agent_settled"},
+        "",
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-1")
+
+    assert record == {
+        "totalTokens": 403 + 8485,
+        "model": "z-ai/glm-5.3-flash",
+        "apiCalls": 1,
+        "at": 1788122405772,
+    }

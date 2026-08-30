@@ -2,8 +2,10 @@
 
 pi has no session database (no state.db equivalent), so the pi session source
 is minimal: it reads the PI_SESSION_ID env var and provides a resume command.
-Token tracking is not available for pi sessions — the tracker will report zeroes
-for pi tasks.
+Token tracking works for pi sessions: checkpoints are summed from the session
+JSONL, and delegation tokens are parsed from the delegation runner's subagent
+logs (~/.pi/agent/subagent-logs/<runId>.jsonl) — a run only counts once it has
+settled (exit or agent_settled) with a positive input+output total.
 """
 from __future__ import annotations
 
