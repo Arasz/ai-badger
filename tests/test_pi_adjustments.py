@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from scaffold_helpers import _config
+
 # Self-derived at collection time, before conftest's session fixture redirects $HOME — the
 # same idiom as tests/test_suite_isolation.py's REAL_HOME, and for the same reason: a test
 # proving USER_EXTENSIONS_DIR was patched away from the real home must not derive "real" from
@@ -60,8 +62,18 @@ def pi_settings_modules(load_script, tmp_path, monkeypatch):
     Both modules do ``import pi_settings`` after inserting their own directory onto
     ``sys.path``; Python's import cache means that resolves to one shared module object no
     matter which of the two files triggers the first import, so patching the attribute on
-    either module's ``pi_settings`` reference redirects both. No test using this fixture may
-    write to the real ``~/.pi/agent/settings.json``.
+    either module's ``pi_settings`` reference redirects both.
+
+    The removal adjustments are additionally gated on per-extension capability markers under
+    ~/.pi/agent/extensions/ (plan M5, R8+R9): adjust_mcp on the pi-mcp-tools fork's
+    project-scope marker, adjust_skills on the installed adapter's resources_discover marker.
+    The fixture patches those module constants to tmp_path copies and CREATES the files, so
+    the default shape is gate-open (the removal path runs); a gate-closed case unlinks one
+    explicitly. Raising=True patches: a marker-constant rename must fail here loudly, not
+    silently leave these tests gated off (and thus vacuous).
+
+    No test using this fixture may write to the real ``~/.pi/agent/settings.json`` or to the
+    real ``~/.pi/agent/extensions/`` tree.
     """
     skills = load_script("features/pi/adjustments/adjust_skills.py")
     mcp = load_script("features/pi/adjustments/adjust_mcp.py")
@@ -70,7 +82,19 @@ def pi_settings_modules(load_script, tmp_path, monkeypatch):
     monkeypatch.setattr(skills.pi_settings, "SETTINGS_PATH", settings_path)
     monkeypatch.setattr(mcp.pi_settings, "SETTINGS_PATH", settings_path)
 
-    return types.SimpleNamespace(skills=skills, mcp=mcp, settings_path=settings_path)
+    fork_marker = (tmp_path / "pi" / "agent" / "extensions" / "pi-mcp-tools" /
+                   ".ai-badger-capability-project-scope-mcp")
+    adapter_marker = (tmp_path / "pi" / "agent" / "extensions" / "ai-badger" /
+                      ".ai-badger-capability-resources-discover")
+    monkeypatch.setattr(mcp, "CAPABILITY_MARKER", fork_marker)
+    monkeypatch.setattr(skills, "CAPABILITY_MARKER", adapter_marker)
+    fork_marker.parent.mkdir(parents=True, exist_ok=True)
+    fork_marker.touch()
+    adapter_marker.parent.mkdir(parents=True, exist_ok=True)
+    adapter_marker.touch()
+
+    return types.SimpleNamespace(skills=skills, mcp=mcp, settings_path=settings_path,
+                                 fork_marker=fork_marker, adapter_marker=adapter_marker)
 
 
 def test_adjust_mcp_no_pi_in_config(load_script):
@@ -90,11 +114,15 @@ def test_adjust_mcp_no_declarations(load_script):
 
 
 def test_adjust_mcp_proposes_servers(load_script):
-    """adjust_mcp returns applied with notes when pi and servers declared.
+    """adjust_mcp (--no-install) prints a REMOVAL proposal, not a merge snippet.
 
-    install: False — this test exercises the printed-snippet path specifically; G2's
-    settings-merge path (install=True) has its own tests under pi_settings_modules, which
-    monkeypatch pi_settings.SETTINGS_PATH so nothing here can reach the real home directory.
+    install: False — this test exercises the printed-proposal path specifically; the removal
+    path (install=True) has its own tests under pi_settings_modules, which monkeypatch
+    pi_settings.SETTINGS_PATH so nothing here can reach the real home directory.
+
+    The fork reads the project .mcp.json directly (plan M5), so the global 'mcp' key is
+    user-owned fallback: the proposal this adjustment prints under --no-install is what a
+    subsequent install run would REMOVE from settings.json, never what it would merge in.
     """
     adjust = load_script("features/pi/adjustments/adjust_mcp.py")
     context = {
@@ -108,6 +136,9 @@ def test_adjust_mcp_proposes_servers(load_script):
     result = adjust.adjust(context)
     assert result["applied"]
     assert "MCP server" in result["notes"]
+    assert "remove" in result["notes"], (
+        f"--no-install must propose a removal (the fork reads .mcp.json itself); got: "
+        f"{result['notes']!r}")
 
 
 def test_adjust_mcp_respects_decline(load_script):
@@ -534,8 +565,21 @@ def test_pi_settings_merge_preserves_unknown_keys(load_script, tmp_path):
     assert data["skills"] == ["/proj/skills"]
 
 
-def test_adjust_skills_install_true_merges_skills_path(pi_settings_modules, tmp_path):
-    """install: True merges the project's .ai-badger/skills/ path into settings.json."""
+def test_adjust_skills_install_true_removes_skills_path(pi_settings_modules, tmp_path):
+    """install: True removes this project's .ai-badger/skills/ path from settings.json.
+
+    Flipped from merge to removal (plan M5/D3): the adapter's resources_discover now
+    contributes the project skills path itself, so the settings.json entry is legacy scaffold
+    state — the adjustment migrates it away. It removes exactly this project's path and
+    nothing else: other projects' paths, user entries and unknown keys survive.
+    """
+    skills_dir = str(tmp_path / ".ai-badger" / "skills")
+    pi_settings_modules.settings_path.parent.mkdir(parents=True, exist_ok=True)
+    pi_settings_modules.settings_path.write_text(json.dumps({
+        "theme": "dark",
+        "skills": ["/other-project/.ai-badger/skills", skills_dir],
+    }), encoding="utf-8")
+
     context = {
         "config": {"agents": ["pi"]},
         "target_dir": tmp_path / ".ai-badger",
@@ -546,7 +590,9 @@ def test_adjust_skills_install_true_merges_skills_path(pi_settings_modules, tmp_
 
     assert result["applied"]
     data = json.loads(pi_settings_modules.settings_path.read_text(encoding="utf-8"))
-    assert str(tmp_path / ".ai-badger" / "skills") in data["skills"]
+    assert skills_dir not in data["skills"]
+    assert data["skills"] == ["/other-project/.ai-badger/skills"], data["skills"]
+    assert data["theme"] == "dark"
 
 
 def test_adjust_skills_install_false_is_noop(pi_settings_modules, tmp_path):
@@ -563,11 +609,34 @@ def test_adjust_skills_install_false_is_noop(pi_settings_modules, tmp_path):
     assert not pi_settings_modules.settings_path.exists()
 
 
-def test_adjust_mcp_install_true_merges_into_settings(pi_settings_modules):
-    """install: True merges declared servers into settings.json's mcp key."""
+def test_adjust_mcp_install_true_removes_shape_matched_entries(pi_settings_modules, tmp_path):
+    """install: True removes exactly this project's declared entries from settings.json's mcp.
+
+    Flipped from merge to removal (plan M5/D3): the fork reads the project .mcp.json itself,
+    so a re-scaffold migrates the global entries away. Removal is shape-aware: only entries
+    matching what this scaffold would write today are removed; a non-declared user entry and
+    unknown top-level keys are preserved, and nothing new is written.
+    """
+    mcp = pi_settings_modules.mcp
+    declarations = {
+        "filesystem": {"command": "npx -y server-fs"},
+        "hermes": {"command": "npx -y hermes-mcp"},
+    }
+    generated = {name: mcp._server_entry(name, srv) for name, srv in declarations.items()}
+    pi_settings_modules.settings_path.parent.mkdir(parents=True, exist_ok=True)
+    pi_settings_modules.settings_path.write_text(json.dumps({
+        "lastChangelogVersion": "0.100.0",
+        "theme": "dark",
+        "mcp": {
+            "filesystem": generated["filesystem"],
+            "hermes": generated["hermes"],
+            "my-own-server": {"type": "remote", "url": "https://example.com"},
+        },
+    }), encoding="utf-8")
+
     context = {
         "config": {"agents": ["pi"]},
-        "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+        "mcp_declarations": declarations,
         "mcp_declined": [],
         "install": True,
     }
@@ -576,18 +645,27 @@ def test_adjust_mcp_install_true_merges_into_settings(pi_settings_modules):
 
     assert result["applied"]
     data = json.loads(pi_settings_modules.settings_path.read_text(encoding="utf-8"))
-    assert data["mcp"]["filesystem"]["command"] == ["npx", "-y", "server"]
-    # The doc-honesty clause: pi core has no consumer for this key.
-    assert "no consumer in pi core" in result["notes"]
+    assert "filesystem" not in data.get("mcp", {})
+    assert "hermes" not in data.get("mcp", {})
+    # User-owned entries and unknown keys survive; nothing new is written.
+    assert data["mcp"] == {"my-own-server": {"type": "remote", "url": "https://example.com"}}
+    assert data["lastChangelogVersion"] == "0.100.0"
+    assert data["theme"] == "dark"
 
 
 def test_adjust_mcp_install_true_preserves_existing_settings(pi_settings_modules):
-    """The merge is additive: other mcp entries and unknown top-level keys survive."""
+    """Removal is surgical: other mcp entries and unknown top-level keys survive."""
     pi_settings_modules.settings_path.parent.mkdir(parents=True, exist_ok=True)
     pi_settings_modules.settings_path.write_text(json.dumps({
         "lastChangelogVersion": "0.100.0",
         "theme": "dark",
-        "mcp": {"other-server": {"type": "remote", "url": "https://example.com"}},
+        "mcp": {
+            "other-server": {"type": "remote", "url": "https://example.com"},
+            "filesystem": {
+                "enabled": True, "toolPrefix": "mcp_filesystem", "type": "local",
+                "command": ["npx", "-y", "server"],
+            },
+        },
     }), encoding="utf-8")
 
     context = {
@@ -602,11 +680,19 @@ def test_adjust_mcp_install_true_preserves_existing_settings(pi_settings_modules
     assert data["lastChangelogVersion"] == "0.100.0"
     assert data["theme"] == "dark"
     assert "other-server" in data["mcp"]
-    assert "filesystem" in data["mcp"]
+    assert "filesystem" not in data["mcp"]
 
 
-def test_adjust_mcp_install_true_is_idempotent(pi_settings_modules):
-    """Running the merge twice leaves a single, unduplicated entry for the same server."""
+def test_adjust_mcp_removal_is_idempotent(pi_settings_modules):
+    """Running the removal twice leaves the same end state — the second run removes nothing."""
+    _seed_settings(
+        pi_settings_modules.settings_path,
+        mcp={"filesystem": {
+            "enabled": True, "toolPrefix": "mcp_filesystem", "type": "local",
+            "command": ["npx", "-y", "server"],
+        }},
+        theme="dark",
+    )
     context = {
         "config": {"agents": ["pi"]},
         "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
@@ -615,10 +701,352 @@ def test_adjust_mcp_install_true_is_idempotent(pi_settings_modules):
     }
 
     pi_settings_modules.mcp.adjust(context)
+    after_first = pi_settings_modules.settings_path.read_text(encoding="utf-8")
     pi_settings_modules.mcp.adjust(context)
 
+    assert pi_settings_modules.settings_path.read_text(encoding="utf-8") == after_first
+    data = json.loads(after_first)
+    assert data.get("mcp", {}) == {}
+    assert data["theme"] == "dark"
+
+
+# ---------------------------------------------------------------------------
+# M5/R10 — the shape matcher. Removal is keyed to what THIS scaffold would write today
+# (regenerate via _server_entry, deep-equal the shape fields, command as shlex-split or
+# literal, tolerating the historical str.split→shlex drift c7d0d528). A same-named entry
+# that does not match is a user edit: warn-and-leave, never touched.
+# ---------------------------------------------------------------------------
+
+def _seed_settings(settings_path, mcp=None, skills=None, **extra):
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    data = dict(extra)
+    if mcp is not None:
+        data["mcp"] = mcp
+    if skills is not None:
+        data["skills"] = skills
+    settings_path.write_text(json.dumps(data), encoding="utf-8")
+    return data
+
+
+def test_adjust_mcp_removal_shape_matched_removed_drifted_warned_and_left(
+        pi_settings_modules, tmp_path):
+    """Matching entries go; the historical drift form goes; a user-edited entry stays."""
+    mcp = pi_settings_modules.mcp
+    drifted_declaration = {"command": 'npx -y server "--flag value with space"'}
+    generated_drifted = mcp._server_entry("graph", drifted_declaration)
+    # c7d0d528: the scaffold once tokenized with str.split(), so a quoted arg landed as
+    # several tokens. That historical shape is scaffold-owned and must be removed.
+    historical_split = dict(generated_drifted)
+    historical_split["command"] = 'npx -y server "--flag value with space"'.split()
+
+    _seed_settings(
+        pi_settings_modules.settings_path,
+        mcp={
+            "filesystem": mcp._server_entry("filesystem", {"command": "npx -y server-fs"}),
+            "graph": historical_split,
+            "string-command": {"enabled": True, "toolPrefix": "mcp_string-command",
+                               "type": "local", "command": "npx -y string-srv"},
+            "user-edited": {**generated_drifted, "cwd": "/somewhere/else"},
+            "my-own-server": {"type": "remote", "url": "https://example.com"},
+        },
+        lastChangelogVersion="0.100.0",
+    )
+    context = {
+        "config": {"agents": ["pi"]},
+        "mcp_declarations": {
+            "filesystem": {"command": "npx -y server-fs"},
+            "graph": drifted_declaration,
+            "string-command": {"command": "npx -y string-srv"},
+            "user-edited": drifted_declaration,
+        },
+        "mcp_declined": [],
+        "install": True,
+    }
+
+    result = pi_settings_modules.mcp.adjust(context)
+
     data = json.loads(pi_settings_modules.settings_path.read_text(encoding="utf-8"))
-    assert list(data["mcp"].keys()) == ["filesystem"]
+    assert "filesystem" not in data["mcp"]
+    assert "graph" not in data["mcp"], "historical str.split drift must be removed"
+    assert "string-command" not in data["mcp"], "a literal string command must be removed"
+    assert "user-edited" in data["mcp"], "a drifted same-named entry is a user edit — left"
+    assert data["mcp"]["user-edited"]["cwd"] == "/somewhere/else"
+    assert "my-own-server" in data["mcp"], "non-declared entries are never touched"
+    assert data["lastChangelogVersion"] == "0.100.0"
+    # The report names what was left behind, so the drift is visible in scaffold notes.
+    assert "user-edited" in result["notes"]
+
+
+def test_adjust_mcp_removal_of_drifted_entry_writes_nothing(pi_settings_modules):
+    """When every declared entry is drifted, nothing is written — byte-identical file."""
+    mcp = pi_settings_modules.mcp
+    declaration = {"command": "npx -y server"}
+    user_entry = {**mcp._server_entry("filesystem", declaration), "env": {"TOKEN": "x"}}
+    _seed_settings(pi_settings_modules.settings_path, mcp={"filesystem": user_entry})
+    before = pi_settings_modules.settings_path.read_bytes()
+
+    pi_settings_modules.mcp.adjust({
+        "config": {"agents": ["pi"]},
+        "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+        "mcp_declined": [],
+        "install": True,
+    })
+
+    assert pi_settings_modules.settings_path.read_bytes() == before
+
+
+def test_adjust_mcp_removal_writes_nothing_new_when_settings_absent(pi_settings_modules):
+    """No settings.json and nothing matching: the removal creates no file, adds no key."""
+    assert not pi_settings_modules.settings_path.exists()
+
+    result = pi_settings_modules.mcp.adjust({
+        "config": {"agents": ["pi"]},
+        "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+        "mcp_declined": [],
+        "install": True,
+    })
+
+    assert result["applied"]
+    assert not pi_settings_modules.settings_path.exists(), "a removal must never create settings"
+
+
+def test_adjust_mcp_removal_write_is_atomic_on_failure(pi_settings_modules, monkeypatch):
+    """Mirror of test_pi_settings_write_is_atomic_on_failure, through the adjustment: a failed
+    replace leaves the original settings.json intact with no temp file behind."""
+    pi_settings = pi_settings_modules.mcp.pi_settings
+    _seed_settings(
+        pi_settings_modules.settings_path,
+        mcp={"filesystem": {
+            "enabled": True, "toolPrefix": "mcp_filesystem", "type": "local",
+            "command": ["npx", "-y", "server"],
+        }},
+        theme="dark",
+    )
+
+    def _boom(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(pi_settings.os, "replace", _boom)
+
+    dir_before = {p.name for p in pi_settings_modules.settings_path.parent.iterdir()}
+
+    with pytest.raises(OSError):
+        pi_settings_modules.mcp.adjust({
+            "config": {"agents": ["pi"]},
+            "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+            "mcp_declined": [],
+            "install": True,
+        })
+
+    data = json.loads(pi_settings_modules.settings_path.read_text(encoding="utf-8"))
+    assert "filesystem" in data["mcp"] and data["theme"] == "dark"
+    # No leftover .tmp file: the finally-block cleanup ran (the fixture's extensions/ dir for
+    # the capability markers is pre-existing, so compare against the before-snapshot).
+    dir_after = {p.name for p in pi_settings_modules.settings_path.parent.iterdir()}
+    assert dir_after == dir_before, dir_after - dir_before
+
+
+# ---------------------------------------------------------------------------
+# M5/R8/R9 — per-extension capability-marker gates. adjust_mcp gates on the pi-mcp-tools
+# fork's project-scope marker; adjust_skills gates on the installed adapter's
+# resources_discover marker. Marker absent ⇒ skip-with-warning, nothing removed (an old
+# fork/adapter still needs the global entries — removing them would strand the machine).
+# The gates are per-extension on purpose (R9): one shared gate would strand pre-P2 machines'
+# skills even with a project-scope-capable fork installed, and vice versa.
+# ---------------------------------------------------------------------------
+
+def test_adjust_mcp_removal_gated_on_fork_capability_marker(pi_settings_modules):
+    """Fork marker absent ⇒ warn-and-leave: the global entries stay for the old fork."""
+    pi_settings_modules.fork_marker.unlink()
+    before = _seed_settings(
+        pi_settings_modules.settings_path,
+        mcp={"filesystem": {
+            "enabled": True, "toolPrefix": "mcp_filesystem", "type": "local",
+            "command": ["npx", "-y", "server"],
+        }},
+    )
+
+    result = pi_settings_modules.mcp.adjust({
+        "config": {"agents": ["pi"]},
+        "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+        "mcp_declined": [],
+        "install": True,
+    })
+
+    assert result["applied"] is False
+    assert "pi-mcp-tools" in result["notes"]
+    assert json.loads(pi_settings_modules.settings_path.read_text(encoding="utf-8")) == before
+
+
+def test_adjust_mcp_removal_gate_is_per_extension_fork_marker_only(pi_settings_modules):
+    """The adapter's marker is irrelevant to mcp removal (R9: the gate is per-extension)."""
+    pi_settings_modules.adapter_marker.unlink()
+
+    result = pi_settings_modules.mcp.adjust({
+        "config": {"agents": ["pi"]},
+        "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+        "mcp_declined": [],
+        "install": True,
+    })
+
+    assert result["applied"]
+
+
+def test_adjust_skills_removal_gated_on_adapter_capability_marker(pi_settings_modules):
+    """Adapter marker absent ⇒ warn-and-leave: an old adapter cannot contribute the project
+    skills path, so removing the settings entry would strand the project's skills."""
+    pi_settings_modules.adapter_marker.unlink()
+    before = _seed_settings(
+        pi_settings_modules.settings_path,
+        skills=["/proj/.ai-badger/skills"],
+    )
+
+    result = pi_settings_modules.skills.adjust({
+        "config": {"agents": ["pi"]},
+        "target_dir": pi_settings_modules.settings_path.parent / "does-not-matter",
+        "install": True,
+    })
+
+    assert result["applied"] is False
+    assert "ai-badger" in result["notes"]
+    assert json.loads(pi_settings_modules.settings_path.read_text(encoding="utf-8")) == before
+
+
+def test_adjust_skills_removal_gate_is_per_extension_adapter_marker_only(pi_settings_modules):
+    """The fork's marker is irrelevant to skills removal (R9: the gate is per-extension)."""
+    pi_settings_modules.fork_marker.unlink()
+    target_dir = pi_settings_modules.settings_path.parent / "proj" / ".ai-badger"
+    _seed_settings(pi_settings_modules.settings_path,
+                   skills=[str(target_dir / "skills")])
+
+    result = pi_settings_modules.skills.adjust({
+        "config": {"agents": ["pi"]},
+        "target_dir": target_dir,
+        "install": True,
+    })
+
+    assert result["applied"]
+    data = json.loads(pi_settings_modules.settings_path.read_text(encoding="utf-8"))
+    assert data["skills"] == []
+
+
+# ---------------------------------------------------------------------------
+# M5 — pi_settings.py removal helpers: same contract as the merge helpers (atomic write,
+# idempotent, unknown keys preserved), plus the shape-matcher report (removed/warned).
+# ---------------------------------------------------------------------------
+
+def test_pi_settings_remove_mcp_servers_reports_removed_warned_absent(load_script):
+    """Matching entries are removed and reported; drifted ones are warned; absent names ignored."""
+    pi_settings = load_script("features/pi/adjustments/pi_settings.py")
+    settings = {
+        "theme": "dark",
+        "mcp": {
+            "matching": {"enabled": True, "toolPrefix": "mcp_matching", "type": "local",
+                         "command": ["npx", "-y", "server"]},
+            "drifted": {"enabled": True, "toolPrefix": "mcp_drifted", "type": "local",
+                        "command": ["npx", "-y", "server", "--user-flag"]},
+        },
+    }
+    # Both names are declared this run; 'drifted' regenerates to a different shape than the
+    # installed entry (the user's --user-flag edit), so it warns instead of being removed.
+    generated = {
+        "matching": {"enabled": True, "toolPrefix": "mcp_matching", "type": "local",
+                     "command": ["npx", "-y", "server"]},
+        "drifted": {"enabled": True, "toolPrefix": "mcp_drifted", "type": "local",
+                    "command": ["npx", "-y", "server"]},
+    }
+
+    merged, removed, warned = pi_settings.remove_mcp_servers(settings, generated)
+
+    assert removed == ["matching"]
+    assert warned == ["drifted"]
+    assert merged["mcp"] == {"drifted": settings["mcp"]["drifted"]}
+    assert merged["theme"] == "dark"
+    # The input is never mutated.
+    assert "matching" in settings["mcp"]
+
+
+def test_pi_settings_remove_mcp_servers_tolerates_historical_split_drift(load_script):
+    """c7d0d528: an entry written with str.split() (quoted arg as several tokens) still matches
+    the shlex-generated shape — re-joined and re-split it is the same command."""
+    pi_settings = load_script("features/pi/adjustments/pi_settings.py")
+    settings = {"mcp": {"graph": {
+        "enabled": True, "toolPrefix": "mcp_graph", "type": "local",
+        "command": ["npx", "-y", "server", '"--flag', "value", 'with', 'space"'],
+    }}}
+    generated = {"graph": {
+        "enabled": True, "toolPrefix": "mcp_graph", "type": "local",
+        "command": ["npx", "-y", "server", "--flag value with space"],
+    }}
+
+    merged, removed, _warned = pi_settings.remove_mcp_servers(settings, generated)
+
+    assert removed == ["graph"]
+    assert merged.get("mcp") is None, "an emptied mcp key is removed, not left as {}"
+
+
+def test_pi_settings_remove_mcp_servers_idempotent(load_script):
+    """Removing twice: the second run removes and warns nothing."""
+    pi_settings = load_script("features/pi/adjustments/pi_settings.py")
+    generated = {"matching": {"enabled": True, "toolPrefix": "mcp_matching", "type": "local",
+                              "command": ["npx", "-y", "server"]}}
+    settings = {"mcp": dict(generated)}
+
+    once, removed_1, warned_1 = pi_settings.remove_mcp_servers(settings, generated)
+    twice, removed_2, warned_2 = pi_settings.remove_mcp_servers(once, generated)
+
+    assert removed_1 == ["matching"] and warned_1 == []
+    assert removed_2 == [] and warned_2 == []
+    assert twice == once
+
+
+def test_pi_settings_remove_skills_path_removes_once_and_preserves_rest(load_script):
+    """The project's path goes; other paths and unknown keys stay; a second run is a no-op."""
+    pi_settings = load_script("features/pi/adjustments/pi_settings.py")
+    settings = {"theme": "dark",
+                "skills": ["/other/.ai-badger/skills", "/proj/.ai-badger/skills"]}
+
+    merged, removed = pi_settings.remove_skills_path(settings, "/proj/.ai-badger/skills")
+    again, removed_2 = pi_settings.remove_skills_path(merged, "/proj/.ai-badger/skills")
+
+    assert removed is True and removed_2 is False
+    assert merged["skills"] == ["/other/.ai-badger/skills"]
+    assert merged["theme"] == "dark"
+    assert again == merged
+
+
+# ---------------------------------------------------------------------------
+# M2 precondition pin — the fragile-case flip. pi trust-gates exactly
+# .pi/{settings.json,extensions,skills,prompts,themes,SYSTEM.md,APPEND_SYSTEM.md} plus
+# ancestor .agents/skills (trust-manager.js:8-17,150-166). A scaffolded project that writes
+# any of those resolves UNTRUSTED headless (no trust.json, ask→false) and its project MCP
+# servers + skills silently vanish. The scaffold must therefore write nothing into a
+# project's .pi/ except .pi/agents/ (not on the trust list).
+# ---------------------------------------------------------------------------
+
+def test_scaffold_writes_no_trust_requiring_resource_into_project_pi(make_scaffolder):
+    """Red the day the fragile case becomes common: a scaffold run must leave a project's
+    .pi/ holding only .pi/agents/ — any other resource flips pi's trust resolution and
+    silently disarms the project scope headless (plan M2)."""
+    target = make_scaffolder.target
+    make_scaffolder(config=_config(agents=["pi"]), skills=["task"]).run(
+        generated_at="2026-08-30T00:00:00Z")
+
+    pi_dir = target / ".pi"
+    offenders = []
+    if pi_dir.is_dir():
+        for path in sorted(pi_dir.rglob("*")):
+            rel = path.relative_to(pi_dir)
+            if rel.parts and rel.parts[0] == "agents":
+                continue
+            offenders.append(rel.as_posix() + ("/" if path.is_dir() else ""))
+
+    assert offenders == [], (
+        "scaffold wrote pi-trust-requiring resource(s) into the project's .pi/: "
+        f"{offenders} — these flip isProjectTrusted() to false headless and silently "
+        "disarm project MCP + skills (plan M2's fragile case). Only .pi/agents/ may be "
+        "written."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -834,10 +1262,14 @@ def test_pi_settings_write_does_not_touch_real_home(pi_settings_modules):
 
     This suite has leaked writes into the real $HOME before (see conftest's REAL_HOME /
     REAL_WRITE_LOG machinery for the general guard); this test asserts the specific case G1/G2
-    introduce — a settings.json merge — leaves the developer's real file exactly as it was.
+    introduce — a settings.json REMOVAL pass (the flipped M5 behavior) — leaves the
+    developer's real file exactly as it was, and leaves the two real extension trees the
+    removal reads its capability markers from byte-identical too.
     """
     real_settings = _REAL_HOME / ".pi" / "agent" / "settings.json"
     before = real_settings.read_bytes() if real_settings.exists() else None
+    before_ext = {name: _real_extension_state(name)
+                  for name in ("ai-badger", "pi-mcp-tools")}
 
     context = {
         "config": {"agents": ["pi"]},
@@ -854,3 +1286,6 @@ def test_pi_settings_write_does_not_touch_real_home(pi_settings_modules):
 
     after = real_settings.read_bytes() if real_settings.exists() else None
     assert before == after
+    after_ext = {name: _real_extension_state(name)
+                 for name in ("ai-badger", "pi-mcp-tools")}
+    assert after_ext == before_ext

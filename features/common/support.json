@@ -254,9 +254,9 @@
         },
         "skills": {
           "supported": true,
-          "mechanism": "SKILL.md YAML frontmatter, Agent Skills standard — pi does not read .claude/skills/ directly; adjust_skills.py merges this project's .ai-badger/skills/ path into the settings.json skills array (the one discovery route that is not trust-gated)",
+          "mechanism": "SKILL.md YAML frontmatter, Agent Skills standard — pi does not read .claude/skills/; the installed ai-badger adapter's resources_discover contributes <project>/.ai-badger/skills to pi's skill paths, ungated (deliberate divergence from pi's own gating of project skills, calibrated by the adapter's pre-existing hooks shell-command channel — ADR-0023)",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "scaffold.py + pi/adjustments/adjust_skills.py"
+          "scaffoldedBy": "scaffold.py delivers skills to .ai-badger/skills; pi/adjustments/adjust_skills.py — migration-only: removes this project's path from the user-global settings.json skills array (gated on the installed adapter's resources_discover capability marker)"
         },
         "customAgents": {
           "supported": true,
@@ -270,10 +270,10 @@
           "aiBadgerSupport": false
         },
         "mcpServers": {
-          "supported": "partial",
-          "mechanism": "Via pi-mcp-tools extension (settings.json mcp key); that key has no consumer in pi core",
+          "supported": true,
+          "mechanism": "pi-mcp-tools fork reads the project's .mcp.json at session_start (claude→fork conversion; ${HOME} expanded in command/cwd); armed servers are gated by pi project trust — scaffolded projects without pi-trust-requiring resources arm in all modes including headless (pi's !hasTrustRequiringResources short-circuit); local stdio and remote http/sse (mapped to type remote); the global settings.json 'mcp' key is user-owned fallback, no longer scaffold-written — on re-scaffold this project's shape-matched entries are removed from it",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "pi/adjustments/adjust_mcp.py — merges into ~/.pi/agent/settings.json's mcp key (install=True) or prints the snippet (--no-install)"
+          "scaffoldedBy": "pi/adjustments/adjust_mcp.py — migration-only: removes this project's shape-matched entries from ~/.pi/agent/settings.json's 'mcp' key (gated on the installed fork's project-scope capability marker) or prints the removal proposal (--no-install)"
         },
         "cacheAwareDispatch": {
           "supported": false,

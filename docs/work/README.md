@@ -65,3 +65,17 @@ The first three are generated HTML forms rather than prose. They are kept becaus
 record: each carries its decisions verbatim, and the reviewer's verdicts were ingested from them.
 The third is a research record — true of its date, superseded rather than updated. The fourth is
 the first plain-markdown record here.
+
+## 2026-08-30 — aib-pi-stack-mcp-skills-parity (pi stack parity: project-scoped MCP + skills discovery)
+
+| File | What it is |
+|---|---|
+| `2026-08-30-pi-stack-mcp-skills-parity-research.md` | Research record: F1–F15 findings (current global-merge state, fork design, pi trust/lifecycle APIs), H1–H3 hypotheses, D1–D4 decision space. H3 and the F9 trust premise were later falsified — the premortem and review lanes supersede those two. |
+| `2026-08-30-pi-stack-mcp-skills-parity-plan.md` | Plan rev 3 (consolidated, authoritative): M1–M7 mechanisms, packages P1–P5, owner-gate outcomes, concrete shape matcher and per-extension capability-marker gates. Rev 2 folded the owner verdicts + premortem/test corrections; rev 3 folded the plan-review MoE. |
+| `2026-08-30-pi-stack-mcp-skills-parity-premortem.md` | Adversarial pre-mortem (code-reviewer lane): falsified the plan's headless-trust premise (pi dist short-circuit), MUST-1–7, ranked risks, the rewritten owner questions. |
+| `2026-08-30-pi-stack-mcp-skills-parity-test-strategy.md` | Test-engineer lane: per-package red-proof obligations, H1/H2 spike specs, both-direction trust pins, the 12-step live machine-cutover gate, CI vs live-only split. Measured: fork suite 73→131 tests across P1; `.mcp.json` gitignored (fixtures only). |
+| `2026-08-30-pi-stack-mcp-skills-parity-plan-review-api.md` | Plan-review MoE (api-engineer): fork surface — factory re-invocation falsified the `/new`-stranding bug, duplicate-registration guard deleted, `type:"stdio"` + `${HOME}` expansion added, `/mcp-status` must render from the merge ledger, canonical flat-layout correction. |
+| `2026-08-30-pi-stack-mcp-skills-parity-plan-review-qa.md` | Plan-review MoE (qa): 1 blocker (headless observations need the `mcp_list_servers` tool channel — queued commands throw), the claimed byte-identity gate didn't exist (added), lifecycle red-run hermeticity, honesty-pin scoping. |
+| `2026-08-30-pi-stack-mcp-skills-parity-plan-review-scaffold.md` | Plan-review MoE (hermes-agent-author): capability-marker gate mechanism pinned (version numbers ruled out), per-extension gates (fork vs adapter), concrete shape-matcher definition, support.json/adjustment.json added to P3's file list. |
+| `2026-08-30-pi-stack-mcp-skills-parity-review.html` | Owner-gate review form (five decision cards). Saved feedback: `…-feedback.md`. |
+| `2026-08-30-pi-stack-mcp-skills-parity-feedback.md` | Owner-gate verdicts: 5/5 APPROVE, no notes (isProjectTrusted-only with measured semantics; skills ungated; shape-aware + marker-gated migration; mcpDisabledTools global + atomic drive-by; remote http/sse mapping). |
