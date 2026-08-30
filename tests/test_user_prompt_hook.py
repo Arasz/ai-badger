@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import io
 import json
+
+import pytest
+
 from conftest import _test_write
 
 TEST_MARKERS_CONTEXT = {
@@ -400,3 +403,129 @@ def test_no_restart_advisory_after_single_feedback(tmp_path, load_script, monkey
     out = json.loads(capsys.readouterr().out)
     ctx = out["hookSpecificOutput"]["additionalContext"]
     assert "CONSOLIDATED RESTART ADVISORY" not in ctx
+
+
+# ------------------------------------------------------------------ importance token (!)
+
+def _bang_context():
+    """A catalog shaped like the shipped one post-split: base prefixes, the important
+    marker carrying both a base and an interrupt inject text."""
+    return {
+        "markers": [
+            {"id": "hint", "prefixes": ["h:", "hint:"], "inject": "TEST HINT"},
+            {"id": "feedback", "prefixes": ["f:", "feedback:"], "inject": "TEST FEEDBACK"},
+            {"id": "extension", "prefixes": ["e:", "extension:"], "inject": "TEST EXTENSION"},
+            {"id": "queue", "prefixes": ["q:", "queue:"], "inject": "TEST QUEUE"},
+            {
+                "id": "important",
+                "prefixes": ["i:", "important:"],
+                "inject": "TEST IMPORTANT BASE",
+                "injectInterrupt": "TEST IMPORTANT EMERGENCY",
+            },
+        ]
+    }
+
+
+@pytest.mark.parametrize("prompt,marker_id", [
+    ("f!: fix it now", "feedback"),
+    ("feedback!: fix it now", "feedback"),
+    ("hint!: validate first", "hint"),
+    ("q!: do this immediately", "queue"),
+])
+def test_interrupt_variant_of_every_marker_fires(tmp_path, load_script, monkeypatch, capsys,
+                                                 prompt, marker_id):
+    """The importance token works on EVERY marker, spelled short or long."""
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    config_path = tmp_path / "markers-context.json"
+    _write_markers_context(config_path, _bang_context())
+    monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
+
+    rc = _call_main(hook, monkeypatch, {"prompt": prompt, "cwd": str(tmp_path)})
+
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    injected = out["hookSpecificOutput"]["additionalContext"]
+    assert marker_id in injected.lower() or f"TEST {marker_id.upper()}" in injected
+    assert hook.IMPORTANCE_SUFFIX in injected
+
+
+def test_important_bang_forms_keep_the_emergency_text_exactly(tmp_path, load_script,
+                                                               monkeypatch, capsys):
+    """Legacy behavior: i!: / important!: inject the interrupt text, un-suffixed."""
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    config_path = tmp_path / "markers-context.json"
+    _write_markers_context(config_path, _bang_context())
+    monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
+
+    for prompt in ("i!: stop", "important!: stop"):
+        _call_main(hook, monkeypatch, {"prompt": prompt, "cwd": str(tmp_path)})
+        out = json.loads(capsys.readouterr().out)
+        injected = out["hookSpecificOutput"]["additionalContext"]
+        assert injected == "TEST IMPORTANT EMERGENCY"
+
+
+def test_important_base_form_is_high_priority_without_preemption(tmp_path, load_script,
+                                                                  monkeypatch, capsys):
+    """The split: i: / important: carry the meaning without the interrupt demand."""
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    config_path = tmp_path / "markers-context.json"
+    _write_markers_context(config_path, _bang_context())
+    monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
+
+    for prompt in ("i: remember this", "important: remember this"):
+        _call_main(hook, monkeypatch, {"prompt": prompt, "cwd": str(tmp_path)})
+        out = json.loads(capsys.readouterr().out)
+        injected = out["hookSpecificOutput"]["additionalContext"]
+        assert injected == "TEST IMPORTANT BASE"
+
+
+def test_bang_match_reports_itself_to_the_caller(load_script):
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    markers = _bang_context()["markers"]
+
+    marker, prefix, bang = hook.match_marker("f!: fix it now", markers)
+    assert marker["id"] == "feedback"
+    assert prefix == "f!:"
+    assert bang is True
+
+    marker, prefix, bang = hook.match_marker("f: fix it later", markers)
+    assert prefix == "f:"
+    assert bang is False
+
+
+def test_bang_marker_mid_line_is_not_a_marker(load_script):
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    assert hook.match_marker("please f!: look at this", _bang_context()["markers"]) is None
+
+
+def test_bang_single_letter_alias_needs_whitespace_after_it(load_script):
+    """F-21 extended to the !-variant: h!:x is not a marker; h!: x is."""
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    markers = _bang_context()["markers"]
+
+    assert hook.match_marker("h!:x", markers) is None
+    assert hook.match_marker("h!: check", markers) is not None
+
+
+def test_bang_match_is_case_insensitive(load_script):
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    marker, prefix, bang = hook.match_marker("F!: fix it now", _bang_context()["markers"])
+    assert marker["id"] == "feedback"
+    assert bang is True
+
+
+def test_bang_recorded_in_audit(tmp_path, load_script, monkeypatch):
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    config_path = tmp_path / "markers-context.json"
+    _write_markers_context(config_path, _bang_context())
+    monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
+    project = tmp_path / "project"
+    (project / ".ai-badger").mkdir(parents=True)
+
+    _call_main(hook, monkeypatch, {"prompt": "f!: fix it now", "cwd": str(project)})
+
+    state = json.loads((project / ".ai-badger" / "prompt-markers" / "marker-state.json")
+                       .read_text(encoding="utf-8"))
+    entry = state["history"][0]
+    assert entry["matchedPrefix"] == "f!:"
+    assert entry["bang"] is True

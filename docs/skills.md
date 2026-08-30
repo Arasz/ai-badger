@@ -1,17 +1,17 @@
 # Skills
 
-This page catalogs 41 skills — everything under `features/common/skills/` and
+This page catalogs 42 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-40 live under `features/common/skills/` and split by the `scope:` each declares in its own
+41 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**20 are `default`** and arrive in every scaffolded project without being asked for, and
+**21 are `default`** and arrive in every scaffolded project without being asked for, and
 **20 are `optIn`** — catalogued, but written only when a project names them. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 40 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **46** files:
-the 41 above plus 5 more that belong to a single stack and arrive only with it — the
+**These 41 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **47** files:
+the 42 above plus 5 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/` and 1 under `features/ai-raccoon/skills/`.
 Those 5 have no row below and are documented by their own `SKILL.md`. Derive the number rather
@@ -80,6 +80,7 @@ names it, **claude-only** when the stack decides.
 | [feed-badger](#feed-badger) | Contribute project-agnostic improvements back to the catalog | default | by name |
 | [humanizer](#humanizer) | Strip AI writing artifacts, apply research-grounded humanization levers, and adopt a natural voice | default | by name |
 | [task](#task) | Run one backlog task end to end with model delegation | default | by name (`/task <id>`) |
+| [status-report](#status-report) | Answer "where are we?" mid-task — current task, checklist progress, next, delegation status | default | by name |
 | [git-work](#git-work) | Recover push failures, triage red CI, and run the PR lifecycle outside a tracked task | default | by name |
 | [create-task-spec](#create-task-spec) | Interrogate an idea into a Gherkin specification plus a manifest `task` consumes | default | by name |
 | [owner-gate-review](#owner-gate-review) | Turn a document's open decisions into a per-decision review form | default | by name |

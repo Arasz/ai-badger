@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.145.0",
+  "frameworkVersion": "0.147.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -369,6 +369,11 @@
           "name": "sqlite-schema-review",
           "path": "features/common/skills/sqlite-schema-review",
           "scope": "optIn"
+        },
+        {
+          "name": "status-report",
+          "path": "features/common/skills/status-report",
+          "scope": "default"
         },
         {
           "name": "task",
