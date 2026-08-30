@@ -60,7 +60,7 @@ lane correct you.
 Lanes complete as `delegation-result` followUp messages, not as the tool result — the
 `delegate` call returns a receipt immediately. Record each lane's tokens from the followUp's
 `details.usage` (input+output; cache tokens excluded for cross-source parity) or pass the
-receipt id to `task_tracker.py subagent --delegation <id>` once the run settled — with
+receipt id to `task_tracker.py subagent <taskId> --delegation <id>` once the run settled — with
 `--description` so the ledger reads like an audit. The receipt is not the lane's report; wait
 for the followUp before judging the seam. Pass `background:false` only when a synchronous
 panel result is worth blocking the orchestrating turn for.

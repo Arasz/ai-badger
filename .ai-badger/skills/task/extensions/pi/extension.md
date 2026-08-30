@@ -31,6 +31,9 @@ source reads it from the session JSONL instead:
 object per line. A `"type": "message"` line carries the usage, nested under `message.usage`
 (not a top-level key), with pi's own field names — `input`/`output`/`cacheRead`/`cacheWrite`,
 not Anthropic's `input_tokens`/`output_tokens`. The reader sums `message.usage` across every
+Delegation tokens come from the subagent logs the extension tees to
+`~/.pi/agent/subagent-logs/<runId>.jsonl` — see the task skill's receipts note
+(Phase 3) and `task_tracker.py subagent --delegation <receipt-id>`.
 such line in the file matching `PI_SESSION_ID`, and degrades to zero — never raises — on a
 missing directory, missing file, or a line that is not valid JSON.
 
