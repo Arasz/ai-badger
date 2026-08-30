@@ -47,8 +47,9 @@ minutes for the task to end; answering late is answering wrong.
    ```
 
    Add `--target <project-root>` to report on another checkout; `--json` for the machine
-   form. It exits 0 on every reporting path — missing or corrupt tracking files render as
-   "(not found)" per section, they never fail the report.
+   form. It exits 0 on every reporting path — missing or corrupt tracking files render
+   their section's placeholder ("(no task in progress)", "(no plan file)", "(not found)",
+   "(no live lanes)") instead of failing the report.
 
 2. Answer with the four sections, in this order, using the script's output as the source of
    truth: **Current task** (plus any other open tasks), **Progress checklist** (plan

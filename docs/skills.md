@@ -10,7 +10,7 @@ This page catalogs 42 skills — everything under `features/common/skills/` and
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 40 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **47** files:
+**These 41 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **47** files:
 the 42 above plus 5 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/` and 1 under `features/ai-raccoon/skills/`.

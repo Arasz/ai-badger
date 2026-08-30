@@ -98,8 +98,12 @@ def _plan_for(target: Path, task_id: str) -> Optional[Path]:
         name = path.name.lower()
         return sum(1 for t in tokens if t in name)
 
-    best = max(files, key=lambda p: (score(p), p.stat().st_mtime))
-    return best
+    try:
+        # stat() sits in the guarded region too: the report runs mid-task while the plan
+        # pipeline writes here, and a file listed-then-removed must degrade, not crash.
+        return max(files, key=lambda p: (score(p), p.stat().st_mtime))
+    except OSError:
+        return None
 
 
 def plan_checklist(target: Path, task_id: str) -> Dict[str, Any]:
@@ -142,7 +146,9 @@ def live_lanes(target: Path, open_task_ids: List[str]) -> List[str]:
     """Worktrees belonging to open tasks, lane sub-worktrees included via taskId prefix.
 
     Worktrees of FINISHED tasks are stale leftovers, not live lanes, and are excluded —
-    the main checkout routinely carries a dozen of them.
+    the main checkout routinely carries a dozen of them. Only the `{taskId}` and
+    `{taskId}-lane-*` shapes count: a prefix sibling (`{taskId}-skill`) belongs to a
+    different task id and must never be claimed.
     """
     root = target / WORKTREES_DIR
     try:
@@ -151,7 +157,10 @@ def live_lanes(target: Path, open_task_ids: List[str]) -> List[str]:
         return []
     lanes: List[str] = []
     for task_id in open_task_ids:
-        lanes.extend(n for n in names if n == task_id or n.startswith(task_id + "-"))
+        if not task_id:
+            continue
+        lanes.extend(n for n in names
+                     if n == task_id or n.startswith(task_id + "-lane-"))
     return sorted(set(lanes))
 
 
@@ -206,8 +215,9 @@ def render(data: Dict[str, Any]) -> str:
         if finished:
             out.append(f"last finished: {finished.get('taskId')} — {finished.get('title')}")
     else:
-        out.append(f"{current.get('taskId')} — {current.get('title')}")
-        out.append(f"branch: {current.get('branch')}  started: {current.get('startedAt')}")
+        out.append(f"{current.get('taskId')} — {current.get('title') or '(untitled)'}")
+        out.append(f"branch: {current.get('branch') or '?'}  "
+                   f"started: {current.get('startedAt') or '?'}")
     for extra in data.get("other_open", []):
         out.append(f"(also open: {extra})")
 
@@ -226,8 +236,9 @@ def render(data: Dict[str, Any]) -> str:
             out.append(f"checklist: {progress['checked']}/{progress['total']} done")
         else:
             out.append("no checkbox items in plan — read the plan file for point states")
-    out.append("loop: prepare > analyze > plan > plan-review > implementation > review > "
-               "fixes > pr > gates > close > reflect > merge")
+    out.append("loop: prepare > analyze > plan > plan review > implementation > "
+               "review implementation > apply fixes > pr > gates > close task > "
+               "reflect > merge")
 
     out.append("")
     out.append("== WHAT'S NEXT ==")

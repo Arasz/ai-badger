@@ -186,12 +186,37 @@ class TestSubagentsAndDelegation:
 
         assert sorted(lanes) == ["incident-guard", "incident-guard-lane-a"]
 
+    def test_a_prefix_sibling_worktree_is_not_a_live_lane(self, load_script, tmp_path):
+        """An open task 'a-b' must not claim a finished task's 'a-b-skill' worktree."""
+        _seed(tmp_path, [_task("aib-do", "IN_PROGRESS", "2026-08-29T08:00:00+00:00")])
+        for name in ("aib-do", "aib-do-skill", "aib-do-not-a-lane"):
+            (tmp_path / ".ai-badger" / "worktrees" / name).mkdir(parents=True)
+
+        module, _ = _run(load_script, tmp_path)
+
+        assert module.report(tmp_path)["subagents"]["live_lanes"] == ["aib-do"]
+
     def test_no_live_lanes_states_it(self, load_script, tmp_path):
         _seed(tmp_path, [_task("aib-alone", "IN_PROGRESS", "2026-08-29T08:00:00+00:00")])
 
         module, _ = _run(load_script, tmp_path)
+        data = module.report(tmp_path)
 
-        assert module.report(tmp_path)["subagents"]["live_lanes"] == []
+        assert data["subagents"]["live_lanes"] == []
+        assert "(no live lanes)" in module.render(data)
+
+    def test_the_newest_file_fallback_is_marked_as_unmatched(self, load_script, tmp_path):
+        """When no plan filename carries the task id, the report says so."""
+        _seed(tmp_path, [_task("aib-unique-nomatch", "IN_PROGRESS",
+                               "2026-08-29T08:00:00+00:00")])
+        _write(tmp_path, f"{TT}/plans/2026-08-29-wholly-different.md",
+               "**P1 one:** something\n- [x] done\n")
+
+        module, _ = _run(load_script, tmp_path)
+        data = module.report(tmp_path)
+
+        assert data["progress"]["matched"] is False
+        assert "newest-file fallback" in module.render(data)
 
 
 # ---------------------------------------------------------------- json mode
