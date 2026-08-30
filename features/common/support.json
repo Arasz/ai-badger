@@ -241,7 +241,7 @@
         },
         "personas": {
           "supported": true,
-          "mechanism": "pi core has no persona feature of its own; agent files are read by a subagent extension. ai-badger ships its own (features/pi/subagent/index.ts, installed user-scope at ~/.pi/agent/extensions/ai-badger-subagent/) which registers one delegation tool and reads <project>/.pi/agents/*.md itself through fs — not through pi's trust-gated project resource loader — so the personas load in headless `pi -p` runs with no trust decision saved",
+          "mechanism": "pi core has no persona feature of its own; agent files are read by a subagent extension (canonical in the pi-badger-integration repo at extensions/subagent/index.ts, installed user-scope at ~/.pi/agent/extensions/subagent/ by its publish flow) which registers one delegation tool and reads <project>/.pi/agents/*.md itself through fs — not through pi's trust-gated project resource loader — so the personas load in headless `pi -p` runs with no trust decision saved",
           "aiBadgerSupport": true,
           "scaffoldedBy": "pi/adjustments/adjust_agents.py — writes <project>/.pi/agents/*.md and installs the subagent extension user-scope"
         },

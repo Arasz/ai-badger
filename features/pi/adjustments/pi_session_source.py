@@ -17,6 +17,22 @@ failure (missing dir, missing file, unreadable or non-JSON line) degrades to an 
 checkpoint rather than raising — a checkpoint reader that crashes is worse than one that
 reports zero.
 
+Delegation tokens are read from the subagent logs the delegation runner tees —
+`~/.pi/agent/subagent-logs/<runId>.jsonl`, the R4 contract written by
+pi-badger-integration's delegation-runner (a frozen cross-repo format: consumed read-only,
+never rewritten). Each line is one JSON object: a `run` header, child pi `--mode json`
+events (assistant turns end in a `message_end` whose `message` carries `model` and a
+`usage` with `input`/`output`/cache fields), optional `tee-elided` byte-cap markers, blank
+lines, and a settled marker: an `exit` line (any exitCode, `signal` when killed) **or** a
+bare `agent_settled` line — a TUI-side abort (`settleAborted`) writes no `exit` line, so
+requiring `exit` alone would refuse exactly the aborted-but-spent runs this reader exists
+for; `spawnError` (child never ran) and markerless logs record nothing, as does a settled
+log with no usage. `totalTokens` is the sum of `usage.input + usage.output` across
+assistant `message_end` events — pi's own `usage.totalTokens` is cache-inclusive, and
+input+output is what hermes's source records, so cache tokens are excluded for cross-source
+parity. `at` is `exit.endedAt`, else the last assistant `message_end.timestamp`, else the
+header `startedAt` — epoch milliseconds (pi's log timestamps), not an ISO string.
+
 The pi adjustment (features/pi/adjustments/adjust_task.py) copies this module into
 the scaffolded .ai-badger/skills/task/scripts/pi_session_source.py, where
 tracker_lib's discovery import finds and asks it to register(lib).
@@ -29,6 +45,7 @@ from pathlib import Path
 
 PI_SESSION_ENV = "PI_SESSION_ID"
 SESSIONS_DIR = Path.home() / ".pi" / "agent" / "sessions"
+SUBAGENT_LOGS_DIR = Path.home() / ".pi" / "agent" / "subagent-logs"
 
 _ZERO_CUMULATIVE = {
     "inputTokens": 0,
@@ -50,8 +67,80 @@ def register(tracker_lib) -> None:
         resolve=_resolve,
         checkpoint=lambda session: _checkpoint_for_cwd(session["sessionId"], os.getcwd()),
         resume=lambda session_id: f"pi -p --session {session_id}",
-        delegation_usage=lambda delegation_id: None,
+        delegation_usage=_delegation_usage,
     )
+
+
+def _delegation_usage(delegation_id: str) -> dict | None:
+    """Token record `{totalTokens, model, apiCalls, at}` for one delegation run, or None.
+
+    Parses `SUBAGENT_LOGS_DIR/<id>.jsonl` (see module docstring for the log contract).
+    Returns None when the id is not a bare filename component (path-traversal guard —
+    real ids are `d-<n>`), the log is missing or unreadable, the run never settled (`exit`
+    or `agent_settled` marker required; `spawnError` counts as never ran), or the settled
+    total is 0 — the caller must refuse rather than record a fabricated number.
+    `totalTokens` sums `usage.input + usage.output` across assistant `message_end` events;
+    cache tokens are excluded for cross-source parity with hermes (pi's own
+    `usage.totalTokens` is cache-inclusive).
+    """
+    if (not delegation_id or delegation_id in (".", "..")
+            or "/" in delegation_id or "\\" in delegation_id):
+        return None
+    path = SUBAGENT_LOGS_DIR / f"{delegation_id}.jsonl"
+    total = 0
+    api_calls = 0
+    model = None
+    ended_at = None
+    settled = False
+    started_at = None
+    last_assistant_ts = None
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, ValueError):
+        return None
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(record, dict):  # same tolerance as _sum_usage: a valid-JSON non-object skips
+            continue
+        rtype = record.get("type")
+        if rtype == "exit":
+            settled = True
+            ended_at = record.get("endedAt")
+            continue
+        if rtype == "agent_settled":
+            settled = True
+            continue
+        if rtype == "run":
+            started_at = record.get("startedAt")
+            continue
+        if rtype != "message_end":
+            continue
+        message = record.get("message") or {}
+        if not isinstance(message, dict):
+            continue
+        if message.get("role") != "assistant":
+            continue
+        usage = message.get("usage")
+        if not isinstance(usage, dict):
+            continue
+        total += (usage.get("input") or 0) + (usage.get("output") or 0)
+        api_calls += 1
+        last_assistant_ts = message.get("timestamp")
+        if model is None:
+            candidate = message.get("model")
+            if isinstance(candidate, str) and candidate:
+                model = candidate
+    if not settled or not total:
+        return None
+    at = ended_at if ended_at is not None else last_assistant_ts
+    return {"totalTokens": total, "model": model, "apiCalls": api_calls,
+            "at": at if at is not None else started_at}
 
 
 def _resolve() -> dict:
@@ -106,7 +195,7 @@ def _sum_usage(path: Path) -> dict:
     messages = 0
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
+    except (OSError, ValueError):
         return {"cumulative": cumulative, "assistantMessages": 0}
 
     for line in lines:

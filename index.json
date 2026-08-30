@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.148.0",
+  "frameworkVersion": "0.149.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -933,10 +933,6 @@
         {
           "name": "adjust_agents",
           "path": "features/pi/adjustments/adjust_agents.py"
-        },
-        {
-          "name": "adjust_cron",
-          "path": "features/pi/adjustments/adjust_cron.py"
         },
         {
           "name": "adjust_hooks",
