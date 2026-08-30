@@ -29,6 +29,7 @@ from pathlib import Path
 
 PI_SESSION_ENV = "PI_SESSION_ID"
 SESSIONS_DIR = Path.home() / ".pi" / "agent" / "sessions"
+SUBAGENT_LOGS_DIR = Path.home() / ".pi" / "agent" / "subagent-logs"
 
 _ZERO_CUMULATIVE = {
     "inputTokens": 0,
@@ -52,6 +53,36 @@ def register(tracker_lib) -> None:
         resume=lambda session_id: f"pi -p --session {session_id}",
         delegation_usage=lambda delegation_id: None,
     )
+
+
+def _delegation_usage(delegation_id: str) -> dict | None:
+    """Token record for one pi delegation run, parsed from its subagent log."""
+    path = SUBAGENT_LOGS_DIR / f"{delegation_id}.jsonl"
+    total = 0
+    api_calls = 0
+    model = None
+    ended_at = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        record = json.loads(line)
+        if record.get("type") == "exit":
+            ended_at = record.get("endedAt")
+            continue
+        if record.get("type") != "message_end":
+            continue
+        message = record.get("message") or {}
+        usage = message.get("usage")
+        if not isinstance(usage, dict):
+            continue
+        total += (usage.get("input") or 0) + (usage.get("output") or 0)
+        api_calls += 1
+        if model is None:
+            candidate = message.get("model")
+            if isinstance(candidate, str) and candidate:
+                model = candidate
+    return {"totalTokens": total, "model": model, "apiCalls": api_calls, "at": ended_at}
 
 
 def _resolve() -> dict:

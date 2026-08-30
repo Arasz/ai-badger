@@ -728,3 +728,103 @@ def test_pi_settings_write_does_not_touch_real_home(pi_settings_modules):
 
     after = real_settings.read_bytes() if real_settings.exists() else None
     assert before == after
+
+
+# ---------------------------------------------------------------------------
+# P1 — pi_session_source.delegation_usage: the delegation token record, parsed
+# from ~/.pi/agent/subagent-logs/<runId>.jsonl — the R4 frozen cross-repo
+# contract written by pi-badger-integration's delegation runner (consumed
+# read-only). Every test here patches SUBAGENT_LOGS_DIR to tmp_path; none may
+# read or write the real ~/.pi/agent/subagent-logs/. Log shapes are field-for-
+# field copies of real delegation logs measured this session (d-1/d-5).
+# ---------------------------------------------------------------------------
+
+_DELEGATION_RUN_HEADER = {
+    "type": "run",
+    "runId": "d-1",
+    "agent": "test-engineer",
+    "persona": "test-engineer",
+    "task": "implement the parser",
+    "argv": ["/usr/local/bin/pi", "-p", "--mode", "json"],
+    "cwd": "/proj",
+    "pid": 30886,
+    "startedAt": 1788123428467,
+    "sessionId": "01a05458-65a6-75dc-a54b-3da2168521ec",
+}
+
+
+def _assistant_message_end(model="z-ai/glm-5.3-flash", input_=403, output=8485,
+                           timestamp=1788122405772):
+    """An assistant message_end event, field-for-field the shape pi 0.84.4 emits (d-1/d-5).
+
+    usage.totalTokens is deliberately pi's own cache-INCLUSIVE count (input+output+cacheRead,
+    = 80120 for the defaults — the real d-1 values), so any mutant that sums it instead of
+    input+output produces a different number and fails.
+    """
+    return {
+        "type": "message_end",
+        "message": {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "ok"}],
+            "api": "openai-completions",
+            "provider": "openrouter",
+            "model": model,
+            "usage": {
+                "input": input_, "output": output, "cacheRead": 71232, "cacheWrite": 0,
+                "reasoning": 3616, "totalTokens": input_ + output + 71232,
+                "cost": {"input": 3.0225e-05, "output": 0.00212125,
+                         "cacheRead": 0.00106848, "cacheWrite": 0, "total": 0.003219955},
+            },
+            "stopReason": "stop",
+            "timestamp": timestamp,
+            "responseId": "gen-1788122405-64HOwDFJfbuYgktM0Pm6",
+        },
+    }
+
+
+def _write_delegation_log(logs_dir: Path, run_id: str, lines: list) -> Path:
+    """Write one subagent log; str entries pass through verbatim (blank/malformed lines)."""
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    path = logs_dir / f"{run_id}.jsonl"
+    text = "\n".join(line if isinstance(line, str) else json.dumps(line) for line in lines)
+    path.write_text(text + "\n", encoding="utf-8")
+    return path
+
+
+@pytest.fixture
+def pi_subagent_logs_dir(load_script, tmp_path, monkeypatch):
+    """Load pi_session_source with SUBAGENT_LOGS_DIR redirected under tmp_path.
+
+    Same idiom as pi_sessions_dir above: SUBAGENT_LOGS_DIR is a module-level Path.home()-based
+    constant, rebuilt once at import time, so the test patches the attribute on the module
+    object load_script hands back — after load, before any call. No test using this fixture
+    may read or write the real ~/.pi/agent/subagent-logs/.
+    """
+    source = load_script("features/pi/adjustments/pi_session_source.py")
+    logs_dir = tmp_path / "pi" / "agent" / "subagent-logs"
+    monkeypatch.setattr(source, "SUBAGENT_LOGS_DIR", logs_dir)
+    return types.SimpleNamespace(source=source, logs_dir=logs_dir)
+
+
+def test_delegation_usage_happy_path_exit_settled_run(pi_subagent_logs_dir):
+    """T1 — a settled run with two assistant turns returns the full record.
+
+    Pins the whole record shape (totalTokens/model/apiCalls/at) in one equality: kills a
+    stub that returns None or an empty dict, and any wrong key or value. totalTokens is the
+    input+output sum (hermes parity), NOT pi's cache-inclusive usage.totalTokens.
+    """
+    _write_delegation_log(pi_subagent_logs_dir.logs_dir, "d-1", [
+        dict(_DELEGATION_RUN_HEADER, runId="d-1"),
+        _assistant_message_end(input_=100, output=23, timestamp=1788122400001),
+        _assistant_message_end(input_=200, output=50, timestamp=1788122405000),
+        {"type": "exit", "exitCode": 0, "endedAt": 1788123491019},
+    ])
+
+    record = pi_subagent_logs_dir.source._delegation_usage("d-1")
+
+    assert record == {
+        "totalTokens": 100 + 23 + 200 + 50,
+        "model": "z-ai/glm-5.3-flash",
+        "apiCalls": 2,
+        "at": 1788123491019,
+    }
