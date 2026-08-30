@@ -18,8 +18,6 @@
   },
   "include": [
     "adjustments/adapter/**/*.ts",
-    "cron/**/*.ts",
-    "subagent/**/*.ts",
     "tests/**/*.ts"
   ]
 }

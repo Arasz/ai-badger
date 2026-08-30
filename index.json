@@ -935,10 +935,6 @@
           "path": "features/pi/adjustments/adjust_agents.py"
         },
         {
-          "name": "adjust_cron",
-          "path": "features/pi/adjustments/adjust_cron.py"
-        },
-        {
           "name": "adjust_hooks",
           "path": "features/pi/adjustments/adjust_hooks.py"
         },

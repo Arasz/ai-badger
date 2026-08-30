@@ -1,4 +1,4 @@
-"""Tests for pi agent adjustments: MCP, hooks, task, cron."""
+"""Tests for pi agent adjustments: MCP, hooks, task."""
 # pylint: disable=protected-access,redefined-outer-name  # module internals + fixture reuse; see pyproject.toml
 from __future__ import annotations
 
@@ -33,24 +33,22 @@ def _real_extension_state(name: str):
 
 @pytest.fixture
 def pi_user_extensions(load_script, tmp_path, monkeypatch):
-    """Load adjust_hooks and adjust_cron with USER_EXTENSIONS_DIR redirected under tmp_path.
+    """Load adjust_hooks with USER_EXTENSIONS_DIR redirected under tmp_path.
 
-    ``USER_EXTENSIONS_DIR`` is a module-level ``Path.home()``-based constant in both modules;
+    ``USER_EXTENSIONS_DIR`` is a module-level ``Path.home()``-based constant in the module;
     conftest's session ``$HOME`` redirect is the floor, but the constant is only rebuilt once,
     at import time, so a test must patch the attribute on the module object it actually holds
     (``load_script`` builds a fresh module per call) — patched *after* load, *before* any
     ``adjust()`` call. No test using this fixture may write to the real
-    ``~/.pi/agent/extensions/``.
+    ``~/.pi/agent/extensions/``. (The cron extension was removed from this framework in the
+    minimal-pi-layer split; its extension now lives canonically in pi-badger-integration.)
     """
     hooks = load_script("features/pi/adjustments/adjust_hooks.py")
-    cron = load_script("features/pi/adjustments/adjust_cron.py")
 
     hooks_dir = tmp_path / "pi" / "agent" / "extensions" / "ai-badger"
-    cron_dir = tmp_path / "pi" / "agent" / "extensions" / "pi-cron"
     monkeypatch.setattr(hooks, "USER_EXTENSIONS_DIR", hooks_dir)
-    monkeypatch.setattr(cron, "USER_EXTENSIONS_DIR", cron_dir)
 
-    return types.SimpleNamespace(hooks=hooks, cron=cron, hooks_dir=hooks_dir, cron_dir=cron_dir)
+    return types.SimpleNamespace(hooks=hooks, hooks_dir=hooks_dir)
 
 
 @pytest.fixture
@@ -181,27 +179,6 @@ def test_adjust_task_with_pi(load_script, root, tmp_path):
     assert "pi_session_source" in result["notes"]
 
 
-def test_adjust_cron_no_pi(load_script):
-    """adjust_cron returns unapplied when pi is not in config.agents."""
-    adjust = load_script("features/pi/adjustments/adjust_cron.py")
-    context = {"config": {"agents": ["claude"]}, "install": False}
-    result = adjust.adjust(context)
-    assert not result["applied"]
-
-
-def test_adjust_cron_with_pi_no_cron_dir(load_script, tmp_path):
-    """adjust_cron returns unapplied when cron directory missing."""
-    adjust = load_script("features/pi/adjustments/adjust_cron.py")
-    feature_dir = tmp_path
-    context = {
-        "config": {"agents": ["pi"]},
-        "feature_dir": feature_dir,
-        "install": False,
-    }
-    result = adjust.adjust(context)
-    assert not result["applied"]
-
-
 def test_pi_session_source_register(load_script):
     """pi_session_source.register() wires the pi source into tracker_lib."""
     session_source = load_script("features/pi/adjustments/pi_session_source.py")
@@ -243,10 +220,10 @@ def test_pi_session_source_zeroed_checkpoint(load_script):
 
 
 # ---------------------------------------------------------------------------
-# T1/T2/T3/T3b — the install path with install: True, the production default
+# T1/T2/T3 — the install path with install: True, the production default
 # (scaffold.py:822 `install=not args.no_install`). Every test above this line runs the
-# hooks/cron adjusters with install: False, so this branch — where the two shipped blockers
-# (F1: missing adapter dir, F2a: missing run-job.ts) live — was never exercised.
+# hooks adjuster with install: False, so this branch — where the shipped blocker
+# (F1: missing adapter dir) lives — was never exercised.
 # ---------------------------------------------------------------------------
 
 def test_adjust_hooks_with_pi_install_copies_adapter(pi_user_extensions, root, tmp_path):
@@ -288,38 +265,6 @@ def test_adjust_hooks_with_pi_install_copies_adapter(pi_user_extensions, root, t
     json.loads(adapter_manifest.read_text(encoding="utf-8"))  # must parse
 
 
-def test_adjust_cron_with_pi_install_copies_extension_incl_run_job(
-        pi_user_extensions, root):
-    """install: True copies the cron extension, including `run-job.ts`, into USER_EXTENSIONS_DIR.
-
-    `cron/index.ts` registers `Bun.cron(join(__dirname, "run-job.ts"), ...)` — a scheduled job
-    referencing a script that does not ship is F2a. Reads from the real features/pi/cron/ tree;
-    writes go to the tmp_path USER_EXTENSIONS_DIR the fixture patched in.
-    """
-    context = {
-        "config": {"agents": ["pi"]},
-        "feature_dir": root / "features" / "pi" / "adjustments",
-        "install": True,
-    }
-
-    before = _real_extension_state("pi-cron")
-
-    result = pi_user_extensions.cron.adjust(context)
-
-    # Secondary observable, checked first for the same reason as the hooks test above.
-    assert _real_extension_state("pi-cron") == before
-
-    assert result["applied"]
-    manifest = pi_user_extensions.cron_dir / "package.json"
-    assert (pi_user_extensions.cron_dir / "index.ts").exists()
-    assert manifest.exists()
-    json.loads(manifest.read_text(encoding="utf-8"))  # must parse
-    assert (pi_user_extensions.cron_dir / "run-job.ts").exists(), (
-        "cron/index.ts registers Bun.cron() against run-job.ts, which does not ship — "
-        "a scheduled job referencing a missing script (F2a)"
-    )
-
-
 def test_adjust_hooks_missing_adapter_dir_fails_loud(pi_user_extensions, tmp_path):
     """install: True with no adapter dir (and nothing else to install) fails loud, not silent.
 
@@ -347,77 +292,6 @@ def test_adjust_hooks_missing_adapter_dir_fails_loud(pi_user_extensions, tmp_pat
     assert str(adapter_dir) in result["notes"], result["notes"]
     assert result["applied"] is False
 
-
-def test_adjust_cron_missing_cron_dir_fails_loud(pi_user_extensions, tmp_path):
-    """install: True with no features/pi/cron/ dir fails loud, not silent (D5, cron's twin of T3).
-
-    `adjust_cron._install_user_extension` carries the identical F6-shaped defect as
-    adjust_hooks: `if not install or not cron_dir.is_dir(): return []`, then a generic,
-    path-free "not found or empty" note.
-    """
-    feature_dir = tmp_path / "fake-framework" / "features" / "pi" / "adjustments"
-    cron_dir = feature_dir.parent / "cron"
-    context = {
-        "config": {"agents": ["pi"]},
-        "feature_dir": feature_dir,
-        "install": True,
-    }
-
-    result = pi_user_extensions.cron.adjust(context)
-
-    assert result["notes"].startswith("ERROR:"), result["notes"]
-    assert str(cron_dir) in result["notes"], result["notes"]
-    assert result["applied"] is False
-
-
-# ---------------------------------------------------------------------------
-# T4/T5 — source-contract (shape) assertions against features/pi/cron/index.ts. This is a
-# TypeScript file pytest cannot execute; the TS lane owns behavioural coverage (bun test). These
-# two tests pin the launchd/noAgent contract at the string level against the file this task's
-# TS lane will rewrite — an honest ceiling, not a substitute for a live cron fire.
-# ---------------------------------------------------------------------------
-
-def test_cron_plist_template_has_scheduling_keys(root):
-    """The launchd fallback plist must carry a scheduling key or it can never fire (F2b).
-
-    Shape assertion on shipped TS source, not a live launchd probe (out of scope for pytest —
-    OS-scheduler behaviour needs a real macOS host). Oracle: the launchd contract itself (a
-    plist with neither StartCalendarInterval nor StartInterval never fires), not today's file.
-    """
-    source = (root / "features" / "pi" / "cron" / "index.ts").read_text(encoding="utf-8")
-
-    assert "StartCalendarInterval" in source or "StartInterval" in source, (
-        "the plist template has RunAtLoad=false and KeepAlive=false with no scheduling key at "
-        "all — the job it writes can never fire"
-    )
-    # The scheduling key must be the only fire mechanism.
-    assert "<false/>" in source  # RunAtLoad / KeepAlive stay false either way
-
-
-def test_cron_registers_jobs_without_explicit_no_agent(root):
-    """A cron job with no `noAgent` field is registered, not silently dropped (F5).
-
-    `adjust_cron.py`'s docstring documents "no_agent=true by default", but `cron/index.ts`
-    checks `if (job.noAgent)` — a bare truthiness check that skips every job that omits the
-    field, i.e. the documented default in code that does the opposite of what it claims.
-    Correct rule (task spec): schedulable = `jobs.filter(j => j.noAgent !== false)`.
-    """
-    source = (root / "features" / "pi" / "cron" / "index.ts").read_text(encoding="utf-8")
-
-    assert "noAgent !== false" in source, (
-        "no `!== false` comparison found — a job without an explicit `noAgent` field is not "
-        "provably schedulable by default"
-    )
-    assert "if (job.noAgent)" not in source, (
-        "the bare truthiness check is still present — it silently skips a field-less job "
-        "instead of scheduling it by default"
-    )
-
-
-# ---------------------------------------------------------------------------
-# T6 — pi's CLI resume contract. `--resume, -r` takes NO argument (interactive selector, pi
-# 0.84.3 --help); resume-by-id is `pi -p --session <id>`.
-# ---------------------------------------------------------------------------
 
 def test_pi_session_source_resume_uses_session_flag(load_script):
     """The resume command pi_session_source builds must be one pi actually accepts."""

@@ -1,24 +1,23 @@
 """Adjustment: deliver ai-badger personas to `<project>/.pi/agents/*.md` for pi.
 
 pi core has no custom-agent feature of its own; agent files are read by a subagent extension.
-ai-badger ships its own (`features/pi/subagent/`, installed user-scope by this same arm),
-which reads this directory itself through `fs` — so the personas load in headless `pi -p` runs even
-with no project-trust decision saved. The filename is a plain `*.md` because that is what the
-discovery test matches (`entry.name.endsWith(".md")`); `.agent.md` is copilot's convention and
-would name the persona `architect.agent`.
+That reader is canonical in the pi-badger-integration repo (`extensions/subagent/index.ts`)
+and is installed to user scope by its publish flow (`bun run publish` there) — NOT by this
+arm. This adjustment delivers only the project half: the persona files themselves, which the
+reader discovers and loads itself through `fs`. The filename is a plain `*.md` because that is
+what the discovery test matches (`entry.name.endsWith(".md")`); `.agent.md` is copilot's
+convention and would name the persona `architect.agent`.
 
-The arm has two halves. The project half writes `.pi/agents/` and — unlike adjust_skills and
-adjust_cron — is NOT a no-op under `--no-install`, because it is project state. The user half
-installs the reader itself into `~/.pi/agent/extensions/ai-badger-subagent/`, which is
-user-global state and therefore is the documented `--no-install` no-op. Persona files without
-that reader would be inert: pi core has no custom-agent feature of its own.
+Delivering persona files without that reader leaves them inert: pi core has no custom-agent
+feature of its own, so a machine that never ran pi-badger-integration's publish flow gets
+files nothing loads. The reader's absence is not detectable here — a scaffold must not write
+user-global state — so the project docs name the prerequisite instead.
 """
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import frontmatter as fm
 
@@ -31,9 +30,6 @@ PI_KEYS = ("name", "description")
 
 AGENTS_SUBDIR = Path(".pi") / "agents"
 
-SUBAGENT_DIR = "subagent"
-USER_EXTENSIONS_DIR = Path.home() / ".pi" / "agent" / "extensions" / "ai-badger-subagent"
-
 MANAGED_HEADER = (
     "<!-- Managed by ai-badger. Source of truth: .ai-badger/agents/{name}. "
     "Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->"
@@ -42,33 +38,8 @@ MANAGED_HEADER = (
 _MANAGED_PREFIX = MANAGED_HEADER.split("{name}", 1)[0]
 
 
-def _install_subagent_extension(
-        subagent_dir: Path, install: bool) -> Tuple[List[str], Optional[str]]:
-    """Copy the subagent extension to ~/.pi/agent/extensions/ai-badger-subagent/.
-
-    Returns (installed_filenames, error_note). install=False is a documented no-op — this is
-    user-global state, deliberately left untouched — and returns ([], None), not an error. A
-    missing subagent_dir under install=True is an ERROR note naming the path, the same rule
-    adjust_hooks and adjust_cron follow: an uninstalled reader leaves every delivered persona
-    file inert, and a silent `[]` return is exactly how that ships unnoticed.
-    """
-    if not install:
-        return [], None
-
-    if not subagent_dir.is_dir():
-        return [], f"ERROR: pi subagent extension directory not found: {subagent_dir}"
-
-    USER_EXTENSIONS_DIR.mkdir(parents=True, exist_ok=True)
-    installed: List[str] = []
-    for item in sorted(subagent_dir.iterdir()):
-        if item.is_file():
-            shutil.copy2(item, USER_EXTENSIONS_DIR / item.name)
-            installed.append(item.name)
-    return installed, None
-
-
 def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
-    """Write one pi agent file per scaffolded persona, and install the extension that reads them.
+    """Write one pi agent file per scaffolded persona.
 
     Args:
         context: {
@@ -76,7 +47,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
             'feature_dir': Path,    # features/pi/adjustments/
             'target_dir': Path,     # .ai-badger/
             'target': Path,         # project root
-            'install': bool,        # False under --no-install
+            'install': bool,        # False under --no-install (unused: project state)
         }
     Returns:
         {'applied': bool, 'files': list[str], 'notes': str}
@@ -113,13 +84,10 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         dst.write_text(rendered, encoding="utf-8")
         written.append(rel)
 
-    installed, install_error = _install_subagent_extension(
-        context["feature_dir"].parent / SUBAGENT_DIR, context.get("install", True))
-
     return {
-        "applied": bool(written or installed),
+        "applied": bool(written),
         "files": written,
-        "notes": _notes(written, refused, unparsed, installed, install_error),
+        "notes": _notes(written, refused, unparsed),
     }
 
 
@@ -172,16 +140,9 @@ def _ours(dst: Path, rel: str, owned_targets: set) -> bool:
         return False
 
 
-def _notes(written: List[str], refused: List[str], unparsed: List[str],
-           installed: List[str], install_error: Optional[str]) -> str:
+def _notes(written: List[str], refused: List[str], unparsed: List[str]) -> str:
     """One line per outcome: what was delivered, what was left alone, what could not be read."""
     notes = []
-    if install_error:
-        notes.append(install_error)
-    if installed:
-        notes.append(
-            f"installed the subagent extension into {USER_EXTENSIONS_DIR}: "
-            f"{', '.join(installed)}")
     if written:
         notes.append(f"Delivered {len(written)} persona(s) to {AGENTS_SUBDIR.as_posix()}/")
     if refused:

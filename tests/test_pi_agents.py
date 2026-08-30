@@ -17,8 +17,6 @@ import frontmatter as fm
 # Self-derived at collection time, before conftest's session fixture redirects $HOME — the same
 # idiom as tests/test_pi_adjustments.py, and for the same reason: a test proving the extension
 # install went somewhere else must not derive "the real home" from the fixture it is checking.
-_REAL_HOME = Path.home()
-
 PERSONA = """---
 name: architect
 description: >
@@ -36,30 +34,15 @@ Body text the subagent extension uses as the system prompt.
 
 @pytest.fixture
 def agents_arm(load_script, tmp_path, monkeypatch):
-    """The pi persona adjustment, with USER_EXTENSIONS_DIR redirected under tmp_path.
+    """The pi persona adjustment module, loaded fresh.
 
-    ``USER_EXTENSIONS_DIR`` is a module-level ``Path.home()``-based constant built once at import
-    time, so the redirect has to be applied to the module object ``load_script`` just built. No
-    test using this fixture may write to the real ``~/.pi/agent/extensions/``.
+    The adjustment no longer installs anything at user scope — the subagent reader extension is
+    canonical in pi-badger-integration and installed by its publish flow — so there is no
+    user-scope path to redirect. No test using this fixture may write to the real
+    ``~/.pi/agent/extensions/``.
     """
-    module = load_script("features/pi/adjustments/adjust_agents.py")
-    monkeypatch.setattr(
-        module, "USER_EXTENSIONS_DIR",
-        tmp_path / "home" / ".pi" / "agent" / "extensions" / "ai-badger-subagent")
-    return module
+    return load_script("features/pi/adjustments/adjust_agents.py")
 
-
-def _real_home_extensions_snapshot():
-    """Every path under the real ~/.pi/agent/extensions/ with its mtime.
-
-    A bare `does not exist` assertion is not usable here: the machine legitimately carries
-    ai-badger's own installed extensions. What must hold is that a test run changes nothing
-    there, which is what comparing this snapshot before and after proves.
-    """
-    root = _REAL_HOME / ".pi" / "agent" / "extensions"
-    if not root.is_dir():
-        return []
-    return sorted((str(p.relative_to(root)), p.stat().st_mtime_ns) for p in root.rglob("*"))
 
 
 @pytest.fixture
@@ -194,7 +177,7 @@ def test_a_corrupt_manifest_is_tolerated_not_fatal(agents_arm, project):
 def test_no_install_still_writes_the_project_agents(agents_arm, project):
     """`--no-install` must not suppress this arm: `.pi/agents/` is project state, not user state.
 
-    adjust_skills and adjust_cron are no-ops under `--no-install` because they write under
+    adjust_skills is a no-op under `--no-install` because it writes under
     `~/.pi/`; copying that guard here would leave a scaffolded project with no personas.
     """
     result = agents_arm.adjust(_context(project, install=False))
@@ -243,43 +226,3 @@ def test_the_agents_arm_is_registered_in_pi_adjustment_json(root):
 
     assert "adjust_agents.py" in {arm["script"] for arm in adjustment["adjustments"]}
 
-
-def test_the_subagent_extension_is_installed_user_scope(agents_arm, project):
-    """Scaffolded persona files are inert without a reader; the arm installs ai-badger's own.
-
-    pi core has no custom-agent feature, and its example subagent extension is manual-install
-    and reads project agents only under an opt-in scope. Delivering `.pi/agents/` without
-    installing a reader ships files nothing loads.
-    """
-    before = _real_home_extensions_snapshot()
-
-    result = agents_arm.adjust(_context(project))
-
-    assert (agents_arm.USER_EXTENSIONS_DIR / "index.ts").is_file()
-    assert (agents_arm.USER_EXTENSIONS_DIR / "package.json").is_file()
-    assert str(agents_arm.USER_EXTENSIONS_DIR) in result["notes"]
-    assert _real_home_extensions_snapshot() == before
-
-
-def test_no_install_leaves_the_user_scope_extension_alone(agents_arm, project):
-    """`--no-install` is a documented no-op for user-global state, and not an error."""
-    result = agents_arm.adjust(_context(project, install=False))
-
-    assert not agents_arm.USER_EXTENSIONS_DIR.exists()
-    assert "ERROR" not in result["notes"]
-    assert result["applied"] is True
-
-
-def test_a_missing_subagent_source_is_reported_as_a_loud_error(agents_arm, project, tmp_path):
-    """A missing `features/pi/subagent/` is an ERROR note naming the dir, never a silent skip.
-
-    Same F6 defect class as adjust_hooks and adjust_cron: the personas would still be written,
-    so `applied` stays true, but the run must say the reader never shipped.
-    """
-    result = agents_arm.adjust(
-        _context(project, feature_dir=tmp_path / "nowhere" / "adjustments"))
-
-    assert result["applied"] is True
-    assert "ERROR:" in result["notes"]
-    assert str(tmp_path / "nowhere" / "subagent") in result["notes"]
-    assert not agents_arm.USER_EXTENSIONS_DIR.exists()
