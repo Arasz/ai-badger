@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.149.0 | [pi delegation tokens become real: `delegation_usage` parses the subagent log, and the task skill teaches receipts](0.149.0-delegation-usage-parser-and-receipts-note.md) |
 | 0.148.0 | [pi discovery is project-scoped: the fork reads `.mcp.json`, the adapter serves project skills, the scaffold stops writing global state](0.148.0-pi-project-scoped-mcp-and-skills.md) |
 | 0.147.0 | [status-report skill: mid-task status without waiting for the task](0.147.0-status-report-skill.md) |
 | 0.146.0 | [prompt markers: importance token (`!`) on every marker](0.146.0-prompt-markers-importance-token.md) |
