@@ -3,6 +3,17 @@
   "next": "(1) IMPLEMENT the default-projectId-from-cwd resolver in ~/RiderProjects/ai-raccoon - design committed there (docs/plans/default-projectid-from-cwd.md, 2cda253b); seam is ToolGate.RequireAsync, needs dotnet-engineer lane + tests; (2) after the resolver ships: pi sessions stop passing projectId explicitly. Also open: the pbi session's repo-B surgery sits rebased on 0.148.0 at task/pbi-minimal-pi-layer @ 1a8b209d in the ai-badger checkout (manifest conflict resolved by regeneration; bun features/pi 62/0, grep residue zero, index verified; FULL pytest was aborted mid-run - witness it, then ff main and push). One-off repo-A bun flake (2 fails, 3 consecutive green after) unattributed; mirrored saveDisabledTools atomicity tests skip in repo A under the mock-capture guard (fork suite covers them live).",
   "completedTasks": [
     {
+      "taskId": "aib-delegation-usage-parser-migration-note",
+      "title": "Cross-repo follow-ups: delegation_usage parser + task-skill receipts note (0.149.0, PR #455)",
+      "finishedAt": "2026-08-30T23:25:33Z",
+      "summary": "pi_session_source.delegation_usage implemented \u2014 parses ~/.pi/agent/subagent-logs/<runId>.jsonl (R4 frozen contract) into the hermes-shaped record (\u03a3 input+output, first model, apiCalls, at-chain exit\u2192turn\u2192start); settled = exit OR agent_settled (M1: TUI-aborted runs carry real spend, witnessed by the field-for-field d-1 fixture); traversal guard + tolerant parsing; task_tracker subagent --delegation works under pi. Task-skill receipts migration note in SKILL.md/brief/delegator persona (receipt default, delegation-result followUps, details.usage input+output cache-excluded, background:false, --delegation <id>) \u2014 held under the skills_lint cap by net-compact rewrite. 0.149.0 (minor per convention; plan's 0.148.1 amended). Reviewer d-16: merge-after-folds, F3\u2013F7 folded, F1 witnessed twice (4714/0 \u00d72).",
+      "decisions": [
+        "settled marker = exit line OR agent_settled line \u2014 settleAborted writes no exit line, so exit-only refuses exactly the aborted-spent runs cost accounting exists for (deviation from hermes not-completed\u2192None, documented in parser docstring)",
+        "totalTokens = input+output only, cache excluded \u2014 hermes parity keeps subagentTokens comparable across sources; receipts (details.usage) are authoritative over log parses (log tee elides middles)",
+        "skill mirrors must be regenerated with the scaffolder's DEFAULT --skills, never the guard's --skills '' remediation \u2014 the empty list narrows manifest's managed set and makes the freshness guard green-on-broken (filed as framework defect F2)"
+      ]
+    },
+    {
       "taskId": "aib-pi-stack-mcp-skills-parity",
       "title": "pi stack parity: project-scoped MCP config + skills discovery (0.148.0)",
       "finished": "2026-08-30",
