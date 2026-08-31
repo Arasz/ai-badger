@@ -65,7 +65,7 @@ flowchart LR
 
     subgraph obs["Observability"]
         dl["debug_log.py"]
-        audit["~/.ai-badger/debug/audit.jsonl"]
+        audit["~/.ai-badger/debug/audit.db<br/>hook_audit table"]
         beh["call-behaviorist<br/>tail · analyze"]
     end
 

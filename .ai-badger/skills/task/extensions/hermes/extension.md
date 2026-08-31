@@ -163,7 +163,7 @@ than Claude's per-prompt injection.
 
 **What Claude does:** `statusline_capture.py` pipes through a user's
 `statusline.sh`, capturing rate limits, context window %, and model info.
-The background `poll_limit.py` reads `statusline-state.json` to avoid
+The background `poll_limit.py` reads the `statusline` store in the tracking DB to avoid
 unnecessary rate-limit probes.
 
 **Hermes equivalent — no custom code needed.** Hermes has richer native tooling:
@@ -191,7 +191,7 @@ has been running for many iterations (see Hermes Event Hooks docs for the
 ### 4. Session tracking (Claude: SessionStart → Hermes: no wired equivalent)
 
 **What Claude does:** `session_start_hook.py` records `session_id` +
-transcript path to `current-session.json` and launches `poll_limit.py`.
+transcript path into the `sessions` table of the tracking DB and launches `poll_limit.py`.
 
 **Hermes native features cover the user-facing parts:**
 - Session continuity: `hermes --continue` or `/resume <name>`

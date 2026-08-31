@@ -364,8 +364,8 @@ machine-detectable signal instead of relying on it to infer intent from phrasing
 matches it case-insensitively against the prefixes declared in `markers-context.json`, and — on
 a match — appends the marker's instruction text via the hook's `additionalContext` field (never
 prepends or rewrites, so prompt caching stays intact). When a `.ai-badger/` directory exists
-above the prompt's `cwd`, the detection is also logged to
-`.ai-badger/prompt-markers/marker-state.json`.
+above the prompt's `cwd`, the detection is also logged to the `marker_state` table in the
+project tracking DB (`.ai-badger/task-tracking/tracking.db`).
 
 **When to use it.** A prompt starts with one of the three prefixes, or someone asks to add,
 change, or inspect a marker.
@@ -396,7 +396,7 @@ fire?" has an answer instead of a guess.
 
 **What it does.** `python3 .../behaviorist.py on [DURATION]` switches on logging for up to 24h;
 every wired ai-badger hook then appends a compact JSON record (`component`, `event`, `version`,
-`project`) to `~/.ai-badger/debug/audit.jsonl`. `behaviorist.py analyze --json` compares what a
+`project`) to the `hook_audit` table in `~/.ai-badger/debug/audit.db`. `behaviorist.py analyze --json` compares what a
 project **registers** (`.claude/settings.json`, `.ai-badger/hooks/hooks.json`) against what was
 **observed**, and returns findings — `never_observed`, `version_skew`, `always_skipped`,
 `unexpected_component` — plus a health verdict of `ok`/`warn`/`degraded`/`unknown`.
@@ -412,15 +412,15 @@ logging" — or producing a health report on ai-badger's own hooks in this proje
 (someone is at the keyboard, questions are left alone) and **away** (nobody is, questions are
 denied outright).
 
-**What it does.** `/auto-wm [partner|away DURATION|off|status|forget]` writes an entry in
-`~/.claude/awm/state.json` for the project it was run in (mode, expiry, capped at 12h). A
+**What it does.** `/auto-wm [partner|away DURATION|off|status|forget]` writes an `awm_state` row
+in `~/.ai-badger/ai-badger.db` for the project it was run in (mode, expiry, capped at 12h). A
 `PreToolUse` hook (`awm_gate.py`) then auto-approves calls inside that project, except a denylist
 (destructive shell commands, force-pushes, network egress, writes outside the project) which
-always falls through to the normal permission prompt; every decision is logged to
-`~/.claude/awm/decisions.jsonl`.
+always falls through to the normal permission prompt; every decision is logged to the
+`awm_decisions` table (rows older than 60 days are pruned).
 
 `forget [PATH] [--force]` (0.75.0) removes an entry outright — `disable` only flips one off, so
-without it `state.json` accumulates an entry for every directory AWM was ever enabled in,
+without it `awm_state` accumulates a row for every directory AWM was ever enabled in,
 including deleted worktrees. It refuses a live window unless forced.
 
 **State is per project** (0.74.0). Each entry carries its own mode and its own clock, so two
@@ -429,7 +429,7 @@ scope meant enabling AWM in a second repo silently disarmed the first — and th
 banner ignored scope entirely, announcing away mode in projects where the gate denied every call
 (#296). Both hooks now read the same entry.
 
-The state **file** is machine-wide, not project-scaffolded — the skill files are versioned per
+The state **store** is machine-wide (the user-level DB), not project-scaffolded — the skill files are versioned per
 project so `den-refresh` updates them, but they must be copied to `~/.claude/skills/auto-wm/` by
 hand once, and re-copied after an update that touches `hooks/`.
 

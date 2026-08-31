@@ -155,7 +155,7 @@ hermes cron create "0 9 * * *" \
 
 **Claude** (`session_start_hook.py`):
 - Reads SessionStart payload from stdin
-- Records session_id + transcript path to `current-session.json`
+- Records session_id + transcript path into the `sessions` table of the tracking DB
 - Launches background `poll_limit.py` for rate-limit monitoring
 - On resume, surfaces unfinished tracked tasks
 
@@ -179,7 +179,7 @@ hermes cron create "0 9 * * *" \
 **Claude** (`statusline_capture.py`):
 - Pipes through a user's `statusline.sh` script
 - Captures rate limits, context window %, model info
-- Persists to `statusline-state.json` for `poll_limit.py`
+- Persists to the `statusline` store in the tracking DB for `poll_limit.py`
 
 **Hermes** — three approaches:
 
