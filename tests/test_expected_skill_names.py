@@ -19,6 +19,8 @@ from conftest import _test_write
 
 import badger_lib as bl
 
+# pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -55,7 +57,7 @@ def catalog(tmp_path: Path) -> Path:
 
 def test_derived_set_equals_the_manifest_rows_on_this_repo(root):
     """The oracle pin on the healthy tree: derived == the committed manifest's skill rows,
-    in the manifest's own (block) order — 32 of them at the pin's writing."""
+    in the manifest's own (block) order — 33 of them at the pin's writing."""
     config = bl.load_json(root / ".ai-badger" / "config.json")
     manifest = bl.load_json(root / ".ai-badger" / "manifest.json")
     recorded = bl.scaffolded_skill_names(manifest)
@@ -63,7 +65,7 @@ def test_derived_set_equals_the_manifest_rows_on_this_repo(root):
     derived = bl.expected_skill_names(root, config)
 
     assert derived == recorded
-    assert len(derived) == 32
+    assert len(derived) == 33
 
 
 def test_block_order_defaults_then_include_then_stack_local(catalog):
