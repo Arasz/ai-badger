@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.151.0 | [the config's prose surfaces for staleness review](0.151.0-config-prose-surfaces-for-staleness-review.md) |
 | 0.150.0 | [the freshness guard cannot be blinded by its own remediation](0.150.0-remediation-cannot-be-narrowed.md) |
 | 0.149.1 | [docs: the delegation token pointers say where the `<taskId>` goes](0.149.1-docs-delegation-token-pointers.md) |
 | 0.149.0 | [pi delegation tokens become real: `delegation_usage` parses the subagent log, and the task skill teaches receipts](0.149.0-delegation-usage-parser-and-receipts-note.md) |

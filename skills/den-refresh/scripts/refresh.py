@@ -383,6 +383,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     # newStacks is report-only (#134): a re-scaffold runs the *same* config and cannot
     # deliver a stack the config does not name, so it must not gate the re-scaffold.
+    # proseReview is report-only for a second reason: stale prose cannot gate the
+    # re-scaffold, because the re-scaffold re-renders the same words and would loop forever.
     has_drift = bool(drift_result.get("changed") or drift_result.get("removed")
                      or drift_result.get("orphaned") or drift_result.get("newItems")
                      or drift_result.get("versionChanged") or drift_result.get("configChanged"))
@@ -424,6 +426,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             "configChanged": drift_result.get("configChanged"),
             "invalid": drift_result.get("invalid", 0),
             "newItems": drift_result.get("newItems", []),
+            # The config's prose slots (project.summary / project.domain): re-rendered
+            # verbatim on every scaffold and checked by no fingerprint, so they go stale
+            # silently. Each entry carries a "human-written" note; reviewing them is the
+            # operator's job, never the re-scaffold's (config.json is project-owned, #172).
+            "proseReview": drift_result.get("proseReview", []),
         },
         "newStacks": new_stacks,
         # Derived, never recomputed: a second copy of the gate condition can disagree with
