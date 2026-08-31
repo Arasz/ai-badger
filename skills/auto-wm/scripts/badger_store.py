@@ -364,7 +364,7 @@ def _user_root() -> Path:
 #: ("deferred" -> a real kind) lands with the lane that rewires its writer, so no store open
 #: imports or renames a source its writer still owns (D5/D6): searches with P1.4. awm_state
 #: flipped to its real kind with P1.2a's awm rewiring, awm_decisions to "jsonl" with P1.2b's
-#: decision rewiring, commit_reminder with P1.3's commit-reminder rewiring. Until then a
+#: decision rewiring, commit_reminder/pending_feedback with P1.3's rewiring. Until then a
 #: deferred family has neither dual-read nor lazy import.
 USER_FAMILIES: dict[str, Family] = {
     "awm_state": Family(
@@ -398,7 +398,7 @@ USER_FAMILIES: dict[str, Family] = {
         table="pending_feedback",
         db="user",
         legacy_path=lambda: _user_root() / "pending-feedback.json",
-        legacy_kind="deferred",
+        legacy_kind="kvdoc",  # flipped from "deferred" by P1.3's grounded-feedback rewiring
         row_key="pending",  # the kvdoc row key its import lands under
     ),
     "searches": Family(
