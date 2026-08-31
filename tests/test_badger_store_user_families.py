@@ -338,12 +338,14 @@ def test_audit_db_follows_debug_dir_and_defaults_under_home(tmp_path, monkeypatc
 # ---------------------------------------------------------------------------
 
 
-def _seed_decision(store, days_ago: float, detail: str) -> None:
+def _seed_decision(store, days_ago: float, detail: str) -> str:
+    payload = json.dumps({"ts": _ts(days_ago), "type": "t", "detail": detail})
     store.conn.execute(
         "INSERT INTO awm_decisions(ts, payload) VALUES (?, ?)",
-        (_ts(days_ago), json.dumps({"ts": _ts(days_ago), "type": "t", "detail": detail})),
+        (_ts(days_ago), payload),
     )
     store.conn.commit()
+    return payload
 
 
 def test_prune_expired_deletes_only_rows_older_than_max_age(tmp_path, monkeypatch):
@@ -353,14 +355,14 @@ def test_prune_expired_deletes_only_rows_older_than_max_age(tmp_path, monkeypatc
     try:
         _seed_decision(store, 90, "ancient")
         _seed_decision(store, 61, "just-expired")
-        _seed_decision(store, 30, "fresh")
+        fresh_payload = _seed_decision(store, 30, "fresh")
         assert store.meta_get("pruned_at.awm_decisions") is None
 
         pruned = store.prune_expired("awm_decisions", max_age_days=60)
 
         assert pruned == 2
         remaining = [row[0] for row in store.conn.execute("SELECT payload FROM awm_decisions")]
-        assert remaining == [json.dumps({"ts": _ts(30), "type": "t", "detail": "fresh"})]
+        assert remaining == [fresh_payload]
         assert store.meta_get("pruned_at.awm_decisions") is not None
     finally:
         store.close()
