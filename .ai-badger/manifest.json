@@ -26,6 +26,11 @@
       "frameworkVersion": "0.151.0"
     },
     {
+      "path": ".gitignore",
+      "destination": ".gitignore",
+      "frameworkVersion": "0.150.0"
+    },
+    {
       "path": ".mcp.json",
       "destination": ".mcp.json",
       "frameworkVersion": "0.151.0"
