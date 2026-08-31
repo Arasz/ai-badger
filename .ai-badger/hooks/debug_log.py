@@ -493,6 +493,10 @@ def log_event(component: str, event: str, project=None, session=None, **fields) 
         if store is not None:
             try:
                 store.log_append("hook_audit", record[KEY_TS], record)
+                # Retention (P2.3/D30): the write is the prune opportunity — throttled by the
+                # store's pruned_at stamp, one transaction with the DELETE, fail-open (a
+                # sqlite error returns 0; anything worse lands in the handler below).
+                store.prune_expired("hook_audit", max_age_days=60)
             finally:
                 store.close()
             return

@@ -1060,7 +1060,7 @@ class Store:
             self.conn.execute("BEGIN IMMEDIATE")
             try:
                 cursor = self.conn.execute(f"DELETE FROM {table} WHERE ts < ?", (cutoff,))
-                pruned = cursor.rowcount
+                pruned = cursor.rowcount + self._sweep_unparseable_ts(table)
                 self.conn.execute(
                     "INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)",
                     (stamp_key, json.dumps(time.time())),
@@ -1072,6 +1072,19 @@ class Store:
         except sqlite3.Error:
             return 0  # a broken store never blocks a caller on maintenance (D31)
         return pruned
+
+    def _sweep_unparseable_ts(self, table: str) -> int:
+        """Delete rows whose ts never parses; return the count. Caller holds the write txn.
+
+        A row that never parses can never satisfy any future cutoff, so string comparison
+        alone leaves it immortal (D36). The scan is hour-throttled like the prune itself
+        and the tables it touches are retention-bounded, so the full pass stays cheap.
+        """
+        rows = self.conn.execute(f"SELECT rowid, ts FROM {table}").fetchall()
+        dead = [row[0] for row in rows if not _parseable_ts(row[1])]
+        for rowid in dead:
+            self.conn.execute(f"DELETE FROM {table} WHERE rowid = ?", (rowid,))
+        return len(dead)
 
 
     # -- writes (may raise) ------------------------------------------------------------
@@ -1500,6 +1513,17 @@ class Store:
             )
             expected.append(path.stem)
         return expected
+
+
+def _parseable_ts(ts) -> bool:
+    """True for a ts the prune's string comparison can be trusted on: non-empty ISO-8601."""
+    if not isinstance(ts, str) or not ts:
+        return False
+    try:
+        datetime.fromisoformat(ts)
+    except ValueError:
+        return False
+    return True
 
 
 def _open(db_path: Path, kind: str, families: Optional[dict] = None) -> Store:
