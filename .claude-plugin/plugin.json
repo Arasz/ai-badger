@@ -1,9 +1,9 @@
 {
   "name": "ai-badger",
-  "version": "0.149.1",
+  "version": "0.150.0",
   "description": "Cross-project agent framework: scaffolds a curated catalog of Claude Code skills, personas, invariants, and instructions into any repo (welcome-ai-badger), and feeds agnostic improvements back (feed-badger).",
   "author": {
-    "name": "Rafa\u0142 Araszkiewicz",
+    "name": "Rafał Araszkiewicz",
     "url": "https://github.com/Arasz"
   },
   "license": "MIT"
