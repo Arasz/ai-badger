@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.154.0 | [quick-task skill: the single-commit fast lane on main](0.154.0-quick-task-fast-lane-skill.md) |
 | 0.153.0 | [the user-level runtime stores move to SQLite (P1: away mode, commit-reminder, feedback)](0.153.0-user-runtime-stores-move-to-sqlite-p1.md) |
 | 0.152.0 | [the runtime stores move to SQLite (P0: store module + task family)](0.152.0-sqlite-runtime-store-p0.md) |
 | 0.151.0 | [the config's prose surfaces for staleness review](0.151.0-config-prose-surfaces-for-staleness-review.md) |
