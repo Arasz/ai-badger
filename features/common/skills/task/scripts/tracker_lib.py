@@ -56,14 +56,14 @@ def _load_badger_store():
     if "badger_store" in sys.modules:
         return sys.modules["badger_store"]
     try:
-        import badger_store  # pylint: disable=import-outside-toplevel
+        import badger_store  # pylint: disable=import-outside-toplevel,redefined-outer-name
         return badger_store
     except ImportError:
         pass
     path = SCRIPT_DIR / "badger_store.py"
     if not path.exists():
         return None
-    import importlib.util  # pylint: disable=import-outside-toplevel
+    import importlib.util  # pylint: disable=import-outside-toplevel,redefined-outer-name
 
     spec = importlib.util.spec_from_file_location("badger_store", path)
     module = importlib.util.module_from_spec(spec)
@@ -556,6 +556,31 @@ def save_usage_doc(doc: dict) -> None:
     """save_usage for callers without a held transaction."""
     with tracking_transaction() as store:
         save_usage(store, doc)
+
+
+def load_statusline_state(store=None) -> dict:
+    """The captured statusLine payload (statusline KV row 'state'), dual-read (D5a)."""
+    def _read(open_store):
+        doc = open_store.kv_get("statusline", "state", {})
+        return doc if isinstance(doc, dict) else {}
+
+    if store is not None:
+        return _read(store)
+    with closing(_open_store()) as open_store:
+        return _read(open_store)
+
+
+def save_statusline_state(state: dict) -> None:
+    """Persist the captured statusLine payload (one atomic KV row upsert)."""
+    with closing(_open_store()) as open_store:
+        open_store.kv_set("statusline", "state", state)
+
+
+def load_statusline_delegate() -> dict:
+    """The statusline delegate record (statusline KV row 'delegate'), dual-read (D5a)."""
+    with closing(_open_store()) as open_store:
+        record = open_store.kv_get("statusline", "delegate", {})
+        return record if isinstance(record, dict) else {}
 
 
 def load_config() -> dict:
