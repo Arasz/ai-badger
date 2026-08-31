@@ -29,6 +29,8 @@ def _run(load_script, monkeypatch, state_file, argv=None, uncommitted=("a.py",))
     """
     module = load_script(SCRIPT)
     monkeypatch.setattr(module.commit_reminder, "STATE_FILE", state_file)
+    # at_risk_entries reads the user store; redirect it — the real DB is never touched.
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(state_file.parent / "user-root"))
     monkeypatch.setattr(module.commit_reminder, "uncommitted_files",
                         lambda root: list(uncommitted))
     return module, module.main(argv or [])

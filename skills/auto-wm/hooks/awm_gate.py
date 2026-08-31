@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """PreToolUse hook for autonomic work mode (AWM).
 
-While ~/.claude/awm/state.json is enabled, a tool call auto-approves
-(permissionDecision: allow) and is registered in ~/.claude/awm/decisions.jsonl —
-unless one of three guards fires first, in which case nothing is emitted and the
+While away or partner mode is enabled for a project containing the call's cwd, a tool call
+auto-approves (permissionDecision: allow) and is registered as an ``awm_decisions`` row of the
+user store — a legacy ~/.claude/awm/decisions.jsonl is imported and renamed on the first such
+write (D6) — unless one of three guards fires first, in which case nothing is emitted and the
 normal permission prompt reaches the human:
 
   - expiry: both modes carry a wall-clock expiry, re-checked on every call.
@@ -19,6 +20,10 @@ The two modes then differ only on AskUserQuestion:
 
 Outside AWM (or on any internal error) it emits nothing and exits 0, so the
 normal permission flow is untouched.
+
+State is read from the awm_state rows of the user store, merged with a legacy
+~/.claude/awm/state.json until its first write migrates it (D5a); a broken store falls
+back to that file, and with no readable source the hook stays out of the way entirely.
 """
 # pylint: disable=missing-function-docstring,broad-exception-caught
 # Ported verbatim from the originating job-search-ai-assistant repo's auto-wm skill: kept in
@@ -34,8 +39,49 @@ from pathlib import Path
 
 AWM_DIR = Path.home() / ".claude" / "awm"
 STATE_FILE = AWM_DIR / "state.json"
-DECISIONS_FILE = AWM_DIR / "decisions.jsonl"
+DECISIONS_FILE = AWM_DIR / "decisions.jsonl"  # legacy source; rows replace it (P1.2b)
 MAX_DETAIL_LEN = 300
+
+# The store is vendored beside awm.py in the sibling scripts/ dir of this skill; in tests
+# engine/ is already on sys.path. Explicit insert: a hook never inherits the caller's path.
+_SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+import badger_store  # pylint: disable=wrong-import-position  # noqa: E402
+
+
+def open_store():
+    """The user store narrowed to the awm families, rebound to this module's legacy paths."""
+    families = {
+        "awm_state": badger_store.Family(
+            table="awm_state", db="user", legacy_path=lambda: STATE_FILE, legacy_kind="awm",
+        ),
+        "awm_decisions": badger_store.Family(
+            table="awm_decisions", db="user",
+            legacy_path=lambda: DECISIONS_FILE, legacy_kind="jsonl",
+        ),
+    }
+    return badger_store.open_user(families=families)
+
+
+def load_state():
+    """Per-project entries: store rows merged with the legacy file (D5a); fail open to it.
+
+    With no rows anywhere the raw legacy document comes back verbatim — a pre-#296 unscoped
+    entry is machine-global and unimportable (no project key), so its top level must stay
+    visible — and its absence or corruption surfaces exactly as it did before the store.
+    """
+    try:
+        store = open_store()
+        try:
+            rows = store.kv_all("awm_state")
+        finally:
+            store.close()
+    except Exception:  # pylint: disable=broad-exception-caught
+        return json.loads(STATE_FILE.read_text())  # today's read; raises when absent
+    if rows:
+        return {"version": 2, "projects": rows}
+    return json.loads(STATE_FILE.read_text())
 
 # Tools that reach outside the project or outside this machine. Never auto-approved.
 DENIED_TOOLS = {"WebFetch", "WebSearch"}
@@ -122,8 +168,12 @@ def log_event(event_type, detail, session_id=None, cwd=None, tool_name=None):
     if cwd:
         entry["cwd"] = cwd
     entry["detail"] = detail
-    with DECISIONS_FILE.open("a") as f:
-        f.write(json.dumps(entry) + "\n")
+    store = open_store()  # first write imports + renames a legacy decisions.jsonl (D6)
+    try:
+        store.log_append("awm_decisions", entry["ts"], entry)
+        store.prune_expired("awm_decisions", max_age_days=60)
+    finally:
+        store.close()
 
 
 def summarize_input(tool_input):
@@ -207,20 +257,22 @@ def denylist_reason(tool_name, tool_input, project):
     return None
 
 
-def disable(state, project, entry, reason, detail, session_id, cwd):
-    """Flip one project's entry off on disk and record why; the caller emits nothing."""
+def disable(project, entry, reason, detail, session_id, cwd):
+    """Flip one project's entry off in its store row and record why; the caller emits nothing."""
     entry["enabled"] = False
     entry["disabled_at"] = now_utc().isoformat(timespec="seconds")
     entry["disabled_reason"] = reason
-    data = {"version": 2, "projects": dict(projects(state))}
-    data["projects"][project] = entry
-    STATE_FILE.write_text(json.dumps(data, indent=2) + "\n")
+    store = open_store()
+    try:
+        store.kv_set("awm_state", project, entry)  # first write imports + renames legacy (D6)
+    finally:
+        store.close()
     log_event("mode_expired", detail, session_id, cwd)
 
 
 def main():
     payload = json.load(sys.stdin)
-    state = json.loads(STATE_FILE.read_text())
+    state = load_state()
 
     session_id = payload.get("session_id")
     cwd = payload.get("cwd")
@@ -246,7 +298,7 @@ def main():
 
     if expired(entry):
         detail = f"expired_at={expires_at}" if expires_at else "no expiry recorded in state"
-        disable(state, project, entry, "expired", detail, session_id, cwd)
+        disable(project, entry, "expired", detail, session_id, cwd)
         return  # no output -> normal permission flow resumes
 
     reason = denylist_reason(tool_name, tool_input, project)
@@ -274,7 +326,7 @@ def main():
                   session_id, cwd, tool_name)
         emit("allow",
              f"AWM away mode active until {expires_local}: auto-approved and registered "
-             "in decisions.jsonl")
+             "in the AWM decision log")
         return
 
     # partner mode: leave AskUserQuestion alone, auto-approve everything else.
@@ -283,7 +335,7 @@ def main():
 
     log_event("auto_approve", summarize_input(payload.get("tool_input")),
               session_id, cwd, tool_name)
-    emit("allow", "AWM partner mode active: auto-approved and registered in decisions.jsonl")
+    emit("allow", "AWM partner mode active: auto-approved and registered in the AWM decision log")
 
 
 HOOK_ERRORS_FILE = Path.home() / ".ai-badger" / "hook-errors.log"

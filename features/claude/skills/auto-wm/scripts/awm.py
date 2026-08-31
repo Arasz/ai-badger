@@ -11,9 +11,16 @@ Each project gets its own entry, with its own mode and its own clock: the gate r
 to auto-approve calls made from anywhere else, and enabling AWM in one checkout neither
 arms the machine nor disarms another checkout (#296).
 
-State lives at ~/.claude/awm/state.json (user level, never inside a project), keyed by
-project path. A pre-0.74 single-project file is read as one entry and rewritten on change.
-Every mode change and registered decision is appended to ~/.claude/awm/decisions.jsonl.
+Each project gets its own row, keyed by its resolved project root, with its own mode and its
+own clock: the gate refuses to auto-approve calls made from anywhere else, and enabling AWM in
+one checkout neither arms the machine nor disarms another checkout (#296).
+
+State lives as ``awm_state`` rows in the user store (~/.ai-badger/ai-badger.db), one row per
+project. A legacy ~/.claude/awm/state.json is imported on the first write and renamed
+``state.migrated.json``; until then reads merge it in (D5a). Every mode change is appended to
+the store's ``awm_decisions`` rows; a legacy ~/.claude/awm/decisions.jsonl is imported on the
+first decision write and renamed ``decisions.migrated.json`` (D6), and rows older than 60 days
+are pruned on write, throttled to once an hour (D9) — the 5000-line trim is gone.
 """
 # pylint: disable=missing-function-docstring
 # Ported verbatim from the originating job-search-ai-assistant repo's auto-wm skill: kept in
@@ -24,10 +31,11 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import badger_store  # vendored beside this script in production; engine/ canonical in tests
+
 AWM_DIR = Path.home() / ".claude" / "awm"
 STATE_FILE = AWM_DIR / "state.json"
-DECISIONS_FILE = AWM_DIR / "decisions.jsonl"
-MAX_DECISION_LINES = 5000
+DECISIONS_FILE = AWM_DIR / "decisions.jsonl"  # legacy source; rows replace it (P1.2b)
 DEFAULT_AWAY_DURATION = "4h"
 DEFAULT_PARTNER_DURATION = "8h"
 # No auto-approval window is open-ended: an unattended one is capped here, and the gate
@@ -56,50 +64,66 @@ def now_utc():
 
 
 def load_state():
+    """The state document's per-project entries: store rows merged with the legacy file (D5a).
+
+    A store that cannot be opened fails open to the legacy file — the same contract as the
+    missing-file case; the legacy file itself is only renamed by a write, never a read.
+    """
+    try:
+        store = open_store()
+        try:
+            rows = store.kv_all("awm_state")
+        finally:
+            store.close()
+    except Exception:  # pylint: disable=broad-exception-caught
+        return _legacy_state()
+    return {"version": 2, "projects": rows}
+
+
+def _legacy_state():
+    """The legacy state.json document, or None when absent/unreadable — the old read path."""
     try:
         return json.loads(STATE_FILE.read_text())
     except (OSError, ValueError):
         return None
 
 
-def write_state(state):
-    AWM_DIR.mkdir(parents=True, exist_ok=True)
-    _own_only(AWM_DIR)
-    STATE_FILE.write_text(json.dumps(state, indent=2) + "\n")
-    _own_only(STATE_FILE)
+def open_store():
+    """The user store narrowed to this module's awm families.
+
+    Both families' legacy paths rebind to this module's constants, so tests and surfaces
+    redirect the legacy state.json / decisions.jsonl without touching the real home.
+    """
+    families = {
+        "awm_state": badger_store.Family(
+            table="awm_state", db="user", legacy_path=lambda: STATE_FILE, legacy_kind="awm",
+        ),
+        "awm_decisions": badger_store.Family(
+            table="awm_decisions", db="user",
+            legacy_path=lambda: DECISIONS_FILE, legacy_kind="jsonl",
+        ),
+    }
+    return badger_store.open_user(families=families)
 
 
-def _own_only(path):
-    """0600 for a file, 0700 for a directory. This state says where you work and what ran."""
+def save_entry(project, entry):
+    """Write one project's entry to its own row, leaving every other project's window alone."""
+    store = open_store()
     try:
-        path.chmod(0o700 if path.is_dir() else 0o600)
-    except OSError:
-        pass
+        store.kv_set("awm_state", project, entry)  # first write imports + renames legacy (D6)
+    finally:
+        store.close()
 
 
 def log_event(event_type, detail):
-    AWM_DIR.mkdir(parents=True, exist_ok=True)
-    _own_only(AWM_DIR)
+    """One awm_decisions row; rows older than 60 days are pruned on write (D9, throttle-gated)."""
     entry = {"ts": now_utc().isoformat(timespec="seconds"), "type": event_type, "detail": detail}
-    with DECISIONS_FILE.open("a") as f:
-        f.write(json.dumps(entry) + "\n")
-    _own_only(DECISIONS_FILE)
-    _trim_decisions()
-
-
-def _trim_decisions():
-    """Keep the newest MAX_DECISION_LINES entries. An unbounded audit log is its own risk."""
+    store = open_store()  # first write imports + renames a legacy decisions.jsonl (D6)
     try:
-        lines = DECISIONS_FILE.read_text().splitlines(keepends=True)
-    except OSError:
-        return
-    if len(lines) <= MAX_DECISION_LINES:
-        return
-    try:
-        DECISIONS_FILE.write_text("".join(lines[-MAX_DECISION_LINES:]))
-        _own_only(DECISIONS_FILE)
-    except OSError:
-        pass
+        store.log_append("awm_decisions", entry["ts"], entry)
+        store.prune_expired("awm_decisions", max_age_days=60)
+    finally:
+        store.close()
 
 
 def fmt_local(iso):
@@ -143,13 +167,6 @@ def projects(state):
     if state.get("project"):
         return {state["project"]: state}
     return {}
-
-
-def save_entry(state, project, entry):
-    """Write one project's entry back, leaving every other project's window alone."""
-    data = {"version": 2, "projects": projects(state)}
-    data["projects"][project] = entry
-    write_state(data)
 
 
 def most_specific(entries, path, require_enabled=False):
@@ -203,7 +220,7 @@ def _enable(mode, duration_text):
     prev_mode = found[1].get("mode") if found and found[1].get("enabled") else None
     enabled_at = now_utc()
     expires_at = enabled_at + timedelta(seconds=seconds)
-    project = str(Path.cwd())
+    project = str(Path.cwd().resolve())
     entry = {
         "enabled": True,
         "mode": mode,
@@ -213,7 +230,7 @@ def _enable(mode, duration_text):
         "duration_seconds": seconds,
         "expires_at": expires_at.isoformat(timespec="seconds"),
     }
-    save_entry(state, project, entry)
+    save_entry(project, entry)
     detail = (f"mode={mode}, project={project}, duration={duration_text}, "
               f"expires_at={entry['expires_at']}")
     if prev_mode and prev_mode != mode:
@@ -226,7 +243,7 @@ def cmd_partner(duration_text=DEFAULT_PARTNER_DURATION):
     state = _enable("partner", duration_text)
     print(f"AWM: partner mode enabled for {state['duration']} in {state['project']}, "
           f"expires {fmt_local(state['expires_at'])}.")
-    print("Tool calls auto-approve and are logged to ~/.claude/awm/decisions.jsonl; "
+    print("Tool calls auto-approve and are logged to the AWM decision log; "
           "questions still come to you normally.")
 
 
@@ -248,7 +265,7 @@ def cmd_disable(reason="user"):
     entry["enabled"] = False
     entry["disabled_at"] = now_utc().isoformat(timespec="seconds")
     entry["disabled_reason"] = reason
-    save_entry(state, project, entry)
+    save_entry(project, entry)
     log_event("mode_disabled", f"reason={reason}, project={project}")
     still = covering_entry(load_state() or {})
     if still:
@@ -314,7 +331,11 @@ def cmd_forget(path=None, force=False):
         return 1
 
     del entries[target]
-    write_state({"version": 2, "projects": entries})
+    store = open_store()
+    try:
+        store.kv_delete("awm_state", target)
+    finally:
+        store.close()
     log_event("mode_forgotten", f"project={target}, forced={bool(force)}")
     print(f"AWM: forgot {target}.")
     return 0

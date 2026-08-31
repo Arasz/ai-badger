@@ -158,6 +158,61 @@ _DDL = (
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_searches_ts ON searches(ts)",
+    # P2.0b session-store families (D10): one table per legacy surface. memory_first carries
+    # the denial count as a real defaulted column — it is filtered data (gate MAX_DENIALS),
+    # not payload; blast_radius_denials likewise. The two append-log tables follow the
+    # ts-index convention (D17c) — hook_audit's idx lands with its DDL, P2.3 prunes it.
+    """
+    CREATE TABLE IF NOT EXISTS memory_first (
+        session_id TEXT PRIMARY KEY,
+        payload    TEXT NOT NULL,
+        denials    INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS semantica_nudge (
+        session_id TEXT PRIMARY KEY,
+        payload    TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS dispatch_lanes (
+        lane_id    TEXT PRIMARY KEY,
+        entries    TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS dirty_sweeps (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS blast_radius_denials (
+        key        TEXT PRIMARY KEY,
+        denials    INTEGER NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS hook_audit (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts      TEXT NOT NULL,
+        payload TEXT NOT NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_hook_audit_ts ON hook_audit(ts)",
+    """
+    CREATE TABLE IF NOT EXISTS hook_state (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
 )
 
 
@@ -183,6 +238,7 @@ VENDORED_PATHS: tuple[dict[str, str], ...] = (
      "lands_in": "features/common/skills/worktree-agent-isolation/scripts/badger_store.py"},
     {"consumer": "worktree-agent-isolation",
      "lands_in": ".ai-badger/skills/worktree-agent-isolation/scripts/badger_store.py"},
+    {"consumer": "auto-wm", "lands_in": "features/claude/skills/auto-wm/scripts/badger_store.py"},
     {"consumer": "auto-wm", "lands_in": "skills/auto-wm/scripts/badger_store.py"},
     {"consumer": "mcp-index", "lands_in": "skills/mcp-index/scripts/badger_store.py"},
 )
@@ -323,14 +379,22 @@ class Family(NamedTuple):
     named by ``row_key`` (statusline-state.json / statusline-delegate.json); ``tasks`` and
     ``usage`` are ``{"tasks": [...]}`` row lists keyed on ``taskId`` (executed-tasks.json,
     token-usage.json); ``sessions`` is ``{"sessions": {id: info}}`` keyed on the session id
-    (current-session.json).
+    (current-session.json); ``awm`` is the away-mode document whose per-project entries sit
+    under ``projects`` (or the pre-#296 single-project shape) keyed by project path;
+    ``jsonl`` is one JSON object per line written by the legacy appender (decisions.jsonl)
+    with no natural key — imported with its ``ts_field`` (default "ts") verbatim and deduped
+    on exact (ts, payload) content so a re-import adds nothing. The file-set kinds
+    (FILE_SET_KINDS) are many-file shapes — a directory's children, or a pattern at the user
+    root — imported as ONE transaction with each file renamed afterward per the pinned
+    per-file convention "<stem>.migrated<suffix>" (D10).
     """
 
     table: str
     db: str  # "tracking" or "user"
     legacy_path: Callable[[], Path]
-    legacy_kind: str  # "map" | "kvdoc" | "tasks" | "usage" | "sessions"
+    legacy_kind: str  # "map" | "kvdoc" | "tasks" | "usage" | "sessions" | "awm" | "jsonl"
     row_key: str = ""  # kvdoc only: the KV row key this file's document becomes
+    ts_field: str = "ts"  # jsonl only: the line field carrying the row's ts ("t" on audit)
 
 
 #: Families with a legacy JSON source to lazy-migrate. marker_state's legacy dir is the
@@ -357,9 +421,10 @@ def _user_root() -> Path:
 
 #: The user-DB families (P1.1): schema and legacy paths land here; each family's import wiring
 #: ("deferred" -> a real kind) lands with the lane that rewires its writer, so no store open
-#: imports or renames a source its writer still owns (D5/D6): awm_state and awm_decisions with
-#: P1.2's awm rewiring, commit_reminder with the commit-reminder lane, searches with P1.4.
-#: Until then a deferred family has neither dual-read nor lazy import.
+#: imports or renames a source its writer still owns (D5/D6): searches with P1.4. awm_state
+#: flipped to its real kind with P1.2a's awm rewiring, awm_decisions to "jsonl" with P1.2b's
+#: decision rewiring, commit_reminder/pending_feedback with P1.3's rewiring. Until then a
+#: deferred family has neither dual-read nor lazy import.
 USER_FAMILIES: dict[str, Family] = {
     "awm_state": Family(
         table="awm_state",
@@ -367,25 +432,32 @@ USER_FAMILIES: dict[str, Family] = {
         # ~/.claude/awm is not a .ai-badger artifact: it follows the real home, never
         # AI_BADGER_USER_ROOT (the snapshot also keeps the suite's $HOME redirect from moving it).
         legacy_path=lambda: _DEFAULT_HOME / ".claude" / "awm" / "state.json",
-        legacy_kind="deferred",
+        legacy_kind="awm",
     ),
     "awm_decisions": Family(
         table="awm_decisions",
         db="user",
         legacy_path=lambda: _DEFAULT_HOME / ".claude" / "awm" / "decisions.jsonl",
-        legacy_kind="deferred",
+        legacy_kind="jsonl",  # flipped from "deferred" by P1.2b's decision-log rewiring
     ),
     "commit_reminder": Family(
         table="commit_reminder",
         db="user",
         legacy_path=lambda: _user_root() / "commit-reminder" / "state.json",
-        legacy_kind="deferred",
+        legacy_kind="map",  # flipped from "deferred" by P1.3's commit-reminder rewiring
+    ),
+    "commit_reminder_pending": Family(
+        table="commit_reminder",
+        db="user",
+        legacy_path=lambda: _user_root() / "commit-reminder" / "pending.json",
+        legacy_kind="kvdoc",  # flipped from "deferred" by P1.3: the stash doc is one row
+        row_key="pending",
     ),
     "pending_feedback": Family(
         table="pending_feedback",
         db="user",
         legacy_path=lambda: _user_root() / "pending-feedback.json",
-        legacy_kind="deferred",
+        legacy_kind="kvdoc",  # flipped from "deferred" by P1.3's grounded-feedback rewiring
         row_key="pending",  # the kvdoc row key its import lands under
     ),
     "searches": Family(
@@ -393,6 +465,55 @@ USER_FAMILIES: dict[str, Family] = {
         db="user",
         legacy_path=lambda: _user_root() / "memory-grade" / "searches.json",
         legacy_kind="deferred",
+    ),
+    # P2.0b session-store families (D10): the seven session-scoped surfaces. The file-set
+    # kinds (FILE_SET_KINDS) import a whole legacy set in one transaction and rename per
+    # file ("<stem>.migrated<suffix>"); the legacy DIRECTORY itself never moves (D5). The
+    # natural keys: session id / session id / lane id / legacy hash verbatim (D4, all
+    # worktrees of a repo share one record) / filename stem (session AND project).
+    "memory_first": Family(
+        table="memory_first",
+        db="user",
+        legacy_path=lambda: _user_root() / "memory-first",
+        legacy_kind="markers",  # empty <uuid> presence markers + <uuid>.denials sidecars
+    ),
+    "semantica_nudge": Family(
+        table="semantica_nudge",
+        db="user",
+        legacy_path=lambda: _user_root() / "semantica-nudge",
+        legacy_kind="nudges",  # flat empty <uuid> files: presence means the nudge was shown
+    ),
+    "dispatch_lanes": Family(
+        table="dispatch_lanes",
+        db="user",
+        legacy_path=lambda: _user_root() / "dispatch-lanes",
+        legacy_kind="lanes",  # one non-JSON file per lane: "<epoch-float> <tool_use_id>" lines
+    ),
+    "dirty_sweeps": Family(
+        table="dirty_sweeps",
+        db="user",
+        legacy_path=lambda: _user_root() / "dirty-sweep-*.json",
+        legacy_kind="kv_glob",  # the filename's legacy hash is the key verbatim (D4)
+    ),
+    "blast_radius_denials": Family(
+        table="blast_radius_denials",
+        db="user",
+        legacy_path=lambda: _user_root() / "blast-radius-guard",
+        legacy_kind="stem_denials",  # <session>.<project-hash>.denials: the stem is the key
+    ),
+    "hook_audit": Family(
+        table="hook_audit",
+        db="user",
+        legacy_path=lambda: _user_root() / "debug" / "audit.jsonl",
+        legacy_kind="jsonl",
+        ts_field="t",  # audit lines carry their timestamp in "t", not "ts"
+    ),
+    "hook_state": Family(
+        table="hook_state",
+        db="user",
+        legacy_path=lambda: _user_root() / "debug" / "state.json",
+        legacy_kind="kvdoc",  # one whole state document (D26), the pending-feedback pattern
+        row_key="debug",
     ),
 }
 
@@ -486,6 +607,31 @@ def session_info(row: dict) -> dict:
     return {key: row[column] for key, column in _SESSION_INFO_COLUMNS.items()
             if row.get(column) is not None}
 
+
+
+#: The file-set kinds (P2.0b, D10): families whose legacy source is many files — a legacy
+#: directory's children (``markers``/``nudges``/``lanes``/``stem_denials``) or a pattern at
+#: the user root (``kv_glob``). See Store._migrate_file_set for the import contract.
+FILE_SET_KINDS = frozenset({"markers", "nudges", "lanes", "kv_glob", "stem_denials"})
+
+
+def _sweep_key(name: str) -> str:
+    """A dirty-sweep filename's legacy hash verbatim: dirty-sweep-<hash>.json -> <hash> (D4)."""
+    return name[len("dirty-sweep-"):-len(".json")]
+
+
+def _awm_projects(data: dict) -> dict:
+    """An away-mode state document's per-project entries, keyed by project path.
+
+    Both on-disk shapes: the #296 per-project form ({"projects": {path: entry}}) and the
+    pre-#296 single-project form whose top level IS the entry (it names its own "project").
+    """
+    projects = data.get("projects")
+    if isinstance(projects, dict):
+        return dict(projects)
+    if data.get("project"):
+        return {data["project"]: data}
+    return {}
 
 
 def _stamp_key(table: str) -> str:
@@ -620,7 +766,16 @@ class Store:
         """Legacy KV rows still mergeable for *table*; a resurrected legacy file fails closed."""
         merged: dict = {}
         for family in self._families_for_table(table):
-            if family.legacy_kind not in ("map", "kvdoc"):
+            if family.legacy_kind == "kv_glob":
+                self._raise_on_family_resurrection(family)
+                for path in self._file_set_files(family):
+                    try:
+                        doc = json.loads(path.read_text(encoding="utf-8"))
+                    except (OSError, ValueError):
+                        continue  # unreadable legacy file: the DB rows stay authoritative (D31)
+                    merged[_sweep_key(path.name)] = doc
+                continue
+            if family.legacy_kind not in ("map", "kvdoc", "awm"):
                 continue
             path = family.legacy_path()
             if not path.exists():
@@ -634,6 +789,8 @@ class Store:
                 continue
             if family.legacy_kind == "kvdoc":
                 merged[family.row_key] = data
+            elif family.legacy_kind == "awm":
+                merged.update(_awm_projects(data))
             else:
                 merged.update(data)
         return merged
@@ -643,10 +800,47 @@ class Store:
         for family in self.families.values():
             if family.db != self.kind:
                 continue
+            if family.legacy_kind in FILE_SET_KINDS:
+                self._raise_on_family_resurrection(family)
+                continue
             path = family.legacy_path()
             if not path.exists():
                 continue
             self._raise_on_resurrection(path, family.table)
+
+    def _file_set_files(self, family: Family) -> list[Path]:
+        """A file-set family's not-yet-migrated legacy files, sorted for deterministic resume.
+
+        Directory kinds enumerate the legacy directory's files; the ``kv_glob`` kind expands
+        its pattern under the parent (the dirty-sweep files live at the user root, D4).
+        Migrated names ("<stem>.migrated<suffix>"), the lock file, and subdirectories never
+        re-import.
+        """
+        path = family.legacy_path()
+        if family.legacy_kind == "kv_glob":
+            candidates = path.parent.glob(path.name)
+        elif path.is_dir():
+            candidates = path.iterdir()
+        else:
+            return []
+        return sorted(
+            candidate for candidate in candidates
+            if candidate.is_file() and candidate.name != ".write.lock"
+            and ".migrated" not in candidate.name
+        )
+
+    def _raise_on_family_resurrection(self, family: Family) -> None:
+        """A file-set family's original file newer than its migration stamp fails closed (D5c)."""
+        stamp = self._migration_stamp(family.table)
+        if stamp is None:
+            return
+        for path in self._file_set_files(family):
+            if path.stat().st_mtime > stamp:
+                raise sqlite3.OperationalError(
+                    f"legacy {path} reappeared after its migration (a stale surface is writing "
+                    f"behind the store); den-refresh the stale surface — the store refuses "
+                    f"to diverge"
+                )
 
     # -- task-family rows (caller-managed transactions; see tracking_transaction there) ---
 
@@ -895,6 +1089,65 @@ class Store:
         _assert_file_perms(self.db_path)
         notify_write(self.db_path)
 
+    def kv_delete(self, table: str, key: str) -> None:
+        """Drop one KV row; the first write lazy-migrates the family (D6), like kv_set."""
+        _check_table_name(table)
+        self.migrate(table)
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            self.conn.execute(f"DELETE FROM {table} WHERE key = ?", (key,))
+            self.conn.commit()
+        except BaseException:
+            self.conn.rollback()
+            raise
+        _assert_file_perms(self.db_path)
+        notify_write(self.db_path)
+
+    def kv_update(self, table: str, key: str, fn, default: Any = None) -> Any:
+        """Atomic read-modify-write of one KV row: fn(current) -> new value, one transaction.
+
+        The SELECT and the write share one BEGIN IMMEDIATE, so concurrent updaters of the
+        same row serialize on the write lock instead of racing a read-then-write gap —
+        the shape pop-style stash consumers need. Returns fn's result.
+        """
+        _check_table_name(table)
+        self.migrate(table)
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            row = self.conn.execute(
+                f"SELECT value FROM {table} WHERE key = ?", (key,)
+            ).fetchone()
+            current = default if row is None else self._decode(row[0], default)
+            updated = fn(current)
+            self.conn.execute(
+                f"INSERT OR REPLACE INTO {table}(key, value, updated_at) VALUES (?, ?, ?)",
+                (key, json.dumps(updated), _now()),
+            )
+            self.conn.commit()
+        except BaseException:
+            self.conn.rollback()
+            raise
+        _assert_file_perms(self.db_path)
+        notify_write(self.db_path)
+        return updated
+
+    def log_append(self, table: str, ts: str, payload: dict) -> None:
+        """Append one log row (ts, payload JSON); the first write lazy-migrates the family (D6)."""
+        _check_table_name(table)
+        self.migrate(table)
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            self.conn.execute(
+                f"INSERT INTO {table}(ts, payload) VALUES (?, ?)",
+                (ts, json.dumps(payload)),
+            )
+            self.conn.commit()
+        except BaseException:
+            self.conn.rollback()
+            raise
+        _assert_file_perms(self.db_path)
+        notify_write(self.db_path)
+
     def migrate(self, table: str) -> None:
         """Import every legacy source for *table* — COMMIT first, rename after (D6).
 
@@ -909,6 +1162,9 @@ class Store:
     def _migrate_family(self, family: Family) -> None:
         if family.legacy_kind == "deferred":
             return  # import wiring lands with the family's writer lane (see USER_FAMILIES)
+        if family.legacy_kind in FILE_SET_KINDS:
+            self._migrate_file_set(family)
+            return
         path = family.legacy_path()
         if not path.exists():
             return
@@ -938,13 +1194,25 @@ class Store:
             # next write re-runs this idempotent import (D6).
             os.replace(path, path.with_name(f"{path.stem}.migrated{path.suffix}"))
         _assert_file_perms(self.db_path)
+        # D17: the rename preserves the legacy file's mode — a foreign-written legacy file
+        # could carry a laxer one. The migrated file holds the same data as the DB it fed,
+        # so it inherits the DB's (just re-asserted) mode.
+        migrated = path.with_name(f"{path.stem}.migrated{path.suffix}")
+        os.chmod(migrated, os.stat(self.db_path).st_mode & 0o777)
         notify_write(self.db_path)
-        notify_write(path.with_name(f"{path.stem}.migrated{path.suffix}"))
+        notify_write(migrated)
 
     def _row_exists(self, table: str, key) -> bool:
-        key_column = {"tasks": "task_id", "token_usage": "task_id", "sessions": "session_id"}.get(
-            table, "key"
-        )
+        if isinstance(key, tuple):  # jsonl log rows: the (ts, payload) content key
+            row = self.conn.execute(
+                f"SELECT 1 FROM {table} WHERE ts = ? AND payload = ?", key
+            ).fetchone()
+            return row is not None
+        key_column = {
+            "tasks": "task_id", "token_usage": "task_id", "sessions": "session_id",
+            "memory_first": "session_id", "semantica_nudge": "session_id",
+            "dispatch_lanes": "lane_id",
+        }.get(table, "key")
         row = self.conn.execute(
             f"SELECT 1 FROM {table} WHERE {key_column} = ?", (key,)
         ).fetchone()
@@ -958,6 +1226,8 @@ class Store:
         instead of silently (P0.6a finding 3). Unreadable or shape-less files import nothing and
         rename anyway — quarantine, matching the map-kind behavior this module shipped with.
         """
+        if family.legacy_kind == "jsonl":
+            return self._import_jsonl(family, path)
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -979,6 +1249,15 @@ class Store:
                     (key, json.dumps(value), stamp),
                 )
             return list(data)
+        if family.legacy_kind == "awm":
+            projects = _awm_projects(data)
+            for project, entry in projects.items():
+                self.conn.execute(
+                    f"INSERT OR IGNORE INTO {family.table}(key, value, updated_at) "
+                    f"VALUES (?, ?, ?)",
+                    (project, json.dumps(entry), stamp),
+                )
+            return list(projects)
         if family.legacy_kind == "tasks":
             entries = data.get("tasks") if isinstance(data.get("tasks"), list) else []
             blocks = data.get("stopBlocks")
@@ -1026,6 +1305,197 @@ class Store:
                 )
             return list(sessions)
         raise ValueError(f"unsupported family legacy kind: {family.legacy_kind!r}")
+
+    def _import_jsonl(self, family: Family, path: Path) -> list:
+        """One JSON object per line, no natural key: exact (ts, payload) content is the key.
+
+        The ts comes from the line's ``ts_field`` verbatim ("t" on audit lines), and the
+        verbatim LINE is stored as the payload — not a re-serialization. Re-import after a
+        crash between COMMIT and rename re-reads the same lines and finds their rows already
+        present, so the import stays idempotent (D6) without a schema-level unique column. A
+        torn or non-object line imports nothing and quarantines with the file rename, like
+        the doc-kind families.
+        """
+        expected: list = []
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return []
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(entry, dict):
+                continue
+            raw_ts = entry.get(family.ts_field)
+            ts = raw_ts if isinstance(raw_ts, str) and raw_ts else _now()
+            exists = self.conn.execute(
+                f"SELECT 1 FROM {family.table} WHERE ts = ? AND payload = ?", (ts, line)
+            ).fetchone()
+            if exists is None:
+                self.conn.execute(
+                    f"INSERT INTO {family.table}(ts, payload) VALUES (?, ?)", (ts, line)
+                )
+            expected.append((ts, line))
+        return expected
+
+    # -- file-set families (P2.0b, D10): one transaction for the set, rename per file -------
+
+    def _migrate_file_set(self, family: Family) -> None:
+        """Import a multi-file family: COMMIT once for the whole set, then rename per file.
+
+        Resumable (D6/D10): a crash between COMMIT and the renames leaves rows imported and
+        original files present; the next import re-reads them and OR IGNORE on the natural
+        key adds nothing. Renames follow the pinned per-file convention —
+        "<stem>.migrated<suffix>" in place — and the legacy DIRECTORY itself is never renamed
+        or removed (D5): a stale surface may keep writing new files there, and after the
+        import no original filename remains, so nothing can resurrect.
+        """
+        with _legacy_lock(family.legacy_path().parent / ".write.lock"):
+            files = self._file_set_files(family)  # re-checked under the lock
+            if not files:
+                return
+            self._raise_on_family_resurrection(family)
+            self.conn.execute("BEGIN IMMEDIATE")
+            try:
+                expected = self._import_file_set(family, files)
+                missing = [key for key in expected if not self._row_exists(family.table, key)]
+                if missing:
+                    raise sqlite3.IntegrityError(
+                        f"legacy import for {family.table} would drop {len(missing)} row(s) "
+                        f"violating the schema (first: {missing[0]!r}) — fix or remove the "
+                        f"legacy files under {family.legacy_path()}; the store refuses to "
+                        f"migrate with silent drops"
+                    )
+                self.conn.execute(
+                    "INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)",
+                    (_stamp_key(family.table), str(time.time())),
+                )
+                self.conn.commit()
+            except BaseException:
+                self.conn.rollback()
+                raise
+            for path in files:  # only after COMMIT: a crash here resumes without duplicates
+                migrated = path.with_name(f"{path.stem}.migrated{path.suffix}")
+                os.replace(path, migrated)
+                # D17: the rename preserves the legacy file's mode — a foreign-written legacy
+                # file could carry a laxer one; the migrated file inherits the DB's mode.
+                os.chmod(migrated, os.stat(self.db_path).st_mode & 0o777)
+        _assert_file_perms(self.db_path)
+        notify_write(self.db_path)
+        for path in files:
+            notify_write(path.with_name(f"{path.stem}.migrated{path.suffix}"))
+
+    def _import_file_set(self, family: Family, files: list[Path]) -> list:
+        """Insert every file's rows with OR IGNORE on the natural key; return the expected keys.
+
+        The expected-keys list feeds the post-import count check shared with the doc-kind
+        migration (P0.6a finding 3): a row dropped by OR IGNORE shows up as missing and fails
+        the migration loudly instead of silently.
+        """
+        if family.legacy_kind == "markers":
+            return self._import_markers(files)
+        if family.legacy_kind == "nudges":
+            return self._import_nudges(files)
+        if family.legacy_kind == "lanes":
+            return self._import_lanes(files)
+        if family.legacy_kind == "kv_glob":
+            return self._import_sweeps(files)
+        if family.legacy_kind == "stem_denials":
+            return self._import_stem_denials(files)
+        raise ValueError(f"unsupported file-set kind: {family.legacy_kind!r}")
+
+    def _import_markers(self, files: list[Path]) -> list:
+        """memory-first shape: empty <uuid> presence markers plus <uuid>.denials sidecars.
+
+        One row per session — consulted in payload, the count in the denials column; a
+        denials-only session (no marker) imports with consulted=false.
+        """
+        sessions: dict[str, dict] = {}
+        for path in files:
+            if path.name.endswith(".denials"):
+                session = path.name[: -len(".denials")]
+                entry = sessions.setdefault(session, {"consulted": False, "denials": 0})
+                entry["denials"] = int(path.read_text(encoding="utf-8").strip())
+            else:
+                entry = sessions.setdefault(path.name, {"consulted": False, "denials": 0})
+                entry["consulted"] = True
+        stamp = _now()
+        for session, entry in sessions.items():
+            self.conn.execute(
+                "INSERT OR IGNORE INTO memory_first(session_id, payload, denials, updated_at) "
+                "VALUES (?, ?, ?, ?)",
+                (session, json.dumps({"consulted": entry["consulted"]}),
+                 entry["denials"], stamp),
+            )
+        return list(sessions)
+
+    def _import_nudges(self, files: list[Path]) -> list:
+        """semantica-nudge shape: flat empty <uuid> files — one row per session, payload
+        {"shown": true} (the file's presence is the whole fact)."""
+        stamp = _now()
+        for path in files:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO semantica_nudge(session_id, payload, updated_at) "
+                "VALUES (?, ?, ?)",
+                (path.name, json.dumps({"shown": True}), stamp),
+            )
+        return [path.name for path in files]
+
+    def _import_lanes(self, files: list[Path]) -> list:
+        """dispatch-lanes shape: one non-JSON file per lane, lines of
+        "<epoch-float> <tool_use_id>" — the whole lane's lines become the entries JSON."""
+        stamp = _now()
+        expected = []
+        for path in files:
+            entries = []
+            for line in path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                ts, _, tool_use_id = line.partition(" ")
+                entries.append({"ts": ts, "tool_use_id": tool_use_id})
+            self.conn.execute(
+                "INSERT OR IGNORE INTO dispatch_lanes(lane_id, entries, updated_at) "
+                "VALUES (?, ?, ?)",
+                (path.name, json.dumps(entries), stamp),
+            )
+            expected.append(path.name)
+        return expected
+
+    def _import_sweeps(self, files: list[Path]) -> list:
+        """dirty-sweep shape: dirty-sweep-<hash>.json documents at the user root — the hash
+        is the natural key verbatim (D4), all worktrees of a repo sharing one record."""
+        stamp = _now()
+        expected = []
+        for path in files:
+            try:
+                doc = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue  # unreadable sweep file: quarantines with the rename (D31)
+            self.conn.execute(
+                "INSERT OR IGNORE INTO dirty_sweeps(key, value, updated_at) VALUES (?, ?, ?)",
+                (_sweep_key(path.name), json.dumps(doc), stamp),
+            )
+            expected.append(_sweep_key(path.name))
+        return expected
+
+    def _import_stem_denials(self, files: list[Path]) -> list:
+        """blast-radius-guard shape: <session>.<project-hash>.denials integers — the filename
+        stem (session AND project) is the key, the count the denials column."""
+        stamp = _now()
+        expected = []
+        for path in files:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO blast_radius_denials(key, denials, updated_at) "
+                "VALUES (?, ?, ?)",
+                (path.stem, int(path.read_text(encoding="utf-8").strip()), stamp),
+            )
+            expected.append(path.stem)
+        return expected
 
 
 def _open(db_path: Path, kind: str, families: Optional[dict] = None) -> Store:

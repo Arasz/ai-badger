@@ -8,6 +8,10 @@ on the machine, including ones where the gate denied every call (#296).
 Both modes' windows lapse on wall-clock time; this flips that project's entry off and
 announces expiry once. Silent (exit 0, no output) when the mode is off here or on any
 internal error.
+
+State is read from the awm_state rows of the user store, merged with a legacy
+~/.claude/awm/state.json until its first write migrates it (D5a); a broken store falls
+back to that file — exactly the missing-file contract, so a hook never blocks a prompt.
 """
 # pylint: disable=missing-function-docstring,broad-exception-caught
 # Ported verbatim from the originating job-search-ai-assistant repo's auto-wm skill: kept in
@@ -21,7 +25,48 @@ from pathlib import Path
 
 AWM_DIR = Path.home() / ".claude" / "awm"
 STATE_FILE = AWM_DIR / "state.json"
-DECISIONS_FILE = AWM_DIR / "decisions.jsonl"
+DECISIONS_FILE = AWM_DIR / "decisions.jsonl"  # legacy source; rows replace it (P1.2b)
+
+# The store is vendored beside awm.py in the sibling scripts/ dir of this skill; in tests
+# engine/ is already on sys.path. Explicit insert: a hook never inherits the caller's path.
+_SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+import badger_store  # pylint: disable=wrong-import-position  # noqa: E402
+
+
+def open_store():
+    """The user store narrowed to the awm families, rebound to this module's legacy paths."""
+    families = {
+        "awm_state": badger_store.Family(
+            table="awm_state", db="user", legacy_path=lambda: STATE_FILE, legacy_kind="awm",
+        ),
+        "awm_decisions": badger_store.Family(
+            table="awm_decisions", db="user",
+            legacy_path=lambda: DECISIONS_FILE, legacy_kind="jsonl",
+        ),
+    }
+    return badger_store.open_user(families=families)
+
+
+def load_state():
+    """Per-project entries: store rows merged with the legacy file (D5a); fail open to it.
+
+    With no rows anywhere the raw legacy document comes back verbatim, so a pre-#296
+    unscoped entry reads exactly as it did before the store — including raising when
+    absent, which guarded_main records the way it always has.
+    """
+    try:
+        store = open_store()
+        try:
+            rows = store.kv_all("awm_state")
+        finally:
+            store.close()
+    except Exception:  # pylint: disable=broad-exception-caught
+        return json.loads(STATE_FILE.read_text())  # today's read; raises when absent
+    if rows:
+        return {"version": 2, "projects": rows}
+    return json.loads(STATE_FILE.read_text())
 
 
 def now_utc():
@@ -73,31 +118,38 @@ def entry_for(state, cwd):
     return (best_project, best_entry) if best_project is not None else None
 
 
-def save(state, project, entry):
-    """Write the state back in the per-project shape, whichever shape it was read in."""
-    data = {"version": 2, "projects": dict(projects(state))}
-    data["projects"][project] = entry
-    STATE_FILE.write_text(json.dumps(data, indent=2) + "\n")
+def save(project, entry):
+    """Write one project's entry to its own row, leaving every other project's window alone."""
+    store = open_store()
+    try:
+        store.kv_set("awm_state", project, entry)  # first write imports + renames legacy (D6)
+    finally:
+        store.close()
 
 
-def retire(state, project, entry, mode, expires):
+def retire(project, entry, mode, expires):
     """Flip one project's elapsed window off, record it, and announce the expiry once."""
     expires_at = entry.get("expires_at")
     entry["enabled"] = False
     entry["disabled_at"] = now_utc().isoformat(timespec="seconds")
     entry["disabled_reason"] = "expired"
-    save(state, project, entry)
-    with DECISIONS_FILE.open("a") as f:
-        f.write(json.dumps({"ts": now_utc().isoformat(timespec="seconds"),
-                            "type": "mode_expired",
-                            "detail": f"expired_at={expires_at}"}) + "\n")
+    save(project, entry)
+    entry_ts = now_utc().isoformat(timespec="seconds")
+    store = open_store()  # first write imports + renames a legacy decisions.jsonl (D6)
+    try:
+        store.log_append("awm_decisions", entry_ts,
+                         {"ts": entry_ts, "type": "mode_expired",
+                          "detail": f"expired_at={expires_at}"})
+        store.prune_expired("awm_decisions", max_age_days=60)
+    finally:
+        store.close()
     when = f" at {expires.astimezone().strftime('%Y-%m-%d %H:%M %Z')}" if expires else \
         " (no expiry was recorded)"
     print(f"[auto-wm] {mode.upper()} MODE EXPIRED{when}. Normal approvals resume.")
 
 
 def main():
-    state = json.loads(STATE_FILE.read_text())
+    state = load_state()
     found = entry_for(state, session_cwd())
     if not found:
         return  # AWM is off here, whatever it is doing in another project
@@ -110,7 +162,7 @@ def main():
     # Both modes are wall-clock bounded; a state file with no expiry predates that and
     # the gate refuses it, so retire it here too rather than announcing a live window.
     if expires is None or now_utc() >= expires:
-        retire(state, project, entry, mode, expires)
+        retire(project, entry, mode, expires)
         return
 
     total = int((expires - now_utc()).total_seconds())

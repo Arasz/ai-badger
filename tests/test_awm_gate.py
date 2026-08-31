@@ -27,6 +27,8 @@ def _patch_state_paths(module, monkeypatch, tmp_path):
     decisions_file = awm_dir / "decisions.jsonl"
     monkeypatch.setattr(module, "STATE_FILE", state_file)
     monkeypatch.setattr(module, "DECISIONS_FILE", decisions_file)
+    # The hook's store opens must land in tmp, never the real ~/.ai-badger/ai-badger.db.
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
     return state_file, decisions_file
 
 
@@ -35,11 +37,14 @@ def _write_state(state_file, state):
     _test_write(state_file, json.dumps(state), encoding="utf-8")
 
 
-def _read_decisions(decisions_file):
-    if not decisions_file.exists():
-        return []
-    lines = decisions_file.read_text(encoding="utf-8").splitlines()
-    return [json.loads(line) for line in lines if line.strip()]
+def _read_decisions(gate):
+    """The awm_decisions rows, oldest first (P1.2b: decisions live in the user store)."""
+    store = gate.open_store()
+    try:
+        rows = store.conn.execute("SELECT payload FROM awm_decisions ORDER BY id").fetchall()
+    finally:
+        store.close()
+    return [json.loads(row[0]) for row in rows]
 
 
 PROJECT = "/repo"
@@ -75,6 +80,11 @@ def _run_main(module, monkeypatch, payload):
     module.main()
 
 
+def _persisted(gate, state_file):
+    """Persisted per-project entries: the awm_state rows (legacy file only pre-first-write)."""
+    return gate.projects(gate.load_state())
+
+
 def _run_main_never_raises(module, monkeypatch, payload):
     """Mirror the script's own top-level guard (`if __name__ == "__main__":`): internal
     errors never surface and never produce output. main() itself has no internal
@@ -95,7 +105,7 @@ def test_disabled_mode_emits_nothing(tmp_path, load_script, monkeypatch, capsys)
     _run_main(gate, monkeypatch, _payload())
 
     assert capsys.readouterr().out == ""
-    assert _read_decisions(decisions_file) == []
+    assert _read_decisions(gate) == []
 
 
 def test_partner_mode_auto_approves_normal_tool(tmp_path, load_script, monkeypatch, capsys):
@@ -108,7 +118,7 @@ def test_partner_mode_auto_approves_normal_tool(tmp_path, load_script, monkeypat
     out = json.loads(capsys.readouterr().out)
     assert out["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
     assert out["hookSpecificOutput"]["permissionDecision"] == "allow"
-    decisions = _read_decisions(decisions_file)
+    decisions = _read_decisions(gate)
     assert len(decisions) == 1
     assert decisions[0]["type"] == "auto_approve"
     assert decisions[0]["tool_name"] == "Bash"
@@ -123,7 +133,7 @@ def test_partner_mode_leaves_ask_user_question_untouched(tmp_path, load_script, 
     _run_main(gate, monkeypatch, _payload(tool_name="AskUserQuestion"))
 
     assert capsys.readouterr().out == ""
-    assert _read_decisions(decisions_file) == []
+    assert _read_decisions(gate) == []
 
 
 def test_away_mode_active_auto_approves_normal_tool(tmp_path, load_script, monkeypatch, capsys):
@@ -135,7 +145,7 @@ def test_away_mode_active_auto_approves_normal_tool(tmp_path, load_script, monke
 
     out = json.loads(capsys.readouterr().out)
     assert out["hookSpecificOutput"]["permissionDecision"] == "allow"
-    decisions = _read_decisions(decisions_file)
+    decisions = _read_decisions(gate)
     assert decisions[-1]["type"] == "auto_approve"
 
 
@@ -149,7 +159,7 @@ def test_away_mode_active_denies_ask_user_question(tmp_path, load_script, monkey
 
     out = json.loads(capsys.readouterr().out)
     assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
-    decisions = _read_decisions(decisions_file)
+    decisions = _read_decisions(gate)
     assert decisions[-1]["type"] == "question_denied"
 
 
@@ -167,10 +177,10 @@ def test_away_mode_expired_falls_through_and_flips_state_off(tmp_path, load_scri
 
     # falls through to normal permission prompting: no allow/deny decision emitted
     assert capsys.readouterr().out == ""
-    entry = json.loads(state_file.read_text(encoding="utf-8"))["projects"][PROJECT]
+    entry = _persisted(gate, state_file)[PROJECT]
     assert entry["enabled"] is False
     assert entry["disabled_reason"] == "expired"
-    decisions = _read_decisions(decisions_file)
+    decisions = _read_decisions(gate)
     assert decisions[-1]["type"] == "mode_expired"
 
 
@@ -185,9 +195,9 @@ def test_partner_mode_past_its_maximum_lifetime_falls_through_and_flips_state_of
     _run_main(gate, monkeypatch, _payload(tool_name="Bash"))
 
     assert capsys.readouterr().out == ""
-    entry = json.loads(state_file.read_text(encoding="utf-8"))["projects"][PROJECT]
+    entry = _persisted(gate, state_file)[PROJECT]
     assert entry["enabled"] is False
-    assert _read_decisions(decisions_file)[-1]["type"] == "mode_expired"
+    assert _read_decisions(gate)[-1]["type"] == "mode_expired"
 
 
 def test_legacy_state_without_an_expiry_is_not_auto_approved(tmp_path, load_script, monkeypatch,
@@ -208,7 +218,7 @@ class TestToolDenylist:
     def _assert_not_approved(self, gate, monkeypatch, capsys, decisions_file, payload):
         _run_main(gate, monkeypatch, payload)
         assert capsys.readouterr().out == ""
-        assert _read_decisions(decisions_file)[-1]["type"] == "denylisted"
+        assert _read_decisions(gate)[-1]["type"] == "denylisted"
 
     def test_denylisted_bash_is_never_auto_approved(self, tmp_path, load_script, monkeypatch,
                                                      capsys):
@@ -287,7 +297,12 @@ class TestToolDenylist:
                            tool_input={"command": "rm -rf / --token=SUPERSECRET"}))
 
         capsys.readouterr()
-        assert "SUPERSECRET" not in decisions_file.read_text(encoding="utf-8")
+        store = gate.open_store()
+        try:
+            rows = store.conn.execute("SELECT payload FROM awm_decisions").fetchall()
+        finally:
+            store.close()
+        assert "SUPERSECRET" not in "".join(row[0] for row in rows)
 
 
 class TestProjectScope:
@@ -302,7 +317,7 @@ class TestProjectScope:
         _run_main(gate, monkeypatch, _payload(tool_name="Bash", cwd="/b"))
 
         assert capsys.readouterr().out == ""
-        assert _read_decisions(decisions_file)[-1]["type"] == "out_of_scope"
+        assert _read_decisions(gate)[-1]["type"] == "out_of_scope"
 
     def test_call_from_a_subdirectory_of_the_project_is_auto_approved(self, tmp_path, load_script,
                                                                        monkeypatch, capsys):
@@ -334,7 +349,7 @@ class TestProjectScope:
         _run_main(gate, monkeypatch, _payload(tool_name="Bash"))
 
         assert capsys.readouterr().out == ""
-        assert _read_decisions(decisions_file)[-1]["type"] == "out_of_scope"
+        assert _read_decisions(gate)[-1]["type"] == "out_of_scope"
 
     def test_ask_user_question_is_not_denied_outside_the_project(self, tmp_path, load_script,
                                                                   monkeypatch, capsys):
@@ -424,7 +439,7 @@ def test_a_third_project_is_still_out_of_scope(tmp_path, load_script, monkeypatc
     _run_main(gate, monkeypatch, _payload(cwd="/somewhere-else"))
 
     assert capsys.readouterr().out == ""
-    assert _read_decisions(decisions_file)[-1]["type"] == "out_of_scope"
+    assert _read_decisions(gate)[-1]["type"] == "out_of_scope"
 
 
 def test_one_projects_expiry_leaves_the_other_armed(tmp_path, load_script, monkeypatch, capsys):
@@ -443,7 +458,7 @@ def test_one_projects_expiry_leaves_the_other_armed(tmp_path, load_script, monke
     _run_main(gate, monkeypatch, _payload(cwd="/repo-live"))
     assert "allow" in capsys.readouterr().out
 
-    entries = json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    entries = _persisted(gate, state_file)
     assert entries["/repo-stale"]["enabled"] is False
     assert entries["/repo-live"]["enabled"] is True
 

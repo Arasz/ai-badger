@@ -19,6 +19,12 @@ def commit_reminder(load_script):
     return load_script(SCRIPT)
 
 
+@pytest.fixture(autouse=True)
+def _user_store_root(tmp_path, monkeypatch):
+    """Rows land in a redirected user DB; the real ~/.ai-badger/ai-badger.db is never touched."""
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+
+
 # ---------------------------------------------------------------------------
 # parse_porcelain
 # ---------------------------------------------------------------------------
@@ -193,23 +199,27 @@ def test_load_state_non_dict_json_returns_empty_dict(commit_reminder, tmp_path, 
 
 
 def test_save_state_then_load_state_round_trips(commit_reminder, tmp_path, monkeypatch):
-    state_file = tmp_path / "nested" / "state.json"
-    monkeypatch.setattr(commit_reminder, "STATE_FILE", state_file)
+    monkeypatch.setattr(commit_reminder, "STATE_FILE", tmp_path / "state.json")
 
     commit_reminder.save_state({"/proj/a": 5})
 
-    assert state_file.exists()
     assert commit_reminder.load_state() == {"/proj/a": 5}
 
 
-def test_save_state_creates_parent_dirs(commit_reminder, tmp_path, monkeypatch):
-    state_file = tmp_path / "a" / "b" / "c" / "state.json"
+def test_legacy_state_file_migrates_to_rows_on_first_write(commit_reminder, tmp_path,
+                                                           monkeypatch):
+    """The pre-store state.json imports per project on the first write, then is renamed."""
+    state_file = tmp_path / "state.json"
+    legacy = {str(tmp_path / "old"): {"marker": 6, "fires": 2}}
+    _test_write(state_file, json.dumps(legacy), encoding="utf-8")
     monkeypatch.setattr(commit_reminder, "STATE_FILE", state_file)
 
-    commit_reminder.save_state({"/proj": 1})
+    commit_reminder.set_marker(str(tmp_path / "new"), 1)
 
-    assert state_file.is_file()
-    assert json.loads(state_file.read_text(encoding="utf-8")) == {"/proj": 1}
+    assert commit_reminder.get_entry(str(tmp_path / "old"))["fires"] == 2
+    assert commit_reminder.get_marker(str(tmp_path / "new")) == 1
+    assert not state_file.exists()
+    assert (tmp_path / "state.migrated.json").exists()
 
 
 def test_two_project_keys_do_not_clobber_each_other(commit_reminder, tmp_path, monkeypatch):

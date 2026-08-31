@@ -74,17 +74,32 @@ def _ts(days_ago: float) -> str:
 
 
 def test_user_families_registry_pins_tables_and_legacy_paths():
-    """The registry names the five families, all user-DB, with their legacy JSON sources."""
+    """The registry carries the P1 families and the P2 session families, all user-DB.
+
+    P2.0b grew the registry with the six session families (plan P2.0) — the pin extends
+    rather than replaces: every P1 family keeps its exact table + legacy path.
+    """
     families = badger_store.USER_FAMILIES
     assert set(families) == {
-        "awm_state", "awm_decisions", "commit_reminder", "pending_feedback", "searches",
+        "awm_state", "awm_decisions", "commit_reminder", "commit_reminder_pending",
+        "pending_feedback", "searches",
+        "memory_first", "semantica_nudge", "dispatch_lanes", "dirty_sweeps",
+        "blast_radius_denials", "hook_audit", "hook_state",
     }
     assert {name: family.table for name, family in families.items()} == {
         "awm_state": "awm_state",
         "awm_decisions": "awm_decisions",
         "commit_reminder": "commit_reminder",
+        "commit_reminder_pending": "commit_reminder",
         "pending_feedback": "pending_feedback",
         "searches": "searches",
+        "memory_first": "memory_first",
+        "semantica_nudge": "semantica_nudge",
+        "dispatch_lanes": "dispatch_lanes",
+        "dirty_sweeps": "dirty_sweeps",
+        "blast_radius_denials": "blast_radius_denials",
+        "hook_audit": "hook_audit",
+        "hook_state": "hook_state",
     }
     for family in families.values():
         assert family.db == "user"
@@ -93,6 +108,10 @@ def test_user_families_registry_pins_tables_and_legacy_paths():
     assert families["awm_decisions"].legacy_path() == home / ".claude" / "awm" / "decisions.jsonl"
     assert families["commit_reminder"].legacy_path() == (
         home / ".ai-badger" / "commit-reminder" / "state.json")
+    assert families["commit_reminder_pending"].legacy_path() == (
+        home / ".ai-badger" / "commit-reminder" / "pending.json")
+    # The kvdoc convention: the pending stash document lands under this row key.
+    assert families["commit_reminder_pending"].row_key == "pending"
     assert families["pending_feedback"].legacy_path() == home / ".ai-badger" / "pending-feedback.json"
     assert families["searches"].legacy_path() == (
         home / ".ai-badger" / "memory-grade" / "searches.json")
@@ -105,6 +124,8 @@ def test_user_family_legacy_paths_follow_user_root_env(tmp_path, monkeypatch):
     root = _user_env(tmp_path, monkeypatch)
     families = badger_store.USER_FAMILIES
     assert families["commit_reminder"].legacy_path() == root / "commit-reminder" / "state.json"
+    assert families["commit_reminder_pending"].legacy_path() == (
+        root / "commit-reminder" / "pending.json")
     assert families["pending_feedback"].legacy_path() == root / "pending-feedback.json"
     assert families["searches"].legacy_path() == root / "memory-grade" / "searches.json"
     assert families["awm_state"].legacy_path() == (

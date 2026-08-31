@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.152.0",
+  "frameworkVersion": "0.153.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -567,6 +567,10 @@
         {
           "name": "ai_badger_hooks",
           "path": "features/common/hooks/ai_badger_hooks.py"
+        },
+        {
+          "name": "badger_store",
+          "path": "features/common/hooks/badger_store.py"
         },
         {
           "name": "debug_log",

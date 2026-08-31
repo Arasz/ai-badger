@@ -8,10 +8,19 @@ which is what `ensure-work-is-committed` reads to tell a parent a subagent is st
 from __future__ import annotations
 
 import json
+
+import pytest
+
 from conftest import _test_write
 
 
 SCRIPT = "features/common/skills/commit-reminder/scripts/commit_reminder.py"
+
+
+@pytest.fixture(autouse=True)
+def _user_store_root(tmp_path, monkeypatch):
+    """Rows land in a redirected user DB; the real ~/.ai-badger/ai-badger.db is never touched."""
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
 
 
 class TestTheMessageCommands:
@@ -171,25 +180,19 @@ class TestSinceIsWhenItStarted:
         assert entry["since"] == "T2-new"
 
 
-class TestTheStateFileSurvivesConcurrency:
-    """Parallel agents in separate worktrees share one file."""
+class TestConcurrentWriters:
+    """Parallel agents in separate worktrees share one store (the row form of the old
+    torn-file worry): one writer must never erase another project's row."""
 
-    def test_a_write_is_atomic_so_a_reader_never_sees_a_torn_file(self, load_script, tmp_path,
-                                                                 monkeypatch):
+    def test_saving_one_projects_entry_never_erases_another_projects_row(
+            self, load_script, tmp_path, monkeypatch):
         cr = load_script(SCRIPT)
-        state = tmp_path / "state.json"
-        monkeypatch.setattr(cr, "STATE_FILE", state)
-        seen = []
+        monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+        other = tmp_path / "other"
 
-        real_replace = cr.os.replace
-
-        def spy(src, dst):
-            seen.append(cr.load_state())  # what a concurrent reader would get mid-write
-            real_replace(src, dst)
-
-        monkeypatch.setattr(cr.os, "replace", spy)
         cr.set_entry(str(tmp_path), {"marker": 6, "fires": 2})
-        cr.set_entry(str(tmp_path), {"marker": 7, "fires": 3})
+        cr.set_entry(str(other), {"marker": 1, "fires": 0})
+        cr.save_state({str(tmp_path): {"marker": 7, "fires": 3}})
 
-        assert seen[1] != {}, "a reader mid-write must still see the previous complete state"
-        assert seen[1][str(tmp_path.resolve())]["fires"] == 2
+        assert cr.get_entry(str(other))["fires"] == 0
+        assert cr.get_entry(str(tmp_path))["fires"] == 3
