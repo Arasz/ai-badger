@@ -523,7 +523,8 @@ class _FakeSubprocess:
         self.existing_crontab = existing_crontab
         self.calls = []
 
-    def run(self, cmd, capture_output=True, text=True, check=False, input=None):  # noqa: A002
+    # The fake mirrors subprocess.run's real signature; the parameter name is the API.
+    def run(self, cmd, capture_output=True, text=True, check=False, input=None):  # pylint: disable=redefined-builtin  # noqa: A002
         self.calls.append((list(cmd), input))
         if cmd == ["crontab", "-l"]:
             return _FakeResult(0, stdout=self.existing_crontab)
@@ -840,8 +841,9 @@ class TestTheStatusLineShowsTheModelMix:
     """`cacheEff` measures ~0.98 on every real task; the mix is what a reader can act on."""
 
     def test_the_dominant_model_and_its_share_are_shown(self, tt):
-        assert tt._format_mix({"claude-opus-5": 0.8, "claude-haiku-4-5": 0.2}) == "opus-5:80%"
+        # Private seam: the mix formatter is a statusline-internal helper.
+        assert tt._format_mix({"claude-opus-5": 0.8, "claude-haiku-4-5": 0.2}) == "opus-5:80%"  # pylint: disable=protected-access
 
     def test_no_mix_renders_as_a_dash_rather_than_an_empty_column(self, tt):
-        assert tt._format_mix({}) == "-"
-        assert tt._format_mix(None) == "-"
+        assert tt._format_mix({}) == "-"  # pylint: disable=protected-access
+        assert tt._format_mix(None) == "-"  # pylint: disable=protected-access

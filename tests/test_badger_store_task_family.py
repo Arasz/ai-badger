@@ -42,8 +42,8 @@ def _seed(path: Path, data) -> Path:
     return path
 
 
-@pytest.fixture
-def family_root(tmp_path, monkeypatch):
+@pytest.fixture(name="family_root")
+def _family_root(tmp_path, monkeypatch):
     """A task-tracking root with the five task-family legacy paths registered."""
     tracking = tmp_path / "task-tracking"
     monkeypatch.setenv("AI_BADGER_TRACKING_ROOT", str(tracking))
@@ -145,7 +145,7 @@ def test_tasks_both_non_empty_db_row_wins(family_root):
 def test_tasks_resurrected_legacy_file_fails_closed(family_root):
     """The legacy file recreated after its migration: reads and opens refuse (D5c)."""
     tracking, families = family_root
-    legacy = _seed(tracking / "executed-tasks.json", {"tasks": [dict(TASK_ENTRY)]})
+    _seed(tracking / "executed-tasks.json", {"tasks": [dict(TASK_ENTRY)]})
     time.sleep(0.05)
 
     store = _open(families)
@@ -334,3 +334,89 @@ def test_statusline_resurrection_fails_closed(family_root):
     with pytest.raises(sqlite3.OperationalError):
         _open(families).close()
     assert legacy.exists()
+
+
+# ---------------------------------------------------------------------------
+# task family at the tracker_lib accessor level (P0.3f)
+#
+# P0.3c proved these windows through the CLI verbs; the accessor pair
+# lib.load_tasks/lib.save_tasks is the surface every non-CLI consumer (hooks,
+# statusline) reads through, so the same D5a/D6/D22/D5c contract is pinned
+# there directly. tracker_lib resolves every legacy path through module
+# globals at call time (D9), so redirecting DATA_DIR re-roots the whole family.
+# ---------------------------------------------------------------------------
+
+TRACKER_LIB_RELPATH = "features/common/skills/task/scripts/tracker_lib.py"
+
+
+@pytest.fixture(name="tracker_lib")
+def _tracker_lib(load_script, tmp_path):
+    """A fresh tracker_lib with its task-tracking paths redirected into tmp_path."""
+    lib = load_script(TRACKER_LIB_RELPATH)
+    data_dir = tmp_path / ".ai-badger" / "task-tracking"
+    lib.PROJECT_ROOT = tmp_path
+    lib.DATA_DIR = data_dir
+    lib.EXECUTED_TASKS = data_dir / "executed-tasks.json"
+    lib.TOKEN_USAGE = data_dir / "token-usage.json"
+    lib.CURRENT_SESSION = data_dir / "current-session.json"
+    lib.LOCK_FILE = data_dir / ".write.lock"
+    return lib
+
+
+def test_accessor_load_tasks_serves_legacy_only_without_renaming(tracker_lib):
+    """Empty DB + legacy file: the accessor serves legacy rows and never renames (D5a/D6)."""
+    tracking = tracker_lib.DATA_DIR
+    _seed(tracking / "executed-tasks.json", {"tasks": [dict(TASK_ENTRY)]})
+
+    doc = tracker_lib.load_tasks()
+
+    assert doc["tasks"] == [dict(TASK_ENTRY)]
+    assert (tracking / "executed-tasks.json").exists()  # read-only: migration is a write's job
+
+
+def test_accessor_save_tasks_imports_then_renames(tracker_lib):
+    """First write through the accessor: legacy imports, file renames, reads serve the DB (D6)."""
+    tracking = tracker_lib.DATA_DIR
+    legacy = _seed(tracking / "executed-tasks.json",
+                   {"tasks": [dict(TASK_ENTRY)], "stopBlocks": {"sid-1": 2}})
+    time.sleep(0.05)  # legacy mtime must strictly predate the migration stamp
+
+    with tracker_lib.tracking_transaction() as store:
+        tracker_lib.save_tasks(store, {"tasks": [{**TASK_ENTRY, "state": "FINISHED"}]})
+
+    assert not legacy.exists()
+    migrated = tracking / "executed-tasks.migrated.json"
+    assert json.loads(migrated.read_text())["tasks"][0]["taskId"] == TASK_ENTRY["taskId"]
+    doc = tracker_lib.load_tasks()
+    assert doc["tasks"] == [{**TASK_ENTRY, "state": "FINISHED"}]
+    assert doc["stopBlocks"] == {"sid-1": 2}  # doc-level budget carried across the migration
+
+
+def test_accessor_load_tasks_db_row_wins_when_both_sources_non_empty(tracker_lib):
+    """Crash state (stamp committed, rename undone) plus a diverging DB row: DB wins (D22)."""
+    tracking = tracker_lib.DATA_DIR
+    legacy = _seed(tracking / "executed-tasks.json", {"tasks": [dict(TASK_ENTRY)]})
+    time.sleep(0.05)
+    with tracker_lib.tracking_transaction() as store:  # first write: import + rename
+        tracker_lib.save_tasks(store, {"tasks": [dict(TASK_ENTRY)]})
+    legacy.with_name("executed-tasks.migrated.json").rename(legacy)  # recreate the crash state
+    with tracker_lib.tracking_transaction() as store:  # a newer row lands behind the stale file
+        tracker_lib.save_tasks(store, {"tasks": [{**TASK_ENTRY, "state": "FINISHED"}]})
+
+    doc = tracker_lib.load_tasks()
+
+    assert doc["tasks"] == [{**TASK_ENTRY, "state": "FINISHED"}]  # per-key LWW, DB row wins
+
+
+def test_accessor_load_tasks_surfaces_resurrection_fail_closed(tracker_lib):
+    """A stale surface rewriting the legacy file post-migration: the accessor raises (D5c)."""
+    tracking = tracker_lib.DATA_DIR
+    _seed(tracking / "executed-tasks.json", {"tasks": [dict(TASK_ENTRY)]})
+    time.sleep(0.05)
+    with tracker_lib.tracking_transaction() as store:
+        tracker_lib.save_tasks(store, {"tasks": [dict(TASK_ENTRY)]})
+    time.sleep(0.05)
+    _seed(tracking / "executed-tasks.json", {"tasks": [dict(TASK_ENTRY)]})  # resurrection
+
+    with pytest.raises(sqlite3.OperationalError):
+        tracker_lib.load_tasks()  # surfaced, never swallowed by the accessor

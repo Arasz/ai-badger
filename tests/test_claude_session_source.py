@@ -47,21 +47,22 @@ def _redirect_lib(lib, tmp_path):
     lib.CLAUDE_MD = tmp_path / "CLAUDE.md"
 
 
-@pytest.fixture
-def tt(load_script, root, monkeypatch, tmp_path):
+@pytest.fixture(name="tt")
+def _tt(load_script, root, monkeypatch, tmp_path):
     scripts_dir = str(root / "features" / "common" / "skills" / "task" / "scripts")
     monkeypatch.syspath_prepend(scripts_dir)
     module = load_script(TRACKER_RELPATH)
     _redirect_lib(module.lib, tmp_path)
     claude = load_script(CLAUDE_RELPATH)
     claude.register(module.lib)
-    module._claude = claude
+    # Private seam: tests re-point the tracker's claude source through this handle.
+    module._claude = claude  # pylint: disable=protected-access
     monkeypatch.setattr(module, "subprocess", _GuardedSubprocess())
     return module
 
 
-@pytest.fixture
-def cs(load_script, root, monkeypatch):
+@pytest.fixture(name="cs")
+def _cs(load_script, root, monkeypatch):
     scripts_dir = str(root / "features" / "common" / "skills" / "task" / "scripts")
     monkeypatch.syspath_prepend(scripts_dir)
     return load_script(CLAUDE_RELPATH)
@@ -120,7 +121,8 @@ class TestResolveOwnSessionClaude:
         _test_write(tl.CURRENT_SESSION, json.dumps({
             "sessions": {"anc-sid": {"transcriptPath": "/tmp/a.jsonl", "cwd": "/a",
                                      "pid": 424242}}}), encoding="utf-8")
-        tl._own_pid_ancestry = lambda max_depth=12: [1, 424242]
+        # Private seam: stubbing the PID-ancestry probe keeps the test hermetic.
+        tl._own_pid_ancestry = lambda max_depth=12: [1, 424242]  # pylint: disable=protected-access
 
         resolved = tl.resolve_own_session()
 
@@ -136,7 +138,7 @@ class TestResolveOwnSessionClaude:
         cs.register(tl)
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         monkeypatch.chdir(tmp_path)
-        tl._own_pid_ancestry = lambda max_depth=12: []
+        tl._own_pid_ancestry = lambda max_depth=12: []  # pylint: disable=protected-access
         tl.ensure_data_dir()
         _test_write(tl.CURRENT_SESSION, json.dumps({
             "sessions": {"cwd-sid": {"transcriptPath": "/tmp/c.jsonl", "cwd": str(tmp_path)}},
@@ -156,7 +158,7 @@ class TestResolveOwnSessionClaude:
         cs.register(tl)
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         monkeypatch.chdir(tmp_path)
-        tl._own_pid_ancestry = lambda max_depth=12: []
+        tl._own_pid_ancestry = lambda max_depth=12: []  # pylint: disable=protected-access
         tl.ensure_data_dir()
         _test_write(tl.CURRENT_SESSION, json.dumps({
             "sessions": {
@@ -178,7 +180,7 @@ class TestResolveOwnSessionClaude:
         cs.register(tl)
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         monkeypatch.chdir(tmp_path)
-        tl._own_pid_ancestry = lambda max_depth=12: []
+        tl._own_pid_ancestry = lambda max_depth=12: []  # pylint: disable=protected-access
 
         resolved = tl.resolve_own_session()
 
@@ -216,7 +218,6 @@ class TestClaudeCli:
             self, load_script, root, monkeypatch, tmp_path):
         """No transcript source registered: an explicit --session-id has nothing to
         attribute it to — a clear refusal, not a silent claude default."""
-        import pytest
         scripts_dir = str(root / "features" / "common" / "skills" / "task" / "scripts")
         monkeypatch.syspath_prepend(scripts_dir)
         module = load_script(TRACKER_RELPATH)
@@ -265,6 +266,5 @@ class TestClaudeCli:
 
 def _run_args(monkeypatch, module, *args):
     """Run task_tracker's main() in-process with the given CLI args; returns its exit code."""
-    import sys
     monkeypatch.setattr(sys, "argv", ["task_tracker.py", *args])
     return module.main()
