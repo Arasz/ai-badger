@@ -17,8 +17,18 @@ def _load(load_script, tmp_path, monkeypatch):
 
 
 def _write(beh, records):
-    lines = [json.dumps(r) for r in records]
-    _test_write(beh.dl.AUDIT_FILE, "\n".join(lines) + "\n", encoding="utf-8")
+    """Seed records where the read path reads them: the store's audit DB when the store
+    is available (the same sink `read_records` queries), the legacy jsonl otherwise."""
+    store = beh.dl._store()  # noqa: SLF001  # pylint: disable=protected-access
+    if store is None:
+        lines = [json.dumps(r) for r in records]
+        _test_write(beh.dl.AUDIT_FILE, "\n".join(lines) + "\n", encoding="utf-8")
+        return
+    try:
+        for rec in records:
+            store.log_append("hook_audit", rec.get(beh.dl.KEY_TS, ""), rec)
+    finally:
+        store.close()
 
 
 DEFAULT_TS = "2026-07-27T09:00:00+00:00"

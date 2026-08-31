@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.154.0",
-  "frameworkCommit": "9c8344ba394f84437824528e8c7f435b50abbf25",
+  "frameworkCommit": "9f80209377363268214c93f5a737260851d55ef0",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -449,12 +449,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.154.0",
-      "hash": "ad3b00119fe8504515067805f2d3519eb78cc79a1bca268ac4641c10c84dd422",
+      "hash": "5b8088f869f6f6f525139249369233cfaff9826bd1b0aaf9ba2ca07d6093d0bc",
       "dirMeta": {
         "file_count": 6,
         "dir_count": 1
       },
-      "sourceHash": "ad3b00119fe8504515067805f2d3519eb78cc79a1bca268ac4641c10c84dd422",
+      "sourceHash": "5b8088f869f6f6f525139249369233cfaff9826bd1b0aaf9ba2ca07d6093d0bc",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 1
@@ -533,12 +533,12 @@
       "source": "features/common/skills/commit-reminder",
       "target": ".ai-badger/skills/commit-reminder",
       "frameworkVersion": "0.154.0",
-      "hash": "fed34486bd88c9c9b0997ae90528031f2aa49567e521e78800976fd6e5e0d89f",
+      "hash": "95972a58ef6cc8657f481c63ee88f79b70eae58b6013f3758527e8683d23ba32",
       "dirMeta": {
         "file_count": 7,
         "dir_count": 1
       },
-      "sourceHash": "fed34486bd88c9c9b0997ae90528031f2aa49567e521e78800976fd6e5e0d89f",
+      "sourceHash": "95972a58ef6cc8657f481c63ee88f79b70eae58b6013f3758527e8683d23ba32",
       "sourceMeta": {
         "file_count": 7,
         "dir_count": 1
@@ -722,12 +722,12 @@
       "source": "features/common/skills/mcp-index",
       "target": ".ai-badger/skills/mcp-index",
       "frameworkVersion": "0.154.0",
-      "hash": "1c82e4dd9963e9b35152fb2a9f982e157e70b56ded8b59e4ebad4eb60113cb55",
+      "hash": "5fd09535ee873ad6d343c501b35538cbdd19dc1dc94720d21050dd2a74927a2f",
       "dirMeta": {
         "file_count": 10,
         "dir_count": 2
       },
-      "sourceHash": "1c82e4dd9963e9b35152fb2a9f982e157e70b56ded8b59e4ebad4eb60113cb55",
+      "sourceHash": "5fd09535ee873ad6d343c501b35538cbdd19dc1dc94720d21050dd2a74927a2f",
       "sourceMeta": {
         "file_count": 10,
         "dir_count": 2
@@ -1149,12 +1149,12 @@
       "source": "features/common/skills/worktree-agent-isolation",
       "target": ".ai-badger/skills/worktree-agent-isolation",
       "frameworkVersion": "0.154.0",
-      "hash": "7748daeb424386b2382b4101c20c7d751628a5af122bf21a2d1ea389fa7b019f",
+      "hash": "e961d3176d5021427dc14ef2c4786dabeb85a1f9591d862854da10b9f2b00815",
       "dirMeta": {
         "file_count": 14,
         "dir_count": 2
       },
-      "sourceHash": "7748daeb424386b2382b4101c20c7d751628a5af122bf21a2d1ea389fa7b019f",
+      "sourceHash": "e961d3176d5021427dc14ef2c4786dabeb85a1f9591d862854da10b9f2b00815",
       "sourceMeta": {
         "file_count": 14,
         "dir_count": 2
