@@ -166,14 +166,16 @@ def record_search(session_id: Optional[str]) -> bool:
                     "INSERT INTO memory_first(session_id, payload, denials, updated_at) "
                     "VALUES (?, ?, 0, ?) ON CONFLICT(session_id) DO UPDATE SET "
                     "payload = excluded.payload, updated_at = excluded.updated_at",
-                    # pylint: disable-next=protected-access  (the shared row-stamp format)
+                    # the shared row-stamp format comes from the store's own helper
+                    # pylint: disable-next=protected-access
                     (safe, json.dumps({"consulted": True}), badger_store._now()),
                 )
                 store.conn.commit()
                 return True
             finally:
                 store.close()
-        except Exception:  # pylint: disable=broad-exception-caught  (a gate never raises)
+        # a gate never raises
+        except Exception:  # pylint: disable=broad-exception-caught
             pass
     path = marker_path(session_id)
     try:
@@ -288,7 +290,8 @@ def increment_denials(session_id: Optional[str]) -> bool:
                     "INSERT INTO memory_first(session_id, payload, denials, updated_at) "
                     "VALUES (?, ?, 1, ?) ON CONFLICT(session_id) DO UPDATE SET "
                     "denials = denials + 1, updated_at = excluded.updated_at",
-                    # pylint: disable-next=protected-access  (the shared row-stamp format)
+                    # the shared row-stamp format comes from the store's own helper
+                    # pylint: disable-next=protected-access
                     (safe, json.dumps({"consulted": False}), badger_store._now()),
                 )
                 store.conn.commit()

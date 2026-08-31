@@ -21,7 +21,8 @@ def _load(load_script, tmp_path, monkeypatch):
 
 
 def _state(beh):
-    return json.loads(beh.dl.STATE_FILE.read_text(encoding="utf-8"))
+    """State through the logger's own accessor: the store row since P2.2, legacy file otherwise."""
+    return beh.dl._state()  # pylint: disable=protected-access
 
 
 class TestBoundedDurationsStillWork:

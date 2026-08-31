@@ -244,7 +244,8 @@ def semantica_nudge_already_shown(
                 store.close()
             if row is not None:
                 return True
-        except Exception:  # pylint: disable=broad-exception-caught  (a hook never raises)
+        # a hook never raises
+        except Exception:  # pylint: disable=broad-exception-caught
             pass
     path = semantica_nudge_marker_path(session_id, base_dir=base_dir)
     return path.is_file() if path.name else False
@@ -270,7 +271,8 @@ def record_semantica_nudge_shown(
                 store.conn.execute(
                     "INSERT INTO semantica_nudge(session_id, payload, updated_at) "
                     "VALUES (?, ?, ?) ON CONFLICT(session_id) DO NOTHING",
-                    # pylint: disable-next=protected-access  (the shared row-stamp format)
+                    # the shared row-stamp format comes from the store's own helper
+                    # pylint: disable-next=protected-access
                     (safe, json.dumps({"shown": True}), badger_store._now()),
                 )
                 store.conn.commit()

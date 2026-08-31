@@ -37,6 +37,7 @@ from typing import Any, Dict, Optional, Tuple
 # debug_log sits beside this file in every deployment shape; it is a no-op unless the
 # call-behaviorist skill has switched debug on.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+# pylint: disable=no-member  # debug_log is an exec-populated shim; pylint cannot see its members
 try:
     import debug_log  # pylint: disable=import-error
 except ImportError:  # pragma: no cover - a missing logger must never break a hook

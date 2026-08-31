@@ -78,7 +78,12 @@ class TestWorktreeIsolationIsEnforced:
         mention it". The first dispatch establishes the fan-out; the second is the one the
         gate must refuse. The lane file is what proves the persona writes — the gate needs
         positive proof, and a type with no lane file is left alone.
+
+        The ledger's storage is the store's user root since P2.1b — patching the retired
+        LEDGER_DIR file seam (the row key) without redirecting the store would hit the
+        real developer DB, where suite-long contention flips this test (P2.3 finding).
         """
+        monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
         hook.dispatch_ledger.LEDGER_DIR = tmp_path / "dispatch-lanes"
         agents = tmp_path / ".claude" / "agents"
         agents.mkdir(parents=True, exist_ok=True)
