@@ -434,11 +434,13 @@ class TestCliUnderHermes:
         code = _run(monkeypatch, tt, "start", "T-H1", "--no-worktree", "--no-cron")
 
         assert code == 0
-        tasks = json.loads((tt.lib.EXECUTED_TASKS).read_text())["tasks"]
+        # Store rows, not file bytes (D18 flagged rewrite: executed-tasks.json is renamed away
+        # by the migration this very command ran).
+        tasks = tt.lib.load_tasks()["tasks"]
         entry = next(t for t in tasks if t["taskId"] == "T-H1")
         assert entry["resumeCommand"] == "hermes --resume sid-h"
         assert entry.get("trackingSource") == "hermes"
-        usage = json.loads(tt.lib.TOKEN_USAGE.read_text())["tasks"]
+        usage = tt.lib.load_usage()["tasks"]  # store rows (D18 flagged rewrite)
         uentry = next(t for t in usage if t["taskId"] == "T-H1")
         assert uentry["checkpoints"]["start"]["cumulative"]["inputTokens"] == 1000
 
@@ -461,7 +463,7 @@ class TestCliUnderHermes:
         _test_write(state, "{}")
         _run_args(monkeypatch, tt, "finish", "T-H2", "--force")
 
-        usage = json.loads(tt.lib.TOKEN_USAGE.read_text())["tasks"]
+        usage = tt.lib.load_usage()["tasks"]  # store rows (D18 flagged rewrite)
         uentry = next(t for t in usage if t["taskId"] == "T-H2")
         assert uentry["usage"]["inputTokens"] == 1000
         assert uentry["usage"]["grandTotal"] > 0
@@ -476,7 +478,7 @@ class TestCliUnderHermes:
         _run_args(monkeypatch, tt, "start", "T-H3", "--no-worktree", "--no-cron")
         _run_args(monkeypatch, tt, "reattach", "T-H3")
 
-        tasks = json.loads(tt.lib.EXECUTED_TASKS.read_text())["tasks"]
+        tasks = tt.lib.load_tasks()["tasks"]  # store rows (D18 flagged rewrite)
         entry = next(t for t in tasks if t["taskId"] == "T-H3")
         assert entry["resumeCommand"] == "hermes --resume sid-h"
 
@@ -493,7 +495,7 @@ class TestCliUnderHermes:
         code = _run_args(monkeypatch, tt, "subagent", "T-H4", "--delegation", "deleg_1")
 
         assert code == 0
-        usage = json.loads(tt.lib.TOKEN_USAGE.read_text())["tasks"]
+        usage = tt.lib.load_usage()["tasks"]  # store rows (D18 flagged rewrite)
         uentry = next(t for t in usage if t["taskId"] == "T-H4")
         sub = uentry["subagents"][0]
         assert sub["totalTokens"] == 350
@@ -538,7 +540,7 @@ class TestCliUnderHermes:
                             lambda: tmp_path / "no-hermes" / "state.db")
         code = _run_args(monkeypatch, tt, "start", "T-H7", "--no-worktree", "--no-cron")
         assert code == 0
-        tasks = json.loads(tt.lib.EXECUTED_TASKS.read_text())["tasks"]
+        tasks = tt.lib.load_tasks()["tasks"]  # store rows (D18 flagged rewrite)
         entry = next(t for t in tasks if t["taskId"] == "T-H7")
         assert entry["resumeCommand"] == "hermes --resume sid-h"
 

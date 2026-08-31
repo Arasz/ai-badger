@@ -253,9 +253,11 @@ def test_start_refuses_to_restart_a_finished_task(tt, monkeypatch, tmp_path, cap
     transcript = tmp_path / "t.jsonl"
     _run(monkeypatch, tt, "start", "T01",
          "--session-id", "sid-1", "--transcript-path", str(transcript))
+    # Seeded through the store (P0.3/D18 flagged rewrite: this used to save_json the legacy
+    # file, which a later migration would rename away without ever overwriting the row).
     tasks = tt.lib.load_tasks()
     tt.lib.find_entry(tasks, "T01")["state"] = tt.lib.STATE_FINISHED
-    tt.lib.save_json(tt.lib.EXECUTED_TASKS, tasks)
+    tt.lib.save_tasks_doc(tasks)
 
     code = _run(monkeypatch, tt, "start", "T01",
                 "--session-id", "sid-new", "--transcript-path", str(transcript))
@@ -764,8 +766,9 @@ class TestALegacyRiskFieldIsIgnored:
     def _legacy_entry(tt, task_id):
         """Stamp `risk` onto an entry the way a pre-0.123.0 `start --risk` would have.
 
-        Written by hand because no code path produces one any more — which is exactly why a
-        removal tested only against new entries proves nothing about the store on disk.
+        Written to the legacy file by hand because no code path produces one any more — and
+        deliberately so: the store drops the field on migration (P0.6a finding 10), so the
+        only faithful fixture for a surviving `risk` is the pre-migration file itself.
         """
         tasks = tt.lib.load_tasks()
         tt.lib.find_entry(tasks, task_id)["risk"] = True
@@ -792,15 +795,26 @@ class TestALegacyRiskFieldIsIgnored:
             f"the removed field still reaches the status line: {legacy}"
 
     def test_the_field_survives_on_disk_untouched(self, tt, monkeypatch, tmp_path):
-        """Ignored, not migrated: reading the store must not quietly rewrite the record."""
-        _no_cron_recorder(monkeypatch, tt)
-        _run(monkeypatch, tt, "start", "LEGACY-2", "--no-worktree", "--session-id", "sid-l2",
-             "--transcript-path", str(tmp_path / "l2.jsonl"))
-        self._legacy_entry(tt, "LEGACY-2")
+        """Ignored, not rewritten: reading the store must not quietly rewrite the record.
+
+        P0.3 flagged rewrite. The old flow (start, then stamp `risk` onto the row, then
+        re-read) contradicts the migrated store: a `start` writes a DB row that wins the
+        per-key dual-read (D22), so the file-only `risk` can never surface again. The era-
+        faithful contract is seeded here directly: a pre-migration file carrying `risk` is
+        served verbatim by a READ, and a read never migrates or rewrites it (migration is a
+        write's job, D6; the field is documented-dropped when a write does migrate, P0.6a #10).
+        """
+        tt.lib.ensure_data_dir()
+        _test_write(tt.lib.EXECUTED_TASKS, json.dumps({"tasks": [
+            {"taskId": "LEGACY-2", "sessionId": "sid-l2", "state": tt.lib.STATE_STARTED,
+             "risk": True},
+        ]}), encoding="utf-8")
 
         _run(monkeypatch, tt, "status")
 
-        assert tt.lib.find_entry(tt.lib.load_tasks(), "LEGACY-2")["risk"] is True
+        entry = tt.lib.find_entry(tt.lib.load_tasks(), "LEGACY-2")
+        assert entry["risk"] is True
+        assert tt.lib.EXECUTED_TASKS.exists(), "a read must not rename the legacy file"
 
     def test_start_no_longer_accepts_the_flag(self, tt, monkeypatch, tmp_path):
         """A flag that buys nothing must fail loudly, not be silently accepted and ignored."""

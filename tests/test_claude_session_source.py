@@ -202,11 +202,13 @@ class TestClaudeCli:
                     "--transcript-path", str(transcript))
 
         assert code == 0
-        tasks = json.loads((tt.lib.EXECUTED_TASKS).read_text())["tasks"]
+        # Rows are read back through the store (P0.3/D18 flagged rewrite: this assertion used
+        # to read executed-tasks.json / token-usage.json bytes, which migration renames away).
+        tasks = tt.lib.load_tasks()["tasks"]
         entry = next(t for t in tasks if t["taskId"] == "T-C1")
         assert entry["resumeCommand"] == "claude --resume sid-c"
         assert entry.get("trackingSource") == "claude"
-        usage = json.loads(tt.lib.TOKEN_USAGE.read_text())["tasks"]
+        usage = tt.lib.load_usage()["tasks"]
         uentry = next(t for t in usage if t["taskId"] == "T-C1")
         assert uentry["checkpoints"]["start"]["cumulative"]["inputTokens"] == 900
 
@@ -255,7 +257,7 @@ class TestClaudeCli:
         _test_write(state, "{}")
         _run(monkeypatch, tt, "finish", "T-C3", "--force")
 
-        usage = json.loads(tt.lib.TOKEN_USAGE.read_text())["tasks"]
+        usage = tt.lib.load_usage()["tasks"]  # store rows (D18 flagged rewrite; was file bytes)
         uentry = next(t for t in usage if t["taskId"] == "T-C3")
         assert uentry["usage"]["inputTokens"] == 1000
         assert uentry["usage"]["grandTotal"] > 0
