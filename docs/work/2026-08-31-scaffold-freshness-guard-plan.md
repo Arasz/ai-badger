@@ -4,6 +4,10 @@ Task: `aib-scaffold-freshness-guard-blindspot-proof` · Base: main @ `19e28a7b` 
 Effort: HIGH · MoE plan lanes: architect (d-23, transcribed), test-engineer (d-32), code-reviewer (d-27)
 Plan review: api-engineer (d-34, APPROVE-WITH-CHANGES), qa (d-35, REQUEST-CHANGES — probes run) — all findings folded, mapping in §8.
 
+> **G0 OWNER APPROVAL (verbatim, 2026-08-31):** "approved, F1 - a" — plan rev 2 approved;
+> F1 in-suite flake investigation = option (a), 2h time-box in Package 7. G0 open questions
+> 1–2 were closed by review before approval (D5 amended, exit 2 kept).
+
 > **Rev-2 changes from rev 1:** D1 order contract + refactor shape (API-F1/F2/F5), D2 exit mechanism + message pinning (API-F4/F9, QA-F6/F7), D3 manifest-read correction (API-F3), D5 canary taken (API-F12, QA-F10), D6b restated per-transport (QA-F4), D8 changelog scope (API-F6/F10), AC2 recipe rebuilt (QA-F3), AC1 digest scoped (QA-F5), runbook scratch fixed (QA-F1), Package 7 two-green-runs (QA-F2), clause position pinned (QA-F8).
 
 **Lane docs (read for depth; where they disagree, this plan wins):**
