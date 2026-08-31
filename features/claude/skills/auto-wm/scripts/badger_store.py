@@ -243,6 +243,10 @@ VENDORED_PATHS: tuple[dict[str, str], ...] = (
     {"consumer": "auto-wm", "lands_in": "features/claude/skills/auto-wm/scripts/badger_store.py"},
     {"consumer": "auto-wm", "lands_in": "skills/auto-wm/scripts/badger_store.py"},
     {"consumer": "mcp-index", "lands_in": "skills/mcp-index/scripts/badger_store.py"},
+    {"consumer": "call-behaviorist",
+     "lands_in": "features/common/skills/call-behaviorist/scripts/badger_store.py"},
+    {"consumer": "call-behaviorist",
+     "lands_in": "skills/call-behaviorist/scripts/badger_store.py"},
 )
 
 

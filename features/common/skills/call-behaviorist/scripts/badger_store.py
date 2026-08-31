@@ -11,11 +11,13 @@ imports nothing from the engine and nothing outside the standard library.
 """
 from __future__ import annotations
 
+import argparse
 import contextlib
 import json
 import os
 import re
 import sqlite3
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -241,6 +243,10 @@ VENDORED_PATHS: tuple[dict[str, str], ...] = (
     {"consumer": "auto-wm", "lands_in": "features/claude/skills/auto-wm/scripts/badger_store.py"},
     {"consumer": "auto-wm", "lands_in": "skills/auto-wm/scripts/badger_store.py"},
     {"consumer": "mcp-index", "lands_in": "skills/mcp-index/scripts/badger_store.py"},
+    {"consumer": "call-behaviorist",
+     "lands_in": "features/common/skills/call-behaviorist/scripts/badger_store.py"},
+    {"consumer": "call-behaviorist",
+     "lands_in": "skills/call-behaviorist/scripts/badger_store.py"},
 )
 
 
@@ -306,9 +312,13 @@ def audit_db_path() -> Path:
 
 
 def _ensure_root(db_path: Path) -> None:
-    """Create the DB's parent 0700 when absent; an existing root keeps its own mode (D17)."""
+    """Create the DB's parent 0700 when absent; an existing root keeps its own mode (D17).
+
+    `exist_ok` is load-bearing: concurrent first-opens (a fan-out's hooks all opening the
+    user store at once) race the mkdir, and a bare mkdir loses the race with FileExistsError.
+    """
     if not db_path.parent.is_dir():
-        db_path.parent.mkdir(parents=True)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(db_path.parent, 0o700)
 
 
@@ -1056,7 +1066,7 @@ class Store:
             self.conn.execute("BEGIN IMMEDIATE")
             try:
                 cursor = self.conn.execute(f"DELETE FROM {table} WHERE ts < ?", (cutoff,))
-                pruned = cursor.rowcount
+                pruned = cursor.rowcount + self._sweep_unparseable_ts(table)
                 self.conn.execute(
                     "INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)",
                     (stamp_key, json.dumps(time.time())),
@@ -1069,6 +1079,18 @@ class Store:
             return 0  # a broken store never blocks a caller on maintenance (D31)
         return pruned
 
+    def _sweep_unparseable_ts(self, table: str) -> int:
+        """Delete rows whose ts never parses; return the count. Caller holds the write txn.
+
+        A row that never parses can never satisfy any future cutoff, so string comparison
+        alone leaves it immortal (D36). The scan is hour-throttled like the prune itself
+        and the tables it touches are retention-bounded, so the full pass stays cheap.
+        """
+        rows = self.conn.execute(f"SELECT rowid, ts FROM {table}").fetchall()
+        dead = [row[0] for row in rows if not _parseable_ts(row[1])]
+        for rowid in dead:
+            self.conn.execute(f"DELETE FROM {table} WHERE rowid = ?", (rowid,))
+        return len(dead)
 
     # -- writes (may raise) ------------------------------------------------------------
 
@@ -1498,6 +1520,25 @@ class Store:
         return expected
 
 
+def _parseable_ts(ts) -> bool:
+    """True for a ts the prune's string comparison can be trusted on: non-empty ISO-8601."""
+    if not isinstance(ts, str) or not ts:
+        return False
+    try:
+        datetime.fromisoformat(ts)
+    except ValueError:
+        return False
+    return True
+
+
+#: The retention scope (owner decision #2 + G0-Q2): every log table and the DB it lives
+#: in. The on-write callers name their table; the CLI reports the whole scope.
+LOG_TABLES: dict[str, tuple[str, ...]] = {
+    "user": ("awm_decisions", "searches"),
+    "audit": ("hook_audit",),
+}
+
+
 def _open(db_path: Path, kind: str, families: Optional[dict] = None) -> Store:
     _ensure_root(db_path)
     _precreate_db_file(db_path)
@@ -1505,7 +1546,20 @@ def _open(db_path: Path, kind: str, families: Optional[dict] = None) -> Store:
     store = Store(conn, db_path, kind, families)
     try:
         conn.execute("PRAGMA busy_timeout = 5000")
-        conn.execute("PRAGMA journal_mode = WAL")
+        for attempt in range(4):
+            # Parallel first opens race the WAL conversion: it takes a lock the
+            # winner holds and returns BUSY without honouring busy_timeout, so
+            # retry briefly and accept a database someone already converted.
+            try:
+                conn.execute("PRAGMA journal_mode = WAL")
+                break
+            except sqlite3.OperationalError:
+                mode = conn.execute("PRAGMA journal_mode").fetchone()
+                if mode and str(mode[0]).lower() == "wal":
+                    break
+                if attempt == 3:
+                    raise
+                time.sleep(0.05)
         conn.execute("PRAGMA synchronous = NORMAL")
         _create_schema(conn)
         _ensure_schema_version(conn, db_path)
@@ -1525,3 +1579,79 @@ def open_tracking(families: Optional[dict] = None) -> Store:
 def open_user(families: Optional[dict] = None) -> Store:
     """Open (creating when absent) the user-level store; defaults to USER_FAMILIES."""
     return _open(user_db_path(), "user", USER_FAMILIES if families is None else families)
+
+
+# -- CLI: `prune --status`, the retention scope's read-only inspection surface ---------
+
+def _render_stamp(conn: sqlite3.Connection, table: str) -> str:
+    """The table's pruned_at stamp as a UTC timestamp, or '-' when absent/foreign."""
+    try:
+        row = conn.execute("SELECT value FROM meta WHERE key = ?",
+                           (f"pruned_at.{table}",)).fetchone()
+    except sqlite3.Error:
+        return "-"
+    if row is None:
+        return "-"
+    try:
+        moment = float(json.loads(row[0]))
+    except (TypeError, ValueError):
+        return "-"
+    return datetime.fromtimestamp(moment, timezone.utc).isoformat()
+
+
+def prune_status_lines() -> list[str]:
+    """Retention state of every log table (LOG_TABLES): rows, oldest ts, last prune stamp.
+
+    Read-only throughout — a status verb must never create, migrate or write the store it
+    reports on (mode=ro), and an absent DB is reported as such with zeroed tables.
+    """
+    lines: list[str] = []
+    for db_kind, tables in LOG_TABLES.items():
+        db_path = user_db_path() if db_kind == "user" else audit_db_path()
+        header = f"db={db_kind} path={db_path}"
+        conn = None
+        if db_path.exists():
+            try:
+                conn = sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True)
+            except sqlite3.Error:
+                conn = None
+        if conn is None:
+            header += " status=no-database"
+        lines.append(header)
+        for table in tables:
+            rows, oldest, stamp = 0, "-", "-"
+            if conn is not None:
+                try:
+                    count, min_ts = conn.execute(
+                        f"SELECT COUNT(*), MIN(ts) FROM {table}").fetchone()
+                    rows, oldest = int(count), min_ts if min_ts is not None else "-"
+                    stamp = _render_stamp(conn, table)
+                except sqlite3.Error:
+                    pass  # a DB predating the table reports as empty
+            lines.append(f"  {table} rows={rows} oldest={oldest} last_prune={stamp}")
+        if conn is not None:
+            with contextlib.suppress(sqlite3.Error):
+                conn.close()
+    return lines
+
+
+def main(argv: Optional[list] = None) -> int:
+    """CLI entry point; the one verb is `prune --status` (retention inspection, D30)."""
+    parser = argparse.ArgumentParser(
+        prog="badger_store", description="SQLite runtime store utilities (ADR-0024)")
+    sub = parser.add_subparsers(dest="command", required=True)
+    prune = sub.add_parser("prune", help="retention over the log tables")
+    prune.add_argument("--status", action="store_true",
+                       help="per-table row count, oldest row and last prune stamp")
+    args = parser.parse_args(argv)
+    if args.command == "prune":
+        if not args.status:
+            prune.error("nothing to do — only --status is implemented")
+        for line in prune_status_lines():
+            print(line)
+        return 0
+    return 2  # unreachable: the subcommand is required
+
+
+if __name__ == "__main__":
+    sys.exit(main())
