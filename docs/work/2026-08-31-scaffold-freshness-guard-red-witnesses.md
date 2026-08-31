@@ -253,3 +253,101 @@ Neither transport under-delivers *silently-and-wrongly* post-fix: list-form must
 | `/tmp/aib-red-ac3-nC7OuK` | AC3 8-step trap + AC4 outcome tier |
 | `/tmp/aib-red-ac1-nzE8gK` + `/tmp/aib-ac1-cloneB` | AC1 control |
 | `/tmp/aib-red-d6b-list-LwWiC9`, `/tmp/aib-red-d6b-shell-*` | D6b E1/E2 |
+
+---
+
+# Package 4 — guard fail-fast + explicit argv (pytest transitions + post-fix scratch re-runs)
+
+Commit `ab4fa629` (+ `7c785f71` header fix). RED side below = each new test run **against
+pre-fix HEAD** (`0602dac6`), one at a time, in the worktree test env
+(`/tmp/aib-venv311/bin/python -m pytest`, fixtures are tmp copies — never run against the
+worktree itself). GREEN side = same tests at `7c785f71`. Scratch re-runs of the Package 1
+recipes post-fix corroborate in `/tmp/aib-green4b-l34PAe` (AC2a), `/tmp/aib-green4c-*`
+(AC2b), `/tmp/aib-green4d-I5PqZ9` (AC3), all from `git archive HEAD` of the fix branch,
+fixture-style setup.
+
+## AC2 — rebuilt recipe
+
+- **RED** (`test_a_narrowed_manifest_fails_fast_naming_the_lost_mirror` @ `0602dac6`):
+  exit **1**, but via host-link findings only — stdout named `.claude/skills/ai-raccoon-memory`
+  and `.github/skills/ai-raccoon-memory` ("the re-scaffold no longer writes it"), remediation
+  `--skills ''`; **no mirror path, no narrowing cause** — RED exactly at the witnessed
+  discriminator (Package 1's plan-deviation finding: the rebuilt recipe cannot produce a
+  pre-fix PASS; the pytest binds to the post-fix D2 assertions instead).
+- **GREEN** (same test @ `7c785f71`): exit 1; stdout begins
+  `SCAFFOLD FRESHNESS GUARD FAILED: the manifest records 31 scaffolded skill(s) but 32 are
+  expected from .ai-badger/config.json: 1 skill mirror(s) recorded nowhere…` and names
+  `.ai-badger/skills/ai-raccoon-memory/SKILL.md  (recorded in no manifest row, narrowed)`.
+- **Scratch re-run** (`/tmp/aib-green4b-*`): same recipe, `exit=1`, header + mirror path +
+  rationale + hedge + explicit 32-name `--skills` remediation (block order visible:
+  defaults, include-derived, stack-local `auto-wm,cron-watchdog-authoring,hermes-plugin-development`).
+- **AC2(b) d-16 shape post-fix** (`/tmp/aib-green4c-*`: narrowed manifest + host links
+  removed + hand-edited lost mirror — the tree that PASSED pre-fix): **exit 1**, narrowing
+  verdict. The blindness is closed at both reachable shapes.
+
+## AC3 — remediation re-blinding trap
+
+- **RED** (`test_the_remediation_restores_what_the_manifest_lost_…` @ `0602dac6`): failed at
+  **assertion 6** — after executing the printed `--skills ''` remediation, the victim's
+  mirror row is still absent from the regenerated manifest (`any(...)` False). The trap is
+  fully live pre-fix; Package 1's scratch run additionally witnessed assertion 8's PASS.
+- **GREEN** (same test @ `7c785f71`): all eight assertions hold — guard#1 exit 1
+  (narrowing verdict, remediation still printed — QA-F6b), remediation executes exit 0 on
+  bare PATH, manifest-regeneration pin True, guard#2 exit 1 naming
+  `.ai-badger/skills/ai-raccoon-memory/SKILL.md` with the ordinary **`hand-edited`** verdict.
+- **Scratch re-run** (`/tmp/aib-green4d-I5PqZ9`): guard#1 exit 1 → executed advice exit 0
+  with `scaffolded 212 entries` (the FULL set — no `reused` note; pre-fix printed `reused 31`)
+  → step-6 pin `victim mirror row present: True | skill rows: 32 | entries: 212` → hand-edit →
+  guard#2 `exit=1`, finding `(content differs, hand-edited)`.
+
+## AC4 — remediation message audit
+
+- **RED mechanism** (`test_the_remediation_argv_carries_the_expected_set_explicitly` @
+  `0602dac6`): `TypeError: rescaffold_argv() takes 5 positional arguments but 6 were given`
+  — the signature is part of the contract (API-F8); the semantic RED is Package 1's
+  mechanism-tier artifact (joined argv tail `--skills ` matching EMPTY at span (171, 180)).
+- **RED outcome** (`test_the_printed_remediation_never_carries_an_empty_skills_value` @
+  `0602dac6`): `EMPTY_SKILLS_RE` matched the rendered advice at **span (165, 176),
+  match="--skills ''"**.
+- **GREEN** (both @ `7c785f71`): mechanism tier — no EMPTY match, NONEMPTY match, and the
+  set itself carried in both `rescaffold_argv(...)` and `remediation(expected)`; outcome
+  tier — no EMPTY match anywhere in guard stdout, NONEMPTY matches, and the rationale clause
+  indexes BEFORE `Re-scaffold this repo` (QA-F8). Predicate tables (18 rows, incl. the
+  trailing-space + EOS shape) pinned both ways.
+
+## D2/D4 refusals + one-oracle pin
+
+- **D4 RED** (`test_an_empty_derived_expected_set_refuses_instead_of_recovering`):
+  pre-fix `exit 2` but the message was the late `SCAFFOLDER FAILED … can't open file
+  …/work/features/…/scaffold.py` — no derivation named. **GREEN**: `COULD NOT RUN: the
+  expected skill set derived from …/config.json is empty: a broken derivation must not fall
+  back to manifest recovery`.
+- **Parse RED** (`test_an_unparseable_config_refuses_at_the_derivation_site_not_a_traceback`):
+  same late SCAFFOLDER FAILED shape pre-fix. **GREEN**: `… could not be parsed as
+  config.json: …`, exit 2, no traceback.
+- **One-oracle RED** (`test_rescaffold_derives_the_skill_list_from_the_work_copys_own_config`):
+  pre-fix the monkeypatched run received `['--skills', '']` — recovery, not the derived set.
+  **GREEN**: `['--skills', 'alpha']` derived from the work copy's own config.
+- **Meta-suite narrowing provocation** (`the manifest lost a skill row`): provoked lane RED
+  at `0602dac6` (gate failed exit 1 but with the wrong story — host-link/manifest findings,
+  `--skills ''` advice; signal `contains="expected from .ai-badger/config.json"` unmet);
+  GREEN at `7c785f71` both lanes (provoked exit 1 with the narrowing verdict; clean fixture
+  exit 0).
+
+## AC1a — idempotence control + canary
+
+- `test_a_second_scaffold_regenerates_the_same_tree_modulo_stamps` GREEN pre- and post-fix
+  (control, as designed; Package 1's scratch control concurs). Explicit-env second scaffold
+  with `--generated-at` pinned; managed-tree digest (`.git` excluded, `is_noise` applied);
+  residual differences after the guard's `normalized()`: **[]**.
+- `_freshen` canary (D5 amended): asserts the `reused N skill(s)` note's N == the manifest's
+  skill-row count (32); `test_a_fresh_tree_passes` and the kept remediation test carry the
+  planned docstring notes.
+
+## Suite gate
+
+`/tmp/aib-venv311/bin/python -m pytest -q` at `7c785f71`: **4763 passed, 17 skipped**
+(4735 baseline + 26 new guard-file items + 2 meta-suite lanes; guard file 39/39,
+`test_scaffold_empty_skills.py` + `test_expected_skill_names.py` +
+`test_scaffold_skills_argv.py` 23/23, pre-commit hooks 10/10 incl. the new guard live
+against the worktree).
