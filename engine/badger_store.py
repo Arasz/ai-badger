@@ -1,3 +1,6 @@
+# the P1 user families pushed this single vendored module past 1000 lines; one file per
+# ADR-0009, so the line budget yields (same arrangement as badger_lib.py)
+# pylint: disable=too-many-lines
 """SQLite runtime store for ai-badger (ADR-0024).
 
 One stdlib-only module, vendored verbatim per ADR-0009: project runtime state lives in
@@ -14,7 +17,7 @@ import os
 import re
 import sqlite3
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator, NamedTuple, Optional
 
@@ -33,6 +36,10 @@ USER_ROOT_ENV = "AI_BADGER_USER_ROOT"
 DEBUG_DIR_ENV = "AI_BADGER_DEBUG_DIR"
 
 _TABLE_NAME = re.compile(r"[a-z_][a-z0-9_]*\Z")
+
+#: Minimum seconds between two prunes of the same log table (D9/D30): the open-time prune
+#: is throttled by the per-table ``pruned_at`` meta stamp so a burst of opens prunes once.
+_PRUNE_THROTTLE_SECONDS = 3600
 
 # The default home snapshots at import, before anything redirects $HOME for a session (the same
 # pattern conftest's REAL_HOME uses): $HOME is session-wide state, never one of the three
@@ -110,6 +117,47 @@ _DDL = (
         updated_at TEXT NOT NULL
     )
     """,
+    # P1 user families (ADR-0024): the three KV tables share the statusline shape; the two
+    # append-log tables follow the ts-index convention — every log table carries an index on
+    # its ts column at creation (D17c), so the 60-day prune's range query stays indexed:
+    # awm_decisions and searches here, hook_audit with its DDL in P2.1.
+    """
+    CREATE TABLE IF NOT EXISTS awm_state (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS commit_reminder (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS pending_feedback (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS awm_decisions (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts      TEXT NOT NULL,
+        payload TEXT NOT NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_awm_decisions_ts ON awm_decisions(ts)",
+    """
+    CREATE TABLE IF NOT EXISTS searches (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts      TEXT NOT NULL,
+        payload TEXT NOT NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_searches_ts ON searches(ts)",
 )
 
 
@@ -215,6 +263,20 @@ def _assert_file_perms(db_path: Path) -> None:
             os.chmod(candidate, 0o600)
 
 
+def _precreate_db_file(db_path: Path) -> None:
+    """Create an absent DB file at 0600 BEFORE sqlite3.connect runs (P0.6b carry 1).
+
+    sqlite creates the file with the process umask, leaving a first-open window where a new
+    DB exists world-readable until the end-of-open chmod; creating it here closes that window
+    for both DBs, and the explicit chmod keeps the mode umask-independent.
+    """
+    if db_path.exists():
+        return
+    fd = os.open(str(db_path), os.O_CREAT | os.O_RDWR, 0o600)
+    os.close(fd)
+    os.chmod(db_path, 0o600)
+
+
 def _create_schema(conn: sqlite3.Connection) -> None:
     for statement in _DDL:
         conn.execute(statement)
@@ -283,6 +345,54 @@ FAMILIES: dict[str, Family] = {
         legacy_path=lambda: tracking_db_path().parent.parent / "prompt-markers"
         / "marker-state.json",
         legacy_kind="map",
+    ),
+}
+
+
+def _user_root() -> Path:
+    """The root .ai-badger user artifacts resolve against: USER_ROOT env, else the real home."""
+    env = os.environ.get(USER_ROOT_ENV)
+    return Path(env) if env else _DEFAULT_HOME / ".ai-badger"
+
+
+#: The user-DB families (P1.1): schema and legacy paths land here; each family's import wiring
+#: ("deferred" -> a real kind) lands with the lane that rewires its writer, so no store open
+#: imports or renames a source its writer still owns (D5/D6): awm_state and awm_decisions with
+#: P1.2's awm rewiring, commit_reminder with the commit-reminder lane, searches with P1.4.
+#: Until then a deferred family has neither dual-read nor lazy import.
+USER_FAMILIES: dict[str, Family] = {
+    "awm_state": Family(
+        table="awm_state",
+        db="user",
+        # ~/.claude/awm is not a .ai-badger artifact: it follows the real home, never
+        # AI_BADGER_USER_ROOT (the snapshot also keeps the suite's $HOME redirect from moving it).
+        legacy_path=lambda: _DEFAULT_HOME / ".claude" / "awm" / "state.json",
+        legacy_kind="deferred",
+    ),
+    "awm_decisions": Family(
+        table="awm_decisions",
+        db="user",
+        legacy_path=lambda: _DEFAULT_HOME / ".claude" / "awm" / "decisions.jsonl",
+        legacy_kind="deferred",
+    ),
+    "commit_reminder": Family(
+        table="commit_reminder",
+        db="user",
+        legacy_path=lambda: _user_root() / "commit-reminder" / "state.json",
+        legacy_kind="deferred",
+    ),
+    "pending_feedback": Family(
+        table="pending_feedback",
+        db="user",
+        legacy_path=lambda: _user_root() / "pending-feedback.json",
+        legacy_kind="deferred",
+        row_key="pending",  # the kvdoc row key its import lands under
+    ),
+    "searches": Family(
+        table="searches",
+        db="user",
+        legacy_path=lambda: _user_root() / "memory-grade" / "searches.json",
+        legacy_kind="deferred",
     ),
 }
 
@@ -722,6 +832,49 @@ class Store:
             (key, json.dumps(value)),
         )
 
+    # -- retention seam (the open-time caller and full prune UX land with P2.3; D9/D17c) --
+
+    def prune_expired(self, table: str, *, max_age_days: int = 60) -> int:
+        """Delete log rows whose ``ts`` predates the age cutoff; return the deleted row count.
+
+        The per-table ``pruned_at.<table>`` meta stamp throttles: a second call inside the
+        window deletes nothing (returns 0) even when rows expired since — the next window
+        catches them. Stamp check, DELETE, and stamp rewrite share one BEGIN IMMEDIATE, so
+        the throttle has no check-then-act window; every sqlite failure fails open as 0 (D9).
+        """
+        _check_table_name(table)
+        stamp_key = f"pruned_at.{table}"
+        try:
+            row = self.conn.execute(
+                "SELECT value FROM meta WHERE key = ?", (stamp_key,)
+            ).fetchone()
+        except sqlite3.Error:
+            return 0
+        if row is not None:
+            try:
+                last = float(json.loads(row[0]))
+            except (TypeError, ValueError):
+                last = None
+            if last is not None and time.time() - last < _PRUNE_THROTTLE_SECONDS:
+                return 0
+        try:
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).isoformat()
+            self.conn.execute("BEGIN IMMEDIATE")
+            try:
+                cursor = self.conn.execute(f"DELETE FROM {table} WHERE ts < ?", (cutoff,))
+                pruned = cursor.rowcount
+                self.conn.execute(
+                    "INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)",
+                    (stamp_key, json.dumps(time.time())),
+                )
+                self.conn.commit()
+            except BaseException:
+                self.conn.rollback()
+                raise
+        except sqlite3.Error:
+            return 0  # a broken store never blocks a caller on maintenance (D31)
+        return pruned
+
 
     # -- writes (may raise) ------------------------------------------------------------
 
@@ -754,6 +907,8 @@ class Store:
             self._migrate_family(family)
 
     def _migrate_family(self, family: Family) -> None:
+        if family.legacy_kind == "deferred":
+            return  # import wiring lands with the family's writer lane (see USER_FAMILIES)
         path = family.legacy_path()
         if not path.exists():
             return
@@ -875,6 +1030,7 @@ class Store:
 
 def _open(db_path: Path, kind: str, families: Optional[dict] = None) -> Store:
     _ensure_root(db_path)
+    _precreate_db_file(db_path)
     conn = sqlite3.connect(db_path, timeout=5.0, isolation_level=None)
     store = Store(conn, db_path, kind, families)
     try:
@@ -897,5 +1053,5 @@ def open_tracking(families: Optional[dict] = None) -> Store:
 
 
 def open_user(families: Optional[dict] = None) -> Store:
-    """Open (creating when absent) the user-level store."""
-    return _open(user_db_path(), "user", families)
+    """Open (creating when absent) the user-level store; defaults to USER_FAMILIES."""
+    return _open(user_db_path(), "user", USER_FAMILIES if families is None else families)
