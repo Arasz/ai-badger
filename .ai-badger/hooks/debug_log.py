@@ -31,7 +31,11 @@ SCOPE_PROJECT = "project"
 VERSION_UNKNOWN = "unknown"
 
 # The store module: vendored beside this file in every deployment shape, engine/ canonical in
-# tests. Absent -> legacy file mode (the old jsonl/state.json sink, still fully functional).
+# tests. The scaffolder ships the pair together (adjust_hooks' PROJECT_HOOKS/USER_PLUGINS put
+# badger_store.py beside every debug_log copy it delivers); when the sibling is nonetheless
+# absent or unreadable — an older or partial shape — the loader degrades to legacy file mode
+# (the old jsonl/state.json sink, still fully functional) instead of breaking this module's
+# import: a missing store must never take a hook down with it (D31).
 def _load_store_module():
     try:
         import badger_store
@@ -44,7 +48,11 @@ def _load_store_module():
         return None
     module = importlib.util.module_from_spec(spec)
     sys.modules.setdefault("badger_store", module)
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except OSError:
+        sys.modules.pop("badger_store", None)
+        return None
     return module
 
 
