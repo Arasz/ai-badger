@@ -127,6 +127,11 @@ if artifacts or unknown:
     a gateway alias would have matched); return 2
 ```
 
+> **SUPERSEDED by rev-2 D3 (API-F3):** the `# already read for recovery` comment is false —
+> this block runs exactly when `skills` is non-empty, so the recovery branch has not run and
+> the manifest has NOT been read; `main()` needs its own read of
+> `target/.ai-badger/manifest.json` with the same absent/corrupt tolerance as recovery.
+
 - **Quoting artifacts are refused unconditionally** — no legitimate flow passes quote
   characters as skill names.
 - **Unknown names are refused only when neither catalog nor manifest knows them** — a typo
@@ -156,6 +161,13 @@ def expected_skill_names(root: Path, config: Dict[str, Any]) -> List[str]:
     ∪ gateway-alias-mapped include-expansion (∩ addable) ∪ stack-local discovery,
     minus config-declined. Sorted."""
 ```
+
+> **SUPERSEDED by rev-2 D1 (API-F1/F5):** "Sorted" is wrong — the helper must return
+> `Scaffolder`'s delivery BLOCK order (defaults block, include-derived block, stack-local in
+> `resolve_stacks` order); a flat-sorted list changes manifest row order, which the guard's
+> `normalized()` preserves, and fails healthy trees. Composition must also name
+> `resolve_stacks` (config-overridable `commonStacks` vs the constant skip-set) and the
+> alias-mapped exclusions.
 
 Composition mirrors `Scaffolder.__init__` L262–279 + `discover_stack_local` (skill_delivery.py
 L254–267), citing the same primitives (`default_skills_in` L782, `opt_in_skills_in` L787,

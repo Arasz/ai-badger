@@ -1,7 +1,10 @@
 # Master plan — scaffold freshness guard must be blind-spot-proof
 
-Task: `aib-scaffold-freshness-guard-blindspot-proof` · Base: main @ `19e28a7b` (v0.149.1) · Rev 1 · 2026-08-31
+Task: `aib-scaffold-freshness-guard-blindspot-proof` · Base: main @ `19e28a7b` (v0.149.1) · **Rev 2** · 2026-08-31
 Effort: HIGH · MoE plan lanes: architect (d-23, transcribed), test-engineer (d-32), code-reviewer (d-27)
+Plan review: api-engineer (d-34, APPROVE-WITH-CHANGES), qa (d-35, REQUEST-CHANGES — probes run) — all findings folded, mapping in §8.
+
+> **Rev-2 changes from rev 1:** D1 order contract + refactor shape (API-F1/F2/F5), D2 exit mechanism + message pinning (API-F4/F9, QA-F6/F7), D3 manifest-read correction (API-F3), D5 canary taken (API-F12, QA-F10), D6b restated per-transport (QA-F4), D8 changelog scope (API-F6/F10), AC2 recipe rebuilt (QA-F3), AC1 digest scoped (QA-F5), runbook scratch fixed (QA-F1), Package 7 two-green-runs (QA-F2), clause position pinned (QA-F8).
 
 **Lane docs (read for depth; where they disagree, this plan wins):**
 - `docs/work/2026-08-31-scaffold-freshness-guard-research.md` — evidence bundle
@@ -54,14 +57,14 @@ Hypotheses (labelled, non-blocking): the exact caller behind `ea17ae60`; F1's in
 
 | D# | Decision | Provenance |
 |---|---|---|
-| D1 | **R3 form: explicit config-derived expected set.** `rescaffold_argv` returns `--skills <sorted expected>`; the set comes from a new shared helper `expected_skill_names(root, config)` in `engine/badger_lib.py` (scope-default ∪ alias-mapped include-expansion ∪ stack-local − exclusions); `Scaffolder.__init__` is refactored to call the same helper — one oracle, guard and scaffolder cannot drift. Union-with-manifest rejected (half-trusts the suspect artifact; keeps re-delivering declined skills). Bare omission rejected (front-door trap). | reviewer §1.2–1.3 (decisive), architect §3.3/§3.5 concurs |
-| D2 | **R2 detection: fail-fast narrowing check** in guard `collect()` — `set(scaffolded_skill_names(manifest)) ⊊ set(expected)` ⇒ exit 1 **before the re-scaffold**, message names the narrowing + lists missing skills + counts. One-directional: superset manifests are legitimate (catalog-dropped skills surface later as "no longer writes it" findings — intended). | architect §3.2; test-engineer AC2 accepts fail-fast |
-| D3 | **R1 fix: argv validation** in scaffold.py `main()` between split (L806) and recovery (L808): quoting-artifact names (quote chars, backslashes, untrimmed) refused unconditionally; names unknown to catalog-AND-manifest refused (typo/garbage; alias hint); manifest-known names allowed (catalog-drop flow preserved). `--skills ""`/`","` recovery unchanged; exit 2 with named message. Resolves the hardening×expected-set conflict: expected-set names are catalog-known by construction. | architect §2.6 |
+| D1 | **R3 form: explicit config-derived expected set.** `rescaffold_argv` returns `--skills <expected>`; the set comes from a new shared helper `expected_skill_names(root, config)` in `engine/badger_lib.py`. **Composition (pin all inputs):** `sorted(default_skills_in(common))` block, then include-derived block — expand_skill_groups FIRST, then gateway-alias mapping, then sort, then ∩ addable (expand-before-alias order is load-bearing, scaffold.py L268) — then stack-local per `resolve_stacks(config)` order (config-overridable `commonStacks`; the skip-set is the constant `DEFAULT_COMMON_STACKS`, badger_lib L955/L958–968) — minus the **alias-mapped** exclusions (`exclusions(config, aliases)`, badger_lib L98–101) at every stage. **Order contract (API-F1, empirically verified): the helper returns `Scaffolder`'s delivery BLOCK order — NOT flat-sorted.** The flat-sorted form changes manifest row order, which `normalized()` preserves (guard L182–203), so the guard would FAIL healthy trees; re-scaffold would perpetuate it. **Refactor shape (API-F2): `Scaffolder.__init__` consumes ONLY the include-derived block** (replacing L268–269's inline composition), keeping `offered = dict.fromkeys(list(skills) + asked_for)` verbatim — the full expected set is the guard's; the naive full-set form silently widens narrow-argv delivery (`--skills task` would gain catalog defaults), a consumer contract (V10) no existing test pins. New pin test: narrow argv delivers no scope-default skill. Union-with-manifest rejected (half-trusts the suspect artifact). Bare omission rejected (front-door trap). | reviewer §1.2–1.3; architect §3.3/§3.5 concurs; API-F1/F2/F5 fold |
+| D2 | **R2 detection: fail-fast narrowing check** in guard `collect()` — `set(scaffolded_skill_names(manifest)) ⊊ set(expected)` ⇒ **exit 1 before the re-scaffold**, via a distinct `Narrowing` exception caught in `main()` (not a `Refusal` — the guard reached a verdict; AC2 asserts rc==1 and !=2), printing the standard findings + `Re-scaffold this repo` remediation block (AC3 step 5's `_printed_remediation` requires the header — QA-F6b). **Message names full mirror PATHS, not skill names** (QA-F7 — must satisfy AC2's `f"{mirror}/SKILL.md"` assertion), states recorded-vs-expected counts, and hedges delivery: names the missing set and flags that index-staleness can still silently skip delivery (API-F9 — the 0.147.0 incident). Config.json parse failure at this site ⇒ `Refusal` exit 2, not a traceback (API-F4). Module docstring (guard L1–17) updated — "every resulting difference is a finding" is no longer the whole charter (API-F4). One-directional: superset manifests legitimate; their mirrors surface as re-scaffold findings — for include-dropped skills the shape is "content differs on manifest.json" (SupersededPrune keeps the mirror), for catalog-dropped skills "no longer writes it" (API-F10) — changelog describes both. | architect §3.2; API-F4/F9/F10, QA-F6/F7 fold |
+| D3 | **R1 fix: argv validation** in scaffold.py `main()` between split (L806) and recovery (L808): quoting-artifact names (quote chars, backslashes, untrimmed) refused unconditionally; names unknown to catalog-AND-manifest refused (typo/garbage; alias hint — real gateways exist: `documentation`, `dotnet-workload`); manifest-known names allowed (catalog-drop flow preserved). **The `manifested` set requires a NEW manifest read on this path** — the recovery branch (`if not skills:`) has not run, so `main()` reads `target/.ai-badger/manifest.json` here with the same absent/corrupt tolerance as recovery (API-F3; absent ⇒ `manifested = []`). `--skills ""`/`","` recovery unchanged; exit 2 with named message (argparse collision on unknown flags accepted — both argv-contract errors; match on message, G0 Q2 answered, API-F11). Resolves the hardening×expected-set conflict: expected-set names are catalog-known by construction. | architect §2.6; API-F3/F11 fold |
 | D4 | **Guard refuses (exit 2) if the derived expected set is empty** — broken derivation is never a licence to fall back to recovery. | reviewer §1.2 |
-| D5 | **Fixture `_freshen` stays unchanged** (lanes disagreed: reviewer "change", test-engineer "keep"). Ruling: keep — it drives scaffold.py, not the guard, and the live manifest is healthy; post-fix, any fixture-enriched narrowing makes `test_a_fresh_tree_passes` fail loudly via D2's fail-fast, which **is** the canary. Revisit only if AC0 surprises. | test-engineer §1-AC2 + §4; reviewer §2 item 3 overruled with reason |
-| D6 | **AC1 is two pins:** (a) consecutive-run idempotence (test-engineer's clone-B second scaffold, `normalized()`-compared, stamp set named); (b) **transport-invariance**: `["--skills", "''"]` list-form and shell `--skills ''` produce the same outcome (both recover 32, or both refuse) — the real invariant "quoting transport cannot change the managed set". (b) lives with the D3 CLI-contract tests. | architect §2.6 + test-engineer §1-AC1 |
+| D5 | **Fixture `_freshen` stays unchanged** (lanes disagreed: reviewer "change", test-engineer "keep"). Ruling: keep — it drives scaffold.py, not the guard, and the live manifest is healthy; post-fix, any fixture-enriched narrowing makes `test_a_fresh_tree_passes` fail loudly via D2's fail-fast, which **is** the canary. **Amended (API-F12, QA-F10): take the cheap canary anyway** — `_freshen` asserts the scaffold's `reused N skill(s)` note (scaffold L816) has N == the manifest's skill-row count (note format probe-stable across QA's runs); and `test_a_fresh_tree_passes`' docstring must note that a D2 narrowing failure there means the FIXTURE's manifest narrowed (diagnosis cost QA-F10(1)). | test-engineer §1-AC2 + §4; reviewer §2 item 3 overruled; API-F12/QA-F10 fold |
+| D6 | **AC1 is two pins:** (a) consecutive-run idempotence (test-engineer's clone-B second scaffold, `normalized()`-compared, stamp set named) — **digest/comparison scoped to the managed tree: exclude `.git` explicitly and apply the guard's `is_noise` semantics (QA-F5: `.git/index` differs environmentally post-copytree and would false-RED the control)**; (b) **transport contract, restated per-transport (QA-F4 — the rev-1 "same outcome" form contradicts D3):** list-form `["--skills", "''"]` ⇒ exit 2 with the quoting-artifact message; shell `--skills ''` ⇒ true-empty ⇒ recovery to the full set; **neither transport silently under-delivers** — that is the invariant. RED side pre-fix (probe-verified): list-form → exit 0 with 128 entries (the `ea17ae60` shape); shell → 212. (b) lives with the D3 CLI-contract tests. | architect §2.6 + test-engineer §1-AC1; QA-F4/F5, probe 5/6 fold |
 | D7 | **R5 placement: guard failure output gains one rationale clause** (skill list is explicit so a narrowed manifest cannot narrow the repair); **welcome-ai-badger SKILL.md Gotchas** (source of truth `features/common/skills/welcome-ai-badger/SKILL.md` L123 area) gains the two-sentence gotcha (never `--skills ''` for remediation; regenerated mirrors ride in the same commit as their source edit); README rejected. | reviewer §4 |
-| D8 | **Release: 0.150.0**, changelog `docs/changelog/0.150.0-remediation-cannot-be-narrowed.md` with upgrade notes (scripted `--skills ''` advice keeps running but stays blind; intended new "no longer writes it" findings; the two gotchas). Bump surface: VERSION, plugin.json, marketplace.json, index.json (via version_sync + index_build), changelog index (changelog_index.py), then self-scaffold re-stamps. | reviewer §5 |
+| D8 | **Release: 0.150.0**, changelog `docs/changelog/0.150.0-remediation-cannot-be-narrowed.md` with upgrade notes: (1) scripted `--skills ''` advice keeps running but stays blind; (2) intended new findings on superset manifests — **both shapes** ("content differs on manifest.json" for include-dropped skills, "no longer writes it" for catalog-dropped — API-F10); (3) **the scaffolder argv-contract change is consumer-visible** (the scaffolder ships as mirrors): garbage/alias-absorbed argv now exits 2 instead of silent-skip (API-F6); (4) the two gotchas. Bump surface: VERSION, plugin.json, marketplace.json, index.json (via version_sync + index_build), changelog index (changelog_index.py), then self-scaffold re-stamps. | reviewer §5; API-F6/F10 fold |
 | D9 | **AC0 = reviewer §3.1 protocol verbatim** on a `/tmp` scratch archive of the fix branch: double scaffold with fixed `--generated-at`, run-2 `git status` empty, no `reused` note, no skip notes, 32/32 & 212 counts ×2, guard PASS. | reviewer §3 |
 
 ## 3. Work packages
@@ -74,20 +77,37 @@ Two dispatch levels max; the implementation lane takes no sub-agents.
 
 ### Package 1 — RED witnesses (scratch copies, no product code)
 
-On `/tmp` scratch copies at base, per the test-engineer's runbook (§6): capture AC2
-(hand-edit + narrowed manifest → guard PASSes, paste stdout), AC3 (trap sequence →
-re-blinding, paste remediation + `reused N` note + guard#2 PASS), AC4 (the `--skills ''`
-match in the rendered remediation), AC1 control (double scaffold → identical, recorded).
-**ACs:** all four artifacts pasted into the task record with command + exit code + verbatim
-stdout. **Gate:** orchestrator eyeballs each against the expected pre-fix shape.
+On `/tmp` scratch copies at base, per the corrected runbook: **scratch setup must be
+fixture-style — copy the tree, `git init` + config + `add -A` + commit (harness L66–72
+shape) — the guard refuses non-git trees (QA-F1, probe 1: `rsync --exclude .git` ⇒ exit 2
+refusal).** Capture:
+- **AC2 (rebuilt per QA-F3):** victim = pure scope-default skill (exclude config.include ∪
+  stack-local); narrow by stripping **every manifest row whose target names the victim**
+  (mirror rows AND out-of-mirror adjustment rows `.claude/skills/<victim>…`,
+  `.github/skills/<victim>…` — 30/32 skills carry them; self-consistent narrowing is the
+  load-bearing property the rev-1 recipe missed). Pre-fix expectation: **guard exit 0 PASS**
+  (the blindness — d-16 witnessed shape); paste stdout + row-count delta.
+- **AC3:** trap sequence as designed (QA probe 3 confirms RED at assertions 6+8, with a
+  **two-finding guard#1** — staleness + manifest drift; §2's rev-1 rationale is superseded);
+  paste remediation + `reused N` note + guard#2 PASS.
+- **AC4:** the `--skills ''` match in the rendered remediation **and** the mechanism-tier
+  trailing-space shape (`--skills ` + EOS, QA-F9).
+- **AC1 control:** double scaffold with `--generated-at` pinned → identical modulo stamps,
+  digest excluding `.git` (QA-F5); recorded as control, not RED.
+- **D6b RED:** list-form `["--skills", "''"]` → exit 0, 128 entries (probe 5) vs shell → 212.
+
+**ACs:** all artifacts pasted into the task record with command + exit code + verbatim
+stdout. **Gate:** orchestrator eyeballs each against the probe-verified pre-fix shapes.
 
 ### Package 2 — Scaffolder argv hardening (R1, D3)
 
-Validation block in `main()`; CLI-contract tests (new file or `test_scaffold_empty_skills.py`
-neighbor — implementation lane's choice, that file must stay green): artifacts refused
-(`"''"`, `"\""`, untrimmed) exit 2 with named message; unknown-name refused with alias hint;
-manifest-known-but-catalog-dropped name allowed; `""`/`","` recovery unchanged;
-**transport-invariance pin (D6b)**. **ACs:** new tests green; `test_scaffold_empty_skills.py`
+Validation block in `main()` (with its own target-manifest read, API-F3); CLI-contract tests
+(new file or `test_scaffold_empty_skills.py` neighbor — implementation lane's choice, that
+file must stay green): artifacts refused (`"''"`, `"\""`, untrimmed) exit 2 with named
+message; unknown-name refused with alias hint; manifest-known-but-catalog-dropped name
+allowed; `""`/`","` recovery unchanged; **D6b per-transport contract** (list-form refuse /
+shell recover / neither under-delivers); **narrow-argv pin (API-F2): `--skills task`
+delivers no scope-default skill**. **ACs:** new tests green; `test_scaffold_empty_skills.py`
 green; full suite green. **Gate:** pytest on the file + suite; RED evidence: the D6b test
 against pre-fix code (paste).
 
@@ -101,16 +121,23 @@ item 9). **Gate:** full pytest.
 
 ### Package 4 — Guard: fail-fast + explicit argv (R2/R3, D1/D2/D4)
 
-`collect()` fail-fast (named narrowing message); `rescaffold_argv(python, scaffold, config,
-target, root, expected)` — keep the builder's signature **explicit** (expected passed in, not
-globally read) so the AC4 mechanism-tier test can call it directly; `remediation()` renders
-the same argv; empty-set Refusal (D4); docstrings rewritten (the false "makes a stale tree
-fresh" claim); guard tests: AC2, AC3 (8-step sequence, `hand-edited` verdict pin), AC4 (two
-tiers + regex per test-engineer §3), AC1a (idempotence). Existing remediation test kept
-(additive docstring note). **ACs:** AC2/AC3/AC4 RED→GREEN transitions witnessed (RED side =
-Package 1 artifacts; re-run the same scratch recipe post-fix for GREEN); guard file green;
-`test_the_rescaffold_points_hermes_home_away_from_the_operators` untouched-green (call-shape
-constraint). **Gate:** pytest file + full suite.
+`collect()` fail-fast via distinct `Narrowing` exception → `main()` exit 1 with findings +
+**standard remediation block printed** (QA-F6b); `rescaffold_argv(python, scaffold, config,
+target, root, expected)` — signatures pinned (API-F8): expected passed explicitly;
+`remediation(expected)`/`rescaffold(work)` computes expected from `work`'s own config
+(faithful copy ⇒ one-oracle holds); **D7's rationale clause prints BEFORE the remediation
+block** (QA-F8 — `_printed_remediation` joins everything after the header, so a trailing
+clause would be executed as shell); empty-set Refusal (D4); module docstring + builder/
+remediation docstrings rewritten (API-F4); guard tests: AC2 (rebuilt recipe: scope-default
+victim, strip-all-rows, pre-fix PASS → post-fix fail-fast naming mirror paths), AC3
+(8-step sequence, `hand-edited` verdict pin, two-finding guard#1 baseline), AC4 (two tiers +
+regex + trailing-space row), AC1a (idempotence, `.git`-scoped digest). Existing remediation
+test kept (additive docstring note). Non-regression inventory adds
+`tests/test_every_check_can_fail.py` (own `--skills ""` fixture, API-F7; optional narrowing
+provocation there as cheap symmetry). **ACs:** AC2/AC3/AC4 RED→GREEN transitions witnessed
+(RED side = Package 1 artifacts; re-run the same scratch recipe post-fix for GREEN); guard
+file green; `test_the_rescaffold_points_hermes_home_away_from_the_operators` untouched-green
+(call-shape constraint). **Gate:** pytest file + full suite.
 
 ### Package 5 — Mirror regen + AC0 confirmation (R4, D9)
 
@@ -131,12 +158,15 @@ changelog entry + index regen; version_sync + index_build; final self-scaffold r
 ### Package 7 — Integration package (cross-package)
 
 Full gates on the combined tree: full pytest, pylint 10.00 (`git ls-files '*.py' | grep -v
-'^tests/'`), `tooling/index_build.py --check`, `verify.sh pre-push` lanes; push; **CI green =
-pass condition**. Join checks: guard+scaffolder+manifest+tests consistent on ONE tree (the
-AC0 protocol already proves the tree; the suite proves the units). Time-boxed F1 probe
+'^tests/'`), `tooling/index_build.py --check`, `verify.sh pre-push` lanes; push; **pass
+condition: CI green AND two consecutive green full-suite runs locally** (QA-F2 — d-16's MUST
+ruling for this exact flake class binds this task's own merge; a single green run satisfies
+neither branch of it). Join checks: guard+scaffolder+manifest+tests consistent on ONE tree
+(the AC0 protocol already proves the tree; the suite proves the units). Time-boxed F1 probe
 (architect §2.5.1 instrumentation) may run here — stop condition: 2 hours or 2 negative
 bisect runs, then document as open with the instrumentation left in the test failure
-messages. **AC:** plan-AC = every package's ACs checked + met; CI green.
+messages. **AC:** plan-AC = every package's ACs checked + met; CI green; two consecutive
+green full-suite runs recorded.
 
 ## 4. Risks
 
@@ -169,8 +199,15 @@ flowchart TD
 
 ## 7. Open questions for G0 (owner approval)
 
-1. **D5 ruling** (fixture `_freshen` unchanged) — accept the test-engineer disposition over
-   the reviewer's?
-2. **Exit code 2** for the argv-contract refusal (vs reusing 1) — any constraint from your
-   scripting?
+1. ~~D5 ruling~~ — resolved by review: keep, canary taken (D5 amended).
+2. ~~Exit code 2~~ — resolved by review (API-F11): keep 2, document the argparse collision.
 3. **F1 time-box** (2h in Package 7) — worth it, or file-and-move-on?
+
+## 8. Review-finding disposition mapping (rev 2)
+
+api-engineer (APPROVE-WITH-CHANGES): F1→D1, F2→D1+Pkg2, F3→D3, F4→D2+Pkg4, F5→D1, F6→D8,
+F7→Pkg4, F8→Pkg4, F9→D2, F10→D2/D8, F11→G0-Q2 closed, F12→D5.
+qa (REQUEST-CHANGES): F-QA1→Pkg1, F-QA2→Pkg7, F-QA3→Pkg1+Pkg4+D2, F-QA4→D6, F-QA5→D6+Pkg1,
+F-QA6→D2+Pkg4, F-QA7→D2, F-QA8→Pkg4, F-QA9→Pkg1/AC4, F-QA10→D5.
+Supersession markers placed on the affected lane-doc sections (architect §3.1 "Sorted.",
+§2.6 manifest-read comment; test-engineer AC2 recipe, §2 property 2, §6 runbook).

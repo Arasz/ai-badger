@@ -115,6 +115,17 @@ the fixture itself into an AC0-style canary. **Hypothesis:** parsing that note c
 fixture to wording that may change; leave to the implementation lane's judgement.
 
 **Runnable recipe (the test body):**
+
+> **SUPERSEDED by rev-2 (QA-F3, probes run):** this recipe cannot produce its claimed
+> pre-fix PASS — the deterministic pick (first skills row) carries out-of-mirror adjustment
+> rows (30/32 skills do), so the hand-narrowed manifest is not self-consistent and the guard
+> FAILS pre-fix on `manifest.json content differs`; the two adjustment-free skills are
+> stack-local and re-deliver regardless. Rebuilt recipe (plan Package 1/4): victim = pure
+> scope-default skill (exclude config.include ∪ stack-local); strip **every** row whose
+> target names the victim; pre-fix expectation = guard exit 0 PASS (the blindness);
+> post-fix = D2 fail-fast naming mirror paths. The `"manifest" in stdout` discriminator is
+> dropped (zero discriminating power — pre-fix finding lines contain `manifest.json` too).
+
 1. `clone = mutable_repo` (fresh copytree of the self-scaffolded repo).
 2. Pick the victim skill deterministically: read `.ai-badger/manifest.json`, take the first
    entry with `feature == "skills"` and a `/`-free name (the same predicate as
@@ -306,6 +317,12 @@ simultaneously, and each pins one ordering decision:
    pre-fix PASSES (that is AC2's blindness), so there would be no remediation to capture.
    The stale-source file (step 3) is the cheapest reliable failure and mirrors the fixture
    pattern the file already trusts (harness L99–101).
+
+   > **SUPERSEDED by rev-2 (QA probe 3):** on this tree a hand-narrowed manifest pre-fix
+   > FAILS (manifest content-differs finding), so guard#1 carries TWO findings (staleness +
+   > manifest drift) and a remediation is capturable even without step 3. Step 3 stays (it
+   > guarantees a mirror-path finding independent of the manifest shape); the rationale is
+   > re-baselined accordingly.
 3. **The hand-edit follows the remediation run.** Post-fix the union-form remediation
    *regenerates* every delivered mirror (delivered skills are always rmtree + copytree —
    research §2); an edit made before it would be clobbered, and guard#2 would then pass for
@@ -513,6 +530,11 @@ git state changes. Protocol for producing the four RED artifacts before implemen
 
 1. `rsync -a --exclude .git <worktree>/ /tmp/aib-red-base/` — a scratch copy at base
    `19e28a7b` (equivalent to `_copy_working_tree`'s contract, harness L33–45, minus git).
+
+   > **SUPERSEDED by rev-2 (QA-F1, probe 1):** this command produces guard refusals —
+   > `tracked_and_untracked` requires a git repo and the runbook stripped `.git`. Setup must
+   > be fixture-style: copy the tree, `git init` + user config + `add -A` + commit
+   > (harness L66–72 shape), then run the provocations.
 2. Run each provocation there, out of pytest, mirroring what the test will do:
    - **AC2:** hand-edit the picked mirror's `SKILL.md`, strip its manifest entries (jq or a
      5-line python), run `AI_BADGER_MCP_AVAILABILITY=all python3 gates/scaffold_freshness_guard.py
