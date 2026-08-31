@@ -53,7 +53,6 @@ file still present) is constructed by migrating once, renaming the
 ``*.migrated.json`` file back, and reopening — the exact on-disk state a crash
 between COMMIT and rename produces.
 """
-# pylint: disable=no-member  # red checkpoint: the store API these tests demand lands in P0.2b
 from __future__ import annotations
 
 import fcntl

@@ -18,6 +18,7 @@ The library every bootstrap shim imports, and the anchor of the framework-root p
 | Module | What it does |
 |--------|--------------|
 | `badger_lib.py` | Shared helpers: root discovery, atomic JSON write, sha256, index read. |
+| `badger_store.py` | The SQLite runtime store (ADR-0024): two databases behind one module, call-time env roots, open pragmas, lazy COMMIT-then-rename migration of the legacy JSON stores, per-key last-write-wins dual-read. Stdlib only, imports nothing from the engine, and is vendored verbatim into consumer skills (see `VENDORED_PATHS`). |
 | `framework_copies.py` | Every tree on the machine claiming to be ai-badger, the notice naming them, and the one prune allowed: `~/.ai-badger/framework`, on explicit request. Stdlib only and free of `badger_lib` — a SessionStart hook imports it and `badger_lib` requires `jsonschema`. |
 | `frontmatter.py` | The one YAML-frontmatter extractor: `split(text)` gives the head, the raw block, the body and one entry per top-level key. Line-oriented, so pyyaml stays optional (ADR-0005); a caller needing typed values parses `raw` itself. |
 | `unsafe_literals.py` | Secret/unsafe-literal scanning, shared by feed-badger and the Hermes learned-skills sync. Moves with `badger_lib.py`: one `sys.path` entry serves both. |
