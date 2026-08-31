@@ -227,6 +227,7 @@ from mcp_tools import McpTools  # noqa: E402
 from statusline_wiring import StatusLineWiring  # noqa: E402
 # relink_hermes_skills is re-exported: den-refresh's refresh.py calls it on this module.
 from skill_delivery import SkillDelivery, prune_namespaces, relink_hermes_skills  # noqa: E402
+from skills_argv import resolve_requested_skills  # noqa: E402
 from superseded_prune import SupersededPrune  # noqa: E402
 from local_invariants import append_rendered  # noqa: E402
 
@@ -803,22 +804,10 @@ def main(argv=None) -> int:
         return 1
 
     config = bl.load_json(config_path)
-    skills = [s for s in args.skills.split(",") if s]
-    cli_notes: List[str] = []
-    if not skills:
-        # An explicitly empty --skills means "unchanged", not "none" (#129). A fresh target
-        # has no manifest to recover from and scaffolds no skills — nothing to destroy.
-        manifest_path = target / ".ai-badger" / "manifest.json"
-        if manifest_path.is_file():
-            try:
-                skills = bl.scaffolded_skill_names(bl.load_json(manifest_path))
-                cli_notes.append(
-                    f"--skills was empty — reused {len(skills)} skill(s) already scaffolded, "
-                    f"from the manifest at {manifest_path}"
-                )
-            except (ValueError, OSError) as exc:
-                skills = []
-                cli_notes.append(f"--skills empty, manifest at {manifest_path} could not be read ({exc})")
+    skills, cli_notes, rejection = resolve_requested_skills(root, target, args.skills)
+    if rejection:
+        print(rejection, end="")
+        return 2
     scaf = Scaffolder(root, target, config, skills, install=not args.no_install,
                       overwrite=args.overwrite_agent_files,
                       reset_seed_files=args.reset_seed_files,
