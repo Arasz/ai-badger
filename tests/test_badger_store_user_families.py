@@ -74,11 +74,17 @@ def _ts(days_ago: float) -> str:
 
 
 def test_user_families_registry_pins_tables_and_legacy_paths():
-    """The registry names the five families, all user-DB, with their legacy JSON sources."""
+    """The registry carries the P1 families and the P2 session families, all user-DB.
+
+    P2.0b grew the registry with the six session families (plan P2.0) — the pin extends
+    rather than replaces: every P1 family keeps its exact table + legacy path.
+    """
     families = badger_store.USER_FAMILIES
     assert set(families) == {
         "awm_state", "awm_decisions", "commit_reminder", "commit_reminder_pending",
         "pending_feedback", "searches",
+        "memory_first", "semantica_nudge", "dispatch_lanes", "dirty_sweeps",
+        "blast_radius_denials", "hook_audit", "hook_state",
     }
     assert {name: family.table for name, family in families.items()} == {
         "awm_state": "awm_state",
@@ -87,6 +93,13 @@ def test_user_families_registry_pins_tables_and_legacy_paths():
         "commit_reminder_pending": "commit_reminder",
         "pending_feedback": "pending_feedback",
         "searches": "searches",
+        "memory_first": "memory_first",
+        "semantica_nudge": "semantica_nudge",
+        "dispatch_lanes": "dispatch_lanes",
+        "dirty_sweeps": "dirty_sweeps",
+        "blast_radius_denials": "blast_radius_denials",
+        "hook_audit": "hook_audit",
+        "hook_state": "hook_state",
     }
     for family in families.values():
         assert family.db == "user"
