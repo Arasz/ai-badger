@@ -1065,3 +1065,50 @@ def test_refresh_recommends_nothing_when_no_channel_could_observe_a_skill(
     assert rc == 0
     assert report["skillUsage"]["unused"] == []
     assert report["skillUsage"]["hint"]
+
+
+# --------------------------------------------------------------------- prose staleness review
+
+def test_refresh_lists_prose_slots_for_staleness_review_without_re_scaffolding(
+        tmp_path, load_script, root, make_scaffolder, capsys):
+    """An up-to-date project with prose still gets the slots listed — but nothing more.
+
+    `project.summary` / `project.domain` are the only free-form prose the scaffold renders
+    into the managed files, re-rendered verbatim on every scaffold, so no fingerprint ever
+    calls them stale. They ride the report for human review; because a re-scaffold re-renders
+    the same words, listing them must never gate the re-scaffold.
+    """
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    fw, proj = _scaffolded_project(tmp_path, root, make_scaffolder)
+
+    rc = refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["reScaffolded"] is False
+    review = report["drift"]["proseReview"]
+    assert [(item["configKey"], item["slot"], item["value"]) for item in review] == [
+        ("project.summary", "PROJECT_SUMMARY", "A test project"),
+        ("project.domain", "PROJECT_DOMAIN", "testing"),
+    ]
+    assert all(item["note"] == "human-written — review for staleness" for item in review)
+
+
+def test_refresh_reports_an_empty_prose_list_when_the_config_has_no_prose(
+        tmp_path, load_script, root, make_scaffolder, capsys):
+    """The proseReview key is always present, so a report reader never guesses its shape."""
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    fw = tmp_path / "fw"
+    _mock_fw_with_skills(fw, root, ["task"])
+    proj = tmp_path / "proj"
+    config = _write_config(proj, frameworkVersion="0.3.0",
+                           project={"name": "probe", "summary": "", "domain": ""})
+    make_scaffolder(root=fw, target=proj, config=config, skills=["task"]).run(
+        generated_at="2026-07-22T00:00:00Z")
+
+    rc = refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["reScaffolded"] is False
+    assert report["drift"]["proseReview"] == []
