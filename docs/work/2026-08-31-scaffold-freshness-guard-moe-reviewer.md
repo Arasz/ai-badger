@@ -14,6 +14,12 @@ Companion to `docs/work/2026-08-31-scaffold-freshness-guard-research.md`. Every 
 
 **`rescaffold_argv` returns `--skills <sorted-expected-set>` — never `--skills ""`, never a bare omission.** (The task's "union" framing is deliberately answered in the negative: the manifest contributes nothing to the list.) The set is `expected_skill_names(root, config)`, computed once and threaded into both `rescaffold()` and `remediation()` through the same builder, preserving the printed-advice-is-what-the-guard-ran property by construction.
 
+> **SUPERSEDED by rev-2 D1 (API-F1):** "sorted" is wrong at the order level — the expected
+> set must carry `Scaffolder`'s delivery BLOCK order (defaults block, include-derived block,
+> stack-local in `resolve_stacks` order); a flat-sorted list reorders manifest rows, which
+> the guard's `normalized()` preserves, and fails healthy trees. Everything else in this
+> section stands (config-derived, front-door-trap argument, shared helper).
+
 The set is **config-derived, not manifest-recovered and not manifest∪config**: it is exactly what the scaffolder delivers when `--skills` is omitted — `DEFAULT_SKILLS` (scope:`default` walk, scaffold.py:157, bl.default_skills_in badger_lib.py:782–784) ∪ config-include-expanded skills (scaffold.py:262–270) ∪ stack-local discovery (skill_delivery.py:254–270, called unconditionally in run() at scaffold.py:711) − `excluded["skills"]` (scaffold.py:263, 278).
 
 **Where the union/expected set is computed:** not re-derived a second time inside the guard. The derivation above is spread across `Scaffolder.__init__` (scaffold.py:262–273) and `SkillDelivery.discover_stack_local` (skill_delivery.py:254–270); the fix extracts it into one helper (engine/badger_lib.py, next to `default_skills_in`/`scaffolded_skill_names` at L782/L868) that both `Scaffolder.__init__` and the guard call. This is the same helper R2 needs to compare the manifest against the config — R3's list and R2's fail-fast share one oracle, so they cannot drift. The guard additionally **refuses loudly (Refusal, exit 2) if the computed set is empty** — an empty expected set is a broken derivation, never a licence to fall back to recovery.
