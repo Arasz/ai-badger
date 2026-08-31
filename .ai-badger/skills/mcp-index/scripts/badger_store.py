@@ -306,13 +306,9 @@ def audit_db_path() -> Path:
 
 
 def _ensure_root(db_path: Path) -> None:
-    """Create the DB's parent 0700 when absent; an existing root keeps its own mode (D17).
-
-    `exist_ok` is load-bearing: concurrent first-opens (a fan-out's hooks all opening the
-    user store at once) race the mkdir, and a bare mkdir loses the race with FileExistsError.
-    """
+    """Create the DB's parent 0700 when absent; an existing root keeps its own mode (D17)."""
     if not db_path.parent.is_dir():
-        db_path.parent.mkdir(parents=True, exist_ok=True)
+        db_path.parent.mkdir(parents=True)
         os.chmod(db_path.parent, 0o700)
 
 
@@ -1509,20 +1505,7 @@ def _open(db_path: Path, kind: str, families: Optional[dict] = None) -> Store:
     store = Store(conn, db_path, kind, families)
     try:
         conn.execute("PRAGMA busy_timeout = 5000")
-        for attempt in range(4):
-            # Parallel first opens race the WAL conversion: it takes a lock the
-            # winner holds and returns BUSY without honouring busy_timeout, so
-            # retry briefly and accept a database someone already converted.
-            try:
-                conn.execute("PRAGMA journal_mode = WAL")
-                break
-            except sqlite3.OperationalError:
-                mode = conn.execute("PRAGMA journal_mode").fetchone()
-                if mode and str(mode[0]).lower() == "wal":
-                    break
-                if attempt == 3:
-                    raise
-                time.sleep(0.05)
+        conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA synchronous = NORMAL")
         _create_schema(conn)
         _ensure_schema_version(conn, db_path)

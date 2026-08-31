@@ -1,6 +1,7 @@
 """Debug audit logging: off by default, bounded, private, and never able to break a hook."""
 from __future__ import annotations
 
+import importlib.util
 import io
 import json
 import os
@@ -34,9 +35,15 @@ def _enable(dl, scope="user", project=None, expires_in=3600):
 
 
 def _records(dl):
-    if not dl.AUDIT_FILE.exists():
-        return []
-    return [json.loads(line) for line in dl.AUDIT_FILE.read_text(encoding="utf-8").splitlines()]
+    """P2.2 flagged rewrite: records read through the query verb — store rows when the
+    store is available (the monkeypatched DEBUG_DIR moves the DB per D21), the same legacy
+    jsonl at the patched AUDIT_FILE otherwise. Assertion strength unchanged."""
+    return dl.read_records()
+
+
+def _legacy_mode(dl, monkeypatch):
+    """Force the legacy jsonl sink: the file-shape bounds below are legacy-sink contracts."""
+    monkeypatch.setattr(dl, "_store_module", None)
 
 
 class TestWhereTheLogLands:
@@ -148,6 +155,7 @@ class TestRedactMode:
     def test_the_redacted_text_never_touches_disk(self, load_script, tmp_path, monkeypatch):
         """Redaction happens at the point of writing, never as a post-process."""
         dl = _load(load_script, tmp_path, monkeypatch)
+        _legacy_mode(dl, monkeypatch)
         _enable(dl)
         monkeypatch.setenv(dl.REDACT_ENV, "1")
 
@@ -219,16 +227,19 @@ class TestBoundedAndPrivate:
     """The log says where someone works and what ran; it is not world-readable or unbounded."""
 
     def test_the_sink_is_owner_only(self, load_script, tmp_path, monkeypatch):
+        """P2.2 flagged rewrite: the sink is the audit DB now; same 0600/0700 contract."""
         dl = _load(load_script, tmp_path, monkeypatch)
         _enable(dl)
 
         dl.log_event("some/hook", "start")
 
-        assert stat.S_IMODE(os.stat(dl.AUDIT_FILE).st_mode) == 0o600
-        assert stat.S_IMODE(os.stat(dl.DEBUG_DIR).st_mode) == 0o700
+        assert stat.S_IMODE(os.stat(dl.audit_db()).st_mode) == 0o600
+        assert stat.S_IMODE(os.stat(dl.audit_db().parent).st_mode) == 0o700
 
     def test_the_log_is_trimmed_to_its_cap(self, load_script, tmp_path, monkeypatch):
+        """The legacy sink cap; the DB needs no trim (query verbs bound their reads)."""
         dl = _load(load_script, tmp_path, monkeypatch)
+        _legacy_mode(dl, monkeypatch)
         monkeypatch.setattr(dl, "MAX_AUDIT_LINES", 5)
         _enable(dl)
 
@@ -240,8 +251,9 @@ class TestBoundedAndPrivate:
         assert [r[dl.KEY_SESSION] for r in records] == ["4", "5", "6", "7", "8"], "oldest go first"
 
     def test_every_record_is_exactly_one_parseable_line(self, load_script, tmp_path, monkeypatch):
-        """Single-line appends are what keeps concurrent hooks from interleaving."""
+        """Single-line appends are what keeps concurrent hooks from interleaving (legacy)."""
         dl = _load(load_script, tmp_path, monkeypatch)
+        _legacy_mode(dl, monkeypatch)
         _enable(dl)
 
         dl.log_event("h", "start", detail="a\nb\nc")
@@ -395,7 +407,7 @@ class TestEveryScaffoldedHookAttributesItsRecords:
             assert records, f"{script} produced no record"
             assert all(r.get(dl.KEY_PROJECT) == str(tmp_path / "proj") for r in records), (
                 f"{script} left records unattributed: {records}")
-            dl.AUDIT_FILE.unlink()
+            dl.clear_records()  # P2.2: records live in the audit DB now, not the jsonl
 
 
 class TestTheSuiteCannotWriteToTheRealLog:
@@ -424,8 +436,8 @@ class TestTheSuiteCannotWriteToTheRealLog:
 
         dl.log_event("some/hook", "start")
 
-        assert dl.AUDIT_FILE.exists(), "the write should have happened, just somewhere safe"
-        assert REAL_HOME not in dl.AUDIT_FILE.parents, f"leaked to {dl.AUDIT_FILE}"
+        assert dl.read_records(), "the write should have happened, just somewhere safe"
+        assert REAL_HOME not in dl.audit_db().parents, f"leaked to {dl.audit_db()}"
 
 
 VENDORED_COPIES = (
@@ -437,15 +449,43 @@ VENDORED_COPIES = (
 )
 
 
-@pytest.mark.parametrize("relpath", VENDORED_COPIES)
-def test_the_vendored_copy_matches_the_canonical_one(root, relpath):
-    """debug_log is duplicated because hooks import nothing; duplication must be checked."""
-    canonical = (root / "features/common/hooks/debug_log.py").read_text(encoding="utf-8")
-    vendored = (root / relpath).read_text(encoding="utf-8")
+SHIM_TEMPLATE = '''"""Thin re-export of the canonical debug_log (P2.2): one copy lives in <root>/hooks/.
 
-    assert canonical == vendored, (
-        f"copy features/common/hooks/debug_log.py over {relpath}"
-    )
+Executes the canonical module into this module's own namespace, so the sibling-import
+pattern (``import debug_log``) and tests patching module globals both hit canonical code.
+"""
+from pathlib import Path as _Path
+import importlib.util as _ilu
+
+_canonical = _Path(__file__).resolve().parents[3] / "hooks" / "debug_log.py"
+exec(compile(_canonical.read_text(encoding="utf-8"), str(_canonical), "exec"), globals())  # pylint: disable=exec-used
+'''
+
+
+@pytest.mark.parametrize("relpath", VENDORED_COPIES)
+def test_the_vendored_copy_is_a_thin_shim_of_the_canonical_one(root, relpath, tmp_path,
+                                                               monkeypatch):
+    """P2.2 flagged rewrite: the 5 full copies are shims now — byte-pinned against drift,
+    and each must execute the canonical into its own namespace so patched globals redirect
+    exactly the sink a hook consumer would use."""
+    shim = root / relpath
+    assert shim.read_text(encoding="utf-8") == SHIM_TEMPLATE
+
+    spec = importlib.util.spec_from_file_location(relpath.replace("/", "."), shim)
+    dl = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(dl)
+    monkeypatch.setattr(dl, "DEBUG_DIR", tmp_path / "debug")
+    monkeypatch.setattr(dl, "STATE_FILE", tmp_path / "debug" / "state.json")
+    monkeypatch.setattr(dl, "AUDIT_FILE", tmp_path / "debug" / "audit.jsonl")
+    monkeypatch.setattr(dl, "_store_module", None)
+    _enable = {"enabled": True, "scope": "user"}
+    (tmp_path / "debug").mkdir(parents=True)
+    (tmp_path / "debug" / "state.json").write_text(json.dumps(_enable), encoding="utf-8")
+    monkeypatch.delenv(dl.DEBUG_ENV, raising=False)
+
+    dl.log_event("probe", "start")
+
+    assert len(dl.read_records()) == 1, f"{relpath} did not delegate to the canonical code"
 
 
 class TestProjectIdentity:
@@ -543,8 +583,9 @@ class TestTheQueryFieldCarriesEnoughToBeAFixture:
 
     def test_a_record_with_every_field_at_its_cap_still_fits_one_atomic_write(
             self, load_script, tmp_path, monkeypatch):
-        """A record over PIPE_BUF can interleave with a concurrent writer's, corrupting both."""
+        """A record over PIPE_BUF can interleave with a concurrent writer's (legacy sink)."""
         dl = _load(load_script, tmp_path, monkeypatch)
+        _legacy_mode(dl, monkeypatch)
         _enable(dl)
         payload = {key: "z" * 50_000
                    for key in (dl.KEY_QUERY, dl.KEY_TERMS, dl.KEY_CANDIDATES, dl.KEY_TOP,

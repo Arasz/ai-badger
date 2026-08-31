@@ -1526,7 +1526,7 @@ def _open(db_path: Path, kind: str, families: Optional[dict] = None) -> Store:
         conn.execute("PRAGMA synchronous = NORMAL")
         _create_schema(conn)
         _ensure_schema_version(conn, db_path)
-        store._check_resurrections()
+        store._check_resurrections()  # pylint: disable=protected-access
     except BaseException:
         conn.close()
         raise
