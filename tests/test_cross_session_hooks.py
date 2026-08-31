@@ -41,8 +41,8 @@ def scripts_copy(root, tmp_path) -> Path:
     """The three scripts on their own, so a mutation never touches the checkout."""
     out = tmp_path / "scripts"
     out.mkdir()
-    for name in ("blast_radius_kill_guard.py", "cross_worktree_dirty_warning.py",
-                 "verify_hooks.py"):
+    for name in ("badger_store.py", "blast_radius_kill_guard.py",
+                 "cross_worktree_dirty_warning.py", "verify_hooks.py"):
         shutil.copy(root / SCRIPTS / name, out / name)
     return out
 

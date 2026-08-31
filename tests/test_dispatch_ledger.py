@@ -36,9 +36,11 @@ WINDOW = 90.0
 
 @pytest.fixture
 def ledger(load_script, tmp_path, monkeypatch):
-    """The ledger with its state redirected into tmp_path — never the real ~/.ai-badger."""
+    """The ledger with its state redirected into tmp_path — never the real ~/.ai-badger.
+    The ledger's state is a `dispatch_lanes` row in the user store, so redirecting the
+    store's user root redirects the ledger."""
     module = load_script(MODULE)
-    monkeypatch.setattr(module, "LEDGER_DIR", tmp_path / "dispatch-lanes")
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
     return module
 
 
@@ -77,11 +79,13 @@ def test_separate_sessions_do_not_see_each_other(ledger):
     assert ledger.concurrent("sess_b", "toolu_2", now=1000.1, window=WINDOW) == 0
 
 
-def test_a_broken_ledger_reports_no_siblings(ledger, monkeypatch):
+def test_a_broken_ledger_reports_no_siblings(ledger, tmp_path, monkeypatch):
     """Fails open: an unreadable ledger must not become a reason to block dispatch."""
     ledger.record("sess_a", "toolu_1", now=1000.0)
     ledger.record("sess_a", "toolu_2", now=1000.1)
-    monkeypatch.setattr(ledger, "LEDGER_DIR", ledger.LEDGER_DIR / "nonexistent" / "deeper")
+    blocked = tmp_path / "blocked"
+    blocked.write_text("a file, not a directory", encoding="utf-8")
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(blocked / "no" / "store"))
 
     assert ledger.concurrent("sess_a", "toolu_2", now=1000.1, window=WINDOW) == 0
 
@@ -125,28 +129,40 @@ def test_a_session_id_cannot_escape_the_ledger_dir(ledger):
     assert "/" not in path.name and ".." != path.name, path.name
 
 
-def test_a_malformed_line_does_not_break_the_ledger(ledger):
-    """Found by review mutation: dropping the `except ValueError` guard survived the suite.
+def test_a_corrupted_row_reports_no_siblings(ledger):
+    """Byte→row rewrite of the malformed-line test (P2.1b): a corrupt entries cell must
+    fail open, not raise out of concurrent and disable the gate for the whole session."""
+    import sqlite3
 
-    A single bad line would then raise out of both record and concurrent, disabling the gate
-    for the whole session.
-    """
     ledger.record("sess_a", "toolu_1", now=1000.0)
-    ledger.ledger_path("sess_a").write_text("not-a-timestamp toolu_x\n1000.0 toolu_2\n",
-                                            encoding="utf-8")
+    store = ledger.badger_store.open_user()
+    try:
+        store.conn.execute(
+            "UPDATE dispatch_lanes SET entries = ? WHERE lane_id = ?",
+            ("not-json-at-all", ledger._safe_session("sess_a")))  # noqa: SLF001  # pylint: disable=protected-access
+        store.conn.commit()
+    finally:
+        store.close()
 
-    assert ledger.concurrent("sess_a", "toolu_1", now=1000.0, window=WINDOW) == 1
+    assert ledger.concurrent("sess_a", "toolu_1", now=1000.0, window=WINDOW) == 0
 
 
-def test_invalid_utf8_does_not_raise(ledger):
-    """`_entries` promised "unreadable or malformed input yields nothing" but caught only
-    OSError; UnicodeDecodeError is a ValueError and escaped, leaving the ledger permanently
-    dead for the session because record could not rewrite it either."""
+def test_record_survives_a_corrupted_row(ledger):
+    """Byte→row rewrite of the invalid-utf8 test (P2.1b): a corrupt entries cell must not
+    wedge the lane — the next record rebuilds it and the count resumes."""
     ledger.record("sess_a", "toolu_1", now=1000.0)
-    ledger.ledger_path("sess_a").write_bytes(b"\xff\xfe bad bytes\n")
+    store = ledger.badger_store.open_user()
+    try:
+        store.conn.execute(
+            "UPDATE dispatch_lanes SET entries = x'fffe' WHERE lane_id = ?",
+            (ledger._safe_session("sess_a"),))  # noqa: SLF001  # pylint: disable=protected-access
+        store.conn.commit()
+    finally:
+        store.close()
 
     assert ledger.concurrent("sess_a", "toolu_1", now=1000.0, window=WINDOW) == 0
     assert ledger.record("sess_a", "toolu_2", now=1000.1) is True
+    assert ledger.concurrent("sess_a", "probe", now=1000.1, window=WINDOW) == 1
 
 
 def test_an_entry_from_the_future_is_not_counted(ledger):
