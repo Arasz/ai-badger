@@ -97,6 +97,7 @@ _PROJ_HASH = "ba748e8f973fc5f04f2b4ca5b9dbf308"
 
 def _user_env(tmp_path, monkeypatch) -> Path:
     root = tmp_path / "user-root"
+    root.mkdir(parents=True, exist_ok=True)  # the legacy dirs live directly beneath it
     monkeypatch.setenv("AI_BADGER_USER_ROOT", str(root))
     return root
 
@@ -444,8 +445,10 @@ def test_multi_file_family_import_is_resumable_after_crash(tmp_path, monkeypatch
     store = _open_user()
     try:
         store.migrate("memory_first")
-        # Crash window: one straggler file's rename never happened.
-        straggler = d / f"{_SESSION}.denials.migrated.denials"
+        # Crash window: one straggler file's rename never happened. The store's pinned
+        # convention renames <name>.denials -> <name>.migrated.denials; the simulation
+        # undoes exactly that rename for one straggler.
+        straggler = d / f"{_SESSION}.migrated.denials"
         os.replace(straggler, d / f"{_SESSION}.denials")
         store.migrate("memory_first")  # the next import resumes
         count = store.conn.execute("SELECT count(*) FROM memory_first").fetchone()[0]
@@ -453,7 +456,8 @@ def test_multi_file_family_import_is_resumable_after_crash(tmp_path, monkeypatch
         originals = [p.name for p in d.iterdir()
                      if p.name != ".write.lock" and ".migrated" not in p.name]
         assert originals == [], f"resurrectable originals left behind: {originals}"
-        assert straggler.exists(), "the straggler was not re-renamed after resuming"
+        assert (d / f"{_SESSION}.migrated.denials").exists(), \
+            "the straggler was not re-renamed after resuming"
     finally:
         store.close()
 
