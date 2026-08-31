@@ -1,16 +1,25 @@
-"""Shared memory-first gate module: tool matchers, session markers, per-host deny builders.
+"""Shared memory-first gate module: tool matchers, session presence rows, deny builders.
 
 The gate blocks repo text-search tools (grep/find/search_files) until the session has
-consulted AiRaccoon memory. Pure functions plus marker-file IO. A hook must never
+consulted AiRaccoon memory. Presence lives as memory_first rows in the user store (P2.1a):
+consulted in the payload, the denial count in the denials column, keyed by session id. The
+legacy marker files under MARKER_DIR are the lazy-migrated source (first write imports and
+renames them) and the fail-open fallback when the store is unavailable. A hook must never
 raise, and Copilot's fail-closed preToolUse means exit 0 on every path.
 """
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+try:
+    import badger_store  # vendored beside this script in production; engine/ canonical in tests
+except ImportError:  # a deployment without the store keeps the legacy marker-file surface
+    badger_store = None  # pylint: disable=invalid-name
 
 MARKER_DIR = Path.home() / ".ai-badger" / "memory-first"
 PROJECT_ID_ENV = "AI_RACCOON_PROJECT_ID"
@@ -129,11 +138,44 @@ def marker_path(session_id: Optional[str]) -> Path:
     return MARKER_DIR / safe if safe else Path("")
 
 
+def _open_store():
+    """The user store narrowed to the memory_first family; MARKER_DIR is its legacy seam."""
+    return badger_store.open_user(families={
+        "memory_first": badger_store.Family(
+            table="memory_first", db="user",
+            legacy_path=lambda: MARKER_DIR, legacy_kind="markers",
+        ),
+    })
+
+
 def record_search(session_id: Optional[str]) -> bool:
-    """Touch the consulted marker; False on a missing session id or IO failure."""
-    path = marker_path(session_id)
-    if not path.name:
+    """Record the session's memory_search as a consulted row; False on failure.
+
+    The first write lazy-migrates the legacy marker set (D6). An unavailable store falls
+    back to touching the legacy marker file, so the gate keeps working either way.
+    """
+    safe = _safe_session(session_id)
+    if not safe:
         return False
+    if badger_store is not None:
+        try:
+            store = _open_store()
+            try:
+                store.migrate("memory_first")
+                store.conn.execute(
+                    "INSERT INTO memory_first(session_id, payload, denials, updated_at) "
+                    "VALUES (?, ?, 0, ?) ON CONFLICT(session_id) DO UPDATE SET "
+                    "payload = excluded.payload, updated_at = excluded.updated_at",
+                    # pylint: disable-next=protected-access  (the shared row-stamp format)
+                    (safe, json.dumps({"consulted": True}), badger_store._now()),
+                )
+                store.conn.commit()
+                return True
+            finally:
+                store.close()
+        except Exception:  # pylint: disable=broad-exception-caught  (a gate never raises)
+            pass
+    path = marker_path(session_id)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.touch()
@@ -143,7 +185,26 @@ def record_search(session_id: Optional[str]) -> bool:
 
 
 def search_consulted(session_id: Optional[str]) -> bool:
-    """True when the session already ran memory_search (marker exists)."""
+    """True when the session already ran memory_search (row consulted, else legacy marker)."""
+    safe = _safe_session(session_id)
+    if not safe:
+        return False
+    if badger_store is not None:
+        try:
+            store = _open_store()
+            try:
+                row = store.conn.execute(
+                    "SELECT payload FROM memory_first WHERE session_id = ?", (safe,)
+                ).fetchone()
+            finally:
+                store.close()
+            if row is not None:
+                try:
+                    return bool(json.loads(row[0]).get("consulted"))
+                except ValueError:
+                    return False
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
     return marker_path(session_id).is_file()
 
 
@@ -186,7 +247,23 @@ def _denials_path(session_id: Optional[str]) -> Path:
 
 
 def deny_count(session_id: Optional[str]) -> int:
-    """Denials so far for the session; 0 on missing session id or any read error."""
+    """Denials so far for the session (the row's denials column); 0 on failure."""
+    safe = _safe_session(session_id)
+    if not safe:
+        return 0
+    if badger_store is not None:
+        try:
+            store = _open_store()
+            try:
+                row = store.conn.execute(
+                    "SELECT denials FROM memory_first WHERE session_id = ?", (safe,)
+                ).fetchone()
+            finally:
+                store.close()
+            if row is not None:
+                return int(row[0])
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
     try:
         return int(_denials_path(session_id).read_text(encoding="utf-8").strip() or "0")
     except (OSError, ValueError):
@@ -194,7 +271,32 @@ def deny_count(session_id: Optional[str]) -> int:
 
 
 def increment_denials(session_id: Optional[str]) -> bool:
-    """Bump the session's denial counter; False on missing session id or IO failure."""
+    """Bump the session's denial counter (the row's denials column); False on failure.
+
+    The upsert must not clobber a consulted row's payload: a session can be denied before
+    it runs memory_search, and the consulted fact survives the denials that preceded it.
+    """
+    safe = _safe_session(session_id)
+    if not safe:
+        return False
+    if badger_store is not None:
+        try:
+            store = _open_store()
+            try:
+                store.migrate("memory_first")
+                store.conn.execute(
+                    "INSERT INTO memory_first(session_id, payload, denials, updated_at) "
+                    "VALUES (?, ?, 1, ?) ON CONFLICT(session_id) DO UPDATE SET "
+                    "denials = denials + 1, updated_at = excluded.updated_at",
+                    # pylint: disable-next=protected-access  (the shared row-stamp format)
+                    (safe, json.dumps({"consulted": False}), badger_store._now()),
+                )
+                store.conn.commit()
+                return True
+            finally:
+                store.close()
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
     path = _denials_path(session_id)
     if not path.name or path.name == ".denials":
         return False

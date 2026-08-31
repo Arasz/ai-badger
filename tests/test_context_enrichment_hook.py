@@ -14,6 +14,7 @@ import io
 import json
 import sys
 
+import badger_store
 import pytest
 from conftest import _test_write
 
@@ -64,9 +65,11 @@ def hook(load_script):
 
 
 @pytest.fixture
-def real_context_enrichment(hook, load_script, monkeypatch):
+def real_context_enrichment(hook, load_script, monkeypatch, tmp_path):
     """Inject the real shared module, as the retrieval adjustment would copy beside the hook."""
     module = load_script("features/common/retrieval/context_enrichment.py")
+    # P2.1a: nudge presence is a store row — hook-path writes land in a scratch user root.
+    monkeypatch.setenv(badger_store.USER_ROOT_ENV, str(tmp_path / "user-root"))
     monkeypatch.setitem(sys.modules, hook.CONTEXT_ENRICHMENT_MODULE_NAME, module)
     return module
 
