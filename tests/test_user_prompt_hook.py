@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 
 import pytest
 
@@ -29,6 +30,17 @@ TEST_MARKERS_CONTEXT = {
 def _write_markers_context(path, data=None):
     path.parent.mkdir(parents=True, exist_ok=True)
     _test_write(path, json.dumps(data if data is not None else TEST_MARKERS_CONTEXT), encoding="utf-8")
+
+
+def _marker_rows(project, hook, monkeypatch):
+    """Read the marker_state rows the hook wrote, through the module the hook used."""
+    monkeypatch.setenv("AI_BADGER_TRACKING_ROOT",
+                       str(project / ".ai-badger" / "task-tracking"))
+    store = hook.badger_store.open_tracking()
+    try:
+        return store.kv_all("marker_state")
+    finally:
+        store.close()
 
 
 def _call_main(module, monkeypatch, payload):
@@ -143,11 +155,10 @@ def test_marker_usage_recorded_when_tracking_dir_exists(tmp_path, load_script, m
     rc = _call_main(hook, monkeypatch, {"prompt": "h: check this", "cwd": str(project)})
 
     assert rc == 0
-    state_file = project / ".ai-badger" / "prompt-markers" / "marker-state.json"
-    assert state_file.exists()
-    state = json.loads(state_file.read_text(encoding="utf-8"))
-    assert len(state["history"]) == 1
-    entry = state["history"][0]
+    rows = _marker_rows(project, hook, monkeypatch)
+    history = rows["history"]
+    assert len(history) == 1
+    entry = history[0]
     assert entry["markerId"] == "hint"
     assert entry["matchedPrefix"] == "h:"
     assert entry["originalPrompt"] == "h: check this"
@@ -168,6 +179,7 @@ def test_marker_usage_not_recorded_when_tracking_dir_absent(tmp_path, load_scrip
     assert rc == 0
     assert not (project / ".ai-badger").exists()
     assert not list(tmp_path.rglob("marker-state.json"))
+    assert not list(tmp_path.rglob("tracking.db"))
 
 
 def test_internal_error_is_recorded_somewhere(tmp_path, load_script, monkeypatch, capsys):
@@ -214,17 +226,18 @@ def test_spelled_out_prefix_still_matches_without_whitespace(load_script):
     assert hook.match_marker("hint:check the cache", _markers())[0]["id"] == "hint"
 
 
-def test_the_marker_state_file_is_owner_readable_only(tmp_path, load_script):
-    """marker-state.json stores whole prompts verbatim — it is not world-readable (security I5)."""
+def test_the_marker_state_store_is_owner_readable_only(tmp_path, load_script, monkeypatch):
+    """The store carries whole prompts verbatim — the tracking DB is not world-readable
+    (security I5; the legacy marker-state.json 0600 contract, byte → row)."""
     hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
     tracking = tmp_path / ".ai-badger"
     tracking.mkdir()
 
     hook.record_transformation(str(tmp_path), "h: check the cache", "h:", "hint", "HINT: ...")
 
-    state_file = tracking.joinpath(*hook.STATE_SUBPATH)
-    assert state_file.exists()
-    assert state_file.stat().st_mode & 0o777 == 0o600
+    db = tracking / "task-tracking" / "tracking.db"
+    assert db.exists()
+    assert db.stat().st_mode & 0o777 == 0o600
 
 
 def test_debug_logging_records_fire_event(tmp_path, load_script, monkeypatch):
@@ -315,7 +328,7 @@ def test_count_trailing_feedback_reads_the_streak(load_script):
     assert hook.count_trailing_feedback({"feedbackStreak": 3}) == 3
 
 
-def test_advance_feedback_streak_increments_and_resets(tmp_path, load_script):
+def test_advance_feedback_streak_increments_and_resets(tmp_path, load_script, monkeypatch):
     hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
     project = tmp_path / "project"
     (project / ".ai-badger").mkdir(parents=True)
@@ -326,6 +339,7 @@ def test_advance_feedback_streak_increments_and_resets(tmp_path, load_script):
     assert hook.advance_feedback_streak(cwd, is_feedback=True) == 3
     assert hook.advance_feedback_streak(cwd, is_feedback=False) == 0
     assert hook.advance_feedback_streak(cwd, is_feedback=True) == 1
+    assert _marker_rows(project, hook, monkeypatch)["feedbackStreak"] == 1
 
 
 def test_interleaved_normal_prompt_resets_the_streak(tmp_path, load_script,
@@ -384,6 +398,15 @@ def test_consolidated_restart_advisory_injected_after_two_feedback(tmp_path, loa
     ctx = out["hookSpecificOutput"]["additionalContext"]
     assert "CONSOLIDATED RESTART ADVISORY" in ctx
     assert "2 consecutive" in ctx
+
+    # Lazy migration (D6): the seeded legacy document became rows + *.migrated.json on
+    # the hook's first store write.
+    state_dir = project / ".ai-badger" / "prompt-markers"
+    assert not (state_dir / "marker-state.json").exists()
+    assert (state_dir / "marker-state.migrated.json").exists()
+    rows = _marker_rows(project, hook, monkeypatch)
+    assert rows["feedbackStreak"] == 2
+    assert len(rows["history"]) == 2
 
 
 def test_no_restart_advisory_after_single_feedback(tmp_path, load_script, monkeypatch, capsys):
@@ -524,8 +547,28 @@ def test_bang_recorded_in_audit(tmp_path, load_script, monkeypatch):
 
     _call_main(hook, monkeypatch, {"prompt": "f!: fix it now", "cwd": str(project)})
 
-    state = json.loads((project / ".ai-badger" / "prompt-markers" / "marker-state.json")
-                       .read_text(encoding="utf-8"))
-    entry = state["history"][0]
+    entry = _marker_rows(project, hook, monkeypatch)["history"][0]
     assert entry["matchedPrefix"] == "f!:"
     assert entry["bang"] is True
+
+
+def test_audit_history_row_is_capped_at_max_history(tmp_path, load_script, monkeypatch, capsys):
+    """The audit cap survives the store: the history row is the legacy document's capped
+    "history" list — MAX_HISTORY entries, oldest dropped, newest kept (byte → row)."""
+    hook = load_script("features/common/skills/prompt-markers/scripts/user_prompt_hook.py")
+    config_path = tmp_path / "markers-context.json"
+    _write_markers_context(config_path)
+    monkeypatch.setattr(hook, "MARKERS_CONTEXT_FILE", config_path)
+    project = tmp_path / "project"
+    (project / ".ai-badger").mkdir(parents=True)
+
+    total = hook.MAX_HISTORY + 5
+    for i in range(total):
+        rc = _call_main(hook, monkeypatch, {"prompt": f"h: prompt {i}", "cwd": str(project)})
+        assert rc == 0
+        capsys.readouterr()
+
+    history = _marker_rows(project, hook, monkeypatch)["history"]
+    assert len(history) == hook.MAX_HISTORY
+    assert history[-1]["originalPrompt"] == f"h: prompt {total - 1}"
+    assert history[0]["originalPrompt"] == f"h: prompt {total - hook.MAX_HISTORY}"
