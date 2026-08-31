@@ -51,6 +51,7 @@ import inspect
 import json
 import os
 import sqlite3
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -254,6 +255,186 @@ def test_searches_schema_is_telemetry_log_with_ts(tmp_path, monkeypatch):
         assert columns["ts"] == 1
     finally:
         store.close()
+
+
+# ---------------------------------------------------------------------------
+# 2b. P1.4 — the searches family goes active: the memory-grade stash writer's kind
+# ---------------------------------------------------------------------------
+
+
+def _legacy_searches(root: Path, entries: list) -> Path:
+    """Seed the legacy memory-grade stash document; return its path."""
+    path = root / "memory-grade" / "searches.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"recent": entries}), encoding="utf-8")
+    return path
+
+
+def test_searches_family_kind_is_the_recent_entry_log():
+    """P1.4 flips searches from deferred to the wrapper-document entry log kind, so the
+    default registry dual-reads and lazy-migrates the memory-grade stash on first write."""
+    family = badger_store.USER_FAMILIES["searches"]
+    assert family.legacy_kind == "recent"
+
+
+def test_first_searches_write_imports_legacy_stash_and_renames(tmp_path, monkeypatch):
+    """The first searches write lazy-migrates the legacy stash document: one row per
+    entry, COMMIT before the searches.migrated.json rename (D6)."""
+    root = _user_env(tmp_path, monkeypatch)
+    old = time.time() - 120
+    _legacy_searches(root, [
+        {"correlationId": "c-1", "sourceFiles": ["/p/a.md"], "ts": old},
+        {"correlationId": "c-2", "sourceFiles": ["/p/b.md", "/p/c.md"], "ts": old + 30},
+    ])
+    store = badger_store.open_user()
+    try:
+        fresh = time.time()
+        store.log_append("searches", badger_store.iso_row_ts(fresh),
+                         {"correlationId": "c-3", "sourceFiles": ["/p/d.md"], "ts": fresh})
+
+        assert not (root / "memory-grade" / "searches.json").exists()
+        assert (root / "memory-grade" / "searches.migrated.json").exists()
+        rows = store.conn.execute("SELECT ts, payload FROM searches ORDER BY id").fetchall()
+        assert [json.loads(payload)["correlationId"] for _, payload in rows] == \
+            ["c-1", "c-2", "c-3"]
+    finally:
+        store.close()
+
+
+def test_searches_import_keeps_entry_verbatim_and_row_ts_parseable(tmp_path, monkeypatch):
+    """Each stash entry becomes one row: the entry document verbatim as the payload (its
+    consumer does float window arithmetic on the embedded ts), and the entry's own ts
+    field converted to UTC ISO-8601 for the row's ts column — the prune must parse it."""
+    root = _user_env(tmp_path, monkeypatch)
+    epoch = time.time() - 3600
+    _legacy_searches(root, [{"correlationId": "c-1", "sourceFiles": ["/p/a.md"],
+                             "ts": epoch, "extra": {"kept": True}}])
+    store = badger_store.open_user()
+    try:
+        store.migrate("searches")
+
+        row_ts, payload = store.conn.execute(
+            "SELECT ts, payload FROM searches ORDER BY id").fetchone()
+        assert json.loads(payload) == {"correlationId": "c-1", "sourceFiles": ["/p/a.md"],
+                                       "ts": epoch, "extra": {"kept": True}}
+        datetime.fromisoformat(row_ts)  # the prune's parseability contract (D36)
+        assert row_ts.endswith("+00:00")  # UTC conversion of the epoch, never a local guess
+    finally:
+        store.close()
+
+
+def test_searches_crash_between_commit_and_rename_does_not_double_import(
+        tmp_path, monkeypatch):
+    """Crash after COMMIT, before rename: the next write re-imports the same entries and
+    exact (ts, payload) content keeps the rows unique (D6)."""
+    root = _user_env(tmp_path, monkeypatch)
+    entries = [
+        {"correlationId": "c-1", "sourceFiles": ["/p/a.md"], "ts": time.time() - 60},
+        {"correlationId": "c-2", "sourceFiles": ["/p/b.md"], "ts": time.time() - 30},
+    ]
+    legacy = _legacy_searches(root, entries)
+    time.sleep(0.05)  # legacy mtime must strictly predate the migration stamp
+    store = badger_store.open_user()
+    try:
+        store.migrate("searches")  # commits and renames
+        # Restore the exact on-disk state a crash between COMMIT and rename leaves behind.
+        legacy.with_name("searches.migrated.json").rename(legacy)
+
+        store.migrate("searches")  # the next write's import re-runs in that state
+        count = store.conn.execute("SELECT COUNT(*) FROM searches").fetchone()[0]
+        assert count == 2  # duplicate-free: a re-import must not add rows
+        assert not legacy.exists()  # and the rename completes this time
+    finally:
+        store.close()
+
+
+def test_searches_retention_sweeps_migrated_rows_older_than_60_days(tmp_path, monkeypatch):
+    """G0-Q2 made operative: rows imported from the legacy stash prune on the same 60-day
+    rule — an entry stashed 61 days ago is gone, a fresh one survives, because the import
+    converted the entries' epoch ts into parseable row ts (D36)."""
+    root = _user_env(tmp_path, monkeypatch)
+    _legacy_searches(root, [
+        {"correlationId": "old", "sourceFiles": ["/p/old.md"],
+         "ts": time.time() - 61 * 86400},
+        {"correlationId": "fresh", "sourceFiles": ["/p/new.md"],
+         "ts": time.time() - 120},
+    ])
+    store = badger_store.open_user()
+    try:
+        store.migrate("searches")
+        pruned = store.prune_expired("searches", max_age_days=60)
+
+        assert pruned == 1
+        kept = [json.loads(payload)["correlationId"] for _, payload in store.conn.execute(
+            "SELECT ts, payload FROM searches ORDER BY id").fetchall()]
+        assert kept == ["fresh"]
+    finally:
+        store.close()
+
+
+def test_searches_import_quarantines_malformed_documents(tmp_path, monkeypatch):
+    """A shape-less legacy stash never crashes the write path: it imports nothing and
+    quarantines with the rename, like the map-kind behavior this module shipped with."""
+    root = _user_env(tmp_path, monkeypatch)
+    (root / "memory-grade").mkdir(parents=True, exist_ok=True)
+    for content in ("not json", json.dumps({"recent": "not-a-list"}),
+                    json.dumps({"recent": ["a string", 7, None]}),
+                    json.dumps({"other": []})):
+        (root / "memory-grade" / "searches.json").write_text(content, encoding="utf-8")
+        store = badger_store.open_user()
+        try:
+            store.log_append("searches", badger_store.iso_row_ts(time.time()),
+                             {"correlationId": "c-1", "sourceFiles": ["/p/a.md"],
+                              "ts": time.time()})
+
+            rows = store.conn.execute("SELECT payload FROM searches").fetchall()
+            assert len(rows) == 1  # only the live write; the legacy doc contributed nothing
+            assert not (root / "memory-grade" / "searches.json").exists()
+            store.conn.execute("DELETE FROM searches")
+            store.conn.execute("DELETE FROM meta")
+            store.conn.commit()
+        finally:
+            store.close()
+
+
+def test_searches_import_survives_absurd_entry_timestamps(tmp_path, monkeypatch):
+    """A corrupt entry's out-of-range epoch is a value problem, not a migration crash:
+    the row lands under now (the sweep treats no better option as fresh) and the file
+    still renames — quarantine, never a poisoned stash that fails every later write."""
+    root = _user_env(tmp_path, monkeypatch)
+    _legacy_searches(root, [
+        {"correlationId": "huge", "sourceFiles": ["/p/a.md"], "ts": 1e30},
+        {"correlationId": "ok", "sourceFiles": ["/p/b.md"], "ts": time.time() - 30},
+    ])
+    store = badger_store.open_user()
+    try:
+        store.migrate("searches")
+
+        ids = [json.loads(payload)["correlationId"]
+               for _, payload in store.log_rows("searches")]
+        assert sorted(ids) == ["huge", "ok"]  # both imported; neither crashed the import
+        assert not (root / "memory-grade" / "searches.json").exists()
+    finally:
+        store.close()
+
+
+def test_log_rows_reads_append_order_and_fails_open(tmp_path, monkeypatch):
+    """log_rows is the read side of log_append: (ts, payload) pairs in append order;
+    a broken store reads as empty, never a crash (D31)."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        store.log_append("searches", badger_store.iso_row_ts(time.time() - 30),
+                         {"correlationId": "first"})
+        store.log_append("searches", badger_store.iso_row_ts(time.time()),
+                         {"correlationId": "second"})
+
+        rows = store.log_rows("searches")
+        assert [json.loads(payload)["correlationId"] for _, payload in rows] == \
+            ["first", "second"]
+    finally:
+        store.close()
+    assert store.log_rows("searches") == []  # broken (closed) store: empty, not raise
 
 
 # ---------------------------------------------------------------------------

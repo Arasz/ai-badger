@@ -243,10 +243,6 @@ VENDORED_PATHS: tuple[dict[str, str], ...] = (
     {"consumer": "auto-wm", "lands_in": "features/claude/skills/auto-wm/scripts/badger_store.py"},
     {"consumer": "auto-wm", "lands_in": "skills/auto-wm/scripts/badger_store.py"},
     {"consumer": "mcp-index", "lands_in": "skills/mcp-index/scripts/badger_store.py"},
-    {"consumer": "call-behaviorist",
-     "lands_in": "features/common/skills/call-behaviorist/scripts/badger_store.py"},
-    {"consumer": "call-behaviorist",
-     "lands_in": "skills/call-behaviorist/scripts/badger_store.py"},
 )
 
 
@@ -431,10 +427,10 @@ def _user_root() -> Path:
 
 #: The user-DB families (P1.1): schema and legacy paths land here; each family's import wiring
 #: ("deferred" -> a real kind) lands with the lane that rewires its writer, so no store open
-#: imports or renames a source its writer still owns (D5/D6): searches with P1.4. awm_state
-#: flipped to its real kind with P1.2a's awm rewiring, awm_decisions to "jsonl" with P1.2b's
-#: decision rewiring, commit_reminder/pending_feedback with P1.3's rewiring. Until then a
-#: deferred family has neither dual-read nor lazy import.
+#: imports or renames a source its writer still owns (D5/D6). awm_state flipped to its real
+#: kind with P1.2a's awm rewiring, awm_decisions to "jsonl" with P1.2b's decision rewiring,
+#: commit_reminder/pending_feedback with P1.3's rewiring, searches to "recent" with P1.4's
+#: memory-grade rewiring. Until a family flips it has neither dual-read nor lazy import.
 USER_FAMILIES: dict[str, Family] = {
     "awm_state": Family(
         table="awm_state",
@@ -474,7 +470,7 @@ USER_FAMILIES: dict[str, Family] = {
         table="searches",
         db="user",
         legacy_path=lambda: _user_root() / "memory-grade" / "searches.json",
-        legacy_kind="deferred",
+        legacy_kind="recent",  # flipped from "deferred" by P1.4's memory-grade rewiring
     ),
     # P2.0b session-store families (D10): the seven session-scoped surfaces. The file-set
     # kinds (FILE_SET_KINDS) import a whole legacy set in one transaction and rename per
@@ -1153,6 +1149,20 @@ class Store:
         notify_write(self.db_path)
         return updated
 
+    def log_rows(self, table: str) -> list:
+        """Every (ts, payload) row of a log table in append order; [] on any failure (D31).
+
+        The read side of log_append: consumers merge these rows with their legacy sources
+        instead of querying the schema directly. Payloads stay encoded — a payload that
+        never decodes is the caller's skip, not a store crash.
+        """
+        _check_table_name(table)
+        try:
+            return self.conn.execute(
+                f"SELECT ts, payload FROM {table} ORDER BY id").fetchall()
+        except sqlite3.Error:
+            return []
+
     def log_append(self, table: str, ts: str, payload: dict) -> None:
         """Append one log row (ts, payload JSON); the first write lazy-migrates the family (D6)."""
         _check_table_name(table)
@@ -1250,6 +1260,8 @@ class Store:
         """
         if family.legacy_kind == "jsonl":
             return self._import_jsonl(family, path)
+        if family.legacy_kind == "recent":
+            return self._import_recent(family, path)
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -1362,6 +1374,41 @@ class Store:
                     f"INSERT INTO {family.table}(ts, payload) VALUES (?, ?)", (ts, line)
                 )
             expected.append((ts, line))
+        return expected
+
+    def _import_recent(self, family: Family, path: Path) -> list:
+        """A wrapper document's entry list as log rows: payload verbatim, row ts converted.
+
+        The memory-grade stash (searches.json) holds {"recent": [{correlationId,
+        sourceFiles, ts: <epoch>}, ...]}: each entry becomes one row — the entry document
+        verbatim as the payload (its consumer does float window arithmetic on the embedded
+        ts), and the entry's own ts field converted by iso_row_ts for the row's ts column,
+        which the 60-day prune must parse (G0-Q2/D36). Idempotent like the jsonl kind:
+        exact (ts, payload) content is the key, so a crash between COMMIT and rename
+        re-imports without duplicates (D6). Non-dict entries import nothing and
+        quarantine with the rename.
+        """
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        entries = data.get("recent") if isinstance(data, dict) else None
+        if not isinstance(entries, list):
+            return []
+        expected: list = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            payload = json.dumps(entry)
+            ts = iso_row_ts(entry.get(family.ts_field))
+            exists = self.conn.execute(
+                f"SELECT 1 FROM {family.table} WHERE ts = ? AND payload = ?", (ts, payload)
+            ).fetchone()
+            if exists is None:
+                self.conn.execute(
+                    f"INSERT INTO {family.table}(ts, payload) VALUES (?, ?)", (ts, payload)
+                )
+            expected.append((ts, payload))
         return expected
 
     # -- file-set families (P2.0b, D10): one transaction for the set, rename per file -------
@@ -1529,6 +1576,24 @@ def _parseable_ts(ts) -> bool:
     except ValueError:
         return False
     return True
+
+
+def iso_row_ts(raw_ts) -> str:
+    """A log entry's own ts as the ISO-8601 row ts the prune's comparison trusts (D36).
+
+    Epoch floats (the memory-grade stash's native ts) convert to UTC ISO; parseable ISO
+    strings pass through; anything else becomes now — a NOT NULL ts column and the
+    unparseable-ts sweep both need a value that parses. The entry document itself stays
+    verbatim in the payload, ts field included.
+    """
+    if isinstance(raw_ts, (int, float)) and not isinstance(raw_ts, bool):
+        try:
+            return datetime.fromtimestamp(raw_ts, timezone.utc).isoformat()
+        except (OverflowError, OSError, ValueError):
+            return _now()  # an out-of-range epoch is a value problem, not a crash
+    if _parseable_ts(raw_ts):
+        return raw_ts
+    return _now()
 
 
 #: The retention scope (owner decision #2 + G0-Q2): every log table and the DB it lives

@@ -6,6 +6,7 @@ import json
 import os
 import sqlite3
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -206,7 +207,7 @@ class TestIsReadFile:
 
 
 # ---------------------------------------------------------------------------
-# File-based variant (memory_grade_hook.py shell hook)
+# Store-backed variant (memory_grade_hook.py shell hook) — P1.4 rewiring
 # ---------------------------------------------------------------------------
 
 MEMORY_GRADE_HOOK = (
@@ -226,63 +227,94 @@ def _load_memory_grade_hook():
 
 
 class TestMemoryGradeHook:
+    """The shell hook's searches stash lives in the user store (P1.4): one row per stashed
+    search, the legacy file imported + renamed on the first write, never rewritten after.
+    """
+
     # pylint: disable=attribute-defined-outside-init
     @pytest.fixture(autouse=True)
-    def clean_searches_file(self, tmp_path, monkeypatch):
-        searches_file = tmp_path / "searches.json"
-        mgh = _load_memory_grade_hook()
-        monkeypatch.setattr(mgh, "SEARCHES_FILE", searches_file)
-        monkeypatch.setattr(mgh, "_record_follow_through_sql", lambda cid, fp: None)
-        self.mgh = mgh
-        return searches_file
+    def hook_env(self, tmp_path, monkeypatch):
+        """Redirect every seam: the store under a temp user root, the legacy stash file
+        beside it, the raccoon-server write stubbed out."""
+        self.user_root = tmp_path / "user-root"
+        monkeypatch.setenv("AI_BADGER_USER_ROOT", str(self.user_root))
+        self.searches_file = tmp_path / "memory-grade" / "searches.json"
+        self.mgh = _load_memory_grade_hook()
+        monkeypatch.setattr(self.mgh, "SEARCHES_FILE", self.searches_file)
+        self.recorded = []
+        monkeypatch.setattr(self.mgh, "_record_follow_through_sql",
+                            lambda cid, fp: self.recorded.append((cid, fp)))
+        return self.mgh
 
-    def test_memory_search_stashes_sources(self, clean_searches_file):
-        mgh = self.mgh
-        payload = {"tool_name": "memory_search", "result": json.dumps({
-            "meta": {"correlationId": "abc-123"},
-            "results": [{"sourceFile": "/project/docs/adr/0001.md"}]})}
+    def _run(self, payload) -> int:
         import io
-        old = mgh.sys.stdin
-        mgh.sys.stdin = io.StringIO(json.dumps(payload))
+        old = self.mgh.sys.stdin
+        self.mgh.sys.stdin = io.StringIO(json.dumps(payload))
         try:
-            mgh.main([])
+            return self.mgh.main([])
         finally:
-            mgh.sys.stdin = old
-        stash = mgh._load_searches()
-        assert "recent" in stash
-        assert stash["recent"][0]["correlationId"] == "abc-123"
+            self.mgh.sys.stdin = old
 
-    def test_read_file_matches_and_records(self, clean_searches_file, monkeypatch):
-        mgh = self.mgh
-        mgh._save_searches({"recent": [{
-            "correlationId": "abc-123", "sourceFiles": ["/project/docs/adr/0001.md"],
-            "ts": time.time()}]})
-        recorded = []
-        monkeypatch.setattr(mgh, "_record_follow_through_sql",
-                            lambda cid, fp: recorded.append((cid, fp)))
-        payload = {"tool_name": "Read",
-                   "result": json.dumps({"path": "/project/docs/adr/0001.md"})}
-        import io
-        old = mgh.sys.stdin
-        mgh.sys.stdin = io.StringIO(json.dumps(payload))
+    def _stash_payload(self, corr_id, source_file):
+        return {"tool_name": "memory_search", "result": json.dumps({
+            "meta": {"correlationId": corr_id},
+            "results": [{"sourceFile": source_file}]})}
+
+    def _seed_legacy(self, entries):
+        self.searches_file.parent.mkdir(parents=True, exist_ok=True)
+        self.searches_file.write_text(json.dumps({"recent": entries}), encoding="utf-8")
+
+    def test_memory_search_appends_store_row_and_leaves_no_legacy_file(self, hook_env):
+        assert self._run(self._stash_payload("abc-123", "/p/a.md")) == 0
+
+        store = self.mgh.open_store()
         try:
-            mgh.main([])
+            rows = store.log_rows("searches")
+            assert len(rows) == 1
+            entry = json.loads(rows[0][1])
+            assert entry["correlationId"] == "abc-123"
+            assert entry["sourceFiles"] == ["/p/a.md"]
+            assert isinstance(entry["ts"], float)  # payload verbatim: window arithmetic
+            datetime.fromisoformat(rows[0][0])  # row ts parses: the prune's contract (D36)
         finally:
-            mgh.sys.stdin = old
-        assert len(recorded) == 1
+            store.close()
+        assert not self.searches_file.exists()  # the legacy writer is gone, not retained
 
-    def test_ignores_non_memory_or_read_tools(self, clean_searches_file):
-        mgh = self.mgh
-        payload = {"tool_name": "write_file", "result": json.dumps({"path": "/x.md"})}
-        import io
-        old = mgh.sys.stdin
-        mgh.sys.stdin = io.StringIO(json.dumps(payload))
+    def test_first_write_migrates_legacy_file_to_rows(self, hook_env):
+        self._seed_legacy([{"correlationId": "old", "sourceFiles": ["/p/old.md"],
+                            "ts": time.time() - 120}])
+        assert self._run(self._stash_payload("new", "/p/new.md")) == 0
+
+        assert not self.searches_file.exists()
+        assert self.searches_file.with_name("searches.migrated.json").exists()
+        store = self.mgh.open_store()
         try:
-            assert mgh.main([]) == 0
+            ids = [json.loads(p)["correlationId"] for _, p in store.log_rows("searches")]
+            assert ids == ["old", "new"]
         finally:
-            mgh.sys.stdin = old
+            store.close()
 
-    def test_handles_invalid_json_stdin(self, clean_searches_file):
+    def test_read_matches_a_search_stashed_in_the_store(self, hook_env):
+        assert self._run(self._stash_payload("abc-123", "/p/a.md")) == 0
+        assert self._run({"tool_name": "Read",
+                          "result": json.dumps({"path": "/p/a.md"})}) == 0
+        # no legacy file exists here: the match can only have come from the store
+        assert self.recorded == [("abc-123", "/p/a.md")]
+
+    def test_read_still_matches_pre_migration_legacy_entries(self, hook_env):
+        self._seed_legacy([{"correlationId": "legacy", "sourceFiles": ["/p/old.md"],
+                            "ts": time.time()}])
+        assert self._run({"tool_name": "read_file",
+                          "result": json.dumps({"path": "/p/old.md"})}) == 0
+        assert self.recorded == [("legacy", "/p/old.md")]
+        assert self.searches_file.exists()  # a read never migrates or rewrites the file
+
+    def test_ignores_non_memory_or_read_tools(self, hook_env):
+        assert self._run({"tool_name": "write_file",
+                          "result": json.dumps({"path": "/x.md"})}) == 0
+        assert self.recorded == []
+
+    def test_handles_invalid_json_stdin(self, hook_env):
         import io
         old = self.mgh.sys.stdin
         self.mgh.sys.stdin = io.StringIO("not json")
@@ -290,6 +322,47 @@ class TestMemoryGradeHook:
             assert self.mgh.main([]) == 0
         finally:
             self.mgh.sys.stdin = old
+
+    def test_write_path_prunes_expired_rows_and_stamps_retention(self, hook_env):
+        """G0-Q2 operative through the hook: the stash write is the prune opportunity —
+        a 61-day-old row is swept, the stamp lands, the fresh row survives."""
+        store = self.mgh.open_store()
+        try:
+            store.log_append(
+                "searches",
+                (datetime.now(timezone.utc) - timedelta(days=61)).isoformat(),
+                {"correlationId": "stale", "sourceFiles": ["/p/x.md"],
+                 "ts": time.time() - 61 * 86400})
+        finally:
+            store.close()
+
+        assert self._run(self._stash_payload("fresh", "/p/y.md")) == 0
+
+        store = self.mgh.open_store()
+        try:
+            ids = [json.loads(p)["correlationId"] for _, p in store.log_rows("searches")]
+            assert ids == ["fresh"]
+            assert store.meta_get("pruned_at.searches") is not None
+        finally:
+            store.close()
+
+    def test_a_broken_store_fails_open_on_both_paths(self, hook_env, monkeypatch):
+        """An unopenable store never blocks the tool call: the stash write degrades to a
+        lost metric, the read degrades to the legacy file's entries (D31/advisory)."""
+        def _broken():
+            raise sqlite3.OperationalError("no such store")
+        monkeypatch.setattr(self.mgh, "open_store", _broken)
+        self._seed_legacy([{"correlationId": "legacy", "sourceFiles": ["/p/old.md"],
+                            "ts": time.time()}])
+        before = self.searches_file.read_text(encoding="utf-8")
+
+        assert self._run(self._stash_payload("x", "/p/x.md")) == 0
+        assert self._run({"tool_name": "Read",
+                          "result": json.dumps({"path": "/p/old.md"})}) == 0
+
+        assert self.recorded == [("legacy", "/p/old.md")]
+        # no failure path may resurrect or rewrite the legacy file
+        assert self.searches_file.read_text(encoding="utf-8") == before
 
 
 # ---------------------------------------------------------------------------
