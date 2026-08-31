@@ -351,3 +351,44 @@ fixture-style setup.
 `test_scaffold_empty_skills.py` + `test_expected_skill_names.py` +
 `test_scaffold_skills_argv.py` 23/23, pre-commit hooks 10/10 incl. the new guard live
 against the worktree).
+
+---
+
+# Package 5 — mirror regen + AC0 (R4/D9)
+
+Self-scaffold of the worktree post-Package-4 (commit `024b5258`): exit 0,
+`scaffolded 212 entries`, 62 notes (all inclusion/exclusion/extension-requirement notes),
+**no `reused` note, no skill-level skip note**; only `.ai-badger/manifest.json` re-stamped
+(Package 4 touched `gates/` + `tests/`, which do not ship as mirrors) — committed
+same-commit per the mirror rule.
+
+## AC0 protocol (reviewer §3.1, D9) — scratch `/tmp/aib-ac0-4uMcXQ`, `git archive HEAD` of
+## the branch at `024b5258`, fixture-style setup, venv interpreter substituted for `python3`
+
+- **Run 1** (`--generated-at 2026-08-31T00:00:00Z`): exit 0, `scaffolded 212 entries`;
+  run-1 diff = ` M .ai-badger/manifest.json` only — stamp-class exactly as §3.2 expects
+  (`frameworkCommit` → scratch baseline commit, `frameworkDirty` → false, `generatedAt`
+  pinned). Committed.
+- **Run 2**: exit 0, `scaffolded 212 entries`.
+- **⚠ Protocol deviation finding (report, not a stop):** run-2's `git status` is **not
+  verbatim-empty** — it shows exactly ` M .ai-badger/manifest.json`, whose diff is
+  **STAMP-KEYS-ONLY** (`frameworkCommit` re-stamps because the protocol's own intermediate
+  commit moved HEAD; verified: every `+/-` line in the diff is one of the five
+  `STAMP_KEYS`). A second churn source appears when two runs go uncommitted between
+  runs: `frameworkDirty` flips false→true because run N starts with run N−1's uncommitted
+  manifest — an honest observation of git state at run start, again a STAMP_KEY. The
+  verbatim "run-2 status MUST be empty" is unsatisfiable **as written** on any branch: the
+  two git-derived stamps (`frameworkCommit`, `frameworkDirty`) record the git state the
+  protocol itself changes. The protocol's intent — no CONTENT churn; a second-run diff
+  would be F1 nondeterminism — holds: at fixed HEAD, run-to-run manifest diff is exactly
+  the two git-state stamp keys, all other 210+ entries byte-identical, pinned
+  `generatedAt` stable. **This is not narrowing and not F1 content churn.**
+- **Counts ×2**: `32 skill entries, 212 total` in run 2 and run 3 (and the persisted
+  run-2 manifest) — 32/32 & 212, matching research §3's healthy baseline.
+- **No `reused` note** in run 1/2/3 (recovery never engaged); **no `not in any configured
+  stack` skip notes**.
+- **Guard PASS**: `1952 path(s) compared against a re-scaffold of this tree; only version
+  stamps differ — PASS`, exit 0 — the guard's internal re-scaffold now runs the explicit
+  `expected_skill_names` argv, so the PASS also proves the union-form re-scaffold
+  reproduces the committed tree byte-stably (AC1a's post-fix claim, at tree level).
+- **Contingency not triggered**: no narrowing reproduced; R1 stays repaired on the branch.
