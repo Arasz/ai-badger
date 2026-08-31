@@ -724,12 +724,17 @@ def test_first_write_imports_the_legacy_document_and_renames_it(tmp_path, load_s
     other_entry = {"enabled": True, "mode": "away", "project": str(other),
                    "expires_at": "2099-01-01T00:00:00+00:00"}
     _write_legacy(state_file, {str(other): other_entry})
+    state_file.chmod(0o644)  # simulate a foreign-written legacy file with a laxer mode
     monkeypatch.chdir(tmp_path)
 
     awm.cmd_partner("2h")
 
     assert not state_file.exists()
-    assert state_file.with_name("state.migrated.json").exists()
+    migrated = state_file.with_name("state.migrated.json")
+    assert migrated.exists()
+    # D17: the rename must not launder a laxer legacy mode into the migrated artifact —
+    # the store re-asserts the DB's own mode (0600) onto what it migrated.
+    assert migrated.stat().st_mode & 0o777 == 0o600
     rows = _rows(awm)
     assert rows[str(tmp_path.resolve())]["mode"] == "partner"
     assert rows[str(other)] == other_entry, "the imported sibling window is untouched"

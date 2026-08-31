@@ -991,8 +991,13 @@ class Store:
             # next write re-runs this idempotent import (D6).
             os.replace(path, path.with_name(f"{path.stem}.migrated{path.suffix}"))
         _assert_file_perms(self.db_path)
+        # D17: the rename preserves the legacy file's mode — a foreign-written legacy file
+        # could carry a laxer one. The migrated file holds the same data as the DB it fed,
+        # so it inherits the DB's (just re-asserted) mode.
+        migrated = path.with_name(f"{path.stem}.migrated{path.suffix}")
+        os.chmod(migrated, os.stat(self.db_path).st_mode & 0o777)
         notify_write(self.db_path)
-        notify_write(path.with_name(f"{path.stem}.migrated{path.suffix}"))
+        notify_write(migrated)
 
     def _row_exists(self, table: str, key) -> bool:
         if isinstance(key, tuple):  # jsonl log rows: the (ts, payload) content key
