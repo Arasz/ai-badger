@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.152.0 | [the runtime stores move to SQLite (P0: store module + task family)](0.152.0-sqlite-runtime-store-p0.md) |
 | 0.151.0 | [the config's prose surfaces for staleness review](0.151.0-config-prose-surfaces-for-staleness-review.md) |
 | 0.150.0 | [the freshness guard cannot be blinded by its own remediation](0.150.0-remediation-cannot-be-narrowed.md) |
 | 0.149.1 | [docs: the delegation token pointers say where the `<taskId>` goes](0.149.1-docs-delegation-token-pointers.md) |

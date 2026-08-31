@@ -297,6 +297,8 @@ class TestTranscriptIsNotScannedGratuitously:
     def test_two_tasks_in_one_session_share_a_single_scan(
         self, stop_hook, monkeypatch, tmp_path
     ):
+        # Store-legal same-session pair (D14: one ACTIVE task per session); the scan sharing
+        # across two *eligible* entries is pinned directly on checkpoint_tasks below.
         transcript = tmp_path / "t.jsonl"
         _test_write(transcript, "", encoding="utf-8")
         reads = _count_transcript_reads(stop_hook, monkeypatch)
@@ -305,7 +307,7 @@ class TestTranscriptIsNotScannedGratuitously:
             tasks=[
                 {"taskId": "T01", "sessionId": "sid-1", "state": "IN_PROGRESS",
                  "startedAt": stop_hook.lib.now_iso()},
-                {"taskId": "T02", "sessionId": "sid-1", "state": "STARTED",
+                {"taskId": "T02", "sessionId": "sid-1", "state": "FINISHED",
                  "startedAt": stop_hook.lib.now_iso()},
             ],
             usage=[{"taskId": "T01", "checkpoints": {}}, {"taskId": "T02", "checkpoints": {}}],
@@ -315,6 +317,28 @@ class TestTranscriptIsNotScannedGratuitously:
             "session_id": "sid-1", "transcript_path": str(transcript),
         })
 
+        assert reads == [str(transcript)]
+
+    def test_checkpoint_tasks_parses_once_across_eligible_entries(
+        self, stop_hook, monkeypatch, tmp_path
+    ):
+        """Two unfinished entries in one call cost one transcript scan, not one per entry.
+
+        Reached through the read-only dual-read window, where a pre-migration legacy file can
+        still put two ACTIVE entries on one session beside the store's rows.
+        """
+        transcript = tmp_path / "t.jsonl"
+        _test_write(transcript, "", encoding="utf-8")
+        reads = _count_transcript_reads(stop_hook, monkeypatch)
+        entries = [
+            {"taskId": "T01", "sessionId": "sid-1", "state": "IN_PROGRESS"},
+            {"taskId": "T02", "sessionId": "sid-1", "state": "STARTED"},
+        ]
+        usage = {"tasks": [
+            {"taskId": "T01", "checkpoints": {}}, {"taskId": "T02", "checkpoints": {}}
+        ]}
+
+        assert stop_hook.checkpoint_tasks(entries, usage, str(transcript)) is True
         assert reads == [str(transcript)]
 
     def test_the_skipped_scan_is_recorded_as_a_skip_not_a_checkpoint(

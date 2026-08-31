@@ -697,6 +697,28 @@ def _managed_digest(path: Path, guard) -> dict:
             if rel != ".git" and not rel.startswith(".git/") and not guard.is_noise(rel)}
 
 
+def test_a_missing_managed_gitignore_block_is_drift(mutable_repo):
+    """P0.5: the managed block is scaffold output — a re-scaffold re-adding it is a finding.
+
+    The guard reproduces rather than compares hashes, so no special case is wanted here:
+    stripping the block from the tree must make the gate fail naming .gitignore, exactly
+    like any other output the tree has lost (#456's rule — nothing scaffold-written may be
+    invisible to the diff).
+    """
+    gitignore = mutable_repo / ".gitignore"
+    text = gitignore.read_text(encoding="utf-8")
+    lines = text.splitlines(keepends=True)
+    begin = next(i for i, l in enumerate(lines) if l.startswith("# BEGIN ai-badger"))
+    end = next(i for i, l in enumerate(lines) if l.startswith("# END ai-badger"))
+    gitignore.write_text("".join(lines[:begin] + lines[end + 1:]), encoding="utf-8")
+
+    proc = _run_gate(mutable_repo)
+
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "SCAFFOLD FRESHNESS GUARD FAILED" in proc.stdout
+    assert ".gitignore" in proc.stdout
+
+
 def test_a_second_scaffold_regenerates_the_same_tree_modulo_stamps(fresh_repo, tmp_path,
                                                                    load_script):
     """AC1a — consecutive-run idempotence, the foundation of the tree-vs-tree comparison

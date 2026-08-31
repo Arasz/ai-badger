@@ -8,6 +8,7 @@ and the statusline-vs-probe branches (fresh/stale/expired/not-exhausted).
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 import pytest
 from conftest import _test_write
@@ -93,16 +94,19 @@ def test_discover_target_sessions_reads_tracker_libs_actual_data_dir(tmp_path, l
     assert [s.session_id for s in sessions] == ["sid-real"]
 
 
-def test_log_pid_statusline_paths_share_tracker_libs_data_dir(load_script):
-    """LOG_FILE / PID_FILE / STATUSLINE_STATE must live under the same directory tracker_lib
-    computes for task tracking, not a separately hand-built `.claude/task-tracking/` literal --
-    otherwise a scaffolded project ends up with two tracking directories, one of which isn't in
-    the project's .gitignore."""
+def test_log_pid_paths_share_tracker_libs_data_dir_and_statusline_reads_the_store(load_script):
+    """LOG_FILE / PID_FILE must live under the same directory tracker_lib computes for task
+    tracking, not a separately hand-built `.claude/task-tracking/` literal -- otherwise a
+    scaffolded project ends up with two tracking directories, one of which isn't in the
+    project's .gitignore. P0.3e: the statusline read went to the store accessor — no legacy
+    statusline-state.json constant may come back.
+    """
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
 
     assert poll_limit.LOG_FILE.parent == poll_limit.lib.DATA_DIR
     assert poll_limit.PID_FILE.parent == poll_limit.lib.DATA_DIR
-    assert poll_limit.STATUSLINE_STATE.parent == poll_limit.lib.DATA_DIR
+    assert not hasattr(poll_limit, "STATUSLINE_STATE")
+    assert callable(poll_limit.lib.load_statusline_state)
 
 
 def test_poll_once_resumes_after_limit_transition(load_script):
@@ -218,16 +222,16 @@ def test_poll_once_no_sessions_to_resume_still_clears_was_limited(load_script):
 
 def test_statusline_reset_time_is_used_before_probe(tmp_path, load_script):
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
-    state_file = tmp_path / "statusline-state.json"
     future_reset = int(poll_limit.time.time()) + 3600
-    _test_write(state_file, json.dumps({
+    _test_write(tmp_path / "statusline-state.json", json.dumps({
         "capturedAt": poll_limit.datetime.now(poll_limit.timezone.utc).isoformat(),
         "rateLimits": {
             "five_hour": {"used_percentage": 100, "resets_at": future_reset},
         },
     }), encoding="utf-8")
 
-    limited, output = poll_limit.check_limit_from_statusline(state_file)
+    with patch.object(poll_limit.lib, "DATA_DIR", tmp_path):
+        limited, output = poll_limit.check_limit_from_statusline()
 
     assert limited is True
     assert "statusline" in output
@@ -235,16 +239,16 @@ def test_statusline_reset_time_is_used_before_probe(tmp_path, load_script):
 
 def test_statusline_expired_reset_reports_available(tmp_path, load_script):
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
-    state_file = tmp_path / "statusline-state.json"
     past_reset = int(poll_limit.time.time()) - 1
-    _test_write(state_file, json.dumps({
+    _test_write(tmp_path / "statusline-state.json", json.dumps({
         "capturedAt": poll_limit.datetime.now(poll_limit.timezone.utc).isoformat(),
         "rateLimits": {
             "five_hour": {"used_percentage": 100, "resets_at": past_reset},
         },
     }), encoding="utf-8")
 
-    limited, output = poll_limit.check_limit_from_statusline(state_file)
+    with patch.object(poll_limit.lib, "DATA_DIR", tmp_path):
+        limited, output = poll_limit.check_limit_from_statusline()
 
     assert limited is False
     assert "reset time passed" in output
@@ -252,16 +256,16 @@ def test_statusline_expired_reset_reports_available(tmp_path, load_script):
 
 def test_statusline_future_reset_but_window_not_exhausted_is_available(tmp_path, load_script):
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
-    state_file = tmp_path / "statusline-state.json"
     future_reset = int(poll_limit.time.time()) + 3600
-    _test_write(state_file, json.dumps({
+    _test_write(tmp_path / "statusline-state.json", json.dumps({
         "capturedAt": poll_limit.datetime.now(poll_limit.timezone.utc).isoformat(),
         "rateLimits": {
             "five_hour": {"used_percentage": 42, "resets_at": future_reset},
         },
     }), encoding="utf-8")
 
-    limited, output = poll_limit.check_limit_from_statusline(state_file)
+    with patch.object(poll_limit.lib, "DATA_DIR", tmp_path):
+        limited, output = poll_limit.check_limit_from_statusline()
 
     assert limited is False
     assert "not exhausted" in output
@@ -270,39 +274,39 @@ def test_statusline_future_reset_but_window_not_exhausted_is_available(tmp_path,
 
 def test_stale_statusline_state_is_ignored_so_probe_can_run(tmp_path, load_script):
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
-    state_file = tmp_path / "statusline-state.json"
     stale_capture = poll_limit.datetime.fromtimestamp(0, tz=poll_limit.timezone.utc).isoformat()
     future_reset = int(poll_limit.time.time()) + 3600
-    _test_write(state_file, json.dumps({
+    _test_write(tmp_path / "statusline-state.json", json.dumps({
         "capturedAt": stale_capture,
         "rateLimits": {
             "five_hour": {"used_percentage": 100, "resets_at": future_reset},
         },
     }), encoding="utf-8")
 
-    result = poll_limit.check_limit_from_statusline(state_file)
+    with patch.object(poll_limit.lib, "DATA_DIR", tmp_path):
+        result = poll_limit.check_limit_from_statusline()
 
     assert result is None
 
 
 def test_statusline_missing_state_file_is_ignored_so_probe_can_run(tmp_path, load_script):
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
-    state_file = tmp_path / "does-not-exist.json"
 
-    result = poll_limit.check_limit_from_statusline(state_file)
+    with patch.object(poll_limit.lib, "DATA_DIR", tmp_path):
+        result = poll_limit.check_limit_from_statusline()
 
     assert result is None
 
 
 def test_check_limit_from_statusline_missing_resets_at_returns_none(tmp_path, load_script):
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
-    state_file = tmp_path / "statusline-state.json"
-    _test_write(state_file, json.dumps({
+    _test_write(tmp_path / "statusline-state.json", json.dumps({
         "capturedAt": poll_limit.datetime.now(poll_limit.timezone.utc).isoformat(),
         "rateLimits": {"five_hour": {"used_percentage": 100}},
     }), encoding="utf-8")
 
-    result = poll_limit.check_limit_from_statusline(state_file)
+    with patch.object(poll_limit.lib, "DATA_DIR", tmp_path):
+        result = poll_limit.check_limit_from_statusline()
 
     assert result is None
 

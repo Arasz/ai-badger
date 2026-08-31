@@ -18,9 +18,16 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sqlite3
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "task" / "scripts"))
+    import tracker_lib as lib
+except ImportError:  # the task skill never shipped; the legacy files stay the surface
+    lib = None
 
 TRACKING = ".ai-badger/task-tracking"
 TASKS_FILE = f"{TRACKING}/executed-tasks.json"
@@ -54,9 +61,26 @@ def _read_json(path: Path) -> Optional[Any]:
 # ---------------------------------------------------------------- task state
 
 
+def _tracking_ready(target: Path) -> bool:
+    """Whether the store-backed reads apply: the task skill shipped and tracking exists.
+
+    A report never creates tracking structure: a project with no .ai-badger/task-tracking/
+    has nothing to read either way, and the legacy file reads degrade to the same answers.
+    """
+    return lib is not None and (target / TRACKING).is_dir()
+
+
 def _load_tasks(target: Path) -> List[Dict[str, Any]]:
-    """executed-tasks.json's task list, newest start first; [] when unreadable."""
-    data = _read_json(target / TASKS_FILE)
+    """The task list, newest start first — store rows (dual-read, D5a); [] when unreadable."""
+    data: Any = None
+    if _tracking_ready(target):
+        lib.DATA_DIR = target / TRACKING  # accessors resolve DATA_DIR at call time (D9)
+        try:
+            data = lib.load_tasks()
+        except (OSError, sqlite3.Error):
+            data = None  # a resurrected legacy file fails the store closed; report degrades
+    if data is None:
+        data = _read_json(target / TASKS_FILE)
     tasks = data.get("tasks", []) if isinstance(data, dict) else []
     return sorted((t for t in tasks if isinstance(t, dict)),
                   key=lambda t: str(t.get("startedAt", "")), reverse=True)
@@ -132,8 +156,16 @@ def score_known(plan: Path, task_id: str) -> bool:
 
 
 def subagents_for(target: Path, task_id: str) -> List[Dict[str, Any]]:
-    """token-usage.json's recorded subagent entries for one task ([] on anything missing)."""
-    data = _read_json(target / USAGE_FILE)
+    """The recorded subagent entries for one task ([] on anything missing)."""
+    data: Any = None
+    if _tracking_ready(target):
+        lib.DATA_DIR = target / TRACKING
+        try:
+            data = lib.load_usage()
+        except (OSError, sqlite3.Error):
+            data = None
+    if data is None:
+        data = _read_json(target / USAGE_FILE)
     tasks = data.get("tasks", []) if isinstance(data, dict) else []
     for task in tasks:
         if isinstance(task, dict) and task.get("taskId") == task_id:
@@ -165,9 +197,17 @@ def live_lanes(target: Path, open_task_ids: List[str]) -> List[str]:
 
 
 def live_sessions(target: Path) -> List[Dict[str, Any]]:
-    """current-session.json's live sessions (pid/cwd/recordedAt), [] when unreadable."""
-    data = _read_json(target / SESSIONS_FILE)
-    sessions = data.get("sessions", {}) if isinstance(data, dict) else {}
+    """Live sessions (pid/cwd/recordedAt) — store rows (dual-read, D5a); [] when unreadable."""
+    sessions: Any = None
+    if _tracking_ready(target):
+        lib.DATA_DIR = target / TRACKING
+        try:
+            sessions = lib.load_current_sessions()
+        except (OSError, sqlite3.Error):
+            sessions = None
+    if sessions is None:
+        data = _read_json(target / SESSIONS_FILE)
+        sessions = data.get("sessions", {}) if isinstance(data, dict) else {}
     return [dict(v, session_id=k) for k, v in sessions.items() if isinstance(v, dict)]
 
 

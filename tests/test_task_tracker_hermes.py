@@ -50,8 +50,8 @@ def _redirect_lib(lib, tmp_path):
     lib.CLAUDE_MD = tmp_path / "CLAUDE.md"
 
 
-@pytest.fixture
-def tt(load_script, root, monkeypatch, tmp_path):
+@pytest.fixture(name="tt")
+def _tt(load_script, root, monkeypatch, tmp_path):
     scripts_dir = str(root / "features" / "common" / "skills" / "task" / "scripts")
     monkeypatch.syspath_prepend(scripts_dir)
     module = load_script(TRACKER_RELPATH)
@@ -62,13 +62,14 @@ def tt(load_script, root, monkeypatch, tmp_path):
     monkeypatch.setattr(module.lib, "SESSION_SOURCES", {})
     hermes = load_script(HERMES_RELPATH)
     hermes.register(module.lib)
-    module._hermes = hermes
+    # Private seam: tests re-point the tracker's hermes source through this handle.
+    module._hermes = hermes  # pylint: disable=protected-access
     monkeypatch.setattr(module, "subprocess", _GuardedSubprocess())
     return module
 
 
-@pytest.fixture
-def hs(load_script, root, monkeypatch):
+@pytest.fixture(name="hs")
+def _hs(load_script, root, monkeypatch):
     scripts_dir = str(root / "features" / "common" / "skills" / "task" / "scripts")
     monkeypatch.syspath_prepend(scripts_dir)
     return load_script(HERMES_RELPATH)
@@ -246,7 +247,8 @@ class TestResolveOwnSessionHermes:
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
         monkeypatch.chdir(tmp_path)
-        tl._own_pid_ancestry = lambda max_depth=12: []
+        # Private seam: stubbing the PID-ancestry probe keeps the test hermetic.
+        tl._own_pid_ancestry = lambda max_depth=12: []  # pylint: disable=protected-access
 
         resolved = tl.resolve_own_session()
 
@@ -372,7 +374,7 @@ class TestParseHermesSessionUsage:
         _session(db, "s1", inp=100)
         # Same model, different task rows (the real store splits '' / 'approval' / ...).
         con = sqlite3.connect(db)
-        for task, api, inp, out in (("", 10, 1000, 200), ("approval", 2, 300, 50)):
+        for api, inp, out in ((10, 1000, 200), (2, 300, 50)):
             con.execute(
                 "INSERT INTO session_model_usage (session_id, model, api_call_count, "
                 "input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, "
@@ -429,16 +431,18 @@ class TestCliUnderHermes:
         db = _hermes_db(tmp_path)
         _session(db, "sid-h", inp=1000, out=200, cr=500)
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
-        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)
+        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)  # pylint: disable=protected-access
 
         code = _run(monkeypatch, tt, "start", "T-H1", "--no-worktree", "--no-cron")
 
         assert code == 0
-        tasks = json.loads((tt.lib.EXECUTED_TASKS).read_text())["tasks"]
+        # Store rows, not file bytes (D18 flagged rewrite: executed-tasks.json is renamed away
+        # by the migration this very command ran).
+        tasks = tt.lib.load_tasks()["tasks"]
         entry = next(t for t in tasks if t["taskId"] == "T-H1")
         assert entry["resumeCommand"] == "hermes --resume sid-h"
         assert entry.get("trackingSource") == "hermes"
-        usage = json.loads(tt.lib.TOKEN_USAGE.read_text())["tasks"]
+        usage = tt.lib.load_usage()["tasks"]  # store rows (D18 flagged rewrite)
         uentry = next(t for t in usage if t["taskId"] == "T-H1")
         assert uentry["checkpoints"]["start"]["cumulative"]["inputTokens"] == 1000
 
@@ -446,7 +450,7 @@ class TestCliUnderHermes:
         db = _hermes_db(tmp_path)
         _session(db, "sid-h", inp=1000, out=200, cr=500)
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
-        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)
+        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)  # pylint: disable=protected-access
         _run(monkeypatch, tt, "start", "T-H2", "--no-worktree", "--no-cron")
         # Bump the session's numbers to simulate the task's work landing.
         con = sqlite3.connect(db)
@@ -461,7 +465,7 @@ class TestCliUnderHermes:
         _test_write(state, "{}")
         _run_args(monkeypatch, tt, "finish", "T-H2", "--force")
 
-        usage = json.loads(tt.lib.TOKEN_USAGE.read_text())["tasks"]
+        usage = tt.lib.load_usage()["tasks"]  # store rows (D18 flagged rewrite)
         uentry = next(t for t in usage if t["taskId"] == "T-H2")
         assert uentry["usage"]["inputTokens"] == 1000
         assert uentry["usage"]["grandTotal"] > 0
@@ -472,11 +476,11 @@ class TestCliUnderHermes:
         db = _hermes_db(tmp_path)
         _session(db, "sid-h", inp=1)
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
-        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)
+        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)  # pylint: disable=protected-access
         _run_args(monkeypatch, tt, "start", "T-H3", "--no-worktree", "--no-cron")
         _run_args(monkeypatch, tt, "reattach", "T-H3")
 
-        tasks = json.loads(tt.lib.EXECUTED_TASKS.read_text())["tasks"]
+        tasks = tt.lib.load_tasks()["tasks"]  # store rows (D18 flagged rewrite)
         entry = next(t for t in tasks if t["taskId"] == "T-H3")
         assert entry["resumeCommand"] == "hermes --resume sid-h"
 
@@ -487,13 +491,13 @@ class TestCliUnderHermes:
                     result={"results": [{"tokens": {"input": 300, "output": 50},
                                          "model": "m1", "api_calls": 4}]})
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
-        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)
+        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)  # pylint: disable=protected-access
         _run_args(monkeypatch, tt, "start", "T-H4", "--no-worktree", "--no-cron")
 
         code = _run_args(monkeypatch, tt, "subagent", "T-H4", "--delegation", "deleg_1")
 
         assert code == 0
-        usage = json.loads(tt.lib.TOKEN_USAGE.read_text())["tasks"]
+        usage = tt.lib.load_usage()["tasks"]  # store rows (D18 flagged rewrite)
         uentry = next(t for t in usage if t["taskId"] == "T-H4")
         sub = uentry["subagents"][0]
         assert sub["totalTokens"] == 350
@@ -526,7 +530,7 @@ class TestCliUnderHermes:
         db = _hermes_db(tmp_path)
         _session(db, "sid-h", inp=100)
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
-        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)
+        monkeypatch.setattr(tt._hermes, "hermes_state_db_path", lambda: db)  # pylint: disable=protected-access
         _run_args(monkeypatch, tt, "start", "T-H6", "--no-worktree", "--no-cron")
         code = _run_args(monkeypatch, tt, "subagent", "T-H6", "--delegation", "nope")
         assert code == 2
@@ -534,17 +538,16 @@ class TestCliUnderHermes:
     def test_start_under_hermes_with_missing_db_degrades_to_zeros(self, tt, monkeypatch,
                                                                   tmp_path):
         monkeypatch.setenv("HERMES_SESSION_ID", "sid-h")
-        monkeypatch.setattr(tt._hermes, "hermes_state_db_path",
+        monkeypatch.setattr(tt._hermes, "hermes_state_db_path",  # pylint: disable=protected-access
                             lambda: tmp_path / "no-hermes" / "state.db")
         code = _run_args(monkeypatch, tt, "start", "T-H7", "--no-worktree", "--no-cron")
         assert code == 0
-        tasks = json.loads(tt.lib.EXECUTED_TASKS.read_text())["tasks"]
+        tasks = tt.lib.load_tasks()["tasks"]  # store rows (D18 flagged rewrite)
         entry = next(t for t in tasks if t["taskId"] == "T-H7")
         assert entry["resumeCommand"] == "hermes --resume sid-h"
 
 
 def _run_args(monkeypatch, module, *args):
     """Run task_tracker's main() in-process with the given CLI args; returns its exit code."""
-    import sys
     monkeypatch.setattr(sys, "argv", ["task_tracker.py", *args])
     return module.main()

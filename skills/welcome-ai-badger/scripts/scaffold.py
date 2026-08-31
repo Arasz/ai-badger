@@ -230,6 +230,7 @@ from skill_delivery import SkillDelivery, prune_namespaces, relink_hermes_skills
 from skills_argv import resolve_requested_skills  # noqa: E402
 from superseded_prune import SupersededPrune  # noqa: E402
 from local_invariants import append_rendered  # noqa: E402
+from gitignore_block import gitignore_managed_block, merge_gitignore, write_gitignore_block  # noqa
 
 
 def _ctx_property(name: str) -> property:
@@ -461,6 +462,10 @@ class Scaffolder:
         append_rendered(rendered, self.aib / "invariants" / "local",
                         delivered, invariant_summary, self.notes)
         return rendered
+
+    def scaffold_gitignore(self) -> None:
+        """Merge the managed SQLite-artifact block into the target's .gitignore."""
+        write_gitignore_block(self.ctx)
 
     def scaffold_agent_instructions(self) -> None:
         """Copy the agent-instructions schema/model template into .ai-badger/agent-instructions/."""
@@ -719,6 +724,7 @@ class Scaffolder:
             self._outside_project("hermes skill symlinks", self.symlink_hermes_skills)
         self.scaffold_agent_instructions()
         self.scaffold_templates()
+        self.scaffold_gitignore()
         self.mcp.fill_mcp_described()
         self.rendering.write_delegation_map(invariants, instr_paths,
                                             self.mcp.project_server_names())

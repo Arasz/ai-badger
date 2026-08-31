@@ -78,13 +78,16 @@ def _register(checkout: Path, task_id: str) -> Path:
 
 
 def _tracker_env() -> dict:
-    """The child's environment with CLAUDE_PROJECT_DIR removed, so the cwd walk decides.
+    """The child's environment with the project overrides removed, so the cwd walk decides.
 
-    The suite points that variable at a scratch project; leaving it set would make the child
-    resolve there and the test would prove nothing about worktrees.
+    The suite points CLAUDE_PROJECT_DIR at a scratch project; leaving it set would make the
+    child resolve there and the test would prove nothing about worktrees. AI_BADGER_TRACKING_ROOT
+    gets the same treatment (P0.3): the store must resolve from the checkout the child itself
+    computes, not from whatever root the parent process last synced (D9 call-time resolution).
     """
     env = dict(os.environ)
     env.pop("CLAUDE_PROJECT_DIR", None)
+    env.pop("AI_BADGER_TRACKING_ROOT", None)
     return env
 
 
@@ -115,11 +118,20 @@ def test_a_task_started_in_the_checkout_is_known_to_subagent_from_the_worktree(
     assert "Unknown task" not in (result.stdout + result.stderr), \
         f"rc={result.returncode} out={result.stdout!r} err={result.stderr!r}"
     assert result.returncode == 0
-    # The write must land in the checkout's store, not a second one in the worktree.
-    usage = json.loads((checkout / ".ai-badger" / "task-tracking"
-                        / "token-usage.json").read_text(encoding="utf-8"))
-    assert usage["tasks"][0]["taskId"] == "shared-store"
+    # The write must land in the checkout's store, not a second one in the worktree. Rows are
+    # read from the checkout's tracking.db (P0.3/D18 flagged rewrite: the legacy
+    # token-usage.json this used to read is renamed away by the migration the write ran).
+    import sqlite3  # pylint: disable=import-outside-toplevel
+
+    conn = sqlite3.connect(checkout / ".ai-badger" / "task-tracking" / "tracking.db")
+    try:
+        rows = conn.execute("SELECT task_id FROM token_usage").fetchall()
+    finally:
+        conn.close()
+    assert rows == [("shared-store",)]
     assert not (worktree / ".ai-badger" / "task-tracking" / "token-usage.json").exists(), \
+        "the worktree grew a store of its own"
+    assert not (worktree / ".ai-badger" / "task-tracking" / "tracking.db").exists(), \
         "the worktree grew a store of its own"
 
 

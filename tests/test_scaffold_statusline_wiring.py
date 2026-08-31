@@ -45,6 +45,33 @@ def _settings(target):
 
 
 def _delegate(target):
+    """The delegate record: the store row, else the pre-migration file (P0.3e rewiring)."""
+    import importlib.util
+    import os
+    from contextlib import closing
+
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "statusline_wiring_test_badger_store",
+        root / "features/common/skills/task/scripts/badger_store.py")
+    store_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(store_mod)
+    tracking = target / DELEGATE_RECORD.parent
+    os.environ[store_mod.TRACKING_ROOT_ENV] = str(tracking)
+    families = {
+        "statusline": store_mod.Family(
+            table="statusline", db="tracking",
+            legacy_path=lambda: tracking / "statusline-state.json",
+            legacy_kind="kvdoc", row_key="state"),
+        "statusline_delegate": store_mod.Family(
+            table="statusline", db="tracking",
+            legacy_path=lambda: tracking / "statusline-delegate.json",
+            legacy_kind="kvdoc", row_key="delegate"),
+    }
+    with closing(store_mod.open_tracking(families=families)) as store:
+        record = store.kv_get("statusline", "delegate", {})
+    if isinstance(record, dict) and record:
+        return record
     path = target / DELEGATE_RECORD
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
 

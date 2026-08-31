@@ -90,14 +90,19 @@ class TestTheSuiteCannotWriteToTheRealTrackingDir:
                     parent.rmdir()
 
     def test_registering_a_session_lands_outside_the_real_project(self, load_script):
-        """The end-to-end write, with nothing patched: it must happen, just somewhere safe."""
+        """The end-to-end write, with nothing patched: it must happen, just somewhere safe.
+
+        Since P0.3b the write is a sessions row in the tracking DB (ADR-0024), so the row is
+        what must exist — the legacy current-session.json name is only a migration source.
+        """
         tl = load_script(self.COPIES[1])
         tl.ensure_data_dir()
         tl.save_current_session("isolation-probe", transcript_path="", cwd="")
 
-        assert tl.CURRENT_SESSION.exists(), "the write should have happened"
-        assert REAL_PROJECT_ROOT not in tl.CURRENT_SESSION.parents, \
-            f"leaked to {tl.CURRENT_SESSION}"
+        session = tl.load_current_sessions().get("isolation-probe")
+        assert session is not None, "the write should have happened"
+        assert REAL_PROJECT_ROOT not in tl.DATA_DIR.parents, \
+            f"leaked to {tl.DATA_DIR}"
 
 
 class TestTheCwdIsPartOfTheIsolationFloor:
