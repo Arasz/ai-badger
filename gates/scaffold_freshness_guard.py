@@ -380,9 +380,10 @@ def collect(root: Path) -> Tuple[List[Finding], int]:
     if recorded < set(expected):
         missing = [name for name in expected if name not in recorded]
         raise Narrowing(
-            f"the manifest records {len(recorded)} scaffolded skill(s) but {len(expected)} "
-            f"are expected from {CONFIG}: {len(missing)} skill mirror(s) recorded nowhere, "
-            f"so a hand-edit to any of them would be invisible:",
+            f"SCAFFOLD FRESHNESS GUARD FAILED: the manifest records {len(recorded)} "
+            f"scaffolded skill(s) but {len(expected)} are expected from {CONFIG}: "
+            f"{len(missing)} skill mirror(s) recorded nowhere, so a hand-edit to any of "
+            f"them would be invisible:",
             [Finding(f"{SKILLS_MIRROR}/{name}/SKILL.md",
                      "recorded in no manifest row", "narrowed") for name in missing],
             expected)

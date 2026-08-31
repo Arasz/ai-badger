@@ -440,6 +440,8 @@ def test_a_narrowed_manifest_fails_fast_naming_the_lost_mirror(mutable_repo):
     assert done.returncode == 1, done.stdout + done.stderr
     assert done.returncode != 2, "a refusal would be a false green for this AC"
     assert "PASS" not in done.stdout, done.stdout
+    assert "SCAFFOLD FRESHNESS GUARD FAILED" in done.stdout, \
+        "a narrowing is a verdict, rendered like every other failed run"
     assert f"{mirror}/SKILL.md" in done.stdout, \
         f"the lost mirror must be named by full path:\n{done.stdout}"
     assert "expected from .ai-badger/config.json" in done.stdout, \
