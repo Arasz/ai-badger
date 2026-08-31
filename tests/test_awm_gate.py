@@ -27,6 +27,8 @@ def _patch_state_paths(module, monkeypatch, tmp_path):
     decisions_file = awm_dir / "decisions.jsonl"
     monkeypatch.setattr(module, "STATE_FILE", state_file)
     monkeypatch.setattr(module, "DECISIONS_FILE", decisions_file)
+    # The hook's store opens must land in tmp, never the real ~/.ai-badger/ai-badger.db.
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
     return state_file, decisions_file
 
 
@@ -73,6 +75,11 @@ def _payload(tool_name="Bash", tool_input=None, cwd=PROJECT):
 def _run_main(module, monkeypatch, payload):
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
     module.main()
+
+
+def _persisted(gate, state_file):
+    """Persisted per-project entries: the awm_state rows (legacy file only pre-first-write)."""
+    return gate.projects(gate.load_state())
 
 
 def _run_main_never_raises(module, monkeypatch, payload):
@@ -167,7 +174,7 @@ def test_away_mode_expired_falls_through_and_flips_state_off(tmp_path, load_scri
 
     # falls through to normal permission prompting: no allow/deny decision emitted
     assert capsys.readouterr().out == ""
-    entry = json.loads(state_file.read_text(encoding="utf-8"))["projects"][PROJECT]
+    entry = _persisted(gate, state_file)[PROJECT]
     assert entry["enabled"] is False
     assert entry["disabled_reason"] == "expired"
     decisions = _read_decisions(decisions_file)
@@ -185,7 +192,7 @@ def test_partner_mode_past_its_maximum_lifetime_falls_through_and_flips_state_of
     _run_main(gate, monkeypatch, _payload(tool_name="Bash"))
 
     assert capsys.readouterr().out == ""
-    entry = json.loads(state_file.read_text(encoding="utf-8"))["projects"][PROJECT]
+    entry = _persisted(gate, state_file)[PROJECT]
     assert entry["enabled"] is False
     assert _read_decisions(decisions_file)[-1]["type"] == "mode_expired"
 
@@ -443,7 +450,7 @@ def test_one_projects_expiry_leaves_the_other_armed(tmp_path, load_script, monke
     _run_main(gate, monkeypatch, _payload(cwd="/repo-live"))
     assert "allow" in capsys.readouterr().out
 
-    entries = json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    entries = _persisted(gate, state_file)
     assert entries["/repo-stale"]["enabled"] is False
     assert entries["/repo-live"]["enabled"] is True
 

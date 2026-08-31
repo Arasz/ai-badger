@@ -183,6 +183,7 @@ VENDORED_PATHS: tuple[dict[str, str], ...] = (
      "lands_in": "features/common/skills/worktree-agent-isolation/scripts/badger_store.py"},
     {"consumer": "worktree-agent-isolation",
      "lands_in": ".ai-badger/skills/worktree-agent-isolation/scripts/badger_store.py"},
+    {"consumer": "auto-wm", "lands_in": "features/claude/skills/auto-wm/scripts/badger_store.py"},
     {"consumer": "auto-wm", "lands_in": "skills/auto-wm/scripts/badger_store.py"},
     {"consumer": "mcp-index", "lands_in": "skills/mcp-index/scripts/badger_store.py"},
 )
@@ -323,13 +324,14 @@ class Family(NamedTuple):
     named by ``row_key`` (statusline-state.json / statusline-delegate.json); ``tasks`` and
     ``usage`` are ``{"tasks": [...]}`` row lists keyed on ``taskId`` (executed-tasks.json,
     token-usage.json); ``sessions`` is ``{"sessions": {id: info}}`` keyed on the session id
-    (current-session.json).
+    (current-session.json); ``awm`` is the away-mode document whose per-project entries sit
+    under ``projects`` (or the pre-#296 single-project shape) keyed by project path.
     """
 
     table: str
     db: str  # "tracking" or "user"
     legacy_path: Callable[[], Path]
-    legacy_kind: str  # "map" | "kvdoc" | "tasks" | "usage" | "sessions"
+    legacy_kind: str  # "map" | "kvdoc" | "tasks" | "usage" | "sessions" | "awm"
     row_key: str = ""  # kvdoc only: the KV row key this file's document becomes
 
 
@@ -357,9 +359,10 @@ def _user_root() -> Path:
 
 #: The user-DB families (P1.1): schema and legacy paths land here; each family's import wiring
 #: ("deferred" -> a real kind) lands with the lane that rewires its writer, so no store open
-#: imports or renames a source its writer still owns (D5/D6): awm_state and awm_decisions with
-#: P1.2's awm rewiring, commit_reminder with the commit-reminder lane, searches with P1.4.
-#: Until then a deferred family has neither dual-read nor lazy import.
+#: imports or renames a source its writer still owns (D5/D6): awm_decisions with P1.2b,
+#: commit_reminder with the commit-reminder lane, searches with P1.4. awm_state flipped to its
+#: real kind with P1.2a's awm rewiring. Until then a deferred family has neither dual-read nor
+#: lazy import.
 USER_FAMILIES: dict[str, Family] = {
     "awm_state": Family(
         table="awm_state",
@@ -367,7 +370,7 @@ USER_FAMILIES: dict[str, Family] = {
         # ~/.claude/awm is not a .ai-badger artifact: it follows the real home, never
         # AI_BADGER_USER_ROOT (the snapshot also keeps the suite's $HOME redirect from moving it).
         legacy_path=lambda: _DEFAULT_HOME / ".claude" / "awm" / "state.json",
-        legacy_kind="deferred",
+        legacy_kind="awm",
     ),
     "awm_decisions": Family(
         table="awm_decisions",
@@ -486,6 +489,20 @@ def session_info(row: dict) -> dict:
     return {key: row[column] for key, column in _SESSION_INFO_COLUMNS.items()
             if row.get(column) is not None}
 
+
+
+def _awm_projects(data: dict) -> dict:
+    """An away-mode state document's per-project entries, keyed by project path.
+
+    Both on-disk shapes: the #296 per-project form ({"projects": {path: entry}}) and the
+    pre-#296 single-project form whose top level IS the entry (it names its own "project").
+    """
+    projects = data.get("projects")
+    if isinstance(projects, dict):
+        return dict(projects)
+    if data.get("project"):
+        return {data["project"]: data}
+    return {}
 
 
 def _stamp_key(table: str) -> str:
@@ -620,7 +637,7 @@ class Store:
         """Legacy KV rows still mergeable for *table*; a resurrected legacy file fails closed."""
         merged: dict = {}
         for family in self._families_for_table(table):
-            if family.legacy_kind not in ("map", "kvdoc"):
+            if family.legacy_kind not in ("map", "kvdoc", "awm"):
                 continue
             path = family.legacy_path()
             if not path.exists():
@@ -634,6 +651,8 @@ class Store:
                 continue
             if family.legacy_kind == "kvdoc":
                 merged[family.row_key] = data
+            elif family.legacy_kind == "awm":
+                merged.update(_awm_projects(data))
             else:
                 merged.update(data)
         return merged
@@ -895,6 +914,20 @@ class Store:
         _assert_file_perms(self.db_path)
         notify_write(self.db_path)
 
+    def kv_delete(self, table: str, key: str) -> None:
+        """Drop one KV row; the first write lazy-migrates the family (D6), like kv_set."""
+        _check_table_name(table)
+        self.migrate(table)
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            self.conn.execute(f"DELETE FROM {table} WHERE key = ?", (key,))
+            self.conn.commit()
+        except BaseException:
+            self.conn.rollback()
+            raise
+        _assert_file_perms(self.db_path)
+        notify_write(self.db_path)
+
     def migrate(self, table: str) -> None:
         """Import every legacy source for *table* — COMMIT first, rename after (D6).
 
@@ -979,6 +1012,15 @@ class Store:
                     (key, json.dumps(value), stamp),
                 )
             return list(data)
+        if family.legacy_kind == "awm":
+            projects = _awm_projects(data)
+            for project, entry in projects.items():
+                self.conn.execute(
+                    f"INSERT OR IGNORE INTO {family.table}(key, value, updated_at) "
+                    f"VALUES (?, ?, ?)",
+                    (project, json.dumps(entry), stamp),
+                )
+            return list(projects)
         if family.legacy_kind == "tasks":
             entries = data.get("tasks") if isinstance(data.get("tasks"), list) else []
             blocks = data.get("stopBlocks")

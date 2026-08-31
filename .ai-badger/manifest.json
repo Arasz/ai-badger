@@ -1,8 +1,8 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.152.0",
-  "frameworkCommit": "6af0b6479de50472239812713191c531b4ded28c",
-  "frameworkDirty": false,
+  "frameworkCommit": "49f036c896b3fea357471b578a6fcf07a226bb27",
+  "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
   "agents": [
@@ -764,12 +764,12 @@
       "source": "features/common/skills/prompt-markers",
       "target": ".ai-badger/skills/prompt-markers",
       "frameworkVersion": "0.152.0",
-      "hash": "139612d88b39b0c93cfee0c438ba0f9e75ece6a57a649b337b99400e93ff7839",
+      "hash": "53315dc288b6af41c2158374835678e4a2030a3f25d53587a2fbee0f1599c141",
       "dirMeta": {
         "file_count": 5,
         "dir_count": 1
       },
-      "sourceHash": "91f7f59103fd27df2b1096460d03aed649123a72ef79415aca3181cfe2a53297",
+      "sourceHash": "67b3f1ae43bc42ed35869ea975a7a58ae4794fe397bdf41c5d7a276c5457e3e7",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 1
@@ -849,12 +849,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.152.0",
-      "hash": "706098c60804a460555da953c1a563a7e47f006edc1491a7917da64fa4b0a794",
+      "hash": "c0fa96fcd0faed3a329da731aef09f8801d1da2b9e0d92371dcbeddd00b23a74",
       "dirMeta": {
         "file_count": 19,
         "dir_count": 2
       },
-      "sourceHash": "706098c60804a460555da953c1a563a7e47f006edc1491a7917da64fa4b0a794",
+      "sourceHash": "c0fa96fcd0faed3a329da731aef09f8801d1da2b9e0d92371dcbeddd00b23a74",
       "sourceMeta": {
         "file_count": 19,
         "dir_count": 2
@@ -1149,14 +1149,14 @@
       "source": "features/claude/skills/auto-wm",
       "target": ".ai-badger/skills/auto-wm",
       "frameworkVersion": "0.152.0",
-      "hash": "9e9f94638808a2a3ff0fc06bccedf9efcd4d7f003518e1694935314bf2ebafae",
+      "hash": "f3b2f9bffcec5641bd53b0cd9a78f3c6b6ea7e3f0cbfef525e081e60d8ff06e9",
       "dirMeta": {
-        "file_count": 5,
+        "file_count": 6,
         "dir_count": 2
       },
-      "sourceHash": "9e9f94638808a2a3ff0fc06bccedf9efcd4d7f003518e1694935314bf2ebafae",
+      "sourceHash": "f3b2f9bffcec5641bd53b0cd9a78f3c6b6ea7e3f0cbfef525e081e60d8ff06e9",
       "sourceMeta": {
-        "file_count": 5,
+        "file_count": 6,
         "dir_count": 2
       },
       "projectOwned": [

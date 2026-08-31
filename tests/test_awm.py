@@ -8,7 +8,9 @@ command. All state is redirected to a tmp_path directory via monkeypatch — the
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -18,6 +20,9 @@ def _patch_state_paths(module, monkeypatch, tmp_path):
     monkeypatch.setattr(module, "AWM_DIR", awm_dir)
     monkeypatch.setattr(module, "STATE_FILE", awm_dir / "state.json")
     monkeypatch.setattr(module, "DECISIONS_FILE", awm_dir / "decisions.jsonl")
+    # The awm_state rows land in the user store (AI_BADGER_USER_ROOT, call-time resolved);
+    # without this redirect a suite write would reach the real ~/.ai-badger/ai-badger.db.
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
     return awm_dir
 
 
@@ -123,7 +128,7 @@ def test_main_away_invalid_duration_returns_error(tmp_path, load_script, monkeyp
 
     assert rc == 1
     assert "error" in capsys.readouterr().err.lower()
-    assert awm.load_state() is None
+    assert not awm.projects(awm.load_state() or {}), "the rejected mode persists nothing"
 
 
 def test_main_switching_from_partner_to_away_logs_the_switch(tmp_path, load_script, monkeypatch):
@@ -210,7 +215,7 @@ def test_main_status_reports_expired_away_window_as_no_longer_away(tmp_path, loa
     _patch_state_paths(awm, monkeypatch, tmp_path)
     monkeypatch.chdir(tmp_path)
     expired_at = datetime.now(timezone.utc) - timedelta(hours=1)
-    awm.write_state({
+    awm.save_entry(str(tmp_path), {
         "enabled": True, "mode": "away", "project": str(tmp_path),
         "enabled_at": (expired_at - timedelta(hours=4)).isoformat(timespec="seconds"),
         "duration": "4h", "duration_seconds": 4 * 3600,
@@ -284,15 +289,25 @@ def test_a_window_longer_than_the_maximum_is_capped(tmp_path, load_script, monke
 # ── user-scope state privacy (security I5) ───────────────────────────────────
 
 def test_state_file_is_owner_readable_only(tmp_path, load_script, monkeypatch):
-    """~/.claude/awm/ records where you work and what was auto-approved (security I5)."""
+    """The state store records where you work and what was auto-approved (security I5).
+
+    State lives in the user DB now, so the 0600 discipline moved with it: the store
+    re-asserts owner-only on the DB and its WAL sidecars on every write (D17).
+    """
     awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
-    monkeypatch.setattr(awm, "AWM_DIR", tmp_path / "awm")
-    monkeypatch.setattr(awm, "STATE_FILE", tmp_path / "awm" / "state.json")
-    monkeypatch.setattr(awm, "DECISIONS_FILE", tmp_path / "awm" / "decisions.jsonl")
+    _patch_state_paths(awm, monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
 
     awm.main(["partner"])
 
-    assert (tmp_path / "awm" / "state.json").stat().st_mode & 0o777 == 0o600
+    db = Path(os.environ["AI_BADGER_USER_ROOT"]) / "ai-badger.db"
+    assert db.stat().st_mode & 0o777 == 0o600
+    store = awm.open_store()  # sidecars exist only while a WAL connection is open
+    try:
+        for sidecar in ("-wal", "-shm"):
+            assert Path(str(db) + sidecar).stat().st_mode & 0o777 == 0o600
+    finally:
+        store.close()
 
 
 def test_decision_log_is_owner_readable_only(tmp_path, load_script, monkeypatch):
@@ -335,8 +350,9 @@ def test_the_decision_log_is_capped(tmp_path, load_script, monkeypatch):
 
 # ── per-project state (#296) ─────────────────────────────────────────────────
 
-def _entries(state_file):
-    return json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+def _entries(awm, state_file):
+    """Persisted per-project entries: the awm_state rows (legacy file only pre-first-write)."""
+    return awm.projects(awm.load_state() or {})
 
 
 def test_enabling_in_one_project_leaves_another_armed(tmp_path, load_script, monkeypatch, capsys):
@@ -353,7 +369,7 @@ def test_enabling_in_one_project_leaves_another_armed(tmp_path, load_script, mon
     awm.cmd_partner("2h")
     capsys.readouterr()
 
-    entries = _entries(state_file)
+    entries = _entries(awm, state_file)
     assert entries[str(a)]["enabled"] is True and entries[str(a)]["mode"] == "away"
     assert entries[str(b)]["enabled"] is True and entries[str(b)]["mode"] == "partner"
 
@@ -372,7 +388,7 @@ def test_disable_only_affects_the_current_project(tmp_path, load_script, monkeyp
     awm.cmd_disable()
     capsys.readouterr()
 
-    entries = _entries(state_file)
+    entries = _entries(awm, state_file)
     assert entries[str(a)]["enabled"] is True, "disabling in beta must not disarm alpha"
     assert entries[str(b)]["enabled"] is False
 
@@ -407,7 +423,7 @@ def test_re_enabling_the_same_project_replaces_its_entry(tmp_path, load_script, 
     awm.cmd_partner("3h")
     capsys.readouterr()
 
-    entries = _entries(state_file)
+    entries = _entries(awm, state_file)
     assert len(entries) == 1
     assert entries[str(a)]["mode"] == "partner"
 
@@ -429,7 +445,7 @@ def test_a_worktree_disables_its_own_entry_not_the_parent_repos(tmp_path, load_s
     awm.cmd_disable()
     capsys.readouterr()
 
-    entries = json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    entries = _entries(awm, state_file)
     assert entries[str(repo)]["enabled"] is True, "the parent checkout must stay armed"
     assert entries[str(worktree)]["enabled"] is False
 
@@ -461,7 +477,7 @@ def test_forget_refuses_an_armed_entry(tmp_path, load_script, monkeypatch, capsy
 
     assert rc == 1
     assert "--force" in capsys.readouterr().out
-    assert str(here) in json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    assert str(here) in _entries(awm, state_file)
 
 
 def test_force_forgets_an_armed_entry(tmp_path, load_script, monkeypatch, capsys):
@@ -472,7 +488,7 @@ def test_force_forgets_an_armed_entry(tmp_path, load_script, monkeypatch, capsys
     rc = awm.cmd_forget(force=True)
 
     assert rc == 0
-    entries = json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    entries = _entries(awm, state_file)
     assert str(here) not in entries
     assert str(other) in entries, "forgetting one project must not touch another"
 
@@ -486,7 +502,7 @@ def test_forget_drops_a_disabled_entry_without_force(tmp_path, load_script, monk
     rc = awm.cmd_forget()
 
     assert rc == 0
-    entries = json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    entries = _entries(awm, state_file)
     assert str(here) not in entries
     assert str(other) in entries
 
@@ -499,7 +515,7 @@ def test_forget_accepts_a_named_path(tmp_path, load_script, monkeypatch, capsys)
 
     rc = awm.cmd_forget(str(other), force=True)
 
-    entries = json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    entries = _entries(awm, state_file)
     assert rc == 0
     assert str(other) not in entries
     assert str(here) in entries
@@ -550,7 +566,7 @@ def test_forget_a_deleted_directory_still_works(tmp_path, load_script, monkeypat
     rc = awm.cmd_forget(str(gone), force=True)
 
     assert rc == 0
-    assert str(gone) not in json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    assert str(gone) not in _entries(awm, state_file)
 
 
 def test_main_routes_forget_and_its_force_flag(tmp_path, load_script, monkeypatch, capsys):
@@ -564,7 +580,7 @@ def test_main_routes_forget_and_its_force_flag(tmp_path, load_script, monkeypatc
 
     assert awm.main(["forget"]) == 1, "an armed entry needs --force"
     assert awm.main(["forget", "--force"]) == 0
-    assert json.loads(state_file.read_text(encoding="utf-8"))["projects"] == {}
+    assert _entries(awm, state_file) == {}
 # entry_here picks the most specific entry even when disabled, but the gate skips disabled
 # entries and falls back to an enclosing one — so the CLI could claim "inactive" while every
 # call auto-approved. That is the same disagreement this release exists to remove.
@@ -637,6 +653,158 @@ def test_forget_from_a_subdirectory_removes_the_nearest_project(tmp_path, load_s
 
     awm.cmd_forget(force=True)
 
-    entries = json.loads(state_file.read_text(encoding="utf-8"))["projects"]
+    entries = _entries(awm, state_file)
     assert str(repo) in entries, "forgetting from a worktree must not delete the checkout"
     assert str(worktree) not in entries
+
+
+# -- P1.2a: away-mode state as awm_state rows (per-project keys, legacy import, D5a window) --
+
+
+def _row(awm, key):
+    """One awm_state row of the test's user store, or None."""
+    store = awm.open_store()
+    try:
+        return store.kv_get("awm_state", key)
+    finally:
+        store.close()
+
+
+def _rows(awm):
+    """Every awm_state row of the test's user store, keyed by project path."""
+    store = awm.open_store()
+    try:
+        return store.kv_all("awm_state")
+    finally:
+        store.close()
+
+
+def _write_legacy(state_file, projects):
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(json.dumps({"version": 2, "projects": projects}), encoding="utf-8")
+
+
+def test_enable_persists_the_entry_as_an_awm_state_row_keyed_by_project(tmp_path, load_script,
+                                                                        monkeypatch):
+    """Partner mode lands as one row keyed by the resolved project root, not as a JSON file."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    awm_dir = _patch_state_paths(awm, monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    awm.cmd_partner("2h")
+
+    row = _row(awm, str(tmp_path.resolve()))
+    assert row["enabled"] is True and row["mode"] == "partner"
+    assert row["expires_at"] > row["enabled_at"], "the window stays wall-clock bounded"
+    assert row["project"] == str(tmp_path.resolve())
+    assert not (awm_dir / "state.json").exists(), "the legacy file is retired, not rewritten"
+
+
+def test_first_write_imports_the_legacy_document_and_renames_it(tmp_path, load_script,
+                                                                monkeypatch):
+    """The first store write imports every legacy project, then renames state.json (D6).
+
+    The other project's armed entry must survive verbatim: a migration keyed by anything but
+    the project path would clobber or orphan it.
+    """
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file = _patch_state_paths(awm, monkeypatch, tmp_path) / "state.json"
+    other = tmp_path / "other-project"
+    other_entry = {"enabled": True, "mode": "away", "project": str(other),
+                   "expires_at": "2099-01-01T00:00:00+00:00"}
+    _write_legacy(state_file, {str(other): other_entry})
+    monkeypatch.chdir(tmp_path)
+
+    awm.cmd_partner("2h")
+
+    assert not state_file.exists()
+    assert state_file.with_name("state.migrated.json").exists()
+    rows = _rows(awm)
+    assert rows[str(tmp_path.resolve())]["mode"] == "partner"
+    assert rows[str(other)] == other_entry, "the imported sibling window is untouched"
+
+
+def test_reads_merge_the_legacy_file_until_the_first_write(tmp_path, load_script, monkeypatch):
+    """D5a: reads see legacy-only projects during the window, and a read never migrates."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file = _patch_state_paths(awm, monkeypatch, tmp_path) / "state.json"
+    other = tmp_path / "other-project"
+    _write_legacy(state_file, {str(other): {"enabled": True, "mode": "away",
+                                            "project": str(other),
+                                            "expires_at": "2099-01-01T00:00:00+00:00"}})
+
+    entries = awm.projects(awm.load_state() or {})
+
+    assert str(other) in entries and entries[str(other)]["enabled"] is True
+    assert state_file.exists(), "a read never renames the legacy file"
+
+
+def test_load_state_falls_back_to_the_legacy_file_when_the_store_is_unavailable(
+        tmp_path, load_script, monkeypatch):
+    """A broken store reads exactly like today's missing file: fail open, never crash."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file = _patch_state_paths(awm, monkeypatch, tmp_path) / "state.json"
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+    (tmp_path / "user-root").write_text("a file, not a directory", encoding="utf-8")
+    other = tmp_path / "other-project"
+    _write_legacy(state_file, {str(other): {"enabled": True, "mode": "away",
+                                            "project": str(other),
+                                            "expires_at": "2099-01-01T00:00:00+00:00"}})
+
+    entries = awm.projects(awm.load_state() or {})
+
+    assert entries[str(other)]["enabled"] is True
+
+
+def test_pre_296_single_project_legacy_imports_as_one_row(tmp_path, load_script, monkeypatch):
+    """The pre-#296 shape (the top level IS the entry) imports under its own project key."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    state_file = _patch_state_paths(awm, monkeypatch, tmp_path) / "state.json"
+    legacy_entry = {"enabled": False, "mode": "away", "project": str(tmp_path),
+                    "expires_at": "2020-01-01T00:00:00+00:00", "disabled_reason": "expired"}
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(json.dumps(legacy_entry), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    awm.cmd_partner("2h")
+
+    rows = _rows(awm)
+    assert rows[str(tmp_path.resolve())]["mode"] == "partner"
+    assert state_file.with_name("state.migrated.json").exists()
+
+
+def test_disable_flips_only_this_projects_row(tmp_path, load_script, monkeypatch):
+    """Disable writes this project's row off and leaves the other checkout's window armed."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    _patch_state_paths(awm, monkeypatch, tmp_path)
+    other = tmp_path / "other-project"
+    other.mkdir()
+    monkeypatch.chdir(tmp_path)
+    awm.cmd_partner("2h")
+    monkeypatch.chdir(other)
+    awm.cmd_partner("2h")
+
+    awm.cmd_disable("done")
+
+    rows = _rows(awm)
+    assert rows[str(other.resolve())]["enabled"] is False
+    assert rows[str(other.resolve())]["disabled_reason"] == "done"
+    assert rows[str(tmp_path.resolve())]["enabled"] is True, "the other window stays armed"
+
+
+def test_forget_deletes_the_row_and_keeps_the_sibling(tmp_path, load_script, monkeypatch):
+    """Forget drops exactly one project's row; the sibling checkout's row survives."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    _patch_state_paths(awm, monkeypatch, tmp_path)
+    other = tmp_path / "other-project"
+    other.mkdir()
+    monkeypatch.chdir(tmp_path)
+    awm.cmd_away("2h")
+    monkeypatch.chdir(other)
+    awm.cmd_away("2h")
+
+    assert awm.cmd_forget(force=True) == 0
+
+    rows = _rows(awm)
+    assert str(other.resolve()) not in rows
+    assert str(tmp_path.resolve()) in rows
