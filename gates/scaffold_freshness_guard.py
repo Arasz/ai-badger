@@ -10,6 +10,16 @@ untracked-unignored tree is copied to a throwaway directory, the welcome-ai-badg
 scaffolder is re-run there against that copy, and every resulting difference is a finding.
 The tree under `--root` is only ever read.
 
+Reproduction alone is not enough: the re-scaffold's skill list is derived from this repo's
+config.json (`badger_lib.expected_skill_names`, the one oracle the scaffolder itself uses),
+never recovered from the manifest being audited. Before any re-scaffold, the manifest's
+recorded skills are compared against that derivation, and a manifest recording a proper
+subset fails the run immediately, naming the mirrors the narrowing lost (D2, task
+aib-scaffold-freshness-guard-blindspot-proof): recovery (`--skills ''`) would re-deliver
+the narrowed set and stay blind to every mirror it lost — the blind spot the 0.147.0
+changelog documented and `ea17ae60` shipped. Superset manifests are legitimate: their
+surfaces surface as ordinary re-scaffold findings below.
+
 Stamp churn is exempt because it is not staleness: `frameworkVersion`, `frameworkCommit`,
 `frameworkDirty`, `generatedAt` and `configHash` in JSON, and the `Scaffolded by ai-badger
 <version>` line in the agent-discovery markdown. A version bump alone must not fail this.
@@ -42,6 +52,24 @@ import badger_lib as bl
 CONFIG = ".ai-badger/config.json"
 MANIFEST = ".ai-badger/manifest.json"
 SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
+SKILLS_MIRROR = ".ai-badger/skills"
+
+# The skill list in the remediation is the config-derived expected set, never the
+# manifest's own record: an empty or manifest-recovered list re-delivers whatever narrowing
+# the manifest already carries (D1/D7). Regenerated mirrors belong in the same commit as
+# the source edit that staled them — half a repair fails the next run of this guard.
+REMEDIATION_RATIONALE = (
+    "The --skills list below is the config-derived expected set, so a narrowed manifest "
+    "cannot narrow the repair; any mirror it regenerates belongs in the same commit as the "
+    "source edit that staled it.")
+# Delivery resolves through index.json as well as the manifest: on an index-stale tree the
+# explicit argv below is correct but delivery can still silently skip a skill
+# (skill_delivery skips what no configured stack serves). Naming that here keeps the advice
+# honest when the incident is index staleness — the 0.147.0 shape (API-F9).
+DELIVERY_HEDGE = (
+    "Delivery also resolves through index.json: a stale index can still make the "
+    "re-scaffold silently skip a skill, so read the scaffolder's notes as well as this "
+    "verdict.")
 
 # The environment the re-scaffold needs, printed with the remediation because an operator who
 # omits it re-scaffolds a different tree: the MCP availability gate probes the host PATH, so a
@@ -70,6 +98,22 @@ UNCLASSIFIED = "regenerates differently"
 
 class Refusal(RuntimeError):
     """The guard could not reach a verdict, which is never the same as a pass."""
+
+
+class Narrowing(RuntimeError):
+    """The manifest records a proper subset of the config-derived expected skills (D2).
+
+    A verdict, not a refusal: the guard knows the tree fails before spending the
+    re-scaffold — recovery would re-deliver the narrowed set and stay blind to every mirror
+    the narrowing lost. Distinct from Refusal so main() renders it as a FAILED run (exit 1,
+    findings + remediation block) rather than a COULD NOT RUN (exit 2). Carries the
+    findings (each lost mirror, by full path) and the expected set the remediation needs.
+    """
+
+    def __init__(self, message: str, findings: List[Finding], expected: List[str]):
+        super().__init__(message)
+        self.findings = findings
+        self.expected = expected
 
 
 class Finding(NamedTuple):
@@ -125,18 +169,50 @@ def copy_into(root: Path, relatives: Sequence[str], dest: Path) -> None:
             shutil.copy2(src, dst)
 
 
-def rescaffold_argv(python: str, scaffold: str, config: str, target: str,
-                    root: str) -> List[str]:
-    """The scaffolder command line — one builder, so the printed advice is what the guard ran."""
+def rescaffold_argv(python: str, scaffold: str, config: str, target: str, root: str,
+                    expected: Sequence[str]) -> List[str]:
+    """The scaffolder command line — one builder, so the printed advice is what the guard ran.
+
+    The skill list is passed explicitly (API-F8), derived by the caller from config.json —
+    never the manifest: an empty value would mean "recover the manifest's own set" (#129),
+    which is precisely the blindness this guard exists to close.
+    """
     return [python, scaffold, "--config", config, "--target", target, "--root", root,
-            "--no-install", "--skills", ""]
+            "--no-install", "--skills", ",".join(expected)]
 
 
-def remediation() -> str:
-    """The command that makes a stale tree fresh: the guard's own, environment included."""
-    argv = rescaffold_argv("python3", SCAFFOLD, CONFIG, ".", ".")
+def remediation(expected: Sequence[str]) -> str:
+    """The command that makes a stale tree fresh: the guard's own, environment included.
+
+    `expected` is the config-derived skill set (D1) — the advice never carries an empty
+    `--skills`, because an empty value recovers the manifest's own narrowing and re-blinds
+    the tree it claims to repair. Callers derive it from the same repo whose findings are
+    being printed, so the printed advice is what the guard ran.
+    """
+    argv = rescaffold_argv("python3", SCAFFOLD, CONFIG, ".", ".", expected)
     assignments = [f"{key}={value}" for key, value in sorted(RESCAFFOLD_ENV.items())]
     return " ".join(assignments + [shlex.quote(arg) for arg in argv])
+
+
+def _expected_or_refuse(root: Path) -> List[str]:
+    """The skill set an unattended scaffold of *root*'s config must deliver, or a Refusal.
+
+    The manifest is the artifact under audit — it must never be the source of the skill
+    list (D1); the derivation is `badger_lib.expected_skill_names`, the oracle the
+    Scaffolder itself composes from. A config.json that cannot be parsed is a refusal here,
+    before any re-scaffold spend, not a traceback (API-F4). An empty derivation is a
+    refusal too (D4): a broken expected set is never a licence to fall back to `--skills ''`
+    recovery.
+    """
+    try:
+        config = bl.load_json(root / CONFIG)
+    except (ValueError, OSError) as exc:
+        raise Refusal(f"{root / CONFIG} could not be parsed as config.json: {exc}") from exc
+    expected = bl.expected_skill_names(root, config)
+    if not expected:
+        raise Refusal(f"the expected skill set derived from {root / CONFIG} is empty: "
+                      "a broken derivation must not fall back to manifest recovery")
+    return expected
 
 
 def rescaffold(work: Path) -> None:
@@ -147,12 +223,20 @@ def rescaffold(work: Path) -> None:
     `hermes` installed emits the Hermes MCP block, CI does not), which would otherwise make
     the guard's verdict depend on the host that runs it. Forcing every declared server
     available reproduces the committed tree — it was scaffolded on a hermes machine.
+
+    The skill list is derived from the copy's own config.json — a faithful copy of the
+    audited tree's — so the advice the guard prints (derived from `--root`) and the command
+    the guard runs (derived from the copy) are the same `expected_skill_names` derivation:
+    the one-oracle property (API-F4/F8). Passing the list explicitly is the fix for the old
+    blindness: recovery (`--skills ''`) re-delivered whatever the manifest recorded, so a
+    narrowed manifest was audited by a narrowed re-scaffold.
     """
+    expected = _expected_or_refuse(work)
     env = dict(os.environ, **RESCAFFOLD_ENV)
     env[HERMES_HOME_ENV] = str(work.parent / "hermes-home")
     proc = subprocess.run(
         rescaffold_argv(sys.executable, str(work / SCAFFOLD), str(work / CONFIG),
-                        str(work), str(work)),
+                        str(work), str(work), expected),
         cwd=str(work), capture_output=True, text=True, check=False, env=env)
     if proc.returncode != 0:
         raise Refusal("SCAFFOLDER FAILED on a copy of this tree "
@@ -273,7 +357,14 @@ def classify(root: Path, manifest: Dict[str, Any], rel: str) -> str:
 
 
 def collect(root: Path) -> Tuple[List[Finding], int]:
-    """Every difference a re-scaffold of *root* would introduce, and the paths compared."""
+    """Every difference a re-scaffold of *root* would introduce, and the paths compared.
+
+    Fails fast (Narrowing, D2) when the manifest records fewer skills than config.json
+    derives: the re-scaffold below runs on the explicitly derived set, so auditing a
+    narrowed manifest would compare the tree against a re-scaffold that lost the same
+    mirrors — a blind verdict, not a finding. The check runs before the copy + re-scaffold
+    spend; superset manifests pass through to the ordinary tree-vs-tree findings.
+    """
     present = tracked_and_untracked(root)
     if not (root / CONFIG).is_file():
         raise Refusal(f"{root} has no {CONFIG}: there is no scaffold here to check. "
@@ -284,6 +375,19 @@ def collect(root: Path) -> Tuple[List[Finding], int]:
 
     manifest = json.loads((root / MANIFEST).read_text(encoding="utf-8")) \
         if (root / MANIFEST).is_file() else {}
+    expected = _expected_or_refuse(root)
+    recorded = set(bl.scaffolded_skill_names(manifest))
+    if recorded < set(expected):
+        missing = [name for name in expected if name not in recorded]
+        raise Narrowing(
+            f"SCAFFOLD FRESHNESS GUARD FAILED: the manifest records {len(recorded)} "
+            f"scaffolded skill(s) but {len(expected)} are expected from {CONFIG}: "
+            f"{len(missing)} skill mirror(s) recorded nowhere, so a hand-edit to any of "
+            f"them would be invisible:",
+            [Finding(f"{SKILLS_MIRROR}/{name}/SKILL.md",
+                     "recorded in no manifest row", "narrowed") for name in missing],
+            expected)
+
     before = [rel for rel in present if not is_noise(rel)]
 
     holder = tempfile.mkdtemp(prefix="scaffold-freshness-")
@@ -318,6 +422,24 @@ def differences(root: Path, work: Path, manifest: Dict[str, Any],
     return findings
 
 
+def _print_failure(header: str, findings: List[Finding], expected: Sequence[str]) -> None:
+    """Render a failed verdict: header, findings, then the honest repair.
+
+    The rationale and delivery-hedge lines print BEFORE the `Re-scaffold this repo` header,
+    never after (QA-F8): operators — and the test harness's `_printed_remediation` —
+    execute everything after that header as one shell command, so a trailing clause would
+    be run, not read. The repair carries the explicit expected set (D1): `--skills ''`
+    would recover the manifest's own narrowing.
+    """
+    print(header)
+    for finding in findings:
+        print(finding.line())
+    print(REMEDIATION_RATIONALE)
+    print(DELIVERY_HEDGE)
+    print("Re-scaffold this repo against itself and commit the result:")
+    print(f"    {remediation(expected)}")
+
+
 def check(root: Path) -> int:
     """Run the scaffold-freshness guard; print its verdict; return 0 pass / 1 fail."""
     findings, compared = collect(root)
@@ -326,12 +448,9 @@ def check(root: Path) -> int:
               f"stamps differ — PASS")
         return 0
 
-    print(f"SCAFFOLD FRESHNESS GUARD FAILED: re-scaffolding this repo against itself would "
-          f"change {len(findings)} of {compared} path(s):")
-    for finding in findings:
-        print(finding.line())
-    print("Re-scaffold this repo against itself and commit the result:")
-    print(f"    {remediation()}")
+    _print_failure(f"SCAFFOLD FRESHNESS GUARD FAILED: re-scaffolding this repo against "
+                   f"itself would change {len(findings)} of {compared} path(s):",
+                   findings, _expected_or_refuse(root))
     return 1
 
 
@@ -343,6 +462,9 @@ def main(argv=None) -> int:
     root = Path(args.root).resolve() if args.root else bl.find_root()
     try:
         return check(root)
+    except Narrowing as narrowing:
+        _print_failure(str(narrowing), narrowing.findings, narrowing.expected)
+        return 1
     except Refusal as refusal:
         print(f"SCAFFOLD FRESHNESS GUARD COULD NOT RUN: {refusal}")
         return 2

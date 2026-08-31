@@ -227,6 +227,7 @@ from mcp_tools import McpTools  # noqa: E402
 from statusline_wiring import StatusLineWiring  # noqa: E402
 # relink_hermes_skills is re-exported: den-refresh's refresh.py calls it on this module.
 from skill_delivery import SkillDelivery, prune_namespaces, relink_hermes_skills  # noqa: E402
+from skills_argv import resolve_requested_skills  # noqa: E402
 from superseded_prune import SupersededPrune  # noqa: E402
 from local_invariants import append_rendered  # noqa: E402
 
@@ -264,9 +265,12 @@ class Scaffolder:
         self.included = bl.inclusions(config)
         self.addable_skills = set(bl.opt_in_skills_in(root / "features" / "common" / "skills"))
         # Grouped skills install whole (#266), expanded before the addable filter; a stale
-        # member name resolves to the gateway that absorbed it (ADR-0021).
-        wanted = {aliases.get(n, n) for n in bl.expand_skill_groups(self.included["skills"])}
-        asked_for = [n for n in sorted(wanted) if n in self.addable_skills]
+        # member name resolves to the gateway that absorbed it (ADR-0021). The composition is
+        # the shared include-derived oracle (bl.include_derived_skill_names) so the guard's
+        # expected set cannot drift from what the Scaffolder actually asks for (D1) — only the
+        # include-derived block feeds delivery here: an explicit argv REPLACES the defaults
+        # and must never gain them back (API-F2).
+        asked_for = bl.include_derived_skill_names(config, aliases, self.addable_skills)
         offered = list(dict.fromkeys(list(skills) + asked_for))
         # Whether the delivered list is evidence of what the project wants: empty means
         # "unchanged" (#129), which discover_stack_local hides. See adjust_skills.may_prune.
@@ -803,22 +807,10 @@ def main(argv=None) -> int:
         return 1
 
     config = bl.load_json(config_path)
-    skills = [s for s in args.skills.split(",") if s]
-    cli_notes: List[str] = []
-    if not skills:
-        # An explicitly empty --skills means "unchanged", not "none" (#129). A fresh target
-        # has no manifest to recover from and scaffolds no skills — nothing to destroy.
-        manifest_path = target / ".ai-badger" / "manifest.json"
-        if manifest_path.is_file():
-            try:
-                skills = bl.scaffolded_skill_names(bl.load_json(manifest_path))
-                cli_notes.append(
-                    f"--skills was empty — reused {len(skills)} skill(s) already scaffolded, "
-                    f"from the manifest at {manifest_path}"
-                )
-            except (ValueError, OSError) as exc:
-                skills = []
-                cli_notes.append(f"--skills empty, manifest at {manifest_path} could not be read ({exc})")
+    skills, cli_notes, rejection = resolve_requested_skills(root, target, args.skills)
+    if rejection:
+        print(rejection, end="")
+        return 2
     scaf = Scaffolder(root, target, config, skills, install=not args.no_install,
                       overwrite=args.overwrite_agent_files,
                       reset_seed_files=args.reset_seed_files,

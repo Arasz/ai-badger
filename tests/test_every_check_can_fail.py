@@ -319,6 +319,29 @@ def _scaffold_freshness_guard(work: Path, provoked: bool) -> Outcome:
     return _run_gate("gates/scaffold_freshness_guard.py", "--root", str(repo))
 
 
+def _scaffold_freshness_manifest_narrowed(work: Path, provoked: bool) -> Outcome:
+    """A manifest that lost a skill row while the mirror is still on disk.
+
+    Pre-fix the gate audited the narrowing with itself: its re-scaffold recovered the
+    manifest's own set, so the lost mirror was never regenerated and the tree passed (the
+    d-16 blind spot; ea17ae60 shipped this shape). Post-fix the gate fails fast naming the
+    recorded-vs-expected mismatch (D2) — before any re-scaffold spend.
+    """
+    repo = _self_scaffolded_repo(work)
+    if provoked:
+        manifest_path = repo / ".ai-badger" / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        names = [e["name"] for e in manifest["entries"]
+                 if e.get("feature") == "skills" and "/" not in e.get("name", "")]
+        assert names, "fixture precondition: the manifest records skill rows"
+        victim = min(names)
+        mirror = f".ai-badger/skills/{victim}"
+        manifest["entries"] = [e for e in manifest["entries"]
+                               if not (e.get("target") or "").startswith(mirror)]
+        _write(manifest_path, json.dumps(manifest) + "\n")
+    return _run_gate("gates/scaffold_freshness_guard.py", "--root", str(repo))
+
+
 # --------------------------------------------------------------- gates/consumer_journey.py
 
 
@@ -796,6 +819,10 @@ REGISTRY: Tuple[Provocation, ...] = (
                 "a skill source that gained a file, with no re-scaffold",
                 _scaffold_freshness_guard,
                 Signal(exit_code=1, contains="SCAFFOLD FRESHNESS GUARD FAILED")),
+    Provocation("gates/scaffold_freshness_guard.py",
+                "the manifest lost a skill row, with no re-scaffold",
+                _scaffold_freshness_manifest_narrowed,
+                Signal(exit_code=1, contains="expected from .ai-badger/config.json")),
     Provocation("gates/consumer_journey.py", "--no-install writing into ~/.hermes",
                 _journey_no_install_leaks_home,
                 Signal(exit_code=1, contains="--no-install: $HOME gained")),
