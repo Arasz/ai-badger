@@ -1,17 +1,17 @@
 # Skills
 
-This page catalogs 42 skills — everything under `features/common/skills/` and
+This page catalogs 43 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-41 live under `features/common/skills/` and split by the `scope:` each declares in its own
+42 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**21 are `default`** and arrive in every scaffolded project without being asked for, and
+**22 are `default`** and arrive in every scaffolded project without being asked for, and
 **20 are `optIn`** — catalogued, but written only when a project names them. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 41 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **47** files:
-the 42 above plus 5 more that belong to a single stack and arrive only with it — the
+**These 42 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **48** files:
+the 43 above plus 5 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/` and 1 under `features/ai-raccoon/skills/`.
 Those 5 have no row below and are documented by their own `SKILL.md`. Derive the number rather
@@ -80,6 +80,7 @@ names it, **claude-only** when the stack decides.
 | [feed-badger](#feed-badger) | Contribute project-agnostic improvements back to the catalog | default | by name |
 | [humanizer](#humanizer) | Strip AI writing artifacts, apply research-grounded humanization levers, and adopt a natural voice | default | by name |
 | [task](#task) | Run one backlog task end to end with model delegation | default | by name (`/task <id>`) |
+| [quick-task](#quick-task) | Ship a one-sentence, one-surface change as a single commit on main — minimal plan, touched-surface tests, no PR | default | by name |
 | [status-report](#status-report) | Answer "where are we?" mid-task — current task, checklist progress, next, delegation status | default | by name |
 | [git-work](#git-work) | Recover push failures, triage red CI, and run the PR lifecycle outside a tracked task | default | by name |
 | [create-task-spec](#create-task-spec) | Interrogate an idea into a Gherkin specification plus a manifest `task` consumes | default | by name |
@@ -204,6 +205,23 @@ high-reasoning model and implementation to persona-routed agents.
 squash-merge.
 
 **When to use it.** "/task \<id\>", "start task X", "work on the next task", "finish this task".
+
+### quick-task
+
+[`SKILL.md`](../features/common/skills/quick-task/SKILL.md)
+
+**What it is.** The fast lane between "just edit it" and the full `task` pipeline: one focused
+change, planned in minutes, verified on the surface it touches, reviewed once, shipped as a
+single commit on main. No branch, no PR, no plan document, no multi-lane review.
+
+**What it does.** Five shape questions gate entry — one sentence, one surface, one commit,
+reversible, no rulings needed — and any "no" escalates to `task`. Inside the shape it runs a
+minimal three-to-six-bullet plan, touched-surface tests plus the fast gates, one focused review
+before the push (delegated for auth/money/data/contracts), and one conventional commit whose
+revert restores main exactly.
+
+**When to use it.** A change small enough to skip the full task pipeline — a dependency bump,
+a doc fix, a lint cleanup, a config tweak — as long as the five shape questions all answer yes.
 
 ### create-task-spec
 

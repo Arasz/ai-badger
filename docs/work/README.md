@@ -88,3 +88,7 @@ the first plain-markdown record here.
 | `2026-08-31-scaffold-freshness-guard-plan-review-qa.md` | Plan review (qa): REQUEST-CHANGES — runbook scratch setup produced refusals not artifacts (F-QA1), AC2 recipe's claimed pre-fix PASS unobtainable (F-QA3), D6b transport-invariance contradicted D3 (F-QA4), AC1 digest noise (F-QA5); probes run and recorded. |
 | `2026-08-31-scaffold-freshness-guard-plan.md` | Master plan rev 2 (G0-approved): decisions D1–D9, work packages 1–7, risk register, review-finding disposition mapping. |
 | `2026-08-31-scaffold-freshness-guard-red-witnesses.md` | Package 1 RED witnesses: fixture-style /tmp scratch runs at pre-fix HEAD — AC2 (plan recipe falsified: hand-stripped rows still fail via host-link pruning; the d-16 blindness witnessed via the narrowed-run recipe), AC3 RED at assertions 6+8, AC4 both tiers + trailing-space shape, AC1 control GREEN, D6b 128-vs-212. |
+
+## 2026-08-31 — sqlite-storage-migration-preview (SQLite runtime-store migration research)
+
+| `2026-08-31-sqlite-storage-migration-preview.md` | Evidence-first research preview for replacing the JSON/JSONL runtime stores with SQLite: F1–F10 findings (stdlib sqlite3 + JSON1 measured on every supported Python, WAL gives hook-grade concurrency, throughput a wash at hook scale, the four store families and their migration verdicts, a tests-and-docs-dominated change surface), plus the owner decisions taken the same day. Scoped the P0/P1 migrations shipped as 0.152.0 and 0.153.0. |
