@@ -18,7 +18,9 @@ one checkout neither arms the machine nor disarms another checkout (#296).
 State lives as ``awm_state`` rows in the user store (~/.ai-badger/ai-badger.db), one row per
 project. A legacy ~/.claude/awm/state.json is imported on the first write and renamed
 ``state.migrated.json``; until then reads merge it in (D5a). Every mode change is appended to
-~/.claude/awm/decisions.jsonl.
+the store's ``awm_decisions`` rows; a legacy ~/.claude/awm/decisions.jsonl is imported on the
+first decision write and renamed ``decisions.migrated.json`` (D6), and rows older than 60 days
+are pruned on write, throttled to once an hour (D9) — the 5000-line trim is gone.
 """
 # pylint: disable=missing-function-docstring
 # Ported verbatim from the originating job-search-ai-assistant repo's auto-wm skill: kept in
@@ -33,8 +35,7 @@ import badger_store  # vendored beside this script in production; engine/ canoni
 
 AWM_DIR = Path.home() / ".claude" / "awm"
 STATE_FILE = AWM_DIR / "state.json"
-DECISIONS_FILE = AWM_DIR / "decisions.jsonl"
-MAX_DECISION_LINES = 5000
+DECISIONS_FILE = AWM_DIR / "decisions.jsonl"  # legacy source; rows replace it (P1.2b)
 DEFAULT_AWAY_DURATION = "4h"
 DEFAULT_PARTNER_DURATION = "8h"
 # No auto-approval window is open-ended: an unattended one is capped here, and the gate
@@ -88,16 +89,21 @@ def _legacy_state():
 
 
 def open_store():
-    """The user store narrowed to this module's awm_state family.
+    """The user store narrowed to this module's awm families.
 
-    The family's legacy path rebinds to this module's STATE_FILE, so tests and surfaces
-    redirect the legacy state.json without touching the real home. Only awm_state is
-    registered: decisions.jsonl keeps its own writer and lane (P1.2b).
+    Both families' legacy paths rebind to this module's constants, so tests and surfaces
+    redirect the legacy state.json / decisions.jsonl without touching the real home.
     """
-    family = badger_store.Family(
-        table="awm_state", db="user", legacy_path=lambda: STATE_FILE, legacy_kind="awm",
-    )
-    return badger_store.open_user(families={"awm_state": family})
+    families = {
+        "awm_state": badger_store.Family(
+            table="awm_state", db="user", legacy_path=lambda: STATE_FILE, legacy_kind="awm",
+        ),
+        "awm_decisions": badger_store.Family(
+            table="awm_decisions", db="user",
+            legacy_path=lambda: DECISIONS_FILE, legacy_kind="jsonl",
+        ),
+    }
+    return badger_store.open_user(families=families)
 
 
 def save_entry(project, entry):
@@ -109,37 +115,15 @@ def save_entry(project, entry):
         store.close()
 
 
-def _own_only(path):
-    """0600 for a file, 0700 for a directory. This state says where you work and what ran."""
-    try:
-        path.chmod(0o700 if path.is_dir() else 0o600)
-    except OSError:
-        pass
-
-
 def log_event(event_type, detail):
-    AWM_DIR.mkdir(parents=True, exist_ok=True)
-    _own_only(AWM_DIR)
+    """One awm_decisions row; rows older than 60 days are pruned on write (D9, throttle-gated)."""
     entry = {"ts": now_utc().isoformat(timespec="seconds"), "type": event_type, "detail": detail}
-    with DECISIONS_FILE.open("a") as f:
-        f.write(json.dumps(entry) + "\n")
-    _own_only(DECISIONS_FILE)
-    _trim_decisions()
-
-
-def _trim_decisions():
-    """Keep the newest MAX_DECISION_LINES entries. An unbounded audit log is its own risk."""
+    store = open_store()  # first write imports + renames a legacy decisions.jsonl (D6)
     try:
-        lines = DECISIONS_FILE.read_text().splitlines(keepends=True)
-    except OSError:
-        return
-    if len(lines) <= MAX_DECISION_LINES:
-        return
-    try:
-        DECISIONS_FILE.write_text("".join(lines[-MAX_DECISION_LINES:]))
-        _own_only(DECISIONS_FILE)
-    except OSError:
-        pass
+        store.log_append("awm_decisions", entry["ts"], entry)
+        store.prune_expired("awm_decisions", max_age_days=60)
+    finally:
+        store.close()
 
 
 def fmt_local(iso):
@@ -259,7 +243,7 @@ def cmd_partner(duration_text=DEFAULT_PARTNER_DURATION):
     state = _enable("partner", duration_text)
     print(f"AWM: partner mode enabled for {state['duration']} in {state['project']}, "
           f"expires {fmt_local(state['expires_at'])}.")
-    print("Tool calls auto-approve and are logged to ~/.claude/awm/decisions.jsonl; "
+    print("Tool calls auto-approve and are logged to the AWM decision log; "
           "questions still come to you normally.")
 
 

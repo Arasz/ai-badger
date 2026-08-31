@@ -102,8 +102,13 @@ def test_partner_expired_prints_expired_and_flips_state_off(tmp_path, load_scrip
     entry = _entry(state_file, project, context)
     assert entry["enabled"] is False
     assert entry["disabled_reason"] == "expired"
-    assert json.loads(decisions_file.read_text(encoding="utf-8").splitlines()[-1])["type"] == \
-        "mode_expired"
+    store = context.open_store()
+    try:
+        last = store.conn.execute(
+            "SELECT payload FROM awm_decisions ORDER BY id DESC LIMIT 1").fetchone()
+    finally:
+        store.close()
+    assert json.loads(last[0])["type"] == "mode_expired"
 
 
 def test_away_active_prints_remaining_time(tmp_path, load_script, monkeypatch, capsys):
@@ -139,8 +144,12 @@ def test_away_expired_prints_expired_and_flips_state_off(tmp_path, load_script, 
     entry = _entry(state_file, project, context)
     assert entry["enabled"] is False
     assert entry["disabled_reason"] == "expired"
-    decisions = decisions_file.read_text(encoding="utf-8").splitlines()
-    assert json.loads(decisions[-1])["type"] == "mode_expired"
+    store = context.open_store()
+    try:
+        rows = store.conn.execute("SELECT payload FROM awm_decisions ORDER BY id").fetchall()
+    finally:
+        store.close()
+    assert json.loads(rows[-1][0])["type"] == "mode_expired"
 
 
 def test_missing_state_file_is_silent_via_entrypoint_guard(tmp_path, load_script, monkeypatch,

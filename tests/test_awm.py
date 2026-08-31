@@ -32,12 +32,14 @@ def _entry_here(awm):
     return found[1] if found else {}
 
 
-def _read_decisions(awm_dir):
-    path = awm_dir / "decisions.jsonl"
-    if not path.exists():
-        return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()
-            if line.strip()]
+def _read_decisions(awm):
+    """The awm_decisions rows, oldest first (P1.2b: decisions live in the user store)."""
+    store = awm.open_store()
+    try:
+        rows = store.conn.execute("SELECT payload FROM awm_decisions ORDER BY id").fetchall()
+    finally:
+        store.close()
+    return [json.loads(row[0]) for row in rows]
 
 
 def test_parse_duration_hours_minutes_and_bare_number(tmp_path, load_script):
@@ -75,7 +77,7 @@ def test_main_partner_enables_a_bounded_project_scoped_mode(tmp_path, load_scrip
     assert state["project"] == str(tmp_path)
     remaining = datetime.fromisoformat(state["expires_at"]) - datetime.now(timezone.utc)
     assert 0 < remaining.total_seconds() <= awm.parse_duration(awm.DEFAULT_PARTNER_DURATION)
-    decisions = _read_decisions(awm_dir)
+    decisions = _read_decisions(awm)
     assert decisions[-1]["type"] == "mode_enabled"
     assert "PARTNER" in capsys.readouterr().out.upper()
 
@@ -138,7 +140,7 @@ def test_main_switching_from_partner_to_away_logs_the_switch(tmp_path, load_scri
 
     awm.main(["away", "1h"])
 
-    decisions = _read_decisions(awm_dir)
+    decisions = _read_decisions(awm)
     assert "switched from partner" in decisions[-1]["detail"]
 
 
@@ -238,7 +240,7 @@ def test_main_decision_registers_event(tmp_path, load_script, monkeypatch, capsy
 
     assert rc == 0
     assert "registered" in capsys.readouterr().out.lower()
-    decisions = _read_decisions(awm_dir)
+    decisions = _read_decisions(awm)
     assert decisions[-1]["type"] == "decision"
     assert decisions[-1]["detail"] == "chose X because Y"
 
@@ -311,41 +313,50 @@ def test_state_file_is_owner_readable_only(tmp_path, load_script, monkeypatch):
 
 
 def test_decision_log_is_owner_readable_only(tmp_path, load_script, monkeypatch):
+    """Decisions live in the user DB now; the store re-asserts 0600 on every write (D17, I5)."""
     awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
-    monkeypatch.setattr(awm, "AWM_DIR", tmp_path / "awm")
-    monkeypatch.setattr(awm, "STATE_FILE", tmp_path / "awm" / "state.json")
-    monkeypatch.setattr(awm, "DECISIONS_FILE", tmp_path / "awm" / "decisions.jsonl")
+    _patch_state_paths(awm, monkeypatch, tmp_path)
 
     awm.main(["partner"])
 
-    assert (tmp_path / "awm" / "decisions.jsonl").stat().st_mode & 0o777 == 0o600
+    db = Path(os.environ["AI_BADGER_USER_ROOT"]) / "ai-badger.db"
+    assert db.stat().st_mode & 0o777 == 0o600
 
 
 def test_the_state_directory_is_not_world_readable(tmp_path, load_script, monkeypatch):
+    """The store root replaces ~/.claude/awm as the sensitive directory (0700, D17)."""
     awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
-    monkeypatch.setattr(awm, "AWM_DIR", tmp_path / "awm")
-    monkeypatch.setattr(awm, "STATE_FILE", tmp_path / "awm" / "state.json")
-    monkeypatch.setattr(awm, "DECISIONS_FILE", tmp_path / "awm" / "decisions.jsonl")
+    _patch_state_paths(awm, monkeypatch, tmp_path)
 
     awm.main(["partner"])
 
-    assert (tmp_path / "awm").stat().st_mode & 0o077 == 0
+    root = Path(os.environ["AI_BADGER_USER_ROOT"])
+    assert root.stat().st_mode & 0o077 == 0
 
 
-def test_the_decision_log_is_capped(tmp_path, load_script, monkeypatch):
-    """An append-only log of every auto-approved call must not grow without bound."""
+def test_decisions_older_than_60_days_are_pruned_on_write(tmp_path, load_script, monkeypatch):
+    """60-day retention replaces the 5000-line cap: old rows prunable, fresh rows kept (D9).
+
+    The prune is throttled to once an hour per store, so this fresh store (no pruned_at stamp
+    yet) prunes on the triggering write itself. Legacy rows are seeded at two ages — 90 and 10
+    days — so the assertion pins the age boundary, not merely a row count.
+    """
     awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
-    monkeypatch.setattr(awm, "AWM_DIR", tmp_path / "awm")
-    monkeypatch.setattr(awm, "STATE_FILE", tmp_path / "awm" / "state.json")
-    monkeypatch.setattr(awm, "DECISIONS_FILE", tmp_path / "awm" / "decisions.jsonl")
-    monkeypatch.setattr(awm, "MAX_DECISION_LINES", 5)
+    _patch_state_paths(awm, monkeypatch, tmp_path)
+    stale = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat(timespec="seconds")
+    fresh = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat(timespec="seconds")
+    store = awm.open_store()
+    try:
+        store.log_append("awm_decisions", stale,
+                         {"ts": stale, "type": "decision", "detail": "stale"})
+        store.log_append("awm_decisions", fresh,
+                         {"ts": fresh, "type": "decision", "detail": "fresh"})
+    finally:
+        store.close()
 
-    for i in range(20):
-        awm.log_event("decision", f"entry {i}")
+    awm.log_event("decision", "trigger")
 
-    lines = (tmp_path / "awm" / "decisions.jsonl").read_text(encoding="utf-8").splitlines()
-    assert len(lines) <= 5
-    assert "entry 19" in lines[-1]
+    assert [d["detail"] for d in _read_decisions(awm)] == ["fresh", "trigger"]
 
 
 # ── per-project state (#296) ─────────────────────────────────────────────────
@@ -544,7 +555,7 @@ def test_forget_is_recorded_in_the_audit_log(tmp_path, load_script, monkeypatch,
 
     awm.cmd_forget(force=True)
 
-    last = _read_decisions(awm_dir)[-1]
+    last = _read_decisions(awm)[-1]
     assert last["type"] == "mode_forgotten"
     assert str(here) in last["detail"]
 
@@ -722,6 +733,40 @@ def test_first_write_imports_the_legacy_document_and_renames_it(tmp_path, load_s
     rows = _rows(awm)
     assert rows[str(tmp_path.resolve())]["mode"] == "partner"
     assert rows[str(other)] == other_entry, "the imported sibling window is untouched"
+
+
+def test_legacy_decisions_jsonl_imports_on_first_write_and_renames(tmp_path, load_script,
+                                                                   monkeypatch):
+    """The legacy JSONL audit log migrates to awm_decisions rows on the first write (D6).
+
+    The JSONL has no natural key, so import identity is the row's own (ts, payload) content;
+    every field the legacy appenders wrote (ts/type/detail, plus tool_name/session_id/cwd on
+    gate lines) must survive verbatim. Legacy ts values are recent so the 60-day prune —
+    which runs on this same triggering write — does not eat the imported rows mid-test.
+    """
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    awm_dir = _patch_state_paths(awm, monkeypatch, tmp_path)
+    decisions_file = awm_dir / "decisions.jsonl"
+    recent = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat(timespec="seconds")
+    older = (datetime.now(timezone.utc) - timedelta(days=20)).isoformat(timespec="seconds")
+    legacy = [
+        {"ts": older, "type": "mode_enabled", "detail": "mode=away"},
+        {"ts": recent, "type": "auto_approve", "tool_name": "Bash",
+         "session_id": "s1", "cwd": "/repo", "detail": "{}"},
+    ]
+    awm_dir.mkdir()
+    decisions_file.write_text(
+        "".join(json.dumps(entry) + "\n" for entry in legacy), encoding="utf-8")
+
+    awm.log_event("decision", "first write after migration")
+
+    assert not decisions_file.exists(), "the legacy file is retired, not rewritten"
+    assert decisions_file.with_name("decisions.migrated.jsonl").exists()
+    decisions = _read_decisions(awm)
+    assert [d["type"] for d in decisions] == ["mode_enabled", "auto_approve", "decision"]
+    assert decisions[1]["tool_name"] == "Bash"
+    assert decisions[1]["session_id"] == "s1"
+    assert decisions[1]["detail"] == "{}"
 
 
 def test_reads_merge_the_legacy_file_until_the_first_write(tmp_path, load_script, monkeypatch):

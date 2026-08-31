@@ -25,7 +25,7 @@ from pathlib import Path
 
 AWM_DIR = Path.home() / ".claude" / "awm"
 STATE_FILE = AWM_DIR / "state.json"
-DECISIONS_FILE = AWM_DIR / "decisions.jsonl"
+DECISIONS_FILE = AWM_DIR / "decisions.jsonl"  # legacy source; rows replace it (P1.2b)
 
 # The store is vendored beside awm.py in the sibling scripts/ dir of this skill; in tests
 # engine/ is already on sys.path. Explicit insert: a hook never inherits the caller's path.
@@ -36,11 +36,17 @@ import badger_store  # pylint: disable=wrong-import-position  # noqa: E402
 
 
 def open_store():
-    """The user store narrowed to the awm_state family, rebound to this module's STATE_FILE."""
-    family = badger_store.Family(
-        table="awm_state", db="user", legacy_path=lambda: STATE_FILE, legacy_kind="awm",
-    )
-    return badger_store.open_user(families={"awm_state": family})
+    """The user store narrowed to the awm families, rebound to this module's legacy paths."""
+    families = {
+        "awm_state": badger_store.Family(
+            table="awm_state", db="user", legacy_path=lambda: STATE_FILE, legacy_kind="awm",
+        ),
+        "awm_decisions": badger_store.Family(
+            table="awm_decisions", db="user",
+            legacy_path=lambda: DECISIONS_FILE, legacy_kind="jsonl",
+        ),
+    }
+    return badger_store.open_user(families=families)
 
 
 def load_state():
@@ -128,10 +134,15 @@ def retire(project, entry, mode, expires):
     entry["disabled_at"] = now_utc().isoformat(timespec="seconds")
     entry["disabled_reason"] = "expired"
     save(project, entry)
-    with DECISIONS_FILE.open("a") as f:
-        f.write(json.dumps({"ts": now_utc().isoformat(timespec="seconds"),
-                            "type": "mode_expired",
-                            "detail": f"expired_at={expires_at}"}) + "\n")
+    entry_ts = now_utc().isoformat(timespec="seconds")
+    store = open_store()  # first write imports + renames a legacy decisions.jsonl (D6)
+    try:
+        store.log_append("awm_decisions", entry_ts,
+                         {"ts": entry_ts, "type": "mode_expired",
+                          "detail": f"expired_at={expires_at}"})
+        store.prune_expired("awm_decisions", max_age_days=60)
+    finally:
+        store.close()
     when = f" at {expires.astimezone().strftime('%Y-%m-%d %H:%M %Z')}" if expires else \
         " (no expiry was recorded)"
     print(f"[auto-wm] {mode.upper()} MODE EXPIRED{when}. Normal approvals resume.")

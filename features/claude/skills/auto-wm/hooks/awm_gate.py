@@ -2,8 +2,9 @@
 """PreToolUse hook for autonomic work mode (AWM).
 
 While away or partner mode is enabled for a project containing the call's cwd, a tool call
-auto-approves (permissionDecision: allow) and is registered in ~/.claude/awm/decisions.jsonl —
-unless one of three guards fires first, in which case nothing is emitted and the
+auto-approves (permissionDecision: allow) and is registered as an ``awm_decisions`` row of the
+user store — a legacy ~/.claude/awm/decisions.jsonl is imported and renamed on the first such
+write (D6) — unless one of three guards fires first, in which case nothing is emitted and the
 normal permission prompt reaches the human:
 
   - expiry: both modes carry a wall-clock expiry, re-checked on every call.
@@ -38,7 +39,7 @@ from pathlib import Path
 
 AWM_DIR = Path.home() / ".claude" / "awm"
 STATE_FILE = AWM_DIR / "state.json"
-DECISIONS_FILE = AWM_DIR / "decisions.jsonl"
+DECISIONS_FILE = AWM_DIR / "decisions.jsonl"  # legacy source; rows replace it (P1.2b)
 MAX_DETAIL_LEN = 300
 
 # The store is vendored beside awm.py in the sibling scripts/ dir of this skill; in tests
@@ -50,11 +51,17 @@ import badger_store  # pylint: disable=wrong-import-position  # noqa: E402
 
 
 def open_store():
-    """The user store narrowed to the awm_state family, rebound to this module's STATE_FILE."""
-    family = badger_store.Family(
-        table="awm_state", db="user", legacy_path=lambda: STATE_FILE, legacy_kind="awm",
-    )
-    return badger_store.open_user(families={"awm_state": family})
+    """The user store narrowed to the awm families, rebound to this module's legacy paths."""
+    families = {
+        "awm_state": badger_store.Family(
+            table="awm_state", db="user", legacy_path=lambda: STATE_FILE, legacy_kind="awm",
+        ),
+        "awm_decisions": badger_store.Family(
+            table="awm_decisions", db="user",
+            legacy_path=lambda: DECISIONS_FILE, legacy_kind="jsonl",
+        ),
+    }
+    return badger_store.open_user(families=families)
 
 
 def load_state():
@@ -161,8 +168,12 @@ def log_event(event_type, detail, session_id=None, cwd=None, tool_name=None):
     if cwd:
         entry["cwd"] = cwd
     entry["detail"] = detail
-    with DECISIONS_FILE.open("a") as f:
-        f.write(json.dumps(entry) + "\n")
+    store = open_store()  # first write imports + renames a legacy decisions.jsonl (D6)
+    try:
+        store.log_append("awm_decisions", entry["ts"], entry)
+        store.prune_expired("awm_decisions", max_age_days=60)
+    finally:
+        store.close()
 
 
 def summarize_input(tool_input):
@@ -315,7 +326,7 @@ def main():
                   session_id, cwd, tool_name)
         emit("allow",
              f"AWM away mode active until {expires_local}: auto-approved and registered "
-             "in decisions.jsonl")
+             "in the AWM decision log")
         return
 
     # partner mode: leave AskUserQuestion alone, auto-approve everything else.
@@ -324,7 +335,7 @@ def main():
 
     log_event("auto_approve", summarize_input(payload.get("tool_input")),
               session_id, cwd, tool_name)
-    emit("allow", "AWM partner mode active: auto-approved and registered in decisions.jsonl")
+    emit("allow", "AWM partner mode active: auto-approved and registered in the AWM decision log")
 
 
 HOOK_ERRORS_FILE = Path.home() / ".ai-badger" / "hook-errors.log"

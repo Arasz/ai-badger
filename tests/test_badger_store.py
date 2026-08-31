@@ -261,6 +261,55 @@ def test_crash_between_commit_and_rename_does_not_double_import(tmp_path, monkey
     final.close()
 
 
+def test_log_append_writes_rows_and_imports_jsonl_legacy(tmp_path, monkeypatch):
+    """log_append adds one (ts, payload) row; the first write imports a legacy JSONL (D6, P1.2b).
+
+    The JSONL has no natural key, so the import dedupes on exact (ts, payload) content —
+    a crash between COMMIT and rename must not double the rows on re-import.
+    """
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+    legacy = tmp_path / "awm" / "decisions.jsonl"
+    legacy.parent.mkdir()
+    lines = [
+        {"ts": "2026-01-01T00:00:00+00:00", "type": "decision", "detail": "one"},
+        {"ts": "2026-01-02T00:00:00+00:00", "type": "auto_approve", "tool_name": "Bash",
+         "session_id": "s1", "detail": "{}"},
+    ]
+    legacy.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+    family = badger_store.Family(
+        table="awm_decisions", db="user", legacy_path=lambda: legacy, legacy_kind="jsonl",
+    )
+
+    store = badger_store.open_user(families={"awm_decisions": family})
+    try:
+        store.log_append("awm_decisions", "2026-01-03T00:00:00+00:00",
+                         {"ts": "2026-01-03T00:00:00+00:00", "type": "decision",
+                          "detail": "three"})
+
+        assert not legacy.exists()
+        assert legacy.with_name("decisions.migrated.jsonl").exists()
+        rows = store.conn.execute(
+            "SELECT ts, payload FROM awm_decisions ORDER BY id").fetchall()
+        assert [row[0] for row in rows] == [
+            "2026-01-01T00:00:00+00:00", "2026-01-02T00:00:00+00:00",
+            "2026-01-03T00:00:00+00:00",
+        ]
+        assert json.loads(rows[1][1])["tool_name"] == "Bash"  # fields preserved verbatim
+    finally:
+        store.close()
+
+    # Crash state: COMMIT landed, rename did not. Re-import adds nothing (D6).
+    legacy.with_name("decisions.migrated.jsonl").rename(legacy)
+    reopened = badger_store.open_user(families={"awm_decisions": family})
+    try:
+        expected = reopened._import_legacy(family, legacy)  # pylint: disable=protected-access
+        assert len(expected) == 2
+        count = reopened.conn.execute("SELECT COUNT(*) FROM awm_decisions").fetchone()[0]
+        assert count == 3  # duplicate-free: the content key matched the existing rows
+    finally:
+        reopened.close()
+
+
 def test_dual_read_merges_legacy_rows_before_first_write(tmp_path, monkeypatch):
     """Empty DB + legacy present: reads surface legacy rows — never an empty fallback (D5a)."""
     badger_root = _make_tracking_layout(tmp_path)

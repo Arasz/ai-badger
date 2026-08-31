@@ -325,13 +325,16 @@ class Family(NamedTuple):
     ``usage`` are ``{"tasks": [...]}`` row lists keyed on ``taskId`` (executed-tasks.json,
     token-usage.json); ``sessions`` is ``{"sessions": {id: info}}`` keyed on the session id
     (current-session.json); ``awm`` is the away-mode document whose per-project entries sit
-    under ``projects`` (or the pre-#296 single-project shape) keyed by project path.
+    under ``projects`` (or the pre-#296 single-project shape) keyed by project path;
+    ``jsonl`` is one JSON object per line written by the legacy appender (decisions.jsonl)
+    with no natural key — imported with its own ``ts`` verbatim and deduped on exact
+    (ts, payload) content so a re-import adds nothing.
     """
 
     table: str
     db: str  # "tracking" or "user"
     legacy_path: Callable[[], Path]
-    legacy_kind: str  # "map" | "kvdoc" | "tasks" | "usage" | "sessions" | "awm"
+    legacy_kind: str  # "map" | "kvdoc" | "tasks" | "usage" | "sessions" | "awm" | "jsonl"
     row_key: str = ""  # kvdoc only: the KV row key this file's document becomes
 
 
@@ -359,10 +362,10 @@ def _user_root() -> Path:
 
 #: The user-DB families (P1.1): schema and legacy paths land here; each family's import wiring
 #: ("deferred" -> a real kind) lands with the lane that rewires its writer, so no store open
-#: imports or renames a source its writer still owns (D5/D6): awm_decisions with P1.2b,
-#: commit_reminder with the commit-reminder lane, searches with P1.4. awm_state flipped to its
-#: real kind with P1.2a's awm rewiring. Until then a deferred family has neither dual-read nor
-#: lazy import.
+#: imports or renames a source its writer still owns (D5/D6): commit_reminder with the
+#: commit-reminder lane, searches with P1.4. awm_state flipped to its real kind with P1.2a's
+#: awm rewiring, awm_decisions to "jsonl" with P1.2b's decision rewiring. Until then a
+#: deferred family has neither dual-read nor lazy import.
 USER_FAMILIES: dict[str, Family] = {
     "awm_state": Family(
         table="awm_state",
@@ -376,7 +379,7 @@ USER_FAMILIES: dict[str, Family] = {
         table="awm_decisions",
         db="user",
         legacy_path=lambda: _DEFAULT_HOME / ".claude" / "awm" / "decisions.jsonl",
-        legacy_kind="deferred",
+        legacy_kind="jsonl",  # flipped from "deferred" by P1.2b's decision-log rewiring
     ),
     "commit_reminder": Family(
         table="commit_reminder",
@@ -928,6 +931,23 @@ class Store:
         _assert_file_perms(self.db_path)
         notify_write(self.db_path)
 
+    def log_append(self, table: str, ts: str, payload: dict) -> None:
+        """Append one log row (ts, payload JSON); the first write lazy-migrates the family (D6)."""
+        _check_table_name(table)
+        self.migrate(table)
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            self.conn.execute(
+                f"INSERT INTO {table}(ts, payload) VALUES (?, ?)",
+                (ts, json.dumps(payload)),
+            )
+            self.conn.commit()
+        except BaseException:
+            self.conn.rollback()
+            raise
+        _assert_file_perms(self.db_path)
+        notify_write(self.db_path)
+
     def migrate(self, table: str) -> None:
         """Import every legacy source for *table* — COMMIT first, rename after (D6).
 
@@ -975,6 +995,11 @@ class Store:
         notify_write(path.with_name(f"{path.stem}.migrated{path.suffix}"))
 
     def _row_exists(self, table: str, key) -> bool:
+        if isinstance(key, tuple):  # jsonl log rows: the (ts, payload) content key
+            row = self.conn.execute(
+                f"SELECT 1 FROM {table} WHERE ts = ? AND payload = ?", key
+            ).fetchone()
+            return row is not None
         key_column = {"tasks": "task_id", "token_usage": "task_id", "sessions": "session_id"}.get(
             table, "key"
         )
@@ -991,6 +1016,8 @@ class Store:
         instead of silently (P0.6a finding 3). Unreadable or shape-less files import nothing and
         rename anyway — quarantine, matching the map-kind behavior this module shipped with.
         """
+        if family.legacy_kind == "jsonl":
+            return self._import_jsonl(family, path)
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -1068,6 +1095,40 @@ class Store:
                 )
             return list(sessions)
         raise ValueError(f"unsupported family legacy kind: {family.legacy_kind!r}")
+
+    def _import_jsonl(self, family: Family, path: Path) -> list:
+        """One JSON object per line, no natural key: exact (ts, payload) content is the key.
+
+        Re-import after a crash between COMMIT and rename re-reads the same lines and finds
+        their rows already present, so the import stays idempotent (D6) without a schema-level
+        unique column. A torn or non-object line imports nothing and quarantines with the file
+        rename, like the doc-kind families.
+        """
+        expected: list = []
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return []
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(entry, dict):
+                continue
+            ts = entry.get("ts") if isinstance(entry.get("ts"), str) and entry["ts"] else _now()
+            payload = json.dumps(entry)
+            exists = self.conn.execute(
+                f"SELECT 1 FROM {family.table} WHERE ts = ? AND payload = ?", (ts, payload)
+            ).fetchone()
+            if exists is None:
+                self.conn.execute(
+                    f"INSERT INTO {family.table}(ts, payload) VALUES (?, ?)", (ts, payload)
+                )
+            expected.append((ts, payload))
+        return expected
 
 
 def _open(db_path: Path, kind: str, families: Optional[dict] = None) -> Store:
