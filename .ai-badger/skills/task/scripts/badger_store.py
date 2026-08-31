@@ -362,9 +362,9 @@ def _user_root() -> Path:
 
 #: The user-DB families (P1.1): schema and legacy paths land here; each family's import wiring
 #: ("deferred" -> a real kind) lands with the lane that rewires its writer, so no store open
-#: imports or renames a source its writer still owns (D5/D6): commit_reminder with the
-#: commit-reminder lane, searches with P1.4. awm_state flipped to its real kind with P1.2a's
-#: awm rewiring, awm_decisions to "jsonl" with P1.2b's decision rewiring. Until then a
+#: imports or renames a source its writer still owns (D5/D6): searches with P1.4. awm_state
+#: flipped to its real kind with P1.2a's awm rewiring, awm_decisions to "jsonl" with P1.2b's
+#: decision rewiring, commit_reminder with P1.3's commit-reminder rewiring. Until then a
 #: deferred family has neither dual-read nor lazy import.
 USER_FAMILIES: dict[str, Family] = {
     "awm_state": Family(
@@ -385,7 +385,14 @@ USER_FAMILIES: dict[str, Family] = {
         table="commit_reminder",
         db="user",
         legacy_path=lambda: _user_root() / "commit-reminder" / "state.json",
-        legacy_kind="deferred",
+        legacy_kind="map",  # flipped from "deferred" by P1.3's commit-reminder rewiring
+    ),
+    "commit_reminder_pending": Family(
+        table="commit_reminder",
+        db="user",
+        legacy_path=lambda: _user_root() / "commit-reminder" / "pending.json",
+        legacy_kind="kvdoc",  # flipped from "deferred" by P1.3: the stash doc is one row
+        row_key="pending",
     ),
     "pending_feedback": Family(
         table="pending_feedback",
@@ -931,6 +938,34 @@ class Store:
         _assert_file_perms(self.db_path)
         notify_write(self.db_path)
 
+    def kv_update(self, table: str, key: str, fn, default: Any = None) -> Any:
+        """Atomic read-modify-write of one KV row: fn(current) -> new value, one transaction.
+
+        The SELECT and the write share one BEGIN IMMEDIATE, so concurrent updaters of the
+        same row serialize on the write lock instead of racing a read-then-write gap —
+        the shape pop-style stash consumers need. Returns fn's result.
+        """
+        _check_table_name(table)
+        self.migrate(table)
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            row = self.conn.execute(
+                f"SELECT value FROM {table} WHERE key = ?", (key,)
+            ).fetchone()
+            current = default if row is None else self._decode(row[0], default)
+            updated = fn(current)
+            self.conn.execute(
+                f"INSERT OR REPLACE INTO {table}(key, value, updated_at) VALUES (?, ?, ?)",
+                (key, json.dumps(updated), _now()),
+            )
+            self.conn.commit()
+        except BaseException:
+            self.conn.rollback()
+            raise
+        _assert_file_perms(self.db_path)
+        notify_write(self.db_path)
+        return updated
+
     def log_append(self, table: str, ts: str, payload: dict) -> None:
         """Append one log row (ts, payload JSON); the first write lazy-migrates the family (D6)."""
         _check_table_name(table)
@@ -991,8 +1026,13 @@ class Store:
             # next write re-runs this idempotent import (D6).
             os.replace(path, path.with_name(f"{path.stem}.migrated{path.suffix}"))
         _assert_file_perms(self.db_path)
+        # D17: the rename preserves the legacy file's mode — a foreign-written legacy file
+        # could carry a laxer one. The migrated file holds the same data as the DB it fed,
+        # so it inherits the DB's (just re-asserted) mode.
+        migrated = path.with_name(f"{path.stem}.migrated{path.suffix}")
+        os.chmod(migrated, os.stat(self.db_path).st_mode & 0o777)
         notify_write(self.db_path)
-        notify_write(path.with_name(f"{path.stem}.migrated{path.suffix}"))
+        notify_write(migrated)
 
     def _row_exists(self, table: str, key) -> bool:
         if isinstance(key, tuple):  # jsonl log rows: the (ts, payload) content key

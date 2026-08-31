@@ -26,6 +26,9 @@ def pending_file(tmp_path, hooks, monkeypatch):
     """Redirect the pending-reminder store away from the real ~/.ai-badger/."""
     path = tmp_path / "pending.json"
     monkeypatch.setattr(hooks, "PENDING_REMINDER_FILE", path)
+    # The stash rows land in a redirected user DB; the real ~/.ai-badger/ai-badger.db is
+    # never touched. The pending.json path stays the legacy seam the store migrates.
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
     return path
 
 
@@ -80,7 +83,7 @@ def test_crossing_threshold_stashes_a_pending_reminder(
 
     hooks.post_tool_observer(tool_name="write_file", result="ok", duration_ms=3)
 
-    pending = json.loads(pending_file.read_text(encoding="utf-8"))
+    pending = hooks._load_pending_reminders()
     assert str(Path(tmp_path).resolve()) in pending
     assert "impact:6" in pending[str(Path(tmp_path).resolve())]
 
@@ -122,7 +125,7 @@ def test_non_edit_tool_never_calls_git_or_writes_pending(
     hooks.post_tool_observer(tool_name="terminal", result="ok", duration_ms=3,
                              cwd=str(tmp_path))
 
-    assert not pending_file.exists()
+    assert hooks._load_pending_reminders() == {}
 
 
 def test_non_edit_tool_writes_no_commit_reminder_audit_record(
@@ -168,7 +171,7 @@ def test_post_tool_observer_is_inert_without_commit_reminder_module(
 
     assert hooks.post_tool_observer(tool_name="write_file", result="ok", duration_ms=3,
                                      cwd=str(tmp_path)) is None
-    assert not pending_file.exists()
+    assert hooks._load_pending_reminders() == {}
 
 
 def test_pre_llm_inject_context_is_inert_without_commit_reminder_module(
@@ -190,8 +193,7 @@ def test_fires_without_impact_estimator_module_using_a_fallback_message(
 
     hooks.post_tool_observer(tool_name="write_file", result="ok", duration_ms=3)
 
-    assert pending_file.exists()
-    pending = json.loads(pending_file.read_text(encoding="utf-8"))
+    pending = hooks._load_pending_reminders()
     assert str(Path(tmp_path).resolve()) in pending
 
 
@@ -203,7 +205,7 @@ def test_below_threshold_never_stashes_a_pending_reminder(
 
     hooks.post_tool_observer(tool_name="write_file", result="ok", duration_ms=3)
 
-    assert not pending_file.exists()
+    assert hooks._load_pending_reminders() == {}
 
 
 def test_threshold_env_var_lowers_the_bar(
@@ -215,7 +217,7 @@ def test_threshold_env_var_lowers_the_bar(
 
     hooks.post_tool_observer(tool_name="write_file", result="ok", duration_ms=3)
 
-    assert pending_file.exists()
+    assert hooks._load_pending_reminders() != {}
 
 
 def test_garbage_threshold_env_var_falls_back_to_default(
@@ -227,7 +229,7 @@ def test_garbage_threshold_env_var_falls_back_to_default(
 
     hooks.post_tool_observer(tool_name="write_file", result="ok", duration_ms=3)
 
-    assert not pending_file.exists()
+    assert hooks._load_pending_reminders() == {}
 
 
 def test_a_hermes_edit_never_clears_an_escalation_raised_elsewhere(
@@ -260,7 +262,7 @@ def test_the_hermes_message_commands_and_names_the_convention(
 
     hooks.post_tool_observer(tool_name="write_file", result="ok", duration_ms=3)
 
-    message = json.loads(pending_file.read_text(encoding="utf-8"))[str(Path(tmp_path).resolve())]
+    message = hooks._load_pending_reminders()[str(Path(tmp_path).resolve())]
     assert "Commit now" in message
     assert fake_commit_reminder.CONVENTION_URL in message
     assert "Consider committing" not in message

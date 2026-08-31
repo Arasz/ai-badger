@@ -569,6 +569,10 @@
           "path": "features/common/hooks/ai_badger_hooks.py"
         },
         {
+          "name": "badger_store",
+          "path": "features/common/hooks/badger_store.py"
+        },
+        {
           "name": "debug_log",
           "path": "features/common/hooks/debug_log.py"
         },

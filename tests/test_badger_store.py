@@ -553,3 +553,50 @@ def test_migration_blocks_while_legacy_write_lock_is_held(tmp_path, monkeypatch)
             store.close()
     finally:
         os.close(lock_fd)
+
+
+# --- kv_update: atomic read-modify-write (P1.3) --------------------------------------
+
+def test_kv_update_transforms_the_existing_row_value(tmp_path, monkeypatch):
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+    store = badger_store.open_user(families={})
+    try:
+        store.kv_set("pending_feedback", "pending", {"a": "1"})
+
+        result = store.kv_update("pending_feedback", "pending",
+                                 lambda doc: {**doc, "b": "2"}, {})
+
+        assert result == {"a": "1", "b": "2"}
+        assert store.kv_get("pending_feedback", "pending") == {"a": "1", "b": "2"}
+    finally:
+        store.close()
+
+
+def test_kv_update_builds_the_row_from_default_when_absent(tmp_path, monkeypatch):
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+    store = badger_store.open_user(families={})
+    try:
+        store.kv_update("commit_reminder", "pending",
+                        lambda doc: {**doc, "/repo": "m"}, {})
+
+        assert store.kv_get("commit_reminder", "pending") == {"/repo": "m"}
+    finally:
+        store.close()
+
+
+def test_kv_update_failure_rolls_back_and_leaves_the_prior_value(tmp_path, monkeypatch):
+    """A transform that raises mid-update must not leave a half-written row behind."""
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+    store = badger_store.open_user(families={})
+    try:
+        store.kv_set("commit_reminder", "pending", {"/repo": "before"})
+
+        def _boom(doc):
+            raise RuntimeError("mid-update failure")
+
+        with pytest.raises(RuntimeError):
+            store.kv_update("commit_reminder", "pending", _boom, {})
+
+        assert store.kv_get("commit_reminder", "pending") == {"/repo": "before"}
+    finally:
+        store.close()

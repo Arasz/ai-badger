@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 from typing import Dict, Optional
 
+import badger_store  # vendored beside this module in the plugin dir; engine/ canonical in tests
+
 # --- Grounded feedback (Rule 3C) ---
 
 PENDING_FEEDBACK_FILE = Path.home() / ".ai-badger" / "pending-feedback.json"
@@ -106,11 +108,27 @@ def stash_if_failure(tool_name: str, result: str, project: str,
 
 # --- Commit reminder stash ---
 
+#: Legacy source only: the store imports it on first write and renames it (P1.3). Tests and
+#: surfaces redirect the legacy file by passing ``path``; AI_BADGER_USER_ROOT moves the DB.
 PENDING_REMINDER_FILE = Path.home() / ".ai-badger" / "commit-reminder" / "pending.json"
+#: The stash document is one ``commit_reminder``-table row under this key (kvdoc shape).
+PENDING_REMINDER_ROW_KEY = "pending"
 
 
-def load_pending_reminders(path: Optional[Path] = None) -> Dict[str, str]:
-    """Load the pending-reminder file; ``{}`` on missing file or bad JSON."""
+def _reminder_store(path: Optional[Path] = None):
+    """The user store narrowed to the reminder family; ``path`` rebinds the legacy seam."""
+    families = {
+        "commit_reminder": badger_store.Family(
+            table="commit_reminder", db="user",
+            legacy_path=lambda: path or PENDING_REMINDER_FILE, legacy_kind="kvdoc",
+            row_key=PENDING_REMINDER_ROW_KEY,
+        ),
+    }
+    return badger_store.open_user(families=families)
+
+
+def _legacy_load_pending_reminders(path: Optional[Path] = None) -> Dict[str, str]:
+    """The legacy pending.json document, ``{}`` on missing file or bad JSON."""
     try:
         raw = (path or PENDING_REMINDER_FILE).read_text(encoding="utf-8")
     except OSError:
@@ -122,31 +140,85 @@ def load_pending_reminders(path: Optional[Path] = None) -> Dict[str, str]:
     return data if isinstance(data, dict) else {}
 
 
-def save_pending_reminders(pending: Dict[str, str],
-                           path: Optional[Path] = None) -> None:
-    """Persist the pending-reminder file."""
+def _legacy_save_pending_reminders(pending: Dict[str, str],
+                                   path: Optional[Path] = None) -> None:
+    """Persist the legacy pending-reminder file."""
     target = path or PENDING_REMINDER_FILE
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(pending), encoding="utf-8")
 
 
+def load_pending_reminders(path: Optional[Path] = None) -> Dict[str, str]:
+    """The pending stash document: the store's row merged with the legacy file; ``{}`` fail-open."""
+    try:
+        store = _reminder_store(path)
+        try:
+            row = store.kv_get("commit_reminder", PENDING_REMINDER_ROW_KEY, {})
+        finally:
+            store.close()
+    except Exception:  # pylint: disable=broad-exception-caught
+        return _legacy_load_pending_reminders(path)
+    return row if isinstance(row, dict) else {}
+
+
+def save_pending_reminders(pending: Dict[str, str],
+                           path: Optional[Path] = None) -> None:
+    """Write the whole stash document as its one row; the first write migrates legacy (D6)."""
+    store = _reminder_store(path)
+    try:
+        store.kv_set("commit_reminder", PENDING_REMINDER_ROW_KEY, dict(pending))
+    finally:
+        store.close()
+
+
 def set_pending_reminder(project: str, message: str,
                          path: Optional[Path] = None) -> None:
-    """Stash *message* for *project*."""
-    pending = load_pending_reminders(path)
-    pending[str(Path(project).resolve())] = message
-    save_pending_reminders(pending, path)
+    """Stash *message* for *project* in the stash document row (atomic read-modify-write)."""
+    key = str(Path(project).resolve())
+
+    def _stash(doc: Dict[str, str]) -> Dict[str, str]:
+        merged = dict(doc) if isinstance(doc, dict) else {}
+        merged[key] = message
+        return merged
+
+    store = _reminder_store(path)
+    try:
+        store.kv_update("commit_reminder", PENDING_REMINDER_ROW_KEY, _stash, {})
+    finally:
+        store.close()
 
 
 def pop_pending_reminder(project: str,
                          path: Optional[Path] = None) -> Optional[str]:
-    """Return and clear the pending reminder for *project*, or None.  Fail-open."""
-    pending = load_pending_reminders(path)
+    """Return and clear the pending reminder for *project*, or None.
+
+    The pop is one atomic read-modify-write (kv_update): concurrent surfacers serialize on
+    the store's write lock, so a stashed message is delivered at most once. Fail-open: if
+    the store fails, the entry stays stored and re-surfaces next turn, which is harmless —
+    the prompt hook must never break over cleanup.
+    """
     key = str(Path(project).resolve())
-    message = pending.pop(key, None)
-    if message is not None:
+    popped: list = []
+
+    def _pop(doc):
+        message = doc.pop(key, None) if isinstance(doc, dict) else None
+        if message is not None:
+            popped.append(message)
+        return doc if isinstance(doc, dict) else {}
+
+    try:
+        store = _reminder_store(path)
         try:
-            save_pending_reminders(pending, path)
-        except OSError:
-            pass
-    return message
+            store.kv_update("commit_reminder", PENDING_REMINDER_ROW_KEY, _pop, {})
+        finally:
+            store.close()
+    except Exception:  # pylint: disable=broad-exception-caught
+        pending = _legacy_load_pending_reminders(path)
+        message = pending.pop(key, None)
+        if message is not None:
+            try:
+                _legacy_save_pending_reminders(pending, path)
+            except OSError:
+                pass
+        return message
+    return popped[0] if popped else None

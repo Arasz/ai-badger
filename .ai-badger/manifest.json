@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.152.0",
-  "frameworkCommit": "7149a81ccaad82dc5ae8b1a35e1b8adf476f18c9",
+  "frameworkCommit": "f7a79c5d213efa4f548238a6cd82739a90be24c0",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -533,12 +533,12 @@
       "source": "features/common/skills/commit-reminder",
       "target": ".ai-badger/skills/commit-reminder",
       "frameworkVersion": "0.152.0",
-      "hash": "d1cb41521f3fc068d30d606deb0437b0af4259cc2cdb5f9c464b4ab951e3281c",
+      "hash": "c6ecec88ce5d93971fd3413a57e82ed3a4730c41c4ea2b5e95a2d1aea93cc4c6",
       "dirMeta": {
         "file_count": 6,
         "dir_count": 1
       },
-      "sourceHash": "d1cb41521f3fc068d30d606deb0437b0af4259cc2cdb5f9c464b4ab951e3281c",
+      "sourceHash": "c6ecec88ce5d93971fd3413a57e82ed3a4730c41c4ea2b5e95a2d1aea93cc4c6",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 1
@@ -764,12 +764,12 @@
       "source": "features/common/skills/prompt-markers",
       "target": ".ai-badger/skills/prompt-markers",
       "frameworkVersion": "0.152.0",
-      "hash": "95581d5efcda3fa19ddcbaf8fb24f47dd430258df98175a06035ba1140299bef",
+      "hash": "200ef4e78269ea945618c1995c321274bbfa8e58ffba45afd58327cd3e619664",
       "dirMeta": {
         "file_count": 5,
         "dir_count": 1
       },
-      "sourceHash": "6ccb8a7d94541ce44bf6f0ee87f45f76ebe271e8f2aed10a612be570ae90fc7a",
+      "sourceHash": "54ffc743ffcc18e471504e2a72c824361314a7755a135a088f5a3418f8c7fecb",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 1
@@ -849,12 +849,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.152.0",
-      "hash": "e6b371c17b5a89e827d175d7ad282fde2fc5b117b53977955807c2015a580da0",
+      "hash": "d9e394c7c7e84c00f07104fbb74ba77476d00af7723ecf9aae572cb28a0b91c5",
       "dirMeta": {
         "file_count": 19,
         "dir_count": 2
       },
-      "sourceHash": "e6b371c17b5a89e827d175d7ad282fde2fc5b117b53977955807c2015a580da0",
+      "sourceHash": "d9e394c7c7e84c00f07104fbb74ba77476d00af7723ecf9aae572cb28a0b91c5",
       "sourceMeta": {
         "file_count": 19,
         "dir_count": 2
@@ -1149,12 +1149,12 @@
       "source": "features/claude/skills/auto-wm",
       "target": ".ai-badger/skills/auto-wm",
       "frameworkVersion": "0.152.0",
-      "hash": "6bb077c653da2261c46e3253c46b03843949c1b9a5f7eb4f309fb8b340027df8",
+      "hash": "15099a7220319f3f068063815df989fb530e83608cf215f29da729286bb6998d",
       "dirMeta": {
         "file_count": 6,
         "dir_count": 2
       },
-      "sourceHash": "6bb077c653da2261c46e3253c46b03843949c1b9a5f7eb4f309fb8b340027df8",
+      "sourceHash": "15099a7220319f3f068063815df989fb530e83608cf215f29da729286bb6998d",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 2
