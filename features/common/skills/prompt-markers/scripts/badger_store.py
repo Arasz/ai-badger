@@ -11,11 +11,13 @@ imports nothing from the engine and nothing outside the standard library.
 """
 from __future__ import annotations
 
+import argparse
 import contextlib
 import json
 import os
 import re
 import sqlite3
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1086,7 +1088,6 @@ class Store:
             self.conn.execute(f"DELETE FROM {table} WHERE rowid = ?", (rowid,))
         return len(dead)
 
-
     # -- writes (may raise) ------------------------------------------------------------
 
     def kv_set(self, table: str, key: str, value: Any) -> None:
@@ -1526,6 +1527,14 @@ def _parseable_ts(ts) -> bool:
     return True
 
 
+#: The retention scope (owner decision #2 + G0-Q2): every log table and the DB it lives
+#: in. The on-write callers name their table; the CLI reports the whole scope.
+LOG_TABLES: dict[str, tuple[str, ...]] = {
+    "user": ("awm_decisions", "searches"),
+    "audit": ("hook_audit",),
+}
+
+
 def _open(db_path: Path, kind: str, families: Optional[dict] = None) -> Store:
     _ensure_root(db_path)
     _precreate_db_file(db_path)
@@ -1566,3 +1575,79 @@ def open_tracking(families: Optional[dict] = None) -> Store:
 def open_user(families: Optional[dict] = None) -> Store:
     """Open (creating when absent) the user-level store; defaults to USER_FAMILIES."""
     return _open(user_db_path(), "user", USER_FAMILIES if families is None else families)
+
+
+# -- CLI: `prune --status`, the retention scope's read-only inspection surface ---------
+
+def _render_stamp(conn: sqlite3.Connection, table: str) -> str:
+    """The table's pruned_at stamp as a UTC timestamp, or '-' when absent/foreign."""
+    try:
+        row = conn.execute("SELECT value FROM meta WHERE key = ?",
+                           (f"pruned_at.{table}",)).fetchone()
+    except sqlite3.Error:
+        return "-"
+    if row is None:
+        return "-"
+    try:
+        moment = float(json.loads(row[0]))
+    except (TypeError, ValueError):
+        return "-"
+    return datetime.fromtimestamp(moment, timezone.utc).isoformat()
+
+
+def prune_status_lines() -> list[str]:
+    """Retention state of every log table (LOG_TABLES): rows, oldest ts, last prune stamp.
+
+    Read-only throughout — a status verb must never create, migrate or write the store it
+    reports on (mode=ro), and an absent DB is reported as such with zeroed tables.
+    """
+    lines: list[str] = []
+    for db_kind, tables in LOG_TABLES.items():
+        db_path = user_db_path() if db_kind == "user" else audit_db_path()
+        header = f"db={db_kind} path={db_path}"
+        conn = None
+        if db_path.exists():
+            try:
+                conn = sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True)
+            except sqlite3.Error:
+                conn = None
+        if conn is None:
+            header += " status=no-database"
+        lines.append(header)
+        for table in tables:
+            rows, oldest, stamp = 0, "-", "-"
+            if conn is not None:
+                try:
+                    count, min_ts = conn.execute(
+                        f"SELECT COUNT(*), MIN(ts) FROM {table}").fetchone()
+                    rows, oldest = int(count), min_ts if min_ts is not None else "-"
+                    stamp = _render_stamp(conn, table)
+                except sqlite3.Error:
+                    pass  # a DB predating the table reports as empty
+            lines.append(f"  {table} rows={rows} oldest={oldest} last_prune={stamp}")
+        if conn is not None:
+            with contextlib.suppress(sqlite3.Error):
+                conn.close()
+    return lines
+
+
+def main(argv: Optional[list] = None) -> int:
+    """CLI entry point; the one verb is `prune --status` (retention inspection, D30)."""
+    parser = argparse.ArgumentParser(
+        prog="badger_store", description="SQLite runtime store utilities (ADR-0024)")
+    sub = parser.add_subparsers(dest="command", required=True)
+    prune = sub.add_parser("prune", help="retention over the log tables")
+    prune.add_argument("--status", action="store_true",
+                       help="per-table row count, oldest row and last prune stamp")
+    args = parser.parse_args(argv)
+    if args.command == "prune":
+        if not args.status:
+            prune.error("nothing to do — only --status is implemented")
+        for line in prune_status_lines():
+            print(line)
+        return 0
+    return 2  # unreachable: the subcommand is required
+
+
+if __name__ == "__main__":
+    sys.exit(main())
