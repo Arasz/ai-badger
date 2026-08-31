@@ -265,9 +265,12 @@ class Scaffolder:
         self.included = bl.inclusions(config)
         self.addable_skills = set(bl.opt_in_skills_in(root / "features" / "common" / "skills"))
         # Grouped skills install whole (#266), expanded before the addable filter; a stale
-        # member name resolves to the gateway that absorbed it (ADR-0021).
-        wanted = {aliases.get(n, n) for n in bl.expand_skill_groups(self.included["skills"])}
-        asked_for = [n for n in sorted(wanted) if n in self.addable_skills]
+        # member name resolves to the gateway that absorbed it (ADR-0021). The composition is
+        # the shared include-derived oracle (bl.include_derived_skill_names) so the guard's
+        # expected set cannot drift from what the Scaffolder actually asks for (D1) — only the
+        # include-derived block feeds delivery here: an explicit argv REPLACES the defaults
+        # and must never gain them back (API-F2).
+        asked_for = bl.include_derived_skill_names(config, aliases, self.addable_skills)
         offered = list(dict.fromkeys(list(skills) + asked_for))
         # Whether the delivered list is evidence of what the project wants: empty means
         # "unchanged" (#129), which discover_stack_local hides. See adjust_skills.may_prune.

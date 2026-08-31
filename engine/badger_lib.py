@@ -789,6 +789,51 @@ def opt_in_skills_in(skills_dir: Path) -> List[str]:
     return _skills_scoped(skills_dir, SKILL_SCOPE_OPT_IN)
 
 
+def include_derived_skill_names(config: Dict[str, Any], aliases: Dict[str, str],
+                                addable: Set[str]) -> List[str]:
+    """Config-include skills a scaffold appends after the argv block: groups expanded first
+    (#266), then gateway-alias mapped (a stale member name resolves to the gateway that
+    absorbed it, ADR-0021), sorted, intersected with the addable opt-in catalog.
+
+    NOT exclusion-filtered here: the Scaffolder filters at ctx construction, and
+    `expected_skill_names` filters per stage. Shared by both so scaffolder and guard cannot
+    disagree about what config.include asks for (D1).
+    """
+    wanted = {aliases.get(n, n) for n in expand_skill_groups(inclusions(config)["skills"])}
+    return [n for n in sorted(wanted) if n in addable]
+
+
+def expected_skill_names(root: Path, config: Dict[str, Any]) -> List[str]:
+    """Skills an unattended scaffold of *config* delivers, in delivery BLOCK order.
+
+    The one oracle shared by the Scaffolder and the scaffold freshness guard (D1, task
+    aib-scaffold-freshness-guard-blindspot-proof): the scope-default catalog (minus the
+    alias-mapped exclusions), then the include-derived block (`include_derived_skill_names`,
+    minus exclusions, deduplicated against the defaults the way `dict.fromkeys` deduplicates
+    the argv), then stack-local discovery per `resolve_stacks(config)` order — config-
+    overridable `commonStacks`, constant `DEFAULT_COMMON_STACKS` skip-set — minus exclusions.
+
+    The return order is the Scaffolder's delivery order, NOT flat-sorted (API-F1): the guard's
+    re-scaffold argv becomes the delivery order, manifest rows are recorded in delivery order,
+    and the guard's `normalized()` preserves list order — a flat-sorted list fails healthy
+    trees. A skill name appears once, at its first block position.
+    """
+    aliases = gateway_aliases(root)
+    excluded = exclusions(config, aliases)["skills"]
+    common_skills = root / "features" / "common" / "skills"
+    addable = set(opt_in_skills_in(common_skills))
+    block = [s for s in default_skills_in(common_skills) if s not in excluded]
+    block += [n for n in include_derived_skill_names(config, aliases, addable)
+              if n not in excluded and n not in block]
+    for stack in resolve_stacks(config):
+        if stack in DEFAULT_COMMON_STACKS:
+            continue
+        for name in stack_local_skills(root / "features" / stack / "skills"):
+            if name not in excluded and name not in block:
+                block.append(name)
+    return block
+
+
 # What a skill with no readable description is reported as. Reporting only — never a value
 # any behaviour keys off.
 NO_DESCRIPTION = "(no description)"
