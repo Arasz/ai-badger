@@ -149,6 +149,16 @@ HOOK_CAPABLE_AGENTS = ("claude", "hermes", "copilot")
 # tests/test_hooks_manifest_agent_coverage.py (the #145 review finding: an untested reason
 # string is not a reason, only a key that happens to exist).
 HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
+    "message-delivery-session-start": {
+        "hermes": "Deferred to the first pre_llm_call (P5, aib-bus-defer-cursor-followups): "
+                  "a Hermes session-start hook has no return channel into the model, so "
+                  "delivering at start only filled a stash that a session dying before its "
+                  "first turn never surfaced. The message-delivery-per-turn row's first "
+                  "pre_llm_call is now the whole delivery — read, cursor advance and "
+                  "injection in one store transaction — and a session that never turns "
+                  "consumes nothing. Claude and Copilot keep the start arm because their "
+                  "hooks inject through their own per-turn channel regardless.",
+    },
     "session-start-tracking": {
         "hermes": "Claude-only by design: recording the session id/transcript path, surfacing "
                   "unfinished tracked tasks, and starting the usage-limit poller are all Claude "
