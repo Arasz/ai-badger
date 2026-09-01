@@ -322,8 +322,9 @@ def test_ai_badger_hooks_registers_normally_when_there_is_no_skew(load_script):
 
     hooks.register(_Ctx())
 
-    assert registered == ["on_session_start", "pre_llm_call", "pre_tool_call",
-                          "pre_tool_call", "post_tool_call"]
+    assert registered == ["on_session_start", "on_session_start", "pre_llm_call",
+                          "pre_tool_call", "pre_tool_call", "post_tool_call",
+                          "on_session_end"]
 
 
 def test_learned_skills_sync_refuses_to_sync_when_the_copies_are_stale(tmp_path, load_script):

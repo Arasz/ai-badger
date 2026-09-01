@@ -270,6 +270,170 @@ export function toClaudePostPayload(
   };
 }
 
+/** The pi events the message bus translates, under the Claude spellings the shared
+ * delivery script routes on (`message_delivery_hook.py` matches case-insensitively:
+ * sessionstart/userpromptsubmit deliver mail, sessionend drops the cursor). pi's
+ * per-turn injection seam is `before_agent_start`; the close event is `session_shutdown`. */
+export type PiDeliveryEvent = "session_start" | "before_agent_start" | "session_shutdown";
+export type ClaudeDeliveryEvent = "SessionStart" | "UserPromptSubmit" | "SessionEnd";
+
+export const PI_DELIVERY_EVENT_MAP: Record<PiDeliveryEvent, ClaudeDeliveryEvent> = {
+  session_start: "SessionStart",
+  before_agent_start: "UserPromptSubmit",
+  session_shutdown: "SessionEnd",
+};
+
+/** The delivery payload: the three keys the shared script reads — no tool fields, which
+ * is why it is its own interface and not a ClaudeHookPayload variant. */
+export interface ClaudeDeliveryPayload {
+  hook_event_name: ClaudeDeliveryEvent;
+  session_id: string;
+  cwd: string;
+}
+
+export function toClaudeDeliveryPayload(
+  piEvent: PiDeliveryEvent,
+  ctx: { cwd: string; sessionId: string },
+): ClaudeDeliveryPayload {
+  return {
+    hook_event_name: PI_DELIVERY_EVENT_MAP[piEvent],
+    session_id: ctx.sessionId,
+    cwd: ctx.cwd,
+  };
+}
+
+/** One delivery-script run, parsed from its stdout. Empty and error are outcomes, never
+ * exceptions — the same discipline as GateOutcome: `empty` means "the store answered, the
+ * inbox is empty" (parseable `{}`), `error` means this firing failed and the turn goes on
+ * unmodified (D31 fail-open). */
+export type DeliveryOutcome =
+  | { kind: "context"; content: string }
+  | { kind: "empty" }
+  | { kind: "error"; reason: string };
+
+/** The delivery script's stdout (one JSON document: `{}`, or hookSpecificOutput with the
+ * rendered mail in `additionalContext`) as an outcome. Anything unparseable is an error
+ * outcome — mail content is multiline JSON-escaped, so the whole body always parses. */
+export function parseDeliveryStdout(stdout: string): DeliveryOutcome {
+  const trimmed = stdout.trim();
+  if (!trimmed) return { kind: "error", reason: "delivery script printed nothing" };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (error) {
+    return {
+      kind: "error",
+      reason: `delivery script printed output that is not JSON: ${trimmed.slice(0, 200)} (${String(error)})`,
+    };
+  }
+  if (!isRecord(parsed) || Object.keys(parsed).length === 0) return { kind: "empty" };
+  const inner = isRecord(parsed.hookSpecificOutput) ? parsed.hookSpecificOutput : undefined;
+  const context = inner?.additionalContext;
+  if (typeof context === "string" && context) return { kind: "context", content: context };
+  if (context === "" || context === undefined) return { kind: "empty" };
+  return { kind: "error", reason: "delivery script's additionalContext is not a string" };
+}
+
+/** The message object pi's `before_agent_start` return seam injects
+ * (BeforeAgentStartEventResult.message: {customType, content, display}). */
+export interface AgentStartInjection {
+  message: { customType: string; content: string; display: boolean };
+}
+
+export const AI_BADGER_CUSTOM_TYPE = "ai-badger";
+
+export function piMessageFromContext(content: string): AgentStartInjection {
+  return {
+    message: { customType: AI_BADGER_CUSTOM_TYPE, content, display: true },
+  };
+}
+
+/** The injected spawn: one delivery-script run for an already-built payload. It resolves
+ * every failure mode into a DeliveryOutcome and never rejects — the router's branches
+ * stay total. */
+export type DeliverySpawn = (payload: ClaudeDeliveryPayload) => Promise<DeliveryOutcome>;
+
+/** What one routed event produced: pi's injection (before_agent_start only) plus the
+ * failure lines the caller reports. Nothing here throws. */
+export interface DeliveryRouterResult {
+  injection?: AgentStartInjection;
+  notices: string[];
+}
+
+export interface DeliveryRouter {
+  sessionStart(ctx: { cwd: string; sessionId: string }): Promise<DeliveryRouterResult>;
+  beforeAgentStart(ctx: { cwd: string; sessionId: string }): Promise<DeliveryRouterResult>;
+  sessionShutdown(ctx: { cwd: string; sessionId: string }): Promise<DeliveryRouterResult>;
+}
+
+/** The subscription state machine behind the three message-bus handlers.
+ *
+ * pi has no injection seam on `session_start` itself (its handler type has no result),
+ * so the start delivery's mail is held as the pending child and handed to pi through the
+ * first `before_agent_start` return — the first-class seam the docs name. The store's
+ * cursor advanced when the start child read, so consuming the held outcome costs no
+ * second store hit, and the store's exactly-once transaction makes every interleaving
+ * of a late start child with a live read safe. Later turns are live deliveries; the
+ * close event's response is discarded — a dead store must not block shutdown, and a
+ * close response has nothing pi could inject anyway. Every error becomes a notice (D31).
+ */
+export function createDeliveryRouter(spawn: DeliverySpawn): DeliveryRouter {
+  let pendingStart: Promise<DeliveryOutcome> | null = null;
+
+  async function liveTurn(ctx: { cwd: string; sessionId: string }): Promise<DeliveryRouterResult> {
+    try {
+      const outcome = await spawn(toClaudeDeliveryPayload("before_agent_start", ctx));
+      if (outcome.kind === "context") {
+        return { injection: piMessageFromContext(outcome.content), notices: [] };
+      }
+      if (outcome.kind === "error") {
+        return { notices: [`ai-badger: message delivery failed, turn continues — ${outcome.reason}`] };
+      }
+      return { notices: [] };
+    } catch (error) {
+      return { notices: [`ai-badger: message delivery failed, turn continues — ${String(error)}`] };
+    }
+  }
+
+  return {
+    sessionStart(ctx) {
+      pendingStart = spawn(toClaudeDeliveryPayload("session_start", ctx)).catch(
+        (error): DeliveryOutcome => ({ kind: "error", reason: String(error) }),
+      );
+      return Promise.resolve({ notices: [] });
+    },
+
+    async beforeAgentStart(ctx) {
+      if (pendingStart) {
+        const held = pendingStart;
+        pendingStart = null;
+        try {
+          const outcome = await held;
+          if (outcome.kind === "context") {
+            return { injection: piMessageFromContext(outcome.content), notices: [] };
+          }
+          // empty or errored: fall through to the live read — an empty start inbox does
+          // not mean an empty turn inbox (mail may have arrived since), and an errored
+          // start delivery must not silence the turn either.
+        } catch (error) {
+          // spawn contract says never reject; a violation still must not break the turn.
+          return liveTurn(ctx);
+        }
+      }
+      return liveTurn(ctx);
+    },
+
+    async sessionShutdown(ctx) {
+      try {
+        await spawn(toClaudeDeliveryPayload("session_shutdown", ctx));
+      } catch (error) {
+        return { notices: [`ai-badger: cursor cleanup failed — ${String(error)}`] };
+      }
+      return { notices: [] };
+    },
+  };
+}
+
 /** The session id every hook payload carries. pi's own session id (via the session
  * manager) is the authority; `PI_SESSION_ID` is the fallback; empty is the documented
  * last resort. The empty string is why the empty-session contract exists in the gate:

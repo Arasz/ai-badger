@@ -1,14 +1,40 @@
 """Adjustment: wire ai-badger hooks into .github/hooks/ for Copilot CLI.
 
 Reads the framework's hooks-manifest.json, generates Copilot-format hooks
-with paths rewritten to the scaffolded .ai-badger/skills/ directory, and
-writes them to .github/hooks/ai-badger-hooks.json.
+with paths rewritten to the scaffolded .ai-badger/ directories, and
+writes them to .github/hooks/ai-badger-hooks.json. Scripts living in a skill's own
+scripts/ directory already reach the project through the skills copy; scripts living
+in features/common/hooks/ (the shared hook-script home) are shipped into the project's
+.ai-badger/hooks/ by this adjustment, together with the badger_store.py sibling they
+import from beside themselves.
 """
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Set
+
+
+def _rewrite_command(cmd: str, hooks_rel: str, scripts_to_ship: Set[str]) -> str:
+    """Rewrite one framework command for the scaffolded project; collect hook scripts to ship.
+
+    Skills paths map to the project's .ai-badger/skills/ copy. features/common/hooks/ paths
+    map to the project's shipped hook-script home and their script names accrue in
+    scripts_to_ship — without the rewrite the command passes through with a
+    ${CLAUDE_PLUGIN_ROOT} path Copilot never substitutes, a dead hook that looks wired.
+    """
+    cmd = cmd.replace(
+        "${CLAUDE_PLUGIN_ROOT}/features/common/skills/",
+        ".ai-badger/skills/"
+    )
+    hooks_marker = "${CLAUDE_PLUGIN_ROOT}/features/common/hooks/"
+    if hooks_marker in cmd:
+        cmd = cmd.replace(hooks_marker, f"{hooks_rel}/")
+        tail = cmd.rstrip('"').rsplit("/", 1)[-1]
+        if tail.endswith(".py"):
+            scripts_to_ship.add(tail)
+    return cmd
 
 
 def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
@@ -30,6 +56,9 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     target = context["target"]
     _skills = context.get("skills", [])
 
+    # Where shipped hook scripts land inside the project (e.g. .ai-badger/hooks).
+    hooks_rel = (target_dir / "hooks").relative_to(target).as_posix()
+
     # Read hooks-manifest.json
     manifest_path = framework_root / "features" / "common" / "hooks" / "hooks-manifest.json"
     if not manifest_path.exists():
@@ -47,6 +76,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
 
     # Build Copilot-format hooks
     copilot_hooks: Dict[str, Any] = {"version": 1, "hooks": {}}
+    scripts_to_ship: Set[str] = set()
 
     for hook in manifest.get("hooks", []):
         copilot_entry = hook.get("agents", {}).get("copilot")
@@ -64,6 +94,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         event_map = {
             "sessionStart": "SessionStart",
             "userPromptSubmitted": "UserPromptSubmit",
+            "sessionEnd": "SessionEnd",
             "preToolUse": "PreToolUse",
             "postToolUse": "PostToolUse",
         }
@@ -88,12 +119,10 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
                 # manifest arm may carry its own `matcher` override for that.
                 matcher = copilot_entry.get("matcher") or entry.get("matcher")
                 for h in entry.get("hooks", []):
-                    cmd = h.get("command", "")
-                    # Rewrite: ${CLAUDE_PLUGIN_ROOT}/features/common/skills/ → .ai-badger/skills/
-                    cmd = cmd.replace(
-                        "${CLAUDE_PLUGIN_ROOT}/features/common/skills/",
-                        ".ai-badger/skills/"
-                    )
+                    # Copilot matches runtime tool names, which are case-sensitive and
+                    # lowercased (grep/bash) where Claude's are PascalCase (Grep/Bash) — a
+                    # manifest arm may carry its own `matcher` override for that.
+                    cmd = _rewrite_command(h.get("command", ""), hooks_rel, scripts_to_ship)
                     hook_entry = {
                         "type": "command",
                         "bash": cmd,
@@ -131,6 +160,22 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     if not copilot_hooks["hooks"]:
         return {"applied": False, "files": [], "notes": "No Copilot hooks to wire"}
 
+    # Ship every hook script the generated commands name from features/common/hooks/ into the
+    # project's .ai-badger/hooks/, each with the badger_store.py sibling it imports beside
+    # itself — a command naming a file the project does not have is a dropped event (R7.3).
+    files = [".github/hooks/ai-badger-hooks.json"]
+    hooks_dest = target / hooks_rel
+    hooks_src = framework_root / "features" / "common" / "hooks"
+    if scripts_to_ship:
+        hooks_dest.mkdir(parents=True, exist_ok=True)
+        for script_name in sorted(scripts_to_ship | {"badger_store.py"}):
+            src = hooks_src / script_name
+            if not src.is_file():
+                continue
+            dst = hooks_dest / script_name
+            shutil.copy2(src, dst)
+            files.append(str(dst.relative_to(target)))
+
     # Write to .github/hooks/ai-badger-hooks.json
     hooks_dir = target / ".github" / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
@@ -141,6 +186,6 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "applied": True,
-        "files": [".github/hooks/ai-badger-hooks.json"],
+        "files": files,
         "notes": f"Wired {len(copilot_hooks['hooks'])} hook(s) into .github/hooks/",
     }

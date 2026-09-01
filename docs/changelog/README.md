@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.156.0 | [the user-DB message bus: agents coordinate across harnesses without the human relaying](0.156.0-user-db-message-bus.md) |
 | 0.155.0 | [session stores, the hook-audit collapse, and retention move to SQLite (P2)](0.155.0-session-stores-audit-and-retention-move-to-sqlite-p2.md) |
 | 0.154.0 | [quick-task skill: the single-commit fast lane on main](0.154.0-quick-task-fast-lane-skill.md) |
 | 0.153.0 | [the user-level runtime stores move to SQLite (P1: away mode, commit-reminder, feedback)](0.153.0-user-runtime-stores-move-to-sqlite-p1.md) |

@@ -46,6 +46,9 @@ HOOKS_MANIFEST = Path("features/common/hooks/hooks-manifest.json")
 
 PI_ON_EVENT = re.compile(r'pi\.on\(\s*[\'"]([^\'"]+)[\'"]')
 HOOK_EVENT_NAME_LITERAL = re.compile(r'hook_event_name:\s*[\'"](\w+)[\'"]')
+DELIVERY_MAP_ENTRY = re.compile(r'(\w+):\s*"(\w+)"\s*,?')
+DELIVERY_EVENT_SET = re.compile(r'DELIVERY_EVENTS\s*=\s*frozenset\(\{([^}]*)\}')
+CLOSE_EVENT_SET = re.compile(r'CLOSE_EVENTS\s*=\s*frozenset\(\{([^}]*)\}')
 
 
 def _adapter_pi_on_events(root: Path) -> set[str]:
@@ -202,3 +205,74 @@ def test_adapter_subscribes_to_the_event_per_arm_it_loads(root):
     events = _adapter_pi_on_events(root)
 
     assert {"tool_call", "tool_result"} <= events, events
+
+
+# ---------------------------------------------------------------------------
+# P6 (aib-user-db-message-bus) — the delivery arm: pi's message-bus events translate
+# into Claude-shaped payloads for the shared delivery script. The gates arm's stamp
+# literal stays what its hooks.json loaders read (tests above); the delivery arm's
+# stamps flow through PI_DELIVERY_EVENT_MAP, so the contract here is map ↔ subscription
+# ↔ script routing, each side derived from its own source.
+# ---------------------------------------------------------------------------
+
+DELIVERY_MAP_HEADER = "PI_DELIVERY_EVENT_MAP"
+
+
+def _adapter_delivery_map(root: Path) -> dict[str, str]:
+    """The pi→Claude event translation table, parsed from hook-bridge.ts's own map."""
+    source = (root / ADAPTER_BRIDGE_TS).read_text(encoding="utf-8")
+    start = source.index(DELIVERY_MAP_HEADER)
+    body = source[start:source.index("};", start)]
+    return dict(DELIVERY_MAP_ENTRY.findall(body))
+
+
+def _delivery_hook_event_sets(root: Path) -> tuple[set[str], set[str]]:
+    """message_delivery_hook.py's DELIVERY_EVENTS / CLOSE_EVENTS, lowercased there."""
+    source = (root / "features/common/hooks/message_delivery_hook.py").read_text(encoding="utf-8")
+    delivery = {name.strip().strip('"\'') for name in DELIVERY_EVENT_SET.search(source).groups()[0].split(",")}
+    close = {name.strip().strip('"\'') for name in CLOSE_EVENT_SET.search(source).groups()[0].split(",")}
+    return delivery, close
+
+
+def test_adapter_delivery_map_routes_pi_events_to_claude_families(root):
+    """The translation table maps exactly the three bus events, and its Claude spellings
+    are real: families the manifest's claude arms use, and spellings the shared delivery
+    script actually routes (its DELIVERY_EVENTS deliver mail, its CLOSE_EVENTS clean up —
+    a spelling drift here would silently no-op every pi close event)."""
+    delivery_map = _adapter_delivery_map(root)
+
+    assert delivery_map == {
+        "session_start": "SessionStart",
+        "before_agent_start": "UserPromptSubmit",
+        "session_shutdown": "SessionEnd",
+    }, delivery_map
+
+    manifest = _hooks_manifest(root)
+    manifest_claude_families = _manifest_claude_event_families(manifest)
+    assert set(delivery_map.values()) <= manifest_claude_families
+
+    delivery, close = _delivery_hook_event_sets(root)
+    for claude_name in delivery_map.values():
+        assert claude_name.lower() in delivery | close, (
+            f"{claude_name.lower()} is routed by neither DELIVERY_EVENTS nor CLOSE_EVENTS "
+            f"in features/common/hooks/message_delivery_hook.py"
+        )
+
+
+def test_adapter_subscribes_to_the_three_delivery_events_via_the_router(root):
+    """The delivery arm's subscriptions exist and delegate to the bridge's router.
+
+    A missing subscription means pi sessions never get bus mail on that event: the
+    session-start stash, the per-turn live delivery and the close cleanup each need
+    their own pi.on(...) wired through createDeliveryRouter/toClaudeDeliveryPayload.
+    """
+    source = (root / ADAPTER_INDEX_TS).read_text(encoding="utf-8")
+    events = set(PI_ON_EVENT.findall(source))
+
+    assert {"session_start", "before_agent_start", "session_shutdown"} <= events, events
+
+    for seam in ("createDeliveryRouter", "toClaudeDeliveryPayload", "parseDeliveryStdout"):
+        assert re.search(rf"\b{seam}\b", source), (
+            f"index.ts never references {seam} — the delivery arm bypasses the bridge's "
+            f"tested translation layer"
+        )

@@ -80,10 +80,12 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     files = []
     hook_scripts = [
         "ai_badger_hooks.py",
+        "badger_store.py",
         "mcp_index_hook.py",
         "debug_log.py",
         "grounded_feedback.py",
         "hermes_isolation.py",
+        "message_delivery_hook.py",
     ]
     for hook_file in hook_scripts:
         src = hooks_dir / hook_file

@@ -46,6 +46,12 @@ def test_log_tables_declares_only_tables_the_ddl_can_retain(tmp_path, monkeypatc
     conn = sqlite3.connect(str(tmp_path / "ddl-twin.db"))
     try:
         badger_store._create_schema(conn)
+        # The bus tables (P1) arrive through UPGRADE_HOOKS[1], not the v1 base DDL (D1) —
+        # replay the hooks exactly as a real open does before checking the declared twins.
+        for version in range(1, badger_store.SCHEMA_VERSION):
+            hook = badger_store.UPGRADE_HOOKS.get(version)
+            if hook is not None:
+                hook(conn)
         for db_kind, tables in badger_store.LOG_TABLES.items():
             assert db_kind in ("user", "audit"), f"unknown DB kind: {db_kind}"
             for table in tables:

@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.155.0",
+  "frameworkVersion": "0.156.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -361,6 +361,11 @@
           "scope": "default"
         },
         {
+          "name": "send-message",
+          "path": "features/common/skills/send-message",
+          "scope": "default"
+        },
+        {
           "name": "spec-driven-refactoring",
           "path": "features/common/skills/spec-driven-refactoring",
           "scope": "optIn"
@@ -608,6 +613,10 @@
         {
           "name": "mcp_index_hook",
           "path": "features/common/hooks/mcp_index_hook.py"
+        },
+        {
+          "name": "message_delivery_hook",
+          "path": "features/common/hooks/message_delivery_hook.py"
         }
       ],
       "mcp": [

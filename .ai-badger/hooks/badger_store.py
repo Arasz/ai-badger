@@ -28,20 +28,99 @@ try:
 except ImportError:  # pragma: no cover - Windows has no fcntl; locking degrades to a no-op
     fcntl = None  # type: ignore[assignment]
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+#: Minimum seconds between two prunes of the same log table (D9/D30): the open-time prune
+#: is throttled by the per-table ``pruned_at`` meta stamp so a burst of opens prunes once.
+_PRUNE_THROTTLE_SECONDS = 3600
+
+#: The message bus's delivery window (R3/R8, D5): a session's FIRST delivery — session
+#: start or any cursor-less live read — sees only messages sent within the last 30 minutes
+#: (inclusive: exactly 30 minutes old counts as inside); everything older is gated off.
+_GATE_WINDOW = timedelta(minutes=30)
+
+#: Session-start delivery cap (R5): the first delivery injects the 16 oldest messages in
+#: the window and drops the overflow — the cursor lands past the gated window, so the
+#: dropped tail never reaches that session. Live reads after the first are uncapped (A5).
+_START_CAP = 16
+
+#: Bus retention (R6/R10, D10): messages and cursors live 4 days, pruned at user-store
+#: open with the shared prune_expired pattern. Boundary matches the log-table rule:
+#: ``DELETE WHERE ts < cutoff`` — a row exactly 4 days old survives until the window closes.
+_BUS_MAX_AGE_DAYS = 4
+
+#: The bus tables' DDL (D2): born in SQLite, no legacy source, so it lives in the upgrade
+#: hook rather than the v1 base _DDL — a fresh DB replays it before stamping, a stamped-1
+#: DB gets it from hook 1, and neither path can half-land it (rollback undoes DDL).
+_BUS_DDL = (
+    """
+    CREATE TABLE IF NOT EXISTS messages (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts              TEXT NOT NULL,          -- ISO-8601 UTC send time; feeds retention
+        sender_session  TEXT NOT NULL,
+        sender_project  TEXT NOT NULL,
+        target_session  TEXT,                   -- NULL unless 1:1
+        target_project  TEXT,                   -- NULL unless project broadcast
+        content         TEXT NOT NULL           -- raw string, per owner ruling
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)",
+    "CREATE INDEX IF NOT EXISTS idx_messages_target_session ON messages(target_session, id)",
+    "CREATE INDEX IF NOT EXISTS idx_messages_target_project ON messages(target_project, id)",
+    """
+    CREATE TABLE IF NOT EXISTS cursors (
+        session_id  TEXT PRIMARY KEY,
+        cursor_id   INTEGER NOT NULL,
+        ts          TEXT NOT NULL             -- last-activity stamp; feeds TTL prune
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_cursors_ts ON cursors(ts)",
+)
+
+
+def _upgrade_v1_to_v2(conn: sqlite3.Connection) -> None:
+    """Land the message-bus tables (D1): DDL-only, idempotent, rollback-safe."""
+    for statement in _BUS_DDL:
+        conn.execute(statement)
+
+
+#: Deterministic test seams for the delivery path (plan review F5/§D): the two points a
+#: test must be able to freeze to make the exactly-once race real instead of won
+#: green-trivially by the microsecond default window. In-process tests register callbacks
+#: here; a child process arms a block via ``AI_BADGER_TEST_HOLD="<seam>:<release-path>""
+#: and its parent releases it by creating the path. Production never registers or sets
+#: the env — the seams are inert unless a test arms them.
+_TEST_HOLDS: dict[str, list[Callable[[], None]]] = {}
+_TEST_HOLD_ENV = "AI_BADGER_TEST_HOLD"
+
+
+def _hold_at(seam: str) -> None:
+    """Run every callback registered for *seam*, then honour the env-gated cross-process hold."""
+    for blocker in tuple(_TEST_HOLDS.get(seam, ())):
+        blocker()
+    spec = os.environ.get(_TEST_HOLD_ENV)
+    if spec and spec.startswith(f"{seam}:"):
+        release = Path(spec.split(":", 1)[1])
+        while not release.exists():
+            time.sleep(0.005)
+
+
+def _message_document(row) -> dict:
+    """One messages row as the delivered document — the shape schemas/message.schema.json
+    validates (F4): ``{sender: {sessionId, projectId}, content, timestamp}``."""
+    return {"sender": {"sessionId": row[2], "projectId": row[3]},
+            "content": row[4], "timestamp": row[1]}
+
 
 #: On-open upgrade seam: hook for version N migrates a database stamped N to N+1 (D27).
-UPGRADE_HOOKS: dict[int, Callable[[sqlite3.Connection], None]] = {}
+#: Key 1 is the message bus (P1) — the first migration this store has ever registered.
+UPGRADE_HOOKS: dict[int, Callable[[sqlite3.Connection], None]] = {1: _upgrade_v1_to_v2}
 
 TRACKING_ROOT_ENV = "AI_BADGER_TRACKING_ROOT"
 USER_ROOT_ENV = "AI_BADGER_USER_ROOT"
 DEBUG_DIR_ENV = "AI_BADGER_DEBUG_DIR"
 
 _TABLE_NAME = re.compile(r"[a-z_][a-z0-9_]*\Z")
-
-#: Minimum seconds between two prunes of the same log table (D9/D30): the open-time prune
-#: is throttled by the per-table ``pruned_at`` meta stamp so a burst of opens prunes once.
-_PRUNE_THROTTLE_SECONDS = 3600
 
 # The default home snapshots at import, before anything redirects $HOME for a session (the same
 # pattern conftest's REAL_HOME uses): $HOME is session-wide state, never one of the three
@@ -247,6 +326,8 @@ VENDORED_PATHS: tuple[dict[str, str], ...] = (
      "lands_in": "features/common/skills/call-behaviorist/scripts/badger_store.py"},
     {"consumer": "call-behaviorist",
      "lands_in": "skills/call-behaviorist/scripts/badger_store.py"},
+    {"consumer": "send-message",
+     "lands_in": "features/common/skills/send-message/scripts/badger_store.py"},
 )
 
 
@@ -352,9 +433,28 @@ def _ensure_schema_version(conn: sqlite3.Connection, db_path: Path) -> None:
     """Stamp SCHEMA_VERSION on a fresh DB; dispatch upgrade hooks older; fail closed newer (D27)."""
     row = conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()
     if row is None:
-        conn.execute(
-            "INSERT INTO meta(key, value) VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),)
-        )
+        # A fresh DB carries only the v1 base DDL (created just before this runs), so it is
+        # a version-1 database without a stamp yet: replay every upgrade hook inside one
+        # transaction — the exact path a stamped-1 DB takes — then stamp it current (D1).
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            for version in range(1, SCHEMA_VERSION):
+                hook = UPGRADE_HOOKS.get(version)
+                if hook is not None:
+                    hook(conn)
+            # INSERT OR REPLACE, not INSERT: two processes opening a never-stamped DB
+            # concurrently both read None, serialize on BEGIN IMMEDIATE, and the loser's
+            # plain INSERT would hit UNIQUE(meta.key) — IntegrityError out of the very
+            # first open on a fresh machine (QA review M1). Replacing the winner's
+            # identical stamp is the correct resolution.
+            conn.execute(
+                "INSERT OR REPLACE INTO meta(key, value) VALUES ('schema_version', ?)",
+                (str(SCHEMA_VERSION),),
+            )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
         return
     stored = int(row[0])
     if stored > SCHEMA_VERSION:
@@ -384,9 +484,12 @@ def _ensure_schema_version(conn: sqlite3.Connection, db_path: Path) -> None:
 class Family(NamedTuple):
     """One migrating store family: its table, its database, and its legacy JSON source.
 
-    ``legacy_kind`` selects the import shape: ``map`` is a top-level dict keyed like the KV
-    table (marker-state.json); ``kvdoc`` is one whole JSON document stored as a single KV row
-    named by ``row_key`` (statusline-state.json / statusline-delegate.json); ``tasks`` and
+    ``legacy_path`` is the family's legacy JSON source, absent (None) for a family born in
+    SQLite — nothing to import, nothing to resurrect. ``legacy_kind`` selects the import
+    shape: ``store`` is the born-in-SQLite kind with no source at all (messages, cursors);
+    ``map`` is a top-level dict keyed like the KV table (marker-state.json); ``kvdoc`` is
+    one whole JSON document stored as a single KV row named by ``row_key``
+    (statusline-state.json / statusline-delegate.json); ``tasks`` and
     ``usage`` are ``{"tasks": [...]}`` row lists keyed on ``taskId`` (executed-tasks.json,
     token-usage.json); ``sessions`` is ``{"sessions": {id: info}}`` keyed on the session id
     (current-session.json); ``awm`` is the away-mode document whose per-project entries sit
@@ -402,8 +505,8 @@ class Family(NamedTuple):
 
     table: str
     db: str  # "tracking" or "user"
-    legacy_path: Callable[[], Path]
-    legacy_kind: str  # "map" | "kvdoc" | "tasks" | "usage" | "sessions" | "awm" | "jsonl"
+    legacy_path: Optional[Callable[[], Path]] = None  # None: born in SQLite, no source
+    legacy_kind: str = "store"  # "store" | "map" | "kvdoc" | "tasks" | "usage" | ... (see above)
     row_key: str = ""  # kvdoc only: the KV row key this file's document becomes
     ts_field: str = "ts"  # jsonl only: the line field carrying the row's ts ("t" on audit)
 
@@ -526,6 +629,10 @@ USER_FAMILIES: dict[str, Family] = {
         legacy_kind="kvdoc",  # one whole state document (D26), the pending-feedback pattern
         row_key="debug",
     ),
+    # Message-bus families (P1, D2): born in SQLite — no legacy_path, no import wiring.
+    # Their DDL arrives through UPGRADE_HOOKS[1], not the v1 base _DDL.
+    "messages": Family(table="messages", db="user", legacy_kind="store"),
+    "cursors": Family(table="cursors", db="user", legacy_kind="store"),
 }
 
 # -- task-family shapes: legacy entry key <-> row column -----------------------------
@@ -811,6 +918,8 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         for family in self.families.values():
             if family.db != self.kind:
                 continue
+            if family.legacy_path is None:
+                continue  # born in SQLite: no legacy source to resurrect (D2)
             if family.legacy_kind in FILE_SET_KINDS:
                 self._raise_on_family_resurrection(family)
                 continue
@@ -1214,8 +1323,8 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
             self._migrate_family(family)
 
     def _migrate_family(self, family: Family) -> None:
-        if family.legacy_kind == "deferred":
-            return  # import wiring lands with the family's writer lane (see USER_FAMILIES)
+        if family.legacy_kind in ("deferred", "store"):
+            return  # deferred: wiring lands with the writer lane; store: born in SQLite (D2)
         if family.legacy_kind in FILE_SET_KINDS:
             self._migrate_file_set(family)
             return
@@ -1591,6 +1700,256 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
             expected.append(path.stem)
         return expected
 
+    # -- message bus (P1): send, deliver, cursor lifecycle --------------------------------
+
+    def send_message(self, *, sender_session: str, sender_project: str, content: str,
+                     target_session: Optional[str] = None,
+                     target_project: Optional[str] = None) -> int:
+        """Store one bus message and return its row id.
+
+        Sender identity is REQUIRED at send (R10): an empty session or project refuses
+        with the missing-identity error and writes nothing. Addressing normalises at
+        write (D3): a given target_session makes the row 1:1 with target_project stored
+        NULL, a target_project alone is a project broadcast, neither is a machine
+        broadcast — every read predicate stays single-shape. Content is a raw string.
+        """
+        if not sender_session:
+            raise ValueError("send refused: missing sender identity (sessionId)")
+        if not sender_project:
+            raise ValueError("send refused: missing sender identity (projectId)")
+        if not isinstance(content, str):
+            raise ValueError("message content must be a raw string")
+        stored_session = target_session or None
+        stored_project = None if stored_session else (target_project or None)
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = self.conn.execute(
+                "INSERT INTO messages(ts, sender_session, sender_project, target_session, "
+                "target_project, content) VALUES (?, ?, ?, ?, ?, ?)",
+                (_now(), sender_session, sender_project, stored_session, stored_project,
+                 content),
+            )
+            row_id = cursor.lastrowid
+            self.conn.commit()
+        except BaseException:
+            self.conn.rollback()
+            raise
+        _assert_file_perms(self.db_path)
+        notify_write(self.db_path)
+        return row_id
+
+    def deliver_for_session(self, session_id: str,
+                            project_id: Optional[str] = None) -> list:
+        """Deliver the messages addressed to *session_id* and advance its cursor — atomically.
+
+        The read and the cursor upsert share one BEGIN IMMEDIATE, so two hooks racing on
+        one unread message serialize: exactly one injects it, both finish at the same
+        cursor (R3). A session with no cursor row gates history to the last 30 minutes
+        (inclusive) and caps at the first 16 oldest, cursor landing past the gated window
+        so the overflow is never revisited (R4/R5, D5) — in history AND live mode, since
+        this is the one delivery path. Later reads are pure ``id > cursor`` and uncapped
+        (A5: live broadcast volume is bounded by agent-paced sends, not by a cap).
+        With no *project_id* only the 1:1 leg runs — the caller's unresolved-project
+        fail-open contract (D7). Every returned document is
+        ``{sender: {sessionId, projectId}, content, timestamp}`` in chronological order.
+        """
+        if not session_id:
+            raise ValueError("delivery requires a session id")
+        _hold_at("deliver.entry")
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            row = self.conn.execute(
+                "SELECT cursor_id FROM cursors WHERE session_id = ?", (session_id,)
+            ).fetchone()
+            if row is None:
+                cutoff = (datetime.now(timezone.utc) - _GATE_WINDOW).isoformat()
+                rows = self._read_addressed(session_id, project_id, after_id=0,
+                                            since_ts=cutoff)
+                messages = [_message_document(r) for r in rows[:_START_CAP]]
+                # Past the WHOLE gated window, not past the last delivered row: the
+                # dropped overflow (and everything older) must never be revisited (R5).
+                next_cursor = self.conn.execute(
+                    "SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]
+            else:
+                rows = self._read_addressed(session_id, project_id,
+                                            after_id=row[0], since_ts=None)
+                messages = [_message_document(r) for r in rows]
+                next_cursor = rows[-1][0] if rows else row[0]
+            _hold_at("deliver.after_read")
+            self.conn.execute(
+                "INSERT INTO cursors(session_id, cursor_id, ts) VALUES (?, ?, ?) "
+                "ON CONFLICT(session_id) DO UPDATE SET cursor_id = excluded.cursor_id, "
+                "ts = excluded.ts",
+                (session_id, next_cursor, _now()),
+            )
+            self.conn.commit()
+        except BaseException:
+            self.conn.rollback()
+            raise
+        _assert_file_perms(self.db_path)
+        notify_write(self.db_path)
+        return messages
+
+    def _read_addressed(self, session_id: str, project_id: Optional[str], *,
+                        after_id: int, since_ts: Optional[str]) -> list:
+        """The three D3 shapes (1:1, project, broadcast) minus the sender's own rows (R2),
+        past *after_id*, optionally gated to *since_ts*, oldest first.
+
+        One OR-shaped query: the planner serves it as a MULTI-INDEX OR — each branch is a
+        seek on idx_messages_target_session / idx_messages_target_project / the PK range
+        (D6, verified by the EXPLAIN gate test). Without a project_id the project and
+        broadcast branches drop out (deliver 1:1 only, D7).
+        """
+        shapes = ["target_session = ?"]
+        params: list = [session_id]
+        if project_id:
+            shapes.append("(target_session IS NULL AND target_project = ?)")
+            shapes.append("(target_session IS NULL AND target_project IS NULL)")
+            params.append(project_id)
+        clauses = [f"({' OR '.join(shapes)})", "id > ?", "sender_session <> ?"]
+        params.extend((after_id, session_id))
+        if since_ts is not None:
+            clauses.append("ts >= ?")
+            params.append(since_ts)
+        return self.conn.execute(
+            f"SELECT id, ts, sender_session, sender_project, content FROM messages "
+            f"WHERE {' AND '.join(clauses)} ORDER BY id ASC",
+            tuple(params),
+        ).fetchall()
+
+    def delete_cursor(self, session_id: str) -> bool:
+        """Remove one session's cursor row — the close-event cleanup (R6); True if it existed."""
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = self.conn.execute(
+                "DELETE FROM cursors WHERE session_id = ?", (session_id,))
+            deleted = cursor.rowcount
+            self.conn.commit()
+        except BaseException:
+            self.conn.rollback()
+            raise
+        _assert_file_perms(self.db_path)
+        notify_write(self.db_path)
+        return deleted > 0
+
+
+# -- project identity (P2): the cwd → projectId resolver (D4) -------------------------
+
+#: The explicit project id (the resolver contract's "explicit wins" rule, A3): set and
+#: non-blank it IS the answer at send and delivery alike — one entry point serves both
+#: sides so a conversation's addresses resolve identically — and the registry is never
+#: consulted. Blank reads as unset, mirroring the contract's IsNullOrWhiteSpace.
+PROJECT_ID_ENV = "AI_BADGER_PROJECT_ID"
+
+#: The ai-raccoon memory bank this resolver reads read-only — the P2 step-0 spike pinned
+#: it: user-scope installs keep the bank at ``~/.ai-raccoon/memory.db`` (its ``settings``
+#: table carries ``ingest.scope.<id>`` keys, its ``watches`` table the watch paths).
+#: Env override for non-standard installs, resolved at call time like every other root
+#: in this module.
+RACCOON_BANK_ENV = "AI_BADGER_RACCOON_DB"
+_DEFAULT_RACCOON_BANK = "~/.ai-raccoon/memory.db"
+_SCOPE_KEY_PREFIX = "ingest.scope."
+
+
+class ProjectIdAmbiguous(Exception):
+    """The resolver's refusal outcome: several registered projects contain the cwd.
+
+    Carries the sorted candidate ids on ``candidates``; the caller owns the error text
+    and must refuse rather than guess (D7).
+    """
+
+    def __init__(self, candidates: list[str]):
+        super().__init__(", ".join(candidates))
+        self.candidates = candidates
+
+
+def _real_path(path: str) -> str:
+    """The path as containment compares it: absolute, symlink-resolved, trimmed — the
+    raccoon's IsWithinScope path identity in stdlib terms. Tails that do not exist keep
+    their literal spelling, so a not-yet-created directory still resolves."""
+    return os.path.realpath(os.path.abspath(path))
+
+
+def _path_contains(scope_entry: str, probe: str) -> bool:
+    """True when *probe* equals *scope_entry* or lies under it — the equal-or-ancestor
+    containment the resolver shares with the raccoon (a sibling whose name merely
+    extends the entry's spelling is NOT inside it)."""
+    prefix = scope_entry if scope_entry.endswith(os.sep) else scope_entry + os.sep
+    return probe == scope_entry or probe.startswith(prefix)
+
+
+def raccoon_registry_surface() -> dict[str, list[str]]:
+    """The default registry source: the raccoon bank, read read-only (D4/D7).
+
+    Registration is evidenced by the directory surfaces themselves — a project's
+    ingest-scope key (the authoritative mapping the raccoon's ingest tools enforce) or
+    its watch rows (the fallback) — so the id space is their union. The ``global`` scope
+    key is the raccoon's own fallback entry, not a project, and would make every cwd
+    under it ambiguous. A bank that is absent, unreadable or half-readable yields what
+    it yielded: the resolver refuses and the caller formats the refusal (D7).
+    """
+    bank = Path(os.environ.get(RACCOON_BANK_ENV) or _DEFAULT_RACCOON_BANK).expanduser().resolve()
+    surface: dict[str, list[str]] = {}
+    if not bank.exists():
+        return surface
+    try:
+        conn = sqlite3.connect(f"{bank.as_uri()}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return surface
+    try:
+        for key, value in conn.execute(
+                f"SELECT key, value FROM settings WHERE key LIKE '{_SCOPE_KEY_PREFIX}%'"):
+            project_id = key[len(_SCOPE_KEY_PREFIX):]
+            if project_id == "global" or not project_id or not isinstance(value, str):
+                continue
+            try:
+                paths = json.loads(value)
+            except ValueError:
+                continue
+            if isinstance(paths, list) and paths:
+                surface.setdefault(project_id, []).extend(
+                    p for p in paths if isinstance(p, str) and p.strip())
+        for project_id, path in conn.execute("SELECT project_id, path FROM watches"):
+            if isinstance(project_id, str) and isinstance(path, str) and path.strip():
+                surface.setdefault(project_id, []).append(path)
+    except sqlite3.Error:
+        pass  # a half-readable bank yields the rows it managed to serve (D7)
+    finally:
+        with contextlib.suppress(sqlite3.Error):
+            conn.close()
+    return surface
+
+
+def resolve_project_id(cwd: Optional[str],
+                       registry: Optional[Callable[[], dict]] = None) -> Optional[str]:
+    """Resolve a working directory to its registered project id (R8; D4).
+
+    The explicit override (``AI_BADGER_PROJECT_ID``) wins unconditionally — when set and
+    non-blank it is returned before anything else is read, at send and delivery alike.
+    Otherwise the probe is the cwd, the candidate surface is each registered project's
+    ingest-scope paths plus its watch paths, containment is equal-or-ancestor with both
+    sides canonicalized once, exactly one match returns the id, several raise
+    :class:`ProjectIdAmbiguous` (never guess), and none returns None — the caller owns
+    the refusal text (D7).
+    """
+    override = os.environ.get(PROJECT_ID_ENV)
+    if override and override.strip():
+        return override
+    if not cwd:
+        return None
+    probe = _real_path(cwd)
+    surface = (registry or raccoon_registry_surface)()
+    matches = sorted(
+        project_id for project_id, paths in surface.items()
+        if any(_path_contains(_real_path(p), probe)
+               for p in paths if isinstance(p, str) and p.strip())
+    )
+    if not matches:
+        return None
+    if len(matches) > 1:
+        raise ProjectIdAmbiguous(matches)
+    return matches[0]
+
 
 def _parseable_ts(ts) -> bool:
     """True for a ts the prune's string comparison can be trusted on: non-empty ISO-8601."""
@@ -1624,7 +1983,7 @@ def iso_row_ts(raw_ts) -> str:
 #: The retention scope (owner decision #2 + G0-Q2): every log table and the DB it lives
 #: in. The on-write callers name their table; the CLI reports the whole scope.
 LOG_TABLES: dict[str, tuple[str, ...]] = {
-    "user": ("awm_decisions", "searches"),
+    "user": ("awm_decisions", "searches", "messages", "cursors"),
     "audit": ("hook_audit",),
 }
 
@@ -1667,8 +2026,17 @@ def open_tracking(families: Optional[dict] = None) -> Store:
 
 
 def open_user(families: Optional[dict] = None) -> Store:
-    """Open (creating when absent) the user-level store; defaults to USER_FAMILIES."""
-    return _open(user_db_path(), "user", USER_FAMILIES if families is None else families)
+    """Open (creating when absent) the user-level store; defaults to USER_FAMILIES.
+
+    Every open prunes the bus tables to their 4-day retention (R6/R10, D10) — wired here,
+    NOT in general _open: tracking stores have no bus retention to run. The prune is
+    hour-throttled by its pruned_at stamps and fails open as 0 (D31), so a broken store
+    still opens.
+    """
+    store = _open(user_db_path(), "user", USER_FAMILIES if families is None else families)
+    store.prune_expired("messages", max_age_days=_BUS_MAX_AGE_DAYS)
+    store.prune_expired("cursors", max_age_days=_BUS_MAX_AGE_DAYS)
+    return store
 
 
 # -- CLI: `prune --status`, the retention scope's read-only inspection surface ---------
