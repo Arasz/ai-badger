@@ -29,7 +29,6 @@ import os
 import shutil
 import subprocess
 import sys
-import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -230,6 +229,7 @@ from statusline_wiring import StatusLineWiring  # noqa: E402
 from skill_delivery import SkillDelivery, prune_namespaces, relink_hermes_skills  # noqa: E402
 from skills_argv import resolve_requested_skills  # noqa: E402
 from superseded_prune import SupersededPrune  # noqa: E402
+from project_id import mint_project_id  # noqa: E402
 from local_invariants import append_rendered  # noqa: E402
 from gitignore_block import gitignore_managed_block, merge_gitignore, write_gitignore_block  # noqa
 
@@ -711,9 +711,7 @@ class Scaffolder:
     def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
         """Run every scaffold step in order and return the manifest, plugin commands, and notes."""
         self.aib.mkdir(parents=True, exist_ok=True)
-        project_id_path = self.aib / "project-id"
-        if not project_id_path.exists():
-            project_id_path.write_text(f"{uuid.uuid4()}\n", encoding="utf-8")
+        mint_project_id(self.aib)
         self._completed_steps = []
         self._record_progress("start")
         self.superseded.prune(self._prior_manifest().get("entries", []))
