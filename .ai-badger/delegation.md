@@ -4,7 +4,7 @@
 
 ## Stacks
 
-python, js, github, claude, hermes, ts, node, changelog
+python, js, github, claude, hermes, pi, ts, node, changelog
 
 ## Personas available here
 

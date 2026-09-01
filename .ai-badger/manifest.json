@@ -1,8 +1,8 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.158.0",
-  "frameworkCommit": "c251c1172032cc3fe2880380bc48906d1f1a3f3f",
-  "frameworkDirty": true,
+  "frameworkCommit": "cc225172fe8b2fe7fb8650415d5f8222313196b2",
+  "frameworkDirty": false,
   "frameworkRoot": ".",
   "generatedAt": null,
   "agents": [
@@ -13,7 +13,7 @@
   ],
   "skillScope": "default",
   "pluginScope": "default",
-  "configHash": "042d1b1ee3c82f335637df6bfc112fbef8525f8aa1e907e81388d7628325d315",
+  "configHash": "3cc5db6ca6f5deacffb084f332472d59161da6ea022efb998b6d53123201c93e",
   "generatedConfig": [
     {
       "path": ".claude/settings.json",
@@ -144,6 +144,15 @@
       "target": ".ai-badger/instructions/hermes.instructions.md",
       "frameworkVersion": "0.158.0",
       "hash": "c45f863701d665f7129b6f6421844b8411c95edbd97f4e8302cf5783556fdaaf"
+    },
+    {
+      "feature": "instructions",
+      "stack": "pi",
+      "name": "pi.instructions",
+      "source": "features/pi/instructions/pi.instructions.md",
+      "target": ".ai-badger/instructions/pi.instructions.md",
+      "frameworkVersion": "0.158.0",
+      "hash": "1e6af88ee3231024a6adc2b0890cd9baa5a491a5ea07cc2a6ce1728856a7fd22"
     },
     {
       "feature": "instructions",
@@ -2481,6 +2490,24 @@
       "target": ".ai-badger/skills-data/hermes/skills.json",
       "frameworkVersion": "0.158.0",
       "hash": "5875bafd3c61f4bbdbd0dbd8f7ce1e26870e1d03289ada235f6aeaf7f8b6265e"
+    },
+    {
+      "feature": "skills",
+      "stack": "pi",
+      "name": "pi/skills-source.json",
+      "source": "features/pi/skills-source.json",
+      "target": ".ai-badger/skills-data/pi/skills-source.json",
+      "frameworkVersion": "0.158.0",
+      "hash": "e8e22e9204805ee623fa9a068853b07c6b16f09b89e0a6e2b254f308bfd52150"
+    },
+    {
+      "feature": "skills",
+      "stack": "pi",
+      "name": "pi/skills.json",
+      "source": "features/pi/skills.json",
+      "target": ".ai-badger/skills-data/pi/skills.json",
+      "frameworkVersion": "0.158.0",
+      "hash": "ecb582d7b30a3b72e202e4ab44330004cccf8a8fc4245712090744a7d2882cfc"
     }
   ]
 }

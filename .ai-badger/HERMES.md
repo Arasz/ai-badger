@@ -3,7 +3,7 @@
 Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. Stdlib-only except two declared dependencies (engine/requirements.txt): jsonschema is required — validation refuses rather than silently passing — and pyyaml is optional, guarded, and degrades to a printed note. Two .mjs helper scripts under skills/maintain-agent-instructions/.
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
-> Stacks: python, js, github, claude, hermes, ts, node, changelog
+> Stacks: python, js, github, claude, hermes, pi, ts, node, changelog
 > Scaffolded by ai-badger 0.158.0. Source of truth for this file: `.ai-badger/HERMES.md`.
 
 ## Commands
@@ -21,6 +21,7 @@ Before editing matching files, read the applicable scoped instruction file:
 - `**/*.js,**/*.mjs,**/*.cjs` → `.ai-badger/instructions/javascript.instructions.md`
 - `**/.github/workflows/*.yml,**/.github/workflows/*.yaml` → `.ai-badger/instructions/github-actions.instructions.md`
 - `skills/**/SKILL.md,**/*.hermes.md,**/HERMES.md,.hermes/**` → `.ai-badger/instructions/hermes.instructions.md`
+- `**/AGENTS.override.md,**/CLAUDE.md,.pi/**` → `.ai-badger/instructions/pi.instructions.md`
 - `**/*.ts,**/*.tsx,**/tsconfig.json` → `.ai-badger/instructions/typescript.instructions.md`
 - `**/package.json,**/bun.lock,**/*.mjs,**/*.cjs` → `.ai-badger/instructions/node.instructions.md`
 
