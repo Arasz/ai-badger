@@ -390,8 +390,9 @@ def test_own_broadcast_never_re_delivers_across_id_drift(tmp_path):
         monkey.setenv(badger_store.TRACKING_ROOT_ENV, str(tmp_path / "tracking-root"))
         store = badger_store.open_user()
         try:
-            assert store.deliver_for_session(harness, "proj-sender") == []
-            delivered = store.deliver_for_session(third, "proj-sender")
+            assert store.deliver_for_session(harness, "proj-sender") == \
+                ([], {"addressed": 0, "broadcast": 0})
+            delivered, _ = store.deliver_for_session(third, "proj-sender")
         finally:
             store.close()
     assert [doc["content"] for doc in delivered] == ["own broadcast"]
@@ -498,13 +499,11 @@ def test_session_env_vars_first_set_wins_in_tuple_order(tmp_path):
         monkey.setenv(badger_store.TRACKING_ROOT_ENV, str(tmp_path / "tracking-root"))
         store = badger_store.open_user()
         try:
-            assert [d["content"] for d in
-                    store.deliver_for_session(claude_side, "proj-sender")] == \
-                ["hermes-var probe"]
-            assert [d["content"] for d in
-                    store.deliver_for_session(hermes_side, "proj-sender")] == \
-                ["claude-var probe"]
-            delivered = store.deliver_for_session(third, "proj-sender")
+            claude_mail, _ = store.deliver_for_session(claude_side, "proj-sender")
+            assert [d["content"] for d in claude_mail] == ["hermes-var probe"]
+            hermes_mail, _ = store.deliver_for_session(hermes_side, "proj-sender")
+            assert [d["content"] for d in hermes_mail] == ["claude-var probe"]
+            delivered, _ = store.deliver_for_session(third, "proj-sender")
         finally:
             store.close()
     assert [doc["content"] for doc in delivered] == \

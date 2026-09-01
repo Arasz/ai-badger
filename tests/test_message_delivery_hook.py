@@ -444,17 +444,20 @@ def test_session_end_for_unknown_session_is_harmless(hook, monkeypatch, capsys):
 
 
 def test_malformed_stdin_is_a_no_op(hook, monkeypatch, capsys):
-    """Garbage on stdin (not JSON) → exit 0, parseable no-op JSON, no injection.
+    """Garbage on stdin (not JSON) → exit 0, parseable JSON in the C2b failure-marker
+    shape (the parse failure is a guarded_main catch), no injection.
     Mutation killer: the parse unguarded → exception escapes, exit non-zero."""
     rc, response = _fire(hook, monkeypatch, capsys, None, raw="this is { not json")
     assert rc == 0
-    assert response == {}
+    assert response == FAILURE_MARKER
 
 
 def test_corrupt_user_db_fails_open(hook, tmp_path, monkeypatch, capsys):
     """An unreadable/corrupt user DB (every bus operation doomed) → exit 0, parseable
-    no-op JSON. The host session must not notice the bus exists. Mutation killer: the
-    fail-open net removed → sqlite3.DatabaseError propagates, exit non-zero."""
+    JSON — the C2b failure marker, wire-distinguishable from a clean empty read so a
+    poller's watermark never advances over undelivered mail (CR-M1). The host session
+    must still not notice the bus exists. Mutation killer: the fail-open net removed →
+    sqlite3.DatabaseError propagates, exit non-zero."""
     root = tmp_path / "corrupt-root"
     root.mkdir()
     (root / "ai-badger.db").write_bytes(b"this is not a sqlite database")
@@ -463,13 +466,13 @@ def test_corrupt_user_db_fails_open(hook, tmp_path, monkeypatch, capsys):
     rc, response = _fire(hook, monkeypatch, capsys,
                          {"hook_event_name": "SessionStart", "session_id": "S", "cwd": "/x"})
     assert rc == 0
-    assert response == {}
+    assert response == FAILURE_MARKER
 
 
 def test_registry_explosion_fails_open(hook, user_root, monkeypatch, capsys):
     """A registry read that BLOWS UP (not a designed refusal — a genuine error) → exit 0,
-    parseable no-op JSON, nothing injected. The designed refusals below deliver 1:1; an
-    exception here must not even do that."""
+    parseable JSON in the C2b failure-marker shape, nothing injected. The designed
+    refusals below deliver 1:1; an exception here must not even do that."""
     def explode(cwd, registry=None):
         raise RuntimeError("registry exploded")
 
@@ -479,7 +482,7 @@ def test_registry_explosion_fails_open(hook, user_root, monkeypatch, capsys):
                          {"hook_event_name": "UserPromptSubmit", "session_id": "S",
                           "cwd": "/somewhere"})
     assert rc == 0
-    assert response == {}
+    assert response == FAILURE_MARKER
 
 
 def test_unresolved_project_still_delivers_one_to_one(
@@ -619,7 +622,9 @@ def test_the_store_document_list_is_what_stdout_carries(
     Mutation killer: the script dropping or rewriting documents after the read."""
     monkeypatch.setattr(
         badger_store.Store, "deliver_for_session",
-        lambda self, session_id, project_id=None: [SENTINEL_DOC, {**SENTINEL_DOC, "content": "two"}])
+        lambda self, session_id, project_id=None:
+            ([SENTINEL_DOC, {**SENTINEL_DOC, "content": "two"}],
+             {"addressed": 2, "broadcast": 0}))
 
     rc, response = _fire(hook, monkeypatch, capsys,
                          {"hook_event_name": "UserPromptSubmit", "session_id": "S",
@@ -672,3 +677,44 @@ def test_standalone_invocation_via_subprocess(hook, user_root, tmp_path, monkeyp
     response = json.loads(proc.stdout.decode())
     assert [d["content"] for d in _documents_of(_context_of(response))] == \
         ["from a child process"]
+
+
+# ---------------------------------------------------------------------------
+# J. delivery summary + failure marker (P2 C2/C2b — the wake-classification wire)
+# ---------------------------------------------------------------------------
+
+
+#: C2b (CR-M1): the fail-open net's wire shape — distinguishable from a clean empty
+#: read, additive inside hookSpecificOutput, never a host-acted key (CR-N6).
+FAILURE_MARKER = {"hookSpecificOutput": {"aiBadgerBus": {"error": True}}}
+
+
+def test_clean_empty_stays_exactly_empty_at_the_wire(hook, user_root, monkeypatch, capsys):
+    """C2b's clean-empty boundary: an empty inbox prints {} — EXACTLY, no aiBadgerBus
+    key with zero counts, no envelope (the TS negative-watermark logic keys on the
+    ABSENT field, QA-10 case 3). Green by construction until someone 'enriches' the
+    empty path — that mutation is exactly what this pin kills."""
+    rc, response = _fire(hook, monkeypatch, capsys,
+                         {"hook_event_name": "UserPromptSubmit", "session_id": "S",
+                          "cwd": "/x"})
+    assert rc == 0
+    assert response == {}
+
+
+def test_failure_marker_on_a_forced_store_open_failure(hook, tmp_path, monkeypatch, capsys):
+    """C2b (CR-M1): a failure inside guarded_main is wire-distinguishable from a clean
+    empty read — the response is {"hookSpecificOutput": {"aiBadgerBus": {"error": true}}}
+    (exit 0, fail-open unchanged, log line unchanged shape + the C8 message). A corrupt
+    user DB forces the store-open failure; the poller's watermark-advance rule keys on
+    this marker — a failure-marked {} must never read as a clean empty inbox (M1's
+    silent-stall shape).
+    Mutation killer: printing {} on the failure path."""
+    root = tmp_path / "corrupt-root"
+    root.mkdir()
+    (root / "ai-badger.db").write_bytes(b"this is not a sqlite database")
+    monkeypatch.setenv(USER_ROOT_ENV, str(root))
+
+    rc, response = _fire(hook, monkeypatch, capsys,
+                         {"hook_event_name": "SessionStart", "session_id": "S", "cwd": "/x"})
+    assert rc == 0
+    assert response == FAILURE_MARKER

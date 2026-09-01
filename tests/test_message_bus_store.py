@@ -9,7 +9,7 @@ legacy source, carried to every consumer by the vendored-copy discipline (D16):
 
     Store.send_message(*, sender_session, sender_project, content,
                        target_session=None, target_project=None) -> int
-    Store.deliver_for_session(session_id, project_id=None) -> list[dict]
+    Store.deliver_for_session(session_id, project_id=None) -> (list[dict], summary)
     Store.delete_cursor(session_id) -> bool
 
 Test map (plan aib-user-db-message-bus §3 P1 · spec rules in parentheses):
@@ -165,6 +165,12 @@ def _documents(rows) -> list:
     """(id, ts, sender_session, sender_project, content) rows as the delivered documents."""
     return [{"sender": {"sessionId": row[2], "projectId": row[3]},
              "content": row[4], "timestamp": row[1]} for row in rows]
+
+
+def _empty_delivery() -> tuple:
+    """C2's empty delivery: no documents, zero counts — the exact shape every
+    'delivers nothing' assertion pins (QA-3: the summary rides every call)."""
+    return ([], {"addressed": 0, "broadcast": 0})
 
 
 # ---------------------------------------------------------------------------
@@ -387,13 +393,13 @@ def test_deliver_addressing_shapes_reach_their_recipients(tmp_path, monkeypatch)
                            target_project="P")
         store.send_message(sender_session="S1", sender_project="P", content="everyone")
 
-        s2 = store.deliver_for_session("S2", "P")
+        s2, _ = store.deliver_for_session("S2", "P")
         assert [m["content"] for m in s2] == ["direct", "for P", "everyone"]
         assert s2[0]["sender"] == {"sessionId": "S1", "projectId": "P"}
         assert s2[0]["timestamp"] == store.conn.execute(
             "SELECT ts FROM messages WHERE content = 'direct'").fetchone()[0]
         # S3 sits in another project: the broadcast still reaches it, the project message not
-        s3 = store.deliver_for_session("S3", "OTHER")
+        s3, _ = store.deliver_for_session("S3", "OTHER")
         assert [m["content"] for m in s3] == ["everyone"]
     finally:
         store.close()
@@ -411,9 +417,10 @@ def test_deliver_suppresses_the_senders_own_messages(tmp_path, monkeypatch):
         store.send_message(sender_session="S", sender_project="P", content="own 1:1",
                            target_session="S")
 
-        assert store.deliver_for_session("S", "P") == []
+        assert store.deliver_for_session("S", "P") == _empty_delivery()
         # The same messages reach everyone else — only the sender is blind to them.
-        assert [m["content"] for m in store.deliver_for_session("T", "P")] == \
+        delivered, _ = store.deliver_for_session("T", "P")
+        assert [m["content"] for m in delivered] == \
             ["own broadcast", "own project"]
     finally:
         store.close()
@@ -431,7 +438,7 @@ def test_deliver_without_project_id_delivers_one_to_one_only(tmp_path, monkeypat
                            target_project="P")
         store.send_message(sender_session="S1", sender_project="P", content="everyone")
 
-        delivered = store.deliver_for_session("S2", None)
+        delivered, _ = store.deliver_for_session("S2", None)
         assert [m["content"] for m in delivered] == ["direct"]
     finally:
         store.close()
@@ -450,7 +457,7 @@ def test_first_delivery_gates_to_the_30_minute_window(tmp_path, monkeypatch, fro
                       sender_session="S1", sender_project="P", target_project="P",
                       content="recent")
 
-        delivered = store.deliver_for_session("S2", "P")
+        delivered, _ = store.deliver_for_session("S2", "P")
         assert [m["content"] for m in delivered] == ["recent"]
     finally:
         store.close()
@@ -466,7 +473,8 @@ def test_a_message_exactly_30_minutes_old_is_included(tmp_path, monkeypatch, fro
                       sender_session="S1", sender_project="P", target_project="P",
                       content="boundary")
 
-        assert [m["content"] for m in store.deliver_for_session("S2", "P")] == ["boundary"]
+        delivered, _ = store.deliver_for_session("S2", "P")
+        assert [m["content"] for m in delivered] == ["boundary"]
     finally:
         store.close()
 
@@ -483,7 +491,7 @@ def test_a_message_just_past_30_minutes_is_excluded(tmp_path, monkeypatch, froze
                       sender_session="S1", sender_project="P", target_project="P",
                       content="just past")
 
-        assert store.deliver_for_session("S2", "P") == []
+        assert store.deliver_for_session("S2", "P") == _empty_delivery()
     finally:
         store.close()
 
@@ -499,13 +507,14 @@ def test_cursorless_live_read_applies_the_gate_once(tmp_path, monkeypatch, froze
                                sender_session="S1", sender_project="P", target_project="P",
                                content="ancient")
 
-        assert store.deliver_for_session("S2", "P") == []  # the gate, not an empty store
+        assert store.deliver_for_session("S2", "P") == _empty_delivery()  # the gate, not an empty store
         cursor_id, _ = _cursor_row(store, "S2")
         assert cursor_id >= old_id, "the cursor must land past the gated window"
 
         store.send_message(sender_session="S1", sender_project="P", content="fresh",
                            target_project="P")
-        assert [m["content"] for m in store.deliver_for_session("S2", "P")] == ["fresh"]
+        delivered, _ = store.deliver_for_session("S2", "P")
+        assert [m["content"] for m in delivered] == ["fresh"]
     finally:
         store.close()
 
@@ -527,7 +536,7 @@ def test_gated_first_delivery_without_project_never_sweeps_other_legs(tmp_path, 
                                      sender_session="S1", sender_project="P",
                                      target_project="P", content="project mail")
 
-        docs = store.deliver_for_session("S", None)  # D7 fail-open: 1:1 only
+        docs, _ = store.deliver_for_session("S", None)  # D7 fail-open: 1:1 only
         assert [d["content"] for d in docs] == ["direct ping"]
         cursor_id, _ = _cursor_row(store, "S")
         assert cursor_id < broadcast_id, (
@@ -536,7 +545,8 @@ def test_gated_first_delivery_without_project_never_sweeps_other_legs(tmp_path, 
         # Mail-intact observable (NOT the killer: S2 has its own cursor and would get
         # this under the old code too) — the discriminating assert is cursor < broadcast
         # above. Keep both: right delivery AND right cursor is the bug's full shape.
-        assert [d["content"] for d in store.deliver_for_session("S2", "P")] == \
+        delivered, _ = store.deliver_for_session("S2", "P")
+        assert [d["content"] for d in delivered] == \
             ["project mail"]
     finally:
         store.close()
@@ -555,7 +565,7 @@ def test_first_delivery_with_project_id_still_cursors_past_the_window(tmp_path, 
                                   sender_session="S1", sender_project="P",
                                   target_session="other", content="unrelated")
 
-        assert store.deliver_for_session("S2", "P") == []
+        assert store.deliver_for_session("S2", "P") == _empty_delivery()
         cursor_id, _ = _cursor_row(store, "S2")
         assert cursor_id >= unrelated, "all legs ran — the global landing stands"
     finally:
@@ -615,11 +625,12 @@ def test_gated_first_read_leg_overflow_never_returns_but_other_legs_survive(
         _seed_message(store, ts=frozen_clock.isoformat(), sender_session="S1",
                       sender_project="P", target_project="P", content="broadcast")
 
-        first = store.deliver_for_session("S", None)
+        first, _ = store.deliver_for_session("S", None)
         assert [d["content"] for d in first] == [f"m{i}" for i in range(16)]
-        assert store.deliver_for_session("S", None) == [], \
+        assert store.deliver_for_session("S", None) == _empty_delivery(), \
             "the leg's own overflow must never re-deliver (cursor = leg max, not row 16)"
-        assert [d["content"] for d in store.deliver_for_session("S3", "P")] == \
+        delivered, _ = store.deliver_for_session("S3", "P")
+        assert [d["content"] for d in delivered] == \
             ["broadcast"], "the broadcast still survives the leg-scoped landing"
     finally:
         store.close()
@@ -634,7 +645,7 @@ def test_small_inbox_delivers_whole_in_chronological_order(tmp_path, monkeypatch
             store.send_message(sender_session="S1", sender_project="P", content=f"m{i}",
                                target_project="P")
 
-        delivered = store.deliver_for_session("S2", "P")
+        delivered, _ = store.deliver_for_session("S2", "P")
         assert [m["content"] for m in delivered] == [f"m{i}" for i in range(5)]
     finally:
         store.close()
@@ -650,7 +661,7 @@ def test_sixteen_messages_hold_the_boundary(tmp_path, monkeypatch):
             store.send_message(sender_session="S1", sender_project="P", content=f"m{i}",
                                target_project="P")
 
-        delivered = store.deliver_for_session("S2", "P")
+        delivered, _ = store.deliver_for_session("S2", "P")
         assert [m["content"] for m in delivered] == [f"m{i}" for i in range(START_CAP)]
     finally:
         store.close()
@@ -666,12 +677,12 @@ def test_overflow_beyond_sixteen_is_dropped_and_never_redelivered(tmp_path, monk
             store.send_message(sender_session="S1", sender_project="P", content=f"m{i}",
                                target_project="P")
 
-        delivered = store.deliver_for_session("S2", "P")
+        delivered, _ = store.deliver_for_session("S2", "P")
         assert [m["content"] for m in delivered] == [f"m{i}" for i in range(START_CAP)]
         cursor_id, _ = _cursor_row(store, "S2")
         newest = store.conn.execute("SELECT MAX(id) FROM messages").fetchone()[0]
         assert cursor_id >= newest, "the cursor must land past the gated window"
-        assert store.deliver_for_session("S2", "P") == []  # the 84 never surface
+        assert store.deliver_for_session("S2", "P") == _empty_delivery()  # the 84 never surface
     finally:
         store.close()
 
@@ -716,7 +727,8 @@ def test_concurrent_deliveries_inject_exactly_once(tmp_path, monkeypatch):
     def _hook(target: list):
         session = badger_store.open_user()
         try:
-            target.extend(session.deliver_for_session("S2", "P"))
+            messages, _ = session.deliver_for_session("S2", "P")
+            target.extend(messages)
         finally:
             session.close()
 
@@ -741,7 +753,7 @@ def test_concurrent_deliveries_inject_exactly_once(tmp_path, monkeypatch):
         assert cursor_id == final.conn.execute(
             "SELECT MAX(id) FROM messages").fetchone()[0]
         datetime.fromisoformat(cursor_ts)  # the upsert stamped a real ts (F7 observable)
-        assert final.deliver_for_session("S2", "P") == []  # nothing left to re-inject
+        assert final.deliver_for_session("S2", "P") == _empty_delivery()  # nothing left to re-inject
     finally:
         final.close()
 
@@ -774,7 +786,8 @@ def test_hook_crash_between_read_and_commit_rolls_back(tmp_path, monkeypatch):
     monkeypatch.setitem(badger_store._TEST_HOLDS, "deliver.after_read", [])
     survivor = badger_store.open_user()
     try:
-        assert [m["content"] for m in survivor.deliver_for_session("S2", "P")] == ["survives"]
+        delivered, _ = survivor.deliver_for_session("S2", "P")
+        assert [m["content"] for m in delivered] == ["survives"]
     finally:
         survivor.close()
 
@@ -1003,6 +1016,111 @@ def test_env_gated_hold_blocks_until_the_release_file_exists(tmp_path, monkeypat
     assert done.wait(10), "the delivery never resumed after the release file appeared"
     if error:
         raise error[0]
+
+
+# ---------------------------------------------------------------------------
+# 12. delivery summary (P2 C2 — the wake classification is the txn's, QA-10/QA-11)
+# ---------------------------------------------------------------------------
+
+
+def test_delivery_summary_counts_the_delivered_batch_exactly(tmp_path, monkeypatch):
+    """C2: deliver_for_session returns (messages, summary) and the summary counts the
+    DELIVERED batch by shape — a 1:1 row (target_session) and a project row count as
+    'addressed', a both-targets-NULL row counts as 'broadcast'. One mixed batch
+    (1:1 + project + broadcast) must come back exactly {"addressed": 2, "broadcast": 1}
+    — exact dict equality, not key presence (QA-10: a counts-off-by-leg mutant passes
+    any presence-only assertion; the summary is the wake trigger).
+    Mutation killer: counting the inbox instead of the batch, or dropping a leg."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        store.send_message(sender_session="S1", sender_project="P", content="direct",
+                           target_session="S2")
+        store.send_message(sender_session="S1", sender_project="P", content="for P",
+                           target_project="P")
+        store.send_message(sender_session="S1", sender_project="P", content="everyone")
+
+        messages, summary = store.deliver_for_session("S2", "P")
+        assert [m["content"] for m in messages] == ["direct", "for P", "everyone"]
+        assert summary == {"addressed": 2, "broadcast": 1}
+    finally:
+        store.close()
+
+
+def test_delivery_summary_tracks_the_live_read_batch(tmp_path, monkeypatch):
+    """A cursor-ful live read counts its own batch by the same shapes: a 1:1 and a
+    broadcast delivered live → {"addressed": 1, "broadcast": 1}. The gated first read
+    before it counts its own (addressed 1) — the summary is per-transaction, never
+    cumulative."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        store.send_message(sender_session="S1", sender_project="P", content="first",
+                           target_session="S2")
+        _, first_summary = store.deliver_for_session("S2", "P")
+        assert first_summary == {"addressed": 1, "broadcast": 0}
+
+        store.send_message(sender_session="S1", sender_project="P", content="live direct",
+                           target_session="S2")
+        store.send_message(sender_session="S1", sender_project="P", content="live broadcast")
+        messages, summary = store.deliver_for_session("S2", "P")
+        assert [m["content"] for m in messages] == ["live direct", "live broadcast"]
+        assert summary == {"addressed": 1, "broadcast": 1}
+    finally:
+        store.close()
+
+
+def test_delivery_summary_excludes_gated_cap_own_and_unrun_leg_rows(
+        tmp_path, monkeypatch, frozen_clock):
+    """The summary counts the DELIVERED batch only — post-gate, post-cap, post-R2, and
+    only legs that ran (QA-10 case 2): (a) a gated-off ancient broadcast contributes 0;
+    (b) a 17-message 1:1 inbox counts the 16 delivered, not the inbox (cap); (c) the
+    sender's own rows contribute 0 (R2 suppression happens before counting); (d) D7's
+    unresolved project runs the 1:1 leg only — broadcast rows in the store count 0.
+    Mutation killer: any pre-gate/pre-cap/pre-exclusion count."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        # (a) gated-off ancient broadcast + (d) D7: 1:1 leg only, broadcast leg never ran
+        _seed_message(store, ts=(frozen_clock - timedelta(days=2)).isoformat(),
+                      sender_session="S1", sender_project="P", content="ancient broadcast")
+        _seed_message(store, ts=frozen_clock.isoformat(),
+                      sender_session="S1", sender_project="P", target_session="S",
+                      content="direct")
+        messages, summary = store.deliver_for_session("S", None)
+        assert [m["content"] for m in messages] == ["direct"]
+        assert summary == {"addressed": 1, "broadcast": 0}
+
+        # (b) cap: 17 in-window 1:1 rows deliver 16 — the summary counts 16, not the inbox
+        for i in range(17):
+            _seed_message(store, ts=frozen_clock.isoformat(), sender_session="S1",
+                          sender_project="P", target_session="T", content=f"m{i}")
+        messages, summary = store.deliver_for_session("T", None)
+        assert len(messages) == START_CAP
+        assert summary == {"addressed": START_CAP, "broadcast": 0}
+
+        # (c) the sender's own rows: nothing delivered, nothing counted (R2)
+        store.send_message(sender_session="U", sender_project="P", content="own broadcast")
+        store.send_message(sender_session="U", sender_project="P", content="own project",
+                           target_project="P")
+        messages, summary = store.deliver_for_session("U", "P")
+        assert messages == []
+        assert summary == {"addressed": 0, "broadcast": 0}
+    finally:
+        store.close()
+
+
+def test_delivery_summary_is_zero_zero_when_nothing_is_delivered(tmp_path, monkeypatch):
+    """An empty inbox delivers nothing and counts nothing: the summary is exactly
+    {"addressed": 0, "broadcast": 0} — never None, never missing keys (the hook's
+    clean-empty wire pin keys on the ABSENT aiBadgerBus field, so a zero-count summary
+    on the wire is the drift this pin backs)."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        assert store.deliver_for_session("S", "P") == _empty_delivery()
+    finally:
+        store.close()
 
 
 class TestFreshStampConcurrency:

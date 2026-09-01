@@ -16,12 +16,18 @@ drop the session's cursor (R6). Everything else is a no-op.
 
 ``additionalContext`` carries one schema-conformant message document per line
 (``schemas/message.schema.json``, F4) in chronological order — render_messages is the
-seam P9-t1 asserts through. An empty inbox injects nothing: the response is ``{}``.
+seam P9-t1 asserts through. A mail-bearing response additionally carries the delivery
+transaction's wake classification as ``hookSpecificOutput.aiBadgerBus``
+= ``{"addressed": n, "broadcast": m}`` (C2 — merged after build_response, so
+``build_response``'s own shape is unchanged). An empty inbox injects nothing and adds
+nothing: the response is ``{}`` — exactly.
 
 Fail-open (D31): any store, registry or input failure exits 0 with parseable no-op
-JSON — a broken bus must never break a session. The only trace is one content-free
-line in the operator's hook-error log, because a hook that dies quietly is
-indistinguishable from one that did its job.
+JSON — a broken bus must never break a session — and the failure is wire-distinguishable
+from a clean empty read: ``{"hookSpecificOutput": {"aiBadgerBus": {"error": true}}}``
+(C2b, CR-M1: a poller advancing on a parseable ``{}`` would strand undelivered mail).
+The only trace is one line in the operator's hook-error log, because a hook that dies
+quietly is indistinguishable from one that did its job.
 """
 from __future__ import annotations
 
@@ -104,7 +110,9 @@ def _deliver(event_name: Optional[str], session_id: str, payload: Dict[str, Any]
     project_id = _resolve_project(payload)
     store = badger_store.open_user()
     try:
-        messages = store.deliver_for_session(session_id, project_id)
+        # C2: the txn returns (messages, summary); the summary's wire merge is pinned
+        # at the guarded_main level (B8) — the response shape here is build_response's.
+        messages, _summary = store.deliver_for_session(session_id, project_id)
     finally:
         store.close()
     return build_response(event_name, render_messages(messages))
@@ -138,6 +146,14 @@ def main() -> int:
     return 0
 
 
+#: C2b (CR-M1): the fail-open net's wire shape. A failure inside guarded_main must be
+#: distinguishable from a clean empty read on stdout — otherwise a poller advancing its
+#: watermark on a parseable ``{}`` silently strands undelivered mail (M1's stall). The
+#: marker is additive and rides inside ``hookSpecificOutput``, never a host-acted key
+#: (CR-N6); a clean empty read stays exactly ``{}``.
+FAILURE_MARKER = {"hookSpecificOutput": {"aiBadgerBus": {"error": True}}}
+
+
 HOOK_ERRORS_FILE = Path.home() / ".ai-badger" / "hook-errors.log"
 MAX_ERROR_LOG_BYTES = 1_000_000
 
@@ -164,13 +180,14 @@ def record_hook_failure(where: str) -> None:
 
 def guarded_main() -> int:
     """Run main(): a hook never breaks the session, but never fails invisibly either —
-    the failure line goes to the log, and the host still gets parseable no-op JSON."""
+    the failure line goes to the log, and the host still gets parseable no-op JSON: the
+    C2b failure marker, wire-distinguishable from a clean empty ``{}`` (CR-M1)."""
     try:
         return main() or 0
     except Exception:  # pylint: disable=broad-exception-caught
         record_hook_failure("message_delivery_hook")
         try:
-            print("{}")
+            print(json.dumps(FAILURE_MARKER))
         except Exception:  # pylint: disable=broad-exception-caught
             pass
         return 0
