@@ -361,6 +361,11 @@
           "scope": "default"
         },
         {
+          "name": "send-message",
+          "path": "features/common/skills/send-message",
+          "scope": "default"
+        },
+        {
           "name": "spec-driven-refactoring",
           "path": "features/common/skills/spec-driven-refactoring",
           "scope": "optIn"

@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.155.0",
-  "frameworkCommit": "dffc80fc3387d9e18f489ab0ab8e8df6b3bc5115",
+  "frameworkCommit": "1126dd254ad4e25b82e9c58ef45b46fb02d6b132",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -449,12 +449,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.155.0",
-      "hash": "b5d0fb40cb3a3bc674e61da01452ebc69beabdafecc69e7d4a8f04e447047b06",
+      "hash": "173c625d34b6a4c615f82d547ab66dafebca8a65725016659e12cfe6f1627fd2",
       "dirMeta": {
         "file_count": 6,
         "dir_count": 1
       },
-      "sourceHash": "b5d0fb40cb3a3bc674e61da01452ebc69beabdafecc69e7d4a8f04e447047b06",
+      "sourceHash": "173c625d34b6a4c615f82d547ab66dafebca8a65725016659e12cfe6f1627fd2",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 1
@@ -491,12 +491,12 @@
       "source": "features/common/skills/call-behaviorist",
       "target": ".ai-badger/skills/call-behaviorist",
       "frameworkVersion": "0.155.0",
-      "hash": "53cd797a53e20bcb7183b0b7bd460b35f147a41fd4a6787d05a5ee96fe838bad",
+      "hash": "7fef4b3c1a84a539b4807f2b2b34f07fea1734455979b95219d238f86d6a63bf",
       "dirMeta": {
         "file_count": 6,
         "dir_count": 2
       },
-      "sourceHash": "53cd797a53e20bcb7183b0b7bd460b35f147a41fd4a6787d05a5ee96fe838bad",
+      "sourceHash": "7fef4b3c1a84a539b4807f2b2b34f07fea1734455979b95219d238f86d6a63bf",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 2
@@ -533,12 +533,12 @@
       "source": "features/common/skills/commit-reminder",
       "target": ".ai-badger/skills/commit-reminder",
       "frameworkVersion": "0.155.0",
-      "hash": "ad5c7b33fc6136298c06652737199da833928a21b5617cb8fe1998b07aff2e72",
+      "hash": "9ef3e8ce2b25ec608a1884d5ec096561ae143b0ec2f54c89906781b68eaab797",
       "dirMeta": {
         "file_count": 7,
         "dir_count": 1
       },
-      "sourceHash": "ad5c7b33fc6136298c06652737199da833928a21b5617cb8fe1998b07aff2e72",
+      "sourceHash": "9ef3e8ce2b25ec608a1884d5ec096561ae143b0ec2f54c89906781b68eaab797",
       "sourceMeta": {
         "file_count": 7,
         "dir_count": 1
@@ -722,12 +722,12 @@
       "source": "features/common/skills/mcp-index",
       "target": ".ai-badger/skills/mcp-index",
       "frameworkVersion": "0.155.0",
-      "hash": "e10e4fbb6e88fe5ac51034671caaae30580b20f0127edca265703666c14b387b",
+      "hash": "9f26cfc2401d89bf08233c350e4198f9b11f3430a73e1c787ca841eeafe06cfe",
       "dirMeta": {
         "file_count": 10,
         "dir_count": 2
       },
-      "sourceHash": "e10e4fbb6e88fe5ac51034671caaae30580b20f0127edca265703666c14b387b",
+      "sourceHash": "9f26cfc2401d89bf08233c350e4198f9b11f3430a73e1c787ca841eeafe06cfe",
       "sourceMeta": {
         "file_count": 10,
         "dir_count": 2
@@ -764,12 +764,12 @@
       "source": "features/common/skills/prompt-markers",
       "target": ".ai-badger/skills/prompt-markers",
       "frameworkVersion": "0.155.0",
-      "hash": "9306238c9a675711d0af1ce2319d23147af57e9ae7f065a97a9baa9242c7f654",
+      "hash": "8ee28f6cb41ecc940dae1f4508a4f62805d51d18cf90a87e2c106cb1bc72f63d",
       "dirMeta": {
         "file_count": 5,
         "dir_count": 1
       },
-      "sourceHash": "ba8ddd15b8538fd710e9cc910c47ce73cd48b045bcddb7bcf5bf6056f704a632",
+      "sourceHash": "7a8e12edee3a69dbb4c59eff28f912d45d413988fb525f724c81414f89424e60",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 1
@@ -845,6 +845,27 @@
     {
       "feature": "skills",
       "stack": "common",
+      "name": "send-message",
+      "source": "features/common/skills/send-message",
+      "target": ".ai-badger/skills/send-message",
+      "frameworkVersion": "0.155.0",
+      "hash": "9075e6d1745673d1cbeeba571e6b6d8ce97e22a128fb8d76f44cd40a485a2c34",
+      "dirMeta": {
+        "file_count": 3,
+        "dir_count": 1
+      },
+      "sourceHash": "9075e6d1745673d1cbeeba571e6b6d8ce97e22a128fb8d76f44cd40a485a2c34",
+      "sourceMeta": {
+        "file_count": 3,
+        "dir_count": 1
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
       "name": "status-report",
       "source": "features/common/skills/status-report",
       "target": ".ai-badger/skills/status-report",
@@ -870,12 +891,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.155.0",
-      "hash": "a57076297842ffc1ae373842513b73fd7135f10c4cee2275d0bb3eb20433680d",
+      "hash": "c632147871a31c4ad2ce4e2694ed6d0b81b85547c8ae6285456be3d0821bb375",
       "dirMeta": {
         "file_count": 19,
         "dir_count": 2
       },
-      "sourceHash": "a57076297842ffc1ae373842513b73fd7135f10c4cee2275d0bb3eb20433680d",
+      "sourceHash": "c632147871a31c4ad2ce4e2694ed6d0b81b85547c8ae6285456be3d0821bb375",
       "sourceMeta": {
         "file_count": 19,
         "dir_count": 2
@@ -981,12 +1002,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.155.0",
-      "hash": "81261ef852768186dfafc65defe740845c44ff2f53188f3a923f7baac7b39e27",
+      "hash": "50e46544043302208230677d78ea3d6e7dd8a08f34924cf1bbc29bb1d7a46e2c",
       "dirMeta": {
         "file_count": 23,
         "dir_count": 2
       },
-      "sourceHash": "81261ef852768186dfafc65defe740845c44ff2f53188f3a923f7baac7b39e27",
+      "sourceHash": "50e46544043302208230677d78ea3d6e7dd8a08f34924cf1bbc29bb1d7a46e2c",
       "sourceMeta": {
         "file_count": 23,
         "dir_count": 2
@@ -1149,12 +1170,12 @@
       "source": "features/common/skills/worktree-agent-isolation",
       "target": ".ai-badger/skills/worktree-agent-isolation",
       "frameworkVersion": "0.155.0",
-      "hash": "729a36b6f2e593fb6d391749e09f04f9277efb23ee2e80a2555e7cafe3262bb7",
+      "hash": "0fd80673917e814c1b7fb53f3854de5e71f33e15498336e7659c9d968f58ccc2",
       "dirMeta": {
         "file_count": 14,
         "dir_count": 2
       },
-      "sourceHash": "729a36b6f2e593fb6d391749e09f04f9277efb23ee2e80a2555e7cafe3262bb7",
+      "sourceHash": "0fd80673917e814c1b7fb53f3854de5e71f33e15498336e7659c9d968f58ccc2",
       "sourceMeta": {
         "file_count": 14,
         "dir_count": 2
@@ -1170,12 +1191,12 @@
       "source": "features/claude/skills/auto-wm",
       "target": ".ai-badger/skills/auto-wm",
       "frameworkVersion": "0.155.0",
-      "hash": "3df80ae1e69e872a3f659c785fc7ecb22d8a489cee4571a6df49507e6bd72f78",
+      "hash": "0eff706e92477ba2452a7b00ddb0bc1bb0b7d958446fdc392f7caa520693acc3",
       "dirMeta": {
         "file_count": 6,
         "dir_count": 2
       },
-      "sourceHash": "3df80ae1e69e872a3f659c785fc7ecb22d8a489cee4571a6df49507e6bd72f78",
+      "sourceHash": "0eff706e92477ba2452a7b00ddb0bc1bb0b7d958446fdc392f7caa520693acc3",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 2
@@ -1543,6 +1564,15 @@
     {
       "feature": "adjustments",
       "stack": "claude",
+      "name": "adjustments/.claude/skills/send-message",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/send-message",
+      "frameworkVersion": "0.155.0",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
       "name": "adjustments/.claude/skills/status-report",
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/status-report",
@@ -1870,6 +1900,15 @@
       "name": "adjustments/.github/skills/semantica-knowledge-graph",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/semantica-knowledge-graph",
+      "frameworkVersion": "0.155.0",
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/send-message",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/send-message",
       "frameworkVersion": "0.155.0",
       "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },

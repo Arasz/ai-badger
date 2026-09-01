@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+"""send-message: send one message through the machine-wide user-DB message bus.
+
+The target decides the shape: ``--session-id`` is a 1:1 send, ``--project-id`` a
+project broadcast, neither a machine broadcast — both given, the session wins and the
+project half is dropped (normalised at write, so every read predicate stays
+single-shape). Sender identity is REQUIRED on both halves: explicit
+``--sender-session``/``--sender-project``, or derived — the session half via the
+claude_session_source pattern (env var, then pid ancestry, then unique cwd against the
+sessions store), the project half via the store's cwd resolver (``AI_BADGER_PROJECT_ID``
+override, then the ai-raccoon registry). A send that cannot establish identity refuses
+with a clean message and non-zero exit, writing nothing (D7: expected errors are
+refusals, never tracebacks).
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Optional
+
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+try:
+    import badger_store  # pylint: disable=wrong-import-position  # noqa: E402
+except ImportError:  # a partial deployment (the vendored copy never landed)
+    badger_store = None  # type: ignore[assignment]  # main() refuses cleanly on it
+
+#: The session env the claude_session_source pattern checks first — the pattern's env
+#: leg. Harnesses that set nothing still resolve through the ancestry/cwd legs or an
+#: explicit --sender-session.
+SESSION_ENV = "CLAUDE_CODE_SESSION_ID"
+
+_PID_ANCESTRY_DEPTH = 12
+
+
+def _refused(reason: str) -> int:
+    """Every expected failure speaks in this one voice: stderr, non-zero, no row."""
+    print(f"send refused: {reason}", file=sys.stderr)
+    return 1
+
+
+def _own_pid_ancestry(max_depth: int = _PID_ANCESTRY_DEPTH) -> list[int]:
+    """PIDs of this process and its ancestors, nearest first (the tracker_lib pattern)."""
+    chain: list[int] = []
+    pid = os.getpid()
+    for _ in range(max_depth):
+        chain.append(pid)
+        result = subprocess.run(["ps", "-o", "ppid=", "-p", str(pid)],
+                                capture_output=True, text=True, check=False)
+        ppid_text = result.stdout.strip()
+        if not ppid_text:
+            break
+        try:
+            ppid = int(ppid_text)
+        except ValueError:
+            break
+        if ppid <= 1 or ppid == pid:
+            break
+        pid = ppid
+    return chain
+
+
+def derive_sender_session(explicit: Optional[str], sessions: dict) -> Optional[str]:
+    """The claude_session_source pattern: env var, then pid ancestry, then unique cwd.
+
+    An explicit argument short-circuits everything. The sessions map is {sessionId:
+    info} as the tracking store serves it; ancestry matches any process up the chain,
+    and a cwd leg only fires when exactly one known session carries the cwd.
+    """
+    if explicit:
+        return explicit
+    env_id = os.environ.get(SESSION_ENV)
+    if env_id:
+        return env_id
+    ancestry = set(_own_pid_ancestry())
+    for session_id, info in sessions.items():
+        if isinstance(info, dict) and info.get("pid") in ancestry:
+            return session_id
+    cwd = str(Path.cwd())
+    cwd_matches = [sid for sid, info in sessions.items()
+                   if isinstance(info, dict) and info.get("cwd") == cwd]
+    if len(cwd_matches) == 1:
+        return cwd_matches[0]
+    return None
+
+
+def resolve_sender_project(explicit: Optional[str], cwd: str) -> Optional[str]:
+    """Sender project: the CLI arg, then the store resolver (env override, registry)."""
+    if explicit:
+        return explicit
+    return badger_store.resolve_project_id(cwd)
+
+
+def _load_sessions() -> dict:
+    """The tracking store's current-session map for the derivation's fallback legs.
+
+    A store that cannot open yields {} — derivation then falls through to refusal
+    (D7). Swallowed here by design: a broken tracking store must cost the send its
+    identity fallback, not the caller a traceback.
+    """
+    try:
+        store = badger_store.open_tracking()
+    except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
+        return {}
+    try:
+        return store.sessions_map()
+    finally:
+        store.close()
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """The CLI contract: --content always; targets optional; identity overridable."""
+    parser = argparse.ArgumentParser(
+        prog="send_message.py", description="Send one message-bus message.")
+    parser.add_argument("--content", required=True,
+                        help="message body, stored and delivered verbatim")
+    parser.add_argument("--session-id", default=None,
+                        help="target session id: 1:1 send (wins over --project-id)")
+    parser.add_argument("--project-id", default=None,
+                        help="target project id: project broadcast")
+    parser.add_argument("--sender-session", default=None,
+                        help="explicit sender sessionId, bypassing derivation")
+    parser.add_argument("--sender-project", default=None,
+                        help="explicit sender projectId, bypassing the cwd resolver")
+    return parser
+
+
+def main(argv: Optional[list] = None) -> int:
+    """Resolve identity, store the message, report the row id; refusals exit 1."""
+    args = build_parser().parse_args(argv)
+
+    if badger_store is None:
+        return _refused("the vendored store copy is missing from this skill's scripts/ "
+                        "— re-run the sync or the scaffold to land it")
+
+    sessions = {} if args.sender_session else _load_sessions()
+    sender_session = derive_sender_session(args.sender_session, sessions)
+    if not sender_session:
+        return _refused("missing sender identity (sessionId) — pass --sender-session "
+                        f"or set {SESSION_ENV}")
+
+    try:
+        sender_project = resolve_sender_project(args.sender_project, str(Path.cwd()))
+    except badger_store.ProjectIdAmbiguous as exc:
+        return _refused("ambiguous sender identity (projectId) — the cwd matches several "
+                        "registered projects: " + ", ".join(exc.candidates))
+    if not sender_project:
+        return _refused("missing sender identity (projectId) — pass --sender-project, set "
+                        f"{badger_store.PROJECT_ID_ENV}, or run inside a registered project")
+
+    try:
+        store = badger_store.open_user()
+    except Exception as exc:  # pylint: disable=broad-exception-caught  # noqa: BLE001
+        return _refused(f"the user store could not be opened: {exc}")
+    try:
+        row_id = store.send_message(
+            sender_session=sender_session, sender_project=sender_project,
+            content=args.content, target_session=args.session_id or None,
+            target_project=args.project_id or None)
+    except ValueError as exc:  # the store's own identity/content refusals
+        return _refused(str(exc))
+    finally:
+        store.close()
+    print(f"sent {row_id}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

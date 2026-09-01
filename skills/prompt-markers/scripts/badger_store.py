@@ -326,6 +326,8 @@ VENDORED_PATHS: tuple[dict[str, str], ...] = (
      "lands_in": "features/common/skills/call-behaviorist/scripts/badger_store.py"},
     {"consumer": "call-behaviorist",
      "lands_in": "skills/call-behaviorist/scripts/badger_store.py"},
+    {"consumer": "send-message",
+     "lands_in": "features/common/skills/send-message/scripts/badger_store.py"},
 )
 
 
