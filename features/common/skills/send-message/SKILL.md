@@ -78,6 +78,26 @@ access to this machine can send as any session or project. Treat a sender as a c
 the local software made, not proof of authorship — the trust boundary is the machine,
 not the bus.
 
+## Targets are validated
+
+A `--project-id` target is checked before anything is written: it must resolve on this
+machine — the sender's own project resolution, the `AI_BADGER_PROJECT_ID` override, or
+the stripped content of some `.ai-badger/project-id` file the machine scan finds — or
+the send refuses with exit 1 and no row:
+
+```
+send refused: --project-id '<id>' does not resolve to any project on this machine — no .ai-badger/project-id carries it (ADR-0025); use a minted id or omit --project-id for a machine broadcast
+```
+
+When the scan finds ids but none matches, the refusal lists them. Named residual: the
+scan is a bounded approximation — it walks at most four directory levels under the
+store's home, skipping `Library`, `node_modules`, `.git`, `.cache` and similar noise
+trees, and never follows directory symlinks — so a scaffolded project outside that
+budget (deeper tree, another volume) is invisible and its id false-refuses. The escape
+hatch is the minted-id contract above, not a bypass flag. Dual-flag sends
+(`--session-id` + `--project-id`) skip validation: the session wins and the project
+half is dropped at write, so there is nothing stored to validate.
+
 ## Gotchas
 
 - No environment-specific gotchas known.
