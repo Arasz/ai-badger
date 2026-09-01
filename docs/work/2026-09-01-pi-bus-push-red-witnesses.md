@@ -71,3 +71,46 @@ tests/test_message_bus_hermes.py tests/test_new_schemas.py
 tests/test_containment_bus_coexistence.py tests/test_badger_store_session_families.py
 → 211 passed
 ```
+
+---
+
+## Gate 2 — B7: cursor-wrap guard (C9) — RED
+
+New: `test_cursor_above_max_id_reads_as_cursor_less_for_that_read` (wrap healing) and
+`test_a_caught_up_cursor_is_never_treated_as_wrapped` (strict-`>` boundary companion —
+green by construction; its kill is the `>=` mutant, witnessed below).
+
+```
+$ python3 -m pytest -q tests/test_message_bus_store.py::test_cursor_above_max_id_reads_as_cursor_less_for_that_read \
+    tests/test_message_bus_store.py::test_a_caught_up_cursor_is_never_treated_as_wrapped
+...
+>           assert [m["content"] for m in messages] == ["restored 1", "restored 2"]
+E           AssertionError: assert [] == ['restored 1', 'restored 2']
+E             Right contains 2 more items, first extra item: 'restored 1'
+FAILED tests/test_message_bus_store.py::test_cursor_above_max_id_reads_as_cursor_less_for_that_read
+1 failed, 1 passed in 1.63s
+```
+
+The pre-guard shape is exactly QA-3's prediction: ids 1, 2 re-minted below a surviving
+cursor 3 are unreadable — `deliver returns []` on every read.
+
+GREEN after implementing C9 (cursor > COALESCE(MAX(id),0) inside the same
+BEGIN IMMEDIATE ⇒ cursor-less FOR THIS READ: 30-min gate + 16-cap + leg-scoped landing
+re-apply):
+
+```
+tests/test_message_bus_store.py (full file) → 42 passed
+```
+
+### Mutation witness — the strict-`>` boundary
+
+The guard flipped to `>=` → the boundary companion AND the existing caught-up pin
+(`test_concurrent_deliveries_inject_exactly_once`'s caught-up read) both go red:
+
+```
+MUTANT: engine/badger_store.py, guard comparison `>` → `>=`
+FAILED tests/test_message_bus_store.py::test_a_caught_up_cursor_is_never_treated_as_wrapped
+FAILED tests/test_message_bus_store.py::test_concurrent_deliveries_inject_exactly_once
+2 failed in 1.80s
+(mutant reverted; clean tree re-verified green)
+```

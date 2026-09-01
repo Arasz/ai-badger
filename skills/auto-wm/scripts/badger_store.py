@@ -1906,7 +1906,9 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         this is the one delivery path. Later reads are pure ``id > cursor`` and uncapped
         (A5: live broadcast volume is bounded by agent-paced sends, not by a cap).
         With no *project_id* only the 1:1 leg runs — the caller's unresolved-project
-        fail-open contract (D7). Every returned document is
+        fail-open contract (D7). A cursor above every row id (a replaced/restored DB
+        whose cursors row survived — C9) reads as cursor-less for that one read, so the
+        gate, cap and leg-scoped landing re-apply. Every returned document is
         ``{sender: {sessionId, projectId}, content, timestamp}`` in chronological order.
         """
         if not session_id:
@@ -1917,6 +1919,16 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
             row = self.conn.execute(
                 "SELECT cursor_id FROM cursors WHERE session_id = ?", (session_id,)
             ).fetchone()
+            if row is not None and row[0] > self.conn.execute(
+                    "SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]:
+                # C9 (CR-S1/QA-2): the cursor sits above every row id — a replaced or
+                # restored DB whose cursors row survived (AUTOINCREMENT forbids rowid
+                # reuse through this store's own writes; the strict > leaves the healthy
+                # caught-up state cursor == MAX(id) alone). Treat the session as
+                # cursor-less FOR THIS READ: the gate, the cap and the leg-scoped landing
+                # re-apply below, and the upsert lands a sane cursor — never a plain
+                # reset onto the live-read path.
+                row = None
             if row is None:
                 cutoff = (datetime.now(timezone.utc) - _GATE_WINDOW).isoformat()
                 rows = self._read_addressed(session_id, project_id, after_id=0,

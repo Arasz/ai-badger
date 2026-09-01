@@ -1123,6 +1123,78 @@ def test_delivery_summary_is_zero_zero_when_nothing_is_delivered(tmp_path, monke
         store.close()
 
 
+# ---------------------------------------------------------------------------
+# 13. cursor-wrap guard (P2 C9, CR-S1/QA-2 — honest premise, strict-`>` boundary)
+# ---------------------------------------------------------------------------
+
+
+def test_cursor_above_max_id_reads_as_cursor_less_for_that_read(
+        tmp_path, monkeypatch, frozen_clock):
+    """C9: cursor_id > MAX(id) inside the txn means the messages table was rebuilt below
+    a surviving cursor (DB replacement/restore). AUTOINCREMENT forbids rowid reuse
+    through this store's own writes (QA-2's honest premise) — that is exactly why the
+    test mints the state the way a restore would: DELETE + sqlite_sequence reset, then
+    fresh rows that re-mint ids 1, 2. No hand-invented rowids anywhere.
+
+    The guard treats the session as cursor-less FOR THIS READ: the 30-minute gate, the
+    16-cap and the leg-scoped landing re-apply — never a plain reset onto the live-read
+    path (which would resurrect the whole table uncapped).
+
+    RED shape (pre-guard): the fresh rows sit below cursor 3 and are unreadable forever
+    (deliver returns [] on every read; the tick-refreshed cursor never prunes).
+    """
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        for i in range(3):
+            store.send_message(sender_session="S1", sender_project="P", content=f"old {i}",
+                               target_project="P")
+        store.deliver_for_session("S2", "P")
+        assert _cursor_row(store, "S2")[0] == store.conn.execute(
+            "SELECT MAX(id) FROM messages").fetchone()[0], "precondition: caught up at 3"
+
+        # The rebuilt-messages state, byte-equivalent to a replaced/restored DB whose
+        # cursors row survived: ids re-mint from 1.
+        store.conn.execute("DELETE FROM messages")
+        store.conn.execute("DELETE FROM sqlite_sequence WHERE name = 'messages'")
+        store.conn.commit()
+        store.send_message(sender_session="S1", sender_project="P", content="restored 1",
+                           target_project="P")
+        store.send_message(sender_session="S1", sender_project="P", content="restored 2",
+                           target_project="P")
+        assert store.conn.execute("SELECT MAX(id) FROM messages").fetchone()[0] == 2, \
+            "the fixture must have re-minted ids 1, 2 below the surviving cursor 3"
+
+        messages, summary = store.deliver_for_session("S2", "P")
+        assert [m["content"] for m in messages] == ["restored 1", "restored 2"]
+        assert _cursor_row(store, "S2")[0] == 2, "the cursor lands at the restored MAX"
+        assert summary == {"addressed": 2, "broadcast": 0}, "the summary counts the batch"
+    finally:
+        store.close()
+
+
+def test_a_caught_up_cursor_is_never_treated_as_wrapped(tmp_path, monkeypatch, frozen_clock):
+    """C9's strict-`>` boundary: cursor == MAX(id) is the HEALTHY caught-up state and
+    must NOT take the guard — the next read is a live read that returns nothing and
+    counts nothing. Mutation witness: the guard flipped to `>=` re-delivers the whole
+    in-window batch right here (a cursor-less gated re-read), and the existing
+    caught-up pins (e.g. the race test's cursor == MAX assertion) go red with it."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        for i in range(3):
+            store.send_message(sender_session="S1", sender_project="P", content=f"m{i}",
+                               target_project="P")
+        store.deliver_for_session("S2", "P")
+        cursor_id, _ = _cursor_row(store, "S2")
+        assert cursor_id == store.conn.execute(
+            "SELECT MAX(id) FROM messages").fetchone()[0]
+
+        assert store.deliver_for_session("S2", "P") == _empty_delivery()
+    finally:
+        store.close()
+
+
 class TestFreshStampConcurrency:
     """QA review M1: the fresh-DB stamp was check-then-act — two processes opening a
     never-stamped user DB concurrently both read None, serialize on BEGIN IMMEDIATE,
