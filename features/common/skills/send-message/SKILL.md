@@ -101,3 +101,23 @@ half is dropped at write, so there is nothing stored to validate.
 ## Gotchas
 
 - No environment-specific gotchas known.
+
+## pi push delivery (0.159.0, ADR-0026)
+
+pi sessions receive mail the moment it is sent: the pi adapter polls the bus
+store on a session-scoped timer and wakes idle sessions for their addressed
+mail. Two environment variables tune it, read once per session at arm time:
+
+- `AI_BADGER_PI_BUS_WAKE` — `off` | `addressed` (default) | `all`. `addressed`
+  wakes an idle session on 1:1 and project mail; machine broadcasts are
+  injected without waking (visible immediately, entering LLM context at the
+  next turn). `all` wakes on broadcasts too (each wake is a full LLM turn per
+  idle session — price it before enabling). `off` never arms the timer;
+  delivery falls back to the turn-boundary seams.
+- `AI_BADGER_PI_BUS_POLL_SECS` — poll interval, default `2`, floor `0.5`.
+  Invalid values degrade to the default with a one-time notice.
+
+The poll timer arms only in interactive (tui) and rpc sessions — print/json
+sessions have no idle state to wake and deliver via their existing seams. A
+broken bus never breaks a session: every failure path is fail-open
+(ADR-0026).
