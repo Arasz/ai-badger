@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 
 import pytest
@@ -44,6 +45,25 @@ def _fake_framework(tmp_path, manifest_hooks, source_hooks=None):
     return fw_root
 
 
+def _script_name(bash: str) -> str:
+    """The script a generated command checks and runs: the guarded -f arm's quoted path tail.
+
+    Guarded rows open with `if [ -f "<path>" ]; then ...`, so the bare-row tail idiom
+    (rstrip('"').rsplit("/", 1)[-1]) would read the skip message's tail; the -f path is the
+    one path every shape (a) and (b) row carries.
+    """
+    match = re.search(r'-f "([^"]+)"', bash)
+    assert match, f"not a guarded command: {bash!r}"
+    return match.group(1).rsplit("/", 1)[-1]
+
+
+def _guarded_shape(script_rel: str) -> str:
+    """The guarded row the adjuster emits for a rewritten `python3 "<path>"` command —
+    stated in full so any drift in the emitted shape goes red."""
+    return (f'if [ -f "{script_rel}" ]; then python3 "{script_rel}"; else echo '
+            f"'{{\"systemMessage\": \"ai-badger: {script_rel} not found - hook skipped\"}}'; fi")
+
+
 def test_copilot_session_start_wires_drift_notice_not_session_tracking(tmp_path, load_script,
                                                                         root):
     adjust_hooks = load_script("features/copilot/adjustments/adjust_hooks.py")
@@ -56,7 +76,7 @@ def test_copilot_session_start_wires_drift_notice_not_session_tracking(tmp_path,
     hooks = json.loads(
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     commands = [h["bash"] for h in hooks["hooks"]["sessionStart"]]
-    wired = sorted(c.rstrip('"').rsplit("/", 1)[-1] for c in commands)
+    wired = sorted(_script_name(c) for c in commands)
     # Derived from the manifest, not restated: a hardcoded list here breaks on every new
     # copilot sessionStart hook, which says nothing about the claude-only leak being tested.
     manifest = json.loads(
@@ -97,7 +117,7 @@ def test_two_manifest_entries_on_one_event_both_survive(tmp_path, load_script):
     hooks = json.loads(
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     commands = [h["bash"] for h in hooks["hooks"]["userPromptSubmitted"]]
-    names = sorted(c.rstrip('"').rsplit("/", 1)[-1] for c in commands)
+    names = sorted(_script_name(c) for c in commands)
     assert names == ["context_enrichment_hook.py", "prompt_markers_hook.py"]
 
 
@@ -141,7 +161,7 @@ def test_two_source_hooks_json_entries_on_one_event_both_survive(tmp_path, load_
     hooks = json.loads(
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     commands = [h["bash"] for h in hooks["hooks"]["userPromptSubmitted"]]
-    names = sorted(c.rstrip('"').rsplit("/", 1)[-1] for c in commands)
+    names = sorted(_script_name(c) for c in commands)
     assert names == ["context_enrichment_hook.py", "prompt_markers_hook.py"]
 
 
@@ -169,7 +189,7 @@ def test_manifest_script_name_is_honoured_in_multi_script_skill(tmp_path, load_s
     hooks = json.loads(
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     commands = [h["bash"] for h in hooks["hooks"]["stop"]]
-    assert [c.rsplit("/", 1)[-1] for c in commands] == ["stop_hook.py"]
+    assert [_script_name(c) for c in commands] == ["stop_hook.py"]
 
 
 def test_a_quoted_source_command_keeps_balanced_quotes_not_a_dangling_one(tmp_path, load_script,
@@ -206,7 +226,7 @@ def test_a_quoted_source_command_keeps_balanced_quotes_not_a_dangling_one(tmp_pa
     hooks = json.loads(
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     bash = hooks["hooks"]["sessionStart"][0]["bash"]
-    assert bash == 'python3 ".ai-badger/skills/task/scripts/drift_notice_hook.py"', bash
+    assert bash == _guarded_shape(".ai-badger/skills/task/scripts/drift_notice_hook.py"), bash
     assert bash.count('"') % 2 == 0, f"unbalanced quotes: {bash!r}"
 
 
@@ -254,7 +274,7 @@ def test_copilot_pre_tool_use_wires_the_gate(tmp_path, load_script, root):
             if "memory_first_gate_hook.py" in h.get("bash", "")]
     assert len(gate) == 1, gate
     assert gate[0]["matcher"] == "grep|rg|Glob|bash", gate
-    assert gate[0]["bash"].endswith("memory_first_gate_hook.py\""), gate[0]["bash"]
+    assert _script_name(gate[0]["bash"]) == "memory_first_gate_hook.py", gate[0]["bash"]
     # The folded recorder is the existing postToolUse memory_search entry.
     recorders = [h for h in hooks["hooks"]["postToolUse"]
                  if "memory_first_gate_post_hook.py" in h.get("bash", "")]
@@ -380,7 +400,7 @@ def test_copilot_session_end_wires_cursor_cleanup(tmp_path, load_script):
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     close = hooks["hooks"]["sessionEnd"]
     assert len(close) == 1, close
-    assert close[0]["bash"].rstrip('"').rsplit("/", 1)[-1] == "message_delivery_hook.py"
+    assert _script_name(close[0]["bash"]) == "message_delivery_hook.py"
     assert close[0]["bash"].count('"') % 2 == 0, f"unbalanced quotes: {close[0]['bash']!r}"
     assert close[0]["type"] == "command" and "bash" in close[0]
 
@@ -408,8 +428,8 @@ def test_copilot_delivery_commands_point_at_the_shipped_script(tmp_path, load_sc
     for event in ("sessionStart", "userPromptSubmitted", "sessionEnd"):
         commands = hooks["hooks"][event]
         assert len(commands) == 1, (event, commands)
-        assert commands[0]["bash"] == 'python3 ".ai-badger/hooks/message_delivery_hook.py"', \
-            (event, commands[0]["bash"])
+        assert commands[0]["bash"] == _guarded_shape(
+            ".ai-badger/hooks/message_delivery_hook.py"), (event, commands[0]["bash"])
     shipped = target / ".ai-badger" / "hooks" / "message_delivery_hook.py"
     assert shipped.is_file(), "delivery script not shipped into the scaffolded project"
     shipped_names = [f for f in result["files"] if f.endswith("message_delivery_hook.py")]
@@ -599,6 +619,39 @@ def test_generated_copilot_delivery_hook_delivers_end_to_end(tmp_path, load_scri
         assert cursor_rows == [], "close event did not remove the cursor row"
     finally:
         conn.close()
+
+
+def test_guarded_command_skips_cleanly_when_the_script_is_absent(tmp_path, load_script):
+    """A generated guarded row whose script is gone is a clean skip, not a failed hook.
+
+    Failure mode (R7.3 — the shape the if -f guard exists for): a scaffolded project that
+    lost the shipped script would run the bare `python3 "<path>"` command and Python exits 2
+    — Copilot reports a failed hook on every event. The guard answers exit 0 with a visible
+    skipped systemMessage (valid JSON) instead: the skip is observable and inert.
+    RED-FIRST witness: against the bare emitter this test reads exit 2 with empty stdout.
+    """
+    import subprocess
+
+    adjust_hooks = load_script("features/copilot/adjustments/adjust_hooks.py")
+    target = tmp_path / "proj"
+    (target / ".ai-badger").mkdir(parents=True)
+    fw_root = _bus_fake_framework(tmp_path)
+    adjust_hooks.adjust(_context(fw_root, target))
+
+    (target / ".ai-badger" / "hooks" / "message_delivery_hook.py").unlink()
+
+    generated = json.loads(
+        (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
+    bash = generated["hooks"]["sessionStart"][0]["bash"]
+    proc = subprocess.run(
+        ["bash", "-c", bash],
+        cwd=target,
+        capture_output=True, text=True, timeout=60, check=False)
+
+    assert proc.returncode == 0, (proc.returncode, proc.stderr)
+    assert json.loads(proc.stdout) == {
+        "systemMessage":
+            "ai-badger: .ai-badger/hooks/message_delivery_hook.py not found - hook skipped"}
 
 
 def test_ttl_backstop_prunes_through_the_shipped_store_copy(tmp_path, load_script, monkeypatch):

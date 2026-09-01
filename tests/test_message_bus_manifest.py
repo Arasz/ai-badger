@@ -332,7 +332,14 @@ def test_copilot_scaffold_wires_delivery_and_never_a_close_event(tmp_path, load_
     generated = hooks.get("hooks", {})
     for event in ("sessionStart", "userPromptSubmitted", "sessionEnd"):
         commands = [h.get("bash", "") for h in generated.get(event, [])]
-        assert any(c.rstrip('"').endswith(SCRIPT_NAME) for c in commands), \
+
+        def _script_of(bash: str) -> str:
+            """The guarded row's script: the if -f arm's quoted path tail (the guard wraps
+            every rewritten row, so the bare tail idiom reads the skip message instead)."""
+            match = re.search(r'-f "([^"]+)"', bash)
+            return (match.group(1) if match else bash.rstrip('"')).rsplit("/", 1)[-1]
+
+        assert any(_script_of(c) == SCRIPT_NAME for c in commands), \
             f"{event}: delivery or close not wired"
     for event, commands in generated.items():
         if event in ("sessionStart", "userPromptSubmitted", "sessionEnd"):
