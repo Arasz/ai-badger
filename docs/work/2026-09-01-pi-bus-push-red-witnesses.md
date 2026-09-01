@@ -209,3 +209,31 @@ merge-dropped mutant: ['FAILED ...test_wire_response_is_advisory_plus_bus_summar
  'FAILED ...test_the_deployed_child_carries_the_bus_summary_on_the_full_response']
 (mutant reverted; clean tree re-verified: 41 passed)
 ```
+
+## P3 + fix wave — adapter push delivery (bun suite)
+
+**Provenance note (honest).** The P3 lane committed its gates without pasting
+their RED-first outputs into this log (a lane-discipline miss the impl-review
+qa lane caught as its B-2). The record below is therefore NOT the lane's own
+RED paste: it is the independent mutation evidence the qa implementation-review
+lane produced against the merged tree — seven production mutations, each
+applied, run, and reverted with a green re-run — which witnesses the same
+property the red-first pastes would have (full transcripts:
+`docs/work/2026-09-01-pi-bus-push-impl-review-qa.md`). The B1 retry gate and
+the CR-M3 discriminating fixture were added by the fix wave and their first
+runs are recorded directly.
+
+| Gate | Property | Killer mutation | Result |
+|---|---|---|---|
+| A3 watermark property | skip only on exact MAX **and** COUNT equality | drop `f.count === clean.count` from the skip gate | RED: `A3 … MAX equal but COUNT differs ⇒ spawn` — reverted, green |
+| A9 advance rule | failure marker / error / timeout never advance; clean `{}` does | `advanceAllowed` → `return true` | RED ×6 across both levels (incl. the CR-M1 retry path, `deliverCalls` 2 after two ticks) — reverted, green |
+| C9 wrap boundary | strict `>`: caught-up cursor never treated as wrapped | `>` → `>=` in `badger_store.py:1923` | RED ×2: `test_concurrent_deliveries_inject_exactly_once`, `test_a_caught_up_cursor_is_never_treated_as_wrapped` — reverted, green |
+| A12 notice latch | probe errors notify once per streak | notice-latch reset removed | RED (A12 both cases) — reverted, green |
+| wake routing | summary-driven routing, no bypass | parse→`mailSummary`→`wakeRoute` chain shortcut | RED on the A8 matrix cases — reverted, green |
+| CR-M3 advance value | watermark = tick-time capture, never a post-spawn re-read | `spawnAndSettle` re-probes post-spawn and advances the re-read | RED via the A10 probe-count assertions (incidentally, per qa S-3) — reverted, green; the discriminating fixture below now pins it directly |
+| B1 compensation retry (fix wave) | non-stale wake throw retries once as `nextTurn`, no `triggerTurn`; stale throws never retry; a failing retry stays at one notice | remove the retry block | RED: `B1: a non-stale sendMessage throw retries once…` (`wakes` 2→1) + the no-second-notice case — first run of the new gate, committed red-paste-equivalent: `bun test features/pi/tests/adapter-bus.test.ts` → 32 pass before the fix wave, 34 pass after |
+
+The discriminating CR-M3 fixture (qa S-3): probe sequence fp(7,7) at tick time
+then fp(8,8) — a post-spawn re-read would advance to fp(8,8) and strand the
+mid-txn row; the tick-time capture forces the next tick to spawn. Pinned in
+`adapter-bus.test.ts` as `A9/CR-M3 discriminating fixture`.
