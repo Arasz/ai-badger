@@ -808,3 +808,74 @@ def test_guarded_main_still_fails_open_when_the_log_path_throws(
                          {"hook_event_name": "SessionStart", "session_id": "S", "cwd": "/x"})
     assert rc == 0
     assert response == FAILURE_MARKER
+
+
+# ---------------------------------------------------------------------------
+# L. B8 — the full guarded_main wire response (P2 C2's construction point)
+# ---------------------------------------------------------------------------
+
+
+def _seed_mixed_batch() -> None:
+    """1:1 + project + broadcast for session S in project bus-proj (2 addressed, 1 broadcast)."""
+    with contextlib.closing(_store()) as store:
+        store.send_message(sender_session="S1", sender_project="bus-proj", content="direct",
+                           target_session="S")
+        store.send_message(sender_session="S1", sender_project="bus-proj", content="for P",
+                           target_project="bus-proj")
+        store.send_message(sender_session="S1", sender_project="bus-proj", content="everyone")
+
+
+def test_wire_response_is_advisory_plus_bus_summary_exactly(
+        hook, user_root, tmp_path, monkeypatch, capsys):
+    """B8: the FULL guarded_main response for a mail-bearing delivery, exact equality —
+    hookSpecificOutput carries hookEventName + additionalContext + aiBadgerBus
+    {"addressed": 2, "broadcast": 1} and NOTHING else. The summary is merged in
+    _deliver AFTER build_response (C2's construction point), so the exact-key-set pin
+    on build_response itself stays green by construction while the wire still gets the
+    txn's wake classification (QA-10 case 4/5: the TS consumes this field, so the wire
+    shape is pinned here, not inferred).
+    Mutation killer: dropping the _deliver merge → the wire loses aiBadgerBus."""
+    _make_project(tmp_path / "repo")
+    monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo"))
+    _seed_mixed_batch()
+
+    rc, response = _fire(hook, monkeypatch, capsys,
+                         {"hook_event_name": "UserPromptSubmit", "session_id": "S",
+                          "cwd": str(tmp_path / "repo")})
+    assert rc == 0
+    context = response["hookSpecificOutput"]["additionalContext"]
+    assert [d["content"] for d in _documents_of(context)] == ["direct", "for P", "everyone"]
+    assert response == {"hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit",
+        "additionalContext": context,
+        "aiBadgerBus": {"addressed": 2, "broadcast": 1},
+    }}
+
+
+def test_the_bus_summary_never_occupies_a_host_acted_key(
+        hook, user_root, tmp_path, monkeypatch, capsys):
+    """CR-N6: aiBadgerBus rides inside hookSpecificOutput and NEVER occupies a key any
+    host acts on (decision / continue / stopReason / suppressOutput) — asserted over
+    EVERY key the full mail-bearing wire response carries, recursively."""
+    _make_project(tmp_path / "repo")
+    monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo"))
+    _seed_mixed_batch()
+
+    _, response = _fire(hook, monkeypatch, capsys,
+                        {"hook_event_name": "UserPromptSubmit", "session_id": "S",
+                         "cwd": str(tmp_path / "repo")})
+
+    def all_keys(obj):
+        keys = set()
+        if isinstance(obj, dict):
+            keys.update(obj.keys())
+            for value in obj.values():
+                keys.update(all_keys(value))
+        elif isinstance(obj, list):
+            for item in obj:
+                keys.update(all_keys(item))
+        return keys
+
+    assert "aiBadgerBus" in response["hookSpecificOutput"], \
+        "the pin is only meaningful over a mail-bearing response"
+    assert not all_keys(response) & {"decision", "continue", "stopReason", "suppressOutput"}

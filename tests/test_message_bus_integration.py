@@ -628,3 +628,42 @@ def test_every_non_deferred_spec_scenario_has_an_owner():
                 assert f"def {member}(" in text, f"{name!r}: owner test missing: {owner}"
             else:
                 assert member in text, f"{name!r}: owner test missing: {owner}"
+
+# ---------------------------------------------------------------------------
+# B8 — the deployment shape: the full wire response through a real child process
+# ---------------------------------------------------------------------------
+
+
+def test_the_deployed_child_carries_the_bus_summary_on_the_full_response(
+        user_root, tmp_path):
+    """B8's deployment half: the hook as a host actually runs it — a child process fed
+    the Claude-shaped payload, stdout parsed — carries the txn's wake summary on the
+    full advisory response (aiBadgerBus alongside hookEventName + additionalContext),
+    and the clean-empty follow-up firing stays exactly {} — no envelope, no zero-count
+    summary (the TS negative-watermark logic keys on the ABSENT field)."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    _make_project(repo_dir)
+    with contextlib.closing(badger_store.open_user()) as store:
+        store.send_message(sender_session="S1", sender_project="bus-proj", content="direct",
+                           target_session="S-child")
+        store.send_message(sender_session="S1", sender_project="bus-proj", content="everyone")
+
+    env = {k: v for k, v in os.environ.items()
+           if k not in (PROJECT_ID_ENV, HOLD_ENV, HOLD_ARMED_ENV, PROJECT_DIR_ENV)}
+    env[USER_ROOT_ENV] = os.environ[USER_ROOT_ENV]
+    payload = json.dumps({"hook_event_name": "SessionStart", "session_id": "S-child",
+                          "cwd": str(repo_dir)}).encode()
+    proc = subprocess.run([sys.executable, str(ROOT / HOOK_PATH)], input=payload,
+                          capture_output=True, env=env, timeout=60, check=False)
+    assert proc.returncode == 0, proc.stderr.decode()[-400:]
+    response = json.loads(proc.stdout.decode())
+    assert set(response["hookSpecificOutput"]) == {"hookEventName", "additionalContext",
+                                                   "aiBadgerBus"}
+    assert response["hookSpecificOutput"]["aiBadgerBus"] == {"addressed": 1, "broadcast": 1}
+    assert [d["content"] for d in _documents_of(response)] == ["direct", "everyone"]
+
+    proc = subprocess.run([sys.executable, str(ROOT / HOOK_PATH)], input=payload,
+                          capture_output=True, env=env, timeout=60, check=False)
+    assert proc.returncode == 0, proc.stderr.decode()[-400:]
+    assert json.loads(proc.stdout.decode()) == {}, "clean-empty stays exactly {}"

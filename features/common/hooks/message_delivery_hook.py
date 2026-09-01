@@ -107,16 +107,26 @@ def build_response(event_name: Optional[str], context: str) -> dict:
 
 
 def _deliver(event_name: Optional[str], session_id: str, payload: Dict[str, Any]) -> dict:
-    """One store transaction: read + cursor advance (the store's; index-bounded, D6)."""
+    """One store transaction: read + cursor advance (the store's; index-bounded, D6).
+
+    C2's construction point: the txn's wake summary is merged into the response HERE,
+    AFTER build_response — so build_response's own shape (and the exact-key-set pin on
+    it) stays untouched while the wire still carries the summary. A mail-bearing
+    response gains ``hookSpecificOutput.aiBadgerBus = {"addressed": n, "broadcast": m}``
+    (additive, never a host-acted key, CR-N6); a clean empty read returns ``{}``
+    unchanged — no envelope, no zero counts.
+    """
     project_id = _resolve_project(payload)
     store = badger_store.open_user()
     try:
-        # C2: the txn returns (messages, summary); the summary's wire merge is pinned
-        # at the guarded_main level (B8) — the response shape here is build_response's.
-        messages, _summary = store.deliver_for_session(session_id, project_id)
+        messages, summary = store.deliver_for_session(session_id, project_id)
     finally:
         store.close()
-    return build_response(event_name, render_messages(messages))
+    response = build_response(event_name, render_messages(messages))
+    if messages and response:
+        response["hookSpecificOutput"]["aiBadgerBus"] = {
+            "addressed": summary["addressed"], "broadcast": summary["broadcast"]}
+    return response
 
 
 def _close(event_name: Optional[str], session_id: str) -> dict:

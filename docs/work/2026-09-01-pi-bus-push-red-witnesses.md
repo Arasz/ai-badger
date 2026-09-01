@@ -149,3 +149,37 @@ M2 raw-str-no-redaction     → test_hook_error_log_never_leaks_payload_derived_
 M3 unguarded-log-call       → test_guarded_main_still_fails_open_when_the_log_path_throws RED
 (mutants reverted; clean file re-verified: 33 passed)
 ```
+
+---
+
+## Gate 4 — B8: the full guarded_main wire response — RED
+
+New: `test_wire_response_is_advisory_plus_bus_summary_exactly` (full-response exact
+equality, in-process), `test_the_bus_summary_never_occupies_a_host_acted_key` (CR-N6
+pin — green by construction, a guard), and the deployment-shape pin in
+`tests/test_message_bus_integration.py::test_the_deployed_child_carries_the_bus_summary_on_the_full_response`
+(real child process + clean-empty follow-up).
+
+```
+$ python3 -m pytest -q tests/test_message_delivery_hook.py -k "wire_response or host_acted" \
+    tests/test_message_bus_integration.py::test_the_deployed_child_carries_the_bus_summary_on_the_full_response
+FAILED tests/test_message_delivery_hook.py::test_wire_response_is_advisory_plus_bus_summary_exactly
+FAILED tests/test_message_delivery_hook.py::test_the_bus_summary_never_occupies_a_host_acted_key
+2 failed, 34 deselected in 1.79s
+
+separately:
+FAILED tests/test_message_bus_integration.py::test_the_deployed_child_carries_the_bus_summary_on_the_full_response
+```
+
+The red shape: the wire response carries hookEventName + additionalContext but NO
+aiBadgerBus — the _deliver merge (C2's construction point, after build_response) does
+not exist yet.
+
+GREEN after implementing the merge; mutation witness (merge dropped → both the
+in-process pin AND the child-process pin red):
+
+```
+merge-dropped mutant: ['FAILED ...test_wire_response_is_advisory_plus_bus_summary_exactly',
+ 'FAILED ...test_the_deployed_child_carries_the_bus_summary_on_the_full_response']
+(mutant reverted; clean tree re-verified: 41 passed)
+```
