@@ -608,6 +608,10 @@
         {
           "name": "mcp_index_hook",
           "path": "features/common/hooks/mcp_index_hook.py"
+        },
+        {
+          "name": "message_delivery_hook",
+          "path": "features/common/hooks/message_delivery_hook.py"
         }
       ],
       "mcp": [
