@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -107,3 +108,146 @@ def test_prune_status_survives_an_empty_table_and_a_garbage_stamp(
     assert "searches rows=0 oldest=- last_prune=-" in out
     expected_stamp = datetime.fromtimestamp(stamp_value, timezone.utc).isoformat()
     assert f"last_prune={expected_stamp}" in out
+
+
+# ---------------------------------------------------------------------------
+# `doctor` (M2/P1): per-family containment status and repair
+# ---------------------------------------------------------------------------
+
+
+def _resurrect_commit_reminder(tmp_path, monkeypatch) -> Path:
+    """A user store with a resurrected commit_reminder (map) legacy file."""
+    _user_env(tmp_path, monkeypatch)
+    legacy = tmp_path / "user-root" / "commit-reminder" / "state.json"
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text(json.dumps({"/repo/a": {"count": 1}}), encoding="utf-8")
+    store = badger_store.open_user()
+    try:
+        store.kv_set("commit_reminder", "/repo/db", {"count": 2})  # migrate + rename
+    finally:
+        store.close()
+    time.sleep(0.05)
+    legacy.write_text(json.dumps({"/repo/a": {"count": 9}, "/repo/new": {"count": 5}}),
+                      encoding="utf-8")
+    return legacy
+
+
+def test_doctor_status_reports_each_resurrected_family_without_creating_or_migrating(
+        tmp_path, monkeypatch, capsys):
+    """doctor --status names every contained family with stamp/mtime/state and the map
+    content diff — and never creates or migrates anything it reports on."""
+    _user_env(tmp_path, monkeypatch)
+
+    # an absent DB is reported, not created (the prune --status pattern):
+    assert badger_store.main(["doctor", "--status"]) == 0
+    out = capsys.readouterr().out
+    assert "status=no-database" in out
+    assert not badger_store.user_db_path().exists()
+
+    legacy = _resurrect_commit_reminder(tmp_path, monkeypatch)
+    assert badger_store.main(["doctor", "--status"]) == 0
+    out = capsys.readouterr().out
+    assert "family=commit_reminder" in out
+    assert "state=resurrected" in out
+    assert "diff=" in out  # map-family content diff vs the DB rows (reviewer S3)
+    assert "/repo/new" in out  # the diff names what the newer file would add
+    # read-only: the file keeps its name, the stamp keeps its value, no migration ran
+    assert legacy.exists()
+
+
+def test_doctor_status_flags_nothing_when_no_family_is_resurrected(
+        tmp_path, monkeypatch, capsys):
+    """A healthy store reports every family state without a resurrected line."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        store.log_append("awm_decisions", _ts(1), {"decision": "d"})
+    finally:
+        store.close()
+
+    assert badger_store.main(["doctor", "--status"]) == 0
+    out = capsys.readouterr().out
+    assert "state=resurrected" not in out
+    assert "family=awm_decisions" in out
+
+
+def test_doctor_repair_reimports_additive_kinds_and_renames(tmp_path, monkeypatch, capsys):
+    """repair: a contained recent (additive) family re-imports idempotently and renames
+    to *.migrated; a fresh open holds no contained family and the rows are there."""
+    _user_env(tmp_path, monkeypatch)
+    legacy = tmp_path / "user-root" / "memory-grade" / "searches.json"
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text(json.dumps(
+        {"recent": [{"correlationId": "c1", "sourceFiles": [], "ts": 1750000000}]}),
+        encoding="utf-8")
+    store = badger_store.open_user()
+    try:
+        store.migrate("searches")  # import + rename + stamp
+        store.log_append("searches", badger_store.iso_row_ts(1750000001), {"q": "seeded"})
+    finally:
+        store.close()
+    time.sleep(0.05)
+    legacy.write_text(json.dumps(
+        {"recent": [{"correlationId": "c2", "sourceFiles": [], "ts": 1750000002}]}),
+        encoding="utf-8")
+
+    assert badger_store.main(["doctor", "--repair"]) == 0
+    out = capsys.readouterr().out
+    assert "family=searches" in out and "re-imported" in out
+    assert not legacy.exists()
+    assert legacy.with_name("searches.migrated.json").exists()
+
+    store = badger_store.open_user()
+    try:
+        assert store.contained_families() == {}
+        assert len(store.log_rows("searches")) == 3
+    finally:
+        store.close()
+
+
+def test_doctor_repair_is_inspect_only_for_map_families(tmp_path, monkeypatch, capsys):
+    """repair: a contained map family is reported with guidance and left byte-identical —
+    the file may be NEWER than the DB; merging it is an owner decision, not a default."""
+    legacy = _resurrect_commit_reminder(tmp_path, monkeypatch)
+
+    assert badger_store.main(["doctor", "--repair"]) == 0
+    out = capsys.readouterr().out
+    assert "family=commit_reminder" in out
+    assert "inspect-only" in out
+    assert legacy.exists()  # the resurrected file itself is untouched: not renamed, not imported
+
+    store = badger_store.open_user()
+    try:
+        assert set(store.contained_families()) == {"commit_reminder"}  # still contained
+        rows = {key for (key,) in store.conn.execute(
+            "SELECT key FROM commit_reminder")}
+        assert "/repo/new" not in rows  # the newer file's keys were NOT merged in
+    finally:
+        store.close()
+
+
+def test_doctor_project_target_reports_the_project_tracking_root(
+        tmp_path, monkeypatch, capsys):
+    """--project PATH scans that project's tracking store and its re-rooted FAMILIES
+    registry — the marker_state shape the original incident was, without env redirection."""
+    monkeypatch.delenv("AI_BADGER_TRACKING_ROOT", raising=False)
+    monkeypatch.delenv("AI_BADGER_USER_ROOT", raising=False)
+    project = tmp_path / "project"
+    (project / ".ai-badger" / "task-tracking").mkdir(parents=True)
+    db_path, families = badger_store.doctor_target(project)
+    legacy = Path(families["marker_state"].legacy_path())
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text(json.dumps({"alpha": "legacy-alpha"}), encoding="utf-8")
+    store = badger_store._open(  # pylint: disable=protected-access
+        db_path, "tracking", families)
+    try:
+        store.kv_set("marker_state", "gamma", "db-gamma")
+    finally:
+        store.close()
+    time.sleep(0.05)
+    legacy.write_text(json.dumps({"alpha": "stale-surface-write"}), encoding="utf-8")
+
+    assert badger_store.main(["doctor", "--status", "--project", str(project)]) == 0
+    out = capsys.readouterr().out
+    assert "family=marker_state" in out and "state=resurrected" in out
+    assert "diff=" in out
