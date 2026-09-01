@@ -1826,6 +1826,124 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         return deleted > 0
 
 
+# -- project identity (P2): the cwd → projectId resolver (D4) -------------------------
+
+#: The explicit project id (the resolver contract's "explicit wins" rule, A3): set and
+#: non-blank it IS the answer at send and delivery alike — one entry point serves both
+#: sides so a conversation's addresses resolve identically — and the registry is never
+#: consulted. Blank reads as unset, mirroring the contract's IsNullOrWhiteSpace.
+PROJECT_ID_ENV = "AI_BADGER_PROJECT_ID"
+
+#: The ai-raccoon memory bank this resolver reads read-only — the P2 step-0 spike pinned
+#: it: user-scope installs keep the bank at ``~/.ai-raccoon/memory.db`` (its ``settings``
+#: table carries ``ingest.scope.<id>`` keys, its ``watches`` table the watch paths).
+#: Env override for non-standard installs, resolved at call time like every other root
+#: in this module.
+RACCOON_BANK_ENV = "AI_BADGER_RACCOON_DB"
+_DEFAULT_RACCOON_BANK = "~/.ai-raccoon/memory.db"
+_SCOPE_KEY_PREFIX = "ingest.scope."
+
+
+class ProjectIdAmbiguous(Exception):
+    """The resolver's refusal outcome: several registered projects contain the cwd.
+
+    Carries the sorted candidate ids on ``candidates``; the caller owns the error text
+    and must refuse rather than guess (D7).
+    """
+
+    def __init__(self, candidates: list[str]):
+        super().__init__(", ".join(candidates))
+        self.candidates = candidates
+
+
+def _real_path(path: str) -> str:
+    """The path as containment compares it: absolute, symlink-resolved, trimmed — the
+    raccoon's IsWithinScope path identity in stdlib terms. Tails that do not exist keep
+    their literal spelling, so a not-yet-created directory still resolves."""
+    return os.path.realpath(os.path.abspath(path))
+
+
+def _path_contains(scope_entry: str, probe: str) -> bool:
+    """True when *probe* equals *scope_entry* or lies under it — the equal-or-ancestor
+    containment the resolver shares with the raccoon (a sibling whose name merely
+    extends the entry's spelling is NOT inside it)."""
+    prefix = scope_entry if scope_entry.endswith(os.sep) else scope_entry + os.sep
+    return probe == scope_entry or probe.startswith(prefix)
+
+
+def raccoon_registry_surface() -> dict[str, list[str]]:
+    """The default registry source: the raccoon bank, read read-only (D4/D7).
+
+    Registration is evidenced by the directory surfaces themselves — a project's
+    ingest-scope key (the authoritative mapping the raccoon's ingest tools enforce) or
+    its watch rows (the fallback) — so the id space is their union. The ``global`` scope
+    key is the raccoon's own fallback entry, not a project, and would make every cwd
+    under it ambiguous. A bank that is absent, unreadable or half-readable yields what
+    it yielded: the resolver refuses and the caller formats the refusal (D7).
+    """
+    bank = Path(os.environ.get(RACCOON_BANK_ENV) or _DEFAULT_RACCOON_BANK).expanduser().resolve()
+    surface: dict[str, list[str]] = {}
+    if not bank.exists():
+        return surface
+    try:
+        conn = sqlite3.connect(f"{bank.as_uri()}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return surface
+    try:
+        for key, value in conn.execute(
+                f"SELECT key, value FROM settings WHERE key LIKE '{_SCOPE_KEY_PREFIX}%'"):
+            project_id = key[len(_SCOPE_KEY_PREFIX):]
+            if project_id == "global" or not project_id or not isinstance(value, str):
+                continue
+            try:
+                paths = json.loads(value)
+            except ValueError:
+                continue
+            if isinstance(paths, list) and paths:
+                surface.setdefault(project_id, []).extend(
+                    p for p in paths if isinstance(p, str) and p.strip())
+        for project_id, path in conn.execute("SELECT project_id, path FROM watches"):
+            if isinstance(project_id, str) and isinstance(path, str) and path.strip():
+                surface.setdefault(project_id, []).append(path)
+    except sqlite3.Error:
+        pass  # a half-readable bank yields the rows it managed to serve (D7)
+    finally:
+        with contextlib.suppress(sqlite3.Error):
+            conn.close()
+    return surface
+
+
+def resolve_project_id(cwd: Optional[str],
+                       registry: Optional[Callable[[], dict]] = None) -> Optional[str]:
+    """Resolve a working directory to its registered project id (R8; D4).
+
+    The explicit override (``AI_BADGER_PROJECT_ID``) wins unconditionally — when set and
+    non-blank it is returned before anything else is read, at send and delivery alike.
+    Otherwise the probe is the cwd, the candidate surface is each registered project's
+    ingest-scope paths plus its watch paths, containment is equal-or-ancestor with both
+    sides canonicalized once, exactly one match returns the id, several raise
+    :class:`ProjectIdAmbiguous` (never guess), and none returns None — the caller owns
+    the refusal text (D7).
+    """
+    override = os.environ.get(PROJECT_ID_ENV)
+    if override and override.strip():
+        return override
+    if not cwd:
+        return None
+    probe = _real_path(cwd)
+    surface = (registry or raccoon_registry_surface)()
+    matches = sorted(
+        project_id for project_id, paths in surface.items()
+        if any(_path_contains(_real_path(p), probe)
+               for p in paths if isinstance(p, str) and p.strip())
+    )
+    if not matches:
+        return None
+    if len(matches) > 1:
+        raise ProjectIdAmbiguous(matches)
+    return matches[0]
+
+
 def _parseable_ts(ts) -> bool:
     """True for a ts the prune's string comparison can be trusted on: non-empty ISO-8601."""
     if not isinstance(ts, str) or not ts:
