@@ -275,3 +275,27 @@ def test_unreadable_bank_reads_as_empty_and_resolves_to_none(tmp_path, monkeypat
 
     assert badger_store.raccoon_registry_surface() == {}
     assert badger_store.resolve_project_id(str(tmp_path)) is None
+
+
+def test_nearest_ai_badger_project_id_file_wins(tmp_path):
+    """The nearest .ai-badger wins, not the outermost one or the raccoon registry."""
+    repo = tmp_path / "repo"
+    worktree = repo / "worktree" / "nested"
+    worktree.mkdir(parents=True)
+    outer = repo / ".ai-badger"
+    outer.mkdir()
+    inner = worktree.parent / ".ai-badger"
+    inner.mkdir()
+    (outer / "project-id").write_text("outer-project\n", encoding="utf-8")
+    (inner / "project-id").write_text("inner-project\n", encoding="utf-8")
+
+    assert badger_store.resolve_project_id(str(worktree / "child")) == "inner-project"
+
+
+def test_missing_ai_badger_id_falls_back_to_registry(tmp_path):
+    """A repo without a project-id file still uses the legacy registry fallback."""
+    root = tmp_path / "bus-repo"
+    root.mkdir()
+    registry = _surface({"bus-proj": [str(root)]})
+
+    assert badger_store.resolve_project_id(str(root), registry=registry) == "bus-proj"
