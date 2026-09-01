@@ -43,4 +43,4 @@ Measured against pi 0.84.3. Re-measure before trusting any line here after a pi 
 - Detection: ai-badger detects pi by `.pi` in the repo or `~/.pi/agent` in user scope.
 - Token tracking: pi exposes no per-session usage API, but the session JSONL does carry it —
   `~/.pi/agent/sessions/--<path>--/<timestamp>_<uuid>.jsonl`, `usage` on assistant entries (pi
-  `docs/session-format.md`).
+  package docs: `session-format.md`).
