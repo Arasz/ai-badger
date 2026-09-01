@@ -1,74 +1,86 @@
-# Plan — aib-bus-followups-independence
+# Plan — aib-bus-followups-independence (rev 2, post plan-review)
 
 **Date:** 2026-09-01 · **Effort:** high · **PR:** #463 (draft) · **Branch:** `task/aib-bus-followups-independence`
-**Basis:** owner gate 2026-09-01 (7/7 ruled; reconciliation in main tree `docs/work/`) + research lanes A/B/C + plan-authoring MoE (architect / test-engineer / harness-author — their files are appendices beside this one).
-**Gates (repo):** `python3 -m pytest -q` · `python3 tooling/index_build.py --check` · `python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')` · `bun test features/pi && bun test tests/js/` · `python3 tooling/sync_plugin_skills.py --check`.
+**Reviews:** api-engineer (d-190), qa (d-189), code-reviewer (d-188) — all **DISPATCH-READY-WITH-CHANGES**; every MUST below is folded. Appendices (plan-architect/-tests/-harness) are the authoring record; **this file governs** where they contradict it (walk policy, arm-env name, containment wording).
+**Owner rulings (confirmed 2026-09-01):** dedicated `.ai-badger/project-id` file · uuid4 minted in `scaffold.py run()` pre-config-write · id-absent → None (fail-open) · **nearest `.ai-badger` wins**, `ProjectIdAmbiguous` retires.
+**Gates:** `python3 -m pytest -q` · `python3 tooling/index_build.py --check` · `python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')` · `bun test features/pi && bun test tests/js/` · `python3 tooling/sync_plugin_skills.py --check`.
 
-## Decision register (owner-confirmed 2026-09-01 — all four ⚑ items ruled "as recommended")
+## Re-land procedure (every store commit — P1, P2, P3)
 
-| Decision | Resolution | Rationale (one line) |
-|---|---|---|
-| File shape | Dedicated `.ai-badger/project-id` file | config.json is rewritten wholesale (scaffold.py:740-742) with `additionalProperties:false` — field ⇒ schema+merge+hash churn; file ⇒ zero churn, survives config deletion |
-| Id format | uuid4, minted in `scaffold.py run()` before the config write | repoAlias-derived ids collide across clones; per-directory ids make each worktree its own project |
-| Id absent | Return None (fail open to 1:1/env-only) | id-less repos are a permanent fleet state; hooks already fail open (D8) |
-| Walk policy | **Nearest `.ai-badger` wins on the upward walk; no ancestor refusal** — CONFIRMED | refuse-on-ancestor would break every worktree session; nearest is deterministic, not a guess; `ProjectIdAmbiguous` retires with the registry and R3b is dropped as dead weight |
-| Raccoon disposal | Delete outright: `raccoon_registry_surface`, `RACCOON_BANK_ENV`, `AI_BADGER_RACCOON_DB`; reader tests 11-13 deleted | no caller survives D2; a shim keeps dead code + three bank fixtures alive for nothing |
-| Containment semantics | Refuse-on-access uniformly for all non-store kinds; open-time detection records per-family unavailable state, accessors consult it | satisfies D5c "surface on access"; keeps test_badger_store_task_family.py:411-422 green unamended; one semantic instead of six |
-| Doctor | `doctor` subcommand in `badger_store.py main()` (`--user` default, `--project PATH`); den-refresh runs `doctor --status` pre-flight; repair re-imports additive kinds (jsonl/recent/file-sets), inspect-only for map/kvdoc/awm; no `vendorin` copier this change | rides the vendored copies to user machines; reconciles code with file-schemas.md:45/:265 |
-| Arm env | **`AI_BADGER_TEST_HOLD_ARMED`** (authoring variant `…_ARM` superseded); gate in `_hold_at`'s env branch only; `_TEST_HOLDS` ungated | prefix-consistent with `_TEST_HOLD_ENV`; scope matches ruling 3 exactly |
-| Rule 7 sc.1 | Reword: "pi delivers on the first agent turn" — `.feature` + tracked mirror (:466-501) | stale Gherkin would contradict shipped behavior |
-| Hermes defer | Same release as pi | ruling 4 names both; Hermes' `pre_llm_call` seam is cheaper, not riskier |
-| Copilot guard | Copy the guarded shape (`_guarded(cmd, script_rel)`), single existence branch, systemMessage-on-skip kept; `_rewrite_command` returns `(cmd, script_rel)` | imported `guarded()` is `${CLAUDE_PROJECT_DIR}`-parameterized and would silently skip; features/ ship independently |
+Byte-copy canonical `engine/badger_store.py` over all `VENDORED_PATHS` destinations (16), run `python3 tooling/sync_plugin_skills.py` (skills/ mirrors), then hand-copy the **11 ungated `.ai-badger/` mirror copies** (engine, hooks, skills/*/scripts — no gate covers these; use a checklist, api-review S2); gate = `tests/test_badger_store_vendored.py` report `[]` + `sync_plugin_skills.py --check`. Code + copies + amended tests in ONE commit (c7424c6f precedent).
 
-## Packages
+## P1 — Store containment + doctor (M2) — serial store lane, 1st — subagent (test-engineer)
 
-**Serial store lane — strictly ordered (all touch `engine/badger_store.py`; every store commit re-lands ~33 byte-identical copies + `sync_plugin_skills.py`, c7424c6f precedent):**
+`_open` records **per-family** unavailable state (NOT per-table — two families share table `"statusline"`, tracker_lib.py:425-433; containment keyed by family keeps the delegate neighbour usable, review M2); accessors of a contained family raise the resurrection error (upgrade pointer). **Refuse-on-access for every non-store kind, including file-set kv_glob legacy reads** (`_legacy_rows` :889 raises today — "skip" would silently downgrade a raising path, reviewer M1). Neighbours exactly as today. New `doctor` verb in `badger_store.py main()` (`--user` default, `--project PATH`), read-only `prune --status` pattern; `doctor --status` names family/stamp/mtime **+ a content diff for map families** (the actual incident shape: newer file vs DB rows, reviewer S3); `doctor --repair` re-imports additive kinds idempotently, inspect-only for map/kvdoc/awm. den-refresh runs `doctor --status` as a pre-flight — the wiring lands IN P1, not deferred (reviewer S4).
 
-- **P1 — Store containment + doctor (M2).** `_open` records per-family unavailable state instead of aborting store-wide; accessors of a contained family raise the resurrection error (upgrade pointer); neighbours exactly as today. `doctor --status/--repair` verb (read-only `prune --status` pattern, :2060-2094).
-  Red-first (plan-tests §2): rename both fail-closed tests to contained-open shapes (:597-619, :347-361); tier-1 parametrized neighbour sweep derived from the family registries (derive-or-delete); tier-2 per-kind-group tests (map, kvdoc/awm, jsonl/recent, tasks/usage/sessions, file-set ×5) each asserting a neighbour observable; untouched pins: task_family:411-422, test_p4_integration.py:310-345.
-  ACs: contained map family ⇒ open succeeds, `kv_get` raises with upgrade pointer, `kv_set` refuses, neighbour families normal (per kind group); `doctor --status` names family/stamp/mtime without creating or migrating; `doctor --repair` re-imports a jsonl family idempotently and is inspect-only for map; vendored report empty.
-  Gate: full pytest + pylint + vendored gate. **Subagent lane.**
-- **P2 — Resolver independence + mint + backfill + L1 (D2/L1).** Owner-cleared (all four rulings final). Resolver walks up to the nearest `.ai-badger`, reads the id; env override wins; id absent → None; `ProjectIdAmbiguous` retires. Scaffold mints uuid4 pre-config-write; den-refresh backfills between `check_prerequisites` (:191-199) and `re_scaffold` (:213-230). L1: the `row is None` + `project_id is None` branch lands the cursor at max-over-delivered-legs (:1766-1773); global MAX(id) kept when all legs ran.
-  Red-first (plan-tests §1/§3): R1a/R1b/R1c (None-cursor red test + cursor observable + over-tightening guard); R3d sibling walk mutation-killer; R3c id-absent; override-wins via throwing-walker fake; R3b DROPPED (refusal retired with the registry). Bank-fixture conversion is scoped BY FIXTURE SYMBOL, not line pins (review M1): every `_register_bank`/`RACCOON_BANK_ENV` site converts — tests/test_project_registry.py (1-10 convert, 11-13 delete), test_send_message_skill.py:382, test_message_bus_manifest.py (:33, :68, :140-150, :405-417), test_message_bus_hermes.py (:345, :362 AND the third bank test ~:330), test_message_delivery_hook.py `_register_bank` (:106-115) and its dependents. The Rule 8 owner-map repoint (integration :625-632 sweep asserting `def <name>(` in owner files) moves INTO P2's commit (review M2) — the sweep would go red at P2's rename otherwise.
-  ACs: R1a green (broadcast survives a None first delivery, re-surfaces on second); pinned overflow :545-559 + gate-once :492-510 stay green; nearest-wins + sibling-refusal + id-absent + override cases green; scaffold mint preserved across re-scaffold; den-refresh backfills an id-less repo; raccoon surface symbols gone (assertion test).
-  Gate: full pytest + vendored gate + `sync_plugin_skills.py --check`. **Subagent lane.**
-- **P3 — Arm-env hold gate (D3).** `_hold_at` env branch gated on `AI_BADGER_TEST_HOLD_ARMED`; `_TEST_HOLDS` ungated; seam-prefix check survives.
-  Edits/tests (plan-tests §4, harness §3): `_child_env` sets both; store arming test :852-865 sets both; strip lists :75/:194, manifest :83/:411, hook :85/:671 gain the arm env; NEW leak witness `test_a_leaked_hold_env_without_the_arm_env_does_not_park`; E2E still parks and releases through the **vendored** copy; shipped-pair identity pin :419 green.
-  Gate: bus-store + integration suites, then full pytest. **In-orchestrator** — but it is a store commit: budget includes the full ~33-copy re-land + `sync_plugin_skills.py` ceremony, not just the one branch + strip lists (api-review SHOULD).
+Red-first: rename both fail-closed tests (session_families:597-619, test_badger_store.py:347-361) to contained-open shapes; tier-1 parametrized neighbour sweep **derived from `badger_store.FAMILIES` + `badger_store.USER_FAMILIES` + `tracker_lib._task_families()`, skipping `legacy_path is None` store families (messages/cursors) — ~21 families** (qa M3; note `_task_families` lives in tracker_lib, not badger_store); tier-2 per-kind-group tests (map, kvdoc/awm, jsonl/recent, tasks/usage/sessions, file-set ×5) each with a neighbour observable; **NEW: `test_contained_statusline_sibling_keeps_its_delegate_neighbour`** (contained statusline family ⇒ the other statusline family still reads/writes, reviewer M2); untouched pins: task_family:411-422, test_p4_integration.py:310-345.
 
-**Parallel lanes — disjoint files, start immediately:**
+ACs: per-kind-group contained-open + refuse-on-read + refuse-on-write + neighbour-normal; statusline sibling pair asserted; `doctor --status` non-mutating with map-family diff; `doctor --repair` additive re-import; vendored report empty.
+Gate: full pytest + pylint + vendored gate + `sync_plugin_skills.py --check`.
 
-- **P4 (lane X) — pi defer (D4).** Remove `sessionStart` from the router interface entirely (single caller, compile-enforced); delete `pendingStart`, held-consume branch, `pi.on("session_start")` wiring, `"session_start"` from the event map; `beforeAgentStart` = one unconditional `liveTurn`; state-machine docstring rewritten; absent-script silent-empty + away/payload gates preserved.
-  Red-first (plan-tests §5): five adapter test amendments (:97/:137/:193/:266/:293) + NEW never-turned-session-consumes-nothing (no spawn, no cursor row, mail intact); `test_pi_hook_arm_coverage_contract.py` :237/:262 amended to the two-event shape, :90-236 untouched.
-  Gate: `bun test tests/js/pi_message_bus_adapter.test.mjs && bun test features/pi && bunx tsc --noEmit -p features/pi` + pytest pi/integration files. **Subagent lane.** Merge after P3 (shared test file, disjoint hunks).
-- **P5 (lane Y) — Hermes defer (D4).** Drop `_bus_pending` + `on_session_start_message_delivery`; `_bus_turn_context` becomes live-read-only injected via the `pre_llm_call` return channel; `on_session_end` keeps cursor deletion; manifest hermes session-start arm removed; register() trims the delivery hook (drift notice stays).
-  Red-first (plan-tests §5): first-`pre_llm_call` consume-and-inject (context contains mail, cursor row once, turn 2 live-only); NEW never-reaches-`pre_llm_call`-consumes-nothing (no cursor row, no stash leak); close-event pin untouched; :345/:362 fail-open shapes kept.
-  Amended pins per harness §2 (:90-91, :169-172, :182+, :299/:404/:409/:442, manifest :171-200/:374/:386); `test_hermes_plugin_payloads.py` stays green.
-  Gate: `python3 -m pytest -q tests/test_message_bus_hermes.py tests/test_message_bus_manifest.py` then full. **Subagent lane.** Merge after P2 (shared test file). P5 OWNS the re-timing of P2's converted start-delivery tests in that file (review M3: P2's conversions keep `_start`→`_turn` shapes; P5 redefines `_start` as the consuming first-`pre_llm_call` and must amend those fresh assertions in its own commit).
-- **P6 (lane Z) — Docs (D5/D6).** Exact sentences drafted (harness §5): changelog P5–P8 Copilot `sessionEnd` residual-risk clause; P3 machine-local trust-boundary lines; P4 consistency amendment (hold sentence names both envs); SKILL.md "Sender identity is mandatory" paragraph in the features/ catalog → `sync_plugin_skills.py` → re-land this repo's `.ai-badger/skills/send-message/` mirror same-commit. D9/L7 dropped as moot.
-  Gate: `sync_plugin_skills.py --check` + `tests/test_sync_plugin_skills.py` + changelog/skill lint tests. **In-orchestrator (prose).** P6 also owns: the SKILL.full.md paragraph for the registry change (resolver reads `.ai-badger/project-id`, not the raccoon bank) and the new changelog entry's D2 consumer-impact content (api-review SHOULD). D9/L7 dropped as moot.
-- **P7 (lane W) — Copilot `if -f` guard (D7).** `_guarded` wrap for both emission shapes; `_rewrite_command` → `(cmd, script_rel)`; balance pins :210/:384 and artifact E2E :555-565 stay green; ~10 pins amended (plan-tests §6 list); NEW `test_guarded_command_skips_cleanly_when_the_script_is_absent` (exit 0, skipped systemMessage).
-  Gate: `python3 -m pytest -q tests/test_adjust_hooks_copilot.py`. **Subagent lane.**
+## P2 — Resolver independence + mint + backfill + L1 (D2/L1) — serial store lane, 2nd — subagent (test-engineer)
 
-**P8 — Integration (last, no production edits).** New `test_project_id_lifecycle.py` (scaffold → mint → resolve; strip id → den-refresh backfill → resolve; env override wins) — invocation contract verified feasible (api-review): scaffold `--target/--root`, refresh `--root/--target`; no `$AI_BADGER` needed; new `test_containment_bus_coexistence.py` (resurrected marker-state ⇒ bus send/receive works, family refuses on access, `doctor --status` names it); E2E race re-run with the arm-env gate through the vendored copy; spec-mirror reconciliation (sc.1 timing, Rule 8 titles + mutation-flag repoint :576/:579-581); VERSION bump + new changelog entry.
-Full gate sweep: pytest, index_build --check, pylint, bun suites, sync --check. **In-orchestrator.**
+Resolver walks up to the nearest `.ai-badger`, reads `.ai-badger/project-id`; `AI_BADGER_PROJECT_ID` wins; id absent → None; **`ProjectIdAmbiguous` retires — and its callers are part of this package** (reviewer M3): `features/common/hooks/message_delivery_hook.py:76-83`, `features/common/skills/send-message/scripts/message_delivery_hook.py` (hook copy), `features/common/skills/send-message/scripts/send_message.py:148-151` — ambiguity branches become nearest-wins/None semantics. Scaffold mints uuid4 pre-config-write (scaffold.py:740-742, both copies); den-refresh backfills between `check_prerequisites` (:191-199) and `re_scaffold` (:213-230). L1: `row is None` + `project_id is None` branch lands cursor at max-over-delivered-legs (:1766-1773); global MAX(id) when all legs ran.
 
-## Parallelism & order
+**Full conversion inventory — scoped by fixture symbol, every bank site** (api M1 + qa M1 + reviewer M4): `tests/test_project_registry.py` (tests 1-10 convert; 11-13 delete with the surface); `tests/test_send_message_skill.py:382`; `tests/test_message_bus_manifest.py` (:33, :68, :140-150, :405-417); `tests/test_message_bus_hermes.py` (:345 mechanism → "no `.ai-badger` found upward ⇒ None"; **:330 third bank test**; **:362 → nearest-wins nested mechanism** — the ambiguity scenario it pinned no longer exists, reviewer M5); `tests/test_message_delivery_hook.py` (`_register_bank` :106-115 + **11 call sites**); **`tests/test_message_bus_integration.py` `_register_bank` (:97) incl. the flagship exactly-once E2E — its tmp repo gets a scaffolded `.ai-badger/project-id`** (resolves "bus-proj", :196/:221/:243); **`tests/js/pi_message_bus_adapter.test.mjs` E2E fixtures get a project-id file** (the real-script legs resolve cwd). The Rule 8 owner-map repoint (integration sweep :625-632) lands IN P2's commit.
 
-P1 → P2 → P3 serial (shared file + copies). P4/P6/P7 start immediately (disjoint); P5 starts immediately too (store-lane-independent files) but merges after P2; P4 merges after P3. P8 last on the integrated branch. Every store commit = code + all copies + amended tests in one commit; every lane runs its own gate before merge.
+Red-first: R1a/R1b/R1c — **R1a seeds the 1:1 BEFORE the broadcast** (seeding-order trap: broadcast-after-1:1 is the only order that proves the cursor didn't sweep it; a broadcast seeded first would sit below any MAX landing, reviewer S1); R3a nearest-wins (worktree case); R3c id-absent; R3d sibling walk mutation-killer; R3b dropped; override-wins via throwing-walker fake.
+ACs: R1a green with cursor below the broadcast id; overflow :545-559 + gate-once :492-510 green; nearest-wins/sibling/id-absent/override green; mint preserved across re-scaffold; backfill resolves; raccoon symbols gone incl. all callers compiling (assertion test); E2E race green on the new id fixture.
+Gate: full pytest + vendored gate + `sync_plugin_skills.py --check` + `bun test tests/js/pi_message_bus_adapter.test.mjs`.
+
+## P3 — Arm-env hold gate (D3) — serial store lane, 3rd — in-orchestrator (store commit: full re-land ceremony)
+
+`_hold_at` env branch gated on **`AI_BADGER_TEST_HOLD_ARMED`**; `_TEST_HOLDS` ungated; seam-prefix check survives. `_child_env` sets both; store arming test :852-865 sets both; strip lists gain the arm env: integration :75/:194, manifest :83/:411, hook :85/:671; NEW leak witness `test_a_leaked_hold_env_without_the_arm_env_does_not_park`; E2E parks and releases through the vendored copy; shipped-pair identity :419 green.
+Gate: bus-store + integration suites, then full pytest.
+
+## P4 — pi defer (D4) — subagent (api-engineer) — **dispatch AFTER the store lane** (order adjustment: P2 converts the JS E2E fixtures P4's amendments live in — starting P4 pre-P2 would double-edit that file)
+
+Remove `sessionStart` from the router interface entirely (single caller, compile-enforced); delete `pendingStart`, held-consume branch, `pi.on("session_start")` wiring, `"session_start"` from the event map; `beforeAgentStart` = one unconditional `liveTurn`; docstring rewritten; absent-script silent-empty + away/payload gates preserved.
+Red-first: five adapter amendments (:97/:137/:193/:266/:293) + NEW never-turned-session-consumes-nothing (no spawn, no cursor row, mail intact); `test_pi_hook_arm_coverage_contract.py` :237/:262 → two-event shape, :90-236 untouched.
+Gate: `bun test tests/js/pi_message_bus_adapter.test.mjs && bun test features/pi && bunx tsc --noEmit -p features/pi` + pytest pi/integration files.
+
+## P5 — Hermes defer (D4) — subagent (test-engineer) — **dispatch AFTER P2** (owns the re-timing of P2's converted hermes tests, api M3)
+
+Drop `_bus_pending` + `on_session_start_message_delivery`; `_bus_turn_context` = live-read-only injected via the `pre_llm_call` return channel (first call consumes-and-injects); `on_session_end` keeps cursor deletion; manifest hermes session-start arm removed; register() trims the delivery hook (drift notice stays).
+Red-first: first-`pre_llm_call` consume-and-inject (context contains mail, cursor row once, turn 2 live-only); NEW never-reaches-`pre_llm_call`-consumes-nothing (no cursor row, no stash leak); close-event pin untouched; P2's converted :345/:362 shapes re-timed in P5's commit.
+Amended pins: :90-91, :169-172, :182+, :299/:404/:409/:442, manifest :171-200/:374/:386; `test_hermes_plugin_payloads.py` green.
+Gate: `python3 -m pytest -q tests/test_message_bus_hermes.py tests/test_message_bus_manifest.py` then full.
+
+## P6 — Docs (D5/D6) — in-orchestrator — parallel from now
+
+Changelog 0.156.0: P5–P8 Copilot `sessionEnd` residual-risk clause; P3 machine-local trust-boundary lines; P4 consistency amendment (hold sentence names both envs); **P2 consumer-impact: fleet transition — id-less repos deliver 1:1/env-only until den-refresh backfills (reviewer S5)**. SKILL.md "Sender identity is mandatory" paragraph in the features/ catalog → `sync_plugin_skills.py` → re-land `.ai-badger/skills/send-message/` mirror same-commit; SKILL.full.md paragraph for the registry change (resolver reads `.ai-badger/project-id`). D9/L7 dropped as moot.
+Gate: `sync_plugin_skills.py --check` + `tests/test_sync_plugin_skills.py` + changelog/skill lint tests.
+
+## P7 — Copilot `if -f` guard (D7) — subagent (api-engineer) — parallel from now
+
+`_guarded(cmd, script_rel)` copied shape (single existence branch, systemMessage-on-skip kept); `_rewrite_command` → `(cmd, script_rel)`; shape (b) uses in-scope `rel_path`; balance pins :210/:384 and artifact E2E :555-565 stay green; ~10 pins amended; NEW `test_guarded_command_skips_cleanly_when_the_script_is_absent`.
+Gate: `python3 -m pytest -q tests/test_adjust_hooks_copilot.py`.
+
+## P8 — Integration (last, no production edits) — in-orchestrator
+
+New `test_project_id_lifecycle.py` (scaffold `--target/--root` → mint → resolve; strip id → refresh `--root/--target` backfill → resolve; env override wins — no `$AI_BADGER` needed, api-verified); new `test_containment_bus_coexistence.py`; E2E race re-run with the arm gate through the vendored copy; spec-mirror reconciliation (sc.1 timing; Rule 8 titles + mutation-flag repoint verified done in P2); VERSION bump + new changelog entry (P6 drafts).
+Full gate sweep.
+
+## Order of operations (rev 2)
+
+1. **Now, parallel:** P1 (subagent, own worktree) · P7 (subagent, own worktree) · P6 (in-orchestrator).
+2. P1 merges → **P2** (subagent) merges → **P3** (in-orchestrator).
+3. **P4** and **P5** dispatch after the store lane lands (JS E2E + hermes re-timing seams), in own worktrees, merge in either order.
+4. **P8** last on the integrated branch; then Phase 4 quality gate.
+
+## Red-witness log (honest shape, qa M4)
+
+Two row types, per test: **RED-FIRST** (red against shipped code today — R1a, containment tier-2, doctor, leak witness, guard-absent no-op) and **PIN/GUARD** (green-before by construction — R1c, amended :852, strip-list edits, pi :97/:193 — validated by a NAMED MUTATION instead, e.g. revert the containment guard ⇒ tier-1 sweep red; omit one strip entry ⇒ child parks; strip the guard from one row ⇒ :209/:411 red). Each lane merge names its verifier (the lane agent records; the orchestrator re-runs the named mutations at join).
 
 ## Risk register
 
 | # | Risk | Mitigation |
 |---|---|---|
-| R1 | Missed copy among ~33 across three serial re-lands → red vendored gate | same-commit re-land + vendored gate + `sync --check` before every store commit |
-| R2 | Containment degrades to silent DB-only reads (ADR-0024 D5c violation) | refuse-on-access uniform; red-first raise assertions; task-family test green unamended |
-| R3 | ⚑ answers late → P2 blocked | P1, P3–P7 start now; P2 is the only owner-gated package |
-| R4 | Worktree sessions under nearest-wins resolve to the worktree project (correct), but stale-id copies of the main repo could diverge ids | ids mint per directory at scaffold/refresh; worktrees get their own mint; changelog consumer note |
-| R5 | Strip-list omission leaks the hold/arm env, or inert holds stall the E2E 15 s | six-constraint checklist per AC (P3) + P8 re-run + leak witness test |
-| R6 | Copilot guard breaks quoted balance or artifact E2E | balance pins stay unamended as tripwires; `bash -c` E2E in the P7 gate |
-| R7 | Resolver rewrite breaks send-message sender resolution | send CLI tests rewritten in P2 with the same fail-open contract |
-
-## Red-witness log (filled during implementation)
-
-One line per new/amended test: red against pre-change code → green after. R1a is the anchor (red against shipped `MAX(id)` today). Mutation witnesses carried: containment-guard revert ⇒ tier-1 sweep + both amended fail-closed tests red; strip one strip-list entry ⇒ child parks; R3d kills the naive walk; strip the guard from one generated row ⇒ :209/:411 amendments red.
+| R1 | Missed copy among ~33 across three serial re-lands | checklist procedure above + vendored gate + `sync --check` per store commit |
+| R2 | Containment degrades to silent DB-only reads (D5c) | refuse-on-access EVERYWHERE incl. file-set reads (reviewer M1); per-family not per-table (M2); task-family pin green unamended |
+| R3 | P2 conversion inventory misses a bank site | fixture-symbol sweep (grep `_register_bank|RACCOON_BANK_ENV|ingest.scope`) at P2 start + full-pytest gate |
+| R4 | Worktree sessions resolve to the worktree project (correct); stale ids on repo copies | per-directory mint at scaffold/refresh; changelog consumer note (P6/S5) |
+| R5 | Strip-list omission leaks hold/arm env; inert holds stall the E2E | six-constraint checklist + leak witness + P8 re-run |
+| R6 | Copilot guard breaks quoted balance or artifact E2E | balance pins unamended as tripwires; `bash -c` E2E in P7 gate |
+| R7 | Resolver rewrite breaks send CLI sender resolution | send CLI tests converted in P2, same fail-open contract |
+| R8 | L1 seeding order masks the bug | R1a seeds 1:1 before broadcast (S1) |
