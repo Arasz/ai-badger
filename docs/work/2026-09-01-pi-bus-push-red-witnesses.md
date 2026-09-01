@@ -237,3 +237,30 @@ The discriminating CR-M3 fixture (qa S-3): probe sequence fp(7,7) at tick time
 then fp(8,8) — a post-spawn re-read would advance to fp(8,8) and strand the
 mid-txn row; the tick-time capture forces the next tick to spawn. Pinned in
 `adapter-bus.test.ts` as `A9/CR-M3 discriminating fixture`.
+
+## P5 — live probes (rpc, this machine, 2026-09-01) — 7/7 PASS
+
+Harness: real adapter loaded via `-e` into `pi --mode rpc --no-session`, user
+store redirected via `AI_BADGER_USER_ROOT` to a seeded temp DB, shipped hook
+copied into an isolated probe cwd (no `.mcp.json` — see the environment note),
+event-order assertions only, one bounded window per probe. Probe script:
+`/private/tmp/pi-bus-probes/probe.py` (transcripts in the run log).
+
+| Probe | Verdict | Evidence |
+|---|---|---|
+| L1 idle-wake (rpc, zero stdin) | **PASS** | `agent_start x1`, custom message `role:custom, customType:ai-badger` carrying the seeded mail, cursor advanced, model replied; no prompt command ever written |
+| L3' broadcast-no-wake | **PASS** | broadcast consumed (cursor advanced), custom message visible (`role:custom`), **no `agent_start`** in 3 poll windows — consume-and-inject-without-wake exactly as ruled (C3) |
+| L3' positive control | **PASS** | an addressed send to the same session wakes it (`agent_start x1`) — proves L3' non-waking was policy, not a dead timer |
+| L4 wake=off | **PASS** | timer never armed: no `agent_start`, no cursor row across 3 poll windows; a stdin prompt still delivers via the seam (C7) |
+| L5 shutdown/timer-clear | **PASS** | shutdown racing the first poll tick: clean exit (code 0), no Node uncaught-exception footer (the Lane A F7 fatal shape does not occur) |
+| L2 streaming steer | **PASS** | mail seeded mid-turn (during a 12 s tool call) entered context before the run settled (`agent_settled`), exactly one agent loop |
+
+**Environment note (honest).** In an MCP-bearing cwd, a stalled MCP connect
+(hermes, flaky) delayed the triggered turn past the bounded window and produced
+two false FAILs plus one harness hang before isolation; the shipped timer and
+wake are not affected — production sessions have no probe deadline — but probe
+environments must be MCP-free for bounded windows to mean anything. Also
+recorded: with the user-scope adapter installed at `~/.pi/agent/extensions/
+ai-badger`, `-e` runs BOTH the old (0.157.2, no timer) and new adapters in one
+session; the store's exactly-once txn made this harmless (the old adapter's
+seam spawns are pull-only and idempotent against the same cursor).
