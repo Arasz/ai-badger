@@ -62,18 +62,22 @@ name: ai-badger
 version: {version}
 description: >-
   ai-badger framework hooks: framework drift notice (on_session_start), MCP context
-  enrichment and commit reminders (pre_llm_call / post_tool_call), and the memory-first
-  gate that blocks text search until memory_search is consulted (pre_tool_call).
+  enrichment and commit reminders (pre_llm_call / post_tool_call), the memory-first
+  gate that blocks text search until memory_search is consulted (pre_tool_call), and
+  message-bus delivery between sessions (on_session_start / pre_llm_call, cursor
+  cleanup on on_session_end).
 hooks:
   - on_session_start
   - pre_llm_call
   - pre_tool_call
   - post_tool_call
+  - on_session_end
 provides_hooks:
   - on_session_start
   - pre_llm_call
   - pre_tool_call
   - post_tool_call
+  - on_session_end
 """
 PLUGIN_INIT = '"""ai-badger framework hooks plugin (Hermes)."""\n' \
               "from .ai_badger_hooks import register  # noqa: F401\n"

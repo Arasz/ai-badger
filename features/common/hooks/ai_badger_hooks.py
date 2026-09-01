@@ -7,9 +7,12 @@
 
 Provides feature-parity with Claude Code hooks:
 - on_session_start: drift notice (Tier 1, ADR-0001 decision 5) + Hermes subagent-isolation notice
+  + message-bus history delivery (stashed for the first turn)
 - pre_llm_call: inject framework version context, usage hints, and MCP tool index recommendations
+  + message-bus per-turn delivery
 - pre_tool_call: memory-first gate — block text search until the session consulted memory_search
 - post_tool_call: log tool usage, index hit/miss metrics, and learned-skill sync
+- on_session_end: message-bus cursor cleanup
 
 Installation (0.80.0+): `welcome-ai-badger` ships these hooks as a Hermes
 DIRECTORY plugin at ~/.hermes/plugins/ai-badger/ (plugin.yaml declaring the hooks,
@@ -630,7 +633,7 @@ def _record_tool_index_check(project, tool_name: str, index: dict[str, Any]) -> 
 # ---------------------------------------------------------------------------
 
 def pre_llm_inject_context(
-    cwd: str = "", message: str = "", user_message: str = "", **_kwargs: Any
+    cwd: str = "", message: str = "", user_message: str = "", **kwargs: Any
 ) -> Optional[Dict[str, str]]:
     """Inject ai-badger framework context into every LLM turn.
 
@@ -658,6 +661,14 @@ def pre_llm_inject_context(
     pending_feedback = None if gf is None else gf.pop_pending_feedback(project)
     if pending_feedback:
         parts.append(pending_feedback)
+
+    try:
+        bus_text = _bus_turn_context(kwargs.get("session_id") or "", project)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("message-bus delivery failed", exc_info=True)
+        bus_text = None
+    if bus_text:
+        parts.append(bus_text)
 
     # Framework version — see `versions_diverge`; a patch-only bump is silent (B10).
     fw_version = _read_framework_version()
@@ -933,6 +944,108 @@ def _load_semantica_export() -> Optional[Any]:
 
 
 # ---------------------------------------------------------------------------
+# Message-bus delivery — the user-DB message bus (aib-user-db-message-bus).
+# Hermes payloads carry no cwd and no project identity: cwd is the process cwd at
+# callback time (see _project_cwd), projectId comes only from the store resolver
+# (AI_BADGER_PROJECT_ID explicit-wins, else the raccoon registry bank).
+# ---------------------------------------------------------------------------
+
+MESSAGE_BUS_STORE_MODULE_NAME = "ai_badger_message_bus_store"
+
+# Session-start delivery has no return channel into the model, so the rendered
+# history waits here, keyed by session id, until the first pre_llm_call pops it.
+_bus_pending: dict = {}
+
+
+def _load_message_bus_store() -> Optional[Any]:
+    """Import the vendored badger_store beside this file; None when absent or broken."""
+    return _load_sibling_module(MESSAGE_BUS_STORE_MODULE_NAME, "badger_store.py",
+                                "message-bus store")
+
+
+def _deliver_bus_messages(session_id: str, cwd: str) -> list:
+    """One delivery firing: resolve identity, read the store, advance the cursor.
+
+    The store's start semantics self-apply: a session with no cursor row is gated to
+    the last 30 minutes and capped at 16, later reads are pure id > cursor. Project
+    identity comes only from the store resolver; an unresolved or ambiguous project
+    fails open to the 1:1 leg (D7). Returns [] when anything is missing or broken.
+    """
+    store_lib = _load_message_bus_store()
+    if store_lib is None or not session_id:
+        return []
+    try:
+        project_id = store_lib.resolve_project_id(cwd or None)
+    except Exception as refusal:  # pylint: disable=broad-exception-caught
+        logger.debug("message bus: project refused (%s) — delivering 1:1 only", refusal)
+        project_id = None
+    store = store_lib.open_user()
+    try:
+        return store.deliver_for_session(session_id, project_id)
+    finally:
+        store.close()
+
+
+def _render_bus_messages(docs: list) -> str:
+    """The injected text for delivered documents — content verbatim, sender for context."""
+    lines = [f"[ai-badger] {len(docs)} message(s) from other sessions:"]
+    for doc in docs:
+        sender = doc.get("sender") or {}
+        lines.append(f"- {doc.get('content', '')} (from {sender.get('sessionId', '?')} "
+                     f"in {sender.get('projectId', '?')}, {doc.get('timestamp', '')})")
+    return "\n".join(lines)
+
+
+def _bus_turn_context(session_id: str, cwd: str) -> Optional[str]:
+    """One turn's bus context: the live read plus any stashed start delivery, popped once."""
+    docs = _deliver_bus_messages(session_id, cwd)
+    stashed = _bus_pending.pop(session_id, None) if session_id else None
+    live = _render_bus_messages(docs) if docs else None
+    if stashed and live:
+        return f"{stashed}\n{live}"
+    return stashed or live
+
+
+def on_session_start_message_delivery(session_id: str = "", **kwargs: Any) -> None:
+    """Deliver the session's message history once at start and stash it for the first turn.
+
+    Session-start hooks have no return channel into the model, so the rendered payload
+    waits in _bus_pending until pre_llm_inject_context pops it. Silent on an empty inbox,
+    a missing session id, or any store failure.
+    """
+    try:
+        session_id = session_id or kwargs.get("session_id") or ""
+        if not session_id:
+            return
+        docs = _deliver_bus_messages(session_id, _project_cwd(kwargs.get("cwd") or ""))
+        if docs:
+            _bus_pending[session_id] = _render_bus_messages(docs)
+        _debug("ai_badger_hooks/message_bus", "start", session=session_id, count=len(docs))
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("message-bus start delivery failed", exc_info=True)
+
+
+def on_session_end_message_delivery(session_id: str = "", **kwargs: Any) -> None:
+    """Remove the session's cursor — the close-event cleanup; the 4-day TTL is the backstop."""
+    try:
+        session_id = session_id or kwargs.get("session_id") or ""
+        if not session_id:
+            return
+        _bus_pending.pop(session_id, None)
+        store_lib = _load_message_bus_store()
+        if store_lib is None:
+            return
+        store = store_lib.open_user()
+        try:
+            store.delete_cursor(session_id)
+        finally:
+            store.close()
+        _debug("ai_badger_hooks/message_bus", "closed", session=session_id)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("message-bus cursor cleanup failed", exc_info=True)
+
+
+# ---------------------------------------------------------------------------
 # Tool call observer — equivalent to Claude's PostToolUse hook
 # ---------------------------------------------------------------------------
 
@@ -1036,9 +1149,11 @@ def register(ctx: Any) -> None:
         logger.warning("ai-badger hooks not registered: %s", COPY_SKEW_REFUSAL)
         return
     ctx.register_hook("on_session_start", on_session_start_drift_notice)
+    ctx.register_hook("on_session_start", on_session_start_message_delivery)
     ctx.register_hook("pre_llm_call", pre_llm_inject_context)
     ctx.register_hook("pre_tool_call", pre_tool_call_memory_gate)
     ctx.register_hook("pre_tool_call", pre_tool_call_git_internals_guard)
     ctx.register_hook("post_tool_call", post_tool_observer)
+    ctx.register_hook("on_session_end", on_session_end_message_delivery)
     logger.info("ai-badger hooks registered: on_session_start, pre_llm_call, "
-                "pre_tool_call, post_tool_call")
+                "pre_tool_call, post_tool_call, on_session_end")

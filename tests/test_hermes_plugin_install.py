@@ -242,9 +242,11 @@ def test_plugin_yaml_declares_the_registered_hooks(tmp_path, load_script, root):
     manifest = yaml.safe_load((_plugin_dir(home) / "plugin.yaml").read_text(encoding="utf-8"))
     assert manifest["name"] == "ai-badger"
     assert set(manifest["hooks"]) == {
-        "on_session_start", "pre_llm_call", "pre_tool_call", "post_tool_call"}
+        "on_session_start", "pre_llm_call", "pre_tool_call", "post_tool_call",
+        "on_session_end"}
     assert set(manifest["provides_hooks"]) == {
-        "on_session_start", "pre_llm_call", "pre_tool_call", "post_tool_call"}
+        "on_session_start", "pre_llm_call", "pre_tool_call", "post_tool_call",
+        "on_session_end"}
 
 
 def test_plugin_init_reexports_register(tmp_path, load_script, root):
@@ -275,8 +277,8 @@ def test_plugin_init_reexports_register(tmp_path, load_script, root):
     ctx = _FakeCtx()
     init_mod.register(ctx)
     assert [name for name, _ in ctx.hooks] == [
-        "on_session_start", "pre_llm_call", "pre_tool_call", "pre_tool_call",
-        "post_tool_call"]
+        "on_session_start", "on_session_start", "pre_llm_call", "pre_tool_call",
+        "pre_tool_call", "post_tool_call", "on_session_end"]
     # The registered callbacks are the copied module's functions, not stubs. Keyed by hook
     # name, not by position: pre_tool_call carries two arms and a third would shift indexes.
     by_hook = {}
