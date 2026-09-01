@@ -278,3 +278,95 @@ class TestHooksManifestSchema:
         bl = load_script("engine/badger_lib.py")
         schema = bl.load_json(self._schema_path(root))
         assert bl.validate({}, schema) != []
+
+
+# --- message.schema.json ---
+
+class TestMessageSchema:
+    """The message-bus delivery document (P1/F4): the store returns this shape and the
+    delivery hooks inject it — the schema is the contract both sides code against."""
+
+    def _schema_path(self, root):
+        return root / "schemas" / "message.schema.json"
+
+    def _instance(self):
+        return {
+            "sender": {"sessionId": "S", "projectId": "P"},
+            "content": "found it, see src/bus.py",
+            "timestamp": "2026-09-01T12:00:00+00:00",
+        }
+
+    def test_schema_file_exists(self, root):
+        assert self._schema_path(root).is_file()
+
+    def test_valid_delivery_document(self, tmp_path, root, load_script):
+        bl = load_script("engine/badger_lib.py")
+        schema = bl.load_json(self._schema_path(root))
+        assert bl.validate(self._instance(), schema) == []
+
+    def test_valid_with_schema_key(self, tmp_path, root, load_script):
+        bl = load_script("engine/badger_lib.py")
+        schema = bl.load_json(self._schema_path(root))
+        instance = {**self._instance(), "$schema": "./message.schema.json"}
+        assert bl.validate(instance, schema) == []
+
+    def test_missing_sender_fails(self, tmp_path, root, load_script):
+        bl = load_script("engine/badger_lib.py")
+        schema = bl.load_json(self._schema_path(root))
+        instance = self._instance()
+        del instance["sender"]
+        assert bl.validate(instance, schema) != []
+
+    def test_sender_without_project_id_fails(self, tmp_path, root, load_script):
+        """Identity is REQUIRED at send (R10): a sender half missing is not a valid document."""
+        bl = load_script("engine/badger_lib.py")
+        schema = bl.load_json(self._schema_path(root))
+        instance = {**self._instance(), "sender": {"sessionId": "S"}}
+        assert bl.validate(instance, schema) != []
+
+    def test_empty_sender_fields_fail(self, tmp_path, root, load_script):
+        bl = load_script("engine/badger_lib.py")
+        schema = bl.load_json(self._schema_path(root))
+        instance = {**self._instance(), "sender": {"sessionId": "", "projectId": "P"}}
+        assert bl.validate(instance, schema) != []
+
+    def test_missing_content_or_timestamp_fails(self, tmp_path, root, load_script):
+        bl = load_script("engine/badger_lib.py")
+        schema = bl.load_json(self._schema_path(root))
+        for key in ("content", "timestamp"):
+            instance = self._instance()
+            del instance[key]
+            assert bl.validate(instance, schema) != [], key
+
+    def test_non_string_content_fails(self, tmp_path, root, load_script):
+        bl = load_script("engine/badger_lib.py")
+        schema = bl.load_json(self._schema_path(root))
+        instance = {**self._instance(), "content": {"verbose": True}}
+        assert bl.validate(instance, schema) != []
+
+    def test_additional_properties_fail(self, tmp_path, root, load_script):
+        bl = load_script("engine/badger_lib.py")
+        schema = bl.load_json(self._schema_path(root))
+        instance = {**self._instance(), "target": "nobody"}
+        assert bl.validate(instance, schema) != []
+
+    def test_store_delivery_documents_conform(self, tmp_path, root, monkeypatch,
+                                              load_script):
+        """The contract is not aspirational: documents straight from deliver_for_session
+        validate against this schema."""
+        bl = load_script("engine/badger_lib.py")
+        schema = bl.load_json(self._schema_path(root))
+        bs = load_script("engine/badger_store.py")
+
+        root_dir = tmp_path / "user-root"
+        monkeypatch.setenv("AI_BADGER_USER_ROOT", str(root_dir))
+        store = bs.open_user()
+        try:
+            store.send_message(sender_session="S1", sender_project="P", content="hello",
+                               target_project="P")
+            documents = store.deliver_for_session("S2", "P")
+        finally:
+            store.close()
+        assert documents, "the fixture must have delivered one document"
+        for document in documents:
+            assert bl.validate(document, schema) == []
