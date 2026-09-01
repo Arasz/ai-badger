@@ -19,6 +19,8 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import {
   commandsForTool,
   createAwayState,
+  createDeliveryRouter,
+  parseDeliveryStdout,
   parseHookStdout,
   postCommandsForTool,
   postToolUseCommands,
@@ -26,8 +28,11 @@ import {
   resolve,
   resolvePost,
   resolveSessionId,
+  toClaudeDeliveryPayload,
   toClaudePayload,
   toClaudePostPayload,
+  type ClaudeDeliveryPayload,
+  type DeliveryOutcome,
   type GateOutcome,
   type HookCommand,
   type PostOutcome,
@@ -229,6 +234,67 @@ async function postHookOutcomes(
   return [...broken.map((reason): PostOutcome => ({ kind: "error", reason })), ...outcomes];
 }
 
+/** Run one delivery-script firing for the message bus. Mirrors runGate's spawn
+discipline (env-redirected CLAUDE_PROJECT_DIR, timeout, stdin JSON) but never parses a
+decision — the response is the mail document the bridge parses. A project without the
+script is an UNWIRED project (Rule 7 scenario 2): silent no-op, never a notice, never
+a spawn — the adapter is installed user-globally and most projects have no bus. */
+async function runDelivery(
+  payload: ClaudeDeliveryPayload,
+  ctx: { cwd: string; signal: AbortSignal | undefined },
+): Promise<DeliveryOutcome> {
+  const script = join(ctx.cwd, ".ai-badger", "hooks", "message_delivery_hook.py");
+  if (!existsSync(script)) return { kind: "empty" };
+  return new Promise((settle) => {
+    let child;
+    try {
+      child = spawn("python3", [script], {
+        cwd: ctx.cwd,
+        env: { ...process.env, CLAUDE_PROJECT_DIR: ctx.cwd },
+        signal: ctx.signal,
+        timeout: GATE_TIMEOUT_MS,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } catch (error) {
+      settle({ kind: "error", reason: `${script} could not start (${String(error)})` });
+      return;
+    }
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", (error) => {
+      settle({ kind: "error", reason: `${script} failed (${String(error)})` });
+    });
+    child.on("close", (code, signal) => {
+      if (signal) {
+        settle({ kind: "error", reason: `${script} was killed after ${GATE_TIMEOUT_MS}ms` });
+        return;
+      }
+      if (code !== 0) {
+        settle({
+          kind: "error",
+          reason: `${script} exited ${code}: ${stderr.trim().slice(-400) || "(no stderr)"}`,
+        });
+        return;
+      }
+      settle(parseDeliveryStdout(stdout));
+    });
+
+    child.stdin?.on("error", () => {});
+    try {
+      child.stdin?.end(JSON.stringify(payload));
+    } catch {
+      // same case, thrown synchronously
+    }
+  });
+}
+
 export default async function (pi: ExtensionAPI) {
   // Away mode lives here because pi has no API letting one extension answer another's dialog:
   // the confirm this adapter raises can only be pre-empted by this adapter.
@@ -298,6 +364,40 @@ export default async function (pi: ExtensionAPI) {
     );
     for (const notice of resolvePost(outcomes).notices) ctx.ui.notify(notice, "warning");
     return undefined; // advisory: the tool result is never modified
+  });
+
+  // Message-bus delivery (plan aib-user-db-message-bus §3 P6): the same Claude-shaped
+  // delivery script Claude and Copilot run, translated through the bridge's router.
+  // session_start has no injection seam in pi, so its mail is held by the router and
+  // returned through the first before_agent_start — the docs' message-object seam.
+  const deliveryCtx = (ctx: ExtensionContext) => ({
+    cwd: ctx.cwd,
+    sessionId: resolveSessionId(ctx, process.env),
+  });
+  const router = createDeliveryRouter((payload) => runDelivery(payload, { cwd: payload.cwd, signal: undefined }));
+
+  pi.on("session_start", async (_event, ctx) => {
+    const { notices } = await router.sessionStart(deliveryCtx(ctx));
+    for (const notice of notices) ctx.ui.notify(notice, "warning");
+    return undefined;
+  });
+
+  pi.on("before_agent_start", async (_event, ctx) => {
+    const { injection, notices } = await router.beforeAgentStart(deliveryCtx(ctx));
+    for (const notice of notices) ctx.ui.notify(notice, "warning");
+    return injection; // undefined = inject nothing this turn
+  });
+
+  pi.on("session_shutdown", async (_event, ctx) => {
+    const { notices } = await router.sessionShutdown(deliveryCtx(ctx));
+    for (const notice of notices) {
+      try {
+        ctx.ui.notify(notice, "warning");
+      } catch {
+        // the UI may already be tearing down; the cleanup itself has fired either way
+      }
+    }
+    return undefined;
   });
 
   if (!apiComplete) return;
