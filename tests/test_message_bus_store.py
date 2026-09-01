@@ -887,3 +887,57 @@ def test_env_gated_hold_blocks_until_the_release_file_exists(tmp_path, monkeypat
     assert done.wait(10), "the delivery never resumed after the release file appeared"
     if error:
         raise error[0]
+
+
+class TestFreshStampConcurrency:
+    """QA review M1: the fresh-DB stamp was check-then-act — two processes opening a
+    never-stamped user DB concurrently both read None, serialize on BEGIN IMMEDIATE,
+    and the loser's plain INSERT hit UNIQUE(meta.key) → IntegrityError out of the very
+    first open. Deterministic interleaving replay (the random-thread probe missed it)."""
+
+    def test_concurrent_first_opens_both_stamp_without_integrity_error(self, root):
+        import threading
+
+        db_path = root / "ai-badger.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        base = sqlite3.connect(db_path)  # v1 base DDL only, no stamp — a fresh DB mid-birth
+        base.execute("DROP TABLE IF EXISTS meta")  # the fixture may have opened it stamped
+        base.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        base.commit()
+
+        conn_a = sqlite3.connect(db_path, check_same_thread=False)
+        conn_b = sqlite3.connect(db_path, check_same_thread=False)
+        errors: list[Exception] = []
+        barrier = threading.Barrier(2, timeout=10)
+
+        def opener(conn: sqlite3.Connection) -> None:
+            try:
+                # Both readers see `None` BEFORE either stamps (the interleaving the
+                # race needs), then each runs the real stamping logic under its own
+                # BEGIN IMMEDIATE.
+                assert conn.execute(
+                    "SELECT value FROM meta WHERE key = 'schema_version'"
+                ).fetchone() is None
+                barrier.wait()
+                badger_store._ensure_schema_version(conn, db_path)
+                conn.commit()
+            except BaseException as exc:  # noqa: BLE001 - the test asserts on emptiness
+                errors.append(exc)
+
+        threads = [threading.Thread(target=opener, args=(c,)) for c in (conn_a, conn_b)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(30)
+        base.close()
+        conn_a.close()
+        conn_b.close()
+        assert errors == [], f"concurrent first opens must not fail: {errors!r}"
+        stamped = sqlite3.connect(db_path)
+        try:
+            row = stamped.execute(
+                "SELECT value FROM meta WHERE key = 'schema_version'"
+            ).fetchone()
+        finally:
+            stamped.close()
+        assert row == (str(badger_store.SCHEMA_VERSION),)

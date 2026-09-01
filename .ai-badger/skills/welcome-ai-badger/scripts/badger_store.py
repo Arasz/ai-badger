@@ -442,8 +442,13 @@ def _ensure_schema_version(conn: sqlite3.Connection, db_path: Path) -> None:
                 hook = UPGRADE_HOOKS.get(version)
                 if hook is not None:
                     hook(conn)
+            # INSERT OR REPLACE, not INSERT: two processes opening a never-stamped DB
+            # concurrently both read None, serialize on BEGIN IMMEDIATE, and the loser's
+            # plain INSERT would hit UNIQUE(meta.key) — IntegrityError out of the very
+            # first open on a fresh machine (QA review M1). Replacing the winner's
+            # identical stamp is the correct resolution.
             conn.execute(
-                "INSERT INTO meta(key, value) VALUES ('schema_version', ?)",
+                "INSERT OR REPLACE INTO meta(key, value) VALUES ('schema_version', ?)",
                 (str(SCHEMA_VERSION),),
             )
             conn.commit()

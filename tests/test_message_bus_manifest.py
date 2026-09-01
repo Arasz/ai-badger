@@ -227,8 +227,11 @@ def test_hooks_json_commands_reconcile_with_the_manifest_rows(load_script):
 
 
 def test_delivery_rows_are_unconditional_and_plugin_rooted():
-    """A claimed delivery step must execute, not be swallowed: no matcher on the entry (a
-    matcher like startup|resume would drop compact/clear starts), the path sits under the
+    """A claimed delivery step must execute, not be swallowed: the SessionStart entry
+    deliberately carries the harness-wide startup|resume matcher (the drift test's
+    contract for every SessionStart row) — compact/clear starts skip start delivery and
+    fall through to the per-turn live gate (the spec's Rule-4 sc.4), which is the designed
+    path, not a loss; the path sits under the
     ${CLAUDE_PLUGIN_ROOT}/features/common/skills/ prefix both rewriters rewrite, and the
     named file exists in-tree (a dangling command is a silent skip at scaffold time)."""
     for event in ("SessionStart", "UserPromptSubmit", "SessionEnd"):
