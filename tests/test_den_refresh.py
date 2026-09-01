@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from pathlib import Path
 
 from scaffold_helpers import _config
 from conftest import _test_write
@@ -1112,3 +1113,60 @@ def test_refresh_reports_an_empty_prose_list_when_the_config_has_no_prose(
     assert rc == 0
     assert report["reScaffolded"] is False
     assert report["drift"]["proseReview"] == []
+
+
+def test_refresh_preflight_reports_contained_families(tmp_path, load_script, root, capsys):
+    """den-refresh runs the store doctor's read-only scan over the project's tracking
+    root after check_prerequisites and reports contained families in its output (S4)."""
+    import time
+
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    fw = tmp_path / "fw"
+    fw.mkdir()
+    _test_write(fw / "VERSION", "0.3.0\n", encoding="utf-8")
+    (fw / "schemas").mkdir()
+    _test_write(fw / "schemas" / "config.schema.json",
+                (root / "schemas" / "config.schema.json").read_text(encoding="utf-8"),
+                encoding="utf-8")
+    (fw / "features" / "common" / "templates").mkdir(parents=True)
+    _test_write(fw / "features" / "common" / "templates" / "CLAUDE.md.tmpl",
+                "# {{PROJECT_NAME}}\n", encoding="utf-8")
+    src = _make_fw_file(fw, "features/common/invariants/tdd.md", "- TDD is mandatory.\n")
+    _write_fw_index(fw)
+
+    bl = load_script("engine/badger_lib.py")
+    entry_hash = bl.sha256_file(src)
+
+    proj = tmp_path / "proj"
+    _write_config(proj, frameworkVersion="0.3.0")
+    _write_manifest(proj, [{
+        "feature": "invariants", "stack": "common", "name": "tdd",
+        "source": "features/common/invariants/tdd.md",
+        "target": ".ai-badger/invariants/tdd.md",
+        "frameworkVersion": "0.3.0", "hash": entry_hash,
+    }])
+    (proj / ".ai-badger" / "invariants").mkdir(parents=True)
+    _test_write(proj / ".ai-badger" / "invariants" / "tdd.md", "- TDD is mandatory.\n",
+                encoding="utf-8")
+
+    # a resurrected marker_state in the project's own tracking root (the re-rooted
+    # registry the doctor --project scan uses):
+    store_mod = load_script("engine/badger_store.py")
+    db_path, families = store_mod.doctor_target(proj)
+    legacy = Path(families["marker_state"].legacy_path())
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    _test_write(legacy, json.dumps({"alpha": "legacy-alpha"}), encoding="utf-8")
+    store = store_mod._open(db_path, "tracking", families)  # pylint: disable=protected-access
+    try:
+        store.kv_set("marker_state", "gamma", "db-gamma")  # migrate + rename
+    finally:
+        store.close()
+    time.sleep(0.05)
+    _test_write(legacy, json.dumps({"alpha": "stale-surface-write"}), encoding="utf-8")
+
+    rc = refresh.main(["--target", str(proj), "--root", str(fw)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert [row["family"] for row in report["containedFamilies"]] == ["marker_state"]
+    assert report["containedFamilies"][0]["state"] == "resurrected"

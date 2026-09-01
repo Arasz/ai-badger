@@ -106,18 +106,11 @@ def _context(result) -> str:
     return (result or {}).get("context", "")
 
 
-def _make_bank(path, settings_rows):
-    """A bank-shaped SQLite file carrying just the columns the resolver selects."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
-    try:
-        conn.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-        conn.execute("CREATE TABLE watches (project_id TEXT NOT NULL, path TEXT NOT NULL, "
-                     "created_at INTEGER NOT NULL, last_change_ts INTEGER NOT NULL)")
-        conn.executemany("INSERT INTO settings VALUES (?, ?)", settings_rows)
-        conn.commit()
-    finally:
-        conn.close()
+def _make_project(directory, project_id: str):
+    """Scaffold the minimum bus identity: <dir>/.ai-badger/project-id (ADR-0025)."""
+    aib = directory / ".ai-badger"
+    aib.mkdir(parents=True, exist_ok=True)
+    (aib / "project-id").write_text(f"{project_id}\n", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -324,16 +317,14 @@ def test_project_delivery_uses_the_explicit_project_override(
     assert "not for me" not in context
 
 
-def test_project_delivery_resolves_the_process_cwd_through_the_registry(
+def test_project_delivery_resolves_the_process_cwd_through_the_project_id_walk(
         hooks, bus, tmp_path, monkeypatch):
     """Payloads carry no cwd, so the callback probes the process cwd and the store
     resolver decides — a second derivation (path hash, harness-side id) would select a
     different project and silently miss resolver-addressed messages."""
     project = tmp_path / "bus-repo"
     project.mkdir()
-    _make_bank(tmp_path / "bank" / "memory.db",
-               [("ingest.scope.proj-bus", json.dumps([str(project)]))])
-    monkeypatch.setenv("AI_BADGER_RACCOON_DB", str(tmp_path / "bank" / "memory.db"))
+    _make_project(project, "proj-bus")
     monkeypatch.chdir(project)
     _seed(bus, "cross-directory ping", target_project="proj-bus",
           sender="sess-far", project="proj-bus")
@@ -348,7 +339,6 @@ def test_unresolved_project_delivers_one_to_one_only(hooks, bus, tmp_path, monke
     nowhere = tmp_path / "nowhere"
     nowhere.mkdir()
     monkeypatch.chdir(nowhere)
-    monkeypatch.setenv("AI_BADGER_RACCOON_DB", str(tmp_path / "absent" / "memory.db"))
     _seed(bus, "direct ping", target_session=SESSION)
     _seed(bus, "project mail", target_project="proj-x")
 
@@ -359,16 +349,14 @@ def test_unresolved_project_delivers_one_to_one_only(hooks, bus, tmp_path, monke
     assert "project mail" not in context
 
 
-def test_ambiguous_project_delivers_one_to_one_only(hooks, bus, tmp_path, monkeypatch):
-    """Two registered scopes containing the cwd refuse — the wiring must catch that
-    refusal and keep delivering 1:1, never let ProjectIdAmbiguous reach the host loop."""
+def test_nested_projects_resolve_nearest_and_deliver_inner_only(hooks, bus, tmp_path, monkeypatch):
+    """Nested .ai-badger dirs resolve nearest-wins (ADR-0025) — a session in the inner
+    project receives the inner project's mail, never the outer's, plus its 1:1 leg."""
     outer = tmp_path / "outer"
     inner = outer / "inner"
     inner.mkdir(parents=True)
-    _make_bank(tmp_path / "bank" / "memory.db",
-               [("ingest.scope.proj-outer", json.dumps([str(outer)])),
-                ("ingest.scope.proj-inner", json.dumps([str(inner)]))])
-    monkeypatch.setenv("AI_BADGER_RACCOON_DB", str(tmp_path / "bank" / "memory.db"))
+    _make_project(outer, "proj-outer")
+    _make_project(inner, "proj-inner")
     monkeypatch.chdir(inner)
     _seed(bus, "direct ping", target_session=SESSION)
     _seed(bus, "outer mail", target_project="proj-outer")
@@ -379,7 +367,7 @@ def test_ambiguous_project_delivers_one_to_one_only(hooks, bus, tmp_path, monkey
 
     assert "direct ping" in context
     assert "outer mail" not in context
-    assert "inner mail" not in context
+    assert "inner mail" in context
 
 
 # ---------------------------------------------------------------------------

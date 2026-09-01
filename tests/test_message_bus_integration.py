@@ -58,7 +58,6 @@ SCHEMA_PATH = "schemas/message.schema.json"
 FEATURE_PATH = ".ai-badger/task-tracking/specs/aib-user-db-message-bus.feature"
 
 PROJECT_ID_ENV = "AI_BADGER_PROJECT_ID"
-RACCOON_BANK_ENV = "AI_BADGER_RACCOON_DB"
 USER_ROOT_ENV = "AI_BADGER_USER_ROOT"
 HOLD_ENV = "AI_BADGER_TEST_HOLD"
 PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
@@ -72,7 +71,7 @@ PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 @pytest.fixture(autouse=True)
 def _clean_bus_env(monkeypatch):
     """A developer shell must not poison the hook's inputs."""
-    for var in (PROJECT_ID_ENV, RACCOON_BANK_ENV, HOLD_ENV, PROJECT_DIR_ENV):
+    for var in (PROJECT_ID_ENV, HOLD_ENV, PROJECT_DIR_ENV):
         monkeypatch.delenv(var, raising=False)
 
 
@@ -94,21 +93,13 @@ def send_script(load_script):
     return load_script(SEND_PATH)
 
 
-def _register_bank(tmp_path, monkeypatch, surface: dict[str, list[str]]) -> Path:
-    """A synthetic raccoon bank (the P2 spike's pinned shape) at a redirected path."""
-    bank = tmp_path / "raccoon" / "memory.db"
-    bank.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(bank)
-    conn.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-    conn.execute("CREATE TABLE watches (project_id TEXT NOT NULL, path TEXT NOT NULL, "
-                 "created_at INTEGER NOT NULL, last_change_ts INTEGER NOT NULL)")
-    conn.executemany(
-        "INSERT INTO settings VALUES (?, ?)",
-        [(f"ingest.scope.{pid}", json.dumps(paths)) for pid, paths in surface.items()])
-    conn.commit()
-    conn.close()
-    monkeypatch.setenv(RACCOON_BANK_ENV, str(bank))
-    return bank
+def _make_project(repo_dir: Path, project_id: str = "bus-proj") -> Path:
+    """Scaffold the minimum bus identity into *repo_dir*: .ai-badger/project-id (ADR-0025).
+    The delivery walk reads it from the payload cwd — no registry, no env redirect."""
+    aib = repo_dir / ".ai-badger"
+    aib.mkdir(parents=True, exist_ok=True)
+    (aib / "project-id").write_text(f"{project_id}\n", encoding="utf-8")
+    return repo_dir
 
 
 def _fire(hook, monkeypatch, capsys, payload) -> dict:
@@ -136,7 +127,7 @@ def test_send_script_then_hook_roundtrip_delivers_two_harnesses_schema_clean(
     sender echoing. Mutation: render drops the sender field, or the delivery
     query loses sender exclusion — the sender's own hook injects."""
     repo = tmp_path / "repo"
-    _register_bank(tmp_path, monkeypatch, {"bus-proj": [str(repo)]})
+    _make_project(repo)
 
     # The P3 skill script (real vendored copy) sends two messages — Rule 1 at the
     # user-facing surface: explicit identity, project broadcast, rc 0.
@@ -188,12 +179,11 @@ def test_send_script_then_hook_roundtrip_delivers_two_harnesses_schema_clean(
 # ---------------------------------------------------------------------------
 
 
-def _child_env(user_root_path: Path, bank: Path, release: Path) -> dict:
+def _child_env(user_root_path: Path, release: Path) -> dict:
     """The P4 subprocess shape: only the redirect vars survive the parent shell."""
     env = {k: v for k, v in os.environ.items()
            if k not in (PROJECT_ID_ENV, HOLD_ENV, PROJECT_DIR_ENV)}
     env[USER_ROOT_ENV] = str(user_root_path)
-    env[RACCOON_BANK_ENV] = str(bank)
     env[HOLD_ENV] = f"deliver.after_read:{release}"
     return env
 
@@ -227,13 +217,13 @@ def test_two_hook_processes_race_one_unread_message_exactly_once(
     hoist the unread read before BEGIN IMMEDIATE — both children then read the
     message before either commits, and both inject it."""
     repo = tmp_path / "repo"
-    bank = _register_bank(tmp_path, monkeypatch, {"bus-proj": [str(repo)]})
+    bank = _make_project(repo)
     with contextlib.closing(badger_store.open_user()) as store:
         store.send_message(sender_session="S1", sender_project="bus-proj",
                            content="race me", target_project="bus-proj")
 
     release = tmp_path / "release-hold"
-    env = _child_env(user_root, bank, release)
+    env = _child_env(user_root, release)
     payload = json.dumps({"hook_event_name": "SessionStart", "session_id": "S2",
                           "cwd": str(repo)}).encode()
     children = []
@@ -484,16 +474,16 @@ SCENARIO_OWNERS = {
     # Rule 8 — Project identity comes from the cwd resolver only
     "Same project directory matches": [
         "tests/test_message_delivery_hook.py::test_subdirectory_cwd_resolves_to_the_project_via_the_resolver",
-        "tests/test_message_bus_hermes.py::test_project_delivery_resolves_the_process_cwd_through_the_registry",
+        "tests/test_message_bus_hermes.py::test_project_delivery_resolves_the_process_cwd_through_the_project_id_walk",
     ],
     "Different directories resolving to one project id match": [
         "tests/test_message_delivery_hook.py::test_subdirectory_cwd_resolves_to_the_project_via_the_resolver",
-        "tests/test_send_message_skill.py::test_sender_project_resolves_from_the_raccoon_registry",
-        "tests/test_message_bus_hermes.py::test_project_delivery_resolves_the_process_cwd_through_the_registry",
+        "tests/test_send_message_skill.py::test_sender_project_resolves_from_the_walked_project_id",
+        "tests/test_message_bus_hermes.py::test_project_delivery_resolves_the_process_cwd_through_the_project_id_walk",
     ],
     "A second derivation would miss messages (mutation)": [
         "tests/test_message_delivery_hook.py::test_subdirectory_cwd_resolves_to_the_project_via_the_resolver",
-        "tests/test_message_bus_hermes.py::test_project_delivery_resolves_the_process_cwd_through_the_registry",
+        "tests/test_message_bus_hermes.py::test_project_delivery_resolves_the_process_cwd_through_the_project_id_walk",
     ],
     # Rule 9 — Old stores fail closed against bus tables
     "An old store refuses the new schema": [

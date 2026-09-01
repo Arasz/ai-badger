@@ -142,8 +142,9 @@ def test_tasks_both_non_empty_db_row_wins(family_root):
         reopened.close()
 
 
-def test_tasks_resurrected_legacy_file_fails_closed(family_root):
-    """The legacy file recreated after its migration: reads and opens refuse (D5c)."""
+def test_tasks_resurrected_legacy_file_is_contained_per_family(family_root):
+    """The legacy file recreated after its migration: contained per family (M2) — the
+    store opens, the tasks family refuses on access, its stamp stays untouched."""
     tracking, families = family_root
     _seed(tracking / "executed-tasks.json", {"tasks": [dict(TASK_ENTRY)]})
     time.sleep(0.05)
@@ -154,8 +155,18 @@ def test_tasks_resurrected_legacy_file_fails_closed(family_root):
     time.sleep(0.05)
     _seed(tracking / "executed-tasks.json", {"tasks": [dict(TASK_ENTRY)]})  # stale surface
 
-    with pytest.raises(sqlite3.OperationalError):
-        _open(families).close()
+    store = _open(families)
+    try:
+        assert set(store.contained_families()) == {"tasks"}
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.tasks_all()
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.task_upsert({**TASK_ENTRY, "state": "FINISHED"})
+        # the transaction skips the contained table and never blesses the file:
+        store.migrate("tasks")
+        assert (tracking / "executed-tasks.json").exists()
+    finally:
+        store.close()
 
 
 def test_tasks_import_count_check_refuses_silent_drops(family_root):
@@ -319,8 +330,10 @@ def test_statusline_two_files_one_table(family_root):
         store.close()
 
 
-def test_statusline_resurrection_fails_closed(family_root):
-    """The delegate record recreated after its stamp: the store refuses to diverge (D5c)."""
+def test_statusline_resurrection_is_contained_per_family(family_root):
+    """The delegate record recreated after its stamp: contained PER FAMILY (M2) — the
+    store opens, the delegate family refuses on access, and the state sibling on the
+    shared statusline table keeps working."""
     tracking, families = family_root
     legacy = _seed(tracking / "statusline-delegate.json", {"command": "a.sh"})
     time.sleep(0.05)
@@ -331,9 +344,77 @@ def test_statusline_resurrection_fails_closed(family_root):
     time.sleep(0.05)
     _seed(tracking / "statusline-delegate.json", {"command": "b.sh"})
 
-    with pytest.raises(sqlite3.OperationalError):
-        _open(families).close()
-    assert legacy.exists()
+    store = _open(families)
+    try:
+        assert set(store.contained_families()) == {"statusline_delegate"}
+        assert legacy.exists()  # contained, never touched
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.kv_get("statusline", "delegate")
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.kv_set("statusline", "delegate", {"command": "c.sh"})
+    finally:
+        store.close()
+
+
+def test_contained_statusline_sibling_keeps_its_delegate_neighbour(family_root):
+    """Two families share table 'statusline' (tracker_lib's state + delegate pair):
+    containment is per FAMILY — the contained state family refuses on its row while
+    the delegate sibling still reads and writes its own row (review M2)."""
+    tracking, families = family_root
+    _seed(tracking / "statusline-state.json", {"sessionId": "sid-1"})
+    _seed(tracking / "statusline-delegate.json", {"command": "a.sh"})
+    time.sleep(0.05)
+
+    store = _open(families)
+    store.migrate("statusline")
+    store.kv_set("statusline", "delegate", {"command": "db.sh"})  # both rows in the DB
+    store.close()
+    time.sleep(0.05)
+    _seed(tracking / "statusline-state.json", {"sessionId": "sid-9"})  # state resurrects
+
+    store = _open(families)
+    try:
+        assert set(store.contained_families()) == {"statusline"}
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.kv_get("statusline", "state")
+        # the delegate neighbour: reads and writes its own row exactly as today
+        assert store.kv_get("statusline", "delegate") == {"command": "db.sh"}
+        store.kv_set("statusline", "delegate", {"command": "new.sh"})
+        assert store.kv_get("statusline", "delegate") == {"command": "new.sh"}
+    finally:
+        store.close()
+
+
+def test_contained_task_family_refuses_reads_but_allows_neighbour_upserts(tracker_lib):
+    """tasks/usage/sessions kinds: the contained family's reads raise, its writes refuse,
+    and a tracking_transaction skips ONLY the contained table — a neighbour family's
+    upsert through the real transaction still lands (M2, plan tier-2 tasks row)."""
+    tracking = tracker_lib.DATA_DIR
+    _seed(tracking / "executed-tasks.json", {"tasks": [dict(TASK_ENTRY)]})
+    time.sleep(0.05)
+    with tracker_lib.tracking_transaction() as store:
+        tracker_lib.save_tasks(store, {"tasks": [dict(TASK_ENTRY)]})
+    time.sleep(0.05)
+    _seed(tracking / "executed-tasks.json", {"tasks": [dict(TASK_ENTRY)]})  # resurrection
+
+    with tracker_lib.tracking_transaction() as store:
+        # the transaction entered: the migrate loop skipped the contained tasks table
+        assert set(store.contained_families()) == {"tasks"}
+        assert (tracking / "executed-tasks.json").exists()  # skipped, not imported
+        # refuse-on-read for the contained family (the task_family:411 pin, still up):
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.tasks_all()
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            tracker_lib.load_tasks(store)
+        # refuse-on-write for the contained table:
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.task_upsert({**TASK_ENTRY, "state": "FINISHED"})
+        # the neighbour family's upsert through the same transaction succeeds:
+        store.usage_upsert({**USAGE_ENTRY, "grade": 2})
+
+    doc = tracker_lib.load_usage()  # neighbour read-back through the accessor pair
+    assert doc["tasks"][0]["grade"] == 2
+    assert (tracking / "executed-tasks.json").exists()
 
 
 # ---------------------------------------------------------------------------

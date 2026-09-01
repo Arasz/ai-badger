@@ -344,8 +344,9 @@ def test_dual_read_prefers_db_row_when_both_sources_non_empty(tmp_path, monkeypa
     reopened.close()
 
 
-def test_resurrected_legacy_map_file_fails_closed(tmp_path, monkeypatch):
-    """Legacy map file recreated after the rename (stale surface): fail closed, never diverge (D5c)."""
+def test_resurrected_legacy_map_file_is_contained_on_tracking(tmp_path, monkeypatch):
+    """Legacy map file recreated after the rename (stale surface): contained per family —
+    the tracking store opens, marker_state refuses on access, its neighbours do not (M2)."""
     badger_root = _make_tracking_layout(tmp_path)
     legacy = _seed_marker_state(badger_root, {"alpha": "legacy-alpha"})
     _tracking_env(tmp_path, monkeypatch, badger_root)
@@ -357,8 +358,129 @@ def test_resurrected_legacy_map_file_fails_closed(tmp_path, monkeypatch):
 
     legacy.write_text(json.dumps({"alpha": "stale-surface-write"}))
 
-    with pytest.raises(sqlite3.OperationalError):
-        badger_store.open_tracking()
+    # open succeeds; the family is contained and only it:
+    store = badger_store.open_tracking()
+    try:
+        assert set(store.contained_families()) == {"marker_state"}
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.kv_get("marker_state", "gamma")
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.kv_set("marker_state", "next", "x")
+    finally:
+        store.close()
+
+    # neighbour observable: with the task families registered, tasks and the statusline
+    # pair are untouched — the containment is marker_state's, nobody else's.
+    families = {
+        "marker_state": badger_store.FAMILIES["marker_state"],
+        "tasks": badger_store.Family(
+            table="tasks", db="tracking", legacy_path=lambda: badger_root / "none-tasks.json",
+            legacy_kind="tasks"),
+        "statusline": badger_store.Family(
+            table="statusline", db="tracking",
+            legacy_path=lambda: badger_root / "none-state.json", legacy_kind="kvdoc",
+            row_key="state"),
+    }
+    store = badger_store.open_tracking(families=families)
+    try:
+        assert set(store.contained_families()) == {"marker_state"}
+        store.task_upsert({"taskId": "T01", "sessionId": "sid-1", "state": "STARTED",
+                           "resumeAttempts": []})
+        store.kv_set("statusline", "state", {"ok": True})
+        assert store.kv_get("statusline", "state") == {"ok": True}
+    finally:
+        store.close()
+
+
+# ---------------------------------------------------------------------------
+# 5b. M2: contained file-set families (open succeeds; the write path refuses)
+# ---------------------------------------------------------------------------
+
+
+def _user_env(tmp_path, monkeypatch) -> Path:
+    """A redirected user root — the session-store families' legacy paths hang off it."""
+    root = tmp_path / "user-root"
+    root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(root))
+    return root
+
+
+def _seed_file_set_legacy(kind: str, root: Path) -> Path:
+    """Seed the minimal legacy shape for one file-set kind under the user root."""
+    if kind == "kv_glob":
+        path = root / "dirty-sweep-abc123def4567890.json"
+        path.write_text(json.dumps({"dirty": True}), encoding="utf-8")
+        return path
+    if kind == "stem_denials":
+        path = root / "blast-radius-guard" / "01a04e01.ba748e8f973fc5f04f2b4ca5b9dbf308.denials"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("1", encoding="utf-8")
+        return path
+    if kind == "lanes":
+        path = root / "dispatch-lanes" / "01a04e01-18b7-7f42-88c6-19e68738589d"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("1750000000.0 toolu_01", encoding="utf-8")
+        return path
+    path = root / ("memory-first" if kind == "markers" else "semantica-nudge") \
+        / "01a04e01-18b7-7f42-88c6-19e68738589d"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"")
+    return path
+
+
+_FILE_SET_CASES = [
+    ("markers", "memory_first"),
+    ("nudges", "semantica_nudge"),
+    ("lanes", "dispatch_lanes"),
+    ("kv_glob", "dirty_sweeps"),
+    ("stem_denials", "blast_radius_denials"),
+]
+
+
+@pytest.mark.parametrize("kind,table", _FILE_SET_CASES)
+def test_contained_file_set_family_opens_and_refuses_writes(kind, table,
+                                                             tmp_path, monkeypatch):
+    """All five file-set kinds: open succeeds with the family contained; the migration
+    path refuses (a re-import would bless a file newer than its stamp); the kv_glob
+    legacy read refuses too; a neighbour file-set family is unaffected (M2/D5c)."""
+    monkeypatch.setattr(badger_store, "_DEFAULT_HOME", tmp_path)
+    root = _user_env(tmp_path, monkeypatch)
+    family = badger_store.USER_FAMILIES[table]
+    legacy = _seed_file_set_legacy(kind, root)
+
+    store = badger_store.open_user()
+    try:
+        store.migrate(table)  # the legitimate pre-resurrection import
+        rows_before = store.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        assert rows_before > 0
+    finally:
+        store.close()
+    assert not legacy.exists() or ".migrated" in legacy.name
+    time.sleep(0.05)
+    _seed_file_set_legacy(kind, root)  # resurrection
+
+    store = badger_store.open_user()
+    try:
+        assert set(store.contained_families()) == {table}
+        # the write path refuses — _migrate_file_set is where file-set writes land:
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store._migrate_file_set(family)  # pylint: disable=protected-access
+        if kind == "kv_glob":  # the one file-set kind with a legacy READ path
+            with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+                store.kv_all("dirty_sweeps")
+            with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+                store.kv_set("dirty_sweeps", "abc123def4567890", {"dirty": False})
+        # the refused migration imported nothing new:
+        rows = store.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        assert rows == rows_before
+
+        # neighbour observable: a different file-set family still migrates cleanly
+        neighbour_table, neighbour_seed = next(
+            (t, k) for k, t in _FILE_SET_CASES if t != table and k != "kv_glob")
+        _seed_file_set_legacy(neighbour_seed, root)
+        store.migrate(neighbour_table)
+    finally:
+        store.close()
 
 
 # ---------------------------------------------------------------------------

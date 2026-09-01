@@ -68,7 +68,6 @@ def _base_env(tmp_path: Path) -> dict:
     env[badger_store.USER_ROOT_ENV] = str(tmp_path / "user-root")
     env[badger_store.TRACKING_ROOT_ENV] = str(tmp_path / "tracking-root")
     env[badger_store.DEBUG_DIR_ENV] = str(tmp_path / "debug-dir")
-    env[badger_store.RACCOON_BANK_ENV] = str(tmp_path / "no-such-bank" / "memory.db")
     for signal in (badger_store.PROJECT_ID_ENV, "CLAUDE_CODE_SESSION_ID"):
         env.pop(signal, None)
     return env
@@ -104,20 +103,12 @@ def _seed_sessions(tmp_path: Path, sessions: dict) -> None:
             store.close()
 
 
-def _write_bank(tmp_path: Path, scopes: dict) -> Path:
-    """A synthetic ai-raccoon bank: settings keys carrying ingest-scope path arrays."""
-    bank = tmp_path / "raccoon" / "memory.db"
-    bank.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(bank)
-    try:
-        conn.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)")
-        for project_id, paths in scopes.items():
-            conn.execute("INSERT INTO settings (key, value) VALUES (?, ?)",
-                         (f"ingest.scope.{project_id}", json.dumps(paths)))
-        conn.commit()
-    finally:
-        conn.close()
-    return bank
+def _make_project(directory: Path, project_id: str) -> Path:
+    """Scaffold the minimum bus identity: <dir>/.ai-badger/project-id (ADR-0025)."""
+    aib = directory / ".ai-badger"
+    aib.mkdir(parents=True, exist_ok=True)
+    (aib / "project-id").write_text(f"{project_id}\n", encoding="utf-8")
+    return directory
 
 
 def _message_rows(tmp_path: Path) -> list[tuple]:
@@ -253,18 +244,18 @@ def test_missing_sender_project_is_refused_no_row_no_traceback(tmp_path):
 
 
 def test_ambiguous_project_is_refused_with_candidates(tmp_path):
-    """Two registered projects contain the cwd: the resolver's never-guess refusal
-    reaches the CLI surface — candidates named, non-zero exit, no row."""
+    """An .ai-badger directory without a project-id (pre-backfill legacy repo) refuses
+    the send: the resolver returns None, the CLI's missing-identity refusal fires —
+    non-zero exit, no row (ADR-0025: id-absent is fail-open at delivery, refused at
+    send — identity is mandatory)."""
     workdir = tmp_path / "shared"
-    workdir.mkdir()
-    bank = _write_bank(tmp_path, {"alpha": [str(tmp_path)], "beta": [str(tmp_path)]})
-    env = _bank_env(tmp_path, bank)
-    proc = _send_with_env(tmp_path, env, "--content", "which project?",
-                          "--sender-session", "sess-sender", cwd=workdir)
+    (workdir / ".ai-badger").mkdir(parents=True)
+    proc = _send(tmp_path, "--content", "which project?",
+                 "--sender-session", "sess-sender", cwd=workdir)
 
     assert proc.returncode != 0
     assert REFUSAL in proc.stderr
-    assert "alpha" in proc.stderr and "beta" in proc.stderr
+    assert "projectId" in proc.stderr
     assert "Traceback" not in proc.stderr
     assert _message_rows(tmp_path) == []
 
@@ -379,15 +370,14 @@ def test_explicit_project_env_override_resolves_without_a_registry(tmp_path):
     assert rows[0][3] == "proj-override"
 
 
-def test_sender_project_resolves_from_the_raccoon_registry(tmp_path):
-    """No override: the cwd resolver's registry read supplies the project half —
-    containment, not cwd equality, matches (the workdir sits under the scope)."""
+def test_sender_project_resolves_from_the_walked_project_id(tmp_path):
+    """No override: the cwd resolver's upward walk supplies the project half —
+    the nearest .ai-badger/project-id above the workdir (ADR-0025), not cwd equality."""
     workdir = tmp_path / "work" / "deep"
     workdir.mkdir(parents=True)
-    bank = _write_bank(tmp_path, {"proj-registry": [str(tmp_path / "work")]})
-    env = _bank_env(tmp_path, bank)
-    proc = _send_with_env(tmp_path, env, "--content", "resolved by registry",
-                          "--sender-session", "sess-sender", cwd=workdir)
+    _make_project(tmp_path / "work", "proj-registry")
+    proc = _send(tmp_path, "--content", "resolved by the walk",
+                 "--sender-session", "sess-sender", cwd=workdir)
 
     assert proc.returncode == 0, proc.stderr
     rows = _message_rows(tmp_path)

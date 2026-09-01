@@ -733,6 +733,28 @@ def session_info(row: dict) -> dict:
 FILE_SET_KINDS = frozenset({"markers", "nudges", "lanes", "kv_glob", "stem_denials"})
 
 
+def _file_set_paths(family: Family) -> list[Path]:
+    """A file-set family's not-yet-migrated legacy files, sorted for deterministic resume.
+
+    Directory kinds enumerate the legacy directory's files; the ``kv_glob`` kind expands
+    its pattern under the parent (the dirty-sweep files live at the user root, D4).
+    Migrated names ("<stem>.migrated<suffix>"), the lock file, and subdirectories never
+    re-import. Module-level so the doctor's read-only scan can enumerate without a store.
+    """
+    path = family.legacy_path()
+    if family.legacy_kind == "kv_glob":
+        candidates = path.parent.glob(path.name)
+    elif path.is_dir():
+        candidates = path.iterdir()
+    else:
+        return []
+    return sorted(
+        candidate for candidate in candidates
+        if candidate.is_file() and candidate.name != ".write.lock"
+        and ".migrated" not in candidate.name
+    )
+
+
 def _sweep_key(name: str) -> str:
     """A dirty-sweep filename's legacy hash verbatim: dirty-sweep-<hash>.json -> <hash> (D4)."""
     return name[len("dirty-sweep-"):-len(".json")]
@@ -809,6 +831,53 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         self.db_path = db_path
         self.kind = kind
         self.families = FAMILIES if families is None else families
+        # Per-family containment (M2): families whose legacy file resurrected, recorded at
+        # open by _check_resurrections — {family name: resurrected legacy path}. Keyed by
+        # FAMILY, not table: two families share table "statusline", and containing one
+        # must leave its delegate sibling working.
+        self._contained: dict[str, Path] = {}
+
+    def contained_families(self) -> dict[str, str]:
+        """The families recorded unavailable at open: {family name: resurrected path}.
+
+        The read-only view the doctor and callers report on; empty means every family is
+        live. A contained family refuses on access until repaired or re-named.
+        """
+        return {name: str(path) for name, path in self._contained.items()}
+
+    def _contained_error(self, name: str) -> sqlite3.OperationalError:
+        """The refusal for a contained family — the resurrection error, upgrade pointer
+        included: the condition surfaces on every access, never silently (D5c)."""
+        return sqlite3.OperationalError(
+            f"legacy {self._contained[name]} reappeared after its migration (a stale "
+            f"surface is writing behind the store); restore the *.migrated.json name, "
+            f"den-refresh the stale surface, or run badger_store.py doctor --repair — "
+            f"the store refuses to diverge")
+
+    def _refuse_contained_table(self, table: str) -> None:
+        """Refuse a whole-table access while any of its families is contained (D5c):
+        the merged view the table's accessors serve cannot be completed without the
+        contained family's file."""
+        for name, family in self.families.items():
+            if family.table == table and name in self._contained:
+                raise self._contained_error(name)
+
+    def _refuse_contained_kv(self, table: str, key: str) -> None:
+        """Refuse a keyed access when a contained family owns *key* (M2, per family):
+        a kvdoc family owns exactly its row_key, so its table siblings keep working; any
+        other kind's file could hold any key, so it refuses the whole table."""
+        for name, family in self.families.items():
+            if family.table != table or name not in self._contained:
+                continue
+            if family.legacy_kind != "kvdoc" or key == family.row_key:
+                raise self._contained_error(name)
+
+    def _family_name(self, family: Family) -> Optional[str]:
+        """The registry name a family object was registered under, if it still is."""
+        for name, candidate in self.families.items():
+            if candidate == family:
+                return name
+        return None
 
     def close(self) -> None:
         """Close the connection; sidecars disappear with the last open WAL connection."""
@@ -818,8 +887,12 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
     # -- reads (fail open, D31) --------------------------------------------------------
 
     def kv_get(self, table: str, key: str, default: Any = None) -> Any:
-        """The value for *key*: the DB row when present, else the legacy row, else *default*."""
+        """The value for *key*: the DB row when present, else the legacy row, else *default*.
+
+        A contained family owning *key* refuses before anything is served (D5c).
+        """
         _check_table_name(table)
+        self._refuse_contained_kv(table, key)
         try:
             row = self.conn.execute(
                 f"SELECT value FROM {table} WHERE key = ?", (key,)
@@ -832,8 +905,13 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         return legacy.get(key, default)
 
     def kv_all(self, table: str) -> dict:
-        """Every key of *table*: DB rows merged with legacy-only rows (per-key LWW, D5a)."""
+        """Every key of *table*: DB rows merged with legacy-only rows (per-key LWW, D5a).
+
+        Refuses while any family of the table is contained — a merged view cannot be
+        completed without the contained family's file (D5c).
+        """
         _check_table_name(table)
+        self._refuse_contained_table(table)
         try:
             rows = {
                 key: self._decode(value, None)
@@ -870,14 +948,20 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
     def _families_for_table(self, table: str) -> list:
         return [family for family in self.families.values() if family.table == table]
 
+    def _named_families_for_table(self, table: str) -> list:
+        """(registry name, family) pairs for *table* — the name keys containment state."""
+        return [(name, family) for name, family in self.families.items()
+                if family.table == table]
+
     def _raise_on_resurrection(self, path: Path, table: str) -> None:
         """A legacy file newer than its migration stamp fails closed: never diverge (D5c)."""
         stamp = self._migration_stamp(table)
         if stamp is not None and path.stat().st_mtime > stamp:
             raise sqlite3.OperationalError(
                 f"legacy {path} reappeared after its migration (a stale surface is writing "
-                f"behind the store); restore the *.migrated.json name or den-refresh the stale "
-                f"surface — the store refuses to diverge"
+                f"behind the store); restore the *.migrated.json name, den-refresh the "
+                f"stale surface, or run badger_store.py doctor --repair — the store "
+                f"refuses to diverge"
             )
 
     def _legacy_rows(self, table: str) -> dict:
@@ -885,6 +969,9 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         merged: dict = {}
         for family in self._families_for_table(table):
             if family.legacy_kind == "kv_glob":
+                if self._family_name(family) in self._contained:
+                    # contained kv_glob: the legacy read refuses, it never merges (M2)
+                    raise self._contained_error(self._family_name(family))
                 self._raise_on_family_resurrection(family)
                 for path in self._file_set_files(family):
                     try:
@@ -898,6 +985,8 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
             path = family.legacy_path()
             if not path.exists():
                 continue
+            if self._family_name(family) in self._contained:
+                continue  # contained: skipped here, its accessors refuse on access (M2)
             self._raise_on_resurrection(path, family.table)
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
@@ -914,28 +1003,34 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         return merged
 
     def _check_resurrections(self) -> None:
-        """Open-time gate (D5c): a legacy file newer than its migration stamp fails closed."""
-        for family in self.families.values():
+        """Open-time gate (D5c), recorded per family (M2): a legacy file newer than its
+        migration stamp CONTAINS that family instead of aborting the store — the store
+        opens, contained_families() names them, and every accessor of a contained family
+        refuses with the resurrection error until it is repaired."""
+        for name, family in self.families.items():
             if family.db != self.kind:
                 continue
             if family.legacy_path is None:
                 continue  # born in SQLite: no legacy source to resurrect (D2)
             if family.legacy_kind in FILE_SET_KINDS:
-                self._raise_on_family_resurrection(family)
+                stamp = self._migration_stamp(family.table)
+                if stamp is None:
+                    continue
+                for path in self._file_set_files(family):
+                    if path.stat().st_mtime > stamp:
+                        self._contained[name] = path
+                        break
                 continue
             path = family.legacy_path()
             if not path.exists():
                 continue
-            self._raise_on_resurrection(path, family.table)
+            stamp = self._migration_stamp(family.table)
+            if stamp is not None and path.stat().st_mtime > stamp:
+                self._contained[name] = path
 
     def _file_set_files(self, family: Family) -> list[Path]:
-        """A file-set family's not-yet-migrated legacy files, sorted for deterministic resume.
-
-        Directory kinds enumerate the legacy directory's files; the ``kv_glob`` kind expands
-        its pattern under the parent (the dirty-sweep files live at the user root, D4).
-        Migrated names ("<stem>.migrated<suffix>"), the lock file, and subdirectories never
-        re-import.
-        """
+        """A file-set family's not-yet-migrated legacy files, sorted for deterministic resume."""
+        return _file_set_paths(family)
         path = family.legacy_path()
         if family.legacy_kind == "kv_glob":
             candidates = path.parent.glob(path.name)
@@ -958,8 +1053,8 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
             if path.stat().st_mtime > stamp:
                 raise sqlite3.OperationalError(
                     f"legacy {path} reappeared after its migration (a stale surface is writing "
-                    f"behind the store); den-refresh the stale surface — the store refuses "
-                    f"to diverge"
+                    f"behind the store); den-refresh the stale surface or run "
+                    f"badger_store.py doctor --repair — the store refuses to diverge"
                 )
 
     # -- task-family rows (caller-managed transactions; see tracking_transaction there) ---
@@ -993,8 +1088,13 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
             if isinstance(entries, list) else []
 
     def tasks_all(self) -> list:
-        """Every task entry: DB rows merged with legacy-only entries, DB wins per key (D5a)."""
+        """Every task entry: DB rows merged with legacy-only entries, DB wins per key (D5a).
+
+        Refuses while the tasks family is contained (D5c) — the legacy side of the merge
+        cannot be proven absent.
+        """
         _check_table_name("tasks")
+        self._refuse_contained_table("tasks")
         try:
             merged = {task_id: task_entry(row)
                       for task_id, row in self._row_map("tasks", "task_id").items()}
@@ -1013,8 +1113,12 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         return value if isinstance(value, dict) else {}
 
     def usage_all(self) -> list:
-        """Every token-usage entry: DB rows merged with legacy-only entries (D5a)."""
+        """Every token-usage entry: DB rows merged with legacy-only entries (D5a).
+
+        Refuses while the token_usage family is contained, like tasks_all (D5c).
+        """
         _check_table_name("token_usage")
+        self._refuse_contained_table("token_usage")
         try:
             merged = {task_id: usage_entry(row)
                       for task_id, row in self._row_map("token_usage", "task_id").items()}
@@ -1028,8 +1132,12 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         return list(merged.values())
 
     def sessions_map(self) -> dict:
-        """Every known session as {sessionId: info}: DB rows merged with legacy rows (D5a)."""
+        """Every known session as {sessionId: info}: DB rows merged with legacy rows (D5a).
+
+        Refuses while the sessions family is contained, like tasks_all (D5c).
+        """
         _check_table_name("sessions")
+        self._refuse_contained_table("sessions")
         try:
             merged = {session_id: session_info(row)
                       for session_id, row in self._row_map("sessions", "session_id").items()}
@@ -1057,7 +1165,10 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
 
         Never INSERT OR REPLACE: against tasks it silently deletes the session's other ACTIVE
         row (P0.6a MUST-2, scratch-verified), bypassing the exit-2 attach contract.
+        Refuses while the tasks family is contained — a write behind a resurrected file
+        would deepen the divergence the containment exists to surface (D5c).
         """
+        self._refuse_contained_table("tasks")
         values = task_row_values(entry)
         task_id = values["task_id"]
         if not task_id:
@@ -1080,7 +1191,11 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
             )
 
     def usage_upsert(self, entry: dict) -> None:
-        """Insert or explicitly UPDATE one token_usage row keyed on its primary key."""
+        """Insert or explicitly UPDATE one token_usage row keyed on its primary key.
+
+        Refuses while the token_usage family is contained, like task_upsert (D5c).
+        """
+        self._refuse_contained_table("token_usage")
         values = usage_row_values(entry)
         if not values["task_id"]:
             raise ValueError("usage entry without taskId")
@@ -1102,7 +1217,11 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
             )
 
     def session_upsert(self, session_id: str, info: dict) -> None:
-        """Insert or explicitly UPDATE one sessions row keyed on the session id."""
+        """Insert or explicitly UPDATE one sessions row keyed on the session id.
+
+        Refuses while the sessions family is contained, like task_upsert (D5c).
+        """
+        self._refuse_contained_table("sessions")
         values = session_row_values(session_id, info)
         columns = list(values)
         assignments = ", ".join(f"{column} = ?" for column in columns)
@@ -1205,8 +1324,12 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
     # -- writes (may raise) ------------------------------------------------------------
 
     def kv_set(self, table: str, key: str, value: Any) -> None:
-        """Write *value* under *key*; the first write lazy-migrates the family (D6)."""
+        """Write *value* under *key*; the first write lazy-migrates the family (D6).
+
+        A contained family owning *key* refuses before anything is written (D5c).
+        """
         _check_table_name(table)
+        self._refuse_contained_kv(table, key)
         self.migrate(table)
         self.conn.execute("BEGIN IMMEDIATE")
         try:
@@ -1224,6 +1347,7 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
     def kv_delete(self, table: str, key: str) -> None:
         """Drop one KV row; the first write lazy-migrates the family (D6), like kv_set."""
         _check_table_name(table)
+        self._refuse_contained_kv(table, key)
         self.migrate(table)
         self.conn.execute("BEGIN IMMEDIATE")
         try:
@@ -1240,9 +1364,11 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
 
         The SELECT and the write share one BEGIN IMMEDIATE, so concurrent updaters of the
         same row serialize on the write lock instead of racing a read-then-write gap —
-        the shape pop-style stash consumers need. Returns fn's result.
+        the shape pop-style stash consumers need. Returns fn's result. A contained family
+        owning *key* refuses before anything is written (D5c).
         """
         _check_table_name(table)
+        self._refuse_contained_kv(table, key)
         self.migrate(table)
         self.conn.execute("BEGIN IMMEDIATE")
         try:
@@ -1295,8 +1421,13 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
             return []
 
     def log_append(self, table: str, ts: str, payload: dict) -> None:
-        """Append one log row (ts, payload JSON); the first write lazy-migrates the family (D6)."""
+        """Append one log row (ts, payload JSON); the first write lazy-migrates the family (D6).
+
+        Refuses while any family of the table is contained: the append would silently
+        deepen the divergence the resurrected file carries (D5c, reviewer M1).
+        """
         _check_table_name(table)
+        self._refuse_contained_table(table)
         self.migrate(table)
         self.conn.execute("BEGIN IMMEDIATE")
         try:
@@ -1318,20 +1449,32 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         and a legacy file whose mtime postdates the migration stamp fails closed (D5c) instead
         of diverging. Row-kind families carry a post-import count check because INSERT OR
         IGNORE silently drops rows violating NOT NULL/CHECK (P0.6a finding 3).
+        Contained families are SKIPPED, not imported: their file is quarantined by
+        containment and the refusing accessors surface it, so a transaction's other
+        tables proceed (M2) — a direct write accessor to the contained table still
+        refuses before reaching here.
         """
-        for family in self._families_for_table(table):
+        for name, family in self._named_families_for_table(table):
+            if name in self._contained:
+                continue
             self._migrate_family(family)
 
-    def _migrate_family(self, family: Family) -> None:
+    def _migrate_family(self, family: Family, force: bool = False) -> None:
+        """Import one family's legacy doc; *force* (doctor repair) re-imports despite
+        containment and a newer mtime — the import itself stays idempotent."""
         if family.legacy_kind in ("deferred", "store"):
             return  # deferred: wiring lands with the writer lane; store: born in SQLite (D2)
         if family.legacy_kind in FILE_SET_KINDS:
-            self._migrate_file_set(family)
+            self._migrate_file_set(family, force=force)
             return
+        name = self._family_name(family)
+        if not force and name is not None and name in self._contained:
+            raise self._contained_error(name)  # defence in depth: migrate skips these
         path = family.legacy_path()
         if not path.exists():
             return
-        self._raise_on_resurrection(path, family.table)
+        if not force:
+            self._raise_on_resurrection(path, family.table)
         with _legacy_lock(path.parent / ".write.lock"):
             if not path.exists():  # re-check under the lock: another writer migrated it
                 return
@@ -1547,7 +1690,7 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
 
     # -- file-set families (P2.0b, D10): one transaction for the set, rename per file -------
 
-    def _migrate_file_set(self, family: Family) -> None:
+    def _migrate_file_set(self, family: Family, force: bool = False) -> None:
         """Import a multi-file family: COMMIT once for the whole set, then rename per file.
 
         Resumable (D6/D10): a crash between COMMIT and the renames leaves rows imported and
@@ -1555,13 +1698,19 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         key adds nothing. Renames follow the pinned per-file convention —
         "<stem>.migrated<suffix>" in place — and the legacy DIRECTORY itself is never renamed
         or removed (D5): a stale surface may keep writing new files there, and after the
-        import no original filename remains, so nothing can resurrect.
+        import no original filename remains, so nothing can resurrect. Contained families
+        refuse (a re-import would bless files newer than their stamp) unless *force* —
+        the doctor repair's explicit idempotent re-import.
         """
+        name = self._family_name(family)
+        if not force and name is not None and name in self._contained:
+            raise self._contained_error(name)
         with _legacy_lock(family.legacy_path().parent / ".write.lock"):
             files = self._file_set_files(family)  # re-checked under the lock
             if not files:
                 return
-            self._raise_on_family_resurrection(family)
+            if not force:
+                self._raise_on_family_resurrection(family)
             self.conn.execute("BEGIN IMMEDIATE")
             try:
                 expected = self._import_file_set(family, files)
@@ -1841,114 +1990,82 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
 #: consulted. Blank reads as unset, mirroring the contract's IsNullOrWhiteSpace.
 PROJECT_ID_ENV = "AI_BADGER_PROJECT_ID"
 
-#: The ai-raccoon memory bank this resolver reads read-only — the P2 step-0 spike pinned
-#: it: user-scope installs keep the bank at ``~/.ai-raccoon/memory.db`` (its ``settings``
-#: table carries ``ingest.scope.<id>`` keys, its ``watches`` table the watch paths).
-#: Env override for non-standard installs, resolved at call time like every other root
-#: in this module.
-RACCOON_BANK_ENV = "AI_BADGER_RACCOON_DB"
-_DEFAULT_RACCOON_BANK = "~/.ai-raccoon/memory.db"
-_SCOPE_KEY_PREFIX = "ingest.scope."
 
+def _nearest_project_id_file(cwd: Optional[str]) -> Optional[Path]:
+    """The nearest parent ``.ai-badger/project-id`` file above *cwd*, if any.
 
-class ProjectIdAmbiguous(Exception):
-    """The resolver's refusal outcome: several registered projects contain the cwd.
-
-    Carries the sorted candidate ids on ``candidates``; the caller owns the error text
-    and must refuse rather than guess (D7).
+    The nearest ``.ai-badger`` directory wins and stops the walk: a project with a
+    parent scaffold but no local project-id is treated as id-absent, not as a parent
+    fallback. Blank values and missing directories are treated as unset.
     """
+    if cwd is None or not str(cwd).strip():
+        return None
+    start = Path(_real_path(cwd))
+    if start.is_file():
+        start = start.parent
+    for ancestor in (start, *start.parents):
+        aib_dir = ancestor / ".ai-badger"
+        if not aib_dir.exists():
+            continue
+        if not aib_dir.is_dir():
+            continue
+        project_id_file = aib_dir / "project-id"
+        if project_id_file.is_file():
+            return project_id_file
+        return None
+    return None
 
-    def __init__(self, candidates: list[str]):
-        super().__init__(", ".join(candidates))
-        self.candidates = candidates
+
+def _read_project_id_file(cwd: Optional[str]) -> Optional[str]:
+    """The .ai-badger-scoped project id above *cwd*, or ``None`` when unset."""
+    project_id_file = _nearest_project_id_file(cwd)
+    if project_id_file is None:
+        return None
+    try:
+        value = project_id_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return value or None
 
 
 def _real_path(path: str) -> str:
-    """The path as containment compares it: absolute, symlink-resolved, trimmed — the
-    raccoon's IsWithinScope path identity in stdlib terms. Tails that do not exist keep
-    their literal spelling, so a not-yet-created directory still resolves."""
+    """The path as the walk compares it: absolute, symlink-resolved, trimmed. Tails that
+    do not exist keep their literal spelling, so a not-yet-created directory resolves."""
     return os.path.realpath(os.path.abspath(path))
 
 
-def _path_contains(scope_entry: str, probe: str) -> bool:
-    """True when *probe* equals *scope_entry* or lies under it — the equal-or-ancestor
-    containment the resolver shares with the raccoon (a sibling whose name merely
-    extends the entry's spelling is NOT inside it)."""
-    prefix = scope_entry if scope_entry.endswith(os.sep) else scope_entry + os.sep
-    return probe == scope_entry or probe.startswith(prefix)
-
-
-def raccoon_registry_surface() -> dict[str, list[str]]:
-    """The default registry source: the raccoon bank, read read-only (D4/D7).
-
-    Registration is evidenced by the directory surfaces themselves — a project's
-    ingest-scope key (the authoritative mapping the raccoon's ingest tools enforce) or
-    its watch rows (the fallback) — so the id space is their union. The ``global`` scope
-    key is the raccoon's own fallback entry, not a project, and would make every cwd
-    under it ambiguous. A bank that is absent, unreadable or half-readable yields what
-    it yielded: the resolver refuses and the caller formats the refusal (D7).
-    """
-    bank = Path(os.environ.get(RACCOON_BANK_ENV) or _DEFAULT_RACCOON_BANK).expanduser().resolve()
-    surface: dict[str, list[str]] = {}
-    if not bank.exists():
-        return surface
-    try:
-        conn = sqlite3.connect(f"{bank.as_uri()}?mode=ro", uri=True)
-    except sqlite3.Error:
-        return surface
-    try:
-        for key, value in conn.execute(
-                f"SELECT key, value FROM settings WHERE key LIKE '{_SCOPE_KEY_PREFIX}%'"):
-            project_id = key[len(_SCOPE_KEY_PREFIX):]
-            if project_id == "global" or not project_id or not isinstance(value, str):
-                continue
-            try:
-                paths = json.loads(value)
-            except ValueError:
-                continue
-            if isinstance(paths, list) and paths:
-                surface.setdefault(project_id, []).extend(
-                    p for p in paths if isinstance(p, str) and p.strip())
-        for project_id, path in conn.execute("SELECT project_id, path FROM watches"):
-            if isinstance(project_id, str) and isinstance(path, str) and path.strip():
-                surface.setdefault(project_id, []).append(path)
-    except sqlite3.Error:
-        pass  # a half-readable bank yields the rows it managed to serve (D7)
-    finally:
-        with contextlib.suppress(sqlite3.Error):
-            conn.close()
-    return surface
-
-
-def resolve_project_id(cwd: Optional[str],
-                       registry: Optional[Callable[[], dict]] = None) -> Optional[str]:
-    """Resolve a working directory to its registered project id (R8; D4).
+def resolve_project_id(cwd: Optional[str]) -> Optional[str]:
+    """Resolve a working directory to the current project's id (R8; D4; ADR-0025).
 
     The explicit override (``AI_BADGER_PROJECT_ID``) wins unconditionally — when set and
     non-blank it is returned before anything else is read, at send and delivery alike.
-    Otherwise the probe is the cwd, the candidate surface is each registered project's
-    ingest-scope paths plus its watch paths, containment is equal-or-ancestor with both
-    sides canonicalized once, exactly one match returns the id, several raise
-    :class:`ProjectIdAmbiguous` (never guess), and none returns None — the caller owns
-    the refusal text (D7).
+    Otherwise the nearest ancestor ``.ai-badger/project-id`` file wins (minted at
+    scaffold time, backfilled by den-refresh): a cwd with no ``.ai-badger`` in its
+    ancestry — or one whose id file is absent or blank — resolves to None, and the
+    caller owns the fail-open (D7/D8). There is no ambiguity to refuse: a single
+    upward walk has one nearest directory, never a guess.
     """
     override = os.environ.get(PROJECT_ID_ENV)
     if override and override.strip():
-        return override
-    if not cwd:
-        return None
-    probe = _real_path(cwd)
-    surface = (registry or raccoon_registry_surface)()
-    matches = sorted(
-        project_id for project_id, paths in surface.items()
-        if any(_path_contains(_real_path(p), probe)
-               for p in paths if isinstance(p, str) and p.strip())
-    )
-    if not matches:
-        return None
-    if len(matches) > 1:
-        raise ProjectIdAmbiguous(matches)
-    return matches[0]
+        return override.strip()
+    return _read_project_id_file(cwd)
+
+
+def resolve_project_id(cwd: Optional[str]) -> Optional[str]:
+    """Resolve a working directory to the current project's id (R8; D4; ADR-0025).
+
+    The explicit override (``AI_BADGER_PROJECT_ID``) wins unconditionally — when set and
+    non-blank it is returned before anything else is read, at send and delivery alike.
+    Otherwise the nearest ancestor ``.ai-badger/project-id`` file wins (minted at
+    scaffold time, backfilled by den-refresh): a cwd with no ``.ai-badger`` in its
+    ancestry — or one whose id file is absent or blank — resolves to None, and the
+    caller owns the fail-open (D7/D8). There is no ambiguity to refuse: a single
+    upward walk has one nearest directory, never a guess.
+    """
+    override = os.environ.get(PROJECT_ID_ENV)
+    if override and override.strip():
+        return override.strip()
+    return _read_project_id_file(cwd)
 
 
 def _parseable_ts(ts) -> bool:
@@ -2093,19 +2210,233 @@ def prune_status_lines() -> list[str]:
     return lines
 
 
+# -- CLI: `doctor`, the per-family containment surface (M2) ---------------------------
+
+#: Kinds whose resurrected file may be NEWER than the DB: repair never merges them
+#: (INSERT OR IGNORE would silently drop the newer legacy values — research-b); they are
+#: reported with guidance instead, and the owner reconciles by hand.
+DOCTOR_INSPECT_ONLY_KINDS = frozenset({"map", "kvdoc", "awm"})
+
+
+def doctor_target(project: Optional[Path] = None) -> tuple[Path, dict]:
+    """The DB path and family registry a doctor run reports on: a project root's tracking
+    store with the FAMILIES registry when *project* is given, else the machine user root
+    with USER_FAMILIES. (The task families belong to tracker_lib's own open gate.)
+
+    The project's families are the FAMILIES registry re-rooted onto the project's own
+    ``.ai-badger``: the legacy layout is root-relative, so each family's path relative to
+    the current .ai-badger root is replayed under the project's root.
+    """
+    if project is not None:
+        base = tracking_db_path().parent.parent  # the .ai-badger root the registry used
+        rebased: dict = {}
+        for name, family in FAMILIES.items():
+            if family.legacy_path is None:
+                rebased[name] = family
+                continue
+            try:
+                rel = family.legacy_path().relative_to(base)
+            except ValueError:
+                rebased[name] = family  # not a root-relative layout: report it verbatim
+                continue
+            rebased[name] = Family(
+                table=family.table, db=family.db,
+                legacy_path=lambda rel=rel, root=project / ".ai-badger": root / rel,
+                legacy_kind=family.legacy_kind, row_key=family.row_key,
+                ts_field=family.ts_field)
+        return project / ".ai-badger" / "task-tracking" / "tracking.db", rebased
+    return user_db_path(), USER_FAMILIES
+
+
+def _doctor_content_diff(conn: Optional[sqlite3.Connection], family: Family,
+                         path: Path) -> dict:
+    """A doc-kind family's file-vs-DB content diff, {} values when it cannot be computed.
+
+    The incident shape (reviewer S3): a newer file beside DB rows it predates or diverges
+    from — the report names what the file would add, change and remove, read-only.
+    """
+    if conn is None or family.legacy_kind not in ("map", "kvdoc", "awm"):
+        return {"diff": None}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"diff": None}
+    if not isinstance(data, dict):
+        return {"diff": None}
+    if family.legacy_kind == "kvdoc":
+        file_map = {family.row_key: data}
+    elif family.legacy_kind == "awm":
+        file_map = _awm_projects(data)
+    else:
+        file_map = data
+    try:
+        db_map = {key: json.loads(value) for key, value in conn.execute(
+            f"SELECT key, value FROM {family.table}")}
+    except (sqlite3.Error, ValueError):
+        return {"diff": None}
+    return {"diff": {
+        "added": sorted(set(file_map) - set(db_map)),
+        "removed": sorted(set(db_map) - set(file_map)),
+        "changed": sorted(key for key in set(file_map) & set(db_map)
+                          if file_map[key] != db_map[key]),
+    }}
+
+
+def doctor_scan(db_path: Path, families: dict) -> list[dict]:
+    """One read-only row per family with a legacy source: presence, stamp, mtime, state.
+
+    Never creates, migrates or writes: the DB opens mode=ro when present, an absent DB is
+    reported (state per family from the filesystem alone), nothing is provisioned.
+    States: no-file, pre-migration (dual-read window), resurrected (contained),
+    restored-legacy (inert until the next write re-imports it), migrated (normal).
+    """
+    conn = None
+    if db_path.exists():
+        try:
+            conn = sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True)
+        except sqlite3.Error:
+            conn = None
+    rows: list[dict] = []
+    for name, family in families.items():
+        if family.legacy_path is None or family.legacy_kind == "store":
+            continue
+        path = family.legacy_path()
+        stamp = None
+        if conn is not None:
+            try:
+                row = conn.execute("SELECT value FROM meta WHERE key = ?",
+                                   (_stamp_key(family.table),)).fetchone()
+                stamp = float(row[0]) if row is not None else None
+            except (sqlite3.Error, TypeError, ValueError):
+                stamp = None
+        if family.legacy_kind in FILE_SET_KINDS:
+            files = _file_set_paths(family)
+            exists = bool(files)
+            mtime = max((p.stat().st_mtime for p in files), default=None)
+        else:
+            exists = path.exists()
+            mtime = path.stat().st_mtime if exists else None
+        if not exists:
+            state = "migrated" if stamp is not None else "no-file"
+        elif stamp is None:
+            state = "pre-migration"
+        elif mtime is not None and mtime > stamp:
+            state = "resurrected"
+        else:
+            state = "restored-legacy"
+        row = {"family": name, "table": family.table, "kind": family.legacy_kind,
+               "path": str(path), "file": exists, "stamp": stamp, "mtime": mtime,
+               "state": state}
+        if exists and family.legacy_kind not in FILE_SET_KINDS:
+            row.update(_doctor_content_diff(conn, family, path))
+        else:
+            row["diff"] = None
+        rows.append(row)
+    if conn is not None:
+        with contextlib.suppress(sqlite3.Error):
+            conn.close()
+    return rows
+
+
+def _doctor_stamp_or_dash(stamp: Optional[float]) -> str:
+    """A migration stamp as a UTC timestamp, or '-' when absent."""
+    return datetime.fromtimestamp(stamp, timezone.utc).isoformat() if stamp else "-"
+
+
+def doctor_status_lines(project: Optional[Path] = None) -> list[str]:
+    """`doctor --status`: the read-only containment report, the prune --status pattern.
+
+    Names every family with a legacy source — state, stamp, file mtime, and for the doc
+    kinds a content diff against the DB rows (newer file vs stale rows, reviewer S3).
+    """
+    db_path, families = doctor_target(project)
+    lines = [f"db={db_path}" + ("" if db_path.exists() else " status=no-database")]
+    for row in doctor_scan(db_path, families):
+        line = (f"  family={row['family']} table={row['table']} kind={row['kind']} "
+                f"state={row['state']} stamp={_doctor_stamp_or_dash(row['stamp'])} "
+                f"mtime={_doctor_stamp_or_dash(row['mtime'])}")
+        diff = row.get("diff")
+        if diff:
+            line += (f" diff=+{diff['added']} ~{diff['changed']} -{diff['removed']}")
+        lines.append(line)
+    return lines
+
+
+def doctor_repair_lines(project: Optional[Path] = None) -> list[str]:
+    """`doctor --repair`: re-import additive kinds idempotently (then rename), inspect
+    only for map/kvdoc/awm.
+
+    Additive kinds dedupe on natural keys / exact content, so re-importing a newer file
+    loses nothing and the rename re-quarantines it. The doc kinds may hold values NEWER
+    than the DB; merging them is an owner decision, so repair prints guidance and leaves
+    them byte-identical (research-b: OR IGNORE would silently drop the newer values).
+    """
+    db_path, families = doctor_target(project)
+    kind = next(iter(families.values())).db
+    lines = [f"db={db_path}"]
+    resurrected = [row for row in doctor_scan(db_path, families)
+                   if row["state"] == "resurrected"]
+    if not resurrected:
+        lines.append("  state=clean — nothing to repair")
+        return lines
+    store = _open(db_path, kind, families)
+    try:
+        for row in resurrected:
+            name = row["family"]
+            family = families[name]
+            if family.legacy_kind in DOCTOR_INSPECT_ONLY_KINDS:
+                lines.append(
+                    f"  family={name} kind={family.legacy_kind} state=resurrected "
+                    f"inspect-only: the file may be newer than the DB — compare the "
+                    f"doctor --status diff and reconcile by hand, then restore the "
+                    f"*.migrated.json name; the store never merges it for you")
+                continue
+            if family.legacy_kind in FILE_SET_KINDS:
+                store._migrate_file_set(family, force=True)  # pylint: disable=protected-access
+            else:
+                store._migrate_family(family, force=True)  # pylint: disable=protected-access
+            lines.append(
+                f"  family={name} kind={family.legacy_kind} state=resurrected "
+                f"action=re-imported idempotently and renamed (*.migrated)")
+    finally:
+        store.close()
+    return lines
+
+
 def main(argv: Optional[list] = None) -> int:
-    """CLI entry point; the one verb is `prune --status` (retention inspection, D30)."""
+    """CLI entry point: `prune --status` (retention inspection, D30) and `doctor`
+    (--status / --repair, the per-family containment surface, M2)."""
     parser = argparse.ArgumentParser(
         prog="badger_store", description="SQLite runtime store utilities (ADR-0024)")
     sub = parser.add_subparsers(dest="command", required=True)
     prune = sub.add_parser("prune", help="retention over the log tables")
     prune.add_argument("--status", action="store_true",
                        help="per-table row count, oldest row and last prune stamp")
+    doctor = sub.add_parser("doctor", help="per-family containment: inspect and repair")
+    doctor.add_argument("--status", action="store_true",
+                        help="read-only per-family report: state, stamp, mtime, map diff")
+    doctor.add_argument("--repair", action="store_true",
+                        help="re-import additive kinds idempotently (then rename); "
+                             "map/kvdoc/awm are inspect-only")
+    doctor.add_argument("--user", action="store_true",
+                        help="the machine user root (the default target)")
+    doctor.add_argument("--project", type=Path, default=None, metavar="PATH",
+                        help="a project root: scan its .ai-badger/task-tracking store")
     args = parser.parse_args(argv)
     if args.command == "prune":
         if not args.status:
             prune.error("nothing to do — only --status is implemented")
         for line in prune_status_lines():
+            print(line)
+        return 0
+    if args.command == "doctor":
+        if args.status == args.repair:
+            doctor.error("nothing to do — exactly one of --status or --repair is required")
+        if args.user and args.project is not None:
+            doctor.error("--user and --project are mutually exclusive")
+        lines = doctor_status_lines(project=args.project) if args.status \
+            else doctor_repair_lines(project=args.project)
+        for line in lines:
             print(line)
         return 0
     return 2  # unreachable: the subcommand is required

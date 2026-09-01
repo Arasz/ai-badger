@@ -88,9 +88,12 @@ import json
 import os
 import re
 import sqlite3
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import pytest
 
 import badger_store
 
@@ -594,9 +597,10 @@ def test_dirty_sweeps_kv_read_merges_legacy_files_pre_migration(tmp_path, monkey
         store.close()
 
 
-def test_resurrected_legacy_file_fails_closed(tmp_path, monkeypatch):
-    """D5c: after a family's migration, a legacy file reappearing with a newer mtime
-    fails closed — on open and on migrate — never silent divergence."""
+def test_resurrected_legacy_file_is_contained_per_family(tmp_path, monkeypatch):
+    """M2 containment: after a family's migration, a legacy file reappearing with a newer
+    mtime is contained PER FAMILY — the store opens, the family is recorded unavailable
+    and refuses access, and its neighbours are untouched — never silent divergence."""
     root = _user_env(tmp_path, monkeypatch)
     d = _seed_memory_first(root)
     store = _open_user()
@@ -606,15 +610,308 @@ def test_resurrected_legacy_file_fails_closed(tmp_path, monkeypatch):
         store.close()
     time.sleep(0.01)
     (d / _SESSION).write_bytes(b"")  # resurrection: a stale surface re-creates the marker
+    reopened = _open_user()
     try:
-        _open_user()
-        raise AssertionError("open_user() must fail closed on a resurrected legacy file")
-    except sqlite3.OperationalError:
-        pass
-    # A later re-open must also refuse — the gate is at open time, not once per process:
+        contained = reopened.contained_families()
+        assert set(contained) == {"memory_first"}, (
+            "open must succeed with the resurrected family contained, and only it")
+        assert _SESSION in str(contained["memory_first"])
+    finally:
+        reopened.close()
+    # A later re-open records the same containment — the gate is at open time, per family:
+    fresh = badger_store._open(  # pylint: disable=protected-access
+        badger_store.user_db_path(), "user", badger_store.USER_FAMILIES)
     try:
-        fresh = badger_store._open(
-            badger_store.user_db_path(), "user", badger_store.USER_FAMILIES)
-        raise AssertionError("re-open must fail closed on resurrection")
-    except sqlite3.OperationalError:
-        pass
+        assert set(fresh.contained_families()) == {"memory_first"}
+    finally:
+        fresh.close()
+    # The contained family refuses on access, with the upgrade pointer (migrate itself
+    # skips it — the refusal lives on the accessors, M2):
+    fresh2 = _open_user()
+    try:
+        with pytest.raises(sqlite3.OperationalError, match="doctor"):
+            fresh2.kv_get("memory_first", _SESSION)
+        fresh2.migrate("memory_first")  # skipped: never imports the resurrected file
+        assert (d / _SESSION).exists()
+    finally:
+        fresh2.close()
+
+
+# --- M2 per-family containment: refuse-on-access per kind group ---------------------
+
+
+def _seed_commit_reminder_map(root: Path, state: dict) -> Path:
+    path = root / "commit-reminder" / "state.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state), encoding="utf-8")
+    return path
+
+
+def test_contained_map_family_surfaces_on_read_and_refuses_write(tmp_path, monkeypatch):
+    """map kind: a contained family's kv reads raise the resurrection error, its writes
+    refuse, and a neighbour family (dirty_sweeps) reads and writes exactly as today."""
+    root = _user_env(tmp_path, monkeypatch)
+    legacy = _seed_commit_reminder_map(root, {"/repo/a": {"count": 1}})
+    store = _open_user()
+    try:
+        store.kv_set("commit_reminder", "/repo/db", {"count": 2})  # migrate + rename
+    finally:
+        store.close()
+    time.sleep(0.05)
+    legacy.write_text(json.dumps({"/repo/a": {"count": 9}}))  # resurrection
+
+    store = _open_user()
+    try:
+        assert set(store.contained_families()) == {"commit_reminder"}
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.kv_get("commit_reminder", "/repo/db")  # even a DB-hit read refuses
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.kv_all("commit_reminder")
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.kv_set("commit_reminder", "/repo/next", {"count": 3})
+        # neighbour observable: the file-set neighbour behaves exactly as today
+        (root / "dirty-sweep-abc123def4567890.json").write_text(
+            json.dumps({"dirty": True}), encoding="utf-8")
+        assert store.kv_all("dirty_sweeps") == {"abc123def4567890": {"dirty": True}}
+        store.kv_set("dirty_sweeps", "feedbeeffeedbeef", {"dirty": False})
+        assert store.kv_get("dirty_sweeps", "feedbeeffeedbeef") == {"dirty": False}
+    finally:
+        store.close()
+
+
+def test_contained_kvdoc_family_surfaces_on_its_row_only(tmp_path, monkeypatch):
+    """kvdoc kind: containment is per FAMILY — the contained pending document refuses on
+    its row key only, and the map sibling sharing the commit_reminder table keeps working."""
+    root = _user_env(tmp_path, monkeypatch)
+    legacy = root / "commit-reminder" / "pending.json"
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text(json.dumps({"session": "abc", "note": "pending"}), encoding="utf-8")
+    store = _open_user()
+    try:
+        store.kv_set("commit_reminder", "/repo/db", {"count": 2})  # migrates BOTH families
+    finally:
+        store.close()
+    assert not legacy.exists()
+    time.sleep(0.05)
+    legacy.write_text(json.dumps({"session": "abc", "note": "rewritten"}), encoding="utf-8")
+
+    store = _open_user()
+    try:
+        assert set(store.contained_families()) == {"commit_reminder_pending"}
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.kv_get("commit_reminder", "pending")
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.kv_set("commit_reminder", "pending", {"session": "x"})
+        # neighbour observable: the map sibling on the SAME table reads and writes normally
+        assert store.kv_get("commit_reminder", "/repo/db") == {"count": 2}
+        store.kv_set("commit_reminder", "/repo/next", {"count": 3})
+        assert store.kv_get("commit_reminder", "/repo/next") == {"count": 3}
+    finally:
+        store.close()
+
+
+def test_contained_awm_family_surfaces_on_read_and_refuses_write(tmp_path, monkeypatch):
+    """awm kind: a contained awm_state (merged through the _awm_projects path) refuses
+    reads and writes; a neighbour append-only family still appends (D5c, M2)."""
+    monkeypatch.setattr(badger_store, "_DEFAULT_HOME", tmp_path)
+    root = _user_env(tmp_path, monkeypatch)
+    legacy = tmp_path / ".claude" / "awm" / "state.json"
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text(json.dumps(
+        {"projects": {"/repo/main": {"project": "/repo/main", "enabled": True}}}),
+        encoding="utf-8")
+    store = _open_user()
+    try:
+        store.kv_set("awm_state", "/repo/db", {"project": "/repo/db"})
+    finally:
+        store.close()
+    time.sleep(0.05)
+    legacy.write_text(json.dumps(
+        {"projects": {"/repo/main": {"project": "/repo/main", "enabled": False}}}),
+        encoding="utf-8")
+
+    store = _open_user()
+    try:
+        assert set(store.contained_families()) == {"awm_state"}
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.kv_get("awm_state", "/repo/db")
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.kv_all("awm_state")
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.kv_set("awm_state", "/repo/next", {"project": "/repo/next"})
+        # neighbour observable: a healthy append-only family appends and reads back
+        store.log_append("awm_decisions", badger_store.iso_row_ts(time.time()),
+                         {"decision": "d1"})
+        assert len(store.log_rows("awm_decisions")) == 1
+    finally:
+        store.close()
+
+
+def test_contained_append_only_family_reads_db_and_refuses_appends(tmp_path, monkeypatch):
+    """jsonl/recent kinds: reads are already DB-only so they keep serving DB rows; the
+    first append refuses (never imports the resurrected file, never diverges, D5c/M1)."""
+    root = _user_env(tmp_path, monkeypatch)
+    legacy = root / "memory-grade" / "searches.json"
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text(json.dumps(
+        {"recent": [{"correlationId": "c1", "sourceFiles": [], "ts": 1750000000}]}),
+        encoding="utf-8")
+    store = _open_user()
+    try:
+        store.migrate("searches")  # import + rename + stamp
+        store.log_append("searches", badger_store.iso_row_ts(1750000001), {"q": "seeded"})
+    finally:
+        store.close()
+    time.sleep(0.05)
+    legacy.write_text(json.dumps(
+        {"recent": [{"correlationId": "c2", "sourceFiles": [], "ts": 1750000002}]}),
+        encoding="utf-8")
+
+    store = _open_user()
+    try:
+        assert set(store.contained_families()) == {"searches"}
+        # reads stay DB-only — there is no legacy merge on this path to refuse:
+        rows = store.log_rows("searches")
+        assert len(rows) == 2 and "seeded" in rows[1][1]
+        with pytest.raises(sqlite3.OperationalError, match="reappeared"):
+            store.log_append("searches", badger_store.iso_row_ts(1750000003), {"q": "x"})
+        # the refused append imported nothing and renamed nothing:
+        assert legacy.exists()
+        assert len(store.log_rows("searches")) == 2
+        # neighbour observable: another append-only family appends exactly as today
+        store.log_append("awm_decisions", badger_store.iso_row_ts(time.time()),
+                         {"decision": "ok"})
+        assert len(store.log_rows("awm_decisions")) == 1
+    finally:
+        store.close()
+
+
+# --- M2 tier-1 sweep: every registry family, neighbour-canaried ---------------------
+
+
+def _load_sweep_tracker_lib():
+    """A fresh tracker_lib for the sweep's registry derivation (loaded once at collection)."""
+    import importlib.util
+    path = (Path(__file__).resolve().parents[1]
+            / "features/common/skills/task/scripts/tracker_lib.py")
+    spec = importlib.util.spec_from_file_location("sweep_tracker_lib", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["sweep_tracker_lib"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_SWEEP_TRACKER = _load_sweep_tracker_lib()
+
+
+def _sweep_families() -> dict:
+    """Every registry family with a legacy source, derived from all three registries.
+
+    badger_store.FAMILIES + tracker_lib._task_families() + badger_store.USER_FAMILIES,
+    skipping legacy_path-None store families (messages/cursors): a family added to any
+    registry without containment semantics fails this sweep (derive-or-delete).
+    """
+    combined: dict = {}
+    for name, family in badger_store.FAMILIES.items():
+        combined[name] = family
+    for name, family in _SWEEP_TRACKER._task_families().items():  # pylint: disable=protected-access
+        combined[name] = badger_store.Family(
+            table=family.table, db=family.db, legacy_path=family.legacy_path,
+            legacy_kind=family.legacy_kind, row_key=family.row_key)
+    for name, family in badger_store.USER_FAMILIES.items():
+        combined[name] = family
+    return {name: family for name, family in combined.items()
+            if family.legacy_path is not None}
+
+
+_SWEEP_PARAMS = [(name, family.db) for name, family in _sweep_families().items()]
+
+
+@pytest.mark.parametrize("family_name,db_kind", _SWEEP_PARAMS)
+def test_resurrected_family_leaves_its_neighbours_usable(family_name, db_kind,
+                                                         tmp_path, monkeypatch):
+    """Tier-1 sweep: ANY resurrected registry family is contained while its store opens
+    and the bus (born in SQLite, nothing to resurrect) keeps delivering — per-family
+    blast radius for the whole registry, not just the kind groups tier 2 names."""
+    monkeypatch.setattr(badger_store, "_DEFAULT_HOME", tmp_path)
+    root = _user_env(tmp_path, monkeypatch)
+    tracking = tmp_path / "task-tracking"
+    tracking.mkdir(parents=True)
+    monkeypatch.setenv("AI_BADGER_TRACKING_ROOT", str(tracking))
+    monkeypatch.setattr(_SWEEP_TRACKER, "DATA_DIR", tracking)
+
+    family = _sweep_families()[family_name]
+    if family_name in _SWEEP_TRACKER._task_families():  # pylint: disable=protected-access
+        open_kwargs = {"families": dict(_SWEEP_TRACKER._task_families())}  # pylint: disable=protected-access
+    else:
+        open_kwargs = {}  # FAMILIES default (tracking) or USER_FAMILIES default (user)
+
+    def open_store():
+        if db_kind == "tracking":
+            return badger_store.open_tracking(**open_kwargs)
+        return badger_store.open_user(**open_kwargs)
+
+    _seed_sweep_legacy(family)
+    store = open_store()
+    try:
+        store.migrate(family.table)  # stamp set while the file exists
+    finally:
+        store.close()
+    time.sleep(0.05)
+    _seed_sweep_legacy(family)  # resurrection: the file is back, newer than the stamp
+
+    reopened = open_store()
+    try:
+        assert reopened.contained_families(), f"{family_name} must be recorded contained"
+        assert family_name in reopened.contained_families()
+    finally:
+        reopened.close()
+
+    # the canary neighbour: open_user + a messages roundtrip + a prune run, every time
+    user = badger_store.open_user()
+    try:
+        user.send_message(sender_session="sweep-sender", sender_project="sweep-proj",
+                          content="ping", target_session="sweep-receiver")
+        delivered = user.deliver_for_session("sweep-receiver", "sweep-proj")
+        assert len(delivered) == 1 and delivered[0]["content"] == "ping"
+        user.delete_cursor("sweep-receiver")
+    finally:
+        user.close()
+    assert isinstance(badger_store.prune_status_lines(), list)
+
+
+def _seed_sweep_legacy(family) -> Path:
+    """Seed one family's legacy source with the minimal document its kind imports."""
+    path = family.legacy_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if family.legacy_kind in badger_store.FILE_SET_KINDS:
+        if family.legacy_kind == "kv_glob":
+            path.write_text(json.dumps({"dirty": True}), encoding="utf-8")
+            return path
+        if family.legacy_kind == "stem_denials":
+            path = path / "01a04e01.ba748e8f973fc5f04f2b4ca5b9dbf308.denials"
+        else:
+            path = path / "01a04e01-18b7-7f42-88c6-19e68738589d"  # marker / nudge / lane
+        path.parent.mkdir(parents=True, exist_ok=True)  # the legacy DIRECTORY itself
+        path.write_text("1750000000.0 toolu_01" if family.legacy_kind == "lanes"
+                        else ("1" if family.legacy_kind == "stem_denials" else ""),
+                        encoding="utf-8")
+        return path
+    docs = {
+        "map": {"/repo/a": {"count": 1}},
+        "kvdoc": {"session": "abc", "note": "pending"},
+        "awm": {"projects": {"/repo/main": {"project": "/repo/main"}}},
+        "jsonl": [{"t": "2026-08-31T00:00:00+00:00", "c": "x", "e": "y"}],
+        "recent": {"recent": [{"correlationId": "c1", "sourceFiles": [],
+                               "ts": 1750000000}]},
+        "tasks": {"tasks": [{"taskId": "T01", "sessionId": "sid-1",
+                             "state": "IN_PROGRESS", "resumeAttempts": []}]},
+        "usage": {"tasks": [{"taskId": "T01", "sessionId": "sid-1",
+                             "trackingSource": "claude", "subagents": []}]},
+        "sessions": {"sessions": {"sid-1": {"cwd": "/repo", "pid": 1}}},
+    }
+    doc = docs[family.legacy_kind]
+    text = "\n".join(json.dumps(line) for line in doc) \
+        if family.legacy_kind == "jsonl" else json.dumps(doc)
+    path.write_text(text, encoding="utf-8")
+    return path

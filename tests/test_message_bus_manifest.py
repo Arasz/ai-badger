@@ -129,21 +129,13 @@ def _load(load_script, relpath):
     return load_script(relpath)
 
 
-def _register_bank(tmp_path, monkeypatch, surface: dict[str, list[str]]) -> Path:
-    """A synthetic raccoon bank (the P2 spike's pinned shape) at a redirected path."""
-    bank = tmp_path / "raccoon" / "memory.db"
-    bank.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(bank)
-    conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-    conn.execute("CREATE TABLE IF NOT EXISTS watches (project_id TEXT NOT NULL, path TEXT NOT NULL, "
-                 "created_at INTEGER NOT NULL, last_change_ts INTEGER NOT NULL)")
-    conn.executemany(
-        "INSERT OR REPLACE INTO settings VALUES (?, ?)",
-        [(f"ingest.scope.{pid}", json.dumps(paths)) for pid, paths in surface.items()])
-    conn.commit()
-    conn.close()
-    monkeypatch.setenv(RACCOON_BANK_ENV, str(bank))
-    return bank
+def _register_project(repo_dir: Path, project_id: str) -> Path:
+    """Scaffold the minimum bus identity into *repo_dir*: .ai-badger/project-id (ADR-0025).
+    The delivery command's cwd walk finds it — no registry, no env redirect."""
+    aib = repo_dir / ".ai-badger"
+    aib.mkdir(parents=True, exist_ok=True)
+    (aib / "project-id").write_text(f"{project_id}\n", encoding="utf-8")
+    return repo_dir
 
 
 def _scaffold_send_message_scripts(target: Path, extra: dict[str, str]) -> Path:
@@ -332,7 +324,14 @@ def test_copilot_scaffold_wires_delivery_and_never_a_close_event(tmp_path, load_
     generated = hooks.get("hooks", {})
     for event in ("sessionStart", "userPromptSubmitted", "sessionEnd"):
         commands = [h.get("bash", "") for h in generated.get(event, [])]
-        assert any(c.rstrip('"').endswith(SCRIPT_NAME) for c in commands), \
+
+        def _script_of(bash: str) -> str:
+            """The guarded row's script: the if -f arm's quoted path tail (the guard wraps
+            every rewritten row, so the bare tail idiom reads the skip message instead)."""
+            match = re.search(r'-f "([^"]+)"', bash)
+            return (match.group(1) if match else bash.rstrip('"')).rsplit("/", 1)[-1]
+
+        assert any(_script_of(c) == SCRIPT_NAME for c in commands), \
             f"{event}: delivery or close not wired"
     for event, commands in generated.items():
         if event in ("sessionStart", "userPromptSubmitted", "sessionEnd"):
@@ -404,13 +403,12 @@ def _fire_wired_command(tmp_path, monkeypatch, event: str, session_id: str,
     """Run the config's own command (with ${CLAUDE_PLUGIN_ROOT} = this repo) as a host
     would: Claude-shaped stdin, JSON stdout, env-redirected stores. The interpreter is
     this test's python; everything else — path, script, contract — is the wired shape."""
-    _register_bank(tmp_path, monkeypatch, {"bus-proj": [str(repo_dir)]})
+    _register_project(repo_dir, "bus-proj")
     argv = shlex.split(_wired_command(event).replace("${CLAUDE_PLUGIN_ROOT}", str(ROOT)))
     argv[0] = os.environ.get("AI_BADGER_TEST_PYTHON", "python3")
     env = {k: v for k, v in os.environ.items()
            if k not in (PROJECT_ID_ENV, HOLD_ENV)}
     env[USER_ROOT_ENV] = os.environ[USER_ROOT_ENV]
-    env[RACCOON_BANK_ENV] = os.environ[RACCOON_BANK_ENV]
     env[PROJECT_DIR_ENV] = str(repo_dir)
     proc = subprocess.run(argv, input=json.dumps({
         "hook_event_name": event, "session_id": session_id,

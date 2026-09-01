@@ -74,13 +74,11 @@ def _probe_cwd(payload: Dict[str, Any]) -> Optional[str]:
 
 
 def _resolve_project(payload: Dict[str, Any]) -> Optional[str]:
-    """The cwd resolver (D4) — its explicit-override env wins inside it. Its two DESIGNED
-    refusals (nothing matches, several match) degrade to 1:1-only delivery (D7); an
-    unexpected registry error is not designed and propagates to the fail-open net."""
-    try:
-        return badger_store.resolve_project_id(_probe_cwd(payload))
-    except badger_store.ProjectIdAmbiguous:
-        return None
+    """The cwd resolver (D4, ADR-0025) — its explicit-override env wins inside it. An
+    unresolved project (no .ai-badger/project-id above the cwd) degrades to 1:1-only
+    delivery (D7); an unexpected resolver error is not designed and propagates to the
+    fail-open net."""
+    return badger_store.resolve_project_id(_probe_cwd(payload))
 
 
 def render_messages(messages: list) -> str:
