@@ -22,3 +22,18 @@ Corrections recorded after qa's audit (d-210): the original lane note "drop-arm-
 both hold pins red" was **wrong as stated** — each hold pin has its own killer mutant,
 listed above. The P5 reclassification and the shape-vs-behaviour red mechanisms are
 also reflected in the test docstrings amended in this commit.
+
+## Accepted residuals (code-review lane d-209, recorded not guarded)
+
+- **NIT-4** — the L1 landing's "ids grow with ts" assumption breaks under a wall-clock
+  regression between serialized inserts: a below-window 1:1 row can land above the leg
+  cursor and deliver one read late. Self-healing, first-read-only heuristic — accepted.
+- **NIT-5** — index.ts spawns the delivery subprocess before every LLM call inside tool
+  loops (python-startup latency per call). Plan-mandated D4 shape; an in-process
+  cooldown is optional hardening, traded against delaying between-call mail — declined
+  for this release.
+- **SHOULD-2 partial** — first-set-wins across `SESSION_ENVS` re-opens the drift shape
+  one level up (a stale foreign `CLAUDE_CODE_SESSION_ID` inherited by a pi subprocess
+  beats the live `PI_SESSION_ID`). Documented in the send-message SKILL identity
+  paragraph with the `--sender-session` escape hatch; pid-ancestry preference is a
+  possible future hardening.

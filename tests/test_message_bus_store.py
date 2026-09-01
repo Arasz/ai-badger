@@ -533,7 +533,9 @@ def test_gated_first_delivery_without_project_never_sweeps_other_legs(tmp_path, 
         assert cursor_id < broadcast_id, (
             "the 1:1-only first read must not cursor past other legs' in-window mail")
 
-        # R1a end-to-end: a later session whose project resolves still gets the mail.
+        # Mail-intact observable (NOT the killer: S2 has its own cursor and would get
+        # this under the old code too) — the discriminating assert is cursor < broadcast
+        # above. Keep both: right delivery AND right cursor is the bug's full shape.
         assert [d["content"] for d in store.deliver_for_session("S2", "P")] == \
             ["project mail"]
     finally:

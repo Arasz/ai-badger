@@ -182,8 +182,10 @@ def test_register_wires_the_delivery_callbacks_onto_their_events(hooks):
 
 def test_first_pre_llm_call_consumes_and_injects_exactly_once(
         hooks, bus, tmp_path, monkeypatch):
-    """The FIRST pre_llm_call is the whole delivery: read, cursor advance and injection
-    in one store transaction, surfaced through the pre_llm_call return channel.
+    """The FIRST pre_llm_call is the whole delivery: read and cursor advance share one
+    store transaction; the injection rides the pre_llm_call return channel AFTER the
+    commit (a crash in between consumes without injecting — the pre-existing loss
+    shape, unchanged by P5).
 
     Nothing is consumed before the first turn (no cursor row), the cursor lands exactly
     once, and turn 2 injects nothing new beyond the live read.

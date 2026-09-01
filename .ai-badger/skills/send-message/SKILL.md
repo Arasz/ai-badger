@@ -58,6 +58,10 @@ not an implementation quirk:
   session id to the subprocesses it spawns, and that is the id its delivery consumes
   by, so own broadcasts are excluded), then a pid-ancestry match against the
   sessions store, then a unique cwd match (exactly one known session carrying this
+  identity). Residual (api-review d-209): a stale foreign var inherited from an outer
+  host (claude-in-shell-in-pi) beats the live one by list order — if your shell
+  carries a `CLAUDE_CODE_SESSION_ID` that is not this session's, pass
+  `--sender-session` explicitly.
   working directory). Ambiguous or absent → refused.
 - **projectId** — `--sender-project <id>`, or `AI_BADGER_PROJECT_ID`, or the cwd
   resolver's upward walk to the nearest `.ai-badger/project-id` (minted at scaffold

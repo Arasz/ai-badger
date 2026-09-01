@@ -154,9 +154,9 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                   "a Hermes session-start hook has no return channel into the model, so "
                   "delivering at start only filled a stash that a session dying before its "
                   "first turn never surfaced. The message-delivery-per-turn row's first "
-                  "pre_llm_call is now the whole delivery — read, cursor advance and "
-                  "injection in one store transaction — and a session that never turns "
-                  "consumes nothing. Claude and Copilot keep the start arm because their "
+                  "pre_llm_call is now the whole delivery — read and cursor advance in one "
+                  "store transaction, injection through the return channel — and a session "
+                  "that never turns consumes nothing. Claude and Copilot keep the start arm because their "
                   "hooks inject through their own per-turn channel regardless.",
     },
     "session-start-tracking": {

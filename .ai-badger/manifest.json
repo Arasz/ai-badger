@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.157.1",
-  "frameworkCommit": "54c26c1dd0738224a734f628a28e25a86cd787f7",
+  "frameworkCommit": "9cb746688c5927eff8da8ce8f4edf6ce36cc829a",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -849,12 +849,12 @@
       "source": "features/common/skills/send-message",
       "target": ".ai-badger/skills/send-message",
       "frameworkVersion": "0.157.1",
-      "hash": "7378cbfb447bea381c9d005cc531a567f24741916d541e6aef556a8f2ea7127a",
+      "hash": "ad0b2baad592e7004016659fc4e1913d0cfd2edbcc98bc0783fc9a30010193f9",
       "dirMeta": {
         "file_count": 4,
         "dir_count": 1
       },
-      "sourceHash": "7378cbfb447bea381c9d005cc531a567f24741916d541e6aef556a8f2ea7127a",
+      "sourceHash": "ad0b2baad592e7004016659fc4e1913d0cfd2edbcc98bc0783fc9a30010193f9",
       "sourceMeta": {
         "file_count": 4,
         "dir_count": 1
