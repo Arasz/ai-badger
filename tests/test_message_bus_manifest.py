@@ -129,21 +129,13 @@ def _load(load_script, relpath):
     return load_script(relpath)
 
 
-def _register_bank(tmp_path, monkeypatch, surface: dict[str, list[str]]) -> Path:
-    """A synthetic raccoon bank (the P2 spike's pinned shape) at a redirected path."""
-    bank = tmp_path / "raccoon" / "memory.db"
-    bank.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(bank)
-    conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-    conn.execute("CREATE TABLE IF NOT EXISTS watches (project_id TEXT NOT NULL, path TEXT NOT NULL, "
-                 "created_at INTEGER NOT NULL, last_change_ts INTEGER NOT NULL)")
-    conn.executemany(
-        "INSERT OR REPLACE INTO settings VALUES (?, ?)",
-        [(f"ingest.scope.{pid}", json.dumps(paths)) for pid, paths in surface.items()])
-    conn.commit()
-    conn.close()
-    monkeypatch.setenv(RACCOON_BANK_ENV, str(bank))
-    return bank
+def _register_project(repo_dir: Path, project_id: str) -> Path:
+    """Scaffold the minimum bus identity into *repo_dir*: .ai-badger/project-id (ADR-0025).
+    The delivery command's cwd walk finds it — no registry, no env redirect."""
+    aib = repo_dir / ".ai-badger"
+    aib.mkdir(parents=True, exist_ok=True)
+    (aib / "project-id").write_text(f"{project_id}\n", encoding="utf-8")
+    return repo_dir
 
 
 def _scaffold_send_message_scripts(target: Path, extra: dict[str, str]) -> Path:
@@ -411,13 +403,12 @@ def _fire_wired_command(tmp_path, monkeypatch, event: str, session_id: str,
     """Run the config's own command (with ${CLAUDE_PLUGIN_ROOT} = this repo) as a host
     would: Claude-shaped stdin, JSON stdout, env-redirected stores. The interpreter is
     this test's python; everything else — path, script, contract — is the wired shape."""
-    _register_bank(tmp_path, monkeypatch, {"bus-proj": [str(repo_dir)]})
+    _register_project(repo_dir, "bus-proj")
     argv = shlex.split(_wired_command(event).replace("${CLAUDE_PLUGIN_ROOT}", str(ROOT)))
     argv[0] = os.environ.get("AI_BADGER_TEST_PYTHON", "python3")
     env = {k: v for k, v in os.environ.items()
            if k not in (PROJECT_ID_ENV, HOLD_ENV)}
     env[USER_ROOT_ENV] = os.environ[USER_ROOT_ENV]
-    env[RACCOON_BANK_ENV] = os.environ[RACCOON_BANK_ENV]
     env[PROJECT_DIR_ENV] = str(repo_dir)
     proc = subprocess.run(argv, input=json.dumps({
         "hook_event_name": event, "session_id": session_id,

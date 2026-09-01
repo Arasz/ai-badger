@@ -89,7 +89,8 @@ def derive_sender_session(explicit: Optional[str], sessions: dict) -> Optional[s
 
 
 def resolve_sender_project(explicit: Optional[str], cwd: str) -> Optional[str]:
-    """Sender project: the CLI arg, then the store resolver (env override, registry)."""
+    """Sender project: the CLI arg, then the store resolver (env override, then the
+    nearest .ai-badger/project-id walk — ADR-0025)."""
     if explicit:
         return explicit
     return badger_store.resolve_project_id(cwd)
@@ -143,14 +144,11 @@ def main(argv: Optional[list] = None) -> int:
         return _refused("missing sender identity (sessionId) — pass --sender-session "
                         f"or set {SESSION_ENV}")
 
-    try:
-        sender_project = resolve_sender_project(args.sender_project, str(Path.cwd()))
-    except badger_store.ProjectIdAmbiguous as exc:
-        return _refused("ambiguous sender identity (projectId) — the cwd matches several "
-                        "registered projects: " + ", ".join(exc.candidates))
+    sender_project = resolve_sender_project(args.sender_project, str(Path.cwd()))
     if not sender_project:
         return _refused("missing sender identity (projectId) — pass --sender-project, set "
-                        f"{badger_store.PROJECT_ID_ENV}, or run inside a registered project")
+                        f"{badger_store.PROJECT_ID_ENV}, or run inside a project carrying "
+                        ".ai-badger/project-id")
 
     try:
         store = badger_store.open_user()

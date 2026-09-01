@@ -198,6 +198,23 @@ def check_prerequisites(target: Path) -> Optional[str]:
     return None
 
 
+def run_doctor_preflight(root: Path, target: Path) -> Optional[List[Dict[str, Any]]]:
+    """The store doctor's read-only scan over the project's tracking root (P1, M2).
+
+    Report-only: a contained family's repair is the doctor verb's explicit --repair,
+    never a side effect of a refresh. Returns the resurrected rows, or None when the
+    scan finds nothing — or cannot run, since a missing store module must not break a
+    refresh that would otherwise succeed.
+    """
+    try:
+        store_mod = _load_script("engine/badger_store.py", root)
+        db_path, families = store_mod.doctor_target(target)
+        rows = store_mod.doctor_scan(db_path, families)
+    except (FileNotFoundError, AttributeError, OSError):
+        return None
+    return [row for row in rows if row.get("state") == "resurrected"] or None
+
+
 def ensure_project_id(target: Path) -> Optional[str]:
     """Backfill the local project-id file so older scaffolds keep a stable identity."""
     project_id_path = target / ".ai-badger" / "project-id"
@@ -349,10 +366,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(json.dumps({"error": err}))
         return 2
 
-    # 2. Backfill the local project-id for older scaffolded repos
+    # 1b. Store doctor pre-flight (P1): contained families surface in the report —
+    # reported, never repaired here; the doctor verb's --repair is the operator's step.
+    contained_families = run_doctor_preflight(root, target)
+
+    # 1c. Backfill the local project-id for older scaffolded repos
     ensure_project_id(target)
 
-    # 3. Read existing config
+    # 2. Read existing config
     config_path = target / ".ai-badger" / "config.json"
     try:
         config = bl.load_json(config_path)
@@ -461,6 +482,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         report["forced"] = True
     if report_note:
         report["note"] = report_note
+    if contained_families:
+        report["containedFamilies"] = contained_families
     if scaffold_result:
         report["scaffold"] = scaffold_result
     if hermes_links["created"] or hermes_links["removed"]:

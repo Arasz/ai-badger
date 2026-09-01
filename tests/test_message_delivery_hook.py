@@ -99,22 +99,13 @@ def hook(load_script):
     return load_script(HOOK_PATH)
 
 
-def _register_bank(tmp_path, monkeypatch, surface: dict[str, list[str]]) -> Path:
-    """A synthetic raccoon bank (the P2 spike's pinned shape) at a redirected path:
-    ``settings`` carries ``ingest.scope.<id>`` JSON path lists, ``watches`` watch rows."""
-    bank = tmp_path / "raccoon" / "memory.db"
-    bank.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(bank)
-    conn.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-    conn.execute("CREATE TABLE watches (project_id TEXT NOT NULL, path TEXT NOT NULL, "
-                 "created_at INTEGER NOT NULL, last_change_ts INTEGER NOT NULL)")
-    conn.executemany(
-        "INSERT INTO settings VALUES (?, ?)",
-        [(f"ingest.scope.{pid}", json.dumps(paths)) for pid, paths in surface.items()])
-    conn.commit()
-    conn.close()
-    monkeypatch.setenv(RACCOON_BANK_ENV, str(bank))
-    return bank
+def _make_project(repo_dir: Path, project_id: str = "bus-proj") -> Path:
+    """Scaffold the minimum bus identity into *repo_dir*: .ai-badger/project-id (ADR-0025).
+    The delivery command's cwd walk finds it — no registry, no env redirect."""
+    aib = repo_dir / ".ai-badger"
+    aib.mkdir(parents=True, exist_ok=True)
+    (aib / "project-id").write_text(f"{project_id}\n", encoding="utf-8")
+    return repo_dir
 
 
 def _fire(hook, monkeypatch, capsys, payload, *, raw: str = None) -> tuple[int, dict]:
@@ -247,7 +238,7 @@ def test_session_start_injects_recent_history_and_gates_the_ancient(
     """Rule 4 through the script: a SessionStart in a registered project injects the
     recent (minutes-old) project messages chronologically and never the 2-day-old ones —
     the store's gate reached through the harness surface."""
-    _register_bank(tmp_path, monkeypatch, {"bus-proj": [str(tmp_path / "repo")]})
+    _make_project(tmp_path / "repo")
     monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo"))
     with contextlib.closing(_store()) as store:
         _seed_ancient(store, "ancient")
@@ -271,7 +262,7 @@ def test_session_start_caps_at_sixteen_and_never_redelivers_overflow(
         hook, user_root, tmp_path, monkeypatch, capsys):
     """Rule 5 through the script: 20 unread inject the 16 oldest, the cursor lands PAST
     the gated window, and the overflow is never revisited by the next firing."""
-    _register_bank(tmp_path, monkeypatch, {"bus-proj": [str(tmp_path / "repo")]})
+    _make_project(tmp_path / "repo")
     monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo"))
     with contextlib.closing(_store()) as store:
         for i in range(20):
@@ -294,7 +285,7 @@ def test_session_start_on_a_session_with_a_cursor_is_a_live_read(
         hook, user_root, tmp_path, monkeypatch, capsys):
     """A re-started session whose cursor survived (crashed close) does NOT re-gate old
     history — exactly-once beats start-injection: only messages past the cursor inject."""
-    _register_bank(tmp_path, monkeypatch, {"bus-proj": [str(tmp_path / "repo")]})
+    _make_project(tmp_path / "repo")
     monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo"))
     with contextlib.closing(_store()) as store:
         store.send_message(sender_session="S1", sender_project="bus-proj",
@@ -320,7 +311,7 @@ def test_per_turn_delivery_is_live_after_the_first_read(
         hook, user_root, tmp_path, monkeypatch, capsys):
     """Per-turn delivery: the first firing consumes and lands a cursor; a message sent
     afterwards injects on the NEXT prompt and only it (no backlog, no re-injection)."""
-    _register_bank(tmp_path, monkeypatch, {"bus-proj": [str(tmp_path / "repo")]})
+    _make_project(tmp_path / "repo")
     monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo"))
     with contextlib.closing(_store()) as store:
         store.send_message(sender_session="S1", sender_project="bus-proj",
@@ -346,7 +337,7 @@ def test_cursorless_per_turn_read_applies_the_gate_once(
     gets the 30-minute gate applied on its first PER-TURN delivery — the 2-day backlog is
     skipped, the cursor lands past the gated window, later turns still get new mail.
     Mutation killer: the D5 gate dropped → 'ancient' injects here."""
-    _register_bank(tmp_path, monkeypatch, {"bus-proj": [str(tmp_path / "repo")]})
+    _make_project(tmp_path / "repo")
     monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo"))
     with contextlib.closing(_store()) as store:
         _seed_ancient(store, "ancient")
@@ -372,7 +363,7 @@ def test_self_suppression_reaches_the_script_surface(
     """Rule 2 end-to-end: the sender's own broadcast and project message inject NOTHING
     back to the sender's session through the script — while another session receives
     both. Mutation killer: the store's sender-exclusion dropped → the sender echoes."""
-    _register_bank(tmp_path, monkeypatch, {"bus-proj": [str(tmp_path / "repo")]})
+    _make_project(tmp_path / "repo")
     monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo"))
     with contextlib.closing(_store()) as store:
         store.send_message(sender_session="S", sender_project="bus-proj",
@@ -399,7 +390,7 @@ def test_subdirectory_cwd_resolves_to_the_project_via_the_resolver(
     receives the project's mail. The naive-path-hash mutation (identity derived by
     exact-match or hashing the cwd string) misses the message, which is exactly what
     this test is built to catch."""
-    _register_bank(tmp_path, monkeypatch, {"bus-proj": [str(tmp_path / "repo")]})
+    _make_project(tmp_path / "repo")
     monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo" / "docs" / "deep"))
     with contextlib.closing(_store()) as store:
         store.send_message(sender_session="S1", sender_project="bus-proj",
@@ -420,7 +411,7 @@ def test_session_end_removes_the_cursor(hook, user_root, tmp_path, monkeypatch, 
     """Rule 6 scenario 1 through the script: the close event deletes the session's
     cursor row — exit 0, parseable no-op JSON. Mutation killer: SessionEnd misrouted to
     a delivery (or delete never called) → the row survives."""
-    _register_bank(tmp_path, monkeypatch, {"bus-proj": [str(tmp_path / "repo")]})
+    _make_project(tmp_path / "repo")
     monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo"))
     with contextlib.closing(_store()) as store:
         store.send_message(sender_session="S1", sender_project="bus-proj",
@@ -509,26 +500,27 @@ def test_unresolved_project_still_delivers_one_to_one(
     assert [d["content"] for d in _documents_of(_context_of(response))] == ["direct"]
 
 
-def test_ambiguous_project_still_delivers_one_to_one(
+def test_nested_projects_resolve_nearest_and_deliver_inner(
         hook, user_root, tmp_path, monkeypatch, capsys):
-    """The resolver's OTHER designed refusal (several projects contain the cwd) lands in
-    the same 1:1-only semantics — the refusal is caught, not propagated."""
-    _register_bank(tmp_path, monkeypatch, {
-        "outer": [str(tmp_path / "repo")],
-        "inner": [str(tmp_path / "repo" / "sub")],
-    })
+    """Nested .ai-badger dirs resolve nearest-wins (ADR-0025): a payload whose cwd sits
+    in the inner project receives the inner project's mail and its 1:1 leg, never the
+    outer's — the walk stops at the first .ai-badger it finds."""
+    _make_project(tmp_path / "repo", "outer")
+    _make_project(tmp_path / "repo" / "sub", "inner")
     monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo" / "sub"))
     with contextlib.closing(_store()) as store:
         store.send_message(sender_session="S1", sender_project="P", content="direct",
                            target_session="S")
-        store.send_message(sender_session="S1", sender_project="P", content="for P",
-                           target_project="P")
+        store.send_message(sender_session="S1", sender_project="P", content="for inner",
+                           target_project="inner")
+        store.send_message(sender_session="S1", sender_project="P", content="for outer",
+                           target_project="outer")
 
     rc, response = _fire(hook, monkeypatch, capsys,
                          {"hook_event_name": "UserPromptSubmit", "session_id": "S",
                           "cwd": str(tmp_path / "repo" / "sub")})
     assert rc == 0
-    assert [d["content"] for d in _documents_of(_context_of(response))] == ["direct"]
+    assert [d["content"] for d in _documents_of(_context_of(response))] == ["direct", "for inner"]
 
 
 def test_missing_session_id_is_a_clean_no_op(hook, user_root, monkeypatch, capsys):
@@ -644,7 +636,7 @@ def test_the_store_document_list_is_what_stdout_carries(
 def test_copilot_event_spellings_deliver(hook, user_root, tmp_path, monkeypatch, capsys):
     """The same script serves Copilot's event spellings (sessionStart / userPromptSubmitted)
     — the multi-harness reuse contract: one delivery surface, per-harness event names."""
-    _register_bank(tmp_path, monkeypatch, {"bus-proj": [str(tmp_path / "repo")]})
+    _make_project(tmp_path / "repo")
     monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo"))
     session = "COP"
     for i, event in enumerate(("sessionStart", "userPromptSubmitted")):
@@ -662,7 +654,7 @@ def test_standalone_invocation_via_subprocess(hook, user_root, tmp_path, monkeyp
     """The deployment shape: a host spawns the script as a child process, feeds the
     Claude-shaped payload on stdin, reads the JSON response — with the VENDORED
     badger_store beside the script (script-dir import), not the engine copy."""
-    _register_bank(tmp_path, monkeypatch, {"bus-proj": [str(tmp_path / "repo")]})
+    _make_project(tmp_path / "repo")
     with contextlib.closing(_store()) as store:
         store.send_message(sender_session="S1", sender_project="bus-proj",
                            content="from a child process", target_project="bus-proj")
@@ -670,7 +662,6 @@ def test_standalone_invocation_via_subprocess(hook, user_root, tmp_path, monkeyp
     env = {k: v for k, v in os.environ.items()
            if k not in (PROJECT_ID_ENV, HOLD_ENV, PROJECT_DIR_ENV)}
     env[USER_ROOT_ENV] = os.environ[USER_ROOT_ENV]
-    env[RACCOON_BANK_ENV] = os.environ[RACCOON_BANK_ENV]
     proc = subprocess.run(
         [sys.executable, str(ROOT / HOOK_PATH)],
         input=json.dumps({"hook_event_name": "SessionStart", "session_id": "S",
