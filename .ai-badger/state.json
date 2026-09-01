@@ -1,7 +1,19 @@
 {
   "lastUpdated": "2026-09-01",
-  "next": "(1) aib-store-resilience-doctor (queued from the bus QA review, M2): one family's fail-closed resurrection currently bricks open_user for ALL families \u2014 design a per-family containment (degrade one family, not the store) + a doctor verb listing diverging families with repair guidance; pairs with P1.1c (user_version SQL-first migration ledger, still unbuilt). (2) Carried threads: deny_count read-path migration (D6 contract change), the SQLite backup story (post-migration rows exist only in the DBs), mutation-grade review-tests follow-ups on the bus suites. Live-machine note: the 0.156.0 den-refresh (this machine) is the durable fix for the stale-surface legacy writers repaired manually during the bus task.",
+  "next": "(1) Carried: user_version SQL-first migration ledger (P1.1c), deny_count read-path migration, graph 'Untested' flags on _nearest_project_id_file/_read_project_id_file/resolve_project_id/mint_project_id/ensure_project_id (close with tests). (2) Optional hardening recorded in the 0.157.1 red-witness log: SESSION_ENVS pid-ancestry preference (stale-foreign-env residual), pi per-call spawn cooldown, NTP-regression residue (self-healing, accepted). (3) Live machine: run den-refresh once to backfill .ai-badger/project-id on existing repos (0.157.0).",
   "completedTasks": [
+    {
+      "id": "aib-bus-defer-cursor-followups",
+      "summary": "0.157.1 (PR #464, squash): L1 leg-scoped cursor (gated 1:1-only first read lands the cursor at its leg's window max \u2014 in-window project/broadcast mail survives for that session's later resolved-project delivery; R1a/R1b red-first, R1c guard, too-low quadrant pinned); P3 arm-env gate (AI_BADGER_TEST_HOLD inert without AI_BADGER_TEST_HOLD_ARMED); P4 pi defer (sessionStart delivery deleted; router = before_agent_start + per-turn context seam); P5 Hermes defer (_bus_pending dropped, first pre_llm_call consumes-and-injects); P9 send-side harness identity (SESSION_ENVS first-set-wins; the d9e90bb1/01a05c6d drift incident pinned red); P8 integration (project-id lifecycle + containment\u00d7bus coexistence). 3 implementation lanes (zero stalls) + 3-lane MoE review, all findings folded; honest red-witness log shipped (docs/work/...-red-witness-log.md). ~1.7M subagent tokens.",
+      "pr": "https://github.com/Arasz/ai-badger/pull/464",
+      "hasNotes": true
+    },
+    {
+      "id": "aib-bus-followups-independence",
+      "summary": "0.157.0 (PR #463, squash): M2 per-family store containment + doctor verb (refuse-on-access uniformly incl. file-set kv reads, per-family statuslines, den-refresh pre-flight; mutation-witnessed); D2 project resolution independence with NO compat shim (owner ruling): raccoon registry + ProjectIdAmbiguous deleted, nearest-.ai-badger/project-id walk, uuid4 minted at scaffold (project_id.py), den-refresh backfill, ADR-0025; P6 trust-boundary docs + sessionEnd residual-risk; P7 Copilot -f guard. High-effort pipeline: 3 research lanes, MoE plan (rev 2.1) + MoE plan review, 2 implementation lanes (1 stall, 1 abort, both recovered in-orchestrator), Copilot SWE bot as integration lane (join-repair: its push missed 15/16 VENDORED re-lands). ~1.76M subagent tokens.",
+      "pr": "https://github.com/Arasz/ai-badger/pull/463",
+      "hasNotes": true
+    },
     {
       "id": "aib-user-db-message-bus",
       "summary": "User-DB message/event bus (0.156.0): send skill (1:1/project/machine broadcast, mandatory sender identity), delivery hook wired per harness (Claude/Hermes/pi/Copilot incl. the falsified no-close-event hypothesis), exactly-once read+cursor txn, 30-min start gate + 16-cap, 4-day retention/TTL, cwd->projectId resolver on the raccoon registry",
