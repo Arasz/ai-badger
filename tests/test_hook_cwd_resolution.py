@@ -151,7 +151,9 @@ def test_post_tool_observer_finds_the_index_when_hermes_sends_no_cwd(
 
     hooks.post_tool_observer(tool_name="rider:build_solution", result="ok", duration_ms=3)
 
-    records = [json.loads(line) for line in dl.AUDIT_FILE.read_text(encoding="utf-8").splitlines()]
+    # Records read through the logger's own accessor: store rows since P2.2, the legacy
+    # jsonl only when the store is unavailable — bytes at AUDIT_FILE would miss the row.
+    records = dl.read_records()
     assert any(r[dl.KEY_COMPONENT] == "ai_badger_hooks/mcp_retrieval" and r[dl.KEY_EVENT] == "known"
                for r in records)
 

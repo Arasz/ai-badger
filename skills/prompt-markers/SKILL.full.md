@@ -80,7 +80,8 @@ Every detected marker is recorded to a small history file so the record of what 
 survives later compaction or summarization, even though the injected context itself doesn't
 persist verbatim in a compacted transcript. This is best-effort and opt-in by convention: the
 hook looks for an already-existing `.ai-badger` directory (walking up from the prompt's `cwd`) and,
-only if one is found, writes/updates `.ai-badger/prompt-markers/marker-state.json` (capped at the
+only if one is found, writes/updates the `marker_state` table in the project tracking DB
+(`.ai-badger/task-tracking/tracking.db`; capped at the
 most recent 100 entries). If no such directory exists, the hook still injects context but skips
 the audit write silently — it never creates project-tracking structure on its own.
 
@@ -93,7 +94,7 @@ the audit write silently — it never creates project-tracking structure on its 
   `UserPromptSubmit` hook (e.g. task's session tracker), add an entry, never replace it — the
   host runs all registered hooks.
 - **The audit write is best-effort by design.** It only fires when an `.ai-badger` directory
-  already exists; a missing `marker-state.json` is not a hook failure.
+  already exists; a skipped audit write is not a hook failure.
 - **Marker definitions live in `markers-context.json`.** Edit that file to add or change a
   marker, not the hook.
 

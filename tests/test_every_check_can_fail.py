@@ -654,6 +654,21 @@ def _analyze(work: Path, project: Path, records: List[Dict[str, str]]) -> Outcom
     debug.mkdir(parents=True, exist_ok=True)
     lines = "".join(json.dumps(r) + "\n" for r in records)
     _test_write(debug / "audit.jsonl", lines, encoding="utf-8")
+    saved = DL.DEBUG_DIR
+    try:
+        # Seed the seam read_records reads: the store's audit DB when the store is available
+        # (what log_event writes, P2.2), the legacy jsonl otherwise. The subprocess shapes the
+        # same directory from $AI_BADGER_DEBUG_DIR, so both agree on where the sink lives.
+        DL.DEBUG_DIR = debug
+        store = DL._store()
+        if store is not None:
+            try:
+                for record in records:
+                    store.log_append("hook_audit", record.get(DL.KEY_TS, ""), record)
+            finally:
+                store.close()
+    finally:
+        DL.DEBUG_DIR = saved
 
     home = work / "home"
     home.mkdir(parents=True, exist_ok=True)

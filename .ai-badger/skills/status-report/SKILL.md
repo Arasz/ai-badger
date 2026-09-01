@@ -75,16 +75,16 @@ minutes for the task to end; answering late is answering wrong.
 
 | Section | Source |
 |---|---|
-| Current task | latest IN_PROGRESS entry in `task-tracking/executed-tasks.json` |
+| Current task | latest IN_PROGRESS row in the `tasks` table of `.ai-badger/task-tracking/tracking.db` |
 | Progress checklist | `task-tracking/plans/*.md` — package headings + `- [x]` counts |
 | What's next | `state.json` `next` field, verbatim |
-| Sub-agents | `token-usage.json` subagent records + `worktrees/` lanes + `current-session.json` |
+| Sub-agents | `token_usage` subagent records + `worktrees/` lanes + the `sessions` table |
 
 ## Gotchas
 
 - An empty recorded-subagent list does NOT mean no delegation is running — records land only
   on completion (`task_tracker.py subagent`), so mid-flight delegations are invisible there.
-  Live evidence is lane worktrees, `current-session.json`, and your own session context.
+  Live evidence is lane worktrees, the `sessions` table, and your own session context.
 - Stale IN_PROGRESS entries from dead sessions show up as current (latest-started wins).
   Report them honestly — do not silently pick "the one that looks active" and do not start
   finishing or parking them unprompted.

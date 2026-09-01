@@ -43,9 +43,15 @@ PARTIAL_LANE = ("---\nname: {name}\ndescription: a persona\nmodel: opus\n"
 
 @pytest.fixture
 def hook(load_script, monkeypatch, tmp_path):
-    """The hook with the project dir cleared and the ledger redirected into tmp_path."""
+    """The hook with the project dir cleared and the ledger redirected into tmp_path.
+
+    The ledger's state is a `dispatch_lanes` row in the user store (P2.1b), so the
+    redirect is the store's user root — patching the retired LEDGER_DIR file seam would
+    leave every test reading and writing the real ~/.ai-badger store.
+    """
     monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
     module = load_script(HOOK_PATH)
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
     module.dispatch_ledger.LEDGER_DIR = tmp_path / "dispatch-lanes"
     return module
 
@@ -155,9 +161,10 @@ def test_a_broken_ledger_does_not_block(hook, monkeypatch, tmp_path):
     """
     _lane(tmp_path, "test-engineer")
     _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_1"))
-    ledger_file = hook.dispatch_ledger.ledger_path("sess_1")
-    ledger_file.unlink()
-    ledger_file.mkdir()
+    # The ledger is genuinely unreadable: its user root's store path is a file, not a dir.
+    blocked = tmp_path / "blocked"
+    blocked.write_text("a file, not a directory", encoding="utf-8")
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(blocked / "no" / "store"))
 
     assert _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_2")) == ""
 
@@ -241,9 +248,22 @@ def test_only_dispatches_that_proceed_enter_the_ledger(hook, monkeypatch, tmp_pa
     _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_2"))
     _run(hook, monkeypatch, _dispatch(tmp_path, tool_use_id="toolu_3"))
 
-    entries = hook.dispatch_ledger.ledger_path("sess_1").read_text(
-        encoding="utf-8").strip().splitlines()
+    entries = _ledger_entries(hook, "sess_1")
     assert len(entries) == 1, f"only the allowed dispatch belongs in the ledger, got {entries}"
+
+
+def _ledger_entries(hook, session_id):
+    """The session's ledger entries as recorded now: rows in the dispatch_lanes table."""
+    store = hook.dispatch_ledger._open_store()  # noqa: SLF001  # pylint: disable=protected-access
+    assert store is not None, "the redirected user store must open"
+    try:
+        store.migrate("dispatch_lanes")
+        row = store.conn.execute(
+            "SELECT entries FROM dispatch_lanes WHERE lane_id = ?",
+            (hook.dispatch_ledger._safe_session(session_id),)).fetchone()  # noqa: SLF001
+    finally:
+        store.close()
+    return hook.dispatch_ledger._parse_entries(row[0] if row else None)  # noqa: SLF001
 
 
 def test_a_denial_does_not_inflate_the_reported_lane_count(hook, monkeypatch, tmp_path):

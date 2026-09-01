@@ -30,7 +30,7 @@ def hook(load_script, monkeypatch, tmp_path):
     """
     monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
     module = load_script(HOOK_PATH)
-    module.dispatch_ledger.LEDGER_DIR = tmp_path / "dispatch-lanes"
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
     return module
 
 

@@ -43,6 +43,12 @@ def _replica(tmp_path):
     scripts.parent.mkdir(parents=True)
     shutil.copytree(CATALOG_SCRIPTS, scripts,
                     ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    # The P2.2 shim executes the canonical debug_log from the repo's hooks/ dir beside it
+    # (the shape the scaffolder delivers); a replica without it raises ImportError on import.
+    hooks_dir = repo / "features" / "common" / "hooks"
+    hooks_dir.mkdir(parents=True)
+    shutil.copy(ROOT / "features" / "common" / "hooks" / "debug_log.py",
+                hooks_dir / "debug_log.py")
     marker = repo / ".ai-badger" / "config.json"
     marker.parent.mkdir(parents=True)
     _test_write(marker, "{}", encoding="utf-8")
@@ -149,6 +155,8 @@ def test_no_tracker_entry_point_points_its_state_at_the_catalog(replica):
     for line in result.stdout.splitlines():
         name, value = line.split(" ", 1)
         path = Path(value)
+        if name.rsplit(".", 1)[1].startswith("_"):
+            continue  # private resolution machinery (e.g. the debug_log shim's _canonical)
         if path == scripts or scripts in path.parents:
             continue  # the module's own source location, which is of course in the catalog
         if path == catalog or catalog in path.parents:

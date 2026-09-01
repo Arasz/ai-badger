@@ -18,10 +18,15 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict, List
 
+# debug_log.py loads its storage sibling badger_store.py from beside itself (P2.2), so the
+# delivery list ships the pair together into both destinations: wherever a debug_log copy
+# lands, badger_store.py lands with it (delivery-list rule; the loader keeps a fail-open
+# belt for shapes that predate the pairing).
 PROJECT_HOOKS = ("ai_badger_hooks.py", "mcp_index_hook.py", "debug_log.py",
-                 "grounded_feedback.py", "hermes_isolation.py")
+                 "badger_store.py", "grounded_feedback.py", "hermes_isolation.py")
 USER_PLUGINS = ("ai_badger_hooks.py", "learned_skills_sync.py", "debug_log.py",
-                "follow_through.py", "grounded_feedback.py", "hermes_isolation.py")
+                "badger_store.py", "follow_through.py", "grounded_feedback.py",
+                "hermes_isolation.py")
 
 # Files that live under a skill's own scripts/ dir, not features/common/hooks/, but must
 # still land beside ai_badger_hooks.py in both destinations so its lazy sibling-import

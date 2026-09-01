@@ -11,11 +11,13 @@ imports nothing from the engine and nothing outside the standard library.
 """
 from __future__ import annotations
 
+import argparse
 import contextlib
 import json
 import os
 import re
 import sqlite3
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -241,6 +243,10 @@ VENDORED_PATHS: tuple[dict[str, str], ...] = (
     {"consumer": "auto-wm", "lands_in": "features/claude/skills/auto-wm/scripts/badger_store.py"},
     {"consumer": "auto-wm", "lands_in": "skills/auto-wm/scripts/badger_store.py"},
     {"consumer": "mcp-index", "lands_in": "skills/mcp-index/scripts/badger_store.py"},
+    {"consumer": "call-behaviorist",
+     "lands_in": "features/common/skills/call-behaviorist/scripts/badger_store.py"},
+    {"consumer": "call-behaviorist",
+     "lands_in": "skills/call-behaviorist/scripts/badger_store.py"},
 )
 
 
@@ -306,9 +312,13 @@ def audit_db_path() -> Path:
 
 
 def _ensure_root(db_path: Path) -> None:
-    """Create the DB's parent 0700 when absent; an existing root keeps its own mode (D17)."""
+    """Create the DB's parent 0700 when absent; an existing root keeps its own mode (D17).
+
+    `exist_ok` is load-bearing: concurrent first-opens (a fan-out's hooks all opening the
+    user store at once) race the mkdir, and a bare mkdir loses the race with FileExistsError.
+    """
     if not db_path.parent.is_dir():
-        db_path.parent.mkdir(parents=True)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(db_path.parent, 0o700)
 
 
@@ -382,8 +392,9 @@ class Family(NamedTuple):
     (current-session.json); ``awm`` is the away-mode document whose per-project entries sit
     under ``projects`` (or the pre-#296 single-project shape) keyed by project path;
     ``jsonl`` is one JSON object per line written by the legacy appender (decisions.jsonl)
-    with no natural key — imported with its ``ts_field`` (default "ts") verbatim and deduped
-    on exact (ts, payload) content so a re-import adds nothing. The file-set kinds
+    with no natural key — imported with its ``ts_field`` (default "ts") normalised through
+    iso_row_ts and deduped on exact (ts, payload) content so a re-import adds nothing. The
+    file-set kinds
     (FILE_SET_KINDS) are many-file shapes — a directory's children, or a pattern at the user
     root — imported as ONE transaction with each file renamed afterward per the pinned
     per-file convention "<stem>.migrated<suffix>" (D10).
@@ -421,10 +432,10 @@ def _user_root() -> Path:
 
 #: The user-DB families (P1.1): schema and legacy paths land here; each family's import wiring
 #: ("deferred" -> a real kind) lands with the lane that rewires its writer, so no store open
-#: imports or renames a source its writer still owns (D5/D6): searches with P1.4. awm_state
-#: flipped to its real kind with P1.2a's awm rewiring, awm_decisions to "jsonl" with P1.2b's
-#: decision rewiring, commit_reminder/pending_feedback with P1.3's rewiring. Until then a
-#: deferred family has neither dual-read nor lazy import.
+#: imports or renames a source its writer still owns (D5/D6). awm_state flipped to its real
+#: kind with P1.2a's awm rewiring, awm_decisions to "jsonl" with P1.2b's decision rewiring,
+#: commit_reminder/pending_feedback with P1.3's rewiring, searches to "recent" with P1.4's
+#: memory-grade rewiring. Until a family flips it has neither dual-read nor lazy import.
 USER_FAMILIES: dict[str, Family] = {
     "awm_state": Family(
         table="awm_state",
@@ -464,7 +475,7 @@ USER_FAMILIES: dict[str, Family] = {
         table="searches",
         db="user",
         legacy_path=lambda: _user_root() / "memory-grade" / "searches.json",
-        legacy_kind="deferred",
+        legacy_kind="recent",  # flipped from "deferred" by P1.4's memory-grade rewiring
     ),
     # P2.0b session-store families (D10): the seven session-scoped surfaces. The file-set
     # kinds (FILE_SET_KINDS) import a whole legacy set in one transaction and rename per
@@ -678,7 +689,7 @@ def _legacy_lock(lock_path: Path) -> Iterator[None]:
         os.close(fd)
 
 
-class Store:
+class Store:  # pylint: disable=too-many-public-methods  # one accessor per store surface
     """One open SQLite store: the raw connection plus KV accessors and lazy family migration.
 
     ``families`` selects which legacy JSON sources this store knows about; the default is the
@@ -1056,7 +1067,7 @@ class Store:
             self.conn.execute("BEGIN IMMEDIATE")
             try:
                 cursor = self.conn.execute(f"DELETE FROM {table} WHERE ts < ?", (cutoff,))
-                pruned = cursor.rowcount
+                pruned = cursor.rowcount + self._sweep_unparseable_ts(table)
                 self.conn.execute(
                     "INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)",
                     (stamp_key, json.dumps(time.time())),
@@ -1069,6 +1080,18 @@ class Store:
             return 0  # a broken store never blocks a caller on maintenance (D31)
         return pruned
 
+    def _sweep_unparseable_ts(self, table: str) -> int:
+        """Delete rows whose ts never parses; return the count. Caller holds the write txn.
+
+        A row that never parses can never satisfy any future cutoff, so string comparison
+        alone leaves it immortal (D36). The scan is hour-throttled like the prune itself
+        and the tables it touches are retention-bounded, so the full pass stays cheap.
+        """
+        rows = self.conn.execute(f"SELECT rowid, ts FROM {table}").fetchall()
+        dead = [row[0] for row in rows if not _parseable_ts(row[1])]
+        for rowid in dead:
+            self.conn.execute(f"DELETE FROM {table} WHERE rowid = ?", (rowid,))
+        return len(dead)
 
     # -- writes (may raise) ------------------------------------------------------------
 
@@ -1130,6 +1153,37 @@ class Store:
         _assert_file_perms(self.db_path)
         notify_write(self.db_path)
         return updated
+
+    def log_rows(self, table: str) -> list:
+        """Every (ts, payload) row of a log table in append order; [] on any failure (D31).
+
+        The read side of log_append: consumers merge these rows with their legacy sources
+        instead of querying the schema directly. Payloads stay encoded — a payload that
+        never decodes is the caller's skip, not a store crash.
+        """
+        _check_table_name(table)
+        try:
+            return self.conn.execute(
+                f"SELECT ts, payload FROM {table} ORDER BY id").fetchall()
+        except sqlite3.Error:
+            return []
+
+    def log_rows_since(self, table: str, cutoff_ts: str) -> list:
+        """(ts, payload) rows with ``ts >= cutoff_ts``, append order; [] on any failure.
+
+        The windowed read beside log_rows: a consumer answering a short recency window
+        must not read and decode the whole retention-bounded table (the memory-grade hook
+        measured linearly, 59 ms at 20k rows) — the ts-index DDL convention (D17c) makes
+        the cutoff a seek. Comparisons are the prune's ISO string comparison, so the
+        cutoff must carry the isoformat shape the writes store (iso_row_ts output).
+        """
+        _check_table_name(table)
+        try:
+            return self.conn.execute(
+                f"SELECT ts, payload FROM {table} WHERE ts >= ? ORDER BY id",
+                (cutoff_ts,)).fetchall()
+        except sqlite3.Error:
+            return []
 
     def log_append(self, table: str, ts: str, payload: dict) -> None:
         """Append one log row (ts, payload JSON); the first write lazy-migrates the family (D6)."""
@@ -1228,6 +1282,8 @@ class Store:
         """
         if family.legacy_kind == "jsonl":
             return self._import_jsonl(family, path)
+        if family.legacy_kind == "recent":
+            return self._import_recent(family, path)
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -1309,12 +1365,16 @@ class Store:
     def _import_jsonl(self, family: Family, path: Path) -> list:
         """One JSON object per line, no natural key: exact (ts, payload) content is the key.
 
-        The ts comes from the line's ``ts_field`` verbatim ("t" on audit lines), and the
-        verbatim LINE is stored as the payload — not a re-serialization. Re-import after a
-        crash between COMMIT and rename re-reads the same lines and finds their rows already
-        present, so the import stays idempotent (D6) without a schema-level unique column. A
-        torn or non-object line imports nothing and quarantines with the file rename, like
-        the doc-kind families.
+        The ts comes from the line's ``ts_field`` ("t" on audit lines), normalised through
+        iso_row_ts like the recent kind: the prune's sweep parses with datetime.fromisoformat,
+        which on the declared floor (3.10) rejects a "Z" suffix and 9-digit fractional
+        seconds, so a verbatim legacy ts would be swept as an ordinary expiry on the next
+        prune (join-review finding) — every imported row must be sweep-parseable (D36). The
+        verbatim LINE is stored as the payload — not a re-serialization. A line whose ts
+        needs the now-fallback loses re-import identity (two imports disagree on now); the
+        common case is parseable-ts lines, whose (ts, payload) key keeps the import
+        idempotent (D6). A torn or non-object line imports nothing and quarantines with the
+        file rename, like the doc-kind families.
         """
         expected: list = []
         try:
@@ -1330,8 +1390,7 @@ class Store:
                 continue
             if not isinstance(entry, dict):
                 continue
-            raw_ts = entry.get(family.ts_field)
-            ts = raw_ts if isinstance(raw_ts, str) and raw_ts else _now()
+            ts = iso_row_ts(entry.get(family.ts_field))
             exists = self.conn.execute(
                 f"SELECT 1 FROM {family.table} WHERE ts = ? AND payload = ?", (ts, line)
             ).fetchone()
@@ -1340,6 +1399,41 @@ class Store:
                     f"INSERT INTO {family.table}(ts, payload) VALUES (?, ?)", (ts, line)
                 )
             expected.append((ts, line))
+        return expected
+
+    def _import_recent(self, family: Family, path: Path) -> list:
+        """A wrapper document's entry list as log rows: payload verbatim, row ts converted.
+
+        The memory-grade stash (searches.json) holds {"recent": [{correlationId,
+        sourceFiles, ts: <epoch>}, ...]}: each entry becomes one row — the entry document
+        verbatim as the payload (its consumer does float window arithmetic on the embedded
+        ts), and the entry's own ts field converted by iso_row_ts for the row's ts column,
+        which the 60-day prune must parse (G0-Q2/D36). Idempotent like the jsonl kind:
+        exact (ts, payload) content is the key, so a crash between COMMIT and rename
+        re-imports without duplicates (D6). Non-dict entries import nothing and
+        quarantine with the rename.
+        """
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        entries = data.get("recent") if isinstance(data, dict) else None
+        if not isinstance(entries, list):
+            return []
+        expected: list = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            payload = json.dumps(entry)
+            ts = iso_row_ts(entry.get(family.ts_field))
+            exists = self.conn.execute(
+                f"SELECT 1 FROM {family.table} WHERE ts = ? AND payload = ?", (ts, payload)
+            ).fetchone()
+            if exists is None:
+                self.conn.execute(
+                    f"INSERT INTO {family.table}(ts, payload) VALUES (?, ?)", (ts, payload)
+                )
+            expected.append((ts, payload))
         return expected
 
     # -- file-set families (P2.0b, D10): one transaction for the set, rename per file -------
@@ -1498,6 +1592,43 @@ class Store:
         return expected
 
 
+def _parseable_ts(ts) -> bool:
+    """True for a ts the prune's string comparison can be trusted on: non-empty ISO-8601."""
+    if not isinstance(ts, str) or not ts:
+        return False
+    try:
+        datetime.fromisoformat(ts)
+    except ValueError:
+        return False
+    return True
+
+
+def iso_row_ts(raw_ts) -> str:
+    """A log entry's own ts as the ISO-8601 row ts the prune's comparison trusts (D36).
+
+    Epoch floats (the memory-grade stash's native ts) convert to UTC ISO; parseable ISO
+    strings pass through; anything else becomes now — a NOT NULL ts column and the
+    unparseable-ts sweep both need a value that parses. The entry document itself stays
+    verbatim in the payload, ts field included.
+    """
+    if isinstance(raw_ts, (int, float)) and not isinstance(raw_ts, bool):
+        try:
+            return datetime.fromtimestamp(raw_ts, timezone.utc).isoformat()
+        except (OverflowError, OSError, ValueError):
+            return _now()  # an out-of-range epoch is a value problem, not a crash
+    if _parseable_ts(raw_ts):
+        return raw_ts
+    return _now()
+
+
+#: The retention scope (owner decision #2 + G0-Q2): every log table and the DB it lives
+#: in. The on-write callers name their table; the CLI reports the whole scope.
+LOG_TABLES: dict[str, tuple[str, ...]] = {
+    "user": ("awm_decisions", "searches"),
+    "audit": ("hook_audit",),
+}
+
+
 def _open(db_path: Path, kind: str, families: Optional[dict] = None) -> Store:
     _ensure_root(db_path)
     _precreate_db_file(db_path)
@@ -1505,11 +1636,24 @@ def _open(db_path: Path, kind: str, families: Optional[dict] = None) -> Store:
     store = Store(conn, db_path, kind, families)
     try:
         conn.execute("PRAGMA busy_timeout = 5000")
-        conn.execute("PRAGMA journal_mode = WAL")
+        for attempt in range(4):
+            # Parallel first opens race the WAL conversion: it takes a lock the
+            # winner holds and returns BUSY without honouring busy_timeout, so
+            # retry briefly and accept a database someone already converted.
+            try:
+                conn.execute("PRAGMA journal_mode = WAL")
+                break
+            except sqlite3.OperationalError:
+                mode = conn.execute("PRAGMA journal_mode").fetchone()
+                if mode and str(mode[0]).lower() == "wal":
+                    break
+                if attempt == 3:
+                    raise
+                time.sleep(0.05)
         conn.execute("PRAGMA synchronous = NORMAL")
         _create_schema(conn)
         _ensure_schema_version(conn, db_path)
-        store._check_resurrections()
+        store._check_resurrections()  # pylint: disable=protected-access
     except BaseException:
         conn.close()
         raise
@@ -1525,3 +1669,79 @@ def open_tracking(families: Optional[dict] = None) -> Store:
 def open_user(families: Optional[dict] = None) -> Store:
     """Open (creating when absent) the user-level store; defaults to USER_FAMILIES."""
     return _open(user_db_path(), "user", USER_FAMILIES if families is None else families)
+
+
+# -- CLI: `prune --status`, the retention scope's read-only inspection surface ---------
+
+def _render_stamp(conn: sqlite3.Connection, table: str) -> str:
+    """The table's pruned_at stamp as a UTC timestamp, or '-' when absent/foreign."""
+    try:
+        row = conn.execute("SELECT value FROM meta WHERE key = ?",
+                           (f"pruned_at.{table}",)).fetchone()
+    except sqlite3.Error:
+        return "-"
+    if row is None:
+        return "-"
+    try:
+        moment = float(json.loads(row[0]))
+    except (TypeError, ValueError):
+        return "-"
+    return datetime.fromtimestamp(moment, timezone.utc).isoformat()
+
+
+def prune_status_lines() -> list[str]:
+    """Retention state of every log table (LOG_TABLES): rows, oldest ts, last prune stamp.
+
+    Read-only throughout — a status verb must never create, migrate or write the store it
+    reports on (mode=ro), and an absent DB is reported as such with zeroed tables.
+    """
+    lines: list[str] = []
+    for db_kind, tables in LOG_TABLES.items():
+        db_path = user_db_path() if db_kind == "user" else audit_db_path()
+        header = f"db={db_kind} path={db_path}"
+        conn = None
+        if db_path.exists():
+            try:
+                conn = sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True)
+            except sqlite3.Error:
+                conn = None
+        if conn is None:
+            header += " status=no-database"
+        lines.append(header)
+        for table in tables:
+            rows, oldest, stamp = 0, "-", "-"
+            if conn is not None:
+                try:
+                    count, min_ts = conn.execute(
+                        f"SELECT COUNT(*), MIN(ts) FROM {table}").fetchone()
+                    rows, oldest = int(count), min_ts if min_ts is not None else "-"
+                    stamp = _render_stamp(conn, table)
+                except sqlite3.Error:
+                    pass  # a DB predating the table reports as empty
+            lines.append(f"  {table} rows={rows} oldest={oldest} last_prune={stamp}")
+        if conn is not None:
+            with contextlib.suppress(sqlite3.Error):
+                conn.close()
+    return lines
+
+
+def main(argv: Optional[list] = None) -> int:
+    """CLI entry point; the one verb is `prune --status` (retention inspection, D30)."""
+    parser = argparse.ArgumentParser(
+        prog="badger_store", description="SQLite runtime store utilities (ADR-0024)")
+    sub = parser.add_subparsers(dest="command", required=True)
+    prune = sub.add_parser("prune", help="retention over the log tables")
+    prune.add_argument("--status", action="store_true",
+                       help="per-table row count, oldest row and last prune stamp")
+    args = parser.parse_args(argv)
+    if args.command == "prune":
+        if not args.status:
+            prune.error("nothing to do — only --status is implemented")
+        for line in prune_status_lines():
+            print(line)
+        return 0
+    return 2  # unreachable: the subcommand is required
+
+
+if __name__ == "__main__":
+    sys.exit(main())

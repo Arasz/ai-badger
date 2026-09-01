@@ -14,6 +14,7 @@ import io
 import json
 import sys
 
+import badger_store
 import pytest
 from conftest import _test_write
 
@@ -64,9 +65,11 @@ def hook(load_script):
 
 
 @pytest.fixture
-def real_context_enrichment(hook, load_script, monkeypatch):
+def real_context_enrichment(hook, load_script, monkeypatch, tmp_path):
     """Inject the real shared module, as the retrieval adjustment would copy beside the hook."""
     module = load_script("features/common/retrieval/context_enrichment.py")
+    # P2.1a: nudge presence is a store row — hook-path writes land in a scratch user root.
+    monkeypatch.setenv(badger_store.USER_ROOT_ENV, str(tmp_path / "user-root"))
     monkeypatch.setitem(sys.modules, hook.CONTEXT_ENRICHMENT_MODULE_NAME, module)
     return module
 
@@ -89,9 +92,10 @@ def _enable(dl, tmp_path, monkeypatch):
 
 
 def _records(dl):
-    if not dl.AUDIT_FILE.exists():
-        return []
-    return [json.loads(line) for line in dl.AUDIT_FILE.read_text(encoding="utf-8").splitlines()]
+    """Records through the seam the sink actually uses: store rows when the store is
+    available (what log_event writes, P2.2), the legacy jsonl otherwise — so the contract
+    below holds with the store present and with the store broken alike."""
+    return dl.read_records()
 
 
 def _retrieval_records(dl):
@@ -136,6 +140,26 @@ class TestHitGateNoTermsAbsentAreDistinguishable:
         record = records[-1]
         assert record[dl.KEY_QUERY] == "build the solution"
         assert "rider:build_solution" in record[dl.KEY_RETURNED]
+
+    def test_a_matching_query_still_emits_context_and_a_hit_record_when_the_store_is_broken(
+        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
+    ):
+        """Emission and telemetry are independent of store health (D31): with the store
+        unavailable the sink falls back to the legacy jsonl and nothing is lost."""
+        dl = hook.debug_log
+        _enable(dl, tmp_path, monkeypatch)
+        monkeypatch.setattr(dl, "_store", lambda: None)
+        project = tmp_path / "proj"
+        _write_index(project, _sample_index())
+
+        rc = _run_main(hook, monkeypatch,
+                        {"prompt": "build the solution", "cwd": str(project)})
+
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert "rider:build_solution" in out["hookSpecificOutput"]["additionalContext"]
+        records = _retrieval_records(dl)
+        assert records and records[-1][dl.KEY_EVENT] == "hit"
 
     def test_a_query_that_scores_below_the_bar_emits_no_context_and_a_gate_record(
         self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment

@@ -38,7 +38,7 @@ All via `python3 ~/.claude/skills/auto-wm/scripts/awm.py`:
 | `away [DURATION]` | Switch to away mode: auto-approve, questions denied, expires (default 4h). Grammar: `Nh`, `Nm`, `NhMm`, or a bare number = hours (`4h`, `90m`, `1h30m`, `4`); anything over 12h is capped |
 | `disable` (or `off`, `stop`) | Turn AWM off **for this project** — normal per-tool prompts resume here; other projects keep their windows |
 | `status` | This project's mode, since when, and time remaining — plus any other project still armed |
-| `forget [PATH] [--force]` | Remove this project's entry (or PATH's) from `state.json` entirely. `disable` only flips an entry off; entries otherwise accumulate for every directory AWM was ever enabled in. Refuses a live window without `--force`. Takes a path because the usual case — a deleted worktree — cannot be `cd`'d into |
+| `forget [PATH] [--force]` | Remove this project's entry (or PATH's) from `awm_state` entirely. `disable` only flips an entry off; entries otherwise accumulate for every directory AWM was ever enabled in. Refuses a live window without `--force`. Takes a path because the usual case — a deleted worktree — cannot be `cd`'d into |
 | `decision "<what and why>"` | Register a judgment call in the audit log |
 
 ## Invocation
@@ -46,15 +46,15 @@ All via `python3 ~/.claude/skills/auto-wm/scripts/awm.py`:
 `/auto-wm [away DURATION | off | status | forget [PATH] [--force] | partner DURATION]` — no argument means `partner` (8h, default). Away mode must be asked for explicitly, since it changes how questions are handled and has a clock running.
 
 1. Run the matching `awm.py` command and relay its output (partner/away both print what changed).
-2. On first enable (partner or away), smoke-test that the gate hook actually fires: run any trivial command (e.g. `true`), then `tail -2 ~/.claude/awm/decisions.jsonl` — a fresh `auto_approve` entry proves auto-approval is live. If no entry appears, check registration with `jq '.hooks.PreToolUse' ~/.claude/settings.json`; if missing, merge `~/.claude/skills/auto-wm/hooks/settings-snippet.json` into `~/.claude/settings.json` (preserve existing keys), then tell the user hooks load on `/hooks` or restart.
+2. On first enable (partner or away), smoke-test that the gate hook actually fires: run any trivial command (e.g. `true`), then `sqlite3 ~/.ai-badger/ai-badger.db "SELECT payload FROM awm_decisions ORDER BY id DESC LIMIT 2"` — a fresh `auto_approve` entry proves auto-approval is live. If no entry appears, check registration with `jq '.hooks.PreToolUse' ~/.claude/settings.json`; if missing, merge `~/.claude/skills/auto-wm/hooks/settings-snippet.json` into `~/.claude/settings.json` (preserve existing keys), then tell the user hooks load on `/hooks` or restart.
 3. In the same reply, warn once (either mode): tool calls will be auto-approved without asking — close to `bypassPermissions`, minus the denylist, and with an audit trail. Say which project it is scoped to and when the window expires. For away mode, also note that questions get denied outright.
 
 ## Files (all user-level)
 
 | File | Purpose |
 |---|---|
-| `~/.claude/awm/state.json` | `{"version": 2, "projects": {"<path>": {"enabled": ..., "mode": ..., "enabled_at": ..., "duration": ..., "expires_at": ...}}}` — one entry per project. A pre-0.74 single-project file is read as one entry and rewritten in this shape on the next change. |
-| `~/.claude/awm/decisions.jsonl` | Audit log: `mode_enabled/disabled/expired`, `auto_approve`, `question_denied`, `denylisted`, `out_of_scope`, `decision` |
+| `awm_state` table, `~/.ai-badger/ai-badger.db` | One row per project: `{"enabled": ..., "mode": ..., "enabled_at": ..., "duration": ..., "expires_at": ...}`. A legacy `~/.claude/awm/state.json` imports on the first write and is renamed `*.migrated.*`. |
+| `awm_decisions` table, `~/.ai-badger/ai-badger.db` | Audit log: `mode_enabled/disabled/expired`, `auto_approve`, `question_denied`, `denylisted`, `out_of_scope`, `decision`. Rows older than 60 days are pruned. |
 | `~/.claude/skills/auto-wm/hooks/` | `awm_gate.py` (PreToolUse), `awm_context.py` (UserPromptSubmit) |
 
 ## While AWM is active (behavior contract)
@@ -76,7 +76,7 @@ All via `python3 ~/.claude/skills/auto-wm/scripts/awm.py`:
 - **Reading a fall-through as a failure.** A denylisted or out-of-scope call is not an error: the normal permission prompt reaches the user, exactly as if AWM were off. Don't retry it a different way to get around the gate — ask.
 - **Session cron for expiry** — dies with the session. The hooks compare `expires_at` to wall-clock instead.
 - **Reading the banner as proof the gate will approve.** It used to be: the banner ignored scope entirely and announced away mode in every project on the machine, including ones where every call was denied (#296). Both now read the same per-project entry, but the audit log is still the only place that records what the gate actually decided.
-- **Editing state.json by hand** — always go through `awm.py` so changes land in the audit log. That includes removing a stale project: `forget` records a `mode_forgotten` event, a text editor records nothing.
+- **Editing `awm_state` by hand** — always go through `awm.py` so changes land in the audit log. That includes removing a stale project: `forget` records a `mode_forgotten` event, a text editor records nothing.
 
 ## Installing from ai-badger
 

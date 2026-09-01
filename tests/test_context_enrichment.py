@@ -10,13 +10,17 @@ from __future__ import annotations
 
 import json
 
+import badger_store
 import pytest
 from conftest import _test_write
 
 
 @pytest.fixture
-def ce(load_script):
-    return load_script("features/common/retrieval/context_enrichment.py")
+def ce(load_script, monkeypatch, tmp_path):
+    module = load_script("features/common/retrieval/context_enrichment.py")
+    # P2.1a: nudge presence is a store row — the suite's rows land in a scratch user root.
+    monkeypatch.setenv(badger_store.USER_ROOT_ENV, str(tmp_path / "user-root"))
+    return module
 
 
 def _sample_index() -> dict:
@@ -192,20 +196,39 @@ class TestSemanticaNudgeHelpers:
         assert ce.semantica_nudge_marker_path("..", base_dir=tmp_path) == tmp_path / "__"
 
     def test_semantica_nudge_record_and_check(self, ce, tmp_path):
-        assert ce.semantica_nudge_already_shown("sess-1", base_dir=tmp_path) is False
-        assert ce.record_semantica_nudge_shown("sess-1", base_dir=tmp_path) is True
-        assert (tmp_path / "sess-1").is_file()
-        assert ce.semantica_nudge_already_shown("sess-1", base_dir=tmp_path) is True
+        """P2.1a byte→row: the once-per-session fact is a semantica_nudge row."""
+        assert ce.semantica_nudge_already_shown("sess-1") is False
+        assert ce.record_semantica_nudge_shown("sess-1") is True
+        assert ce.semantica_nudge_already_shown("sess-1") is True
+        assert ce.semantica_nudge_already_shown("sess-2") is False
+        # The write is idempotent: a re-record never duplicates or errors.
+        assert ce.record_semantica_nudge_shown("sess-1") is True
 
         # Missing or empty session_id safely returns False without raising
-        assert ce.record_semantica_nudge_shown(None, base_dir=tmp_path) is False
-        assert ce.record_semantica_nudge_shown("", base_dir=tmp_path) is False
-        assert ce.semantica_nudge_already_shown(None, base_dir=tmp_path) is False
-        assert ce.semantica_nudge_already_shown("", base_dir=tmp_path) is False
+        assert ce.record_semantica_nudge_shown(None) is False
+        assert ce.record_semantica_nudge_shown("") is False
+        assert ce.semantica_nudge_already_shown(None) is False
+        assert ce.semantica_nudge_already_shown("") is False
 
     def test_nudge_line_matches_contract(self, ce):
         assert "[ai-badger] Semantica is configured:" in ce.NUDGE_LINE
         assert "record_decision" in ce.NUDGE_LINE
+
+    def test_first_nudge_write_imports_the_legacy_marker_set(self, ce, monkeypatch, tmp_path):
+        """Writer-path migration (D6): the first write imports the legacy flat marker set.
+
+        The store-level suite covers the import shape; this proves the WRITER triggers it:
+        legacy empty <uuid> files become shown rows and are renamed out of the surface.
+        """
+        legacy = tmp_path / "nudges"
+        legacy.mkdir()
+        (legacy / "legacy-sess").touch()
+        monkeypatch.setattr(ce, "SEMANTICA_NUDGE_DIR", legacy)
+
+        assert ce.record_semantica_nudge_shown("new-sess") is True
+        assert ce.semantica_nudge_already_shown("legacy-sess") is True
+        assert not (legacy / "legacy-sess").exists()
+        assert (legacy / "legacy-sess.migrated").exists()
 
     def test_the_nudge_does_not_instruct_a_call_that_always_fails(self, ce):
         """export_graph errors in every format on semantica 0.6.6.

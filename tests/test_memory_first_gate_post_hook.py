@@ -11,6 +11,7 @@ import io
 import json
 import sys
 
+import badger_store
 import pytest
 
 
@@ -20,6 +21,8 @@ def gate(load_script, monkeypatch, tmp_path):
     real = load_script(
         "features/common/skills/ai-raccoon-memory/scripts/memory_first_gate.py")
     monkeypatch.setattr(real, "MARKER_DIR", tmp_path / "memory-first")
+    # P2.1a: gate presence is a store row — hook runs land in a scratch user root.
+    monkeypatch.setenv(badger_store.USER_ROOT_ENV, str(tmp_path / "user-root"))
     monkeypatch.setitem(sys.modules, "memory_first_gate", real)
     return real
 

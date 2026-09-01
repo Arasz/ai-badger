@@ -75,9 +75,10 @@ def _enable(dl, tmp_path, monkeypatch):
 
 
 def _records(dl):
-    if not dl.AUDIT_FILE.exists():
-        return []
-    return [json.loads(line) for line in dl.AUDIT_FILE.read_text(encoding="utf-8").splitlines()]
+    """P2.2 flagged rewrite: records read through the query verb — store rows when the
+    store is available (the patched DEBUG_DIR moves the audit DB), the legacy jsonl at the
+    patched AUDIT_FILE otherwise. Assertion strength unchanged."""
+    return dl.read_records()
 
 
 def _retrieval_records(dl):

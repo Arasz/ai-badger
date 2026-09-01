@@ -64,4 +64,4 @@ lives in `.ai-badger/state.json` (bump task summary); the data-root path claim
 is a `file:line` citation (DefaultOptions.cs:10); the shim-conflict error is
 re-measurable only by packing both ids into one tool-path (documented verbatim
 in the record instead). Check cited task records exist
-(`.ai-badger/task-tracking/executed-tasks.json`) before accepting them.
+(the `tasks` table of `.ai-badger/task-tracking/tracking.db`) before accepting them.

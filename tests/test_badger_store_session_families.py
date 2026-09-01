@@ -74,6 +74,8 @@ Test map:
                                                    test_dirty_sweeps_natural_key_is_the_legacy_hash,
                                                    test_blast_radius_denials_key_is_the_filename_stem,
                                                    test_hook_audit_import_uses_line_ts_and_dedups,
+                                                   test_floor_hostile_legacy_lines_survive_their_first_prune,
+                                                   test_floor_hostile_ts_is_normalised_at_import_not_at_sweep_time,
                                                    test_hook_state_imports_state_doc_as_one_kv_row
   4. Resumability + rename convention (D10/D6) .. test_multi_file_family_import_is_resumable_after_crash,
                                                    test_directory_family_rename_is_per_file
@@ -84,8 +86,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import badger_store
@@ -406,6 +410,92 @@ def test_hook_audit_import_uses_line_ts_and_dedups(tmp_path, monkeypatch):
         assert len(rows) == 2, "torn line must not import"
         store.migrate("hook_audit")  # idempotent on (ts, payload)
         assert store.conn.execute("SELECT count(*) FROM hook_audit").fetchone()[0] == 2
+    finally:
+        store.close()
+
+
+def _parseable_ts_py310(ts) -> bool:
+    """badger_store._parseable_ts as the 3.10 floor evaluates it: that interpreter's
+    datetime.fromisoformat rejects the "Z" suffix and fractional seconds past 6 digits
+    (both parse from 3.11). Every test seeding a floor-hostile ts goes through this, so
+    the sweep's decision is pinned to the declared floor, not to the dev interpreter.
+    """
+    if not isinstance(ts, str) or not ts:
+        return False
+    if ts.endswith("Z"):
+        return False
+    _, dot, tail = ts.partition(".")
+    if dot:
+        digits = re.match(r"\d+", tail)
+        if digits and len(digits.group()) > 6:
+            return False
+    try:
+        datetime.fromisoformat(ts)
+    except ValueError:
+        return False
+    return True
+
+
+def test_floor_hostile_legacy_lines_survive_their_first_prune(tmp_path, monkeypatch):
+    """Join-review finding: _import_jsonl stored a legacy line's ts verbatim while the
+    prune's sweep parses with datetime.fromisoformat — which on the declared floor (3.10,
+    CI's only version) rejects a "Z" suffix and 9-digit fractional seconds. Demonstrated
+    end to end: import, then the next prune sweeps the seconds-old rows and counts them
+    as ordinary expiries. The import must normalise through iso_row_ts (D36) like the
+    recent kind, so every imported row is sweep-parseable on the floor it ships to."""
+    root = _user_env(tmp_path, monkeypatch)
+    (root / "debug").mkdir(parents=True)
+    z_ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    nano_ts = (datetime.now(timezone.utc).isoformat().replace("+00:00", "")
+               + "123+00:00")  # 9 fractional digits
+    z_line = json.dumps({"t": z_ts, "c": "grounded_feedback_hook", "e": "skip",
+                         "v": "0.155.0"})
+    nano_line = json.dumps({"t": nano_ts, "c": "prompt_markers", "e": "expand",
+                            "v": "0.155.0"})
+    control_line = json.dumps({"t": datetime.now(timezone.utc).isoformat(),
+                               "c": "commit_reminder", "e": "nudge", "v": "0.155.0"})
+    (root / "debug" / "audit.jsonl").write_text(
+        f"{z_line}\n{nano_line}\n{control_line}\n", encoding="utf-8")
+    monkeypatch.setattr(badger_store, "_parseable_ts", _parseable_ts_py310)
+
+    store = _open_user()
+    try:
+        store.migrate("hook_audit")
+        pruned = store.prune_expired("hook_audit", max_age_days=60)
+
+        assert pruned == 0, "seconds-old imported rows must not count as expiries"
+        payloads = [row[0] for row in store.conn.execute(
+            "SELECT payload FROM hook_audit ORDER BY id")]
+        assert payloads == [z_line, nano_line, control_line], (
+            "every imported line survives, payload verbatim — only the row ts is "
+            "normalised")
+    finally:
+        store.close()
+
+
+def test_floor_hostile_ts_is_normalised_at_import_not_at_sweep_time(tmp_path, monkeypatch):
+    """The row ts column itself carries the normalisation: a "Z"-suffixed legacy line is
+    imported with a floor-parseable row ts (the iso_row_ts contract), while the payload
+    keeps the line verbatim. Asserting the column (a secondary observable) keeps the fix
+    honest even where the sweep's decision is not exercised."""
+    root = _user_env(tmp_path, monkeypatch)
+    (root / "debug").mkdir(parents=True)
+    z_ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    (root / "debug" / "audit.jsonl").write_text(
+        json.dumps({"t": z_ts, "c": "grounded_feedback_hook", "e": "skip",
+                    "v": "0.155.0"}) + "\n", encoding="utf-8")
+    monkeypatch.setattr(badger_store, "_parseable_ts", _parseable_ts_py310)
+
+    store = _open_user()
+    try:
+        store.migrate("hook_audit")
+
+        row_ts, payload = store.conn.execute(
+            "SELECT ts, payload FROM hook_audit").fetchone()
+        assert _parseable_ts_py310(row_ts), (
+            f"imported row ts {row_ts!r} must parse on the 3.10 floor")
+        assert not row_ts.endswith("Z")
+        assert json.loads(payload)["t"] == z_ts  # the payload stays verbatim
     finally:
         store.close()
 

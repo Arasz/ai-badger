@@ -287,7 +287,7 @@ The `task` skill ships in two parts:
 `index_build.py` convention needed — extensions are found by their `extension.json`.
 
 `prompt-markers` ships as its own skill at `features/common/skills/prompt-markers` (hook +
-`markers-context.json` + `marker-state.json`) and is referenced
+`markers-context.json`; runtime state in the project tracking DB) and is referenced
 by the base `task` skill rather than folded into it.
 
 **Risk to watch:** the base `task` skill must carry zero stack-specific literals — grep the
