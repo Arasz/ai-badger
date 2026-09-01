@@ -846,3 +846,44 @@ def test_every_delivery_shape_is_index_bounded(tmp_path, monkeypatch):
             )
     finally:
         raw.close()
+
+
+def test_env_gated_hold_blocks_until_the_release_file_exists(tmp_path, monkeypatch):
+    """The F5 seam's cross-process arming path: AI_BADGER_TEST_HOLD="<seam>:<release-path>"
+    parks the delivery at the seam until the file appears — the mechanism P9's
+    two-process race depends on. In-process this proves the env path; the registry path
+    is what the race test above arms."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        store.send_message(sender_session="S1", sender_project="P", content="held",
+                           target_project="P")
+    finally:
+        store.close()
+
+    release = tmp_path / "release-hold"
+    monkeypatch.setenv("AI_BADGER_TEST_HOLD", f"deliver.after_read:{release}")
+
+    done = threading.Event()
+    error: list = []
+
+    def held_hook():
+        session = badger_store.open_user()
+        try:
+            session.deliver_for_session("S2", "P")
+            done.set()
+        except BaseException as exc:  # pylint: disable=broad-exception-caught
+            error.append(exc)
+            done.set()
+        finally:
+            session.close()
+
+    worker = threading.Thread(target=held_hook)
+    worker.start()
+    try:
+        assert not done.wait(0.5), "the env-gated hold must park the delivery at the seam"
+    finally:
+        release.touch()  # the parent releases the child by creating the file
+    assert done.wait(10), "the delivery never resumed after the release file appeared"
+    if error:
+        raise error[0]
