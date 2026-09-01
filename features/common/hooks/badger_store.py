@@ -84,6 +84,34 @@ def _upgrade_v1_to_v2(conn: sqlite3.Connection) -> None:
         conn.execute(statement)
 
 
+#: Deterministic test seams for the delivery path (plan review F5/§D): the two points a
+#: test must be able to freeze to make the exactly-once race real instead of won
+#: green-trivially by the microsecond default window. In-process tests register callbacks
+#: here; a child process arms a block via ``AI_BADGER_TEST_HOLD="<seam>:<release-path>""
+#: and its parent releases it by creating the path. Production never registers or sets
+#: the env — the seams are inert unless a test arms them.
+_TEST_HOLDS: dict[str, list[Callable[[], None]]] = {}
+_TEST_HOLD_ENV = "AI_BADGER_TEST_HOLD"
+
+
+def _hold_at(seam: str) -> None:
+    """Run every callback registered for *seam*, then honour the env-gated cross-process hold."""
+    for blocker in tuple(_TEST_HOLDS.get(seam, ())):
+        blocker()
+    spec = os.environ.get(_TEST_HOLD_ENV)
+    if spec and spec.startswith(f"{seam}:"):
+        release = Path(spec.split(":", 1)[1])
+        while not release.exists():
+            time.sleep(0.005)
+
+
+def _message_document(row) -> dict:
+    """One messages row as the delivered document — the shape schemas/message.schema.json
+    validates (F4): ``{sender: {sessionId, projectId}, content, timestamp}``."""
+    return {"sender": {"sessionId": row[2], "projectId": row[3]},
+            "content": row[4], "timestamp": row[1]}
+
+
 #: On-open upgrade seam: hook for version N migrates a database stamped N to N+1 (D27).
 #: Key 1 is the message bus (P1) — the first migration this store has ever registered.
 UPGRADE_HOOKS: dict[int, Callable[[sqlite3.Connection], None]] = {1: _upgrade_v1_to_v2}
@@ -1665,6 +1693,138 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
             expected.append(path.stem)
         return expected
 
+    # -- message bus (P1): send, deliver, cursor lifecycle --------------------------------
+
+    def send_message(self, *, sender_session: str, sender_project: str, content: str,
+                     target_session: Optional[str] = None,
+                     target_project: Optional[str] = None) -> int:
+        """Store one bus message and return its row id.
+
+        Sender identity is REQUIRED at send (R10): an empty session or project refuses
+        with the missing-identity error and writes nothing. Addressing normalises at
+        write (D3): a given target_session makes the row 1:1 with target_project stored
+        NULL, a target_project alone is a project broadcast, neither is a machine
+        broadcast — every read predicate stays single-shape. Content is a raw string.
+        """
+        if not sender_session:
+            raise ValueError("send refused: missing sender identity (sessionId)")
+        if not sender_project:
+            raise ValueError("send refused: missing sender identity (projectId)")
+        if not isinstance(content, str):
+            raise ValueError("message content must be a raw string")
+        stored_session = target_session or None
+        stored_project = None if stored_session else (target_project or None)
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = self.conn.execute(
+                "INSERT INTO messages(ts, sender_session, sender_project, target_session, "
+                "target_project, content) VALUES (?, ?, ?, ?, ?, ?)",
+                (_now(), sender_session, sender_project, stored_session, stored_project,
+                 content),
+            )
+            row_id = cursor.lastrowid
+            self.conn.commit()
+        except BaseException:
+            self.conn.rollback()
+            raise
+        _assert_file_perms(self.db_path)
+        notify_write(self.db_path)
+        return row_id
+
+    def deliver_for_session(self, session_id: str,
+                            project_id: Optional[str] = None) -> list:
+        """Deliver the messages addressed to *session_id* and advance its cursor — atomically.
+
+        The read and the cursor upsert share one BEGIN IMMEDIATE, so two hooks racing on
+        one unread message serialize: exactly one injects it, both finish at the same
+        cursor (R3). A session with no cursor row gates history to the last 30 minutes
+        (inclusive) and caps at the first 16 oldest, cursor landing past the gated window
+        so the overflow is never revisited (R4/R5, D5) — in history AND live mode, since
+        this is the one delivery path. Later reads are pure ``id > cursor`` and uncapped
+        (A5: live broadcast volume is bounded by agent-paced sends, not by a cap).
+        With no *project_id* only the 1:1 leg runs — the caller's unresolved-project
+        fail-open contract (D7). Every returned document is
+        ``{sender: {sessionId, projectId}, content, timestamp}`` in chronological order.
+        """
+        if not session_id:
+            raise ValueError("delivery requires a session id")
+        _hold_at("deliver.entry")
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            row = self.conn.execute(
+                "SELECT cursor_id FROM cursors WHERE session_id = ?", (session_id,)
+            ).fetchone()
+            if row is None:
+                cutoff = (datetime.now(timezone.utc) - _GATE_WINDOW).isoformat()
+                rows = self._read_addressed(session_id, project_id, after_id=0,
+                                            since_ts=cutoff)
+                messages = [_message_document(r) for r in rows[:_START_CAP]]
+                # Past the WHOLE gated window, not past the last delivered row: the
+                # dropped overflow (and everything older) must never be revisited (R5).
+                next_cursor = self.conn.execute(
+                    "SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]
+            else:
+                rows = self._read_addressed(session_id, project_id,
+                                            after_id=row[0], since_ts=None)
+                messages = [_message_document(r) for r in rows]
+                next_cursor = rows[-1][0] if rows else row[0]
+            _hold_at("deliver.after_read")
+            self.conn.execute(
+                "INSERT INTO cursors(session_id, cursor_id, ts) VALUES (?, ?, ?) "
+                "ON CONFLICT(session_id) DO UPDATE SET cursor_id = excluded.cursor_id, "
+                "ts = excluded.ts",
+                (session_id, next_cursor, _now()),
+            )
+            self.conn.commit()
+        except BaseException:
+            self.conn.rollback()
+            raise
+        _assert_file_perms(self.db_path)
+        notify_write(self.db_path)
+        return messages
+
+    def _read_addressed(self, session_id: str, project_id: Optional[str], *,
+                        after_id: int, since_ts: Optional[str]) -> list:
+        """The three D3 shapes (1:1, project, broadcast) minus the sender's own rows (R2),
+        past *after_id*, optionally gated to *since_ts*, oldest first.
+
+        One OR-shaped query: the planner serves it as a MULTI-INDEX OR — each branch is a
+        seek on idx_messages_target_session / idx_messages_target_project / the PK range
+        (D6, verified by the EXPLAIN gate test). Without a project_id the project and
+        broadcast branches drop out (deliver 1:1 only, D7).
+        """
+        shapes = ["target_session = ?"]
+        params: list = [session_id]
+        if project_id:
+            shapes.append("(target_session IS NULL AND target_project = ?)")
+            shapes.append("(target_session IS NULL AND target_project IS NULL)")
+            params.append(project_id)
+        clauses = [f"({' OR '.join(shapes)})", "id > ?", "sender_session <> ?"]
+        params.extend((after_id, session_id))
+        if since_ts is not None:
+            clauses.append("ts >= ?")
+            params.append(since_ts)
+        return self.conn.execute(
+            f"SELECT id, ts, sender_session, sender_project, content FROM messages "
+            f"WHERE {' AND '.join(clauses)} ORDER BY id ASC",
+            tuple(params),
+        ).fetchall()
+
+    def delete_cursor(self, session_id: str) -> bool:
+        """Remove one session's cursor row — the close-event cleanup (R6); True if it existed."""
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = self.conn.execute(
+                "DELETE FROM cursors WHERE session_id = ?", (session_id,))
+            deleted = cursor.rowcount
+            self.conn.commit()
+        except BaseException:
+            self.conn.rollback()
+            raise
+        _assert_file_perms(self.db_path)
+        notify_write(self.db_path)
+        return deleted > 0
+
 
 def _parseable_ts(ts) -> bool:
     """True for a ts the prune's string comparison can be trusted on: non-empty ISO-8601."""
@@ -1741,8 +1901,17 @@ def open_tracking(families: Optional[dict] = None) -> Store:
 
 
 def open_user(families: Optional[dict] = None) -> Store:
-    """Open (creating when absent) the user-level store; defaults to USER_FAMILIES."""
-    return _open(user_db_path(), "user", USER_FAMILIES if families is None else families)
+    """Open (creating when absent) the user-level store; defaults to USER_FAMILIES.
+
+    Every open prunes the bus tables to their 4-day retention (R6/R10, D10) — wired here,
+    NOT in general _open: tracking stores have no bus retention to run. The prune is
+    hour-throttled by its pruned_at stamps and fails open as 0 (D31), so a broken store
+    still opens.
+    """
+    store = _open(user_db_path(), "user", USER_FAMILIES if families is None else families)
+    store.prune_expired("messages", max_age_days=_BUS_MAX_AGE_DAYS)
+    store.prune_expired("cursors", max_age_days=_BUS_MAX_AGE_DAYS)
+    return store
 
 
 # -- CLI: `prune --status`, the retention scope's read-only inspection surface ---------

@@ -222,7 +222,9 @@ def test_session_family_legacy_paths_follow_user_root_env(tmp_path, monkeypatch)
     dirty-sweep pattern's parent (the user root itself), debug/audit.jsonl, debug/state.json."""
     root = _user_env(tmp_path, monkeypatch)
     families = badger_store.USER_FAMILIES
-    paths = {name: families[name].legacy_path() for name in families}
+    # The bus families (P1, D2) are born in SQLite: no legacy source, so no path to redirect.
+    paths = {name: families[name].legacy_path() for name in families
+             if families[name].legacy_path is not None}
     assert paths["memory_first"] == root / "memory-first"
     assert paths["semantica_nudge"] == root / "semantica-nudge"
     assert paths["dispatch_lanes"] == root / "dispatch-lanes"
