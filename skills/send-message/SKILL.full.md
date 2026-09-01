@@ -57,13 +57,19 @@ not an implementation quirk:
   sessions store, then a unique cwd match (exactly one known session carrying this
   working directory). Ambiguous or absent → refused.
 - **projectId** — `--sender-project <id>`, or `AI_BADGER_PROJECT_ID`, or the cwd
-  resolver's read of the ai-raccoon registry (containment: the working directory equal
-  to or under a registered project's scope paths). Several registered projects
-  containing the cwd refuse with the candidate list — pick one explicitly. A cwd
-  outside every registered project refuses rather than guessing.
+  resolver's upward walk to the nearest `.ai-badger/project-id` (minted at scaffold
+  time, backfilled by den-refresh). A cwd with no `.ai-badger` in its ancestry — or
+  one whose id file is absent — resolves no project: the send needs the explicit
+  flag. This refuses rather than guessing.
 
 The explicit flags exist for contexts with no derivable identity: a human running the
 script by hand, a cron job, or a test.
+
+Sender identity is asserted, not authenticated: it is derived from machine-local state
+(environment variables, the sessions store, the working directory), so anything with
+access to this machine can send as any session or project. Treat a sender as a claim
+the local software made, not proof of authorship — the trust boundary is the machine,
+not the bus.
 
 ## Gotchas
 
