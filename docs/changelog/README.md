@@ -19,7 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.157.1 | [Leg-scoped cursor and armed test hold](0.157.1-leg-scoped-cursor-and-armed-hold.md) |
+| 0.157.1 | [Leg-scoped cursor, defer seams, armed test hold](0.157.1-leg-scoped-cursor-defer-and-armed-hold.md) |
 | 0.157.0 | [Contained families and project independence](0.157.0-contained-families-and-project-independence.md) |
 | 0.156.0 | [the user-DB message bus: agents coordinate across harnesses without the human relaying](0.156.0-user-db-message-bus.md) |
 | 0.155.0 | [session stores, the hook-audit collapse, and retention move to SQLite (P2)](0.155.0-session-stores-audit-and-retention-move-to-sqlite-p2.md) |

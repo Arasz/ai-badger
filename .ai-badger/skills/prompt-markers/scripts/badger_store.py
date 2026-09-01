@@ -2072,23 +2072,6 @@ def resolve_project_id(cwd: Optional[str]) -> Optional[str]:
     return _read_project_id_file(cwd)
 
 
-def resolve_project_id(cwd: Optional[str]) -> Optional[str]:
-    """Resolve a working directory to the current project's id (R8; D4; ADR-0025).
-
-    The explicit override (``AI_BADGER_PROJECT_ID``) wins unconditionally — when set and
-    non-blank it is returned before anything else is read, at send and delivery alike.
-    Otherwise the nearest ancestor ``.ai-badger/project-id`` file wins (minted at
-    scaffold time, backfilled by den-refresh): a cwd with no ``.ai-badger`` in its
-    ancestry — or one whose id file is absent or blank — resolves to None, and the
-    caller owns the fail-open (D7/D8). There is no ambiguity to refuse: a single
-    upward walk has one nearest directory, never a guess.
-    """
-    override = os.environ.get(PROJECT_ID_ENV)
-    if override and override.strip():
-        return override.strip()
-    return _read_project_id_file(cwd)
-
-
 def _parseable_ts(ts) -> bool:
     """True for a ts the prune's string comparison can be trusted on: non-empty ISO-8601."""
     if not isinstance(ts, str) or not ts:
