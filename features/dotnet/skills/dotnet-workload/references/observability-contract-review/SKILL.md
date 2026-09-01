@@ -6,7 +6,7 @@ license: MIT
 platforms: [macos, linux, windows]
 metadata:
   hermes:
-    tags: [code-review, observability, tracing, metrics, mcp, e2e]
+    tags: [review, observability, tracing, metrics, mcp, e2e]
     related_skills: [code-review-checklist, comprehensive-code-review, integration-review-gate, review-changes]
 version: 1.0.0
 ---

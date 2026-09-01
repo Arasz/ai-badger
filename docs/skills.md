@@ -10,11 +10,11 @@ This page catalogs 44 skills — everything under `features/common/skills/` and
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 43 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **49** files:
-the 44 above plus 5 more that belong to a single stack and arrive only with it — the
+**These 43 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **50** files:
+the 44 above plus 6 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
-`features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/` and 1 under `features/ai-raccoon/skills/`.
-Those 5 have no row below and are documented by their own `SKILL.md`. Derive the number rather
+`features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/`, 1 under `features/ai-raccoon/skills/` and 1 under `features/github/skills/`.
+Those 6 have no row below and are documented by their own `SKILL.md`. Derive the number rather
 than trusting this sentence: `python3 gates/skills_lint.py` prints how many `SKILL.md` files the
 catalog holds.
 

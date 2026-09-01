@@ -1,0 +1,5 @@
+{
+  "skill": "code-review",
+  "extension": "python",
+  "requires": ["stacks=python"]
+}

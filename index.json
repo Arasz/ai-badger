@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.157.2",
+  "frameworkVersion": "0.158.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -774,6 +774,12 @@
       }
     },
     "github": {
+      "skills": [
+        {
+          "name": "code-review",
+          "path": "features/github/skills/code-review"
+        }
+      ],
       "invariants": [
         {
           "name": "pin-actions-to-sha",
