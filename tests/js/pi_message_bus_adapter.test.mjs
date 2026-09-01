@@ -40,7 +40,7 @@ test("toClaudeDeliveryPayload stamps the two Claude event spellings with ctx and
   });
 });
 
-test("parseDeliveryStdout maps the script's three stdout shapes to context, empty and error", () => {
+test("parseDeliveryStdout maps the script's four stdout shapes to context, empty, error and bus summary", () => {
   // mail: one hookSpecificOutput document carrying the rendered additionalContext
   const mail = { hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: "line 1\nline 2" } };
   assert.deepEqual(bridge.parseDeliveryStdout(JSON.stringify(mail)),
@@ -53,6 +53,19 @@ test("parseDeliveryStdout maps the script's three stdout shapes to context, empt
     bridge.parseDeliveryStdout(JSON.stringify({ hookSpecificOutput: { additionalContext: "" } })),
     { kind: "empty" },
   );
+  // the 0.159.0 bus summary rides alongside mail (0.159.0 aiBadgerBus: {addressed, broadcast})
+  // and alongside the failure marker ({error: true}) — one parser, one contract, both halves
+  // pinned here because this is the only parse suite a push/CI gate runs (impl review S-1)
+  const mailWithBus = {
+    hookSpecificOutput: { additionalContext: "doc", aiBadgerBus: { addressed: 2, broadcast: 1 } },
+  };
+  assert.deepEqual(bridge.parseDeliveryStdout(JSON.stringify(mailWithBus)),
+    { kind: "context", content: "doc", bus: { addressed: 2, broadcast: 1 } });
+  const failure = bridge.parseDeliveryStdout(
+    JSON.stringify({ hookSpecificOutput: { aiBadgerBus: { error: true } } }),
+  );
+  assert.equal(failure.kind, "empty");
+  assert.deepEqual(failure.bus, { error: true });
   // unparseable stdout is an ERROR outcome, never an injection and never a throw
   const garbage = bridge.parseDeliveryStdout("Traceback (most recent call last): ...");
   assert.equal(garbage.kind, "error");

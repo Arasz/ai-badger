@@ -107,8 +107,8 @@ async function loadSqlite(): Promise<DatabaseSyncCtor | null> {
  * fixture chmods its store DB 0644. Neither behavior writes the database file.)
  */
 export async function openProbeDb(dbPath: string): Promise<SqliteDatabase> {
-  const DatabaseSync = (await loadSqlite()) ?? cachedSqlite;
-  if (!DatabaseSync) {
+  const DatabaseSync = await loadSqlite();
+  if (DatabaseSync === null) {
     throw new Error("node:sqlite is not available in this runtime");
   }
   const db = new DatabaseSync(dbPath, { readOnly: true });
@@ -142,11 +142,10 @@ export async function probeUserDb(
   if (stat.kind === "missing") return { kind: "missing" };
   if (stat.kind === "error") return { kind: "error", reason: stat.reason };
 
-  const DatabaseSync = await loadSqlite();
+  const DatabaseSync = await loadSqlite(); // loadSqlite caches; no second assignment (impl review N-3)
   if (DatabaseSync === null) {
     return { kind: "error", reason: "node:sqlite is not available in this runtime" };
   }
-  cachedSqlite = DatabaseSync;
 
   let db: SqliteDatabase;
   try {

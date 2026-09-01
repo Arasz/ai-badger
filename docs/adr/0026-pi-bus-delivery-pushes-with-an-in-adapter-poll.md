@@ -155,6 +155,12 @@ self-diagnosing refusals; the 44-failures-a-day class becomes diagnosable.
   recreate a cursor row for the dead session (4-day TTL litter); the
   recreated read takes the gate path — same shape as a fresh session's first
   read.
+- **Un-refreshed hook copies have no failure marker on the advance side.**
+  C10's routing fallback makes an old hook copy wake, but its fail-open net
+  prints a bare `{}` — no marker — so a persistent hook failure there advances
+  the watermark every max-skip-staleness window and stalls silently until
+  den-refresh refreshes the copy. Bounded retries, no notice; den-refresh is
+  the coordination, alongside the project-id backfill note.
 - **Same-inode restore with coincidentally equal MAX+COUNT** can equality-skip;
   vanishingly improbable, bounded by the 60 s max-skip-staleness.
 - **Wake on `all`** spends a turn per broadcast per live session; default is
@@ -164,6 +170,10 @@ self-diagnosing refusals; the 44-failures-a-day class becomes diagnosable.
   switch degrades fail-open to unconditional ticks (logged, not fatal).
 - **Send-validation false refusals** beyond the depth-4 walk budget;
   documented escape hatch.
+- **"Read-only" is precise about sidecars**: the probe never writes the
+  database file (a write attempt through the connection throws, pinned), but a
+  read-only open can create transient `-wal`/`-shm` wal-index sidecars beside
+  it; SQLite recovers cleanly and the next writer's clean close removes them.
 
 **Neutral.** Machine broadcasts queue without waking; polls do not preempt
 in-flight turns; nothing survives process exit (F8) — mail persists in the

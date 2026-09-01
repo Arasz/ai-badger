@@ -521,6 +521,19 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
           // stale ctx: silent — the session is gone and a notice has no UI left (F7)
           if (!String(error).includes("stale")) {
             notifyLatched(session, `ai-badger: message wake failed — ${String(error)}`);
+            // C3's compensation retry (ADR-0026 consume-then-lose residual): the txn already
+            // consumed this mail, so a failed wake would lose it silently. One retry through
+            // the append-without-turn path — no turn, no wake, rides the next prompt — and a
+            // second failure stays at the single latched notice above. A stale-ctx throw does
+            // not retry (nothing is left to deliver to).
+            try {
+              await pi.sendMessage(
+                { customType: AI_BADGER_CUSTOM_TYPE, content: outcome.content, display: true },
+                { deliverAs: "nextTurn", triggerTurn: false },
+              );
+            } catch {
+              // swallowed: the notice already fired; nothing else is recoverable here
+            }
           }
         }
       }

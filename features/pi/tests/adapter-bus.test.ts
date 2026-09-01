@@ -284,6 +284,65 @@ describe("push-delivery wiring", () => {
     expect(deliverCalls).toHaveLength(1);
   });
 
+  // ---------------------------------------------------------------------
+  // B1 compensation retry (impl review): a non-stale wake throw retries ONCE
+  // through the append-without-turn path — the txn already consumed the mail,
+  // so without the retry the wake failure silently loses it. A stale-ctx
+  // throw does NOT retry, and a failing retry stays at the one latched notice.
+  // ---------------------------------------------------------------------
+
+  test("B1: a non-stale sendMessage throw retries once as nextTurn, no triggerTurn", async () => {
+    deliverResult = { kind: "context", content: "mail", bus: { addressed: 1, broadcast: 0 } };
+    const wakeCalls: Array<unknown> = [];
+    let wakes = 0;
+    const h = await loadBusAdapter({
+      probe,
+      deliver,
+      sendMessage: (_message, options) => {
+        wakes += 1;
+        wakeCalls.push(options);
+        if (wakes === 1) throw new Error("wake failed: busy");
+        return undefined;
+      },
+    });
+    await h.start(busCtx(dir));
+    await h.fireTick();
+    expect(wakes).toBe(2); // the failed wake + exactly one compensation retry
+    expect(wakeCalls[0]).toEqual({ deliverAs: "followUp", triggerTurn: true });
+    expect(wakeCalls[1]).toEqual({ deliverAs: "nextTurn", triggerTurn: false });
+  });
+
+  test("B1: a stale-ctx throw does not retry; a failing retry fires no second notice", async () => {
+    deliverResult = { kind: "context", content: "mail", bus: { addressed: 1, broadcast: 0 } };
+    const h = await loadBusAdapter({
+      probe,
+      deliver,
+      sendMessage: () => {
+        throw new Error("This extension ctx is stale after session replacement or reload");
+      },
+    });
+    const ctx = busCtx(dir);
+    await h.start(ctx);
+    await h.fireTick();
+    expect(ctx.notices.filter((m) => m.includes("wake failed"))).toHaveLength(0);
+
+    // retry path that also fails: the latched notice fires once, the retry throw is swallowed
+    let fails = 0;
+    const h2 = await loadBusAdapter({
+      probe,
+      deliver: async () => ({ kind: "context", content: "mail", bus: { addressed: 1, broadcast: 0 } }),
+      sendMessage: () => {
+        fails += 1;
+        throw new Error("wake failed: busy");
+      },
+    });
+    const ctx2 = busCtx(dir, { sessionId: "sess-2" });
+    await h2.start(ctx2);
+    await h2.fireTick();
+    expect(fails).toBe(2); // wake + retry, then stop
+    expect(ctx2.notices.filter((m) => m.includes("wake failed"))).toHaveLength(1);
+  });
+
   // -----------------------------------------------------------------------
   // A7 — the wake path keys on the session manager's id only (C6)
   // -----------------------------------------------------------------------
@@ -400,6 +459,20 @@ describe("push-delivery wiring", () => {
     expect(deliverCalls).toHaveLength(1);
     await h.fireTick();
     expect(deliverCalls).toHaveLength(1); // skipped: MAX+COUNT+identity equal the advanced capture
+  });
+
+  test("A9/CR-M3 discriminating fixture: the watermark is the TICK-TIME capture, never a post-spawn re-read", async () => {
+    // A row commits DURING the spawned txn (fp 7→8 between probe and advance). A post-spawn
+    // re-read would advance to fp(8,8) and silently strand that row; the tick-time capture
+    // fp(7,7) must strand nothing — the next tick's probe (fp(8,8)) differs ⇒ spawn.
+    deliverResult = { kind: "context", content: "mail", bus: { addressed: 1, broadcast: 0 } };
+    const h = await loadBusAdapter({ probe, deliver });
+    await h.start(busCtx(dir));
+
+    await h.fireTick(); // probes fp(7,7), spawns; a send commits mid-txn
+    probeResult = ok(fp(8, 8, 1, 2));
+    await h.fireTick();
+    expect(deliverCalls).toHaveLength(2); // fp(8,8) ≠ watermark fp(7,7) ⇒ spawn — the row is not stranded
   });
 
   test("A9: a clean empty outcome advances too; an error outcome never advances", async () => {
