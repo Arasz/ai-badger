@@ -6,11 +6,11 @@ project broadcast, neither a machine broadcast — both given, the session wins 
 project half is dropped (normalised at write, so every read predicate stays
 single-shape). Sender identity is REQUIRED on both halves: explicit
 ``--sender-session``/``--sender-project``, or derived — the session half via the
-claude_session_source pattern (env var, then pid ancestry, then unique cwd against the
-sessions store), the project half via the store's cwd resolver (``AI_BADGER_PROJECT_ID``
-override, then the ai-raccoon registry). A send that cannot establish identity refuses
-with a clean message and non-zero exit, writing nothing (D7: expected errors are
-refusals, never tracebacks).
+claude_session_source pattern (harness session env var, then pid ancestry, then unique
+cwd against the sessions store), the project half via the store's cwd resolver
+(``AI_BADGER_PROJECT_ID`` override, then the ai-raccoon registry). A send that cannot
+establish identity refuses with a clean message and non-zero exit, writing nothing
+(D7: expected errors are refusals, never tracebacks).
 """
 from __future__ import annotations
 
@@ -29,10 +29,13 @@ try:
 except ImportError:  # a partial deployment (the vendored copy never landed)
     badger_store = None  # type: ignore[assignment]  # main() refuses cleanly on it
 
-#: The session env the claude_session_source pattern checks first — the pattern's env
-#: leg. Harnesses that set nothing still resolve through the ancestry/cwd legs or an
-#: explicit --sender-session.
-SESSION_ENV = "CLAUDE_CODE_SESSION_ID"
+#: The harness session env vars the derivation's env leg reads, one per registered
+#: session source (claude, pi, hermes — features/<agent>/adjustments/*_session_source.py).
+#: Each harness exports its LIVE session id to the tool subprocesses it spawns, and that
+#: is the same id the consumer's delivery will carry — recording it is what makes the
+#: store's R2 exclusion bite on the agent's own broadcasts (an agent with a stale
+#: task-tracked id in the sessions store must not resolve to that id instead).
+SESSION_ENVS = ("CLAUDE_CODE_SESSION_ID", "PI_SESSION_ID", "HERMES_SESSION_ID")
 
 _PID_ANCESTRY_DEPTH = 12
 
@@ -68,14 +71,17 @@ def derive_sender_session(explicit: Optional[str], sessions: dict) -> Optional[s
     """The claude_session_source pattern: env var, then pid ancestry, then unique cwd.
 
     An explicit argument short-circuits everything. The sessions map is {sessionId:
-    info} as the tracking store serves it; ancestry matches any process up the chain,
-    and a cwd leg only fires when exactly one known session carries the cwd.
+    info} as the tracking store serves it; the env leg reads the harness session env
+    vars (first set wins — each carries the harness's live id); ancestry matches any
+    process up the chain, and a cwd leg only fires when exactly one known session
+    carries the cwd.
     """
     if explicit:
         return explicit
-    env_id = os.environ.get(SESSION_ENV)
-    if env_id:
-        return env_id
+    for env_name in SESSION_ENVS:
+        env_id = os.environ.get(env_name)
+        if env_id:
+            return env_id
     ancestry = set(_own_pid_ancestry())
     for session_id, info in sessions.items():
         if isinstance(info, dict) and info.get("pid") in ancestry:
@@ -141,8 +147,8 @@ def main(argv: Optional[list] = None) -> int:
     sessions = {} if args.sender_session else _load_sessions()
     sender_session = derive_sender_session(args.sender_session, sessions)
     if not sender_session:
-        return _refused("missing sender identity (sessionId) — pass --sender-session "
-                        f"or set {SESSION_ENV}")
+        return _refused("missing sender identity (sessionId) — pass --sender-session or "
+                        f"set a harness session env var ({', '.join(SESSION_ENVS)})")
 
     sender_project = resolve_sender_project(args.sender_project, str(Path.cwd()))
     if not sender_project:

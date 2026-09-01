@@ -69,6 +69,7 @@ def _base_env(tmp_path: Path) -> dict:
     env[badger_store.TRACKING_ROOT_ENV] = str(tmp_path / "tracking-root")
     env[badger_store.DEBUG_DIR_ENV] = str(tmp_path / "debug-dir")
     for signal in (badger_store.PROJECT_ID_ENV, "CLAUDE_CODE_SESSION_ID",
+                   "PI_SESSION_ID", "HERMES_SESSION_ID",
                    "AI_BADGER_TEST_HOLD", "AI_BADGER_TEST_HOLD_ARMED"):
         env.pop(signal, None)
     return env
@@ -343,6 +344,57 @@ def test_sender_session_resolves_from_unique_cwd(tmp_path):
     rows = _message_rows(tmp_path)
     assert len(rows) == 1
     assert rows[0][2] == "sess-here"
+
+
+def test_own_broadcast_never_re_delivers_across_id_drift(tmp_path):
+    """R9 (aib-bus-defer-cursor-followups): one agent carried two ids — a task-tracked
+    one in the sessions store and the live harness one its delivery consumes by. The
+    derivation's env leg checked only CLAUDE_CODE_SESSION_ID, so under a harness that
+    exports its own session var (pi exports PI_SESSION_ID to every tool subprocess) it
+    fell through to the store legs and resolved the stale task-tracked row — recorded
+    sender != consumer id, the R2 exclusion missed, and the agent's own machine
+    broadcast re-delivered to itself. The env leg must read the harness session env
+    vars so the recorded sender IS the id the consumer's delivery carries: delivering
+    as the harness session surfaces nothing, a third session still receives it."""
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    tracked = "d9e90bb1-1111-4111-8111-111111111111"
+    harness = "01a05c6d-2222-4222-8222-222222222222"
+    third = "33333333-3333-4333-8333-333333333333"
+    _seed_sessions(tmp_path, {
+        # The task-tracked row: tracker-recorded pid/cwd of the same harness process —
+        # the store leg resolves it whenever the env leg misses.
+        tracked: {"pid": os.getpid(), "cwd": str(tmp_path / "its-cwd")},
+        # The live harness row: the pid-ancestry/cwd-resolved one.
+        harness: {"pid": os.getpid(), "cwd": str(workdir)},
+        third: {"pid": 999999, "cwd": str(tmp_path / "other-cwd")},
+    })
+    env = _base_env(tmp_path)
+    env["PI_SESSION_ID"] = harness  # the harness exports its live id to the subprocess
+    proc = _send_with_env(tmp_path, env, "--content", "own broadcast",
+                          "--sender-project", "proj-sender", cwd=workdir)
+
+    assert proc.returncode == 0, proc.stderr
+    rows = _message_rows(tmp_path)
+    assert len(rows) == 1
+    (_id, _ts, sender_session, _sp, _t_session, _t_project, content) = rows[0]
+    assert sender_session == harness  # the recorded sender IS the harness id
+    assert content == "own broadcast"
+
+    # The delivery observable (the incident's shape): the exclusion must bite for the
+    # harness session and only for it — a machine broadcast is not silently swallowed.
+    import contextlib
+    with contextlib.ExitStack() as stack:
+        monkey = stack.enter_context(pytest.MonkeyPatch.context())
+        monkey.setenv(badger_store.USER_ROOT_ENV, str(tmp_path / "user-root"))
+        monkey.setenv(badger_store.TRACKING_ROOT_ENV, str(tmp_path / "tracking-root"))
+        store = badger_store.open_user()
+        try:
+            assert store.deliver_for_session(harness, "proj-sender") == []
+            delivered = store.deliver_for_session(third, "proj-sender")
+        finally:
+            store.close()
+    assert [doc["content"] for doc in delivered] == ["own broadcast"]
 
 
 # ---------------------------------------------------------------------------
