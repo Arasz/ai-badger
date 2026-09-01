@@ -60,10 +60,10 @@ def test_contained_family_never_blocks_the_bus(tmp_path, monkeypatch):
                            content="direct ping", target_session="S2")
         broadcast_id = store.send_message(sender_session="S1", sender_project="P",
                                           content="project mail", target_project="P")
-        assert [d["content"] for d in store.deliver_for_session("S2", None)] == \
-            ["direct ping"]
-        assert [d["content"] for d in store.deliver_for_session("S3", "P")] == \
-            ["project mail"]
+        first, _ = store.deliver_for_session("S2", None)
+        assert [d["content"] for d in first] == ["direct ping"]
+        second, _ = store.deliver_for_session("S3", "P")
+        assert [d["content"] for d in second] == ["project mail"]
         assert broadcast_id > 0
 
         # The contained family refuses on its migration path; the doctor scan names it.

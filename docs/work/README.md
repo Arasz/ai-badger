@@ -114,3 +114,7 @@ the first plain-markdown record here.
 | `2026-09-01-bus-qa-followups-feedback.md` | The owner's raw feedback form (the answers the reconciliation record formalises), preserved verbatim as the ruling source. |
 | `2026-09-01-pi-bus-push-red-witnesses.md` | Red-witness log for the pi message-bus push-delivery plan (merge gate): P1's B1–B3 send-validation gates with the red-first run, the four PIN/GUARD accept pins, and the four applied-and-reverted mutation runs — including M4, the scan-root deviation witness. |
 | `2026-09-01-user-db-message-bus-research.md` | Research record for the user-DB message bus (`aib-user-db-message-bus`): per-harness hook surfaces resolved against `hooks-manifest.json` (Claude Code, Codex, Copilot, Hermes, pi), re-gathered directly in-session after two delegated lanes died at the write step with identical signatures. |
+
+## 2026-09-01 — aib-pi-message-bus-push-delivery P2 (store delivery summary, failure marker, wrap guard, hook-error message)
+
+| `2026-09-01-pi-bus-push-red-witnesses.md` | The P2 lane's red-first witness log (gates B6 → B7 → B4/B5 → B8): pasted RED outputs for the `(messages, summary)` store contract and the C2b failure-marker wire shape, the C9 wrap-guard healing test, the C8 leak-guard two-direction pair, and the B8 full-wire pins — each gate with its applied-and-reverted killer mutation (strict-`>` wrap boundary, log-format revert, raw-str leak, unguarded log call, `_deliver` merge drop). |

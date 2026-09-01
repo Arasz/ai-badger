@@ -364,7 +364,7 @@ class TestMessageSchema:
         try:
             store.send_message(sender_session="S1", sender_project="P", content="hello",
                                target_project="P")
-            documents = store.deliver_for_session("S2", "P")
+            documents, _ = store.deliver_for_session("S2", "P")
         finally:
             store.close()
         assert documents, "the fixture must have delivered one document"

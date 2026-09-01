@@ -444,17 +444,20 @@ def test_session_end_for_unknown_session_is_harmless(hook, monkeypatch, capsys):
 
 
 def test_malformed_stdin_is_a_no_op(hook, monkeypatch, capsys):
-    """Garbage on stdin (not JSON) → exit 0, parseable no-op JSON, no injection.
+    """Garbage on stdin (not JSON) → exit 0, parseable JSON in the C2b failure-marker
+    shape (the parse failure is a guarded_main catch), no injection.
     Mutation killer: the parse unguarded → exception escapes, exit non-zero."""
     rc, response = _fire(hook, monkeypatch, capsys, None, raw="this is { not json")
     assert rc == 0
-    assert response == {}
+    assert response == FAILURE_MARKER
 
 
 def test_corrupt_user_db_fails_open(hook, tmp_path, monkeypatch, capsys):
     """An unreadable/corrupt user DB (every bus operation doomed) → exit 0, parseable
-    no-op JSON. The host session must not notice the bus exists. Mutation killer: the
-    fail-open net removed → sqlite3.DatabaseError propagates, exit non-zero."""
+    JSON — the C2b failure marker, wire-distinguishable from a clean empty read so a
+    poller's watermark never advances over undelivered mail (CR-M1). The host session
+    must still not notice the bus exists. Mutation killer: the fail-open net removed →
+    sqlite3.DatabaseError propagates, exit non-zero."""
     root = tmp_path / "corrupt-root"
     root.mkdir()
     (root / "ai-badger.db").write_bytes(b"this is not a sqlite database")
@@ -463,13 +466,13 @@ def test_corrupt_user_db_fails_open(hook, tmp_path, monkeypatch, capsys):
     rc, response = _fire(hook, monkeypatch, capsys,
                          {"hook_event_name": "SessionStart", "session_id": "S", "cwd": "/x"})
     assert rc == 0
-    assert response == {}
+    assert response == FAILURE_MARKER
 
 
 def test_registry_explosion_fails_open(hook, user_root, monkeypatch, capsys):
     """A registry read that BLOWS UP (not a designed refusal — a genuine error) → exit 0,
-    parseable no-op JSON, nothing injected. The designed refusals below deliver 1:1; an
-    exception here must not even do that."""
+    parseable JSON in the C2b failure-marker shape, nothing injected. The designed
+    refusals below deliver 1:1; an exception here must not even do that."""
     def explode(cwd, registry=None):
         raise RuntimeError("registry exploded")
 
@@ -479,7 +482,7 @@ def test_registry_explosion_fails_open(hook, user_root, monkeypatch, capsys):
                          {"hook_event_name": "UserPromptSubmit", "session_id": "S",
                           "cwd": "/somewhere"})
     assert rc == 0
-    assert response == {}
+    assert response == FAILURE_MARKER
 
 
 def test_unresolved_project_still_delivers_one_to_one(
@@ -619,7 +622,9 @@ def test_the_store_document_list_is_what_stdout_carries(
     Mutation killer: the script dropping or rewriting documents after the read."""
     monkeypatch.setattr(
         badger_store.Store, "deliver_for_session",
-        lambda self, session_id, project_id=None: [SENTINEL_DOC, {**SENTINEL_DOC, "content": "two"}])
+        lambda self, session_id, project_id=None:
+            ([SENTINEL_DOC, {**SENTINEL_DOC, "content": "two"}],
+             {"addressed": 2, "broadcast": 0}))
 
     rc, response = _fire(hook, monkeypatch, capsys,
                          {"hook_event_name": "UserPromptSubmit", "session_id": "S",
@@ -672,3 +677,205 @@ def test_standalone_invocation_via_subprocess(hook, user_root, tmp_path, monkeyp
     response = json.loads(proc.stdout.decode())
     assert [d["content"] for d in _documents_of(_context_of(response))] == \
         ["from a child process"]
+
+
+# ---------------------------------------------------------------------------
+# J. delivery summary + failure marker (P2 C2/C2b — the wake-classification wire)
+# ---------------------------------------------------------------------------
+
+
+#: C2b (CR-M1): the fail-open net's wire shape — distinguishable from a clean empty
+#: read, additive inside hookSpecificOutput, never a host-acted key (CR-N6).
+FAILURE_MARKER = {"hookSpecificOutput": {"aiBadgerBus": {"error": True}}}
+
+
+def test_clean_empty_stays_exactly_empty_at_the_wire(hook, user_root, monkeypatch, capsys):
+    """C2b's clean-empty boundary: an empty inbox prints {} — EXACTLY, no aiBadgerBus
+    key with zero counts, no envelope (the TS negative-watermark logic keys on the
+    ABSENT field, QA-10 case 3). Green by construction until someone 'enriches' the
+    empty path — that mutation is exactly what this pin kills."""
+    rc, response = _fire(hook, monkeypatch, capsys,
+                         {"hook_event_name": "UserPromptSubmit", "session_id": "S",
+                          "cwd": "/x"})
+    assert rc == 0
+    assert response == {}
+
+
+def test_failure_marker_on_a_forced_store_open_failure(hook, tmp_path, monkeypatch, capsys):
+    """C2b (CR-M1): a failure inside guarded_main is wire-distinguishable from a clean
+    empty read — the response is {"hookSpecificOutput": {"aiBadgerBus": {"error": true}}}
+    (exit 0, fail-open unchanged, log line unchanged shape + the C8 message). A corrupt
+    user DB forces the store-open failure; the poller's watermark-advance rule keys on
+    this marker — a failure-marked {} must never read as a clean empty inbox (M1's
+    silent-stall shape).
+    Mutation killer: printing {} on the failure path."""
+    root = tmp_path / "corrupt-root"
+    root.mkdir()
+    (root / "ai-badger.db").write_bytes(b"this is not a sqlite database")
+    monkeypatch.setenv(USER_ROOT_ENV, str(root))
+
+    rc, response = _fire(hook, monkeypatch, capsys,
+                         {"hook_event_name": "SessionStart", "session_id": "S", "cwd": "/x"})
+    assert rc == 0
+    assert response == FAILURE_MARKER
+
+
+# ---------------------------------------------------------------------------
+# K. hook-error log diagnosability + leak guard (P2 C8, Lane B F4; B4/B5)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def error_log(hook, tmp_path, monkeypatch) -> Path:
+    """Redirect the hook's error log into the test's tmp tree (the awm-hook precedent)."""
+    log = tmp_path / "hook-errors.log"
+    monkeypatch.setattr(hook, "HOOK_ERRORS_FILE", log)
+    return log
+
+
+def test_hook_error_log_gains_the_exception_message(
+        hook, error_log, user_root, monkeypatch, capsys):
+    """C8 / Lane B F4: 44 content-free `OperationalError at badger_store.py:959` lines
+    were undiagnosable. The log line now carries the exception MESSAGE (B4-i): a planted
+    `sqlite3.OperationalError("no such table: messages")` must appear in the log by its
+    text, alongside the type and location it already carried.
+    Mutation killer: the log format reverted to type+location only."""
+    def no_table(*_args, **_kwargs):
+        raise sqlite3.OperationalError("no such table: messages")
+
+    monkeypatch.setattr(badger_store, "open_user", no_table)
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(
+        {"hook_event_name": "SessionStart", "session_id": "S", "cwd": "/x"})))
+    rc = hook.guarded_main()
+    err = capsys.readouterr().err
+    assert rc == 0
+
+    lines = error_log.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1, lines
+    assert "OperationalError" in lines[0]
+    assert "no such table: messages" in lines[0], \
+        f"the diagnosis must be readable: {lines[0]}"
+    assert "message_delivery_hook" in lines[0]
+    assert "no such table" not in err, "stderr stays content-free (the log is the surface)"
+
+
+def test_hook_error_log_never_leaks_payload_derived_substrings(
+        hook, error_log, user_root, monkeypatch, capsys):
+    """C8's two-direction property (B4-ii): an exception whose str() embeds a sentinel
+    taken from the stdin payload — here the mail content a store error could quote —
+    must reach the log WITHOUT the sentinel: payload-derived substrings are redacted
+    before the line is written. The diagnosis survives (type, location, message shape);
+    the content does not.
+    Mutation killer: raw str(exc) written → the sentinel lands in the log."""
+    sentinel = "PAYLOAD-SENTINEL-SECRET-CONTENT"
+
+    def quote_the_payload(*_args, **_kwargs):
+        raise RuntimeError(f"scan exploded near: {sentinel}")
+
+    monkeypatch.setattr(badger_store, "open_user", quote_the_payload)
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({
+        "hook_event_name": "UserPromptSubmit", "session_id": "S", "cwd": "/x",
+        "content": sentinel})))
+    rc = hook.guarded_main()
+    captured = capsys.readouterr()
+    assert rc == 0
+
+    log = error_log.read_text(encoding="utf-8")
+    assert sentinel not in log, "a payload-derived substring must never reach the log"
+    assert sentinel not in captured.err
+    assert "RuntimeError" in log and "scan exploded near:" in log, \
+        f"the redacted diagnosis must survive: {log}"
+
+
+def test_guarded_main_still_fails_open_when_the_log_path_throws(
+        hook, error_log, user_root, tmp_path, monkeypatch, capsys):
+    """B5's fail-open extension (C8): the new logging cannot reintroduce a crash path —
+    a log write that dies (forced OSError) still leaves the host parseable no-op JSON
+    in the C2b marker shape and exits 0.
+    Mutation killer: the log call unprotected → nothing printed, the net drops the
+    response."""
+    root = tmp_path / "corrupt-root"
+    root.mkdir()
+    (root / "ai-badger.db").write_bytes(b"not a database")
+    monkeypatch.setenv(USER_ROOT_ENV, str(root))
+
+    def log_is_full(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(hook, "record_hook_failure", log_is_full)
+
+    rc, response = _fire(hook, monkeypatch, capsys,
+                         {"hook_event_name": "SessionStart", "session_id": "S", "cwd": "/x"})
+    assert rc == 0
+    assert response == FAILURE_MARKER
+
+
+# ---------------------------------------------------------------------------
+# L. B8 — the full guarded_main wire response (P2 C2's construction point)
+# ---------------------------------------------------------------------------
+
+
+def _seed_mixed_batch() -> None:
+    """1:1 + project + broadcast for session S in project bus-proj (2 addressed, 1 broadcast)."""
+    with contextlib.closing(_store()) as store:
+        store.send_message(sender_session="S1", sender_project="bus-proj", content="direct",
+                           target_session="S")
+        store.send_message(sender_session="S1", sender_project="bus-proj", content="for P",
+                           target_project="bus-proj")
+        store.send_message(sender_session="S1", sender_project="bus-proj", content="everyone")
+
+
+def test_wire_response_is_advisory_plus_bus_summary_exactly(
+        hook, user_root, tmp_path, monkeypatch, capsys):
+    """B8: the FULL guarded_main response for a mail-bearing delivery, exact equality —
+    hookSpecificOutput carries hookEventName + additionalContext + aiBadgerBus
+    {"addressed": 2, "broadcast": 1} and NOTHING else. The summary is merged in
+    _deliver AFTER build_response (C2's construction point), so the exact-key-set pin
+    on build_response itself stays green by construction while the wire still gets the
+    txn's wake classification (QA-10 case 4/5: the TS consumes this field, so the wire
+    shape is pinned here, not inferred).
+    Mutation killer: dropping the _deliver merge → the wire loses aiBadgerBus."""
+    _make_project(tmp_path / "repo")
+    monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo"))
+    _seed_mixed_batch()
+
+    rc, response = _fire(hook, monkeypatch, capsys,
+                         {"hook_event_name": "UserPromptSubmit", "session_id": "S",
+                          "cwd": str(tmp_path / "repo")})
+    assert rc == 0
+    context = response["hookSpecificOutput"]["additionalContext"]
+    assert [d["content"] for d in _documents_of(context)] == ["direct", "for P", "everyone"]
+    assert response == {"hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit",
+        "additionalContext": context,
+        "aiBadgerBus": {"addressed": 2, "broadcast": 1},
+    }}
+
+
+def test_the_bus_summary_never_occupies_a_host_acted_key(
+        hook, user_root, tmp_path, monkeypatch, capsys):
+    """CR-N6: aiBadgerBus rides inside hookSpecificOutput and NEVER occupies a key any
+    host acts on (decision / continue / stopReason / suppressOutput) — asserted over
+    EVERY key the full mail-bearing wire response carries, recursively."""
+    _make_project(tmp_path / "repo")
+    monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo"))
+    _seed_mixed_batch()
+
+    _, response = _fire(hook, monkeypatch, capsys,
+                        {"hook_event_name": "UserPromptSubmit", "session_id": "S",
+                         "cwd": str(tmp_path / "repo")})
+
+    def all_keys(obj):
+        keys = set()
+        if isinstance(obj, dict):
+            keys.update(obj.keys())
+            for value in obj.values():
+                keys.update(all_keys(value))
+        elif isinstance(obj, list):
+            for item in obj:
+                keys.update(all_keys(item))
+        return keys
+
+    assert "aiBadgerBus" in response["hookSpecificOutput"], \
+        "the pin is only meaningful over a mail-bearing response"
+    assert not all_keys(response) & {"decision", "continue", "stopReason", "suppressOutput"}
