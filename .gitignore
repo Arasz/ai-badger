@@ -54,3 +54,4 @@ features/pi/node_modules/
 .ai-badger/task-tracking/*.db-wal
 .ai-badger/task-tracking/*.db-shm
 # END ai-badger managed block
+ai-badger.db
