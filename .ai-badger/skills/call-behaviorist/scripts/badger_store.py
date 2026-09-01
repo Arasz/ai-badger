@@ -1863,6 +1863,43 @@ class ProjectIdAmbiguous(Exception):
         self.candidates = candidates
 
 
+def _nearest_project_id_file(cwd: Optional[str]) -> Optional[Path]:
+    """The nearest parent ``.ai-badger/project-id`` file above *cwd*, if any.
+
+    The nearest ``.ai-badger`` directory wins and stops the walk: a project with a
+    parent scaffold but no local project-id is treated as id-absent, not as a parent
+    fallback. Blank values and missing directories are treated as unset.
+    """
+    if cwd is None or not str(cwd).strip():
+        return None
+    start = Path(_real_path(cwd))
+    if start.is_file():
+        start = start.parent
+    for ancestor in (start, *start.parents):
+        aib_dir = ancestor / ".ai-badger"
+        if not aib_dir.exists():
+            continue
+        if not aib_dir.is_dir():
+            continue
+        project_id_file = aib_dir / "project-id"
+        if project_id_file.is_file():
+            return project_id_file
+        return None
+    return None
+
+
+def _read_project_id_file(cwd: Optional[str]) -> Optional[str]:
+    """The .ai-badger-scoped project id above *cwd*, or ``None`` when unset."""
+    project_id_file = _nearest_project_id_file(cwd)
+    if project_id_file is None:
+        return None
+    try:
+        value = project_id_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return value or None
+
+
 def _real_path(path: str) -> str:
     """The path as containment compares it: absolute, symlink-resolved, trimmed — the
     raccoon's IsWithinScope path identity in stdlib terms. Tails that do not exist keep
@@ -1922,19 +1959,23 @@ def raccoon_registry_surface() -> dict[str, list[str]]:
 
 def resolve_project_id(cwd: Optional[str],
                        registry: Optional[Callable[[], dict]] = None) -> Optional[str]:
-    """Resolve a working directory to its registered project id (R8; D4).
+    """Resolve a working directory to the current project's id (R8; D4).
 
     The explicit override (``AI_BADGER_PROJECT_ID``) wins unconditionally — when set and
     non-blank it is returned before anything else is read, at send and delivery alike.
-    Otherwise the probe is the cwd, the candidate surface is each registered project's
-    ingest-scope paths plus its watch paths, containment is equal-or-ancestor with both
-    sides canonicalized once, exactly one match returns the id, several raise
+    Next, the nearest ancestor ``.ai-badger/project-id`` file wins. If that file is absent,
+    legacy registry lookup still applies: the cwd is compared against each registered
+    project's ingest-scope and watch paths, containment is equal-or-ancestor with both
+    sides canonicalized, exactly one match returns the id, several raise
     :class:`ProjectIdAmbiguous` (never guess), and none returns None — the caller owns
     the refusal text (D7).
     """
     override = os.environ.get(PROJECT_ID_ENV)
     if override and override.strip():
-        return override
+        return override.strip()
+    local_id = _read_project_id_file(cwd)
+    if local_id is not None:
+        return local_id
     if not cwd:
         return None
     probe = _real_path(cwd)
