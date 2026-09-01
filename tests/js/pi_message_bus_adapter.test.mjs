@@ -267,6 +267,8 @@ test("E2E: a delivery payload delivers seeded mail through the real script into 
   assert.match(cursorRow(env, "pi-sess-1"), /CURSOR_ROW None/);
 }, { timeout: 30_000 });
 
+// Red witness is the WIRING absence (router.sessionStart === undefined on the old
+// bridge), not the consumption behaviour — the retired start arm cannot be fired.
 test("E2E: a session that never turns consumes nothing — no spawn, no cursor row, mail intact after shutdown", async () => {
   const root = mkdtempSync(path.join(tmpdir(), "aib-pi-bus-"));
   const env = e2eEnv(root);

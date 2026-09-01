@@ -208,6 +208,9 @@ def test_a_session_that_never_reaches_pre_llm_call_consumes_nothing(
     written, no stash leaks in the host process, and the mail sits unread for a later
     session's gated read — the pre-P5 shape consumed at start and stashed the render,
     so a session that never turned lost the mail until the 4-day TTL prune.
+    Red witness (qa audit): the wiring half is the true red — the old register() armed
+    the delivery on on_session_start; the consumption asserts are green-before because
+    the retired start arm can no longer be fired.
     """
     project = tmp_path / "proj-a"
     project.mkdir()

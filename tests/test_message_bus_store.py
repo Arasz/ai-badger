@@ -588,6 +588,8 @@ def test_armed_hold_env_parks_until_release(tmp_path, monkeypatch):
         target=lambda: (badger_store._hold_at("deliver.entry"), done.append(True)),
         daemon=True)
     thread.start()
+    # The grace sleep keeps this assert meaningful against the env-hold-never-parks
+    # mutant: without it the window is so small the mutant can pass trivially (qa NIT).
     time.sleep(0.1)
     assert not done, "an armed hold must park at the seam"
     release.write_text("")

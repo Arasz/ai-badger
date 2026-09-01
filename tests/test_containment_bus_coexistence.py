@@ -7,6 +7,7 @@ exercises the real delivery path (gate, cursor, leg scoping) while containment i
 """
 from __future__ import annotations
 
+import os
 import sqlite3
 import time
 
@@ -43,8 +44,11 @@ def test_contained_family_never_blocks_the_bus(tmp_path, monkeypatch):
         store.migrate("memory_first")  # the legitimate pre-resurrection import
     finally:
         store.close()
-    time.sleep(0.05)
-    _seed_marker(root)  # resurrection: a stale surface rewrites the migrated file
+    # Deterministic resurrection: a rewrite in the same clock tick as the stamp would
+    # record mtime <= stamp on a coarse-mtime filesystem and never contain (qa d-210).
+    stamp_time = time.time()
+    legacy = _seed_marker(root)
+    os.utime(legacy, (stamp_time + 10, stamp_time + 10))
 
     store = badger_store.open_user()
     try:
