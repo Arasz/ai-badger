@@ -29,6 +29,7 @@ import os
 import shutil
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -710,6 +711,9 @@ class Scaffolder:
     def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
         """Run every scaffold step in order and return the manifest, plugin commands, and notes."""
         self.aib.mkdir(parents=True, exist_ok=True)
+        project_id_path = self.aib / "project-id"
+        if not project_id_path.exists():
+            project_id_path.write_text(f"{uuid.uuid4()}\n", encoding="utf-8")
         self._completed_steps = []
         self._record_progress("start")
         self.superseded.prune(self._prior_manifest().get("entries", []))
