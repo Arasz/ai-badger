@@ -8,7 +8,8 @@ single-shape). Sender identity is REQUIRED on both halves: explicit
 ``--sender-session``/``--sender-project``, or derived — the session half via the
 claude_session_source pattern (harness session env var, then pid ancestry, then unique
 cwd against the sessions store), the project half via the store's cwd resolver
-(``AI_BADGER_PROJECT_ID`` override, then the ai-raccoon registry). A send that cannot
+(``AI_BADGER_PROJECT_ID`` override, then the nearest ``.ai-badger/project-id`` walk,
+ADR-0025). A send that cannot
 establish identity refuses with a clean message and non-zero exit, writing nothing
 (D7: expected errors are refusals, never tracebacks).
 """
