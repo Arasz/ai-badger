@@ -307,11 +307,38 @@ export function toClaudeDeliveryPayload(
 /** One delivery-script run, parsed from its stdout. Empty and error are outcomes, never
  * exceptions — the same discipline as GateOutcome: `empty` means "the store answered, the
  * inbox is empty" (parseable `{}`), `error` means this firing failed and the turn goes on
- * unmodified (D31 fail-open). */
+ * unmodified (D31 fail-open).
+ *
+ * The optional `bus` carries the P2 summary the Python txn merges into
+ * `hookSpecificOutput.aiBadgerBus` ({addressed, broadcast} — the delivered batch's counts)
+ * or the hook's fail-open marker (`{error: true}`, C2b: guarded_main caught, the cursor may
+ * not have moved). One parser, two sides: the Python B6 tests pin the same literal field
+ * name and shape; this extraction is the TS half of that contract (QA-3). */
+export type DeliveryBus = { addressed: number; broadcast: number } | { error: true };
+
 export type DeliveryOutcome =
-  | { kind: "context"; content: string }
-  | { kind: "empty" }
+  | { kind: "context"; content: string; bus?: DeliveryBus }
+  | { kind: "empty"; bus?: DeliveryBus }
   | { kind: "error"; reason: string };
+
+/** The aiBadgerBus field, if it is one of the two shapes the wire contract defines. A
+ * malformed summary is treated as ABSENT — the C10 fallback (wake) handles a mail-bearing
+ * response without one, and a broken summary must not turn a delivery into a parse error. */
+function deliveryBusFrom(inner: unknown): DeliveryBus | undefined {
+  if (!isRecord(inner)) return undefined;
+  const bus = inner.aiBadgerBus;
+  if (!isRecord(bus)) return undefined;
+  if (bus.error === true) return { error: true };
+  const addressed = bus.addressed;
+  const broadcast = bus.broadcast;
+  if (
+    typeof addressed === "number" && Number.isFinite(addressed) &&
+    typeof broadcast === "number" && Number.isFinite(broadcast)
+  ) {
+    return { addressed, broadcast };
+  }
+  return undefined;
+}
 
 /** The delivery script's stdout (one JSON document: `{}`, or hookSpecificOutput with the
  * rendered mail in `additionalContext`) as an outcome. Anything unparseable is an error
@@ -330,8 +357,17 @@ export function parseDeliveryStdout(stdout: string): DeliveryOutcome {
   }
   if (!isRecord(parsed) || Object.keys(parsed).length === 0) return { kind: "empty" };
   const inner = isRecord(parsed.hookSpecificOutput) ? parsed.hookSpecificOutput : undefined;
+  const bus = deliveryBusFrom(inner);
+  // The failure marker dominates: guarded_main caught, the txn state is unknown — the
+  // outcome must read as "unknown" (never advance the watermark, never inject) and not
+  // as a genuine empty inbox (CR-M1).
+  if (bus !== undefined && "error" in bus) return { kind: "empty", bus };
   const context = inner?.additionalContext;
-  if (typeof context === "string" && context) return { kind: "context", content: context };
+  if (typeof context === "string" && context) {
+    return bus !== undefined
+      ? { kind: "context", content: context, bus }
+      : { kind: "context", content: context };
+  }
   if (context === "" || context === undefined) return { kind: "empty" };
   return { kind: "error", reason: "delivery script's additionalContext is not a string" };
 }
