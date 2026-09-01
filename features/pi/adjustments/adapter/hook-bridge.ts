@@ -272,13 +272,15 @@ export function toClaudePostPayload(
 
 /** The pi events the message bus translates, under the Claude spellings the shared
  * delivery script routes on (`message_delivery_hook.py` matches case-insensitively:
- * sessionstart/userpromptsubmit deliver mail, sessionend drops the cursor). pi's
- * per-turn injection seam is `before_agent_start`; the close event is `session_shutdown`. */
-export type PiDeliveryEvent = "session_start" | "before_agent_start" | "session_shutdown";
-export type ClaudeDeliveryEvent = "SessionStart" | "UserPromptSubmit" | "SessionEnd";
+ * userpromptsubmit delivers mail, sessionend drops the cursor). pi's delivery seams
+ * are `before_agent_start` (run start) and the per-turn `context` event; the close
+ * event is `session_shutdown`. There is no start-spawn: a session that never turns
+ * fires no delivery event, so no cursor row is written and mail survives for the
+ * session that does turn. */
+export type PiDeliveryEvent = "before_agent_start" | "session_shutdown";
+export type ClaudeDeliveryEvent = "UserPromptSubmit" | "SessionEnd";
 
 export const PI_DELIVERY_EVENT_MAP: Record<PiDeliveryEvent, ClaudeDeliveryEvent> = {
-  session_start: "SessionStart",
   before_agent_start: "UserPromptSubmit",
   session_shutdown: "SessionEnd",
 };
@@ -348,41 +350,80 @@ export function piMessageFromContext(content: string): AgentStartInjection {
   };
 }
 
+/** The message object pi's per-turn `context` seam appends to the message array the
+ * handler returns ({ messages }): one custom message in the full CustomMessage shape
+ * (role "custom", timestamp) — pi renders it and carries it to the LLM like any
+ * custom message. */
+export interface ContextInjection {
+  message: { role: "custom"; customType: string; content: string; display: boolean; timestamp: number };
+}
+
+export function piContextMessageFromContext(content: string): ContextInjection {
+  return {
+    message: {
+      role: "custom",
+      customType: AI_BADGER_CUSTOM_TYPE,
+      content,
+      display: true,
+      timestamp: Date.now(),
+    },
+  };
+}
+
 /** The injected spawn: one delivery-script run for an already-built payload. It resolves
  * every failure mode into a DeliveryOutcome and never rejects — the router's branches
  * stay total. */
 export type DeliverySpawn = (payload: ClaudeDeliveryPayload) => Promise<DeliveryOutcome>;
 
-/** What one routed event produced: pi's injection (before_agent_start only) plus the
- * failure lines the caller reports. Nothing here throws. */
+/** What one routed event produced: pi's result-message injection (before_agent_start)
+ * plus the failure lines the caller reports. Nothing here throws. */
 export interface DeliveryRouterResult {
   injection?: AgentStartInjection;
   notices: string[];
 }
 
+/** The per-turn seam's result: the same outcome translated into the message object the
+ * caller appends to the `context` event's message array. */
+export interface DeliveryContextResult {
+  injection?: ContextInjection;
+  notices: string[];
+}
+
 export interface DeliveryRouter {
-  sessionStart(ctx: { cwd: string; sessionId: string }): Promise<DeliveryRouterResult>;
   beforeAgentStart(ctx: { cwd: string; sessionId: string }): Promise<DeliveryRouterResult>;
+  context(ctx: { cwd: string; sessionId: string }): Promise<DeliveryContextResult>;
   sessionShutdown(ctx: { cwd: string; sessionId: string }): Promise<DeliveryRouterResult>;
 }
 
-/** The subscription state machine behind the three message-bus handlers.
+/** The subscription state machine behind the message-bus handlers.
  *
- * pi has no injection seam on `session_start` itself (its handler type has no result),
- * so the start delivery's mail is held as the pending child and handed to pi through the
- * first `before_agent_start` return — the first-class seam the docs name. The store's
- * cursor advanced when the start child read, so consuming the held outcome costs no
- * second store hit, and the store's exactly-once transaction makes every interleaving
- * of a late start child with a live read safe. Later turns are live deliveries; the
- * close event's response is discarded — a dead store must not block shutdown, and a
- * close response has nothing pi could inject anyway. Every error becomes a notice (D31).
+ * Start-spawn is deferred (D4): there is no `session_start` delivery. A session whose
+ * runtime never reaches a turn spawns nothing — no store hit, no cursor row — and its
+ * mail survives for the session that does turn (the store's 30-minute first-read gate
+ * applies from that turn). Delivery runs at two seams, both the same unconditional
+ * live read with the store's exactly-once transaction advancing the cursor once per
+ * consumed message: `before_agent_start` returns the mail through pi's result-message
+ * seam, and the per-turn `context` event appends it to the message array pi hands the
+ * handler — mail that arrived between LLM calls lands at the next call (mail between
+ * tasks, not after a cancel). The close event's spawn is cursor cleanup; its response
+ * is discarded — a dead store must not block shutdown, and a close response has
+ * nothing pi could inject anyway. Every error becomes a notice (D31).
  */
 export function createDeliveryRouter(spawn: DeliverySpawn): DeliveryRouter {
-  let pendingStart: Promise<DeliveryOutcome> | null = null;
-
-  async function liveTurn(ctx: { cwd: string; sessionId: string }): Promise<DeliveryRouterResult> {
+  /** One unconditional live read: the payload routes as UserPromptSubmit, a delivery
+   * event. A rejecting spawn is an error outcome — the router's branches stay total. */
+  async function liveRead(ctx: { cwd: string; sessionId: string }): Promise<DeliveryOutcome> {
     try {
-      const outcome = await spawn(toClaudeDeliveryPayload("before_agent_start", ctx));
+      return await spawn(toClaudeDeliveryPayload("before_agent_start", ctx));
+    } catch (error) {
+      return { kind: "error", reason: String(error) };
+    }
+  }
+
+  return {
+    // Run start: one unconditional live read through pi's result-message seam.
+    async beforeAgentStart(ctx) {
+      const outcome = await liveRead(ctx);
       if (outcome.kind === "context") {
         return { injection: piMessageFromContext(outcome.content), notices: [] };
       }
@@ -390,37 +431,19 @@ export function createDeliveryRouter(spawn: DeliverySpawn): DeliveryRouter {
         return { notices: [`ai-badger: message delivery failed, turn continues — ${outcome.reason}`] };
       }
       return { notices: [] };
-    } catch (error) {
-      return { notices: [`ai-badger: message delivery failed, turn continues — ${String(error)}`] };
-    }
-  }
-
-  return {
-    sessionStart(ctx) {
-      pendingStart = spawn(toClaudeDeliveryPayload("session_start", ctx)).catch(
-        (error): DeliveryOutcome => ({ kind: "error", reason: String(error) }),
-      );
-      return Promise.resolve({ notices: [] });
     },
 
-    async beforeAgentStart(ctx) {
-      if (pendingStart) {
-        const held = pendingStart;
-        pendingStart = null;
-        try {
-          const outcome = await held;
-          if (outcome.kind === "context") {
-            return { injection: piMessageFromContext(outcome.content), notices: [] };
-          }
-          // empty or errored: fall through to the live read — an empty start inbox does
-          // not mean an empty turn inbox (mail may have arrived since), and an errored
-          // start delivery must not silence the turn either.
-        } catch (error) {
-          // spawn contract says never reject; a violation still must not break the turn.
-          return liveTurn(ctx);
-        }
+    // Per-turn seam inside the agent loop: the same live read, its mail appended to
+    // the message array pi handed over — mail that arrived between LLM calls lands here.
+    async context(ctx) {
+      const outcome = await liveRead(ctx);
+      if (outcome.kind === "context") {
+        return { injection: piContextMessageFromContext(outcome.content), notices: [] };
       }
-      return liveTurn(ctx);
+      if (outcome.kind === "error") {
+        return { notices: [`ai-badger: message delivery failed, turn continues — ${outcome.reason}`] };
+      }
+      return { notices: [] };
     },
 
     async sessionShutdown(ctx) {
