@@ -65,7 +65,7 @@ def test_derived_set_equals_the_manifest_rows_on_this_repo(root):
     derived = bl.expected_skill_names(root, config)
 
     assert derived == recorded
-    assert len(derived) == 34
+    assert len(derived) == 35
 
 
 def test_block_order_defaults_then_include_then_stack_local(catalog):

@@ -1,0 +1,5 @@
+{
+  "skill": "code-review",
+  "extension": "azure",
+  "requires": ["stacks=azure"]
+}
