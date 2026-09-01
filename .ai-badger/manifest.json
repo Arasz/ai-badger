@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.155.0",
-  "frameworkCommit": "1126dd254ad4e25b82e9c58ef45b46fb02d6b132",
+  "frameworkCommit": "9273489ff73e8985725cad68ce517478849450e3",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -2252,7 +2252,16 @@
       "source": "features/pi/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/ai_badger_hooks.py",
       "frameworkVersion": "0.155.0",
-      "hash": "20590022488890df85e3d6af4b5ff3eaaefe74e09ee805040dc842ea1af05bbc"
+      "hash": "3de1aac8beb42831bd286e63ea6e736ded80cb0927674fcd668d18b54fe4877a"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "pi",
+      "name": "adjustments/.ai-badger/hooks/badger_store.py",
+      "source": "features/pi/adjustments/adjust_hooks.py",
+      "target": ".ai-badger/hooks/badger_store.py",
+      "frameworkVersion": "0.155.0",
+      "hash": "3de1aac8beb42831bd286e63ea6e736ded80cb0927674fcd668d18b54fe4877a"
     },
     {
       "feature": "adjustments",
@@ -2261,7 +2270,7 @@
       "source": "features/pi/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/mcp_index_hook.py",
       "frameworkVersion": "0.155.0",
-      "hash": "20590022488890df85e3d6af4b5ff3eaaefe74e09ee805040dc842ea1af05bbc"
+      "hash": "3de1aac8beb42831bd286e63ea6e736ded80cb0927674fcd668d18b54fe4877a"
     },
     {
       "feature": "adjustments",
@@ -2270,7 +2279,7 @@
       "source": "features/pi/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/debug_log.py",
       "frameworkVersion": "0.155.0",
-      "hash": "20590022488890df85e3d6af4b5ff3eaaefe74e09ee805040dc842ea1af05bbc"
+      "hash": "3de1aac8beb42831bd286e63ea6e736ded80cb0927674fcd668d18b54fe4877a"
     },
     {
       "feature": "adjustments",
@@ -2279,7 +2288,7 @@
       "source": "features/pi/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/grounded_feedback.py",
       "frameworkVersion": "0.155.0",
-      "hash": "20590022488890df85e3d6af4b5ff3eaaefe74e09ee805040dc842ea1af05bbc"
+      "hash": "3de1aac8beb42831bd286e63ea6e736ded80cb0927674fcd668d18b54fe4877a"
     },
     {
       "feature": "adjustments",
@@ -2288,7 +2297,16 @@
       "source": "features/pi/adjustments/adjust_hooks.py",
       "target": ".ai-badger/hooks/hermes_isolation.py",
       "frameworkVersion": "0.155.0",
-      "hash": "20590022488890df85e3d6af4b5ff3eaaefe74e09ee805040dc842ea1af05bbc"
+      "hash": "3de1aac8beb42831bd286e63ea6e736ded80cb0927674fcd668d18b54fe4877a"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "pi",
+      "name": "adjustments/.ai-badger/hooks/message_delivery_hook.py",
+      "source": "features/pi/adjustments/adjust_hooks.py",
+      "target": ".ai-badger/hooks/message_delivery_hook.py",
+      "frameworkVersion": "0.155.0",
+      "hash": "3de1aac8beb42831bd286e63ea6e736ded80cb0927674fcd668d18b54fe4877a"
     },
     {
       "feature": "adjustments",

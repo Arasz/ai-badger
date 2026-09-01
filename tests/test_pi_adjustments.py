@@ -1547,3 +1547,38 @@ def test_delegation_usage_skips_valid_json_non_object_lines(pi_subagent_logs_dir
 
     assert record == {"totalTokens": 15, "model": "z-ai/glm-5.3-flash", "apiCalls": 1,
                       "at": 1788120002000}
+
+
+# ---------------------------------------------------------------------------
+# P6 (aib-user-db-message-bus) — the pi delivery path. The adapter spawns the shared
+# message_delivery_hook.py from the project's .ai-badger/hooks/; the script imports its
+# vendored badger_store sibling from its own directory, so the copy list must carry BOTH
+# or every pi delivery firing fails its import (fail-open, mail never delivered).
+# ---------------------------------------------------------------------------
+
+def test_adjust_hooks_copies_the_message_delivery_script_and_its_store(load_script, root, tmp_path):
+    """pi's hook copy list ships message_delivery_hook.py AND badger_store.py together.
+
+    Mutation note (kill-checked in the lane report): dropping either entry from
+    adjust_hooks.py's hook_scripts reds this — a delivery script without its store
+    sibling imports nothing and injects nothing, which is exactly the silent-wiring
+    failure Rule 7 scenario 1 exists to prevent.
+    """
+    adjust = load_script("features/pi/adjustments/adjust_hooks.py")
+    target_dir = tmp_path / ".ai-badger"
+    context = {
+        "config": {"agents": ["pi"]},
+        "framework_root": root,
+        "feature_dir": root / "features" / "pi" / "adjustments",
+        "target_dir": target_dir,
+        "install": False,
+    }
+    result = adjust.adjust(context)
+
+    assert result["applied"]
+    hooks_dir = target_dir / "hooks"
+    assert (hooks_dir / "message_delivery_hook.py").is_file(), sorted(
+        p.name for p in hooks_dir.iterdir())
+    assert (hooks_dir / "badger_store.py").is_file()
+    names = {Path(f).name for f in result["files"]}
+    assert {"message_delivery_hook.py", "badger_store.py"} <= names
