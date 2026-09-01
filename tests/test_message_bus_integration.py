@@ -406,7 +406,7 @@ SCENARIO_OWNERS = {
     "Recent messages reach a new session": [
         "tests/test_message_bus_store.py::test_first_delivery_gates_to_the_30_minute_window",
         "tests/test_message_delivery_hook.py::test_session_start_injects_recent_history_and_gates_the_ancient",
-        "tests/test_message_bus_hermes.py::test_start_delivery_gates_history_older_than_the_window",
+        "tests/test_message_bus_hermes.py::test_first_turn_gates_history_older_than_the_window",
     ],
     "A message exactly 30 minutes old is included": [
         "tests/test_message_bus_store.py::test_a_message_exactly_30_minutes_old_is_included",
@@ -432,14 +432,14 @@ SCENARIO_OWNERS = {
     ],
     "100 unread deliver the first 16 and drop the rest": [
         "tests/test_message_bus_store.py::test_overflow_beyond_sixteen_is_dropped_and_never_redelivered",
-        "tests/test_message_bus_hermes.py::test_start_delivery_caps_at_sixteen_and_the_overflow_never_returns",
+        "tests/test_message_bus_hermes.py::test_first_turn_caps_at_sixteen_and_the_overflow_never_returns",
     ],
     # Rule 6 — Cursors die on session close or after 4 days
     "Session close removes the cursor row": [
         "tests/test_message_bus_store.py::test_delete_cursor_removes_the_row",
         "tests/test_message_delivery_hook.py::test_session_end_removes_the_cursor",
         "tests/test_message_bus_manifest.py::test_the_wired_close_command_removes_the_cursor",
-        "tests/test_message_bus_hermes.py::test_session_end_deletes_the_cursor_and_drops_the_stash",
+        "tests/test_message_bus_hermes.py::test_session_end_deletes_the_cursor",
         "tests/test_adjust_hooks_copilot.py::test_copilot_session_end_wires_cursor_cleanup",
         "tests/test_message_bus_integration.py::"
         "test_the_session_end_row_carries_the_copilot_session_end_arm",
