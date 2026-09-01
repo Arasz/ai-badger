@@ -326,10 +326,13 @@ def test_every_wired_arm_spelling_has_a_surface_on_its_harness(load_script):
                             f"{row['name']!r} — wire its surface or exempt it explicitly")
 
     # pi is wired through the adapter, not the manifest: its bridge must translate
-    # exactly the three pi seam events onto the same Claude spellings the manifest
-    # arms carry — a dropped target silently delivers nothing to pi.
-    assert pi_sources == {"session_start", "before_agent_start", "session_shutdown"}
-    assert pi_targets == claude_arm_events == {"SessionStart", "UserPromptSubmit",
+    # exactly the pi delivery seams onto the same Claude spellings the manifest arms
+    # carry — a dropped target silently delivers nothing to pi. Since P4 the start
+    # seam is GONE (defer: before_agent_start + the per-turn context method, both on
+    # the UserPromptSubmit spelling) — only the close seam maps to SessionEnd.
+    assert pi_sources == {"before_agent_start", "session_shutdown"}
+    assert pi_targets == {"UserPromptSubmit", "SessionEnd"}
+    assert pi_targets <= claude_arm_events == {"SessionStart", "UserPromptSubmit",
                                                "SessionEnd"}
     # The unwired-harness safety scenario, asserted negatively (Rule 7 sc.2):
     # nothing outside the wired set carries mail.
@@ -455,8 +458,9 @@ SCENARIO_OWNERS = {
         "test_the_session_end_row_carries_the_copilot_session_end_arm",
     ],
     # Rule 7 — Every harness with hooks gets the delivery hook
-    "pi session start delivers": [
-        "tests/js/pi_message_bus_adapter.test.mjs::E2E: session_start payload delivers "
+    # (renamed from "pi session start delivers": P4 deferred the start seam)
+    "pi delivery reaches a session": [
+        "tests/js/pi_message_bus_adapter.test.mjs::E2E: a delivery payload delivers "
         "seeded mail through the real script into pi's message shape",
         "tests/test_pi_adjustments.py::test_adjust_hooks_copies_the_message_delivery_script_and_its_store",
         "tests/test_message_bus_integration.py::"
@@ -565,7 +569,7 @@ CANONICAL_SCENARIOS = {
     "Session close removes the cursor row": False,
     "A crashed session's cursor expires at 4 days": False,
     "Close-event identification is verified per harness": False,
-    "pi session start delivers": False,
+    "pi delivery reaches a session": False,
     "A hooked harness without the wiring stays safe": False,
     "A harness that claims delivery must not drop the event": False,
     "Same project directory matches": False,
