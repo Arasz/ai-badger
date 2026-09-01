@@ -718,3 +718,93 @@ def test_failure_marker_on_a_forced_store_open_failure(hook, tmp_path, monkeypat
                          {"hook_event_name": "SessionStart", "session_id": "S", "cwd": "/x"})
     assert rc == 0
     assert response == FAILURE_MARKER
+
+
+# ---------------------------------------------------------------------------
+# K. hook-error log diagnosability + leak guard (P2 C8, Lane B F4; B4/B5)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def error_log(hook, tmp_path, monkeypatch) -> Path:
+    """Redirect the hook's error log into the test's tmp tree (the awm-hook precedent)."""
+    log = tmp_path / "hook-errors.log"
+    monkeypatch.setattr(hook, "HOOK_ERRORS_FILE", log)
+    return log
+
+
+def test_hook_error_log_gains_the_exception_message(
+        hook, error_log, user_root, monkeypatch, capsys):
+    """C8 / Lane B F4: 44 content-free `OperationalError at badger_store.py:959` lines
+    were undiagnosable. The log line now carries the exception MESSAGE (B4-i): a planted
+    `sqlite3.OperationalError("no such table: messages")` must appear in the log by its
+    text, alongside the type and location it already carried.
+    Mutation killer: the log format reverted to type+location only."""
+    def no_table(*_args, **_kwargs):
+        raise sqlite3.OperationalError("no such table: messages")
+
+    monkeypatch.setattr(badger_store, "open_user", no_table)
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(
+        {"hook_event_name": "SessionStart", "session_id": "S", "cwd": "/x"})))
+    rc = hook.guarded_main()
+    err = capsys.readouterr().err
+    assert rc == 0
+
+    lines = error_log.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1, lines
+    assert "OperationalError" in lines[0]
+    assert "no such table: messages" in lines[0], \
+        f"the diagnosis must be readable: {lines[0]}"
+    assert "message_delivery_hook" in lines[0]
+    assert "no such table" not in err, "stderr stays content-free (the log is the surface)"
+
+
+def test_hook_error_log_never_leaks_payload_derived_substrings(
+        hook, error_log, user_root, monkeypatch, capsys):
+    """C8's two-direction property (B4-ii): an exception whose str() embeds a sentinel
+    taken from the stdin payload — here the mail content a store error could quote —
+    must reach the log WITHOUT the sentinel: payload-derived substrings are redacted
+    before the line is written. The diagnosis survives (type, location, message shape);
+    the content does not.
+    Mutation killer: raw str(exc) written → the sentinel lands in the log."""
+    sentinel = "PAYLOAD-SENTINEL-SECRET-CONTENT"
+
+    def quote_the_payload(*_args, **_kwargs):
+        raise RuntimeError(f"scan exploded near: {sentinel}")
+
+    monkeypatch.setattr(badger_store, "open_user", quote_the_payload)
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({
+        "hook_event_name": "UserPromptSubmit", "session_id": "S", "cwd": "/x",
+        "content": sentinel})))
+    rc = hook.guarded_main()
+    captured = capsys.readouterr()
+    assert rc == 0
+
+    log = error_log.read_text(encoding="utf-8")
+    assert sentinel not in log, "a payload-derived substring must never reach the log"
+    assert sentinel not in captured.err
+    assert "RuntimeError" in log and "scan exploded near:" in log, \
+        f"the redacted diagnosis must survive: {log}"
+
+
+def test_guarded_main_still_fails_open_when_the_log_path_throws(
+        hook, error_log, user_root, tmp_path, monkeypatch, capsys):
+    """B5's fail-open extension (C8): the new logging cannot reintroduce a crash path —
+    a log write that dies (forced OSError) still leaves the host parseable no-op JSON
+    in the C2b marker shape and exits 0.
+    Mutation killer: the log call unprotected → nothing printed, the net drops the
+    response."""
+    root = tmp_path / "corrupt-root"
+    root.mkdir()
+    (root / "ai-badger.db").write_bytes(b"not a database")
+    monkeypatch.setenv(USER_ROOT_ENV, str(root))
+
+    def log_is_full(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(hook, "record_hook_failure", log_is_full)
+
+    rc, response = _fire(hook, monkeypatch, capsys,
+                         {"hook_event_name": "SessionStart", "session_id": "S", "cwd": "/x"})
+    assert rc == 0
+    assert response == FAILURE_MARKER

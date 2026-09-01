@@ -114,3 +114,38 @@ FAILED tests/test_message_bus_store.py::test_concurrent_deliveries_inject_exactl
 2 failed in 1.80s
 (mutant reverted; clean tree re-verified green)
 ```
+
+---
+
+## Gate 3 — B4/B5: hook-error log gains the message + leak guard (C8) — RED
+
+New: `test_hook_error_log_gains_the_exception_message` (B4-i),
+`test_hook_error_log_never_leaks_payload_derived_substrings` (B4-ii),
+`test_guarded_main_still_fails_open_when_the_log_path_throws` (B5).
+
+```
+$ python3 -m pytest -q tests/test_message_delivery_hook.py \
+    -k "error_log or fails_open_when_the_log"
+FAILED tests/test_message_delivery_hook.py::test_hook_error_log_gains_the_exception_message
+FAILED tests/test_message_delivery_hook.py::test_hook_error_log_never_leaks_payload_derived_substrings
+FAILED tests/test_message_delivery_hook.py::test_guarded_main_still_fails_open_when_the_log_path_throws
+3 failed in 1.87s
+```
+
+The B5 red is the pre-C8 shape exactly: `record_hook_failure(...)` unprotected in
+`guarded_main` → the forced OSError escapes and NOTHING reaches stdout (the net drops
+the response). The B4 reds show type+location-only log lines (no message, no redaction).
+
+GREEN after implementing C8: `record_hook_failure` gains the sanitized message
+(`_redact_payload_text` over payload-derived candidates — whole text, lines, tokens,
+JSON string values and their tokens), `guarded_main` captures the raw stdin text,
+passes it through, and guards the log call.
+
+### Mutation witnesses (each killed by exactly its owning test)
+
+```
+M1 revert-to-type+location  → test_hook_error_log_gains_the_exception_message RED
+M2 raw-str-no-redaction     → test_hook_error_log_never_leaks_payload_derived_substrings RED
+M3 unguarded-log-call       → test_guarded_main_still_fails_open_when_the_log_path_throws RED
+(mutants reverted; clean file re-verified: 33 passed)
+```
