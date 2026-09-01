@@ -5,7 +5,7 @@
 // extension API defines (BeforeAgentStartEventResult.message) and the Claude-shaped
 // contract features/common/hooks/message_delivery_hook.py parses. The E2E block at the
 // bottom runs the REAL delivery script against an env-redirected user DB
-// (AI_BADGER_USER_ROOT / AI_BADGER_RACCOON_DB / CLAUDE_PROJECT_DIR) — the real stores
+// (AI_BADGER_USER_ROOT / AI_BADGER_PROJECT_ID / CLAUDE_PROJECT_DIR) — the real stores
 // are never touched.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -225,7 +225,6 @@ function e2eEnv(root) {
     HOME: root,
     AI_BADGER_USER_ROOT: root,
     AI_BADGER_PROJECT_ID: "P",
-    AI_BADGER_RACCOON_DB: path.join(root, "raccoon", "memory.db"),
     CLAUDE_PROJECT_DIR: root,
   };
 }

@@ -4,8 +4,8 @@ The skill is a CLI, so every behaviour test runs
 ``features/common/skills/send-message/scripts/send_message.py`` as a subprocess — the
 surface an agent's shell call actually hits — against user/tracking/debug roots
 redirected into the test's tmp tree (the conftest isolation pattern: the real
-``~/.ai-badger`` DBs are never opened, let alone written, and the raccoon registry
-never reaches past ``AI_BADGER_RACCOON_DB``).
+``~/.ai-badger`` DBs are never opened, let alone written (ADR-0025: identity
+comes from the walked ``.ai-badger/project-id``, nothing else).
 
 Test map (plan aib-user-db-message-bus §3 P3 · spec rules in parentheses):
   1. Targeting + identity (Rule 1, D3) ......... test_one_to_one_send_lands_a_row_with_full_sender_identity_and_null_project,
@@ -21,7 +21,7 @@ Test map (plan aib-user-db-message-bus §3 P3 · spec rules in parentheses):
                                                  test_sender_session_resolves_from_pid_ancestry,
                                                  test_sender_session_resolves_from_unique_cwd
   5. Sender-project resolution (R8, A3) ........ test_explicit_project_env_override_resolves_without_a_registry,
-                                                 test_sender_project_resolves_from_the_raccoon_registry
+                                                 test_sender_project_resolves_from_the_walked_project_id
   6. The doc says what the CLI does ............ test_the_skill_doc_documents_identity_requirement_and_session_precedence
   7. Vendored copy (D16) ....................... test_the_vendored_copy_is_byte_identical_to_the_canonical
 
@@ -68,7 +68,8 @@ def _base_env(tmp_path: Path) -> dict:
     env[badger_store.USER_ROOT_ENV] = str(tmp_path / "user-root")
     env[badger_store.TRACKING_ROOT_ENV] = str(tmp_path / "tracking-root")
     env[badger_store.DEBUG_DIR_ENV] = str(tmp_path / "debug-dir")
-    for signal in (badger_store.PROJECT_ID_ENV, "CLAUDE_CODE_SESSION_ID"):
+    for signal in (badger_store.PROJECT_ID_ENV, "CLAUDE_CODE_SESSION_ID",
+                   "AI_BADGER_TEST_HOLD", "AI_BADGER_TEST_HOLD_ARMED"):
         env.pop(signal, None)
     return env
 
@@ -124,13 +125,6 @@ def _message_rows(tmp_path: Path) -> list[tuple]:
         ).fetchall()
     finally:
         conn.close()
-
-
-def _bank_env(tmp_path: Path, bank: Path) -> dict:
-    """_base_env with the raccoon bank pointed at *bank* — for env-dict callers."""
-    env = _base_env(tmp_path)
-    env[badger_store.RACCOON_BANK_ENV] = str(bank)
-    return env
 
 
 def _send_with_env(tmp_path: Path, env: dict, *args: str,

@@ -510,6 +510,91 @@ def test_cursorless_live_read_applies_the_gate_once(tmp_path, monkeypatch, froze
         store.close()
 
 
+def test_gated_first_delivery_without_project_never_sweeps_other_legs(tmp_path, monkeypatch,
+                                                                     frozen_clock):
+    """L1 / R1a+R1b: a gated first read that runs 1:1-only (unresolved project, D7) lands
+    the cursor over what THAT leg delivered — never at global MAX(id), which sweeps
+    in-window project/broadcast mail before any later session could see it. The 1:1 is
+    seeded BEFORE the broadcast: a broadcast seeded first would sit below any MAX landing
+    and prove nothing (reviewer S1). R1b rides on R1a: right delivery, wrong cursor is
+    still the bug."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        _seed_message(store, ts=frozen_clock.isoformat(), sender_session="S1",
+                      sender_project="P", target_session="S", content="direct ping")
+        broadcast_id = _seed_message(store, ts=frozen_clock.isoformat(),
+                                     sender_session="S1", sender_project="P",
+                                     target_project="P", content="project mail")
+
+        docs = store.deliver_for_session("S", None)  # D7 fail-open: 1:1 only
+        assert [d["content"] for d in docs] == ["direct ping"]
+        cursor_id, _ = _cursor_row(store, "S")
+        assert cursor_id < broadcast_id, (
+            "the 1:1-only first read must not cursor past other legs' in-window mail")
+
+        # R1a end-to-end: a later session whose project resolves still gets the mail.
+        assert [d["content"] for d in store.deliver_for_session("S2", "P")] == \
+            ["project mail"]
+    finally:
+        store.close()
+
+
+def test_first_delivery_with_project_id_still_cursors_past_the_window(tmp_path, monkeypatch,
+                                                                      frozen_clock):
+    """L1 / R1c (over-tighten guard): when ALL legs ran (project resolved), the gated
+    first read still lands at global MAX(id) even with zero matching rows — the dropped
+    overflow and everything older must never be revisited (R5). Guards the L1 fix from
+    narrowing the cursor for the all-legs case."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        unrelated = _seed_message(store, ts=frozen_clock.isoformat(),
+                                  sender_session="S1", sender_project="P",
+                                  target_session="other", content="unrelated")
+
+        assert store.deliver_for_session("S2", "P") == []
+        cursor_id, _ = _cursor_row(store, "S2")
+        assert cursor_id >= unrelated, "all legs ran — the global landing stands"
+    finally:
+        store.close()
+
+
+def test_leaked_hold_env_without_armed_is_inert(tmp_path, monkeypatch):
+    """D3/L2: AI_BADGER_TEST_HOLD parks a delivery only when AI_BADGER_TEST_HOLD_ARMED is
+    also set — a hold value leaked into an unconfigured environment is inert (the
+    exactly-once race keeps its park; production and stray children never block).
+    Mutation witness: drop the arm gate in _hold_at and this thread never returns."""
+    release = tmp_path / "release-that-never-comes"
+    monkeypatch.setenv(badger_store._TEST_HOLD_ENV, f"deliver.entry:{release}")
+    done: list[bool] = []
+    thread = threading.Thread(  # daemon: the red mutation parks forever — exit cleanly
+        target=lambda: (badger_store._hold_at("deliver.entry"), done.append(True)),
+        daemon=True)
+    thread.start()
+    thread.join(timeout=2.0)
+    assert done, "a hold env without AI_BADGER_TEST_HOLD_ARMED must be inert"
+
+
+def test_armed_hold_env_parks_until_release(tmp_path, monkeypatch):
+    """D3/L2 positive pin: both envs set — the cross-process hold parks at the seam until
+    the parent creates the release path, exactly the pre-gate behaviour the exactly-once
+    race depends on."""
+    release = tmp_path / "release"
+    monkeypatch.setenv(badger_store._TEST_HOLD_ENV, f"deliver.entry:{release}")
+    monkeypatch.setenv(badger_store._TEST_HOLD_ARMED_ENV, "1")
+    done: list[bool] = []
+    thread = threading.Thread(
+        target=lambda: (badger_store._hold_at("deliver.entry"), done.append(True)),
+        daemon=True)
+    thread.start()
+    time.sleep(0.1)
+    assert not done, "an armed hold must park at the seam"
+    release.write_text("")
+    thread.join(timeout=2.0)
+    assert done
+
+
 def test_small_inbox_delivers_whole_in_chronological_order(tmp_path, monkeypatch):
     """Rule 5 scenario 1: an inbox under the cap delivers whole, oldest first."""
     _user_env(tmp_path, monkeypatch)
@@ -863,6 +948,7 @@ def test_env_gated_hold_blocks_until_the_release_file_exists(tmp_path, monkeypat
 
     release = tmp_path / "release-hold"
     monkeypatch.setenv("AI_BADGER_TEST_HOLD", f"deliver.after_read:{release}")
+    monkeypatch.setenv("AI_BADGER_TEST_HOLD_ARMED", "1")  # D3/L2: the pair is required
 
     done = threading.Event()
     error: list = []

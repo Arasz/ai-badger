@@ -32,8 +32,8 @@ Test map (plan aib-user-db-message-bus §3 P4 · spec rules in parentheses):
                                                   test_standalone_invocation_via_subprocess
 
 Deterministic mechanisms: all fixtures are env-redirected (AI_BADGER_USER_ROOT moves the
-user DB, AI_BADGER_RACCOON_DB points at a synthetic bank — the real ~/.ai-badger/ and
-~/.ai-raccoon/ stores are never touched), timestamps come from real send_message stamps
+user DB; identity is a planted .ai-badger/project-id per ADR-0025 — the real ~/.ai-badger/
+store is never touched), timestamps come from real send_message stamps
 (no sleeps, no clock freezing needed at this layer: the gate boundaries are store-pinned
 in tests/test_message_bus_store.py, these tests pin the event→behaviour mapping).
 
@@ -59,9 +59,9 @@ from conftest import ROOT
 HOOK_PATH = "features/common/hooks/message_delivery_hook.py"
 
 PROJECT_ID_ENV = "AI_BADGER_PROJECT_ID"
-RACCOON_BANK_ENV = "AI_BADGER_RACCOON_DB"
 USER_ROOT_ENV = "AI_BADGER_USER_ROOT"
 HOLD_ENV = "AI_BADGER_TEST_HOLD"
+HOLD_ARMED_ENV = "AI_BADGER_TEST_HOLD_ARMED"
 PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 
 #: A delivered document exactly as the store returns it — schema-valid per F4.
@@ -80,9 +80,9 @@ SENTINEL_DOC = {
 @pytest.fixture(autouse=True)
 def _clean_bus_env(monkeypatch):
     """A developer shell must not poison the hook's inputs: the explicit project
-    override, a real raccoon bank, a live test hold, and conftest's own
+    override, a live test hold (and its arm), and conftest's own
     CLAUDE_PROJECT_DIR all stay out of these tests unless a test sets them."""
-    for var in (PROJECT_ID_ENV, RACCOON_BANK_ENV, HOLD_ENV, PROJECT_DIR_ENV):
+    for var in (PROJECT_ID_ENV, HOLD_ENV, HOLD_ARMED_ENV, PROJECT_DIR_ENV):
         monkeypatch.delenv(var, raising=False)
 
 

@@ -29,9 +29,9 @@ The one mandated mutation (§D, Rule 7 sc.2): a manifest WITHOUT the delivery ro
 as a foreign agent arm added to a delivery row — must red test F; run + kill + revert is
 recorded in the lane report.
 
-Deterministic mechanisms: env-redirected roots only (AI_BADGER_USER_ROOT moves the user DB,
-AI_BADGER_RACCOON_DB points at a synthetic bank) — the real ~/.ai-badger/ and ~/.ai-raccoon/
-stores are never touched; the raccoon-bank fixture is the P2 spike's pinned shape.
+Deterministic mechanisms: env-redirected roots only (AI_BADGER_USER_ROOT moves the user
+DB; identity is a planted .ai-badger/project-id per ADR-0025) — the real ~/.ai-badger/
+store is never touched.
 """
 from __future__ import annotations
 
@@ -65,9 +65,9 @@ DELIVERY_ROWS = (SESSION_START_ROW, PER_TURN_ROW, SESSION_END_ROW)
 WIRING_SCRIPTS = "features/common/skills/welcome-ai-badger/scripts"
 
 PROJECT_ID_ENV = "AI_BADGER_PROJECT_ID"
-RACCOON_BANK_ENV = "AI_BADGER_RACCOON_DB"
 USER_ROOT_ENV = "AI_BADGER_USER_ROOT"
 HOLD_ENV = "AI_BADGER_TEST_HOLD"
+HOLD_ARMED_ENV = "AI_BADGER_TEST_HOLD_ARMED"
 PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 
 
@@ -79,8 +79,8 @@ PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 @pytest.fixture(autouse=True)
 def _clean_bus_env(monkeypatch):
     """A developer shell must not poison the subprocess leg: the explicit project
-    override, a real raccoon bank and a live test hold stay out unless a test sets them."""
-    for var in (PROJECT_ID_ENV, RACCOON_BANK_ENV, HOLD_ENV, PROJECT_DIR_ENV):
+    override, a live test hold (and its arm) stay out unless a test sets them."""
+    for var in (PROJECT_ID_ENV, HOLD_ENV, HOLD_ARMED_ENV, PROJECT_DIR_ENV):
         monkeypatch.delenv(var, raising=False)
 
 

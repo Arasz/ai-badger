@@ -92,14 +92,22 @@ def _upgrade_v1_to_v2(conn: sqlite3.Connection) -> None:
 #: the env — the seams are inert unless a test arms them.
 _TEST_HOLDS: dict[str, list[Callable[[], None]]] = {}
 _TEST_HOLD_ENV = "AI_BADGER_TEST_HOLD"
+#: D3/L2: the env hold parks a delivery only when this is ALSO set — a hold value that
+#: leaks into an unconfigured environment (a forgotten export, a nested test run) must be
+#: inert, not a deadlock. The in-process _TEST_HOLDS registry stays ungated: tests that
+#: register callbacks are deliberately arming the seam.
+_TEST_HOLD_ARMED_ENV = "AI_BADGER_TEST_HOLD_ARMED"
 
 
 def _hold_at(seam: str) -> None:
-    """Run every callback registered for *seam*, then honour the env-gated cross-process hold."""
+    """Run every callback registered for *seam*, then honour the env-gated cross-process hold.
+
+    The env hold needs the pair (D3/L2): ``AI_BADGER_TEST_HOLD`` alone is ignored — see
+    ``_TEST_HOLD_ARMED_ENV``."""
     for blocker in tuple(_TEST_HOLDS.get(seam, ())):
         blocker()
     spec = os.environ.get(_TEST_HOLD_ENV)
-    if spec and spec.startswith(f"{seam}:"):
+    if spec and spec.startswith(f"{seam}:") and os.environ.get(_TEST_HOLD_ARMED_ENV):
         release = Path(spec.split(":", 1)[1])
         while not release.exists():
             time.sleep(0.005)
@@ -1915,10 +1923,23 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
                 rows = self._read_addressed(session_id, project_id, after_id=0,
                                             since_ts=cutoff)
                 messages = [_message_document(r) for r in rows[:_START_CAP]]
-                # Past the WHOLE gated window, not past the last delivered row: the
-                # dropped overflow (and everything older) must never be revisited (R5).
-                next_cursor = self.conn.execute(
-                    "SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]
+                if project_id:
+                    # All three legs ran: land past the WHOLE gated window, not past
+                    # the last delivered row — the dropped overflow (and everything
+                    # older) must never be revisited (R5, L1/R1c guard).
+                    next_cursor = self.conn.execute(
+                        "SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]
+                else:
+                    # D7 fail-open ran the 1:1 leg only: land past what THAT leg
+                    # delivered within the window (L1/R1a) — a global landing would
+                    # sweep in-window project/broadcast mail before any later session
+                    # whose project resolves could read it. The leg's own overflow past
+                    # the cap is still never revisited (its max covers it), and older
+                    # leg rows cannot sit above the cursor (ids grow with ts).
+                    next_cursor = self.conn.execute(
+                        "SELECT COALESCE(MAX(id), 0) FROM messages "
+                        "WHERE target_session = ? AND sender_session <> ? AND ts >= ?",
+                        (session_id, session_id, cutoff)).fetchone()[0]
             else:
                 rows = self._read_addressed(session_id, project_id,
                                             after_id=row[0], since_ts=None)

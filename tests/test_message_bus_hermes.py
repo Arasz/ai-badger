@@ -7,12 +7,12 @@ model), pre_llm_call surfaces the stash plus the live per-turn read, and
 on_session_end deletes the session's cursor — the Hermes leg of the @deferred
 close-event rule. Hermes payloads carry no cwd and no project identity, so cwd is the
 process cwd at callback time and projectId comes only from the store resolver
-(AI_BADGER_PROJECT_ID explicit-wins; otherwise the raccoon registry bank).
+(AI_BADGER_PROJECT_ID explicit-wins; otherwise the nearest .ai-badger/project-id walk).
 
 Every test runs against env-redirected roots — AI_BADGER_USER_ROOT moves the user DB,
-AI_BADGER_RACCOON_DB names a synthetic bank — and the real ~/.ai-badger/ DBs are never
-touched. The store under test is the copy the plugin actually loads: the vendored
-badger_store.py beside ai_badger_hooks.py.
+identity is a planted .ai-badger/project-id (ADR-0025) — and the real ~/.ai-badger/ DBs
+are never touched. The store under test is the copy the plugin actually loads: the
+vendored badger_store.py beside ai_badger_hooks.py.
 """
 # pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations

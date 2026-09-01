@@ -60,6 +60,7 @@ FEATURE_PATH = ".ai-badger/task-tracking/specs/aib-user-db-message-bus.feature"
 PROJECT_ID_ENV = "AI_BADGER_PROJECT_ID"
 USER_ROOT_ENV = "AI_BADGER_USER_ROOT"
 HOLD_ENV = "AI_BADGER_TEST_HOLD"
+HOLD_ARMED_ENV = "AI_BADGER_TEST_HOLD_ARMED"
 PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 
 
@@ -71,7 +72,7 @@ PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 @pytest.fixture(autouse=True)
 def _clean_bus_env(monkeypatch):
     """A developer shell must not poison the hook's inputs."""
-    for var in (PROJECT_ID_ENV, HOLD_ENV, PROJECT_DIR_ENV):
+    for var in (PROJECT_ID_ENV, HOLD_ENV, HOLD_ARMED_ENV, PROJECT_DIR_ENV):
         monkeypatch.delenv(var, raising=False)
 
 
@@ -182,9 +183,10 @@ def test_send_script_then_hook_roundtrip_delivers_two_harnesses_schema_clean(
 def _child_env(user_root_path: Path, release: Path) -> dict:
     """The P4 subprocess shape: only the redirect vars survive the parent shell."""
     env = {k: v for k, v in os.environ.items()
-           if k not in (PROJECT_ID_ENV, HOLD_ENV, PROJECT_DIR_ENV)}
+           if k not in (PROJECT_ID_ENV, HOLD_ENV, HOLD_ARMED_ENV, PROJECT_DIR_ENV)}
     env[USER_ROOT_ENV] = str(user_root_path)
     env[HOLD_ENV] = f"deliver.after_read:{release}"
+    env[HOLD_ARMED_ENV] = "1"  # D3/L2: the pair is required for a real park
     return env
 
 
