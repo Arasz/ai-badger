@@ -53,8 +53,15 @@ be resolved the send is refused (non-zero exit, no row) — this is the bus's Ru
 not an implementation quirk:
 
 - **sessionId** — `--sender-session <id>`, or derived in this order: the harness's
-  session env var (`CLAUDE_CODE_SESSION_ID`), then a pid-ancestry match against the
+  session env var (`CLAUDE_CODE_SESSION_ID` for claude, `PI_SESSION_ID` for pi,
+  `HERMES_SESSION_ID` for hermes — first set wins; each harness exports its live
+  session id to the subprocesses it spawns, and that is the id its delivery consumes
+  by, so own broadcasts are excluded), then a pid-ancestry match against the
   sessions store, then a unique cwd match (exactly one known session carrying this
+  identity). Residual (api-review d-209): a stale foreign var inherited from an outer
+  host (claude-in-shell-in-pi) beats the live one by list order — if your shell
+  carries a `CLAUDE_CODE_SESSION_ID` that is not this session's, pass
+  `--sender-session` explicitly.
   working directory). Ambiguous or absent → refused.
 - **projectId** — `--sender-project <id>`, or `AI_BADGER_PROJECT_ID`, or the cwd
   resolver's upward walk to the nearest `.ai-badger/project-id` (minted at scaffold

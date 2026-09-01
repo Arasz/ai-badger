@@ -235,14 +235,14 @@ def _delivery_hook_event_sets(root: Path) -> tuple[set[str], set[str]]:
 
 
 def test_adapter_delivery_map_routes_pi_events_to_claude_families(root):
-    """The translation table maps exactly the three bus events, and its Claude spellings
-    are real: families the manifest's claude arms use, and spellings the shared delivery
-    script actually routes (its DELIVERY_EVENTS deliver mail, its CLOSE_EVENTS clean up —
-    a spelling drift here would silently no-op every pi close event)."""
+    """The translation table maps exactly the two bus events (the start-spawn defer
+    removed session_start), and its Claude spellings are real: families the manifest's
+    claude arms use, and spellings the shared delivery script actually routes (its
+    DELIVERY_EVENTS deliver mail, its CLOSE_EVENTS clean up — a spelling drift here
+    would silently no-op every pi close event)."""
     delivery_map = _adapter_delivery_map(root)
 
     assert delivery_map == {
-        "session_start": "SessionStart",
         "before_agent_start": "UserPromptSubmit",
         "session_shutdown": "SessionEnd",
     }, delivery_map
@@ -259,17 +259,22 @@ def test_adapter_delivery_map_routes_pi_events_to_claude_families(root):
         )
 
 
-def test_adapter_subscribes_to_the_three_delivery_events_via_the_router(root):
-    """The delivery arm's subscriptions exist and delegate to the bridge's router.
+def test_adapter_subscribes_to_the_two_delivery_events_via_the_router(root):
+    """The two delivery points' subscriptions exist and delegate to the bridge's router.
 
-    A missing subscription means pi sessions never get bus mail on that event: the
-    session-start stash, the per-turn live delivery and the close cleanup each need
-    their own pi.on(...) wired through createDeliveryRouter/toClaudeDeliveryPayload.
+    A missing subscription means pi sessions never get bus mail at that point: the
+    run-start result message (before_agent_start) and the per-turn context append each
+    need their own pi.on(...) wired through
+    createDeliveryRouter/toClaudeDeliveryPayload. The start-spawn defer removed the
+    session_start subscription entirely — a session that never turns consumes nothing.
+    session_shutdown stays pinned as a subscription: it is the close event's cursor
+    cleanup (a delivery point never, but a DELETE of the close wiring would silently
+    stop cursor cleanup with this suite green — api-review MUST, d-211).
     """
     source = (root / ADAPTER_INDEX_TS).read_text(encoding="utf-8")
     events = set(PI_ON_EVENT.findall(source))
 
-    assert {"session_start", "before_agent_start", "session_shutdown"} <= events, events
+    assert {"before_agent_start", "context", "session_shutdown"} <= events, events
 
     for seam in ("createDeliveryRouter", "toClaudeDeliveryPayload", "parseDeliveryStdout"):
         assert re.search(rf"\b{seam}\b", source), (

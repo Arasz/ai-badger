@@ -4,8 +4,8 @@ The skill is a CLI, so every behaviour test runs
 ``features/common/skills/send-message/scripts/send_message.py`` as a subprocess — the
 surface an agent's shell call actually hits — against user/tracking/debug roots
 redirected into the test's tmp tree (the conftest isolation pattern: the real
-``~/.ai-badger`` DBs are never opened, let alone written, and the raccoon registry
-never reaches past ``AI_BADGER_RACCOON_DB``).
+``~/.ai-badger`` DBs are never opened, let alone written (ADR-0025: identity
+comes from the walked ``.ai-badger/project-id``, nothing else).
 
 Test map (plan aib-user-db-message-bus §3 P3 · spec rules in parentheses):
   1. Targeting + identity (Rule 1, D3) ......... test_one_to_one_send_lands_a_row_with_full_sender_identity_and_null_project,
@@ -21,7 +21,7 @@ Test map (plan aib-user-db-message-bus §3 P3 · spec rules in parentheses):
                                                  test_sender_session_resolves_from_pid_ancestry,
                                                  test_sender_session_resolves_from_unique_cwd
   5. Sender-project resolution (R8, A3) ........ test_explicit_project_env_override_resolves_without_a_registry,
-                                                 test_sender_project_resolves_from_the_raccoon_registry
+                                                 test_sender_project_resolves_from_the_walked_project_id
   6. The doc says what the CLI does ............ test_the_skill_doc_documents_identity_requirement_and_session_precedence
   7. Vendored copy (D16) ....................... test_the_vendored_copy_is_byte_identical_to_the_canonical
 
@@ -68,7 +68,9 @@ def _base_env(tmp_path: Path) -> dict:
     env[badger_store.USER_ROOT_ENV] = str(tmp_path / "user-root")
     env[badger_store.TRACKING_ROOT_ENV] = str(tmp_path / "tracking-root")
     env[badger_store.DEBUG_DIR_ENV] = str(tmp_path / "debug-dir")
-    for signal in (badger_store.PROJECT_ID_ENV, "CLAUDE_CODE_SESSION_ID"):
+    for signal in (badger_store.PROJECT_ID_ENV, "CLAUDE_CODE_SESSION_ID",
+                   "PI_SESSION_ID", "HERMES_SESSION_ID",
+                   "AI_BADGER_TEST_HOLD", "AI_BADGER_TEST_HOLD_ARMED"):
         env.pop(signal, None)
     return env
 
@@ -124,13 +126,6 @@ def _message_rows(tmp_path: Path) -> list[tuple]:
         ).fetchall()
     finally:
         conn.close()
-
-
-def _bank_env(tmp_path: Path, bank: Path) -> dict:
-    """_base_env with the raccoon bank pointed at *bank* — for env-dict callers."""
-    env = _base_env(tmp_path)
-    env[badger_store.RACCOON_BANK_ENV] = str(bank)
-    return env
 
 
 def _send_with_env(tmp_path: Path, env: dict, *args: str,
@@ -351,6 +346,57 @@ def test_sender_session_resolves_from_unique_cwd(tmp_path):
     assert rows[0][2] == "sess-here"
 
 
+def test_own_broadcast_never_re_delivers_across_id_drift(tmp_path):
+    """R9 (aib-bus-defer-cursor-followups): one agent carried two ids — a task-tracked
+    one in the sessions store and the live harness one its delivery consumes by. The
+    derivation's env leg checked only CLAUDE_CODE_SESSION_ID, so under a harness that
+    exports its own session var (pi exports PI_SESSION_ID to every tool subprocess) it
+    fell through to the store legs and resolved the stale task-tracked row — recorded
+    sender != consumer id, the R2 exclusion missed, and the agent's own machine
+    broadcast re-delivered to itself. The env leg must read the harness session env
+    vars so the recorded sender IS the id the consumer's delivery carries: delivering
+    as the harness session surfaces nothing, a third session still receives it."""
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    tracked = "d9e90bb1-1111-4111-8111-111111111111"
+    harness = "01a05c6d-2222-4222-8222-222222222222"
+    third = "33333333-3333-4333-8333-333333333333"
+    _seed_sessions(tmp_path, {
+        # The task-tracked row: tracker-recorded pid/cwd of the same harness process —
+        # the store leg resolves it whenever the env leg misses.
+        tracked: {"pid": os.getpid(), "cwd": str(tmp_path / "its-cwd")},
+        # The live harness row: the pid-ancestry/cwd-resolved one.
+        harness: {"pid": os.getpid(), "cwd": str(workdir)},
+        third: {"pid": 999999, "cwd": str(tmp_path / "other-cwd")},
+    })
+    env = _base_env(tmp_path)
+    env["PI_SESSION_ID"] = harness  # the harness exports its live id to the subprocess
+    proc = _send_with_env(tmp_path, env, "--content", "own broadcast",
+                          "--sender-project", "proj-sender", cwd=workdir)
+
+    assert proc.returncode == 0, proc.stderr
+    rows = _message_rows(tmp_path)
+    assert len(rows) == 1
+    (_id, _ts, sender_session, _sp, _t_session, _t_project, content) = rows[0]
+    assert sender_session == harness  # the recorded sender IS the harness id
+    assert content == "own broadcast"
+
+    # The delivery observable (the incident's shape): the exclusion must bite for the
+    # harness session and only for it — a machine broadcast is not silently swallowed.
+    import contextlib
+    with contextlib.ExitStack() as stack:
+        monkey = stack.enter_context(pytest.MonkeyPatch.context())
+        monkey.setenv(badger_store.USER_ROOT_ENV, str(tmp_path / "user-root"))
+        monkey.setenv(badger_store.TRACKING_ROOT_ENV, str(tmp_path / "tracking-root"))
+        store = badger_store.open_user()
+        try:
+            assert store.deliver_for_session(harness, "proj-sender") == []
+            delivered = store.deliver_for_session(third, "proj-sender")
+        finally:
+            store.close()
+    assert [doc["content"] for doc in delivered] == ["own broadcast"]
+
+
 # ---------------------------------------------------------------------------
 # 5. sender-project resolution (Rule 8's resolver contract, at the send surface)
 # ---------------------------------------------------------------------------
@@ -404,3 +450,62 @@ def test_the_vendored_copy_is_byte_identical_to_the_canonical():
     file's own pin, independent of the manifest-driven byte-check."""
     vendored = ROOT / "features/common/skills/send-message/scripts/badger_store.py"
     assert vendored.read_bytes() == (ROOT / "engine/badger_store.py").read_bytes()
+
+
+def test_session_env_vars_first_set_wins_in_tuple_order(tmp_path):
+    """P9 qa MUST: SESSION_ENVS is first-set-wins in tuple order — when a shell carries
+    more than one harness var (nested hosts, a pi session launched from a claude shell),
+    the recorded sender must be the FIRST tuple entry that is set, so the recorded id
+    matches what the outermost harness's delivery will consume. And a
+    HERMES_SESSION_ID-only run derives from hermes' var (the third registered source),
+    which no earlier test drives through the CLI."""
+    import contextlib
+
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    claude_side = "44444444-4444-4444-8444-444444444444"
+    pi_side = "55555555-5555-4555-8555-555555555555"
+    hermes_side = "66666666-6666-4666-8666-666666666666"
+    third = "77777777-7777-4777-8777-777777777777"
+    _seed_sessions(tmp_path, {
+        claude_side: {"pid": os.getpid(), "cwd": str(workdir)},
+        pi_side: {"pid": os.getpid(), "cwd": str(workdir)},
+        hermes_side: {"pid": os.getpid(), "cwd": str(workdir)},
+        third: {"pid": 999999, "cwd": str(tmp_path / "other-cwd")},
+    })
+
+    def _broadcast(env_extra, content):
+        env = _base_env(tmp_path)
+        env.update(env_extra)
+        proc = _send_with_env(tmp_path, env, "--content", content,
+                              "--sender-project", "proj-sender", cwd=workdir)
+        assert proc.returncode == 0, proc.stderr
+        rows = _message_rows(tmp_path)
+        return rows[-1][2]  # the newest row's sender_session
+
+    # Both claude's and pi's vars set: the first TUPLE entry wins, not pi's.
+    assert _broadcast({"CLAUDE_CODE_SESSION_ID": claude_side,
+                       "PI_SESSION_ID": pi_side}, "claude-var probe") == claude_side
+    # Hermes' var alone drives the CLI through the third registered source.
+    assert _broadcast({"HERMES_SESSION_ID": hermes_side},
+                      "hermes-var probe") == hermes_side
+
+    # The exclusion observable: each recorded sender's own broadcast stays hidden from
+    # its own delivery, and each surfaces the other's (distinct contents, R2 per-sender).
+    with contextlib.ExitStack() as stack:
+        monkey = stack.enter_context(pytest.MonkeyPatch.context())
+        monkey.setenv(badger_store.USER_ROOT_ENV, str(tmp_path / "user-root"))
+        monkey.setenv(badger_store.TRACKING_ROOT_ENV, str(tmp_path / "tracking-root"))
+        store = badger_store.open_user()
+        try:
+            assert [d["content"] for d in
+                    store.deliver_for_session(claude_side, "proj-sender")] == \
+                ["hermes-var probe"]
+            assert [d["content"] for d in
+                    store.deliver_for_session(hermes_side, "proj-sender")] == \
+                ["claude-var probe"]
+            delivered = store.deliver_for_session(third, "proj-sender")
+        finally:
+            store.close()
+    assert [doc["content"] for doc in delivered] == \
+        ["claude-var probe", "hermes-var probe"]

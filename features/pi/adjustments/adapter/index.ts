@@ -366,26 +366,29 @@ export default async function (pi: ExtensionAPI) {
     return undefined; // advisory: the tool result is never modified
   });
 
-  // Message-bus delivery (plan aib-user-db-message-bus §3 P6): the same Claude-shaped
-  // delivery script Claude and Copilot run, translated through the bridge's router.
-  // session_start has no injection seam in pi, so its mail is held by the router and
-  // returned through the first before_agent_start — the docs' message-object seam.
+  // Message-bus delivery (plan aib-user-db-message-bus §3 P6; start-spawn deferred per
+  // D4/P4): the same Claude-shaped delivery script Claude and Copilot run, translated
+  // through the bridge's router. There is no session_start delivery — a session that
+  // never turns consumes nothing. before_agent_start injects through the result-message
+  // seam; the per-turn context event appends mail that arrived between LLM calls;
+  // session_shutdown is cursor cleanup.
   const deliveryCtx = (ctx: ExtensionContext) => ({
     cwd: ctx.cwd,
     sessionId: resolveSessionId(ctx, process.env),
   });
   const router = createDeliveryRouter((payload) => runDelivery(payload, { cwd: payload.cwd, signal: undefined }));
 
-  pi.on("session_start", async (_event, ctx) => {
-    const { notices } = await router.sessionStart(deliveryCtx(ctx));
-    for (const notice of notices) ctx.ui.notify(notice, "warning");
-    return undefined;
-  });
-
   pi.on("before_agent_start", async (_event, ctx) => {
     const { injection, notices } = await router.beforeAgentStart(deliveryCtx(ctx));
     for (const notice of notices) ctx.ui.notify(notice, "warning");
     return injection; // undefined = inject nothing this turn
+  });
+
+  pi.on("context", async (event, ctx) => {
+    const { injection, notices } = await router.context(deliveryCtx(ctx));
+    for (const notice of notices) ctx.ui.notify(notice, "warning");
+    if (!injection) return undefined; // no mail between tasks: the array passes through unmodified
+    return { messages: [...event.messages, injection.message] };
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {

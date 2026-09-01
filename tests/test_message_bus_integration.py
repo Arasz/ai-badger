@@ -60,6 +60,7 @@ FEATURE_PATH = ".ai-badger/task-tracking/specs/aib-user-db-message-bus.feature"
 PROJECT_ID_ENV = "AI_BADGER_PROJECT_ID"
 USER_ROOT_ENV = "AI_BADGER_USER_ROOT"
 HOLD_ENV = "AI_BADGER_TEST_HOLD"
+HOLD_ARMED_ENV = "AI_BADGER_TEST_HOLD_ARMED"
 PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 
 
@@ -71,7 +72,7 @@ PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 @pytest.fixture(autouse=True)
 def _clean_bus_env(monkeypatch):
     """A developer shell must not poison the hook's inputs."""
-    for var in (PROJECT_ID_ENV, HOLD_ENV, PROJECT_DIR_ENV):
+    for var in (PROJECT_ID_ENV, HOLD_ENV, HOLD_ARMED_ENV, PROJECT_DIR_ENV):
         monkeypatch.delenv(var, raising=False)
 
 
@@ -182,9 +183,10 @@ def test_send_script_then_hook_roundtrip_delivers_two_harnesses_schema_clean(
 def _child_env(user_root_path: Path, release: Path) -> dict:
     """The P4 subprocess shape: only the redirect vars survive the parent shell."""
     env = {k: v for k, v in os.environ.items()
-           if k not in (PROJECT_ID_ENV, HOLD_ENV, PROJECT_DIR_ENV)}
+           if k not in (PROJECT_ID_ENV, HOLD_ENV, HOLD_ARMED_ENV, PROJECT_DIR_ENV)}
     env[USER_ROOT_ENV] = str(user_root_path)
     env[HOLD_ENV] = f"deliver.after_read:{release}"
+    env[HOLD_ARMED_ENV] = "1"  # D3/L2: the pair is required for a real park
     return env
 
 
@@ -324,10 +326,13 @@ def test_every_wired_arm_spelling_has_a_surface_on_its_harness(load_script):
                             f"{row['name']!r} — wire its surface or exempt it explicitly")
 
     # pi is wired through the adapter, not the manifest: its bridge must translate
-    # exactly the three pi seam events onto the same Claude spellings the manifest
-    # arms carry — a dropped target silently delivers nothing to pi.
-    assert pi_sources == {"session_start", "before_agent_start", "session_shutdown"}
-    assert pi_targets == claude_arm_events == {"SessionStart", "UserPromptSubmit",
+    # exactly the pi delivery seams onto the same Claude spellings the manifest arms
+    # carry — a dropped target silently delivers nothing to pi. Since P4 the start
+    # seam is GONE (defer: before_agent_start + the per-turn context method, both on
+    # the UserPromptSubmit spelling) — only the close seam maps to SessionEnd.
+    assert pi_sources == {"before_agent_start", "session_shutdown"}
+    assert pi_targets == {"UserPromptSubmit", "SessionEnd"}
+    assert pi_targets <= claude_arm_events == {"SessionStart", "UserPromptSubmit",
                                                "SessionEnd"}
     # The unwired-harness safety scenario, asserted negatively (Rule 7 sc.2):
     # nothing outside the wired set carries mail.
@@ -404,7 +409,7 @@ SCENARIO_OWNERS = {
     "Recent messages reach a new session": [
         "tests/test_message_bus_store.py::test_first_delivery_gates_to_the_30_minute_window",
         "tests/test_message_delivery_hook.py::test_session_start_injects_recent_history_and_gates_the_ancient",
-        "tests/test_message_bus_hermes.py::test_start_delivery_gates_history_older_than_the_window",
+        "tests/test_message_bus_hermes.py::test_first_turn_gates_history_older_than_the_window",
     ],
     "A message exactly 30 minutes old is included": [
         "tests/test_message_bus_store.py::test_a_message_exactly_30_minutes_old_is_included",
@@ -430,14 +435,14 @@ SCENARIO_OWNERS = {
     ],
     "100 unread deliver the first 16 and drop the rest": [
         "tests/test_message_bus_store.py::test_overflow_beyond_sixteen_is_dropped_and_never_redelivered",
-        "tests/test_message_bus_hermes.py::test_start_delivery_caps_at_sixteen_and_the_overflow_never_returns",
+        "tests/test_message_bus_hermes.py::test_first_turn_caps_at_sixteen_and_the_overflow_never_returns",
     ],
     # Rule 6 — Cursors die on session close or after 4 days
     "Session close removes the cursor row": [
         "tests/test_message_bus_store.py::test_delete_cursor_removes_the_row",
         "tests/test_message_delivery_hook.py::test_session_end_removes_the_cursor",
         "tests/test_message_bus_manifest.py::test_the_wired_close_command_removes_the_cursor",
-        "tests/test_message_bus_hermes.py::test_session_end_deletes_the_cursor_and_drops_the_stash",
+        "tests/test_message_bus_hermes.py::test_session_end_deletes_the_cursor",
         "tests/test_adjust_hooks_copilot.py::test_copilot_session_end_wires_cursor_cleanup",
         "tests/test_message_bus_integration.py::"
         "test_the_session_end_row_carries_the_copilot_session_end_arm",
@@ -453,8 +458,9 @@ SCENARIO_OWNERS = {
         "test_the_session_end_row_carries_the_copilot_session_end_arm",
     ],
     # Rule 7 — Every harness with hooks gets the delivery hook
-    "pi session start delivers": [
-        "tests/js/pi_message_bus_adapter.test.mjs::E2E: session_start payload delivers "
+    # (renamed from "pi session start delivers": P4 deferred the start seam)
+    "pi delivery reaches a session": [
+        "tests/js/pi_message_bus_adapter.test.mjs::E2E: a delivery payload delivers "
         "seeded mail through the real script into pi's message shape",
         "tests/test_pi_adjustments.py::test_adjust_hooks_copies_the_message_delivery_script_and_its_store",
         "tests/test_message_bus_integration.py::"
@@ -563,7 +569,7 @@ CANONICAL_SCENARIOS = {
     "Session close removes the cursor row": False,
     "A crashed session's cursor expires at 4 days": False,
     "Close-event identification is verified per harness": False,
-    "pi session start delivers": False,
+    "pi delivery reaches a session": False,
     "A hooked harness without the wiring stays safe": False,
     "A harness that claims delivery must not drop the event": False,
     "Same project directory matches": False,

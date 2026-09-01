@@ -92,14 +92,22 @@ def _upgrade_v1_to_v2(conn: sqlite3.Connection) -> None:
 #: the env — the seams are inert unless a test arms them.
 _TEST_HOLDS: dict[str, list[Callable[[], None]]] = {}
 _TEST_HOLD_ENV = "AI_BADGER_TEST_HOLD"
+#: D3/L2: the env hold parks a delivery only when this is ALSO set — a hold value that
+#: leaks into an unconfigured environment (a forgotten export, a nested test run) must be
+#: inert, not a deadlock. The in-process _TEST_HOLDS registry stays ungated: tests that
+#: register callbacks are deliberately arming the seam.
+_TEST_HOLD_ARMED_ENV = "AI_BADGER_TEST_HOLD_ARMED"
 
 
 def _hold_at(seam: str) -> None:
-    """Run every callback registered for *seam*, then honour the env-gated cross-process hold."""
+    """Run every callback registered for *seam*, then honour the env-gated cross-process hold.
+
+    The env hold needs the pair (D3/L2): ``AI_BADGER_TEST_HOLD`` alone is ignored — see
+    ``_TEST_HOLD_ARMED_ENV``."""
     for blocker in tuple(_TEST_HOLDS.get(seam, ())):
         blocker()
     spec = os.environ.get(_TEST_HOLD_ENV)
-    if spec and spec.startswith(f"{seam}:"):
+    if spec and spec.startswith(f"{seam}:") and os.environ.get(_TEST_HOLD_ARMED_ENV):
         release = Path(spec.split(":", 1)[1])
         while not release.exists():
             time.sleep(0.005)
@@ -1031,18 +1039,6 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
     def _file_set_files(self, family: Family) -> list[Path]:
         """A file-set family's not-yet-migrated legacy files, sorted for deterministic resume."""
         return _file_set_paths(family)
-        path = family.legacy_path()
-        if family.legacy_kind == "kv_glob":
-            candidates = path.parent.glob(path.name)
-        elif path.is_dir():
-            candidates = path.iterdir()
-        else:
-            return []
-        return sorted(
-            candidate for candidate in candidates
-            if candidate.is_file() and candidate.name != ".write.lock"
-            and ".migrated" not in candidate.name
-        )
 
     def _raise_on_family_resurrection(self, family: Family) -> None:
         """A file-set family's original file newer than its migration stamp fails closed (D5c)."""
@@ -1894,8 +1890,10 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         The read and the cursor upsert share one BEGIN IMMEDIATE, so two hooks racing on
         one unread message serialize: exactly one injects it, both finish at the same
         cursor (R3). A session with no cursor row gates history to the last 30 minutes
-        (inclusive) and caps at the first 16 oldest, cursor landing past the gated window
-        so the overflow is never revisited (R4/R5, D5) — in history AND live mode, since
+        (inclusive) and caps at the first 16 oldest, cursor landing past the gated
+        window — the WHOLE window when the project leg ran; only the 1:1 leg's window
+        content when it ran alone (L1/R1a) — so the overflow is never revisited
+        (R4/R5, D5) — in history AND live mode, since
         this is the one delivery path. Later reads are pure ``id > cursor`` and uncapped
         (A5: live broadcast volume is bounded by agent-paced sends, not by a cap).
         With no *project_id* only the 1:1 leg runs — the caller's unresolved-project
@@ -1915,10 +1913,23 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
                 rows = self._read_addressed(session_id, project_id, after_id=0,
                                             since_ts=cutoff)
                 messages = [_message_document(r) for r in rows[:_START_CAP]]
-                # Past the WHOLE gated window, not past the last delivered row: the
-                # dropped overflow (and everything older) must never be revisited (R5).
-                next_cursor = self.conn.execute(
-                    "SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]
+                if project_id:
+                    # All three legs ran: land past the WHOLE gated window, not past
+                    # the last delivered row — the dropped overflow (and everything
+                    # older) must never be revisited (R5, L1/R1c guard).
+                    next_cursor = self.conn.execute(
+                        "SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]
+                else:
+                    # D7 fail-open ran the 1:1 leg only: land past what THAT leg
+                    # delivered within the window (L1/R1a) — a global landing would
+                    # sweep in-window project/broadcast mail before any later session
+                    # whose project resolves could read it. The leg's own overflow past
+                    # the cap is still never revisited (its max covers it), and older
+                    # leg rows cannot sit above the cursor (ids grow with ts).
+                    next_cursor = self.conn.execute(
+                        "SELECT COALESCE(MAX(id), 0) FROM messages "
+                        "WHERE target_session = ? AND sender_session <> ? AND ts >= ?",
+                        (session_id, session_id, cutoff)).fetchone()[0]
             else:
                 rows = self._read_addressed(session_id, project_id,
                                             after_id=row[0], since_ts=None)
@@ -2032,23 +2043,6 @@ def _real_path(path: str) -> str:
     """The path as the walk compares it: absolute, symlink-resolved, trimmed. Tails that
     do not exist keep their literal spelling, so a not-yet-created directory resolves."""
     return os.path.realpath(os.path.abspath(path))
-
-
-def resolve_project_id(cwd: Optional[str]) -> Optional[str]:
-    """Resolve a working directory to the current project's id (R8; D4; ADR-0025).
-
-    The explicit override (``AI_BADGER_PROJECT_ID``) wins unconditionally — when set and
-    non-blank it is returned before anything else is read, at send and delivery alike.
-    Otherwise the nearest ancestor ``.ai-badger/project-id`` file wins (minted at
-    scaffold time, backfilled by den-refresh): a cwd with no ``.ai-badger`` in its
-    ancestry — or one whose id file is absent or blank — resolves to None, and the
-    caller owns the fail-open (D7/D8). There is no ambiguity to refuse: a single
-    upward walk has one nearest directory, never a guess.
-    """
-    override = os.environ.get(PROJECT_ID_ENV)
-    if override and override.strip():
-        return override.strip()
-    return _read_project_id_file(cwd)
 
 
 def resolve_project_id(cwd: Optional[str]) -> Optional[str]:

@@ -29,9 +29,9 @@ The one mandated mutation (§D, Rule 7 sc.2): a manifest WITHOUT the delivery ro
 as a foreign agent arm added to a delivery row — must red test F; run + kill + revert is
 recorded in the lane report.
 
-Deterministic mechanisms: env-redirected roots only (AI_BADGER_USER_ROOT moves the user DB,
-AI_BADGER_RACCOON_DB points at a synthetic bank) — the real ~/.ai-badger/ and ~/.ai-raccoon/
-stores are never touched; the raccoon-bank fixture is the P2 spike's pinned shape.
+Deterministic mechanisms: env-redirected roots only (AI_BADGER_USER_ROOT moves the user
+DB; identity is a planted .ai-badger/project-id per ADR-0025) — the real ~/.ai-badger/
+store is never touched.
 """
 from __future__ import annotations
 
@@ -65,9 +65,9 @@ DELIVERY_ROWS = (SESSION_START_ROW, PER_TURN_ROW, SESSION_END_ROW)
 WIRING_SCRIPTS = "features/common/skills/welcome-ai-badger/scripts"
 
 PROJECT_ID_ENV = "AI_BADGER_PROJECT_ID"
-RACCOON_BANK_ENV = "AI_BADGER_RACCOON_DB"
 USER_ROOT_ENV = "AI_BADGER_USER_ROOT"
 HOLD_ENV = "AI_BADGER_TEST_HOLD"
+HOLD_ARMED_ENV = "AI_BADGER_TEST_HOLD_ARMED"
 PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 
 
@@ -79,8 +79,8 @@ PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 @pytest.fixture(autouse=True)
 def _clean_bus_env(monkeypatch):
     """A developer shell must not poison the subprocess leg: the explicit project
-    override, a real raccoon bank and a live test hold stay out unless a test sets them."""
-    for var in (PROJECT_ID_ENV, RACCOON_BANK_ENV, HOLD_ENV, PROJECT_DIR_ENV):
+    override, a live test hold (and its arm) stay out unless a test sets them."""
+    for var in (PROJECT_ID_ENV, HOLD_ENV, HOLD_ARMED_ENV, PROJECT_DIR_ENV):
         monkeypatch.delenv(var, raising=False)
 
 
@@ -160,15 +160,14 @@ def _scaffold_send_message_scripts(target: Path, extra: dict[str, str]) -> Path:
 
 def test_manifest_routes_the_delivery_events_per_agent():
     """Each delivery row names every hook-capable agent with its own event spelling:
-    Claude SessionStart/UserPromptSubmit/SessionEnd, Hermes on_session_start/pre_llm_call/
-    on_session_end (P7's landed plugin callbacks, recorded per the #147 lesson), Copilot
+    Claude SessionStart/UserPromptSubmit/SessionEnd, Hermes pre_llm_call/on_session_end
+    (P7's landed plugin callbacks, recorded per the #147 lesson; P5 removed the hermes
+    session-start arm — the first pre_llm_call is the whole delivery), Copilot
     sessionStart/userPromptSubmitted (the F2 fold: one flat hooks array, one editor)."""
     expected = {
         SESSION_START_ROW: {
             "claude": {"type": "hooks-json", "entry": "hooks.json", "event": "SessionStart",
                        "script": SCRIPT_NAME},
-            "hermes": {"type": "plugin", "entry": "ai_badger_hooks.py",
-                       "method": "on_session_start"},
             "copilot": {"type": "hooks-json", "entry": "hooks.json", "event": "sessionStart",
                         "script": SCRIPT_NAME},
         },
@@ -369,8 +368,7 @@ def test_no_unwired_harness_carries_the_delivery_rows():
     wired_agents = {"claude", "hermes", "copilot"}
     for row in _manifest()["hooks"]:
         for agent, arm in row.get("agents", {}).items():
-            runs_delivery = (arm.get("script") == SCRIPT_NAME
-                             or arm.get("method") == "on_session_start_message_delivery")
+            runs_delivery = arm.get("script") == SCRIPT_NAME
             if not runs_delivery and not row["name"].startswith("message-delivery"):
                 continue
             assert agent in wired_agents, \
@@ -382,8 +380,7 @@ def test_no_unwired_harness_carries_the_delivery_rows():
                     "copilot arms must use Copilot's own event spellings (sessionEnd is " \
                     "real per P8's falsified-hypothesis verdict)"
             elif agent == "hermes":
-                assert arm.get("method") in ("on_session_start", "pre_llm_call",
-                                             "on_session_end")
+                assert arm.get("method") in ("pre_llm_call", "on_session_end")
 
 
 # ---------------------------------------------------------------------------

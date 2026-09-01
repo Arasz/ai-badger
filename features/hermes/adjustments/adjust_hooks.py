@@ -64,8 +64,8 @@ description: >-
   ai-badger framework hooks: framework drift notice (on_session_start), MCP context
   enrichment and commit reminders (pre_llm_call / post_tool_call), the memory-first
   gate that blocks text search until memory_search is consulted (pre_tool_call), and
-  message-bus delivery between sessions (on_session_start / pre_llm_call, cursor
-  cleanup on on_session_end).
+  message-bus delivery on the first turn (pre_llm_call consumes-and-injects; a session
+  that never turns consumes nothing) with cursor cleanup on on_session_end.
 hooks:
   - on_session_start
   - pre_llm_call

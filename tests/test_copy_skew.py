@@ -322,7 +322,9 @@ def test_ai_badger_hooks_registers_normally_when_there_is_no_skew(load_script):
 
     hooks.register(_Ctx())
 
-    assert registered == ["on_session_start", "on_session_start", "pre_llm_call",
+    # P5 defer: on_session_start carries the drift notice alone; delivery rides the
+    # first pre_llm_call.
+    assert registered == ["on_session_start", "pre_llm_call",
                           "pre_tool_call", "pre_tool_call", "post_tool_call",
                           "on_session_end"]
 
