@@ -235,7 +235,10 @@ def test_delivery_rows_are_unconditional_and_plugin_rooted():
         found = _delivery_commands(event)
         assert len(found) == 1, f"{event}: expected one delivery command, got {found}"
         entry, command = found[0]
-        assert "matcher" not in entry, f"{event}: delivery row sits behind matcher {entry['matcher']!r}"
+        if event == "SessionStart":
+            assert entry.get("matcher") == "startup|resume", entry
+        else:
+            assert "matcher" not in entry, f"{event}: delivery row sits behind matcher {entry['matcher']!r}"
         prefix = "${CLAUDE_PLUGIN_ROOT}/features/common/skills/"
         assert prefix in command, f"{event}: command is not plugin-rooted/rewriteable: {command}"
         in_tree = "features/common/skills/" + command.split(prefix, 1)[1].rstrip('"')
@@ -324,31 +327,31 @@ def test_copilot_scaffold_wires_delivery_and_never_a_close_event(tmp_path, load_
     hooks = json.loads(
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     generated = hooks.get("hooks", {})
-    for event in ("sessionStart", "userPromptSubmitted"):
+    for event in ("sessionStart", "userPromptSubmitted", "sessionEnd"):
         commands = [h.get("bash", "") for h in generated.get(event, [])]
         assert any(c.rstrip('"').endswith(SCRIPT_NAME) for c in commands), \
-            f"{event}: delivery not wired"
+            f"{event}: delivery or close not wired"
     for event, commands in generated.items():
+        if event in ("sessionStart", "userPromptSubmitted", "sessionEnd"):
+            continue
         hits = [c for c in commands if SCRIPT_NAME in c.get("bash", "")]
-        if event in ("sessionStart", "userPromptSubmitted"):
-            assert hits, f"{event}: expected delivery, found none"
-        else:
-            assert not hits, f"delivery leaked onto {event}"
+        assert not hits, f"delivery leaked onto {event}"
 
 
 def test_the_copilot_close_event_verdict_is_recorded(load_script):
-    """The verdict is an executable record, not prose in a report: the manifest's
-    session-end row reaches no copilot arm AND validate.py carries the exemption reason
-    saying why — naming the documented absence and the TTL backstop (the §B3/A5 template:
-    record the assumption, not just the gap)."""
+    """The verdict is an executable record, not prose: Copilot DOES have a session-end
+    event — P8 falsified the research hypothesis against two in-tree sources
+    (tooling/validate.py's own task-checkpoint exemption text and changelog 0.50.0 both
+    name Copilot's sessionEnd). The session-end row therefore reaches the copilot arm
+    with the sessionEnd event, the generator's event_map carries it, and NO exemption
+    remains — config-asserted here; the execution leg is P8's generated-artifact E2E."""
     validate = load_script("tooling/validate.py")
     agents = _rows_by_name()[SESSION_END_ROW]["agents"]
-    assert "copilot" not in agents, "a copilot close row claims an event Copilot does not have"
-    reason = validate.HOOKS_MANIFEST_AGENT_EXEMPTIONS.get(SESSION_END_ROW, {}).get("copilot")
-    assert reason, "the copilot close-event absence must carry a recorded reason"
-    lowered = reason.lower()
-    assert "close" in lowered or "session" in lowered, reason
-    assert "ttl" in lowered or "4-day" in lowered or "four-day" in lowered, reason
+    copilot = agents.get("copilot")
+    assert copilot, "the copilot close arm went missing — its cursors silently never clean up"
+    assert copilot.get("event") == "sessionEnd", copilot
+    exemptions = validate.HOOKS_MANIFEST_AGENT_EXEMPTIONS.get(SESSION_END_ROW, {})
+    assert "copilot" not in exemptions, "a falsified absence must not keep its exemption"
 
 
 # ---------------------------------------------------------------------------
@@ -373,9 +376,9 @@ def test_no_unwired_harness_carries_the_delivery_rows():
             if agent == "claude":
                 assert arm.get("event") in ("SessionStart", "UserPromptSubmit", "SessionEnd")
             elif agent == "copilot":
-                assert arm.get("event") in ("sessionStart", "userPromptSubmitted"), \
-                    "copilot has no close event — a SessionEnd arm would claim a cleanup " \
-                    "that never fires"
+                assert arm.get("event") in ("sessionStart", "userPromptSubmitted", "sessionEnd"), \
+                    "copilot arms must use Copilot's own event spellings (sessionEnd is " \
+                    "real per P8's falsified-hypothesis verdict)"
             elif agent == "hermes":
                 assert arm.get("method") in ("on_session_start", "pre_llm_call",
                                              "on_session_end")

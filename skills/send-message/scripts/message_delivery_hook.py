@@ -40,8 +40,10 @@ import badger_store  # pylint: disable=wrong-import-position
 #: userPromptSubmitted) — one surface, per-harness event names, matched case-insensitively.
 DELIVERY_EVENTS = frozenset({"sessionstart", "userpromptsubmit", "userpromptsubmitted"})
 
-#: Events that end a session: drop the cursor (R6). Copilot has none (P8 records the
-#: verdict); its cursors die by the 4-day TTL.
+#: Events that end a session: drop the cursor (R6). Copilot's sessionEnd is wired for this
+#: too (P8's verdict: the event exists — tooling/validate.py, changelog 0.50.0), so its
+#: lowercase spelling routes here like Claude's; unwired harnesses' cursors die by the 4-day
+#: TTL.
 CLOSE_EVENTS = frozenset({"sessionend"})
 
 #: The project directory env Claude sets for hook commands. Preferred over the payload's

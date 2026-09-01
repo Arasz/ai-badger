@@ -26,7 +26,8 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/send-message/scripts/message_delivery_hook.py\""
           }
-        ]
+        ],
+        "matcher": "startup|resume"
       },
       {
         "matcher": "startup|resume",

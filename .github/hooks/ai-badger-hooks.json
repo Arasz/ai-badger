@@ -11,7 +11,8 @@
       {
         "type": "command",
         "bash": "python3 \".ai-badger/skills/send-message/scripts/message_delivery_hook.py\"",
-        "timeoutSec": 10
+        "timeoutSec": 10,
+        "matcher": "startup|resume"
       },
       {
         "type": "command",
@@ -35,6 +36,13 @@
         "type": "command",
         "bash": "python3 .ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py",
         "timeoutSec": 5
+      }
+    ],
+    "sessionEnd": [
+      {
+        "type": "command",
+        "bash": "python3 \".ai-badger/skills/send-message/scripts/message_delivery_hook.py\"",
+        "timeoutSec": 10
       }
     ],
     "postToolUse": [

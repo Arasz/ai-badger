@@ -83,6 +83,12 @@
           "type": "plugin",
           "entry": "ai_badger_hooks.py",
           "method": "on_session_end"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "sessionEnd",
+          "script": "message_delivery_hook.py"
         }
       }
     },
