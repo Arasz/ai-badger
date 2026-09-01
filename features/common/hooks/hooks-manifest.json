@@ -25,18 +25,13 @@
     },
     {
       "name": "message-delivery-session-start",
-      "description": "Inject the session's unread bus mail when the session starts (history mode: the 30-minute gate and the 16-message cap are the store's one transaction)",
+      "description": "Inject the session's unread bus mail when the session starts (history mode: the 30-minute gate and the 16-message cap are the store's one transaction). Hermes deliberately has no arm here: its first pre_llm_call is the whole delivery",
       "agents": {
         "claude": {
           "type": "hooks-json",
           "entry": "hooks.json",
           "event": "SessionStart",
           "script": "message_delivery_hook.py"
-        },
-        "hermes": {
-          "type": "plugin",
-          "entry": "ai_badger_hooks.py",
-          "method": "on_session_start"
         },
         "copilot": {
           "type": "hooks-json",

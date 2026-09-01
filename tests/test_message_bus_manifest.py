@@ -160,15 +160,14 @@ def _scaffold_send_message_scripts(target: Path, extra: dict[str, str]) -> Path:
 
 def test_manifest_routes_the_delivery_events_per_agent():
     """Each delivery row names every hook-capable agent with its own event spelling:
-    Claude SessionStart/UserPromptSubmit/SessionEnd, Hermes on_session_start/pre_llm_call/
-    on_session_end (P7's landed plugin callbacks, recorded per the #147 lesson), Copilot
+    Claude SessionStart/UserPromptSubmit/SessionEnd, Hermes pre_llm_call/on_session_end
+    (P7's landed plugin callbacks, recorded per the #147 lesson; P5 removed the hermes
+    session-start arm — the first pre_llm_call is the whole delivery), Copilot
     sessionStart/userPromptSubmitted (the F2 fold: one flat hooks array, one editor)."""
     expected = {
         SESSION_START_ROW: {
             "claude": {"type": "hooks-json", "entry": "hooks.json", "event": "SessionStart",
                        "script": SCRIPT_NAME},
-            "hermes": {"type": "plugin", "entry": "ai_badger_hooks.py",
-                       "method": "on_session_start"},
             "copilot": {"type": "hooks-json", "entry": "hooks.json", "event": "sessionStart",
                         "script": SCRIPT_NAME},
         },
@@ -369,8 +368,7 @@ def test_no_unwired_harness_carries_the_delivery_rows():
     wired_agents = {"claude", "hermes", "copilot"}
     for row in _manifest()["hooks"]:
         for agent, arm in row.get("agents", {}).items():
-            runs_delivery = (arm.get("script") == SCRIPT_NAME
-                             or arm.get("method") == "on_session_start_message_delivery")
+            runs_delivery = arm.get("script") == SCRIPT_NAME
             if not runs_delivery and not row["name"].startswith("message-delivery"):
                 continue
             assert agent in wired_agents, \
@@ -382,8 +380,7 @@ def test_no_unwired_harness_carries_the_delivery_rows():
                     "copilot arms must use Copilot's own event spellings (sessionEnd is " \
                     "real per P8's falsified-hypothesis verdict)"
             elif agent == "hermes":
-                assert arm.get("method") in ("on_session_start", "pre_llm_call",
-                                             "on_session_end")
+                assert arm.get("method") in ("pre_llm_call", "on_session_end")
 
 
 # ---------------------------------------------------------------------------
