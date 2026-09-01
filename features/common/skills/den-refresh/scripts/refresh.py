@@ -19,6 +19,7 @@ import importlib.util
 import json
 import os
 import sys
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -214,6 +215,22 @@ def run_doctor_preflight(root: Path, target: Path) -> Optional[List[Dict[str, An
     return [row for row in rows if row.get("state") == "resurrected"] or None
 
 
+def ensure_project_id(target: Path) -> Optional[str]:
+    """Backfill the local project-id file so older scaffolds keep a stable identity."""
+    project_id_path = target / ".ai-badger" / "project-id"
+    project_id_path.parent.mkdir(parents=True, exist_ok=True)
+    if project_id_path.exists():
+        try:
+            value = project_id_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            value = ""
+        if value:
+            return value
+    new_value = f"{uuid.uuid4()}\n"
+    project_id_path.write_text(new_value, encoding="utf-8")
+    return new_value.strip()
+
+
 def run_drift(root: Path, manifest: Dict[str, Any],
               stacks: Optional[List[str]] = None,
               target: Optional[Path] = None,
@@ -352,6 +369,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     # 1b. Store doctor pre-flight (P1): contained families surface in the report —
     # reported, never repaired here; the doctor verb's --repair is the operator's step.
     contained_families = run_doctor_preflight(root, target)
+
+    # 1c. Backfill the local project-id for older scaffolded repos
+    ensure_project_id(target)
 
     # 2. Read existing config
     config_path = target / ".ai-badger" / "config.json"

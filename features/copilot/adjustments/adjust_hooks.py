@@ -16,25 +16,43 @@ from pathlib import Path
 from typing import Any, Dict, Set
 
 
-def _rewrite_command(cmd: str, hooks_rel: str, scripts_to_ship: Set[str]) -> str:
+def _guarded(cmd: str, script_rel: str) -> str:
+    """Wrap one rewritten hook command in an if -f existence guard naming its script.
+
+    Copilot runs hook commands with cwd = project root, so a single relative-path existence
+    branch covers every row — no ${CLAUDE_PROJECT_DIR} fallback arm (that is Claude's shape).
+    A script that is missing echoes a skipped systemMessage — valid JSON, visibly inert
+    rather than a bare command Python fails on every event.
+    """
+    skip_json = f'{{"systemMessage": "ai-badger: {script_rel} not found - hook skipped"}}'
+    return f'if [ -f "{script_rel}" ]; then {cmd}; else echo \'{skip_json}\'; fi'
+
+
+def _rewrite_command(cmd: str, hooks_rel: str, scripts_to_ship: Set[str]) -> tuple[str, str | None]:
     """Rewrite one framework command for the scaffolded project; collect hook scripts to ship.
 
     Skills paths map to the project's .ai-badger/skills/ copy. features/common/hooks/ paths
     map to the project's shipped hook-script home and their script names accrue in
     scripts_to_ship — without the rewrite the command passes through with a
     ${CLAUDE_PLUGIN_ROOT} path Copilot never substitutes, a dead hook that looks wired.
+    Returns the rewritten command and the project-relative script path the rewrite produced
+    (None when the command names no rewriteable path, leaving nothing to guard). The path is
+    carried alongside the rewrite rather than re-parsed from the command string.
     """
-    cmd = cmd.replace(
-        "${CLAUDE_PLUGIN_ROOT}/features/common/skills/",
-        ".ai-badger/skills/"
-    )
+    script_rel = None
+    skills_marker = "${CLAUDE_PLUGIN_ROOT}/features/common/skills/"
+    if skills_marker in cmd:
+        script_rel = ".ai-badger/skills/" + cmd.split(skills_marker, 1)[1].split('"')[0]
+        cmd = cmd.replace(skills_marker, ".ai-badger/skills/")
     hooks_marker = "${CLAUDE_PLUGIN_ROOT}/features/common/hooks/"
     if hooks_marker in cmd:
+        hooks_remainder = cmd.split(hooks_marker, 1)[1].split('"')[0]
+        script_rel = f"{hooks_rel}/{hooks_remainder}"
         cmd = cmd.replace(hooks_marker, f"{hooks_rel}/")
         tail = cmd.rstrip('"').rsplit("/", 1)[-1]
         if tail.endswith(".py"):
             scripts_to_ship.add(tail)
-    return cmd
+    return cmd, script_rel
 
 
 def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
@@ -122,10 +140,11 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
                     # Copilot matches runtime tool names, which are case-sensitive and
                     # lowercased (grep/bash) where Claude's are PascalCase (Grep/Bash) — a
                     # manifest arm may carry its own `matcher` override for that.
-                    cmd = _rewrite_command(h.get("command", ""), hooks_rel, scripts_to_ship)
+                    cmd, script_rel = _rewrite_command(
+                        h.get("command", ""), hooks_rel, scripts_to_ship)
                     hook_entry = {
                         "type": "command",
-                        "bash": cmd,
+                        "bash": _guarded(cmd, script_rel) if script_rel else cmd,
                         "timeoutSec": 10,
                     }
                     if matcher:
@@ -153,7 +172,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
                     rel_path = hook_scripts[0].relative_to(target)
                     copilot_hooks["hooks"].setdefault(copilot_event, []).append({
                         "type": "command",
-                        "bash": f"python3 {rel_path.as_posix()}",
+                        "bash": _guarded(f"python3 {rel_path.as_posix()}", rel_path.as_posix()),
                         "timeoutSec": 5,
                     })
 
