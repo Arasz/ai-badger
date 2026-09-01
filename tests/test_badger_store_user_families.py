@@ -89,6 +89,7 @@ def test_user_families_registry_pins_tables_and_legacy_paths():
         "pending_feedback", "searches",
         "memory_first", "semantica_nudge", "dispatch_lanes", "dirty_sweeps",
         "blast_radius_denials", "hook_audit", "hook_state",
+        "messages", "cursors",
     }
     assert {name: family.table for name, family in families.items()} == {
         "awm_state": "awm_state",
@@ -104,9 +105,16 @@ def test_user_families_registry_pins_tables_and_legacy_paths():
         "blast_radius_denials": "blast_radius_denials",
         "hook_audit": "hook_audit",
         "hook_state": "hook_state",
+        "messages": "messages",
+        "cursors": "cursors",
     }
     for family in families.values():
         assert family.db == "user"
+    # The bus families (P1, D2) are born in SQLite: no legacy source anywhere — no
+    # legacy_path callable and no import kind. The DDL arrives via UPGRADE_HOOKS[1].
+    for name in ("messages", "cursors"):
+        assert families[name].legacy_path is None, name
+        assert families[name].legacy_kind == "store", name
     home = REAL_HOME
     assert families["awm_state"].legacy_path() == home / ".claude" / "awm" / "state.json"
     assert families["awm_decisions"].legacy_path() == home / ".claude" / "awm" / "decisions.jsonl"

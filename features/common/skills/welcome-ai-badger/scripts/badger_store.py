@@ -28,20 +28,71 @@ try:
 except ImportError:  # pragma: no cover - Windows has no fcntl; locking degrades to a no-op
     fcntl = None  # type: ignore[assignment]
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+#: Minimum seconds between two prunes of the same log table (D9/D30): the open-time prune
+#: is throttled by the per-table ``pruned_at`` meta stamp so a burst of opens prunes once.
+_PRUNE_THROTTLE_SECONDS = 3600
+
+#: The message bus's delivery window (R3/R8, D5): a session's FIRST delivery — session
+#: start or any cursor-less live read — sees only messages sent within the last 30 minutes
+#: (inclusive: exactly 30 minutes old counts as inside); everything older is gated off.
+_GATE_WINDOW = timedelta(minutes=30)
+
+#: Session-start delivery cap (R5): the first delivery injects the 16 oldest messages in
+#: the window and drops the overflow — the cursor lands past the gated window, so the
+#: dropped tail never reaches that session. Live reads after the first are uncapped (A5).
+_START_CAP = 16
+
+#: Bus retention (R6/R10, D10): messages and cursors live 4 days, pruned at user-store
+#: open with the shared prune_expired pattern. Boundary matches the log-table rule:
+#: ``DELETE WHERE ts < cutoff`` — a row exactly 4 days old survives until the window closes.
+_BUS_MAX_AGE_DAYS = 4
+
+#: The bus tables' DDL (D2): born in SQLite, no legacy source, so it lives in the upgrade
+#: hook rather than the v1 base _DDL — a fresh DB replays it before stamping, a stamped-1
+#: DB gets it from hook 1, and neither path can half-land it (rollback undoes DDL).
+_BUS_DDL = (
+    """
+    CREATE TABLE IF NOT EXISTS messages (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts              TEXT NOT NULL,          -- ISO-8601 UTC send time; feeds retention
+        sender_session  TEXT NOT NULL,
+        sender_project  TEXT NOT NULL,
+        target_session  TEXT,                   -- NULL unless 1:1
+        target_project  TEXT,                   -- NULL unless project broadcast
+        content         TEXT NOT NULL           -- raw string, per owner ruling
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)",
+    "CREATE INDEX IF NOT EXISTS idx_messages_target_session ON messages(target_session, id)",
+    "CREATE INDEX IF NOT EXISTS idx_messages_target_project ON messages(target_project, id)",
+    """
+    CREATE TABLE IF NOT EXISTS cursors (
+        session_id  TEXT PRIMARY KEY,
+        cursor_id   INTEGER NOT NULL,
+        ts          TEXT NOT NULL             -- last-activity stamp; feeds TTL prune
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_cursors_ts ON cursors(ts)",
+)
+
+
+def _upgrade_v1_to_v2(conn: sqlite3.Connection) -> None:
+    """Land the message-bus tables (D1): DDL-only, idempotent, rollback-safe."""
+    for statement in _BUS_DDL:
+        conn.execute(statement)
+
 
 #: On-open upgrade seam: hook for version N migrates a database stamped N to N+1 (D27).
-UPGRADE_HOOKS: dict[int, Callable[[sqlite3.Connection], None]] = {}
+#: Key 1 is the message bus (P1) — the first migration this store has ever registered.
+UPGRADE_HOOKS: dict[int, Callable[[sqlite3.Connection], None]] = {1: _upgrade_v1_to_v2}
 
 TRACKING_ROOT_ENV = "AI_BADGER_TRACKING_ROOT"
 USER_ROOT_ENV = "AI_BADGER_USER_ROOT"
 DEBUG_DIR_ENV = "AI_BADGER_DEBUG_DIR"
 
 _TABLE_NAME = re.compile(r"[a-z_][a-z0-9_]*\Z")
-
-#: Minimum seconds between two prunes of the same log table (D9/D30): the open-time prune
-#: is throttled by the per-table ``pruned_at`` meta stamp so a burst of opens prunes once.
-_PRUNE_THROTTLE_SECONDS = 3600
 
 # The default home snapshots at import, before anything redirects $HOME for a session (the same
 # pattern conftest's REAL_HOME uses): $HOME is session-wide state, never one of the three
@@ -352,9 +403,23 @@ def _ensure_schema_version(conn: sqlite3.Connection, db_path: Path) -> None:
     """Stamp SCHEMA_VERSION on a fresh DB; dispatch upgrade hooks older; fail closed newer (D27)."""
     row = conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()
     if row is None:
-        conn.execute(
-            "INSERT INTO meta(key, value) VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),)
-        )
+        # A fresh DB carries only the v1 base DDL (created just before this runs), so it is
+        # a version-1 database without a stamp yet: replay every upgrade hook inside one
+        # transaction — the exact path a stamped-1 DB takes — then stamp it current (D1).
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            for version in range(1, SCHEMA_VERSION):
+                hook = UPGRADE_HOOKS.get(version)
+                if hook is not None:
+                    hook(conn)
+            conn.execute(
+                "INSERT INTO meta(key, value) VALUES ('schema_version', ?)",
+                (str(SCHEMA_VERSION),),
+            )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
         return
     stored = int(row[0])
     if stored > SCHEMA_VERSION:
@@ -384,9 +449,12 @@ def _ensure_schema_version(conn: sqlite3.Connection, db_path: Path) -> None:
 class Family(NamedTuple):
     """One migrating store family: its table, its database, and its legacy JSON source.
 
-    ``legacy_kind`` selects the import shape: ``map`` is a top-level dict keyed like the KV
-    table (marker-state.json); ``kvdoc`` is one whole JSON document stored as a single KV row
-    named by ``row_key`` (statusline-state.json / statusline-delegate.json); ``tasks`` and
+    ``legacy_path`` is the family's legacy JSON source, absent (None) for a family born in
+    SQLite — nothing to import, nothing to resurrect. ``legacy_kind`` selects the import
+    shape: ``store`` is the born-in-SQLite kind with no source at all (messages, cursors);
+    ``map`` is a top-level dict keyed like the KV table (marker-state.json); ``kvdoc`` is
+    one whole JSON document stored as a single KV row named by ``row_key``
+    (statusline-state.json / statusline-delegate.json); ``tasks`` and
     ``usage`` are ``{"tasks": [...]}`` row lists keyed on ``taskId`` (executed-tasks.json,
     token-usage.json); ``sessions`` is ``{"sessions": {id: info}}`` keyed on the session id
     (current-session.json); ``awm`` is the away-mode document whose per-project entries sit
@@ -402,8 +470,8 @@ class Family(NamedTuple):
 
     table: str
     db: str  # "tracking" or "user"
-    legacy_path: Callable[[], Path]
-    legacy_kind: str  # "map" | "kvdoc" | "tasks" | "usage" | "sessions" | "awm" | "jsonl"
+    legacy_path: Optional[Callable[[], Path]] = None  # None: born in SQLite, no source
+    legacy_kind: str = "store"  # "store" | "map" | "kvdoc" | "tasks" | "usage" | ... (see above)
     row_key: str = ""  # kvdoc only: the KV row key this file's document becomes
     ts_field: str = "ts"  # jsonl only: the line field carrying the row's ts ("t" on audit)
 
@@ -526,6 +594,10 @@ USER_FAMILIES: dict[str, Family] = {
         legacy_kind="kvdoc",  # one whole state document (D26), the pending-feedback pattern
         row_key="debug",
     ),
+    # Message-bus families (P1, D2): born in SQLite — no legacy_path, no import wiring.
+    # Their DDL arrives through UPGRADE_HOOKS[1], not the v1 base _DDL.
+    "messages": Family(table="messages", db="user", legacy_kind="store"),
+    "cursors": Family(table="cursors", db="user", legacy_kind="store"),
 }
 
 # -- task-family shapes: legacy entry key <-> row column -----------------------------
@@ -811,6 +883,8 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         for family in self.families.values():
             if family.db != self.kind:
                 continue
+            if family.legacy_path is None:
+                continue  # born in SQLite: no legacy source to resurrect (D2)
             if family.legacy_kind in FILE_SET_KINDS:
                 self._raise_on_family_resurrection(family)
                 continue
@@ -1214,8 +1288,8 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
             self._migrate_family(family)
 
     def _migrate_family(self, family: Family) -> None:
-        if family.legacy_kind == "deferred":
-            return  # import wiring lands with the family's writer lane (see USER_FAMILIES)
+        if family.legacy_kind in ("deferred", "store"):
+            return  # deferred: wiring lands with the writer lane; store: born in SQLite (D2)
         if family.legacy_kind in FILE_SET_KINDS:
             self._migrate_file_set(family)
             return
@@ -1624,7 +1698,7 @@ def iso_row_ts(raw_ts) -> str:
 #: The retention scope (owner decision #2 + G0-Q2): every log table and the DB it lives
 #: in. The on-write callers name their table; the CLI reports the whole scope.
 LOG_TABLES: dict[str, tuple[str, ...]] = {
-    "user": ("awm_decisions", "searches"),
+    "user": ("awm_decisions", "searches", "messages", "cursors"),
     "audit": ("hook_audit",),
 }
 
