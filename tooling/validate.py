@@ -482,6 +482,8 @@ def cross_stack_reference_gaps(root: Path) -> List[str]:
         closure = _requires_closure(root, stack)
         candidates = [(n, o) for n, o in owners.items() if not o & closure]
         for path in sorted(stack_dir.rglob("*.md")):
+            if _is_vendored(path):
+                continue
             text = path.read_text(encoding="utf-8", errors="replace")
             gaps += [
                 f"{path.relative_to(root).as_posix()}: names {name!r}, shipped only by "

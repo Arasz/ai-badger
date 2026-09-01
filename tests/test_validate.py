@@ -271,3 +271,30 @@ def test_a_relative_link_in_an_mcp_body_is_a_violation_too(tmp_path, load_script
     gaps = validate.inlined_relative_links(tmp_path)
 
     assert any("server.md" in g for g in gaps), gaps
+
+
+def test_cross_stack_references_skip_vendored_dependency_trees(tmp_path, load_script):
+    """A stack-authored file naming a foreign artifact is a dangling pointer; the same
+    token inside a gitignored dependency tree (features/<stack>/node_modules/) is vendored
+    third-party docs, not the stack's prose. The 0.158.0 'code-review' skill made the pi
+    package's own docs/skills.md a false finding (C8 check, features/pi/node_modules)."""
+    validate = load_script("tooling/validate.py")
+
+    gh = tmp_path / "features" / "github" / "skills" / "code-review"
+    gh.mkdir(parents=True)
+    _test_write(gh / "SKILL.md", "---\nname: code-review\ndescription: x\n---\nbody\n",
+                encoding="utf-8")
+
+    dotnet = tmp_path / "features" / "dotnet"
+    dotnet.mkdir()
+    _test_write(dotnet / "authored.md",
+                "Open the code-review skill before merging.\n", encoding="utf-8")
+    vendored = dotnet / "node_modules" / "@earendil-works" / "pi-coding-agent" / "docs"
+    vendored.mkdir(parents=True)
+    _test_write(vendored / "skills.md", "agents may register a code-review skill.\n",
+                encoding="utf-8")
+
+    gaps = validate.cross_stack_reference_gaps(tmp_path)
+
+    assert any("authored.md" in g for g in gaps), gaps
+    assert not any("node_modules" in g for g in gaps), gaps
