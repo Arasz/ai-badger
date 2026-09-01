@@ -595,6 +595,32 @@ def test_armed_hold_env_parks_until_release(tmp_path, monkeypatch):
     assert done
 
 
+def test_gated_first_read_leg_overflow_never_returns_but_other_legs_survive(
+        tmp_path, monkeypatch, frozen_clock):
+    """L1 × R5, the too-low quadrant (qa d-210): the leg-scoped cursor is the 1:1 LEG's
+    max — past its own 16-cap overflow — not the last DELIVERED row. A mutant landing
+    the cursor on delivered row 16 makes the tail re-deliver on the next 1:1 read; a
+    mutant landing at global MAX sweeps the broadcast (R1a kills that one, this kills
+    the other)."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        for i in range(17):  # 17 in-window 1:1 rows: 16 deliver, 1 overflows the cap
+            _seed_message(store, ts=frozen_clock.isoformat(), sender_session="S1",
+                          sender_project="P", target_session="S", content=f"m{i}")
+        _seed_message(store, ts=frozen_clock.isoformat(), sender_session="S1",
+                      sender_project="P", target_project="P", content="broadcast")
+
+        first = store.deliver_for_session("S", None)
+        assert [d["content"] for d in first] == [f"m{i}" for i in range(16)]
+        assert store.deliver_for_session("S", None) == [], \
+            "the leg's own overflow must never re-deliver (cursor = leg max, not row 16)"
+        assert [d["content"] for d in store.deliver_for_session("S3", "P")] == \
+            ["broadcast"], "the broadcast still survives the leg-scoped landing"
+    finally:
+        store.close()
+
+
 def test_small_inbox_delivers_whole_in_chronological_order(tmp_path, monkeypatch):
     """Rule 5 scenario 1: an inbox under the cap delivers whole, oldest first."""
     _user_env(tmp_path, monkeypatch)

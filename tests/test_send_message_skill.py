@@ -450,3 +450,62 @@ def test_the_vendored_copy_is_byte_identical_to_the_canonical():
     file's own pin, independent of the manifest-driven byte-check."""
     vendored = ROOT / "features/common/skills/send-message/scripts/badger_store.py"
     assert vendored.read_bytes() == (ROOT / "engine/badger_store.py").read_bytes()
+
+
+def test_session_env_vars_first_set_wins_in_tuple_order(tmp_path):
+    """P9 qa MUST: SESSION_ENVS is first-set-wins in tuple order — when a shell carries
+    more than one harness var (nested hosts, a pi session launched from a claude shell),
+    the recorded sender must be the FIRST tuple entry that is set, so the recorded id
+    matches what the outermost harness's delivery will consume. And a
+    HERMES_SESSION_ID-only run derives from hermes' var (the third registered source),
+    which no earlier test drives through the CLI."""
+    import contextlib
+
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    claude_side = "44444444-4444-4444-8444-444444444444"
+    pi_side = "55555555-5555-4555-8555-555555555555"
+    hermes_side = "66666666-6666-4666-8666-666666666666"
+    third = "77777777-7777-4777-8777-777777777777"
+    _seed_sessions(tmp_path, {
+        claude_side: {"pid": os.getpid(), "cwd": str(workdir)},
+        pi_side: {"pid": os.getpid(), "cwd": str(workdir)},
+        hermes_side: {"pid": os.getpid(), "cwd": str(workdir)},
+        third: {"pid": 999999, "cwd": str(tmp_path / "other-cwd")},
+    })
+
+    def _broadcast(env_extra, content):
+        env = _base_env(tmp_path)
+        env.update(env_extra)
+        proc = _send_with_env(tmp_path, env, "--content", content,
+                              "--sender-project", "proj-sender", cwd=workdir)
+        assert proc.returncode == 0, proc.stderr
+        rows = _message_rows(tmp_path)
+        return rows[-1][2]  # the newest row's sender_session
+
+    # Both claude's and pi's vars set: the first TUPLE entry wins, not pi's.
+    assert _broadcast({"CLAUDE_CODE_SESSION_ID": claude_side,
+                       "PI_SESSION_ID": pi_side}, "claude-var probe") == claude_side
+    # Hermes' var alone drives the CLI through the third registered source.
+    assert _broadcast({"HERMES_SESSION_ID": hermes_side},
+                      "hermes-var probe") == hermes_side
+
+    # The exclusion observable: each recorded sender's own broadcast stays hidden from
+    # its own delivery, and each surfaces the other's (distinct contents, R2 per-sender).
+    with contextlib.ExitStack() as stack:
+        monkey = stack.enter_context(pytest.MonkeyPatch.context())
+        monkey.setenv(badger_store.USER_ROOT_ENV, str(tmp_path / "user-root"))
+        monkey.setenv(badger_store.TRACKING_ROOT_ENV, str(tmp_path / "tracking-root"))
+        store = badger_store.open_user()
+        try:
+            assert [d["content"] for d in
+                    store.deliver_for_session(claude_side, "proj-sender")] == \
+                ["hermes-var probe"]
+            assert [d["content"] for d in
+                    store.deliver_for_session(hermes_side, "proj-sender")] == \
+                ["claude-var probe"]
+            delivered = store.deliver_for_session(third, "proj-sender")
+        finally:
+            store.close()
+    assert [doc["content"] for doc in delivered] == \
+        ["claude-var probe", "hermes-var probe"]

@@ -1902,8 +1902,10 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         The read and the cursor upsert share one BEGIN IMMEDIATE, so two hooks racing on
         one unread message serialize: exactly one injects it, both finish at the same
         cursor (R3). A session with no cursor row gates history to the last 30 minutes
-        (inclusive) and caps at the first 16 oldest, cursor landing past the gated window
-        so the overflow is never revisited (R4/R5, D5) — in history AND live mode, since
+        (inclusive) and caps at the first 16 oldest, cursor landing past the gated
+        window — the WHOLE window when the project leg ran; only the 1:1 leg's window
+        content when it ran alone (L1/R1a) — so the overflow is never revisited
+        (R4/R5, D5) — in history AND live mode, since
         this is the one delivery path. Later reads are pure ``id > cursor`` and uncapped
         (A5: live broadcast volume is bounded by agent-paced sends, not by a cap).
         With no *project_id* only the 1:1 leg runs — the caller's unresolved-project
