@@ -532,10 +532,11 @@ def test_ambiguous_project_still_delivers_one_to_one(
 
 
 def test_missing_session_id_is_a_clean_no_op(hook, user_root, monkeypatch, capsys):
-    """A payload without a session id cannot be delivered — the script must no-op BEFORE
-    touching the store (the store would raise; the net would swallow it, but the clean
-    path is: no store call at all). Mutation killer: session_id passed through → the
-    store raises (spy catches the call even though the net hides the crash)."""
+    """A payload without a usable session id cannot be delivered — the script must no-op
+    BEFORE touching the store (the store would raise; the net would swallow it, but the
+    clean path is: no store call at all). Covers all three degenerate forms: the key
+    absent, blank/whitespace, and a non-string. Mutation killer: session_id passed
+    through unvalidated → the whitespace/int forms reach the store (spy fires)."""
     calls = []
 
     def spy(*args, **kwargs):
@@ -544,10 +545,12 @@ def test_missing_session_id_is_a_clean_no_op(hook, user_root, monkeypatch, capsy
 
     monkeypatch.setattr(badger_store, "open_user", spy)
 
-    rc, response = _fire(hook, monkeypatch, capsys,
-                         {"hook_event_name": "UserPromptSubmit", "cwd": "/x"})
-    assert rc == 0
-    assert response == {}
+    for payload in ({"hook_event_name": "UserPromptSubmit", "cwd": "/x"},
+                    {"hook_event_name": "UserPromptSubmit", "session_id": "   ", "cwd": "/x"},
+                    {"hook_event_name": "UserPromptSubmit", "session_id": 123, "cwd": "/x"}):
+        rc, response = _fire(hook, monkeypatch, capsys, payload)
+        assert rc == 0
+        assert response == {}
     assert calls == [], "a session-less payload must never reach the store"
 
 
