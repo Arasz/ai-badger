@@ -24,6 +24,69 @@
       }
     },
     {
+      "name": "message-delivery-session-start",
+      "description": "Inject the session's unread bus mail when the session starts (history mode: the 30-minute gate and the 16-message cap are the store's one transaction)",
+      "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "SessionStart",
+          "script": "message_delivery_hook.py"
+        },
+        "hermes": {
+          "type": "plugin",
+          "entry": "ai_badger_hooks.py",
+          "method": "on_session_start"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "sessionStart",
+          "script": "message_delivery_hook.py"
+        }
+      }
+    },
+    {
+      "name": "message-delivery-per-turn",
+      "description": "Inject the session's unread bus mail into every turn (live mode: pure cursor-forward read, exactly-once with the store's transaction)",
+      "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "UserPromptSubmit",
+          "script": "message_delivery_hook.py"
+        },
+        "hermes": {
+          "type": "plugin",
+          "entry": "ai_badger_hooks.py",
+          "method": "pre_llm_call"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "userPromptSubmitted",
+          "script": "message_delivery_hook.py"
+        }
+      }
+    },
+    {
+      "name": "message-delivery-session-end",
+      "description": "Drop the session's bus cursor when the session ends, so a closed session leaves no state behind",
+      "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "SessionEnd",
+          "script": "message_delivery_hook.py"
+        },
+        "hermes": {
+          "type": "plugin",
+          "entry": "ai_badger_hooks.py",
+          "method": "on_session_end"
+        }
+      }
+    },
+    {
       "name": "session-start-tracking",
       "description": "Record the session id and transcript, surface unfinished tracked tasks, and start the usage-limit poller",
       "agents": {

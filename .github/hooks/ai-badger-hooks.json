@@ -10,12 +10,22 @@
       },
       {
         "type": "command",
+        "bash": "python3 \".ai-badger/skills/send-message/scripts/message_delivery_hook.py\"",
+        "timeoutSec": 10
+      },
+      {
+        "type": "command",
         "bash": "python3 \".ai-badger/skills/git-work/scripts/git_config_health_hook.py\"",
         "timeoutSec": 10,
         "matcher": "startup|resume"
       }
     ],
     "userPromptSubmitted": [
+      {
+        "type": "command",
+        "bash": "python3 \".ai-badger/skills/send-message/scripts/message_delivery_hook.py\"",
+        "timeoutSec": 10
+      },
       {
         "type": "command",
         "bash": "python3 \".ai-badger/skills/mcp-index/scripts/context_enrichment_hook.py\"",

@@ -77,5 +77,7 @@ def test_copilot_wires_context_enrichment_and_prompt_markers_both(tmp_path, load
     hooks = json.loads(
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
     commands = [h["bash"] for h in hooks["hooks"]["userPromptSubmitted"]]
-    names = sorted((re.search(r"([\w.-]+\.py)", c) or [""])[0] for c in commands)
-    assert names == ["context_enrichment_hook.py", "user_prompt_hook.py"], names
+    names = {(re.search(r"([\w.-]+\.py)", c) or [""])[0] for c in commands}
+    # The delivery hook (P5) legitimately joins this event — the invariant is that both
+    # pre-existing hooks survive the shared event, not that the catalog froze.
+    assert {"context_enrichment_hook.py", "user_prompt_hook.py"} <= names, names

@@ -12,6 +12,14 @@
         ]
       },
       {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/send-message/scripts/message_delivery_hook.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/send-message/scripts/message_delivery_hook.py\"; elif [ -f \".ai-badger/skills/send-message/scripts/message_delivery_hook.py\" ]; then python3 \".ai-badger/skills/send-message/scripts/message_delivery_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/send-message/scripts/message_delivery_hook.py not found - hook skipped\"}'; fi"
+          }
+        ]
+      },
+      {
         "matcher": "startup|resume",
         "hooks": [
           {
@@ -32,6 +40,14 @@
       }
     ],
     "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/send-message/scripts/message_delivery_hook.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/send-message/scripts/message_delivery_hook.py\"; elif [ -f \".ai-badger/skills/send-message/scripts/message_delivery_hook.py\" ]; then python3 \".ai-badger/skills/send-message/scripts/message_delivery_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/send-message/scripts/message_delivery_hook.py not found - hook skipped\"}'; fi"
+          }
+        ]
+      },
       {
         "hooks": [
           {
@@ -118,6 +134,14 @@
       }
     ],
     "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/send-message/scripts/message_delivery_hook.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/send-message/scripts/message_delivery_hook.py\"; elif [ -f \".ai-badger/skills/send-message/scripts/message_delivery_hook.py\" ]; then python3 \".ai-badger/skills/send-message/scripts/message_delivery_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/send-message/scripts/message_delivery_hook.py not found - hook skipped\"}'; fi"
+          }
+        ]
+      },
       {
         "hooks": [
           {

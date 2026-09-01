@@ -149,6 +149,14 @@ HOOK_CAPABLE_AGENTS = ("claude", "hermes", "copilot")
 # tests/test_hooks_manifest_agent_coverage.py (the #145 review finding: an untested reason
 # string is not a reason, only a key that happens to exist).
 HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
+    "message-delivery-session-end": {
+        "copilot": "A documented absence, verified against Copilot's own hook inventory: it "
+                   "fires sessionStart, userPromptSubmitted, preToolUse and postToolUse and "
+                   "has no session-end hook to wire cleanup onto (the delivery rows carry "
+                   "sessionStart/userPromptSubmitted only). Closing a Copilot session is the "
+                   "one shape with no close event anywhere, so its cursors die by the bus's "
+                   "4-day TTL backstop instead - the guaranteed bound the spec names.",
+    },
     "session-start-tracking": {
         "hermes": "Claude-only by design: recording the session id/transcript path, surfacing "
                   "unfinished tracked tasks, and starting the usage-limit poller are all Claude "
