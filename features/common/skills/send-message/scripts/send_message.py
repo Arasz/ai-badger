@@ -11,7 +11,12 @@ cwd against the sessions store), the project half via the store's cwd resolver
 (``AI_BADGER_PROJECT_ID`` override, then the nearest ``.ai-badger/project-id`` walk,
 ADR-0025). A send that cannot
 establish identity refuses with a clean message and non-zero exit, writing nothing
-(D7: expected errors are refusals, never tracebacks).
+(D7: expected errors are refusals, never tracebacks). A ``--project-id`` target is
+validated before anything is written too: it must resolve on this machine — the
+sender's own resolution, the ``AI_BADGER_PROJECT_ID`` override, or a project-id file
+within the machine scan's depth-4 budget — or the send refuses, because a row no
+receiver can resolve must not be written (the msg-10 shape: stored, then undeliverable
+forever).
 """
 from __future__ import annotations
 
@@ -39,6 +44,21 @@ except ImportError:  # a partial deployment (the vendored copy never landed)
 SESSION_ENVS = ("CLAUDE_CODE_SESSION_ID", "PI_SESSION_ID", "HERMES_SESSION_ID")
 
 _PID_ANCESTRY_DEPTH = 12
+
+#: The machine scan's budget: at most this many directory levels below the scan root
+#: are visited. A scaffolded project deeper than the budget is invisible to the scan —
+#: the named residual; the refusal lists what the scan DID find and the escape hatch is
+#: the minted-id contract, not a bypass flag.
+_WALK_DEPTH = 4
+
+#: Directory names the machine scan never descends into — system caches and dependency
+#: trees that hold tens of thousands of entries and never scaffold a project. Matched
+#: lowercase so macOS spellings cannot sneak past.
+_PRUNED_DIRS = frozenset({
+    "library", "node_modules", ".git", ".cache", ".trash", ".npm", ".cargo",
+    ".rustup", ".gradle", ".m2", ".venv", "venv", "__pycache__", ".pytest_cache",
+    ".mypy_cache", ".tox", ".ruff_cache",
+})
 
 
 def _refused(reason: str) -> int:
@@ -103,6 +123,83 @@ def resolve_sender_project(explicit: Optional[str], cwd: str) -> Optional[str]:
     return badger_store.resolve_project_id(cwd)
 
 
+def _scan_root() -> Path:
+    """The machine view the scan approximates: the user root's parent.
+
+    Production never sets ``AI_BADGER_USER_ROOT``, so this is the store's own home
+    (``badger_store._DEFAULT_HOME``) — the same bounded walk that proved the F3
+    undeliverable message. The suite's redirections compose instead of escaping: a
+    redirected user root scans its own tmp tree, and without one the redirected $HOME
+    IS the store's home — the real machine is never scanned under test.
+    """
+    env_root = os.environ.get(badger_store.USER_ROOT_ENV, "").strip() if badger_store else ""
+    if env_root:
+        return Path(env_root).parent
+    return Path(badger_store._DEFAULT_HOME)
+
+
+def _machine_project_ids(root: Path, max_depth: int = _WALK_DEPTH) -> list[str]:
+    """Stripped contents of every ``.ai-badger/project-id`` within *max_depth* levels.
+
+    The F3 method: each visited directory is checked for ``.ai-badger/project-id`` and
+    the file read stripped; the walk never descends into ``.ai-badger`` itself (the
+    file is read from its parent — a scope directory is not a project parent), into the
+    pruned noise trees, or through a directory symlink; a directory that cannot be read
+    is skipped. The scan approximates the receiver universe by construction (depth
+    budget, symlink boundary) and reports exactly what it found.
+    """
+    found: set[str] = set()
+    pending: list[tuple[Path, int]] = [(root, 0)]
+    while pending:
+        directory, depth = pending.pop()
+        try:
+            marker = directory / ".ai-badger" / "project-id"
+            if marker.is_file():
+                try:
+                    value = marker.read_text(encoding="utf-8").strip()
+                except OSError:
+                    value = ""
+                if value:
+                    found.add(value)
+            if depth >= max_depth:
+                continue
+            for entry in os.scandir(directory):
+                name = entry.name.lower()
+                if name == ".ai-badger" or name in _PRUNED_DIRS:
+                    continue
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append((Path(entry.path), depth + 1))
+        except OSError:
+            continue
+    return sorted(found)
+
+
+def _target_resolution(target: str, sender_cwd: str) -> tuple[bool, list[str]]:
+    """Can a receiver on this machine resolve *target* as its project (ADR-0025)?
+
+    Receivers match rows whose ``target_project`` equals their own resolver output, and
+    the sender cannot enumerate receiver cwds, so the target must be producible by the
+    same machinery here: the sender's own resolution (the resolver's env leg and cwd
+    walk), or the stripped content of some project-id file the bounded machine scan
+    finds. Returns (resolves, the ids the scan found) — the refusal lists the latter.
+    """
+    if badger_store.resolve_project_id(sender_cwd) == target:
+        return True, []
+    if os.environ.get(badger_store.PROJECT_ID_ENV, "").strip() == target:
+        return True, []
+    found = _machine_project_ids(_scan_root())
+    return target in found, found
+
+
+def _unresolvable_target_reason(target: str, found_ids: list[str]) -> str:
+    """The refusal reason for a target no project-id file carries (the msg-10 shape)."""
+    reason = (f"--project-id '{target}' does not resolve to any project on this machine "
+              "— no .ai-badger/project-id carries it (ADR-0025)")
+    if found_ids:
+        reason += "; ids found on this machine: " + ", ".join(found_ids)
+    return reason + "; use a minted id or omit --project-id for a machine broadcast"
+
+
 def _load_sessions() -> dict:
     """The tracking store's current-session map for the derivation's fallback legs.
 
@@ -156,6 +253,11 @@ def main(argv: Optional[list] = None) -> int:
         return _refused("missing sender identity (projectId) — pass --sender-project, set "
                         f"{badger_store.PROJECT_ID_ENV}, or run inside a project carrying "
                         ".ai-badger/project-id")
+
+    if args.project_id and not args.session_id:  # only when the project half is stored
+        resolves, found_ids = _target_resolution(args.project_id, str(Path.cwd()))
+        if not resolves:
+            return _refused(_unresolvable_target_reason(args.project_id, found_ids))
 
     try:
         store = badger_store.open_user()

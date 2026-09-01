@@ -24,11 +24,14 @@ Test map (plan aib-user-db-message-bus §3 P3 · spec rules in parentheses):
                                                  test_sender_project_resolves_from_the_walked_project_id
   6. The doc says what the CLI does ............ test_the_skill_doc_documents_identity_requirement_and_session_precedence
   7. Vendored copy (D16) ....................... test_the_vendored_copy_is_byte_identical_to_the_canonical
+  8. Send-side target validation (P1, aib-pi-message-bus-push-delivery) — the B1/B2/B3 gates
 
 Failure modes each test pins: a refusal that exits 0 or tracebacks (D7), a row written
 by a refused send (R1), a mangled content payload, a local-time or non-ISO timestamp, a
-derivation leg that lost its precedence to a weaker match, and a vendored copy that
-drifted from the canonical store module.
+derivation leg that lost its precedence to a weaker match, a vendored copy that
+drifted from the canonical store module, and an unreceivable row addressed to a
+project no receiver can resolve (the msg-10 shape — stored, then undeliverable
+forever).
 """
 from __future__ import annotations
 
@@ -168,7 +171,10 @@ def test_one_to_one_send_lands_a_row_with_full_sender_identity_and_null_project(
 
 
 def test_project_broadcast_send_lands_a_project_row(tmp_path):
-    """--project-id alone is a project broadcast: no target_session, project stored."""
+    """--project-id alone is a project broadcast: no target_session, project stored.
+    The target is planted beside the redirected user root (P1 target validation): the
+    send-side scan must find it, or the send refuses instead of storing the row."""
+    _make_project(tmp_path, "proj-target")
     proc = _send(tmp_path, "--content", "standup in five",
                  "--project-id", "proj-target", *_explicit_identity_args())
 
@@ -443,6 +449,138 @@ def test_the_skill_doc_documents_identity_requirement_and_session_precedence():
     text = SKILL_DOC.read_text(encoding="utf-8")
     assert "--sender-session" in text and "--sender-project" in text
     assert "the session wins" in text
+
+
+# ---------------------------------------------------------------------------
+# 8. send-side target validation (P1, aib-pi-message-bus-push-delivery)
+# ---------------------------------------------------------------------------
+
+#: The pinned refusal voice for an unresolvable --project-id target (B1's exact shape,
+#: with no candidates discovered — the B3 segment is inserted before the tail when the
+#: scan does find ids).
+UNRESOLVABLE_TARGET_REFUSAL = (
+    "send refused: --project-id 'job-search-ai-assistant' does not resolve to any project "
+    "on this machine — no .ai-badger/project-id carries it (ADR-0025); use a minted id or "
+    "omit --project-id for a machine broadcast"
+)
+
+
+def test_unresolvable_project_target_is_refused_before_anything_is_written(tmp_path):
+    """B1: the msg-10 failure shape (root-cause F3) — a --project-id no
+    .ai-badger/project-id carries was stored and then sat undeliverable forever, because
+    receivers match only ADR-0025-resolved ids. The send refuses instead: the pinned
+    refusal voice, exit 1, no row — an unreceivable row is worse than a refused send."""
+    proc = _send(tmp_path, "--content", "undeliverable by construction",
+                 "--project-id", "job-search-ai-assistant", *_explicit_identity_args())
+
+    assert proc.returncode == 1
+    assert proc.stderr == UNRESOLVABLE_TARGET_REFUSAL + "\n"
+    assert _message_rows(tmp_path) == []
+
+
+def test_resolvable_target_is_accepted_and_the_right_project_matched(tmp_path):
+    """B2's accept half, with two planted projects: the target resolves through the
+    machine scan and the row carries the addressed id — not the sibling's (a leg that
+    matched the sender's own project or the first id found would misaddress the row)."""
+    _make_project(tmp_path / "alpha-repo", "proj-alpha")
+    _make_project(tmp_path / "beta-repo", "proj-beta")
+    proc = _send(tmp_path, "--content", "standup in five",
+                 "--project-id", "proj-beta", *_explicit_identity_args())
+
+    assert proc.returncode == 0, proc.stderr
+    rows = _message_rows(tmp_path)
+    assert len(rows) == 1
+    (_id, _ts, _s, _p, _t_session, target_project, _c) = rows[0]
+    assert target_project == "proj-beta"
+    assert target_project != "proj-alpha"
+
+
+def test_env_override_target_is_accepted_without_a_planted_project(tmp_path):
+    """B2's env leg: AI_BADGER_PROJECT_ID is the resolver's first-read override at send
+    and delivery alike, so a target matching it resolves with nothing planted anywhere."""
+    env = _base_env(tmp_path)
+    env[badger_store.PROJECT_ID_ENV] = "proj-env-target"
+    proc = _send_with_env(tmp_path, env, "--content", "override target",
+                          "--project-id", "proj-env-target",
+                          "--sender-session", "sess-sender")
+
+    assert proc.returncode == 0, proc.stderr
+    rows = _message_rows(tmp_path)
+    assert len(rows) == 1
+    (_id, _ts, _s, sender_project, _t_session, target_project, _c) = rows[0]
+    assert (sender_project, target_project) == ("proj-env-target", "proj-env-target")
+
+
+def test_dual_flag_send_stores_one_to_one_and_skips_target_validation(tmp_path):
+    """B2's dual-flag half: --session-id wins and the project half is dropped at write, so
+    there is nothing stored to validate — an unresolvable project half must NOT refuse
+    (validation fires only when the project half will actually be stored)."""
+    proc = _send(tmp_path, "--content", "both flags, project dropped",
+                 "--session-id", "sess-target",
+                 "--project-id", "job-search-ai-assistant", *_explicit_identity_args())
+
+    assert proc.returncode == 0, proc.stderr
+    rows = _message_rows(tmp_path)
+    assert len(rows) == 1
+    (_id, _ts, _s, _p, target_session, target_project, _c) = rows[0]
+    assert target_session == "sess-target"
+    assert target_project is None
+
+
+def test_self_project_target_resolves_from_the_sender_cwd_walk(tmp_path):
+    """B2's self-project half, the common agent case: the sender stands inside a
+    scaffolded project and broadcasts to its own id — the resolver's answer for the
+    sender cwd IS the target, so the send passes with no other plant and both stored
+    halves agree."""
+    _make_project(tmp_path / "self-repo", "proj-self")
+    proc = _send(tmp_path, "--content", "own project broadcast",
+                 "--project-id", "proj-self", "--sender-session", "sess-sender",
+                 cwd=tmp_path / "self-repo")
+
+    assert proc.returncode == 0, proc.stderr
+    rows = _message_rows(tmp_path)
+    assert len(rows) == 1
+    (_id, _ts, _s, sender_project, _t_session, target_project, _c) = rows[0]
+    assert (sender_project, target_project) == ("proj-self", "proj-self")
+
+
+def test_refusal_names_the_discovered_ids_but_never_the_message_content(tmp_path):
+    """B3's candidate-list contract: when the scan finds ids and none matches, the
+    refusal lists them — and it never echoes the message content, which is payload data,
+    not diagnostics (the C8 discipline, at the send surface)."""
+    _make_project(tmp_path / "one", "proj-planted-one")
+    _make_project(tmp_path / "two", "proj-planted-two")
+    proc = _send(tmp_path, "--content", "sseccret payload never echoed",
+                 "--project-id", "proj-not-a-real-id", *_explicit_identity_args())
+
+    assert proc.returncode == 1
+    assert "does not resolve to any project on this machine" in proc.stderr
+    assert "(ADR-0025)" in proc.stderr
+    assert "proj-planted-one" in proc.stderr and "proj-planted-two" in proc.stderr
+    assert "sseccret payload never echoed" not in proc.stderr
+    assert proc.stdout == ""
+    assert _message_rows(tmp_path) == []
+
+
+def test_scan_budget_is_four_directory_levels_below_the_scan_root(tmp_path):
+    """The depth-4 walk budget is the named residual, so it is pinned from both sides: a
+    project four levels below the scan root is discovered (accepted), five levels down
+    is invisible (refused) — a budget change must fail one of these halves."""
+    deep = tmp_path / "l1" / "l2" / "l3" / "l4"
+    _make_project(deep, "proj-within-budget")
+    _make_project(deep / "l5", "proj-beyond-budget")
+
+    inside = _send(tmp_path, "--content", "within the budget",
+                   "--project-id", "proj-within-budget", *_explicit_identity_args())
+    assert inside.returncode == 0, inside.stderr
+    rows = _message_rows(tmp_path)
+    assert len(rows) == 1 and rows[0][5] == "proj-within-budget"
+
+    beyond = _send(tmp_path, "--content", "beyond the budget",
+                   "--project-id", "proj-beyond-budget", *_explicit_identity_args())
+    assert beyond.returncode == 1
+    assert "does not resolve to any project on this machine" in beyond.stderr
+    assert len(_message_rows(tmp_path)) == 1  # the refusal wrote nothing
 
 
 def test_the_vendored_copy_is_byte_identical_to_the_canonical():
