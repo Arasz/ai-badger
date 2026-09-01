@@ -4,6 +4,7 @@ import {
   claudeToolInput,
   claudeToolName,
   commandsForTool,
+  parseDeliveryStdout,
   parseHookStdout,
   postCommandsForTool,
   postToolUseCommands,
@@ -468,5 +469,70 @@ describe("away mode", () => {
     for (const outcomes of inputs) {
       expect(resolve(outcomes, { armed: false, hasUI: true }).autoApproved).toBe(false);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P3 (aib-pi-message-bus-push-delivery) — the delivery stdout's FOURTH parse
+// shape: the P2 summary rides in hookSpecificOutput.aiBadgerBus, and the hook's
+// fail-open net (C2b) prints `aiBadgerBus: {error: true}` on internal failure.
+// One parser, two sides: the Python B6 pins the same literal field name/shape,
+// this pins the TS extraction (QA-3's two-sided contract).
+// ---------------------------------------------------------------------------
+
+describe("parseDeliveryStdout extracts the aiBadgerBus summary alongside the mail document", () => {
+  test("a mail response carrying the summary yields kind context plus the extracted counts", () => {
+    const out = parseDeliveryStdout(
+      JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: "UserPromptSubmit",
+          additionalContext: "mail body",
+          aiBadgerBus: { addressed: 2, broadcast: 1 },
+        },
+      }),
+    );
+    expect(out).toEqual({ kind: "context", content: "mail body", bus: { addressed: 2, broadcast: 1 } });
+  });
+
+  test("a summary with zero counts is still carried — the counts are data, not absence", () => {
+    const out = parseDeliveryStdout(
+      JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: "UserPromptSubmit",
+          additionalContext: "mail body",
+          aiBadgerBus: { addressed: 0, broadcast: 0 },
+        },
+      }),
+    );
+    expect(out).toEqual({ kind: "context", content: "mail body", bus: { addressed: 0, broadcast: 0 } });
+  });
+
+  test("the failure marker (C2b) parses as an empty outcome carrying the error marker", () => {
+    const out = parseDeliveryStdout(
+      JSON.stringify({ hookSpecificOutput: { aiBadgerBus: { error: true } } }),
+    );
+    expect(out).toEqual({ kind: "empty", bus: { error: true } });
+  });
+
+  test("a response without aiBadgerBus keeps the legacy shapes byte-for-byte", () => {
+    expect(parseDeliveryStdout("{}")).toEqual({ kind: "empty" });
+    expect(
+      parseDeliveryStdout(
+        JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: "m" } }),
+      ),
+    ).toEqual({ kind: "context", content: "m" });
+  });
+
+  test("a malformed summary is treated as absent, never as an error outcome", () => {
+    const out = parseDeliveryStdout(
+      JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: "UserPromptSubmit",
+          additionalContext: "m",
+          aiBadgerBus: { addressed: "many" },
+        },
+      }),
+    );
+    expect(out).toEqual({ kind: "context", content: "m" });
   });
 });
