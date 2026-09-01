@@ -1039,18 +1039,6 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
     def _file_set_files(self, family: Family) -> list[Path]:
         """A file-set family's not-yet-migrated legacy files, sorted for deterministic resume."""
         return _file_set_paths(family)
-        path = family.legacy_path()
-        if family.legacy_kind == "kv_glob":
-            candidates = path.parent.glob(path.name)
-        elif path.is_dir():
-            candidates = path.iterdir()
-        else:
-            return []
-        return sorted(
-            candidate for candidate in candidates
-            if candidate.is_file() and candidate.name != ".write.lock"
-            and ".migrated" not in candidate.name
-        )
 
     def _raise_on_family_resurrection(self, family: Family) -> None:
         """A file-set family's original file newer than its migration stamp fails closed (D5c)."""
