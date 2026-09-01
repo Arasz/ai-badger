@@ -392,8 +392,9 @@ class Family(NamedTuple):
     (current-session.json); ``awm`` is the away-mode document whose per-project entries sit
     under ``projects`` (or the pre-#296 single-project shape) keyed by project path;
     ``jsonl`` is one JSON object per line written by the legacy appender (decisions.jsonl)
-    with no natural key — imported with its ``ts_field`` (default "ts") verbatim and deduped
-    on exact (ts, payload) content so a re-import adds nothing. The file-set kinds
+    with no natural key — imported with its ``ts_field`` (default "ts") normalised through
+    iso_row_ts and deduped on exact (ts, payload) content so a re-import adds nothing. The
+    file-set kinds
     (FILE_SET_KINDS) are many-file shapes — a directory's children, or a pattern at the user
     root — imported as ONE transaction with each file renamed afterward per the pinned
     per-file convention "<stem>.migrated<suffix>" (D10).
@@ -688,7 +689,7 @@ def _legacy_lock(lock_path: Path) -> Iterator[None]:
         os.close(fd)
 
 
-class Store:
+class Store:  # pylint: disable=too-many-public-methods  # one accessor per store surface
     """One open SQLite store: the raw connection plus KV accessors and lazy family migration.
 
     ``families`` selects which legacy JSON sources this store knows about; the default is the
@@ -1167,6 +1168,23 @@ class Store:
         except sqlite3.Error:
             return []
 
+    def log_rows_since(self, table: str, cutoff_ts: str) -> list:
+        """(ts, payload) rows with ``ts >= cutoff_ts``, append order; [] on any failure.
+
+        The windowed read beside log_rows: a consumer answering a short recency window
+        must not read and decode the whole retention-bounded table (the memory-grade hook
+        measured linearly, 59 ms at 20k rows) — the ts-index DDL convention (D17c) makes
+        the cutoff a seek. Comparisons are the prune's ISO string comparison, so the
+        cutoff must carry the isoformat shape the writes store (iso_row_ts output).
+        """
+        _check_table_name(table)
+        try:
+            return self.conn.execute(
+                f"SELECT ts, payload FROM {table} WHERE ts >= ? ORDER BY id",
+                (cutoff_ts,)).fetchall()
+        except sqlite3.Error:
+            return []
+
     def log_append(self, table: str, ts: str, payload: dict) -> None:
         """Append one log row (ts, payload JSON); the first write lazy-migrates the family (D6)."""
         _check_table_name(table)
@@ -1347,12 +1365,16 @@ class Store:
     def _import_jsonl(self, family: Family, path: Path) -> list:
         """One JSON object per line, no natural key: exact (ts, payload) content is the key.
 
-        The ts comes from the line's ``ts_field`` verbatim ("t" on audit lines), and the
-        verbatim LINE is stored as the payload — not a re-serialization. Re-import after a
-        crash between COMMIT and rename re-reads the same lines and finds their rows already
-        present, so the import stays idempotent (D6) without a schema-level unique column. A
-        torn or non-object line imports nothing and quarantines with the file rename, like
-        the doc-kind families.
+        The ts comes from the line's ``ts_field`` ("t" on audit lines), normalised through
+        iso_row_ts like the recent kind: the prune's sweep parses with datetime.fromisoformat,
+        which on the declared floor (3.10) rejects a "Z" suffix and 9-digit fractional
+        seconds, so a verbatim legacy ts would be swept as an ordinary expiry on the next
+        prune (join-review finding) — every imported row must be sweep-parseable (D36). The
+        verbatim LINE is stored as the payload — not a re-serialization. A line whose ts
+        needs the now-fallback loses re-import identity (two imports disagree on now); the
+        common case is parseable-ts lines, whose (ts, payload) key keeps the import
+        idempotent (D6). A torn or non-object line imports nothing and quarantines with the
+        file rename, like the doc-kind families.
         """
         expected: list = []
         try:
@@ -1368,8 +1390,7 @@ class Store:
                 continue
             if not isinstance(entry, dict):
                 continue
-            raw_ts = entry.get(family.ts_field)
-            ts = raw_ts if isinstance(raw_ts, str) and raw_ts else _now()
+            ts = iso_row_ts(entry.get(family.ts_field))
             exists = self.conn.execute(
                 f"SELECT 1 FROM {family.table} WHERE ts = ? AND payload = ?", (ts, line)
             ).fetchone()

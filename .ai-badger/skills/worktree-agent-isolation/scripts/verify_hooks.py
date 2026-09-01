@@ -170,7 +170,7 @@ def check_valve(marker_dir: Path) -> None:
           _denied(INCIDENT, "s-mixed"))
 
 
-def check_pruning(marker_dir: Path) -> None:
+def check_pruning() -> None:
     """Row-level successor of the file-mtime prune: a stale row is dropped on write, the
     current (session, command) row survives it."""
     guard._live_lane_pids = lambda: [111, 222]  # noqa: SLF001
@@ -372,7 +372,7 @@ def main() -> int:
         check_every_stack_has_a_probe()
         check_lanes(root / "markers")
         check_valve(root / "markers")
-        check_pruning(root / "markers")
+        check_pruning()
         check_dirty_cache(root / "case-a")
         check_dirty_budget(root / "case-b")
         check_dirty_cache_shape(root / "user-root")

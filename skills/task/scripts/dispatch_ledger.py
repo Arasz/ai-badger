@@ -23,11 +23,6 @@ LEDGER_DIR = Path.home() / ".ai-badger" / "dispatch-lanes"
 # Housekeeping only; the window passed to concurrent() is what decides parallelism.
 PRUNE_SECONDS = 3600.0
 
-# Rows never grow past this many entries: prune runs inside every append transaction now
-# that the store serializes writers (the old file rewrite could lose a concurrent append,
-# so it waited for length — the length gate is gone with the O_APPEND contract).
-PRUNE_ABOVE_ENTRIES = 500
-
 # How long a recorded dispatch keeps counting as a live lane. UNMEASURED estimate standing
 # in for "is that agent still running"; errs long. Tradeoff: `docs/changelog/0.138.0-a-contract-with-no-gate-behind-it.md`.
 DEFAULT_WINDOW_SECONDS = 90.0

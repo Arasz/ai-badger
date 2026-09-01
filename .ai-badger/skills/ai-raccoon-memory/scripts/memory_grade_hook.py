@@ -25,7 +25,10 @@ from typing import Any, Dict, List, Optional
 _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
-import badger_store  # pylint: disable=wrong-import-position  # noqa: E402
+try:
+    import badger_store  # pylint: disable=wrong-import-position  # noqa: E402
+except ImportError:  # a partial deployment (the vendored copy never landed)
+    badger_store = None  # type: ignore[assignment]  # every use sits in a fail-open path
 
 FOLLOW_THROUGH_WINDOW = 60  # seconds
 RETENTION_DAYS = 60  # G0-Q2: searches joins the log tables' 60-day retention
@@ -139,17 +142,22 @@ def _legacy_entries() -> List[dict]:
 
 
 def _load_searches() -> List[dict]:
-    """The live stash entries: store rows first, then legacy-only file entries (D5a merge).
+    """The stash entries within the follow-through window: store rows first, then
+    legacy-only file entries (D5a merge).
 
     Fail-open (D31): an unopenable store and undecodable payloads degrade to fewer
-    entries; the scan is retention-bounded (60 days) and the window filter below is what
-    actually gates matching.
+    entries. The store read is bounded to the window with the ts index (join-review
+    finding: reading the whole 60-day table measured linearly, 59 ms at 20k rows) — the
+    row ts is the stash moment's iso_row_ts, so the cutoff maps the window onto the same
+    clock the writes used, and the caller's payload-ts filter stays the exact gate.
+    The legacy file's entries are few and pre-migration only; they merge unbounded.
     """
     entries: List[dict] = []
     try:
+        cutoff = badger_store.iso_row_ts(time.time() - FOLLOW_THROUGH_WINDOW)
         store = open_store()
         try:
-            for _row_ts, payload in store.log_rows("searches"):
+            for _row_ts, payload in store.log_rows_since("searches", cutoff):
                 try:
                     entry = json.loads(payload)
                 except ValueError:

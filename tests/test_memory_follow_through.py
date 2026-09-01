@@ -364,6 +364,84 @@ class TestMemoryGradeHook:
         # no failure path may resurrect or rewrite the legacy file
         assert self.searches_file.read_text(encoding="utf-8") == before
 
+    def test_load_searches_returns_only_rows_within_the_follow_through_window(
+            self, hook_env):
+        """Join-review finding: _load_searches read and decoded the entire 60-day searches
+        table on every Read to answer a 60-second window (measured linear: 0.8 ms at 0
+        rows, 59.2 ms at 20 000). The store read is bounded by the ts index instead — rows
+        older than the window never reach the JSON decoder. The window is the row ts's
+        clock (the stash moment, iso_row_ts of the payload ts), so the cutoff maps the
+        60-second window onto the column the index serves."""
+        bs = self.mgh.badger_store
+        fresh_epoch = time.time() - 5
+        stale_epoch = time.time() - 3600
+        store = self.mgh.open_store()
+        try:
+            store.log_append("searches", bs.iso_row_ts(stale_epoch),
+                             {"correlationId": "stale", "sourceFiles": ["/p/a.md"],
+                              "ts": stale_epoch})
+            store.log_append("searches", bs.iso_row_ts(fresh_epoch),
+                             {"correlationId": "fresh", "sourceFiles": ["/p/a.md"],
+                              "ts": fresh_epoch})
+        finally:
+            store.close()
+
+        entries = self.mgh._load_searches()
+
+        assert [entry["correlationId"] for entry in entries] == ["fresh"], (
+            "a row outside the window must not be decoded at all")
+
+    def test_load_searches_window_keeps_the_window_edge_and_legacy_merge(self, hook_env):
+        """Boundary + composition: an entry right at the 60-second edge survives the bound
+        (the caller's window filter admits it), and the legacy file's entries still merge
+        after the store rows (D5a) — the bound must not eat the dual-read window."""
+        bs = self.mgh.badger_store
+        edge_epoch = time.time() - 30
+        store = self.mgh.open_store()
+        try:
+            store.log_append("searches", bs.iso_row_ts(edge_epoch),
+                             {"correlationId": "edge", "sourceFiles": ["/p/edge.md"],
+                              "ts": edge_epoch})
+        finally:
+            store.close()
+        self._seed_legacy([{"correlationId": "legacy", "sourceFiles": ["/p/old.md"],
+                            "ts": time.time()}])
+
+        entries = self.mgh._load_searches()
+
+        assert [entry["correlationId"] for entry in entries] == ["edge", "legacy"]
+
+    def test_hook_module_survives_a_missing_badger_store(self, hook_env, monkeypatch):
+        """Join-review finding: the module-level `import badger_store` was the one consumer
+        import that could die at import — a partial deployment without the vendored copy
+        made the whole hook crash (exit != 0) instead of degrading. The import is guarded:
+        the hook loads, exits 0 on every path, and only the metric is lost (D31/advisory)."""
+        import builtins
+        import importlib.util
+        import io
+        real_import = builtins.__import__
+
+        def _no_store(name, *args, **kwargs):
+            if name == "badger_store":
+                raise ImportError("simulated partial deployment")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", _no_store)
+        spec = importlib.util.spec_from_file_location(
+            "memory_grade_hook_guarded", MEMORY_GRADE_HOOK)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)  # the defect dies right here
+        assert module.badger_store is None
+
+        old = module.sys.stdin
+        module.sys.stdin = io.StringIO(json.dumps(
+            {"tool_name": "Read", "result": json.dumps({"path": "/p/a.md"})}))
+        try:
+            assert module.main([]) == 0
+        finally:
+            module.sys.stdin = old
+
 
 # ---------------------------------------------------------------------------
 # SQLite write function

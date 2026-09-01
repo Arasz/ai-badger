@@ -34,6 +34,9 @@ Test map (plan aib-sqlite-storage-migration-phased-rollout rev 2 · ADR-0024 · 
                                                    test_pending_feedback_round_trips_as_single_replaced_document,
                                                    test_awm_decisions_schema_is_append_log_with_ts,
                                                    test_awm_decisions_rows_read_back_in_append_order,
+                                                   test_log_rows_since_returns_only_rows_at_or_after_the_cutoff,
+                                                   test_log_rows_since_is_served_by_the_ts_index,
+                                                   test_log_rows_since_fails_open_as_empty,
                                                    test_searches_schema_is_telemetry_log_with_ts
   3. P0.6b carry 1: pre-create 0600 pre-connect . test_user_db_file_is_0600_before_sqlite3_connect
   4. P0.6b carry 2: ts-index convention ......... test_ddl_block_carries_ts_index_convention_comment,
@@ -241,6 +244,59 @@ def test_awm_decisions_rows_read_back_in_append_order(tmp_path, monkeypatch):
         rows = store.conn.execute(
             "SELECT ts, payload FROM awm_decisions ORDER BY id").fetchall()
         assert [json.loads(payload) for _, payload in rows] == entries
+    finally:
+        store.close()
+
+
+def test_log_rows_since_returns_only_rows_at_or_after_the_cutoff(tmp_path, monkeypatch):
+    """The windowed read side of log_append (join-review finding: the memory-grade hook
+    decoded the whole 60-day table to answer a 60-second window): rows older than the
+    cutoff never come back, the cutoff row itself does (>=, matching the caller's own
+    window edge), and append order is preserved."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        stale = _ts(2)
+        edge = _ts(1)
+        fresh = _ts(1 / 86400)  # one second ago
+        for ts, marker in ((stale, "stale"), (edge, "edge"), (fresh, "fresh")):
+            store.log_append("searches", ts, {"marker": marker})
+
+        rows = store.log_rows_since("searches", edge)
+
+        assert [json.loads(payload)["marker"] for _, payload in rows] == ["edge", "fresh"]
+        assert store.log_rows_since("searches", _ts(0) + "x") == []  # future cutoff: empty
+    finally:
+        store.close()
+
+
+def test_log_rows_since_is_served_by_the_ts_index(tmp_path, monkeypatch):
+    """The bound must be a seek, not a scan: the whole point of the windowed read is that
+    a short recency window never touches the retention-bounded table's full history —
+    the ts-index DDL convention (D17c) is what makes the cutoff cheap."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        plan = store.conn.execute(
+            "EXPLAIN QUERY PLAN SELECT ts, payload FROM searches WHERE ts >= ?",
+            ("2026-01-01T00:00:00+00:00",)).fetchall()
+        detail = " ".join(str(column) for row in plan for column in row)
+        assert "idx_searches_ts" in detail, f"cutoff not served by the index: {detail}"
+    finally:
+        store.close()
+
+
+def test_log_rows_since_fails_open_as_empty(tmp_path, monkeypatch):
+    """A broken store degrades to an empty window, never a raise (D31) — same contract
+    as log_rows, which the windowed read exists beside."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        store.log_append("searches", _ts(1), {"marker": "kept"})
+        store.conn.execute("DROP TABLE searches")
+        store.conn.commit()
+
+        assert store.log_rows_since("searches", _ts(2)) == []
     finally:
         store.close()
 

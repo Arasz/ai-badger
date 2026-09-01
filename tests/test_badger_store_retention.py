@@ -10,6 +10,7 @@ in ``test_debug_log.py``; the ``prune --status`` verb in ``test_badger_store_cli
 from __future__ import annotations
 
 import json
+import sqlite3
 import threading
 from datetime import datetime, timedelta, timezone
 
@@ -33,6 +34,33 @@ def _seed(store, table: str, ts: str, marker: str) -> str:
     store.conn.execute(f"INSERT INTO {table}(ts, payload) VALUES (?, ?)", (ts, payload))
     store.conn.commit()
     return ts
+
+
+def test_log_tables_declares_only_tables_the_ddl_can_retain(tmp_path, monkeypatch):
+    """LOG_TABLES is the retention scope declared by hand beside the DDL it mirrors —
+    an unasserted twin drifts silently (join-review finding): a typo'd name or a table
+    without a NOT NULL ts column and a ts index would promise retention the schema cannot
+    deliver. Every declared table must exist in the schema with both properties (D17c)."""
+    _user_env(tmp_path, monkeypatch)
+    assert badger_store.LOG_TABLES, "the scope must name at least one DB"
+    conn = sqlite3.connect(str(tmp_path / "ddl-twin.db"))
+    try:
+        badger_store._create_schema(conn)
+        for db_kind, tables in badger_store.LOG_TABLES.items():
+            assert db_kind in ("user", "audit"), f"unknown DB kind: {db_kind}"
+            for table in tables:
+                columns = conn.execute(f"PRAGMA table_info({table})").fetchall()
+                assert columns, f"LOG_TABLES names {table!r}: no such table in the DDL"
+                ts = [row for row in columns if row[1] == "ts"]
+                assert ts and ts[0][3] == 1, (
+                    f"{table}: retention needs a NOT NULL ts column")
+                indexed = any(
+                    col[2] == "ts"
+                    for idx in conn.execute(f"PRAGMA index_list({table})").fetchall()
+                    for col in conn.execute(f"PRAGMA index_info({idx[1]})").fetchall())
+                assert indexed, f"{table}: the cutoff must be served by a ts index (D17c)"
+    finally:
+        conn.close()
 
 
 def test_prune_sweeps_rows_with_unparseable_ts(tmp_path, monkeypatch):

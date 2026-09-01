@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.155.0",
-  "frameworkCommit": "993039c200baa7448362ed5bb7f9e4a3a1a0280e",
+  "frameworkCommit": "413a1062244c8fc3f18200188384ced2dfeab35b",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -449,12 +449,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.155.0",
-      "hash": "c7ea98309c636697ecb50eb5da1b1aa81831b37e7bf0212e7f610629ed038c94",
+      "hash": "9d85e2e858870718e72986baba8f21d13e0f7e35f5e93db6caedcc76bae5350c",
       "dirMeta": {
         "file_count": 6,
         "dir_count": 1
       },
-      "sourceHash": "c7ea98309c636697ecb50eb5da1b1aa81831b37e7bf0212e7f610629ed038c94",
+      "sourceHash": "9d85e2e858870718e72986baba8f21d13e0f7e35f5e93db6caedcc76bae5350c",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 1
@@ -491,12 +491,12 @@
       "source": "features/common/skills/call-behaviorist",
       "target": ".ai-badger/skills/call-behaviorist",
       "frameworkVersion": "0.155.0",
-      "hash": "bbf76710d0ca8b7eec0433015aeaee971a9420fcb981b7b29867cacda4884ec2",
+      "hash": "717520fe2618ea28b1731a76ed214a044e9e38e2aac0963039dc46f58af603f7",
       "dirMeta": {
         "file_count": 6,
         "dir_count": 2
       },
-      "sourceHash": "bbf76710d0ca8b7eec0433015aeaee971a9420fcb981b7b29867cacda4884ec2",
+      "sourceHash": "717520fe2618ea28b1731a76ed214a044e9e38e2aac0963039dc46f58af603f7",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 2
@@ -533,12 +533,12 @@
       "source": "features/common/skills/commit-reminder",
       "target": ".ai-badger/skills/commit-reminder",
       "frameworkVersion": "0.155.0",
-      "hash": "7445a7a631cf69725a69dd389a73968836ed3f7efc42d5e6d9a3663204f4d2c9",
+      "hash": "11765f8306c11aca8c53edf983dea314b615a78f39b45d028385f2aab66cb183",
       "dirMeta": {
         "file_count": 7,
         "dir_count": 1
       },
-      "sourceHash": "7445a7a631cf69725a69dd389a73968836ed3f7efc42d5e6d9a3663204f4d2c9",
+      "sourceHash": "11765f8306c11aca8c53edf983dea314b615a78f39b45d028385f2aab66cb183",
       "sourceMeta": {
         "file_count": 7,
         "dir_count": 1
@@ -722,12 +722,12 @@
       "source": "features/common/skills/mcp-index",
       "target": ".ai-badger/skills/mcp-index",
       "frameworkVersion": "0.155.0",
-      "hash": "decc237e117ec0d4fcc28a7f58d14833c416201ea989d2e1d99a3b6bdeaea278",
+      "hash": "1f1958e2c59effca481624cdb41b62629818fc4badd56c55ca4083b73df8f7b8",
       "dirMeta": {
         "file_count": 10,
         "dir_count": 2
       },
-      "sourceHash": "decc237e117ec0d4fcc28a7f58d14833c416201ea989d2e1d99a3b6bdeaea278",
+      "sourceHash": "1f1958e2c59effca481624cdb41b62629818fc4badd56c55ca4083b73df8f7b8",
       "sourceMeta": {
         "file_count": 10,
         "dir_count": 2
@@ -764,12 +764,12 @@
       "source": "features/common/skills/prompt-markers",
       "target": ".ai-badger/skills/prompt-markers",
       "frameworkVersion": "0.155.0",
-      "hash": "4b20eb959bab2ebaeac3cc6c19c9675aeaacde0311b011fc197f413786e004db",
+      "hash": "103899a21ec698f21547cc885b92375659547e700baf242e0ec59fe281132ba1",
       "dirMeta": {
         "file_count": 5,
         "dir_count": 1
       },
-      "sourceHash": "e15f7ea48671115975788059c1193f35e1ba47c2e1d1b4edcf985bd2bdf6116f",
+      "sourceHash": "c5c8810887e23b77d5e558e67fcec1ffaac4e8fcddeab6f1a877daa72342bdcb",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 1
@@ -870,12 +870,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.155.0",
-      "hash": "9097b4faf8b41fd6e4464a89839e30414135caa5e185468ab1be6b6157b50fb1",
+      "hash": "ff4fc2f8417f87833eeebc06806628747514cb3ac8b81783e96f79813742197f",
       "dirMeta": {
         "file_count": 19,
         "dir_count": 2
       },
-      "sourceHash": "9097b4faf8b41fd6e4464a89839e30414135caa5e185468ab1be6b6157b50fb1",
+      "sourceHash": "ff4fc2f8417f87833eeebc06806628747514cb3ac8b81783e96f79813742197f",
       "sourceMeta": {
         "file_count": 19,
         "dir_count": 2
@@ -981,12 +981,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.155.0",
-      "hash": "fb16ba164b397445f87cb90a6f33e01595d7f5da785f7ea602e0100c524b2a44",
+      "hash": "f7ad1590c4f0fa2af12bb802d118c0507d5fa053e7bcfc4d208622b5ceaf9710",
       "dirMeta": {
         "file_count": 23,
         "dir_count": 2
       },
-      "sourceHash": "fb16ba164b397445f87cb90a6f33e01595d7f5da785f7ea602e0100c524b2a44",
+      "sourceHash": "f7ad1590c4f0fa2af12bb802d118c0507d5fa053e7bcfc4d208622b5ceaf9710",
       "sourceMeta": {
         "file_count": 23,
         "dir_count": 2
@@ -1149,12 +1149,12 @@
       "source": "features/common/skills/worktree-agent-isolation",
       "target": ".ai-badger/skills/worktree-agent-isolation",
       "frameworkVersion": "0.155.0",
-      "hash": "d6936484d2f9cf8b45e118b0ebf7df2e47dd9a1d210c8c7ce13a5bbc6634a2ec",
+      "hash": "3f096753ed7d1497dc8fb24cd23eaf0c4acb8495c83b772b90490509880ebbaf",
       "dirMeta": {
         "file_count": 14,
         "dir_count": 2
       },
-      "sourceHash": "d6936484d2f9cf8b45e118b0ebf7df2e47dd9a1d210c8c7ce13a5bbc6634a2ec",
+      "sourceHash": "3f096753ed7d1497dc8fb24cd23eaf0c4acb8495c83b772b90490509880ebbaf",
       "sourceMeta": {
         "file_count": 14,
         "dir_count": 2
@@ -1170,12 +1170,12 @@
       "source": "features/claude/skills/auto-wm",
       "target": ".ai-badger/skills/auto-wm",
       "frameworkVersion": "0.155.0",
-      "hash": "99ea6b32db81ad0a135c55c55c1e9cf425de0babee32b8dfee00a484d44a1988",
+      "hash": "1bb49abc310692f0071460d515dcd784ec6d3ee45b1463d532c167429f986a34",
       "dirMeta": {
         "file_count": 6,
         "dir_count": 2
       },
-      "sourceHash": "99ea6b32db81ad0a135c55c55c1e9cf425de0babee32b8dfee00a484d44a1988",
+      "sourceHash": "1bb49abc310692f0071460d515dcd784ec6d3ee45b1463d532c167429f986a34",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 2
