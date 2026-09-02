@@ -96,7 +96,7 @@ jobs:
         echo "command -v python3: $(command -v python3)"
         python3 --version
     - name: Set up bun (pi-ts lane)
-      uses: oven-sh/setup-bun@v2
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       with:
         bun-version: latest
     - name: Run every remaining lane, reporting every failure in this one job
