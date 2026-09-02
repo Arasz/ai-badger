@@ -95,6 +95,10 @@ jobs:
       run: |
         echo "command -v python3: $(command -v python3)"
         python3 --version
+    - name: Set up bun (pi-ts lane)
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      with:
+        bun-version: latest
     - name: Run every remaining lane, reporting every failure in this one job
       run: |
         # tdd_guard compares against main; checkout's fetch-depth: 0 does not guarantee a

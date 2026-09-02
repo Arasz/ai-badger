@@ -975,9 +975,13 @@ def _deliver_bus_messages(session_id: str, cwd: str) -> list:
         project_id = None
     store = store_lib.open_user()
     try:
-        return store.deliver_for_session(session_id, project_id)
+        # C2: the txn also returns the wake summary; hermes injects every delivery
+        # unconditionally (pre_llm_call has no wake decision), so the summary is
+        # deliberately unused here.
+        messages, _summary = store.deliver_for_session(session_id, project_id)
     finally:
         store.close()
+    return messages
 
 
 def _render_bus_messages(docs: list) -> str:

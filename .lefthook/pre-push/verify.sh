@@ -58,7 +58,7 @@ RUN_START=$(date +%s)
 # Every lane. `all` runs these, `verify.sh <lane>` dispatches them, and the `gates` job in
 # .github/workflows/pylint.yml reads this line to build the list it walks — so a lane missing
 # here runs nowhere.
-readonly LANES="version-sync index plugin-skills deps docs release paths workflows validate scaffold journey tdd js pylint pytest"
+readonly LANES="version-sync index plugin-skills deps docs release paths workflows validate scaffold journey tdd js pi-ts pylint pytest"
 
 # `$1` minus every lane named in `$2`, order preserved.
 _without_lanes() {
@@ -242,6 +242,7 @@ lane_cmd() {
         journey)       "$PY" gates/consumer_journey.py ;;
         tdd)           lane_tdd ;;
         js)            lane_js ;;
+        pi-ts)         lane_pi_ts ;;
         pylint)        lane_pylint ;;
         pytest)        "$PY" -m pytest -q ;;
         mutation)      lane_mutation ;;
@@ -297,6 +298,23 @@ lane_js() {
     fi
     # shellcheck disable=SC2086
     node --test $files
+}
+
+# The pi adapter's TypeScript suite (bus push delivery, 0.159.0): bun unit tests over the
+# adapter modules plus the type check. The adapter is the single arming point for pi's
+# hooks (ADR-0022) and now carries the delivery state machine — an un-gated regression
+# here ships silently (impl-review blocker B-1: 1430 test lines wired to no gate). Bun is
+# the runner because that is what features/pi's toolchain standardizes on; production pi
+# executes under Node, which is why the type check runs too (runtime drift the tests
+# cannot see). Needs network on first run (bun install) — the CI gates job provisions bun.
+lane_pi_ts() {
+    command -v bun >/dev/null 2>&1 || {
+        printf 'lane pi-ts: bun not found on PATH — install it (https://bun.sh) or run this lane where it exists\n' >&2
+        return 1
+    }
+    (cd features/pi && bun install --frozen-lockfile >/dev/null 2>&1 \
+        && bun test . \
+        && bunx tsc --noEmit -p .)
 }
 
 # Mutation testing over features/common/retrieval/ only (see [tool.mutmut] in pyproject.toml

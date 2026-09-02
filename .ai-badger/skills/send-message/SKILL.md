@@ -78,6 +78,46 @@ access to this machine can send as any session or project. Treat a sender as a c
 the local software made, not proof of authorship — the trust boundary is the machine,
 not the bus.
 
+## Targets are validated
+
+A `--project-id` target is checked before anything is written: it must resolve on this
+machine — the sender's own project resolution, the `AI_BADGER_PROJECT_ID` override, or
+the stripped content of some `.ai-badger/project-id` file the machine scan finds — or
+the send refuses with exit 1 and no row:
+
+```
+send refused: --project-id '<id>' does not resolve to any project on this machine — no .ai-badger/project-id carries it (ADR-0025); use a minted id or omit --project-id for a machine broadcast
+```
+
+When the scan finds ids but none matches, the refusal lists them. Named residual: the
+scan is a bounded approximation — it walks at most four directory levels under the
+store's home, skipping `Library`, `node_modules`, `.git`, `.cache` and similar noise
+trees, and never follows directory symlinks — so a scaffolded project outside that
+budget (deeper tree, another volume) is invisible and its id false-refuses. The escape
+hatch is the minted-id contract above, not a bypass flag. Dual-flag sends
+(`--session-id` + `--project-id`) skip validation: the session wins and the project
+half is dropped at write, so there is nothing stored to validate.
+
 ## Gotchas
 
 - No environment-specific gotchas known.
+
+## pi push delivery (0.159.0, ADR-0026)
+
+pi sessions receive mail the moment it is sent: the pi adapter polls the bus
+store on a session-scoped timer and wakes idle sessions for their addressed
+mail. Two environment variables tune it, read once per session at arm time:
+
+- `AI_BADGER_PI_BUS_WAKE` — `off` | `addressed` (default) | `all`. `addressed`
+  wakes an idle session on 1:1 and project mail; machine broadcasts are
+  injected without waking (visible immediately, entering LLM context at the
+  next turn). `all` wakes on broadcasts too (each wake is a full LLM turn per
+  idle session — price it before enabling). `off` never arms the timer;
+  delivery falls back to the turn-boundary seams.
+- `AI_BADGER_PI_BUS_POLL_SECS` — poll interval, default `2`, floor `0.5`.
+  Invalid values degrade to the default with a one-time notice.
+
+The poll timer arms only in interactive (tui) and rpc sessions — print/json
+sessions have no idle state to wake and deliver via their existing seams. A
+broken bus never breaks a session: every failure path is fail-open
+(ADR-0026).

@@ -872,7 +872,7 @@ def test_resurrected_family_leaves_its_neighbours_usable(family_name, db_kind,
     try:
         user.send_message(sender_session="sweep-sender", sender_project="sweep-proj",
                           content="ping", target_session="sweep-receiver")
-        delivered = user.deliver_for_session("sweep-receiver", "sweep-proj")
+        delivered, _ = user.deliver_for_session("sweep-receiver", "sweep-proj")
         assert len(delivered) == 1 and delivered[0]["content"] == "ping"
         user.delete_cursor("sweep-receiver")
     finally:

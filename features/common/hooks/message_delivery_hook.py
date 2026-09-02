@@ -16,17 +16,24 @@ drop the session's cursor (R6). Everything else is a no-op.
 
 ``additionalContext`` carries one schema-conformant message document per line
 (``schemas/message.schema.json``, F4) in chronological order — render_messages is the
-seam P9-t1 asserts through. An empty inbox injects nothing: the response is ``{}``.
+seam P9-t1 asserts through. A mail-bearing response additionally carries the delivery
+transaction's wake classification as ``hookSpecificOutput.aiBadgerBus``
+= ``{"addressed": n, "broadcast": m}`` (C2 — merged after build_response, so
+``build_response``'s own shape is unchanged). An empty inbox injects nothing and adds
+nothing: the response is ``{}`` — exactly.
 
 Fail-open (D31): any store, registry or input failure exits 0 with parseable no-op
-JSON — a broken bus must never break a session. The only trace is one content-free
-line in the operator's hook-error log, because a hook that dies quietly is
-indistinguishable from one that did its job.
+JSON — a broken bus must never break a session — and the failure is wire-distinguishable
+from a clean empty read: ``{"hookSpecificOutput": {"aiBadgerBus": {"error": true}}}``
+(C2b, CR-M1: a poller advancing on a parseable ``{}`` would strand undelivered mail).
+The only trace is one line in the operator's hook-error log, because a hook that dies
+quietly is indistinguishable from one that did its job.
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import traceback
 from datetime import datetime, timezone
@@ -100,14 +107,26 @@ def build_response(event_name: Optional[str], context: str) -> dict:
 
 
 def _deliver(event_name: Optional[str], session_id: str, payload: Dict[str, Any]) -> dict:
-    """One store transaction: read + cursor advance (the store's; index-bounded, D6)."""
+    """One store transaction: read + cursor advance (the store's; index-bounded, D6).
+
+    C2's construction point: the txn's wake summary is merged into the response HERE,
+    AFTER build_response — so build_response's own shape (and the exact-key-set pin on
+    it) stays untouched while the wire still carries the summary. A mail-bearing
+    response gains ``hookSpecificOutput.aiBadgerBus = {"addressed": n, "broadcast": m}``
+    (additive, never a host-acted key, CR-N6); a clean empty read returns ``{}``
+    unchanged — no envelope, no zero counts.
+    """
     project_id = _resolve_project(payload)
     store = badger_store.open_user()
     try:
-        messages = store.deliver_for_session(session_id, project_id)
+        messages, summary = store.deliver_for_session(session_id, project_id)
     finally:
         store.close()
-    return build_response(event_name, render_messages(messages))
+    response = build_response(event_name, render_messages(messages))
+    if messages and response:
+        response["hookSpecificOutput"]["aiBadgerBus"] = {
+            "addressed": summary["addressed"], "broadcast": summary["broadcast"]}
+    return response
 
 
 def _close(event_name: Optional[str], session_id: str) -> dict:
@@ -120,9 +139,20 @@ def _close(event_name: Optional[str], session_id: str) -> dict:
     return {}
 
 
-def main() -> int:
+def _read_payload_text() -> str:
+    """The raw stdin text, captured before parsing: the C8 sanitizer redacts
+    payload-derived substrings from any later exception's message, so the failure path
+    needs the payload even when parsing itself is what fails."""
+    try:
+        return sys.stdin.read()
+    except Exception:  # pylint: disable=broad-exception-caught
+        return ""
+
+
+def main(payload_text: Optional[str] = None) -> int:
     """One firing: parse, route by event, print one JSON response — every path prints."""
-    payload = json.load(sys.stdin)
+    raw = _read_payload_text() if payload_text is None else payload_text
+    payload = json.loads(raw)
     if not isinstance(payload, dict):
         payload = {}
     event_name = _event_name(payload)
@@ -138,39 +168,112 @@ def main() -> int:
     return 0
 
 
+#: C2b (CR-M1): the fail-open net's wire shape. A failure inside guarded_main must be
+#: distinguishable from a clean empty read on stdout — otherwise a poller advancing its
+#: watermark on a parseable ``{}`` silently strands undelivered mail (M1's stall). The
+#: marker is additive and rides inside ``hookSpecificOutput``, never a host-acted key
+#: (CR-N6); a clean empty read stays exactly ``{}``.
+FAILURE_MARKER = {"hookSpecificOutput": {"aiBadgerBus": {"error": True}}}
+
+
 HOOK_ERRORS_FILE = Path.home() / ".ai-badger" / "hook-errors.log"
 MAX_ERROR_LOG_BYTES = 1_000_000
 
+#: Minimum length for a payload-derived candidate worth redacting (C8): shorter tokens
+#: ("the", "and") would shred the message and hide the diagnosis without protecting
+#: anything. JSON string values are candidates from 4 chars (session ids are short).
+_REDACT_MIN_TOKEN = 8
 
-def record_hook_failure(where: str) -> None:
-    """Leave one content-free line behind before the net swallows an exception.
 
-    Type and location only: an exception message can quote scanned input.
+def _payload_candidates(payload_text: Optional[str]) -> set:
+    """Substrings of the raw stdin payload an exception message could quote (C8): the
+    whole text, each line, each whitespace token, and every JSON string value the
+    payload carries (parsed defensively — malformed stdin is itself a failure path).
+    String values are split into tokens too: a leak may quote one word of the mail."""
+    if not payload_text:
+        return set()
+    candidates: set = set()
+    stripped = payload_text.strip()
+    if len(stripped) >= _REDACT_MIN_TOKEN:
+        candidates.add(stripped)
+    for line in payload_text.splitlines():
+        line = line.strip()
+        if len(line) >= _REDACT_MIN_TOKEN:
+            candidates.add(line)
+    for token in re.findall(r"\S+", payload_text):
+        if len(token) >= _REDACT_MIN_TOKEN:
+            candidates.add(token)
+
+    def _visit(value) -> None:
+        if isinstance(value, str):
+            if len(value) >= 4:
+                candidates.add(value)
+            for token in re.findall(r"\S+", value):
+                if len(token) >= _REDACT_MIN_TOKEN:
+                    candidates.add(token)
+        elif isinstance(value, dict):
+            for item in value.values():
+                _visit(item)
+        elif isinstance(value, list):
+            for item in value:
+                _visit(item)
+
+    try:
+        _visit(json.loads(payload_text))
+    except ValueError:
+        pass
+    return candidates
+
+
+def _redact_payload_text(message: str, payload_text: Optional[str]) -> str:
+    """*message* with every payload-derived candidate substring replaced (C8):
+    payload-derived substrings never reach the log."""
+    redacted = message
+    for candidate in _payload_candidates(payload_text):
+        if candidate in redacted:
+            redacted = redacted.replace(candidate, "[redacted]")
+    return redacted
+
+
+def record_hook_failure(where: str, payload_text: Optional[str] = None) -> None:
+    """Leave one diagnosable line behind before the net swallows an exception.
+
+    C8 (Lane B F4): the line carries the exception MESSAGE — sanitized first, because an
+    exception message can quote scanned input: every substring derived from the hook's
+    stdin payload is redacted (see _payload_candidates). Type and location stay.
     """
-    exc_type, _, tb = sys.exc_info()
+    exc_type, exc_value, tb = sys.exc_info()
     frame = traceback.extract_tb(tb)[-1] if tb else None
     at = f"{Path(frame.filename).name}:{frame.lineno}" if frame else "unknown"
     name = exc_type.__name__ if exc_type else "Unknown"
+    message = _redact_payload_text(str(exc_value) if exc_value else "", payload_text)
+    detail = f"{name} at {at}: {message}" if message else f"{name} at {at}"
     print(f"[ai-badger] {where} hook failed: {name} at {at}", file=sys.stderr)
     try:
         HOOK_ERRORS_FILE.parent.mkdir(parents=True, exist_ok=True)
         if HOOK_ERRORS_FILE.exists() and HOOK_ERRORS_FILE.stat().st_size > MAX_ERROR_LOG_BYTES:
             HOOK_ERRORS_FILE.unlink()
         with HOOK_ERRORS_FILE.open("a", encoding="utf-8") as fh:
-            fh.write(f"{datetime.now(timezone.utc).isoformat()} {where} {name} at {at}\n")
+            fh.write(f"{datetime.now(timezone.utc).isoformat()} {where} {detail}\n")
     except OSError:
         pass
 
 
 def guarded_main() -> int:
     """Run main(): a hook never breaks the session, but never fails invisibly either —
-    the failure line goes to the log, and the host still gets parseable no-op JSON."""
+    the failure line goes to the log, and the host still gets parseable no-op JSON: the
+    C2b failure marker, wire-distinguishable from a clean empty ``{}`` (CR-M1). B5: the
+    log path itself is guarded — a throwing log write must never drop the response."""
+    payload_text = _read_payload_text()
     try:
-        return main() or 0
+        return main(payload_text) or 0
     except Exception:  # pylint: disable=broad-exception-caught
-        record_hook_failure("message_delivery_hook")
         try:
-            print("{}")
+            record_hook_failure("message_delivery_hook", payload_text)
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
+        try:
+            print(json.dumps(FAILURE_MARKER))
         except Exception:  # pylint: disable=broad-exception-caught
             pass
         return 0

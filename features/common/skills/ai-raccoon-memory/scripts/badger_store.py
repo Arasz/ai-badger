@@ -1884,8 +1884,17 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         return row_id
 
     def deliver_for_session(self, session_id: str,
-                            project_id: Optional[str] = None) -> list:
+                            project_id: Optional[str] = None) -> tuple:
         """Deliver the messages addressed to *session_id* and advance its cursor — atomically.
+
+        Returns ``(messages, summary)`` (C2): *messages* is the delivered document list
+        exactly as before; *summary* is ``{"addressed": n, "broadcast": m}`` — the wake
+        classification computed INSIDE this transaction from the delivered rows only,
+        never re-derived by consumers. It counts the DELIVERED batch: post-gate,
+        post-cap, post-R2 — gated-off rows, the sender's own rows and a not-run D7 leg
+        (no *project_id* → project/broadcast shapes never enter the batch) count 0
+        (QA-10/QA-11). 1:1 rows (target_session = the session) and project rows count as
+        addressed; both-targets-NULL rows count as broadcast.
 
         The read and the cursor upsert share one BEGIN IMMEDIATE, so two hooks racing on
         one unread message serialize: exactly one injects it, both finish at the same
@@ -1897,7 +1906,9 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         this is the one delivery path. Later reads are pure ``id > cursor`` and uncapped
         (A5: live broadcast volume is bounded by agent-paced sends, not by a cap).
         With no *project_id* only the 1:1 leg runs — the caller's unresolved-project
-        fail-open contract (D7). Every returned document is
+        fail-open contract (D7). A cursor above every row id (a replaced/restored DB
+        whose cursors row survived — C9) reads as cursor-less for that one read, so the
+        gate, cap and leg-scoped landing re-apply. Every returned document is
         ``{sender: {sessionId, projectId}, content, timestamp}`` in chronological order.
         """
         if not session_id:
@@ -1908,11 +1919,23 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
             row = self.conn.execute(
                 "SELECT cursor_id FROM cursors WHERE session_id = ?", (session_id,)
             ).fetchone()
+            if row is not None and row[0] > self.conn.execute(
+                    "SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]:
+                # C9 (CR-S1/QA-2): the cursor sits above every row id — a replaced or
+                # restored DB whose cursors row survived (AUTOINCREMENT forbids rowid
+                # reuse through this store's own writes; the strict > leaves the healthy
+                # caught-up state cursor == MAX(id) alone). Treat the session as
+                # cursor-less FOR THIS READ: the gate, the cap and the leg-scoped landing
+                # re-apply below, and the upsert lands a sane cursor — never a plain
+                # reset onto the live-read path.
+                row = None
             if row is None:
                 cutoff = (datetime.now(timezone.utc) - _GATE_WINDOW).isoformat()
                 rows = self._read_addressed(session_id, project_id, after_id=0,
                                             since_ts=cutoff)
-                messages = [_message_document(r) for r in rows[:_START_CAP]]
+                delivered = rows[:_START_CAP]
+                messages = [_message_document(r) for r in delivered]
+                summary = self._delivery_summary(delivered, session_id)
                 if project_id:
                     # All three legs ran: land past the WHOLE gated window, not past
                     # the last delivered row — the dropped overflow (and everything
@@ -1934,6 +1957,7 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
                 rows = self._read_addressed(session_id, project_id,
                                             after_id=row[0], since_ts=None)
                 messages = [_message_document(r) for r in rows]
+                summary = self._delivery_summary(rows, session_id)
                 next_cursor = rows[-1][0] if rows else row[0]
             _hold_at("deliver.after_read")
             self.conn.execute(
@@ -1948,7 +1972,25 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
             raise
         _assert_file_perms(self.db_path)
         notify_write(self.db_path)
-        return messages
+        return messages, summary
+
+    @staticmethod
+    def _delivery_summary(rows, session_id: str) -> dict:
+        """C2's wake classification, computed from the delivered rows only. A 1:1 row
+        (target_session = the session) and a project row (target_session NULL, the
+        project leg) count as addressed; a both-targets-NULL row counts as broadcast.
+        The rows are the DELIVERED batch — post-gate, post-cap, post-R2 — so gated-off
+        rows, the sender's own rows and a not-run D7 leg count 0 (QA-10/QA-11)."""
+        addressed = 0
+        broadcast = 0
+        for row in rows:
+            if row[5] == session_id:  # the 1:1 leg
+                addressed += 1
+            elif row[5] is None and row[6] is None:  # the broadcast shape
+                broadcast += 1
+            else:  # the project leg: target_session NULL, target_project = project_id
+                addressed += 1
+        return {"addressed": addressed, "broadcast": broadcast}
 
     def _read_addressed(self, session_id: str, project_id: Optional[str], *,
                         after_id: int, since_ts: Optional[str]) -> list:
@@ -1958,7 +2000,10 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
         One OR-shaped query: the planner serves it as a MULTI-INDEX OR — each branch is a
         seek on idx_messages_target_session / idx_messages_target_project / the PK range
         (D6, verified by the EXPLAIN gate test). Without a project_id the project and
-        broadcast branches drop out (deliver 1:1 only, D7).
+        broadcast branches drop out (deliver 1:1 only, D7). The target columns ride the
+        SELECT (appended — positions 0–4 are the document fields) so C2's summary can
+        classify the delivered batch inside the txn (QA-11); the D6 EXPLAIN gate
+        re-covers the widened query plan.
         """
         shapes = ["target_session = ?"]
         params: list = [session_id]
@@ -1972,8 +2017,8 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
             clauses.append("ts >= ?")
             params.append(since_ts)
         return self.conn.execute(
-            f"SELECT id, ts, sender_session, sender_project, content FROM messages "
-            f"WHERE {' AND '.join(clauses)} ORDER BY id ASC",
+            f"SELECT id, ts, sender_session, sender_project, content, target_session, "
+            f"target_project FROM messages WHERE {' AND '.join(clauses)} ORDER BY id ASC",
             tuple(params),
         ).fetchall()
 
