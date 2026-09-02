@@ -1,10 +1,10 @@
 # Skills
 
-This page catalogs 44 skills — everything under `features/common/skills/` and
+This page catalogs 45 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-43 live under `features/common/skills/` and split by the `scope:` each declares in its own
+44 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**23 are `default`** and arrive in every scaffolded project without being asked for, and
+**24 are `default`** and arrive in every scaffolded project without being asked for, and
 **20 are `optIn`** — catalogued, but written only when a project names them. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
@@ -92,6 +92,7 @@ names it, **claude-only** when the stack decides.
 | [code-review-checklist](#code-review-checklist) | Aviation-style pass/fail checklist for a PR or diff | default | by name (a reference to work through) |
 | [prompt-markers](#prompt-markers) | Detect `h:`/`f:`/`e:` prefixes and inject the matching behaviour | default | hook (`UserPromptSubmit`) |
 | [commit-reminder](#commit-reminder) | Command a commit once uncommitted work crosses a threshold | default | hook (`PostToolUse`) |
+| [test-economy](#test-economy) | Command the test-run economy once full-suite runs repeat; CI alive owns the full suite | default | hook (`PostToolUse`) |
 | [call-behaviorist](#call-behaviorist) | Off-by-default audit log for ai-badger's own hooks | default | by name |
 | [maintain-agent-instructions](#maintain-agent-instructions) | Reconcile CLAUDE.md/Copilot/Hermes instruction files against one model | default | by name (or CI) |
 | [mcp-index](#mcp-index) | Curate the MCP tool index a hook uses to recommend tools per turn | default | by name; feeds a `pre_llm_call` hook |
@@ -401,6 +402,25 @@ commit, or stop the agent.
 
 **When to use it.** Several edits have landed with no commit in between, or a subagent may be
 stuck and about to lose its work — "did that agent commit?", "is anything at risk?".
+
+### test-economy
+
+[`SKILL.md`](../features/common/skills/test-economy/SKILL.md)
+
+**What it is.** A command, not a gate: counts full-suite test runs per session and commands the
+test-run economy once they repeat — it never blocks the tool call that triggered it.
+
+**What it does.** A `PostToolUse` hook (`suite_economy_hook.py`) classifies every shell command
+as a test run (full or filtered), counts full-suite runs per project and session, and fires on
+the run past the budget (`AI_BADGER_TEST_ECONOMY_MAX_FULL`, default 2 allowed — the nudge lands
+on the 3rd); from the escalation bar (default 5) every further full run nags with the STOP form.
+Filtered runs (a path, `-k`, `--filter`) never count. The message names the local gate wiring it
+detected (lefthook, pre-commit, husky, a git pre-push hook) so the CI-dead branch is actionable.
+
+**When to use it.** Deciding what to run locally for a change (modified surface plus consumers,
+once), what to leave to CI (the full suite, when CI is alive), and what to do when CI is dead —
+hooked-up gates once, else one manual full-suite run before push. Deliberate flake diagnosis is
+the one exempted repetition.
 
 ### call-behaviorist
 

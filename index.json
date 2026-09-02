@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.159.0",
+  "frameworkVersion": "0.160.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -391,6 +391,11 @@
           "scope": "default"
         },
         {
+          "name": "test-economy",
+          "path": "features/common/skills/test-economy",
+          "scope": "default"
+        },
+        {
           "name": "welcome-ai-badger",
           "path": "features/common/skills/welcome-ai-badger",
           "scope": "default"
@@ -527,6 +532,10 @@
         {
           "name": "tdd-mandatory",
           "path": "features/common/invariants/tdd-mandatory.md"
+        },
+        {
+          "name": "test-run-economy",
+          "path": "features/common/invariants/test-run-economy.md"
         },
         {
           "name": "tests-are-designed-and-reviewed",

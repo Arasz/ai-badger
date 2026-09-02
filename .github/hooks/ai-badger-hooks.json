@@ -54,6 +54,12 @@
       },
       {
         "type": "command",
+        "bash": "if [ -f \".ai-badger/skills/test-economy/scripts/suite_economy_hook.py\" ]; then python3 \".ai-badger/skills/test-economy/scripts/suite_economy_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/test-economy/scripts/suite_economy_hook.py not found - hook skipped\"}'; fi",
+        "timeoutSec": 10,
+        "matcher": "bash|Bash"
+      },
+      {
+        "type": "command",
         "bash": "if [ -f \".ai-badger/skills/ai-raccoon-memory/scripts/memory_first_gate_post_hook.py\" ]; then python3 \".ai-badger/skills/ai-raccoon-memory/scripts/memory_first_gate_post_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/ai-raccoon-memory/scripts/memory_first_gate_post_hook.py not found - hook skipped\"}'; fi",
         "timeoutSec": 10,
         "matcher": "memory_search"

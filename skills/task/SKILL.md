@@ -16,7 +16,7 @@ scope: default
 metadata:
   hermes:
     tags: [task, orchestration, delegation, worktree]
-    related_skills: [create-task-spec, commit-reminder]
+    related_skills: [create-task-spec, commit-reminder, test-economy]
 ---
 
 > **This is the generic copy.** If this project has been scaffolded, prefer the unprefixed

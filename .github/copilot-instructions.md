@@ -6,7 +6,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ sc
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, pi, ts, node, changelog
-> Scaffolded by ai-badger 0.159.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
+> Scaffolded by ai-badger 0.160.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
 ## Commands
 
@@ -189,6 +189,9 @@ Each tool's own description covers the rest.
 
 - **TDD is mandatory** — Write a failing, behavior-focused test before any production code change.
   → `.ai-badger/invariants/tdd-mandatory.md`
+
+- **Run each suite once; CI runs the rest** — Normal flow runs the modified surface's suite once — plus the suites of anything that consumes the changed behavior, so an API change pulls the frontend end-to-end that exercises it — and leaves the full suite to CI on push.
+  → `.ai-badger/invariants/test-run-economy.md`
 
 - **Tests are designed before they are written, and judged after** — Green is the floor, not the evidence: a test list comes out of the acceptance criteria before the first test is written (`design-tests`, each row naming the failure mode it targets and the mutation that proves it real), and a change that adds or alters tests is not done until something other than its author has run `review-tests` and asked whether that suite could have gone red.
   → `.ai-badger/invariants/tests-are-designed-and-reviewed.md`

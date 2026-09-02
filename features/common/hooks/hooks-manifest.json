@@ -200,6 +200,30 @@
       }
     },
     {
+      "name": "test-run-economy",
+      "description": "Count full-suite test runs per session and command the test-run economy once they repeat (nudge on the run past the budget, STOP from the escalation bar on) — CI alive means CI owns the full suite; the message names the local gate wiring for the CI-dead branch",
+      "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "PostToolUse",
+          "script": "suite_economy_hook.py"
+        },
+        "hermes": {
+          "type": "plugin",
+          "entry": "ai_badger_hooks.py",
+          "method": "post_tool_call"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "postToolUse",
+          "script": "suite_economy_hook.py",
+          "matcher": "bash|Bash"
+        }
+      }
+    },
+    {
       "name": "generated-file-guard",
       "description": "Refuse a hand edit to a file the scaffold generated, naming the features/ source to edit instead",
       "agents": {

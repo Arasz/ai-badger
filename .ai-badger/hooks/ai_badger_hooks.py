@@ -827,6 +827,58 @@ def _pop_pending_reminder(project: str) -> Optional[str]:
     return None if gf is None else gf.pop_pending_reminder(project, PENDING_REMINDER_FILE)
 
 
+# ---------------------------------------------------------------------------
+# Test-run economy — count full-suite runs per session and nudge when they repeat.
+# Logic lives in the skill's sibling test_economy.py module (lazy-loaded); the nudge
+# rides the same pending-reminder channel the commit reminder uses.
+# ---------------------------------------------------------------------------
+
+TEST_ECONOMY_MODULE_NAME = "ai_badger_test_economy"
+
+
+def _load_test_economy() -> Optional[Any]:
+    """Import the sibling suite_economy module lazily; None when absent, or it's broken."""
+    return _load_sibling_module(TEST_ECONOMY_MODULE_NAME, "suite_economy.py",
+                                "test-run economy")
+
+
+def _maybe_count_test_run(tool_name: str, args: Any, cwd: str, session_id: Any) -> None:
+    """After a shell-shaped tool call, count full-suite test runs and stash a nudge.
+
+    Guard: an unavailable module, a non-shell tool, or a non-test command skips before any
+    store call. The command comes from the tool args (``command``/``cmd``); a transport that
+    passes neither is simply not a test run.
+    """
+    test_economy = _load_test_economy()
+    if test_economy is None or not test_economy.is_shell_tool(tool_name):
+        return
+    if not isinstance(args, dict):
+        return
+    command = args.get("command") or args.get("cmd") or ""
+    run = test_economy.is_test_run(command if isinstance(command, str) else "")
+    if run is None:
+        return
+
+    project = _project_cwd(cwd)
+    entry = test_economy.get_entry(project)
+    fires, escalated, entry = test_economy.advance_session(
+        entry, str(session_id or "default"), run["kind"] == "full",
+        now=_now_iso(),
+    )
+    test_economy.set_entry(project, entry)
+    if not fires:
+        return
+
+    gates = test_economy.detect_local_gates(project)
+    session_key = str(session_id or "default")
+    message = test_economy.build_message(
+        entry.get("sessions", {}).get(session_key, {}).get("full", 0),
+        run["runner"], gates, escalated=escalated)
+    _set_pending_reminder(project, message)
+    _debug("ai_badger_hooks/test_economy", "fire", project=project,
+           runner=run["runner"], escalated=escalated)
+
+
 def _load_commit_reminder() -> Optional[Any]:
     """Import the sibling commit_reminder module lazily; None when absent, or it's broken."""
     return _load_sibling_module(COMMIT_REMINDER_MODULE_NAME, "commit_reminder.py",
@@ -1064,6 +1116,11 @@ def post_tool_observer(tool_name: str = "", result: str = "",
         _maybe_remind_commit(tool_name, cwd)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.warning("commit reminder check failed", exc_info=True)
+
+    try:
+        _maybe_count_test_run(tool_name, args, cwd, session_id)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning("test-economy check failed", exc_info=True)
 
     try:
         gf = _load_grounded_feedback()

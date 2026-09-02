@@ -35,6 +35,7 @@ USER_PLUGINS = ("ai_badger_hooks.py", "learned_skills_sync.py", "debug_log.py",
 SHARED_SKILL_MODULES = (
     ("commit-reminder", "commit_reminder.py"),
     ("commit-reminder", "impact_estimator.py"),
+    ("test-economy", "suite_economy.py"),
     ("ai-raccoon-memory", "memory_first_gate.py"),
     ("semantica-knowledge-graph", "export_semantica_graph.py"),
     ("git-work", "git_internals_guard.py"),

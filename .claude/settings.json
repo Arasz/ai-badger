@@ -87,6 +87,16 @@
         ]
       },
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/test-economy/scripts/suite_economy_hook.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/test-economy/scripts/suite_economy_hook.py\"; elif [ -f \".ai-badger/skills/test-economy/scripts/suite_economy_hook.py\" ]; then python3 \".ai-badger/skills/test-economy/scripts/suite_economy_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/test-economy/scripts/suite_economy_hook.py not found - hook skipped\"}'; fi",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "memory_search",
         "hooks": [
           {

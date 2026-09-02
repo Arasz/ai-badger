@@ -16,7 +16,7 @@ scope: default
 metadata:
   hermes:
     tags: [task, orchestration, delegation, worktree]
-    related_skills: [create-task-spec, commit-reminder]
+    related_skills: [create-task-spec, commit-reminder, test-economy]
 ---
 
 # task orchestration skill
@@ -83,8 +83,9 @@ build/test.
 
 **pr** — Prepare PR for review, ensure CI runs.
 
-**gates** — Per-repo gates from `config.json` (`commands.build/test/lint`). Default: local full
-suite. Check CI state before running.
+**gates** — Per-repo gates from `config.json`. CI decides the local budget: alive →
+touched surface locally, once, CI is the gate; CI dead → gates once, else one manual
+full-suite run.
 
 **close task** — Close tracking, remove clean worktree, update state files.
 
@@ -252,7 +253,7 @@ Entry: all plan points implemented and committed in the worktree.
 Exit: CI green (or documented local-gate equivalent); review findings fixed or filed; QA
 test quality reviewed (high-effort variant).
 
-1. Run the configured `commands.build` and `commands.test` yourself and capture output.
+1. Run the modified surface's tests once.
 2. **Review implementation.** In the **low-effort** variant, delegate review to a
    high-reasoning agent (the `code-reviewer` persona) with the diff, acceptance criteria,
    relevant architecture docs, and the build/test output. In the **high-effort** variant,
@@ -262,8 +263,8 @@ test quality reviewed (high-effort variant).
 3. **QA: test quality & coverage** (high-effort variant only). After the implementation review,
    delegate a dedicated quality assessment of test coverage and test honesty — can the tests
    actually fail? Are there gaps in coverage? See `review-tests` skill.
-4. **Apply fixes.** Fix findings (trivial yourself, substantial via a subagent), re-run
-   build/test, then proceed. If the diff adds or changes test files, also delegate
+4. **Apply fixes.** Fix findings (trivial yourself, substantial via a subagent), re-run the
+   touched suite, then proceed. If the diff adds or changes test files, also delegate
    `review-tests` on those files to `qa` (or the stack's `qa-backend`/`qa-frontend`) and treat
    a `blocker` finding the same as a red build. Docs-only tasks with no test changes skip
    `review-tests`; projects without CI fall back to the full local lane set as the pass
@@ -286,10 +287,10 @@ every time — that is what goes stale while your reasoning stays put.
 
 ### The slow suites
 
-The pre-push hook runs the checks that cost seconds; the slow ones belong to CI on every
-push. **CI is the gate** — treat its result as this phase's pass condition, not the green
-pre-push. Run a slow lane yourself before pushing only as the sole active session. See
-`references/prompting-rules.md` for why slow lanes live in CI.
+The pre-push hook runs the cheap checks; the slow ones belong to CI. CI's
+result is the pass condition, not the green pre-push. Run a slow lane yourself only as the
+sole active session with CI dead or absent. One run per suite per change; repetition is
+diagnosis work. Docs, comments, and lint are never skipped.
 
 ## Phase 5 — Finish protocol
 
