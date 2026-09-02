@@ -264,3 +264,25 @@ recorded: with the user-scope adapter installed at `~/.pi/agent/extensions/
 ai-badger`, `-e` runs BOTH the old (0.157.2, no timer) and new adapters in one
 session; the store's exactly-once txn made this harmless (the old adapter's
 seam spawns are pull-only and idempotent against the same cursor).
+
+## L6 (TUI pty probe) — downgraded to documented residual per the plan's 2-attempt abort rule
+
+Two pty attempts (`script -q /dev/null pi -e <wrapper+adapter>`) produced no
+usable verdict, both on HARNESS faults, not feature evidence: attempt 2's
+diagnostics proved the seeding call had not inherited the `AI_BADGER_USER_ROOT`
+redirect (temp DB empty, mail landed in the real user DB), so neither run
+actually exercised the TUI wake. Budget spent → per plan rev 2's L6 rule, TUI
+wake stays **inferred** (ADR-0026 open question 1): the code path is
+mode-independent (`sendCustomMessage` → `_runAgentPrompt`, no mode branch —
+verified at agent-session.js:1099–1131), the identical
+`sendMessage(triggerTurn)` shape ships in the subagent extension's TUI delivery
+daily, and the rpc wake is MEASURED (L1). Owner acceptance of the residual
+recorded here.
+
+**Pollution disclosure (third-party honest log):** both L6 attempts wrote one
+stray message row into the real `~/.ai-badger/ai-badger.db` (sender
+`probe-s`, content `L6 TUI wake mail`); both rows deleted in-session and the
+delete verified by exact-match count (2 deleted, 0 remaining). No cursor
+advanced against them (target session ids never existed as live cursors);
+residue is the `sqlite_sequence` advance only, which is safe by design
+(AUTOINCREMENT keeps future ids above any cursor).
