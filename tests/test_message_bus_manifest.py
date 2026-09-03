@@ -59,8 +59,9 @@ SCRIPT_NAME = "message_delivery_hook.py"
 
 SESSION_START_ROW = "message-delivery-session-start"
 PER_TURN_ROW = "message-delivery-per-turn"
+TURN_END_ROW = "message-delivery-turn-end"
 SESSION_END_ROW = "message-delivery-session-end"
-DELIVERY_ROWS = (SESSION_START_ROW, PER_TURN_ROW, SESSION_END_ROW)
+DELIVERY_ROWS = (SESSION_START_ROW, PER_TURN_ROW, TURN_END_ROW, SESSION_END_ROW)
 
 WIRING_SCRIPTS = "features/common/skills/welcome-ai-badger/scripts"
 
@@ -179,6 +180,10 @@ def test_manifest_routes_the_delivery_events_per_agent():
             "copilot": {"type": "hooks-json", "entry": "hooks.json", "event": "userPromptSubmitted",
                         "script": SCRIPT_NAME},
         },
+        TURN_END_ROW: {
+            "claude": {"type": "hooks-json", "entry": "hooks.json", "event": "Stop",
+                       "script": SCRIPT_NAME},
+        },
         SESSION_END_ROW: {
             "claude": {"type": "hooks-json", "entry": "hooks.json", "event": "SessionEnd",
                        "script": SCRIPT_NAME},
@@ -225,7 +230,7 @@ def test_delivery_rows_are_unconditional_and_plugin_rooted():
     path, not a loss; the path sits under the
     ${CLAUDE_PLUGIN_ROOT}/features/common/skills/ prefix both rewriters rewrite, and the
     named file exists in-tree (a dangling command is a silent skip at scaffold time)."""
-    for event in ("SessionStart", "UserPromptSubmit", "SessionEnd"):
+    for event in ("SessionStart", "UserPromptSubmit", "Stop", "SessionEnd"):
         found = _delivery_commands(event)
         assert len(found) == 1, f"{event}: expected one delivery command, got {found}"
         entry, command = found[0]
@@ -294,6 +299,26 @@ def test_claude_scaffold_wires_delivery_onto_all_three_events(tmp_path, load_scr
         commands = [h.get("command", "") for entry in wired.get(event, [])
                     for h in entry.get("hooks", [])]
         assert any(_script_of(c) == neighbour for c in commands), f"{event}: {neighbour} dropped"
+
+
+def test_claude_scaffold_wires_delivery_onto_stop(tmp_path, load_script, root):
+    """The scaffolded settings.json runs the delivery script on Stop alongside the
+    task-checkpoint stop_hook — the message-delivery-turn-end row: mail arriving mid-work
+    surfaces at turn end without another user prompt (Stop's additionalContext continues
+    the turn). Secondary observable: the Stop neighbour (stop_hook.py) survives."""
+    settings = _claude_settings(tmp_path, load_script, root)
+
+    def _script_of(command: str) -> str:
+        match = re.search(r"([\w./-]+\.py)", command)
+        return match.group(1).rsplit("/", 1)[-1] if match else ""
+
+    commands = [h.get("command", "") for entry in settings.get("hooks", {}).get("Stop", [])
+                for h in entry.get("hooks", [])]
+    delivery = [c for c in commands if _script_of(c) == SCRIPT_NAME]
+    assert len(delivery) == 1, f"Stop: delivery wired {delivery}"
+    rewritten = f"${'{CLAUDE_PROJECT_DIR}'}/.ai-badger/skills/send-message/scripts/{SCRIPT_NAME}"
+    assert rewritten in delivery[0], f"Stop: path not rewritten to the scaffold: {delivery[0]}"
+    assert any(_script_of(c) == "stop_hook.py" for c in commands), "Stop: stop_hook.py dropped"
 
 
 # ---------------------------------------------------------------------------
@@ -374,7 +399,8 @@ def test_no_unwired_harness_carries_the_delivery_rows():
             assert agent in wired_agents, \
                 f"{row['name']}: delivery wired for unwired harness {agent!r}"
             if agent == "claude":
-                assert arm.get("event") in ("SessionStart", "UserPromptSubmit", "SessionEnd")
+                assert arm.get("event") in ("SessionStart", "UserPromptSubmit", "Stop",
+                                              "SessionEnd")
             elif agent == "copilot":
                 assert arm.get("event") in ("sessionStart", "userPromptSubmitted", "sessionEnd"), \
                     "copilot arms must use Copilot's own event spellings (sessionEnd is " \
@@ -459,6 +485,24 @@ def test_the_wired_close_command_removes_the_cursor(user_root, tmp_path, monkeyp
         row = store.conn.execute(
             "SELECT cursor_id FROM cursors WHERE session_id = ?", ("S-receiver",)).fetchone()
     assert row is None, "the wired close command left the cursor behind"
+
+
+def test_the_wired_stop_command_delivers_mid_work_mail(user_root, tmp_path, monkeypatch):
+    """The wired Stop command is executable turn-end delivery (the turn-end row through
+    the wiring): a message sent after the start read injects on the Stop firing with the
+    Stop spelling echoed — the no-new-prompt path, executed."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    with contextlib.closing(badger_store.open_user()) as store:
+        store.send_message(sender_session="S1", sender_project="bus-proj",
+                           content="history", target_project="bus-proj")
+    _fire_wired_command(tmp_path, monkeypatch, "SessionStart", "S-receiver", repo_dir)
+    with contextlib.closing(badger_store.open_user()) as store:
+        store.send_message(sender_session="S1", sender_project="bus-proj",
+                           content="mid-work", target_project="bus-proj")
+    response = _fire_wired_command(tmp_path, monkeypatch, "Stop", "S-receiver", repo_dir)
+    assert [d["content"] for d in _documents_of(response)] == ["mid-work"]
+    assert response["hookSpecificOutput"]["hookEventName"] == "Stop"
 
 
 # ---------------------------------------------------------------------------

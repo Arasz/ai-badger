@@ -65,6 +65,18 @@
       }
     },
     {
+      "name": "message-delivery-turn-end",
+      "description": "Re-inject the session's unread bus mail when Claude finishes a turn (Stop): mail arriving mid-work surfaces without another user prompt — Stop's additionalContext continues the turn, and exactly-once keeps that continuation loop-safe",
+      "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "Stop",
+          "script": "message_delivery_hook.py"
+        }
+      }
+    },
+    {
       "name": "message-delivery-session-end",
       "description": "Drop the session's bus cursor when the session ends, so a closed session leaves no state behind",
       "agents": {

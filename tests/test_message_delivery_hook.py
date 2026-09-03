@@ -3,7 +3,7 @@
 
 The shared delivery hook: one script, the Claude-shaped hook contract (``{hook_event_name,
 session_id, cwd}`` on stdin, ``hookSpecificOutput.additionalContext`` JSON on stdout),
-consumed by Claude (UserPromptSubmit/SessionStart/SessionEnd), Copilot
+consumed by Claude (UserPromptSubmit/SessionStart/Stop/SessionEnd), Copilot
 (userPromptSubmitted/sessionStart), and pi via the adapter's child-process bridge.
 
 Test map (plan aib-user-db-message-bus §3 P4 · spec rules in parentheses):
@@ -15,6 +15,7 @@ Test map (plan aib-user-db-message-bus §3 P4 · spec rules in parentheses):
                                                   test_session_start_on_a_session_with_a_cursor_is_a_live_read
   C. Per-turn live (Rule 4 scenario 4, D5) ..... test_per_turn_delivery_is_live_after_the_first_read,
                                                   test_cursorless_per_turn_read_applies_the_gate_once
+  C2. Turn-end live (Stop) ..................... test_stop_delivers_unread_mail_and_echoes_the_event
   D. Addressing + suppression (Rules 2+8) ...... test_self_suppression_reaches_the_script_surface,
                                                   test_subdirectory_cwd_resolves_to_the_project_via_the_resolver
   E. SessionEnd (Rule 6) ....................... test_session_end_removes_the_cursor,
@@ -351,6 +352,32 @@ def test_cursorless_per_turn_read_applies_the_gate_once(
 
     _, second = _fire(hook, monkeypatch, capsys, payload)
     assert second == {}, "the gated-off backlog never surfaces on the next turn either"
+
+
+# ---------------------------------------------------------------------------
+# C2. Stop — turn-end delivery (message-delivery-turn-end: mail arriving mid-work
+# surfaces without another user prompt; Stop's additionalContext continues the turn)
+# ---------------------------------------------------------------------------
+
+
+def test_stop_delivers_unread_mail_and_echoes_the_event(
+        hook, user_root, tmp_path, monkeypatch, capsys):
+    """Stop delivers exactly-once like the per-turn read: the first firing injects the
+    mid-work message and echoes the Stop spelling, the next firing is a clean no-op —
+    the continuation Stop's additionalContext triggers is loop-safe by consumption.
+    Mutation killer: Stop dropped from DELIVERY_EVENTS → the first firing answers {}."""
+    _make_project(tmp_path / "repo")
+    monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo"))
+    with contextlib.closing(_store()) as store:
+        store.send_message(sender_session="S1", sender_project="bus-proj",
+                           content="mid-work", target_project="bus-proj")
+    payload = {"hook_event_name": "Stop", "session_id": "S",
+               "cwd": str(tmp_path / "repo")}
+    _, first = _fire(hook, monkeypatch, capsys, payload)
+    assert [d["content"] for d in _documents_of(_context_of(first))] == ["mid-work"]
+    assert first["hookSpecificOutput"]["hookEventName"] == "Stop"
+    _, second = _fire(hook, monkeypatch, capsys, payload)
+    assert second == {}, "a turn-end read with nothing new injects nothing"
 
 
 # ---------------------------------------------------------------------------

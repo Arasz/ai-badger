@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.161.0 | [Claude turn-end delivery: mid-work bus mail surfaces without another prompt](0.161.0-claude-turn-end-delivery.md) |
 | 0.160.0 | [The Test-Run Economy](0.160.0-test-run-economy.md) |
 | 0.159.0 | [the pi bus pushes: idle sessions wake for their mail](0.159.0-pi-bus-push-delivery.md) |
 | 0.158.1 | [the cross-stack reference scan skips vendored dependency trees](0.158.1-validate-skips-vendored-trees.md) |

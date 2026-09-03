@@ -8,11 +8,19 @@ adapter's child-process bridge all speak the same Claude-shaped contract —
     stdin:  {"hook_event_name": "...", "session_id": "...", "cwd": "..."}
     stdout: {"hookSpecificOutput": {"hookEventName": "...", "additionalContext": "..."}}
 
-Delivery events (SessionStart, UserPromptSubmit, either harness's spelling) call
+Delivery events (SessionStart, UserPromptSubmit, Stop, either harness's spelling) call
 ``Store.deliver_for_session`` — exactly-once + the 30-minute first-read gate + the
 16-message start cap are the store's one transaction, not this script's (P1); the
-cursor-less per-turn read applies that gate once too (D5). Close events (SessionEnd)
+cursor-less per-turn read applies that gate once too (D5). Stop is Claude's turn-end
+event: its ``additionalContext`` continues the turn (host loop-capped), so mail that
+arrived mid-work surfaces without another user prompt — and exactly-once keeps that
+continuation loop-safe (a second firing finds nothing new). Close events (SessionEnd)
 drop the session's cursor (R6). Everything else is a no-op.
+
+Residual: a fully idle session fires no hook until its next prompt — hooks cannot wake
+Claude (no timer surface exists; FileChanged/Notification discard context output per
+the Claude Code hooks reference), so mail arriving while idle still waits for the
+next turn.
 
 ``additionalContext`` carries one schema-conformant message document per line
 (``schemas/message.schema.json``, F4) in chronological order — render_messages is the
@@ -43,9 +51,12 @@ from typing import Any, Dict, Optional
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import badger_store  # pylint: disable=wrong-import-position
 
-#: Events that deliver mail. Claude's spellings plus Copilot's (sessionStart /
-#: userPromptSubmitted) — one surface, per-harness event names, matched case-insensitively.
-DELIVERY_EVENTS = frozenset({"sessionstart", "userpromptsubmit", "userpromptsubmitted"})
+#: Events that deliver mail. Claude's spellings (SessionStart, UserPromptSubmit, and
+#: the turn-end Stop — whose additionalContext continues the turn so mid-work mail
+#: surfaces without another prompt) plus Copilot's (sessionStart / userPromptSubmitted)
+#: — one surface, per-harness event names, matched case-insensitively.
+DELIVERY_EVENTS = frozenset({"sessionstart", "userpromptsubmit", "userpromptsubmitted",
+                              "stop"})
 
 #: Events that end a session: drop the cursor (R6). Copilot's sessionEnd is wired for this
 #: too (P8's verdict: the event exists — tooling/validate.py, changelog 0.50.0), so its

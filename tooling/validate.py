@@ -159,6 +159,17 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                   "that never turns consumes nothing. Claude and Copilot keep the start arm because their "
                   "hooks inject through their own per-turn channel regardless.",
     },
+    "message-delivery-turn-end": {
+        "hermes": "No per-turn stop surface to wire onto: hermes pre_llm_call already delivers "
+                  "before every LLM call including tool-loop continuations, so a turn-end arm "
+                  "would only duplicate mail the next model request injects anyway; "
+                  "on_session_end is session-scoped with no per-turn return channel into the model.",
+        "copilot": "agentStop's context-injection semantics are unverified: whether "
+                   "additionalContext there reaches the model is unproven, and wiring the "
+                   "consuming delivery script onto it risks advancing the cursor past mail the "
+                   "model never sees. Delivery stays on Copilot's proven per-turn seam until "
+                   "a stop-event injection channel is evidenced.",
+    },
     "session-start-tracking": {
         "hermes": "Claude-only by design: recording the session id/transcript path, surfacing "
                   "unfinished tracked tasks, and starting the usage-limit poller are all Claude "

@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.160.0",
+  "frameworkVersion": "0.161.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [

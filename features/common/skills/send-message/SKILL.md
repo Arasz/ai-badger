@@ -121,3 +121,18 @@ The poll timer arms only in interactive (tui) and rpc sessions — print/json
 sessions have no idle state to wake and deliver via their existing seams. A
 broken bus never breaks a session: every failure path is fail-open
 (ADR-0026).
+
+## Claude turn-end delivery (Stop)
+
+Claude sessions re-run delivery when the assistant finishes a turn (`Stop`,
+`message-delivery-turn-end` row): mail that arrived mid-work is injected as
+`additionalContext`, which continues the turn so Claude acts on it without
+another user prompt. Exactly-once keeps the continuation loop-safe — a second
+firing finds nothing new and answers `{}`. Hermes needs no equivalent arm
+(`pre_llm_call` already delivers before every LLM call); Copilot's `agentStop`
+injection semantics are unverified, so its delivery stays on the per-turn seam.
+
+Residual, by host design: a fully idle session fires no hook until its next
+prompt — Claude Code hooks cannot wake an idle session (no timer surface;
+`FileChanged`/`Notification` discard context output per the Claude Code hooks
+reference), so mail arriving while idle still waits for the next turn.

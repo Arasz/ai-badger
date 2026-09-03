@@ -56,6 +56,14 @@
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/task/scripts/stop_hook.py\""
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/send-message/scripts/message_delivery_hook.py\""
+          }
+        ]
       }
     ],
     "SessionEnd": [

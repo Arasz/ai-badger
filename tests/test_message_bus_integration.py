@@ -285,7 +285,7 @@ def _copilot_event_map_keys() -> set:
 def _delivery_rows() -> list[dict]:
     manifest = json.loads((ROOT / MANIFEST_PATH).read_text())
     rows = [row for row in manifest["hooks"] if row["name"].startswith("message-delivery-")]
-    assert len(rows) == 3, sorted(row["name"] for row in rows)
+    assert len(rows) == 4, sorted(row["name"] for row in rows)
     return rows
 
 
@@ -333,7 +333,7 @@ def test_every_wired_arm_spelling_has_a_surface_on_its_harness(load_script):
     assert pi_sources == {"before_agent_start", "session_shutdown"}
     assert pi_targets == {"UserPromptSubmit", "SessionEnd"}
     assert pi_targets <= claude_arm_events == {"SessionStart", "UserPromptSubmit",
-                                               "SessionEnd"}
+                                               "Stop", "SessionEnd"}
     # The unwired-harness safety scenario, asserted negatively (Rule 7 sc.2):
     # nothing outside the wired set carries mail.
     assert wired_agents == {"claude", "copilot", "hermes"}
@@ -475,6 +475,7 @@ SCENARIO_OWNERS = {
     "A harness that claims delivery must not drop the event": [
         "tests/test_message_bus_manifest.py::test_hooks_json_commands_reconcile_with_the_manifest_rows",
         "tests/test_message_bus_manifest.py::test_claude_scaffold_wires_delivery_onto_all_three_events",
+        "tests/test_message_bus_manifest.py::test_claude_scaffold_wires_delivery_onto_stop",
         "tests/test_adjust_hooks_copilot.py::test_wired_copilot_events_are_spellings_the_delivery_script_accepts",
     ],
     # Rule 8 — Project identity comes from the cwd resolver only
