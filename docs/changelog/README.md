@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.162.0 | [multi-agent-communication: parallel sessions get a protocol, not just a transport](0.162.0-multi-agent-communication-protocol.md) |
 | 0.161.1 | [dotnet test --nologo documented as VSTest-only](0.161.1-dotnet-test-nologo-mtp.md) |
 | 0.161.0 | [Claude turn-end delivery: mid-work bus mail surfaces without another prompt](0.161.0-claude-turn-end-delivery.md) |
 | 0.160.0 | [The Test-Run Economy](0.160.0-test-run-economy.md) |

@@ -13,7 +13,7 @@ scope: default
 metadata:
   hermes:
     tags: [message-bus, coordination, agent-messaging]
-    related_skills: [task, status-report]
+    related_skills: [task, status-report, multi-agent-communication]
 ---
 
 > **This is the generic copy.** If this project has been scaffolded, prefer the unprefixed
