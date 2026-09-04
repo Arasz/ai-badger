@@ -13,7 +13,7 @@ scope: default
 metadata:
   hermes:
     tags: [workflow, fast-path, single-commit, tests, review]
-    related_skills: [task, test-economy, code-review-checklist, status-report]
+    related_skills: [task, test-economy, code-review-checklist, status-report, multi-agent-communication]
 ---
 
 > **This is the generic copy.** If this project has been scaffolded, prefer the unprefixed

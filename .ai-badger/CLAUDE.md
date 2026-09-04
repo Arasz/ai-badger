@@ -4,7 +4,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ sc
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, pi, ts, node, changelog
-> Scaffolded by ai-badger 0.161.1. Source of truth for this file: `.ai-badger/CLAUDE.md`.
+> Scaffolded by ai-badger 0.162.0. Source of truth for this file: `.ai-badger/CLAUDE.md`.
 
 ## Commands
 
@@ -109,6 +109,9 @@ Each tool's own description covers the rest.
 
 
 ## Non-negotiable invariants
+
+- **Announce parallel work** — When another agent session shares the project, announce started work, opened PRs, review requests and merges on the project bus — read `multi-agent-communication` when parallel work is active.
+  → `.ai-badger/invariants/announce-parallel-work.md`
 
 - **Ask if a simpler shape would do** — Before calling any design or change finished, ask whether it is over-engineered and what the simpler version would look like.
   → `.ai-badger/invariants/ask-if-simpler.md`

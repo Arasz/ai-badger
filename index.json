@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.161.1",
+  "frameworkVersion": "0.162.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -301,6 +301,11 @@
           "scope": "default"
         },
         {
+          "name": "multi-agent-communication",
+          "path": "features/common/skills/multi-agent-communication",
+          "scope": "default"
+        },
+        {
           "name": "multi-lane-report-assembly",
           "path": "features/common/skills/multi-lane-report-assembly",
           "scope": "optIn"
@@ -429,6 +434,10 @@
         }
       ],
       "invariants": [
+        {
+          "name": "announce-parallel-work",
+          "path": "features/common/invariants/announce-parallel-work.md"
+        },
         {
           "name": "ask-if-simpler",
           "path": "features/common/invariants/ask-if-simpler.md"

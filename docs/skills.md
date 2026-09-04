@@ -1,17 +1,17 @@
 # Skills
 
-This page catalogs 45 skills — everything under `features/common/skills/` and
+This page catalogs 46 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-44 live under `features/common/skills/` and split by the `scope:` each declares in its own
+45 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**24 are `default`** and arrive in every scaffolded project without being asked for, and
+**25 are `default`** and arrive in every scaffolded project without being asked for, and
 **20 are `optIn`** — catalogued, but written only when a project names them. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 43 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **50** files:
-the 44 above plus 6 more that belong to a single stack and arrive only with it — the
+**These 43 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **51** files:
+the 45 above plus 6 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/`, 1 under `features/ai-raccoon/skills/` and 1 under `features/github/skills/`.
 Those 6 have no row below and are documented by their own `SKILL.md`. Derive the number rather
@@ -83,6 +83,7 @@ names it, **claude-only** when the stack decides.
 | [quick-task](#quick-task) | Ship a one-sentence, one-surface change as a single commit on main — minimal plan, touched-surface tests, no PR | default | by name |
 | [status-report](#status-report) | Answer "where are we?" mid-task — current task, checklist progress, next, delegation status | default | by name |
 | [send-message](#send-message) | Reach another agent session, a whole project, or the whole machine through the user-DB message bus | default | by name |
+| [multi-agent-communication](#multi-agent-communication) | Coordinate parallel sessions in one project — announce work, PRs, review requests and merges on the project bus; ack once, never reply to an ack | default | by name |
 | [git-work](#git-work) | Recover push failures, triage red CI, and run the PR lifecycle outside a tracked task | default | by name |
 | [create-task-spec](#create-task-spec) | Interrogate an idea into a Gherkin specification plus a manifest `task` consumes | default | by name |
 | [owner-gate-review](#owner-gate-review) | Turn a document's open decisions into a per-decision review form | default | by name |
@@ -205,6 +206,21 @@ with the sender's `sessionId` and `projectId` mandatory on every send.
 
 **When to use it.** An agent session needs to reach another agent session, every session in a
 project, or every session on this machine without the human relaying between windows.
+
+### multi-agent-communication
+
+[`SKILL.md`](../features/common/skills/multi-agent-communication/SKILL.md)
+
+**What it is.** The coordination protocol for parallel sessions in one project: announce
+started work, opened PRs, review requests and merges as project broadcasts, ack each one
+once, and never reply to an ack.
+
+**What it does.** Sends `starting`, `pr-opened`, `review-request`, `review-feedback`,
+`merged` and `blocked` announcements (taskId, branch, files, PR number) through the
+`send-message` transport at package boundaries.
+
+**When to use it.** Two or more agent sessions share a project and must coordinate without
+stepping on each other — announcing work, asking for review, and reporting merges to main.
 
 ### task
 
