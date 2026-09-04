@@ -521,3 +521,68 @@ class TestRecordFollowThroughSql:
     def test_noop_when_correlation_id_not_found(self, db, monkeypatch, ft):
         monkeypatch.setattr(Path, "home", lambda: db.parent.parent)
         ft._record_follow_through_sql("nonexistent", "/file.md")
+
+
+# ---------------------------------------------------------------------------
+# Skill-script variant (memory_grade_hook.py) — P4 object-row interop
+# ---------------------------------------------------------------------------
+
+class TestMemoryGradeHookRecordSqlInterop:
+    """The ai-raccoon server writes follow_through_files rows as objects
+    ({path, rank}); the hook must dedupe by path across both shapes — a
+    bare-string membership check misses dict elements and double-counts."""
+
+    @pytest.fixture
+    def mgh(self):
+        return _load_memory_grade_hook()
+
+    @pytest.fixture
+    def grade_db(self, tmp_path):
+        db_dir = tmp_path / ".ai-raccoon"
+        db_dir.mkdir()
+        db_path = db_dir / "memory.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("CREATE TABLE IF NOT EXISTS search_quality ("
+                     "correlation_id TEXT PRIMARY KEY, "
+                     "follow_through_count INTEGER DEFAULT 0, "
+                     "follow_through_files TEXT DEFAULT '[]')")
+        conn.execute("INSERT INTO search_quality (correlation_id) VALUES (?)",
+                     ("abc-123",))
+        conn.commit()
+        conn.close()
+        return db_path
+
+    def _read(self, grade_db):
+        conn = sqlite3.connect(str(grade_db))
+        row = conn.execute(
+            "SELECT follow_through_count, follow_through_files "
+            "FROM search_quality WHERE correlation_id = ?", ("abc-123",)).fetchone()
+        conn.close()
+        return row[0], json.loads(row[1])
+
+    def test_dedupes_object_row_with_same_path(self, grade_db, monkeypatch, mgh):
+        monkeypatch.setattr(Path, "home", lambda: grade_db.parent.parent)
+        conn = sqlite3.connect(str(grade_db))
+        conn.execute("UPDATE search_quality SET follow_through_count=1, "
+                     "follow_through_files=? WHERE correlation_id=?",
+                     (json.dumps([{"path": "/first.md", "rank": 1}]), "abc-123"))
+        conn.commit()
+        conn.close()
+        mgh._record_follow_through_sql("abc-123", "/first.md")
+        count, files = self._read(grade_db)
+        assert count == 1
+        assert files == [{"path": "/first.md", "rank": 1}]
+
+    def test_appends_new_file_to_object_rows_as_bare_string(self, grade_db,
+                                                             monkeypatch, mgh):
+        monkeypatch.setattr(Path, "home", lambda: grade_db.parent.parent)
+        conn = sqlite3.connect(str(grade_db))
+        conn.execute("UPDATE search_quality SET follow_through_count=1, "
+                     "follow_through_files=? WHERE correlation_id=?",
+                     (json.dumps([{"path": "/first.md", "rank": 1}]), "abc-123"))
+        conn.commit()
+        conn.close()
+        mgh._record_follow_through_sql("abc-123", "/second.md")
+        count, files = self._read(grade_db)
+        assert count == 2
+        assert files == [{"path": "/first.md", "rank": 1}, "/second.md"]
