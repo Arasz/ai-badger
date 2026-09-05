@@ -234,3 +234,24 @@ class TestJsonMode:
         assert {"current_task", "progress", "next", "subagents"} <= set(data)
         assert data["current_task"]["taskId"] == "aib-json-task"
         assert data["next"] == "the next thing"
+
+
+# ---------------------------------------------------------------- import bootstrap
+
+
+class TestTrackerLibImportPath:
+    def test_bootstrap_resolves_to_existing_tracker_lib(self):
+        """parents[2]/task/scripts must hold tracker_lib.py (was parents[1], off-by-one)."""
+        from conftest import ROOT
+
+        script = (ROOT / SCRIPT).resolve()
+        candidate = script.parents[2] / "task" / "scripts" / "tracker_lib.py"
+
+        assert candidate.is_file(), f"tracker_lib not found via parents[2]: {candidate}"
+
+    def test_bootstrap_does_not_use_parents1_for_tracker(self):
+        from conftest import ROOT
+
+        text = (ROOT / SCRIPT).read_text(encoding="utf-8")
+
+        assert 'parents[2] / "task" / "scripts"' in text
