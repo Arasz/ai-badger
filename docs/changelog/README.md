@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.162.2 | [status-report: fix tracker_lib import off-by-one](0.162.2-status-report-tracker-lib-import.md) |
 | 0.162.1 | [ai-raccoon-memory: search-quality surface follow-through (sessionId, kind, rank)](0.162.1-ai-raccoon-memory-search-quality-surface.md) |
 | 0.162.0 | [multi-agent-communication: parallel sessions get a protocol, not just a transport](0.162.0-multi-agent-communication-protocol.md) |
 | 0.161.1 | [dotnet test --nologo documented as VSTest-only](0.161.1-dotnet-test-nologo-mtp.md) |
