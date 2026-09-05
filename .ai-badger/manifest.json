@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.164.0",
-  "frameworkCommit": "221b976018c6cbf7f6638934010c4b928ce5c9a6",
+  "frameworkCommit": "ea0134a3a6639e372a459185f5d9ac0af5112c77",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1071,12 +1071,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.164.0",
-      "hash": "7245e9b83f08276c599dde39a9c1302b7794e4c93292a89a86522d4496760373",
+      "hash": "a1ce758e4630f2624aeab95bb40cae18f4e5ddba7837c3c129d97f4c6d969cb3",
       "dirMeta": {
         "file_count": 24,
         "dir_count": 2
       },
-      "sourceHash": "7245e9b83f08276c599dde39a9c1302b7794e4c93292a89a86522d4496760373",
+      "sourceHash": "a1ce758e4630f2624aeab95bb40cae18f4e5ddba7837c3c129d97f4c6d969cb3",
       "sourceMeta": {
         "file_count": 24,
         "dir_count": 2
@@ -1374,7 +1374,7 @@
       "source": "features/common/templates/delegation.md.tmpl",
       "target": ".ai-badger/delegation.md",
       "frameworkVersion": "0.164.0",
-      "hash": "6bee437fc3ec08b91461c21276919b93e6b9fadfdb55a93aa338e0a63b6a5fc5",
+      "hash": "3376cf087b066d8bd983b60fffa18407e794a7d212be8721316f8a844292ea67",
       "seedOnce": false
     },
     {
