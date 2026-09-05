@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.165.0",
-  "frameworkCommit": "221b976018c6cbf7f6638934010c4b928ce5c9a6",
+  "frameworkCommit": "bd8b8d46e81f94c2272f6e45459ac716be6a3e70",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1071,14 +1071,14 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.165.0",
-      "hash": "7245e9b83f08276c599dde39a9c1302b7794e4c93292a89a86522d4496760373",
+      "hash": "53dbce774391b2591e5ae5e704b51e820e76b8606fae15b023d41d02f264536b",
       "dirMeta": {
-        "file_count": 24,
+        "file_count": 25,
         "dir_count": 2
       },
-      "sourceHash": "7245e9b83f08276c599dde39a9c1302b7794e4c93292a89a86522d4496760373",
+      "sourceHash": "53dbce774391b2591e5ae5e704b51e820e76b8606fae15b023d41d02f264536b",
       "sourceMeta": {
-        "file_count": 24,
+        "file_count": 25,
         "dir_count": 2
       },
       "projectOwned": [
@@ -1366,6 +1366,16 @@
       "frameworkVersion": "0.165.0",
       "hash": "340d9da18a9e2938ff0c058d36c1558428c82c11dd1cc4b35b312d620f923438",
       "seedOnce": true
+    },
+    {
+      "feature": "templates",
+      "stack": "common",
+      "name": "model-groups.json",
+      "source": "features/common/data/model-groups.json",
+      "target": ".ai-badger/model-groups.json",
+      "frameworkVersion": "0.165.0",
+      "hash": "4c652444cd7484c3076d708889b240acf96b1c4c2e325547128793ad71df38b3",
+      "seedOnce": false
     },
     {
       "feature": "templates",

@@ -584,3 +584,83 @@ def test_shared_weights_id_requires_shared_evidence(mg, tmp_path):
         _load(mg, tmp_path, _doc(
             low=[_m("openrouter/l/low", 1, 2, True)], medium=medium))
     assert "weightsId" in str(exc_info.value)
+
+
+# ------------------------------------------------------------------ 1b: validate wiring
+def test_schema_has_a_coverage_decision(root, load_script):
+    """The new schema validates something: SCHEMA_INSTANCES maps it, the glob hits the
+    canonical seed, and no schema is left undecided."""
+    validate = load_script("tooling/validate.py")
+    assert "model-groups.schema.json" in validate.SCHEMA_INSTANCES
+    matched = [p for pattern in validate.SCHEMA_INSTANCES["model-groups.schema.json"]
+               for p in sorted(root.glob(pattern))]
+    assert root / SEED in matched
+    assert validate.undecided_schemas(root) == []
+
+
+def test_canonical_seed_validates_against_its_schema(root, load_script):
+    bl = load_script("engine/badger_lib.py")
+    schema = bl.load_json(root / "schemas" / "model-groups.schema.json")
+    assert bl.validate(bl.load_json(root / SEED), schema) == []
+
+
+def test_registry_invariants_hold_on_the_real_root(root, load_script):
+    """validate.py is the single enforcer of the machine invariants: the leaf loads from
+    validate's own tree and the real root reports no gaps."""
+    validate = load_script("tooling/validate.py")
+    assert validate.model_groups_leaf() is not None
+    assert validate.model_registry_gaps(root) == []
+
+
+def test_broken_registry_is_a_gap(tmp_path, load_script):
+    validate = load_script("tooling/validate.py")
+    demo = tmp_path / "features" / "demo" / "data"
+    demo.mkdir(parents=True)
+    _test_write(demo / "model-groups.json", json.dumps({"groups": {}}),
+                encoding="utf-8")
+    gaps = validate.model_registry_gaps(tmp_path)
+    assert gaps
+    assert all("model-groups.json" in gap for gap in gaps)
+
+
+def test_absent_registry_is_no_gap_for_stub_trees(tmp_path, load_script):
+    """A tree with no registry instance (a stub tree, a skill-only fixture) passes: the
+    check is unconditional on present files, not a presence requirement."""
+    validate = load_script("tooling/validate.py")
+    assert validate.model_registry_gaps(tmp_path) == []
+
+
+# ------------------------------------------------------------------ 1b: scaffold delivery
+def test_scaffold_delivers_the_registry_verbatim(make_scaffolder, root):
+    result = make_scaffolder(skills=["task"]).run(
+        generated_at="2026-09-05T00:00:00Z")
+    delivered = make_scaffolder.target / ".ai-badger" / "model-groups.json"
+    assert delivered.is_file()
+    assert delivered.read_bytes() == (root / SEED).read_bytes()
+    recorded = [entry for entry in result["manifest"]["entries"]
+                if entry.get("target") == ".ai-badger/model-groups.json"]
+    assert len(recorded) == 1
+    assert recorded[0]["source"] == "features/common/data/model-groups.json"
+    assert recorded[0]["seedOnce"] is False
+
+
+def test_rescaffold_leaves_registry_and_manifest_byte_identical(make_scaffolder):
+    aib = make_scaffolder.target / ".ai-badger"
+    make_scaffolder(skills=["task"]).run(generated_at="2026-09-05T00:00:00Z")
+    first_registry = (aib / "model-groups.json").read_bytes()
+    first_manifest = (aib / "manifest.json").read_bytes()
+    make_scaffolder(skills=["task"]).run(generated_at="2026-09-05T00:00:00Z")
+    assert (aib / "model-groups.json").read_bytes() == first_registry
+    assert (aib / "manifest.json").read_bytes() == first_manifest
+
+
+def test_no_bare_id_in_the_scaffolded_registry(make_scaffolder, mg):
+    import re
+    make_scaffolder(skills=["task"]).run(generated_at="2026-09-05T00:00:00Z")
+    delivered = json.loads(
+        (make_scaffolder.target / ".ai-badger" / "model-groups.json"
+         ).read_text(encoding="utf-8"))
+    ids = [m["id"] for members in delivered["groups"].values() for m in members]
+    assert ids
+    pattern = re.compile(r"^openrouter/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+    assert all(pattern.match(i) for i in ids), ids

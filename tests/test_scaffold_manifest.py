@@ -85,6 +85,7 @@ def test_scaffolded_templates_are_recorded_in_the_manifest(make_scaffolder):
         ("common", "delegation.md.tmpl"),
         ("common", "agent-instructions/schema.json"),
         ("common", "agent-instructions/model.template.json"),
+        ("common", "model-groups.json"),
         ("claude", "CLAUDE.md.tmpl"),
     }
 

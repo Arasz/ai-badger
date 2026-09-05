@@ -308,6 +308,49 @@ def undecided_schemas(root: Path) -> List[str]:
 
 HOOKS_MANIFEST_GLOB = "features/*/hooks/hooks-manifest.json"
 
+MODEL_REGISTRY_GLOB = "features/*/data/model-groups.json"
+
+
+def model_groups_leaf():
+    """The registry leaf from this validator's own tree (the skills_lint precedent:
+    validate.py enforces with the copy it ships with, not the audited tree's)."""
+    import importlib.util  # pylint: disable=import-outside-toplevel
+    path = (Path(__file__).resolve().parent.parent / "features" / "common"
+            / "skills" / "task" / "scripts" / "model_groups.py")
+    if not path.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location("model_groups", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def model_registry_gaps(root: Path) -> List[str]:
+    """Machine invariants over every model-groups registry instance under root.
+
+    The schema half is checked by the SCHEMA_INSTANCES loop; this is the half draft
+    2020-12 cannot express (preferred-first, lexicographic price order with the
+    demoted-tail exemption, per-group uniqueness, tail position, weights identity).
+    validate.py is the single enforcer: the rules live in the leaf's pure
+    validate_registry and are duplicated nowhere. Unconditional on present files — no
+    git touched/untouched gating, so stub trees and tmp checkouts get the same answer;
+    a tree with no instance reports no gap (absence is the L0 suite's and the
+    scaffold's concern, not this gate's).
+    """
+    leaf = model_groups_leaf()
+    if leaf is None:
+        return []
+    gaps: List[str] = []
+    for path in sorted(root.glob(MODEL_REGISTRY_GLOB)):
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            gaps.append(f"{path.relative_to(root).as_posix()}: unreadable ({exc})")
+            continue
+        gaps.extend(f"{path.relative_to(root).as_posix()}: {error}"
+                    for error in leaf.validate_registry(doc, source=path))
+    return gaps
+
 
 def hooks_manifest_agent_gaps(root: Path) -> List[str]:
     """Every (hook, agent) pair reaching neither a manifest entry nor a recorded exemption.
@@ -527,6 +570,7 @@ def validate_all(root: Path) -> int:
 
     ok &= _report("catalog stack membership", catalog_stack_gaps(root))
     ok &= _report("feature json schema coverage", unschemad_feature_json(root))
+    ok &= _report("model-groups registry invariants", model_registry_gaps(root))
     ok &= _report("cross-stack references", cross_stack_reference_gaps(root))
     ok &= _report("inlined bodies carry no relative links", inlined_relative_links(root))
     ok &= _report("hooks-manifest agent coverage", hooks_manifest_agent_gaps(root))
