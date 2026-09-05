@@ -88,15 +88,20 @@ wrong claim in a PR body passes every one of them. That still needs a reviewer.
 | **Claude Code** | Full | Plugin hooks, `CLAUDE.md`, task extensions |
 | **Hermes Agent** | Full | `HERMES.md`/`.hermes.md`, `delegate_task`, skill auto-discovery |
 | **GitHub Copilot** | Scaffolded | `.github/copilot-instructions.md`, scoped instructions |
+| **pi** | Scaffolded | `.pi/agents/` personas, scoped instructions, hooks adapter |
 
 ## Supported stacks
 
 `ai-raccoon`, `angular`, `aspire`, `azure`, `changelog`, `cosmos`, `css`, `dotnet`, `github`, `js`,
 `mcp`, `node`, `python`, `react`, `terraform`, `ts`, `ux` — plus **`common`** for stack-agnostic content and
-agent-specific stacks (`claude`, `copilot`, `hermes`). Derive it rather than quoting this line:
+agent-specific stacks (`claude`, `copilot`, `hermes`, `pi`). Derive it rather than quoting this line:
 `ls features/`.
 
 ## Install
+
+### Are you using pi?
+
+ai-badger scaffolds pi personas and instructions, and the opinionated extension set designed to work with it lives next door in [pi-badger-integration](https://github.com/Arasz/pi-badger-integration): background delegation, predicate monitors, free-model fallback on router failure, cron, and MCP tools, with the publish flow that installs them to pi's user scope.
 
 ```
 /plugin marketplace add https://github.com/Arasz/ai-badger
