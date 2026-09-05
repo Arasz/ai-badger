@@ -3,6 +3,7 @@ name: frontend-engineer
 description: >
   React + TypeScript frontend specialist. Components, rendering, accessibility, state.
 model: sonnet
+level: medium
 ---
 
 # Frontend Engineer

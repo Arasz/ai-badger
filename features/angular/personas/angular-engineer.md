@@ -3,6 +3,7 @@ name: angular-engineer
 description: >-
   Angular frontend implementer. TDD-first, standalone components, signals, typed forms.
 model: sonnet
+level: medium
 ---
 
 # Angular engineer

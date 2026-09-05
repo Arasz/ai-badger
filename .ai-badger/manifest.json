@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.164.0",
-  "frameworkCommit": "0949b9ddcc7eb404cf06930718f7928527bfa691",
+  "frameworkCommit": "221b976018c6cbf7f6638934010c4b928ce5c9a6",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -44,7 +44,7 @@
       "source": "features/common/personas/architect.md",
       "target": ".ai-badger/agents/architect.md",
       "frameworkVersion": "0.164.0",
-      "hash": "1d47f81b4d53a220f60ee17e6e8427636e3d586f1f78c05157b71e9c01833741"
+      "hash": "6edce38bc1f9619f64eaeba44ce44c486217cf70d21289164eccb3098b3ccc4c"
     },
     {
       "feature": "personas",
@@ -53,7 +53,7 @@
       "source": "features/common/personas/code-reviewer.md",
       "target": ".ai-badger/agents/code-reviewer.md",
       "frameworkVersion": "0.164.0",
-      "hash": "823a5ec4cb71af7acd76d4bfac2e880285785964c2d1a5a0c944e8063aae5d29"
+      "hash": "3a75dab5a4fd32e9979503c02c8731c321b0c2276d8e9634170c4347c9db8217"
     },
     {
       "feature": "personas",
@@ -62,7 +62,7 @@
       "source": "features/common/personas/delegator.md",
       "target": ".ai-badger/agents/delegator.md",
       "frameworkVersion": "0.164.0",
-      "hash": "07705d8d80b9e5d8baa5dbc8fbc7a502f235c49caa84f792b0ff6851068f4798"
+      "hash": "3e7f022eba8491a499d137753fe9bd95fa4ffed1696e0ac31212b7873b8c921f"
     },
     {
       "feature": "personas",
@@ -71,7 +71,7 @@
       "source": "features/common/personas/qa.md",
       "target": ".ai-badger/agents/qa.md",
       "frameworkVersion": "0.164.0",
-      "hash": "1d3e84674719c8b1adee9897ad21a37f8671a9bdf17614b4f79a30d36bb4966f"
+      "hash": "3cad23e108085c052f6d1f7c3a86f6d06995a36fd13339e8b70d18d625ad7a9e"
     },
     {
       "feature": "personas",
@@ -80,7 +80,7 @@
       "source": "features/common/personas/test-engineer.md",
       "target": ".ai-badger/agents/test-engineer.md",
       "frameworkVersion": "0.164.0",
-      "hash": "4bfddd6b66fe2f1d06d1925eee95b92241f21ddf422c59b9552b9287342c1c84"
+      "hash": "907858a62aaecc7d164ac09636f3a50927375c88951e240794915af7ce5e3a71"
     },
     {
       "feature": "personas",
@@ -89,7 +89,7 @@
       "source": "features/hermes/personas/hermes-agent-author.md",
       "target": ".ai-badger/agents/hermes-agent-author.md",
       "frameworkVersion": "0.164.0",
-      "hash": "359acb4d1f8aee13eb4be46bd257070a520615472c4779593675027dbca3372e"
+      "hash": "b2a4bbaea22512ce89717ac3b4b9d3adb7c117b787b101212392cf2e94ababc0"
     },
     {
       "feature": "personas",
@@ -98,7 +98,7 @@
       "source": "features/node/personas/api-engineer.md",
       "target": ".ai-badger/agents/api-engineer.md",
       "frameworkVersion": "0.164.0",
-      "hash": "a0cd913043e8225274df1947c32d97ccad768a0cc15c0ee0b4972570c455d617"
+      "hash": "1f2aeab18a32893125b7f8c429ac034b74683ce1fc57f4eddf642f42c5ab3e37"
     },
     {
       "feature": "instructions",

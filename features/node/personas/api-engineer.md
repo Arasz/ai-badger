@@ -3,6 +3,7 @@ name: api-engineer
 description: >
   API contract specialist. REST endpoint design, OpenAPI shape, error contracts.
 model: sonnet
+level: medium
 ---
 
 # API Engineer

@@ -3,6 +3,7 @@ name: qa-frontend
 description: >
   QA for React/TypeScript browser code. Stack-specific runner, DOM shim blind spots, real browser gates.
 model: opus
+level: high
 ---
 
 # QA — frontend (React / TypeScript)

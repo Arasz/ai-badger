@@ -3,6 +3,7 @@ name: hermes-agent-author
 description: >
   Hermes Agent skill and configuration author. Skills, cron, gateway, context files.
 model: sonnet
+level: medium
 ---
 
 # Hermes Agent Author
