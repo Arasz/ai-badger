@@ -13,7 +13,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
@@ -567,7 +567,22 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
   pi.on("resources_discover", (event) => {
     const skillsDir = join(event.cwd, ".ai-badger", "skills");
     if (!existsSync(skillsDir)) return { skillPaths: [] };
-    return { skillPaths: [skillsDir] };
+    // Contribute canonical skill entries, never the tree root: pi scans contributed
+    // paths recursively, and the learned/ subtree is ai-badger's separate per-session
+    // namespace reusing canonical skill names — contributing the root flattens both
+    // into pi's flat name pool and warns one collision per duplicated name. Gateway
+    // containers (e.g. dotnet-workload/) stay contributed so pi still discovers their
+    // references/ members; only learned/ is excluded.
+    let entries;
+    try {
+      entries = readdirSync(skillsDir, { withFileTypes: true });
+    } catch {
+      return { skillPaths: [skillsDir] }; // fail-open: today's behavior beats no skills
+    }
+    const paths = entries
+      .filter((entry) => entry.isDirectory() && entry.name !== "learned")
+      .map((entry) => join(skillsDir, entry.name));
+    return { skillPaths: paths.length > 0 ? paths : [skillsDir] };
   });
 
   pi.on("tool_call", async (event, ctx) => {

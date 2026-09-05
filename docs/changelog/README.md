@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.163.1 | [pi skills discovery skips the learned/ subtree](0.163.1-pi-skills-skip-learned.md) |
 | 0.163.0 | [pi-native message-bus transport: the message skills use the extension, not the subprocess](0.163.0-pi-native-message-bus-transport.md) |
 | 0.162.2 | [status-report: fix tracker_lib import off-by-one](0.162.2-status-report-tracker-lib-import.md) |
 | 0.162.1 | [ai-raccoon-memory: search-quality surface follow-through (sessionId, kind, rank)](0.162.1-ai-raccoon-memory-search-quality-surface.md) |
