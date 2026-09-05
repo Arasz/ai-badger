@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.164.0",
-  "frameworkCommit": "89132edcb19338f354c718784bc1f5bea0d57833",
+  "frameworkCommit": "6604bedd172171f413c6f3caa69adfe0d75845c7",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -969,7 +969,7 @@
       "source": "features/common/skills/task/extensions/claude/extension.md",
       "target": ".ai-badger/skills/task/extensions/claude/extension.md",
       "frameworkVersion": "0.164.0",
-      "hash": "0acb597c2b91661b07d5c68eb865d2944c6b438095b872e65ab99df458f50cd3"
+      "hash": "48221bd66a6d441e79194b756f1e01ec9073052ccc6499d0c76b2815a05272ab"
     },
     {
       "feature": "skills",
@@ -1041,7 +1041,7 @@
       "source": "features/common/skills/task/extensions/pi/extension.md",
       "target": ".ai-badger/skills/task/extensions/pi/extension.md",
       "frameworkVersion": "0.164.0",
-      "hash": "0321b816e63916621bd506305bd189d75cd9bfb35405e01814917c1f0fe271ef"
+      "hash": "1e548c50965897014b589cfdd4a2d208e3d93a0ef772dfd68decae434c9e21cd"
     },
     {
       "feature": "skills",
