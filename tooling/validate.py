@@ -53,6 +53,7 @@ SCHEMA_INSTANCES = {
     "support.schema.json": ["features/*/support.json"],
     "model.schema.json": ["features/*/templates/agent-instructions/model.template.json"],
     "hooks.schema.json": ["features/*/hooks/hooks.json"],
+    "model-groups.schema.json": ["features/*/data/model-groups.json"],
     "mcp-tags.schema.json": ["features/*/mcp-tags.json"],
     "skill-extension.schema.json": ["features/*/skills/*/extensions/*/extension.json",
                                     "features/*/skills/*/references/*/extensions/*/extension.json"],
