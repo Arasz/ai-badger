@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.164.0 | [pi adapter renders bus mail as a card, not raw JSON](0.164.0-pi-adapter-mail-card.md) |
 | 0.163.1 | [pi skills discovery skips the learned/ subtree](0.163.1-pi-skills-skip-learned.md) |
 | 0.163.0 | [pi-native message-bus transport: the message skills use the extension, not the subprocess](0.163.0-pi-native-message-bus-transport.md) |
 | 0.162.2 | [status-report: fix tracker_lib import off-by-one](0.162.2-status-report-tracker-lib-import.md) |

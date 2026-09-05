@@ -380,6 +380,41 @@ export interface AgentStartInjection {
 
 export const AI_BADGER_CUSTOM_TYPE = "ai-badger";
 
+/** One mail envelope as the python delivery prints it into outcome.content:
+ * `{sender: {sessionId, projectId}, content, timestamp}` — a shape guard:
+ * anything else is not an envelope, never an exception. */
+function asMailEnvelope(value: unknown): { senderSession: string | null; timestamp: string | null; content: string | null } | null {
+  if (!isRecord(value)) return null;
+  const sender = isRecord(value.sender) ? value.sender : null;
+  const sessionId = sender !== null && typeof sender.sessionId === "string" ? sender.sessionId : null;
+  const timestamp = typeof value.timestamp === "string" ? value.timestamp : null;
+  const content = typeof value.content === "string" ? value.content : null;
+  if (sessionId === null && timestamp === null && content === null) return null;
+  return { senderSession: sessionId, timestamp, content };
+}
+
+/** Split raw `ai-badger` message content into card `{head, body}` for the
+ * renderer pi gets: envelope JSON → `mail from <short-id> · <ts>` head plus
+ * the inner content as body; any other string → body as-is with no head.
+ * Empty, blank, non-string, or envelope-without-usable-content splits to
+ * undefined (nothing to show). Never throws on any input. */
+export function splitMailCard(raw: unknown): { head: string | null; body: string } | undefined {
+  try {
+    const envelope = typeof raw === "string" ? asMailEnvelope(JSON.parse(raw)) : asMailEnvelope(raw);
+    if (envelope !== null && envelope.content !== null && envelope.content.trim() !== "") {
+      const who = envelope.senderSession !== null && envelope.senderSession !== "" ? envelope.senderSession.slice(0, 8) : "?";
+      const when = envelope.timestamp !== null && envelope.timestamp !== "" ? ` · ${envelope.timestamp}` : "";
+      return { head: `mail from ${who}${when}`, body: envelope.content };
+    }
+    if (envelope !== null) return undefined;
+    if (typeof raw === "string" && raw.trim() !== "") return { head: null, body: raw };
+    return undefined;
+  } catch {
+    if (typeof raw === "string" && raw.trim() !== "") return { head: null, body: raw };
+    return undefined;
+  }
+}
+
 export function piMessageFromContext(content: string): AgentStartInjection {
   return {
     message: { customType: AI_BADGER_CUSTOM_TYPE, content, display: true },
