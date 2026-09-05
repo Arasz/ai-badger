@@ -452,6 +452,16 @@ def test_the_skill_doc_documents_identity_requirement_and_session_precedence():
     assert "the session wins" in text
 
 
+def test_the_skill_doc_documents_pi_native_transport():
+    """SKILL.md must name the pi-native path: under pi the message-bus extension
+    tool (same user-DB backend, automatic identity) replaces this script, which
+    stays the fallback for other harnesses and for pi without the extension."""
+    text = SKILL_DOC.read_text(encoding="utf-8")
+    assert "message-bus" in text
+    assert "/messages" in text
+    assert "automatic" in text
+
+
 # ---------------------------------------------------------------------------
 # 8. send-side target validation (P1, aib-pi-message-bus-push-delivery)
 # ---------------------------------------------------------------------------
