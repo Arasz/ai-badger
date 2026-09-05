@@ -90,6 +90,16 @@ shape above holds.
    untested surfaces out loud), which gates ran, and — when CI is alive — the CI run that
    proves the change. No post-merge ritual; if the change needs one, it was not a quick-task.
 
+## Model tier contract
+
+Quick-task uses the same delegation contract as `task`: `effort` picks the lane, `level` picks the model tier — they are independent.
+
+The `level` field is optional (`low`, `medium`, or `high`), resolved to that model tier's preferred registry entry.
+An explicit `model` always wins over `level`.
+With neither `level` nor `model`, the dispatch inherits the session (or parent) default model.
+The registry lives at `.ai-badger/model-groups.json`; it holds the IDs and prices, so this skill names neither.
+See `.ai-badger/delegation.md` (reasoning-model dispatch) for lane routing.
+
 ## Gotchas
 
 - **Direct-to-main means the review is the safety net.** Do it before the push, not

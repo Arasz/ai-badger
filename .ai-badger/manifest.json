@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.164.0",
-  "frameworkCommit": "25cde9f6ba7a20fa9325c6c10d3e9e82037b31d1",
+  "frameworkCommit": "89132edcb19338f354c718784bc1f5bea0d57833",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -834,12 +834,12 @@
       "source": "features/common/skills/quick-task",
       "target": ".ai-badger/skills/quick-task",
       "frameworkVersion": "0.164.0",
-      "hash": "57320f2861ff6285038b9e126df069ceab324feb073e8eb30929f78a904fc33b",
+      "hash": "4d57dcbfe0ccb3a0620fe1f0b0b5cce3a7560e7b572a86b40819cd80ca5d4eba",
       "dirMeta": {
         "file_count": 1,
         "dir_count": 0
       },
-      "sourceHash": "57320f2861ff6285038b9e126df069ceab324feb073e8eb30929f78a904fc33b",
+      "sourceHash": "4d57dcbfe0ccb3a0620fe1f0b0b5cce3a7560e7b572a86b40819cd80ca5d4eba",
       "sourceMeta": {
         "file_count": 1,
         "dir_count": 0
