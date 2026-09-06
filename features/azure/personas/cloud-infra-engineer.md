@@ -3,6 +3,7 @@ name: cloud-infra-engineer
 description: >
   Azure infrastructure specialist. Terraform, Azure Functions, CI/CD triage.
 model: sonnet
+level: medium
 ---
 
 # Cloud Infra Engineer
