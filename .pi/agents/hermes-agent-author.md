@@ -2,6 +2,7 @@
 name: hermes-agent-author
 description: >
   Hermes Agent skill and configuration author. Skills, cron, gateway, context files.
+level: medium
 ---
 
 <!-- Managed by ai-badger. Source of truth: .ai-badger/agents/hermes-agent-author.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->

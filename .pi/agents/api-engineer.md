@@ -2,6 +2,7 @@
 name: api-engineer
 description: >
   API contract specialist. REST endpoint design, OpenAPI shape, error contracts.
+level: medium
 ---
 
 <!-- Managed by ai-badger. Source of truth: .ai-badger/agents/api-engineer.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->

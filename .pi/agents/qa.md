@@ -3,6 +3,7 @@ name: qa
 description: >
   Test-quality authority. Judges whether a suite would catch real defects;
   verifies gaps by running mutations, never by reasoning alone.
+level: high
 ---
 
 <!-- Managed by ai-badger. Source of truth: .ai-badger/agents/qa.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->

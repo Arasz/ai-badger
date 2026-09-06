@@ -3,6 +3,7 @@ name: frontend-engineer
 description: >
   Vue 3 + TypeScript frontend specialist. SFC, Composition API, Pinia, component testing.
 model: sonnet
+level: medium
 ---
 
 # Frontend Engineer

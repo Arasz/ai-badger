@@ -21,12 +21,17 @@ from typing import Any, Dict, List, Optional
 
 import frontmatter as fm
 
-# The two keys a pi agent reader requires, in the order it documents them. An allowlist, and a
-# deliberately narrow one: `model` and `tools` become `--model` / `--tools` arguments on the
-# delegated `pi -p` process, and a persona's values for them are Claude's vocabulary (`opus`,
-# `Read`) which pi would reject. Dropping them lets each delegation inherit the session's own
-# model and tool set, which is the behaviour ai-badger's delegation map actually asks for.
-PI_KEYS = ("name", "description")
+# The keys a pi agent reader requires, in the order they are documented. An allowlist, and a
+# deliberately narrow one: `tools` becomes a `--tools` argument on the delegated `pi -p`
+# process, and a persona's value for it is Claude's vocabulary (`Read`) which pi would reject.
+# Dropping it lets each delegation inherit the session's own tool set, which is the behaviour
+# ai-badger's delegation map actually asks for.
+#
+# `level:` (low|medium|high) passes through: the reader resolves the routing intent against
+# the model-groups registry (ADR-0027 G-3). `model:` is NOT on this list — it passes iff
+# openrouter/-qualified (a pin pi accepts as its own --model), and is stripped otherwise: a
+# bare Claude lane (`opus`) would be rejected there. See render().
+PI_KEYS = ("name", "description", "level")
 
 AGENTS_SUBDIR = Path(".pi") / "agents"
 
@@ -97,6 +102,9 @@ def render(text: str, source_name: str) -> Optional[str]:
     The persona's own `---` block is replaced rather than stacked under a second one, and the
     managed header goes on the first *body* line so the frontmatter still starts at line 1.
     The body below it is what the delegated process gets as its system prompt.
+
+    Dual-key handling (ADR-0027 G-3): `level:` passes through via PI_KEYS; `model:` passes
+    iff openrouter/-qualified, else it is stripped — a bare Claude lane is not a pi model.
     """
     split = fm.split(text)
     if not split.present:
@@ -106,9 +114,17 @@ def render(text: str, source_name: str) -> Optional[str]:
         return None
     out = ["---\n"]
     for key in PI_KEYS:
-        out.extend(keep[key].lines)
+        if key in keep:
+            out.extend(keep[key].lines)
+    if "model" in keep and _is_openrouter_model(keep["model"].value()):
+        out.extend(keep["model"].lines)
     out += ["---\n", "\n", MANAGED_HEADER.format(name=source_name) + "\n", "\n"]
     return "".join(out) + split.body.lstrip("\n")
+
+
+def _is_openrouter_model(value: str) -> bool:
+    """True only for a pin pi accepts as its own model: an `openrouter/`-qualified id."""
+    return value.strip().startswith("openrouter/")
 
 
 def _manifest_targets(target_dir: Path) -> set:

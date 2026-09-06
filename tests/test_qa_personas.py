@@ -127,13 +127,18 @@ def test_qa_source_frontmatter_declares_no_key_outside_the_claude_allowlist(root
     in keep: ...`), so anything else is silently dropped at delivery and nothing says so. This
     is a static check on the source, deliberately independent of the scaffold above, because a
     key that never survives delivery would otherwise leave the delivered-file check unable to
-    see it was ever there."""
+    see it was ever there.
+
+    Gate-only exemption (ADR-0027): `level:` is routing intent for the
+    gate/generator, deliberately stripped at `.claude/agents/` delivery
+    (`adjust_agents.CLAUDE_KEYS` does not carry it) — gate-declared ≠
+    runtime-routed. It is the one key allowed to be dropped on purpose."""
     adjust_agents = load_script(ADJUSTER)
     import frontmatter as fm
     text = (root / "features/common/personas/qa.md").read_text(encoding="utf-8")
     split = fm.split(text)
     keys = {entry.key for entry in split.entries}
-    assert keys <= set(adjust_agents.CLAUDE_KEYS), (
+    assert keys <= set(adjust_agents.CLAUDE_KEYS) | {"level"}, (
         f"qa.md declares {keys - set(adjust_agents.CLAUDE_KEYS)}, which adjust_agents.CLAUDE_KEYS "
         f"does not carry through to .claude/agents/qa.md"
     )

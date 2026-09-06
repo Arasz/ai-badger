@@ -3,7 +3,7 @@ name: task
 description: >-
   Use when the user wants to start, continue, or finish a backlog task — "/task <id>", "start
   task X", "work on the next task", "finish this task". Runs it end-to-end as a
-  token-tracked unit of work with two effort levels (low/high), plan packaging with
+  token-tracked unit of work with low/high effort, plan packaging with
   mandatory integration package, MoE panels for high-effort, and automated task-ID
   derivation ({repo-alias}-{key}). Delegates planning/review to high-reasoning models
   and implementation to persona-routed agents. Project specifics from

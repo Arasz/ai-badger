@@ -3,6 +3,7 @@ name: architect
 description: >
   Architecture and decomposition specialist. Read-only: produces blueprints and
   ADRs, never edits code.
+level: high
 ---
 
 <!-- Managed by ai-badger. Source of truth: .ai-badger/agents/architect.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->

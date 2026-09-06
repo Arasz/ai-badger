@@ -3,6 +3,7 @@ name: code-reviewer
 description: >
   Quality and security review gate. Read-only: reports findings with
   file/line/severity, never edits code.
+level: high
 ---
 
 <!-- Managed by ai-badger. Source of truth: .ai-badger/agents/code-reviewer.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
