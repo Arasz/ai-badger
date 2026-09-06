@@ -3,6 +3,7 @@ name: delegator
 description: >
   Work-routing lead for multi-package sessions. Dispatches to specialist
   personas; does only integration, arbitration, and gate-running itself.
+level: high
 ---
 
 <!-- Managed by ai-badger. Source of truth: .ai-badger/agents/delegator.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->

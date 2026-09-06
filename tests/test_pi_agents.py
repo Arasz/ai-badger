@@ -226,3 +226,101 @@ def test_the_agents_arm_is_registered_in_pi_adjustment_json(root):
 
     assert "adjust_agents.py" in {arm["script"] for arm in adjustment["adjustments"]}
 
+
+# ---------------------------------------------------------------------------
+# L1-C — dual-key (level:/model:) delivery halves, ADR-0027 G-3.
+#
+# Claude half (C1 single, C2 matrix): `level:` is gate-only vocabulary — the CLAUDE_KEYS
+# allowlist strips it at .claude/agents/ delivery — while `model:` passes verbatim, bare
+# lanes included (Claude routes on them). These load the claude adjuster read-only: that
+# file belongs to another lane, so C1/C2 pin its behavior without changing it.
+#
+# Pi half (C3 strip, C4 bare-never matrix): `level:` passes through to .pi/agents/ (the pi
+# reader resolves it against the model-groups registry); `model:` passes iff
+# openrouter/-qualified — a bare Claude lane is not a pi --model argument and pi would
+# reject it. A bare model therefore never survives pi delivery, whatever level sits beside
+# it. Grandfather (no level: at all) is pinned by
+# test_rendered_frontmatter_carries_only_the_keys_pi_reads above.
+# ---------------------------------------------------------------------------
+
+CLAUDE_ADJUSTER = "features/claude/adjustments/adjust_agents.py"
+
+_LEVELS = ("low", "medium", "high")
+
+
+def _dual_persona(name: str, level, model) -> str:
+    """A persona carrying one dual-key combination the C-matrix ranges over."""
+    lines = ["---\n", f"name: {name}\n", "description: d\n"]
+    if level is not None:
+        lines.append(f"level: {level}\n")
+    if model is not None:
+        lines.append(f"model: {model}\n")
+    return "".join(lines) + "---\n\nBody for %s.\n" % name
+
+
+def _front(text: str) -> str:
+    """The frontmatter block of a rendered file, without its fences."""
+    assert text.startswith("---\n"), "frontmatter must start at line 1"
+    return text.split("---\n", 2)[1]
+
+
+def test_l1_c1_claude_delivery_strips_level_but_keeps_the_bare_lane(load_script):
+    """Single-group claude half: level: is gate-only; the bare model: lane still routes."""
+    claude = load_script(CLAUDE_ADJUSTER)
+
+    rendered = claude.render(_dual_persona("lane", "high", "opus"), "lane.md")
+
+    front = _front(rendered)
+    assert "model: opus\n" in front
+    assert "level" not in front
+
+
+@pytest.mark.parametrize("level", _LEVELS)
+@pytest.mark.parametrize("model", ["opus", "openrouter/anthropic/claude-sonnet-4.5", None])
+def test_l1_c2_claude_delivery_never_carries_level(load_script, level, model):
+    """Matrix claude half: no level survives; any declared model passes verbatim."""
+    claude = load_script(CLAUDE_ADJUSTER)
+
+    rendered = claude.render(_dual_persona("m", level, model), "m.md")
+
+    front = _front(rendered)
+    assert "level" not in front
+    if model is None:
+        assert "model:" not in front
+    else:
+        assert f"model: {model}\n" in front
+
+
+def test_l1_c3_pi_delivery_passes_level_but_strips_the_bare_lane(agents_arm, project):
+    """Single-group pi half, end to end: level: passes through, bare model: never lands."""
+    (project / ".ai-badger" / "agents" / "architect.md").write_text(
+        _dual_persona("architect", "high", "opus"), encoding="utf-8")
+
+    result = agents_arm.adjust(_context(project))
+
+    assert result["applied"] is True
+    text = (project / ".pi" / "agents" / "architect.md").read_text(encoding="utf-8")
+    split = fm.split(text)
+    assert split.present
+    assert text.startswith("---\n"), "frontmatter must start at line 1"
+    assert split.fields()["level"] == "high"
+    assert "model" not in split.fields()
+    assert "Body for architect." in split.body
+
+
+@pytest.mark.parametrize("level", _LEVELS)
+@pytest.mark.parametrize("model", ["opus", "openrouter/anthropic/claude-sonnet-4.5", None],
+                         ids=["explicit-bare", "explicit-qualified", "level-only"])
+def test_l1_c4_pi_delivery_passes_level_and_only_qualified_models(agents_arm, level, model):
+    """Bare-never matrix: every level passes; only an openrouter/-qualified model joins it."""
+    rendered = agents_arm.render(_dual_persona("m", level, model), "m.md")
+
+    front = _front(rendered)
+    assert f"level: {level}\n" in front
+    if model is None:
+        assert "model:" not in front
+    elif model.startswith("openrouter/"):
+        assert f"model: {model}\n" in front
+    else:
+        assert "model:" not in front, f"bare lane {model!r} must never reach pi"
+

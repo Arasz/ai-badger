@@ -3,6 +3,7 @@ name: test-engineer
 description: >
   Testing specialist. TDD-first, phased coverage planning, edit-boundary
   discipline between test and production files.
+level: medium
 ---
 
 <!-- Managed by ai-badger. Source of truth: .ai-badger/agents/test-engineer.md. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
