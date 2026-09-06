@@ -4,11 +4,11 @@ Each lane tested its own surface (PKG-1 registry leaf, PKG-2 prose, PKG-3 lanes,
 PKG-4 pi delivery). These tests pin the JOINS — the wordings, versions, and
 resolutions that must agree across lanes:
 
-  (i)  M2 wording parity: the canonical 3-clause precedence sentence PKG-2 owns
-       is QUOTED (substring) in PKG-3's DENY_REASON — every shipped copy — and
-       in the ratifying ADR. Skill prose carries the same contract in skill
-       voice (backticked SUB_* cores, lane-tested); this file pins the gate
-       voice verbatim so a restatement fails loudly.
+  (i)  M2 wording parity: the gate-voice family (DENY_REASON inner quote,
+       PRECEDENCE_QUOTE value, ADR-0027 blockquote) is canonically identical
+       (direction C, F1: formatting-blind exact equality, not raw substring).
+       Skill prose carries the same contract in skill voice (backticked SUB_*
+       cores, lane-tested) and is deliberately out of scope here.
   (iii) frameworkVersion == VERSION inside the shipped registry.
   (7a) registry<->docs consistency, derived not listed: the advisory $/task
        table in the changelog is parsed (not copied) and every short pin it
@@ -22,6 +22,7 @@ resolutions that must agree across lanes:
 """
 from __future__ import annotations
 
+import ast
 import json
 import re
 from pathlib import Path
@@ -59,6 +60,69 @@ def _clauses_present(text: str) -> list[str]:
     whitespace runs only — a rewording still fails loudly."""
     flat = " ".join(text.split())
     return [clause for clause in CLAUSES if clause not in flat]
+
+
+def _canon(s: str) -> str:
+    """Canonical form of a precedence quote (direction C, F1).
+
+    Strip surrounding double quotes, strip leading `> ` blockquote markers
+    per line, collapse whitespace runs. Lets word-identical quotes compare
+    equal across Python-literal wraps, file line-wraps, and ADR blockquotes."""
+    lines = [line.lstrip()[2:] if line.lstrip().startswith("> ") else line
+             for line in s.strip().splitlines()]
+    text = " ".join(lines).strip()
+    if len(text) >= 2 and text.startswith('"') and text.endswith('"'):
+        text = text[1:-1]
+    return " ".join(text.split())
+
+
+def _loose(s: str) -> str:
+    """Whitespace-collapsed form for anchor checks (not equality)."""
+    return " ".join(s.split())
+
+
+def _deny_inner_sentence(deny_reason: str) -> str:
+    """The quoted precedence sentence inside the runtime DENY_REASON value."""
+    match = re.search(r'"([^"]*explicit model wins[^"]*)"', deny_reason)
+    assert match, "DENY_REASON carries no quoted precedence sentence"
+    return match.group(1)
+
+
+def _lane_quote_value(root: Path) -> str:
+    """PRECEDENCE_QUOTE's runtime value without importing test code.
+
+    The carrier file deliberately avoids importable helpers (see its header
+    contract note at tests/test_persona_levels.py:1-14), so parse the assigned string with
+    ast instead of importing the module."""
+    tree = ast.parse((root / LANE_QUOTE_CARRIER).read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id == "PRECEDENCE_QUOTE"):
+            return ast.literal_eval(node.value)
+    raise AssertionError(f"{LANE_QUOTE_CARRIER}: PRECEDENCE_QUOTE not found")
+
+
+def _adr_blockquote_sentence(root: Path) -> str:
+    """The ratified blockquote's sentence (ADR-0027).
+
+    Markers are stripped per line BEFORE joining: joining first would leave
+    a later line's `>` stranded mid-string (regression this helper owns).
+    Takes the FIRST contiguous `>` block CONTAINING the anchor sentence, so
+    an unrelated blockquote elsewhere in the ADR can neither concatenate
+    into nor shadow the sentence."""
+    stripped = []
+    for line in (root / ADR).read_text(encoding="utf-8").splitlines():
+        if line.lstrip().startswith(">"):
+            stripped.append(line.lstrip()[1:])
+        elif stripped:
+            break
+    assert stripped, f"{ADR}: no blockquote found"
+    joined = " ".join(stripped)
+    if "explicit model wins" not in _loose(joined):
+        raise AssertionError(f"{ADR}: anchor block missing — ratified sentence moved?")
+    return joined
 
 
 # ------------------------------------------------------- (i) M2 quote parity
@@ -100,6 +164,40 @@ def test_m2_clause_check_can_fail() -> None:
         CLAUSE_LEVEL_RESOLVES, CLAUSE_INHERIT]
     assert _clauses_present(
         CLAUSE_EXPLICIT_WINS + "; else " + CLAUSE_LEVEL_RESOLVES + "; else " + CLAUSE_INHERIT) == []
+
+
+def test_m2_gate_family_is_canonically_identical(root: Path, load_script) -> None:
+    """Direction C (F1): the gate-voice family is byte-identical once
+    formatting is canonicalized — DENY_REASON's inner quote, the lane
+    carrier value, and the ADR blockquote must be the same sentence.
+    Skill voice is deliberately out of scope (different readers)."""
+    hook = load_script(GATE_SOURCES[0])
+    deny = _canon(_deny_inner_sentence(hook.DENY_REASON))
+    lane = _canon(_lane_quote_value(root))
+    adr = _canon(_adr_blockquote_sentence(root))
+    assert deny == lane == adr, (
+        f"gate family forked:\nDENY={deny!r}\nLANE={lane!r}\nADR={adr!r}")
+
+
+def test_m2_canonical_equality_can_fail() -> None:
+    """The canonical predicate is not vacuous: a one-word rewording fails it,
+    while wrapping/formatting differences do not."""
+    base = ('"An explicit model wins verbatim; else the persona\'s level resolves '
+            'to its group\'s preferred pin; else the session model is inherited."')
+    reworded = base.replace("preferred pin", "preferred entry")
+    assert _canon(base) == _canon(_lane_quote_sibling(base))
+    assert _canon(reworded) != _canon(base)
+
+
+def _lane_quote_sibling(sentence: str) -> str:
+    """Same sentence as an ADR blockquote would wrap it (formatting differs).
+
+    Derived from the input (not hardcoded) so a legitimate canonical change
+    cannot desync the pair."""
+    import textwrap
+
+    core = sentence.strip().strip('"')
+    return "> " + "\n> ".join(textwrap.wrap(core, width=60))
 
 
 # ------------------------------------------------------- (iii) version parity
