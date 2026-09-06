@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.165.0",
-  "frameworkCommit": "bd8b8d46e81f94c2272f6e45459ac716be6a3e70",
+  "frameworkCommit": "f80bcb94eaaa9c882a1f6e7daca3997f7477e489",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -834,12 +834,12 @@
       "source": "features/common/skills/quick-task",
       "target": ".ai-badger/skills/quick-task",
       "frameworkVersion": "0.165.0",
-      "hash": "57320f2861ff6285038b9e126df069ceab324feb073e8eb30929f78a904fc33b",
+      "hash": "4d57dcbfe0ccb3a0620fe1f0b0b5cce3a7560e7b572a86b40819cd80ca5d4eba",
       "dirMeta": {
         "file_count": 1,
         "dir_count": 0
       },
-      "sourceHash": "57320f2861ff6285038b9e126df069ceab324feb073e8eb30929f78a904fc33b",
+      "sourceHash": "4d57dcbfe0ccb3a0620fe1f0b0b5cce3a7560e7b572a86b40819cd80ca5d4eba",
       "sourceMeta": {
         "file_count": 1,
         "dir_count": 0
@@ -939,12 +939,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.165.0",
-      "hash": "6a0f6ad88b17b0456760f0513d0ccada53bea11734d764c20c8737c69837e6a3",
+      "hash": "c8d17a7dcd90c448558379db2120aa231c84ffe43914c523741cf56cb60c8ca7",
       "dirMeta": {
         "file_count": 20,
         "dir_count": 2
       },
-      "sourceHash": "6a0f6ad88b17b0456760f0513d0ccada53bea11734d764c20c8737c69837e6a3",
+      "sourceHash": "c8d17a7dcd90c448558379db2120aa231c84ffe43914c523741cf56cb60c8ca7",
       "sourceMeta": {
         "file_count": 20,
         "dir_count": 2
@@ -969,7 +969,7 @@
       "source": "features/common/skills/task/extensions/claude/extension.md",
       "target": ".ai-badger/skills/task/extensions/claude/extension.md",
       "frameworkVersion": "0.165.0",
-      "hash": "0acb597c2b91661b07d5c68eb865d2944c6b438095b872e65ab99df458f50cd3"
+      "hash": "48221bd66a6d441e79194b756f1e01ec9073052ccc6499d0c76b2815a05272ab"
     },
     {
       "feature": "skills",
@@ -1041,7 +1041,7 @@
       "source": "features/common/skills/task/extensions/pi/extension.md",
       "target": ".ai-badger/skills/task/extensions/pi/extension.md",
       "frameworkVersion": "0.165.0",
-      "hash": "0321b816e63916621bd506305bd189d75cd9bfb35405e01814917c1f0fe271ef"
+      "hash": "1e548c50965897014b589cfdd4a2d208e3d93a0ef772dfd68decae434c9e21cd"
     },
     {
       "feature": "skills",
