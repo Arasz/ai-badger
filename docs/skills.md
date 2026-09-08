@@ -1,17 +1,17 @@
 # Skills
 
-This page catalogs 46 skills — everything under `features/common/skills/` and
+This page catalogs 47 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-45 live under `features/common/skills/` and split by the `scope:` each declares in its own
+46 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**25 are `default`** and arrive in every scaffolded project without being asked for, and
+**26 are `default`** and arrive in every scaffolded project without being asked for, and
 **20 are `optIn`** — catalogued, but written only when a project names them. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 43 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **51** files:
-the 45 above plus 6 more that belong to a single stack and arrive only with it — the
+**These 43 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **52** files:
+the 46 above plus 6 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/`, 1 under `features/ai-raccoon/skills/` and 1 under `features/github/skills/`.
 Those 6 have no row below and are documented by their own `SKILL.md`. Derive the number rather
@@ -82,6 +82,7 @@ names it, **claude-only** when the stack decides.
 | [task](#task) | Run one backlog task end to end with model delegation | default | by name (`/task <id>`) |
 | [quick-task](#quick-task) | Ship a one-sentence, one-surface change as a single commit on main — minimal plan, touched-surface tests, no PR | default | by name |
 | [status-report](#status-report) | Answer "where are we?" mid-task — current task, checklist progress, next, delegation status | default | by name |
+| [qa](#qa) | Run a grounded Q&A session against a context and save the summary to docs | default | by name (`qa {context}`) |
 | [send-message](#send-message) | Reach another agent session, a whole project, or the whole machine through the user-DB message bus | default | by name |
 | [multi-agent-communication](#multi-agent-communication) | Coordinate parallel sessions in one project — announce work, PRs, review requests and merges on the project bus; ack once, never reply to an ack | default | by name |
 | [git-work](#git-work) | Recover push failures, triage red CI, and run the PR lifecycle outside a tracked task | default | by name |
