@@ -2,9 +2,10 @@
 name: quick-task
 description: >-
   Use when a change is small enough to skip the full task pipeline — one focused fix or
-  small feature that fits a single commit pushed straight to main with no PR: a minimal
-  plan, touched-surface tests only, the project's fast gates (lint, docs), one quick
-  focused review, one commit. Escalate to `task` the moment the change outgrows that shape.
+  small feature that fits a single commit on a branch cut from fresh main and merged via
+  PR with auto-merge: a minimal plan, touched-surface tests only, the project's fast
+  gates (lint, docs), one quick focused review, one commit per PR. Escalate to `task`
+  the moment the change outgrows that shape.
 version: 1.0.0
 author: ai-badger
 license: MIT
