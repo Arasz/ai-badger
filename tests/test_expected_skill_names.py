@@ -57,7 +57,7 @@ def catalog(tmp_path: Path) -> Path:
 
 def test_derived_set_equals_the_manifest_rows_on_this_repo(root):
     """The oracle pin on the healthy tree: derived == the committed manifest's skill rows,
-    in the manifest's own (block) order — 33 of them at the pin's writing."""
+    in the manifest's own (block) order — 38 of them at the pin's writing."""
     config = bl.load_json(root / ".ai-badger" / "config.json")
     manifest = bl.load_json(root / ".ai-badger" / "manifest.json")
     recorded = bl.scaffolded_skill_names(manifest)
@@ -65,7 +65,7 @@ def test_derived_set_equals_the_manifest_rows_on_this_repo(root):
     derived = bl.expected_skill_names(root, config)
 
     assert derived == recorded
-    assert len(derived) == 37  # multi-agent-communication joined the default set
+    assert len(derived) == 38  # qa joined the default set
 
 
 def test_block_order_defaults_then_include_then_stack_local(catalog):

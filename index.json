@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.165.1",
+  "frameworkVersion": "0.166.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -323,6 +323,11 @@
         {
           "name": "prompt-markers",
           "path": "features/common/skills/prompt-markers",
+          "scope": "default"
+        },
+        {
+          "name": "qa",
+          "path": "features/common/skills/qa",
           "scope": "default"
         },
         {
