@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.166.0",
-  "frameworkCommit": "0b28cf792795513e9d1a0538fd7d918c246a3d41",
+  "frameworkCommit": "c497472603a4ad38b03ef84cb7425acbd04bdf86",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1395,7 +1395,7 @@
       "source": "features/common/data/model-groups.json",
       "target": ".ai-badger/model-groups.json",
       "frameworkVersion": "0.166.0",
-      "hash": "4c652444cd7484c3076d708889b240acf96b1c4c2e325547128793ad71df38b3",
+      "hash": "173a0cc5507de5e016d5d5b5597ef0d07b36b9fefe96d833d715ef2815069112",
       "seedOnce": false
     },
     {
