@@ -80,7 +80,7 @@ names it, **claude-only** when the stack decides.
 | [feed-badger](#feed-badger) | Contribute project-agnostic improvements back to the catalog | default | by name |
 | [humanizer](#humanizer) | Strip AI writing artifacts, apply research-grounded humanization levers, and adopt a natural voice | default | by name |
 | [task](#task) | Run one backlog task end to end with model delegation | default | by name (`/task <id>`) |
-| [quick-task](#quick-task) | Ship a one-sentence, one-surface change as a single commit on main — minimal plan, touched-surface tests, no PR | default | by name |
+| [quick-task](#quick-task) | Ship a one-sentence, one-surface change as a single commit on a branch merged via PR with auto-merge — minimal plan, touched-surface tests, no review wait | default | by name |
 | [status-report](#status-report) | Answer "where are we?" mid-task — current task, checklist progress, next, delegation status | default | by name |
 | [qa](#qa) | Run a grounded Q&A session against a context and save the summary to docs | default | by name (`qa {context}`) |
 | [send-message](#send-message) | Reach another agent session, a whole project, or the whole machine through the user-DB message bus | default | by name |
@@ -245,13 +245,16 @@ squash-merge.
 
 **What it is.** The fast lane between "just edit it" and the full `task` pipeline: one focused
 change, planned in minutes, verified on the surface it touches, reviewed once, shipped as a
-single commit on main. No branch, no PR, no plan document, no multi-lane review.
+single commit on a branch cut from fresh `main` and merged via PR with auto-merge. No worktree,
+no plan document, no multi-lane review, no waiting for review.
 
 **What it does.** Five shape questions gate entry — one sentence, one surface, one commit,
 reversible, no rulings needed — and any "no" escalates to `task`. Inside the shape it runs a
-minimal three-to-six-bullet plan, touched-surface tests plus the fast gates, one focused review
-before the push (delegated for auth/money/data/contracts), and one conventional commit whose
-revert restores main exactly.
+minimal three-to-six-bullet plan, a branch cut from freshly pulled `main` (never on `main`, no
+worktree), touched-surface tests plus the fast gates, one focused review before the push
+(delegated for auth/money/data/contracts), a version bump only when the repo has no auto-bump
+chain, docs updated in-branch, and one conventional commit whose PR auto-merges on all-green
+with rules bypassed.
 
 **When to use it.** A change small enough to skip the full task pipeline — a dependency bump,
 a doc fix, a lint cleanup, a config tweak — as long as the five shape questions all answer yes.

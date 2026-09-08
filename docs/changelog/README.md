@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.167.0 | [quick-task skill: the branch+PR fast lane with auto-merge](0.167.0-quick-task-branch-pr-shape.md) |
 | 0.166.0 | [qa skill: grounded question-and-answer sessions with a saved summary](0.166.0-qa-question-answer-skill.md) |
 | 0.165.1 | [dependency bumps: pylint 4.0.8, semantica 0.6.7](0.165.1-dependency-bumps.md) |
 | 0.165.0 | [Model-groups registry: level→model pins with a validated seed (PKG-1)](0.165.0-model-groups-registry.md) |
