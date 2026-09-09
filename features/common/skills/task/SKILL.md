@@ -182,6 +182,7 @@ research record gathered, taskId derived.
    **Preflight checklist** (Rule 1): confirm the brief has objective, constraints, known unknowns,
    output contract, and stop condition. Fill missing blocks from review or ask the user.
 3. Register: `python3 .ai-badger/skills/task/scripts/task_tracker.py start <taskId> --title "<title>" --branch task/<taskId>-<slug>`.
+   `start` must exit 0 (when it does not, follow `references/tracking-visibility.md`).
 4. Ask the user to rename the session to match the task (skip if autonomous).
 5. **Work in the worktree `start` just created** — it prints the path, and it is
    `.ai-badger/worktrees/<taskId>` on the branch you passed to `--branch`. Every command for
@@ -226,7 +227,8 @@ into packages and subpackages.
    that proves it. A point without them is a wish. Where a point needs a specification or a design
    before it can be built, produce one, and look for an installed skill that formalises that shape
    before writing a bespoke document. Before the first failing test, run `design-tests` on the
-   acceptance criteria — the test list is part of the plan, not of the implementation.
+   acceptance criteria — the test list is part of the plan, not of the implementation. When
+   status cannot match the plan, follow `references/tracking-visibility.md`.
 2. **Plan review before dispatch.** In the **low-effort** variant, hand the drafted plan to a
    second high-reasoning agent for review. In the **high-effort** variant, delegate to an MoE
    panel (default 3 experts, at least one different from the plan-authoring experts) and have it
@@ -239,14 +241,16 @@ into packages and subpackages.
 ## Phase 3 — Execute
 
 1. Dispatch implementation subagents per `personaRouting`. Instruct every code subagent to write
-   the failing test first (TDD).
+   the failing test first (TDD). Name lanes per `references/tracking-visibility.md` when status
+   must see them.
 
    **Operator contract** (Rule 4): each agent brief must include tool names, abort criteria,
    success predicate, and handoff conditions. Persona prose is optional, one short line only.
 2. Record the lane's `total_tokens`:
    `python3 .ai-badger/skills/task/scripts/task_tracker.py subagent <taskId> <n>` or `--delegation <id>`.
    Interactive pi delegations return receipts by default; the `delegation-result` followUp carries
-   `details.usage` (input+output); `background:false` blocks.
+   `details.usage` (input+output); `background:false` blocks. Record on EVERY delegation
+   completion; when harness receipts differ, see `references/tracking-visibility.md`.
 3. Review each result at the seams (matches plan? acceptance criteria?). Send follow-ups back
    rather than rewriting, unless the fix is a few lines.
 4. Commit and push per work package (small commits). If the source-control extension is active,
@@ -309,11 +313,8 @@ Exit: merged, state updated, tracking closed.
    project's notes file.
 3. Compaction check on CLAUDE.md if the project tracks one.
 4. Close tracking: `python3 .ai-badger/skills/task/scripts/task_tracker.py finish <taskId>`. This
-   also removes the task's worktree — **unless it still holds work that exists nowhere else**, in
-   which case it refuses, says what it found, and leaves the directory alone. Read the
-   `worktree.keptBecause` field in the output; a kept worktree means something is unmerged or
-   uncommitted, not that failed cleanup. Resolve it and re-run, or pass `--keep-worktree` when you
-   are deliberately leaving it in place.
+   also removes the task's worktree — **unless it still holds work that exists nowhere else** (see
+   `references/tracking-visibility.md` when it refuses).
 5. **Reflect.** Examine what was learned during this task. Check AiRaccoon memory for the
    current workspace, query semantica entries if available, and review the session history.
    Distil: what should be remembered as durable facts? Write any cross-task learnings to
@@ -339,8 +340,6 @@ project's docs against the merged code, fix small drift, and report gaps needing
   branch that does not exist.
 - **Interactive pi delegation = receipt, not answer.** Answers land as
   `delegation-result` followUps; review seams as they land.
-- **`finish` refuses and keeps the worktree when it holds work that exists nowhere else.** Read the
-  `worktree.keptBecause` field; a kept worktree is unmerged or uncommitted work, not failed cleanup.
 - **Never rewrite always-loaded context files (`CLAUDE.md`, `.ai-badger/state.json`) mid-task.** Cache
   reads depend on byte-stable prefix (~10× cost); rewrite only between tasks.
 - **Two levels of dispatch, no deeper.** A widening agent tree starves the machine.

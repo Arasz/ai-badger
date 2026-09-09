@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.167.1",
-  "frameworkCommit": "ce838b5f2e3b7662ba3bc4dd9132194f734cfdd9",
+  "frameworkCommit": "ff9f2057e8bd99c602a42b4d78d687b206171bc8",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -939,12 +939,12 @@
       "source": "features/common/skills/status-report",
       "target": ".ai-badger/skills/status-report",
       "frameworkVersion": "0.167.1",
-      "hash": "1412daf575210e4cea0453d1b2440d4489bbed78d61fdb617edaffc781d278e5",
+      "hash": "4c3448c8cf65f735e53b804d9d6f59a0124d9fef9fe58f1f21cea4cb9d86e5fb",
       "dirMeta": {
         "file_count": 2,
         "dir_count": 1
       },
-      "sourceHash": "1412daf575210e4cea0453d1b2440d4489bbed78d61fdb617edaffc781d278e5",
+      "sourceHash": "4c3448c8cf65f735e53b804d9d6f59a0124d9fef9fe58f1f21cea4cb9d86e5fb",
       "sourceMeta": {
         "file_count": 2,
         "dir_count": 1
@@ -960,14 +960,14 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.167.1",
-      "hash": "9aab5bd17e240e4652b54e2a51a8168182f96cbb17dadf77eb85a486bb41f34a",
+      "hash": "ddd0fbf6372ccc767f3596eda7d68a24cf0d80bb7e31d25b574e53ccf6bea6ae",
       "dirMeta": {
-        "file_count": 20,
+        "file_count": 21,
         "dir_count": 2
       },
-      "sourceHash": "9aab5bd17e240e4652b54e2a51a8168182f96cbb17dadf77eb85a486bb41f34a",
+      "sourceHash": "ddd0fbf6372ccc767f3596eda7d68a24cf0d80bb7e31d25b574e53ccf6bea6ae",
       "sourceMeta": {
-        "file_count": 20,
+        "file_count": 21,
         "dir_count": 2
       },
       "projectOwned": [
@@ -990,7 +990,7 @@
       "source": "features/common/skills/task/extensions/claude/extension.md",
       "target": ".ai-badger/skills/task/extensions/claude/extension.md",
       "frameworkVersion": "0.167.1",
-      "hash": "48221bd66a6d441e79194b756f1e01ec9073052ccc6499d0c76b2815a05272ab"
+      "hash": "d23fc1bca20c777607f458f64534e93a647a94be18ce7ab998812aad44ba5922"
     },
     {
       "feature": "skills",
@@ -1008,7 +1008,7 @@
       "source": "features/common/skills/task/extensions/copilot/extension.md",
       "target": ".ai-badger/skills/task/extensions/copilot/extension.md",
       "frameworkVersion": "0.167.1",
-      "hash": "d8798f49f7c78dbdcc51e8411823d6ccf65cc92fe4c90c145f789506dae71b29"
+      "hash": "83083227521835aad3d4d96ed658ac2948aaf0464426b7df73f5168fb0d8033a"
     },
     {
       "feature": "skills",
@@ -1044,7 +1044,7 @@
       "source": "features/common/skills/task/extensions/hermes/extension.md",
       "target": ".ai-badger/skills/task/extensions/hermes/extension.md",
       "frameworkVersion": "0.167.1",
-      "hash": "ae58780058e3431aeba45291ca4cd9f0731ab553519c76bd657676315f642a96"
+      "hash": "1e9452873f5c461b1e318390372d68f090cfbbc21272bf1293c7212434da243c"
     },
     {
       "feature": "skills",
@@ -1062,7 +1062,7 @@
       "source": "features/common/skills/task/extensions/pi/extension.md",
       "target": ".ai-badger/skills/task/extensions/pi/extension.md",
       "frameworkVersion": "0.167.1",
-      "hash": "1e548c50965897014b589cfdd4a2d208e3d93a0ef772dfd68decae434c9e21cd"
+      "hash": "124c2d7843bfabe200cd333f4180e17d8fc8bc1a9350bff53528c131fe166859"
     },
     {
       "feature": "skills",

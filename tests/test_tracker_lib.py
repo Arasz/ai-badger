@@ -718,6 +718,67 @@ def test_resolve_own_session_returns_empty_with_no_registered_source(
     assert tl.resolve_own_session() == {}
 
 
+def _register_pair(tl):
+    """A fuzzy source (stale guess, no env identity) registered before a strict
+    source (exact env identity) — the pbi-monitor shape: claude's cwd fallback
+    racing pi's PI_SESSION_ID."""
+    tl.register_session_source(
+        "fuzzy", env_var="FUZZY_SESSION_ID",
+        resolve=lambda: {"sessionId": "stale-session"},
+        checkpoint=lambda session: {},
+        resume=lambda sid: f"fuzzy --resume {sid}")
+    tl.register_session_source(
+        "strict", env_var="STRICT_SESSION_ID",
+        resolve=lambda: {"sessionId": "real-session"}
+        if os.environ.get("STRICT_SESSION_ID") else {},
+        checkpoint=lambda session: {},
+        resume=lambda sid: f"strict --resume {sid}")
+
+
+def test_resolve_own_session_prefers_an_env_claim_over_a_fuzzy_guess(
+        load_script, tmp_path, monkeypatch):
+    tl = _load(load_script, tmp_path)
+    _register_pair(tl)
+    monkeypatch.setenv("STRICT_SESSION_ID", "real-session")
+
+    resolved = tl.resolve_own_session()
+
+    assert resolved["sessionId"] == "real-session"
+    assert resolved["source"] == "strict"
+
+
+def test_resolve_own_session_refuses_fuzzy_fallback_when_an_env_claim_fails(
+        load_script, tmp_path, monkeypatch):
+    """An env claim that resolves to nothing is an explicit identity with no data —
+    falling through to a stale guess would attach the wrong session."""
+    tl = _load(load_script, tmp_path)
+    tl.register_session_source(
+        "fuzzy", env_var="FUZZY_SESSION_ID",
+        resolve=lambda: {"sessionId": "stale-session"},
+        checkpoint=lambda session: {},
+        resume=lambda sid: f"fuzzy --resume {sid}")
+    tl.register_session_source(
+        "strict-broken", env_var="STRICT_BROKEN_SESSION_ID",
+        resolve=lambda: {},
+        checkpoint=lambda session: {},
+        resume=lambda sid: f"broken --resume {sid}")
+    monkeypatch.setenv("STRICT_BROKEN_SESSION_ID", "sid-gone")
+
+    assert tl.resolve_own_session() == {}
+
+
+def test_resolve_own_session_still_asks_fuzzy_sources_with_no_env_claim(
+        load_script, tmp_path, monkeypatch):
+    tl = _load(load_script, tmp_path)
+    _register_pair(tl)
+    monkeypatch.delenv("STRICT_SESSION_ID", raising=False)
+    monkeypatch.delenv("FUZZY_SESSION_ID", raising=False)
+
+    resolved = tl.resolve_own_session()
+
+    assert resolved["sessionId"] == "stale-session"
+
+
 def test_session_source_unknown_name_returns_none(load_script, tmp_path):
     """session_source() has no fallback: an unregistered name is None, never claude."""
     tl = _load(load_script, tmp_path)

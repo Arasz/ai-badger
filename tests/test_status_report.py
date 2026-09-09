@@ -102,6 +102,34 @@ class TestCurrentTask:
         assert data["current_task"] is None
         assert data["last_finished"]["taskId"] == "done-thing"
 
+    def test_a_started_task_is_open_not_absent(self, load_script, tmp_path, capsys):
+        """STARTED is registered work awaiting its first Stop-hook promotion (or a
+        harness with no Stop hook) — it must never read as '(no task in progress)'."""
+        _seed(tmp_path, [_task("aib-fresh-start", "STARTED",
+                               "2026-08-28T11:00:00+00:00")])
+
+        module, rc = _run(load_script, tmp_path)
+        out = capsys.readouterr().out
+        data = module.report(tmp_path)
+
+        assert rc == 0
+        assert data["current_task"]["taskId"] == "aib-fresh-start"
+        assert "aib-fresh-start" in out
+        assert "STARTED" in out
+
+    def test_latest_started_wins_across_started_and_in_progress(self, load_script,
+                                                                tmp_path):
+        _seed(tmp_path, [
+            _task("aib-older-running", "IN_PROGRESS", "2026-08-28T08:00:00+00:00"),
+            _task("aib-newer-started", "STARTED", "2026-08-28T10:00:00+00:00"),
+        ])
+
+        module, _ = _run(load_script, tmp_path)
+        data = module.report(tmp_path)
+
+        assert data["current_task"]["taskId"] == "aib-newer-started"
+        assert data["other_open"] == ["aib-older-running"]
+
 
 # ---------------------------------------------------------------- progress checklist
 
@@ -217,6 +245,58 @@ class TestSubagentsAndDelegation:
 
         assert data["progress"]["matched"] is False
         assert "newest-file fallback" in module.render(data)
+
+    def test_a_started_task_claims_its_worktree_as_a_live_lane(self, load_script,
+                                                                tmp_path):
+        _seed(tmp_path, [_task("aib-fresh-start", "STARTED",
+                               "2026-08-29T08:00:00+00:00")])
+        (tmp_path / ".ai-badger" / "worktrees" / "aib-fresh-start").mkdir(parents=True)
+
+        module, _ = _run(load_script, tmp_path)
+
+        assert module.report(tmp_path)["subagents"]["live_lanes"] == ["aib-fresh-start"]
+
+    def test_a_worktree_with_no_tracker_row_is_untracked_not_live(self, load_script,
+                                                                   tmp_path, capsys):
+        """Never-registered work (branch+PR, no tracker row) must surface as
+        untracked — otherwise the report reads '(no task in progress)' while real
+        work sits in the worktree. FINISHED leftovers stay hidden."""
+        _seed(tmp_path, [_task("aib-live-task", "IN_PROGRESS",
+                               "2026-08-29T08:00:00+00:00"),
+                         _task("old-finished", "FINISHED", "2026-08-28T07:00:00+00:00")])
+        for name in ("aib-live-task", "mystery-work", "old-finished"):
+            (tmp_path / ".ai-badger" / "worktrees" / name).mkdir(parents=True)
+
+        module, rc = _run(load_script, tmp_path)
+        out = capsys.readouterr().out
+        subs = module.report(tmp_path)["subagents"]
+
+        assert rc == 0
+        assert subs["live_lanes"] == ["aib-live-task"]
+        assert subs["untracked"] == ["mystery-work"]
+        assert "mystery-work" in out
+        assert "old-finished" not in out
+
+    def test_dead_pid_sessions_are_marked_stale(self, load_script, tmp_path, capsys):
+        """The sessions table prunes dead pids only on write, so ghost rows linger;
+        the report marks them instead of presenting them as live."""
+        import os
+
+        _seed(tmp_path, [_task("aib-lane-task", "IN_PROGRESS",
+                               "2026-08-29T08:00:00+00:00")],
+              sessions={"dead-beef": {"pid": 2 ** 30, "cwd": "/nowhere",
+                                        "recordedAt": "2026-08-20T00:00:00+00:00"},
+                        "live-one": {"pid": os.getpid(), "cwd": "/here",
+                                     "recordedAt": "2026-08-29T00:00:00+00:00"}})
+
+        module, _ = _run(load_script, tmp_path, )
+        out = capsys.readouterr().out
+        sessions = {s["session_id"]: s
+                    for s in module.report(tmp_path)["subagents"]["sessions"]}
+
+        assert sessions["dead-beef"]["alive"] is False
+        assert sessions["live-one"]["alive"] is True
+        assert "STALE" in out
 
 
 # ---------------------------------------------------------------- json mode

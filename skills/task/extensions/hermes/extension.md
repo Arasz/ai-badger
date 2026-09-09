@@ -233,3 +233,18 @@ explicit CLI invocation.
 | Rate limit polling | Custom poll_limit.py | Credential pools (auto-rotate) | **Hermes** — zero code needed |
 
 See `docs/hermes-claude-compatibility.md` for the full compatibility reference.
+
+## Status-report enforcement (hermes)
+
+- `HERMES_SESSION_ID` must be set in every process that runs `task_tracker.py` — it is the
+  tracker's exact identity and outranks pid/cwd guesses. An "already attached" refusal naming
+  a session you do not recognise means a stale row won in the past: re-run with explicit
+  `--session-id "$HERMES_SESSION_ID"`, never work untracked.
+- Per-turn hook checkpoints are unwired under Hermes: `latest` moves only on explicit CLI
+  calls, so `start`/`finish`/`subagent` are the whole checkpoint story. After every delegation
+  settles, record it before the next dispatch:
+  `task_tracker.py subagent <taskId> --delegation <id>` (async_delegations lookup).
+  Unrecorded lanes are invisible to status.
+- Turn on `delegation.worktree_isolation` before parallel lanes (sequential otherwise), and
+  the plan-file contract (Phase 2) plus `<taskId>-lane-*` naming apply unchanged — status
+  keys off them.
