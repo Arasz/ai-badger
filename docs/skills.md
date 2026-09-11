@@ -4,8 +4,11 @@ This page catalogs 47 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
 46 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**26 are `default`** and arrive in every scaffolded project without being asked for, and
-**20 are `optIn`** — catalogued, but written only when a project names them. The last one,
+**46 are `default`** and arrive in every scaffolded project without being asked for, and
+**0 are `optIn`** — the tier is empty since 0.169.0, when the whole catalog moved to `default`
+([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)); a project that wants less declines
+by name in `config.exclude`, and the `include` mechanism stays for a skill that needs asking
+for. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
@@ -24,7 +27,8 @@ that test, and so does a row naming a skill the catalog no longer has — **but 
 common and `claude` stacks**: that test's `STACK_LOCAL_SKILL_DIRS` names `claude` alone, so the
 5 stack-local skills are outside its reach and their absence here fails nothing.
 
-An `optIn` skill is asked for by name in `.ai-badger/config.json`:
+An `optIn` skill is asked for by name in `.ai-badger/config.json` — no catalog skill needs
+this today, so the example names a skill that ships by default anyway:
 
 ```jsonc
 {
@@ -57,7 +61,7 @@ The one remaining group is declared in `badger_lib.SKILL_GROUPS`: `testing` (des
 review-tests). Groups expand in configuration only: naming either member installs both.
 
 `welcome-ai-badger` and `den-refresh` both honour it, a `config.json` edit is drift so the next
-refresh delivers the skill on its own, and every report lists the `optIn` skills a project has
+refresh delivers the skill on its own, and every report lists any `optIn` skills a project has
 not installed with the exact edit that adds each. The mechanism — and what to weigh when
 declaring a new skill's scope — is in
 [`authoring-a-feature.md`](authoring-a-feature.md#default-or-optin).
@@ -71,7 +75,7 @@ which and which arrive unasked; the per-skill sections say what changes on disk 
 ## At a glance
 
 `Ships` is the scope: **default** arrives unasked, **opt-in** only when `config.include.skills`
-names it, **claude-only** when the stack decides.
+names it (no catalog skill is `opt-in` today), **claude-only** when the stack decides.
 
 | Skill | Purpose | Ships | Invoked how |
 |---|---|---|---|
@@ -102,26 +106,26 @@ names it, **claude-only** when the stack decides.
 | [semantica-knowledge-graph](#semantica-knowledge-graph) | Session-scoped knowledge graph: record decisions with provenance, trace causal chains, extract entities from conversations | default | by name |
 | [browser-usage](#browser-usage) | Universal browser automation and manual E2E verification via Playwright MCP | default | by name |
 | [auto-wm](#auto-wm) | Auto-approve tool calls in partner/away mode | claude-only | by name (`/auto-wm`); installs a `PreToolUse` hook once enabled |
-| [documentation](#documentation) | Route to the documentation-workflow member that matches — scaffold the tree, update its documents, or migrate it wholesale | opt-in | by name |
-| [review-changes](#review-changes) | Rank a diff's changed units by blast radius and check the riskiest are tested | opt-in | by name |
-| [explore-codebase](#explore-codebase) | Orient in an unfamiliar codebase before reading it file by file | opt-in | by name |
-| [debug-issue](#debug-issue) | Trace the call chain from a symptom to its entry point before hypothesizing | opt-in | by name |
-| [refactor-safely](#refactor-safely) | Enumerate every affected location before a rename, extraction, or removal | opt-in | by name |
-| [evidence-first-research](#evidence-first-research) | Produce a dated research record whose findings are graded by how they are known | opt-in | by name |
-| [research-record-audit](#research-record-audit) | Re-derive a written record's claims from its cited sources | opt-in | by name |
-| [multi-lane-report-assembly](#multi-lane-report-assembly) | Assemble parallel research or review lanes into one evidence-graded record | opt-in | by name |
-| [complete-project-scope-code-review](#complete-project-scope-code-review) | Review a whole project through parallel expert lanes, an adversarial pass, and a waved plan | opt-in | by name |
-| [code-review-evidence](#code-review-evidence) | Catch claims about wrapped libraries and tests that assert their own input | opt-in | by name |
-| [review-gate-diff-verification](#review-gate-diff-verification) | Establish a branch diff's true base before a gate judges it | opt-in | by name |
-| [design-gate-audit](#design-gate-audit) | Audit a design doc's acceptance gates before anyone builds against them | opt-in | by name |
-| [artifact-verification](#artifact-verification) | Verify specs, docs, manifests and packages that no code test covers | opt-in | by name |
-| [documentation-drift-audit](#documentation-drift-audit) | Audit documentation against the real tree and fix only what is verifiably false | opt-in | by name |
-| [spec-driven-refactoring](#spec-driven-refactoring) | Gate a large multi-file refactor on a spec, before and after | opt-in | by name |
-| [scripts-tooling-refactor](#scripts-tooling-refactor) | Convert a `scripts/` directory into a tested, tooling-language-native layout | opt-in | by name |
-| [worktree-agent-isolation](#worktree-agent-isolation) | Give each parallel agent its own git worktree and integrate via PRs | opt-in | by name |
-| [pre-push-gate-debugging](#pre-push-gate-debugging) | Debug a blocked pre-push quality gate one lane at a time | opt-in | by name |
-| [sqlite-schema-review](#sqlite-schema-review) | Review SQLite DDL and migrations against scratch-database evidence | opt-in | by name |
-| [sqlite-bank-space-diagnosis](#sqlite-bank-space-diagnosis) | Diagnose a bloated SQLite file and its WAL read-only before reclaiming | opt-in | by name |
+| [documentation](#documentation) | Route to the documentation-workflow member that matches — scaffold the tree, update its documents, or migrate it wholesale | default | by name |
+| [review-changes](#review-changes) | Rank a diff's changed units by blast radius and check the riskiest are tested | default | by name |
+| [explore-codebase](#explore-codebase) | Orient in an unfamiliar codebase before reading it file by file | default | by name |
+| [debug-issue](#debug-issue) | Trace the call chain from a symptom to its entry point before hypothesizing | default | by name |
+| [refactor-safely](#refactor-safely) | Enumerate every affected location before a rename, extraction, or removal | default | by name |
+| [evidence-first-research](#evidence-first-research) | Produce a dated research record whose findings are graded by how they are known | default | by name |
+| [research-record-audit](#research-record-audit) | Re-derive a written record's claims from its cited sources | default | by name |
+| [multi-lane-report-assembly](#multi-lane-report-assembly) | Assemble parallel research or review lanes into one evidence-graded record | default | by name |
+| [complete-project-scope-code-review](#complete-project-scope-code-review) | Review a whole project through parallel expert lanes, an adversarial pass, and a waved plan | default | by name |
+| [code-review-evidence](#code-review-evidence) | Catch claims about wrapped libraries and tests that assert their own input | default | by name |
+| [review-gate-diff-verification](#review-gate-diff-verification) | Establish a branch diff's true base before a gate judges it | default | by name |
+| [design-gate-audit](#design-gate-audit) | Audit a design doc's acceptance gates before anyone builds against them | default | by name |
+| [artifact-verification](#artifact-verification) | Verify specs, docs, manifests and packages that no code test covers | default | by name |
+| [documentation-drift-audit](#documentation-drift-audit) | Audit documentation against the real tree and fix only what is verifiably false | default | by name |
+| [spec-driven-refactoring](#spec-driven-refactoring) | Gate a large multi-file refactor on a spec, before and after | default | by name |
+| [scripts-tooling-refactor](#scripts-tooling-refactor) | Convert a `scripts/` directory into a tested, tooling-language-native layout | default | by name |
+| [worktree-agent-isolation](#worktree-agent-isolation) | Give each parallel agent its own git worktree and integrate via PRs | default | by name |
+| [pre-push-gate-debugging](#pre-push-gate-debugging) | Debug a blocked pre-push quality gate one lane at a time | default | by name |
+| [sqlite-schema-review](#sqlite-schema-review) | Review SQLite DDL and migrations against scratch-database evidence | default | by name |
+| [sqlite-bank-space-diagnosis](#sqlite-bank-space-diagnosis) | Diagnose a bloated SQLite file and its WAL read-only before reclaiming | default | by name |
 
 ---
 
@@ -589,13 +593,13 @@ chain answers "why did we do this?". Install with `pip install semantica`.
 
 ---
 
-## Asked for, not shipped (`optIn`)
+## Formerly opt-in, now shipped
 
-None of the 20 below is written into a project until `config.include.skills` names it — see the
-opening of this page for the edit, and
-[`authoring-a-feature.md`](authoring-a-feature.md#default-or-optin) for the mechanism. Every
-scaffold and refresh report lists the ones a project has not installed, so nobody has to know
-they exist in advance.
+The 20 skills below were `optIn` until 0.169.0, when the whole catalog moved to `default`
+([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)). They now arrive with every
+scaffold; a project that does not want one declines it by name in `config.exclude.skills` — see
+the opening of this page for both edits, and
+[`authoring-a-feature.md`](authoring-a-feature.md#default-or-optin) for the mechanism.
 
 ### documentation
 
@@ -659,8 +663,10 @@ removal that might delete something still in use.
 Each of those last three names an accelerated path through a code-graph MCP server and a
 baseline that needs none. Their workflows derive from the skill templates the
 `code-review-graph` project auto-installs (MIT, © 2026 Tirth Kanani), rewritten to be
-tool-agnostic — which is also why they are `optIn`: a project already running that tool receives
-its own copies, and ai-badger does not contend for the same files uninvited.
+tool-agnostic — which is also why they were `optIn`: a project already running that tool
+receives its own copies, and ai-badger did not contend for the same files uninvited. Since
+0.169.0 they ship by default (ADR-0028); a project already running `code-review-graph` can
+decline any of the three with `config.exclude.skills`.
 
 ### evidence-first-research
 

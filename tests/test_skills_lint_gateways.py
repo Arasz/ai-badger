@@ -266,7 +266,8 @@ def test_excluding_a_stale_member_suppresses_the_gateway(load_script):
 class TestMemberExtensionsTravelWithTheGateway:
     """The trio's ledger fragments move inside their member dirs and stay live there (R3)."""
 
-    def test_a_docs_tool_project_still_gets_the_ledger_fragment(self, make_scaffolder):
+    def test_a_docs_tool_project_still_gets_the_ledger_fragment(self, simulated_opt_in,
+                                                               make_scaffolder):
         config = _config()
         config["docs"] = {"tool": "ledgertool"}
         config["include"] = {"skills": ["documentation"]}
@@ -277,7 +278,8 @@ class TestMemberExtensionsTravelWithTheGateway:
         ledger = (delivered / "references" / "scaffold-documentation" / "extensions" / "ledger")
         assert ledger.is_dir(), "the ledger fragment did not arrive inside its member dir"
 
-    def test_an_unset_docs_tool_prunes_the_ledger_fragment(self, make_scaffolder):
+    def test_an_unset_docs_tool_prunes_the_ledger_fragment(self, simulated_opt_in,
+                                                           make_scaffolder):
         config = _config()
         config["include"] = {"skills": ["documentation"]}
         scaf = make_scaffolder(config=config, skills=["task"])

@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.168.0",
+  "frameworkVersion": "0.169.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -193,7 +193,7 @@
         {
           "name": "artifact-verification",
           "path": "features/common/skills/artifact-verification",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "browser-usage",
@@ -213,7 +213,7 @@
         {
           "name": "code-review-evidence",
           "path": "features/common/skills/code-review-evidence",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "commit-reminder",
@@ -223,7 +223,7 @@
         {
           "name": "complete-project-scope-code-review",
           "path": "features/common/skills/complete-project-scope-code-review",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "create-task-spec",
@@ -233,7 +233,7 @@
         {
           "name": "debug-issue",
           "path": "features/common/skills/debug-issue",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "den-refresh",
@@ -243,7 +243,7 @@
         {
           "name": "design-gate-audit",
           "path": "features/common/skills/design-gate-audit",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "design-tests",
@@ -258,22 +258,22 @@
         {
           "name": "documentation",
           "path": "features/common/skills/documentation",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "documentation-drift-audit",
           "path": "features/common/skills/documentation-drift-audit",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "evidence-first-research",
           "path": "features/common/skills/evidence-first-research",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "explore-codebase",
           "path": "features/common/skills/explore-codebase",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "feed-badger",
@@ -308,7 +308,7 @@
         {
           "name": "multi-lane-report-assembly",
           "path": "features/common/skills/multi-lane-report-assembly",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "owner-gate-review",
@@ -318,7 +318,7 @@
         {
           "name": "pre-push-gate-debugging",
           "path": "features/common/skills/pre-push-gate-debugging",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "prompt-markers",
@@ -338,22 +338,22 @@
         {
           "name": "refactor-safely",
           "path": "features/common/skills/refactor-safely",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "research-record-audit",
           "path": "features/common/skills/research-record-audit",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "review-changes",
           "path": "features/common/skills/review-changes",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "review-gate-diff-verification",
           "path": "features/common/skills/review-gate-diff-verification",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "review-tests",
@@ -363,7 +363,7 @@
         {
           "name": "scripts-tooling-refactor",
           "path": "features/common/skills/scripts-tooling-refactor",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "semantica-knowledge-graph",
@@ -378,17 +378,17 @@
         {
           "name": "spec-driven-refactoring",
           "path": "features/common/skills/spec-driven-refactoring",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "sqlite-bank-space-diagnosis",
           "path": "features/common/skills/sqlite-bank-space-diagnosis",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "sqlite-schema-review",
           "path": "features/common/skills/sqlite-schema-review",
-          "scope": "optIn"
+          "scope": "default"
         },
         {
           "name": "status-report",
@@ -413,7 +413,7 @@
         {
           "name": "worktree-agent-isolation",
           "path": "features/common/skills/worktree-agent-isolation",
-          "scope": "optIn"
+          "scope": "default"
         }
       ],
       "personas": [

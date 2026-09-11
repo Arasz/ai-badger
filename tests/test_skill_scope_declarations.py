@@ -1,13 +1,14 @@
-"""Every common-stack skill declares its own scope, and six of them are pinned to `optIn`.
+"""Every common-stack skill declares its own scope, and the whole catalog ships by default.
 
 ADR-0018 collapsed two mechanisms into one: the directory a skill lives in says which stack owns
 it, and a `scope:` key in its own `SKILL.md` says whether it ships unasked. There is no second
 list to fall out of step with — `badger_lib.SKILL_SCOPES` is gone, and its absence is asserted
 here because a reinstated copy would route silently and pass every other test in the suite.
 
-The six pinned skills are all `optIn` (the documentation trio because a project asks for that
-workflow rather than having it forced into every skill listing, the navigation trio because its
-files derive from templates the third-party `code-review-graph` package auto-installs).
+0.169.0 moved the whole catalog to `default` (ADR-0028): the opt-in tier is empty, and a project
+that wants less declines by name in `config.exclude`. The six formerly-optIn names stay pinned
+here because they had a recorded delivery rationale — the documentation gateway and the
+navigation trio — and a regression in their delivery is the one these tests exist to catch.
 """
 from __future__ import annotations
 
@@ -72,18 +73,22 @@ class TestPinnedScopes:
 
     The documentation workflow is a gateway since 0.137.0 (ADR-0021): the registered skill
     named `documentation` carries the trio under its own `references/`, and the gateway itself
-    is what declares `scope: optIn`.
+    is what declares `scope:`.
     """
 
-    def test_the_documentation_gateway_is_opt_in(self, root, bl):
+    def test_the_documentation_gateway_is_default(self, root, bl):
         assert bl.skill_scope_in(
-            root / "features" / "common" / "skills" / "documentation") == bl.SKILL_SCOPE_OPT_IN
+            root / "features" / "common" / "skills" / "documentation") == bl.SKILL_SCOPE_DEFAULT
 
     @pytest.mark.parametrize("name", NAVIGATION_SKILLS)
-    def test_the_navigation_skills_are_opt_in(self, root, bl, name):
-        """Another tool installs its own copy of these; ai-badger writes them only when asked."""
+    def test_the_navigation_skills_are_default(self, root, bl, name):
         assert bl.skill_scope_in(
-            root / "features" / "common" / "skills" / name) == bl.SKILL_SCOPE_OPT_IN
+            root / "features" / "common" / "skills" / name) == bl.SKILL_SCOPE_DEFAULT
+
+    def test_the_opt_in_tier_is_empty(self, root, bl):
+        """0.169.0 ships the whole catalog by default; a new `optIn` skill is a decision, not
+        an accident, so it must arrive with this test updated on purpose (ADR-0028)."""
+        assert bl.opt_in_skills_in(root / "features" / "common" / "skills") == []
 
     @pytest.mark.parametrize("name", DOCUMENTATION_SKILLS)
     def test_every_documentation_member_travels_inside_the_gateway(self, root, name):
@@ -140,10 +145,9 @@ class TestScopeIsReadFromTheSkillItself:
 
 
 class TestPluginCopyFollowsScope:
-    """`sync_plugin_skills` ships default-scope skills only."""
+    """`sync_plugin_skills` ships default-scope skills — the whole common catalog since 0.169.0."""
 
-    @pytest.mark.parametrize("name", DOCUMENTATION_SKILLS + NAVIGATION_SKILLS)
-    def test_an_opt_in_skill_is_absent_from_the_shipped_list_and_the_plugin_dir(
-            self, root, sps, name):
-        assert name not in sps.COMMON_SKILLS
-        assert not (root / "skills" / name).exists()
+    @pytest.mark.parametrize("name", ("documentation",) + NAVIGATION_SKILLS)
+    def test_a_default_skill_is_in_the_shipped_list_and_the_plugin_dir(self, root, sps, name):
+        assert name in sps.COMMON_SKILLS
+        assert (root / "skills" / name).is_dir()

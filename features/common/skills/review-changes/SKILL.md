@@ -13,7 +13,7 @@ version: 1.0.0
 author: ai-badger, after the code-review-graph skill templates
 license: MIT
 platforms: [linux, macos, windows]
-scope: optIn
+scope: default
 metadata:
   hermes:
     tags: [code-review, risk, blast-radius, testing]

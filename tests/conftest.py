@@ -504,6 +504,33 @@ def make_scaffolder(load_script, root, tmp_path):
     return _make
 
 
+SIMULATED_OPT_IN_SKILL = "documentation"
+
+
+@pytest.fixture
+def simulated_opt_in(monkeypatch):
+    """Restore one opt-in catalog skill for tests of the `config.include` delivery path.
+
+    0.169.0 moved every catalog skill to `scope: default` (ADR-0028), so the include mechanism
+    has no real exemplar left. This patches the entry points' `badger_lib` — the flat module
+    `sys.path` resolves, not the `engine.badger_lib` copy the suite loads by path — to treat
+    `documentation` as optIn again: absent from the defaults, present in the addable catalog.
+    Returns that module, so a test can derive the same skill set the run under test will.
+    """
+    import badger_lib  # noqa: PLC0415  (only importable after conftest put engine/ on sys.path)
+
+    real_defaults = badger_lib.default_skills_in
+    real_optin = badger_lib.opt_in_skills_in
+    monkeypatch.setattr(
+        badger_lib, "default_skills_in",
+        lambda skills_dir: [n for n in real_defaults(skills_dir)
+                            if n != SIMULATED_OPT_IN_SKILL])
+    monkeypatch.setattr(
+        badger_lib, "opt_in_skills_in",
+        lambda skills_dir: list(real_optin(skills_dir)) + [SIMULATED_OPT_IN_SKILL])
+    return badger_lib
+
+
 @pytest.fixture
 def load_script():
     """Return a loader that imports an ai-badger script by repo-relative path.

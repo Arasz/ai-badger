@@ -336,9 +336,10 @@ class TestCatalogRouting:
             root / "features/common/skills/code-review-checklist") == bl.SKILL_SCOPE_DEFAULT
         assert "code-review-checklist" in sps.COMMON_SKILLS
 
-    def test_fed_back_workflow_skills_are_opt_in(self, root, load_script):
-        """Learned-workflow skills contributed from a consumer project are optIn,
-        not default — they must never silently ship to every scaffolded project."""
+    def test_fed_back_workflow_skills_ship_by_default(self, root, load_script):
+        """Learned-workflow skills contributed from a consumer project ship with the catalog
+        since 0.169.0 (ADR-0028): they are part of the unasked default set, and a project that
+        does not want one declines it by name in `config.exclude.skills`."""
         bl = load_script("engine/badger_lib.py")
 
         for name in ("artifact-verification", "code-review-evidence",
@@ -350,7 +351,7 @@ class TestCatalogRouting:
                      "sqlite-bank-space-diagnosis", "sqlite-schema-review",
                      "worktree-agent-isolation"):
             assert bl.skill_scope_in(
-                root / "features" / "common" / "skills" / name) == bl.SKILL_SCOPE_OPT_IN, name
+                root / "features" / "common" / "skills" / name) == bl.SKILL_SCOPE_DEFAULT, name
 
     def test_decision_collection_skills_ship_with_every_project(self, root, load_script):
         """The two common skills are universal and have shipped plugin copies."""
