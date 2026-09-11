@@ -1,0 +1,5 @@
+{
+  "skill": "update-documentation",
+  "extension": "ledger",
+  "requires": ["docs.tool"]
+}

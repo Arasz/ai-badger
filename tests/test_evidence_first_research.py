@@ -191,52 +191,49 @@ class TestTheHtmlIsWrittenOutsideTheRepository:
         assert "does the fast lane" in written.read_text(encoding="utf-8")
 
 
-class TestOptingInDeliversItToTheAgent:
-    """Delivered is not discoverable (#261), and `test_config_include.py` names one skill only.
+class TestADefaultSkillArrivesWithoutBeingNamed:
+    """Delivered is not discoverable (#261) — the regression this class was written for.
 
-    That test parametrises nothing, so a newly added `optIn` skill inherits no coverage — this
-    repo has already shipped a skill that landed in `.ai-badger/skills/` and was invisible to the
-    agent it was adopted for, while the run reported success.
+    `evidence-first-research` moved from `optIn` to `default` in 0.169.0 (ADR-0028), so the
+    contract it pins changed: it arrives with the default catalog rather than by
+    `config.include.skills`. Discoverability — the half #261 actually shipped broken — is
+    unchanged, and it is what these tests keep watching.
     """
 
     SKILL = "evidence-first-research"
 
-    def _scaffolded(self, make_scaffolder):
+    def _scaffolded(self, bl, root, make_scaffolder):
         from scaffold_helpers import _config  # noqa: PLC0415  (test-local helper)
 
-        config = _config(agents=["claude"])
-        config["include"] = {"skills": [self.SKILL]}
+        skills = bl.default_skills_in(root / "features" / "common" / "skills")
         target = make_scaffolder.target
-        scaf = make_scaffolder(config=config, skills=["task"])
-        scaf.run(generated_at="2026-08-01T00:00:00Z")
+        make_scaffolder(config=_config(agents=["claude"]), skills=skills).run(
+            generated_at="2026-08-01T00:00:00Z")
         return target
 
-    def test_it_is_delivered_and_discoverable(self, make_scaffolder):
-        target = self._scaffolded(make_scaffolder)
+    def test_it_is_in_the_default_catalog(self, load_script, root):
+        bl = load_script("engine/badger_lib.py")
+
+        assert self.SKILL in bl.default_skills_in(root / "features" / "common" / "skills")
+
+    def test_it_is_delivered_and_discoverable(self, load_script, root, make_scaffolder):
+        bl = load_script("engine/badger_lib.py")
+        target = self._scaffolded(bl, root, make_scaffolder)
 
         assert (target / ".ai-badger" / "skills" / self.SKILL / "SKILL.md").is_file()
         link = target / ".claude" / "skills" / self.SKILL
         assert link.exists(), f".claude/skills/{self.SKILL} is absent — the agent cannot find it"
         assert (link / "SKILL.md").is_file(), "the discovery link resolves to nothing"
 
-    def test_the_renderer_and_references_travel_with_it(self, make_scaffolder):
+    def test_the_renderer_and_references_travel_with_it(self, load_script, root, make_scaffolder):
         """A skill whose script did not ship is a procedure step that cannot be run."""
-        target = self._scaffolded(make_scaffolder)
+        bl = load_script("engine/badger_lib.py")
+        target = self._scaffolded(bl, root, make_scaffolder)
         home = target / ".ai-badger" / "skills" / self.SKILL
 
         assert (home / "scripts" / "render_report.py").is_file()
         assert (home / "references" / "provenance.md").is_file()
         assert (home / "references" / "report-template.md").is_file()
-
-    def test_it_does_not_arrive_unasked(self, make_scaffolder):
-        """optIn means optIn: a project that did not name it must not receive it."""
-        from scaffold_helpers import _config  # noqa: PLC0415
-
-        target = make_scaffolder.target
-        make_scaffolder(config=_config(agents=["claude"]), skills=["task"]).run(
-            generated_at="2026-08-01T00:00:00Z")
-
-        assert not (target / ".ai-badger" / "skills" / self.SKILL).exists()
 
 
 class TestTheChecksCouldFail:

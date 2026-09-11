@@ -120,22 +120,26 @@ def test_skill_delivery_adds_the_stack_local_skills_to_the_context(tmp_path, loa
 
 
 def test_stack_local_discovery_never_reaches_into_the_common_catalog(tmp_path, load_script, root):
-    """`resolve_stacks` always puts `common` first, and its optIn skills ship only when asked.
+    """`resolve_stacks` always puts `common` first, and no common skill may arrive through
+    stack-local discovery.
 
     Before ADR-0018 the exclusion inside `stack_local_skills` was what kept them out; the
     scope declaration replaced the list it filtered on, and this is the behaviour that had to
-    survive the swap.
+    survive the swap. Since 0.169.0 every common-catalog skill is `default` (ADR-0028), so the
+    hazard is the whole catalog, not the former optIn subset.
     """
     bl = load_script("engine/badger_lib.py")
     delivery, ctx = _delivery(load_script, root, tmp_path / "proj",
                               config=_config(stacks=["claude"], agents=["claude"]))
-    opt_in = set(bl.opt_in_skills_in(root / "features" / "common" / "skills"))
+    common = set(bl.default_skills_in(root / "features" / "common" / "skills"))
+    before = set(ctx.skills)
 
     delivery.discover_stack_local()
 
+    added = set(ctx.skills) - before
     assert "common" in ctx.stacks, "the fixture stopped exercising the hazard"
-    assert opt_in, "no optIn skill in the catalog leaves nothing to leak"
-    assert not opt_in & set(ctx.skills), sorted(opt_in & set(ctx.skills))
+    assert "auto-wm" in added, "the fixture stopped exercising discovery"
+    assert not common & added, sorted(common & added)
 
 
 # ------------------------------------------------------------- what the Scaffolder keeps

@@ -167,7 +167,11 @@ class TestEveryCitedSiblingTravelsWithItsCiter:
 
 
 class TestOptingIntoTheGatewayDeliversWhatItsMembersCite:
-    """The end-to-end shape, updated for the gateway: one name, one tree, no dangling paths."""
+    """The end-to-end shape, updated for the gateway: one name, one tree, no dangling paths.
+
+    `documentation` ships by default since 0.169.0 (ADR-0028); the `simulated_opt_in` fixture
+    makes it optIn again so the one-name, one-tree delivery path stays covered end to end.
+    """
 
     def _scaffold(self, make_scaffolder, names):
         config = _config(agents=["claude"])
@@ -177,7 +181,7 @@ class TestOptingIntoTheGatewayDeliversWhatItsMembersCite:
             generated_at="2026-08-01T00:00:00Z")
         return target
 
-    def test_the_gateway_and_its_members_arrive(self, make_scaffolder):
+    def test_the_gateway_and_its_members_arrive(self, simulated_opt_in, make_scaffolder):
         target = self._scaffold(make_scaffolder, ["documentation"])
         home = target / ".ai-badger" / "skills" / "documentation"
 
@@ -186,7 +190,8 @@ class TestOptingIntoTheGatewayDeliversWhatItsMembersCite:
             assert (home / "references" / member / "SKILL.md").is_file(), \
                 f"{member} did not arrive inside the gateway"
 
-    def test_every_relative_path_in_a_delivered_member_resolves(self, make_scaffolder):
+    def test_every_relative_path_in_a_delivered_member_resolves(self, simulated_opt_in,
+                                                                 make_scaffolder):
         """Follow the paths as written, from where the member actually sits."""
         target = self._scaffold(make_scaffolder, ["documentation"])
         migrate = target / ".ai-badger" / "skills" / "documentation" / "references" / \
@@ -201,14 +206,15 @@ class TestOptingIntoTheGatewayDeliversWhatItsMembersCite:
 
         assert not dangling, f"dangling after scaffold: {', '.join(dangling)}"
 
-    def test_the_gateway_is_discoverable_too(self, make_scaffolder):
+    def test_the_gateway_is_discoverable_too(self, simulated_opt_in, make_scaffolder):
         """Delivered is not discoverable (#261) — the gateway must be linked, members need not."""
         target = self._scaffold(make_scaffolder, ["documentation"])
 
         link = target / ".claude" / "skills" / "documentation"
         assert link.exists() and (link / "SKILL.md").is_file()
 
-    def test_nothing_arrives_for_a_project_that_asked_for_nothing(self, make_scaffolder):
+    def test_nothing_arrives_for_a_project_that_asked_for_nothing(self, simulated_opt_in,
+                                                                  make_scaffolder):
         target = self._scaffold(make_scaffolder, [])
 
         assert not (target / ".ai-badger" / "skills" / "documentation").exists()
@@ -239,9 +245,11 @@ class TestGatewayNamesAreReportedAsValid:
     """
 
     def test_naming_the_gateway_reports_an_ordinary_opt_in_include(self, load_script, root):
+        """The catalog ships no `optIn` skill since 0.169.0, so the addable set is synthetic:
+        what is pinned here is the note a real opt-in include would produce (ADR-0028)."""
         lib = load_script("engine/badger_lib.py")
         skills_dir = root / "features" / "common" / "skills"
-        addable = lib.opt_in_skills_in(skills_dir)
+        addable = set(lib.opt_in_skills_in(skills_dir)) | {"documentation"}
 
         notes = lib.inclusion_notes(["documentation"], [], addable,
                                     lib.default_skills_in(skills_dir))

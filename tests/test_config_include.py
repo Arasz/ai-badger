@@ -2,6 +2,11 @@
 
 The enforcement point is `Scaffolder.__init__`, the same one `config.exclude` uses, so
 `welcome-ai-badger` and `den-refresh` cannot disagree about what a project asked for.
+
+Since 0.169.0 the catalog ships no `optIn` skill (ADR-0028), so the tests that exercise the
+end-to-end path take the `simulated_opt_in` fixture: it makes `documentation` optIn again in
+the entry points' `badger_lib`, which is how the mechanism is kept covered until a future
+skill needs it.
 """
 from __future__ import annotations
 
@@ -23,6 +28,7 @@ def _including(*names, exclude=None) -> dict:
     return config
 
 
+# Matches conftest.SIMULATED_OPT_IN_SKILL; documented at the module docstring.
 def _scaffold(make_scaffolder, config, skills=("task",)):
     target = make_scaffolder.target
     scaf = make_scaffolder(config=config, skills=list(skills))
@@ -79,7 +85,7 @@ def test_inclusions_tolerates_a_malformed_block(load_script):
 
 
 # ------------------------------------------------------------------------------ delivery
-def test_an_included_opt_in_skill_is_delivered(make_scaffolder):
+def test_an_included_opt_in_skill_is_delivered(simulated_opt_in, make_scaffolder):
     target, result = _scaffold(make_scaffolder, _including(OPT_IN_SKILL))
 
     assert (target / ".ai-badger" / "skills" / OPT_IN_SKILL / "SKILL.md").is_file()
@@ -87,7 +93,7 @@ def test_an_included_opt_in_skill_is_delivered(make_scaffolder):
     assert OPT_IN_SKILL in names
 
 
-def test_an_included_opt_in_skill_reaches_the_agent(make_scaffolder):
+def test_an_included_opt_in_skill_reaches_the_agent(simulated_opt_in, make_scaffolder):
     """Delivered is not the same as discoverable (#261).
 
     Claude Code finds skills at `.claude/skills/*/SKILL.md` and nowhere else. Writing one to
@@ -114,7 +120,7 @@ def test_a_default_skill_still_reaches_the_agent(make_scaffolder):
     assert (target / ".claude" / "skills" / "task" / "SKILL.md").is_file()
 
 
-def test_a_second_run_does_not_prune_the_link_it_just_made(make_scaffolder):
+def test_a_second_run_does_not_prune_the_link_it_just_made(simulated_opt_in, make_scaffolder):
     """The other half of #261: one run said "included" and "no longer delivered" about the
     same skill.
 
@@ -133,14 +139,15 @@ def test_a_second_run_does_not_prune_the_link_it_just_made(make_scaffolder):
     assert link.exists(), "the second run pruned the link the first run placed"
 
 
-def test_an_opt_in_skill_nobody_asked_for_does_not_reach_the_agent(make_scaffolder):
+def test_an_opt_in_skill_nobody_asked_for_does_not_reach_the_agent(simulated_opt_in,
+                                                                  make_scaffolder):
     """Widening must not deliver the whole opt-in catalog to every project."""
     target, _ = _scaffold(make_scaffolder, _config(agents=["claude"]))
 
     assert not (target / ".claude" / "skills" / OPT_IN_SKILL).exists()
 
 
-def test_an_opt_in_skill_nobody_asked_for_is_not_delivered(make_scaffolder):
+def test_an_opt_in_skill_nobody_asked_for_is_not_delivered(simulated_opt_in, make_scaffolder):
     target, _ = _scaffold(make_scaffolder, _config(agents=["claude"]))
 
     assert not (target / ".ai-badger" / "skills" / OPT_IN_SKILL).exists()
@@ -174,7 +181,7 @@ def test_including_a_default_skill_is_reported_and_not_fatal(make_scaffolder):
 
 # ------------------------------------------------------------------------- availableOptIn
 def test_the_scaffold_report_lists_the_opt_in_skills_the_project_has_not_installed(
-        make_scaffolder):
+        simulated_opt_in, make_scaffolder):
     _, result = _scaffold(make_scaffolder, _config(agents=["claude"]))
 
     offered = {s["name"]: s for s in result["availableOptIn"]}
@@ -184,7 +191,7 @@ def test_the_scaffold_report_lists_the_opt_in_skills_the_project_has_not_install
     assert OPT_IN_SKILL in entry["configEdit"] and "include" in entry["configEdit"]
 
 
-def test_an_installed_opt_in_skill_is_no_longer_offered(make_scaffolder):
+def test_an_installed_opt_in_skill_is_no_longer_offered(simulated_opt_in, make_scaffolder):
     _, result = _scaffold(make_scaffolder, _including(OPT_IN_SKILL))
 
     assert OPT_IN_SKILL not in [s["name"] for s in result["availableOptIn"]]
@@ -197,6 +204,7 @@ def test_a_default_skill_is_never_offered_as_opt_in(make_scaffolder):
 
 
 def test_the_offered_description_is_the_skills_own_frontmatter(load_script, root,
+                                                               simulated_opt_in,
                                                                make_scaffolder):
     bl = load_script("engine/badger_lib.py")
     _, result = _scaffold(make_scaffolder, _config(agents=["claude"]))
@@ -262,12 +270,11 @@ def _edit_config(target, **updates):
 
 
 def test_refresh_delivers_a_skill_included_after_the_last_scaffold(
-        load_script, root, make_scaffolder, capsys):
+        load_script, root, make_scaffolder, capsys, simulated_opt_in):
     """The path that matters: refresh re-derives skills from the manifest, so it can no-op."""
     refresh = load_script(REFRESH)
-    bl = load_script("engine/badger_lib.py")
     target = make_scaffolder.target
-    skills = bl.default_skills_in(root / "features" / "common" / "skills")
+    skills = simulated_opt_in.default_skills_in(root / "features" / "common" / "skills")
     make_scaffolder(config=_config(agents=["claude"]), skills=skills).run(
         generated_at="2026-08-01T00:00:00Z")
     assert not (target / ".ai-badger" / "skills" / OPT_IN_SKILL).exists()
@@ -285,11 +292,10 @@ def test_refresh_delivers_a_skill_included_after_the_last_scaffold(
 
 
 def test_refresh_reports_the_opt_in_skills_still_available(
-        load_script, root, make_scaffolder, capsys):
+        load_script, root, make_scaffolder, capsys, simulated_opt_in):
     refresh = load_script(REFRESH)
-    bl = load_script("engine/badger_lib.py")
     target = make_scaffolder.target
-    skills = bl.default_skills_in(root / "features" / "common" / "skills")
+    skills = simulated_opt_in.default_skills_in(root / "features" / "common" / "skills")
     make_scaffolder(config=_config(agents=["claude"]), skills=skills).run(
         generated_at="2026-08-01T00:00:00Z")
 
@@ -301,15 +307,20 @@ def test_refresh_reports_the_opt_in_skills_still_available(
     assert offered[OPT_IN_SKILL]["configEdit"]
 
 
-def test_an_opt_in_skill_is_never_reported_as_drift(load_script, root, make_scaffolder):
-    """Otherwise every refresh nags to install a skill nobody asked for, and never quiets."""
+def test_an_opt_in_skill_is_never_reported_as_drift(load_script, tmp_path):
+    """Otherwise every refresh nags to install a skill nobody asked for, and never quiets.
+
+    `detect_new_items` reads the scope from `index.json`, which the simulation fixture cannot
+    reach, so this one pins the rule against a synthetic index instead.
+    """
     drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
-    bl = load_script("engine/badger_lib.py")
-    target = make_scaffolder.target
-    skills = bl.default_skills_in(root / "features" / "common" / "skills")
-    manifest = make_scaffolder(config=_config(agents=["claude"]), skills=skills).run(
-        generated_at="2026-08-01T00:00:00Z")["manifest"]
+    _test_write(tmp_path / "index.json", json.dumps({"stacks": {"common": {"skills": [
+        {"name": "probe-optin", "scope": "optIn"},
+        {"name": "probe-default", "scope": "default"},
+    ]}}}), encoding="utf-8")
 
-    result = drift.compare(root, manifest, stacks=["common"], target=target)
+    result = drift.detect_new_items(tmp_path, {"entries": []}, stacks=["common"])
+    names = [i["name"] for i in result]
 
-    assert OPT_IN_SKILL not in [i["name"] for i in result["newItems"]]
+    assert "probe-optin" not in names, "an opt-in skill nobody asked for must not nag as drift"
+    assert "probe-default" in names, "the exclusion must not swallow ordinary new items"
