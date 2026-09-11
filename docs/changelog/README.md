@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.170.0 | [the sqlite pair stays opt-in](0.170.0-sqlite-skills-stay-opt-in.md) |
 | 0.169.0 | [the whole catalog ships by default](0.169.0-whole-catalog-ships-by-default.md) |
 | 0.168.0 | [high tier prefers deepseek-v4.1-flash](0.168.0-high-tier-prefers-deepseek-v41-flash.md) |
 | 0.167.1 | [model-groups registry stamps ride the release lineage](0.167.1-model-groups-frameworkversion-stamps.md) |

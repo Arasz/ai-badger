@@ -4,11 +4,12 @@ This page catalogs 47 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
 46 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**46 are `default`** and arrive in every scaffolded project without being asked for, and
-**0 are `optIn`** — the tier is empty since 0.169.0, when the whole catalog moved to `default`
-([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)); a project that wants less declines
-by name in `config.exclude`, and the `include` mechanism stays for a skill that needs asking
-for. The last one,
+**44 are `default`** and arrive in every scaffolded project without being asked for, and
+**2 are `optIn`** — the sqlite pair, which stays out of the default set because it is specific
+to a SQLite-backed project ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)). Everything else
+moved to `default` in 0.169.0 ([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)); a
+project that wants less declines by name in `config.exclude`, and `config.include` asks for the
+opt-in pair. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
@@ -27,8 +28,7 @@ that test, and so does a row naming a skill the catalog no longer has — **but 
 common and `claude` stacks**: that test's `STACK_LOCAL_SKILL_DIRS` names `claude` alone, so the
 5 stack-local skills are outside its reach and their absence here fails nothing.
 
-An `optIn` skill is asked for by name in `.ai-badger/config.json` — no catalog skill needs
-this today, so the example names a skill that ships by default anyway:
+An `optIn` skill is asked for by name in `.ai-badger/config.json`:
 
 ```jsonc
 {
@@ -75,7 +75,7 @@ which and which arrive unasked; the per-skill sections say what changes on disk 
 ## At a glance
 
 `Ships` is the scope: **default** arrives unasked, **opt-in** only when `config.include.skills`
-names it (no catalog skill is `opt-in` today), **claude-only** when the stack decides.
+names it (the sqlite pair today), **claude-only** when the stack decides.
 
 | Skill | Purpose | Ships | Invoked how |
 |---|---|---|---|
@@ -124,8 +124,8 @@ names it (no catalog skill is `opt-in` today), **claude-only** when the stack de
 | [scripts-tooling-refactor](#scripts-tooling-refactor) | Convert a `scripts/` directory into a tested, tooling-language-native layout | default | by name |
 | [worktree-agent-isolation](#worktree-agent-isolation) | Give each parallel agent its own git worktree and integrate via PRs | default | by name |
 | [pre-push-gate-debugging](#pre-push-gate-debugging) | Debug a blocked pre-push quality gate one lane at a time | default | by name |
-| [sqlite-schema-review](#sqlite-schema-review) | Review SQLite DDL and migrations against scratch-database evidence | default | by name |
-| [sqlite-bank-space-diagnosis](#sqlite-bank-space-diagnosis) | Diagnose a bloated SQLite file and its WAL read-only before reclaiming | default | by name |
+| [sqlite-schema-review](#sqlite-schema-review) | Review SQLite DDL and migrations against scratch-database evidence | opt-in | by name |
+| [sqlite-bank-space-diagnosis](#sqlite-bank-space-diagnosis) | Diagnose a bloated SQLite file and its WAL read-only before reclaiming | opt-in | by name |
 
 ---
 
@@ -595,11 +595,12 @@ chain answers "why did we do this?". Install with `pip install semantica`.
 
 ## Formerly opt-in, now shipped
 
-The 20 skills below were `optIn` until 0.169.0, when the whole catalog moved to `default`
+The 18 skills below were `optIn` until 0.169.0, when the catalog moved to `default`
 ([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)). They now arrive with every
 scaffold; a project that does not want one declines it by name in `config.exclude.skills` — see
 the opening of this page for both edits, and
 [`authoring-a-feature.md`](authoring-a-feature.md#default-or-optin) for the mechanism.
+The two sqlite skills keep `optIn` and are listed under [Still opt-in](#still-opt-in).
 
 ### documentation
 
@@ -862,6 +863,16 @@ join-time conflict resolution on plain branches — with worked cases from this 
 
 **When to use it.** A push fails for a reason the quality gate did not cause, CI goes red on a
 pushed branch, or a PR moves through review and merge outside the tracked-task flow.
+
+---
+
+## Still opt-in
+
+The two skills below keep `scope: optIn` ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)):
+they are specific to a SQLite-backed project, so they are not written into a repo until its
+`config.include.skills` names them. Ask for one with the edit at the top of this page, or
+decline it explicitly — and note that `den-refresh` lists any opt-in skill a project has not
+installed, so nobody has to know these exist in advance.
 
 ### sqlite-schema-review
 

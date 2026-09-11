@@ -1,7 +1,9 @@
 # ADR-0028 — The whole catalog ships by default; the opt-in tier is empty
 
 **Date:** 2026-09-11
-**Status:** Accepted (2026-09-11, 0.169.0) — owner-ruled
+**Status:** Accepted (2026-09-11, 0.169.0) — owner-ruled; **superseded in part** by
+[ADR-0029](0029-sqlite-skills-stay-opt-in.md) (2026-09-11, 0.170.0): the sqlite pair returns to
+`optIn`; everything else here stands
 **Author:** Rafał Araszkiewicz (Arasz) with pi (den-refresh lane)
 **Scope:** every `scope:` declaration under `features/common/skills/`, `config.include` /
 `config.exclude`, the delivery tests and the shipped plugin copy

@@ -5,10 +5,11 @@ it, and a `scope:` key in its own `SKILL.md` says whether it ships unasked. Ther
 list to fall out of step with — `badger_lib.SKILL_SCOPES` is gone, and its absence is asserted
 here because a reinstated copy would route silently and pass every other test in the suite.
 
-0.169.0 moved the whole catalog to `default` (ADR-0028): the opt-in tier is empty, and a project
-that wants less declines by name in `config.exclude`. The six formerly-optIn names stay pinned
-here because they had a recorded delivery rationale — the documentation gateway and the
-navigation trio — and a regression in their delivery is the one these tests exist to catch.
+0.169.0 moved the catalog to `default` (ADR-0028). The sqlite pair stayed `optIn` (ADR-0029):
+they are specific to a SQLite-backed project, so the framework keeps asking rather than handing
+them to every repo. Everything else ships unasked, and a project that wants less declines by
+name in `config.exclude`. The pinned names below are the ones with a recorded delivery
+rationale — the documentation gateway, the navigation trio, and the sqlite pair.
 """
 from __future__ import annotations
 
@@ -18,6 +19,7 @@ from conftest import _test_write
 DOCUMENTATION_SKILLS = ("scaffold-documentation", "update-documentation",
                         "migrate-documentation")
 NAVIGATION_SKILLS = ("review-changes", "debug-issue", "refactor-safely")
+SQLITE_SKILLS = ("sqlite-bank-space-diagnosis", "sqlite-schema-review")
 
 
 @pytest.fixture(name="bl")
@@ -85,10 +87,18 @@ class TestPinnedScopes:
         assert bl.skill_scope_in(
             root / "features" / "common" / "skills" / name) == bl.SKILL_SCOPE_DEFAULT
 
-    def test_the_opt_in_tier_is_empty(self, root, bl):
-        """0.169.0 ships the whole catalog by default; a new `optIn` skill is a decision, not
-        an accident, so it must arrive with this test updated on purpose (ADR-0028)."""
-        assert bl.opt_in_skills_in(root / "features" / "common" / "skills") == []
+    @pytest.mark.parametrize("name", SQLITE_SKILLS)
+    def test_the_sqlite_skills_stay_opt_in(self, root, bl, name):
+        """ADR-0029: a project asks for these by name; unasked delivery is what 0.169.0 fixed
+        by leaving them out of the default set."""
+        assert bl.skill_scope_in(
+            root / "features" / "common" / "skills" / name) == bl.SKILL_SCOPE_OPT_IN
+
+    def test_the_opt_in_tier_is_the_sqlite_pair(self, root, bl):
+        """A new `optIn` skill is a decision, not an accident: it must arrive with this test
+        updated on purpose (ADR-0029)."""
+        assert bl.opt_in_skills_in(root / "features" / "common" / "skills") == \
+            sorted(SQLITE_SKILLS)
 
     @pytest.mark.parametrize("name", DOCUMENTATION_SKILLS)
     def test_every_documentation_member_travels_inside_the_gateway(self, root, name):

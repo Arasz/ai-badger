@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.169.0",
+  "frameworkVersion": "0.170.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -383,12 +383,12 @@
         {
           "name": "sqlite-bank-space-diagnosis",
           "path": "features/common/skills/sqlite-bank-space-diagnosis",
-          "scope": "default"
+          "scope": "optIn"
         },
         {
           "name": "sqlite-schema-review",
           "path": "features/common/skills/sqlite-schema-review",
-          "scope": "default"
+          "scope": "optIn"
         },
         {
           "name": "status-report",
