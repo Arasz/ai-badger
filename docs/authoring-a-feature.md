@@ -218,9 +218,10 @@ and `.github/mcp.json` if an earlier run wrote it.
 - **`default`** — broadly applicable, no prerequisite: it ships to every scaffolded project and
   into the plugin copy without anyone asking.
 - **`optIn`** — a specialised set a project chooses: it stays in the catalog, is not scaffolded,
-  is not copied into `skills/`, and drift never reports it as a missing item. Since 0.169.0 no
-  catalog skill declares it ([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)): prefer
-  `default` unless unasked delivery is a real liability, and say why in the PR.
+  is not copied into `skills/`, and drift never reports it as a missing item. Since 0.169.0 the
+  only skills declaring it are the sqlite pair ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md);
+  [ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md) moved everything else to `default`):
+  prefer `default` unless unasked delivery is a real liability, and say why in the PR.
 
 An `optIn` skill is not invisible. Every `welcome-ai-badger` scaffold and every `den-refresh`
 report carries an `availableOptIn` section naming each one the project has not installed, its

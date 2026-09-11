@@ -57,8 +57,8 @@ def catalog(tmp_path: Path) -> Path:
 
 def test_derived_set_equals_the_manifest_rows_on_this_repo(root):
     """The oracle pin on the healthy tree: derived == the committed manifest's skill rows,
-    in the manifest's own (block) order — 50 of them at the pin's writing, after the whole
-    catalog moved to `scope: default` (ADR-0028)."""
+    in the manifest's own (block) order — 48 of them at the pin's writing: 44 default common
+    skills plus 4 stack-local, with the sqlite pair kept `optIn` (ADR-0029)."""
     config = bl.load_json(root / ".ai-badger" / "config.json")
     manifest = bl.load_json(root / ".ai-badger" / "manifest.json")
     recorded = bl.scaffolded_skill_names(manifest)
@@ -66,7 +66,7 @@ def test_derived_set_equals_the_manifest_rows_on_this_repo(root):
     derived = bl.expected_skill_names(root, config)
 
     assert derived == recorded
-    assert len(derived) == 50  # 46 common-by-default + 4 stack-local
+    assert len(derived) == 48  # 44 common-by-default + 4 stack-local
 
 
 def test_block_order_defaults_then_include_then_stack_local(catalog):

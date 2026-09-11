@@ -348,10 +348,21 @@ class TestCatalogRouting:
                      "pre-push-gate-debugging",
                      "research-record-audit", "review-gate-diff-verification",
                      "scripts-tooling-refactor", "spec-driven-refactoring",
-                     "sqlite-bank-space-diagnosis", "sqlite-schema-review",
                      "worktree-agent-isolation"):
             assert bl.skill_scope_in(
                 root / "features" / "common" / "skills" / name) == bl.SKILL_SCOPE_DEFAULT, name
+
+    def test_the_sqlite_skills_stay_opt_in(self, root, load_script):
+        """ADR-0029: the pair is specific to a SQLite-backed project, so it is not in the
+        shipped default set and the plugin copy must not carry it."""
+        bl = load_script("engine/badger_lib.py")
+        sps = load_script("tooling/sync_plugin_skills.py")
+
+        for name in ("sqlite-bank-space-diagnosis", "sqlite-schema-review"):
+            assert bl.skill_scope_in(
+                root / "features" / "common" / "skills" / name) == bl.SKILL_SCOPE_OPT_IN, name
+            assert name not in sps.COMMON_SKILLS, name
+            assert not (root / "skills" / name).exists(), name
 
     def test_decision_collection_skills_ship_with_every_project(self, root, load_script):
         """The two common skills are universal and have shipped plugin copies."""
