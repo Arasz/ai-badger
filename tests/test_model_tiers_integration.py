@@ -40,7 +40,7 @@ LANE_QUOTE_CARRIER = "tests/test_persona_levels.py"
 SHIPPED_REGISTRY = ".ai-badger/model-groups.json"
 CANONICAL_SEED = "features/common/data/model-groups.json"
 VERSION_FILE = "VERSION"
-CHANGELOG = "docs/changelog/0.165.0-model-groups-registry.md"
+CHANGELOG = "docs/changelog/0.168.0-high-tier-prefers-deepseek-v41-flash.md"
 DELEGATION_MD = ".ai-badger/delegation.md"
 PERSONA_GLOB = "features/*/personas/*.md"
 
