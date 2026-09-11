@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.168.0 | [high tier prefers deepseek-v4.1-flash](0.168.0-high-tier-prefers-deepseek-v41-flash.md) |
 | 0.167.1 | [model-groups registry stamps ride the release lineage](0.167.1-model-groups-frameworkversion-stamps.md) |
 | 0.167.0 | [quick-task skill: the branch+PR fast lane with auto-merge](0.167.0-quick-task-branch-pr-shape.md) |
 | 0.166.0 | [qa skill: grounded question-and-answer sessions with a saved summary](0.166.0-qa-question-answer-skill.md) |
