@@ -9,6 +9,8 @@ packet so scaffolded projects receive working diagram renderers without a networ
 - Tag: `v2.16.0`, commit `c826e6c3a7abad19c0f3cd1ca57207d54b1ad8de`
 - Release asset: `archify.zip` (1,318,273 B)
 - Asset sha256: `4c59fa6557a2385beaaef8c7219cc414573acc9f0c30a932d5053b0b20689a46`
+- Commit id: asserted from the release page and recorded in `vendor.json`; the **verified**
+  anchor is the asset sha256 above, not the commit (a `--revendor` run does not re-resolve it).
 - Staging: the asset was verified against that sha, then compared byte-for-byte
   (`diff -r`) with the output of upstream's own `scripts/stage-clean-skill.mjs` run from
   tag `v2.16.0` — identical. The 76 files here are that staged tree, except `SKILL.md`

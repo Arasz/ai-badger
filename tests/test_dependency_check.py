@@ -429,7 +429,7 @@ ARCHIFY_SYSTEM_DEPS = {
                     "name": "Node.js 18+ (Archify diagram renderer)",
                     "ecosystem": "system",
                     "package": "node",
-                    "note": "Without Node.js 18+ the architect skill cannot render "
+                    "note": "Without Node.js 18+ the Archify skill cannot render "
                              "and diagram requests fall back to Mermaid; install from "
                              "https://nodejs.org.",
                 }

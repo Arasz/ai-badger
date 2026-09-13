@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.171.0",
-  "frameworkCommit": "66b73a4d61bb6191a463d1e5d4c584bee8f17752",
+  "frameworkCommit": "c757b85848d7cc7652a62814513fc313e4739f76",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -506,12 +506,12 @@
       "source": "features/common/skills/archify",
       "target": ".ai-badger/skills/archify",
       "frameworkVersion": "0.171.0",
-      "hash": "30a5d7f68b5e7c72576780f236e47c689d30b6f7a6ce30c23c3956ad7081f428",
+      "hash": "3ef0cd719e242671c3dfa02420a70a455ac3de831bbef8e9b12726f31b4e0989",
       "dirMeta": {
         "file_count": 79,
         "dir_count": 17
       },
-      "sourceHash": "30a5d7f68b5e7c72576780f236e47c689d30b6f7a6ce30c23c3956ad7081f428",
+      "sourceHash": "3ef0cd719e242671c3dfa02420a70a455ac3de831bbef8e9b12726f31b4e0989",
       "sourceMeta": {
         "file_count": 79,
         "dir_count": 17
