@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -21,6 +22,21 @@ def _vendored_packet(path: Path) -> bool:
     return any((parent / "vendor.json").is_file() for parent in path.parents)
 
 
+def _is_json_schema(document: object) -> bool:
+    """True when `$schema` names the JSON Schema dialect by parsed hostname.
+
+    Not a substring test: `https://evil.example/?x=json-schema.org` must not qualify, and a
+    relative `$schema` (a sibling file) is not the dialect declaration this sweep looks for.
+    """
+    if not isinstance(document, dict):
+        return False
+    dialect = document.get("$schema")
+    if not isinstance(dialect, str):
+        return False
+    host = urlsplit(dialect).hostname or ""
+    return host == "json-schema.org" or host.endswith(".json-schema.org")
+
+
 def _json_schema_documents():
     found = []
     for base in SEARCH_ROOTS:
@@ -31,10 +47,18 @@ def _json_schema_documents():
                 document = json.loads(path.read_text(encoding="utf-8"))
             except ValueError:
                 continue
-            if isinstance(document, dict) and "json-schema.org" in str(document.get("$schema")):
+            if _is_json_schema(document):
                 found.append(pytest.param(path, document,
                                           id=path.relative_to(ROOT).as_posix()))
     return found
+
+
+def test_the_dialect_predicate_rejects_lookalike_urls():
+    """The hostname rule is load-bearing, so prove both directions."""
+    assert _is_json_schema({"$schema": "https://json-schema.org/draft/2020-12/schema"})
+    assert not _is_json_schema({"$schema": "https://evil.example/?x=json-schema.org"})
+    assert not _is_json_schema({"$schema": "./schema.json"})
+    assert not _is_json_schema({"type": "object"})
 
 
 def test_the_vendored_exclusion_is_bounded_and_real():
