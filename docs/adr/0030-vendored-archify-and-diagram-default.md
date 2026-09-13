@@ -28,12 +28,13 @@ capability.
 
 Four rulings:
 
-1. **Vendor the v2.16.0 release packet under `features/common/skills/archify/`,** byte-identical
-   for the 76 upstream files, with `LICENSE` and `THIRD_PARTY_NOTICES.md` (the latter backfilled
-   from upstream `main`; v2.16.0 ships none, and `brand-marks/catalog.json` is byte-identical
-   between the two, so the notice applies exactly). `vendor.json` pins the repo, tag, commit and
-   release-asset sha256, plus a per-file sha256. `tooling/vendor_archify.py --check` verifies the
-   tree offline; re-vendoring is an explicit
+1. **Vendor the v2.16.0 release packet under `features/common/skills/archify/`,** with 75 files
+   byte-identical to upstream plus the adapted `SKILL.md`, and with `LICENSE` (one of the 76
+   upstream files). `THIRD_PARTY_NOTICES.md` (backfilled from upstream `main`, which added it
+   after v2.16.0; `brand-marks/catalog.json` is byte-identical between the two, so the notice
+   applies exactly), `VENDOR.md` and `vendor.json` are ai-badger extras. `vendor.json` pins the
+   repo, tag, commit and release-asset sha256, plus a per-file sha256.
+   `tooling/vendor_archify.py --check` verifies the tree offline; re-vendoring is an explicit
    `--revendor <archify.zip> --expect-sha256 <sha>` run whose expected sha comes from the command
    line, never from the manifest it rewrites.
 2. **The skill declares `scope: default`** (ADR-0018), so it reaches every scaffold, the plugin

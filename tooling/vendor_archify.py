@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import errno
 import hashlib
 import json
 import os
@@ -123,8 +124,9 @@ lifecycle) — describe those in text or Mermaid and say which renderer gap forc
   not failed. Only exit 0 is a pass and only exit 1 is overflow or capture failure.
 - A failed `deliver` preserves the previous artifact, so never run `visual-check` on that
   path afterward: it would inspect the stale last-good HTML, not the failed candidate.
-- `meta.quality_profile` must be spelled exactly; omitting or misspelling it silently drops
-  out of showcase validation before any geometry is judged.
+- `meta.quality_profile` accepts exactly `standard` or `showcase`; a misspelling fails schema
+  validation loudly, and the `--quality showcase` flag overrides an omitted or `standard`
+  profile.
 - A `validate` receipt with 4 artifact checks is basic validation, never showcase acceptance:
   a showcase pass reports all 9 artifact checks with 0 composition errors and 0 warnings.
 """
@@ -324,7 +326,8 @@ def stage_zip(zpath: Path, staging: Path) -> Dict[str, bytes]:
             if not rel.startswith(top + "/"):
                 raise VendorError(f"zip entry outside {top}/: {rel}")
             rel = rel[len(top) + 1:]
-            if not rel or rel.startswith("/") or ".." in rel.split("/"):
+            if not rel or rel.startswith("/") or ".." in rel.split("/") \
+                    or "\\" in rel or ":" in rel:
                 raise VendorError(f"refusing unsafe zip path: {info.filename}")
             if excluded(rel):
                 continue
@@ -345,19 +348,23 @@ def target_is_dirty(target: Path) -> bool:
     """True when git reports uncommitted changes under an existing target.
 
     A nonexistent target is a fresh vendor (nothing to protect); a target outside any work
-    tree has no baseline to be dirty against. Both proceed.
+    tree has no baseline to be dirty against. Both proceed. Git itself is assessed from the
+    target's own directory, so `--root` may point at a repository other than the caller's.
     """
     if not target.exists():
         return False
-    proc = subprocess.run(["git", "status", "--porcelain", "--", str(target)],
-                          capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        inside = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"],
-                                capture_output=True, text=True, check=False, cwd=str(
-                                    target if target.is_dir() else target.parent))
-        if inside.returncode != 0 or inside.stdout.strip() != "true":
-            return False
-        raise VendorError(f"cannot assess target cleanliness: {proc.stderr.strip()}")
+    cwd = str(target if target.is_dir() else target.parent)
+    try:
+        proc = subprocess.run(["git", "status", "--porcelain", "--", str(target)],
+                              capture_output=True, text=True, check=False, cwd=cwd)
+        if proc.returncode != 0:
+            inside = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"],
+                                    capture_output=True, text=True, check=False, cwd=cwd)
+            if inside.returncode != 0 or inside.stdout.strip() != "true":
+                return False
+            raise VendorError(f"cannot assess target cleanliness: {proc.stderr.strip()}")
+    except OSError as exc:
+        raise VendorError(f"cannot assess target cleanliness: git unavailable ({exc})") from exc
     return bool(proc.stdout.strip())
 
 
@@ -379,6 +386,23 @@ def build_manifest(staged: Dict[str, bytes], adapted_hashes: Tuple[str, str], ta
     }
 
 
+def _staging_parent(path: Path) -> Path:
+    """The deepest existing directory at or above `path` — a same-filesystem staging home.
+
+    Staging under the system temp dir makes the final `os.replace` cross-device on hosts
+    whose tmp is a separate mount; staging under `path` itself would create directories the
+    failure path is supposed to leave untouched, so the nearest existing ancestor is used and
+    `replace_tree` keeps a cross-device fallback for the residual case.
+    """
+    current = path
+    while not current.is_dir():
+        parent = current.parent
+        if parent == current:
+            return current
+        current = parent
+    return current
+
+
 def run_revendor(zpath: Path, expect_sha256: str, root: Path, tag: str | None,
                  commit: str | None) -> Tuple[int, List[str]]:
     """Origin operation; returns (exit_code, report_lines). Exit 2 on any failure."""
@@ -396,7 +420,8 @@ def run_revendor(zpath: Path, expect_sha256: str, root: Path, tag: str | None,
             return 2, [f"refusing: {target} has uncommitted changes — commit or stash first"]
     except VendorError as exc:
         return 2, [str(exc)]
-    with tempfile.TemporaryDirectory(prefix="archify-revendor-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="archify-revendor-",
+                                     dir=_staging_parent(target.parent)) as tmp:
         staging = Path(tmp) / "staged"
         staging.mkdir()
         try:
@@ -448,14 +473,24 @@ def replace_tree(target: Path, staging: Path) -> None:
     backup = target.parent / (target.name + ".revendor-prev")
     if backup.exists():
         raise VendorError(f"stale rollback dir {backup} — remove it by hand and retry")
+
+    def _move(src: Path, dst: Path) -> None:
+        """os.replace, falling back to a copy for a staging mount that differs."""
+        try:
+            os.replace(src, dst)
+        except OSError as exc:
+            if exc.errno != errno.EXDEV:
+                raise
+            shutil.move(src, dst)
+
     try:
         if target.exists():
-            os.replace(target, backup)
+            _move(target, backup)
         try:
-            os.replace(staging, target)
+            _move(staging, target)
         except OSError:
             if backup.exists():
-                os.replace(backup, target)
+                _move(backup, target)
             raise
     except OSError as exc:
         raise VendorError(f"could not replace {target}: {exc}") from exc

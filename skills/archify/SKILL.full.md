@@ -165,7 +165,8 @@ lifecycle) — describe those in text or Mermaid and say which renderer gap forc
   not failed. Only exit 0 is a pass and only exit 1 is overflow or capture failure.
 - A failed `deliver` preserves the previous artifact, so never run `visual-check` on that
   path afterward: it would inspect the stale last-good HTML, not the failed candidate.
-- `meta.quality_profile` must be spelled exactly; omitting or misspelling it silently drops
-  out of showcase validation before any geometry is judged.
+- `meta.quality_profile` accepts exactly `standard` or `showcase`; a misspelling fails schema
+  validation loudly, and the `--quality showcase` flag overrides an omitted or `standard`
+  profile.
 - A `validate` receipt with 4 artifact checks is basic validation, never showcase acceptance:
   a showcase pass reports all 9 artifact checks with 0 composition errors and 0 warnings.

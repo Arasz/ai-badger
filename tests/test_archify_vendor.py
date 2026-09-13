@@ -393,8 +393,40 @@ def test_revendor_refuses_symlinks_and_a_dirty_target(tmp_path: Path):
     proc = _run_tool("--revendor", str(zpath), "--expect-sha256", digest,
                      "--root", str(tmproot))
     assert proc.returncode == 2, f"dirty target accepted:\n{_out(proc)}"
+    assert "uncommitted changes" in _out(proc), (
+        "the refusal must name the dirty target, not fall through a cwd failure:\n"
+        + _out(proc))
     assert (dest / "SKILL.md").read_text(encoding="utf-8") == "dirty\n", \
         "the dirty tree was touched despite the refusal"
+
+
+def test_check_reports_excluded_paths_the_scaffold_would_silently_drop(tmp_path: Path):
+    """A vendored path matching SKILL_EXCLUDE_PATTERNS reds `--check` (F10's missing witness).
+
+    Without this, the EXCLUDED loop can be deleted with every test still green — and the
+    failure it guards against is a file that ships in the manifest and then vanishes at
+    scaffold time.
+    """
+    zpath, digest = _synthetic_zip(tmp_path, "clean.zip", _synthetic_files())
+    tmproot = tmp_path / "framework"
+    proc = _run_tool("--revendor", str(zpath), "--expect-sha256", digest,
+                     "--root", str(tmproot))
+    assert proc.returncode == 0, f"synthetic revendor failed:\n{_out(proc)}"
+    dest = tmproot / "features" / "common" / "skills" / "archify"
+    _test_write(dest / "VENDOR.md", "v\n")
+    _test_write(dest / "THIRD_PARTY_NOTICES.md", "t\n")
+
+    rel = "examples/test_probe.py"
+    probe_bytes = b"""print('probe')\n"""
+    (dest / "examples").mkdir(parents=True, exist_ok=True)
+    _test_write(dest / rel, probe_bytes.decode("utf-8"))
+    manifest = json.loads((dest / "vendor.json").read_text(encoding="utf-8"))
+    manifest["files"][rel] = hashlib.sha256(probe_bytes).hexdigest()
+    _test_write(dest / "vendor.json", json.dumps(manifest, indent=2) + "\n")
+
+    proc = _run_tool("--check", "--root", str(tmproot))
+    assert proc.returncode == 1, f"excluded path accepted:\n{_out(proc)}"
+    assert f"EXCLUDED {rel}" in _out(proc), f"EXCLUDED not reported:\n{_out(proc)}"
 
 
 # ------------------------------------------------- PKG-1c coordination: exemption necessity
