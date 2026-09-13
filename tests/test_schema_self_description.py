@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -10,18 +11,62 @@ ROOT = Path(__file__).resolve().parents[1]
 SEARCH_ROOTS = ("schemas", "features")
 
 
+def _vendored_packet(path: Path) -> bool:
+    """True when a `vendor.json` in this path's ancestry marks a vendored packet (ADR-0030).
+
+    A vendored packet's schemas are the upstream vendor's contract, shipped byte-identical;
+    editing them to satisfy an ai-badger convention would break the provenance gate. The
+    predicate is the packet marker, not a hardcoded skill name, so the next vendored skill is
+    covered without touching this test.
+    """
+    return any((parent / "vendor.json").is_file() for parent in path.parents)
+
+
+def _is_json_schema(document: object) -> bool:
+    """True when `$schema` names the JSON Schema dialect by parsed hostname.
+
+    Not a substring test: `https://evil.example/?x=json-schema.org` must not qualify, and a
+    relative `$schema` (a sibling file) is not the dialect declaration this sweep looks for.
+    """
+    if not isinstance(document, dict):
+        return False
+    dialect = document.get("$schema")
+    if not isinstance(dialect, str):
+        return False
+    host = urlsplit(dialect).hostname or ""
+    return host == "json-schema.org" or host.endswith(".json-schema.org")
+
+
 def _json_schema_documents():
     found = []
     for base in SEARCH_ROOTS:
         for path in sorted((ROOT / base).rglob("*.json")):
+            if _vendored_packet(path):
+                continue
             try:
                 document = json.loads(path.read_text(encoding="utf-8"))
             except ValueError:
                 continue
-            if isinstance(document, dict) and "json-schema.org" in str(document.get("$schema")):
+            if _is_json_schema(document):
                 found.append(pytest.param(path, document,
                                           id=path.relative_to(ROOT).as_posix()))
     return found
+
+
+def test_the_dialect_predicate_rejects_lookalike_urls():
+    """The hostname rule is load-bearing, so prove both directions."""
+    assert _is_json_schema({"$schema": "https://json-schema.org/draft/2020-12/schema"})
+    assert not _is_json_schema({"$schema": "https://evil.example/?x=json-schema.org"})
+    assert not _is_json_schema({"$schema": "./schema.json"})
+    assert not _is_json_schema({"type": "object"})
+
+
+def test_the_vendored_exclusion_is_bounded_and_real():
+    """The exclusion must skip the vendored schemas and nothing else."""
+    assert _vendored_packet(
+        ROOT / "features" / "common" / "skills" / "archify" / "schemas"
+        / "architecture.schema.json")
+    assert not _vendored_packet(ROOT / "schemas" / "model.schema.json")
 
 
 def test_the_sweep_finds_the_schemas_it_is_meant_to_guard():

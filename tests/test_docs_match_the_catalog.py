@@ -25,6 +25,13 @@ CATALOG_TOTAL_RE = re.compile(r"catalogs (\d+) skills")
 COMMON_TOTAL_RE = re.compile(r"(\d+) live under `features/common/skills/`")
 DEFAULT_TOTAL_RE = re.compile(r"\*\*(\d+) are `default`\*\*")
 OPT_IN_TOTAL_RE = re.compile(r"\*\*(\d+) are `optIn`\*\*")
+# The tree sentence: "**These 48 are not the whole tree.**
+# `features/*/skills/*/SKILL.md` matches **54** files:" — both regexes are anchored to that
+# literal so they cannot match a different sentence that happens to share a fragment.
+TREE_TOTAL_RE = re.compile(r"`features/\*/skills/\*/SKILL\.md` matches \*\*(\d+)\*\* files")
+THESE_TOTAL_RE = re.compile(r"\*\*These (\d+) are not the whole tree\.\*\*")
+
+SKILLS_GLOB = "features/*/skills/*/SKILL.md"
 
 # How a declared scope reads in the `Ships` column.
 SHIPS_BY_SCOPE = {"default": "default", "optIn": "opt-in"}
@@ -79,9 +86,10 @@ def _catalog_skills(root: Path) -> dict:
 
 
 def _one_count(pattern: re.Pattern, text: str, label: str) -> int:
-    found = pattern.search(text)
-    assert found, f"docs/skills.md no longer states the {label} in a checkable form"
-    return int(found.group(1))
+    found = pattern.findall(text)
+    assert len(found) == 1, (
+        f"docs/skills.md states the {label} {len(found)} times, expected exactly once")
+    return int(found[0])
 
 
 class TestSkillsDocCoversTheCatalog:
@@ -141,6 +149,20 @@ class TestSkillsDocCountsAreDerived:
 
         assert _one_count(pattern, text, label) == sum(1 for s in scopes.values() if s == scope)
 
+    def test_the_tree_total_is_right(self, root):
+        """The glob numeral is a claim too, and nothing derived it before."""
+        text = _skills_doc(root)
+        globbed = list((root / "features").glob("*/skills/*/SKILL.md"))
+
+        assert _one_count(TREE_TOTAL_RE, text, "tree total") == len(globbed)
+
+    def test_the_these_sentence_matches_the_page_total(self, root):
+        """"These N are not the whole tree" counts the skills this page documents."""
+        text = _skills_doc(root)
+
+        assert _one_count(THESE_TOTAL_RE, text, "'These N' total") == \
+               len(_catalog_skills(root))
+
 
 class TestScriptsDocCoversTheScripts:
     """`docs/scripts.md` is the only map of the runnable surface; an omitted script is invisible."""
@@ -181,6 +203,18 @@ class TestTheseChecksCouldFail:
 
     def test_a_stale_count_is_caught(self):
         assert _one_count(CATALOG_TOTAL_RE, "ai-badger catalogs 22 skills.", "total") == 22
+
+    def test_a_stale_tree_total_is_caught(self):
+        assert _one_count(TREE_TOTAL_RE,
+                          "`features/*/skills/*/SKILL.md` matches **99** files",
+                          "tree total") == 99
+        assert _one_count(THESE_TOTAL_RE, "**These 3 are not the whole tree.**", "these") == 3
+
+    def test_a_doubled_tree_sentence_is_caught(self):
+        doubled = ("`features/*/skills/*/SKILL.md` matches **54** files; "
+                   "`features/*/skills/*/SKILL.md` matches **54** files")
+        with pytest.raises(AssertionError):
+            _one_count(TREE_TOTAL_RE, doubled, "tree total")
 
     def test_an_omitted_script_is_caught(self):
         text = "| `index_build.py` | Rebuild the index |"

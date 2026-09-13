@@ -634,6 +634,43 @@ def _skills_lint_violation(work: Path, provoked: bool) -> Outcome:
     return _run([str(ROOT / "gates" / "skills_lint.py"), "--root", str(root)])
 
 
+# --------------------------------------------- tooling/vendor_archify.py --check
+
+# Loaded for its adaptation constants only (the DL/VALIDATE precedent): the fixture builds
+# a consistent synthetic packet with the tool's own adaptation, then corrupts one file
+# byte with bytes no tool code computes — the failure signal is the wiring, not the logic.
+VENDOR_ARCHIFY = _load("tooling/vendor_archify.py")
+
+
+def _vendor_archify_tree(work: Path) -> Path:
+    """A synthetic framework root whose archify packet matches its own vendor.json."""
+    dest = work / "framework" / "features" / "common" / "skills" / "archify"
+    upstream_skill = ("---\nname: archify\ndescription: fixture\n---\n# Fixture\n\n"
+                      + VENDOR_ARCHIFY.ORIGINAL_TAIL + "\n")
+    adapted, upstream_body_sha, frontmatter_sha = VENDOR_ARCHIFY.adapt_skill_md(
+        upstream_skill, "0.0.0-provocation")
+    _write(dest / "SKILL.md", adapted)
+    _write(dest / "payload.txt", "clean\n")
+    staged = {"SKILL.md": adapted.encode("utf-8"), "payload.txt": b"clean\n"}
+    manifest = VENDOR_ARCHIFY.build_manifest(
+        staged, (upstream_body_sha, frontmatter_sha), tag="v0.0.0", commit="",
+        asset_sha256="0" * 64, staged_by="every-check-can-fail provocation")
+    _write(dest / "vendor.json", json.dumps(manifest, indent=2) + "\n")
+    for extra in ("VENDOR.md", "THIRD_PARTY_NOTICES.md"):
+        _write(dest / extra, "provocation fixture\n")
+    return work / "framework"
+
+
+def _vendor_archify_check(work: Path, provoked: bool) -> Outcome:
+    """A vendored file with one corrupted hash — the check must print CHANGED."""
+    root = _vendor_archify_tree(work)
+    if provoked:
+        target = root / "features" / "common" / "skills" / "archify" / "payload.txt"
+        _test_write(target, "corrupted\n", encoding="utf-8")
+    return _run([str(ROOT / "tooling" / "vendor_archify.py"), "--check",
+                 "--root", str(root)])
+
+
 # ------------------------------------------------------- call-behaviorist analyze findings
 
 
@@ -878,6 +915,8 @@ REGISTRY: Tuple[Provocation, ...] = (
     Provocation("gates/skills_lint.py", "a SKILL.md that breaks the name grammar",
                 _skills_lint_violation,
                 Signal(exit_code=1, contains="SKILLS LINT FAILED")),
+    Provocation("tooling/vendor_archify.py --check", "a vendored file with a corrupted hash",
+                _vendor_archify_check, Signal(exit_code=1, contains="CHANGED")),
     Provocation("gates/workflow_lint.py", "an action pinned to a tag instead of a commit",
                 _workflow_lint_unpinned,
                 Signal(exit_code=1, contains="not pinned to a 40-character commit SHA")),

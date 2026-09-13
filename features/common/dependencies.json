@@ -22,6 +22,18 @@
           "note": "Enables real local vector search for semantic_search_nodes_tool. Installs sentence-transformers + torch (~2 GB) and may lack prebuilt wheels on very new Python versions (e.g. 3.14) — not installed automatically for that reason."
         }
       ]
+    },
+    {
+      "feature": "archify",
+      "path": "features/common/skills/archify",
+      "dependencies": [
+        {
+          "name": "Node.js 18+ (Archify diagram renderer)",
+          "ecosystem": "system",
+          "package": "node",
+          "note": "Without Node.js 18+ the Archify skill cannot render and diagram requests fall back to Mermaid; install from https://nodejs.org."
+        }
+      ]
     }
   ]
 }

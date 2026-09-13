@@ -13,7 +13,8 @@ ENGINE_MODULES = ("badger_lib.py", "badger_store.py", "frontmatter.py", "framewo
                   "unsafe_literals.py")
 TOOLING_SCRIPTS = ("changelog_index.py", "fixture_harvest.py", "index_build.py",
                    "install_plugins.py", "retrieval_eval.py", "sync_plugin_skills.py",
-                   "test_pi_hook_fires.py", "validate.py", "version_sync.py")
+                   "test_pi_hook_fires.py", "validate.py", "vendor_archify.py",
+                   "version_sync.py")
 
 # The three skills the recoverability argument in ADR-0011 rests on: each must document the
 # framework's own copy, never the vendored one a stale shim would have bricked.
