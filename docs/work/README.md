@@ -126,3 +126,14 @@ the first plain-markdown record here.
 ## 2026-09-01 — aib-pi-message-bus-push-delivery P2 (store delivery summary, failure marker, wrap guard, hook-error message)
 
 | `2026-09-01-pi-bus-push-red-witnesses.md` | The P2 lane's red-first witness log (gates B6 → B7 → B4/B5 → B8): pasted RED outputs for the `(messages, summary)` store contract and the C2b failure-marker wire shape, the C9 wrap-guard healing test, the C8 leak-guard two-direction pair, and the B8 full-wire pins — each gate with its applied-and-reverted killer mutation (strict-`>` wrap boundary, log-format revert, raw-str leak, unguarded log call, `_deliver` merge drop). |
+
+## 2026-09-13 — aib-archify-diagram-skill-default-integration (vendored archify, 0.171.0)
+
+| `2026-09-13-archify-diagram-skill-research.md` | Research record for vendoring the upstream Archify skill (v2.16.0), with sources for every claim: packet size and contents, Node requirement, the release-asset sha, the ai-badger integration surfaces, and the six open questions the plan had to rule on. |
+| `2026-09-13-archify-diagram-skill-plan.md` | The reviewed plan (rev 2): four packages, the release-asset provenance pin, the presence-only `system` dependency ruling, the default-with-fallback policy, and the fold table mapping every plan-review finding to its change. |
+| `2026-09-13-archify-diagram-skill-plan-proposal-architect.md` | Architect lane proposal: rulings on the six open questions, the package decomposition, the ADR-0030 outline, and risks labelled by evidence grade. |
+| `2026-09-13-archify-diagram-skill-plan-proposal-test-engineer.md` | Test-engineer lane proposal: deliverable → test → command → RED → GREEN table, the `system` case matrix, the honesty note separating offline consistency from upstream origin, and a tautology audit. |
+| `2026-09-13-archify-diagram-skill-plan-proposal-api-engineer.md` | API-engineer lane proposal: the vendor-tool contract, the `system` dependency contract, and the exact adapted SKILL.md frontmatter and body edits that satisfy `gates/skills_lint.py` rules 1–13. |
+| `2026-09-13-archify-diagram-skill-plan-review-code-reviewer.md` | Plan-review lane: three MUST findings (mirror staleness for a delivered-script edit, the unindexed work records, the meta-gate provocation) and the wording/testability corrections folded into plan rev 2. |
+| `2026-09-13-archify-diagram-skill-plan-review-qa.md` | Plan-review lane: sixteen findings on test honesty — the vacuous lint test, the manifest-derived file-set oracle, the self-referential re-vendor sha gate, the node-skip backstop, and the missing forgery test. |
+| `2026-09-13-archify-diagram-skill-plan-review-hermes-agent-author.md` | Plan-review lane: delivery-surface adjudication across scaffold, plugin pointer, Hermes symlinks, pi's adapter gate and Copilot — packet integrity confirmed, plugin-only fallback gap and install-run Hermes precondition folded into rev 2. |

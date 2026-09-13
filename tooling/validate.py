@@ -104,6 +104,26 @@ FEATURE_JSON_WITHOUT_SCHEMA: Dict[str, str] = {
         "the filled copy lives in the consumer project and the blank one is only ever read by "
         "the human following the skill. Its shape is pinned by that skill's own tests, which "
         "assert what a schema cannot — that a field stays unanswerable-by-default",
+    "features/*/skills/*/schemas/*.json":
+        "vendored Archify schema documents (ADR-0030), byte-identical to the pinned upstream "
+        "release: the skill's own generated validators and `archify validate` are their "
+        "consumers, so a second schema layer here would only go stale",
+    "features/*/skills/*/examples/*.json":
+        "vendored Archify diagram specimens (ADR-0030) read by the skill's authoring path; "
+        "`node bin/archify.mjs validate` is the validator that actually reads them",
+    "features/*/skills/*/brand-marks/*.json":
+        "the vendored Archify brand-mark registry (ADR-0030); its shape is the upstream "
+        "vendor's contract and the renderer that consumes it ships beside it",
+    "features/*/skills/*/package.json":
+        "the vendored Archify packet's npm metadata (engines, bin) as cleaned by "
+        "tooling/vendor_archify.py — npm's contract, not ai-badger's",
+    "features/*/skills/*/skill-release.json":
+        "the vendored Archify release/update manifest; its shape belongs to the upstream "
+        "update contract that ships with the packet",
+    "features/*/skills/*/vendor.json":
+        "the ai-badger provenance manifest for the vendored Archify packet (ADR-0030); "
+        "tooling/vendor_archify.py --check and tests/test_archify_vendor.py are its "
+        "validators, and a schema here would be a second copy of that shape",
 }
 
 # Stacks whose files are not checked for cross-stack references, and why.

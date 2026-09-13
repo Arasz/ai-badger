@@ -21,6 +21,7 @@ NEW_INVARIANTS = (
     "check-sources-not-yourself",
     "measure-when-it-pays",
     "ask-if-simpler",
+    "archify-diagrams",
 )
 
 # pr-per-task.md carries a deliberate multi-paragraph exception clause about who may waive

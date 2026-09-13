@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -414,3 +415,215 @@ class TestInstallConsent:
             result = dc.run_dependency_check(dep_root, dep_target)
 
         assert any("-g" in hint or "global" in hint for hint in result["hints"])
+
+
+# ── system ecosystem (presence-only; e.g. Archify Node.js 18+ runtime) ───────────────
+
+ARCHIFY_SYSTEM_DEPS = {
+    "dependencies": [
+        {
+            "feature": "archify",
+            "path": "features/common/skills/archify",
+            "dependencies": [
+                {
+                    "name": "Node.js 18+ (Archify diagram renderer)",
+                    "ecosystem": "system",
+                    "package": "node",
+                    "note": "Without Node.js 18+ the architect skill cannot render "
+                             "and diagram requests fall back to Mermaid; install from "
+                             "https://nodejs.org.",
+                }
+            ],
+        }
+    ]
+}
+
+SYSTEM_COMMAND = "myinstaller --install sometool --yes"
+
+SYSTEM_COMMAND_DEPS = {
+    "dependencies": [
+        {
+            "feature": "sys-tool",
+            "path": "features/common/skills/sys-tool",
+            "dependencies": [
+                {
+                    "name": "Some system tool",
+                    "ecosystem": "system",
+                    "package": "sometool",
+                    "command": SYSTEM_COMMAND,
+                }
+            ],
+        }
+    ]
+}
+
+
+@pytest.fixture
+def dep_root_system(tmp_path):
+    """Fake framework root with the archify-style presence-only system entry."""
+    (tmp_path / "features" / "common").mkdir(parents=True)
+    _test_write(
+        tmp_path / "features" / "common" / "dependencies.json",
+        json.dumps(ARCHIFY_SYSTEM_DEPS), encoding="utf-8")
+    return tmp_path
+
+
+@pytest.fixture
+def dep_root_system_command(tmp_path):
+    """Fake framework root with a system entry that declares an install command."""
+    (tmp_path / "features" / "common").mkdir(parents=True)
+    _test_write(
+        tmp_path / "features" / "common" / "dependencies.json",
+        json.dumps(SYSTEM_COMMAND_DEPS), encoding="utf-8")
+    return tmp_path
+
+
+class TestSystemEcosystem:
+    """`ecosystem: system` is presence-only via `shutil.which`; never auto-installs."""
+
+    def test_present_reports_already_present_without_subprocess(
+        self, load_script, dep_root_system, dep_target
+    ):
+        dc = load_script(SCRIPT)
+        dep_target.mkdir(parents=True)
+        with patch.object(dc.shutil, "which", return_value="/usr/bin/node") as which, \
+             patch.object(dc.subprocess, "run") as mock_run:
+            result = dc.run_dependency_check(
+                dep_root_system, dep_target, features=["archify"])
+        which.assert_called_with("node")
+        assert result["already_present"] == ["node"]
+        assert result["hints"] == []
+        assert result["errors"] == []
+        mock_run.assert_not_called()
+
+    def test_present_in_execute_mode_still_reports_already_present_without_subprocess(
+        self, load_script, dep_root_system, dep_target
+    ):
+        dc = load_script(SCRIPT)
+        dep_target.mkdir(parents=True)
+        with patch.object(dc.shutil, "which", return_value="/usr/bin/node"), \
+             patch.object(dc.subprocess, "run") as mock_run:
+            result = dc.run_dependency_check(
+                dep_root_system, dep_target, features=["archify"], allow_install=True)
+        assert result["already_present"] == ["node"]
+        assert result["hints"] == []
+        assert result["errors"] == []
+        mock_run.assert_not_called()
+
+    def test_absent_yields_single_hint_naming_node_18_and_mermaid(
+        self, load_script, dep_root_system, dep_target
+    ):
+        dc = load_script(SCRIPT)
+        dep_target.mkdir(parents=True)
+        with patch.object(dc.shutil, "which", return_value=None), \
+             patch.object(dc.subprocess, "run") as mock_run:
+            result = dc.run_dependency_check(
+                dep_root_system, dep_target, features=["archify"])
+        assert result["installed"] == []
+        assert result["errors"] == []
+        assert len(result["hints"]) == 1
+        hint = result["hints"][0]
+        assert "Node" in hint
+        assert "18" in hint
+        assert "Mermaid" in hint
+        mock_run.assert_not_called()
+
+    def test_absent_with_execute_and_no_command_stays_hint_never_installs(
+        self, load_script, dep_root_system, dep_target
+    ):
+        dc = load_script(SCRIPT)
+        dep_target.mkdir(parents=True)
+        with patch.object(dc.shutil, "which", return_value=None), \
+             patch.object(dc.subprocess, "run") as mock_run:
+            result = dc.run_dependency_check(
+                dep_root_system, dep_target, features=["archify"], allow_install=True)
+        assert result["installed"] == []
+        assert result["errors"] == []
+        assert len(result["hints"]) == 1
+        assert "npm install -g node" not in " ".join(
+            str(c) for c in mock_run.call_args_list)
+        mock_run.assert_not_called()
+
+    def test_with_command_and_execute_runs_shlex_split_without_shell(
+        self, load_script, dep_root_system_command, dep_target
+    ):
+        dc = load_script(SCRIPT)
+        dep_target.mkdir(parents=True)
+        with patch.object(dc.shutil, "which", return_value=None), \
+             patch.object(dc.subprocess, "run",
+                           return_value=MagicMock(returncode=0, stdout="", stderr="")) as mock_run:
+            result = dc.run_dependency_check(
+                dep_root_system_command, dep_target,
+                features=["sys-tool"], allow_install=True)
+        assert result["errors"] == []
+        assert result["installed"] == ["sometool"]
+        assert mock_run.call_count == 1
+        argv, kwargs = mock_run.call_args.args, mock_run.call_args.kwargs
+        assert list(argv[0]) == shlex.split(SYSTEM_COMMAND)
+        assert kwargs.get("shell", False) is False
+        assert "shell" not in kwargs or kwargs["shell"] is False
+
+    def test_with_command_but_no_consent_does_not_run(
+        self, load_script, dep_root_system_command, dep_target
+    ):
+        dc = load_script(SCRIPT)
+        dep_target.mkdir(parents=True)
+        with patch.object(dc.shutil, "which", return_value=None), \
+             patch.object(dc.subprocess, "run") as mock_run:
+            result = dc.run_dependency_check(
+                dep_root_system_command, dep_target, features=["sys-tool"])
+        mock_run.assert_not_called()
+        assert result["installed"] == []
+        assert result["errors"] == []
+        assert len(result["hints"]) == 1
+
+    def test_declared_command_failure_records_error_without_raising(
+        self, load_script, dep_root_system_command, dep_target
+    ):
+        dc = load_script(SCRIPT)
+        dep_target.mkdir(parents=True)
+        with patch.object(dc.shutil, "which", return_value=None), \
+             patch.object(dc.subprocess, "run",
+                           return_value=MagicMock(returncode=1, stdout="", stderr="boom")) as mock_run:
+            result = dc.run_dependency_check(
+                dep_root_system_command, dep_target,
+                features=["sys-tool"], allow_install=True)
+        assert mock_run.call_count == 1
+        assert result["installed"] == []
+        assert len(result["errors"]) == 1
+        assert "sometool" in result["errors"][0]
+
+    def test_declared_command_timeout_records_error_without_raising(
+        self, load_script, dep_root_system_command, dep_target
+    ):
+        dc = load_script(SCRIPT)
+        dep_target.mkdir(parents=True)
+        with patch.object(dc.shutil, "which", return_value=None), \
+             patch.object(dc.subprocess, "run",
+                           side_effect=subprocess.TimeoutExpired(cmd="x", timeout=120)) as mock_run:
+            result = dc.run_dependency_check(
+                dep_root_system_command, dep_target,
+                features=["sys-tool"], allow_install=True)
+        assert mock_run.call_count == 1
+        assert result["installed"] == []
+        assert len(result["errors"]) == 1
+
+    def test_shipped_dependencies_declares_archify_system_presence_only(
+        self, load_script, root
+    ):
+        shipped = json.loads(
+            (root / "features" / "common" / "dependencies.json").read_text(encoding="utf-8"))
+        entries = [d for d in shipped["dependencies"] if d["feature"] == "archify"]
+        assert len(entries) == 1
+        deps = entries[0]["dependencies"]
+        assert len(deps) == 1
+        dep = deps[0]
+        assert dep["ecosystem"] == "system"
+        assert dep["package"] == "node"
+        assert "command" not in dep
+        assert "Node" in dep["name"]
+        assert "18" in dep["name"]
+        note = dep.get("note", "")
+        assert "Node" in note
+        assert "18" in note
+        assert "Mermaid" in note

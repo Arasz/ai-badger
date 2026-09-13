@@ -1,10 +1,10 @@
 # Skills
 
-This page catalogs 47 skills — everything under `features/common/skills/` and
+This page catalogs 48 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-46 live under `features/common/skills/` and split by the `scope:` each declares in its own
+47 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**44 are `default`** and arrive in every scaffolded project without being asked for, and
+**45 are `default`** and arrive in every scaffolded project without being asked for, and
 **2 are `optIn`** — the sqlite pair, which stays out of the default set because it is specific
 to a SQLite-backed project ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)). Everything else
 moved to `default` in 0.169.0 ([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)); a
@@ -14,8 +14,8 @@ opt-in pair. The last one,
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 43 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **53** files:
-the 47 above plus 6 more that belong to a single stack and arrive only with it — the
+**These 48 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **54** files:
+the 48 above plus 6 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/`, 1 under `features/ai-raccoon/skills/` and 1 under `features/github/skills/`.
 Those 6 have no row below and are documented by their own `SKILL.md`. Derive the number rather
@@ -83,6 +83,7 @@ names it (the sqlite pair today), **claude-only** when the stack decides.
 | [den-refresh](#den-refresh) | Pull framework updates into an already-scaffolded repo | default | by name |
 | [feed-badger](#feed-badger) | Contribute project-agnostic improvements back to the catalog | default | by name |
 | [humanizer](#humanizer) | Strip AI writing artifacts, apply research-grounded humanization levers, and adopt a natural voice | default | by name |
+| [archify](#archify) | Author architecture, workflow, sequence, data-flow and lifecycle diagrams as validated standalone HTML, with Mermaid as the fallback | default | by name |
 | [task](#task) | Run one backlog task end to end with model delegation | default | by name (`/task <id>`) |
 | [quick-task](#quick-task) | Ship a one-sentence, one-surface change as a single commit on a branch merged via PR with auto-merge — minimal plan, touched-surface tests, no review wait | default | by name |
 | [status-report](#status-report) | Answer "where are we?" mid-task — current task, checklist progress, next, delegation status | default | by name |
@@ -193,6 +194,30 @@ instruction, or fix — is project-agnostic and worth contributing back.
 **What it does.** Applies 9 humanization levers (burstiness injection, anti-vocabulary/n-gram purge, zero em-dash rule, active clause conversion, structural flattening, specificity insertion) and a two-pass self-audit protocol to make AI-generated or edited prose sound natural, human, and direct.
 
 **When to use it.** Writing or editing documentation, READMEs, tutorials, how-tos, release notes, or PR descriptions.
+
+### archify
+
+[`SKILL.md`](../features/common/skills/archify/SKILL.md)
+
+**What it is.** The catalog's diagram authoring tool: the vendored upstream Archify skill
+(MIT, pinned at v2.16.0) renders typed JSON into a self-contained interactive HTML diagram,
+validated by its own checker before delivery. It covers architecture, workflow, sequence,
+data-flow and lifecycle diagrams, reads repository evidence when the diagram must reflect real
+code, and converts Mermaid input. Node.js 18+ is its only runtime requirement, declared as a
+`system` dependency; Mermaid remains the fallback when Node or the skill is unavailable, when
+the diagram must render inline in committed Markdown, or when the user asks for text.
+
+**What it does.** `node bin/archify.mjs validate <type> <candidate.json> --quality showcase --json`
+checks a candidate; `deliver` is the final acceptance command and freezes the specification bytes
+into the artifact with a SHA-256 receipt; `visual-check` collects optional browser evidence.
+`vendor.json` pins the vendored packet to the v2.16.0 release asset and
+`tooling/vendor_archify.py --check` verifies the tree offline, while re-vendoring against a new
+upstream release is an explicit `--revendor <archify.zip> --expect-sha256 <sha>` PR.
+
+**When to use it.** "draw the architecture", "diagram this flow", "show the sequence",
+"visualize the data pipeline", or converting a Mermaid diagram into a polished, shareable
+artifact — see [ADR-0030](adr/0030-vendored-archify-and-diagram-default.md) for why it ships
+by default and how it is kept honest.
 
 ---
 

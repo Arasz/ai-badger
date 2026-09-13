@@ -227,8 +227,9 @@ into packages and subpackages.
    that proves it. A point without them is a wish. Where a point needs a specification or a design
    before it can be built, produce one, and look for an installed skill that formalises that shape
    before writing a bespoke document. Before the first failing test, run `design-tests` on the
-   acceptance criteria — the test list is part of the plan, not of the implementation. When
-   status cannot match the plan, follow `references/tracking-visibility.md`.
+   acceptance criteria — the test list is part of the plan, not of the implementation. When a
+   plan point changes architecture or flow, present it with `archify` (Mermaid only when its
+   runtime is missing). When status cannot match the plan, follow `references/tracking-visibility.md`.
 2. **Plan review before dispatch.** In the **low-effort** variant, hand the drafted plan to a
    second high-reasoning agent for review. In the **high-effort** variant, delegate to an MoE
    panel (default 3 experts, at least one different from the plan-authoring experts) and have it

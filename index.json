@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.170.0",
+  "frameworkVersion": "0.171.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -188,6 +188,11 @@
         {
           "name": "ai-raccoon-memory",
           "path": "features/common/skills/ai-raccoon-memory",
+          "scope": "default"
+        },
+        {
+          "name": "archify",
+          "path": "features/common/skills/archify",
           "scope": "default"
         },
         {
@@ -442,6 +447,10 @@
         {
           "name": "announce-parallel-work",
           "path": "features/common/invariants/announce-parallel-work.md"
+        },
+        {
+          "name": "archify-diagrams",
+          "path": "features/common/invariants/archify-diagrams.md"
         },
         {
           "name": "ask-if-simpler",

@@ -25,6 +25,11 @@ CATALOG_TOTAL_RE = re.compile(r"catalogs (\d+) skills")
 COMMON_TOTAL_RE = re.compile(r"(\d+) live under `features/common/skills/`")
 DEFAULT_TOTAL_RE = re.compile(r"\*\*(\d+) are `default`\*\*")
 OPT_IN_TOTAL_RE = re.compile(r"\*\*(\d+) are `optIn`\*\*")
+# The tree sentence: "matches **54** files" and "These 48 are not the whole tree".
+TREE_TOTAL_RE = re.compile(r"matches \*\*(\d+)\*\* files")
+THESE_TOTAL_RE = re.compile(r"\*\*These (\d+) are not the whole tree")
+
+SKILLS_GLOB = "features/*/skills/*/SKILL.md"
 
 # How a declared scope reads in the `Ships` column.
 SHIPS_BY_SCOPE = {"default": "default", "optIn": "opt-in"}
@@ -141,6 +146,20 @@ class TestSkillsDocCountsAreDerived:
 
         assert _one_count(pattern, text, label) == sum(1 for s in scopes.values() if s == scope)
 
+    def test_the_tree_total_is_right(self, root):
+        """The glob numeral is a claim too, and nothing derived it before."""
+        text = _skills_doc(root)
+        globbed = list((root / "features").glob("*/skills/*/SKILL.md"))
+
+        assert _one_count(TREE_TOTAL_RE, text, "tree total") == len(globbed)
+
+    def test_the_these_sentence_matches_the_page_total(self, root):
+        """"These N are not the whole tree" counts the skills this page documents."""
+        text = _skills_doc(root)
+
+        assert _one_count(THESE_TOTAL_RE, text, "'These N' total") == \
+               len(_catalog_skills(root))
+
 
 class TestScriptsDocCoversTheScripts:
     """`docs/scripts.md` is the only map of the runnable surface; an omitted script is invisible."""
@@ -181,6 +200,10 @@ class TestTheseChecksCouldFail:
 
     def test_a_stale_count_is_caught(self):
         assert _one_count(CATALOG_TOTAL_RE, "ai-badger catalogs 22 skills.", "total") == 22
+
+    def test_a_stale_tree_total_is_caught(self):
+        assert _one_count(TREE_TOTAL_RE, "matches **99** files", "tree total") == 99
+        assert _one_count(THESE_TOTAL_RE, "**These 3 are not the whole tree.**", "these") == 3
 
     def test_an_omitted_script_is_caught(self):
         text = "| `index_build.py` | Rebuild the index |"
