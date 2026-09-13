@@ -503,8 +503,16 @@ def replace_tree(target: Path, staging: Path) -> None:
 
 def main(argv=None) -> int:
     """CLI entry point: --check (exit 0/1) or --revendor (exit 0/2)."""
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=("Pinned release (canonical commands live in VENDOR.md; the literal below "
+                "changes only when the packet is re-vendored):\n"
+                "  gh release download v2.16.0 --repo tt-a1i/archify -p archify.zip\n"
+                "  python3 tooling/vendor_archify.py --revendor archify.zip \\\n"
+                "    --expect-sha256 "
+                "4c59fa6557a2385beaaef8c7219cc414573acc9f0c30a932d5053b0b20689a46 \\\n"
+                "    --tag v2.16.0 --commit c826e6c3a7abad19c0f3cd1ca57207d54b1ad8de"))
     parser.add_argument("--check", action="store_true",
                         help="Offline gate: verify the on-disk tree against vendor.json.")
     parser.add_argument("--revendor", metavar="ZIP",

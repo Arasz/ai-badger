@@ -9,8 +9,11 @@ tool's own helpers computing the expected values.
 """
 from __future__ import annotations
 
+import errno
 import hashlib
+import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -335,6 +338,9 @@ def test_revendor_refuses_a_forged_packet_even_when_the_manifest_agrees(tmp_path
     proc = _run_tool("--revendor", str(zpath), "--expect-sha256", EXPECTED_ASSET_SHA,
                      "--root", str(tmp_path / "framework"))
     assert proc.returncode == 2, f"forged packet accepted:\n{_out(proc)}"
+    assert "refusing: zip sha256" in _out(proc), (
+        "the refusal must name the sha mismatch — another refusal path would also exit 2:\n"
+        + _out(proc))
     after = sorted(p.relative_to(target).as_posix() for p in target.rglob("*"))
     assert after == before, "the tree was touched despite the refusal"
     assert sentinel.read_text(encoding="utf-8") == "untouched\n"
@@ -400,6 +406,212 @@ def test_revendor_refuses_symlinks_and_a_dirty_target(tmp_path: Path):
         "the dirty tree was touched despite the refusal"
 
 
+def _raw_zip(tmp_path: Path, name: str, entries: list[tuple[str, bytes]]) -> tuple[Path, str]:
+    """A zip with literal archive names — duplicates and multi-top layouts allowed.
+
+    `_synthetic_zip` cannot express these shapes (dict keys dedupe; every entry is
+    prefixed with `archify/`), so malformed-packet cases build their bytes here.
+    """
+    zpath = tmp_path / name
+    with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as zf:
+        for arcname, data in entries:
+            zf.writestr(arcname, data)
+    return zpath, hashlib.sha256(zpath.read_bytes()).hexdigest()
+
+
+def _refusal_target(tmp_path: Path) -> tuple[Path, Path]:
+    """An existing, non-git target holding a sentinel file."""
+    tmproot = tmp_path / "framework"
+    target = tmproot / "features" / "common" / "skills" / "archify"
+    target.mkdir(parents=True)
+    _test_write(target / "sentinel.txt", "untouched\n")
+    return tmproot, target
+
+
+def _tree_snapshot(tmproot: Path) -> dict[str, bytes]:
+    return {p.relative_to(tmproot).as_posix(): p.read_bytes()
+            for p in sorted(tmproot.rglob("*")) if p.is_file()}
+
+
+@pytest.mark.parametrize("evil_name", ["evil\\name.txt", "C:evil.txt", "../escape.txt"])
+def test_revendor_refuses_hostile_zip_paths(tmp_path: Path, evil_name: str):
+    """Backslash/colon/parent-escape entries are refused by path, exit 2, tree untouched."""
+    files = _synthetic_files({evil_name: b"hostile payload"})
+    zpath, digest = _synthetic_zip(tmp_path, "hostile.zip", files)
+    tmproot, target = _refusal_target(tmp_path)
+    before = _tree_snapshot(tmproot)
+    proc = _run_tool("--revendor", str(zpath), "--expect-sha256", digest,
+                     "--root", str(tmproot))
+    assert proc.returncode == 2, f"hostile entry {evil_name!r} accepted:\n{_out(proc)}"
+    assert "refusing unsafe zip path" in _out(proc), (
+        f"wrong refusal path for {evil_name!r}:\n{_out(proc)}")
+    assert _tree_snapshot(tmproot) == before, "the tree was touched despite the refusal"
+    assert (target / "sentinel.txt").read_text(encoding="utf-8") == "untouched\n"
+
+
+@pytest.mark.parametrize("case", ["missing-skill-md", "missing-package-json",
+                                    "duplicate-entry", "two-top-dirs"])
+def test_revendor_refuses_malformed_packets(tmp_path: Path, case: str):
+    """Shape violations are refused by their own guard, exit 2, tree untouched."""
+    if case == "missing-skill-md":
+        files = _synthetic_files()
+        del files["SKILL.md"]
+        zpath, digest = _synthetic_zip(tmp_path, "shapeless.zip", files)
+        snippet = "not an archify packet"
+    elif case == "missing-package-json":
+        files = _synthetic_files()
+        del files["package.json"]
+        zpath, digest = _synthetic_zip(tmp_path, "shapeless.zip", files)
+        snippet = "not an archify packet"
+    elif case == "duplicate-entry":
+        entries = [(f"archify/{rel}", data) for rel, data in _synthetic_files().items()]
+        entries.append(("archify/SKILL.md", b"second copy of the skill doc"))
+        zpath, digest = _raw_zip(tmp_path, "shapeless.zip", entries)
+        snippet = "duplicate zip entry"
+    elif case == "two-top-dirs":
+        entries = [(f"archify/{rel}", data) for rel, data in _synthetic_files().items()]
+        entries.append(("other/SKILL.md", b"stowaway top-level directory"))
+        zpath, digest = _raw_zip(tmp_path, "shapeless.zip", entries)
+        snippet = "unexpected zip layout"
+    else:  # pragma: no cover - the parametrize list is the exhaustive set
+        raise AssertionError(f"unknown malformed-packet case: {case}")
+    tmproot, target = _refusal_target(tmp_path)
+    before = _tree_snapshot(tmproot)
+    proc = _run_tool("--revendor", str(zpath), "--expect-sha256", digest,
+                     "--root", str(tmproot))
+    assert proc.returncode == 2, f"malformed packet {case!r} accepted:\n{_out(proc)}"
+    assert snippet in _out(proc), f"wrong refusal path for {case!r}:\n{_out(proc)}"
+    assert _tree_snapshot(tmproot) == before, "the tree was touched despite the refusal"
+    assert (target / "sentinel.txt").read_text(encoding="utf-8") == "untouched\n"
+
+
+def test_revendor_refuses_when_git_is_unavailable(tmp_path: Path):
+    """No git on PATH + an existing target -> exit 2 naming `git unavailable`, tree untouched.
+
+    Without this guard the dirty check is skipped on a git-less host and `replace_tree`
+    can discard uncommitted work — the exact outcome the guard exists to prevent.
+    """
+    zpath, digest = _synthetic_zip(tmp_path, "real.zip", _synthetic_files())
+    tmproot, target = _refusal_target(tmp_path)
+    before = _tree_snapshot(tmproot)
+    empty_bin = tmp_path / "empty_bin"
+    empty_bin.mkdir()
+    env = {**os.environ, "PATH": str(empty_bin)}
+    proc = subprocess.run([sys.executable, str(TOOL), "--revendor", str(zpath),
+                           "--expect-sha256", digest, "--root", str(tmproot)],
+                          capture_output=True, text=True, check=False, env=env)
+    assert proc.returncode == 2, f"git-less re-vendor accepted:\n{_out(proc)}"
+    assert "git unavailable" in _out(proc), (
+        f"the refusal must name the missing git, not another failure:\n{_out(proc)}")
+    assert _tree_snapshot(tmproot) == before, "the tree was touched despite the refusal"
+    assert (target / "sentinel.txt").read_text(encoding="utf-8") == "untouched\n"
+
+
+def _load_vendor_tool():
+    """The tool module in-process for unit tests (the CLI tests above use subprocess)."""
+    spec = importlib.util.spec_from_file_location("archify_vendor_tool", TOOL)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class TestStagingParentAndReplaceTree:
+    """Cross-mount internals: same-filesystem staging home + EXDEV fallback."""
+
+    def test_staging_parent_returns_the_nearest_existing_ancestor(self, tmp_path: Path):
+        mod = _load_vendor_tool()
+        deep = tmp_path / "a" / "b" / "c"
+        assert mod._staging_parent(deep) == tmp_path
+        (tmp_path / "a").mkdir()
+        assert mod._staging_parent(deep) == tmp_path / "a"
+
+    def test_staging_parent_returns_itself_when_it_exists(self, tmp_path: Path):
+        mod = _load_vendor_tool()
+        assert mod._staging_parent(tmp_path) == tmp_path
+
+    def test_replace_tree_falls_back_to_a_copy_on_exdev(
+            self, tmp_path: Path, monkeypatch):
+        mod = _load_vendor_tool()
+        target = tmp_path / "skill"
+        target.mkdir()
+        _test_write(target / "old.txt", "old\n")
+        staging = tmp_path / "staging"
+        staging.mkdir()
+        _test_write(staging / "new.txt", "new\n")
+        real_replace = os.replace
+        calls: list = []
+
+        def flaky_replace(src, dst):
+            if not calls:
+                calls.append((str(src), str(dst)))
+                raise OSError(errno.EXDEV, "Invalid cross-device link")
+            return real_replace(src, dst)
+
+        monkeypatch.setattr(os, "replace", flaky_replace)
+        mod.replace_tree(target, staging)
+        assert calls, "sanity: os.replace was never attempted"
+        assert (target / "new.txt").read_text(encoding="utf-8") == "new\n"
+        assert not (target / "old.txt").exists(), "the old tree survived the move"
+        assert list(tmp_path.glob("*.revendor-prev")) == [], "a rollback copy remains"
+
+
+def test_revendor_refuses_a_packet_whose_skill_md_lost_the_adaptation_anchor(
+        tmp_path: Path):
+    """SKILL.md without the single ORIGINAL_TAIL line -> exit 2 naming the anchor, untouched.
+
+    A future upstream drift must refuse loudly instead of silently shipping an
+    unconditioned references/ mention.
+    """
+    anchorless = SYNTHETIC_SKILL.replace(
+        "See `references/authoring-contract.md` for details.\n", "")
+    assert "authoring-contract" not in anchorless, "sanity: the fixture still carries the anchor"
+    files = _synthetic_files({"SKILL.md": anchorless.encode("utf-8")})
+    zpath, digest = _synthetic_zip(tmp_path, "drifted.zip", files)
+    tmproot, target = _refusal_target(tmp_path)
+    before = _tree_snapshot(tmproot)
+    proc = _run_tool("--revendor", str(zpath), "--expect-sha256", digest,
+                     "--root", str(tmproot))
+    assert proc.returncode == 2, f"anchorless packet accepted:\n{_out(proc)}"
+    assert "adaptation anchor" in _out(proc), (
+        f"the refusal must name the adaptation anchor:\n{_out(proc)}")
+    assert _tree_snapshot(tmproot) == before, "the tree was touched despite the refusal"
+    assert (target / "sentinel.txt").read_text(encoding="utf-8") == "untouched\n"
+
+
+def test_revendor_over_a_clean_committed_target_preserves_the_provenance_extras(
+        tmp_path: Path):
+    """A committed target re-vendors green; VENDOR.md/THIRD_PARTY_NOTICES.md survive byte-identical.
+
+    The dirty test above only proves refusal; the happy path vendors onto a *nonexistent*
+    target — so neither the clean-target proceed branch (`target_is_dirty` False) nor the
+    extras-preservation block is ever reached without this test.
+    """
+    zpath, digest = _synthetic_zip(tmp_path, "v1.zip", _synthetic_files())
+    tmproot = tmp_path / "framework"
+    proc = _run_tool("--revendor", str(zpath), "--expect-sha256", digest,
+                     "--root", str(tmproot))
+    assert proc.returncode == 0, f"initial synthetic revendor failed:\n{_out(proc)}"
+    dest = tmproot / "features" / "common" / "skills" / "archify"
+    vendor_sentinel = b"# provenance sentinel\nrev 1\n"
+    notices_sentinel = b"# notices sentinel\nbackfilled\n"
+    _test_write(dest / "VENDOR.md", vendor_sentinel)
+    _test_write(dest / "THIRD_PARTY_NOTICES.md", notices_sentinel)
+    subprocess.run(["git", "init", "-q", str(tmproot)], check=True)
+    subprocess.run(["git", "-C", str(tmproot), "config", "user.email", "t@example.com"],
+                   check=True)
+    subprocess.run(["git", "-C", str(tmproot), "config", "user.name", "T"], check=True)
+    subprocess.run(["git", "-C", str(tmproot), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(tmproot), "commit", "-qm", "base"], check=True)
+
+    proc = _run_tool("--revendor", str(zpath), "--expect-sha256", digest,
+                     "--root", str(tmproot))
+    assert proc.returncode == 0, f"clean committed target refused:\n{_out(proc)}"
+    assert (dest / "VENDOR.md").read_bytes() == vendor_sentinel, \
+        "VENDOR.md was not preserved across the re-vendor"
+    assert (dest / "THIRD_PARTY_NOTICES.md").read_bytes() == notices_sentinel, \
+        "THIRD_PARTY_NOTICES.md was not preserved across the re-vendor"
+
+
 def test_check_reports_excluded_paths_the_scaffold_would_silently_drop(tmp_path: Path):
     """A vendored path matching SKILL_EXCLUDE_PATTERNS reds `--check` (F10's missing witness).
 
@@ -435,8 +647,8 @@ def test_check_reports_excluded_paths_the_scaffold_would_silently_drop(tmp_path:
 def test_validate_py_exempts_the_six_archify_json_shapes_and_each_is_necessary(root: Path):
     """The orchestrator's PKG-1c patterns exist, each matches >=1 file, each is necessary.
 
-    Reads the patterns from tooling/validate.py (no edit in this lane): delete one added
-    pattern in an in-memory copy and unschemad_feature_json must go non-empty, proving the
+    Reads the patterns from tooling/validate.py (no edit in this lane): delete each pattern
+    in turn in an in-memory copy and unschemad_feature_json must go non-empty, proving each
     exemption carries its weight rather than decorating the file.
     """
     import importlib.util
@@ -454,18 +666,18 @@ def test_validate_py_exempts_the_six_archify_json_shapes_and_each_is_necessary(r
         archify_matched = [p for p in matched
                            if "skills/archify" in p.relative_to(root).as_posix()]
         assert archify_matched, f"{pattern!r} matches no archify file — a vacuous exemption"
-    reduced = dict(module.FEATURE_JSON_WITHOUT_SCHEMA)
-    victim = SIX_EXEMPTION_PATTERNS[0]
-    del reduced[victim]
     original = module.FEATURE_JSON_WITHOUT_SCHEMA
-    module.FEATURE_JSON_WITHOUT_SCHEMA = reduced
-    try:
-        gaps = module.unschemad_feature_json(root)
-    finally:
-        module.FEATURE_JSON_WITHOUT_SCHEMA = original
-    assert gaps, (f"deleting {victim!r} changed nothing — the exemption is unnecessary")
-    assert any("skills/archify" in gap for gap in gaps), (
-        f"the gap is not about archify: {gaps[:5]}")
+    for victim in SIX_EXEMPTION_PATTERNS:
+        reduced = dict(original)
+        del reduced[victim]
+        module.FEATURE_JSON_WITHOUT_SCHEMA = reduced
+        try:
+            gaps = module.unschemad_feature_json(root)
+        finally:
+            module.FEATURE_JSON_WITHOUT_SCHEMA = original
+        assert gaps, (f"deleting {victim!r} changed nothing — the exemption is unnecessary")
+        assert any("skills/archify" in gap for gap in gaps), (
+            f"the gap is not about archify: {gaps[:5]}")
 
 
 # ------------------------------------------------- provenance prose + backfill markers

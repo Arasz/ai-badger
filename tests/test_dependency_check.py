@@ -540,8 +540,6 @@ class TestSystemEcosystem:
         assert result["installed"] == []
         assert result["errors"] == []
         assert len(result["hints"]) == 1
-        assert "npm install -g node" not in " ".join(
-            str(c) for c in mock_run.call_args_list)
         mock_run.assert_not_called()
 
     def test_with_command_and_execute_runs_shlex_split_without_shell(
@@ -607,6 +605,8 @@ class TestSystemEcosystem:
         assert mock_run.call_count == 1
         assert result["installed"] == []
         assert len(result["errors"]) == 1
+        assert "timed out" in result["errors"][0], (
+            f"the error must name the timeout, not just record a failure: {result['errors']}")
 
     def test_shipped_dependencies_declares_archify_system_presence_only(
         self, load_script, root

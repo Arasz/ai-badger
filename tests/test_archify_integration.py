@@ -64,11 +64,33 @@ def _require_node() -> str:
     node = shutil.which("node")
     if node is None:
         reason = ("node not on PATH — install Node.js 18+ (https://nodejs.org) and "
-                  "re-run to enable the archify node legs")
+                  "re-run to enable the archify node legs "
+                  "[task aib-archify-diagram-skill-default-integration]")
         if os.environ.get("CI"):
             pytest.fail(f"CI provisioned no node, but the archify legs need it: {reason}")
         pytest.skip(reason)
     return node
+
+
+def test_require_node_fails_in_ci_without_node(monkeypatch):
+    """CI + no node fails the legs red — a silent skip would hide broken provisioning."""
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    monkeypatch.setenv("CI", "1")
+    try:
+        _require_node()
+    except pytest.fail.Exception:
+        return
+    except pytest.skip.Exception as exc:
+        pytest.fail(f"CI without node skipped instead of failing: {exc}")
+    pytest.fail("CI without node neither failed nor skipped")
+
+
+def test_require_node_skips_on_dev_without_node(monkeypatch):
+    """No CI + no node skips with the re-enable reason (the dev-machine twin)."""
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    monkeypatch.delenv("CI", raising=False)
+    with pytest.raises(pytest.skip.Exception):
+        _require_node()
 
 
 def _scaffold_archify(make_scaffolder) -> Path:

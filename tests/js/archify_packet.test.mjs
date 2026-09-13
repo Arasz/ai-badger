@@ -6,6 +6,10 @@
 // the DELIVERED path and asserts the same 9-checks/showcase receipt shape the
 // python integration test asserts from a scaffolded consumer. Any mismatch fails
 // the run (exit non-zero via node:test); nothing here skips.
+//
+// Overlap note: the tree-equality leg duplicates gates/scaffold_freshness_guard.py (same
+// pre-push lane set — the guard re-scaffolds in a temp copy and diffs); the doctor/deliver
+// legs are this file's unique value, since the guard never runs the shipped binaries.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
