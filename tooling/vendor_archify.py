@@ -349,17 +349,16 @@ def target_is_dirty(target: Path) -> bool:
 
     A nonexistent target is a fresh vendor (nothing to protect); a target outside any work
     tree has no baseline to be dirty against. Both proceed. Git itself is assessed from the
-    target's own directory, so `--root` may point at a repository other than the caller's.
+    target's own directory through `badger_lib.run_git`, so `--root` may point at a
+    repository other than the caller's and no exported GIT_DIR redirects the answer.
     """
     if not target.exists():
         return False
-    cwd = str(target if target.is_dir() else target.parent)
+    cwd = target if target.is_dir() else target.parent
     try:
-        proc = subprocess.run(["git", "status", "--porcelain", "--", str(target)],
-                              capture_output=True, text=True, check=False, cwd=cwd)
+        proc = bl.run_git(["status", "--porcelain", "--", str(target)], cwd)
         if proc.returncode != 0:
-            inside = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"],
-                                    capture_output=True, text=True, check=False, cwd=cwd)
+            inside = bl.run_git(["rev-parse", "--is-inside-work-tree"], cwd)
             if inside.returncode != 0 or inside.stdout.strip() != "true":
                 return False
             raise VendorError(f"cannot assess target cleanliness: {proc.stderr.strip()}")

@@ -59,7 +59,7 @@
   "skillScope": "default",
   "docs": {},
   "agentDocs": {
-    "maxLines": 260,
-    "maxChars": 17500
+    "maxLines": 264,
+    "maxChars": 17800
   }
 }

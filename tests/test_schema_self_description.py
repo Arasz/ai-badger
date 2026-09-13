@@ -10,10 +10,23 @@ ROOT = Path(__file__).resolve().parents[1]
 SEARCH_ROOTS = ("schemas", "features")
 
 
+def _vendored_packet(path: Path) -> bool:
+    """True when a `vendor.json` in this path's ancestry marks a vendored packet (ADR-0030).
+
+    A vendored packet's schemas are the upstream vendor's contract, shipped byte-identical;
+    editing them to satisfy an ai-badger convention would break the provenance gate. The
+    predicate is the packet marker, not a hardcoded skill name, so the next vendored skill is
+    covered without touching this test.
+    """
+    return any((parent / "vendor.json").is_file() for parent in path.parents)
+
+
 def _json_schema_documents():
     found = []
     for base in SEARCH_ROOTS:
         for path in sorted((ROOT / base).rglob("*.json")):
+            if _vendored_packet(path):
+                continue
             try:
                 document = json.loads(path.read_text(encoding="utf-8"))
             except ValueError:
@@ -22,6 +35,14 @@ def _json_schema_documents():
                 found.append(pytest.param(path, document,
                                           id=path.relative_to(ROOT).as_posix()))
     return found
+
+
+def test_the_vendored_exclusion_is_bounded_and_real():
+    """The exclusion must skip the vendored schemas and nothing else."""
+    assert _vendored_packet(
+        ROOT / "features" / "common" / "skills" / "archify" / "schemas"
+        / "architecture.schema.json")
+    assert not _vendored_packet(ROOT / "schemas" / "model.schema.json")
 
 
 def test_the_sweep_finds_the_schemas_it_is_meant_to_guard():
