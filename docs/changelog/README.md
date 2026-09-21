@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.172.1 | [registry evidence erratum: the demoted twin, and what `registryVersion` tracks](0.172.1-registry-evidence-erratum.md) |
 | 0.172.0 | [medium tier prefers deepseek-v4.1-flash](0.172.0-medium-tier-prefers-deepseek-v41-flash.md) |
 | 0.171.0 | [archify: vendored diagram skill, archify-first with a Mermaid fallback](0.171.0-archify-diagram-skill.md) |
 | 0.170.0 | [the sqlite pair stays opt-in](0.170.0-sqlite-skills-stay-opt-in.md) |

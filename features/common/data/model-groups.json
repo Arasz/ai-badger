@@ -1,6 +1,6 @@
 {
   "$schema": "../../schemas/model-groups.schema.json",
-  "frameworkVersion": "0.172.0",
+  "frameworkVersion": "0.172.1",
   "registryVersion": 1,
   "measuredAt": "2026-09-21",
   "source": "task-brief 2026-09-21 (medium tier rotates to deepseek-v4.1-flash, matching the 0.168.0 high rotation; deepseek-v4.1-flash pricing measured 2026-09-11 against pi models-store and the OpenRouter models API; earlier pins per task-brief 2026-09-05)",
@@ -115,7 +115,7 @@
           "outputPerM": 4.25,
           "currency": "USD"
         },
-        "evidence": "Full-price twin of the contributor preferred; identical weights (weightsId muse-spark-1.3-weights) (source: task-brief 2026-09-05).",
+        "evidence": "Full-price twin of the demoted contributor (demoted tail in medium and high); identical weights (weightsId muse-spark-1.3-weights) (source: task-brief 2026-09-05; medium demotion 2026-09-21).",
         "weightsId": "muse-spark-1.3-weights",
         "measuredAt": "2026-09-05"
       },
