@@ -138,14 +138,18 @@ def test_preferred_is_index_zero_low(mg, tmp_path):
     assert mg.preferred("low", groups) == "openrouter/z-ai/glm-5.3-flash"
 
 
-# ------------------------------------------------------------------ L0-4 high prefers deepseek-v4.1-flash
-def test_preferred_is_deepseek_v41_flash_high_and_spark_medium(mg, tmp_path):
-    """High now prefers the performance-adequate deepseek pin (measured 2026-09-11) while
-    medium keeps the contributor; the displaced contributor stays visible as high's demoted
-    tail. (source: task-brief 2026-09-11; medium pin per task-brief 2026-09-05)"""
+# ------------------------------------------------------------------ L0-4 medium+high prefer deepseek-v4.1-flash
+def test_preferred_is_deepseek_v41_flash_medium_and_high(mg, tmp_path):
+    """Medium now prefers the performance-adequate deepseek pin as well (pricing measured
+    2026-09-11, rotation 2026-09-21); the displaced contributor is the demoted tail in
+    medium *and* high. (source: task-brief 2026-09-21; high pin per task-brief 2026-09-11)"""
     medium = [
-        _m("openrouter/meta/muse-spark-1.3-contributor", 0.1, 0.2, True),
+        _m("openrouter/deepseek/deepseek-v4.1-flash", 0.15, 0.6, True,
+           evidence="Medium-tier preferred from 2026-09-21: performance-adequate flash pin "
+                    "(source: task-brief 2026-09-11 pricing; rotation 2026-09-21)."),
         _m("openrouter/anthropic/claude-sonnet-5", 2, 10,
+           status="demoted", revisionWatch=True),
+        _m("openrouter/meta/muse-spark-1.3-contributor", 0.1, 0.2,
            status="demoted", revisionWatch=True),
     ]
     high = [
@@ -158,7 +162,7 @@ def test_preferred_is_deepseek_v41_flash_high_and_spark_medium(mg, tmp_path):
     ]
     groups = _load(mg, tmp_path, _doc(
         low=[_m("openrouter/l/low", 1, 2, True)], medium=medium, high=high))
-    assert mg.preferred("medium", groups) == "openrouter/meta/muse-spark-1.3-contributor"
+    assert mg.preferred("medium", groups) == "openrouter/deepseek/deepseek-v4.1-flash"
     assert mg.preferred("high", groups) == "openrouter/deepseek/deepseek-v4.1-flash"
 
 
@@ -276,8 +280,9 @@ def test_resolve_level_returns_preferred_verbatim(mg, tmp_path):
 # ------------------------------------------------------------------ L0-11 the shipped seed satisfies everything
 def test_real_registry_satisfies_all_invariants(mg, root):
     """The single integration pin: the shipped seed loads and carries the exact seed ids in
-    order, with the exact seed prices. High pins and the deepseek price are from the
-    2026-09-11 brief; low/medium carry the 2026-09-05 measurement."""
+    order, with the exact seed prices. Medium's and high's preferred pin is
+    deepseek-v4.1-flash (pricing measured 2026-09-11; medium rotated 2026-09-21); the
+    remaining medium and low pins carry the 2026-09-05 measurement."""
     seed = root / SEED
     groups = mg.load_groups(seed)
     assert set(groups) == {"low", "medium", "high"}
@@ -290,7 +295,7 @@ def test_real_registry_satisfies_all_invariants(mg, root):
         "openrouter/anthropic/claude-haiku-4.5",
     ]
     assert [m["id"] for m in groups["medium"]] == [
-        "openrouter/meta/muse-spark-1.3-contributor",
+        "openrouter/deepseek/deepseek-v4.1-flash",
         "openrouter/xiaomi/mimo-v2.5-pro",
         "openrouter/deepseek/deepseek-v4-pro-0813",
         "openrouter/deepseek/deepseek-v4-pro",
@@ -299,6 +304,7 @@ def test_real_registry_satisfies_all_invariants(mg, root):
         "openrouter/openai/gpt-5.6-sol",
         "openrouter/openai/gpt-5.6-terra",
         "openrouter/anthropic/claude-sonnet-5",
+        "openrouter/meta/muse-spark-1.3-contributor",
     ]
     assert [m["id"] for m in groups["high"]] == [
         "openrouter/deepseek/deepseek-v4.1-flash",
@@ -313,8 +319,8 @@ def test_real_registry_satisfies_all_invariants(mg, root):
     ]
     assert [ (m["pricing"]["inputPerM"], m["pricing"]["outputPerM"])  # noqa: E201
              for m in groups["medium"] ] == [
-        (0.1, 0.2), (0.435, 0.87), (0.57948, 1.73844), (0.9918, 1.9836),
-        (1.25, 4.25), (1.4, 4.4), (2, 10), (2, 12), (2, 10),
+        (0.15, 0.6), (0.435, 0.87), (0.57948, 1.73844), (0.9918, 1.9836),
+        (1.25, 4.25), (1.4, 4.4), (2, 10), (2, 12), (2, 10), (0.1, 0.2),
     ]
     assert [ (m["pricing"]["inputPerM"], m["pricing"]["outputPerM"])  # noqa: E201
              for m in groups["high"] ] == [(0.15, 0.6), (5, 25), (10, 50), (0.1, 0.2)]
@@ -323,23 +329,33 @@ def test_real_registry_satisfies_all_invariants(mg, root):
         flags = [m["preferred"] for m in groups[level]]
         assert flags == [True] + [False] * (len(flags) - 1), level
 
-    tail = groups["medium"][-1]
-    assert tail["id"].endswith("claude-sonnet-5")
-    assert tail.get("status") == "demoted"
-    assert tail.get("revisionWatch") is True
+    medium_tail = groups["medium"][-1]
+    assert medium_tail["id"].endswith("muse-spark-1.3-contributor")
+    assert medium_tail.get("status") == "demoted"
+    assert medium_tail.get("revisionWatch") is True
+    sonnet = groups["medium"][-2]
+    assert sonnet["id"].endswith("claude-sonnet-5")
+    assert sonnet.get("status") == "demoted"
+    assert sonnet.get("revisionWatch") is True
     high_tail = groups["high"][-1]
     assert high_tail["id"].endswith("muse-spark-1.3-contributor")
     assert high_tail.get("status") == "demoted"
     assert high_tail.get("revisionWatch") is True
     assert groups["high"][2]["id"].endswith("claude-fable-5.1")
 
+    # FOLD-5: medium and high rotate together — same preferred id and same pricing.
+    assert groups["medium"][0]["id"] == groups["high"][0]["id"]
+    assert groups["medium"][0]["pricing"] == groups["high"][0]["pricing"]
+
     assert mg.preferred("low", groups) == "openrouter/z-ai/glm-5.3-flash"
     assert mg.resolve("medium", groups=groups) == \
-        "openrouter/meta/muse-spark-1.3-contributor"
+        "openrouter/deepseek/deepseek-v4.1-flash"
     assert mg.preferred("high", groups) == "openrouter/deepseek/deepseek-v4.1-flash"
 
     version = (root / "VERSION").read_text(encoding="utf-8").strip()
-    assert json.loads(seed.read_text(encoding="utf-8"))["frameworkVersion"] == version
+    doc = json.loads(seed.read_text(encoding="utf-8"))
+    assert doc["frameworkVersion"] == version
+    assert doc["registryVersion"] == 1
 
 
 def test_default_path_resolves_to_the_shipped_seed(mg, root):
@@ -385,7 +401,7 @@ def test_duplicate_id_within_one_group_is_rejected(mg, tmp_path):
 
 def test_cross_group_id_reuse_is_legal(mg, tmp_path):
     """The same id may appear in several groups: uniqueness is per-group, not per-registry.
-    The shipped reuse is medium's preferred contributor, reused as high's demoted tail."""
+    The shipped reuse is the contributor: demoted tail in both medium and high."""
     shared = "openrouter/meta/muse-spark-1.3-contributor"
     groups = _load(mg, tmp_path, _doc(
         low=[_m("openrouter/l/low", 1, 2, True)],

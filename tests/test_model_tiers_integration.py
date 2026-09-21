@@ -40,7 +40,7 @@ LANE_QUOTE_CARRIER = "tests/test_persona_levels.py"
 SHIPPED_REGISTRY = ".ai-badger/model-groups.json"
 CANONICAL_SEED = "features/common/data/model-groups.json"
 VERSION_FILE = "VERSION"
-CHANGELOG = "docs/changelog/0.168.0-high-tier-prefers-deepseek-v41-flash.md"
+CHANGELOG = "docs/changelog/0.172.0-medium-tier-prefers-deepseek-v41-flash.md"
 DELEGATION_MD = ".ai-badger/delegation.md"
 PERSONA_GLOB = "features/*/personas/*.md"
 
@@ -242,7 +242,7 @@ def test_advisory_table_shorts_resolve_into_the_registry(root: Path) -> None:
         members = groups[tier]
         deciding = [m for m in members if m.get("status") != "demoted"]
         for short, expected in ((preferred_short, deciding[0]), (dearest_short, deciding[-1])):
-            # The table names human truncations (spark-contributor), not id fragments:
+            # The table names human truncations (deepseek-v4.1-flash), not id fragments:
             # every dash-token of the short must sit in the final id segment, unique
             # per tier. Any future pin that breaks uniqueness reds this test (fail-loud).
             tokens = short.split("-")
@@ -280,7 +280,8 @@ def test_persona_frontmatter_levels_are_registry_keys(root: Path, load_script) -
 # ------------------------------------------------------- (7b) Claude-side matrix
 @pytest.fixture()
 def shipped_groups(root: Path, load_script):
-    """The REAL delivered registry — no fixtures; a rotated pin reds this file."""
+    """The REAL delivered registry — no fixtures; the matrix follows whatever pins ship,
+    while the advisory-table join above is what reds on a rotation."""
     mg = load_script(LEAF)
     return mg, mg.load_groups(str(root / SHIPPED_REGISTRY))
 
