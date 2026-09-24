@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.172.9",
-  "frameworkCommit": "7cfdea2a3184e7facfb30d3b41c3aa1a3f06a8e8",
+  "frameworkCommit": "11866c2dba74106352012826c64780a7030d913a",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1347,12 +1347,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.172.9",
-      "hash": "58a6d19595568c8beb3bf44724797895d0d659fe967070089b7ac9a9b20ea143",
+      "hash": "d45de59d838bdf2c8df3e4f541c68f918a2d8c8602f40617b5a02ece24c65a7b",
       "dirMeta": {
         "file_count": 21,
         "dir_count": 2
       },
-      "sourceHash": "58a6d19595568c8beb3bf44724797895d0d659fe967070089b7ac9a9b20ea143",
+      "sourceHash": "d45de59d838bdf2c8df3e4f541c68f918a2d8c8602f40617b5a02ece24c65a7b",
       "sourceMeta": {
         "file_count": 21,
         "dir_count": 2
@@ -1479,12 +1479,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.172.9",
-      "hash": "eb9b6016a00613ff1e51c288095c66835bf49ba1be9e252db2444247c3ae198a",
+      "hash": "0f9b21a1f77cbd2ae88b9ad8784baf1100ed6770cb1cc12698fa071a1832c078",
       "dirMeta": {
         "file_count": 25,
         "dir_count": 2
       },
-      "sourceHash": "eb9b6016a00613ff1e51c288095c66835bf49ba1be9e252db2444247c3ae198a",
+      "sourceHash": "0f9b21a1f77cbd2ae88b9ad8784baf1100ed6770cb1cc12698fa071a1832c078",
       "sourceMeta": {
         "file_count": 25,
         "dir_count": 2
@@ -1542,12 +1542,12 @@
       "source": "features/claude/skills/auto-wm",
       "target": ".ai-badger/skills/auto-wm",
       "frameworkVersion": "0.172.9",
-      "hash": "36cca38562bba496e0668ecd2f20914264b46bb634878a9116f1c9078bdfeff3",
+      "hash": "339df2051703acacf81b7001e90cd4d7a289137ef9bde3f4de3f2f3ee46d7389",
       "dirMeta": {
         "file_count": 6,
         "dir_count": 2
       },
-      "sourceHash": "36cca38562bba496e0668ecd2f20914264b46bb634878a9116f1c9078bdfeff3",
+      "sourceHash": "339df2051703acacf81b7001e90cd4d7a289137ef9bde3f4de3f2f3ee46d7389",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 2
