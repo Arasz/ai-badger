@@ -454,19 +454,15 @@ def _debug_log_shims_on_disk(root: Path) -> tuple[str, ...]:
     return tuple(sorted(line for line in out.stdout.splitlines() if line))
 
 
-VENDORED_COPIES = (
-    "features/common/skills/call-behaviorist/scripts/debug_log.py",
-    "features/common/skills/commit-reminder/scripts/debug_log.py",
-    "features/common/skills/mcp-index/scripts/debug_log.py",
-    "features/common/skills/prompt-markers/scripts/debug_log.py",
-    "features/common/skills/task/scripts/debug_log.py",
-)
+#: The shims to pin against SHIM_TEMPLATE, derived from disk rather than hand-kept (L10-2):
+#: a shim added under features/**/scripts is picked up here with no second list to fall out
+#: of step with it.
+VENDORED_COPIES = _debug_log_shims_on_disk(ROOT)
 
 
 def test_the_hand_kept_list_covers_every_shim_on_disk():
-    """L10-2: a shim added to disk without updating VENDORED_COPIES silently drops out of
-    test_the_vendored_copy_is_a_thin_shim_of_the_canonical_one's coverage. RED until the list
-    is derived instead of hand-kept."""
+    """Regression guard for L10-2: if VENDORED_COPIES is ever hand-pinned again, this goes RED
+    the moment a shim lands on disk that the pinned tuple does not name."""
     assert sorted(VENDORED_COPIES) == list(_debug_log_shims_on_disk(ROOT))
 
 
