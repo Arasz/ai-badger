@@ -298,6 +298,21 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                    "unlike Claude's PostToolUse. Copilot has no separate failure-only event "
                    "family this arm could target.",
     },
+    "test-run-economy-failure": {
+        "hermes": "A wall, not a gap: hermes has one post_tool_call hook that fires after every "
+                  "tool execution regardless of outcome (ai_badger_hooks.py's "
+                  "_maybe_count_test_run counts every observed run, pass or fail, from the "
+                  "command alone), unlike Claude's PostToolUse, which 'Runs immediately after "
+                  "a tool completes successfully' (hooks.md) and never sees a failing test "
+                  "run. The sibling test-run-economy entry's hermes arm already counts every "
+                  "hermes-observed run; there is no separate failure-only event to wire a "
+                  "second arm onto.",
+        "copilot": "A wall, not a gap: Copilot's postToolUse hook fires after every tool call "
+                   "regardless of exit code (the test-run-economy entry's copilot arm already "
+                   "counts a failing run through it, since classification reads the command, "
+                   "not the exit code), unlike Claude's PostToolUse. Copilot has no separate "
+                   "failure-only event family this arm could target.",
+    },
 }
 
 PROVENANCE_KEYS = ("frameworkCommit", "frameworkDirty")
