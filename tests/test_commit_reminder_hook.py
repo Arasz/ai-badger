@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import io
 import json
+import sqlite3
+import threading
 
 
 HOOK_PATH = "features/common/skills/commit-reminder/scripts/commit_reminder_hook.py"
@@ -29,7 +31,12 @@ def _payload(tool_name="Edit", cwd="/repo"):
 
 
 def _stub_entry_store(module, monkeypatch):
-    """Replace persisted-entry I/O with an in-memory dict, keyed like the real functions."""
+    """Replace persisted-entry I/O with an in-memory dict, keyed like the real functions.
+
+    `update_entry` is the one the hook itself calls; it is faked here atop the same
+    `get_entry`/`set_entry`/`advance` so a test that only cares about the ratchet's outward
+    behaviour need not know the storage call is now a single atomic round trip.
+    """
     store: dict = {}
 
     def fake_get_entry(root):
@@ -38,8 +45,17 @@ def _stub_entry_store(module, monkeypatch):
     def fake_set_entry(root, entry):
         store[root] = dict(entry)
 
+    def fake_update_entry(root, count, threshold=5,
+                          escalate_after=module.commit_reminder.ESCALATE_AFTER,
+                          now="", session=""):
+        fires, at_risk, updated = module.commit_reminder.advance(
+            fake_get_entry(root), count, threshold, escalate_after, now=now, session=session)
+        fake_set_entry(root, updated)
+        return fires, at_risk, updated
+
     monkeypatch.setattr(module.commit_reminder, "get_entry", fake_get_entry)
     monkeypatch.setattr(module.commit_reminder, "set_entry", fake_set_entry)
+    monkeypatch.setattr(module.commit_reminder, "update_entry", fake_update_entry)
     return store
 
 
@@ -297,3 +313,77 @@ def test_three_unanswered_commands_escalate_through_main(load_script, monkeypatc
     assert messages[1].startswith("[ai-badger] Commit now")
     assert "STOP AND COMMIT" in messages[2]
     assert "after 3 commands" in messages[2], "the count reaching the message must be live"
+
+
+class TestTheHookStaysFailOpenOnABrokenStore:
+    """AC1 gives the report a strict reader; this hook must keep the fail-open default (R26)."""
+
+    def test_guarded_main_exits_zero_with_no_traceback_when_the_store_cannot_open(
+            self, tmp_path, load_script, monkeypatch, capsys):
+        hook = _load(load_script)
+        errors = tmp_path / "hook-errors.log"
+        monkeypatch.setattr(hook, "HOOK_ERRORS_FILE", errors)
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(_payload())))
+
+        def _boom(*_a, **_k):
+            raise sqlite3.OperationalError("disk I/O error")
+        monkeypatch.setattr(hook.commit_reminder.badger_store, "open_user", _boom)
+
+        rc = hook.guarded_main()
+
+        assert rc == 0
+        assert capsys.readouterr().out == ""
+
+
+class TestConcurrentInvocationsDoNotLoseAnUpdate:
+    """L4-8: separate get_entry/set_entry calls race two invocations across the read-write gap."""
+
+    def test_two_concurrent_updates_on_the_same_project_both_survive(
+            self, tmp_path, load_script, monkeypatch):
+        """Two edits land close together and each cross a new threshold (5, then 6 files).
+
+        Racing from the same stale entry, both would compute `fires=1` from marker 0 and the
+        last write would win: one crossing lost. Serialized, the second sees the first's
+        marker (5) and 6 > 5 still counts as a fresh crossing, so both survive.
+        """
+        hook = _load(load_script)
+        monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+        root = str(tmp_path / "repo")
+
+        real_advance = hook.commit_reminder.advance
+        first_entered = threading.Event()
+        release_first = threading.Event()
+        calls = {"n": 0}
+
+        def once_blocking_advance(entry, *args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                first_entered.set()
+                assert release_first.wait(timeout=5), "the first update was never released"
+            return real_advance(entry, *args, **kwargs)
+
+        monkeypatch.setattr(hook.commit_reminder, "advance", once_blocking_advance)
+
+        def run_first():
+            hook.commit_reminder.update_entry(root, 5, 5, 3, now="T1", session="s1")
+
+        def run_second():
+            hook.commit_reminder.update_entry(root, 6, 5, 3, now="T2", session="s2")
+
+        first = threading.Thread(target=run_first)
+        first.start()
+        assert first_entered.wait(timeout=5), "the first update never reached advance()"
+
+        second_done = threading.Event()
+        second = threading.Thread(target=lambda: (run_second(), second_done.set()))
+        second.start()
+        assert not second_done.wait(timeout=0.3), (
+            "the second update must block behind the first's still-open transaction, "
+            "not race ahead of it")
+
+        release_first.set()
+        first.join(timeout=5)
+        second.join(timeout=5)
+
+        entry = hook.commit_reminder.get_entry(root)
+        assert entry["fires"] == 2, "both concurrent fires must survive, not just one"

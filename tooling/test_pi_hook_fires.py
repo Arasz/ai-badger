@@ -62,6 +62,11 @@ def test_project_local_without_approve(tmpdir: str) -> bool:
     clean_sentinel()
     rc = run_pi(tmpdir, str(ext_file), use_approve=False)
 
+    # pi has no refusal exit code: an untrusted project's resources are ignored and the run
+    # goes on (resolveProjectTrusted in pi-coding-agent 0.84.3), so non-zero means pi failed.
+    if rc != 0:
+        print(f"FAIL (Run A): pi exited {rc} — a pi that did not run proves nothing about trust")
+        return False
     if os.path.exists(SENTINEL_FILE):
         print(f"FAIL (Run A): sentinel WAS written — extension fired without --approve (rc={rc})")
         return False

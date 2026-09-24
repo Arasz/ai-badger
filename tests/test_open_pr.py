@@ -1,16 +1,28 @@
 """Tests for skills/feed-badger/scripts/open_pr.py: the mechanical git+gh steps that open a
 draft PR to the framework repo.
 
-CRITICAL: `subprocess.run` is patched in every test — no test in this file may ever invoke a
-real git/gh command or touch the network. Tests that hit the non-dry-run path always patch
-`subprocess.run` before calling `main()`.
+The dry-run tests patch `subprocess.run` and assert it is never called. Every other test runs
+real git in a tmp checkout whose `origin` is a local bare repo, with a stub `gh` first on PATH
+that only records its arguments — no test here reaches GitHub or the network.
 """
+# pylint: disable=redefined-outer-name  # pytest fixtures are injected by name
 from __future__ import annotations
 
-from unittest.mock import Mock, patch
+import os
+import stat
+import subprocess
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from conftest import _test_write
+
+SCRIPT = "features/common/skills/feed-badger/scripts/open_pr.py"
+GIT_ENV_TO_CLEAR = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+                    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                    "GIT_PREFIX", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES",
+                    "GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS")
+FAKE_GITHUB_TOKEN = "ghp_FAKEnotarealtoken" + "0" * 19
 
 
 def _argv(checkout, branch="feed/my-feature", title="Add my-feature", body_file="body.md",
@@ -37,8 +49,71 @@ def _contribution(checkout, rel="features/common/skills/thing/SKILL.md", body="#
     return rel
 
 
-def test_dry_run_makes_zero_subprocess_calls(tmp_path, load_script, capsys):
-    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
+def _git(cwd, *args):
+    return subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True,
+                          check=True).stdout
+
+
+class World:
+    """A real checkout, its bare `origin`, and the log the stub `gh` appends its argv to."""
+
+    def __init__(self, root: Path):
+        self.checkout = root / "checkout"
+        self.remote = root / "remote.git"
+        self.gh_log = root / "gh.log"
+
+    def remote_files(self, branch):
+        """Files on `branch` in the bare remote, or None when the branch never arrived."""
+        proc = subprocess.run(["git", "--git-dir", str(self.remote), "ls-tree", "-r",
+                               "--name-only", branch], capture_output=True, text=True,
+                              check=False)
+        return set(proc.stdout.split()) if proc.returncode == 0 else None
+
+    def gh_calls(self):
+        if not self.gh_log.exists():
+            return []
+        return self.gh_log.read_text(encoding="utf-8").splitlines()
+
+    def staged(self):
+        return _git(self.checkout, "diff", "--cached", "--name-only").split()
+
+
+@pytest.fixture
+def world(tmp_path, monkeypatch):
+    for name in GIT_ENV_TO_CLEAR:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gitconfig"))
+    w = World(tmp_path)
+    _git(tmp_path, "init", "-q", "--bare", str(w.remote))
+    _git(tmp_path, "init", "-q", "-b", "main", str(w.checkout))
+    for key, value in (("user.email", "t@t.co"), ("user.name", "t"),
+                       ("commit.gpgsign", "false")):
+        _git(w.checkout, "config", key, value)
+    _test_write(w.checkout / "README.md", "# framework\n", encoding="utf-8")
+    _git(w.checkout, "add", "README.md")
+    _git(w.checkout, "commit", "-q", "-m", "init")
+    _git(w.checkout, "remote", "add", "origin", str(w.remote))
+    _git(w.checkout, "push", "-q", "origin", "main")
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    gh = bin_dir / "gh"
+    _test_write(gh, f"#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{w.gh_log}'\n", encoding="utf-8")
+    gh.chmod(gh.stat().st_mode | stat.S_IXUSR)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    return w
+
+
+@pytest.fixture
+def open_pr(load_script):
+    return load_script(SCRIPT)
+
+
+# ── dry run: prints, never executes ───────────────────────────────────────────
+
+
+def test_dry_run_makes_zero_subprocess_calls(tmp_path, open_pr, capsys):
     checkout = tmp_path / "checkout"
     checkout.mkdir()
     rel = _contribution(checkout)
@@ -58,106 +133,7 @@ def test_dry_run_makes_zero_subprocess_calls(tmp_path, load_script, capsys):
     assert "$ gh pr create --draft --repo Arasz/ai-badger" in out
 
 
-def test_typical_flow_issues_expected_commands_in_order(tmp_path, load_script, capsys):
-    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
-    checkout = tmp_path / "checkout"
-    checkout.mkdir()
-    body_file = tmp_path / "body.md"
-    rel = _contribution(checkout)
-
-    with patch("subprocess.run") as mock_run:
-        mock_run.return_value = Mock(returncode=0)
-        rc = open_pr.main(_argv(checkout, branch="feed/xyz", title="Add xyz feature",
-                                 body_file=body_file, repo="Someone/fork", paths=[rel]))
-
-    assert rc == 0
-    assert mock_run.call_count == 5
-    calls = mock_run.call_args_list
-
-    def cmd_and_cwd(call):
-        args, kwargs = call
-        return args[0], kwargs.get("cwd")
-
-    resolved_checkout = str(checkout.resolve())
-
-    cmd0, cwd0 = cmd_and_cwd(calls[0])
-    assert cmd0 == ["git", "checkout", "-b", "feed/xyz"]
-    assert cwd0 == resolved_checkout
-
-    cmd1, cwd1 = cmd_and_cwd(calls[1])
-    assert cmd1 == ["git", "add", "--", rel]
-    assert cwd1 == resolved_checkout
-
-    cmd2, _ = cmd_and_cwd(calls[2])
-    assert cmd2 == ["git", "commit", "-m", "Add xyz feature"]
-
-    cmd3, _ = cmd_and_cwd(calls[3])
-    assert cmd3 == ["git", "push", "-u", "origin", "feed/xyz"]
-
-    cmd4, _ = cmd_and_cwd(calls[4])
-    assert cmd4 == ["gh", "pr", "create", "--draft", "--repo", "Someone/fork",
-                     "--title", "Add xyz feature", "--body-file", str(body_file)]
-
-    for call in calls:
-        _, kwargs = call
-        assert kwargs.get("check") is False
-
-
-def test_default_repo_is_used_when_not_specified(tmp_path, load_script):
-    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
-    checkout = tmp_path / "checkout"
-    checkout.mkdir()
-    rel = _contribution(checkout)
-
-    with patch("subprocess.run") as mock_run:
-        mock_run.return_value = Mock(returncode=0)
-        open_pr.main(_argv(checkout, paths=[rel]))
-
-    gh_cmd = mock_run.call_args_list[-1][0][0]
-    assert "--repo" in gh_cmd
-    assert gh_cmd[gh_cmd.index("--repo") + 1] == "Arasz/ai-badger"
-
-
-def test_stops_and_returns_failure_code_when_a_step_fails(tmp_path, load_script, capsys):
-    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
-    checkout = tmp_path / "checkout"
-    checkout.mkdir()
-
-    # git checkout -b and git add succeed, git commit fails (e.g. nothing to commit)
-    rel = _contribution(checkout)
-    responses = [Mock(returncode=0), Mock(returncode=0), Mock(returncode=1)]
-    with patch("subprocess.run") as mock_run:
-        mock_run.side_effect = responses
-        rc = open_pr.main(_argv(checkout, paths=[rel]))
-
-    assert rc == 1
-    assert mock_run.call_count == 3  # push and gh pr create never attempted
-    out = capsys.readouterr().out
-    assert "step failed" in out
-
-
-def test_no_real_subprocess_invoked_without_patch_would_be_caught(tmp_path, load_script):
-    """Sanity check on the test harness itself: confirms `run()` really delegates to
-    `subprocess.run` (so patching it is sufficient to guarantee no real process starts)."""
-    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
-    checkout = tmp_path / "checkout"
-    checkout.mkdir()
-
-    with patch("subprocess.run") as mock_run:
-        mock_run.return_value = Mock(returncode=0)
-        rc = open_pr.run(["git", "status"], checkout, dry=False)
-
-    assert rc == 0
-    mock_run.assert_called_once_with(["git", "status"], cwd=str(checkout), check=False)
-
-
-# ── outbound content guard + explicit pathspec (security I4) ──────────────────
-
-FAKE_GITHUB_TOKEN = "ghp_FAKEnotarealtoken" + "0" * 19
-
-
-def test_a_secret_shaped_literal_blocks_the_pr(tmp_path, load_script, capsys):
-    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
+def test_a_secret_shaped_literal_blocks_the_pr(tmp_path, open_pr, capsys):
     checkout = tmp_path / "checkout"
     checkout.mkdir()
     rel = _contribution(checkout, body=f"token: {FAKE_GITHUB_TOKEN}\n")
@@ -173,8 +149,7 @@ def test_a_secret_shaped_literal_blocks_the_pr(tmp_path, load_script, capsys):
     assert "git push" not in out
 
 
-def test_the_blocked_output_never_prints_the_matched_text(tmp_path, load_script, capsys):
-    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
+def test_the_blocked_output_never_prints_the_matched_text(tmp_path, open_pr, capsys):
     checkout = tmp_path / "checkout"
     checkout.mkdir()
     rel = _contribution(checkout, body=f"token: {FAKE_GITHUB_TOKEN}\n")
@@ -185,40 +160,7 @@ def test_the_blocked_output_never_prints_the_matched_text(tmp_path, load_script,
     assert FAKE_GITHUB_TOKEN not in capsys.readouterr().out
 
 
-def test_a_clean_contribution_stages_only_the_declared_paths(tmp_path, load_script):
-    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
-    checkout = tmp_path / "checkout"
-    checkout.mkdir()
-    rel = _contribution(checkout)
-    _test_write(checkout / "index.json", "{}\n", encoding="utf-8")
-
-    with patch("subprocess.run") as mock_run:
-        mock_run.return_value = Mock(returncode=0)
-        rc = open_pr.main(_argv(checkout) + ["--path", rel, "--path", "index.json"])
-
-    assert rc == 0
-    add_cmd = [c[0][0] for c in mock_run.call_args_list if c[0][0][:2] == ["git", "add"]][0]
-    assert add_cmd == ["git", "add", "--", rel, "index.json"]
-    assert "-A" not in add_cmd
-
-
-def test_an_unrelated_dirty_file_is_not_staged(tmp_path, load_script):
-    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
-    checkout = tmp_path / "checkout"
-    checkout.mkdir()
-    rel = _contribution(checkout)
-    _test_write(checkout / "unrelated-local-note.md", "private\n", encoding="utf-8")
-
-    with patch("subprocess.run") as mock_run:
-        mock_run.return_value = Mock(returncode=0)
-        open_pr.main(_argv(checkout) + ["--path", rel])
-
-    add_cmd = [c[0][0] for c in mock_run.call_args_list if c[0][0][:2] == ["git", "add"]][0]
-    assert "unrelated-local-note.md" not in add_cmd
-
-
-def test_omitting_path_is_a_usage_error_rather_than_staging_everything(tmp_path, load_script):
-    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
+def test_omitting_path_is_a_usage_error_rather_than_staging_everything(tmp_path, open_pr):
     checkout = tmp_path / "checkout"
     checkout.mkdir()
 
@@ -229,8 +171,7 @@ def test_omitting_path_is_a_usage_error_rather_than_staging_everything(tmp_path,
     mock_run.assert_not_called()
 
 
-def test_a_declared_directory_is_scanned_recursively(tmp_path, load_script, capsys):
-    open_pr = load_script("features/common/skills/feed-badger/scripts/open_pr.py")
+def test_a_declared_directory_is_scanned_recursively(tmp_path, open_pr, capsys):
     checkout = tmp_path / "checkout"
     checkout.mkdir()
     _contribution(checkout, rel="features/common/skills/thing/SKILL.md")
@@ -244,3 +185,111 @@ def test_a_declared_directory_is_scanned_recursively(tmp_path, load_script, caps
     assert rc == 1
     mock_run.assert_not_called()
     assert "notes.md" in capsys.readouterr().out
+
+
+# ── real git: a local bare origin and a stub gh ───────────────────────────────
+
+
+def test_a_clean_contribution_reaches_origin_with_only_the_declared_paths(open_pr, world,
+                                                                          tmp_path):
+    rel = _contribution(world.checkout)
+    _test_write(world.checkout / "index.json", "{}\n", encoding="utf-8")
+    _test_write(world.checkout / "unrelated-local-note.md", "private\n", encoding="utf-8")
+    body_file = tmp_path / "body.md"
+
+    rc = open_pr.main(_argv(world.checkout, branch="feed/xyz", title="Add xyz feature",
+                            body_file=body_file, repo="Someone/fork",
+                            paths=[rel, "index.json"]))
+
+    assert rc == 0
+    assert world.remote_files("feed/xyz") == {"README.md", rel, "index.json"}
+    assert world.gh_calls() == ["pr", "create", "--draft", "--repo", "Someone/fork",
+                                "--title", "Add xyz feature", "--body-file", str(body_file)]
+
+
+def test_the_default_repo_is_the_framework(open_pr, world):
+    rel = _contribution(world.checkout)
+
+    open_pr.main(_argv(world.checkout, paths=[rel]))
+
+    calls = world.gh_calls()
+    assert calls[calls.index("--repo") + 1] == "Arasz/ai-badger"
+
+
+def test_a_failed_push_stops_before_the_pr_is_opened(open_pr, world, capsys):
+    rel = _contribution(world.checkout)
+    _git(world.checkout, "remote", "set-url", "origin", str(world.remote) + "-missing")
+
+    rc = open_pr.main(_argv(world.checkout, paths=[rel]))
+
+    assert rc != 0
+    assert world.gh_calls() == []
+    assert "step failed" in capsys.readouterr().out
+
+
+def test_a_glob_path_is_taken_literally_and_refused(open_pr, world):
+    """L9-1: git expanded `features/**` while the scanner saw one missing file and skipped it."""
+    _contribution(world.checkout, rel="features/common/skills/thing/SKILL.md")
+    _contribution(world.checkout, rel="features/private/notes.md")
+
+    rc = open_pr.main(_argv(world.checkout, paths=["features/**"]))
+
+    assert rc != 0
+    assert world.remote_files("feed/my-feature") is None
+    assert world.gh_calls() == []
+    assert world.staged() == []
+
+
+def test_a_secret_reached_through_a_glob_never_leaves(open_pr, world, capsys):
+    _contribution(world.checkout, rel="features/private/notes.md",
+                  body=f"token: {FAKE_GITHUB_TOKEN}\n")
+
+    rc = open_pr.main(_argv(world.checkout, paths=["features/**"]))
+
+    assert rc != 0
+    assert world.remote_files("feed/my-feature") is None
+    assert world.gh_calls() == []
+    assert FAKE_GITHUB_TOKEN not in capsys.readouterr().out
+
+
+def test_a_file_staged_before_the_run_refuses_the_pr(open_pr, world, capsys):
+    """L9-1: `git commit` took everything in the index, declared or not."""
+    rel = _contribution(world.checkout)
+    _test_write(world.checkout / "staged-earlier.md", "not declared\n", encoding="utf-8")
+    _git(world.checkout, "add", "staged-earlier.md")
+
+    rc = open_pr.main(_argv(world.checkout, paths=[rel]))
+
+    assert rc != 0
+    assert world.remote_files("feed/my-feature") is None
+    assert world.gh_calls() == []
+    assert world.staged() == ["staged-earlier.md"], "the user's index is left as it was"
+    assert "staged-earlier.md" in capsys.readouterr().out
+
+
+def test_an_oversized_declared_file_is_refused(open_pr, world, capsys):
+    """R15: the scanner skips files over its size cap, so an outbound PR must not carry one."""
+    limit = open_pr.ul.LITERAL_SCAN_MAX_BYTES
+    rel = _contribution(world.checkout, rel="features/big.md",
+                        body=f"token: {FAKE_GITHUB_TOKEN}\n" + "x" * limit)
+
+    rc = open_pr.main(_argv(world.checkout, paths=[rel]))
+
+    assert rc != 0
+    assert world.remote_files("feed/my-feature") is None
+    assert world.gh_calls() == []
+    assert "features/big.md" in capsys.readouterr().out
+
+
+def test_a_finding_in_the_staged_set_refuses_and_unstages(open_pr, world):
+    _contribution(world.checkout, rel="features/common/skills/thing/SKILL.md")
+    _contribution(world.checkout, rel="features/common/skills/thing/notes.md",
+                  body=f"api_key = {FAKE_GITHUB_TOKEN}\n")
+
+    rc = open_pr.main(_argv(world.checkout, paths=["features/common/skills/thing"]))
+
+    assert rc == 1
+    assert world.remote_files("feed/my-feature") is None
+    assert world.gh_calls() == []
+    assert world.staged() == []
+    assert _git(world.checkout, "branch", "--show-current").strip() == "main"

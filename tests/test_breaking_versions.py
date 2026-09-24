@@ -35,6 +35,26 @@ class TestBreakingVersions:
         # 0.6.0 -> 0.8.0 crosses 0.7.0
         assert bl.is_breaking_transition("0.6.0", "0.8.0", root) is True
 
+    # --- L1-7: direction-agnostic (R28) ---
+
+    def test_is_breaking_transition_downgrade_crosses_breaking(self, root, load_script):
+        bl = load_script("engine/badger_lib.py")
+        # 0.9.0 -> 0.5.0 crosses 0.7.0, a downgrade is as dangerous as an upgrade
+        assert bl.is_breaking_transition("0.9.0", "0.5.0", root) is True
+
+    def test_is_breaking_transition_downgrade_landing_exactly_on_the_boundary_is_not_breaking(
+            self, root, load_script):
+        """0.8.0 -> 0.7.0 lands on 0.7.0, it does not cross it — mirrors the upgrade rule
+        exactly and kills the mirrored-inequality mutant."""
+        bl = load_script("engine/badger_lib.py")
+        assert bl.is_breaking_transition("0.8.0", "0.7.0", root) is False
+
+    def test_is_breaking_transition_downgrade_from_the_boundary_crosses_it(
+            self, root, load_script):
+        bl = load_script("engine/badger_lib.py")
+        # 0.7.0 -> 0.6.0 leaves the boundary version behind
+        assert bl.is_breaking_transition("0.7.0", "0.6.0", root) is True
+
     def test_read_breaking_versions(self, root, load_script):
         bl = load_script("engine/badger_lib.py")
         versions = bl.read_breaking_versions(root)

@@ -508,3 +508,76 @@ def test_the_structural_probe_stays_cheap(guard, tmp_path):
     elapsed = time.perf_counter() - start
 
     assert elapsed < 2.0, f"5 passes over a 100-path command took {elapsed:.2f}s"
+
+
+# --------------------------------------------------------------------------------------------
+# Shell parser: the whole command is lexed once, by the shared module (L4-2, L4-3)
+# --------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("command", [
+    "perl -pi -e 's/a/b/' .git/config",
+    "sed -Ei 's/a/b/' .git/config",
+    "sed -ni 'p' .git/config",
+    "sudo -u root rm .git/config",
+    "cp -t .git/ /tmp/config",
+    "mv --target-directory=.git /tmp/config",
+    "rm .git/config; echo \"a\nb\"",
+    "timeout 5 rm .git/config",
+], ids=["perl-pi", "sed-Ei", "sed-ni", "sudo-u-value", "cp-t", "mv-target-directory",
+        "quote-spanning-a-newline", "timeout-wrapper"])
+def test_b28_measured_bypasses_are_refused(guard, repo, command, capsys):
+    """Each was measured as allowed: combined `-i` clusters, a wrapper's flag value read as the
+    program, `-t` naming the destination first, and a later line whose quote spans a newline,
+    which made the per-line lexer drop the whole line holding the write."""
+    _deny_reason(guard, _bash(command, cwd=repo), capsys)
+
+
+@pytest.mark.parametrize("command", [
+    "sed -i s/a/b/ .git/config",
+    "rm .git/config",
+    "sudo -n rm .git/config",
+], ids=["sed-i", "rm", "sudo-n"])
+def test_b28_controls_stay_refused(guard, repo, command, capsys):
+    """The spellings that were already refused must stay refused on the new tokens."""
+    _deny_reason(guard, _bash(command, cwd=repo), capsys)
+
+
+@pytest.mark.parametrize("command", [
+    "perl -Mstrict -ne 'print' .git/config",
+    "sed -n 's/i/x/p' .git/config",
+    "cp -t /tmp/backup .git/config",
+    "cd .git && ls 2>&1",
+], ids=["perl-M-value-holds-an-i", "sed-script-holds-an-i", "cp-t-elsewhere", "fd-duplication"])
+def test_b28_reads_stay_allowed_on_the_new_tokens(guard, repo, command, capsys):
+    """Reading flag clusters letter by letter must stop at a letter that takes a value, `-t`
+    elsewhere is a backup, and `2>&1` duplicates a descriptor rather than naming a file."""
+    _allowed(guard, _bash(command, cwd=repo), capsys, f"{command} was refused")
+
+
+@pytest.mark.parametrize("command", [
+    "git commit -F - <<'EOF'\nfix the remote\n\nrm .git/config is what broke it\nEOF",
+    "git commit -m \"$(cat <<'EOF'\nfix the remote\n\nrm .git/config is what broke it\nEOF\n)\"",
+    "python3 -c \"\nx = 1\nrm .git/config\n\"",
+], ids=["heredoc-body", "heredoc-in-substitution", "multi-line-code-string"])
+def test_b29_text_that_only_looks_like_a_command_is_allowed(guard, repo, command, capsys):
+    """A heredoc body and a quoted code string are data: a line inside them that starts with
+    `rm .git/config` is not a command, and refusing it blocked an ordinary commit."""
+    _allowed(guard, _bash(command, cwd=repo), capsys, "a heredoc body was read as a command")
+
+
+def test_b29_a_write_hidden_in_an_unquoted_heredocs_substitution_is_refused(guard, repo, capsys):
+    """An unquoted heredoc delimiter expands `$(...)` in the body, so that one is a command."""
+    command = "cat <<EOF\n$(rm .git/config)\nEOF"
+
+    _deny_reason(guard, _bash(command, cwd=repo), capsys)
+
+
+def test_b30_a_symlink_into_the_git_dir_is_the_git_dir(guard, repo, capsys):
+    """`ln -s .git/config cfg` then an edit of `cfg` writes `.git/config`: the path is judged
+    after the symlink resolves, whether the edit comes from a tool or a redirect."""
+    _allowed(guard, _bash("ln -s .git/config cfg", cwd=repo), capsys,
+             "creating a link writes nothing into the git dir")
+    (repo / "cfg").symlink_to(repo / ".git" / "config")
+
+    _deny_reason(guard, _edit(repo / "cfg"), capsys)
+    _deny_reason(guard, _bash("echo x > cfg", cwd=repo), capsys)
