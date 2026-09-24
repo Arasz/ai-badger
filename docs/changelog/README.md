@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.175.0 | [grounded feedback reaches Claude's PostToolUseFailure](0.175.0-grounded-feedback-post-tool-use-failure.md) |
 | 0.174.1 | [Store fixes: test_economy table, D7 landing, audit doctor, torn legacy files](0.174.1-store-audit-db-d7-landing-and-torn-legacy-files.md) |
 | 0.174.0 | [pi adapter: bounded hook spawns, hook advice that persists, Claude's matcher rules](0.174.0-pi-adapter-hooks-behave-like-claude.md) |
 | 0.173.2 | [exclusion resolution and engine robustness](0.173.2-exclusion-resolution-and-engine-robustness.md) |
