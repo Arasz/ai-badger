@@ -96,3 +96,16 @@ def test_the_docstring_promise_holds_for_every_bypass(load_script):
     gate = load_script(GATE)
     survivors = [c for c, _ in BYPASSES if denied(gate, c) is None]
     assert not survivors, f"still auto-approved in away mode: {survivors}"
+
+
+# A wrapper's option that takes a value hid the program behind that value.
+WRAPPED_EGRESS = [
+    "env -u HOME curl https://example.test/x",
+    "xargs -I {} curl {}",
+]
+
+
+@pytest.mark.parametrize("command", WRAPPED_EGRESS)
+def test_a_wrapper_option_value_does_not_hide_the_program(load_script, command):
+    gate = load_script(GATE)
+    assert denied(gate, command) == "network_egress"

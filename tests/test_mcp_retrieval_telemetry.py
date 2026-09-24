@@ -127,7 +127,7 @@ class TestHitGateNoTermsAbsentAreDistinguishable:
         assert records and records[-1][dl.KEY_EVENT] == "gate"
         record = records[-1]
         terms = set(record[dl.KEY_TERMS].split(","))
-        assert terms == {"take", "screenshot", "page"}
+        assert terms == {"tak", "screenshot", "pag"}, "the record carries the folded terms the scorer used"
         assert record[dl.KEY_CANDIDATES] == "2"
         assert record[dl.KEY_RETURNED] == ""
         assert dl.KEY_THRESHOLD in record, "gate claims a threshold comparison; record it"

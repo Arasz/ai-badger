@@ -98,6 +98,25 @@ class TestDiscovery:
 
         assert copies[0].version is None
 
+    def test_read_version_returns_none_for_non_utf8_bytes(self, fc, tmp_path):
+        """L1-8: only OSError was guarded; a non-UTF-8 VERSION raised UnicodeDecodeError."""
+        tree = tmp_path / "tree"
+        tree.mkdir()
+        (tree / "VERSION").write_bytes(b"\xff\xfe garbled")
+
+        assert fc.read_version(tree) is None
+
+    def test_discovery_survives_a_non_utf8_version_file(self, fc, tmp_path):
+        """L1-8: `discover`'s docstring says it never raises; a garbled VERSION must not
+        turn that into a lie by way of `read_version`'s UnicodeDecodeError."""
+        home = tmp_path / "home"
+        cache = _make_root(home / ".ai-badger" / "framework")
+        (cache / "VERSION").write_bytes(b"\xff\xfe garbled")
+
+        copies = fc.discover(home=home)
+
+        assert copies[0].version is None
+
     def test_discovery_survives_an_unreadable_plugin_cache(self, fc, tmp_path):
         home = tmp_path / "home"
         _home_cache(home)

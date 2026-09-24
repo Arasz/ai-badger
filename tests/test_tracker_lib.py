@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import threading
 from datetime import timedelta
 from pathlib import Path
@@ -186,6 +187,72 @@ def test_module_level_constants_resolve_the_checkout_not_the_catalog(
     assert tl.SCRIPT_DIR.parents[3].name == "features", "the mis-root this pins against"
     assert tl.PROJECT_ROOT == tl.collapse_worktree(root)
     assert tl.DATA_DIR == tl.PROJECT_ROOT / ".ai-badger" / "task-tracking"
+
+
+def _init_git_repo(path):
+    path.mkdir(parents=True, exist_ok=True)
+    run = lambda *args: subprocess.run(  # noqa: E731 - short-lived test helper
+        ["git", *args], cwd=path, check=True, capture_output=True, text=True)
+    run("init", "-q")
+    run("config", "user.email", "t@example.com")
+    run("config", "user.name", "Test")
+    (path / "f.txt").write_text("x", encoding="utf-8")
+    run("add", "f.txt")
+    run("commit", "-q", "-m", "init")
+
+
+# ---------------------------------------------------------------------------
+# _git_worktree_facts / collapse_worktree — real git, paths containing spaces (L5-8)
+# ---------------------------------------------------------------------------
+
+def test_git_worktree_facts_parses_paths_with_spaces_line_by_line(load_script, tmp_path):
+    """`git worktree list --porcelain` parsed line by line: a checkout path containing a
+    space must not come apart the way a `.split()` over the whole (two-line) `rev-parse`
+    output used to (L5-8)."""
+    tl = _load(load_script, tmp_path)
+    main = tmp_path / "main checkout"
+    _init_git_repo(main)
+    linked = tmp_path / "linked worktree"
+    subprocess.run(["git", "worktree", "add", "-b", "feature", str(linked)],
+                    cwd=main, check=True, capture_output=True, text=True)
+
+    toplevel, checkout = tl._git_worktree_facts(linked)
+
+    assert toplevel == linked.resolve()
+    assert checkout == main.resolve()
+
+
+def test_collapse_worktree_collapses_a_linked_worktree_with_a_space_in_its_path(
+        load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    main = tmp_path / "my repo"
+    _init_git_repo(main)
+    (main / ".ai-badger").mkdir()
+    _test_write(main / ".ai-badger" / "config.json", "{}", encoding="utf-8")
+    linked = tmp_path / "task worktree"
+    subprocess.run(["git", "worktree", "add", "-b", "feature", str(linked)],
+                    cwd=main, check=True, capture_output=True, text=True)
+
+    assert tl.collapse_worktree(linked) == main.resolve()
+
+
+def test_collapse_worktree_leaves_a_non_worktree_project_alone(load_script, tmp_path):
+    """A plain, non-linked checkout (no other worktrees) must not be "collapsed" anywhere."""
+    tl = _load(load_script, tmp_path)
+    project = tmp_path / "solo project"
+    _init_git_repo(project)
+
+    assert tl.collapse_worktree(project) == project
+
+
+def test_git_worktree_facts_returns_none_when_git_fails(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    not_a_repo = tmp_path / "not-a-repo"
+    not_a_repo.mkdir()
+
+    toplevel, checkout = tl._git_worktree_facts(not_a_repo)
+
+    assert (toplevel, checkout) == (None, None)
 
 
 def test_module_level_constants_pick_up_claude_project_dir_env_at_import(
@@ -410,6 +477,34 @@ def test_find_other_entry_with_session_returns_none_when_no_session_match(load_s
     assert tl.find_other_entry_with_session(doc, "sid-does-not-exist", "T02") is None
 
 
+def test_find_other_entry_with_session_prefers_an_active_entry_over_an_earlier_finished_one(
+        load_script, tmp_path):
+    """A session can carry more than one row on it (a FINISHED task from earlier, plus a
+    still-active one recorded after it). Stopping at the first match would return the
+    finished row and let the caller's conflict check wave the active one through (L5-5)."""
+    tl = _load(load_script, tmp_path)
+    doc = {"tasks": [
+        {"taskId": "T01", "sessionId": "sid-1", "state": tl.STATE_FINISHED},
+        {"taskId": "T02", "sessionId": "sid-1", "state": tl.STATE_IN_PROGRESS},
+    ]}
+
+    conflict = tl.find_other_entry_with_session(doc, "sid-1", "T03")
+
+    assert conflict["taskId"] == "T02"
+
+
+def test_find_other_entry_with_session_returns_a_finished_entry_when_nothing_else_matches(
+        load_script, tmp_path):
+    """Preserves the existing behaviour: a finished-only match is still returned (the caller
+    is what decides a finished match is not a conflict)."""
+    tl = _load(load_script, tmp_path)
+    doc = {"tasks": [{"taskId": "T01", "sessionId": "sid-1", "state": tl.STATE_FINISHED}]}
+
+    conflict = tl.find_other_entry_with_session(doc, "sid-1", "T02")
+
+    assert conflict["taskId"] == "T01"
+
+
 # ---------------------------------------------------------------------------
 # parse_transcript_usage / make_checkpoint
 # ---------------------------------------------------------------------------
@@ -506,6 +601,40 @@ def test_make_checkpoint_wraps_parsed_usage_with_a_timestamp(load_script, tmp_pa
     assert checkpoint["assistantMessages"] == 1
     assert checkpoint["cumulative"]["inputTokens"] == 10
     tl.parse_iso(checkpoint["timestamp"])  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# is_empty_checkpoint (moved here from stop_hook.py, R32) — shared by finish and stop_hook
+# ---------------------------------------------------------------------------
+
+def test_is_empty_checkpoint_true_for_none_and_non_dict(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    assert tl.is_empty_checkpoint(None) is True
+    assert tl.is_empty_checkpoint("not a checkpoint") is True
+
+
+def test_is_empty_checkpoint_true_for_all_zero_cumulative(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    checkpoint = {
+        "contextTokens": 0,
+        "assistantMessages": 3,
+        "cumulative": {"inputTokens": 0, "outputTokens": 0,
+                        "cacheReadTokens": 0, "cacheCreationTokens": 0},
+    }
+    assert tl.is_empty_checkpoint(checkpoint) is True
+    assert tl.is_empty_checkpoint({"contextTokens": 0, "cumulative": {}}) is True
+    assert tl.is_empty_checkpoint({}) is True
+
+
+def test_is_empty_checkpoint_false_when_context_tokens_present(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    assert tl.is_empty_checkpoint({"contextTokens": 42, "cumulative": {}}) is False
+
+
+def test_is_empty_checkpoint_false_when_any_cumulative_value_is_nonzero(load_script, tmp_path):
+    tl = _load(load_script, tmp_path)
+    checkpoint = {"contextTokens": 0, "cumulative": {"outputTokens": 3}}
+    assert tl.is_empty_checkpoint(checkpoint) is False
 
 
 # ---------------------------------------------------------------------------
