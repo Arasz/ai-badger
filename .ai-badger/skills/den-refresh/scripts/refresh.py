@@ -288,7 +288,7 @@ def relink_hermes_skills(root: Path, target: Path, config: Dict[str, Any]) -> Di
     scaffold_mod = _load_script(
         "features/common/skills/welcome-ai-badger/scripts/scaffold.py", root
     )
-    return scaffold_mod.relink_hermes_skills(target, config, names)
+    return scaffold_mod.relink_hermes_skills(target, config, names, root=root)
 
 
 def delivered_skills(manifest: Dict[str, Any],
