@@ -282,3 +282,115 @@ def test_the_child_environment_drops_the_git_variables_a_hook_exports(cj, tmp_pa
 
     assert "GIT_DIR" not in env and "GIT_WORK_TREE" not in env
     assert env["PATH"] == "/bin"
+
+
+def test_the_journey_refuses_a_scratch_home_that_contains_the_real_one(cj, tmp_path, monkeypatch):
+    """A parent of `$HOME` is the one place a cleanup could take the real home down with it."""
+    monkeypatch.setenv("HOME", str(tmp_path / "parent" / "real"))
+
+    with pytest.raises(cj.Refusal):
+        cj.check_scratch_home(tmp_path / "parent")
+
+
+# ------------------------------------------------------------- deleting only what it made
+
+
+def _fake_home(tmp_path: Path, monkeypatch, *parts: str) -> Path:
+    """A `$HOME` under *tmp_path* holding one file the journey must never delete."""
+    home = tmp_path.joinpath(*parts)
+    home.mkdir(parents=True)
+    _test_write(home / "precious.txt", "keep me\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+    return home
+
+
+def _not_a_framework(tmp_path: Path) -> Path:
+    """A `--root` the journey refuses, so no test here can ever start a real run."""
+    root = tmp_path / "not-a-framework"
+    root.mkdir()
+    return root
+
+
+def test_a_refusal_over_the_real_home_deletes_nothing(cj, tmp_path, monkeypatch, capsys):
+    """`--scratch $HOME` printed REFUSING TO RUN and then removed the home it refused."""
+    home = _fake_home(tmp_path, monkeypatch, "real")
+
+    rc = cj.main(["--scratch", str(home), "--root", str(_not_a_framework(tmp_path))])
+
+    assert rc == 1
+    assert "REFUSING TO RUN" in capsys.readouterr().out
+    assert (home / "precious.txt").read_text(encoding="utf-8") == "keep me\n"
+
+
+def test_a_scratch_that_is_a_parent_of_the_real_home_is_refused_and_kept(
+        cj, tmp_path, monkeypatch, capsys):
+    """The ancestor passed the check and was removed with the home inside it."""
+    home = _fake_home(tmp_path, monkeypatch, "parent", "real")
+
+    rc = cj.main(["--scratch", str(home.parent), "--root", str(_not_a_framework(tmp_path))])
+
+    assert rc == 1
+    assert "is the real home" in capsys.readouterr().out
+    assert (home / "precious.txt").is_file()
+
+
+def test_a_refusal_leaves_an_existing_scratch_directory_in_place(cj, tmp_path, monkeypatch):
+    """A refusal is a promise that nothing happened, including the cleanup."""
+    _fake_home(tmp_path, monkeypatch, "real")
+    existing = tmp_path / "existing"
+    existing.mkdir()
+    _test_write(existing / "notes.txt", "mine\n", encoding="utf-8")
+
+    rc = cj.main(["--scratch", str(existing), "--root", str(_not_a_framework(tmp_path))])
+
+    assert rc == 1
+    assert (existing / "notes.txt").is_file()
+
+
+def _stub_the_run(cj, monkeypatch) -> None:
+    """Replace the journey's steps with a clean result; only the scratch handling is exercised."""
+    monkeypatch.setattr(cj.Journey, "run", lambda self: 0)
+
+
+def test_a_run_leaves_an_existing_scratch_directory_in_place(cj, tmp_path, monkeypatch):
+    """The script did not create an existing `--scratch`, so it is not the script's to remove."""
+    _fake_home(tmp_path, monkeypatch, "real")
+    _stub_the_run(cj, monkeypatch)
+    existing = tmp_path / "existing"
+    existing.mkdir()
+    _test_write(existing / "notes.txt", "mine\n", encoding="utf-8")
+
+    rc = cj.main(["--scratch", str(existing)])
+
+    assert rc == 0
+    assert (existing / "notes.txt").read_text(encoding="utf-8") == "mine\n"
+
+
+def test_a_run_removes_a_scratch_directory_it_created(cj, tmp_path, monkeypatch):
+    """A `--scratch` that did not exist is the script's own, and goes when the run ends."""
+    _fake_home(tmp_path, monkeypatch, "real")
+    _stub_the_run(cj, monkeypatch)
+    fresh = tmp_path / "fresh"
+
+    rc = cj.main(["--scratch", str(fresh)])
+
+    assert rc == 0
+    assert not fresh.exists()
+
+
+def test_a_run_removes_the_temporary_directory_it_made(cj, tmp_path, monkeypatch):
+    """The default the pre-push hook and CI use: a `mkdtemp` directory, removed afterwards."""
+    _fake_home(tmp_path, monkeypatch, "real")
+    _stub_the_run(cj, monkeypatch)
+    made = tmp_path / "ai-badger-journey-x"
+
+    def _mkdtemp(**_kwargs):
+        made.mkdir()
+        return str(made)
+
+    monkeypatch.setattr(cj.tempfile, "mkdtemp", _mkdtemp)
+
+    rc = cj.main([])
+
+    assert rc == 0
+    assert not made.exists()

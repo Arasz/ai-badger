@@ -20,6 +20,7 @@ When cutting a release:
 | Version | Entry |
 |---|---|
 | 0.172.6 | [MCP hook matchers fire on the real tool names](0.172.6-mcp-hook-matchers-fire.md) |
+| 0.172.5 | [the consumer journey deletes only its own scratch](0.172.5-consumer-journey-deletes-only-its-own-scratch.md) |
 | 0.172.1 | [registry evidence erratum: the demoted twin, and what `registryVersion` tracks](0.172.1-registry-evidence-erratum.md) |
 | 0.172.0 | [medium tier prefers deepseek-v4.1-flash](0.172.0-medium-tier-prefers-deepseek-v41-flash.md) |
 | 0.171.0 | [archify: vendored diagram skill, archify-first with a Mermaid fallback](0.171.0-archify-diagram-skill.md) |
