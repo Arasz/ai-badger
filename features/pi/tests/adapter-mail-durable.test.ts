@@ -2,7 +2,7 @@
  * Bus mail the adapter consumes mid-run must be durable: in the persisted session, emitted
  * as a message (the TUI renders from message events), and present on every later LLM call
  * of the run. Driven through pi's real AgentSession, extension runner and agent loop; only
- * the LLM (pi-ai's faux stream) and the bus I/O (BusDeps) are fakes, and every path lives
+ * the LLM (pi-ai's faux provider) and the bus I/O (BusDeps) are fakes, and every path lives
  * under a tmp dir.
  */
 
@@ -21,6 +21,7 @@ import {
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
+  type AssistantMessage,
   type Context,
 } from "@earendil-works/pi-ai";
 import adapter from "../adjustments/adapter/index.ts";
@@ -55,11 +56,16 @@ function mailCount(context: Context): number {
   return JSON.stringify(context.messages).split(MAIL).length - 1;
 }
 
-test("mail consumed mid-run is persisted, emitted, and on every later LLM call exactly once", async () => {
+const readNotes = () =>
+  fauxAssistantMessage(fauxToolCall("read", { path: "notes.txt" }), { stopReason: "toolUse" });
+const done = () => fauxAssistantMessage("done");
+
+/** One prompt through a real pi session. `turns[i]` answers LLM call i; one mail lands in
+ * the store while call `mailDuringCall` is in flight, and the store's exactly-once txn
+ * hands it to the first delivery after that. */
+async function runSession(turns: Array<() => AssistantMessage>, mailDuringCall: number) {
   const { cwd, agentDir } = makeProject();
 
-  // The store, reduced to what the adapter observes: one mail lands while LLM call 1 is in
-  // flight, and the exactly-once txn hands it out to the first delivery after that.
   let mailArrived = false;
   let consumed = 0;
   const busDeps: BusDeps = {
@@ -78,21 +84,13 @@ test("mail consumed mid-run is persisted, emitted, and on every later LLM call e
 
   const requests: Context[] = [];
   const faux = fauxProvider();
-  faux.setResponses([
-    (context) => {
+  faux.setResponses(
+    turns.map((turn, index) => (context: Context) => {
       requests.push(context);
-      mailArrived = true;
-      return fauxAssistantMessage(fauxToolCall("read", { path: "notes.txt" }), { stopReason: "toolUse" });
-    },
-    (context) => {
-      requests.push(context);
-      return fauxAssistantMessage(fauxToolCall("read", { path: "notes.txt" }), { stopReason: "toolUse" });
-    },
-    (context) => {
-      requests.push(context);
-      return fauxAssistantMessage("done");
-    },
-  ]);
+      if (index === mailDuringCall) mailArrived = true;
+      return turn();
+    }),
+  );
 
   const settingsManager = SettingsManager.inMemory({ compaction: { enabled: false } });
   const resourceLoader = new DefaultResourceLoader({
@@ -131,16 +129,27 @@ test("mail consumed mid-run is persisted, emitted, and on every later LLM call e
 
   await session.prompt("hi");
   await session.agent.waitForIdle();
+  session.dispose();
 
   const persisted = sessionManager
     .getEntries()
     .filter((entry) => entry.type === "custom_message" && JSON.stringify(entry).includes(MAIL));
-  expect({
+  return {
     consumed,
     mailPerRequest: requests.map(mailCount),
     emitted: emitted.filter((content) => content.includes(MAIL)).length,
     persisted: persisted.length,
-  }).toEqual({ consumed: 1, mailPerRequest: [0, 1, 1], emitted: 1, persisted: 1 });
+  };
+}
 
-  session.dispose();
+test("mail consumed mid-run is persisted, emitted, and on every later LLM call exactly once", async () => {
+  const observed = await runSession([readNotes, readNotes, done], 0);
+
+  expect(observed).toEqual({ consumed: 1, mailPerRequest: [0, 1, 1], emitted: 1, persisted: 1 });
+});
+
+test("mail landing during the run's last call stays in the store — delivery adds no LLM call", async () => {
+  const observed = await runSession([done], 0);
+
+  expect(observed).toEqual({ consumed: 0, mailPerRequest: [0], emitted: 0, persisted: 0 });
 });

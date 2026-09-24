@@ -263,7 +263,7 @@ def test_adapter_subscribes_to_the_two_delivery_events_via_the_router(root):
     """The two delivery points' subscriptions exist and delegate to the bridge's router.
 
     A missing subscription means pi sessions never get bus mail at that point: the
-    run-start result message (before_agent_start) and the per-turn context append each
+    run-start result message (before_agent_start) and the per-turn turn_end steer each
     need their own pi.on(...) wired through
     createDeliveryRouter/toClaudeDeliveryPayload. The start-spawn defer removed the
     session_start subscription entirely — a session that never turns consumes nothing.
@@ -274,7 +274,7 @@ def test_adapter_subscribes_to_the_two_delivery_events_via_the_router(root):
     source = (root / ADAPTER_INDEX_TS).read_text(encoding="utf-8")
     events = set(PI_ON_EVENT.findall(source))
 
-    assert {"before_agent_start", "context", "session_shutdown"} <= events, events
+    assert {"before_agent_start", "turn_end", "session_shutdown"} <= events, events
 
     for seam in ("createDeliveryRouter", "toClaudeDeliveryPayload", "parseDeliveryStdout"):
         assert re.search(rf"\b{seam}\b", source), (

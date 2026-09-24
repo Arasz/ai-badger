@@ -273,7 +273,7 @@ export function toClaudePostPayload(
 /** The pi events the message bus translates, under the Claude spellings the shared
  * delivery script routes on (`message_delivery_hook.py` matches case-insensitively:
  * userpromptsubmit delivers mail, sessionend drops the cursor). pi's delivery seams
- * are `before_agent_start` (run start) and the per-turn `context` event; the close
+ * are `before_agent_start` (run start) and the per-turn `turn_end` event; the close
  * event is `session_shutdown`. There is no start-spawn: a session that never turns
  * fires no delivery event, so no cursor row is written and mail survives for the
  * session that does turn. */
@@ -421,48 +421,22 @@ export function piMessageFromContext(content: string): AgentStartInjection {
   };
 }
 
-/** The message object pi's per-turn `context` seam appends to the message array the
- * handler returns ({ messages }): one custom message in the full CustomMessage shape
- * (role "custom", timestamp) — pi renders it and carries it to the LLM like any
- * custom message. */
-export interface ContextInjection {
-  message: { role: "custom"; customType: string; content: string; display: boolean; timestamp: number };
-}
-
-export function piContextMessageFromContext(content: string): ContextInjection {
-  return {
-    message: {
-      role: "custom",
-      customType: AI_BADGER_CUSTOM_TYPE,
-      content,
-      display: true,
-      timestamp: Date.now(),
-    },
-  };
-}
-
 /** The injected spawn: one delivery-script run for an already-built payload. It resolves
  * every failure mode into a DeliveryOutcome and never rejects — the router's branches
  * stay total. */
 export type DeliverySpawn = (payload: ClaudeDeliveryPayload) => Promise<DeliveryOutcome>;
 
-/** What one routed event produced: pi's result-message injection (before_agent_start)
- * plus the failure lines the caller reports. Nothing here throws. */
+/** What one routed event produced: the custom message to hand pi (before_agent_start's
+ * result message, or turn_end's pi.sendMessage) plus the failure lines the caller
+ * reports. Nothing here throws. */
 export interface DeliveryRouterResult {
   injection?: AgentStartInjection;
   notices: string[];
 }
 
-/** The per-turn seam's result: the same outcome translated into the message object the
- * caller appends to the `context` event's message array. */
-export interface DeliveryContextResult {
-  injection?: ContextInjection;
-  notices: string[];
-}
-
 export interface DeliveryRouter {
   beforeAgentStart(ctx: { cwd: string; sessionId: string }): Promise<DeliveryRouterResult>;
-  context(ctx: { cwd: string; sessionId: string }): Promise<DeliveryContextResult>;
+  turnEnd(ctx: { cwd: string; sessionId: string }): Promise<DeliveryRouterResult>;
   sessionShutdown(ctx: { cwd: string; sessionId: string }): Promise<DeliveryRouterResult>;
 }
 
@@ -474,11 +448,13 @@ export interface DeliveryRouter {
  * applies from that turn). Delivery runs at two seams, both the same unconditional
  * live read with the store's exactly-once transaction advancing the cursor once per
  * consumed message: `before_agent_start` returns the mail through pi's result-message
- * seam, and the per-turn `context` event appends it to the message array pi hands the
- * handler — mail that arrived between LLM calls lands at the next call (mail between
- * tasks, not after a cancel). The close event's spawn is cursor cleanup; its response
- * is discarded — a dead store must not block shutdown, and a close response has
- * nothing pi could inject anyway. Every error becomes a notice (D31).
+ * seam, and `turn_end` hands it to pi.sendMessage as a steer — mail that arrived
+ * between LLM calls joins the transcript before the next call (mail between tasks, not
+ * after a cancel). Both seams make the mail a session message, never a per-request
+ * rewrite: consumed mail must stay on every later call. The close event's spawn is
+ * cursor cleanup; its response is discarded — a dead store must not block shutdown,
+ * and a close response has nothing pi could inject anyway. Every error becomes a
+ * notice (D31).
  */
 export function createDeliveryRouter(spawn: DeliverySpawn): DeliveryRouter {
   /** One unconditional live read: the payload routes as UserPromptSubmit, a delivery
@@ -491,31 +467,21 @@ export function createDeliveryRouter(spawn: DeliverySpawn): DeliveryRouter {
     }
   }
 
-  return {
-    // Run start: one unconditional live read through pi's result-message seam.
-    async beforeAgentStart(ctx) {
-      const outcome = await liveRead(ctx);
-      if (outcome.kind === "context") {
-        return { injection: piMessageFromContext(outcome.content), notices: [] };
-      }
-      if (outcome.kind === "error") {
-        return { notices: [`ai-badger: message delivery failed, turn continues — ${outcome.reason}`] };
-      }
-      return { notices: [] };
-    },
+  /** A live read translated into the custom message pi takes at either seam. */
+  async function delivery(ctx: { cwd: string; sessionId: string }): Promise<DeliveryRouterResult> {
+    const outcome = await liveRead(ctx);
+    if (outcome.kind === "context") {
+      return { injection: piMessageFromContext(outcome.content), notices: [] };
+    }
+    if (outcome.kind === "error") {
+      return { notices: [`ai-badger: message delivery failed, turn continues — ${outcome.reason}`] };
+    }
+    return { notices: [] };
+  }
 
-    // Per-turn seam inside the agent loop: the same live read, its mail appended to
-    // the message array pi handed over — mail that arrived between LLM calls lands here.
-    async context(ctx) {
-      const outcome = await liveRead(ctx);
-      if (outcome.kind === "context") {
-        return { injection: piContextMessageFromContext(outcome.content), notices: [] };
-      }
-      if (outcome.kind === "error") {
-        return { notices: [`ai-badger: message delivery failed, turn continues — ${outcome.reason}`] };
-      }
-      return { notices: [] };
-    },
+  return {
+    beforeAgentStart: delivery,
+    turnEnd: delivery,
 
     async sessionShutdown(ctx) {
       try {
