@@ -691,10 +691,12 @@ def test_from_json_given_a_file_path_exits_cleanly_instead_of_a_traceback(tmp_pa
                                                                           capsys):
     """L6-6: `--from-json` takes the JSON text itself, not a file path (the docs and the error
     hint said otherwise). Passing a path — the documented usage — must not raise an uncaught
-    JSONDecodeError."""
+    JSONDecodeError (the surrounding commands already use `sys.exit` this way, e.g.
+    `test_init_refuses_loudly_when_no_host_cli_answers` in test_mcp_index_host_listings.py)."""
     mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
-    rc = mod.main(["init", "--target", str(tmp_path), "--from-json", "/tmp/some-listing.json"])
-    assert rc == 2
+    with pytest.raises(SystemExit) as exit_info:
+        mod.main(["init", "--target", str(tmp_path), "--from-json", "/tmp/some-listing.json"])
+    assert exit_info.value.code == 2
     assert "JSON" in capsys.readouterr().err
 
 
@@ -704,8 +706,9 @@ def test_from_json_given_a_non_dict_document_exits_cleanly_instead_of_a_tracebac
     """A syntactically valid JSON document that is not an object (a bare list) raised
     AttributeError from `data.get(...)` uncaught."""
     mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
-    rc = mod.main(["init", "--target", str(tmp_path), "--from-json", json.dumps([1, 2, 3])])
-    assert rc == 2
+    with pytest.raises(SystemExit) as exit_info:
+        mod.main(["init", "--target", str(tmp_path), "--from-json", json.dumps([1, 2, 3])])
+    assert exit_info.value.code == 2
     assert "servers" in capsys.readouterr().err.lower()
 
 
