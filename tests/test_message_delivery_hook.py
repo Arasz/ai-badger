@@ -18,7 +18,7 @@ Test map (plan aib-user-db-message-bus §3 P4 · spec rules in parentheses):
   C2. Turn-end live (Stop) ..................... test_stop_delivers_unread_mail_and_echoes_the_event
   D. Addressing + suppression (Rules 2+8) ...... test_self_suppression_reaches_the_script_surface,
                                                   test_subdirectory_cwd_resolves_to_the_project_via_the_resolver
-  E. SessionEnd (Rule 6) ....................... test_session_end_removes_the_cursor,
+  E. SessionEnd (Rule 6, D3) .................... test_session_end_leaves_the_cursor_for_the_four_day_prune,
                                                   test_session_end_for_unknown_session_is_harmless
   F. Fail-open (D31/D7) ........................ test_malformed_stdin_is_a_no_op,
                                                   test_corrupt_user_db_fails_open,
@@ -434,10 +434,14 @@ def test_subdirectory_cwd_resolves_to_the_project_via_the_resolver(
 # ---------------------------------------------------------------------------
 
 
-def test_session_end_removes_the_cursor(hook, user_root, tmp_path, monkeypatch, capsys):
-    """Rule 6 scenario 1 through the script: the close event deletes the session's
-    cursor row — exit 0, parseable no-op JSON. Mutation killer: SessionEnd misrouted to
-    a delivery (or delete never called) → the row survives."""
+def test_session_end_leaves_the_cursor_for_the_four_day_prune(
+        hook, user_root, tmp_path, monkeypatch, capsys):
+    """Rule 6 through the script (D3, L2-6): the close event used to delete the
+    session's cursor row, so a host reusing the same session id (--resume) looked
+    like a brand-new session and replayed already-delivered mail. The close event is
+    now a no-op — exit 0, parseable no-op JSON, cursor row untouched — and only the
+    4-day prune retires it. Mutation killer: reinstating the delete call in ``_close``
+    makes the row disappear."""
     _make_project(tmp_path / "repo")
     monkeypatch.setenv(PROJECT_DIR_ENV, str(tmp_path / "repo"))
     with contextlib.closing(_store()) as store:
@@ -453,7 +457,8 @@ def test_session_end_removes_the_cursor(hook, user_root, tmp_path, monkeypatch, 
 
     assert rc == 0
     assert response == {}
-    assert _cursor_row("S") is None, "the close event must remove the cursor row"
+    assert _cursor_row("S") is not None, \
+        "the close event must not remove the cursor row — the 4-day prune reaps it (D3)"
 
 
 def test_session_end_for_unknown_session_is_harmless(hook, monkeypatch, capsys):

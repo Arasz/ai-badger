@@ -8,6 +8,8 @@ tools:
 user-invocable: true
 ---
 
+<!-- Managed by ai-badger. Source of truth: .ai-badger/agents/hermes-agent-author. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
+
 # Hermes Agent Author
 
 A persona for working within the Hermes Agent ecosystem — writing skills, configuring

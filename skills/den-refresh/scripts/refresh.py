@@ -15,6 +15,7 @@ Exit codes: 0 = up to date or changes applied, 1 = drift found but re-scaffold
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import importlib.util
 import json
 import os
@@ -164,6 +165,17 @@ def _nested_checkouts(directory: str, names: List[str]) -> set:
     return {name for name in names if (parent / name / ".git").exists()}
 
 
+def _backup_ignore(directory: str, names: List[str]) -> set:
+    """Nested checkouts, plus any `*.db*` file — the live task-tracking SQLite database and
+    its `-wal`/`-shm` sidecars (L3-8). The backup is a snapshot of config and generated files,
+    not a second copy of a live, constantly-rewritten database; copying it in also puts it
+    somewhere the managed .gitignore block never looks, so it shows up as untracked.
+    """
+    return _nested_checkouts(directory, names) | {
+        name for name in names if fnmatch.fnmatch(name, "*.db*")
+    }
+
+
 def check_breaking_and_backup(root: Path, target: Path) -> Dict[str, Any]:
     """Back up .ai-badger/ before any re-scaffold, and report whether the jump is breaking.
 
@@ -184,7 +196,7 @@ def check_breaking_and_backup(root: Path, target: Path) -> Dict[str, Any]:
     bckp = target / bl.BACKUP_DIR_NAME
     if bckp.exists():
         shutil.rmtree(bckp)
-    shutil.copytree(aib, bckp, ignore=_nested_checkouts)
+    shutil.copytree(aib, bckp, ignore=_backup_ignore)
     return {"isBreaking": is_breaking, "backupPath": str(bckp)}
 
 

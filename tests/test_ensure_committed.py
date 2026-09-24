@@ -8,6 +8,8 @@ commit, or kill it.
 from __future__ import annotations
 
 import json
+import sqlite3
+
 from conftest import _test_write
 
 
@@ -25,14 +27,17 @@ def _run(load_script, monkeypatch, state_file, argv=None, uncommitted=("a.py",))
 
     `uncommitted` stands in for `git status` at the recorded roots, which are fixture paths
     with no repository behind them. It defaults to "still dirty" so a test says what it means:
-    the report also drops any project whose work has since been committed.
+    the report also drops any project whose work has since been committed. `uncommitted=None`
+    stands in for a `git status` that could not be run at all (failure or timeout) rather than
+    one that ran and found nothing (commit_reminder.GIT_UNKNOWN).
     """
     module = load_script(SCRIPT)
     monkeypatch.setattr(module.commit_reminder, "STATE_FILE", state_file)
     # at_risk_entries reads the user store; redirect it — the real DB is never touched.
     monkeypatch.setenv("AI_BADGER_USER_ROOT", str(state_file.parent / "user-root"))
-    monkeypatch.setattr(module.commit_reminder, "uncommitted_files",
-                        lambda root: list(uncommitted))
+    status = (module.commit_reminder.GIT_UNKNOWN if uncommitted is None
+              else list(uncommitted))
+    monkeypatch.setattr(module.commit_reminder, "git_status", lambda root: status)
     return module, module.main(argv or [])
 
 
@@ -137,6 +142,69 @@ class TestItSurvivesMalformedState:
 
         assert rc == 0
         assert json.loads(capsys.readouterr().out)["atRisk"] == []
+
+
+class TestGitStatusUnknownIsNeverReportedAsClean:
+    """A git failure or timeout must not look like a clean, no-longer-at-risk project (L9-3)."""
+
+    def test_a_git_status_failure_lists_the_project_as_unknown(
+            self, load_script, monkeypatch, tmp_path, capsys):
+        state = _state(tmp_path, {"/repo": {"marker": 9, "fires": 4}})
+
+        _, rc = _run(load_script, monkeypatch, state, uncommitted=None)
+
+        assert rc == 0
+        at_risk = json.loads(capsys.readouterr().out)["atRisk"]
+        assert len(at_risk) == 1, "an unknown git status must still be reported, not dropped"
+        assert at_risk[0]["project"] == "/repo"
+        assert at_risk[0]["uncommitted"] == "unknown"
+
+
+class TestStateUnreadableFailsClosed:
+    """`ensure_committed` is the one reader that must never confuse silence with safety."""
+
+    def test_a_broken_store_never_says_nothing_is_at_risk(
+            self, load_script, monkeypatch, tmp_path, capsys):
+        module = load_script(SCRIPT)
+        monkeypatch.setattr(module.commit_reminder, "STATE_FILE",
+                            tmp_path / "state.json")
+        monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+
+        def _boom(*_a, **_k):
+            raise sqlite3.OperationalError("disk I/O error")
+        monkeypatch.setattr(module.commit_reminder.badger_store, "open_user", _boom)
+
+        rc = module.main([])
+
+        captured = capsys.readouterr()
+        assert "Nothing is at risk" not in captured.err
+        assert "Nothing is at risk" not in captured.out
+        payload = json.loads(captured.out)
+        assert payload["error"] == "state unreadable"
+
+    def test_a_broken_store_exits_non_zero(self, load_script, monkeypatch, tmp_path, capsys):
+        module = load_script(SCRIPT)
+        monkeypatch.setattr(module.commit_reminder, "STATE_FILE",
+                            tmp_path / "state.json")
+        monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+
+        def _boom(*_a, **_k):
+            raise sqlite3.OperationalError("disk I/O error")
+        monkeypatch.setattr(module.commit_reminder.badger_store, "open_user", _boom)
+
+        rc = module.main([])
+        capsys.readouterr()
+
+        assert rc != 0, "a report that could not be produced must not exit like a clean one"
+
+    def test_a_readable_but_empty_state_still_exits_zero_and_says_nothing_at_risk(
+            self, load_script, monkeypatch, tmp_path, capsys):
+        """The fix must not turn every clean run into a false alarm."""
+        _, rc = _run(load_script, monkeypatch, _state(tmp_path, {}))
+
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "Nothing is at risk" in captured.err
 
 
 class TestFinishedWorkStopsBeingAtRisk:
