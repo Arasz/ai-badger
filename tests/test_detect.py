@@ -479,6 +479,36 @@ def test_detect_source_control_azure_devops_remote(tmp_path, load_script):
     assert sc["repoUrl"] == "https://dev.azure.com/org/proj/_git/repo"
 
 
+def test_detect_source_control_strips_userinfo_from_an_https_remote(tmp_path, load_script):
+    """L3-3: a CI checkout's PAT-based remote must not land in the committed config.json."""
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "https://u:ghp_x@github.com/o/r.git"],
+        cwd=tmp_path, check=True)
+
+    sc = detect.detect_source_control(tmp_path)
+
+    assert sc["repoUrl"] == "https://github.com/o/r"
+    assert "ghp_x" not in sc["repoUrl"]
+    assert "u:" not in sc["repoUrl"]
+
+
+def test_detect_source_control_strips_userinfo_from_an_ssh_scheme_remote(tmp_path, load_script):
+    """A non-github.com host: this container's git config rewrites github.com's own
+    ssh:// aliases to https before detect.py ever sees the URL (record.md), so a host it
+    does not rewrite is the only way to exercise this normalization at all."""
+    detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "ssh://git@example.invalid/o/r.git"],
+        cwd=tmp_path, check=True)
+
+    sc = detect.detect_source_control(tmp_path)
+
+    assert sc["repoUrl"] == "ssh://example.invalid/o/r"
+
+
 # ------------------------------------------------------------------------ detect_commands
 def test_detect_commands_dotnet_defaults_without_package_json(tmp_path, load_script):
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
