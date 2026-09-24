@@ -6,10 +6,11 @@ import io
 import json
 import os
 import stat
+import subprocess
 from pathlib import Path
 
 import pytest
-from conftest import _test_write
+from conftest import ROOT, _test_write
 
 
 def _load(load_script, tmp_path, monkeypatch):
@@ -440,13 +441,29 @@ class TestTheSuiteCannotWriteToTheRealLog:
         assert REAL_HOME not in dl.audit_db().parents, f"leaked to {dl.audit_db()}"
 
 
-VENDORED_COPIES = (
-    "features/common/skills/call-behaviorist/scripts/debug_log.py",
-    "features/common/skills/commit-reminder/scripts/debug_log.py",
-    "features/common/skills/mcp-index/scripts/debug_log.py",
-    "features/common/skills/prompt-markers/scripts/debug_log.py",
-    "features/common/skills/task/scripts/debug_log.py",
-)
+def _debug_log_shims_on_disk(root: Path) -> tuple[str, ...]:
+    """Every `debug_log.py` shim tracked under `features/**/scripts`, from git ls-files.
+
+    Not a hand list: a shim added to the tree is picked up here without anyone remembering
+    to update a second copy of the same information (derive-or-delete).
+    """
+    out = subprocess.run(
+        ["git", "ls-files", "features/**/scripts/debug_log.py"],
+        cwd=root, capture_output=True, text=True, check=True,
+    )
+    return tuple(sorted(line for line in out.stdout.splitlines() if line))
+
+
+#: The shims to pin against SHIM_TEMPLATE, derived from disk rather than hand-kept (L10-2):
+#: a shim added under features/**/scripts is picked up here with no second list to fall out
+#: of step with it.
+VENDORED_COPIES = _debug_log_shims_on_disk(ROOT)
+
+
+def test_the_hand_kept_list_covers_every_shim_on_disk():
+    """Regression guard for L10-2: if VENDORED_COPIES is ever hand-pinned again, this goes RED
+    the moment a shim lands on disk that the pinned tuple does not name."""
+    assert sorted(VENDORED_COPIES) == list(_debug_log_shims_on_disk(ROOT))
 
 
 SHIM_TEMPLATE = '''"""Thin re-export of the canonical debug_log (P2.2): one copy lives in features/common/hooks.

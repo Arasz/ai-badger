@@ -291,6 +291,24 @@ def test_the_arm_finds_the_guard_staged_beside_it(plugin_dir, root, repo):
     assert blocked(decision), decision
 
 
+def test_the_terminal_side_lexes_through_the_parser_staged_beside_the_guard(plugin_dir, root,
+                                                                           repo):
+    """The guard reads a `terminal` command through shell_parser.py loaded from beside
+    itself: staged without it, only the write_file side stays armed."""
+    import shutil
+
+    staged, load = plugin_dir
+    shutil.copy2(root / GUARD, staged / "git_internals_guard.py")
+    args = {"command": "sudo -u root rm .git/config"}
+    assert load().pre_tool_call_git_internals_guard(tool_name="terminal", args=args) is None
+
+    sys.modules.pop("git_internals_guard", None)
+    shutil.copy2(root / GUARD.replace("git_internals_guard", "shell_parser"),
+                 staged / "shell_parser.py")
+
+    assert blocked(load().pre_tool_call_git_internals_guard(tool_name="terminal", args=args))
+
+
 def test_the_arm_allows_when_the_guard_was_never_staged(plugin_dir, repo):
     """An older scaffold's plugin dir has no guard file: allow, never stall."""
     _, load = plugin_dir
