@@ -14,7 +14,6 @@ import os
 import shutil
 import subprocess
 import sys
-import venv
 from pathlib import Path
 
 
@@ -93,14 +92,18 @@ def get_venv_crg(venv_dir: Path) -> Path:
 
 
 def ensure_venv(target_dir: Path, py_exe: str) -> Path:
-    """Ensure .venv exists in target_dir, creating it with py_exe if missing."""
+    """Ensure .venv exists in target_dir, creating it with py_exe if missing.
+
+    Built via `py_exe -m venv`, the same as the semantica installer (L9-4):
+    `venv.EnvBuilder` always creates the venv with the *running* interpreter, so it silently
+    ignored whatever `find_suitable_python()` chose whenever the two differed.
+    """
     venv_dir = target_dir / ".venv"
     venv_py = get_venv_python(venv_dir)
 
     if not venv_py.exists():
         print(f"Creating Python virtual environment in {venv_dir} using {py_exe}...")
-        builder = venv.EnvBuilder(with_pip=True)
-        builder.create(venv_dir)
+        subprocess.run([py_exe, "-m", "venv", str(venv_dir)], check=True)
 
     return venv_py
 
