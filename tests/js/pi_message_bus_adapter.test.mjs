@@ -161,11 +161,11 @@ test("router turns a rejecting spawn into a notice — never a throw, never an i
   assert.equal(turn.notices.length, 1);
   assert.match(turn.notices[0], /ENOENT/);
 
-  // the same at the per-turn seam: the LLM call proceeds, the mail seam fails open
-  const contextTurn = await router.context(CTX);
-  assert.equal(contextTurn.injection, undefined);
-  assert.ok(contextTurn.notices.length >= 1);
-  assert.match(contextTurn.notices[0], /ENOENT/);
+  // the same at the per-turn seam: the next LLM call proceeds, the mail seam fails open
+  const turnEnd = await router.turnEnd(CTX);
+  assert.equal(turnEnd.injection, undefined);
+  assert.ok(turnEnd.notices.length >= 1);
+  assert.match(turnEnd.notices[0], /ENOENT/);
 
   // shutdown: a dead store must not block (or break) teardown (AC3 fail-open)
   const shutdown = await router.sessionShutdown(CTX);
@@ -198,7 +198,7 @@ test("router's sessionShutdown fires the SessionEnd payload and discards the res
 // --- E2E: the deferred lifecycle's two NEW seams ---------------------------------------
 // Both new tests pair the router-level observable (the subscription state machine) with
 // the real-script legs (store observables): the start-spawn defer and the per-turn
-// context seam are wiring changes, and the store legs prove what the wiring consumes.
+// turn_end seam are wiring changes, and the store legs prove what the wiring consumes.
 
 // --- E2E: the real script against an env-redirected user DB ---------------------------
 // Everything below runs the REAL features/common/hooks/message_delivery_hook.py with a
@@ -258,7 +258,7 @@ test("E2E: a delivery payload delivers seeded mail through the real script into 
 
   // the pi adapter's exact translation: bridge payload → real child → bridge parse.
   // UserPromptSubmit is the adapter's injection-bearing delivery event (both seams:
-  // the before_agent_start result message and the per-turn context append) — there is
+  // the before_agent_start result message and the per-turn turn_end steer) — there is
   // no SessionStart firing anymore.
   const firing = await runDeliveryHook(env, bridge.toClaudeDeliveryPayload("before_agent_start", receiver));
   assert.equal(firing.code, 0, `hook exited ${firing.code}: ${firing.stderr}`);
@@ -317,31 +317,29 @@ test("E2E: a session that never turns consumes nothing — no spawn, no cursor r
   assert.match(cursorRow(env, "pi-never-1"), /CURSOR_ROW None/);
 }, { timeout: 30_000 });
 
-test("E2E: the per-turn context event consumes-and-injects once — cursor row after turn one, turn two injects nothing new", async () => {
+test("E2E: the per-turn turn_end seam consumes-and-injects once — cursor row after turn one, turn two injects nothing new", async () => {
   const root = mkdtempSync(path.join(tmpdir(), "aib-pi-bus-"));
   const env = e2eEnv(root);
   seedMessage(env, "S1", "P", "between-task mail", "P");
   const receiver = { cwd: root, sessionId: "pi-sess-3" };
 
-  // router leg — the per-turn seam: turn one consumes and injects the mail as ONE
-  // appended custom message; turn two's live read injects nothing new
+  // router leg — the per-turn seam: turn one consumes the mail into ONE custom message
+  // for pi.sendMessage; turn two's live read injects nothing new
   const { spawn, seen } = scriptedSpawn({
     UserPromptSubmit: [{ kind: "context", content: "between-task mail" }, { kind: "empty" }],
   });
   const router = bridge.createDeliveryRouter(spawn);
-  const turn1 = await router.context(CTX);
-  assert.deepEqual(
-    { ...turn1.injection.message, timestamp: 0 },
-    { role: "custom", customType: "ai-badger", content: "between-task mail", display: true, timestamp: 0 },
-  );
-  assert.deepEqual(Object.keys(turn1.injection.message).sort(),
-    ["content", "customType", "display", "role", "timestamp"]);
-  const turn2 = await router.context(CTX);
+  const turn1 = await router.turnEnd(CTX);
+  assert.deepEqual(turn1, {
+    injection: { message: { customType: "ai-badger", content: "between-task mail", display: true } },
+    notices: [],
+  });
+  const turn2 = await router.turnEnd(CTX);
   assert.deepEqual(turn2, { notices: [] });
   assert.equal(turn2.injection, undefined);
   assert.deepEqual(seen.map((p) => p.hook_event_name), ["UserPromptSubmit", "UserPromptSubmit"]);
 
-  // real-script leg — the payload the context seam sends consumes mail exactly once:
+  // real-script leg — the payload the turn_end seam sends consumes mail exactly once:
   // the cursor row EXISTS after the first turn
   const turn = await runDeliveryHook(env, bridge.toClaudeDeliveryPayload("before_agent_start", receiver));
   assert.equal(turn.code, 0, turn.stderr);
@@ -350,7 +348,7 @@ test("E2E: the per-turn context event consumes-and-injects once — cursor row a
   assert.match(outcome.content, /between-task mail/);
   assert.match(cursorRow(env, "pi-sess-3"), /CURSOR_ROW \(\d+,\)/);
 
-  // the second context turn injects nothing new (exactly-once)
+  // the second turn_end injects nothing new (exactly-once)
   const refire = await runDeliveryHook(env, bridge.toClaudeDeliveryPayload("before_agent_start", receiver));
   assert.deepEqual(bridge.parseDeliveryStdout(refire.stdout), { kind: "empty" });
 

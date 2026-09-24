@@ -655,7 +655,7 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
   // D4/P4): the same Claude-shaped delivery script Claude and Copilot run, translated
   // through the bridge's router. There is no session_start delivery — a session that
   // never turns consumes nothing. before_agent_start injects through the result-message
-  // seam; the per-turn context event appends mail that arrived between LLM calls;
+  // seam; turn_end steers mail that arrived between LLM calls into the transcript;
   // session_shutdown is cursor cleanup.
   const deliveryCtx = (ctx: ExtensionContext) => ({
     cwd: ctx.cwd,
@@ -741,11 +741,17 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
     return injection; // undefined = inject nothing this turn
   });
 
-  pi.on("context", async (event, ctx) => {
-    const { injection, notices } = await router.context(deliveryCtx(ctx));
+  // Mid-run mail rides pi's steering queue, which the loop drains right after turn_end:
+  // the message is emitted, persisted and kept for every later call. The `context` event
+  // cannot carry it — its result is a per-request copy, so consumed mail would reach one
+  // call and vanish. A turn without tool results is the run's last: its mail stays in the
+  // store for the timer's wake routing or the next run, so delivery never adds an LLM call.
+  pi.on("turn_end", async (event, ctx) => {
+    if (event.toolResults.length === 0) return undefined;
+    const { injection, notices } = await router.turnEnd(deliveryCtx(ctx));
     for (const notice of notices) ctx.ui.notify(notice, "warning");
-    if (!injection) return undefined; // no mail between tasks: the array passes through unmodified
-    return { messages: [...event.messages, injection.message] };
+    if (injection) pi.sendMessage(injection.message, { deliverAs: "steer" });
+    return undefined;
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {

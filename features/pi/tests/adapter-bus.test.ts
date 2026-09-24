@@ -631,7 +631,7 @@ describe("push-delivery wiring", () => {
 
     // a send moves MAX ⇒ the next seam spawns again
     probeResult = ok(fp(8, 8, 1, 2));
-    await h.on.get("context")!({ messages: [] }, busCtx(dir));
+    await h.on.get("turn_end")!({ toolResults: [{}] }, busCtx(dir));
     expect(deliverCalls).toHaveLength(2);
   });
 

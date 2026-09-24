@@ -328,7 +328,7 @@ def test_every_wired_arm_spelling_has_a_surface_on_its_harness(load_script):
     # pi is wired through the adapter, not the manifest: its bridge must translate
     # exactly the pi delivery seams onto the same Claude spellings the manifest arms
     # carry — a dropped target silently delivers nothing to pi. Since P4 the start
-    # seam is GONE (defer: before_agent_start + the per-turn context method, both on
+    # seam is GONE (defer: before_agent_start + the per-turn turn_end method, both on
     # the UserPromptSubmit spelling) — only the close seam maps to SessionEnd.
     assert pi_sources == {"before_agent_start", "session_shutdown"}
     assert pi_targets == {"UserPromptSubmit", "SessionEnd"}
