@@ -109,6 +109,23 @@ def test_an_exclusion_matching_no_catalog_item_is_reported_and_not_fatal(make_sc
     assert any("no-such-skill" in n and "matches no catalog" in n for n in result["notes"])
 
 
+def test_excluding_one_group_member_declines_the_whole_group_with_one_note(make_scaffolder):
+    """D9/L1-2: naming one member must expand to the whole group, and `_note_exclusions`
+    reports it as one grouped note, not one 'declined skill' line per member."""
+    scaffold = make_scaffolder.module
+    target, result = _scaffold(make_scaffolder, _excluding(skills=["design-tests"]),
+                               skills=scaffold.DEFAULT_SKILLS)
+
+    assert not (target / ".ai-badger" / "skills" / "design-tests").exists()
+    assert not (target / ".ai-badger" / "skills" / "review-tests").exists()
+    group_notes = [n for n in result["notes"]
+                  if "design-tests" in n and "review-tests" in n]
+    assert len(group_notes) == 1, result["notes"]
+    assert not any(n.startswith("declined skill 'design-tests'")
+                  or n.startswith("declined skill 'review-tests'")
+                  for n in result["notes"]), result["notes"]
+
+
 def test_an_excluded_skill_left_on_disk_is_reported(make_scaffolder):
     """An exclusion stops delivery; it never deletes project-visible content silently."""
     target, _ = _scaffold(make_scaffolder, _config(agents=["claude"]),
@@ -272,3 +289,24 @@ def test_drift_does_not_report_an_excluded_item_as_new(excluded_project, load_sc
     result = drift.compare(root, manifest, stacks=["common"], target=target)
 
     assert "call-behaviorist" not in [i["name"] for i in result["newItems"]]
+
+
+@pytest.fixture(name="excluded_gateway_project")
+def _excluded_gateway_project(make_scaffolder):
+    """A project that declined the documentation gateway by its stale member name."""
+    config = _excluding(skills=["update-documentation"])
+    target, result = _scaffold(make_scaffolder, config, skills=["task"])
+    _test_write(target / ".ai-badger" / "config.json", json.dumps(config), encoding="utf-8")
+    return target, result["manifest"]
+
+
+def test_drift_does_not_report_a_declined_gateway_as_new_via_a_stale_member_name(
+        excluded_gateway_project, load_script, root):
+    """L3-4: `project_exclusions` called `bl.exclusions(config)` with no aliases, so a
+    stale-member exclude did not decline the gateway, and it was reported as new forever."""
+    drift = load_script("features/common/skills/welcome-ai-badger/scripts/drift.py")
+    target, manifest = excluded_gateway_project
+
+    result = drift.compare(root, manifest, stacks=["common"], target=target)
+
+    assert "documentation" not in [i["name"] for i in result["newItems"]], result["newItems"]

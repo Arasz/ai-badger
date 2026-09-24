@@ -4,9 +4,11 @@ The plugin surface is ai_badger_hooks.py plus the PLUGIN_YAML template in
 features/hermes/adjustments/adjust_hooks.py: the FIRST pre_llm_call is the whole
 delivery — read, cursor advance and injection in one store transaction through the
 pre_llm_call return channel (a session-start hook has no return channel into the
-model) — later turns inject nothing new beyond the live read, and on_session_end
-deletes the session's cursor, the Hermes leg of the @deferred close-event rule. A
-session that never reaches pre_llm_call consumes nothing: no cursor row, no stash,
+model) — later turns inject nothing new beyond the live read, and on_session_end is
+a no-op (D3): deleting the cursor there let a reused session id (a host's --resume)
+look like a brand-new session and replay already-delivered mail (L2-6), so the
+cursor now dies only via the 4-day prune. A session that never reaches pre_llm_call
+consumes nothing: no cursor row, no stash,
 mail intact for a later session's gated read. Hermes payloads carry no cwd and no
 project identity, so cwd is the process cwd at callback time and projectId comes
 only from the store resolver (AI_BADGER_PROJECT_ID explicit-wins; otherwise the
@@ -406,12 +408,12 @@ def test_nested_projects_resolve_nearest_and_deliver_inner_only(hooks, bus, tmp_
 # ---------------------------------------------------------------------------
 
 
-def test_session_end_deletes_the_cursor(hooks, bus, tmp_path, monkeypatch):
-    """The close event is the cursor's primary death (the 4-day TTL is the backstop).
-
-    This is the executable verification record for the Hermes leg of the @deferred
-    close-event rule: on_session_end is registered (see the wiring tests) and invoking
-    it removes the session's cursor row.
+def test_session_end_leaves_the_cursor_for_the_four_day_prune(hooks, bus, tmp_path, monkeypatch):
+    """The close event is a no-op (D3): it used to delete the cursor here, so a host
+    reusing the same session id (--resume) looked like a brand-new session and
+    replayed already-delivered mail (L2-6). This is the executable verification
+    record for the Hermes leg of Rule 6: on_session_end is registered (see the wiring
+    tests) and invoking it leaves the session's cursor row for the 4-day prune.
     """
     project = tmp_path / "proj-a"
     project.mkdir()
@@ -422,19 +424,20 @@ def test_session_end_deletes_the_cursor(hooks, bus, tmp_path, monkeypatch):
 
     assert _close(hooks) is None
 
-    assert _cursor_row(bus, SESSION) is None
+    assert _cursor_row(bus, SESSION) is not None, \
+        "SessionEnd must not delete the cursor — the 4-day prune reaps it (D3)"
 
 
 def test_session_end_without_a_cursor_is_a_clean_no_op(hooks, bus, tmp_path, monkeypatch):
     """Closing a session that never delivered — a session that never turned, a crashed
-    recovery — must not break shutdown: delete_cursor's absent-row path returns False
-    and the callback returns None."""
+    recovery — must not break shutdown: the callback returns None and, since D3 made the
+    close event a full no-op, it never even opens the bus store."""
     project = tmp_path / "proj-a"
     project.mkdir()
     monkeypatch.chdir(project)
 
     assert _close(hooks) is None
-    assert _cursor_row(bus, SESSION) is None
+    assert not bus.user_db_path().exists(), "a no-op close must never touch the store (D3)"
 
 
 # ---------------------------------------------------------------------------

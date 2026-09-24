@@ -19,6 +19,7 @@ gateway's member tree — directory existence alone proves nothing about file-le
 from __future__ import annotations
 
 import re
+from unittest.mock import patch
 
 import pytest
 
@@ -130,6 +131,15 @@ class TestTheTestingGroupIsInstalledWhole:
         lib = load_script("engine/badger_lib.py")
 
         assert "testing" not in lib.expand_skill_groups(["testing"])
+
+    def test_excluding_one_member_excludes_the_whole_group(self, load_script):
+        """D9: excluding one member must expand to the whole group, never refuse the config
+        (design-tests writes, review-tests judges — one can't work without the other)."""
+        lib = load_script("engine/badger_lib.py")
+
+        declined = lib.exclusions({"exclude": {"skills": ["design-tests"]}})
+
+        assert declined["skills"] == TESTING_TWO
 
     def test_both_members_declare_scope_default(self, load_script, root):
         """Ruling I: `scope: default` is how "required" is achieved — availability, not a
@@ -293,3 +303,38 @@ class TestGatewayNamesAreReportedAsValid:
                                   aliases={"scaffold-documentation": "documentation"})
 
         assert declined["skills"] >= {"scaffold-documentation", "documentation"}
+
+    def test_exclusion_is_reported_before_a_stale_member_name_is_resolved(self, load_script):
+        """L1-3: `inclusion_notes` checked groups/aliases before exclude, so a name exclude
+        had already blocked was reported as resolved/delivered instead."""
+        lib = load_script("engine/badger_lib.py")
+        aliases = {"update-documentation": "documentation"}
+        declined = {"update-documentation", "documentation"}
+
+        notes = lib.inclusion_notes(["update-documentation"], declined, [], [],
+                                    aliases=aliases)
+
+        joined = "\n".join(notes)
+        assert "exclude wins; not delivered" in joined, joined
+        assert "resolved to gateway" not in joined, joined
+
+    def test_relink_hermes_skills_declines_the_gateway_for_a_stale_member_exclusion(
+            self, load_script, root, tmp_path):
+        """L3-4: relink_hermes_skills called `bl.exclusions(config)` with no aliases, so a
+        stale-member exclude left the gateway linked into the Hermes namespace."""
+        skill_delivery = load_script(
+            "features/common/skills/welcome-ai-badger/scripts/skill_delivery.py")
+        target = tmp_path / "proj"
+        skill_dir = target / ".ai-badger" / "skills" / "documentation"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# documentation\n", encoding="utf-8")
+        config = {"agents": ["hermes"], "project": {"name": "probe"},
+                  "exclude": {"skills": ["update-documentation"]}}
+        home = tmp_path / "home"
+        home.mkdir()
+
+        with patch("pathlib.Path.home", return_value=home):
+            skill_delivery.relink_hermes_skills(target, config, ["documentation"], root=root)
+
+        namespace = home / ".hermes" / "skills" / "probe"
+        assert not (namespace / "documentation").exists()
