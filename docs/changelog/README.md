@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.172.11 | [status-report matches a plan only on the whole task id](0.172.11-status-report-plan-matching.md) |
 | 0.172.5 | [the consumer journey deletes only its own scratch](0.172.5-consumer-journey-deletes-only-its-own-scratch.md) |
 | 0.172.1 | [registry evidence erratum: the demoted twin, and what `registryVersion` tracks](0.172.1-registry-evidence-erratum.md) |
 | 0.172.0 | [medium tier prefers deepseek-v4.1-flash](0.172.0-medium-tier-prefers-deepseek-v41-flash.md) |
