@@ -1,5 +1,5 @@
 {
-  "description": "Command shapes for hooks that get rewritten into an agent's own config (.claude/settings.json, .github/hooks/). Paths under ${CLAUDE_PLUGIN_ROOT}/features/common/skills/ are rewritten to the project's .ai-badger/skills/ copy. Each manifest entry selects its command here by its `script` name — Claude deliberately skips drift_notice_hook.py, which is plugin-provided via hooks/hooks.json at the repo root and needs a ${CLAUDE_PLUGIN_ROOT} only the plugin loader substitutes.",
+  "description": "Command shapes for hooks that get rewritten into an agent's own config (.claude/settings.json, .github/hooks/). Paths under ${CLAUDE_PLUGIN_ROOT}/features/common/skills/ are rewritten to the project's .ai-badger/skills/ copy. Each manifest entry selects its command here by its `script` name — Claude deliberately skips drift_notice_hook.py, which is plugin-provided via hooks/hooks.json at the repo root and needs a ${CLAUDE_PLUGIN_ROOT} only the plugin loader substitutes. A matcher for an MCP tool is an anchored regex over every host's spelling — Claude mcp__<server>__<tool>, Copilot <server>-<tool>, pi's bare tail — because Claude compares a bare name like `memory_search` as an exact string that no MCP tool ever carries.",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -176,7 +176,7 @@
         ]
       },
       {
-        "matcher": "memory_search",
+        "matcher": "^(mcp__.+__|.+-)?memory_search$",
         "hooks": [
           {
             "type": "command",
@@ -198,7 +198,7 @@
         ]
       },
       {
-        "matcher": "export_graph",
+        "matcher": "^(mcp__.+__|.+-)?export_graph$",
         "hooks": [
           {
             "type": "command",
