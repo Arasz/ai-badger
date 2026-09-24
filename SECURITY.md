@@ -63,7 +63,7 @@ Each links to the release that introduced it.
 From [0.24.0 — outbound scan](docs/changelog/0.24.0-outbound-scan.md):
 
 - `feed-badger`'s `open_pr.py` scans every declared path for credential-shaped literals **before**
-  running any git command, and exits non-zero on a finding (since 0.172.13 it scans the staged
+  running any git command, and exits non-zero on a finding (since 0.172.15 it scans the staged
   set instead, see below). The matched text is never logged —
   findings carry only `{file, pattern}` with `pattern` from a closed vocabulary.
 - `git add -A` was removed. Contributions are staged from an explicit, required, repeatable
@@ -119,7 +119,7 @@ From [0.69.1 — a shipped page is not prose](docs/changelog/0.69.1-a-shipped-pa
   on `/Users/`, `/home/`, or `C:\\Users\\` in a tracked page. `docs/` and `tests/` stay exempt for
   prose and fixtures; the exemption stops at generated pages, which are neither.
 
-From [0.172.13 — outbound staging and journal restore](docs/changelog/0.172.13-outbound-staging-and-journal-restore.md):
+From [0.172.15 — outbound staging and journal restore](docs/changelog/0.172.15-outbound-staging-and-journal-restore.md):
 
 - **`open_pr.py` scans what it stages, not what it was told.** The 0.24.0 scan read the
   declared paths while `git add` expanded them. A `--path 'features/**'` was one missing file to
