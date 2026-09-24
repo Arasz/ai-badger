@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.172.10 | [dependency bumps: mutmut 3.8.0, codeql-action 4.38.0, semantica 0.6.8](0.172.10-dependency-bumps.md) |
 | 0.172.9 | [pi bus mail consumed mid-run persists and stays on every later call](0.172.9-pi-mail-persists.md) |
 | 0.172.8 | [usage-limit resume only reaches tracked sessions that have stopped](0.172.8-limit-resume-only-tracked-sessions.md) |
 | 0.172.7 | [the away-mode gate never auto-approves what it promised not to](0.172.7-awm-gate-never-auto-approves-destructive.md) |
