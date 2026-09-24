@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.172.12",
-  "frameworkCommit": "e4f7765e71de3b2083f276b989e79818450e016a",
+  "frameworkCommit": "b67f12147f34c33331d3bd7d6ffec62a657a6128",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1073,12 +1073,12 @@
       "source": "features/common/skills/prompt-markers",
       "target": ".ai-badger/skills/prompt-markers",
       "frameworkVersion": "0.172.12",
-      "hash": "d64fa7c4ec3cc11469973024d5c67cd01feceb7c38403552c1d52c4c2594eb8a",
+      "hash": "731adaf93621698281be472c4e41f5ff3178f0c0c9e62c4c4573249a583b2a50",
       "dirMeta": {
         "file_count": 5,
         "dir_count": 1
       },
-      "sourceHash": "3fcbcea26337de9e5f856b3eb56270266338fa0ee2193ce234819407688fd744",
+      "sourceHash": "c573c608e45cb8cc3c532e4f0e58ed991777a5c451154b6e0c3c685f62842df1",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 1
