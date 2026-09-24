@@ -99,3 +99,32 @@ def test_an_unscoped_kill_is_denied_and_a_pid_kill_is_not(load_script):
     assert guard.find_hazard("kill $(pgrep -f build)")
     assert guard.find_hazard("kill 12345") is None
     assert guard.find_hazard("kill -9 12345") is None
+
+
+@pytest.mark.parametrize("command", [
+    "sudo -n pkill -f node",
+    "sudo -u root pkill node",
+    "env -u X pkill node",
+    "pkill node; echo \"a\nb\"",
+    "echo `pkill node`",
+    "timeout 5 pkill node",
+    "nice -n 5 pkill node",
+], ids=["sudo-n", "sudo-u-value", "env-u-value", "quote-spanning-a-newline", "backticks",
+        "timeout", "nice"])
+def test_a_wrapped_or_hidden_kill_is_still_a_kill(load_script, command):
+    """L4-5 and L4-3, each measured as allowed: a wrapper's flags and their values were read as
+    the program, a line whose quote spans a newline was dropped, and a backtick hid the kill."""
+    guard = load_script(GUARD)
+
+    assert guard.find_hazard(command), f"{command!r} allowed through"
+
+
+@pytest.mark.parametrize("command", [
+    "command -v pkill",
+    "git commit -m \"$(cat <<'EOF'\nstop\n\npkill node is what broke it\nEOF\n)\"",
+], ids=["command-v-looks-up", "heredoc-body"])
+def test_text_that_names_a_kill_without_running_one_is_allowed(load_script, command):
+    """`command -v` only looks a program up, and a heredoc body is data."""
+    guard = load_script(GUARD)
+
+    assert guard.find_hazard(command) is None, f"{command!r} denied"
