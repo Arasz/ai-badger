@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.175.9 | [five skill-script correctness fixes, and MCP content-block shapes for two hooks](0.175.9-skill-script-correctness-fixes.md) |
 | 0.175.2 | [the tokenizer's suffix fold unifies singular/plural and base/past tense](0.175.2-tokenizer-fold-unifies-singular-plural-and-past-tense.md) |
 | 0.175.1 | [one shell parser for every guard](0.175.1-one-shell-parser-for-every-guard.md) |
 | 0.175.0 | [grounded feedback reaches Claude's PostToolUseFailure](0.175.0-grounded-feedback-post-tool-use-failure.md) |
