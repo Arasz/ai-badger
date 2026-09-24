@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.172.17 | [no second skill inventory to drift](0.172.17-skill-inventory-drift.md) |
 | 0.172.16 | [den-refresh's backup stays out of git](0.172.16-den-refresh-backup-stays-out-of-git.md) |
 | 0.172.15 | [open_pr scans what it stages; red_proof checks a journal before restoring](0.172.15-outbound-staging-and-journal-restore.md) |
 | 0.172.14 | [the commit-reminder report fails closed, the hook stays fail-open](0.172.14-commit-reminder-fails-closed.md) |
