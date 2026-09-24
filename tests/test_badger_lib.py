@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -226,6 +227,16 @@ def test_a_recorded_root_may_be_relative_to_the_scaffolded_project(tmp_path, loa
     monkeypatch.setattr(bl, "FRAMEWORK_CACHE", tmp_path / "fake-cache")
 
     assert bl.recorded_root(aib) == project.resolve()
+
+
+def test_recorded_root_returns_none_for_a_manifest_that_is_not_an_object(tmp_path, load_script):
+    """L1-5: valid JSON of the wrong shape must fall through, not raise out of `.get`."""
+    bl = load_script("engine/badger_lib.py")
+    aib = tmp_path / ".ai-badger"
+    aib.mkdir()
+    _test_write(aib / "manifest.json", json.dumps(["not", "an", "object"]), encoding="utf-8")
+
+    assert bl.recorded_root(aib) is None
 
 
 def test_the_ancestor_walk_outranks_a_recorded_root(tmp_path, load_script, monkeypatch):
@@ -474,6 +485,20 @@ def test_atomic_write_text_creates_missing_parents(tmp_path, load_script):
     bl.atomic_write_text(path, "{}\n")
 
     assert path.read_text(encoding="utf-8") == "{}\n"
+
+
+def test_atomic_write_text_gives_a_new_file_the_umask_adjusted_default_mode(
+        tmp_path, load_script):
+    """L1-4: a brand-new file must not inherit mkstemp's 0600 — it never existed to preserve."""
+    bl = load_script("engine/badger_lib.py")
+    path = tmp_path / "new.json"
+    old_umask = os.umask(0o022)
+    try:
+        bl.atomic_write_text(path, "{}\n")
+    finally:
+        os.umask(old_umask)
+
+    assert path.stat().st_mode & 0o777 == 0o666 & ~0o022 & 0o777
 
 
 def test_find_root_default_start_resolves_the_real_framework_root(load_script, root):
