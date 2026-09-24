@@ -1,6 +1,8 @@
 """Tests for tooling/version_sync.py: VERSION -> plugin.json / marketplace.json / index.json."""
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import shutil
 from conftest import _test_write
@@ -247,3 +249,131 @@ def test_prose_describing_the_stamp_is_not_mistaken_for_one(tmp_path, root, load
     _test_write(tmp_path / "CONTRIBUTING.md", "The scaffolder writes `Scaffolded by ai-badger <v>` into every generated file.\n", encoding="utf-8")
 
     assert version_sync.check(tmp_path, "0.3.0") == 0
+
+
+# ── N-1: derived stamp targets ───────────────────────────────────────────────────────
+#
+# version_sync had no notion of features/common/data/model-groups.json at all: its targets
+# were a hand list (plugin.json, marketplace.json, index.json, the scaffold stamps). The fix
+# is a derivation — every tracked-or-present *.json under the shipped roots
+# (tooling/release_paths.py) whose top level has a string frameworkVersion, except
+# index.json — not one more entry appended to the hand list.
+
+
+def _seed_model_groups(fake_root, root, version=None):
+    """Copy the REAL model-groups.json into the fixture tree ("real tree" gate row).
+
+    Using the actual shipped file (not a hand-crafted stand-in) proves the derivation
+    reaches production's real path and shape, not just a lookalike fixture.
+    """
+    data_dir = fake_root / "features" / "common" / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    target = data_dir / "model-groups.json"
+    shutil.copy(root / "features" / "common" / "data" / "model-groups.json", target)
+    if version is not None:
+        data = json.loads(target.read_text(encoding="utf-8"))
+        data["frameworkVersion"] = version
+        _write_json(target, data)
+    return target
+
+
+def test_check_names_a_stale_model_groups_registry(tmp_path, root, load_script, capsys):
+    """The coordinator's gate: a stale features/common/data/model-groups.json is named."""
+    version_sync = load_script("tooling/version_sync.py")
+    fake_root = _make_synced_root(tmp_path, root, load_script, version="0.172.5")
+    _seed_model_groups(fake_root, root, version="0.172.1")
+    capsys.readouterr()
+
+    rc = version_sync.main(["--root", str(fake_root), "--check"])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "features/common/data/model-groups.json" in out
+
+
+def test_sync_stamps_the_model_groups_registry(tmp_path, root, load_script):
+    version_sync = load_script("tooling/version_sync.py")
+    fake_root = _make_synced_root(tmp_path, root, load_script, version="0.172.5")
+    target = _seed_model_groups(fake_root, root, version="0.172.1")
+
+    version_sync.sync(fake_root, "0.172.5")
+
+    data = json.loads(target.read_text(encoding="utf-8"))
+    assert data["frameworkVersion"] == "0.172.5"
+    assert version_sync.check(fake_root, "0.172.5") == 0
+
+
+def test_a_novel_shipped_json_file_is_found_by_derivation_alone(tmp_path, root, load_script):
+    """A hand list that merely gained `model-groups.json` would still miss this one (R42).
+
+    Only a derivation over the shipped roots finds a brand-new, never-named JSON file that
+    happens to carry the same frameworkVersion shape.
+    """
+    version_sync = load_script("tooling/version_sync.py")
+    fake_root = _make_synced_root(tmp_path, root, load_script, version="0.172.5")
+    _seed_model_groups(fake_root, root, version="0.172.5")  # this one is already in sync
+    novel = fake_root / "features" / "x" / "data" / "other.json"
+    novel.parent.mkdir(parents=True, exist_ok=True)
+    _write_json(novel, {"frameworkVersion": "0.1.0", "anything": True})
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = version_sync.check(fake_root, "0.172.5")
+    assert rc == 1
+    assert "features/x/data/other.json" in buf.getvalue()
+
+    version_sync.sync(fake_root, "0.172.5")
+    data = json.loads(novel.read_text(encoding="utf-8"))
+    assert data["frameworkVersion"] == "0.172.5"
+
+
+def test_index_json_is_excluded_from_the_derived_targets(tmp_path, root, load_script):
+    """index.json is index_build's own target, explicitly excepted from the N-1 derivation."""
+    version_sync = load_script("tooling/version_sync.py")
+    fake_root = _make_synced_root(tmp_path, root, load_script, version="0.172.5")
+
+    targets = version_sync.stamp_targets(fake_root)
+
+    assert all(t.name != "index.json" for t in targets)
+
+
+def test_ai_badger_json_stamp_is_reported_never_rewritten(tmp_path, root, load_script, capsys):
+    """.ai-badger/*.json files of this shape are scaffold output: reported, never rewritten."""
+    version_sync = load_script("tooling/version_sync.py")
+    fake_root = _make_synced_root(tmp_path, root, load_script, version="0.172.5")
+    _stamp_the_scaffold(fake_root, "0.172.5")
+    aib_model_groups = fake_root / ".ai-badger" / "model-groups.json"
+    shutil.copy(root / "features" / "common" / "data" / "model-groups.json", aib_model_groups)
+    data = json.loads(aib_model_groups.read_text(encoding="utf-8"))
+    data["frameworkVersion"] = "0.172.1"
+    _write_json(aib_model_groups, data)
+    capsys.readouterr()
+
+    rc = version_sync.main(["--root", str(fake_root), "--check"])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert ".ai-badger/model-groups.json" in out
+
+    version_sync.sync(fake_root, "0.172.5")
+    data = json.loads(aib_model_groups.read_text(encoding="utf-8"))
+    assert data["frameworkVersion"] == "0.172.1", "never rewritten by sync()"
+
+
+# ── L8-8: an empty (or non-matching) marketplace must fail, not silently pass ────────────
+
+
+def test_check_fails_when_no_marketplace_entry_names_the_plugin(tmp_path, root, load_script, capsys):
+    version_sync = load_script("tooling/version_sync.py")
+    fake_root = _make_synced_root(tmp_path, root, load_script, version="0.3.0")
+    mp_path = fake_root / ".claude-plugin" / "marketplace.json"
+    data = json.loads(mp_path.read_text(encoding="utf-8"))
+    data["plugins"] = []
+    _write_json(mp_path, data)
+    capsys.readouterr()
+
+    rc = version_sync.main(["--root", str(fake_root), "--check"])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "marketplace" in out.lower()

@@ -19,7 +19,16 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.173.0 | [grounded feedback reaches Claude's PostToolUseFailure](0.173.0-grounded-feedback-post-tool-use-failure.md) |
+| 0.175.0 | [grounded feedback reaches Claude's PostToolUseFailure](0.175.0-grounded-feedback-post-tool-use-failure.md) |
+| 0.174.1 | [Store fixes: test_economy table, D7 landing, audit doctor, torn legacy files](0.174.1-store-audit-db-d7-landing-and-torn-legacy-files.md) |
+| 0.174.0 | [pi adapter: bounded hook spawns, hook advice that persists, Claude's matcher rules](0.174.0-pi-adapter-hooks-behave-like-claude.md) |
+| 0.173.2 | [exclusion resolution and engine robustness](0.173.2-exclusion-resolution-and-engine-robustness.md) |
+| 0.173.1 | [SessionEnd stops deleting the bus cursor, plugin-server tags stop showing empty](0.173.1-session-end-stops-deleting-the-bus-cursor.md) |
+| 0.173.0 | [Copilot agents: documented tool aliases and ownership](0.173.0-copilot-agents-tool-aliases-and-ownership.md) |
+| 0.172.16 | [den-refresh's backup stays out of git](0.172.16-den-refresh-backup-stays-out-of-git.md) |
+| 0.172.15 | [open_pr scans what it stages; red_proof checks a journal before restoring](0.172.15-outbound-staging-and-journal-restore.md) |
+| 0.172.14 | [the commit-reminder report fails closed, the hook stays fail-open](0.172.14-commit-reminder-fails-closed.md) |
+| 0.172.13 | [release tooling agrees on what ships](0.172.13-release-tooling-agrees-on-what-ships.md) |
 | 0.172.12 | [codeql-action 4.38.1](0.172.12-codeql-action-4381.md) |
 | 0.172.11 | [status-report matches a plan only on the whole task id](0.172.11-status-report-plan-matching.md) |
 | 0.172.10 | [dependency bumps: mutmut 3.8.0, codeql-action 4.38.0, semantica 0.6.8](0.172.10-dependency-bumps.md) |

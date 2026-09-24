@@ -651,3 +651,22 @@ class TestTheWritePathPrunesTheAuditTable:
         dl.log_event("some/hook", "must-survive")
 
         assert [r["e"] for r in _records(dl)] == ["must-survive"]
+
+
+def test_the_audit_sink_opens_through_the_store_audit_registry(load_script, tmp_path,
+                                                               monkeypatch):
+    """debug_log owns no private family set: its store is the store's audit kind with
+    AUDIT_FAMILIES' tables, so the doctor and the writer read one registry."""
+    import badger_store  # pylint: disable=import-outside-toplevel
+
+    dl = _load(load_script, tmp_path, monkeypatch)
+    store = dl._store()
+    try:
+        assert store.kind == "audit"
+        assert store.db_path == dl.audit_db()
+        assert {name: family.table for name, family in store.families.items()} == {
+            name: family.table for name, family in badger_store.AUDIT_FAMILIES.items()}
+        assert store.families["hook_audit"].legacy_path() == dl.AUDIT_FILE
+        assert store.families["hook_state"].legacy_path() == dl.STATE_FILE
+    finally:
+        store.close()
