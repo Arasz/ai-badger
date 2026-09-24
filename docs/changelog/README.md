@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.174.0 | [pi adapter: bounded hook spawns, hook advice that persists, Claude's matcher rules](0.174.0-pi-adapter-hooks-behave-like-claude.md) |
 | 0.173.2 | [exclusion resolution and engine robustness](0.173.2-exclusion-resolution-and-engine-robustness.md) |
 | 0.173.1 | [SessionEnd stops deleting the bus cursor, plugin-server tags stop showing empty](0.173.1-session-end-stops-deleting-the-bus-cursor.md) |
 | 0.173.0 | [Copilot agents: documented tool aliases and ownership](0.173.0-copilot-agents-tool-aliases-and-ownership.md) |

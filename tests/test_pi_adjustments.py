@@ -296,6 +296,27 @@ def test_adjust_hooks_with_pi_install_copies_adapter(pi_user_extensions, root, t
     json.loads(adapter_manifest.read_text(encoding="utf-8"))  # must parse
 
 
+def test_adjust_hooks_install_copies_the_capability_marker(pi_user_extensions, root, tmp_path):
+    """The adapter's `.ai-badger-capability-resources-discover` marker is installed with it.
+
+    adjust_skills removes the project skills path only when that marker sits in the installed
+    adapter dir; a suffix-less file the installer skips keeps that migration closed forever.
+    """
+    marker = ".ai-badger-capability-resources-discover"
+    assert (root / "features" / "pi" / "adjustments" / "adapter" / marker).is_file()
+
+    result = pi_user_extensions.hooks.adjust({
+        "config": {"agents": ["pi"]},
+        "framework_root": root,
+        "feature_dir": root / "features" / "pi" / "adjustments",
+        "target_dir": tmp_path / ".ai-badger",
+        "install": True,
+    })
+
+    assert (pi_user_extensions.hooks_dir / marker).is_file(), result["notes"]
+    assert marker in result["notes"]
+
+
 def test_adjust_hooks_missing_adapter_dir_fails_loud(pi_user_extensions, tmp_path):
     """install: True with no adapter dir (and nothing else to install) fails loud, not silent.
 
@@ -1582,3 +1603,42 @@ def test_adjust_hooks_copies_the_message_delivery_script_and_its_store(load_scri
     assert (hooks_dir / "badger_store.py").is_file()
     names = {Path(f).name for f in result["files"]}
     assert {"message_delivery_hook.py", "badger_store.py"} <= names
+
+
+# ---------------------------------------------------------------------------
+# tooling/test_pi_hook_fires.py — the manual trust probe, driven against a fake `pi`.
+# ---------------------------------------------------------------------------
+
+FAKE_PI = """#!/bin/sh
+# Run B loads from the user scope and "fires"; Run A exits with the code the test chose.
+for arg in "$@"; do
+  case "$arg" in
+    */.pi/agent/extensions/*) printf 'LOADED\\n' > "$FAKE_PI_SENTINEL"; exit 0 ;;
+  esac
+done
+exit "$FAKE_PI_RUN_A_RC"
+"""
+
+
+@pytest.mark.parametrize("run_a_rc,probe_rc", [(0, 0), (3, 1)])
+def test_trust_probe_fails_when_pi_fails_in_run_a(load_script, tmp_path, monkeypatch,
+                                                  run_a_rc, probe_rc):
+    """A pi that fails to start in Run A fails the probe instead of reading as 'blocked'.
+
+    pi 0.84.3 has no refusal exit code for an untrusted project: headless trust resolves to
+    false and the run continues without project resources, so any non-zero exit is a failure.
+    The rc=0 row proves the fake pi passes the probe, so the rc=3 row fails on Run A alone.
+    """
+    probe = load_script("tooling/test_pi_hook_fires.py")
+    sentinel = tmp_path / "sentinel"
+    monkeypatch.setattr(probe, "SENTINEL_FILE", str(sentinel))
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    fake = bindir / "pi"
+    fake.write_text(FAKE_PI, encoding="utf-8")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bindir))
+    monkeypatch.setenv("FAKE_PI_SENTINEL", str(sentinel))
+    monkeypatch.setenv("FAKE_PI_RUN_A_RC", str(run_a_rc))
+
+    assert probe.main() == probe_rc

@@ -19,6 +19,7 @@ import {
   type GateOutcome,
   type PostOutcome,
 } from "../adjustments/adapter/hook-bridge.ts";
+import * as bridge from "../adjustments/adapter/hook-bridge.ts";
 
 describe("hooks.json is the list of gates, not a hardcoded copy of it", () => {
   const hooksJson = {
@@ -170,24 +171,55 @@ describe("the post payload carries what the shipped PostToolUse hooks parse", ()
       cwd: "/repo",
       tool_name: "Bash",
       tool_input: { command: "ls" },
-      tool_response: "out",
-      response: "out",
+      tool_response: { output: "out" },
+      response: { output: "out" },
     });
   });
 
-  test("a structured result is stringified; a missing one is an empty string", () => {
-    const structured = toClaudePostPayload(
-      { toolName: "my_mcp_tool", input: {}, content: { results: [] } },
+  test("pi's real content array: a JSON text block arrives as the parsed document", () => {
+    const payload = toClaudePostPayload(
+      {
+        toolName: "mcp_ai-raccoon_memory_search",
+        input: {},
+        content: [{ type: "text", text: '{"results":[]}' }],
+      },
       { cwd: "/repo", sessionId: "s" },
     );
-    expect(structured.tool_response).toBe('{"results":[]}');
-    expect(structured.response).toBe('{"results":[]}');
+    expect(payload.tool_response).toEqual({ results: [] });
+    expect(payload.response).toEqual({ results: [] });
+  });
+
+  test("plain text arrives as {output: text}; image blocks are skipped, text blocks joined", () => {
+    const payload = toClaudePostPayload(
+      {
+        toolName: "bash",
+        input: {},
+        content: [
+          { type: "text", text: "line one" },
+          { type: "image", data: "AAAA", mimeType: "image/png" },
+          { type: "text", text: "line two" },
+        ],
+      },
+      { cwd: "/repo", sessionId: "s" },
+    );
+    expect(payload.tool_response).toEqual({ output: "line one\nline two" });
+  });
+
+  test("JSON that is not an object stays text: the hooks read a dict, never a list", () => {
+    const payload = toClaudePostPayload(
+      { toolName: "my_mcp_tool", input: {}, content: [{ type: "text", text: "[1,2]" }] },
+      { cwd: "/repo", sessionId: "s" },
+    );
+    expect(payload.tool_response).toEqual({ output: "[1,2]" });
+  });
+
+  test("a missing result is an empty output, still a dict", () => {
     const missing = toClaudePostPayload(
       { toolName: "read", input: {} },
       { cwd: "/repo", sessionId: "s" },
     );
-    expect(missing.tool_response).toBe("");
-    expect(missing.response).toBe("");
+    expect(missing.tool_response).toEqual({ output: "" });
+    expect(missing.response).toEqual({ output: "" });
   });
 
   test("tool input goes through the same claude-shape mapping as the pre payload", () => {
@@ -232,15 +264,84 @@ describe("post outcomes are advisory: reported, never blocking", () => {
   const postError: PostOutcome = { kind: "error", reason: "marker.py exited 1" };
 
   test("a clean run reports nothing", () => {
-    expect(resolvePost([])).toEqual({ notices: [] });
-    expect(resolvePost([{ kind: "ok" }])).toEqual({ notices: [] });
+    expect(resolvePost([])).toEqual({ notices: [], context: [] });
+    expect(resolvePost([{ kind: "ok" }])).toEqual({ notices: [], context: [] });
   });
 
   test("every failure is a notice — and there is no action key to misuse for blocking", () => {
     const r = resolvePost([postError, postError]);
     expect(r.notices).toHaveLength(2);
     expect(r.notices[0]).toContain("marker.py exited 1");
-    expect(Object.keys(r)).toEqual(["notices"]);
+    expect(Object.keys(r).sort()).toEqual(["context", "notices"]);
+  });
+
+  test("additionalContext is collected for the model; systemMessage becomes a notice", () => {
+    const r = resolvePost([
+      { kind: "ok", additionalContext: "commit now" },
+      { kind: "ok", systemMessage: "heads up" },
+      { kind: "ok", additionalContext: "tests failed" },
+    ]);
+    expect(r.context).toEqual(["commit now", "tests failed"]);
+    expect(r.notices).toEqual(["heads up"]);
+  });
+});
+
+describe("post hook stdout carries advice, never a decision", () => {
+  test("hookSpecificOutput.additionalContext and a top-level systemMessage are read", () => {
+    expect(
+      bridge.parsePostStdout(
+        '{"systemMessage":"shown","hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"for the model"}}',
+      ),
+    ).toEqual({ additionalContext: "for the model", systemMessage: "shown" });
+  });
+
+  test("silence, chatter and unparseable output advise nothing", () => {
+    expect(bridge.parsePostStdout("")).toEqual({});
+    expect(bridge.parsePostStdout("not json at all")).toEqual({});
+    expect(bridge.parsePostStdout('{"hookSpecificOutput":{"additionalContext":7}}')).toEqual({});
+  });
+
+  test("advice printed after chatter is still found on the last line", () => {
+    expect(bridge.parsePostStdout('warming up\n{"hookSpecificOutput":{"additionalContext":"X"}}')).toEqual({
+      additionalContext: "X",
+    });
+  });
+});
+
+describe("post-hook context is appended to the tool result pi persists", () => {
+  const original = [{ type: "text" as const, text: "file body" }];
+
+  test("context becomes one trailing text block after the tool's own content", () => {
+    expect(bridge.withPostContext(original, ["one", "two"])).toEqual([
+      { type: "text", text: "file body" },
+      { type: "text", text: "one\n\ntwo" },
+    ]);
+  });
+
+  test("no context leaves the result untouched", () => {
+    expect(bridge.withPostContext(original, [])).toBeUndefined();
+  });
+
+  test("a missing content array still carries the context", () => {
+    expect(bridge.withPostContext(undefined, ["X"])).toEqual([{ type: "text", text: "X" }]);
+  });
+});
+
+describe("a gate's systemMessage reaches the UI next to its decision", () => {
+  test("parsed alongside a decision, and alone", () => {
+    expect(parseHookStdout('{"systemMessage":"dirty tree elsewhere"}')).toEqual({
+      decision: "allow",
+      systemMessage: "dirty tree elsewhere",
+    });
+  });
+
+  test("resolve reports it as a notice without changing the action", () => {
+    const r = resolve(
+      [{ kind: "decision", decision: "allow", systemMessage: "dirty tree elsewhere" }],
+      { armed: false, hasUI: true },
+    );
+    expect(r.action).toBe("allow");
+    expect(r.notices).toEqual(["dirty tree elsewhere"]);
   });
 });
 
@@ -352,8 +453,10 @@ describe("hook stdout maps onto a gate decision", () => {
   });
 
   test("valid JSON carrying no decision is an allow, not an error", () => {
+    expect(parseHookStdout(JSON.stringify({ continue: true }))).toEqual({ decision: "allow" });
     expect(parseHookStdout(JSON.stringify({ systemMessage: "hook skipped" }))).toEqual({
       decision: "allow",
+      systemMessage: "hook skipped",
     });
   });
 
@@ -561,5 +664,90 @@ describe("the shipped PostToolUse matchers fire on the MCP names pi delivers", (
   test.skipIf(!present)("a longer tool name from the same server fires nothing", () => {
     expect(fired("mcp_ai-raccoon_memory_search_extra")).toBe("");
     expect(fired("mcp_semantica_export_graph_v2")).toBe("");
+  });
+});
+
+describe("matchers follow Claude's documented semantics, judged by the shared Python rule", () => {
+  // The verdicts come from tests/hook_matcher_rules.py (claude_matches), so the TS bridge and
+  // the Python wiring tests answer from one rule. Each tool is tried in its Claude spelling
+  // and in the spelling pi delivers; both must fire exactly when Claude would fire.
+  const repo = join(import.meta.dir, "..", "..", "..");
+  const present = existsSync(join(repo, "tests", "hook_matcher_rules.py"));
+
+  const matchers: Array<string | undefined> = [
+    "^(mcp__.+__|.+-)?memory_search$",
+    "^(mcp__.+__|.+-)?export_graph$",
+    "Read|ReadFile",
+    "*",
+    "",
+    undefined,
+    "Edit|Write",
+    "Edit, Write",
+    "web-fetch",
+    "ai-raccoon-memory_search",
+  ];
+  // [Claude spelling, pi spelling]
+  const tools: Array<[string, string]> = [
+    ["mcp__ai-raccoon__memory_search", "mcp_ai-raccoon_memory_search"],
+    ["mcp__ai-raccoon__memory_search_extra", "mcp_ai-raccoon_memory_search_extra"],
+    ["mcp__semantica__export_graph", "mcp_semantica_export_graph"],
+    ["mcp__semantica__export_graph_v2", "mcp_semantica_export_graph_v2"],
+    ["Read", "read"],
+    ["Write", "write"],
+    ["MultiEdit", "edit"],
+    ["Bash", "bash"],
+    ["web-fetch", "web-fetch"],
+    ["web-fetcher", "web-fetcher"],
+  ];
+
+  /** claude_matches(matcher, claudeSpelling) for every matcher × tool, in row order. */
+  function claudeVerdicts(): boolean[] {
+    const cases = matchers.flatMap((matcher) => tools.map(([claude]) => [matcher ?? null, claude]));
+    const run = Bun.spawnSync(
+      [
+        "python3",
+        "-c",
+        "import json,sys; sys.path.insert(0, sys.argv[1]); from hook_matcher_rules import claude_matches; " +
+          "print(json.dumps([claude_matches(m, t) for m, t in json.load(sys.stdin)]))",
+        join(repo, "tests"),
+      ],
+      { stdin: new TextEncoder().encode(JSON.stringify(cases)) },
+    );
+    if (run.exitCode !== 0) throw new Error(`hook_matcher_rules.py failed: ${run.stderr.toString()}`);
+    return JSON.parse(run.stdout.toString());
+  }
+
+  test.skipIf(!present)("pre and post sides fire on both spellings exactly when Claude does", () => {
+    const expected = claudeVerdicts();
+    const mismatches: string[] = [];
+    let index = 0;
+    for (const matcher of matchers) {
+      const entry = [{ matcher, command: "hook.py" }];
+      for (const [claude, pi] of tools) {
+        const want = expected[index++];
+        const broken: string[] = [];
+        const seen = {
+          "post/claude": postCommandsForTool(entry, claude, (r) => broken.push(r)).length > 0,
+          "post/pi": postCommandsForTool(entry, claudeToolName(pi), (r) => broken.push(r)).length > 0,
+          "pre/claude": commandsForTool(entry, claude, (r) => broken.push(r)).length > 0,
+        };
+        for (const [side, got] of Object.entries(seen)) {
+          if (got !== want) {
+            mismatches.push(`${JSON.stringify(matcher)} ${side} ${claude}/${pi}: got ${got}, Claude ${want}`);
+          }
+        }
+        if (broken.length) mismatches.push(`${JSON.stringify(matcher)} reported broken: ${broken[0]}`);
+      }
+    }
+    expect(mismatches).toEqual([]);
+  });
+
+  test.skipIf(!present)("the rule itself: * matches all, a hyphenated name is exact", () => {
+    const expected = claudeVerdicts();
+    const at = (matcher: string | undefined, tool: string) =>
+      expected[matchers.indexOf(matcher) * tools.length + tools.findIndex(([c]) => c === tool)];
+    expect(at("*", "Bash")).toBe(true);
+    expect(at("web-fetch", "web-fetch")).toBe(true);
+    expect(at("web-fetch", "web-fetcher")).toBe(false);
   });
 });
