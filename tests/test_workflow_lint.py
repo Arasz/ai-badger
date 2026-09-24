@@ -135,6 +135,47 @@ def test_a_commented_out_permissions_block_does_not_count(lint, tmp_path):
     assert len(lint.workflow_lint(tmp_path)) == 1
 
 
+TOP_WRITE_ALL = f"""name: ci
+permissions: write-all
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@{SHA}
+"""
+
+
+def test_a_top_level_write_all_grant_is_reported(lint, tmp_path):
+    """The widest scope there is must not satisfy 'declares a permissions: block'."""
+    _workflow(tmp_path, TOP_WRITE_ALL)
+
+    violations = lint.workflow_lint(tmp_path)
+
+    assert len(violations) == 1, violations
+    assert "write-all" in violations[0]
+
+
+JOB_WRITE_ALL = f"""name: ci
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - uses: actions/checkout@{SHA}
+"""
+
+
+def test_a_job_level_write_all_grant_is_reported(lint, tmp_path):
+    """A job's own write-all grant must not satisfy the rule either, top-level block or not."""
+    _workflow(tmp_path, JOB_WRITE_ALL)
+
+    violations = lint.workflow_lint(tmp_path)
+
+    assert len(violations) == 1, violations
+    assert "'build'" in violations[0] and "write-all" in violations[0]
+
+
 def test_a_file_with_no_jobs_block_refuses_to_report_a_pass(lint, tmp_path):
     """A shape the line reader cannot see into must fail, not skip — that is the whole defect."""
     _workflow(tmp_path, "name: ci\non: [push]\n")

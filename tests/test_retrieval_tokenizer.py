@@ -5,6 +5,8 @@ substring of a longer word (`"ts"` inside `"tests"`, `"tab"` inside `"table"`).
 """
 from __future__ import annotations
 
+import pytest
+
 
 def test_tokenize_splits_on_non_alnum_and_lowercases(load_script):
     tokenizer = load_script("features/common/retrieval/tokenizer.py")
@@ -86,3 +88,29 @@ def test_stopword_count_matches_documented_count(load_script):
     """STOPWORD_COUNT documents len(STOPWORDS); pins them together (issue #156)."""
     tokenizer = load_script("features/common/retrieval/tokenizer.py")
     assert tokenizer.STOPWORD_COUNT == len(tokenizer.STOPWORDS)
+
+
+# The 12 pairs plan-v2 P12 AC1/AC2 measured the fold rule against. The pre-fix rule
+# unifies only box/boxes and test/tests; the refuted "simpler" rule (strip `es` only
+# after s/x/z/ch/sh, else strip `s`) unifies 2 more but still splits class/classes and
+# update/updated (plan-review.md row 40).
+FOLD_UNIFICATION_PAIRS = [
+    ("issue", "issues"),
+    ("file", "files"),
+    ("class", "classes"),
+    ("update", "updated"),
+    ("process", "processes"),
+    ("process", "processing"),
+    ("use", "uses"),
+    ("box", "boxes"),
+    ("pass", "passes"),
+    ("test", "tests"),
+    ("create", "creating"),
+    ("merge", "merged"),
+]
+
+
+@pytest.mark.parametrize("first,second", FOLD_UNIFICATION_PAIRS)
+def test_suffix_folding_unifies_singular_plural_and_base_past_pairs(load_script, first, second):
+    tokenizer = load_script("features/common/retrieval/tokenizer.py")
+    assert tokenizer.tokenize(first)[0] == tokenizer.tokenize(second)[0]

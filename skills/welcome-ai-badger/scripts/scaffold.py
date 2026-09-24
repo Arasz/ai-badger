@@ -316,8 +316,10 @@ class Scaffolder:
 
         An exclusion naming a catalog item the framework has since dropped goes inert rather
         than fatal — refresh refuses on an invalid config, so a fatal one would turn an
-        upstream deletion into a broken upgrade (research §4.2).
+        upstream deletion into a broken upgrade (research §4.2); groups (D9) are one note.
         """
+        group_notes, grouped = bl.exclusion_group_notes(self.config)
+        self.notes.extend(group_notes)
         for feature in bl.EXCLUDABLE_FEATURES:
             declined = self.excluded[feature]
             if not declined:
@@ -325,12 +327,12 @@ class Scaffolder:
             known = {i.get("name") for stack in self.stacks
                      for i in bl.feature_items(self.index, stack, feature)}
             singular = feature[:-1]
-            for name in sorted(declined - known):
+            covered = grouped if feature == "skills" else set()
+            for name in sorted(declined - known - covered):
                 self.notes.append(
                     f"exclusion '{name}' matches no catalog {singular} — safe to remove "
-                    f"from config.json"
-                )
-            for name in sorted(declined & known):
+                    f"from config.json")
+            for name in sorted((declined & known) - covered):
                 self.notes.append(f"declined {singular} '{name}' (config.exclude.{feature})")
         for name in sorted(self.excluded["skills"]):
             if (self.aib / "skills" / name).is_dir():

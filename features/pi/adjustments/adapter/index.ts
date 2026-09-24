@@ -1,8 +1,9 @@
 /**
  * ai-badger hooks adapter for pi: runs the project's Claude-shaped PreToolUse gates before
  * every tool call and maps their decision back onto pi's `{ block, reason }` contract, and
- * runs the PostToolUse entries (marker recorders, memory telemetry) after every tool result
- * — advisory only, never touching the result. Both arms read the project's
+ * runs the PostToolUse entries (marker recorders, memory telemetry, reminders) after every
+ * tool result — advisory only: their `additionalContext` is appended to the result and a
+ * `systemMessage` from either arm is shown to the user. Both arms read the project's
  * `.ai-badger/hooks/hooks.json` at event time; both carry the same session id, because the
  * consulted marker a post arm records is looked up by the pre arm.
  *
@@ -24,6 +25,7 @@ import {
   createDeliveryRouter,
   parseDeliveryStdout,
   parseHookStdout,
+  parsePostStdout,
   postCommandsForTool,
   postToolUseCommands,
   preToolUseCommands,
@@ -33,6 +35,7 @@ import {
   toClaudeDeliveryPayload,
   toClaudePayload,
   toClaudePostPayload,
+  withPostContext,
   type ClaudeDeliveryPayload,
   type DeliveryOutcome,
   type GateOutcome,
@@ -111,63 +114,94 @@ function loadGates(cwd: string): Gates {
   }
 }
 
-/** Run one gate command, converting every failure mode into a reportable error outcome. */
-function runGate(
-  command: string,
+/** How long after a group kill the spawn settles anyway, if a descendant that left the
+ * group still holds the pipes open. */
+const KILL_GRACE_MS = 1000;
+
+/** One hook process, settled: it exited with its full output, or it never finished. */
+type HookRun =
+  | { kind: "exited"; code: number | null; stdout: string; stderr: string }
+  | { kind: "failed"; reason: string };
+
+/** Run `file args` with the JSON payload on stdin, in its own process group. Settles on
+ * `close`, once every stdio stream has drained — never on `exit`, when output may still be
+ * buffered. On timeout or abort the whole group is killed, so a shell's forked grandchild
+ * dies with it, and a grace timer settles if something still holds the pipes. */
+function runHook(
+  file: string,
+  args: string[],
   payload: unknown,
-  ctx: { cwd: string; signal: AbortSignal | undefined },
-): Promise<GateOutcome> {
+  opts: { cwd: string; signal?: AbortSignal; timeoutMs: number; label: string },
+): Promise<HookRun> {
   return new Promise((settle) => {
-    let child;
+    let child: ReturnType<typeof spawn> | undefined;
+    let done = false;
+    let stopped: string | undefined;
+    let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+    let graceTimer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (run: HookRun) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timeoutTimer);
+      clearTimeout(graceTimer);
+      opts.signal?.removeEventListener("abort", onAbort);
+      settle(run);
+    };
+    const stop = (reason: string) => {
+      if (done || stopped !== undefined) return;
+      stopped = reason;
+      try {
+        if (child?.pid !== undefined) process.kill(-child.pid, "SIGKILL");
+      } catch {
+        // the group is already gone
+      }
+      graceTimer = setTimeout(() => finish({ kind: "failed", reason }), KILL_GRACE_MS);
+    };
+    const onAbort = () => stop(`${opts.label} was aborted`);
+
+    if (opts.signal?.aborted) {
+      finish({ kind: "failed", reason: `${opts.label} was aborted before it started` });
+      return;
+    }
     try {
-      child = spawn("/bin/sh", ["-c", command], {
-        cwd: ctx.cwd,
-        env: { ...process.env, CLAUDE_PROJECT_DIR: ctx.cwd },
-        signal: ctx.signal,
-        timeout: GATE_TIMEOUT_MS,
+      child = spawn(file, args, {
+        cwd: opts.cwd,
+        env: { ...process.env, CLAUDE_PROJECT_DIR: opts.cwd },
+        detached: true,
         stdio: ["pipe", "pipe", "pipe"],
       });
     } catch (error) {
-      settle({ kind: "error", reason: `${command} could not start (${String(error)})` });
+      finish({ kind: "failed", reason: `${opts.label} could not start (${String(error)})` });
       return;
     }
+    timeoutTimer = setTimeout(() => stop(`${opts.label} was killed after ${opts.timeoutMs}ms`), opts.timeoutMs);
+    opts.signal?.addEventListener("abort", onAbort, { once: true });
 
     let stdout = "";
     let stderr = "";
-    child.stdout?.on("data", (chunk) => {
-      stdout += String(chunk);
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      stdout += chunk;
     });
-    child.stderr?.on("data", (chunk) => {
-      stderr += String(chunk);
+    child.stderr?.on("data", (chunk: string) => {
+      stderr += chunk;
     });
     child.on("error", (error) => {
-      settle({ kind: "error", reason: `${command} failed (${String(error)})` });
+      finish({ kind: "failed", reason: `${opts.label} failed (${String(error)})` });
     });
     child.on("close", (code, signal) => {
-      if (signal) {
-        settle({ kind: "error", reason: `${command} was killed after ${GATE_TIMEOUT_MS}ms` });
-        return;
+      if (stopped !== undefined) {
+        finish({ kind: "failed", reason: stopped });
+      } else if (signal) {
+        finish({ kind: "failed", reason: `${opts.label} was killed by ${signal}` });
+      } else {
+        finish({ kind: "exited", code, stdout, stderr });
       }
-      if (code !== 0) {
-        settle({
-          kind: "error",
-          reason: `${command} exited ${code}: ${stderr.trim().slice(-400) || "(no stderr)"}`,
-        });
-        return;
-      }
-      const decision = parseHookStdout(stdout);
-      if (decision === null) {
-        settle({
-          kind: "error",
-          reason: `${command} printed output that is not a hook decision: ${stdout.trim().slice(0, 200)}`,
-        });
-        return;
-      }
-      settle({ kind: "decision", decision: decision.decision, reason: decision.reason });
     });
 
-    // A gate that exits or is killed before reading stdin makes this write fail with EPIPE.
-    // That is the gate's failure, already reported by the close handler, not a crash for pi.
+    // A hook that exits or is killed before reading stdin makes this write fail with EPIPE.
+    // That is the hook's failure, already reported by the close handler, not a crash for pi.
     child.stdin?.on("error", () => {});
     try {
       child.stdin?.end(JSON.stringify(payload));
@@ -175,6 +209,36 @@ function runGate(
       // same case, thrown synchronously
     }
   });
+}
+
+/** A non-zero exit as a reportable reason, carrying the tail of stderr. */
+function exitReason(label: string, run: { code: number | null; stderr: string }): string {
+  return `${label} exited ${run.code}: ${run.stderr.trim().slice(-400) || "(no stderr)"}`;
+}
+
+/** Run one gate command, converting every failure mode into a reportable error outcome.
+ * `timeoutMs` defaults to the 5 s gate budget. */
+export async function runGate(
+  command: string,
+  payload: unknown,
+  opts: { cwd?: string; signal?: AbortSignal; timeoutMs?: number } = {},
+): Promise<GateOutcome> {
+  const run = await runHook("/bin/sh", ["-c", command], payload, {
+    cwd: opts.cwd ?? process.cwd(),
+    signal: opts.signal,
+    timeoutMs: opts.timeoutMs ?? GATE_TIMEOUT_MS,
+    label: command,
+  });
+  if (run.kind === "failed") return { kind: "error", reason: run.reason };
+  if (run.code !== 0) return { kind: "error", reason: exitReason(command, run) };
+  const decision = parseHookStdout(run.stdout);
+  if (decision === null) {
+    return {
+      kind: "error",
+      reason: `${command} printed output that is not a hook decision: ${run.stdout.trim().slice(0, 200)}`,
+    };
+  }
+  return { kind: "decision", ...decision };
 }
 
 /** Every gate outcome for one tool call, including "there are no gates here". */
@@ -205,58 +269,20 @@ async function gateOutcomes(
 }
 
 /** Run one PostToolUse command, converting every failure mode into a reportable outcome.
- * Mirrors runGate's spawn discipline but never parses a decision: post hooks are advisory
- * side effects (marker recording, telemetry), and their stdout is theirs alone. */
-function runPostHook(
+ * Same spawn discipline as runGate; its stdout is read as advice, never as a decision. */
+async function runPostHook(
   command: string,
   payload: unknown,
-  ctx: { cwd: string; signal: AbortSignal | undefined },
+  opts: { cwd: string; signal?: AbortSignal },
 ): Promise<PostOutcome> {
-  return new Promise((settle) => {
-    let child;
-    try {
-      child = spawn("/bin/sh", ["-c", command], {
-        cwd: ctx.cwd,
-        env: { ...process.env, CLAUDE_PROJECT_DIR: ctx.cwd },
-        signal: ctx.signal,
-        timeout: GATE_TIMEOUT_MS,
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-    } catch (error) {
-      settle({ kind: "error", reason: `${command} could not start (${String(error)})` });
-      return;
-    }
-
-    let stderr = "";
-    child.stdout?.resume(); // drain: post hooks may print; nobody parses it
-    child.stderr?.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on("error", (error) => {
-      settle({ kind: "error", reason: `${command} failed (${String(error)})` });
-    });
-    child.on("close", (code, signal) => {
-      if (signal) {
-        settle({ kind: "error", reason: `${command} was killed after ${GATE_TIMEOUT_MS}ms` });
-        return;
-      }
-      if (code !== 0) {
-        settle({
-          kind: "error",
-          reason: `${command} exited ${code}: ${stderr.trim().slice(-400) || "(no stderr)"}`,
-        });
-        return;
-      }
-      settle({ kind: "ok" });
-    });
-
-    child.stdin?.on("error", () => {});
-    try {
-      child.stdin?.end(JSON.stringify(payload));
-    } catch {
-      // same case, thrown synchronously
-    }
+  const run = await runHook("/bin/sh", ["-c", command], payload, {
+    ...opts,
+    timeoutMs: GATE_TIMEOUT_MS,
+    label: command,
   });
+  if (run.kind === "failed") return { kind: "error", reason: run.reason };
+  if (run.code !== 0) return { kind: "error", reason: exitReason(command, run) };
+  return { kind: "ok", ...parsePostStdout(run.stdout) };
 }
 
 /** Every post-hook outcome for one tool result. A missing hooks config stays silent here —
@@ -297,54 +323,15 @@ async function runDelivery(
 ): Promise<DeliveryOutcome> {
   const script = join(ctx.cwd, ...DELIVERY_SCRIPT);
   if (!existsSync(script)) return { kind: "empty" };
-  return new Promise((settle) => {
-    let child;
-    try {
-      child = spawn("python3", [script], {
-        cwd: ctx.cwd,
-        env: { ...process.env, CLAUDE_PROJECT_DIR: ctx.cwd },
-        signal: ctx.signal,
-        timeout: timeoutMs,
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-    } catch (error) {
-      settle({ kind: "error", reason: `${script} could not start (${String(error)})` });
-      return;
-    }
-
-    let stdout = "";
-    let stderr = "";
-    child.stdout?.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on("error", (error) => {
-      settle({ kind: "error", reason: `${script} failed (${String(error)})` });
-    });
-    child.on("close", (code, signal) => {
-      if (signal) {
-        settle({ kind: "error", reason: `${script} was killed after ${timeoutMs}ms` });
-        return;
-      }
-      if (code !== 0) {
-        settle({
-          kind: "error",
-          reason: `${script} exited ${code}: ${stderr.trim().slice(-400) || "(no stderr)"}`,
-        });
-        return;
-      }
-      settle(parseDeliveryStdout(stdout));
-    });
-
-    child.stdin?.on("error", () => {});
-    try {
-      child.stdin?.end(JSON.stringify(payload));
-    } catch {
-      // same case, thrown synchronously
-    }
+  const run = await runHook("python3", [script], payload, {
+    cwd: ctx.cwd,
+    signal: ctx.signal,
+    timeoutMs,
+    label: script,
   });
+  if (run.kind === "failed") return { kind: "error", reason: run.reason };
+  if (run.code !== 0) return { kind: "error", reason: exitReason(script, run) };
+  return parseDeliveryStdout(run.stdout);
 }
 
 export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps()) {
@@ -647,8 +634,12 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
       },
       ctx,
     );
-    for (const notice of resolvePost(outcomes).notices) ctx.ui.notify(notice, "warning");
-    return undefined; // advisory: the tool result is never modified
+    const { notices, context } = resolvePost(outcomes);
+    for (const notice of notices) ctx.ui.notify(notice, "warning");
+    // Post-hook context rides the tool result itself: pi persists that message and sends it
+    // on every later call. A `context`-event rewrite would reach one request and vanish.
+    const content = withPostContext(event.content, context);
+    return content === undefined ? undefined : { content };
   });
 
   // Message-bus delivery (plan aib-user-db-message-bus §3 P6; start-spawn deferred per
