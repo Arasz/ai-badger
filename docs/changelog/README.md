@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.177.1 | [five skill-script correctness fixes, and MCP content-block shapes for two hooks](0.177.1-skill-script-correctness-fixes.md) |
 | 0.177.0 | [welcome-ai-badger scaffold writes that do not clobber](0.177.0-welcome-scaffold-writes-that-do-not-clobber.md) |
 | 0.176.2 | [no second skill inventory to drift](0.176.2-skill-inventory-drift.md) |
 | 0.176.1 | [candidate stacks are tracked-and-present; archify exemptions need a vendor marker](0.176.1-candidate-stacks-and-archify-exemption.md) |

@@ -110,6 +110,19 @@ class TestWhatCountsAsAnAttributeUse:
     def test_a_different_attribute_is_not_counted(self, derive):
         assert derive.count_attribute_uses("[McpServerPrompt] c;\n", "McpServerTool") == 0
 
+    def test_the_type_level_attribute_class_is_not_a_tool_use(self, derive):
+        """L9-8: `[McpServerToolType]` (the C# SDK's class-level marker) also contains the
+        substring `[McpServerTool`, so a plain-substring count double-counts a class carrying
+        the type attribute plus its own tool methods."""
+        source = "[McpServerToolType]\npublic class Tools {\n[McpServerTool] a;\n[McpServerTool] b;\n}\n"
+
+        assert derive.count_attribute_uses(source, "McpServerTool") == 2
+
+    def test_the_prompt_type_level_attribute_class_is_not_a_prompt_use(self, derive):
+        source = "[McpServerPromptType]\npublic class Prompts {\n[McpServerPrompt] c;\n}\n"
+
+        assert derive.count_attribute_uses(source, "McpServerPrompt") == 1
+
 
 class TestCountingAcrossATree:
 

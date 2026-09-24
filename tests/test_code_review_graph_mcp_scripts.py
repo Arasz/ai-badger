@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+import types
 from unittest.mock import patch
 
 
@@ -135,6 +136,31 @@ def test_crg_install_script_fails_when_no_python_found(tmp_path, load_script):
     with patch.object(install, "find_suitable_python", return_value=None):
         ret = install.main(["--target", str(tmp_path)])
         assert ret == 1
+
+
+def test_the_venv_is_built_with_the_interpreter_that_was_chosen(tmp_path, load_script):
+    """ensure_venv must build with py_exe, not with whatever is running (L9-4).
+
+    It printed py_exe and then called venv.EnvBuilder(), which uses the running
+    interpreter — so any interpreter selection upstream was decorative. The semantica
+    installer (`subprocess.run([py_exe, "-m", "venv", ...])`) does this correctly.
+    """
+    install = load_script("features/common/mcp/code-review-graph/scripts/install.py")
+    recorded = []
+
+    def fake_run(cmd, **kwargs):
+        recorded.append(cmd)
+        (tmp_path / ".venv" / "bin").mkdir(parents=True, exist_ok=True)
+        (tmp_path / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    with patch.object(install.subprocess, "run", side_effect=fake_run):
+        install.ensure_venv(tmp_path, "/fake/python3.13")
+
+    flat = [part for cmd in recorded for part in cmd]
+    assert "/fake/python3.13" in flat, (
+        f"ensure_venv never invoked the chosen interpreter; recorded: {recorded}"
+    )
 
 
 def test_crg_install_script_creates_venv_and_installs(tmp_path, load_script):
