@@ -288,6 +288,25 @@ def test_a_window_longer_than_the_maximum_is_capped(tmp_path, load_script, monke
     assert "capping" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("mode", ["away", "partner"])
+@pytest.mark.parametrize("where", ["root", "home"])
+def test_arming_at_the_filesystem_root_or_home_is_refused(tmp_path, load_script, monkeypatch,
+                                                          capsys, mode, where):
+    """A project that contains the whole machine or the whole home makes scope meaningless."""
+    awm = load_script("features/claude/skills/auto-wm/scripts/awm.py")
+    _patch_state_paths(awm, monkeypatch, tmp_path)
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.chdir("/" if where == "root" else home)
+
+    rc = awm.main([mode, "2h"])
+
+    assert rc == 1
+    assert "refus" in capsys.readouterr().err.lower()
+    assert awm.projects(awm.load_state() or {}) == {}
+
+
 # ── user-scope state privacy (security I5) ───────────────────────────────────
 
 def test_state_file_is_owner_readable_only(tmp_path, load_script, monkeypatch):
