@@ -85,6 +85,55 @@ def test_a_genuine_key_at_prev_indent_plus_2_is_never_folded_into_a_scalar(load_
     assert mod.parse_legacy_yaml_subset(text) is None
 
 
+def test_a_quoted_scalar_that_spans_lines_refuses_instead_of_folding_to_a_space(load_script):
+    """A single- or double-quoted scalar's continuation line (indent prev+2, no `- `/`key:`
+    shape) is folding syntax pyyaml itself uses to encode an embedded newline (one blank
+    physical line = one real line break, per YAML's fold rule) or an escaped line join. This
+    parser does not implement that folding, so it must refuse rather than space-join the
+    quote's two halves into a value that silently drops the intended newline (L6-3). The value
+    here needs quoting on re-emission for an unrelated reason (the literal ": "), which is
+    exactly why the round-trip guard alone cannot catch the wrong value: both the correct and
+    the wrongly-folded string would re-emit with the same quote style."""
+    mod = load_script(MODULE)
+    text = (
+        "version: 0.1.0\n"
+        "generated_at: '2026-01-01T00:00:00Z'\n"
+        "sources:\n"
+        "- name: rider\n"
+        "  tools:\n"
+        "    t1:\n"
+        "      tags:\n"
+        "      - build\n"
+        "      intent: 'note: use with care\n"
+        "\n"
+        "        second line'\n"
+    )
+    assert mod.parse_legacy_yaml_subset(text) is None
+
+
+def test_an_unquoted_scalar_continuation_still_folds_as_before(load_script):
+    """Positive control: the fix for the case above must not touch the everyday plain-scalar
+    wrap this parser already handles correctly."""
+    mod = load_script(MODULE)
+    text = (
+        "version: 0.1.0\n"
+        "generated_at: '2026-01-01T00:00:00Z'\n"
+        "sources:\n"
+        "- name: rider\n"
+        "  tools:\n"
+        "    t1:\n"
+        "      tags:\n"
+        "      - build\n"
+        "      intent: Retrieves the text content of a file using its path relative to project\n"
+        "        root\n"
+    )
+    parsed = mod.parse_legacy_yaml_subset(text)
+    assert parsed is not None
+    assert parsed["sources"][0]["tools"]["t1"]["intent"] == (
+        "Retrieves the text content of a file using its path relative to project root"
+    )
+
+
 def test_a_genuine_nested_key_at_the_same_offset_is_not_mistaken_for_a_continuation(load_script):
     """The everyday version of the case above: `tools:`'s nested tool-name keys sit at
     exactly prev_indent + 2 relative to `tools:` itself, and must parse as a mapping, not

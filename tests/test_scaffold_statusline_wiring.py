@@ -310,6 +310,21 @@ def test_unwiring_refuses_an_unreadable_settings_file_with_a_note(target, make_s
 
 
 @pytest.mark.usefixtures("fake_home")
+def test_unwiring_with_no_delegate_row_and_no_legacy_file_leaves_the_capture_wired(
+        target, make_scaffolder):
+    """L3-2: `_read_delegate` must return None here, not the `{}` a missing legacy file gives
+    `cg.read_json_mapping` — a store row was never written and the file was never migrated."""
+    wired_command = f'python3 "${{CLAUDE_PROJECT_DIR}}/.ai-badger/skills/{CAPTURE}"'
+    _write_settings(target, {"statusLine": {"type": "command", "command": wired_command}})
+    assert not (target / DELEGATE_RECORD).exists()
+
+    notes = _run(make_scaffolder, _capture_config(enabled=False))
+
+    assert _settings(target)["statusLine"]["command"] == wired_command
+    assert any("cannot be read back" in n for n in notes), notes
+
+
+@pytest.mark.usefixtures("fake_home")
 def test_unwiring_leaves_a_statusline_of_the_wrong_shape_alone(target, make_scaffolder):
     _write_settings(target, {"statusLine": "not-a-mapping"})
 

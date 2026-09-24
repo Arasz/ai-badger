@@ -126,6 +126,20 @@ FEATURE_JSON_WITHOUT_SCHEMA: Dict[str, str] = {
         "validators, and a schema here would be a second copy of that shape",
 }
 
+# FEATURE_JSON_WITHOUT_SCHEMA globs that exempt the vendored Archify packet (ADR-0030) rather
+# than a shape any skill could have. These match by directory layout alone, so a non-archify
+# skill's schemas/examples/brand-marks/package.json/skill-release.json/vendor.json would satisfy
+# the same glob without being vendored content; matches against them only count when
+# bl.is_vendored_packet confirms a vendor.json actually marks the packet.
+ARCHIFY_VENDORED_EXEMPT_GLOBS = (
+    "features/*/skills/*/schemas/*.json",
+    "features/*/skills/*/examples/*.json",
+    "features/*/skills/*/brand-marks/*.json",
+    "features/*/skills/*/package.json",
+    "features/*/skills/*/skill-release.json",
+    "features/*/skills/*/vendor.json",
+)
+
 # Stacks whose files are not checked for cross-stack references, and why.
 CROSS_STACK_REFERENCE_EXEMPT: Dict[str, str] = {
     "common":
@@ -298,6 +312,21 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                    "unlike Claude's PostToolUse. Copilot has no separate failure-only event "
                    "family this arm could target.",
     },
+    "test-run-economy-failure": {
+        "hermes": "A wall, not a gap: hermes has one post_tool_call hook that fires after every "
+                  "tool execution regardless of outcome (ai_badger_hooks.py's "
+                  "_maybe_count_test_run counts every observed run, pass or fail, from the "
+                  "command alone), unlike Claude's PostToolUse, which 'Runs immediately after "
+                  "a tool completes successfully' (hooks.md) and never sees a failing test "
+                  "run. The sibling test-run-economy entry's hermes arm already counts every "
+                  "hermes-observed run; there is no separate failure-only event to wire a "
+                  "second arm onto.",
+        "copilot": "A wall, not a gap: Copilot's postToolUse hook fires after every tool call "
+                   "regardless of exit code (the test-run-economy entry's copilot arm already "
+                   "counts a failing run through it, since classification reads the command, "
+                   "not the exit code), unlike Claude's PostToolUse. Copilot has no separate "
+                   "failure-only event family this arm could target.",
+    },
 }
 
 PROVENANCE_KEYS = ("frameworkCommit", "frameworkDirty")
@@ -435,19 +464,26 @@ def catalog_stacks(root: Path) -> List[str]:
 
 
 def candidate_stack_dirs(root: Path) -> List[str]:
-    """Directory names directly under features/, read from HEAD wherever git can answer.
+    """Directory names directly under features/, tracked in HEAD *and* present on disk.
 
-    An untracked directory is not a stack the catalog ships, so it is not a gap either — a
-    validator reading the working tree failed on whatever the session had left behind. A root
-    with no index (a fixture, an unpacked tarball) has only its working tree to go on. The
-    leading-dot rule applies to both: local state lands in `features/.ai-badger/`, and being
-    committed does not make it a stack.
+    Both halves matter: an untracked directory is not a stack the catalog ships, so it is not a
+    gap either — a validator reading the working tree failed on whatever the session had left
+    behind. Symmetrically, a directory HEAD still tracks but a session has deleted from disk
+    without yet committing that deletion is not a stack the catalog ships *right now* either —
+    reading HEAD alone would report a gap for a directory nobody can open. A root with no index
+    (a fixture, an unpacked tarball) has only its working tree to go on. The leading-dot rule
+    applies throughout: local state lands in `features/.ai-badger/`, and being committed and
+    present does not make it a stack.
     """
+    features_root = root / "features"
+    on_disk = ({d.name for d in features_root.iterdir() if d.is_dir()}
+               if features_root.is_dir() else set())
     tracked = bl.run_git(["ls-tree", "-d", "--name-only", "HEAD", "features/"], root)
     if tracked.returncode == 0:
-        names = (line.rsplit("/", 1)[-1] for line in tracked.stdout.splitlines() if line)
+        names = {line.rsplit("/", 1)[-1] for line in tracked.stdout.splitlines() if line}
+        names &= on_disk
     else:
-        names = (d.name for d in (root / "features").iterdir() if d.is_dir())
+        names = on_disk
     return sorted(name for name in names if not name.startswith("."))
 
 
@@ -493,7 +529,11 @@ def unschemad_feature_json(root: Path) -> List[str]:
         return []
     covered = {p for patterns in SCHEMA_INSTANCES.values()
                for pattern in patterns for p in root.glob(pattern)}
-    covered |= {p for pattern in FEATURE_JSON_WITHOUT_SCHEMA for p in root.glob(pattern)}
+    for pattern in FEATURE_JSON_WITHOUT_SCHEMA:
+        for p in root.glob(pattern):
+            if pattern in ARCHIFY_VENDORED_EXEMPT_GLOBS and not bl.is_vendored_packet(p):
+                continue
+            covered.add(p)
     return [f"{p.relative_to(root).as_posix()}: matched by no schema — add a SCHEMA_INSTANCES "
             f"glob or an entry in FEATURE_JSON_WITHOUT_SCHEMA with a reason"
             for p in sorted(features_root.rglob("*.json"))
