@@ -10,8 +10,9 @@ normal permission prompt reaches the human:
   - expiry: both modes carry a wall-clock expiry, re-checked on every call.
   - project scope: the state holds one entry per project; a call whose cwd is outside
     every armed tree is never auto-approved. Two checkouts can be armed at once.
-  - denylist: destructive shell commands, network egress and writes outside the
-    project are never auto-approved, in either mode.
+  - denylist: destructive shell commands, network egress (MCP tools included), writes
+    outside the project and changes to away-mode state are never auto-approved, in either
+    mode. Every tool whose input carries a shell command is scanned, not only Bash.
 
 The two modes then differ only on AskUserQuestion:
 
@@ -30,6 +31,7 @@ back to that file, and with no readable source the hook stays out of the way ent
 # lockstep with that source rather than churned for local docstring/style rules. The broad
 # except below is intentional — a broken hook must never break the session's permission flow.
 import json
+import os
 import re
 import shlex
 import sys
@@ -85,37 +87,49 @@ def load_state():
 
 # Tools that reach outside the project or outside this machine. Never auto-approved.
 DENIED_TOOLS = {"WebFetch", "WebSearch"}
+# Every MCP tool counts as egress: the hook payload carries nothing that proves a call
+# read-only, and the server receives its arguments whatever the tool is named.
+MCP_PREFIX = "mcp__"
 
 # Tools whose target path must stay inside the project AWM was enabled in.
 PATH_SCOPED_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
 PATH_KEYS = ("file_path", "notebook_path", "path")
+# A tool whose input carries one of these runs a shell command, whatever the tool is called.
+COMMAND_KEYS = ("command", "cmd")
 
 # Shell commands that are irreversible, escalate privilege, rewrite published history,
 # execute network content, or install persistence. A human approves these, always.
+# rm, git, kill, network clients, awm.py and redirections are judged word by word below.
 DENIED_COMMAND_PATTERNS = [re.compile(p, re.IGNORECASE) for p in (
-    r"\brm\s+(-\w+\s+)*-\w*[rf]",
     r"\b(sudo|doas|su)\b",
-    r"\bgit\s+push\b[^|;&]*\s(--force|-f|--force-with-lease)\b",
-    r"\bgit\s+push\b[^|;&]*\s\+[\w./-]+",
     r"\bfind\b[^|;&]*\s-(delete|exec)\b",
-    r"\bgit\s+(reset\s+--hard|clean\s+-\w*[fdx])\b",
     r"\b(mkfs|fdisk|diskutil)\b",
     r"\bdd\s+if=",
     r"\bchmod\s+(-\w+\s+)*777\b",
     r"\b(curl|wget)\b[^|]*\|\s*(sudo\s+)?(ba|z|k)?sh\b",
     r"\b(shutdown|reboot|halt|killall)\b",
-    r"\bkill\s+-9\s+1\b",
     r":\s*\(\s*\)\s*\{.*\}\s*;\s*:",
     r"\bcrontab\b",
     r"\bhistory\s+-c\b",
 )]
 
-LONG_FLAG_ALIASES = {
-    "--recursive": "-r",
-    "--force": "-f",
-    "--dir": "-d",
-    "--no-preserve-root": "-r",
-}
+RM_LONG_FLAGS = {"--recursive", "--force", "--no-preserve-root"}
+GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env"}
+GIT_PUSH_REWRITES = {"--delete", "--mirror", "--prune"}
+NETWORK_CLIENTS = {"curl", "wget", "nc", "ncat", "netcat", "socat", "telnet", "ftp", "sftp",
+                   "scp", "ssh"}
+SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "eval"}
+# Words that run the word after them: skipped, with their options, to find the real command.
+WRAPPERS = {"env", "command", "builtin", "exec", "nohup", "time", "nice", "timeout", "stdbuf",
+            "xargs", "sudo", "doas"}
+WRAPPER_ARG_RE = re.compile(r"^(-.*|\w+=.*|\d+(\.\d+)?[smhd]?)$")
+ASSIGNMENT_RE = re.compile(r"^[A-Za-z_]\w*=")
+PYTHON_RE = re.compile(r"^python[\d.]*$")
+# awm.py subcommands that change no away-mode state; the away-mode denial asks for `decision`.
+AWM_READ_ONLY = {"status", "decision"}
+# Where away-mode state lives. A command that names it is editing the window by hand.
+AWM_STATE_MARKERS = (".claude/awm", "ai-badger.db")
+SAFE_SINKS = {"/dev/null", "/dev/stdout", "/dev/stderr", "/dev/tty"}
 
 # A verb that destroys or escalates. Its arguments must be readable to be judged.
 UNRESOLVABLE_ARG_HEADS = {
@@ -123,36 +137,186 @@ UNRESOLVABLE_ARG_HEADS = {
     "shutdown", "reboot", "halt", "killall", "crontab", "sudo", "doas", "su", "find",
 }
 EXPANSION_RE = re.compile(r"[$`]")
-SEGMENT_RE = re.compile(r"[;&|]+|\n")
+
+SHELL_OPERATORS = "();<>|&\n"
+REDIRECTS = {"<", ">", ">>", ">|", "&>", "&>>", ">&", "<&", "<>", "<<", "<<<"}
+QUOTED_OPERATOR_RE = re.compile(r"""(["'])[();<>|&\n]+\1""")
+SUBSTITUTION_RE = re.compile(r"\$\(|`|<\(|>\(")
 
 
-def normalise_command(command):
-    """Rewrite a command so the denylist matches intent, not flag spelling.
+def split_commands(command):
+    """Split shell text into simple commands: lists of unquoted words, operators dropped.
 
-    Long flags become their short equivalents; unparseable input is returned unchanged
-    so the patterns still run against the raw text rather than being skipped.
+    Redirection operators stay as words so their targets can be judged. Text shlex cannot
+    parse is split quote-blind instead, so a stray quote never hides a word.
     """
     try:
-        tokens = shlex.split(command, comments=False)
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=SHELL_OPERATORS)
+        lexer.whitespace_split = True
+        lexer.whitespace = " \t\r"
+        lexer.commenters = ""
+        tokens = list(lexer)
     except ValueError:
-        return command
-    return " ".join(LONG_FLAG_ALIASES.get(token, token) for token in tokens)
+        tokens = re.findall(r"[();<>|&\n]+|[^\s();<>|&]+", command)
+    commands, words = [], []
+    for token in tokens:
+        if token in REDIRECTS or not token or token.strip(SHELL_OPERATORS):
+            words.append(token)
+        elif words:
+            commands.append(words)
+            words = []
+    if words:
+        commands.append(words)
+    return commands
 
 
-def hides_arguments_from_the_denylist(command):
-    """True when a destructive verb's arguments are expansions this gate cannot resolve.
+def _name(word):
+    return Path(word.strip("`")).name
 
-    `V=-rf; rm $V` reads as harmless and runs as `rm -rf`, so an unreadable argument to a
-    destructive verb is treated as the dangerous reading.
-    """
-    for segment in SEGMENT_RE.split(command):
-        tokens = segment.split()
-        if len(tokens) < 2:
-            continue
-        if Path(tokens[0]).name in UNRESOLVABLE_ARG_HEADS:
-            if any(EXPANSION_RE.search(token) for token in tokens[1:]):
-                return True
+
+def command_head(words):
+    """Index of the word a simple command runs, past assignments and wrappers, or None."""
+    i = 0
+    while i < len(words) and ASSIGNMENT_RE.match(words[i]):
+        i += 1
+    while i < len(words) and _name(words[i]) in WRAPPERS:
+        i += 1
+        while i < len(words) and WRAPPER_ARG_RE.match(words[i]):
+            i += 1
+    return i if i < len(words) else None
+
+
+def short_flags(args):
+    """The letters of every single-dash option cluster in *args*, up to `--`."""
+    letters = []
+    for arg in args:
+        if arg == "--":
+            break
+        if arg.startswith("-") and not arg.startswith("--"):
+            letters.append(arg[1:])
+    return "".join(letters)
+
+
+def rm_is_destructive(args):
+    return bool(set(short_flags(args).lower()) & set("rf") or RM_LONG_FLAGS.intersection(args))
+
+
+def git_is_destructive(args):
+    """A forcing or deleting push, `reset --hard`, or a forcing `clean`, past git's own options."""
+    i = 0
+    while i < len(args) and args[i].startswith("-"):
+        i += 2 if args[i] in GIT_OPTIONS_WITH_VALUE else 1
+    if i >= len(args):
+        return False
+    subcommand, rest = args[i], args[i + 1:]
+    flags = short_flags(rest)
+    if subcommand == "push":
+        refspecs = [a for a in rest if not a.startswith("-")]
+        return bool(set(flags) & set("fd")
+                    or any(a.startswith("--force") or a in GIT_PUSH_REWRITES for a in rest)
+                    or any(r.startswith(("+", ":")) for r in refspecs))
+    if subcommand == "reset":
+        return "--hard" in rest
+    if subcommand == "clean":
+        return bool(set(flags.lower()) & set("fdx")) or "--force" in rest
     return False
+
+
+def kill_hits_everything(args):
+    """True when kill targets pid 1 or -1, which reaches every process the user can signal."""
+    if args[:1] in (["-s"], ["-n"]):
+        args = args[2:]
+    elif args and args[0].startswith("-") and args[0] != "--":
+        args = args[1:]
+    return bool({"1", "-1"}.intersection(args))
+
+
+# Verbs judged wherever they appear in a command (`git rm -r` too), by their own options.
+DESTRUCTIVE_VERBS = {"rm": rm_is_destructive, "git": git_is_destructive,
+                     "kill": kill_hits_everything}
+
+
+def runs_awm(name, args):
+    """True when the command runs awm.py with a subcommand that changes away-mode state."""
+    if PYTHON_RE.match(name):
+        scripts = [a for a in args if not a.startswith("-")]
+        if not scripts or _name(scripts[0]) != "awm.py":
+            return False
+        args = args[args.index(scripts[0]) + 1:]
+    elif name != "awm.py":
+        return False
+    return (args[0] if args else "partner") not in AWM_READ_ONLY
+
+
+def writes_outside(target, project, cwd):
+    """True when a redirection to *target* lands outside *project*; an unexpandable one does."""
+    if target.isdigit() or target == "-":
+        return False  # `>&2`, `>&-`: a file descriptor, not a file
+    path = os.path.expanduser(os.path.expandvars(target))
+    if EXPANSION_RE.search(path):
+        return True
+    if path in SAFE_SINKS or path.startswith("/dev/fd/"):
+        return False
+    return not within(project, Path(cwd or project, path))
+
+
+def command_reason(words, project, cwd):
+    """Why one simple command may never be auto-approved, or None."""
+    head = command_head(words)
+    if head is not None:
+        name, args = _name(words[head]), words[head + 1:]
+        if EXPANSION_RE.search(words[head]):
+            return "destructive_command"  # `$V` runs whatever V holds
+        if name in NETWORK_CLIENTS:
+            return "network_egress"
+        # `V=-rf; rm $V` reads as harmless and runs as `rm -rf`.
+        if name in UNRESOLVABLE_ARG_HEADS and any(EXPANSION_RE.search(a) for a in args):
+            return "destructive_command"
+        if runs_awm(name, args):
+            return "awm_state_change"
+    for i, word in enumerate(words):
+        check, rest = DESTRUCTIVE_VERBS.get(_name(word)), words[i + 1:]
+        if check and check(rest):
+            return "destructive_command"
+        if word in REDIRECTS and ">" in word and rest and writes_outside(rest[0], project, cwd):
+            return "write_outside_project"
+    return None
+
+
+def shell_script(args):
+    """The script a shell or eval runs: the word after a `-c` cluster, else its operands."""
+    for i, arg in enumerate(args[:-1]):
+        if arg.startswith("-") and not arg.startswith("--") and "c" in arg:
+            return args[i + 1]
+    return " ".join(a for a in args if not a.startswith("-"))
+
+
+def shell_reason(command, project, cwd):
+    """Fixed-vocabulary reason a shell command may never be auto-approved, or None.
+
+    Quoted text that still runs is scanned too: everything after `$(`, a backtick, `<(` or
+    `>(`, and the script a shell or eval is handed.
+    """
+    if any(marker in command for marker in AWM_STATE_MARKERS):
+        return "awm_state_change"
+    if any(pattern.search(command) for pattern in DENIED_COMMAND_PATTERNS):
+        return "destructive_command"
+    pending = [command] + [command[m.end():] for m in SUBSTITUTION_RE.finditer(command)]
+    while pending:
+        text = pending.pop()
+        commands = split_commands(text)
+        if QUOTED_OPERATOR_RE.search(text):  # `rm ";" -rf x` must not split rm from -rf
+            commands.append([word for words in commands for word in words])
+        for words in commands:
+            if any(pattern.search(" ".join(words)) for pattern in DENIED_COMMAND_PATTERNS):
+                return "destructive_command"
+            reason = command_reason(words, project, cwd)
+            if reason:
+                return reason
+            head = command_head(words)
+            if head is not None and _name(words[head]) in SHELLS:
+                pending.append(shell_script(words[head + 1:]))
+    return None
 
 
 def now_utc():
@@ -220,6 +384,15 @@ def projects(state):
     return {}
 
 
+def covers_everything(project):
+    """True for `/` or $HOME: a window armed there scopes nothing, so it is never honoured."""
+    try:
+        resolved = Path(project).expanduser().resolve()
+    except (OSError, ValueError, RuntimeError):
+        return True
+    return resolved in (Path("/"), Path.home().resolve())
+
+
 def entry_for(state, cwd):
     """The armed entry whose project contains *cwd*, most specific first, or None.
 
@@ -227,7 +400,7 @@ def entry_for(state, cwd):
     """
     best_project, best_entry = None, None
     for project, entry in projects(state).items():
-        if not isinstance(entry, dict) or not entry.get("enabled"):
+        if not isinstance(entry, dict) or not entry.get("enabled") or covers_everything(project):
             continue
         if within(project, cwd) and (best_project is None
                                      or len(str(project)) > len(str(best_project))):
@@ -235,23 +408,25 @@ def entry_for(state, cwd):
     return (best_project, best_entry) if best_project is not None else None
 
 
-def denylist_reason(tool_name, tool_input, project):
+def denylist_reason(tool_name, tool_input, project, cwd=None):
     """Fixed-vocabulary reason this call may never be auto-approved, or None.
 
     The vocabulary is closed on purpose: no scanned byte reaches the decision log.
     """
     if tool_name in DENIED_TOOLS:
         return "denied_tool"
-    if tool_name == "Bash":
-        command = (tool_input or {}).get("command") or ""
-        normalised = normalise_command(command)
-        if any(pattern.search(normalised) for pattern in DENIED_COMMAND_PATTERNS):
-            return "destructive_command"
-        if hides_arguments_from_the_denylist(command):
-            return "destructive_command"
-        return None
+    if str(tool_name).startswith(MCP_PREFIX):
+        return "mcp_tool"
+    tool_input = tool_input if isinstance(tool_input, dict) else {}
+    for key in COMMAND_KEYS:
+        if isinstance(tool_input.get(key), str):
+            reason = shell_reason(tool_input[key], project, cwd)
+            if reason:
+                return reason
     if tool_name in PATH_SCOPED_TOOLS:
-        target = next((tool_input[k] for k in PATH_KEYS if (tool_input or {}).get(k)), None)
+        target = next((tool_input[k] for k in PATH_KEYS if tool_input.get(k)), None)
+        if target and any(marker in str(target) for marker in AWM_STATE_MARKERS):
+            return "awm_state_change"
         if target and not within(project, target):
             return "write_outside_project"
     return None
@@ -301,7 +476,7 @@ def main():
         disable(project, entry, "expired", detail, session_id, cwd)
         return  # no output -> normal permission flow resumes
 
-    reason = denylist_reason(tool_name, tool_input, project)
+    reason = denylist_reason(tool_name, tool_input, project, cwd)
     if reason:
         log_event("denylisted", reason, session_id, cwd, tool_name)
         return
