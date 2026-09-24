@@ -108,15 +108,10 @@ ai-badger scaffolds pi personas and instructions, and the opinionated extension 
 /plugin install ai-badger
 ```
 
-This installs the fourteen `default` skills: `welcome-ai-badger`, `feed-badger`, `den-refresh`,
-`task`, `create-task-spec`, `maintain-agent-instructions`, `prompt-markers`, `mcp-index`,
-`code-review-checklist`, `call-behaviorist`, `owner-gate-review`, `commit-reminder`,
-`differential-feature-refactor`, and `ai-raccoon-memory` — plus `auto-wm`, which is stack-local
-to Claude.
-
-Eight more are catalogued but withheld until a project names them in `config.include.skills`
-(ADR-0005). See [`docs/skills.md`](docs/skills.md) for what each one does, when to reach for it,
-and which arrive unasked.
+This installs the `default` skills — the ones that arrive without being asked for — plus
+`auto-wm`, which is stack-local to Claude. The rest are catalogued but withheld until a project
+names them in `config.include.skills` (ADR-0005). See [`docs/skills.md`](docs/skills.md) for
+what each one does, when to reach for it, and which arrive unasked.
 
 ## Quickstart
 
@@ -249,11 +244,7 @@ ai-badger/
   docs/                          # Architecture, authoring guides, ADRs
   features/
     common/
-      skills/                    # 36 skills; the 14 with scope: default are
-        task/ welcome-ai-badger/ feed-badger/ den-refresh/
-        create-task-spec/ maintain-agent-instructions/ prompt-markers/ mcp-index/
-        code-review-checklist/ call-behaviorist/ owner-gate-review/
-        commit-reminder/ differential-feature-refactor/ ai-raccoon-memory/
+      skills/                    # default + optIn, per each SKILL.md's scope — see docs/skills.md
       personas/{architect, test-engineer, code-reviewer, delegator}.md
       invariants/*.md            # Agnostic invariant snippets
       instructions/*.md          # Agnostic scoped instructions
@@ -284,7 +275,7 @@ flowchart TB
       COMMON["common/\npersonas·invariants·instructions·hooks·templates"]
       STACKS["dotnet · azure · cosmos · terraform · mcp\nnode · js · ts · react · css · ux · github · angular"]
     end
-    SKILLSDIR["features/common/skills/\n14 default: welcome · feed · task · create-task-spec · maintain\n· prompt-markers · den-refresh · mcp-index · code-review-checklist\n· call-behaviorist · owner-gate-review · commit-reminder · differential-feature-refactor · ai-raccoon-memory\n22 optIn (scope: optIn in each SKILL.md): the documentation three\n· review-changes · explore-codebase · debug-issue · refactor-safely\n· evidence-first-research · 16 more — see docs/skills.md"]
+    SKILLSDIR["features/common/skills/\ndefault + optIn, per each SKILL.md's own scope\nsee docs/skills.md for the roster"]
     CLAUDESKILLS["features/claude/skills/\nauto-wm"]
     MCPCAT["features/*/mcp/ + stack-mcp.json\ncode-review-graph · hermes · ai-raccoon (MCP)"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]
