@@ -73,6 +73,41 @@ def test_a_home_path_in_a_shipped_hook_script_fails(tmp_path, guard, capsys):
     assert "/home/rafal" in capsys.readouterr().out
 
 
+def test_a_root_home_path_fails(tmp_path, guard, capsys):
+    """Linux's root home is `/root/`, a distinct literal from `/home/<user>/`."""
+    repo = _init_repo(tmp_path)
+    _track(repo, "features/common/hooks/run.sh", 'python3 "/root/.ai-badger/hook.py"\n')
+
+    rc = guard.main(["--root", str(repo)])
+
+    assert rc == 1
+    assert "/root/" in capsys.readouterr().out
+
+
+def test_a_mac_var_folders_temp_path_fails(tmp_path, guard, capsys):
+    """A real per-user macOS temp directory, the shape `verification-tracker.md:76` shipped."""
+    repo = _init_repo(tmp_path)
+    _track(repo, "features/common/skills/artifact-verification/references/tracker.md",
+           "VERIFY_SCRIPT=$(mktemp /var/folders/k9/gxjyv0q50tn0_sngj8zg30140000gn/T/x.sh)\n")
+
+    rc = guard.main(["--root", str(repo)])
+
+    assert rc == 1
+    assert "/var/folders/" in capsys.readouterr().out
+
+
+def test_a_mac_private_var_folders_temp_path_fails(tmp_path, guard, capsys):
+    """The `/private` prefix is how the real path resolves; both spellings must be caught."""
+    repo = _init_repo(tmp_path)
+    _track(repo, "features/common/skills/artifact-verification/references/tracker.md",
+           "VERIFY_SCRIPT=$(mktemp /private/var/folders/k9/gxjyv0q50tn0_sngj8zg30140000gn/T/x.sh)\n")
+
+    rc = guard.main(["--root", str(repo)])
+
+    assert rc == 1
+    assert "/private/var/folders/" in capsys.readouterr().out
+
+
 def test_a_windows_users_path_fails(tmp_path, guard, capsys):
     repo = _init_repo(tmp_path)
     _track(repo, ".claude/settings.json", '{"cmd": "C:\\\\Users\\\\rafal\\\\tool.exe"}\n')
