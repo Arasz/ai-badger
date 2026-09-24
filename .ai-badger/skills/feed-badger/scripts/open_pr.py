@@ -135,9 +135,19 @@ FRAMEWORK_ROOT = _bootstrap_lib()
 import unsafe_literals as ul  # pylint: disable=wrong-import-position
 
 
-def git_env() -> dict:
-    """The environment with pathspec magic off: `--path 'features/**'` names that one file."""
-    return {**os.environ, "GIT_LITERAL_PATHSPECS": "1"}
+GIT_LOCATION_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+                    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                    "GIT_PREFIX", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES")
+
+
+def git_env(env=None) -> dict:
+    """`env` (default `os.environ`) minus every variable that pins git to another repository,
+    with pathspec magic off, so `--path 'features/**'` names that one file."""
+    out = dict(os.environ if env is None else env)
+    for name in GIT_LOCATION_ENV:
+        out.pop(name, None)
+    out["GIT_LITERAL_PATHSPECS"] = "1"
+    return out
 
 
 def run(cmd: List[str], cwd: Path, dry: bool) -> int:

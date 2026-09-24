@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.172.13",
-  "frameworkCommit": "fdeb92be774892c932c31db23f17fb60907fd58c",
+  "frameworkCommit": "86ac7820422747a4da398d11225e584fc1f810c0",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -884,12 +884,12 @@
       "source": "features/common/skills/feed-badger",
       "target": ".ai-badger/skills/feed-badger",
       "frameworkVersion": "0.172.13",
-      "hash": "1b8edfba057e0ff4bd1f13a1935e9051cf9df2690dae68c6cae22f0b85d176b0",
+      "hash": "be12ae6a588624d476d563ac3646c7dff308fe5e9af7f1d34a2a8761340dcb88",
       "dirMeta": {
         "file_count": 3,
         "dir_count": 1
       },
-      "sourceHash": "1b8edfba057e0ff4bd1f13a1935e9051cf9df2690dae68c6cae22f0b85d176b0",
+      "sourceHash": "be12ae6a588624d476d563ac3646c7dff308fe5e9af7f1d34a2a8761340dcb88",
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 1
