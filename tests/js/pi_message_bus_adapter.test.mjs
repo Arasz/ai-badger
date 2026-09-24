@@ -205,7 +205,7 @@ test("router's sessionShutdown fires the SessionEnd payload and discards the res
 // redirected user store (AI_BADGER_USER_ROOT), a redirected raccoon bank path, a temp
 // HOME and an explicit project override — the real ~/.ai-badger/ and ~/.ai-raccoon/
 // stores are never touched. This block is the executable pi leg of the @deferred
-// close-event verdict (plan §6 Rule 6 / P6-t5): session_shutdown maps to cursor cleanup.
+// close-event verdict (D3): session_shutdown leaves the cursor for the four-day prune.
 
 function e2eEnv(root) {
   return {
@@ -274,10 +274,13 @@ test("E2E: a delivery payload delivers seeded mail through the real script into 
   const refire = await runDeliveryHook(env, bridge.toClaudeDeliveryPayload("before_agent_start", receiver));
   assert.deepEqual(bridge.parseDeliveryStdout(refire.stdout), { kind: "empty" });
 
-  // CLOSE-EVENT VERDICT (pi leg): session_shutdown → SessionEnd → the cursor row is gone
+  // CLOSE-EVENT VERDICT (pi leg): session_shutdown → SessionEnd keeps the cursor, so a
+  // resumed session replays nothing
   const close = await runDeliveryHook(env, bridge.toClaudeDeliveryPayload("session_shutdown", receiver));
   assert.equal(close.code, 0, `close exited ${close.code}: ${close.stderr}`);
-  assert.match(cursorRow(env, "pi-sess-1"), /CURSOR_ROW None/);
+  assert.match(cursorRow(env, "pi-sess-1"), /CURSOR_ROW \(\d+,\)/);
+  const resumed = await runDeliveryHook(env, bridge.toClaudeDeliveryPayload("before_agent_start", receiver));
+  assert.deepEqual(bridge.parseDeliveryStdout(resumed.stdout), { kind: "empty" });
 }, { timeout: 30_000 });
 
 // Red witness is the WIRING absence (router.sessionStart === undefined on the old
@@ -311,10 +314,10 @@ test("E2E: a session that never turns consumes nothing — no spawn, no cursor r
   assert.equal(outcome.kind, "context");
   assert.match(outcome.content, /mail that must survive/);
 
-  // and the turning session's close drops the cursor that turn created
+  // and the turning session's close keeps the cursor that turn created
   const closeAfterTurn = await runDeliveryHook(env, bridge.toClaudeDeliveryPayload("session_shutdown", receiver));
   assert.equal(closeAfterTurn.code, 0, closeAfterTurn.stderr);
-  assert.match(cursorRow(env, "pi-never-1"), /CURSOR_ROW None/);
+  assert.match(cursorRow(env, "pi-never-1"), /CURSOR_ROW \(\d+,\)/);
 }, { timeout: 30_000 });
 
 test("E2E: the per-turn turn_end seam consumes-and-injects once — cursor row after turn one, turn two injects nothing new", async () => {
@@ -352,10 +355,10 @@ test("E2E: the per-turn turn_end seam consumes-and-injects once — cursor row a
   const refire = await runDeliveryHook(env, bridge.toClaudeDeliveryPayload("before_agent_start", receiver));
   assert.deepEqual(bridge.parseDeliveryStdout(refire.stdout), { kind: "empty" });
 
-  // close: the cursor the turn created is dropped
+  // close: the cursor the turn created is kept for the prune
   const close = await runDeliveryHook(env, bridge.toClaudeDeliveryPayload("session_shutdown", receiver));
   assert.equal(close.code, 0, close.stderr);
-  assert.match(cursorRow(env, "pi-sess-3"), /CURSOR_ROW None/);
+  assert.match(cursorRow(env, "pi-sess-3"), /CURSOR_ROW \(\d+,\)/);
 }, { timeout: 30_000 });
 
 test("E2E: an empty inbox and the session's own mail both inject nothing at the pi seam", async () => {
