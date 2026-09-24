@@ -57,6 +57,13 @@
     }
   ],
   "skillScope": "default",
+  "exclude": {
+    "skills": [
+      "cron-watchdog-authoring",
+      "design-gate-audit",
+      "explore-codebase"
+    ]
+  },
   "docs": {},
   "agentDocs": {
     "maxLines": 264,

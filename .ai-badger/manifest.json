@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.177.2",
-  "frameworkCommit": "30e078385f47b4948c0a7161181a4dc79e3ebb3a",
+  "frameworkCommit": "2e83be4d7191363ecd7aad91e37286b7bc46701c",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -13,7 +13,7 @@
   ],
   "skillScope": "default",
   "pluginScope": "default",
-  "configHash": "bcb85d98bebb15dd94dd0b487689abcb6dcef48302d610274386cea8bc209ec0",
+  "configHash": "d374e1874b7c746c5650ac73092539a904883489993223ac3de0fe48df9687e8",
   "generatedConfig": [
     {
       "path": ".claude/settings.json",
@@ -733,27 +733,6 @@
     {
       "feature": "skills",
       "stack": "common",
-      "name": "design-gate-audit",
-      "source": "features/common/skills/design-gate-audit",
-      "target": ".ai-badger/skills/design-gate-audit",
-      "frameworkVersion": "0.177.2",
-      "hash": "93040a909bf7d14731df616a89c7017598a305ba1f042b8358364be447f898f1",
-      "dirMeta": {
-        "file_count": 2,
-        "dir_count": 1
-      },
-      "sourceHash": "93040a909bf7d14731df616a89c7017598a305ba1f042b8358364be447f898f1",
-      "sourceMeta": {
-        "file_count": 2,
-        "dir_count": 1
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
       "name": "design-tests",
       "source": "features/common/skills/design-tests",
       "target": ".ai-badger/skills/design-tests",
@@ -851,27 +830,6 @@
       "sourceMeta": {
         "file_count": 4,
         "dir_count": 2
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "common",
-      "name": "explore-codebase",
-      "source": "features/common/skills/explore-codebase",
-      "target": ".ai-badger/skills/explore-codebase",
-      "frameworkVersion": "0.177.2",
-      "hash": "fd9a4fcbe93c3ea481476addf851e1c7c69cc8cd60f52d8181b7e48efb3b9f49",
-      "dirMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "sourceHash": "fd9a4fcbe93c3ea481476addf851e1c7c69cc8cd60f52d8181b7e48efb3b9f49",
-      "sourceMeta": {
-        "file_count": 1,
-        "dir_count": 0
       },
       "projectOwned": [
         "project-local.md"
@@ -1559,27 +1517,6 @@
     {
       "feature": "skills",
       "stack": "hermes",
-      "name": "cron-watchdog-authoring",
-      "source": "features/hermes/skills/cron-watchdog-authoring",
-      "target": ".ai-badger/skills/cron-watchdog-authoring",
-      "frameworkVersion": "0.177.2",
-      "hash": "1273ebc74b64837a4d8ecc65b19be0f99c0b0358b845d78a65c17c1de68ba706",
-      "dirMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "sourceHash": "1273ebc74b64837a4d8ecc65b19be0f99c0b0358b845d78a65c17c1de68ba706",
-      "sourceMeta": {
-        "file_count": 1,
-        "dir_count": 0
-      },
-      "projectOwned": [
-        "project-local.md"
-      ]
-    },
-    {
-      "feature": "skills",
-      "stack": "hermes",
       "name": "hermes-plugin-development",
       "source": "features/hermes/skills/hermes-plugin-development",
       "target": ".ai-badger/skills/hermes-plugin-development",
@@ -1878,15 +1815,6 @@
     {
       "feature": "adjustments",
       "stack": "claude",
-      "name": "adjustments/.claude/skills/design-gate-audit",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/design-gate-audit",
-      "frameworkVersion": "0.177.2",
-      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
       "name": "adjustments/.claude/skills/design-tests",
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/design-tests",
@@ -1926,15 +1854,6 @@
       "name": "adjustments/.claude/skills/evidence-first-research",
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/evidence-first-research",
-      "frameworkVersion": "0.177.2",
-      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "claude",
-      "name": "adjustments/.claude/skills/explore-codebase",
-      "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/explore-codebase",
       "frameworkVersion": "0.177.2",
       "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
@@ -2361,15 +2280,6 @@
     {
       "feature": "adjustments",
       "stack": "copilot",
-      "name": "adjustments/.github/skills/design-gate-audit",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/design-gate-audit",
-      "frameworkVersion": "0.177.2",
-      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
       "name": "adjustments/.github/skills/design-tests",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/design-tests",
@@ -2409,15 +2319,6 @@
       "name": "adjustments/.github/skills/evidence-first-research",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/evidence-first-research",
-      "frameworkVersion": "0.177.2",
-      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
-    },
-    {
-      "feature": "adjustments",
-      "stack": "copilot",
-      "name": "adjustments/.github/skills/explore-codebase",
-      "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/explore-codebase",
       "frameworkVersion": "0.177.2",
       "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
