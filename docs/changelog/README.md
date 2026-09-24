@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.172.12 | [codeql-action 4.38.1](0.172.12-codeql-action-4381.md) |
 | 0.172.11 | [status-report matches a plan only on the whole task id](0.172.11-status-report-plan-matching.md) |
 | 0.172.10 | [dependency bumps: mutmut 3.8.0, codeql-action 4.38.0, semantica 0.6.8](0.172.10-dependency-bumps.md) |
 | 0.172.9 | [pi bus mail consumed mid-run persists and stays on every later call](0.172.9-pi-mail-persists.md) |
