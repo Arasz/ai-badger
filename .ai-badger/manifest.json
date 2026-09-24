@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.172.13",
-  "frameworkCommit": "5f9c911fce36523ec908a13cb60296ee8bb4244d",
+  "frameworkCommit": "7fab785c4c9a108ad1c720b4733239be300d2a96",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -527,12 +527,12 @@
       "source": "features/common/skills/artifact-verification",
       "target": ".ai-badger/skills/artifact-verification",
       "frameworkVersion": "0.172.13",
-      "hash": "e475b14f23ba5e0ed0aecb883a0f76c07f4653690a533fd1384612f1d921c818",
+      "hash": "9dafb766915f25e70aff466609efea51ee300a3adf6ec50d094684bc69e25918",
       "dirMeta": {
         "file_count": 4,
         "dir_count": 1
       },
-      "sourceHash": "e475b14f23ba5e0ed0aecb883a0f76c07f4653690a533fd1384612f1d921c818",
+      "sourceHash": "9dafb766915f25e70aff466609efea51ee300a3adf6ec50d094684bc69e25918",
       "sourceMeta": {
         "file_count": 4,
         "dir_count": 1
