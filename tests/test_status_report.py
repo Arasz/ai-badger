@@ -169,6 +169,113 @@ class TestProgressChecklist:
         assert no_checkboxes["packages"] == ["P1 one:"]
 
 
+class TestPlanMatching:
+    """A plan counts as the task's own only on a whole-token match of the full task id.
+
+    Substring token overlap once reported another task's review document as this task's
+    plan with matched=True: the shared repo alias always matched, `review` hit `reviewer`,
+    and a numeric key hit every dated filename."""
+
+    JSAA_TASK = "jsaa-claude-code-review-github-workflow"
+    JSAA_OTHER_REVIEW = ("2026-09-16-jsaa-study-topic-workflow-shadow-wiring"
+                         ".plan-review-3-code-reviewer.md")
+
+    @staticmethod
+    def _plan(target: Path, name: str, body: str, mtime: int) -> None:
+        import os
+
+        _write(target, f"{TT}/plans/{name}", body)
+        os.utime(target / TT / "plans" / name, (mtime, mtime))
+
+    def test_the_tasks_own_older_plan_beats_a_newer_colliding_review(self, load_script,
+                                                                      tmp_path):
+        _seed(tmp_path, [_task(self.JSAA_TASK, "IN_PROGRESS", "2026-09-10T08:00:00+00:00")])
+        self._plan(tmp_path, f"2026-09-10-{self.JSAA_TASK}.md",
+                   "**P1 one:** go\n- [x] a\n- [ ] b\n", 1_000)
+        self._plan(tmp_path, self.JSAA_OTHER_REVIEW, "# review\nno checkboxes\n", 2_000)
+
+        module, _ = _run(load_script, tmp_path)
+        progress = module.report(tmp_path)["progress"]
+
+        assert progress["plan_file"].endswith(f"2026-09-10-{self.JSAA_TASK}.md")
+        assert progress["matched"] is True
+        assert progress["total"] == 2
+
+    def test_a_task_with_no_plan_never_reports_another_tasks_file_as_matched(
+            self, load_script, tmp_path):
+        """The consumer case: the shared alias plus `code`/`review`/`workflow` overlap."""
+        _seed(tmp_path, [_task(self.JSAA_TASK, "IN_PROGRESS", "2026-09-20T08:00:00+00:00")])
+        self._plan(tmp_path, "2026-09-01-jsaa-review-inbox-triage.md", "- [ ] x\n", 1_000)
+        self._plan(tmp_path, self.JSAA_OTHER_REVIEW, "# review\n", 2_000)
+
+        module, _ = _run(load_script, tmp_path)
+        data = module.report(tmp_path)
+
+        assert data["progress"]["matched"] is False
+        assert "newest-file fallback" in module.render(data)
+
+    def test_a_numeric_key_matches_as_a_whole_token_not_a_substring(self, load_script,
+                                                                    tmp_path):
+        """`aib-2` must not match every `2026-...` filename, nor `aib-22`."""
+        _seed(tmp_path, [_task("aib-2", "IN_PROGRESS", "2026-09-01T08:00:00+00:00")])
+        self._plan(tmp_path, "2026-08-20-aib-2.md", "- [x] own\n", 1_000)
+        self._plan(tmp_path, "2026-08-29-aib-22-other-thing.md", "- [ ] not own\n", 2_000)
+
+        module, _ = _run(load_script, tmp_path)
+        progress = module.report(tmp_path)["progress"]
+
+        assert progress["plan_file"].endswith("2026-08-20-aib-2.md")
+        assert progress["matched"] is True
+
+    def test_a_numeric_key_with_no_own_plan_is_a_fallback(self, load_script, tmp_path):
+        _seed(tmp_path, [_task("aib-2", "IN_PROGRESS", "2026-09-01T08:00:00+00:00")])
+        self._plan(tmp_path, "2026-08-29-aib-other-thing.md", "- [ ] not own\n", 1_000)
+
+        module, _ = _run(load_script, tmp_path)
+
+        assert module.report(tmp_path)["progress"]["matched"] is False
+
+    def test_review_documents_of_the_task_are_not_its_plan(self, load_script, tmp_path):
+        task = "aib-widget-sync"
+        _seed(tmp_path, [_task(task, "IN_PROGRESS", "2026-09-10T08:00:00+00:00")])
+        self._plan(tmp_path, f"2026-09-10-{task}.md", "- [x] a\n- [ ] b\n", 1_000)
+        self._plan(tmp_path, f"2026-09-12-{task}.plan-review-1-code-reviewer.md",
+                   "# review\n", 2_000)
+        self._plan(tmp_path, f"2026-09-13-{task}.review.md", "# review\n", 3_000)
+        self._plan(tmp_path, f"2026-09-14-{task}-impl-review.md", "# review\n", 4_000)
+
+        module, _ = _run(load_script, tmp_path)
+        progress = module.report(tmp_path)["progress"]
+
+        assert progress["plan_file"].endswith(f"2026-09-10-{task}.md")
+        assert progress["matched"] is True
+
+    def test_a_review_document_alone_is_only_a_fallback(self, load_script, tmp_path):
+        task = "aib-widget-sync"
+        _seed(tmp_path, [_task(task, "IN_PROGRESS", "2026-09-10T08:00:00+00:00")])
+        self._plan(tmp_path, f"2026-09-12-{task}.plan-review-1-code-reviewer.md",
+                   "# review\n", 2_000)
+
+        module, _ = _run(load_script, tmp_path)
+        progress = module.report(tmp_path)["progress"]
+
+        assert progress["plan_file"] is not None
+        assert progress["matched"] is False
+
+    def test_a_task_named_for_reviews_still_matches_its_own_plan(self, load_script,
+                                                                 tmp_path):
+        """`review` inside the task id is not a review-document marker."""
+        task = "aib-code-review-skill"
+        _seed(tmp_path, [_task(task, "IN_PROGRESS", "2026-09-10T08:00:00+00:00")])
+        self._plan(tmp_path, f"2026-09-10-{task}.md", "- [ ] a\n", 1_000)
+
+        module, _ = _run(load_script, tmp_path)
+        progress = module.report(tmp_path)["progress"]
+
+        assert progress["plan_file"].endswith(f"2026-09-10-{task}.md")
+        assert progress["matched"] is True
+
+
 # ---------------------------------------------------------------- next
 
 
