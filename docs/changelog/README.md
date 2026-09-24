@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.172.15 | [open_pr scans what it stages; red_proof checks a journal before restoring](0.172.15-outbound-staging-and-journal-restore.md) |
 | 0.172.14 | [the commit-reminder report fails closed, the hook stays fail-open](0.172.14-commit-reminder-fails-closed.md) |
 | 0.172.13 | [release tooling agrees on what ships](0.172.13-release-tooling-agrees-on-what-ships.md) |
 | 0.172.12 | [codeql-action 4.38.1](0.172.12-codeql-action-4381.md) |
