@@ -163,17 +163,17 @@ def dangling_links(home: Path) -> List[str]:
 
 
 def check_scratch_home(scratch: Path) -> None:
-    """Raise unless *scratch* is outside the operator's real home directory.
+    """Raise unless *scratch* and the operator's real home directory are disjoint trees.
 
-    A script that wrote to a real `~/.hermes` destroyed a Hermes install once. This is the
-    first check the journey makes and nothing runs before it.
+    A script that wrote to a real `~/.hermes` destroyed a Hermes install once, and the
+    scratch is removed afterwards, so neither may contain the other.
     """
     real = Path(os.path.expanduser("~")).resolve()
     candidate = Path(scratch).expanduser().resolve()
-    if candidate == real or real in candidate.parents:
+    if candidate == real or real in candidate.parents or candidate in real.parents:
         raise Refusal(
             f"REFUSING TO RUN: the scratch home {candidate} is the real home {real} "
-            "(or inside it). Point --scratch somewhere else.")
+            "(or inside it, or above it). Point --scratch somewhere else.")
 
 
 def child_env(scratch: Path, base: Optional[Dict[str, str]] = None) -> Dict[str, str]:
@@ -563,20 +563,27 @@ def main(argv=None) -> int:
     """Run the journey under a scratch `$HOME` and report."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", help="the framework tree to install from (default: this repo)")
-    parser.add_argument("--scratch", help="where to build the throwaway home and project")
+    parser.add_argument("--scratch", help="where to build the throwaway home and project; "
+                        "removed afterwards only if this run created it")
     parser.add_argument("--keep", action="store_true",
                         help="leave the scratch directory in place for inspection")
     args = parser.parse_args(argv)
 
     root = Path(args.root).expanduser().resolve() if args.root \
         else Path(__file__).resolve().parent.parent
-    scratch = Path(args.scratch).expanduser().resolve() if args.scratch \
-        else Path(tempfile.mkdtemp(prefix="ai-badger-journey-"))
+    # Only a directory this run created is removed afterwards; anything else is left as found.
+    created: Optional[Path] = None
+    if args.scratch:
+        scratch = Path(args.scratch).expanduser().resolve()
+    else:
+        scratch = created = Path(tempfile.mkdtemp(prefix="ai-badger-journey-"))
     try:
         check_scratch_home(scratch)
         if not bl.is_framework_root(root):
             raise Refusal(f"REFUSING TO RUN: {root} is not an ai-badger framework root")
-        scratch.mkdir(parents=True, exist_ok=True)
+        if not scratch.exists():
+            scratch.mkdir(parents=True)
+            created = scratch
         journey = Journey(root, scratch)
         (journey.home / ".hermes").mkdir(parents=True)   # a machine that has Hermes installed
         print(f"consumer journey: {root} -> {scratch}")
@@ -587,8 +594,8 @@ def main(argv=None) -> int:
     finally:
         if args.keep:
             print(f"kept: {scratch}")
-        else:
-            shutil.rmtree(scratch, ignore_errors=True)
+        elif created:
+            shutil.rmtree(created, ignore_errors=True)
     return rc
 
 
