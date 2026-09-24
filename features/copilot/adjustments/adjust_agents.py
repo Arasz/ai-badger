@@ -13,26 +13,38 @@ from typing import Any, Dict, List, Tuple
 import frontmatter as fm
 
 
-# Deliberate Copilot-specific overrides; they win over a persona's own frontmatter.
+# Copilot's own documented custom-agent tool aliases; any other name is one its frontmatter
+# parser will not recognise.
+COPILOT_TOOL_ALIASES = frozenset({"read", "edit", "search", "execute", "agent", "web", "todo"})
+
+# Deliberate Copilot-specific overrides; they win over a persona's own frontmatter. Reviewer and
+# architect stay read-only; test-engineer is the one persona that also gets edit and execute (D7).
 PERSONA_MAP = {
     "architect": {
         "description": "System architecture and design decisions. Reviews patterns, evaluates trade-offs, and proposes structural improvements.",
-        "tools": ["read", "search", "list_files"],
+        "tools": ["read", "search"],
         "user-invocable": True,
     },
     "code-reviewer": {
         "description": "Code review with focus on quality, security, and maintainability. Reviews diffs, identifies issues, and suggests improvements.",
-        "tools": ["read", "search", "list_files", "get_diff"],
+        "tools": ["read", "search"],
         "user-invocable": True,
     },
     "test-engineer": {
         "description": "Test strategy and implementation. Writes failing tests first, implements to pass, and ensures coverage.",
-        "tools": ["read", "search", "list_files", "run_command"],
+        "tools": ["read", "search", "edit", "execute"],
         "user-invocable": True,
     },
 }
 
 AGENTS_SUBDIR = Path(".github") / "agents"
+
+MANAGED_HEADER = (
+    "<!-- Managed by ai-badger. Source of truth: .ai-badger/agents/{name}. "
+    "Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->"
+)
+# The stable leading text every delivered file carries (the part before the {name} slot).
+_MANAGED_PREFIX = MANAGED_HEADER.split("{name}", 1)[0]
 
 
 def _split_frontmatter(yaml_mod, text: str) -> Tuple[Dict[str, Any], str]:
@@ -82,6 +94,36 @@ def _merged_frontmatter(name: str, source_meta: Dict[str, Any]) -> Dict[str, Any
     return merged
 
 
+def _manifest_targets(target_dir: Path) -> set:
+    """Targets recorded in .ai-badger/manifest.json — paths ai-badger placed.
+
+    Adjustments run before the manifest is rewritten, so this is the previous run's record.
+    """
+    manifest = target_dir / "manifest.json"
+    if not manifest.is_file():
+        return set()
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return {str(entry.get("target", "")) for entry in data.get("entries", [])}
+
+
+def _ours(dst: Path, rel: str, owned_targets: set) -> bool:
+    """True only for a file ai-badger placed: recorded in the manifest, or carrying its header.
+
+    Everything else in `.github/agents/` belongs to the user — Copilot's own convention
+    routinely holds hand-written and third-party custom agents, so a collision there is
+    expected, not a fault (L7-6).
+    """
+    if rel in owned_targets:
+        return True
+    try:
+        return _MANAGED_PREFIX in dst.read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return False
+
+
 def _prune_stale(target: Path, target_dir: Path, keep: List[str]) -> List[str]:
     """Delete `.github/agents/` files the prior manifest attributes to this adjuster.
 
@@ -106,6 +148,22 @@ def _prune_stale(target: Path, target_dir: Path, keep: List[str]) -> List[str]:
             path.unlink()
             removed.append(rel.as_posix())
     return removed
+
+
+def _notes(created: List[str], refused: List[str], removed: List[str]) -> str:
+    """One line per outcome: what was delivered, what was pruned, what was left alone."""
+    notes = []
+    if created:
+        notes.append(f"Created {len(created)} Copilot custom agent(s) from personas")
+    if removed:
+        notes.append(f"removed {len(removed)} stale agent file(s): {', '.join(sorted(removed))}")
+    if refused:
+        notes.append(
+            f"left {', '.join(sorted(refused))} untouched — not placed by ai-badger, so it "
+            f"shadows the managed persona and will not follow releases; remove by hand, or "
+            f"decline the persona with config.exclude.personas"
+        )
+    return "; ".join(notes) or "No persona files found to convert"
 
 
 def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
@@ -143,31 +201,37 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
 
     agents_dir = target / AGENTS_SUBDIR
     agents_dir.mkdir(parents=True, exist_ok=True)
+    owned = _manifest_targets(context["target_dir"])
 
-    created = []
+    created: List[str] = []
+    refused: List[str] = []
     for persona in personas:
         name = persona.get("name", "")
         persona_path = framework_root / persona.get("path", "")
         if not persona_path.exists():
             continue
 
+        rel = f"{AGENTS_SUBDIR.as_posix()}/{name}.agent.md"
+        agent_file = agents_dir / f"{name}.agent.md"
+        if agent_file.exists() and not _ours(agent_file, rel, owned):
+            refused.append(rel)
+            continue
+
         source_meta, body = _split_frontmatter(yaml, persona_path.read_text(encoding="utf-8"))
         frontmatter = _merged_frontmatter(name, source_meta)
         yaml_header = yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True).strip()
-        agent_file = agents_dir / f"{name}.agent.md"
-        agent_file.write_text(f"---\n{yaml_header}\n---\n\n{body.strip()}\n", encoding="utf-8")
+        agent_file.write_text(
+            f"---\n{yaml_header}\n---\n\n{MANAGED_HEADER.format(name=name)}\n\n{body.strip()}\n",
+            encoding="utf-8")
         created.append(name)
 
     removed = _prune_stale(target, context["target_dir"],
                            [f"{name}.agent.md" for name in created])
     if not created and not removed:
-        return {"applied": False, "files": [], "notes": "No persona files found to convert"}
+        return {"applied": False, "files": [], "notes": _notes([], refused, [])}
 
-    notes = [f"Created {len(created)} Copilot custom agent(s) from personas"]
-    if removed:
-        notes.append(f"removed {len(removed)} stale agent file(s): {', '.join(sorted(removed))}")
     return {
         "applied": True,
         "files": [f".github/agents/{name}.agent.md" for name in created],
-        "notes": "; ".join(notes),
+        "notes": _notes(created, refused, removed),
     }

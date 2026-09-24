@@ -7,8 +7,18 @@ none (review F-41). The gate is deliberately a *signal*, not a proof: nothing he
 a real test from an empty one. It checks the one thing a machine can — that a change to
 executable code touched tests at all.
 
-Scope: .py and .mjs under engine/, tooling/, features/ and gates/. Catalog JSON is covered by
-`validate.py --all`, and documentation by review, so neither counts as code here.
+Scope: .py and .mjs under engine/, tooling/, features/ and gates/, plus shipped pi
+TypeScript under features/pi/adjustments/ (D6) — the pi adapter has no .py/.mjs source at
+all, so excluding .ts left its 4 shipped files with no gate coverage. Catalog JSON is
+covered by `validate.py --all`, and documentation by review, so neither counts as code here.
+
+Diffed against `git merge-base <base> HEAD`, not `<base>` directly (L8-2): once `<base>`
+(typically origin/main) has moved on, diffing straight against its tip shows main's own
+later changes — including its own test files — as differences from the branch's working
+tree, so a branch that changes code with no test of its own could read as covered.
+
+Only `--diff-filter=AMR` counts as a test change (R43): a deleted test must not satisfy the
+gate, while a renamed-and-edited test still does.
 
 Escape hatch: put `[no-tests]` in a commit message in the range. It is printed, so an
 unjustified one is visible in CI output rather than silent.
@@ -29,6 +39,9 @@ import badger_lib as bl
 
 CODE_ROOTS = ("engine/", "tooling/", "features/", "gates/")
 CODE_SUFFIXES = (".py", ".mjs")
+PI_CODE_ROOT = "features/pi/adjustments/"
+PI_TEST_ROOT = "features/pi/tests/"
+PI_TEST_SUFFIX = ".test.ts"
 TEST_PREFIX = "tests/"
 SKIP_MARKER = "[no-tests]"
 
@@ -40,18 +53,46 @@ def _git(root: Path, *args: str) -> str:
     return proc.stdout
 
 
+def merge_base(root: Path, base: str) -> str:
+    """The commit `base` and HEAD both descend from — the real branch point (L8-2)."""
+    return _git(root, "merge-base", base, "HEAD").strip()
+
+
 def is_code(path: str) -> bool:
     """True for an executable file this repo ships — not catalog data, not documentation."""
-    return path.startswith(CODE_ROOTS) and path.endswith(CODE_SUFFIXES)
+    if path.startswith(CODE_ROOTS) and path.endswith(CODE_SUFFIXES):
+        return True
+    return path.startswith(PI_CODE_ROOT) and path.endswith(".ts")
 
 
-def changed_files(root: Path, base: str) -> List[str]:
-    """Files differing between `base` and the working tree, including untracked ones.
+def is_test(path: str) -> bool:
+    """True for a path this repo treats as a test, in either test tree."""
+    if path.startswith(TEST_PREFIX):
+        return True
+    return path.startswith(PI_TEST_ROOT) and path.endswith(PI_TEST_SUFFIX)
+
+
+def changed_files(root: Path, merge_point: str) -> List[str]:
+    """Files differing between `merge_point` and the working tree, including untracked ones.
 
     `git diff` never lists an untracked file, so without the second call a brand-new
     script — the most likely thing to lack a test — would read as no change at all.
     """
-    tracked = _git(root, "diff", "--name-only", base).splitlines()
+    tracked = _git(root, "diff", "--name-only", merge_point).splitlines()
+    untracked = _git(root, "ls-files", "--others", "--exclude-standard").splitlines()
+    return sorted({p for p in tracked + untracked if p.strip()})
+
+
+def changed_test_files(root: Path, merge_point: str) -> List[str]:
+    """Paths that count as a *test* change since `merge_point` (R43).
+
+    Tracked changes are filtered to `--diff-filter=AMR` (with rename detection forced via
+    `-M`): an add, a modify, or a rename count; a plain delete does not, so removing a test
+    can never satisfy the gate. Untracked files are unfiltered — a brand-new test file has
+    no status to filter on, and is trivially an addition.
+    """
+    tracked = _git(root, "diff", "--name-only", "-M", "--diff-filter=AMR",
+                    merge_point).splitlines()
     untracked = _git(root, "ls-files", "--others", "--exclude-standard").splitlines()
     return sorted({p for p in tracked + untracked if p.strip()})
 
@@ -68,7 +109,14 @@ def skip_marker(root: Path, base: str) -> str:
 def check(root: Path, base: str) -> int:
     """Run the gate; print its verdict; return 0 pass / 1 fail."""
     try:
-        changed = changed_files(root, base)
+        merge_point = merge_base(root, base)
+    except RuntimeError as exc:
+        print(f"TDD GUARD COULD NOT RUN: {exc}")
+        return 1
+
+    try:
+        changed = changed_files(root, merge_point)
+        test_changed = changed_test_files(root, merge_point)
     except RuntimeError as exc:
         print(f"TDD GUARD COULD NOT RUN: {exc}")
         return 1
@@ -77,8 +125,8 @@ def check(root: Path, base: str) -> int:
     if not code:
         print("no shipped code changed — PASS")
         return 0
-    if any(p.startswith(TEST_PREFIX) for p in changed):
-        print(f"{len(code)} code file(s) changed alongside tests/ — PASS")
+    if any(is_test(p) for p in test_changed):
+        print(f"{len(code)} code file(s) changed alongside a test — PASS")
         return 0
 
     marker = skip_marker(root, base)

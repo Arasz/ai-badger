@@ -28,6 +28,13 @@ must kill it):
     owning test. The parser derives the scenario list from the .feature, so
     adding an unmapped scenario fails; a stale owner entry (renamed scenario,
     deleted test) fails too — the checklist cannot rot silently.
+ 6. Close is a no-op (t9, P10 D3, L2-6) — SessionEnd used to delete the cursor,
+    so a reused session id (Claude --resume) replayed already-delivered mail.
+    Mutation: reinstating the delete call in ``_close`` turns this red.
+ 7. tags_for_display parity (t10, P10 R38, L6-5) — a plugin-decorated MCP server
+    name (``plugin:<plugin>:<server>:<tool>``) split on the first colon resolves
+    to a server literally named "plugin"; both copies must split on the last one.
+    Mutation: either copy reverting to ``str.split(":", 1)`` turns it red.
 """
 from __future__ import annotations
 
@@ -439,13 +446,19 @@ SCENARIO_OWNERS = {
     ],
     # Rule 6 — Cursors die on session close or after 4 days
     "Session close removes the cursor row": [
-        "tests/test_message_bus_store.py::test_delete_cursor_removes_the_row",
-        "tests/test_message_delivery_hook.py::test_session_end_removes_the_cursor",
-        "tests/test_message_bus_manifest.py::test_the_wired_close_command_removes_the_cursor",
-        "tests/test_message_bus_hermes.py::test_session_end_deletes_the_cursor",
+        "tests/test_message_bus_store.py::test_the_store_has_no_cursor_delete",
+        "tests/test_message_delivery_hook.py::test_session_end_leaves_the_cursor_for_the_four_day_prune",
+        "tests/test_message_bus_manifest.py::"
+        "test_the_wired_close_command_leaves_the_cursor_for_the_prune",
+        "tests/test_message_bus_hermes.py::test_session_end_leaves_the_cursor_for_the_four_day_prune",
         "tests/test_adjust_hooks_copilot.py::test_copilot_session_end_wires_cursor_cleanup",
         "tests/test_message_bus_integration.py::"
         "test_the_session_end_row_carries_the_copilot_session_end_arm",
+        # D3: nothing deletes a cursor any more — SessionEnd is a no-op and the store has
+        # no delete method (pinned above). The 4-day prune is the row's only death; the
+        # close event's own no-op contract is pinned separately.
+        "tests/test_message_bus_integration.py::"
+        "test_session_end_no_longer_deletes_the_cursor_so_a_resumed_start_replays_nothing",
     ],
     "A crashed session's cursor expires at 4 days": [
         "tests/test_message_bus_store.py::test_open_user_prunes_cursors_older_than_four_days",
@@ -668,3 +681,63 @@ def test_the_deployed_child_carries_the_bus_summary_on_the_full_response(
                           capture_output=True, env=env, timeout=60, check=False)
     assert proc.returncode == 0, proc.stderr.decode()[-400:]
     assert json.loads(proc.stdout.decode()) == {}, "clean-empty stays exactly {}"
+
+
+# ---------------------------------------------------------------------------
+# t9 — SessionEnd is a no-op; the 4-day prune reaps the cursor (P10, D3, L2-6)
+# ---------------------------------------------------------------------------
+
+
+def test_session_end_no_longer_deletes_the_cursor_so_a_resumed_start_replays_nothing(
+        hook, user_root, tmp_path, monkeypatch, capsys):
+    """SessionEnd used to delete the session's cursor row. A host that reuses the same
+    session id on --resume then looked like a brand-new session to the store, and its
+    first-delivery 30-minute gate replayed mail the session had already received
+    (L2-6). Rule 6 now retires cursors only via the 4-day prune (D3): a close event
+    must leave the row alone. Mutation: reinstating a ``DELETE FROM cursors`` for the
+    session in ``_close`` turns this red."""
+    repo = tmp_path / "repo"
+    _make_project(repo)
+    with contextlib.closing(badger_store.open_user()) as store:
+        store.send_message(sender_session="S1", sender_project="bus-proj",
+                           content="do not replay me", target_project="bus-proj")
+
+    start = _fire(hook, monkeypatch, capsys,
+                 {"hook_event_name": "SessionStart", "session_id": "S", "cwd": str(repo)})
+    assert [d["content"] for d in _documents_of(start)] == ["do not replay me"]
+
+    close = _fire(hook, monkeypatch, capsys,
+                 {"hook_event_name": "SessionEnd", "session_id": "S"})
+    assert close == {}
+
+    with contextlib.closing(badger_store.open_user()) as store:
+        row = store.conn.execute(
+            "SELECT cursor_id FROM cursors WHERE session_id = ?", ("S",)).fetchone()
+    assert row is not None, "the close event must leave the cursor for the 4-day prune (D3)"
+
+    resumed = _fire(hook, monkeypatch, capsys,
+                    {"hook_event_name": "SessionStart", "session_id": "S", "cwd": str(repo)})
+    assert resumed == {}, "a resumed session id must not replay already-delivered mail"
+
+
+# ---------------------------------------------------------------------------
+# t10 — tags_for_display parity across both copies (P10, R38, L6-5)
+# ---------------------------------------------------------------------------
+
+
+def test_tags_for_display_splits_on_the_last_colon_in_both_copies(load_script):
+    """A plugin-provided MCP server is decorated ``plugin:<plugin>:<server>`` by
+    `claude mcp list`; splitting a ``server:tool`` ref on the FIRST colon resolves that
+    to a server literally named "plugin", so the lookup misses and the tool hint prints
+    empty parentheses (L6-5). mcp_index.py's ``_split_tool_ref`` already fixed this with
+    ``rpartition``. Both context_enrichment.py's factored helper and ai_badger_hooks.py's
+    Hermes duplicate (R38: the duplicate stays, because context_enrichment.py is not
+    delivered to .ai-badger/hooks) must split the same way. Mutation: either copy
+    reverting to ``tool_name.split(':', 1)`` turns it red."""
+    index = {"sources": [{"name": "plugin:github:github",
+                          "tools": {"create_issue": {"tags": ["issues", "github"]}}}]}
+    context_enrichment = load_script("features/common/retrieval/context_enrichment.py")
+    ai_badger_hooks = load_script("features/common/hooks/ai_badger_hooks.py")
+    for module in (context_enrichment, ai_badger_hooks):
+        assert module.tags_for_display("plugin:github:github:create_issue", index) == \
+            ["issues", "github"], module.__name__

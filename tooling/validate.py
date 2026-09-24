@@ -284,6 +284,20 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                   "on_session_start — the Hermes dispatcher already carries drift-notice there "
                   "and a second notice needs a channel decision that has not been made.",
     },
+    "grounded-feedback-failure": {
+        "hermes": "A wall, not a gap: hermes has one post_tool_call hook that fires after every "
+                  "tool execution regardless of outcome (ai_badger_hooks.py's post_tool_observer "
+                  "calls grounded_feedback.stash_if_failure on every call, checking status "
+                  "itself), unlike Claude's PostToolUse, which 'Runs immediately after a tool "
+                  "completes successfully' (hooks.md) and never sees a failed Bash call. The "
+                  "sibling grounded-feedback entry's hermes arm already reaches every hermes "
+                  "failure; there is no separate failure-only event to wire a second arm onto.",
+        "copilot": "A wall, not a gap: Copilot's postToolUse hook fires after every tool call "
+                   "regardless of exit code (the grounded-feedback entry's copilot arm relies "
+                   "on exactly this, checking tool_response.exit_code inside the shared script), "
+                   "unlike Claude's PostToolUse. Copilot has no separate failure-only event "
+                   "family this arm could target.",
+    },
 }
 
 PROVENANCE_KEYS = ("frameworkCommit", "frameworkDirty")

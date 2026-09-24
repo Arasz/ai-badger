@@ -113,6 +113,14 @@ def _open_user():
     return badger_store.open_user()
 
 
+def _audit_env(root: Path, monkeypatch) -> Path:
+    """Point AI_BADGER_DEBUG_DIR at <root>/debug, where the audit legacy seams live."""
+    debug = root / "debug"
+    debug.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("AI_BADGER_DEBUG_DIR", str(debug))
+    return debug
+
+
 # ---------------------------------------------------------------------------
 # 1. DDL
 # ---------------------------------------------------------------------------
@@ -164,9 +172,9 @@ def test_hook_audit_ts_index_exists_in_sqlite_master(tmp_path, monkeypatch):
 
 
 def test_hook_state_kv_round_trips(tmp_path, monkeypatch):
-    """hook_state is a KV table: set/get/delete through the store's KV seam."""
-    _user_env(tmp_path, monkeypatch)
-    store = _open_user()
+    """hook_state is a KV table: set/get/delete through the audit store's KV seam."""
+    _audit_env(_user_env(tmp_path, monkeypatch), monkeypatch)
+    store = badger_store.open_audit()
     try:
         store.kv_set("hook_state", "debug", {"enabled": True, "scope": "user"})
         assert store.kv_get("hook_state", "debug") == {"enabled": True, "scope": "user"}
@@ -201,7 +209,7 @@ def test_memory_first_table_carries_denials_counter(tmp_path, monkeypatch):
 
 
 def test_session_families_registered_in_user_families():
-    """USER_FAMILIES carries the seven session-store families, all user-DB, correct tables."""
+    """USER_FAMILIES carries the five user-DB session-store families, correct tables."""
     families = badger_store.USER_FAMILIES
     expected = {
         "memory_first": "memory_first",
@@ -209,8 +217,6 @@ def test_session_families_registered_in_user_families():
         "dispatch_lanes": "dispatch_lanes",
         "dirty_sweeps": "dirty_sweeps",
         "blast_radius_denials": "blast_radius_denials",
-        "hook_audit": "hook_audit",
-        "hook_state": "hook_state",
     }
     for name, table in expected.items():
         family = families.get(name)
@@ -219,10 +225,26 @@ def test_session_families_registered_in_user_families():
         assert family.db == "user"
 
 
+def test_audit_families_own_the_hook_tables_and_follow_the_debug_dir(tmp_path, monkeypatch):
+    """hook_audit and hook_state live in the audit DB, so they register in AUDIT_FAMILIES
+    (db "audit"), not USER_FAMILIES, and their legacy seams follow AI_BADGER_DEBUG_DIR at
+    call time, the same directory audit_db_path() does, never the user root."""
+    families = badger_store.AUDIT_FAMILIES
+    assert set(families) == {"hook_audit", "hook_state"}
+    assert not set(families) & set(badger_store.USER_FAMILIES)
+    assert {family.db for family in families.values()} == {"audit"}
+    _user_env(tmp_path, monkeypatch)
+    debug = tmp_path / "elsewhere" / "debug"
+    monkeypatch.setenv("AI_BADGER_DEBUG_DIR", str(debug))
+    assert families["hook_audit"].legacy_path() == debug / "audit.jsonl"
+    assert families["hook_state"].legacy_path() == debug / "state.json"
+    assert badger_store.audit_db_path() == debug / "audit.db"
+
+
 def test_session_family_legacy_paths_follow_user_root_env(tmp_path, monkeypatch):
     """Every session-family legacy path resolves under AI_BADGER_USER_ROOT at call time:
-    memory-first/, semantica-nudge/, dispatch-lanes/, blast-radius-guard/ directories, the
-    dirty-sweep pattern's parent (the user root itself), debug/audit.jsonl, debug/state.json."""
+    memory-first/, semantica-nudge/, dispatch-lanes/, blast-radius-guard/ directories and
+    the dirty-sweep pattern's parent (the user root itself)."""
     root = _user_env(tmp_path, monkeypatch)
     families = badger_store.USER_FAMILIES
     # The bus families (P1, D2) are born in SQLite: no legacy source, so no path to redirect.
@@ -233,8 +255,6 @@ def test_session_family_legacy_paths_follow_user_root_env(tmp_path, monkeypatch)
     assert paths["dispatch_lanes"] == root / "dispatch-lanes"
     assert paths["dirty_sweeps"].parent == root
     assert paths["blast_radius_denials"] == root / "blast-radius-guard"
-    assert paths["hook_audit"] == root / "debug" / "audit.jsonl"
-    assert paths["hook_state"] == root / "debug" / "state.json"
 
 
 # ---------------------------------------------------------------------------
@@ -397,14 +417,14 @@ def test_hook_audit_import_uses_line_ts_and_dedups(tmp_path, monkeypatch):
     import takes ts from "t" verbatim, stores the line verbatim as payload, dedups on
     (ts, payload), and a torn line quarantines (skipped; file still renamed)."""
     root = _user_env(tmp_path, monkeypatch)
-    (root / "debug").mkdir(parents=True)
+    _audit_env(root, monkeypatch)
     good1 = ('{"t": "2026-08-31T17:39:24+00:00", "c": "grounded_feedback_hook", '
              '"e": "skip", "v": "0.150.0"}')
     good2 = ('{"t": "2026-08-31T17:40:00+00:00", "c": "prompt_markers", '
              '"e": "expand", "v": "0.150.0"}')
     (root / "debug" / "audit.jsonl").write_text(
         f"{good1}\n{good2}\n{{torn json\n", encoding="utf-8")
-    store = _open_user()
+    store = badger_store.open_audit()
     try:
         store.migrate("hook_audit")
         rows = list(store.conn.execute(
@@ -449,7 +469,7 @@ def test_floor_hostile_legacy_lines_survive_their_first_prune(tmp_path, monkeypa
     as ordinary expiries. The import must normalise through iso_row_ts (D36) like the
     recent kind, so every imported row is sweep-parseable on the floor it ships to."""
     root = _user_env(tmp_path, monkeypatch)
-    (root / "debug").mkdir(parents=True)
+    _audit_env(root, monkeypatch)
     z_ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     nano_ts = (datetime.now(timezone.utc).isoformat().replace("+00:00", "")
                + "123+00:00")  # 9 fractional digits
@@ -463,7 +483,7 @@ def test_floor_hostile_legacy_lines_survive_their_first_prune(tmp_path, monkeypa
         f"{z_line}\n{nano_line}\n{control_line}\n", encoding="utf-8")
     monkeypatch.setattr(badger_store, "_parseable_ts", _parseable_ts_py310)
 
-    store = _open_user()
+    store = badger_store.open_audit()
     try:
         store.migrate("hook_audit")
         pruned = store.prune_expired("hook_audit", max_age_days=60)
@@ -484,14 +504,14 @@ def test_floor_hostile_ts_is_normalised_at_import_not_at_sweep_time(tmp_path, mo
     keeps the line verbatim. Asserting the column (a secondary observable) keeps the fix
     honest even where the sweep's decision is not exercised."""
     root = _user_env(tmp_path, monkeypatch)
-    (root / "debug").mkdir(parents=True)
+    _audit_env(root, monkeypatch)
     z_ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     (root / "debug" / "audit.jsonl").write_text(
         json.dumps({"t": z_ts, "c": "grounded_feedback_hook", "e": "skip",
                     "v": "0.155.0"}) + "\n", encoding="utf-8")
     monkeypatch.setattr(badger_store, "_parseable_ts", _parseable_ts_py310)
 
-    store = _open_user()
+    store = badger_store.open_audit()
     try:
         store.migrate("hook_audit")
 
@@ -509,11 +529,11 @@ def test_hook_state_imports_state_doc_as_one_kv_row(tmp_path, monkeypatch):
     """debug/state.json is one document (D26): it imports as a single hook_state row under
     key "debug" — the kvdoc pattern pending-feedback.json already uses."""
     root = _user_env(tmp_path, monkeypatch)
-    (root / "debug").mkdir(parents=True)
+    _audit_env(root, monkeypatch)
     doc = {"enabled": True, "scope": "user", "project": None,
            "enabled_at": "2026-08-14T13:08:37+00:00", "expires_at": None}
     (root / "debug" / "state.json").write_text(json.dumps(doc, indent=2), encoding="utf-8")
-    store = _open_user()
+    store = badger_store.open_audit()
     try:
         store.migrate("hook_state")
         assert store.kv_get("hook_state", "debug") == doc
@@ -635,6 +655,104 @@ def test_resurrected_legacy_file_is_contained_per_family(tmp_path, monkeypatch):
         assert (d / _SESSION).exists()
     finally:
         fresh2.close()
+
+
+def test_a_corrupt_legacy_file_quarantines_alone_and_its_siblings_import(
+        tmp_path, monkeypatch):
+    """One torn file in a file-set import must not fail the whole family: the bad
+    <uuid>.denials is skipped and renamed *.migrated like every other file, the valid
+    marker beside it imports, and the family stays writable on the next open."""
+    root = _user_env(tmp_path, monkeypatch)
+    d = root / "memory-first"
+    d.mkdir(parents=True)
+    (d / _SESSION).write_bytes(b"")  # a valid presence marker
+    (d / f"{_SESSION2}.denials").write_text("abc", encoding="utf-8")  # torn sidecar
+    store = _open_user()
+    try:
+        store.migrate("memory_first")
+        rows = {row[0]: row[1] for row in store.conn.execute(
+            "SELECT session_id, payload FROM memory_first")}
+        assert rows == {_SESSION: json.dumps({"consulted": True})}
+    finally:
+        store.close()
+    assert not (d / f"{_SESSION2}.denials").exists()
+    assert (d / f"{_SESSION2}.migrated.denials").exists(), "the bad file quarantines"
+    reopened = _open_user()
+    try:
+        assert reopened.contained_families() == {}
+        reopened.migrate("memory_first")  # still writable: nothing left to refuse on
+    finally:
+        reopened.close()
+
+
+# --- containment remedy text: name only the repair that reaches the family ----------
+
+
+def _task_store(tracking: Path):
+    families = {"tasks": badger_store.Family(
+        table="tasks", db="tracking", legacy_path=lambda: tracking / "executed-tasks.json",
+        legacy_kind="tasks")}
+    return badger_store.open_tracking(families=families)
+
+
+def _write_tasks(tracking: Path) -> None:
+    (tracking / "executed-tasks.json").write_text(json.dumps({"tasks": [
+        {"taskId": "T01", "sessionId": "sid-1", "state": "IN_PROGRESS",
+         "resumeAttempts": []}]}), encoding="utf-8")
+
+
+def test_task_family_containment_names_den_refresh_not_doctor(tmp_path, monkeypatch):
+    """doctor --repair only reaches the user, audit and FAMILIES registries, never a task
+    family, so a task family's refusal must not send the owner there. It names the two
+    remedies that work: restoring the *.migrated name and den-refresh."""
+    tracking = tmp_path / "task-tracking"
+    tracking.mkdir()
+    monkeypatch.setenv("AI_BADGER_TRACKING_ROOT", str(tracking))
+    _write_tasks(tracking)
+    store = _task_store(tracking)
+    try:
+        store.migrate("tasks")
+        time.sleep(0.05)
+        _write_tasks(tracking)  # resurrected behind a live store
+        with pytest.raises(sqlite3.OperationalError) as live:
+            store.tasks_all()
+    finally:
+        store.close()
+    reopened = _task_store(tracking)
+    try:
+        assert set(reopened.contained_families()) == {"tasks"}
+        with pytest.raises(sqlite3.OperationalError) as contained:
+            reopened.tasks_all()
+    finally:
+        reopened.close()
+    for error in (live, contained):
+        message = str(error.value)
+        assert "reappeared" in message
+        assert "doctor --repair" not in message
+        assert "den-refresh" in message and ".migrated" in message
+
+
+def test_user_file_set_containment_still_names_doctor_repair(tmp_path, monkeypatch):
+    """The doctor does repair USER_FAMILIES, so their refusal keeps naming it — for the
+    open-time containment and for a file set resurrected behind a live store."""
+    root = _user_env(tmp_path, monkeypatch)
+    d = _seed_memory_first(root)
+    store = _open_user()
+    try:
+        store.migrate("memory_first")
+        time.sleep(0.05)
+        (d / _SESSION).write_bytes(b"")  # resurrected behind a live store
+        with pytest.raises(sqlite3.OperationalError, match="doctor --repair"):
+            store.migrate("memory_first")
+    finally:
+        store.close()
+    reopened = _open_user()
+    try:
+        assert set(reopened.contained_families()) == {"memory_first"}
+        with pytest.raises(sqlite3.OperationalError, match="doctor --repair"):
+            reopened.kv_get("memory_first", _SESSION)
+    finally:
+        reopened.close()
 
 
 # --- M2 per-family containment: refuse-on-access per kind group ---------------------
@@ -807,9 +925,10 @@ _SWEEP_TRACKER = _load_sweep_tracker_lib()
 def _sweep_families() -> dict:
     """Every registry family with a legacy source, derived from all three registries.
 
-    badger_store.FAMILIES + tracker_lib._task_families() + badger_store.USER_FAMILIES,
-    skipping legacy_path-None store families (messages/cursors): a family added to any
-    registry without containment semantics fails this sweep (derive-or-delete).
+    badger_store.FAMILIES + tracker_lib._task_families() + badger_store.USER_FAMILIES +
+    badger_store.AUDIT_FAMILIES, skipping legacy_path-None store families (messages,
+    cursors, test_economy): a family added to any registry without containment semantics
+    fails this sweep (derive-or-delete).
     """
     combined: dict = {}
     for name, family in badger_store.FAMILIES.items():
@@ -819,6 +938,8 @@ def _sweep_families() -> dict:
             table=family.table, db=family.db, legacy_path=family.legacy_path,
             legacy_kind=family.legacy_kind, row_key=family.row_key)
     for name, family in badger_store.USER_FAMILIES.items():
+        combined[name] = family
+    for name, family in badger_store.AUDIT_FAMILIES.items():
         combined[name] = family
     return {name: family for name, family in combined.items()
             if family.legacy_path is not None}
@@ -839,16 +960,19 @@ def test_resurrected_family_leaves_its_neighbours_usable(family_name, db_kind,
     tracking.mkdir(parents=True)
     monkeypatch.setenv("AI_BADGER_TRACKING_ROOT", str(tracking))
     monkeypatch.setattr(_SWEEP_TRACKER, "DATA_DIR", tracking)
+    _audit_env(root, monkeypatch)
 
     family = _sweep_families()[family_name]
     if family_name in _SWEEP_TRACKER._task_families():  # pylint: disable=protected-access
         open_kwargs = {"families": dict(_SWEEP_TRACKER._task_families())}  # pylint: disable=protected-access
     else:
-        open_kwargs = {}  # FAMILIES default (tracking) or USER_FAMILIES default (user)
+        open_kwargs = {}  # the FAMILIES, USER_FAMILIES or AUDIT_FAMILIES default
 
     def open_store():
         if db_kind == "tracking":
             return badger_store.open_tracking(**open_kwargs)
+        if db_kind == "audit":
+            return badger_store.open_audit(**open_kwargs)
         return badger_store.open_user(**open_kwargs)
 
     _seed_sweep_legacy(family)
@@ -874,7 +998,6 @@ def test_resurrected_family_leaves_its_neighbours_usable(family_name, db_kind,
                           content="ping", target_session="sweep-receiver")
         delivered, _ = user.deliver_for_session("sweep-receiver", "sweep-proj")
         assert len(delivered) == 1 and delivered[0]["content"] == "ping"
-        user.delete_cursor("sweep-receiver")
     finally:
         user.close()
     assert isinstance(badger_store.prune_status_lines(), list)
