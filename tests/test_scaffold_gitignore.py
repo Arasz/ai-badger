@@ -33,7 +33,8 @@ def test_first_scaffold_writes_the_managed_block(make_scaffolder):
     assert _block(text) == (
         ".ai-badger/task-tracking/tracking.db\n"
         ".ai-badger/task-tracking/*.db-wal\n"
-        ".ai-badger/task-tracking/*.db-shm"
+        ".ai-badger/task-tracking/*.db-shm\n"
+        ".ai-badger.bckp/"
     )
 
 
@@ -76,7 +77,8 @@ def test_rescaffold_is_idempotent_and_replaces_a_stale_block_in_place(make_scaff
     assert _block(text) == (
         ".ai-badger/task-tracking/tracking.db\n"
         ".ai-badger/task-tracking/*.db-wal\n"
-        ".ai-badger/task-tracking/*.db-shm"
+        ".ai-badger/task-tracking/*.db-shm\n"
+        ".ai-badger.bckp/"
     )
     assert text.startswith(USER_ENTRIES)
 
