@@ -8,6 +8,10 @@ modes that once left a task invisible mid-flight:
   `--session-id` explicitly (copilot ships no session source, so it always
   must), or `reattach` after a resume. Work done with no tracker row is
   invisible to status except as an "untracked worktree" name.
+- **`start` takes a derived `{repo-alias}-{key}` id, never prose.** An id that
+  is not letters and digits joined by single hyphens (`take`, `I`, `1.`,
+  `https`) exits 2, and `/task <free-form prose>` registers nothing until you
+  derive the id.
 - **A stale session record misdirects `start`.** Exact env identity
   (PI_/HERMES_/CLAUDE_ session id) wins over pid/cwd guesses inside the
   tracker, but a sessions row whose pid is long dead is still a hygiene flag
@@ -19,9 +23,11 @@ modes that once left a task invisible mid-flight:
 - **Write the plan where status reads it:**
   `.ai-badger/task-tracking/plans/<YYYY-MM-DD>-<taskId>.md` — taskId in the
   filename, one `**P<N> …**` heading per package, one `- [ ]` checkbox per
-  acceptance point (checked as points land). A plan living only in a
-  delegation brief reports as "(no plan file)": confirm the status script
-  shows it matched (not fallback) before dispatching implementation.
+  acceptance point (checked as points land). Only a filename carrying the
+  whole taskId matches; review documents (`.review.md`, `.plan-review-*`)
+  never count as the plan. A plan living only in a delegation brief reports
+  as "(no plan file)": confirm the status script shows it matched (not
+  fallback) before dispatching implementation.
 - **Record `total_tokens` on EVERY delegation completion** before the next
   dispatch — a mid-flight lane is invisible to status until its record lands.
   `--delegation <id>` wherever the harness keeps receipts (pi subagent-logs,

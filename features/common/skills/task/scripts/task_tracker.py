@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shlex
 import subprocess
 import sys
@@ -49,6 +50,15 @@ class CrontabUnavailable(Exception):
 # Under .ai-badger/, not any one agent's directory: this skill ships in features/common/, which
 # all four supported agents share, and .ai-badger/ is the only directory every project has.
 WORKTREE_DIR = ".ai-badger/worktrees"
+
+# `{repo-alias}-{key}` (SKILL.md, Task-ID derivation): two or more letter/digit runs joined
+# by single hyphens. Every path that creates a tracker row checks it here.
+TASK_ID_RE = re.compile(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+")
+
+
+def is_task_id(value) -> bool:
+    """Whether `value` has the `{repo-alias}-{key}` task-id shape (e.g. `aib-default-loop`)."""
+    return bool(TASK_ID_RE.fullmatch(str(value)))
 
 
 def _git(root, *args, check=True):
@@ -234,6 +244,14 @@ def _session_or_die(args) -> dict:
 
 
 def cmd_start(args) -> int:
+    if not is_task_id(args.task_id):
+        print(
+            f"{args.task_id!r} is not a task id. A task id is {{repo-alias}}-{{key}}, e.g. "
+            "aib-default-loop: letters and digits joined by single hyphens. Derive it from "
+            "the task (SKILL.md, Task-ID derivation) instead of passing free-form text.",
+            file=sys.stderr,
+        )
+        return 2
     session = _session_or_die(args)
     source = lib.session_source(session["source"])
     if source is None:
