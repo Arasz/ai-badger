@@ -19,7 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.172.14 | [lint lane closes three blind spots](0.172.14-lint-lane-closes-three-blind-spots.md) |
+| 0.172.15 | [lint lane closes three blind spots](0.172.15-lint-lane-closes-three-blind-spots.md) |
 | 0.172.13 | [release tooling agrees on what ships](0.172.13-release-tooling-agrees-on-what-ships.md) |
 | 0.172.12 | [codeql-action 4.38.1](0.172.12-codeql-action-4381.md) |
 | 0.172.11 | [status-report matches a plan only on the whole task id](0.172.11-status-report-plan-matching.md) |
