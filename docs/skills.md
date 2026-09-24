@@ -179,8 +179,9 @@ into the framework catalog.
 `new` and `changed` candidates; the agent classifies each as agnostic, generalizable, or
 project-specific, generalizes the keepers (strips repo names, domain nouns, absolute paths),
 and writes them into a framework checkout under `features/{stack}/{feature}/`. `open_pr.py`
-then scans every declared path for credential-shaped literals and — if clean — opens a **draft**
-PR (`git` branch/commit/push plus `gh pr create --draft`).
+then stages exactly the declared paths (literally, into a clean index), scans what it staged for
+credential-shaped literals and — if clean — opens a **draft** PR (`git` branch/commit/push plus
+`gh pr create --draft`).
 
 **When to use it.** Something learned in this repo — a new skill, persona, invariant,
 instruction, or fix — is project-agnostic and worth contributing back.
