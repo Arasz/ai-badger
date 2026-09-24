@@ -199,6 +199,69 @@ def test_an_agent_file_the_manifest_does_not_own_is_left_alone(tmp_path, load_sc
     assert mine.read_text(encoding="utf-8") == "hand-authored\n"
 
 
+# -- ownership (L7-6): mirrors claude/adjust_agents.py:55 -----------------------------
+
+def test_a_hand_written_agent_file_is_not_overwritten(tmp_path, load_script):
+    """`.github/agents/` is Copilot's own convention; a file we never placed is the user's."""
+    adjust_agents = load_script(ADJUSTER)
+    fw = tmp_path / "framework"
+    item = _persona(fw, "common", "architect", PERSONA_PLAIN)
+    target = _proj(tmp_path)
+    mine = target / AGENTS_DIR / "architect.agent.md"
+    mine.parent.mkdir(parents=True)
+    _test_write(mine, "hand-authored\n", encoding="utf-8")
+
+    result = adjust_agents.adjust(_context(fw, target, [item]))
+
+    assert mine.read_text(encoding="utf-8") == "hand-authored\n"
+    assert ".github/agents/architect.agent.md" in result["notes"]
+    assert ".github/agents/architect.agent.md" not in result["files"]
+
+
+def test_a_file_recorded_in_the_prior_manifest_is_ours_to_rewrite(tmp_path, load_script):
+    """Adjustments run before the manifest is rewritten, so it names the prior run's targets."""
+    adjust_agents = load_script(ADJUSTER)
+    fw = tmp_path / "framework"
+    item = _persona(fw, "common", "architect", PERSONA_PLAIN)
+    target = _proj(tmp_path)
+    (target / ".ai-badger").mkdir()
+    _test_write(target / ".ai-badger" / "manifest.json", json.dumps({"entries": [
+        {"target": ".github/agents/architect.agent.md"}]}), encoding="utf-8")
+    stale = target / AGENTS_DIR / "architect.agent.md"
+    stale.parent.mkdir(parents=True)
+    _test_write(stale, "stale\n", encoding="utf-8")
+
+    result = adjust_agents.adjust(_context(fw, target, [item]))
+
+    assert "stale" not in stale.read_text(encoding="utf-8")
+    assert ".github/agents/architect.agent.md" in result["files"]
+
+
+# -- tool aliases (L7-8 / D7) ----------------------------------------------------------
+
+def test_persona_map_tools_are_documented_copilot_aliases(load_script):
+    """D7: Copilot's own documented aliases are read, edit, search, execute, agent, web, todo."""
+    adjust_agents = load_script(ADJUSTER)
+    for name, mapping in adjust_agents.PERSONA_MAP.items():
+        assert set(mapping["tools"]) <= adjust_agents.COPILOT_TOOL_ALIASES, name
+
+
+def test_reviewer_and_architect_stay_read_only(load_script):
+    """D7: reviewer and architect keep no edit/execute access."""
+    adjust_agents = load_script(ADJUSTER)
+    for name in ("architect", "code-reviewer"):
+        tools = set(adjust_agents.PERSONA_MAP[name]["tools"])
+        assert "edit" not in tools
+        assert "execute" not in tools
+
+
+def test_test_engineer_gets_edit_and_execute(load_script):
+    """D7: test-engineer is the one persona that gets edit and execute."""
+    adjust_agents = load_script(ADJUSTER)
+    tools = set(adjust_agents.PERSONA_MAP["test-engineer"]["tools"])
+    assert {"edit", "execute"} <= tools
+
+
 def test_the_stack_rule_is_the_scaffolds_own(load_script):
     """`applicable_feature_items` filters by resolved stacks minus exclusions — issue #210."""
     bl = load_script("engine/badger_lib.py")

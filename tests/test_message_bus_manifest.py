@@ -15,7 +15,7 @@ Test map (plan aib-user-db-message-bus §3 P5 · spec rules in parentheses):
                                                   test_the_copilot_close_event_verdict_is_recorded
   F. Unwired-harness safety (Rule 7 sc.2) ...... test_no_unwired_harness_carries_the_delivery_rows
   G. The wired command executes (F9 half) ...... test_the_wired_start_command_injects_history,
-                                                  test_the_wired_close_command_removes_the_cursor
+                                                  test_the_wired_close_command_leaves_the_cursor_for_the_prune
   H. Copy-skew for the wired copy .............. test_the_skill_copy_is_byte_identical_to_the_canonical_hook
 
 Config-assertion vs execution (F9, plan-review finding): tests A–F and H are static config
@@ -468,10 +468,13 @@ def test_the_wired_start_command_injects_history(user_root, tmp_path, monkeypatc
     assert row is not None, "start delivery left no cursor"
 
 
-def test_the_wired_close_command_removes_the_cursor(user_root, tmp_path, monkeypatch):
-    """The wired SessionEnd command is executable cursor cleanup (Rule 6 sc.1 through the
-    wiring): after a start delivery created the cursor, the close firing removes it and
-    answers parseable no-op JSON — the close-event verification record, executed."""
+def test_the_wired_close_command_leaves_the_cursor_for_the_prune(
+        user_root, tmp_path, monkeypatch):
+    """The wired SessionEnd command is a no-op (Rule 6 sc.1 through the wiring, D3):
+    after a start delivery created the cursor, the close firing answers parseable
+    no-op JSON and leaves the cursor row for the 4-day prune — deleting it here let a
+    reused session id (a host's --resume) look like a brand-new session and replay
+    already-delivered mail (L2-6)."""
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir()
     with contextlib.closing(badger_store.open_user()) as store:
@@ -484,7 +487,8 @@ def test_the_wired_close_command_removes_the_cursor(user_root, tmp_path, monkeyp
     with contextlib.closing(badger_store.open_user()) as store:
         row = store.conn.execute(
             "SELECT cursor_id FROM cursors WHERE session_id = ?", ("S-receiver",)).fetchone()
-    assert row is None, "the wired close command left the cursor behind"
+    assert row is not None, \
+        "the wired close command must not remove the cursor — the 4-day prune reaps it (D3)"
 
 
 def test_the_wired_stop_command_delivers_mid_work_mail(user_root, tmp_path, monkeypatch):

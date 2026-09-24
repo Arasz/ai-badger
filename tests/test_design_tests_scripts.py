@@ -8,6 +8,7 @@ the same mechanism `tests/test_test_ruleset_index.py` uses for `rules_index.py`.
 # pylint: disable=redefined-outer-name  # pytest fixtures are injected by name
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -340,6 +341,22 @@ def _git_repo(tmp_path):
     return repo
 
 
+def _sha(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _plant_journal(repo, path, original, mutated=None):
+    """A stale journal written by hand, so these tests do not depend on `write_journal`.
+    `mutated=None` plants the legacy shape, which has no `mutated_sha256`."""
+    payload = {"path": str(path), "original_content": original, "sha256": _sha(original),
+               "written_at": "2026-01-01T00:00:00+00:00"}
+    if mutated is not None:
+        payload["mutated_sha256"] = _sha(mutated)
+    journal = repo / ".design-tests" / "red-proof.journal.json"
+    journal.parent.mkdir(parents=True, exist_ok=True)
+    journal.write_text(json.dumps(payload), encoding="utf-8")
+
+
 def _commit_file(repo, relpath, text):
     p = repo / relpath
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -380,14 +397,15 @@ class TestJournalRoundTrip:
         target = tmp_path / "Foo.cs"
         target.write_text("mutated content", encoding="utf-8")
 
-        rp.write_journal(tmp_path, target, "original content")
+        rp.write_journal(tmp_path, target, "original content", "mutated content")
         journal = rp.read_journal(tmp_path)
 
         assert journal is not None
         assert journal["path"] == str(target.resolve())
         assert journal["original_content"] == "original content"
+        assert journal["mutated_sha256"] == _sha("mutated content")
 
-        rp.restore_from_journal(journal)
+        assert rp.restore_from_journal(tmp_path, journal) is None
         assert target.read_text(encoding="utf-8") == "original content"
 
     def test_no_journal_reads_as_none(self, rp, tmp_path):
@@ -396,7 +414,7 @@ class TestJournalRoundTrip:
     def test_delete_journal_removes_the_file(self, rp, tmp_path):
         target = tmp_path / "Foo.cs"
         target.write_text("x", encoding="utf-8")
-        rp.write_journal(tmp_path, target, "x")
+        rp.write_journal(tmp_path, target, "x", "y")
 
         rp.delete_journal(tmp_path)
 
@@ -479,7 +497,9 @@ class TestJournalWrittenBeforeMutation:
         real_write = rp._write_mutated_file
 
         def spy(path, text):
-            seen["journal_existed"] = rp.read_journal(repo) is not None
+            journal = rp.read_journal(repo)
+            seen["journal_existed"] = journal is not None
+            seen["mutated_sha256"] = (journal or {}).get("mutated_sha256")
             return real_write(path, text)
 
         monkeypatch.setattr(rp, "_write_mutated_file", spy)
@@ -491,6 +511,7 @@ class TestJournalWrittenBeforeMutation:
 
         assert rc == 0
         assert seen.get("journal_existed") is True
+        assert seen.get("mutated_sha256") == _sha("MUTATED\n")
 
 
 class TestMainEndToEnd:
@@ -562,7 +583,7 @@ class TestMainEndToEnd:
         target = _commit_file(repo, "target.txt", "ORIGINAL\n")
         # Simulate a crash mid-proof: the file is mutated and a journal exists, but nothing reverted.
         target.write_text("MUTATED\n", encoding="utf-8")
-        rp.write_journal(repo, target, "ORIGINAL\n")
+        rp.write_journal(repo, target, "ORIGINAL\n", "MUTATED\n")
 
         rc = rp.main([
             "--file", str(target), "--line", "1", "--replace", "ORIGINAL", "--with", "MUTATED",
@@ -580,3 +601,76 @@ class TestMainEndToEnd:
             "--run", self._run_cmd(), "--root", str(repo),
         ])
         assert rc2 == 1  # this mutation does not redden, but it *did* run — the refusal is over
+
+
+class TestStaleJournalRestoreIsChecked:
+    """L9-2: a stale journal is restored only onto a file inside the repo whose current content
+    is the recorded mutation or the original; anything else exits 3 and writes nothing."""
+
+    def _main(self, rp, repo, target):
+        return rp.main([
+            "--file", str(target), "--line", "1", "--replace", "ORIGINAL", "--with", "MUTATED",
+            "--run", f'{sys.executable} -c "pass"', "--root", str(repo),
+        ])
+
+    def test_a_journal_pointing_outside_the_repo_writes_nothing(self, rp, tmp_path, capsys):
+        repo = _git_repo(tmp_path)
+        target = _commit_file(repo, "target.txt", "ORIGINAL\n")
+        outside = tmp_path / "outside.txt"
+        outside.write_text("MUTATED\n", encoding="utf-8")
+        _plant_journal(repo, outside, "ORIGINAL\n", mutated="MUTATED\n")
+
+        rc = self._main(rp, repo, target)
+
+        assert rc == 3
+        assert outside.read_text(encoding="utf-8") == "MUTATED\n"
+        assert "RESTORED" not in capsys.readouterr().out
+
+    def test_a_target_edited_after_the_mutation_is_not_overwritten(self, rp, tmp_path, capsys):
+        repo = _git_repo(tmp_path)
+        target = _commit_file(repo, "target.txt", "ORIGINAL\n")
+        target.write_text("MUTATED\nwork done since the crash\n", encoding="utf-8")
+        _plant_journal(repo, target, "ORIGINAL\n", mutated="MUTATED\n")
+
+        rc = self._main(rp, repo, target)
+
+        assert rc == 3
+        assert target.read_text(encoding="utf-8") == "MUTATED\nwork done since the crash\n"
+        assert "RESTORED" not in capsys.readouterr().out
+
+    def test_a_target_still_holding_the_mutation_is_restored(self, rp, tmp_path, capsys):
+        repo = _git_repo(tmp_path)
+        target = _commit_file(repo, "target.txt", "ORIGINAL\n")
+        target.write_text("MUTATED\n", encoding="utf-8")
+        _plant_journal(repo, target, "ORIGINAL\n", mutated="MUTATED\n")
+
+        rc = self._main(rp, repo, target)
+
+        assert rc == 3
+        assert target.read_text(encoding="utf-8") == "ORIGINAL\n"
+        assert "RESTORED" in capsys.readouterr().out
+
+    def test_a_target_already_back_at_the_original_counts_as_restored(self, rp, tmp_path, capsys):
+        repo = _git_repo(tmp_path)
+        target = _commit_file(repo, "target.txt", "ORIGINAL\n")
+        _plant_journal(repo, target, "ORIGINAL\n", mutated="MUTATED\n")
+
+        rc = self._main(rp, repo, target)
+
+        assert rc == 3
+        assert target.read_text(encoding="utf-8") == "ORIGINAL\n"
+        assert "RESTORED" in capsys.readouterr().out
+
+    def test_a_legacy_journal_without_the_mutated_hash_is_refused(self, rp, tmp_path, capsys):
+        repo = _git_repo(tmp_path)
+        target = _commit_file(repo, "target.txt", "ORIGINAL\n")
+        target.write_text("MUTATED\n", encoding="utf-8")
+        _plant_journal(repo, target, "ORIGINAL\n")
+
+        rc = self._main(rp, repo, target)
+
+        out = capsys.readouterr().out
+        assert rc == 3
+        assert target.read_text(encoding="utf-8") == "MUTATED\n"
+        assert "RESTORED" not in out
+        assert "mutated_sha256" in out
