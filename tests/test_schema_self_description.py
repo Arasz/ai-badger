@@ -6,20 +6,10 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
+from badger_lib import is_vendored_packet as _vendored_packet
 
 ROOT = Path(__file__).resolve().parents[1]
 SEARCH_ROOTS = ("schemas", "features")
-
-
-def _vendored_packet(path: Path) -> bool:
-    """True when a `vendor.json` in this path's ancestry marks a vendored packet (ADR-0030).
-
-    A vendored packet's schemas are the upstream vendor's contract, shipped byte-identical;
-    editing them to satisfy an ai-badger convention would break the provenance gate. The
-    predicate is the packet marker, not a hardcoded skill name, so the next vendored skill is
-    covered without touching this test.
-    """
-    return any((parent / "vendor.json").is_file() for parent in path.parents)
 
 
 def _is_json_schema(document: object) -> bool:

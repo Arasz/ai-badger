@@ -144,6 +144,39 @@ def test_l2_rule_is_placed_at_its_parents_pass_in_the_review_walk(rules_index, r
     assert "T2-WID-01" in pass1
 
 
+def test_child_with_a_higher_order_still_renders_directly_under_its_true_parent(
+        rules_index, root, tmp_path):
+    """L9-5: render_walk_review sorted every rule in a pass by (order, id) alone, with no regard
+    for parentage, so a child whose own `order:` numeric value fell after a *sibling* L1 rule
+    rendered under that sibling instead of under its real parent — wrong for 21/78 children in
+    the real ruleset. Insert a second, unrelated L1 rule between the parent (order=1) and the
+    child (bumped to order=3) by `order:` value; a correct topological render still nests the
+    child directly under T1-AAA-01, before the unrelated sibling."""
+    fixture = _copy_fixture(root, tmp_path, "reorder")
+    universal = fixture / "references" / "universal.md"
+    universal.write_text(universal.read_text(encoding="utf-8") + (
+        "\n**`T1-BBB-01` — A second, unrelated pass-1 rule.**\n"
+        "- *design:* n/a.\n"
+        "- *review:* n/a.\n"
+        "- *check:* auto — n/a.\n"
+        "- **severity:** major · **evidence:** strong · **flag:** auto\n"
+        "- *meta:* pass=1 order=2 phase=6\n"
+    ), encoding="utf-8")
+    kind_widget = fixture / "references" / "kind-widget.md"
+    kind_widget.write_text(
+        kind_widget.read_text(encoding="utf-8").replace("order=2", "order=3"),
+        encoding="utf-8")
+
+    _run(rules_index, fixture)
+    text = (fixture / "references" / "walk-review.md").read_text(encoding="utf-8")
+    pass1 = text.split("## Pass 1", 1)[1].split("## Pass", 1)[0]
+
+    parent_pos = pass1.index("T1-AAA-01")
+    child_pos = pass1.index("T2-WID-01")
+    sibling_pos = pass1.index("T1-BBB-01")
+    assert parent_pos < child_pos < sibling_pos, pass1
+
+
 def test_design_walk_omits_review_only_phase_rules(rules_index, root, tmp_path):
     fixture = _copy_fixture(root, tmp_path)
     _run(rules_index, fixture)

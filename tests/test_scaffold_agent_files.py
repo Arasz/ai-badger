@@ -26,6 +26,20 @@ def test_scaffold_preserves_hand_authored_claude_md_by_default(make_scaffolder):
     assert any("preserved hand-authored" in n for n in result["notes"])
 
 
+def test_a_preserved_hand_authored_primary_target_is_not_recorded_in_the_manifest(
+        make_scaffolder):
+    """L3-6: recording the target before deciding whether to write it means the manifest
+    claims a hand-authored CLAUDE.md as generated, and the edit-time guard then refuses the
+    project's own edits to its own file."""
+    target = make_scaffolder.target
+    _test_write(target / "CLAUDE.md", "# My Curated Guidance\n", encoding="utf-8")
+
+    result = make_scaffolder().run(generated_at="2026-07-19T00:00:00Z")
+
+    entries = result["manifest"]["entries"]
+    assert not any(e["target"] == "CLAUDE.md" for e in entries), entries
+
+
 def test_scaffold_overwrite_replaces_hand_authored_claude_md(make_scaffolder):
     target = make_scaffolder.target
     _test_write(target / "CLAUDE.md", "# My Curated Guidance\n", encoding="utf-8")

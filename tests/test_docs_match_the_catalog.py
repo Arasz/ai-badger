@@ -41,6 +41,31 @@ STACK_LOCAL_SKILL_DIRS = {"claude": "claude-only"}
 
 SCRIPT_DIRS = ("engine", "tooling", "gates")
 
+# L10-4: `docs/framework-architecture.md` and `README.md` each carried a hand-written skill
+# inventory (a total, a `default`/`optIn` split, and a member list) that drifted from the
+# catalog after c8da0f0 and f9c6f28 (ADR-0028/0029) — "Thirty-six skills ... The fourteen with
+# `scope: default` ... The other twenty-two are `optIn`" and its README/mermaid echoes. Unlike
+# `docs/skills.md`, these two pages get no derived-count check: they must instead carry no
+# hand-written count at all, digit or spelled out, so there is nothing left to drift.
+HAND_WRITTEN_SKILL_COUNT_RE = re.compile(r"\b\d+ (skills|default|optIn)\b")
+
+_NUMBER_WORD = (
+    r"(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|"
+    r"fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty)(?:-(?:one|two|three|"
+    r"four|five|six|seven|eight|nine))?"
+)
+SPELLED_OUT_SKILL_COUNT_RE = re.compile(rf"\b{_NUMBER_WORD}\b\s+skills\b", re.IGNORECASE)
+
+NO_HAND_COUNT_DOCS = ("docs/framework-architecture.md", "README.md")
+
+
+def _unescape_mermaid_breaks(text: str) -> str:
+    """A mermaid node label spells its line break as a literal ``\\n``, not a real newline
+    (`SKILLSDIR["...skills/\\n14 default: ..."]`). Left alone, the digit run out of it
+    (`skills/\\n14`) sits right after the escape's `n`, which is a word character too, so
+    `\\b\\d+` never gets a boundary to match at. Unescaping to a space first restores it."""
+    return text.replace("\\n", " ")
+
 
 def _badger_lib(root: Path):
     """`skill_scope_in` reads the routing source of truth: the skill itself (ADR-0018)."""
@@ -178,8 +203,41 @@ class TestScriptsDocCoversTheScripts:
         assert not missing, f"docs/scripts.md omits {directory}/: {', '.join(missing)}"
 
 
+class TestNoHandWrittenSkillCounts:
+    """`docs/framework-architecture.md` and `README.md` (including its mermaid diagram) name no
+    skill count of their own, digit or spelled out: `docs/skills.md` is the one page that counts,
+    and it derives its numbers (see `TestSkillsDocCountsAreDerived` above)."""
+
+    @pytest.mark.parametrize("relpath", NO_HAND_COUNT_DOCS)
+    def test_no_digit_skill_count(self, root, relpath):
+        text = _unescape_mermaid_breaks((root / relpath).read_text(encoding="utf-8"))
+        found = HAND_WRITTEN_SKILL_COUNT_RE.findall(text)
+
+        assert not found, f"{relpath} states a hand-written skill count: {found}"
+
+    @pytest.mark.parametrize("relpath", NO_HAND_COUNT_DOCS)
+    def test_no_spelled_out_skill_count(self, root, relpath):
+        text = _unescape_mermaid_breaks((root / relpath).read_text(encoding="utf-8"))
+        found = SPELLED_OUT_SKILL_COUNT_RE.findall(text)
+
+        assert not found, f"{relpath} states a spelled-out skill count: {found}"
+
+
 class TestTheseChecksCouldFail:
     """Each assertion above must go red on a broken document, or it proves nothing."""
+
+    def test_the_digit_pattern_catches_the_regression(self):
+        mermaid_node = _unescape_mermaid_breaks(
+            r'SKILLSDIR["features/common/skills/\n14 default: welcome'
+            r'\n22 optIn (scope: optIn in each SKILL.md)"]'
+        )
+
+        assert HAND_WRITTEN_SKILL_COUNT_RE.search("36 skills live under `features/common/skills/`.")
+        assert HAND_WRITTEN_SKILL_COUNT_RE.findall(mermaid_node) == ["default", "optIn"]
+
+    def test_the_spelled_out_pattern_catches_the_regression(self):
+        assert SPELLED_OUT_SKILL_COUNT_RE.search(
+            "Thirty-six skills live under `features/common/skills/`.")
 
     def test_a_deleted_row_is_caught(self):
         catalog = {"task", "den-refresh"}

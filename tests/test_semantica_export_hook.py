@@ -211,6 +211,14 @@ def test_session_export_target_sanitizes_id(tmp_path):
         # through, so a failed export was saved to .semantica/ as if it were a graph.
         ('{"content": [{"type": "text", "text": "{\\"error\\": \\"boom\\"}"}]}', None),
         ({"content": [{"type": "text", "text": '{"error": "boom"}'}]}, None),
+        # L9-6: a successful export in the standard MCP CallToolResult envelope
+        # ({"content": [{"type": "text", "text": <graph json>}]}) was never recognised
+        # either, so a real export was silently never saved.
+        ('{"content": [{"type": "text", "text": "{\\"nodes\\": []}"}]}', {"nodes": []}),
+        ({"content": [{"type": "text", "text": '{"nodes": []}'}]}, {"nodes": []}),
+        # A bare list of content blocks -- no wrapping {"content": ...} dict at all.
+        ([{"type": "text", "text": '{"nodes": []}'}], {"nodes": []}),
+        ('[{"type": "text", "text": "{\\"nodes\\": []}"}]', {"nodes": []}),
     ],
 )
 def test_extract_graph_json(result, expected):

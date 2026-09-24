@@ -19,7 +19,11 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.176.1 | [the Hermes plugin's two counters stop losing updates](0.176.1-hermes-atomic-updates.md) |
+| 0.177.2 | [the Hermes plugin's two counters stop losing updates](0.177.2-hermes-atomic-updates.md) |
+| 0.177.1 | [five skill-script correctness fixes, and MCP content-block shapes for two hooks](0.177.1-skill-script-correctness-fixes.md) |
+| 0.177.0 | [welcome-ai-badger scaffold writes that do not clobber](0.177.0-welcome-scaffold-writes-that-do-not-clobber.md) |
+| 0.176.2 | [no second skill inventory to drift](0.176.2-skill-inventory-drift.md) |
+| 0.176.1 | [candidate stacks are tracked-and-present; archify exemptions need a vendor marker](0.176.1-candidate-stacks-and-archify-exemption.md) |
 | 0.176.0 | [test-run economy: real persistence, real classification, counted failures](0.176.0-test-run-economy-fixes-and-failure-arm.md) |
 | 0.175.5 | [mcp-index: reappeared tools, honest folding, honest counts, honest errors](0.175.5-mcp-index-tools-that-come-back.md) |
 | 0.175.4 | [lint lane closes three blind spots](0.175.4-lint-lane-closes-three-blind-spots.md) |
