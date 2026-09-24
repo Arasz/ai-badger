@@ -190,7 +190,7 @@ def _copies():
     listed = subprocess.run(
         ["git", "ls-files", "--cached", "--others", "--exclude-standard", "--",
          "*shell_parser.py"], cwd=ROOT, capture_output=True, text=True, check=True).stdout
-    return sorted(set(listed.split()))
+    return sorted({path for path in listed.split() if path.rsplit("/", 1)[-1] == "shell_parser.py"})
 
 
 def test_every_copy_is_byte_identical():
@@ -206,11 +206,10 @@ def test_every_copy_is_byte_identical():
 
 
 def test_every_module_that_loads_the_parser_has_a_copy_beside_it():
-    """Derived from the sources: a guard that loads `shell_parser.py` with no copy beside it
-    has no lexer in the shape it ships in."""
+    """Derived from the sources: a module that loads `<its dir> / "shell_parser.py"` with no
+    copy beside it has no lexer in the shape it ships in."""
     loaders = [path for path in ROOT.glob("features/**/*.py")
-               if path.name != "shell_parser.py"
-               and re.search(r"[\"']shell_parser\.py[\"']", path.read_text(encoding="utf-8"))]
+               if re.search(r"/\s*[\"']shell_parser\.py[\"']", path.read_text(encoding="utf-8"))]
     assert len(loaders) >= 3, loaders
 
     missing = [str(p.relative_to(ROOT)) for p in loaders

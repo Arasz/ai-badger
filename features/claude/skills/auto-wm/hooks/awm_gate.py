@@ -30,10 +30,10 @@ back to that file, and with no readable source the hook stays out of the way ent
 # Ported verbatim from the originating job-search-ai-assistant repo's auto-wm skill: kept in
 # lockstep with that source rather than churned for local docstring/style rules. The broad
 # except below is intentional — a broken hook must never break the session's permission flow.
+import importlib.util
 import json
 import os
 import re
-import shlex
 import sys
 import traceback
 from datetime import datetime, timezone
@@ -50,6 +50,19 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 import badger_store  # pylint: disable=wrong-import-position  # noqa: E402
+
+
+def _load_shell_parser():
+    """The shell_parser.py copy beside this hook. Missing, the hook fails before approving
+    anything, so every call gets the normal permission prompt."""
+    spec = importlib.util.spec_from_file_location(
+        "shell_parser", Path(__file__).resolve().parent / "shell_parser.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+shell_parser = _load_shell_parser()
 
 
 def open_store():
@@ -118,12 +131,6 @@ GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace",
 GIT_PUSH_REWRITES = {"--delete", "--mirror", "--prune"}
 NETWORK_CLIENTS = {"curl", "wget", "nc", "ncat", "netcat", "socat", "telnet", "ftp", "sftp",
                    "scp", "ssh"}
-SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "eval"}
-# Words that run the word after them: skipped, with their options, to find the real command.
-WRAPPERS = {"env", "command", "builtin", "exec", "nohup", "time", "nice", "timeout", "stdbuf",
-            "xargs", "sudo", "doas"}
-WRAPPER_ARG_RE = re.compile(r"^(-.*|\w+=.*|\d+(\.\d+)?[smhd]?)$")
-ASSIGNMENT_RE = re.compile(r"^[A-Za-z_]\w*=")
 PYTHON_RE = re.compile(r"^python[\d.]*$")
 # awm.py subcommands that change no away-mode state; the away-mode denial asks for `decision`.
 AWM_READ_ONLY = {"status", "decision"}
@@ -138,67 +145,14 @@ UNRESOLVABLE_ARG_HEADS = {
 }
 EXPANSION_RE = re.compile(r"[$`]")
 
-SHELL_OPERATORS = "();<>|&\n"
-REDIRECTS = {"<", ">", ">>", ">|", "&>", "&>>", ">&", "<&", "<>", "<<", "<<<"}
-QUOTED_OPERATOR_RE = re.compile(r"""(["'])[();<>|&\n]+\1""")
-SUBSTITUTION_RE = re.compile(r"\$\(|`|<\(|>\(")
-
-
-def split_commands(command):
-    """Split shell text into simple commands: lists of unquoted words, operators dropped.
-
-    Redirection operators stay as words so their targets can be judged. Text shlex cannot
-    parse is split quote-blind instead, so a stray quote never hides a word.
-    """
-    try:
-        lexer = shlex.shlex(command, posix=True, punctuation_chars=SHELL_OPERATORS)
-        lexer.whitespace_split = True
-        lexer.whitespace = " \t\r"
-        lexer.commenters = ""
-        tokens = list(lexer)
-    except ValueError:
-        tokens = re.findall(r"[();<>|&\n]+|[^\s();<>|&]+", command)
-    commands, words = [], []
-    for token in tokens:
-        if token in REDIRECTS or not token or token.strip(SHELL_OPERATORS):
-            words.append(token)
-        elif words:
-            commands.append(words)
-            words = []
-    if words:
-        commands.append(words)
-    return commands
-
 
 def _name(word):
     return Path(word.strip("`")).name
 
 
-def command_head(words):
-    """Index of the word a simple command runs, past assignments and wrappers, or None."""
-    i = 0
-    while i < len(words) and ASSIGNMENT_RE.match(words[i]):
-        i += 1
-    while i < len(words) and _name(words[i]) in WRAPPERS:
-        i += 1
-        while i < len(words) and WRAPPER_ARG_RE.match(words[i]):
-            i += 1
-    return i if i < len(words) else None
-
-
-def short_flags(args):
-    """The letters of every single-dash option cluster in *args*, up to `--`."""
-    letters = []
-    for arg in args:
-        if arg == "--":
-            break
-        if arg.startswith("-") and not arg.startswith("--"):
-            letters.append(arg[1:])
-    return "".join(letters)
-
-
 def rm_is_destructive(args):
-    return bool(set(short_flags(args).lower()) & set("rf") or RM_LONG_FLAGS.intersection(args))
+    flags = shell_parser.short_flags(args)
+    return bool(set(flags.lower()) & set("rf") or RM_LONG_FLAGS.intersection(args))
 
 
 def git_is_destructive(args):
@@ -209,7 +163,7 @@ def git_is_destructive(args):
     if i >= len(args):
         return False
     subcommand, rest = args[i], args[i + 1:]
-    flags = short_flags(rest)
+    flags = shell_parser.short_flags(rest)
     if subcommand == "push":
         refspecs = [a for a in rest if not a.startswith("-")]
         return bool(set(flags) & set("fd")
@@ -260,12 +214,11 @@ def writes_outside(target, project, cwd):
     return not within(project, Path(cwd or project, path))
 
 
-def command_reason(words, project, cwd):
-    """Why one simple command may never be auto-approved, or None."""
-    head = command_head(words)
-    if head is not None:
-        name, args = _name(words[head]), words[head + 1:]
-        if EXPANSION_RE.search(words[head]):
+def command_reason(command, project, cwd):
+    """Why one simple command (a shell_parser.Command) may never be auto-approved, or None."""
+    if command.argv:
+        head, name, args = command.argv[0], command.program, list(command.args)
+        if EXPANSION_RE.search(head):
             return "destructive_command"  # `$V` runs whatever V holds
         if name in NETWORK_CLIENTS:
             return "network_egress"
@@ -274,48 +227,35 @@ def command_reason(words, project, cwd):
             return "destructive_command"
         if runs_awm(name, args):
             return "awm_state_change"
+    words = list(command.words)
     for i, word in enumerate(words):
-        check, rest = DESTRUCTIVE_VERBS.get(_name(word)), words[i + 1:]
-        if check and check(rest):
+        check = DESTRUCTIVE_VERBS.get(_name(word))
+        if check and check(words[i + 1:]):
             return "destructive_command"
-        if word in REDIRECTS and ">" in word and rest and writes_outside(rest[0], project, cwd):
+    for op, target in command.redirects:
+        if ">" in op and writes_outside(target, project, cwd):
             return "write_outside_project"
     return None
-
-
-def shell_script(args):
-    """The script a shell or eval runs: the word after a `-c` cluster, else its operands."""
-    for i, arg in enumerate(args[:-1]):
-        if arg.startswith("-") and not arg.startswith("--") and "c" in arg:
-            return args[i + 1]
-    return " ".join(a for a in args if not a.startswith("-"))
 
 
 def shell_reason(command, project, cwd):
     """Fixed-vocabulary reason a shell command may never be auto-approved, or None.
 
-    Quoted text that still runs is scanned too: everything after `$(`, a backtick, `<(` or
-    `>(`, and the script a shell or eval is handed.
+    Every simple command it runs is judged, nested ones included: `$(...)`, backticks, `<(`,
+    `>(` and the script a shell or `eval` is handed. Text that does not lex is split
+    quote-blind, so a stray quote never hides a word.
     """
     if any(marker in command for marker in AWM_STATE_MARKERS):
         return "awm_state_change"
     if any(pattern.search(command) for pattern in DENIED_COMMAND_PATTERNS):
         return "destructive_command"
-    pending = [command] + [command[m.end():] for m in SUBSTITUTION_RE.finditer(command)]
-    while pending:
-        text = pending.pop()
-        commands = split_commands(text)
-        if QUOTED_OPERATOR_RE.search(text):  # `rm ";" -rf x` must not split rm from -rf
-            commands.append([word for words in commands for word in words])
-        for words in commands:
-            if any(pattern.search(" ".join(words)) for pattern in DENIED_COMMAND_PATTERNS):
-                return "destructive_command"
-            reason = command_reason(words, project, cwd)
-            if reason:
-                return reason
-            head = command_head(words)
-            if head is not None and _name(words[head]) in SHELLS:
-                pending.append(shell_script(words[head + 1:]))
+    for simple in shell_parser.parse(command, blind=True):
+        text = " ".join([*simple.words, *(f"{op} {target}" for op, target in simple.redirects)])
+        if any(pattern.search(text) for pattern in DENIED_COMMAND_PATTERNS):
+            return "destructive_command"
+        reason = command_reason(simple, project, cwd)
+        if reason:
+            return reason
     return None
 
 

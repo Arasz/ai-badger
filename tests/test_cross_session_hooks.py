@@ -38,10 +38,10 @@ def _run_gate(scripts_dir: Path) -> subprocess.CompletedProcess:
 
 @pytest.fixture
 def scripts_copy(root, tmp_path) -> Path:
-    """The three scripts on their own, so a mutation never touches the checkout."""
+    """The scripts on their own, so a mutation never touches the checkout."""
     out = tmp_path / "scripts"
     out.mkdir()
-    for name in ("badger_store.py", "blast_radius_kill_guard.py",
+    for name in ("badger_store.py", "blast_radius_kill_guard.py", "shell_parser.py",
                  "cross_worktree_dirty_warning.py", "verify_hooks.py"):
         shutil.copy(root / SCRIPTS / name, out / name)
     return out
@@ -56,7 +56,7 @@ def test_the_probe_gate_passes_on_the_shipped_hooks(root):
 
 def test_the_gate_goes_red_when_the_shell_recursion_is_narrowed(scripts_copy):
     """The defect the gate exists to catch: `bash -lc '<hazard>'` reads as an ordinary bash."""
-    guard = scripts_copy / "blast_radius_kill_guard.py"
+    guard = scripts_copy / "shell_parser.py"  # the guard reads commands through it
     text = guard.read_text(encoding="utf-8")
     assert LEXER in text, "the lexer this mutation removes is no longer spelled that way"
     _test_write(guard, text.replace(LEXER, NARROWED), encoding="utf-8")
