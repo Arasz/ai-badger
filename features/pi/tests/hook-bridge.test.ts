@@ -453,8 +453,10 @@ describe("hook stdout maps onto a gate decision", () => {
   });
 
   test("valid JSON carrying no decision is an allow, not an error", () => {
+    expect(parseHookStdout(JSON.stringify({ continue: true }))).toEqual({ decision: "allow" });
     expect(parseHookStdout(JSON.stringify({ systemMessage: "hook skipped" }))).toEqual({
       decision: "allow",
+      systemMessage: "hook skipped",
     });
   });
 
