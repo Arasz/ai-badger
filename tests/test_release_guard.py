@@ -455,6 +455,59 @@ def test_fails_when_version_equals_an_older_released_tag(tmp_path, load_script):
     assert release_guard.main(["--root", str(repo)]) == 1
 
 
+# ── shipped roots gain hooks/, .claude-plugin/ and BREAKING_VERSIONS (L8-3, R43) ─────────
+
+
+def test_hooks_json_change_with_no_bump_fails(tmp_path, load_script, capsys):
+    """`hooks/hooks.json` and `.claude-plugin/` load from the plugin root; they were absent
+    from the shipped-surface list, so a hook change could ship with no version bump."""
+    release_guard = load_script("gates/release_guard.py")
+    repo = _init_repo(tmp_path)
+    _test_write(repo / "VERSION", "0.1.0\n", encoding="utf-8")
+    (repo / "hooks").mkdir()
+    _test_write(repo / "hooks" / "hooks.json", "{}\n", encoding="utf-8")
+    _commit_all(repo, "release 0.1.0")
+    _tag(repo, "ai-badger--v0.1.0")
+
+    _test_write(repo / "hooks" / "hooks.json", '{"changed": true}\n', encoding="utf-8")
+    _commit_all(repo, "tweak a hook, forgot to bump")
+
+    rc = release_guard.main(["--root", str(repo)])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "hooks/hooks.json" in out
+
+
+def test_claude_plugin_change_with_no_bump_fails(tmp_path, load_script, capsys):
+    release_guard = load_script("gates/release_guard.py")
+    repo = _init_repo(tmp_path)
+    _test_write(repo / "VERSION", "0.1.0\n", encoding="utf-8")
+    (repo / ".claude-plugin").mkdir()
+    _test_write(repo / ".claude-plugin" / "plugin.json", '{"version": "0.1.0"}\n',
+                encoding="utf-8")
+    _commit_all(repo, "release 0.1.0")
+    _tag(repo, "ai-badger--v0.1.0")
+
+    _test_write(repo / ".claude-plugin" / "plugin.json", '{"version": "0.2.0"}\n',
+                encoding="utf-8")
+    _commit_all(repo, "bump plugin.json only, forgot VERSION")
+
+    rc = release_guard.main(["--root", str(repo)])
+
+    assert rc == 1
+
+
+def test_release_guard_reads_shipped_paths_from_tooling_release_paths(tmp_path, load_script):
+    release_guard = load_script("gates/release_guard.py")
+    release_paths = load_script("tooling/release_paths.py")
+
+    assert release_guard.SHIPPED_PATHS == release_paths.SHIPPED_PATHS
+    assert "hooks" in release_guard.SHIPPED_PATHS
+    assert ".claude-plugin" in release_guard.SHIPPED_PATHS
+    assert "BREAKING_VERSIONS" in release_guard.SHIPPED_PATHS
+
+
 def test_a_tagged_repo_with_no_version_file_fails_with_a_message_not_a_traceback(
     tmp_path, load_script, capsys,
 ):

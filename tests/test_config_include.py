@@ -3,10 +3,11 @@
 The enforcement point is `Scaffolder.__init__`, the same one `config.exclude` uses, so
 `welcome-ai-badger` and `den-refresh` cannot disagree about what a project asked for.
 
-Since 0.169.0 the catalog ships no `optIn` skill (ADR-0028), so the tests that exercise the
-end-to-end path take the `simulated_opt_in` fixture: it makes `documentation` optIn again in
-the entry points' `badger_lib`, which is how the mechanism is kept covered until a future
-skill needs it.
+0.169.0 moved the catalog to `scope: default` (ADR-0028). Since 0.170.0 the sqlite pair
+(`sqlite-bank-space-diagnosis`, `sqlite-schema-review`) are the catalog's real `optIn` skills
+(ADR-0029). The tests that exercise the end-to-end path still take the `simulated_opt_in`
+fixture rather than either sqlite skill: it makes `documentation` optIn again in the entry
+points' `badger_lib`, so this coverage does not depend on what the sqlite pair happens to ship.
 """
 from __future__ import annotations
 

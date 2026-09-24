@@ -389,6 +389,18 @@
       }
     },
     {
+      "name": "grounded-feedback-failure",
+      "description": "Capture Bash failure output on Claude's PostToolUseFailure and inject it as grounded feedback evidence for the next correction turn — Claude's PostToolUse never fires for a failed tool call, unlike hermes/copilot's post-tool hooks, which already reach it via the grounded-feedback entry above",
+      "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "PostToolUseFailure",
+          "script": "grounded_feedback_hook.py"
+        }
+      }
+    },
+    {
       "name": "git-internals-guard",
       "description": "Refuse any hand-modification of a git dir - .git/config, HEAD, refs, the worktree pointer file, and the global git config - so the config is only ever written transactionally by git itself",
       "agents": {

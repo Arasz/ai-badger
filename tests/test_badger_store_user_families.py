@@ -88,8 +88,8 @@ def test_user_families_registry_pins_tables_and_legacy_paths():
         "awm_state", "awm_decisions", "commit_reminder", "commit_reminder_pending",
         "pending_feedback", "searches",
         "memory_first", "semantica_nudge", "dispatch_lanes", "dirty_sweeps",
-        "blast_radius_denials", "hook_audit", "hook_state",
-        "messages", "cursors",
+        "blast_radius_denials",
+        "messages", "cursors", "test_economy",
     }
     assert {name: family.table for name, family in families.items()} == {
         "awm_state": "awm_state",
@@ -103,16 +103,15 @@ def test_user_families_registry_pins_tables_and_legacy_paths():
         "dispatch_lanes": "dispatch_lanes",
         "dirty_sweeps": "dirty_sweeps",
         "blast_radius_denials": "blast_radius_denials",
-        "hook_audit": "hook_audit",
-        "hook_state": "hook_state",
         "messages": "messages",
         "cursors": "cursors",
+        "test_economy": "test_economy",
     }
     for family in families.values():
         assert family.db == "user"
-    # The bus families (P1, D2) are born in SQLite: no legacy source anywhere — no
-    # legacy_path callable and no import kind. The DDL arrives via UPGRADE_HOOKS[1].
-    for name in ("messages", "cursors"):
+    # The bus families (P1, D2) and test_economy are born in SQLite: no legacy source
+    # anywhere — no legacy_path callable and no import kind.
+    for name in ("messages", "cursors", "test_economy"):
         assert families[name].legacy_path is None, name
         assert families[name].legacy_kind == "store", name
     home = REAL_HOME
@@ -147,6 +146,22 @@ def test_user_family_legacy_paths_follow_user_root_env(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 # 2. DDL shape + accessor behavior
 # ---------------------------------------------------------------------------
+
+
+def test_default_open_user_round_trips_a_test_economy_row(tmp_path, monkeypatch):
+    """test_economy is born in SQLite: the default open_user() store holds its table, so a
+    kv_set/kv_get round trip works — and the table lands through _DDL, never through a
+    SCHEMA_VERSION bump that would fail older copies closed on the machine-wide DB."""
+    _user_env(tmp_path, monkeypatch)
+    store = badger_store.open_user()
+    try:
+        store.kv_set("test_economy", "/repo", {"full": 2, "sessions": {}})
+        assert store.kv_get("test_economy", "/repo") == {"full": 2, "sessions": {}}
+        stamped = store.conn.execute(
+            "SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0]
+        assert stamped == "2" == str(badger_store.SCHEMA_VERSION)
+    finally:
+        store.close()
 
 
 def test_open_user_creates_all_five_family_tables(tmp_path, monkeypatch):
