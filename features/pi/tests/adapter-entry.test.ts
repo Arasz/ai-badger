@@ -311,6 +311,21 @@ describe("a hook spawn is bounded: the whole process group dies on timeout or ab
 
     expect(outcome).toEqual({ kind: "decision", decision: "deny", reason: "x".repeat(262144) });
   }, 10_000);
+
+  test("output a descendant writes after the shell exits is still read: settle on close, not exit", async () => {
+    // Bun reports `exit` only after a direct child's buffered output, so the plain 256 KiB
+    // case cannot tell the two apart; a writer that outlives the shell can.
+    const script = join(dir, "late.py");
+    writeFileSync(
+      script,
+      "import json, time\ntime.sleep(0.3)\nprint(json.dumps({'hookSpecificOutput': " +
+        "{'permissionDecision': 'deny', 'permissionDecisionReason': 'x' * 262144}}))\n",
+    );
+
+    const outcome = await entry.runGate(`python3 ${script} & exit 0`, {}, { cwd: dir });
+
+    expect(outcome).toEqual({ kind: "decision", decision: "deny", reason: "x".repeat(262144) });
+  }, 10_000);
 });
 
 describe("post-hook additionalContext is persisted, not a one-request copy", () => {
