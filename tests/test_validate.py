@@ -10,6 +10,7 @@ def _copy_real_schemas(tmp_path, root):
     (tmp_path / "features").mkdir()
     shutil.copytree(root / "schemas", tmp_path / "schemas")
     _write_hooks_manifest(tmp_path)
+    _write_default_skill(tmp_path)
     return tmp_path
 
 
@@ -23,6 +24,32 @@ def _write_hooks_manifest(tmp_path):
                     "script": "demo_hook.py"}
             for agent in ("claude", "hermes", "copilot")}},
     ]}), encoding="utf-8")
+    return d
+
+
+def _write_default_skill(tmp_path):
+    """A lint-clean SKILL.md: since P15 a tree with no SKILL.md at all fails --all."""
+    d = tmp_path / "features" / "common" / "skills" / "demo-skill"
+    d.mkdir(parents=True, exist_ok=True)
+    _test_write(d / "SKILL.md", (
+        "---\n"
+        "name: demo-skill\n"
+        "description: >-\n"
+        "  Use when a validate.py --all fixture needs a lint-clean skill in place.\n"
+        "version: 1.0.0\n"
+        "author: ai-badger\n"
+        "license: MIT\n"
+        "platforms: [linux, macos, windows]\n"
+        "scope: default\n"
+        "metadata:\n"
+        "  hermes:\n"
+        "    tags: [meta]\n"
+        "    related_skills: []\n"
+        "---\n"
+        "# Demo skill\n\n"
+        "## Gotchas\n\n"
+        "No environment-specific gotchas known.\n"
+    ), encoding="utf-8")
     return d
 
 
