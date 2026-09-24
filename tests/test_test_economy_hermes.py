@@ -8,6 +8,7 @@ the very next turn, then clears it — the same channel the commit reminder uses
 from __future__ import annotations
 
 import sys
+import threading
 import types
 from pathlib import Path
 
@@ -56,6 +57,18 @@ def fake_test_economy(hooks, monkeypatch, load_script):
                  "MAX_FULL", "ESCALATE_AT"):
         if hasattr(real, name):
             setattr(module, name, getattr(real, name))
+
+    def update_entry(root, session, is_full, now="", max_full=None, escalate_at=None):
+        # Same read-advance-write shape update_entry's real `kv_update` transaction
+        # collapses into one atomic round trip; the in-memory store here has no
+        # concurrent callers to race, so the two-step version is an equivalent fake.
+        fires, escalated, updated = module.advance_session(  # pylint: disable=no-member
+            get_entry(root), session, is_full, now=now, max_full=max_full,
+            escalate_at=escalate_at)
+        set_entry(root, updated)
+        return fires, escalated, updated
+
+    module.update_entry = update_entry
     monkeypatch.setitem(sys.modules, hooks.TEST_ECONOMY_MODULE_NAME, module)
     return module
 
@@ -122,3 +135,62 @@ def test_a_missing_sibling_module_fails_open(
                              result="ok", duration_ms=10, cwd=str(tmp_path))
 
     assert hooks._load_pending_reminders() == {}
+
+
+# --------------------------------------------------- lost update (P21, L4-8, R24)
+
+
+class TestConcurrentInvocationsDoNotLoseAnUpdate:
+    """Two plugin invocations race the read-write gap of the hook's own get_entry/
+    advance_session/set_entry sequence. The fix routes the update through the sibling's
+    own atomic `suite_economy.update_entry` (one `kv_update` transaction), so a
+    concurrent invocation blocks on the write lock instead of computing from the same
+    stale entry."""
+
+    def test_two_concurrent_full_runs_on_the_same_project_both_survive(
+            self, tmp_path, monkeypatch, hooks, pending_file, load_script):
+        real = load_script(
+            "features/common/skills/test-economy/scripts/suite_economy.py")
+        monkeypatch.setitem(sys.modules, hooks.TEST_ECONOMY_MODULE_NAME, real)
+        root = str(tmp_path / "repo")
+
+        real_advance_session = real.advance_session
+        first_entered = threading.Event()
+        release_first = threading.Event()
+        calls = {"n": 0}
+
+        def once_blocking_advance_session(entry, *args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                first_entered.set()
+                assert release_first.wait(timeout=5), "the first update was never released"
+            return real_advance_session(entry, *args, **kwargs)
+
+        monkeypatch.setattr(real, "advance_session", once_blocking_advance_session)
+
+        def run_first():
+            hooks.post_tool_observer(tool_name="execute", args={"command": "pytest"},
+                                     result="ok", duration_ms=10, cwd=root, session_id="s1")
+
+        def run_second():
+            hooks.post_tool_observer(tool_name="execute", args={"command": "pytest"},
+                                     result="ok", duration_ms=10, cwd=root, session_id="s2")
+
+        first = threading.Thread(target=run_first)
+        first.start()
+        assert first_entered.wait(timeout=5), "the first update never reached advance_session()"
+
+        second_done = threading.Event()
+        second = threading.Thread(target=lambda: (run_second(), second_done.set()))
+        second.start()
+        assert not second_done.wait(timeout=0.3), (
+            "the second update must block behind the first's still-open transaction, "
+            "not race ahead of it")
+
+        release_first.set()
+        first.join(timeout=5)
+        second.join(timeout=5)
+
+        entry = real.get_entry(root)
+        totals = {s: row["full"] for s, row in entry["sessions"].items()}
+        assert totals == {"s1": 1, "s2": 1}, "both concurrent increments must survive"
