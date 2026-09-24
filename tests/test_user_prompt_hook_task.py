@@ -46,19 +46,19 @@ def _write_state(module, tasks=None, usage=None):
 
 class TestTaskIdFromPrompt:
     def test_extracts_id_from_leading_task_invocation(self, prompt_hook):
-        assert prompt_hook.task_id_from_prompt("/task T17 do the thing") == "T17"
+        assert prompt_hook.task_id_from_prompt("/task T-17 do the thing") == "T-17"
 
     def test_extracts_id_with_colon_suffix_form(self, prompt_hook):
-        assert prompt_hook.task_id_from_prompt("/task:continue T17 keep going") == "T17"
+        assert prompt_hook.task_id_from_prompt("/task:continue T-17 keep going") == "T-17"
 
     def test_extracts_id_from_namespaced_plugin_invocation(self, prompt_hook):
-        assert prompt_hook.task_id_from_prompt("/ai-badger:task T17 do the thing") == "T17"
+        assert prompt_hook.task_id_from_prompt("/ai-badger:task T-17 do the thing") == "T-17"
 
     def test_no_id_after_task_returns_none(self, prompt_hook):
         assert prompt_hook.task_id_from_prompt("/task") is None
 
     def test_non_task_prompt_returns_none(self, prompt_hook):
-        assert prompt_hook.task_id_from_prompt("please review /task T17") is None
+        assert prompt_hook.task_id_from_prompt("please review /task T-17") is None
 
 
 class TestSessionRefresh:
@@ -83,7 +83,7 @@ class TestSessionRefresh:
             prompt_hook.lib, "save_current_session", lambda *a, **k: calls.append(a)
         )
 
-        rc = _run(prompt_hook, monkeypatch, {"prompt": "/task T17 do the thing"})
+        rc = _run(prompt_hook, monkeypatch, {"prompt": "/task T-17 do the thing"})
 
         assert rc == 0
         assert calls == []
@@ -94,19 +94,19 @@ class TestRegistration:
         monkeypatch.setattr(prompt_hook.lib, "save_current_session", lambda *a, **k: None)
 
         rc = _run(prompt_hook, monkeypatch, {
-            "session_id": "sid-1", "transcript_path": "", "prompt": "/task T17 do the thing",
+            "session_id": "sid-1", "transcript_path": "", "prompt": "/task T-17 do the thing",
         })
 
         assert rc == 0
         tasks = prompt_hook.lib.load_tasks()["tasks"]
         assert len(tasks) == 1
         entry = tasks[0]
-        assert entry["taskId"] == "T17"
+        assert entry["taskId"] == "T-17"
         assert entry["sessionId"] == "sid-1"
         assert entry["state"] == prompt_hook.lib.STATE_STARTED
         assert entry["resumeCommand"] == "claude --resume sid-1"
         usage = prompt_hook.lib.load_usage()["tasks"]
-        assert usage[0]["taskId"] == "T17"
+        assert usage[0]["taskId"] == "T-17"
         assert "start" in usage[0]["checkpoints"]
         assert "latest" in usage[0]["checkpoints"]
 
@@ -115,13 +115,13 @@ class TestRegistration:
 
         rc = _run(prompt_hook, monkeypatch, {
             "session_id": "sid-1", "transcript_path": "",
-            "prompt": "/ai-badger:task T17 do the thing",
+            "prompt": "/ai-badger:task T-17 do the thing",
         })
 
         assert rc == 0
         tasks = prompt_hook.lib.load_tasks()["tasks"]
         assert len(tasks) == 1
-        assert tasks[0]["taskId"] == "T17"
+        assert tasks[0]["taskId"] == "T-17"
 
     def test_prompt_with_no_task_id_is_a_noop(self, prompt_hook, monkeypatch):
         monkeypatch.setattr(prompt_hook.lib, "save_current_session", lambda *a, **k: None)
@@ -132,6 +132,25 @@ class TestRegistration:
 
         assert rc == 0
         assert not prompt_hook.lib.EXECUTED_TASKS.exists()
+
+    @pytest.mark.parametrize("prompt", [
+        "/task take the backlog item about providers",
+        "/task I want the importer fixed",
+        "/task Job search filters are broken",
+        "/task 1. fix the importer 2. add a test",
+        "/task https://github.com/o/r/issues/7",
+        "/task - bullet list of things",
+    ])
+    def test_free_form_prose_registers_nothing(self, prompt_hook, monkeypatch, prompt):
+        """The first word of prose is not a task id: the model derives `{alias}-{key}`."""
+        monkeypatch.setattr(prompt_hook.lib, "save_current_session", lambda *a, **k: None)
+
+        rc = _run(prompt_hook, monkeypatch, {
+            "session_id": "sid-1", "transcript_path": "", "prompt": prompt,
+        })
+
+        assert rc == 0
+        assert prompt_hook.lib.load_tasks()["tasks"] == []
 
     def test_non_task_prompt_is_a_noop(self, prompt_hook, monkeypatch):
         monkeypatch.setattr(prompt_hook.lib, "save_current_session", lambda *a, **k: None)
@@ -146,11 +165,11 @@ class TestRegistration:
     def test_finished_task_referenced_again_is_left_untouched(self, prompt_hook, monkeypatch):
         monkeypatch.setattr(prompt_hook.lib, "save_current_session", lambda *a, **k: None)
         _write_state(prompt_hook, tasks=[{
-            "taskId": "T17", "sessionId": "old-sid", "state": prompt_hook.lib.STATE_FINISHED,
+            "taskId": "T-17", "sessionId": "old-sid", "state": prompt_hook.lib.STATE_FINISHED,
         }])
 
         rc = _run(prompt_hook, monkeypatch, {
-            "session_id": "new-sid", "transcript_path": "", "prompt": "/task T17 revisit",
+            "session_id": "new-sid", "transcript_path": "", "prompt": "/task T-17 revisit",
         })
 
         assert rc == 0
@@ -162,26 +181,26 @@ class TestRegistration:
     ):
         monkeypatch.setattr(prompt_hook.lib, "save_current_session", lambda *a, **k: None)
         _write_state(prompt_hook, tasks=[{
-            "taskId": "T01", "sessionId": "sid-1", "state": prompt_hook.lib.STATE_IN_PROGRESS,
+            "taskId": "T-01", "sessionId": "sid-1", "state": prompt_hook.lib.STATE_IN_PROGRESS,
         }])
 
         rc = _run(prompt_hook, monkeypatch, {
-            "session_id": "sid-1", "transcript_path": "", "prompt": "/task T17 new task",
+            "session_id": "sid-1", "transcript_path": "", "prompt": "/task T-17 new task",
         })
 
         assert rc == 0
         tasks = prompt_hook.lib.load_tasks()["tasks"]
         assert len(tasks) == 1
-        assert tasks[0]["taskId"] == "T01"
+        assert tasks[0]["taskId"] == "T-01"
 
     def test_registration_is_idempotent_across_prompts(self, prompt_hook, monkeypatch):
         monkeypatch.setattr(prompt_hook.lib, "save_current_session", lambda *a, **k: None)
 
         _run(prompt_hook, monkeypatch, {
-            "session_id": "sid-1", "transcript_path": "", "prompt": "/task T17 do the thing",
+            "session_id": "sid-1", "transcript_path": "", "prompt": "/task T-17 do the thing",
         })
         rc = _run(prompt_hook, monkeypatch, {
-            "session_id": "sid-1", "transcript_path": "", "prompt": "/task T17 keep going",
+            "session_id": "sid-1", "transcript_path": "", "prompt": "/task T-17 keep going",
         })
 
         assert rc == 0
@@ -205,7 +224,7 @@ class TestFailureHandling:
         monkeypatch.setattr(prompt_hook, "_register_task", _boom)
 
         rc = _run(prompt_hook, monkeypatch, {
-            "session_id": "sid-1", "transcript_path": "", "prompt": "/task T17 do the thing",
+            "session_id": "sid-1", "transcript_path": "", "prompt": "/task T-17 do the thing",
         })
 
         assert rc == 0
@@ -222,7 +241,7 @@ class TestFailureHandling:
         monkeypatch.setattr(prompt_hook, "_register_task", _boom)
 
         _run(prompt_hook, monkeypatch, {
-            "session_id": "sid-1", "transcript_path": "", "prompt": "/task T17 do the thing",
+            "session_id": "sid-1", "transcript_path": "", "prompt": "/task T-17 do the thing",
         })
 
         assert "task_register" in errors.read_text(encoding="utf-8")
@@ -283,6 +302,6 @@ def test_the_register_record_names_the_project(prompt_hook, monkeypatch):
     fake = FakeDebugLog()
     monkeypatch.setattr(prompt_hook, "debug_log", fake)
 
-    _run(prompt_hook, monkeypatch, {"prompt": "/task 42", "session_id": "sid-1", "cwd": "/repo"})
+    _run(prompt_hook, monkeypatch, {"prompt": "/task aib-42", "session_id": "sid-1", "cwd": "/repo"})
 
     assert [(e, f.get("project")) for _, e, f in fake.calls] == [("register", "/repo")]

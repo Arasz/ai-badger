@@ -143,7 +143,7 @@ def test_cmd_start_does_not_install_cron_by_default(tt, monkeypatch, tmp_path):
     transcript = tmp_path / "t.jsonl"
 
     code = _run(
-        monkeypatch, tt, "start", "T01",
+        monkeypatch, tt, "start", "T-01",
         "--session-id", "sid-1", "--transcript-path", str(transcript),
     )
 
@@ -157,7 +157,7 @@ def test_cmd_start_installs_cron_when_opted_in(tt, monkeypatch, tmp_path):
     transcript = tmp_path / "t.jsonl"
 
     code = _run(
-        monkeypatch, tt, "start", "T02", "--cron",
+        monkeypatch, tt, "start", "T-02", "--cron",
         "--session-id", "sid-2", "--transcript-path", str(transcript),
     )
 
@@ -171,7 +171,7 @@ def test_cmd_start_no_cron_flag_is_still_accepted_as_a_deprecated_noop(tt, monke
     transcript = tmp_path / "t.jsonl"
 
     code = _run(
-        monkeypatch, tt, "start", "T03", "--no-cron",
+        monkeypatch, tt, "start", "T-03", "--no-cron",
         "--session-id", "sid-3", "--transcript-path", str(transcript),
     )
 
@@ -206,13 +206,13 @@ def test_cmd_start_with_cron_and_missing_binary_does_not_raise(tt, monkeypatch, 
     transcript = tmp_path / "t.jsonl"
 
     code = _run(
-        monkeypatch, tt, "start", "T04", "--cron",
+        monkeypatch, tt, "start", "T-04", "--cron",
         "--session-id", "sid-4", "--transcript-path", str(transcript),
     )
 
     assert code == 0
     out = capsys.readouterr()
-    assert '"taskId": "T04"' in out.out
+    assert '"taskId": "T-04"' in out.out
 
 
 # ---------------------------------------------------------------------------

@@ -116,22 +116,49 @@ def test_start_registers_task_and_starts_checkpoint(tt, monkeypatch, tmp_path, c
     transcript = tmp_path / "t.jsonl"
     _write_transcript(transcript, [(False, 10, 2, 0, 0)])
 
-    code = _run(monkeypatch, tt, "start", "T01",
+    code = _run(monkeypatch, tt, "start", "T-01",
                 "--session-id", "sid-1", "--transcript-path", str(transcript))
 
     assert code == 0
     tasks = tt.lib.load_tasks()
-    entry = tt.lib.find_entry(tasks, "T01")
+    entry = tt.lib.find_entry(tasks, "T-01")
     assert entry["state"] == tt.lib.STATE_STARTED
     assert entry["sessionId"] == "sid-1"
     assert entry["title"] == ""
     assert entry["branch"] == ""
     usage = tt.lib.load_usage()
-    usage_entry = tt.lib.find_entry(usage, "T01")
+    usage_entry = tt.lib.find_entry(usage, "T-01")
     assert usage_entry["checkpoints"]["start"]["contextTokens"] == 10
     out = json.loads(capsys.readouterr().out)
-    assert out["taskId"] == "T01"
+    assert out["taskId"] == "T-01"
     assert out["startContextTokens"] == 10
+
+
+@pytest.mark.parametrize("prose_id", ["take", "I", "Job", "1.", "https", "-", "aib-", "a--b",
+                                      "aib-loop\n"])
+def test_start_refuses_an_id_that_is_not_alias_dash_key(tt, monkeypatch, tmp_path, capsys,
+                                                         prose_id):
+    """`/task <free-form prose>` once registered its first word as a task id (`take`, `I`,
+    `1.`, `https`, `-`), leaving untitled, branchless rows no verb could remove."""
+    _no_cron_recorder(monkeypatch, tt)
+
+    code = _run(monkeypatch, tt, "start", prose_id, "--no-worktree",
+                "--session-id", "sid-p", "--transcript-path", str(tmp_path / "t.jsonl"))
+
+    assert code == 2
+    assert "{repo-alias}-{key}" in capsys.readouterr().err
+    assert tt.lib.load_tasks()["tasks"] == []
+    assert tt.lib.load_usage()["tasks"] == []
+
+
+def test_start_accepts_an_alias_dash_key_id(tt, monkeypatch, tmp_path):
+    _no_cron_recorder(monkeypatch, tt)
+
+    code = _run(monkeypatch, tt, "start", "aib-default-loop", "--no-worktree",
+                "--session-id", "sid-v", "--transcript-path", str(tmp_path / "t.jsonl"))
+
+    assert code == 0
+    assert tt.lib.find_entry(tt.lib.load_tasks(), "aib-default-loop") is not None
 
 
 def test_start_persists_title_and_branch(tt, monkeypatch, tmp_path):
@@ -144,12 +171,12 @@ def test_start_persists_title_and_branch(tt, monkeypatch, tmp_path):
     _no_cron_recorder(monkeypatch, tt)
     transcript = tmp_path / "t.jsonl"
 
-    code = _run(monkeypatch, tt, "start", "T02", "--title", "Fix widgets",
+    code = _run(monkeypatch, tt, "start", "T-02", "--title", "Fix widgets",
                 "--branch", "feat/widgets", "--no-worktree", "--session-id", "sid-2",
                 "--transcript-path", str(transcript))
 
     assert code == 0
-    entry = tt.lib.find_entry(tt.lib.load_tasks(), "T02")
+    entry = tt.lib.find_entry(tt.lib.load_tasks(), "T-02")
     assert entry["title"] == "Fix widgets"
     assert entry["branch"] == "feat/widgets"
 
@@ -166,12 +193,12 @@ def test_start_reaches_for_a_worktree_unless_told_not_to(tt, monkeypatch, tmp_pa
     monkeypatch.setattr(tt, "ensure_worktree",
                         lambda root, task_id, branch: asked.append((task_id, branch)))
 
-    assert _run(monkeypatch, tt, "start", "T02a", "--branch", "feat/w", "--session-id", "s-a",
+    assert _run(monkeypatch, tt, "start", "T-02a", "--branch", "feat/w", "--session-id", "s-a",
                 "--transcript-path", str(tmp_path / "a.jsonl")) == 0
-    assert _run(monkeypatch, tt, "start", "T02b", "--branch", "feat/w", "--no-worktree",
+    assert _run(monkeypatch, tt, "start", "T-02b", "--branch", "feat/w", "--no-worktree",
                 "--session-id", "s-b", "--transcript-path", str(tmp_path / "b.jsonl")) == 0
 
-    assert asked == [("T02a", "feat/w")]
+    assert asked == [("T-02a", "feat/w")]
 
 
 def test_start_keeps_stdout_valid_json_when_it_makes_a_worktree(tt, monkeypatch, tmp_path,
@@ -181,11 +208,11 @@ def test_start_keeps_stdout_valid_json_when_it_makes_a_worktree(tt, monkeypatch,
     monkeypatch.setattr(tt, "ensure_worktree",
                         lambda root, task_id, branch: tmp_path / "wt" / task_id)
 
-    _run(monkeypatch, tt, "start", "T02c", "--branch", "feat/w", "--session-id", "s-c",
+    _run(monkeypatch, tt, "start", "T-02c", "--branch", "feat/w", "--session-id", "s-c",
          "--transcript-path", str(tmp_path / "c.jsonl"))
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["worktree"] == str(tmp_path / "wt" / "T02c")
+    assert payload["worktree"] == str(tmp_path / "wt" / "T-02c")
 
 
 def test_start_survives_git_being_missing(tt, monkeypatch, tmp_path, capsys):
@@ -197,21 +224,21 @@ def test_start_survives_git_being_missing(tt, monkeypatch, tmp_path, capsys):
 
     monkeypatch.setattr(tt, "ensure_worktree", _no_git)
 
-    code = _run(monkeypatch, tt, "start", "T02d", "--branch", "feat/w", "--session-id", "s-d",
+    code = _run(monkeypatch, tt, "start", "T-02d", "--branch", "feat/w", "--session-id", "s-d",
                 "--transcript-path", str(tmp_path / "d.jsonl"))
 
     captured = capsys.readouterr()
     assert code == 0
     assert json.loads(captured.out)["worktree"] is None
     assert "git" in captured.err
-    assert tt.lib.find_entry(tt.lib.load_tasks(), "T02d") is not None
+    assert tt.lib.find_entry(tt.lib.load_tasks(), "T-02d") is not None
 
 
 def test_start_with_no_cron_flag_never_calls_install_cron(tt, monkeypatch, tmp_path):
     calls = _no_cron_recorder(monkeypatch, tt)
     transcript = tmp_path / "t.jsonl"
 
-    code = _run(monkeypatch, tt, "start", "T03", "--no-cron",
+    code = _run(monkeypatch, tt, "start", "T-03", "--no-cron",
                 "--session-id", "sid-3", "--transcript-path", str(transcript))
 
     assert code == 0
@@ -223,7 +250,7 @@ def test_start_without_cron_flag_does_not_install_cron(tt, monkeypatch, tmp_path
     calls = _no_cron_recorder(monkeypatch, tt)
     transcript = tmp_path / "t.jsonl"
 
-    code = _run(monkeypatch, tt, "start", "T04",
+    code = _run(monkeypatch, tt, "start", "T-04",
                 "--session-id", "sid-4", "--transcript-path", str(transcript))
 
     assert code == 0
@@ -235,31 +262,31 @@ def test_start_refuses_when_session_already_attached_to_another_unfinished_task(
 ):
     _no_cron_recorder(monkeypatch, tt)
     transcript = tmp_path / "t.jsonl"
-    _run(monkeypatch, tt, "start", "T01",
+    _run(monkeypatch, tt, "start", "T-01",
          "--session-id", "sid-shared", "--transcript-path", str(transcript))
 
-    code = _run(monkeypatch, tt, "start", "T02",
+    code = _run(monkeypatch, tt, "start", "T-02",
                 "--session-id", "sid-shared", "--transcript-path", str(transcript))
 
     assert code == 2
     err = capsys.readouterr().err
     assert "already attached to task" in err
-    assert "'T01'" in err
-    assert tt.lib.find_entry(tt.lib.load_tasks(), "T02") is None
+    assert "'T-01'" in err
+    assert tt.lib.find_entry(tt.lib.load_tasks(), "T-02") is None
 
 
 def test_start_refuses_to_restart_a_finished_task(tt, monkeypatch, tmp_path, capsys):
     _no_cron_recorder(monkeypatch, tt)
     transcript = tmp_path / "t.jsonl"
-    _run(monkeypatch, tt, "start", "T01",
+    _run(monkeypatch, tt, "start", "T-01",
          "--session-id", "sid-1", "--transcript-path", str(transcript))
     # Seeded through the store (P0.3/D18 flagged rewrite: this used to save_json the legacy
     # file, which a later migration would rename away without ever overwriting the row).
     tasks = tt.lib.load_tasks()
-    tt.lib.find_entry(tasks, "T01")["state"] = tt.lib.STATE_FINISHED
+    tt.lib.find_entry(tasks, "T-01")["state"] = tt.lib.STATE_FINISHED
     tt.lib.save_tasks_doc(tasks)
 
-    code = _run(monkeypatch, tt, "start", "T01",
+    code = _run(monkeypatch, tt, "start", "T-01",
                 "--session-id", "sid-new", "--transcript-path", str(transcript))
 
     assert code == 2
@@ -278,24 +305,24 @@ def _start(monkeypatch, tt, task_id, transcript, session_id="sid-1"):
 
 def test_finish_is_blocked_when_state_json_not_updated_since_start(tt, monkeypatch, tmp_path, capsys):
     transcript = tmp_path / "t.jsonl"
-    _start(monkeypatch, tt, "T01", transcript)
+    _start(monkeypatch, tt, "T-01", transcript)
 
-    code = _run(monkeypatch, tt, "finish", "T01")
+    code = _run(monkeypatch, tt, "finish", "T-01")
 
     assert code == 3
     err = capsys.readouterr().err
     assert "state.json has not been modified since task start" in err
-    entry = tt.lib.find_entry(tt.lib.load_tasks(), "T01")
+    entry = tt.lib.find_entry(tt.lib.load_tasks(), "T-01")
     assert entry["state"] == tt.lib.STATE_STARTED
 
 
 def test_finish_succeeds_when_state_json_was_updated_since_start(tt, monkeypatch, tmp_path, capsys):
     start_transcript = tmp_path / "t.jsonl"
     _write_transcript(start_transcript, [(False, 100, 20, 10, 5)])
-    _start(monkeypatch, tt, "T01", start_transcript)
+    _start(monkeypatch, tt, "T-01", start_transcript)
     capsys.readouterr()  # discard start's output
 
-    started_at = tt.lib.find_entry(tt.lib.load_tasks(), "T01")["startedAt"]
+    started_at = tt.lib.find_entry(tt.lib.load_tasks(), "T-01")["startedAt"]
     started_dt = tt.lib.parse_iso(started_at)
     tt.lib.STATE_JSON.parent.mkdir(parents=True, exist_ok=True)
     _test_write(tt.lib.STATE_JSON, "{}", encoding="utf-8")
@@ -309,10 +336,10 @@ def test_finish_succeeds_when_state_json_was_updated_since_start(tt, monkeypatch
         (False, 250, 60, 10, 5),
     ])
 
-    code = _run(monkeypatch, tt, "finish", "T01")
+    code = _run(monkeypatch, tt, "finish", "T-01")
 
     assert code == 0
-    entry = tt.lib.find_entry(tt.lib.load_tasks(), "T01")
+    entry = tt.lib.find_entry(tt.lib.load_tasks(), "T-01")
     assert entry["state"] == tt.lib.STATE_FINISHED
     assert entry["finishedAt"] is not None
     assert entry["stateJsonUpdated"] is True
@@ -323,12 +350,12 @@ def test_finish_succeeds_when_state_json_was_updated_since_start(tt, monkeypatch
 
 def test_finish_force_bypasses_the_state_json_check(tt, monkeypatch, tmp_path):
     transcript = tmp_path / "t.jsonl"
-    _start(monkeypatch, tt, "T01", transcript)
+    _start(monkeypatch, tt, "T-01", transcript)
 
-    code = _run(monkeypatch, tt, "finish", "T01", "--force")
+    code = _run(monkeypatch, tt, "finish", "T-01", "--force")
 
     assert code == 0
-    entry = tt.lib.find_entry(tt.lib.load_tasks(), "T01")
+    entry = tt.lib.find_entry(tt.lib.load_tasks(), "T-01")
     assert entry["state"] == tt.lib.STATE_FINISHED
 
 
@@ -345,12 +372,12 @@ def test_finish_unknown_task_returns_exit_code_2(tt, monkeypatch, capsys):
 
 def test_grade_saves_a_valid_grade(tt, monkeypatch, tmp_path, capsys):
     transcript = tmp_path / "t.jsonl"
-    _start(monkeypatch, tt, "T01", transcript)
+    _start(monkeypatch, tt, "T-01", transcript)
 
-    code = _run(monkeypatch, tt, "grade", "T01", "4")
+    code = _run(monkeypatch, tt, "grade", "T-01", "4")
 
     assert code == 0
-    usage_entry = tt.lib.find_entry(tt.lib.load_usage(), "T01")
+    usage_entry = tt.lib.find_entry(tt.lib.load_usage(), "T-01")
     assert usage_entry["grade"] == 4
     assert usage_entry["gradedAt"] is not None
     assert "4/5" in capsys.readouterr().out
@@ -358,13 +385,13 @@ def test_grade_saves_a_valid_grade(tt, monkeypatch, tmp_path, capsys):
 
 def test_grade_rejects_out_of_range_value(tt, monkeypatch, tmp_path, capsys):
     transcript = tmp_path / "t.jsonl"
-    _start(monkeypatch, tt, "T01", transcript)
+    _start(monkeypatch, tt, "T-01", transcript)
 
-    code = _run(monkeypatch, tt, "grade", "T01", "6")
+    code = _run(monkeypatch, tt, "grade", "T-01", "6")
 
     assert code == 2
     assert "Grade must be 0-5" in capsys.readouterr().err
-    usage_entry = tt.lib.find_entry(tt.lib.load_usage(), "T01")
+    usage_entry = tt.lib.find_entry(tt.lib.load_usage(), "T-01")
     assert usage_entry.get("grade") is None
 
 
@@ -381,12 +408,12 @@ def test_grade_unknown_task_returns_exit_code_2(tt, monkeypatch, capsys):
 
 def test_subagent_records_cost_with_description(tt, monkeypatch, tmp_path, capsys):
     transcript = tmp_path / "t.jsonl"
-    _start(monkeypatch, tt, "T01", transcript)
+    _start(monkeypatch, tt, "T-01", transcript)
 
-    code = _run(monkeypatch, tt, "subagent", "T01", "500", "--description", "review pass")
+    code = _run(monkeypatch, tt, "subagent", "T-01", "500", "--description", "review pass")
 
     assert code == 0
-    usage_entry = tt.lib.find_entry(tt.lib.load_usage(), "T01")
+    usage_entry = tt.lib.find_entry(tt.lib.load_usage(), "T-01")
     assert usage_entry["subagents"] == [
         {"description": "review pass", "totalTokens": 500, "at": usage_entry["subagents"][0]["at"]}
     ]
@@ -395,24 +422,24 @@ def test_subagent_records_cost_with_description(tt, monkeypatch, tmp_path, capsy
 
 def test_subagent_records_cost_without_description(tt, monkeypatch, tmp_path):
     transcript = tmp_path / "t.jsonl"
-    _start(monkeypatch, tt, "T01", transcript)
+    _start(monkeypatch, tt, "T-01", transcript)
 
-    code = _run(monkeypatch, tt, "subagent", "T01", "300")
+    code = _run(monkeypatch, tt, "subagent", "T-01", "300")
 
     assert code == 0
-    usage_entry = tt.lib.find_entry(tt.lib.load_usage(), "T01")
+    usage_entry = tt.lib.find_entry(tt.lib.load_usage(), "T-01")
     assert usage_entry["subagents"][0]["description"] == ""
 
 
 def test_subagent_recomputes_usage_after_finish(tt, monkeypatch, tmp_path):
     transcript = tmp_path / "t.jsonl"
-    _start(monkeypatch, tt, "T01", transcript)
-    _run(monkeypatch, tt, "finish", "T01", "--force")
+    _start(monkeypatch, tt, "T-01", transcript)
+    _run(monkeypatch, tt, "finish", "T-01", "--force")
 
-    code = _run(monkeypatch, tt, "subagent", "T01", "200")
+    code = _run(monkeypatch, tt, "subagent", "T-01", "200")
 
     assert code == 0
-    usage_entry = tt.lib.find_entry(tt.lib.load_usage(), "T01")
+    usage_entry = tt.lib.find_entry(tt.lib.load_usage(), "T-01")
     assert usage_entry["usage"]["subagentTokens"] == 200
 
 
@@ -429,13 +456,13 @@ def test_subagent_unknown_task_returns_exit_code_2(tt, monkeypatch, capsys):
 
 def test_reattach_points_task_at_the_new_session(tt, monkeypatch, tmp_path, capsys):
     transcript = tmp_path / "t.jsonl"
-    _start(monkeypatch, tt, "T01", transcript, session_id="sid-old")
+    _start(monkeypatch, tt, "T-01", transcript, session_id="sid-old")
 
-    code = _run(monkeypatch, tt, "reattach", "T01",
+    code = _run(monkeypatch, tt, "reattach", "T-01",
                 "--session-id", "sid-new", "--transcript-path", str(transcript))
 
     assert code == 0
-    entry = tt.lib.find_entry(tt.lib.load_tasks(), "T01")
+    entry = tt.lib.find_entry(tt.lib.load_tasks(), "T-01")
     assert entry["sessionId"] == "sid-new"
     assert entry["state"] == tt.lib.STATE_IN_PROGRESS
     assert "sid-new" in entry["resumeCommand"]
@@ -444,14 +471,14 @@ def test_reattach_points_task_at_the_new_session(tt, monkeypatch, tmp_path, caps
 
 def test_reattach_preserves_finished_state(tt, monkeypatch, tmp_path):
     transcript = tmp_path / "t.jsonl"
-    _start(monkeypatch, tt, "T01", transcript, session_id="sid-old")
-    _run(monkeypatch, tt, "finish", "T01", "--force")
+    _start(monkeypatch, tt, "T-01", transcript, session_id="sid-old")
+    _run(monkeypatch, tt, "finish", "T-01", "--force")
 
-    code = _run(monkeypatch, tt, "reattach", "T01",
+    code = _run(monkeypatch, tt, "reattach", "T-01",
                 "--session-id", "sid-new", "--transcript-path", str(transcript))
 
     assert code == 0
-    entry = tt.lib.find_entry(tt.lib.load_tasks(), "T01")
+    entry = tt.lib.find_entry(tt.lib.load_tasks(), "T-01")
     assert entry["state"] == tt.lib.STATE_FINISHED
 
 
@@ -459,18 +486,18 @@ def test_reattach_refuses_when_session_belongs_to_another_unfinished_task(
     tt, monkeypatch, tmp_path, capsys
 ):
     transcript = tmp_path / "t.jsonl"
-    _start(monkeypatch, tt, "T01", transcript, session_id="sid-1")
-    _start(monkeypatch, tt, "T02", transcript, session_id="sid-2")
+    _start(monkeypatch, tt, "T-01", transcript, session_id="sid-1")
+    _start(monkeypatch, tt, "T-02", transcript, session_id="sid-2")
 
-    code = _run(monkeypatch, tt, "reattach", "T01",
+    code = _run(monkeypatch, tt, "reattach", "T-01",
                 "--session-id", "sid-2", "--transcript-path", str(transcript))
 
     assert code == 2
     err = capsys.readouterr().err
     assert "already attached to task" in err
-    assert "'T02'" in err
+    assert "'T-02'" in err
     assert "Refusing to also reattach" in err
-    entry = tt.lib.find_entry(tt.lib.load_tasks(), "T01")
+    entry = tt.lib.find_entry(tt.lib.load_tasks(), "T-01")
     assert entry["sessionId"] == "sid-1"
 
 
@@ -480,6 +507,50 @@ def test_reattach_unknown_task_returns_exit_code_2(tt, monkeypatch, capsys):
 
     assert code == 2
     assert "Unknown task" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# drop
+# ---------------------------------------------------------------------------
+
+def _seed_row(tt, task_id, **fields):
+    """A row the way the old prompt hook left one: no title, no branch, IN_PROGRESS."""
+    entry = {"taskId": task_id, "title": "", "branch": "", "sessionId": "sid-junk",
+             "state": tt.lib.STATE_IN_PROGRESS, **fields}
+    tt.lib.save_tasks_doc({"tasks": [entry]})
+    tt.lib.save_usage_doc({"tasks": [{"taskId": task_id, "subagents": [], "grade": None}]})
+
+
+def test_drop_removes_an_untitled_branchless_row(tt, monkeypatch):
+    _seed_row(tt, "take")
+
+    assert _run(monkeypatch, tt, "drop", "take") == 0
+
+    assert tt.lib.find_entry(tt.lib.load_tasks(), "take") is None
+    assert tt.lib.find_entry(tt.lib.load_usage(), "take") is None
+
+
+@pytest.mark.parametrize("fields", [{"title": "Real work"}, {"branch": "task/aib-x"}])
+def test_drop_refuses_a_row_with_a_title_or_branch(tt, monkeypatch, capsys, fields):
+    _seed_row(tt, "aib-real-task", **fields)
+
+    assert _run(monkeypatch, tt, "drop", "aib-real-task") == 2
+
+    assert "refusing" in capsys.readouterr().err
+    assert tt.lib.find_entry(tt.lib.load_tasks(), "aib-real-task") is not None
+
+
+def test_drop_refuses_a_row_whose_worktree_exists(tt, monkeypatch, tmp_path):
+    _seed_row(tt, "take")
+    (tmp_path / tt.WORKTREE_DIR / "take").mkdir(parents=True)
+
+    assert _run(monkeypatch, tt, "drop", "take") == 2
+
+    assert tt.lib.find_entry(tt.lib.load_tasks(), "take") is not None
+
+
+def test_drop_of_an_unknown_task_is_bad_input(tt, monkeypatch):
+    assert _run(monkeypatch, tt, "drop", "nothing-here") == 2
 
 
 # ---------------------------------------------------------------------------
@@ -496,17 +567,17 @@ def test_status_on_empty_store_does_not_crash(tt, monkeypatch, capsys):
 def test_status_reflects_state_tokens_and_grade(tt, monkeypatch, tmp_path, capsys):
     transcript = tmp_path / "t.jsonl"
     _write_transcript(transcript, [(False, 100, 20, 0, 0)])
-    _start(monkeypatch, tt, "T01", transcript)
+    _start(monkeypatch, tt, "T-01", transcript)
     capsys.readouterr()  # discard start's output
     _write_transcript(transcript, [(False, 100, 20, 0, 0), (False, 400, 80, 0, 0)])
-    _run(monkeypatch, tt, "finish", "T01", "--force")
-    _run(monkeypatch, tt, "grade", "T01", "5")
+    _run(monkeypatch, tt, "finish", "T-01", "--force")
+    _run(monkeypatch, tt, "grade", "T-01", "5")
 
     code = _run(monkeypatch, tt, "status")
 
     out = capsys.readouterr().out
     assert code == 0
-    assert "T01" in out
+    assert "T-01" in out
     assert tt.lib.STATE_FINISHED in out
     assert "grade=5" in out
     assert "tokens=-" not in out
@@ -681,7 +752,7 @@ def test_missing_task_id_for_start_is_a_usage_error(tt, monkeypatch):
 
 
 def test_non_integer_grade_is_a_usage_error(tt, monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["task_tracker.py", "grade", "T01", "not-a-number"])
+    monkeypatch.setattr(sys, "argv", ["task_tracker.py", "grade", "T-01", "not-a-number"])
 
     with pytest.raises(SystemExit) as exc:
         tt.main()
