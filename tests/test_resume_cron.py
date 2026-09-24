@@ -2,7 +2,8 @@
 
 Covers the cron-invoked resume-after-usage-limit logic: staleness/cooldown predicates, the
 usage-limit probe, resuming a single task (success, dry-run, timeout), and the full run() loop
-(no stalled tasks, probe succeeds, probe fails, --dry-run, and the cross-process lock guard).
+(no stalled tasks, a live session left alone, probe succeeds, probe fails, --dry-run, and the
+cross-process lock guard).
 
 Every subprocess.run call (probe + resume) is mocked via monkeypatch on the module's own
 `subprocess` reference — a real `claude` process must never be spawned. The lock-file test
@@ -21,8 +22,24 @@ import pytest
 from conftest import _test_write
 
 
+STUB = "#!/bin/sh\necho \"stub $(basename \"$0\") must not run\" >&2\nexit 1\n"
+
+
 @pytest.fixture
 def resume_cron(tmp_path, load_script, monkeypatch):
+    """resume_cron over a throwaway store, a scratch HOME, and stub `claude`/`crontab` first
+    on PATH -- CLAUDE_BIN resolves at import, so the stubs go in before the load."""
+    stubs = tmp_path / "bin"
+    stubs.mkdir()
+    for name in ("claude", "crontab"):
+        _test_write(stubs / name, STUB).chmod(0o755)
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("PATH", f"{stubs}{os.pathsep}{os.environ.get('PATH', '')}")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.setenv("AI_BADGER_TRACKING_ROOT", str(tmp_path / "data"))
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(home / ".ai-badger"))
     module = load_script("features/common/skills/task/scripts/resume_cron.py")
     data_dir = tmp_path / "data"
     monkeypatch.setattr(module.lib, "PROJECT_ROOT", tmp_path)
@@ -39,6 +56,19 @@ def _write_tasks(module, tasks):
 
 def _old_iso(minutes):
     return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
+
+
+def _record_session(module, session_id, pid):
+    with module.lib.tracking_transaction() as store:
+        store.session_upsert(session_id, {"transcriptPath": "", "cwd": str(module.lib.PROJECT_ROOT),
+                                          "pid": pid, "recordedAt": module.lib.now_iso()})
+
+
+def _dead_pid():
+    """The pid of a child that has already exited and been reaped."""
+    done = subprocess.run([sys.executable, "-c", "import os; print(os.getpid())"],
+                          capture_output=True, text=True, check=True)
+    return int(done.stdout)
 
 
 def _stale_transcript(tmp_path, name="t.jsonl"):
@@ -205,6 +235,42 @@ def test_run_resumes_stalled_task_when_probe_succeeds(resume_cron, monkeypatch, 
     assert entry["state"] == "IN_PROGRESS"
     assert len(entry["resumeAttempts"]) == 1
     assert entry["resumeAttempts"][0]["dryRun"] is False
+
+
+def test_run_leaves_a_stalled_task_alone_while_its_session_is_alive(resume_cron, monkeypatch, tmp_path):
+    """A quiet transcript is not a dead session: an idle interactive session writes nothing.
+    Resuming it would run a second copy of the same session in parallel."""
+    _write_tasks(resume_cron, [
+        {"taskId": "T01", "state": "IN_PROGRESS", "sessionId": "sid-live",
+         "startedAt": _old_iso(60), "transcriptPath": _stale_transcript(tmp_path)},
+    ])
+    _record_session(resume_cron, "sid-live", os.getpid())
+    monkeypatch.setattr(
+        resume_cron.subprocess, "run", lambda *a, **k: pytest.fail("must not probe or resume")
+    )
+
+    assert resume_cron.run(dry_run=False) == 0
+    entry = resume_cron.lib.load_tasks()["tasks"][0]
+    assert entry.get("resumeAttempts", []) == []
+
+
+def test_run_still_resumes_a_stalled_task_whose_recorded_session_is_dead(
+    resume_cron, monkeypatch, tmp_path
+):
+    """The sensitivity check for the one above: a recorded but dead pid must not block."""
+    _write_tasks(resume_cron, [
+        {"taskId": "T01", "state": "IN_PROGRESS", "sessionId": "sid-dead",
+         "startedAt": _old_iso(60), "transcriptPath": _stale_transcript(tmp_path)},
+    ])
+    _record_session(resume_cron, "sid-dead", _dead_pid())
+    calls = []
+    completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr="")
+    monkeypatch.setattr(resume_cron.subprocess, "run",
+                        lambda cmd, **_k: calls.append(cmd) or completed)
+
+    resume_cron.run(dry_run=False)
+
+    assert [cmd[1:3] for cmd in calls[1:]] == [["--resume", "sid-dead"]]
 
 
 def test_run_skips_resume_when_probe_fails(resume_cron, monkeypatch, tmp_path):

@@ -19,6 +19,7 @@ import pytest
 
 from scaffold_helpers import _config
 from conftest import _test_write
+from hook_matcher_rules import claude_matches
 
 SCRIPTS = "features/common/skills/welcome-ai-badger/scripts"
 
@@ -249,6 +250,7 @@ def test_every_claude_hooks_json_entry_names_its_script(root):
 
 # ------------------------------------------------------------ memory-first gate wiring
 GATE_SCRIPT = "memory_first_gate_hook.py"
+MEMORY_SEARCH_TOOL = "mcp__ai-raccoon__memory_search"
 
 
 def _hooks_json(root):
@@ -269,9 +271,10 @@ def test_hooks_json_pre_tool_use_wires_the_gate(root):
 
 def test_hooks_json_post_tool_use_keeps_the_folded_recorder(root):
     """The consulted marker is recorded by the existing memory_search entry — the gate
-    must not add a second entry that select_hooks' endswith filter cannot match."""
+    must not add a second entry that select_hooks' endswith filter cannot match. The entry is
+    found by the name Claude delivers for the MCP tool, not by its matcher's spelling."""
     entries = [e for e in _hooks_json(root)["hooks"]["PostToolUse"]
-               if e.get("matcher") == "memory_search"]
+               if claude_matches(e.get("matcher"), MEMORY_SEARCH_TOOL)]
     assert len(entries) == 1
     commands = [h["command"] for e in entries for h in e["hooks"]]
     assert len(commands) == 2
@@ -304,3 +307,79 @@ def test_scaffold_wiring_puts_the_gate_into_settings(tmp_path, load_script, root
     post = [h["command"] for e in settings["hooks"]["PostToolUse"]
             for h in e["hooks"] if "memory_first_gate_post_hook.py" in h["command"]]
     assert len(post) == 1, post
+
+
+# ------------------------------------------------------------ one script, several matchers
+GRADE = ('python3 "${CLAUDE_PROJECT_DIR}/.ai-badger/skills/ai-raccoon-memory/scripts/'
+         'memory_grade_hook.py"')
+MCP_MATCHER = "^(mcp__.+__)?memory_search$"
+
+
+def _entry(matcher, command=GRADE):
+    return {"matcher": matcher, "hooks": [{"type": "command", "command": command}]}
+
+
+def _matchers(hooks, script="memory_grade_hook.py"):
+    return sorted(e.get("matcher") for e in hooks.get("PostToolUse", [])
+                  for h in e["hooks"] if script in h["command"])
+
+
+def test_merge_keeps_a_script_registered_under_two_matchers(load_script, root):
+    """A hook identity is its matcher plus its script: one script wired for two tools is two hooks."""
+    wiring = _load(load_script, root, "hook_wiring")
+    existing = {}
+
+    wiring.merge_hooks(existing, {"PostToolUse": [_entry(MCP_MATCHER), _entry("Read|ReadFile")]})
+
+    assert _matchers(existing) == sorted([MCP_MATCHER, "Read|ReadFile"])
+
+
+def test_merge_is_idempotent_for_a_script_under_two_matchers(load_script, root):
+    wiring = _load(load_script, root, "hook_wiring")
+    existing = {}
+    incoming = {"PostToolUse": [_entry(MCP_MATCHER), _entry("Read|ReadFile")]}
+
+    wiring.merge_hooks(existing, json.loads(json.dumps(incoming)))
+    wiring.merge_hooks(existing, json.loads(json.dumps(incoming)))
+
+    assert _matchers(existing) == sorted([MCP_MATCHER, "Read|ReadFile"])
+
+
+def test_merge_replaces_a_stale_matcher_for_a_rewired_script(load_script, root):
+    """A re-scaffold that changes a script's matcher leaves no registration under the old one."""
+    wiring = _load(load_script, root, "hook_wiring")
+    existing = {"PostToolUse": [_entry("memory_search"), _entry("Read|ReadFile")]}
+
+    wiring.merge_hooks(existing, {"PostToolUse": [_entry(MCP_MATCHER), _entry("Read|ReadFile")]})
+
+    assert _matchers(existing) == sorted([MCP_MATCHER, "Read|ReadFile"])
+
+
+def test_merge_leaves_both_matchers_of_a_script_it_is_not_rewiring(load_script, root):
+    """Pruning an event for other scripts must not collapse an untouched script's second matcher."""
+    wiring = _load(load_script, root, "hook_wiring")
+    other = 'python3 "${CLAUDE_PROJECT_DIR}/.ai-badger/skills/x/scripts/other_hook.py"'
+    existing = {"PostToolUse": [_entry(MCP_MATCHER), _entry("Read|ReadFile")]}
+
+    wiring.merge_hooks(existing, {"PostToolUse": [_entry("Bash", other)]})
+
+    assert _matchers(existing) == sorted([MCP_MATCHER, "Read|ReadFile"])
+
+
+def test_scaffold_wires_memory_grade_for_mcp_search_and_read(tmp_path, load_script, root):
+    """End-to-end: the grade hook reaches settings.json for memory_search AND for Read."""
+    target = tmp_path / "proj"
+    _skill_scripts(target, "ai-raccoon-memory", "memory_first_gate_post_hook.py",
+                   "memory_grade_hook.py")
+    manifest_hooks = json.loads(
+        (root / "features" / "common" / "hooks" / "hooks-manifest.json")
+        .read_text(encoding="utf-8"))["hooks"]
+    hooks, _ctx = _wiring(load_script, root, root, target, manifest_hooks, _hooks_json(root))
+
+    hooks.wire()
+
+    settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    for tool in (MEMORY_SEARCH_TOOL, "Read"):
+        fired = [h["command"] for e in settings["hooks"]["PostToolUse"]
+                 if claude_matches(e.get("matcher"), tool) for h in e["hooks"]]
+        assert any("memory_grade_hook.py" in c for c in fired), tool
