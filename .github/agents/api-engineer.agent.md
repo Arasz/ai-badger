@@ -7,6 +7,8 @@ tools:
 user-invocable: true
 ---
 
+<!-- Managed by ai-badger. Source of truth: .ai-badger/agents/api-engineer. Do not edit this copy by hand; edit the source and re-run welcome-ai-badger. -->
+
 # API Engineer
 
 ## Spec-first gate
