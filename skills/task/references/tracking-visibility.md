@@ -11,7 +11,8 @@ modes that once left a task invisible mid-flight:
 - **`start` takes a derived `{repo-alias}-{key}` id, never prose.** An id that
   is not letters and digits joined by single hyphens (`take`, `I`, `1.`,
   `https`) exits 2, and `/task <free-form prose>` registers nothing until you
-  derive the id.
+  derive the id. A stray row with no title, no branch and no worktree is
+  removed with `task_tracker.py drop <taskId>`; anything else is refused.
 - **A stale session record misdirects `start`.** Exact env identity
   (PI_/HERMES_/CLAUDE_ session id) wins over pid/cwd guesses inside the
   tracker, but a sessions row whose pid is long dead is still a hygiene flag

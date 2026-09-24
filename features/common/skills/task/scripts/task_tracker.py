@@ -12,6 +12,8 @@ Commands:
       record a completed subagent's token cost
   reattach <taskId>
       point task at the current session (after resume)
+  drop <taskId>
+      delete a stray row: only one with no title, no branch and no worktree
   status
       print all tasks (state, tokens, grade)
   install-cron / uninstall-cron
@@ -559,6 +561,32 @@ def cmd_reattach(args) -> int:
     return 0
 
 
+def cmd_drop(args) -> int:
+    """Delete a stray tracker row, one with no title, no branch and no worktree.
+
+    Anything else may hold real work, so it is refused with exit 2.
+    """
+    with lib.tracking_transaction() as store:
+        entry = lib.find_entry(lib.load_tasks(store), args.task_id)
+        if entry is None:
+            print(f"Unknown task {args.task_id}.", file=sys.stderr)
+            return 2
+        worktree = lib.Path(lib.PROJECT_ROOT) / WORKTREE_DIR / str(args.task_id)
+        held = [reason for reason, present in (
+            ("it has a title", entry.get("title")),
+            ("it has a branch", entry.get("branch")),
+            (f"its worktree {worktree} exists", worktree.exists()),
+        ) if present]
+        if held:
+            print(f"Task {args.task_id} may hold real work ({'; '.join(held)}); refusing to "
+                  "drop it. Use finish instead.", file=sys.stderr)
+            return 2
+        store.conn.execute("DELETE FROM tasks WHERE task_id = ?", (args.task_id,))
+        store.conn.execute("DELETE FROM token_usage WHERE task_id = ?", (args.task_id,))
+    print(f"Dropped task row {args.task_id}.")
+    return 0
+
+
 def _format_mix(model_mix) -> str:
     """Shortest honest rendering of the model mix: the biggest share and its model."""
     if not model_mix:
@@ -747,6 +775,9 @@ def main() -> int:
     p_re.add_argument("task_id")
     add_session_args(p_re)
 
+    p_drop = sub.add_parser("drop")
+    p_drop.add_argument("task_id")
+
     sub.add_parser("status")
     sub.add_parser("install-cron")
     sub.add_parser("uninstall-cron")
@@ -762,6 +793,8 @@ def main() -> int:
         return cmd_subagent(args)
     if args.command == "reattach":
         return cmd_reattach(args)
+    if args.command == "drop":
+        return cmd_drop(args)
     if args.command == "status":
         return cmd_status(args)
     if args.command == "install-cron":

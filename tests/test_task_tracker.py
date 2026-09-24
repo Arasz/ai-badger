@@ -510,6 +510,50 @@ def test_reattach_unknown_task_returns_exit_code_2(tt, monkeypatch, capsys):
 
 
 # ---------------------------------------------------------------------------
+# drop
+# ---------------------------------------------------------------------------
+
+def _seed_row(tt, task_id, **fields):
+    """A row the way the old prompt hook left one: no title, no branch, IN_PROGRESS."""
+    entry = {"taskId": task_id, "title": "", "branch": "", "sessionId": "sid-junk",
+             "state": tt.lib.STATE_IN_PROGRESS, **fields}
+    tt.lib.save_tasks_doc({"tasks": [entry]})
+    tt.lib.save_usage_doc({"tasks": [{"taskId": task_id, "subagents": [], "grade": None}]})
+
+
+def test_drop_removes_an_untitled_branchless_row(tt, monkeypatch):
+    _seed_row(tt, "take")
+
+    assert _run(monkeypatch, tt, "drop", "take") == 0
+
+    assert tt.lib.find_entry(tt.lib.load_tasks(), "take") is None
+    assert tt.lib.find_entry(tt.lib.load_usage(), "take") is None
+
+
+@pytest.mark.parametrize("fields", [{"title": "Real work"}, {"branch": "task/aib-x"}])
+def test_drop_refuses_a_row_with_a_title_or_branch(tt, monkeypatch, capsys, fields):
+    _seed_row(tt, "aib-real-task", **fields)
+
+    assert _run(monkeypatch, tt, "drop", "aib-real-task") == 2
+
+    assert "refusing" in capsys.readouterr().err
+    assert tt.lib.find_entry(tt.lib.load_tasks(), "aib-real-task") is not None
+
+
+def test_drop_refuses_a_row_whose_worktree_exists(tt, monkeypatch, tmp_path):
+    _seed_row(tt, "take")
+    (tmp_path / tt.WORKTREE_DIR / "take").mkdir(parents=True)
+
+    assert _run(monkeypatch, tt, "drop", "take") == 2
+
+    assert tt.lib.find_entry(tt.lib.load_tasks(), "take") is not None
+
+
+def test_drop_of_an_unknown_task_is_bad_input(tt, monkeypatch):
+    assert _run(monkeypatch, tt, "drop", "nothing-here") == 2
+
+
+# ---------------------------------------------------------------------------
 # status
 # ---------------------------------------------------------------------------
 
