@@ -8,6 +8,7 @@ schema'd or exempt by name, and a stack's files may only point at artifacts its 
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 
 import pytest
@@ -147,6 +148,24 @@ def test_a_committed_directory_the_index_cannot_deliver_is_still_reported(
     assert any("ghoststack" in g for g in gaps), gaps
 
 
+def test_a_tracked_stack_deleted_on_disk_but_not_committed_is_not_reported(
+        tmp_path, root, load_script):
+    """HEAD still tracks the directory, but nothing on disk claims to ship it right now — a
+    session mid-deleting a stack has not yet made that a broken catalog claim."""
+    validate = load_script("tooling/validate.py")
+    checkout = _committed_catalog(tmp_path)
+    ghost = checkout / "features" / "ghoststack"
+    ghost.mkdir()
+    _test_write(ghost / "skills.json", '{"skills": []}', encoding="utf-8")
+    subprocess.run(["git", "-C", str(checkout), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(checkout), "commit", "-qm", "ghoststack"], check=True)
+
+    shutil.rmtree(ghost)
+
+    assert "ghoststack" not in validate.candidate_stack_dirs(checkout)
+    assert validate.catalog_stack_gaps(checkout) == []
+
+
 def test_a_committed_dot_directory_is_not_a_candidate_stack_either(
         tmp_path, root, load_script):
     """The same rule on the branch that actually runs: every real checkout has an index, so
@@ -214,6 +233,20 @@ def test_a_new_unschemad_json_under_features_is_a_violation(tmp_path, load_scrip
     gaps = validate.unschemad_feature_json(tmp_path)
 
     assert any("surprise.json" in g for g in gaps), gaps
+
+
+def test_a_non_archify_skills_schema_json_is_flagged(tmp_path, load_script):
+    """The `skills/*/schemas/*.json` exemption is for the vendored Archify packet (ADR-0030),
+    marked by a sibling `vendor.json` — not a skill-agnostic glob any skill's schemas/ dir
+    satisfies just by matching the shape."""
+    validate = load_script("tooling/validate.py")
+    stray = tmp_path / "features" / "demo" / "skills" / "somewidget" / "schemas" / "foo.json"
+    stray.parent.mkdir(parents=True)
+    _test_write(stray, "{}", encoding="utf-8")
+
+    gaps = validate.unschemad_feature_json(tmp_path)
+
+    assert any("foo.json" in g for g in gaps), gaps
 
 
 def test_every_feature_json_exemption_matches_a_file_that_exists(root, load_script):
