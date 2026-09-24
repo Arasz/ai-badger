@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.175.2",
-  "frameworkCommit": "6b70bd5c83c19246e7f0a97b3f4aa3a512554588",
+  "frameworkCommit": "bb0bf4de44674d08ba50de39fe2c4211af543ad3",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1221,12 +1221,12 @@
       "source": "features/common/skills/review-tests",
       "target": ".ai-badger/skills/review-tests",
       "frameworkVersion": "0.175.2",
-      "hash": "b13bafc8a4cfc63c8a832902d72b19cef712aa06ca5d9715f1adcfdc6208e852",
+      "hash": "17e04c4acc06b6725957c95ec4931133f91214b278be001a002feefd4ce35580",
       "dirMeta": {
         "file_count": 30,
         "dir_count": 2
       },
-      "sourceHash": "b13bafc8a4cfc63c8a832902d72b19cef712aa06ca5d9715f1adcfdc6208e852",
+      "sourceHash": "17e04c4acc06b6725957c95ec4931133f91214b278be001a002feefd4ce35580",
       "sourceMeta": {
         "file_count": 30,
         "dir_count": 2
