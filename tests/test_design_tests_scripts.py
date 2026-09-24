@@ -108,11 +108,20 @@ class TestMitigationDowngrade:
     """§5.5(a)'s calibration rule: a fake-timer/MSW/FakeTimeProvider marker in scope downgrades
     the *other* categories in that file to `mitigated`, reported separately from unmitigated."""
 
-    def test_time_hit_is_mitigated_when_faketimeprovider_is_in_the_file(self, scan):
-        text = "private readonly FakeTimeProvider _clock = new();\nvar t = DateTime.UtcNow;\n"
+    @pytest.mark.parametrize("call", [
+        "DateTime.UtcNow", "DateTime.Now", "DateTime.Today",
+        "DateTimeOffset.UtcNow", "TimeProvider.System",
+    ])
+    def test_time_hit_is_never_mitigated_by_faketimeprovider_in_the_file(self, scan, call):
+        """L9-7: a `FakeTimeProvider` field intercepts nothing here — every one of these calls
+        bypasses any injected fake and reads the real system clock directly, regardless of what
+        else the file declares. Only a `Task.Delay` call carrying a `TimeProvider` argument, or
+        the file driving `FakeTimeProvider...Advance(...)`, is a real interception (see
+        TestFakeTimeProviderMitigationIsCategorySpecific)."""
+        text = f"private readonly FakeTimeProvider _clock = new();\nvar t = {call};\n"
         hits = scan.scan_text(text, "Foo.cs")
         time_hits = [h for h in hits if h.category == "wall-clock-now"]
-        assert time_hits and all(h.mitigated for h in time_hits)
+        assert time_hits and all(not h.mitigated for h in time_hits)
 
     def test_time_hit_is_mitigated_when_use_fake_timers_is_in_the_file(self, scan):
         text = "vi.useFakeTimers();\nconst t = Date.now();\n"

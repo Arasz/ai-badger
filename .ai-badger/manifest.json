@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.175.2",
-  "frameworkCommit": "d94fa835403c5f2c176be71c85928b97d544f735",
+  "frameworkCommit": "6b70bd5c83c19246e7f0a97b3f4aa3a512554588",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -758,12 +758,12 @@
       "source": "features/common/skills/design-tests",
       "target": ".ai-badger/skills/design-tests",
       "frameworkVersion": "0.175.2",
-      "hash": "f6ac47f3640e40c2fb0afa83bc2769ca2e307a077d407b53aae79357ac216947",
+      "hash": "ab489cc3ec02ecde70ae5c43d53d25c9a451385a7be0158df9e7aef2eabe7e38",
       "dirMeta": {
         "file_count": 3,
         "dir_count": 1
       },
-      "sourceHash": "f6ac47f3640e40c2fb0afa83bc2769ca2e307a077d407b53aae79357ac216947",
+      "sourceHash": "ab489cc3ec02ecde70ae5c43d53d25c9a451385a7be0158df9e7aef2eabe7e38",
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 1
