@@ -63,7 +63,8 @@ Each links to the release that introduced it.
 From [0.24.0 — outbound scan](docs/changelog/0.24.0-outbound-scan.md):
 
 - `feed-badger`'s `open_pr.py` scans every declared path for credential-shaped literals **before**
-  running any git command, and exits non-zero on a finding. The matched text is never logged —
+  running any git command, and exits non-zero on a finding (since 0.172.13 it scans the staged
+  set instead, see below). The matched text is never logged —
   findings carry only `{file, pattern}` with `pattern` from a closed vocabulary.
 - `git add -A` was removed. Contributions are staged from an explicit, required, repeatable
   `--path`, so unrelated dirty files in the checkout cannot be published by accident.
@@ -117,6 +118,25 @@ From [0.69.1 — a shipped page is not prose](docs/changelog/0.69.1-a-shipped-pa
   kind that arrives by generation rather than by typing. `shipped_paths_guard.py` fails the build
   on `/Users/`, `/home/`, or `C:\\Users\\` in a tracked page. `docs/` and `tests/` stay exempt for
   prose and fixtures; the exemption stops at generated pages, which are neither.
+
+From [0.172.13 — outbound staging and journal restore](docs/changelog/0.172.13-outbound-staging-and-journal-restore.md):
+
+- **`open_pr.py` scans what it stages, not what it was told.** The 0.24.0 scan read the
+  declared paths while `git add` expanded them. A `--path 'features/**'` was one missing file to
+  the scanner and every match to git, and `git commit` also took whatever was already staged.
+  Paths are now staged with `GIT_LITERAL_PATHSPECS=1`, into an index that must be clean
+  beforehand. The scan reads exactly `git diff --cached --name-only`, and a finding unstages
+  and refuses.
+- **The credential scan has a size cap, and the outbound path refuses what it skips.**
+  `engine/unsafe_literals.py` skips any file over `LITERAL_SCAN_MAX_BYTES` (1 MB) and reports no
+  finding for it. `open_pr.py` refuses such a file instead of publishing it unscanned. The one
+  caller that still lets an oversized file through is the inbound Hermes sync,
+  `sync_skill` in `features/common/hooks/learned_skills_sync.py:347`: it copies a learned skill
+  into the user's own project, not out of it.
+- **`red_proof.py` restores a stale journal only onto the file it mutated.** The journal
+  records the sha256 of both the original and the mutated content. A restore writes only a file
+  inside the repo that still holds one of the two. A path outside the repo, a file edited since
+  the crash, or a journal without `mutated_sha256` exits 3 and writes nothing.
 
 Structural properties that predate those waves:
 
