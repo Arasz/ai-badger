@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 import types
 from pathlib import Path
 
@@ -61,6 +62,18 @@ def fake_commit_reminder(hooks, monkeypatch, load_script):
     for name in ("is_edit_tool", "advance", "build_message", "should_remind",
                  "ESCALATE_AFTER", "CONVENTION_URL", "COMMIT_FORM"):
         setattr(module, name, getattr(real, name))
+
+    def update_entry(root, count, threshold=5, escalate_after=real.ESCALATE_AFTER,
+                     now="", session=""):
+        # Same read-advance-write shape update_entry's real `kv_update` transaction
+        # collapses into one atomic round trip; the in-memory store here has no
+        # concurrent callers to race, so the two-step version is an equivalent fake.
+        fires, at_risk, updated = module.advance(  # pylint: disable=no-member
+            get_entry(root), count, threshold, escalate_after, now, session)
+        set_entry(root, updated)
+        return fires, at_risk, updated
+
+    module.update_entry = update_entry
     monkeypatch.setitem(sys.modules, hooks.COMMIT_REMINDER_MODULE_NAME, module)
     return module
 
@@ -266,3 +279,75 @@ def test_the_hermes_message_commands_and_names_the_convention(
     assert "Commit now" in message
     assert fake_commit_reminder.CONVENTION_URL in message
     assert "Consider committing" not in message
+
+
+# --------------------------------------------------- lost update (P21, L4-8, R24)
+
+
+class TestConcurrentInvocationsDoNotLoseAnUpdate:
+    """Two plugin invocations race the read-write gap of the hook's own get_entry/
+    advance/set_entry sequence. The fix routes the update through the sibling's own
+    atomic `commit_reminder.update_entry` (one `kv_update` transaction), so a
+    concurrent invocation blocks on the write lock instead of computing from the same
+    stale entry."""
+
+    def test_two_concurrent_updates_on_the_same_project_both_survive(
+            self, tmp_path, monkeypatch, hooks, pending_file, load_script):
+        """Two edits land close together and each cross a new threshold (5, then 6 files).
+
+        Racing from the same stale entry, both would compute `fires=1` from marker 0 and
+        the last write would win: one crossing lost. Serialized, the second sees the
+        first's marker (5) and 6 > 5 still counts as a fresh crossing, so both survive.
+        """
+        real = load_script(
+            "features/common/skills/commit-reminder/scripts/commit_reminder.py")
+        monkeypatch.setitem(sys.modules, hooks.COMMIT_REMINDER_MODULE_NAME, real)
+        root = str(tmp_path / "repo")
+
+        call_count = {"n": 0}
+
+        def uncommitted_files(_root, timeout=5.0):  # pylint: disable=unused-argument
+            call_count["n"] += 1
+            return [f"f{i}.py" for i in range(5 if call_count["n"] == 1 else 6)]
+
+        monkeypatch.setattr(real, "uncommitted_files", uncommitted_files)
+
+        real_advance = real.advance
+        first_entered = threading.Event()
+        release_first = threading.Event()
+        calls = {"n": 0}
+
+        def once_blocking_advance(entry, *args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                first_entered.set()
+                assert release_first.wait(timeout=5), "the first update was never released"
+            return real_advance(entry, *args, **kwargs)
+
+        monkeypatch.setattr(real, "advance", once_blocking_advance)
+
+        def run_first():
+            hooks.post_tool_observer(tool_name="write_file", result="ok", duration_ms=3,
+                                     cwd=root)
+
+        def run_second():
+            hooks.post_tool_observer(tool_name="write_file", result="ok", duration_ms=3,
+                                     cwd=root)
+
+        first = threading.Thread(target=run_first)
+        first.start()
+        assert first_entered.wait(timeout=5), "the first update never reached advance()"
+
+        second_done = threading.Event()
+        second = threading.Thread(target=lambda: (run_second(), second_done.set()))
+        second.start()
+        assert not second_done.wait(timeout=0.3), (
+            "the second update must block behind the first's still-open transaction, "
+            "not race ahead of it")
+
+        release_first.set()
+        first.join(timeout=5)
+        second.join(timeout=5)
+
+        entry = real.get_entry(root)
+        assert entry["fires"] == 2, "both concurrent fires must survive, not just one"
