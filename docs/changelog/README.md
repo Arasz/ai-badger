@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.176.0 | [test-run economy: real persistence, real classification, counted failures](0.176.0-test-run-economy-fixes-and-failure-arm.md) |
 | 0.175.0 | [grounded feedback reaches Claude's PostToolUseFailure](0.175.0-grounded-feedback-post-tool-use-failure.md) |
 | 0.174.1 | [Store fixes: test_economy table, D7 landing, audit doctor, torn legacy files](0.174.1-store-audit-db-d7-landing-and-torn-legacy-files.md) |
 | 0.174.0 | [pi adapter: bounded hook spawns, hook advice that persists, Claude's matcher rules](0.174.0-pi-adapter-hooks-behave-like-claude.md) |
