@@ -10,7 +10,6 @@ legacy source, carried to every consumer by the vendored-copy discipline (D16):
     Store.send_message(*, sender_session, sender_project, content,
                        target_session=None, target_project=None) -> int
     Store.deliver_for_session(session_id, project_id=None) -> (list[dict], summary)
-    Store.delete_cursor(session_id) -> bool
 
 Test map (plan aib-user-db-message-bus §3 P1 · spec rules in parentheses):
   1. Bus tables + stamp 2 (fresh open) .......... test_open_user_creates_the_bus_tables_and_stamps_version_two
@@ -37,7 +36,7 @@ Test map (plan aib-user-db-message-bus §3 P1 · spec rules in parentheses):
   9. Exactly once (Rule 3, F5) .................. test_concurrent_deliveries_inject_exactly_once,
                                                    test_hook_crash_between_read_and_commit_rolls_back,
                                                    test_cursor_upsert_advances_ts
- 10. Cursor lifecycle + retention (Rules 6+10) .. test_delete_cursor_removes_the_row,
+ 10. Cursor lifecycle + retention (Rules 6+10) .. test_the_store_has_no_cursor_delete,
                                                    test_open_user_prunes_cursors_older_than_four_days,
                                                    test_open_user_prunes_messages_older_than_four_days,
                                                    test_a_message_exactly_four_days_old_survives_until_the_window_closes
@@ -572,6 +571,46 @@ def test_first_delivery_with_project_id_still_cursors_past_the_window(tmp_path, 
         store.close()
 
 
+@pytest.mark.parametrize("one_to_one", ["none", "before-backlog", "after-backlog"])
+def test_project_resolving_after_a_d7_first_read_gets_only_in_window_mail(
+        one_to_one, tmp_path, monkeypatch, frozen_clock):
+    """D7 landing (D2): a first read with no project id lands its cursor at
+    max(1:1-leg max in the window, last id older than the window). When the project
+    resolves later, the next read is a live read from that cursor: it must deliver the
+    in-window project mail only, never the 4-day backlog behind the gate and never the
+    1:1 row already delivered. The 1:1 row is seeded with no row, below the backlog's ids
+    (a skewed sender clock) and above them, so the leg-max-only landing floods 33 rows
+    in the first two cases and a landing without the leg-max term re-delivers the 1:1
+    row in the third."""
+    _user_env(tmp_path, monkeypatch)
+    old = (frozen_clock - timedelta(hours=2)).isoformat()
+    fresh = frozen_clock.isoformat()
+    store = badger_store.open_user()
+    try:
+        def direct():
+            _seed_message(store, ts=fresh, sender_session="S1", sender_project="p",
+                          target_session="S", content="direct")
+
+        if one_to_one == "before-backlog":
+            direct()
+        for i in range(30):
+            _seed_message(store, ts=old, sender_session="S1", sender_project="p",
+                          target_project="p", content=f"backlog-{i}")
+        if one_to_one == "after-backlog":
+            direct()
+        for i in range(3):
+            _seed_message(store, ts=fresh, sender_session="S1", sender_project="p",
+                          target_project="p", content=f"fresh-{i}")
+
+        first, _ = store.deliver_for_session("S", None)
+        assert [d["content"] for d in first] == ([] if one_to_one == "none" else ["direct"])
+
+        second, _ = store.deliver_for_session("S", "p")
+        assert [d["content"] for d in second] == ["fresh-0", "fresh-1", "fresh-2"]
+    finally:
+        store.close()
+
+
 def test_leaked_hold_env_without_armed_is_inert(tmp_path, monkeypatch):
     """D3/L2: AI_BADGER_TEST_HOLD parks a delivery only when AI_BADGER_TEST_HOLD_ARMED is
     also set — a hold value leaked into an unconfigured environment is inert (the
@@ -816,17 +855,10 @@ def test_cursor_upsert_advances_ts(tmp_path, monkeypatch, frozen_clock):
 # ---------------------------------------------------------------------------
 
 
-def test_delete_cursor_removes_the_row(tmp_path, monkeypatch):
-    """Rule 6 scenario 1: the close-event cleanup drops the session's cursor row."""
-    _user_env(tmp_path, monkeypatch)
-    store = badger_store.open_user()
-    try:
-        _seed_cursor(store, "S", 3, "2026-09-01T11:00:00+00:00")
-        assert store.delete_cursor("S") is True
-        assert _cursor_row(store, "S") is None
-        assert store.delete_cursor("S") is False  # a second close is a harmless no-op
-    finally:
-        store.close()
+def test_the_store_has_no_cursor_delete(tmp_path, monkeypatch):
+    """Rule 6 (D3): a cursor dies only by the 4-day prune. Closing a session keeps it, so a
+    resumed session id replays nothing, and the store offers no way to delete one."""
+    assert not hasattr(badger_store.Store, "delete_cursor")
 
 
 def test_open_user_prunes_cursors_older_than_four_days(tmp_path, monkeypatch, frozen_clock):

@@ -446,7 +446,7 @@ SCENARIO_OWNERS = {
     ],
     # Rule 6 — Cursors die on session close or after 4 days
     "Session close removes the cursor row": [
-        "tests/test_message_bus_store.py::test_delete_cursor_removes_the_row",
+        "tests/test_message_bus_store.py::test_the_store_has_no_cursor_delete",
         "tests/test_message_delivery_hook.py::test_session_end_leaves_the_cursor_for_the_four_day_prune",
         "tests/test_message_bus_manifest.py::"
         "test_the_wired_close_command_leaves_the_cursor_for_the_prune",
@@ -454,9 +454,9 @@ SCENARIO_OWNERS = {
         "tests/test_adjust_hooks_copilot.py::test_copilot_session_end_wires_cursor_cleanup",
         "tests/test_message_bus_integration.py::"
         "test_the_session_end_row_carries_the_copilot_session_end_arm",
-        # P10/D3: SessionEnd itself no longer deletes the cursor — only the store's own
-        # delete_cursor() method (still exercised above) can. The 4-day prune is the row's
-        # real death now; the close event's own no-op contract is pinned separately.
+        # D3: nothing deletes a cursor any more — SessionEnd is a no-op and the store has
+        # no delete method (pinned above). The 4-day prune is the row's only death; the
+        # close event's own no-op contract is pinned separately.
         "tests/test_message_bus_integration.py::"
         "test_session_end_no_longer_deletes_the_cursor_so_a_resumed_start_replays_nothing",
     ],
@@ -694,8 +694,8 @@ def test_session_end_no_longer_deletes_the_cursor_so_a_resumed_start_replays_not
     session id on --resume then looked like a brand-new session to the store, and its
     first-delivery 30-minute gate replayed mail the session had already received
     (L2-6). Rule 6 now retires cursors only via the 4-day prune (D3): a close event
-    must leave the row alone. Mutation: reinstating ``store.delete_cursor(session_id)``
-    in ``_close`` turns this red."""
+    must leave the row alone. Mutation: reinstating a ``DELETE FROM cursors`` for the
+    session in ``_close`` turns this red."""
     repo = tmp_path / "repo"
     _make_project(repo)
     with contextlib.closing(badger_store.open_user()) as store:

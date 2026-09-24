@@ -1,10 +1,13 @@
-"""The vendored-path manifest pins where badger_store.py copies land and that they match (D16).
+"""Every vendored badger_store.py copy on disk matches the canonical module (D16).
+
+The report finds copies by globbing the working tree (features/** and skills/**), never
+from a hand list or from git, so a new copy is checked the moment it exists — in a git
+checkout, a non-git tmp root and the plugin cache alike.
 
 Designed failure modes, each with the mutation that proves the test real:
-  - a lands_in path typo (rename the target dir -> red): a silently-wrong sync destination;
+  - a copy the report cannot see (a hand list instead of the glob -> red): an unguarded copy;
   - a landed copy drifting from the canonical module (edit the copy -> red): copy skew;
   - verify() flagging healthy copies or missing skew (flip the comparison -> red).
-Copies that have not landed yet are named but unchecked — vendorin lands with P0.5/P2.2.
 """
 from __future__ import annotations
 
@@ -14,13 +17,19 @@ import badger_store
 from conftest import ROOT
 
 
-def test_manifest_lands_in_paths_name_existing_repo_locations():
-    """Every lands_in parent must exist in the repo: a typo would silently misroute the sync."""
-    for entry in badger_store.VENDORED_PATHS:
-        assert (ROOT / entry["lands_in"]).parent.is_dir(), entry["lands_in"]
-    assert len({entry["lands_in"] for entry in badger_store.VENDORED_PATHS}) == len(
-        badger_store.VENDORED_PATHS
-    ), "manifest entries must be unique destinations"
+def test_the_report_finds_an_unlisted_copy_in_a_non_git_root(tmp_path):
+    """A copy nobody registered, in a root with no .git, is still compared: the working
+    tree is the only inventory there is (the plugin cache has no git either)."""
+    copy = tmp_path / "features/common/skills/x/scripts/badger_store.py"
+    copy.parent.mkdir(parents=True)
+    copy.write_bytes((ROOT / "engine/badger_store.py").read_bytes() + b"\n# drifted\n")
+    plugin_copy = tmp_path / "skills/x/scripts/badger_store.py"
+    plugin_copy.parent.mkdir(parents=True)
+    shutil.copy(ROOT / "engine/badger_store.py", plugin_copy)
+
+    assert not (tmp_path / ".git").exists()
+    assert badger_store.vendored_copies_report(tmp_path) == [
+        "features/common/skills/x/scripts/badger_store.py differs from badger_store.py"]
 
 
 def test_landed_copies_are_byte_identical_to_the_canonical():
@@ -42,7 +51,7 @@ def test_verify_flags_a_skewed_landed_copy_and_stays_silent_on_a_matching_one(tm
                       " badger_store.py"]
 
 
-def test_absent_landed_copies_are_not_findings(tmp_path):
-    """A destination that has not landed yet is manifest-named but unchecked, not a failure."""
-    (tmp_path / "features/common/skills/task/scripts").mkdir(parents=True)  # dir without the file
+def test_a_root_without_copies_has_no_findings(tmp_path):
+    """A skill directory with no copy in it is not a finding: only files on disk are checked."""
+    (tmp_path / "features/common/skills/task/scripts").mkdir(parents=True)
     assert badger_store.vendored_copies_report(tmp_path) == []

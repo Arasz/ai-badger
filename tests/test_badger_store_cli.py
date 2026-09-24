@@ -8,6 +8,7 @@ and a stamp its writer never produced.
 from __future__ import annotations
 
 import json
+import sqlite3
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -27,9 +28,8 @@ def _ts(days_ago: float) -> str:
 
 
 def _open_audit():
-    """The audit sink over its own DB file, with USER_FAMILIES' env-aware hook_audit family."""
-    return badger_store._open(  # pylint: disable=protected-access
-        badger_store.audit_db_path(), "user", badger_store.USER_FAMILIES)
+    """The audit sink over its own DB file, with AUDIT_FAMILIES' env-aware seams."""
+    return badger_store.open_audit()
 
 
 def test_prune_status_reports_rows_oldest_and_last_prune_per_log_table(
@@ -251,3 +251,51 @@ def test_doctor_project_target_reports_the_project_tracking_root(
     out = capsys.readouterr().out
     assert "family=marker_state" in out and "state=resurrected" in out
     assert "diff=" in out
+
+
+def _section(out: str, label: str) -> list[str]:
+    """The indented family lines printed under the ``db=<label>`` header."""
+    lines = out.splitlines()
+    starts = [i for i, line in enumerate(lines) if line.startswith(f"db={label} ")]
+    assert len(starts) == 1, f"expected one db={label} section in:\n{out}"
+    section = []
+    for line in lines[starts[0] + 1:]:
+        if not line.startswith("  "):
+            break
+        section.append(line)
+    return section
+
+
+def test_doctor_covers_the_audit_store_under_the_debug_dir(tmp_path, monkeypatch, capsys):
+    """hook_audit's migration stamp lives in audit.db and its legacy file in
+    $AI_BADGER_DEBUG_DIR: a newer audit.jsonl there is reported contained under db=audit
+    by --status, and --repair re-imports and renames it. Reading ai-badger.db instead
+    finds no stamp and hides the containment for good."""
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+    debug = tmp_path / "debug-elsewhere"
+    debug.mkdir()
+    monkeypatch.setenv("AI_BADGER_DEBUG_DIR", str(debug))
+    audit_db = debug / "audit.db"
+    conn = sqlite3.connect(audit_db)
+    try:
+        conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        conn.execute("INSERT INTO meta(key, value) VALUES ('schema_version', '2')")
+        conn.execute("INSERT INTO meta(key, value) VALUES ('migrated_at.hook_audit', ?)",
+                     (str(time.time() - 60),))
+        conn.commit()
+    finally:
+        conn.close()
+    legacy = debug / "audit.jsonl"
+    legacy.write_text(json.dumps({"t": _ts(0), "c": "stale", "e": "surface"}) + "\n",
+                      encoding="utf-8")
+
+    assert badger_store.main(["doctor", "--status"]) == 0
+    audit = _section(capsys.readouterr().out, "audit")
+    assert any("family=hook_audit" in line and "state=resurrected" in line
+               for line in audit), audit
+    assert legacy.exists(), "--status is read-only"
+
+    assert badger_store.main(["doctor", "--repair"]) == 0
+    audit = _section(capsys.readouterr().out, "audit")
+    assert any("family=hook_audit" in line and "re-imported" in line for line in audit), audit
+    assert not legacy.exists() and legacy.with_name("audit.migrated.jsonl").exists()
