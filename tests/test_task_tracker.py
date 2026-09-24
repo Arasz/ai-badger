@@ -275,6 +275,32 @@ def test_start_refuses_when_session_already_attached_to_another_unfinished_task(
     assert tt.lib.find_entry(tt.lib.load_tasks(), "T-02") is None
 
 
+def test_start_refuses_when_an_earlier_task_on_the_session_is_finished_but_a_later_one_is_not(
+    tt, monkeypatch, tmp_path, capsys
+):
+    """The session-conflict scan must not stop at the first task recorded on the session
+    (L5-5): a FINISHED row must not hide a still-active one recorded after it."""
+    _no_cron_recorder(monkeypatch, tt)
+    transcript = tmp_path / "t.jsonl"
+    _run(monkeypatch, tt, "start", "T-01",
+         "--session-id", "sid-shared-2", "--transcript-path", str(transcript))
+    tasks = tt.lib.load_tasks()
+    tt.lib.find_entry(tasks, "T-01")["state"] = tt.lib.STATE_FINISHED
+    tt.lib.save_tasks_doc(tasks)
+    _run(monkeypatch, tt, "start", "T-02",
+         "--session-id", "sid-shared-2", "--transcript-path", str(transcript))
+    capsys.readouterr()
+
+    code = _run(monkeypatch, tt, "start", "T-03",
+                "--session-id", "sid-shared-2", "--transcript-path", str(transcript))
+
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "already attached to task" in err
+    assert "'T-02'" in err
+    assert tt.lib.find_entry(tt.lib.load_tasks(), "T-03") is None
+
+
 def test_start_refuses_to_restart_a_finished_task(tt, monkeypatch, tmp_path, capsys):
     _no_cron_recorder(monkeypatch, tt)
     transcript = tmp_path / "t.jsonl"
@@ -346,6 +372,55 @@ def test_finish_succeeds_when_state_json_was_updated_since_start(tt, monkeypatch
     out = json.loads(capsys.readouterr().out)
     assert out["usage"]["inputTokens"] == 250
     assert out["usage"]["outputTokens"] == 60
+
+
+def test_finish_does_not_zero_out_usage_when_transcript_path_is_missing(
+        tt, monkeypatch, tmp_path, capsys):
+    """If the task's own `transcriptPath` is gone (e.g. never recorded for a resumed session),
+    `finish` computes an empty checkpoint from it. That must not overwrite a `latest`
+    checkpoint that stop_hook's own periodic checkpointing already populated from the real
+    transcript, and must not be the checkpoint usage is computed against either (L5-3)."""
+    import os  # pylint: disable=import-outside-toplevel,reimported
+
+    start_transcript = tmp_path / "t.jsonl"
+    _write_transcript(start_transcript, [(False, 100, 20, 10, 5)])
+    _start(monkeypatch, tt, "T-01", start_transcript)
+    capsys.readouterr()
+
+    # Real work happens and stop_hook records it against "latest" — using the payload's own
+    # transcript path, independently of whatever the task entry itself carries.
+    _write_transcript(start_transcript, [
+        (False, 100, 20, 10, 5),
+        (False, 250, 60, 10, 5),
+    ])
+    usage = tt.lib.load_usage()
+    usage_entry = tt.lib.find_entry(usage, "T-01")
+    usage_entry["checkpoints"]["latest"] = tt.lib.make_checkpoint(str(start_transcript))
+    tt.lib.save_usage_doc(usage)
+
+    # The bug scenario: the task's own transcriptPath is gone by the time finish runs.
+    tasks = tt.lib.load_tasks()
+    entry = tt.lib.find_entry(tasks, "T-01")
+    entry["transcriptPath"] = None
+    tt.lib.save_tasks_doc(tasks)
+
+    started_dt = tt.lib.parse_iso(entry["startedAt"])
+    tt.lib.STATE_JSON.parent.mkdir(parents=True, exist_ok=True)
+    _test_write(tt.lib.STATE_JSON, "{}", encoding="utf-8")
+    later = (started_dt + timedelta(seconds=5)).timestamp()
+    os.utime(tt.lib.STATE_JSON, (later, later))
+
+    code = _run(monkeypatch, tt, "finish", "T-01")
+
+    assert code == 0
+    out = json.loads(capsys.readouterr().out)
+    # cumulative at "start" is just the first message (100 input); the populated "latest" we
+    # seeded sums both messages (350) — the 250-token delta is exactly the second message,
+    # proof that finish used the populated checkpoint rather than the empty one.
+    assert out["usage"]["inputTokens"] == 250
+    assert out["usage"]["grandTotal"] > 0
+    latest = tt.lib.find_entry(tt.lib.load_usage(), "T-01")["checkpoints"]["latest"]
+    assert latest["contextTokens"] > 0
 
 
 def test_finish_force_bypasses_the_state_json_check(tt, monkeypatch, tmp_path):

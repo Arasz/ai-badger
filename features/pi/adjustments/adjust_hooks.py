@@ -16,6 +16,8 @@ Extension structure:
     index.ts           # main entry — pi discovers exactly this filename for a subdirectory
                         # extension (~/.pi/agent/extensions/<name>/index.ts) and nothing else
     package.json        # extension manifest
+    *.ts                # the modules index.ts imports
+    .ai-badger-capability-resources-discover  # marker adjust_skills gates its migration on
 """
 from __future__ import annotations
 
@@ -29,7 +31,7 @@ USER_EXTENSIONS_DIR = Path.home() / ".pi" / "agent" / "extensions" / "ai-badger"
 
 def _install_user_extension(
         adapter_dir: Path, install: bool) -> Tuple[list[str], Optional[str]]:
-    """Copy the pi extension adapter to ~/.pi/agent/extensions/ai-badger/.
+    """Copy every file of the pi extension adapter to ~/.pi/agent/extensions/ai-badger/.
 
     Returns (installed_filenames, error_note). install=False is a documented no-op — this is
     user-global state, deliberately left untouched — and returns ([], None), not an error. A
@@ -46,7 +48,7 @@ def _install_user_extension(
     installed: list[str] = []
 
     for item in adapter_dir.iterdir():
-        if item.is_file() and item.suffix in (".ts", ".json"):
+        if item.is_file():
             shutil.copy2(item, USER_EXTENSIONS_DIR / item.name)
             installed.append(item.name)
 

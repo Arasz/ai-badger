@@ -240,11 +240,16 @@ def gateway_manifest_violations(root: Path) -> List[str]:
 def skills_lint(root: Path) -> List[str]:
     """Convention violations across catalog SKILL.md files (plan G4 rules 1-10, plus 11-12).
 
-    Missing features/ (fake test roots) yields no violations. Body = text after the closing
+    A glob matching zero SKILL.md files is itself a violation: checking nothing and finding
+    nothing are not the same answer, the same reasoning `hooks_manifest_agent_gaps` in
+    tooling/validate.py already applies to its own glob. Body = text after the closing
     frontmatter fence; rules 3-5 reuse badger_lib.skill_description.
     """
     violations: List[str] = []
-    for skill_md in skill_files(root):
+    files = skill_files(root)
+    if not files:
+        violations.append(f"{SKILLS_GLOB}: matched no SKILL.md file; refusing to report a pass")
+    for skill_md in files:
         rel = skill_md.relative_to(root)
         try:
             text = skill_md.read_text(encoding="utf-8")

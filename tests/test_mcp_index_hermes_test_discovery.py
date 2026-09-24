@@ -31,6 +31,24 @@ NOT_FOUND = """  ✗ Server 'plugin:github:github' not found in config.
   Available: dotnet-sdk, glider, code-review-graph, ai-raccoon, rider, semantica
 """
 
+# A tool line with no description at all — hermes prints a bare name when it has none.
+CONNECTED_WITH_A_BARE_NAME = """  Testing 'x'...
+  ✓ Connected (200ms)
+  ✓ Tools discovered: 3
+
+    tool_one                             Does something useful
+    tool_two
+    tool_three                           Does another thing
+"""
+
+# The header claims 3 but the block was cut off after 1 — a truncated or reformatted run.
+TRUNCATED_MID_BLOCK = """  Testing 'x'...
+  ✓ Connected (200ms)
+  ✓ Tools discovered: 3
+
+    tool_one                             Does something useful
+"""
+
 
 def _load(load_script, path):
     return load_script(path)
@@ -59,6 +77,26 @@ def test_a_run_that_printed_nothing_yields_no_answer(load_script):
     assert hl.parse_hermes_test_tools("") is None
 
 
+def test_a_tool_with_no_description_does_not_truncate_the_list(load_script):
+    """L6-4: the old `_TEST_TOOL` regex requires a description after 2+ spaces, so a bare
+    name ended the scan there and the partial list was still returned as authoritative
+    (`tools_known = True`), silently dropping every tool after it."""
+    hl = _load(load_script, MODULE)
+
+    tools = hl.parse_hermes_test_tools(CONNECTED_WITH_A_BARE_NAME)
+
+    assert [t["name"] for t in tools] == ["tool_one", "tool_two", "tool_three"]
+    assert tools[1]["description"] == ""
+
+
+def test_a_block_shorter_than_the_declared_count_yields_no_answer(load_script):
+    """L6-4: the header's `Tools discovered: N` count is the one honest signal that the
+    listing was cut short; a partial block must not be trusted as authoritative."""
+    hl = _load(load_script, MODULE)
+
+    assert hl.parse_hermes_test_tools(TRUNCATED_MID_BLOCK) is None
+
+
 # ── enrichment ───────────────────────────────────────────────────────────────
 
 def _runner(answers):
@@ -81,6 +119,19 @@ def test_enrichment_fills_a_toolless_server_and_marks_it_known(load_script):
 
     assert servers[0]["tools_known"] is True
     assert [t["name"] for t in servers[0]["tools"]] == ["extract_entities", "record_decision"]
+
+
+def test_enrichment_leaves_tools_known_false_when_the_declared_count_is_not_met(load_script):
+    """L6-4, at the enrichment layer: a count mismatch must not flip `tools_known` to True on
+    a partial answer — the server stays exactly as unanswered as a not-found response."""
+    hl = _load(load_script, MODULE)
+    servers = [{"name": "flaky", "tools": [], "tools_known": False}]
+
+    notes = hl.enrich_with_hermes_test(servers, run=_runner({"flaky": TRUNCATED_MID_BLOCK}))
+
+    assert servers[0]["tools_known"] is False
+    assert servers[0]["tools"] == []
+    assert any("flaky" in note for note in notes)
 
 
 def test_enrichment_leaves_a_server_it_could_not_test_untouched(load_script):

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import json
+import threading
 
 import pytest
 
@@ -40,7 +41,12 @@ def _payload(tool_name="Bash", cwd="/repo", command="pytest", session="sess-1"):
 
 
 def _stub_entry_store(module, monkeypatch):
-    """Replace persisted-entry I/O with an in-memory dict, keyed like the real functions."""
+    """Replace persisted-entry I/O with an in-memory dict, keyed like the real functions.
+
+    `update_entry` is the one the hook itself calls; it is faked here atop the same
+    `get_entry`/`set_entry`/`advance_session` so a test that only cares about the ratchet's
+    outward behaviour need not know the storage call is now a single atomic round trip.
+    """
     store: dict = {}
 
     def fake_get_entry(root):
@@ -49,8 +55,16 @@ def _stub_entry_store(module, monkeypatch):
     def fake_set_entry(root, entry):
         store[root] = json.loads(json.dumps(entry))
 
+    def fake_update_entry(root, session, is_full, now="", max_full=None, escalate_at=None):
+        fires, escalated, updated = module.suite_economy.advance_session(
+            fake_get_entry(root), session, is_full, now=now,
+            max_full=max_full, escalate_at=escalate_at)
+        fake_set_entry(root, updated)
+        return fires, escalated, updated
+
     monkeypatch.setattr(module.suite_economy, "get_entry", fake_get_entry)
     monkeypatch.setattr(module.suite_economy, "set_entry", fake_set_entry)
+    monkeypatch.setattr(module.suite_economy, "update_entry", fake_update_entry)
     return store
 
 
@@ -193,6 +207,110 @@ def test_non_dict_payload_is_silent(load_script, monkeypatch, capsys):
     rc = module.main()
     assert rc == 0
     assert capsys.readouterr().out.strip() == ""
+
+
+# --------------------------------------------------- hookEventName echo (R11)
+
+
+def test_hook_event_name_defaults_to_post_tool_use(load_script, monkeypatch, capsys):
+    """No `hook_event_name` in the payload (Claude's real PostToolUse input never carries
+    one back out): the echo still defaults to PostToolUse."""
+    module = _load(load_script)
+    _stub_entry_store(module, monkeypatch)
+    result = (None, None)
+    for _ in range(3):
+        result = _captured(module, monkeypatch, capsys, _payload())
+    rc, out = result
+    assert out["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
+
+
+def test_hook_echoes_the_incoming_hook_event_name(load_script, monkeypatch, capsys):
+    module = _load(load_script)
+    _stub_entry_store(module, monkeypatch)
+    payload = _payload()
+    payload["hook_event_name"] = "PostToolUseFailure"
+    result = (None, None)
+    for _ in range(3):
+        result = _captured(module, monkeypatch, capsys, dict(payload))
+    rc, out = result
+    assert out["hookSpecificOutput"]["hookEventName"] == "PostToolUseFailure"
+
+
+# --------------------------------------------------- PostToolUseFailure arm (D13 = A)
+
+
+def test_post_tool_use_failure_payload_of_a_failing_run_is_counted(load_script, monkeypatch,
+                                                                     capsys):
+    """Claude's PostToolUse never sees a failed Bash call; a failing full-suite run must
+    still count toward the budget via the PostToolUseFailure arm (hooks-manifest.json:
+    test-run-economy-failure)."""
+    module = _load(load_script)
+    store = _stub_entry_store(module, monkeypatch)
+    result = (None, None)
+    for _ in range(3):
+        payload = _payload()
+        payload["hook_event_name"] = "PostToolUseFailure"
+        result = _captured(module, monkeypatch, capsys, payload)
+    rc, out = result
+    assert out is not None, "a failing pytest run must still count"
+    assert out["hookSpecificOutput"]["hookEventName"] == "PostToolUseFailure"
+    assert store["/repo"]["sessions"]["sess-1"]["full"] == 3
+
+
+# --------------------------------------------------- lost update (L4-8, R24)
+
+
+class TestConcurrentInvocationsDoNotLoseAnUpdate:
+    """Two separate get_entry/set_entry calls race two invocations across the read-write
+    gap. The fix routes the per-session update through the store's own atomic `kv_update`
+    (suite_economy.update_entry), so a concurrent call blocks on the write lock instead of
+    computing from the same stale entry."""
+
+    def test_two_concurrent_full_runs_on_the_same_project_both_survive(
+            self, tmp_path, load_script, monkeypatch):
+        module = _load(load_script)
+        monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+        root = str(tmp_path / "repo")
+
+        real_advance_session = module.suite_economy.advance_session
+        first_entered = threading.Event()
+        release_first = threading.Event()
+        calls = {"n": 0}
+
+        def once_blocking_advance_session(entry, *args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                first_entered.set()
+                assert release_first.wait(timeout=5), "the first update was never released"
+            return real_advance_session(entry, *args, **kwargs)
+
+        monkeypatch.setattr(module.suite_economy, "advance_session",
+                            once_blocking_advance_session)
+
+        def run_first():
+            module.suite_economy.update_entry(root, "s1", True, now="t1")
+
+        def run_second():
+            module.suite_economy.update_entry(root, "s2", True, now="t2")
+
+        first = threading.Thread(target=run_first)
+        first.start()
+        assert first_entered.wait(timeout=5), "the first update never reached advance_session()"
+
+        second_done = threading.Event()
+        second = threading.Thread(target=lambda: (run_second(), second_done.set()))
+        second.start()
+        assert not second_done.wait(timeout=0.3), (
+            "the second update must block behind the first's still-open transaction, "
+            "not race ahead of it")
+
+        release_first.set()
+        first.join(timeout=5)
+        second.join(timeout=5)
+
+        entry = module.suite_economy.get_entry(root)
+        totals = {s: row["full"] for s, row in entry["sessions"].items()}
+        assert totals == {"s1": 1, "s2": 1}, "both concurrent increments must survive"
 
 
 def test_internal_error_never_breaks_the_session(load_script, monkeypatch, capsys, tmp_path):

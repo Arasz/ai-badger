@@ -22,9 +22,11 @@ narrow — minus:
     for a case the two rules above get wrong, without reopening either of them.
 
 The pattern is the other half of staying quiet: it requires a real path-shaped segment after
-`/Users/`, `/home/` or `<drive>:\\Users\\` (letters, digits, `_.-`), so a placeholder that is
-NOT covered by an exempt directory — `/Users/…/.claude/projects/…` (an ellipsis, not a name) in
-a shipped skill reference doc — does not match, while a real username does.
+`/Users/`, `/home/`, `/root/` or `<drive>:\\Users\\` (letters, digits, `_.-`), and two such
+segments after `/var/folders/` or `/private/var/folders/` (macOS's per-user temp dir), so a
+placeholder that is NOT covered by an exempt directory — `/Users/…/.claude/projects/…` (an
+ellipsis, not a name) in a shipped skill reference doc — does not match, while a real username
+or a real `mktemp -t` output path does.
 
 Usage: shipped_paths_guard.py [--root <dir>]
 """
@@ -56,9 +58,20 @@ _SEGMENT = r"[A-Za-z0-9][A-Za-z0-9_.\-]*"
 # 1-2 backslashes: a Windows path inside a JSON string value is stored double-escaped
 # (`"C:\\Users\\<name>"`), and this guard reads raw text rather than JSON-decoding it.
 _WIN_SEP = r"\\{1,2}"
+# macOS's per-user temp dir (`$TMPDIR`, `mktemp -t ...`), e.g. /var/folders/k9/<hash>/T/... —
+# `/private` is the resolved form `realpath` and some shells report; both ship in the wild.
+# Two segments are required (the two hashed path components) so a doc merely mentioning
+# "/var/folders" in prose, with nothing after it, is not mistaken for a real leaked path.
+_MAC_TMP = r"(?:/private)?/var/folders/" + _SEGMENT + "/" + _SEGMENT + "/"
+# /root/ has no username segment to require: what follows is the first path component inside
+# the superuser home, which is a dotfile or dot-dir (.ai-badger, .claude, .cache, ...) far more
+# often than not, so its segment allows a leading `.` that /Users/ and /home/ do not need to.
+_ROOT_SEGMENT = r"[A-Za-z0-9.][A-Za-z0-9_.\-]*"
 ABS_PATH_RE = re.compile(
     r"(?:/Users/|/home/)" + _SEGMENT
+    + r"|/root/" + _ROOT_SEGMENT
     + r"|[A-Za-z]:" + _WIN_SEP + "Users" + _WIN_SEP + _SEGMENT
+    + r"|" + _MAC_TMP
 )
 
 

@@ -24,6 +24,7 @@ SHARED_SKILL_FILES = (
     ("ai-raccoon-memory", "memory_first_gate.py"),
     ("semantica-knowledge-graph", "export_semantica_graph.py"),
     ("git-work", "git_internals_guard.py"),
+    ("git-work", "shell_parser.py"),
 )
 RETRIEVAL_FILES = ("tokenizer.py", "bm25.py", "mcp_matcher.py")
 
