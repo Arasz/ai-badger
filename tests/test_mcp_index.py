@@ -6,6 +6,8 @@ Covers: init, update, validate, tag, intent, list, and auto-tagging heuristics.
 from __future__ import annotations
 
 import json
+import os
+import stat
 import textwrap
 from pathlib import Path
 
@@ -509,6 +511,39 @@ def test_update_marks_removed_tools(tmp_path, load_script):
     assert tools["current_tool"].get("status", "active") == "active"
 
 
+def test_update_flips_a_removed_tool_back_to_active_when_it_reappears(tmp_path, load_script):
+    """L6-1: `_sync_tools` only adds names in current - tools and marks tools - current as
+    removed. A name in both never left the removed status, so a tool that comes back (a
+    server restart, a version bump that restores a dropped tool) stayed permanently invisible
+    to `mcp_matcher._iter_tools`, which skips removed tools."""
+    _write_index(tmp_path, {
+        "version": "0.1.0",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "sources": [{
+            "name": "rider",
+            "tools": {
+                "came_back": {"tags": ["dotnet"], "intent": "Was removed, is back now",
+                             "status": "removed"},
+            },
+        }],
+    })
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+
+    mcp_json = json.dumps({
+        "servers": [{
+            "name": "rider",
+            "tools": [{"name": "came_back", "description": "Was removed, is back now"}],
+        }],
+    })
+
+    rc = mod.main(["update", "--target", str(tmp_path), "--from-json", mcp_json])
+    assert rc == 0
+
+    tool = _read_index(tmp_path)["sources"][0]["tools"]["came_back"]
+    assert tool.get("status", "active") == "active"
+    assert tool["tags"] == ["dotnet"]  # curation survives the flip
+
+
 def test_update_preserves_manual_tags(tmp_path, load_script):
     """update should preserve manually-set tags on existing tools."""
     _write_index(tmp_path, {
@@ -652,6 +687,28 @@ def test_tag_without_tags(tmp_path, load_script):
     assert rc == 2
 
 
+def test_from_json_given_a_file_path_exits_cleanly_instead_of_a_traceback(tmp_path, load_script,
+                                                                          capsys):
+    """L6-6: `--from-json` takes the JSON text itself, not a file path (the docs and the error
+    hint said otherwise). Passing a path — the documented usage — must not raise an uncaught
+    JSONDecodeError."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    rc = mod.main(["init", "--target", str(tmp_path), "--from-json", "/tmp/some-listing.json"])
+    assert rc == 2
+    assert "JSON" in capsys.readouterr().err
+
+
+def test_from_json_given_a_non_dict_document_exits_cleanly_instead_of_a_traceback(tmp_path,
+                                                                                  load_script,
+                                                                                  capsys):
+    """A syntactically valid JSON document that is not an object (a bare list) raised
+    AttributeError from `data.get(...)` uncaught."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    rc = mod.main(["init", "--target", str(tmp_path), "--from-json", json.dumps([1, 2, 3])])
+    assert rc == 2
+    assert "servers" in capsys.readouterr().err.lower()
+
+
 # ── text parsing fallback ────────────────────────────────────────────────────
 # The parsers moved to host_listings.py with issue #188; their tests moved with them, to
 # tests/test_mcp_index_host_listings.py.
@@ -762,6 +819,39 @@ def test_write_index_keeps_zero_tool_servers_rather_than_dropping_them(tmp_path,
     index = _read_index(tmp_path)
     assert [s["name"] for s in index["sources"]] == ["rider", "empty-server"]
     assert next(s for s in index["sources"] if s["name"] == "empty-server")["status"] == "empty"
+
+
+def test_write_index_preserves_an_existing_files_mode(tmp_path, load_script):
+    """L6-7: mcp_index's own `_write_index` (a local copy of `badger_lib.atomic_write_text` so
+    this script runs with no framework on sys.path) drifted from the canonical version — it
+    dropped the mode-preservation step, so `mkstemp`'s 0600 replaced whatever mode the file
+    had (e.g. 0644 shared with a team via git)."""
+    path = _write_index(tmp_path, _valid_index())
+    os.chmod(path, 0o644)
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+
+    rc = mod.main(["tag", "rider:build_solution", "dotnet", "build", "--target", str(tmp_path)])
+    assert rc == 0
+
+    assert stat.S_IMODE(path.stat().st_mode) == 0o644
+
+
+def test_write_index_gives_a_new_file_the_umask_default_mode(tmp_path, load_script):
+    """P13 AC5 (v2, stated inline — no wait on P04): a *new* mcp-tools.json must not inherit
+    `mkstemp`'s always-0600 temp-file mode; it gets `0o666 & ~umask`, same as any other file
+    this process would create directly."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    old_umask = os.umask(0o022)
+    try:
+        rc = mod.main(["init", "--target", str(tmp_path), "--from-json",
+                       json.dumps({"servers": [{"name": "s", "tools": [
+                           {"name": "t", "description": "Does something useful"}]}]})])
+    finally:
+        os.umask(old_umask)
+    assert rc == 0
+
+    path = tmp_path / ".ai-badger" / "mcp-tools.json"
+    assert stat.S_IMODE(path.stat().st_mode) == 0o644
 
 
 def test_write_index_refuses_invalid_data_on_init(tmp_path, load_script):
@@ -1006,6 +1096,33 @@ def test_subset_parser_handles_wrapped_unicode_and_special_characters(load_scrip
     parsed = mod._parse_legacy_yaml_subset(text)
 
     assert parsed == data
+
+
+def test_subset_parser_refuses_an_intent_pyyaml_folds_across_a_blank_line(load_script):
+    """L6-3: pyyaml represents an embedded newline as a single-quoted scalar split across
+    two physical lines with one blank line between them (YAML's own fold rule: a single
+    blank line between fold-lines is a *real* line break, not a space-fold). `_logical_lines`
+    drops blank lines outright and space-joins the continuation, silently turning
+    `intent: 'note: use with care\\nsecond line'` into the one-line value
+    'note: use with care second line' — a value that *also* happens to need the same quoting
+    style on re-emission (it contains ": "), so the round-trip guard cannot see the loss: both
+    sides of that comparison are built from the same already-folded, already-wrong lines. The
+    contract ('refuses rather than silently returning a wrong parse') requires None here, not
+    a corrupted value."""
+    mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
+    data = {
+        "version": "0.1.0",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "sources": [{
+            "name": "rider",
+            "tools": {"t1": {"tags": ["build"], "intent": "note: use with care\nsecond line"}},
+        }],
+    }
+    text = yaml.dump(data, sort_keys=False, default_flow_style=False)
+    assert "'note: use with care\n\n" in text  # pyyaml's single-quote blank-line fold
+    assert yaml.safe_load(text) == data  # pyyaml itself round-trips this fine
+
+    assert mod._parse_legacy_yaml_subset(text) is None
 
 
 def test_subset_parser_refuses_rather_than_corrupt_on_unrecognized_shapes(load_script):
