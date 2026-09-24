@@ -122,6 +122,35 @@ def test_an_empty_model_counts_as_undeclared(hook, monkeypatch, capsys, tmp_path
     assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
+def test_model_inherit_is_denied(hook, monkeypatch, capsys, tmp_path):
+    """`model: inherit` is Claude's own spelling for "use the session's model" — exactly the
+    thing this gate exists to deny, and a non-empty string was wrongly treated as declared
+    (L5-7)."""
+    rc = _run(hook, monkeypatch, _dispatch(tmp_path, model="inherit"))
+
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_model_inherit_is_denied_case_insensitively(hook, monkeypatch, capsys, tmp_path):
+    rc = _run(hook, monkeypatch, _dispatch(tmp_path, model="Inherit"))
+
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_lane_file_declaring_model_inherit_is_still_denied(hook, monkeypatch, capsys, tmp_path):
+    _agent_file(tmp_path, "foo", template=LANE.replace("model: sonnet", "model: inherit"))
+
+    _run(hook, monkeypatch, _dispatch(tmp_path, subagent_type="foo"))
+
+    out = json.loads(capsys.readouterr().out)
+    assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "foo" in out["hookSpecificOutput"]["permissionDecisionReason"]
+
+
 def test_a_subagent_type_whose_lane_file_declares_a_model_passes_silently(
         hook, monkeypatch, capsys, tmp_path):
     _agent_file(tmp_path, "foo")
