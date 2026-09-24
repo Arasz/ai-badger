@@ -14,9 +14,10 @@ Logic (see docs/adr/0001-versioning-and-release-model.md, decision 2):
      tagged, or this fails. Checked before the diff, and independently of it: a release that
      shipped untagged stays wrong on every later push, including docs-only ones. The version in
      VERSION is exempt — one release in flight is the model (RELEASING.md).
-  4. Diff the working tree against that tag, limited to the shipped surface: skills/,
-     features/, engine/, tooling/, schemas/, index.json. `gates/` is deliberately absent —
-     the repo gates are internal tooling no consumer runs, so a gate-only change needs no bump.
+  4. Diff the working tree against that tag, limited to the shipped surface named by
+     `tooling/release_paths.py` (skills/, features/, engine/, tooling/, schemas/, index.json,
+     hooks/, .claude-plugin/, BREAKING_VERSIONS). `gates/` is deliberately absent — the repo
+     gates are internal tooling no consumer runs, so a gate-only change needs no bump.
   5. If anything there changed, VERSION must differ from the tag's version, or this fails.
 
 Compared against the LAST RELEASE TAG, never the previous commit — load-bearing per the ADR,
@@ -47,10 +48,14 @@ from typing import List, Optional, Tuple
 
 # The engine lives in engine/: is_framework_root anchors on engine/badger_lib.py (ADR-0011).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
+# release_paths is a sibling of tooling/, not of gates/: this is the one place gates/ reaches
+# into tooling/ rather than the reverse (R42 — version_sync must never import from gates/).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tooling"))
 import badger_lib as bl
+import release_paths
 
 TAG_PATTERN = re.compile(r"^ai-badger--v(\d+)\.(\d+)\.(\d+)$")
-SHIPPED_PATHS = ["skills", "features", "engine", "tooling", "schemas", "index.json"]
+SHIPPED_PATHS = release_paths.SHIPPED_PATHS
 
 
 class GitCommandFailed(RuntimeError):

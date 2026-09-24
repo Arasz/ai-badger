@@ -458,6 +458,50 @@ def test_the_backup_skips_a_nested_git_checkout(tmp_path, load_script, root):
     assert (backup / "worktrees" / "notes" / "keep.md").read_text(encoding="utf-8") == "kept\n"
 
 
+def test_the_backup_excludes_the_task_tracking_database_and_sidecars(tmp_path, load_script, root):
+    """L3-8: every refresh — including a no-drift one — rmtree's and recopies
+    `.ai-badger.bckp/`. Copying `tracking.db` and its `-wal`/`-shm` sidecars into it makes them
+    untracked on every run, since the managed .gitignore block only covers the live database.
+    The backup must leave the live SQLite files out rather than have the gitignore chase them.
+    """
+    refresh = load_script("features/common/skills/den-refresh/scripts/refresh.py")
+    target = tmp_path / "proj"
+    aib = target / ".ai-badger"
+    tracking = aib / "task-tracking"
+    tracking.mkdir(parents=True)
+    current = (root / "VERSION").read_text(encoding="utf-8").strip()
+    _test_write(aib / "config.json", json.dumps({"frameworkVersion": current}), encoding="utf-8")
+    _test_write(tracking / "tracking.db", "sqlite-bytes\n", encoding="utf-8")
+    _test_write(tracking / "tracking.db-wal", "wal-bytes\n", encoding="utf-8")
+    _test_write(tracking / "tracking.db-shm", "shm-bytes\n", encoding="utf-8")
+    _test_write(tracking / "notes.md", "kept\n", encoding="utf-8")
+
+    result = refresh.check_breaking_and_backup(root, target)
+
+    backup = Path(result["backupPath"])
+    assert not (backup / "task-tracking" / "tracking.db").exists()
+    assert not (backup / "task-tracking" / "tracking.db-wal").exists()
+    assert not (backup / "task-tracking" / "tracking.db-shm").exists()
+    assert (backup / "task-tracking" / "notes.md").read_text(encoding="utf-8") == "kept\n"
+
+
+def test_gitignore_managed_block_ignores_the_backup_directory(make_scaffolder):
+    """L3-8: `.ai-badger.bckp/` is not covered by the managed .gitignore block, so even a
+    backup that (by mistake, or before this fix) picks up a live SQLite file shows up as
+    untracked. The block must ignore the whole backup directory, into a real scaffolded
+    tmp consumer project.
+    """
+    scaffolder = make_scaffolder(config=_config(stacks=["python"], agents=["claude"]))
+    scaffolder.run(generated_at="2026-07-28T00:00:00Z")
+
+    text = (scaffolder.target / ".gitignore").read_text(encoding="utf-8")
+    lines = text.splitlines()
+    begin = next(i for i, l in enumerate(lines) if l.startswith("# BEGIN ai-badger"))
+    end = next(i for i, l in enumerate(lines) if l.startswith("# END ai-badger"))
+    block = lines[begin + 1:end]
+    assert ".ai-badger.bckp/" in block, f".ai-badger.bckp/ missing from the managed block: {block}"
+
+
 # ------------------------------------------------- delivering a newly-added catalog skill
 def _mock_fw_with_skills(fw, root, skill_names):
     """Build a mock framework whose common stack ships `skill_names` and one invariant."""
