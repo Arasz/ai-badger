@@ -1,97 +1,132 @@
 """Tests for skills/task/scripts/poll_limit.py.
 
 Ported from the originating job-search-ai-assistant repo's test_poll_limit.py (unittest style)
-to this repo's pytest + load_script pattern. Covers session discovery (task-tracking store and
-the ~/.claude/projects fallback), the dynamic wait schedule, resume-after-limit-lifts transition,
+to this repo's pytest + load_script pattern. Covers session discovery (tracked unfinished tasks
+in the tracking store, never a live or untracked session), the dynamic wait schedule, resume-after-limit-lifts transition,
 and the statusline-vs-probe branches (fresh/stale/expired/not-exhausted).
 """
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from unittest.mock import patch
 
 import pytest
 from conftest import _test_write
 
 
-def test_discovers_unfinished_task_sessions_from_tracking_store(tmp_path, load_script):
-    poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
-    # .ai-badger/task-tracking/, not .claude/ -- this must match wherever tracker_lib actually
-    # writes executed-tasks.json (see the regression test below for what happens if it doesn't).
-    data = tmp_path / ".ai-badger" / "task-tracking"
+STUB = "#!/bin/sh\necho \"stub $(basename \"$0\") must not run\" >&2\nexit 1\n"
+
+
+@pytest.fixture
+def tracked(tmp_path, load_script, monkeypatch):
+    """poll_limit over a throwaway project and tracking store, a scratch HOME, and stub
+    `claude`/`crontab` first on PATH, so nothing here can reach a real session or crontab."""
+    stubs = tmp_path / "bin"
+    stubs.mkdir()
+    for name in ("claude", "crontab"):
+        _test_write(stubs / name, STUB).chmod(0o755)
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    data = project / ".ai-badger" / "task-tracking"
     data.mkdir(parents=True)
-    transcript = data / "active.jsonl"
-    _test_write(transcript, "{}\n", encoding="utf-8")
-    _test_write(data / "executed-tasks.json", json.dumps({
-        "tasks": [
-            {"taskId": "T01", "state": "IN_PROGRESS", "sessionId": "sid-1",
-             "transcriptPath": str(transcript)},
-            {"taskId": "T02", "state": "FINISHED", "sessionId": "sid-2"},
-            {"taskId": "T03", "state": "STARTED"},
-        ]
-    }), encoding="utf-8")
-
-    sessions = poll_limit.discover_target_sessions(tmp_path)
-
-    assert [s.session_id for s in sessions] == ["sid-1"]
-    assert sessions[0].task_id == "T01"
-
-
-def test_discovers_sessions_from_user_claude_projects_jsonl_when_tracking_missing(tmp_path, load_script):
+    home.mkdir()
+    monkeypatch.setenv("PATH", f"{stubs}{os.pathsep}{os.environ.get('PATH', '')}")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+    monkeypatch.setenv("AI_BADGER_TRACKING_ROOT", str(data))
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(home / ".ai-badger"))
     poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
-    project_root = tmp_path / "repo"
-    project_root.mkdir()
-    user_claude = tmp_path / "home" / ".claude"
-    project_dir = user_claude / "projects" / "repo"
-    project_dir.mkdir(parents=True)
-    transcript = project_dir / "session.jsonl"
-    _test_write(transcript, json.dumps({"sessionId": "sid-json", "cwd": str(project_root)}) + "\n", encoding="utf-8")
-
-    sessions = poll_limit.discover_target_sessions(project_root, user_claude)
-
-    assert [s.session_id for s in sessions] == ["sid-json"]
-    assert sessions[0].source == "claude-projects"
+    monkeypatch.setattr(poll_limit.lib, "PROJECT_ROOT", project)
+    monkeypatch.setattr(poll_limit.lib, "DATA_DIR", data)
+    monkeypatch.setattr(poll_limit.lib, "EXECUTED_TASKS", data / "executed-tasks.json")
+    monkeypatch.setattr(poll_limit, "PROJECT_ROOT", project)
+    return poll_limit, project, home
 
 
-def test_discover_target_sessions_prefers_task_tracking_over_user_claude_fallback(tmp_path, load_script):
-    poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
-    project_root = tmp_path / "repo"
-    data = project_root / ".ai-badger" / "task-tracking"
-    data.mkdir(parents=True)
-    _test_write(data / "executed-tasks.json", json.dumps({
-        "tasks": [{"taskId": "T01", "state": "IN_PROGRESS", "sessionId": "sid-tracking"}]
-    }), encoding="utf-8")
-    user_claude = tmp_path / "home" / ".claude"
-    project_dir = user_claude / "projects" / "repo"
-    project_dir.mkdir(parents=True)
-    _test_write(project_dir / "session.jsonl", json.dumps({"sessionId": "sid-fallback", "cwd": str(project_root)}) + "\n", encoding="utf-8")
-
-    sessions = poll_limit.discover_target_sessions(project_root, user_claude)
-
-    assert [s.session_id for s in sessions] == ["sid-tracking"]
+def _save_tasks(lib, tasks):
+    """Write through tracker_lib's store API -- the path task_tracker.py itself uses."""
+    lib.save_tasks_doc({"tasks": tasks})
 
 
-def test_discover_target_sessions_reads_tracker_libs_actual_data_dir(tmp_path, load_script):
-    """Regression: on main, poll_limit reads executed-tasks.json from
-    `<project_root>/.claude/task-tracking/`, but tracker_lib always writes it under
-    `<project_root>/.ai-badger/task-tracking/`. That mismatch means _discover_task_sessions
-    ALWAYS misses and silently falls through to the transcript-scanning fallback -- so the
-    poller can never resume a tracked task after a usage limit lifts. Write the file through
-    tracker_lib's own compute_paths() (the single source of truth for where it lives) and
-    assert discovery actually finds it -- no hardcoded directory literal in this test either.
-    """
-    poll_limit = load_script("features/common/skills/task/scripts/poll_limit.py")
-    project_root = tmp_path / "repo"
-    tasks_path = poll_limit.lib.compute_paths(project_root)["executed_tasks"]
-    tasks_path.parent.mkdir(parents=True)
-    _test_write(tasks_path, json.dumps({
-        "tasks": [{"taskId": "T09", "state": "IN_PROGRESS", "sessionId": "sid-real"}]
-    }), encoding="utf-8")
-    empty_user_claude = tmp_path / "home" / ".claude"  # isolate from the fallback path
+def _record_session(lib, session_id, pid, cwd):
+    with lib.tracking_transaction() as store:
+        store.session_upsert(session_id, {"transcriptPath": "", "cwd": str(cwd), "pid": pid,
+                                          "recordedAt": lib.now_iso()})
 
-    sessions = poll_limit.discover_target_sessions(project_root, empty_user_claude)
 
-    assert [s.session_id for s in sessions] == ["sid-real"]
+def _dead_pid():
+    """The pid of a child that has already exited and been reaped."""
+    done = subprocess.run([sys.executable, "-c", "import os; print(os.getpid())"],
+                          capture_output=True, text=True, check=True)
+    return int(done.stdout)
+
+
+def _transcript(home, name, session_id, cwd):
+    folder = home / ".claude" / "projects" / name
+    folder.mkdir(parents=True, exist_ok=True)
+    _test_write(folder / f"{session_id}.jsonl",
+                json.dumps({"sessionId": session_id, "cwd": str(cwd)}) + "\n")
+
+
+def test_a_task_in_the_tracking_store_is_discovered_and_keeps_the_poller_alive(tracked):
+    """Tasks live in tracking.db (ADR-0024). Reading the legacy executed-tasks.json instead
+    found nothing, so the poller idled out with an unfinished task still tracked."""
+    poll_limit, _, _ = tracked
+    _save_tasks(poll_limit.lib, [
+        {"taskId": "T01", "state": "IN_PROGRESS", "sessionId": "sid-db"},
+        {"taskId": "T02", "state": "FINISHED", "sessionId": "sid-done"},
+    ])
+
+    sessions = poll_limit.discover_target_sessions()
+
+    assert [(s.session_id, s.task_id) for s in sessions] == [("sid-db", "T01")]
+    assert poll_limit._has_unfinished_task() is True
+
+
+def test_a_finished_task_is_not_an_unfinished_one(tracked):
+    """The sensitivity check for the one above: FINISHED alone must read as idle."""
+    poll_limit, _, _ = tracked
+    _save_tasks(poll_limit.lib, [{"taskId": "T02", "state": "FINISHED", "sessionId": "sid"}])
+
+    assert poll_limit.discover_target_sessions() == []
+    assert poll_limit._has_unfinished_task() is False
+
+
+def test_a_transcript_from_another_repo_is_never_a_resume_target(tracked):
+    """A session recorded in some other checkout must never be resumed from this project."""
+    poll_limit, _, home = tracked
+    _transcript(home, "other-repo", "sid-other", "/home/u/other-repo")
+
+    assert poll_limit.discover_target_sessions() == []
+
+
+def test_an_untracked_session_of_this_project_is_never_a_resume_target(tracked):
+    """Only sessions of tasks /task tracks are resumed -- not every historical session here."""
+    poll_limit, project, home = tracked
+    _transcript(home, "project", "sid-history", project)
+    _save_tasks(poll_limit.lib, [{"taskId": "T01", "state": "FINISHED", "sessionId": "sid-t"}])
+
+    assert poll_limit.discover_target_sessions() == []
+
+
+def test_a_tracked_task_whose_session_is_still_alive_is_not_resumed(tracked):
+    """Resuming a live session runs a second copy of it in parallel. Dead ones still resume,
+    and a live one still counts as unfinished work, so the poller keeps watching it."""
+    poll_limit, project, _ = tracked
+    _save_tasks(poll_limit.lib, [
+        {"taskId": "T01", "state": "IN_PROGRESS", "sessionId": "sid-live"},
+        {"taskId": "T02", "state": "IN_PROGRESS", "sessionId": "sid-dead"},
+    ])
+    _record_session(poll_limit.lib, "sid-live", os.getpid(), project)
+    _record_session(poll_limit.lib, "sid-dead", _dead_pid(), project)
+
+    sessions = poll_limit.discover_target_sessions()
+
+    assert [s.session_id for s in sessions] == ["sid-dead"]
+    assert poll_limit._has_unfinished_task() is True
 
 
 def test_log_pid_paths_share_tracker_libs_data_dir_and_statusline_reads_the_store(load_script):
@@ -392,6 +427,8 @@ def _poller_at(tmp_path, load_script, monkeypatch):
     data = tmp_path / ".ai-badger" / "task-tracking"
     data.mkdir(parents=True)
     monkeypatch.setattr(poll_limit, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(poll_limit.lib, "DATA_DIR", data)
+    monkeypatch.setattr(poll_limit.lib, "EXECUTED_TASKS", data / "executed-tasks.json")
     monkeypatch.setattr(poll_limit, "PID_FILE", data / "poll_limit.pid")
     monkeypatch.setattr(poll_limit, "LOG_FILE", data / "poll_limit.log")
     monkeypatch.setattr(poll_limit, "poll_once", lambda *a, **k: 300)

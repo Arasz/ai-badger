@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   awayFromEnv,
   claudeToolInput,
@@ -534,5 +536,30 @@ describe("parseDeliveryStdout extracts the aiBadgerBus summary alongside the mai
       }),
     );
     expect(out).toEqual({ kind: "context", content: "m" });
+  });
+});
+
+describe("the shipped PostToolUse matchers fire on the MCP names pi delivers", () => {
+  // The framework's own hooks.json, read from this repo; a mirror without it skips loudly.
+  const source = join(import.meta.dir, "..", "..", "common", "hooks", "hooks.json");
+  const present = existsSync(source);
+  const shipped = present ? postToolUseCommands(JSON.parse(readFileSync(source, "utf-8"))) : [];
+  const fired = (tool: string) => postCommandsForTool(shipped, tool).join("\n");
+
+  test.skipIf(!present)("memory_search fires the marker and the grade hook", () => {
+    for (const tool of ["mcp_ai-raccoon_memory_search", "mcp__ai-raccoon__memory_search"]) {
+      expect(fired(tool)).toContain("memory_first_gate_post_hook.py");
+      expect(fired(tool)).toContain("memory_grade_hook.py");
+    }
+  });
+
+  test.skipIf(!present)("export_graph fires the semantica autosave", () => {
+    expect(fired("mcp_semantica_export_graph")).toContain("semantica_export_autosave_hook.py");
+    expect(fired("mcp__semantica__export_graph")).toContain("semantica_export_autosave_hook.py");
+  });
+
+  test.skipIf(!present)("a longer tool name from the same server fires nothing", () => {
+    expect(fired("mcp_ai-raccoon_memory_search_extra")).toBe("");
+    expect(fired("mcp_semantica_export_graph_v2")).toBe("");
   });
 });
