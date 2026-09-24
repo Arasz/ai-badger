@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.173.1 | [SessionEnd stops deleting the bus cursor, plugin-server tags stop showing empty](0.173.1-session-end-stops-deleting-the-bus-cursor.md) |
 | 0.173.0 | [Copilot agents: documented tool aliases and ownership](0.173.0-copilot-agents-tool-aliases-and-ownership.md) |
 | 0.172.16 | [den-refresh's backup stays out of git](0.172.16-den-refresh-backup-stays-out-of-git.md) |
 | 0.172.15 | [open_pr scans what it stages; red_proof checks a journal before restoring](0.172.15-outbound-staging-and-journal-restore.md) |
