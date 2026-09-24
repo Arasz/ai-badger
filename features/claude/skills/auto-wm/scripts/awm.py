@@ -212,8 +212,16 @@ def armed_elsewhere(state):
                   if isinstance(e, dict) and e.get("enabled") and not within(p, here))
 
 
+def refuse_unscoped_root(project):
+    """Raise ValueError when *project* is `/` or $HOME: a window there scopes nothing."""
+    if project in (Path("/"), Path.home().resolve()):
+        raise ValueError(f"refusing to arm AWM at {project}: it contains every project. "
+                         "cd into the project first.")
+
+
 def _enable(mode, duration_text):
     """Write an enabled, project-scoped, wall-clock-bounded entry. Returns it."""
+    refuse_unscoped_root(Path.cwd().resolve())
     seconds, duration_text = capped_duration(duration_text)
     state = load_state() or {}
     found = entry_here(state)
