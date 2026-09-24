@@ -443,6 +443,83 @@ def test_pi_still_reads_grounded_feedback_from_generated_post_tool_use(tmp_path,
     assert post, generated["hooks"].get("PostToolUse")
 
 
+# --------------------------------------------------- test-run-economy-failure arm (P02, D13=A)
+ECONOMY_SCRIPT = "suite_economy_hook.py"
+
+
+def test_manifest_adds_a_second_claude_only_entry_for_test_economy_failure(root):
+    """The existing `test-run-economy` entry and its PostToolUse arm are untouched (it still
+    names hermes and copilot); a second, claude-only entry wires the same script onto
+    PostToolUseFailure, following the grounded-feedback-failure shape (R52)."""
+    manifest = json.loads(
+        (root / "features" / "common" / "hooks" / "hooks-manifest.json")
+        .read_text(encoding="utf-8"))
+    by_name = {hook["name"]: hook for hook in manifest["hooks"]}
+
+    assert "test-run-economy" in by_name
+    original_claude = by_name["test-run-economy"]["agents"]["claude"]
+    assert original_claude["event"] == "PostToolUse"
+    assert original_claude["script"] == ECONOMY_SCRIPT
+    assert set(by_name["test-run-economy"]["agents"]) == {"claude", "hermes", "copilot"}
+
+    assert "test-run-economy-failure" in by_name
+    failure_agents = by_name["test-run-economy-failure"]["agents"]
+    assert set(failure_agents) == {"claude"}
+    failure_claude = failure_agents["claude"]
+    assert failure_claude["event"] == "PostToolUseFailure"
+    assert failure_claude["script"] == ECONOMY_SCRIPT
+    assert failure_claude["type"] == "hooks-json"
+
+
+def test_hooks_json_post_tool_use_failure_wires_test_economy(root):
+    """The source hooks.json carries a PostToolUseFailure command for the same script the
+    existing PostToolUse entry uses, so select_hooks can find it by name."""
+    hooks_json = _hooks_json(root)
+    entries = hooks_json["hooks"].get("PostToolUseFailure", [])
+    commands = [h["command"] for e in entries for h in e["hooks"] if ECONOMY_SCRIPT in h["command"]]
+    assert commands, hooks_json["hooks"].get("PostToolUseFailure")
+
+
+def test_scaffold_wires_test_economy_into_both_post_events(tmp_path, load_script, root):
+    """End-to-end: the failure arm reaches settings.json under PostToolUseFailure, and the
+    original PostToolUse arm keeps reaching it too — a second entry, not a moved one."""
+    target = tmp_path / "proj"
+    _skill_scripts(target, "test-economy", ECONOMY_SCRIPT)
+    manifest_hooks = json.loads(
+        (root / "features" / "common" / "hooks" / "hooks-manifest.json")
+        .read_text(encoding="utf-8"))["hooks"]
+    source_hooks = _hooks_json(root)
+    hooks, _ctx = _wiring(load_script, root, root, target, manifest_hooks, source_hooks)
+
+    hooks.wire()
+
+    settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    for event in ("PostToolUse", "PostToolUseFailure"):
+        fired = [h["command"] for e in settings["hooks"].get(event, []) for h in e["hooks"]
+                 if ECONOMY_SCRIPT in h["command"]]
+        assert fired, (event, settings["hooks"].get(event))
+
+
+def test_pi_still_reads_test_economy_from_generated_post_tool_use(tmp_path, load_script, root):
+    """pi's adapter dynamically reads .ai-badger/hooks/hooks.json's PostToolUse group — adding
+    the claude-only failure arm must never move test-run-economy off PostToolUse, only add a
+    second, separate entry under PostToolUseFailure (plan-v2.md P02's pi-preservation pin)."""
+    target = tmp_path / "proj"
+    _skill_scripts(target, "test-economy", ECONOMY_SCRIPT)
+    manifest_hooks = json.loads(
+        (root / "features" / "common" / "hooks" / "hooks-manifest.json")
+        .read_text(encoding="utf-8"))["hooks"]
+    source_hooks = _hooks_json(root)
+    hooks, ctx = _wiring(load_script, root, root, target, manifest_hooks, source_hooks)
+
+    hooks.wire()
+
+    generated = json.loads((ctx.aib / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+    post = [h["command"] for e in generated["hooks"].get("PostToolUse", []) for h in e["hooks"]
+            if ECONOMY_SCRIPT in h["command"]]
+    assert post, generated["hooks"].get("PostToolUse")
+
+
 def test_scaffold_wires_memory_grade_for_mcp_search_and_read(tmp_path, load_script, root):
     """End-to-end: the grade hook reaches settings.json for memory_search AND for Read."""
     target = tmp_path / "proj"
