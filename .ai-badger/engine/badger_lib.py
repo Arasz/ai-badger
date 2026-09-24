@@ -649,6 +649,25 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+# A rendered template's own body carries this line (CLAUDE.md.tmpl and its siblings), so a
+# raw byte hash of the output churns on every version bump alone — the same class of noise
+# `gates/scaffold_freshness_guard.py`'s own STAMP_LINE_RE normalizes away for its comparison.
+_VERSION_STAMP_LINE_RE = re.compile(r"(Scaffolded by ai-badger )\S+")
+
+
+def content_hash_ignoring_version_stamp(path: Path) -> str:
+    """sha256 of *path*'s content with the "Scaffolded by ai-badger <version>" line
+    normalized away, so a version bump alone does not change the digest of a template output
+    whose rendered body embeds it (used for `outputHash`, D11). Falls back to a plain byte
+    hash for content that will not decode as UTF-8 text."""
+    raw = path.read_bytes()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return hashlib.sha256(raw).hexdigest()
+    return sha256_text(_VERSION_STAMP_LINE_RE.sub(r"\1<version>", text))
+
+
 # Build artefacts and OS droppings: never authored, never a contribution, wherever they appear.
 # `.DS_Store` is here because an OS dropping is not an edit, and a skill that hashed one
 # would report as locally modified until someone deleted a file they cannot see.
