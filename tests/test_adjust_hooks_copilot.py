@@ -537,15 +537,17 @@ def test_no_copilot_arm_generates_nothing_and_agentStop_is_never_a_close_leg(
 def test_generated_copilot_delivery_hook_delivers_end_to_end(tmp_path, load_script,
                                                               monkeypatch):
     """Rule 7 through the artifact Copilot actually loads: the generated sessionStart command
-    delivers the session's mail and the generated sessionEnd command removes its cursor.
+    delivers the session's mail and the generated sessionEnd command is a no-op (D3).
 
     Failure mode: every static pin above can stay green while the generated hook is dead —
     a wrong path, an unimportable shipped copy, a fail-open net swallowing a real defect —
     because a delivery hook's failure mode is indistinguishable from an empty inbox. This test
     runs the generated bash commands as Copilot would (payload stdin, project cwd) against an
     env-redirected user DB and demands the message arrives; then runs the close command twice
-    and demands the cursor row is gone and the second close is harmless. Mutations: break the
-    rewrite/shipping (no delivery — the response is {}) or the close path (cursor survives)."""
+    and demands the cursor row SURVIVES both (D3: deleting it here let a reused session id
+    replay already-delivered mail, L2-6) and each close is harmless. Mutations: break the
+    rewrite/shipping (no delivery — the response is {}) or reinstate the close-time delete
+    (cursor disappears)."""
     import os
     import sqlite3
     import subprocess
@@ -606,7 +608,8 @@ def test_generated_copilot_delivery_hook_delivers_end_to_end(tmp_path, load_scri
     finally:
         conn.close()
 
-    # close: cursor gone; a second close is harmless
+    # close: a no-op (D3) — the cursor survives for the 4-day prune; a second close
+    # is just as harmless.
     proc = _fire("sessionEnd")
     assert proc.returncode == 0, proc.stderr
     assert json.loads(proc.stdout) == {}
@@ -616,7 +619,7 @@ def test_generated_copilot_delivery_hook_delivers_end_to_end(tmp_path, load_scri
     try:
         cursor_rows = conn.execute(
             "SELECT session_id FROM cursors WHERE session_id = 'sess-c'").fetchall()
-        assert cursor_rows == [], "close event did not remove the cursor row"
+        assert cursor_rows, "close event must not remove the cursor row — the 4-day prune reaps it (D3)"
     finally:
         conn.close()
 
