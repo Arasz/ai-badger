@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.176.1 | [the Hermes plugin's two counters stop losing updates](0.176.1-hermes-atomic-updates.md) |
 | 0.176.0 | [test-run economy: real persistence, real classification, counted failures](0.176.0-test-run-economy-fixes-and-failure-arm.md) |
 | 0.175.5 | [mcp-index: reappeared tools, honest folding, honest counts, honest errors](0.175.5-mcp-index-tools-that-come-back.md) |
 | 0.175.4 | [lint lane closes three blind spots](0.175.4-lint-lane-closes-three-blind-spots.md) |
