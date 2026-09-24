@@ -511,10 +511,13 @@ SIMULATED_OPT_IN_SKILL = "documentation"
 def simulated_opt_in(monkeypatch):
     """Restore one opt-in catalog skill for tests of the `config.include` delivery path.
 
-    0.169.0 moved every catalog skill to `scope: default` (ADR-0028), so the include mechanism
-    has no real exemplar left. This patches the entry points' `badger_lib` — the flat module
-    `sys.path` resolves, not the `engine.badger_lib` copy the suite loads by path — to treat
-    `documentation` as optIn again: absent from the defaults, present in the addable catalog.
+    0.169.0 moved every catalog skill to `scope: default` (ADR-0028). Since 0.170.0 the sqlite
+    pair (`sqlite-bank-space-diagnosis`, `sqlite-schema-review`) are real `optIn` skills again
+    (ADR-0029), but these tests keep using `documentation` instead: it exercises the same
+    delivery path without tying this generic coverage to what the sqlite pair happens to ship.
+    This patches the entry points' `badger_lib` — the flat module `sys.path` resolves, not the
+    `engine.badger_lib` copy the suite loads by path — to treat `documentation` as optIn again:
+    absent from the defaults, present in the addable catalog.
     Returns that module, so a test can derive the same skill set the run under test will.
     """
     import badger_lib  # noqa: PLC0415  (only importable after conftest put engine/ on sys.path)

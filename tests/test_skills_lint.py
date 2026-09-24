@@ -445,15 +445,18 @@ def test_validate_all_still_reports_skills_lint_after_the_move_to_gates(
     assert "INVALID" in out
 
 
-def test_skills_lint_ignores_a_root_without_features(tmp_path, root, load_script, capsys):
+def test_an_empty_skills_glob_is_a_violation_not_a_pass(tmp_path, root, load_script, capsys):
+    """Matching no SKILL.md at all is a broken glob, not a clean catalog — the same shape
+    test_a_tree_with_no_hooks_manifest_is_a_violation_not_a_pass already rejects for hooks."""
     lint = load_script("gates/skills_lint.py")
     fake_root = _copy_real_schemas(tmp_path, root)
 
     rc = lint.main(["--root", str(fake_root)])
 
     out = capsys.readouterr().out
-    assert rc == 0
-    assert "ok       skills lint" in out
+    assert rc == 1
+    assert "SKILLS LINT FAILED" in out
+    assert "matched no SKILL.md" in out
 
 
 def test_the_real_corpus_passes_skills_lint(root, load_script):

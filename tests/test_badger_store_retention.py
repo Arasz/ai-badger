@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 import badger_store
@@ -165,6 +166,63 @@ def test_concurrent_prunes_serialize_without_error(tmp_path, monkeypatch):
         assert stamps == 1
     finally:
         store.close()
+
+
+def test_the_throttle_check_shares_the_prune_transaction(tmp_path, monkeypatch):
+    """The throttle stamp is read inside the prune's BEGIN IMMEDIATE: a second prune that
+    starts while the first sits past its check waits for the first to commit, then sees
+    the fresh stamp and deletes nothing. Read outside the transaction, both pass the check
+    and the DELETE plus the full-table sweep run twice. The stores open with _open so
+    open_user's own bus prunes never reach the hold."""
+    _user_env(tmp_path, monkeypatch)
+
+    def _store():
+        return badger_store._open(  # pylint: disable=protected-access
+            badger_store.user_db_path(), "user", badger_store.USER_FAMILIES)
+
+    _store().close()
+    sweeps: list[str] = []
+    real_sweep = badger_store.Store._sweep_unparseable_ts  # pylint: disable=protected-access
+
+    def _counting_sweep(self, table):
+        sweeps.append(table)
+        return real_sweep(self, table)
+
+    monkeypatch.setattr(badger_store.Store, "_sweep_unparseable_ts", _counting_sweep)
+    first_in = threading.Event()
+    release = threading.Event()
+
+    def _hold():
+        if not first_in.is_set():  # park the first prune only; the second passes through
+            first_in.set()
+            assert release.wait(timeout=10), "the held prune was never released"
+
+    monkeypatch.setitem(badger_store._TEST_HOLDS,  # pylint: disable=protected-access
+                        "prune.after_check.messages", [_hold])
+    results: list[int] = []
+    failures: list[Exception] = []
+
+    def _prune() -> None:
+        store = _store()
+        try:
+            results.append(store.prune_expired("messages", max_age_days=4))
+        except Exception as exc:  # pylint: disable=broad-except
+            failures.append(exc)
+        finally:
+            store.close()
+
+    first = threading.Thread(target=_prune)
+    first.start()
+    assert first_in.wait(timeout=10), "the first prune never reached its after-check hold"
+    second = threading.Thread(target=_prune)
+    second.start()
+    time.sleep(0.25)  # the second prune is parked on BEGIN IMMEDIATE by now
+    release.set()
+    first.join(timeout=15)
+    second.join(timeout=15)
+    assert not first.is_alive() and not second.is_alive(), "a racing prune never finished"
+    assert failures == [], f"a concurrent prune raised: {failures!r}"
+    assert sweeps == ["messages"], f"the DELETE ran {len(sweeps)} times"
 
 
 def test_sixty_day_retention_is_time_based_not_count_based(tmp_path, monkeypatch):

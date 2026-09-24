@@ -90,6 +90,50 @@ def test_detected_run_names_the_runner(load_script):
     assert logic.is_test_run("npm test")["runner"] == "npm test"
 
 
+# --- L4-7: basename matching and pytest option-value / shell-metachar handling ------
+
+
+@pytest.mark.parametrize("command", [
+    ".venv/bin/python3 -m pytest -q",
+    "/usr/bin/python3 -m pytest",
+    "./venv/bin/pytest -q",
+    "/usr/local/bin/dotnet test",
+])
+def test_launcher_paths_are_matched_by_basename(load_script, command):
+    """The repo's own mandated `.venv/bin/python3 -m pytest` (venv-python invariant) must be
+    recognised: argv[0] is a path, not the bare launcher name."""
+    logic = _logic(load_script)
+    run = logic.is_test_run(command)
+    assert run is not None, command
+    assert run["kind"] == "full", command
+
+
+@pytest.mark.parametrize("command", [
+    ".venv/bin/python3 -m pytest -q | tail -5",
+    "pytest --tb short",
+    "python -m pytest -n 4",
+    "python -m pytest -p no:cacheprovider",
+    "pytest -W ignore::DeprecationWarning",
+    "pytest -q; echo done",
+    "pytest -q && echo done",
+    "pytest -q > out.log",
+])
+def test_option_values_and_shell_metacharacters_never_demote_to_filtered(load_script, command):
+    """An unrecognized flag, its value, or trailing shell syntax must never look like a
+    positional selector — only a known selector flag or a real positional path/node id does."""
+    logic = _logic(load_script)
+    run = logic.is_test_run(command)
+    assert run is not None, command
+    assert run["kind"] == "full", command
+
+
+def test_pytest_kind_still_recognizes_a_real_positional_after_an_option_value(load_script):
+    """The metachar/value-flag skip must not blind the selector detection: a real node id
+    after a known value-taking flag is still a filtered run."""
+    logic = _logic(load_script)
+    assert logic._pytest_kind(["--tb", "short", "tests/test_x.py"]) == "filtered"
+
+
 # --- the counting rule --------------------------------------------------------------
 
 
@@ -222,3 +266,57 @@ def test_no_gate_wiring_in_an_empty_project(tmp_path, load_script):
 def test_gate_detection_never_raises_on_a_missing_root(load_script):
     logic = _logic(load_script)
     assert logic.detect_local_gates("/definitely/not/a/repo") == []
+
+
+# --- L2-1: the store family, and eviction (L4-8) -------------------------------------
+
+
+def test_open_store_persists_through_the_default_open_user(load_script, monkeypatch, tmp_path):
+    """AC1: open_store() uses USER_FAMILIES["test_economy"] (born in SQLite, legacy_path
+    None) rather than an inline family. The old `legacy_path=lambda: None` made every open
+    crash on `_check_resurrections`'s `family.legacy_path().exists()`."""
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+    logic = _logic(load_script)
+
+    store = logic.open_store()
+    try:
+        store.kv_set("test_economy", "/repo", {"sessions": {}})
+        assert store.kv_get("test_economy", "/repo") == {"sessions": {}}
+    finally:
+        store.close()
+
+
+def test_new_session_entry_has_a_last_seen_field(load_script):
+    logic = _logic(load_script)
+    assert "last_seen" in logic.new_session_entry()
+
+
+def test_advance_stamps_last_seen_on_every_run(load_script):
+    logic = _logic(load_script)
+    entry = logic.new_session_entry()
+    _, _, entry = logic.advance(entry, True, now="t1")
+    assert entry["last_seen"] == "t1"
+    _, _, entry = logic.advance(entry, False, now="t2")
+    assert entry["last_seen"] == "t2"
+
+
+def test_eviction_drops_the_oldest_last_seen_session(load_script, monkeypatch):
+    """At cap 2, the busiest and the longest-lived session survive (R24): dict insertion
+    order evicts whichever session joined first even when it is still active, which is
+    exactly backwards — eviction must drop whichever session has gone quiet the longest.
+
+    "returning" joins first but keeps coming back, so by the time a third session forces an
+    eviction it is more recently active than "one_and_done", which ran once and never
+    returned. Insertion-order eviction would drop "returning" (it is first in the dict);
+    last_seen eviction correctly drops "one_and_done" instead.
+    """
+    logic = _logic(load_script)
+    monkeypatch.setattr(logic, "MAX_SESSIONS_PER_PROJECT", 2)
+    entry = {"sessions": {}}
+
+    _, _, entry = logic.advance_session(entry, "returning", True, now="t1")
+    _, _, entry = logic.advance_session(entry, "one_and_done", True, now="t2")
+    _, _, entry = logic.advance_session(entry, "returning", True, now="t3")
+    _, _, entry = logic.advance_session(entry, "newcomer", True, now="t4")
+
+    assert set(entry["sessions"]) == {"returning", "newcomer"}, entry["sessions"]

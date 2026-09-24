@@ -30,22 +30,34 @@ class _FakeResult:
         self.stderr = stderr
 
 
-class _ScriptedSubprocess:
-    """Stand-in for `subprocess`: returns a pre-scripted result (or raises a pre-scripted
-    exception) per argv, and records every call so tests can assert on the exact argv list -
-    never touches a real process or the real crontab."""
+class _FakeCrontab:
+    """Stateful stand-in for `subprocess`, over the `crontab` binary specifically: keeps
+    whatever was last written via `crontab -`, so a test can install/uninstall repeatedly (in
+    one project, or switching between several) and see each call build on the last, instead of
+    a single scripted response per invocation. `read_error`, when set, makes `crontab -l`
+    behave as if reading failed instead of returning the stored text — a `_FakeResult` for a
+    reported non-zero exit, or an exception for a missing binary. Never touches a real process
+    or the real crontab.
+    """
 
-    def __init__(self, responses):
-        self.responses = responses  # {tuple(argv): _FakeResult | Exception}
+    def __init__(self, initial_text="", read_error=None):
+        self.text = initial_text
+        self.read_error = read_error
         self.calls = []
 
-    def run(self, cmd, **_kwargs):
+    def run(self, cmd, **kwargs):
         argv = list(cmd)
-        self.calls.append(argv)
-        outcome = self.responses[tuple(argv)]
-        if isinstance(outcome, Exception):
-            raise outcome
-        return outcome
+        self.calls.append((argv, kwargs.get("input")))
+        if argv == ["crontab", "-l"]:
+            if self.read_error is not None:
+                if isinstance(self.read_error, Exception):
+                    raise self.read_error
+                return self.read_error
+            return _FakeResult(0, stdout=self.text)
+        if argv == ["crontab", "-"]:
+            self.text = kwargs.get("input", "")
+            return _FakeResult(0, stdout="")
+        raise AssertionError(f"unexpected crontab invocation: {argv}")
 
 
 def _redirect_lib(lib, tmp_path):
@@ -90,47 +102,36 @@ def _run(monkeypatch, module, *args):
 # ---------------------------------------------------------------------------
 
 def test_install_cron_aborts_when_crontab_l_fails(tt, monkeypatch):
-    fake = _ScriptedSubprocess({
-        ("crontab", "-l"): _FakeResult(1, stdout="", stderr="crontab: permission denied\n"),
-        # Scripted so a bug that reaches this call fails the assertion below instead of
-        # crashing the test on a KeyError.
-        ("crontab", "-"): _FakeResult(0, stdout=""),
-    })
+    fake = _FakeCrontab(read_error=_FakeResult(1, stdout="", stderr="crontab: permission denied\n"))
     monkeypatch.setattr(tt, "subprocess", fake)
 
     code = tt.install_cron()
 
     assert code != 0
-    assert ["crontab", "-"] not in fake.calls
+    assert ["crontab", "-"] not in [argv for argv, _ in fake.calls]
 
 
 def test_install_cron_treats_genuine_no_crontab_as_empty(tt, monkeypatch, capsys):
     """The one legitimate case that may proceed: `crontab -l` failing specifically because
     the user has no crontab yet."""
-    fake = _ScriptedSubprocess({
-        ("crontab", "-l"): _FakeResult(1, stdout="", stderr="no crontab for alice\n"),
-        ("crontab", "-"): _FakeResult(0, stdout=""),
-    })
+    fake = _FakeCrontab(read_error=_FakeResult(1, stdout="", stderr="no crontab for alice\n"))
     monkeypatch.setattr(tt, "subprocess", fake)
 
     code = tt.install_cron()
 
     assert code == 0
-    write_calls = [c for c in fake.calls if c == ["crontab", "-"]]
+    write_calls = [argv for argv, _ in fake.calls if argv == ["crontab", "-"]]
     assert len(write_calls) == 1
 
 
 def test_uninstall_cron_aborts_when_crontab_l_fails(tt, monkeypatch):
-    fake = _ScriptedSubprocess({
-        ("crontab", "-l"): _FakeResult(1, stdout="", stderr="crontab: cannot open spool\n"),
-        ("crontab", "-"): _FakeResult(0, stdout=""),
-    })
+    fake = _FakeCrontab(read_error=_FakeResult(1, stdout="", stderr="crontab: cannot open spool\n"))
     monkeypatch.setattr(tt, "subprocess", fake)
 
     code = tt.uninstall_cron()
 
     assert code != 0
-    assert ["crontab", "-"] not in fake.calls
+    assert ["crontab", "-"] not in [argv for argv, _ in fake.calls]
 
 
 # ---------------------------------------------------------------------------
@@ -184,9 +185,7 @@ def test_cmd_start_no_cron_flag_is_still_accepted_as_a_deprecated_noop(tt, monke
 # ---------------------------------------------------------------------------
 
 def test_missing_crontab_binary_is_reported_not_raised(tt, monkeypatch, capsys):
-    fake = _ScriptedSubprocess({
-        ("crontab", "-l"): FileNotFoundError(2, "No such file or directory: 'crontab'"),
-    })
+    fake = _FakeCrontab(read_error=FileNotFoundError(2, "No such file or directory: 'crontab'"))
     monkeypatch.setattr(tt, "subprocess", fake)
 
     code = tt.install_cron()
@@ -199,9 +198,7 @@ def test_missing_crontab_binary_is_reported_not_raised(tt, monkeypatch, capsys):
 def test_cmd_start_with_cron_and_missing_binary_does_not_raise(tt, monkeypatch, tmp_path, capsys):
     """The success JSON that `start` always prints must not be followed by an unhandled
     traceback when the opted-in cron install can't find the `crontab` binary."""
-    fake = _ScriptedSubprocess({
-        ("crontab", "-l"): FileNotFoundError(2, "No such file or directory: 'crontab'"),
-    })
+    fake = _FakeCrontab(read_error=FileNotFoundError(2, "No such file or directory: 'crontab'"))
     monkeypatch.setattr(tt, "subprocess", fake)
     transcript = tmp_path / "t.jsonl"
 
@@ -242,3 +239,99 @@ def test_desired_cron_line_quotes_paths_with_spaces(tt, monkeypatch, tmp_path):
     line = tt._desired_cron_line()  # pylint: disable=protected-access
 
     assert f"'{weird_dir}/resume_cron.py'" in line
+
+
+# ---------------------------------------------------------------------------
+# the cron marker is per project (L5-4): installing/uninstalling in one project must never
+# touch another project's line, whether that other line is already hashed or still a legacy
+# (pre-hash) one. Exercised over the stateful fake, so each install call builds on the last.
+# ---------------------------------------------------------------------------
+
+def test_install_cron_keeps_both_projects_lines_across_an_a_then_b_install(
+        tt, monkeypatch, tmp_path):
+    project_a = tmp_path / "project-a"
+    project_b = tmp_path / "project-b"
+    project_a.mkdir()
+    project_b.mkdir()
+    fake = _FakeCrontab()
+    monkeypatch.setattr(tt, "subprocess", fake)
+
+    _redirect_lib(tt.lib, project_a)
+    assert tt.install_cron() == 0
+    marker_a = tt.CRON_MARKER
+
+    _redirect_lib(tt.lib, project_b)
+    assert tt.install_cron() == 0
+    marker_b = tt.CRON_MARKER
+
+    assert marker_a != marker_b
+    lines = fake.text.strip().splitlines()
+    assert len(lines) == 2
+    assert any(marker_a in line for line in lines)
+    assert any(marker_b in line for line in lines)
+
+
+def test_uninstall_cron_leaves_another_projects_line_alone(tt, monkeypatch, tmp_path):
+    project_a = tmp_path / "project-a"
+    project_b = tmp_path / "project-b"
+    project_a.mkdir()
+    project_b.mkdir()
+    fake = _FakeCrontab()
+    monkeypatch.setattr(tt, "subprocess", fake)
+
+    _redirect_lib(tt.lib, project_a)
+    tt.install_cron()
+    marker_a = tt.CRON_MARKER
+
+    _redirect_lib(tt.lib, project_b)
+    tt.install_cron()
+
+    assert tt.uninstall_cron() == 0
+
+    assert marker_a in fake.text
+    assert tt.CRON_MARKER not in fake.text
+
+
+def test_install_cron_migrates_only_this_projects_legacy_marker_line(
+        tt, monkeypatch, tmp_path):
+    """A pre-hash legacy marker line is migrated only when it is this project's own; a legacy
+    line belonging to another project is left completely alone — RED against a naive marker
+    that treats every `# task-skill-resume` line as its own."""
+    project_a = tmp_path / "project-a"
+    project_b = tmp_path / "project-b"
+    project_a.mkdir()
+    project_b.mkdir()
+
+    _redirect_lib(tt.lib, project_a)
+    legacy_a = (
+        f"*/30 * * * * /usr/bin/env python3 {tt.lib.SCRIPT_DIR / 'resume_cron.py'} run >> "
+        f"{tt.lib.DATA_DIR / 'resume.log'} 2>&1 {tt.CRON_MARKER_PREFIX}"
+    )
+    _redirect_lib(tt.lib, project_b)
+    legacy_b = (
+        f"*/30 * * * * /usr/bin/env python3 {tt.lib.SCRIPT_DIR / 'resume_cron.py'} run >> "
+        f"{tt.lib.DATA_DIR / 'resume.log'} 2>&1 {tt.CRON_MARKER_PREFIX}"
+    )
+    fake = _FakeCrontab(initial_text=legacy_a + "\n" + legacy_b + "\n")
+    monkeypatch.setattr(tt, "subprocess", fake)
+
+    # Install in A: only A's legacy line is migrated; B's is untouched.
+    _redirect_lib(tt.lib, project_a)
+    assert tt.install_cron() == 0
+    marker_a = tt.CRON_MARKER
+    lines_after_a = fake.text.splitlines()
+    assert legacy_b in lines_after_a
+    assert legacy_a not in lines_after_a
+    assert any(marker_a in line for line in lines_after_a)
+    assert len(lines_after_a) == 2
+
+    # Install in B: B's legacy line is migrated; A's now-hashed line is untouched.
+    _redirect_lib(tt.lib, project_b)
+    assert tt.install_cron() == 0
+    marker_b = tt.CRON_MARKER
+    lines_after_b = fake.text.splitlines()
+    assert legacy_b not in lines_after_b
+    assert any(marker_a in line for line in lines_after_b)
+    assert any(marker_b in line for line in lines_after_b)
+    assert len(lines_after_b) == 2
+    assert marker_a != marker_b

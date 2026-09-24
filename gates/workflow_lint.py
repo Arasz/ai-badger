@@ -28,8 +28,9 @@ USES_RE = re.compile(r"^\s*(?:-\s+)?uses:\s*(\S+)")
 PINNED_RE = re.compile(r"[\w.-]+/[\w.-]+(?:/[\w./-]+)?@[0-9a-f]{40}")
 JOBS_RE = re.compile(r"^jobs:\s*$")
 JOB_RE = re.compile(r"^ {2}([A-Za-z_][\w-]*):(.*)$")
-TOP_PERMISSIONS_RE = re.compile(r"^permissions:")
-JOB_PERMISSIONS_RE = re.compile(r"^ {4}permissions:")
+TOP_PERMISSIONS_RE = re.compile(r"^permissions:\s*(.*)$")
+JOB_PERMISSIONS_RE = re.compile(r"^ {4}permissions:\s*(.*)$")
+WRITE_ALL = "write-all"
 
 
 def workflow_files(root: Path) -> List[Path]:
@@ -76,22 +77,56 @@ def job_blocks(lines: List[str]) -> Dict[str, List[str]]:
     return blocks
 
 
+def top_permissions_value(lines: List[str]) -> str | None:
+    """The top-level `permissions:` line's value, or None when the file declares no such key."""
+    for line in lines:
+        match = TOP_PERMISSIONS_RE.match(line)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
+def job_permissions_value(block: List[str]) -> str | None:
+    """One job's own `permissions:` line value, or None when the job declares no such key."""
+    for line in block:
+        match = JOB_PERMISSIONS_RE.match(line)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
 def workflow_violations(path: Path, rel: str) -> List[str]:
-    """Every pinning and permissions violation in one workflow file."""
+    """Every pinning and permissions violation in one workflow file.
+
+    `write-all` — the widest scope there is — is rejected at both the top level and the job
+    level: a job-level grant is not vouched for by a properly-scoped top-level block, since a
+    job's own `permissions:` overrides it for that job.
+    """
     lines = path.read_text(encoding="utf-8").splitlines()
     violations = [f"{rel}:{bad} is not pinned to a 40-character commit SHA"
                   for bad in unpinned_uses(lines)]
-    if any(TOP_PERMISSIONS_RE.match(line) for line in lines):
-        return violations
+
+    top_permissions = top_permissions_value(lines)
+    if top_permissions == WRITE_ALL:
+        violations.append(f"{rel}: top-level permissions: write-all grants the widest scope "
+                          f"there is — least privilege names the scopes this workflow needs")
+
     jobs = job_blocks(lines)
-    if not jobs:
-        violations.append(f"{rel}: no top-level permissions: and no jobs: block this lint "
-                          f"can read — refusing to report a pass on a file it cannot see into")
-        return violations
-    violations += [f"{rel}: job {job!r} runs on the repository's default token scope: no "
-                   f"permissions: block in the job and none at the top of the file"
+    if top_permissions is None:
+        if not jobs:
+            violations.append(f"{rel}: no top-level permissions: and no jobs: block this lint "
+                              f"can read — refusing to report a pass on a file it cannot see "
+                              f"into")
+            return violations
+        violations += [f"{rel}: job {job!r} runs on the repository's default token scope: no "
+                       f"permissions: block in the job and none at the top of the file"
+                       for job, block in jobs.items()
+                       if job_permissions_value(block) is None]
+
+    violations += [f"{rel}: job {job!r} permissions: write-all grants the widest scope there "
+                   f"is — least privilege names the scopes this job needs"
                    for job, block in jobs.items()
-                   if not any(JOB_PERMISSIONS_RE.match(line) for line in block)]
+                   if job_permissions_value(block) == WRITE_ALL]
     return violations
 
 

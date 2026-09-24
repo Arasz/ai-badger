@@ -1119,6 +1119,17 @@ def is_orphaned(entry: Dict[str, Any], delivering: List[str]) -> bool:
     return entry.get("stack") not in delivering
 
 
+def is_vendored_packet(path: Path) -> bool:
+    """True when a `vendor.json` in `path`'s ancestry marks it part of a vendored packet.
+
+    A vendored packet's own files (schemas, examples, brand marks, the packaging metadata)
+    are the upstream vendor's contract, shipped byte-identical (ADR-0030); the marker is the
+    packet's own provenance file, not a hardcoded skill name, so the next vendored skill is
+    covered without touching every caller.
+    """
+    return any((parent / "vendor.json").is_file() for parent in path.parents)
+
+
 def iter_feature_dirs(root: Path) -> List[Tuple[str, str, Path]]:
     """Yield (stack, feature, dir) for every features/<stack>/<feature> directory present.
 

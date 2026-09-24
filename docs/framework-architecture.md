@@ -47,13 +47,12 @@ recorded in the manifest, pruned, or overwritten (issue #313).
 
 ### Skills location
 
-Thirty-six skills live under `features/common/skills/`. The fourteen with `scope: default` —
-the ones that arrive without being asked for — are `welcome-ai-badger`, `feed-badger`, `den-refresh`,
-`task`, `create-task-spec`, `maintain-agent-instructions`, `prompt-markers`, `mcp-index`,
-`code-review-checklist`, `call-behaviorist`, `owner-gate-review`, `commit-reminder`,
-`differential-feature-refactor` and `ai-raccoon-memory`. The other twenty-two are `optIn` — same
-directory, written only when a project names them. All of them are discovered by
-`iter_feature_dirs` like any other stack feature; what each one is for: [`skills.md`](skills.md).
+Skills live under `features/common/skills/`. Each one declares its own `scope` in its
+`SKILL.md` frontmatter (ADR-0018): `default` ships without being asked for, `optIn` ships only
+when a project names it in `config.include.skills`. Nothing here counts them or names them —
+that list is [`skills.md`](skills.md)'s job, and it derives its numbers from the same
+frontmatter rather than keeping a second copy in sync. All of them are discovered by
+`iter_feature_dirs` like any other stack feature.
 (`auto-wm` lives at `features/claude/skills/` since it depends on Claude Code's `PreToolUse` hooks.)
 Stack-scoped skill *extensions* live inline inside the base skill directory (e.g.
 `features/common/skills/task/extensions/github/`). `scaffold.py` embeds them when their
