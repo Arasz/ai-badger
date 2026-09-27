@@ -12,8 +12,12 @@ from __future__ import annotations
 
 import json
 import shutil
+import sys
 from pathlib import Path
 from typing import Any, Dict, Set
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "engine"))
+import badger_lib as bl  # noqa: E402
 
 
 def _guarded(cmd: str, script_rel: str) -> str:
@@ -109,14 +113,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         copilot_event = event
 
         # Map Copilot event names (camelCase) to Claude/PascalCase for source lookup
-        event_map = {
-            "sessionStart": "SessionStart",
-            "userPromptSubmitted": "UserPromptSubmit",
-            "sessionEnd": "SessionEnd",
-            "preToolUse": "PreToolUse",
-            "postToolUse": "PostToolUse",
-        }
-        source_event = event_map.get(copilot_event, copilot_event)
+        source_event = bl.COPILOT_TO_SOURCE_EVENT.get(copilot_event, copilot_event)
 
         # Get this hook's own command from the source, or generate one
         source_event_hooks = source_hooks.get("hooks", {}).get(source_event, [])
@@ -145,7 +142,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
                     hook_entry = {
                         "type": "command",
                         "bash": _guarded(cmd, script_rel) if script_rel else cmd,
-                        "timeoutSec": 10,
+                        "timeoutSec": h.get("timeout", 10),
                     }
                     if matcher:
                         hook_entry["matcher"] = matcher

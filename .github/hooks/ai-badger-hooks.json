@@ -34,8 +34,8 @@
       },
       {
         "type": "command",
-        "bash": "if [ -f \".ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\" ]; then python3 .ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py not found - hook skipped\"}'; fi",
-        "timeoutSec": 5
+        "bash": "if [ -f \".ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\" ]; then python3 \".ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py not found - hook skipped\"}'; fi",
+        "timeoutSec": 10
       }
     ],
     "sessionEnd": [

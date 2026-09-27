@@ -723,3 +723,65 @@ def test_ttl_backstop_prunes_through_the_shipped_store_copy(tmp_path, load_scrip
         assert remaining.get("live") == 3, remaining
     finally:
         conn.close()
+
+
+def test_a1_copilot_carries_the_source_timeout_into_timeout_sec(tmp_path, load_script):
+    """A1: a hook's own `timeout` becomes its Copilot `timeoutSec`; absent, the default is 10 —
+    never the flat literal that killed the pipeline at 10s regardless of what the source asked
+    for."""
+    adjust_hooks = load_script("features/copilot/adjustments/adjust_hooks.py")
+    target = tmp_path / "proj"
+    (target / ".ai-badger").mkdir(parents=True)
+
+    manifest_hooks = [
+        {"name": "hook-a", "agents": {"copilot": {
+            "type": "hooks-json", "entry": "hooks.json",
+            "event": "userPromptSubmitted", "script": "a_hook.py"}}},
+        {"name": "hook-b", "agents": {"copilot": {
+            "type": "hooks-json", "entry": "hooks.json",
+            "event": "userPromptSubmitted", "script": "b_hook.py"}}},
+        {"name": "hook-c", "agents": {"copilot": {
+            "type": "hooks-json", "entry": "hooks.json",
+            "event": "userPromptSubmitted", "script": "c_hook.py"}}},
+    ]
+    source_hooks = {
+        "UserPromptSubmit": [
+            {"hooks": [
+                {"type": "command",
+                 "command": 'python3 "${CLAUDE_PLUGIN_ROOT}/features/common/hooks/a_hook.py"',
+                 "timeout": 100},
+                {"type": "command",
+                 "command": 'python3 "${CLAUDE_PLUGIN_ROOT}/features/common/hooks/b_hook.py"'},
+                {"type": "command",
+                 "command": 'python3 "${CLAUDE_PLUGIN_ROOT}/features/common/hooks/c_hook.py"',
+                 "timeout": 10},
+            ]},
+        ],
+    }
+    fw_root = _fake_framework(tmp_path, manifest_hooks, source_hooks=source_hooks)
+
+    result = adjust_hooks.adjust(_context(fw_root, target))
+
+    assert result["applied"]
+    hooks = json.loads(
+        (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
+    by_script = {_script_name(h["bash"]): h["timeoutSec"]
+                 for h in hooks["hooks"]["userPromptSubmitted"]}
+    assert by_script == {"a_hook.py": 100, "b_hook.py": 10, "c_hook.py": 10}
+
+
+def test_a1_real_catalog_copilot_timeouts_are_unchanged(root, load_script, tmp_path):
+    """A1 acceptance: every real source command carries either no `timeout` or `timeout: 10`
+    (measured), so carrying it through Copilot's timeoutSec must not move a single generated
+    value for the existing catalog."""
+    adjust_hooks = load_script("features/copilot/adjustments/adjust_hooks.py")
+    target = tmp_path / "proj"
+    (target / ".ai-badger").mkdir(parents=True)
+
+    result = adjust_hooks.adjust(_context(root, target))
+
+    assert result["applied"]
+    hooks = json.loads(
+        (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
+    timeouts = {h["timeoutSec"] for entries in hooks["hooks"].values() for h in entries}
+    assert timeouts == {10}, timeouts

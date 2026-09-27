@@ -11,11 +11,12 @@ Exit code 0 == valid, 1 == invalid, 2 == usage error. Mechanical; no LLM, no net
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
 # skills_lint is a repo gate, not a schema check; --all still reports it (the review's D4).
@@ -449,6 +450,141 @@ def hooks_manifest_agent_gaps(root: Path) -> List[str]:
     return gaps
 
 
+PLUGIN_HOOKS_JSON_ROOT = ("hooks", "hooks.json")  # the drift-notice exception (§1.7)
+
+
+def _event_commands(hooks_data: Dict, event: str) -> List[str]:
+    """Every command string wired under *event*, across every matcher entry."""
+    return [h.get("command", "")
+            for entry in hooks_data.get("hooks", {}).get(event, [])
+            for h in entry.get("hooks", [])]
+
+
+def _resolve_hooks_json_command(hooks_path: Path, event: str, script: str) -> Optional[str]:
+    """None once *script* resolves to exactly one command under *event*; else the reason.
+
+    A command resolves only when it both ends with *script* (the generators' own selection
+    rule) and its basename equals *script* — endswith alone accepts a decoy like
+    not_memory_context_hook.py, and basename alone misses two decoys agreeing on a suffix.
+    Matcher is ignored (documented): the same literal command wired twice under different
+    matchers is one resolution, not an ambiguity.
+    """
+    try:
+        hooks_data = json.loads(hooks_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return f"{hooks_path} unreadable ({exc})"
+    matching = sorted({c for c in _event_commands(hooks_data, event)
+                        if c.rstrip('"').endswith(script)})
+    if len(matching) != 1:
+        return f"{len(matching)} command(s) under event {event!r} end with {script!r}"
+    basename = matching[0].rstrip('"').rsplit("/", 1)[-1]
+    if basename != script:
+        return f"the matching command's basename {basename!r} != script {script!r}"
+    return None
+
+
+def _hermes_registrations(entry_path: Path) -> Optional[Tuple[set, set]]:
+    """(event strings, callback names) passed to ctx.register_hook(...) in *entry_path*.
+
+    ast-parsed, never regexed over the raw text: a call written inside a comment or a string
+    literal never becomes a Call node, so it cannot be mistaken for a real registration.
+    """
+    try:
+        tree = ast.parse(entry_path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, ValueError):
+        return None
+    events: set = set()
+    callbacks: set = set()
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "register_hook" and len(node.args) >= 2):
+            continue
+        event_arg, callback_arg = node.args[0], node.args[1]
+        if isinstance(event_arg, ast.Constant) and isinstance(event_arg.value, str):
+            events.add(event_arg.value)
+        if isinstance(callback_arg, ast.Name):
+            callbacks.add(callback_arg.id)
+    return events, callbacks
+
+
+def _hooks_json_arm_gap(root: Path, rel: str, manifest_dir: Path, name: str, agent: str,
+                         arm_type: str, entry: Optional[str], arm: Dict) -> Optional[str]:
+    """The unresolved reason for one hooks-json/plugin-hooks-json arm, or None once it resolves."""
+    event = arm.get("event")
+    script = arm.get("script")
+    tag = f"hook {name!r} {agent!r} arm (file={entry}, event={event!r}, script={script!r})"
+    if not entry or not event or not script:
+        return f"{rel}: {tag} names no event/script to resolve"
+    if agent == "copilot":
+        source_event = bl.COPILOT_TO_SOURCE_EVENT.get(event)
+        if source_event is None:
+            return (f"{rel}: {tag} has no COPILOT_TO_SOURCE_EVENT mapping for event "
+                    f"{event!r}")
+    else:
+        source_event = event
+    hooks_path = (root.joinpath(*PLUGIN_HOOKS_JSON_ROOT) if arm_type == "plugin-hooks-json"
+                  else manifest_dir / entry)
+    if not hooks_path.is_file():
+        return f"{rel}: {tag} entry not found at {hooks_path}"
+    reason = _resolve_hooks_json_command(hooks_path, source_event, script)
+    return f"{rel}: {tag} unresolved: {reason}" if reason else None
+
+
+def _plugin_arm_gap(rel: str, manifest_dir: Path, name: str, agent: str,
+                     entry: Optional[str], arm: Dict) -> Optional[str]:
+    """The unresolved reason for one hermes plugin arm, or None once its method resolves."""
+    method = arm.get("method")
+    if not entry or not method:
+        return f"{rel}: hook {name!r} {agent!r} arm (file={entry}) names no method to resolve"
+    registrations = _hermes_registrations(manifest_dir / entry)
+    if registrations is None:
+        return f"{rel}: hook {name!r} {agent!r} arm entry {entry!r} unreadable"
+    events, callbacks = registrations
+    if method in events or method in callbacks:
+        return None
+    return f"{rel}: hook {name!r} {agent!r} arm method {method!r} is never registered in {entry}"
+
+
+def _arm_gap(root: Path, rel: str, manifest_dir: Path, name: str, agent: str,
+             arm: Dict) -> Optional[str]:
+    """The unresolved reason for one manifest arm, or None once it resolves (§1.7)."""
+    arm_type = arm.get("type")
+    entry = arm.get("entry")
+    if arm_type in ("hooks-json", "plugin-hooks-json"):
+        return _hooks_json_arm_gap(root, rel, manifest_dir, name, agent, arm_type, entry, arm)
+    if arm_type == "plugin":
+        return _plugin_arm_gap(rel, manifest_dir, name, agent, entry, arm)
+    return f"{rel}: hook {name!r} {agent!r} arm has unknown type {arm_type!r}"
+
+
+def hooks_manifest_unresolved(root: Path) -> List[str]:
+    """Every manifest arm that names no real command, callback or event (§1.7).
+
+    hooks_manifest_agent_gaps proves an agent is named; this proves the thing it names
+    actually exists — a hooks-json arm's command in the sibling hooks.json (Copilot's own
+    event spelled through COPILOT_TO_SOURCE_EVENT), a plugin-hooks-json arm's command in the
+    repo-root hooks/hooks.json (the drift-notice exception), or a plugin arm's method as an
+    event or callback name `ctx.register_hook` actually registers. No discovery fallback: a
+    script findable only by scanning a skill's own scripts/ directory is unresolved here.
+    """
+    gaps: List[str] = []
+    for manifest_path in sorted(root.glob(HOOKS_MANIFEST_GLOB)):
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            gaps.append(f"{manifest_path}: unreadable manifest ({exc})")
+            continue
+        rel = manifest_path.relative_to(root)
+        manifest_dir = manifest_path.parent
+        for hook in manifest.get("hooks", []):
+            name = hook.get("name", "<unnamed>")
+            for agent, arm in hook.get("agents", {}).items():
+                gap = _arm_gap(root, rel, manifest_dir, name, agent, arm)
+                if gap:
+                    gaps.append(gap)
+    return gaps
+
+
 def catalog_stacks(root: Path) -> List[str]:
     """Stack names the catalog can actually deliver: a stack.json, a feature directory, or both.
 
@@ -648,6 +784,7 @@ def validate_all(root: Path) -> int:
     ok &= _report("cross-stack references", cross_stack_reference_gaps(root))
     ok &= _report("inlined bodies carry no relative links", inlined_relative_links(root))
     ok &= _report("hooks-manifest agent coverage", hooks_manifest_agent_gaps(root))
+    ok &= _report("hooks-manifest resolution", hooks_manifest_unresolved(root))
     ok &= _report("skills lint", skills_lint(root))
     return 0 if ok else 1
 
