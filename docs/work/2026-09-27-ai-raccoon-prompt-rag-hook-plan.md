@@ -769,6 +769,9 @@ count as one row.
 
 ### P2 core: `tests/test_memory_context_core.py` (23)
 
+> **C19 ruling (orchestrator, 2026-09-28):** §1.5 governs. Only a run of O-2 `FIELD_BREAKS` characters collapses to one space; any other character, including a plain space after the run, stays raw. So `"a\r\n b"` becomes `"a  b"`, not `"a b"`. This follows lane P2's hand-back.
+
+
 | # | Behaviour | Failure mode | Mutation → red |
 |---|---|---|---|
 | C1 | Long IDEA prompt → `ok`, `query == js_trim(prompt)`, word count right | Real prompts rejected | default `False`; drop trim |
