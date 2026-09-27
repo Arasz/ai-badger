@@ -1347,3 +1347,16 @@ The five non-negotiables, again:
    every call inside its share.
 4. No test reaches the real executable or the network: temp PATH + temp HOME + G1 + G4.
 5. Every package ends green on pre-push: VERSION in P1, closing step after every `features/` package.
+
+## Owner rulings on rev 3 (2026-09-28, binding)
+
+| # | Ruling |
+|---|---|
+| O-1 | RESOLVED (orchestrator, verified `BackendLauncher.cs:234-240`): close stdin, then kill and reap the proxy pid only. Never the process group. |
+| O-2 | Sanitise the `path` and `rank` lines: collapse control and line-separator characters (`\r \n \t \v \f`, U+0085, U+2028, U+2029). Output stays byte-identical to pi for every hit without such characters. |
+| O-3 | POSIX only (macOS and Linux); on Windows the hook is inert and silent. (Orchestrator default; the hook shape already assumes POSIX process control.) |
+| O-4 | Pending the P0 Copilot spike. Branch B (exemption) returns to the owner before shipping. |
+| O-5 | Hermes: CLI sessions only; gateway-originated sessions are skipped. |
+| O-6 | Follow pi's source (`pipeline.ts:351-379`). A Jev failure leaves scores null and the merge ranks by server rank; it is not a single-search fallback. |
+| O-7 | The pipeline is on by default when `OPENROUTER_API_KEY` exists; `AI_BADGER_MEMORY_CONTEXT_PIPELINE=0` keeps everything but ai-raccoon local. SKILL.md and the changelog state plainly what leaves the machine: the gated prompt and the matched excerpts go to OpenRouter. |
+| Budget | pi parity: total 90 s, planner 15 s, search 15 s each, Jev 8 s; Claude hook `timeout` 100. |
