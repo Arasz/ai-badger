@@ -2112,3 +2112,31 @@ This estimate excludes: the hook's own entry-point/argument-parsing glue, `model
 already exists and is reused, not rewritten), and the test suite (§5, itself roughly 2,000+ lines in TS,
 similarly reducible in Python for the same reasons).
 
+
+---
+
+## Addendum (2026-09-28): P0 Copilot capability spike [MEASURED]
+
+Copilot CLI 1.0.88 (`/opt/homebrew/bin/copilot`), macOS arm64. Each arm ran in a throwaway git
+repo whose `.github/hooks/x.json` held a `sessionStart` marker hook and a `userPromptSubmitted`
+command that dumped its stdin and printed a code word. Prompt: `copilot -p "What is the code word
+in your context or instructions? Reply with only the word, or NONE."`
+
+| Arm | Hook ran (marker + payload dump) | Answer, 3 runs |
+|---|---|---|
+| Positive control: `.github/copilot-instructions.md` | n/a | PERIWINKLE |
+| Flat `{"additionalContext":"The code word is PERIWINKLE"}` | 3/3 | PERIWINKLE ×3 |
+| Envelope `{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":…}}` | 3/3 | "Remembering", "Remembering", NONE |
+
+- **Verdict: branch A.** Copilot consumes the flat `additionalContext` from `userPromptSubmitted`.
+  The vendor-doc reading in the delivery plan proposal ("output dropped") does not hold for this
+  CLI version. The Claude envelope is ignored, so the Copilot arm must emit the flat key.
+- **Payload shape:** `{"sessionId","timestamp","cwd","prompt"}`, camelCase, with no
+  `hook_event_name` (Claude sends `session_id` and `hook_event_name`). Committed later as
+  `tests/fixtures/memory_context/copilot_user_prompt_payload.json`.
+- **Gotcha:** repo hooks load only in a folder listed in `~/.copilot/config.json`
+  `trustedFolders`. The first attempt, under the untrusted `/private/tmp` scratchpad, fired no
+  hook at all, not even `sessionStart`, and the model answered NONE. That failure mode looks
+  identical to "output dropped".
+- **Consequence (filed separately, not fixed here):** `context_enrichment_hook.py:161` (and any
+  other hook that emits only the envelope on its Copilot arm) injects nothing on Copilot today.
