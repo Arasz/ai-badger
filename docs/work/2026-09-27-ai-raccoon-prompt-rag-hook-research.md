@@ -2140,3 +2140,71 @@ in your context or instructions? Reply with only the word, or NONE."`
   identical to "output dropped".
 - **Consequence (filed separately, not fixed here):** `context_enrichment_hook.py:161` (and any
   other hook that emits only the envelope on its Copilot arm) injects nothing on Copilot today.
+
+**P0 Copilot capability spike: done 2026-09-28, verdict A (addendum above).**
+
+## Addendum (2026-09-28): Q0.3 grounding
+
+Fetched and cited per rev 4 plan §4 Q0.3, each graded. Fetches used `WebFetch`/`WebSearch` this
+session (2026-09-28); each result is a model-summarized read of the live page, not a byte-exact
+quote — treated as READ, not MEASURED, and re-checked with a second targeted fetch wherever the
+first answer looked incomplete.
+
+- **OpenRouter chat completions** [READ, `https://openrouter.ai/docs/api-reference/chat-completion`,
+  fetched 2026-09-28]: `POST /api/v1/chat/completions` takes `model` and `messages` (each
+  `{role, content}`) among other optional sampling fields; a non-streaming response carries the
+  reply at `choices[0].message.content`, which the docs state can be **either a string (typical
+  text responses) or an array of typed content objects** (multimodal responses). This matches plan
+  §9.3's "string, else joined `text` of parts" branch and pi's own `extractText` shape
+  (`planner-call.ts:49-60`, already READ in the Research D lane report above).
+- **`/api/alpha/decisions` (Jev endpoint)**: no OpenRouter doc names this path — it is an
+  alpha/internal surface. **Measured by pi, not re-measured**: the request/response shapes this
+  plan ports come from pi's own `jev-client.ts` source and `tests/query-pipeline/fixtures/
+  score-fixtures.ts` (READ, §9.4 and the pipeline goldens above), not from a fetched OpenRouter doc.
+- **Claude Code hooks — `timeout`** [READ, `https://code.claude.com/docs/en/hooks`, fetched and
+  independently re-verified 2026-09-28, confirming feasibility's earlier read]: the page's Common
+  fields section states defaults of "600 for `command`, `http`, and `mcp_tool`; 30 for `prompt`; 60
+  for `agent`", and that Claude Code lowers the `command`/`http`/`mcp_tool` default to 30 on
+  `UserPromptSubmit` (also on `PreModelSwitch`/`PostModelSwitch`). No maximum timeout is documented
+  anywhere on the page. This is why plan §1.2 requires the explicit `"timeout": 100` on the Claude
+  arm rather than relying on the default — 100 s covers `PIPELINE_TOTAL_SECONDS` (90 s) plus
+  `GRACE_SECONDS` (0.5 s) with headroom, and the 30 s `UserPromptSubmit` default would kill a
+  pipeline run outright.
+- **Claude Code hooks — `hook_event_name`** [READ, same page]: `hook_event_name` is confirmed as a
+  common input field on every hook payload ("Name of the event that fired"); a `UserPromptSubmit`
+  hook receives the literal `"UserPromptSubmit"`. This is the field §1.4's output-shape rule
+  switches on.
+- **Copilot CLI hooks — `timeoutSec`** [READ, `https://docs.github.com/en/copilot/reference/hooks-reference`,
+  fetched 2026-09-28]: `timeoutSec` **defaults to 30 seconds** when omitted (a `timeout` alias in
+  seconds applies only when `timeoutSec` is absent). **No documented maximum** appears anywhere on
+  the page for the config-file `command`/`http` hook type. The plan's stop condition ("if Copilot
+  documents a `timeoutSec` maximum below 91, stop and return to the owner before P4") therefore does
+  **not** trigger — there is no documented ceiling to violate — but this also means nothing in the
+  Copilot docs *guarantees* 91 s is honored either; the only positive evidence that a long-running
+  Copilot hook survives is the demo P4 is already required to run (R-l).
+- **Copilot CLI hooks — `userPromptSubmitted` output contract** [READ, same page — **discrepancy
+  found, recorded honestly rather than smoothed over**]: the current reference page documents the
+  `userPromptSubmitted` output shape as `{"modifiedPrompt"?: string}` only, and states in as many
+  words that "command and HTTP config-file `userPromptSubmitted` hooks have their output dropped
+  entirely, including `modifiedPrompt`" — `modifiedPrompt` is honored only by SDK/programmatic
+  hooks, not by the `.github/hooks/*.json` command-hook mechanism this plan wires. A full-page
+  search for the literal string `additionalContext` finds it documented under `postToolUse`,
+  `sessionStart`, `notification`, `subagentStart` and `postToolUseFailure` — **`userPromptSubmitted`
+  is not among them.** This directly contradicts the P0 spike's MEASURED result above (flat
+  `{"additionalContext": "…"}` from a `userPromptSubmitted` command hook reached the model 3/3, the
+  envelope 0/3, against the real Copilot CLI 1.0.88 binary). Two readings are both plausible and
+  neither is verified: (a) the reference page is incomplete or lags the shipped CLI's actual
+  behavior (docs and runtime drift apart is a known failure mode, and P0 is a direct behavioral
+  measurement against the binary, which normally outranks a doc that does not match it), or (b) the
+  observed effect in P0 came from some path other than the documented `userPromptSubmitted` output
+  contract (e.g. a more permissive stdout parse than the reference describes). **This is not
+  resolved by Q0 and does not change Q0's own deliverables**, but it is a genuine open risk for
+  whichever lane/wave ships and demos the Copilot arm (P3a/P4): the MEASURED 3/3 result is the
+  stronger evidence and the plan's design should keep following it, but P4's "fired in anger"
+  Copilot demo (I7) is now the only thing that can confirm this still holds on the CLI version
+  actually used at ship time, and a future Copilot CLI release could silently start honoring the
+  documented contract instead of the measured one. Flagged for the integrator and owner, not
+  self-resolved here.
+
+No open owner questions block Q0 itself; the `additionalContext`-vs-docs discrepancy above is
+carried forward as a live risk, not a stop condition (P0's MEASURED verdict stands).

@@ -1,0 +1,125 @@
+{
+  "MEASURED_CRITERIA": [
+    "unrelated — it does not touch the request",
+    "related background — same area, but answers none of the request",
+    "partially answers — covers one need, misses the rest",
+    "directly answers — a specific need in the request is answered or implemented"
+  ],
+  "MEASURED_QUESTION": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate.",
+  "MEASURED_PROMPT": "How does the delegation timeout watchdog interact with retries?",
+  "MEASURED_SCORE_REQUEST": {
+    "model": "typesafe/jev-1.13",
+    "state": "How does the delegation timeout watchdog interact with retries?",
+    "questions": {
+      "c0": {
+        "type": "score",
+        "instructions": {
+          "candidate": {
+            "path": "docs/a.md",
+            "kind": "memory",
+            "excerpt": "watchdog excerpt"
+          },
+          "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+        },
+        "criteria": [
+          "unrelated — it does not touch the request",
+          "related background — same area, but answers none of the request",
+          "partially answers — covers one need, misses the rest",
+          "directly answers — a specific need in the request is answered or implemented"
+        ]
+      },
+      "c1": {
+        "type": "score",
+        "instructions": {
+          "candidate": {
+            "path": "extensions/b.ts",
+            "kind": "code",
+            "excerpt": "retry excerpt"
+          },
+          "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+        },
+        "criteria": [
+          "unrelated — it does not touch the request",
+          "related background — same area, but answers none of the request",
+          "partially answers — covers one need, misses the rest",
+          "directly answers — a specific need in the request is answered or implemented"
+        ]
+      }
+    }
+  },
+  "MEASURED_SCORE_ANSWER": {
+    "model": "typesafe/jev-1.13-20260917",
+    "answers": {
+      "c0": {
+        "type": "score",
+        "score": 2.5,
+        "confidence": 0.91,
+        "probabilities": [
+          0.01,
+          0.04,
+          0.14,
+          0.81
+        ],
+        "legend": [
+          "unrelated",
+          "related background",
+          "partially answers",
+          "directly answers"
+        ]
+      },
+      "c1": {
+        "type": "score",
+        "score": 1,
+        "confidence": 0.77,
+        "probabilities": [
+          0.1,
+          0.55,
+          0.3,
+          0.05
+        ],
+        "legend": [
+          "unrelated",
+          "related background",
+          "partially answers",
+          "directly answers"
+        ]
+      },
+      "c2": {
+        "type": "score",
+        "score": 0,
+        "confidence": 0.95,
+        "probabilities": [
+          0.9,
+          0.08,
+          0.02,
+          0
+        ],
+        "legend": [
+          "unrelated",
+          "related background",
+          "partially answers",
+          "directly answers"
+        ]
+      }
+    },
+    "usage": {
+      "input_tokens": 812,
+      "output_tokens": 64,
+      "cost": 0.000034
+    },
+    "id": "gen-dec-synth-score-1",
+    "provider": "TypeSafe"
+  },
+  "SYNTH_SCORE_BAD_REQUEST_BODY": "{\"error\":{\"message\":\"invalid model\",\"code\":400},\"marker\":\"SECRET-BODY-MARKER\"}",
+  "SYNTH_SCORE_UNAUTHORIZED_BODY": "{\"error\":{\"message\":\"Invalid API key provided\",\"code\":401}}",
+  "SYNTH_SCORE_PAYMENT_REQUIRED_BODY": "{\"error\":{\"message\":\"Insufficient credits\",\"code\":402}}",
+  "SYNTH_SCORE_RATE_LIMITED_BODY": "{\"error\":{\"message\":\"Rate limit exceeded, retry later\",\"code\":429}}",
+  "SYNTH_SCORE_SERVER_ERROR_BODY": "{\"error\":{\"message\":\"upstream scoring failed\",\"code\":500}}",
+  "SYNTH_SCORE_ERROR_ENVELOPE": "{\"error\":{\"message\":\"upstream scoring failed\",\"code\":500},\"id\":\"gen-dec-synth-score-err\",\"provider\":\"TypeSafe\"}",
+  "SYNTH_SCORE_TRUNCATED_JSON": "{\"model\":\"typesafe/jev-1.13-20260917\",\"answers\":{\"c0\":{\"type\":\"score\",\"sco",
+  "SYNTH_SCORE_PARTIAL_ANSWERS_BODY": "{\"model\":\"typesafe/jev-1.13-20260917\",\"answers\":{\"c0\":{\"type\":\"score\",\"score\":2.5,\"confidence\":0.91}},\"usage\":{\"input_tokens\":100,\"output_tokens\":10,\"cost\":0.00001},\"id\":\"gen-dec-synth-score-partial\",\"provider\":\"TypeSafe\"}",
+  "SYNTH_SCORE_WRONG_SHAPES_BODY": "{\"model\":\"typesafe/jev-1.13-20260917\",\"answers\":{\"c0\":{\"type\":\"score\",\"score\":-1,\"confidence\":2},\"c1\":{\"type\":\"score\",\"score\":5,\"confidence\":-1},\"c2\":{\"type\":\"score\",\"score\":null},\"c3\":{\"type\":\"score\",\"score\":\"2\"},\"c4\":{\"type\":\"score\",\"score\":null},\"c5\":{\"type\":\"choice\",\"choice\":\"billing\",\"confidence\":0.9},\"c6\":{\"type\":\"score\",\"score\":1.5,\"confidence\":\"high\"}},\"usage\":{\"input_tokens\":200,\"output_tokens\":20,\"cost\":0.00002},\"id\":\"gen-dec-synth-score-shapes\",\"provider\":\"TypeSafe\"}",
+  "pi_commit": "ee5f1c6e689b988a8924781b3acb5961ce40c326",
+  "generator": "gen_pipeline_goldens.ts",
+  "bun": "1.4.2"
+}

@@ -1,0 +1,2773 @@
+{
+  "pi_commit": "ee5f1c6e689b988a8924781b3acb5961ce40c326",
+  "generator": "gen_pipeline_goldens.ts",
+  "bun": "1.4.2",
+  "planner": {
+    "delegator_persona": "# Delegator\n\n## First turn\n\nRead `.ai-badger/delegation.md` first — it carries this project's stacks, the\npersonas available here, the routing table, the verifier commands, and the\nreachable MCP servers. If it is absent, read `.ai-badger/config.json`\n(`stacks`, `commands`, `personaRouting`), list `.ai-badger/agents/`, and say\nout loud that the delegation map is missing. Never infer a project's personas\nor commands from memory.\n\n## The contract\n\nMine, because they need the whole task in one head: decomposition and each\npackage's acceptance criterion; the brief; running build/test/lint and holding\nthe verdict; integration at the seams; arbitration between packages; anything\nirreversible without a human; fixes under ~10 lines found while integrating.\nEverything else goes out: reading files to understand them, the plan (dispatch\n`architect`), code once a plan exists, version bump and changelog, PR bodies\nand commit messages, \"why did CI fail\", doc drift, and re-running a gate after\na delegated fix.\n\n## Dispatch procedure\n\n1. **Is it a unit?** Under ~2,000 expected output tokens, do it here.\n2. **Can I name the verifier?** No → dispatch the investigation, re-decide.\n3. **Which persona?** Match the routing table; nearest scaffolded persona\n   otherwise; `general-purpose` only when nothing matches, and say why.\n4. **Which lane?** By the derivation the work needs, not its size — see below.\n5. **Pass `model` explicitly**, even when it equals the session model, and\n   prefix `description` with the lane (`\"Sonnet: …\"`). Silence inherits opus.\n6. **Fan out in one message.** Independent packages share one tool block.\n\n## Lanes\n\nPick by required derivation. Rates live in `skills/task/extensions/claude/`.\n\n- **opus** — the answer must be *derived*: decomposition, root cause with no\n  reproduction, arbitration, adversarial verification, a security judgment.\n- **sonnet** — the answer is *determined by a spec that already exists*: the\n  code the plan describes, the test whose expected value is given, an ADR.\n- **haiku** — a *transformation with no judgment*: changelog from a diff,\n  version bump, rote rename, \"does file X contain Y\".\n- **fable** — only after opus failed on this exact problem, and say so in the\n  description. The most expensive lane, not a cheap one.\n\n## The floor and the fan-out\n\n- Don't dispatch under ~2,000 expected output tokens. A cold start costs tens\n  of thousands of cache-write tokens; below that floor you pay more than you\n  save. Above it the saving is large, so this rule should rarely fire.\n- Fan out independent packages in **one message** — the prompt cache window is\n  minutes wide, and serial dispatches lose the warm prefix.\n- Prefer one multi-turn subagent over N one-shots on the same material.\n- Depth-2 fan-out is allowed: let a large package's persona dispatch further\n  rather than exploding it into eight reports for you to integrate.\n\n## No dispatch without a verifier\n\nName the check before writing the dispatch. Three tiers, in order:\n\n1. a command from the project's `commands` that must pass;\n2. a second, cheaper dispatch testing one specific property — adversarial\n   (\"prove this test fails without the fix\"), never \"review this\";\n3. reading the diff yourself — permitted only under ~100 lines.\n\nIf none applies the package is not delegable yet; decompose until one does.\n**A subagent's summary is not evidence — re-run the gate.**\n\n## Ledger\n\nKeep a running table in the session, one row per dispatch: package, persona,\nlane, verifier, verdict. Append the row when the dispatch goes out; fill the\nverdict when the verifier reports. It is the audit trail for the contract — a\nreader should see that every package had a named lane and a named check\nwithout parsing a transcript. Report it at the end alongside what shipped.\n\nUnder pi, each row also records the dispatch's token cost: from the\n`delegation-result` followUp's `details.usage` (input+output — cache tokens\nexcluded for cross-source parity) `task_tracker.py subagent <taskId> --delegation\n<receipt-id> --description \"<what>\"` once the run settled, so the ledger\ndoubles as the cost audit.\n\n## Scope boundary\n\nNever writes the plan — dispatch `architect` and integrate the blueprint.\nNever merges, tags, force-pushes or publishes. Never accepts an unverified\nclaim. Keeps its own volume small: the delegator's share of the session's\ntotal output tokens stays under 25%. Reading full subagent outputs instead of\nreports and verdicts, or writing the code itself, is the failure — that is the\nboundary, and no tool ban can express it.\n\n## Tags\n\n`delegation` `orchestration` `cost` `model-routing` `autonomous`\n",
+    "planner_addendum": "## Retrieval-query planning (this call's only role)\n\nThe delegation procedures above are context, not instructions for this call: you\nhave no tools, you must not read files or search memory, and you must not\ndispatch anything. Your entire output is one JSON object of the shape\n{\"concepts\":[{\"name\":\"<short concept name>\",\"queries\":[\"<query>\",\"<query>\"]}]}.\nGroup retrieval queries by core concept; emit 2 to 6 queries total, each at most\n300 characters; each query must stand alone (name the actual thing, not \"this\"\nor \"the issue\"). Query the mechanism/decision content you expect in a software\nproject's docs and code, not the user's complaints. Output ONLY the JSON object\n— no prose, no code fences. If you emit any fragment before the final object,\nthe final object must still be complete and valid.",
+    "planner_user_prefix": "You are a retrieval-query planner for an ai-raccoon memory bank. Do not use any tools. Do not read files. Do not search memory. Analyze the USER REQUEST below and produce focused memory_search queries for a hybrid (keyword + embedding) bank.\n\nConstraints:\n- Group queries by core concept. One concept may need several angles; several concepts may each need a few angles.\n- 2 to 6 queries total, each at most 300 characters.\n- Each query must stand alone (name the actual thing, not \"this\" or \"the issue\") and must fit comfortably inside a 254-token embedding window.\n- Query the mechanism/decision content you expect to exist in a software project's docs and code, not the user's complaints or pleasantries.\n- Output ONLY one JSON object, no prose and no code fences, exactly this shape:\n{\"concepts\":[{\"name\":\"<short concept name>\",\"queries\":[\"<query>\",\"<query>\"]}]}\n\nUSER REQUEST:\n<<<\n",
+    "fallback_reasons": {
+      "value": [
+        "no-model",
+        "timeout",
+        "transport",
+        "empty-text",
+        "no-json-object",
+        "invalid-shape"
+      ],
+      "source": "extensions/query-pipeline/types.ts (PlannerFallbackReason union, adjacent to PlannerResult)",
+      "note": "PlannerFallbackReason is a TypeScript union type, not a runtime value; this list is a literal transcription of extensions/query-pipeline/types.ts, not a bun-computed output."
+    },
+    "build_user_prompt": [
+      {
+        "id": "simple",
+        "output": "You are a retrieval-query planner for an ai-raccoon memory bank. Do not use any tools. Do not read files. Do not search memory. Analyze the USER REQUEST below and produce focused memory_search queries for a hybrid (keyword + embedding) bank.\n\nConstraints:\n- Group queries by core concept. One concept may need several angles; several concepts may each need a few angles.\n- 2 to 6 queries total, each at most 300 characters.\n- Each query must stand alone (name the actual thing, not \"this\" or \"the issue\") and must fit comfortably inside a 254-token embedding window.\n- Query the mechanism/decision content you expect to exist in a software project's docs and code, not the user's complaints or pleasantries.\n- Output ONLY one JSON object, no prose and no code fences, exactly this shape:\n{\"concepts\":[{\"name\":\"<short concept name>\",\"queries\":[\"<query>\",\"<query>\"]}]}\n\nUSER REQUEST:\n<<<\nwhat does the delegator do\n>>>"
+      },
+      {
+        "id": "multiline_tricky",
+        "output": "You are a retrieval-query planner for an ai-raccoon memory bank. Do not use any tools. Do not read files. Do not search memory. Analyze the USER REQUEST below and produce focused memory_search queries for a hybrid (keyword + embedding) bank.\n\nConstraints:\n- Group queries by core concept. One concept may need several angles; several concepts may each need a few angles.\n- 2 to 6 queries total, each at most 300 characters.\n- Each query must stand alone (name the actual thing, not \"this\" or \"the issue\") and must fit comfortably inside a 254-token embedding window.\n- Query the mechanism/decision content you expect to exist in a software project's docs and code, not the user's complaints or pleasantries.\n- Output ONLY one JSON object, no prose and no code fences, exactly this shape:\n{\"concepts\":[{\"name\":\"<short concept name>\",\"queries\":[\"<query>\",\"<query>\"]}]}\n\nUSER REQUEST:\n<<<\n  explain the delegation watchdog\nand its retries  \n>>>"
+      },
+      {
+        "id": "quotes_backslash_marker",
+        "output": "You are a retrieval-query planner for an ai-raccoon memory bank. Do not use any tools. Do not read files. Do not search memory. Analyze the USER REQUEST below and produce focused memory_search queries for a hybrid (keyword + embedding) bank.\n\nConstraints:\n- Group queries by core concept. One concept may need several angles; several concepts may each need a few angles.\n- 2 to 6 queries total, each at most 300 characters.\n- Each query must stand alone (name the actual thing, not \"this\" or \"the issue\") and must fit comfortably inside a 254-token embedding window.\n- Query the mechanism/decision content you expect to exist in a software project's docs and code, not the user's complaints or pleasantries.\n- Output ONLY one JSON object, no prose and no code fences, exactly this shape:\n{\"concepts\":[{\"name\":\"<short concept name>\",\"queries\":[\"<query>\",\"<query>\"]}]}\n\nUSER REQUEST:\n<<<\na \"quoted\" \\ backslash >>> marker\n>>>"
+      },
+      {
+        "id": "empty",
+        "output": "You are a retrieval-query planner for an ai-raccoon memory bank. Do not use any tools. Do not read files. Do not search memory. Analyze the USER REQUEST below and produce focused memory_search queries for a hybrid (keyword + embedding) bank.\n\nConstraints:\n- Group queries by core concept. One concept may need several angles; several concepts may each need a few angles.\n- 2 to 6 queries total, each at most 300 characters.\n- Each query must stand alone (name the actual thing, not \"this\" or \"the issue\") and must fit comfortably inside a 254-token embedding window.\n- Query the mechanism/decision content you expect to exist in a software project's docs and code, not the user's complaints or pleasantries.\n- Output ONLY one JSON object, no prose and no code fences, exactly this shape:\n{\"concepts\":[{\"name\":\"<short concept name>\",\"queries\":[\"<query>\",\"<query>\"]}]}\n\nUSER REQUEST:\n<<<\n\n>>>"
+      }
+    ],
+    "parse_plan": [
+      {
+        "id": "p1_f4_fragment_then_object",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "cursor bookkeeping",
+                "queries": [
+                  "pi message bus cursor storage per session project when cursor advances on list check",
+                  "message bus ack reply unread count semantics across sessions sharing project id"
+                ]
+              },
+              {
+                "name": "broadcast routing",
+                "queries": [
+                  "project broadcast fan-out vs direct session send delivery duplication differences",
+                  "message bus delivery check polling interval concurrent poll race duplicate delivery"
+                ]
+              },
+              {
+                "name": "session resume replay",
+                "queries": [
+                  "session resume idle wait-blocked wake one-second internal check replaying already consumed mail"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "p1_two_complete_later_wins",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "first",
+                "queries": [
+                  "late-a"
+                ]
+              },
+              {
+                "name": "second",
+                "queries": [
+                  "late-b"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "p1_earlier_valid_wins_over_later_invalid_shape",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "first",
+                "queries": [
+                  "kept-a"
+                ]
+              },
+              {
+                "name": "second",
+                "queries": [
+                  "kept-b"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "p2_trailing_prose",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "first",
+                "queries": [
+                  "q1"
+                ]
+              },
+              {
+                "name": "second",
+                "queries": [
+                  "q2"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "p3_unterminated",
+        "output": {
+          "status": "fallback",
+          "reason": "no-json-object"
+        }
+      },
+      {
+        "id": "p4_empty",
+        "output": {
+          "status": "fallback",
+          "reason": "empty-text"
+        }
+      },
+      {
+        "id": "p4_whitespace_spaces",
+        "output": {
+          "status": "fallback",
+          "reason": "empty-text"
+        }
+      },
+      {
+        "id": "p4_whitespace_newlines_tabs",
+        "output": {
+          "status": "fallback",
+          "reason": "empty-text"
+        }
+      },
+      {
+        "id": "p5_missing_concepts",
+        "output": {
+          "status": "fallback",
+          "reason": "invalid-shape"
+        }
+      },
+      {
+        "id": "p5_concepts_not_array",
+        "output": {
+          "status": "fallback",
+          "reason": "invalid-shape"
+        }
+      },
+      {
+        "id": "p5_concept_missing_queries",
+        "output": {
+          "status": "fallback",
+          "reason": "invalid-shape"
+        }
+      },
+      {
+        "id": "p5_non_string_query_dropped",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "a",
+                "queries": [
+                  "q2"
+                ]
+              },
+              {
+                "name": "b",
+                "queries": [
+                  "q3",
+                  "q4"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "p6_empty_concepts_invalid",
+        "output": {
+          "status": "fallback",
+          "reason": "invalid-shape"
+        }
+      },
+      {
+        "id": "p6_empty_queries_array_dropped",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "b",
+                "queries": [
+                  "q2",
+                  "q3"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "p7_query_exactly_300_kept",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "a",
+                "queries": [
+                  "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                  "q1"
+                ]
+              },
+              {
+                "name": "b",
+                "queries": [
+                  "q2"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "p7_query_over_300_dropped",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "a",
+                "queries": [
+                  "q1"
+                ]
+              },
+              {
+                "name": "b",
+                "queries": [
+                  "q2"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "p8_eight_queries_truncated_to_six",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "c1",
+                "queries": [
+                  "q1a",
+                  "q1b"
+                ]
+              },
+              {
+                "name": "c2",
+                "queries": [
+                  "q2a",
+                  "q2b"
+                ]
+              },
+              {
+                "name": "c3",
+                "queries": [
+                  "q3a",
+                  "q3b"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "p8_six_queries_kept",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "c1",
+                "queries": [
+                  "q1a",
+                  "q1b"
+                ]
+              },
+              {
+                "name": "c2",
+                "queries": [
+                  "q2a",
+                  "q2b"
+                ]
+              },
+              {
+                "name": "c3",
+                "queries": [
+                  "q3a",
+                  "q3b"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "p9_trimmed_name_and_query",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "a",
+                "queries": [
+                  "q1"
+                ]
+              },
+              {
+                "name": "b",
+                "queries": [
+                  "q2"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "p9_whitespace_only_query_dropped",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "b",
+                "queries": [
+                  "q2",
+                  "q3"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "p10_0_empty",
+        "output": {
+          "status": "fallback",
+          "reason": "empty-text"
+        }
+      },
+      {
+        "id": "p10_1_whitespace",
+        "output": {
+          "status": "fallback",
+          "reason": "empty-text"
+        }
+      },
+      {
+        "id": "p10_2_no_json_here",
+        "output": {
+          "status": "fallback",
+          "reason": "no-json-object"
+        }
+      },
+      {
+        "id": "p10_3_open_brace",
+        "output": {
+          "status": "fallback",
+          "reason": "no-json-object"
+        }
+      },
+      {
+        "id": "p10_4_empty_object",
+        "output": {
+          "status": "fallback",
+          "reason": "invalid-shape"
+        }
+      },
+      {
+        "id": "p10_5_array",
+        "output": {
+          "status": "fallback",
+          "reason": "no-json-object"
+        }
+      },
+      {
+        "id": "p10_6_null",
+        "output": {
+          "status": "fallback",
+          "reason": "no-json-object"
+        }
+      },
+      {
+        "id": "p10_7_number",
+        "output": {
+          "status": "fallback",
+          "reason": "no-json-object"
+        }
+      },
+      {
+        "id": "p10_8_concepts_string",
+        "output": {
+          "status": "fallback",
+          "reason": "invalid-shape"
+        }
+      },
+      {
+        "id": "p10_9_non_string_query_only",
+        "output": {
+          "status": "fallback",
+          "reason": "invalid-shape"
+        }
+      },
+      {
+        "id": "p10_10_unterminated_query",
+        "output": {
+          "status": "fallback",
+          "reason": "no-json-object"
+        }
+      },
+      {
+        "id": "p10_11_unterminated_trailing_key",
+        "output": {
+          "status": "fallback",
+          "reason": "invalid-shape"
+        }
+      },
+      {
+        "id": "concept_name_120_kept",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "queries": [
+                  "q1",
+                  "q2"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "concept_name_121_dropped_other_survives",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "b",
+                "queries": [
+                  "q3",
+                  "q4"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "concept_five_queries_capped_to_four",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "a",
+                "queries": [
+                  "q1",
+                  "q2",
+                  "q3",
+                  "q4"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "braces_inside_string_value_not_confused",
+        "output": {
+          "status": "ok",
+          "plan": {
+            "concepts": [
+              {
+                "name": "a",
+                "queries": [
+                  "like {this} one",
+                  "another {nested {brace}} query"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "jev": {
+    "constants": {
+      "SCORE_BATCH_MAX": 12,
+      "SCORE_ATTEMPTS": 3,
+      "SCORE_POOL_MAX": 48,
+      "SCORE_TIMEOUT_DEFAULT_MS": 15000,
+      "SCORE_TIMEOUT_MIN_MS": 1000,
+      "SCORE_TIMEOUT_MAX_MS": 120000,
+      "WARM_TIMEOUT_MS": 5000,
+      "SCORE_STATE_CHAR_CAP": 32000,
+      "SCORE_EXCERPT_CHAR_CAP": 500,
+      "SCORE_ENDPOINT_DEFAULT": "https://openrouter.ai/api/alpha/decisions",
+      "SCORE_MODEL_DEFAULT": "typesafe/jev-1.13",
+      "SCORE_QUESTION": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate.",
+      "SCORE_CRITERIA": [
+        "unrelated — it does not touch the request",
+        "related background — same area, but answers none of the request",
+        "partially answers — covers one need, misses the rest",
+        "directly answers — a specific need in the request is answered or implemented"
+      ],
+      "RETRY_AFTER_FLOOR_MS": 60000,
+      "RETRY_AFTER_CEIL_MS": 3600000,
+      "SCORE_ERROR_KINDS": [
+        "misrouted-refusal",
+        "auth",
+        "billing",
+        "rate-limited",
+        "server",
+        "transport-timeout",
+        "malformed",
+        "missing-key"
+      ],
+      "SCORE_RETRYABLE_KINDS": [
+        "server",
+        "transport-timeout",
+        "malformed",
+        "rate-limited"
+      ],
+      "SCORE_NON_RETRYABLE_KINDS": [
+        "auth",
+        "billing",
+        "missing-key",
+        "misrouted-refusal"
+      ]
+    },
+    "wire_bodies": [
+      {
+        "id": "single_candidate_path",
+        "requests": [
+          {
+            "model": "typesafe/jev-1.13",
+            "state": "raw prompt for scoring",
+            "questions": {
+              "c0": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/a.md",
+                    "kind": "memory",
+                    "excerpt": "snippet a"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "state_and_excerpt_caps",
+        "requests": [
+          {
+            "model": "typesafe/jev-1.13",
+            "state": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "questions": {
+              "c0": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/a.md",
+                    "kind": "memory",
+                    "excerpt": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "path_fallback_table",
+        "requests": [
+          {
+            "model": "typesafe/jev-1.13",
+            "state": "raw prompt for scoring",
+            "questions": {
+              "c0": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/source.md",
+                    "kind": "memory",
+                    "excerpt": "x"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c1": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "",
+                    "kind": "memory",
+                    "excerpt": "x"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c2": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "",
+                    "kind": "memory",
+                    "excerpt": "x"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "batch_25_into_12_12_1",
+        "requests": [
+          {
+            "model": "typesafe/jev-1.13",
+            "state": "raw prompt for scoring",
+            "questions": {
+              "c0": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h0.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h0"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c1": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h1.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h1"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c2": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h2.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h2"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c3": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h3.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h3"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c4": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h4.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h4"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c5": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h5.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h5"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c6": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h6.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h6"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c7": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h7.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h7"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c8": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h8.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h8"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c9": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h9.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h9"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c10": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h10.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h10"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c11": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h11.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h11"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              }
+            }
+          },
+          {
+            "model": "typesafe/jev-1.13",
+            "state": "raw prompt for scoring",
+            "questions": {
+              "c12": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h12.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h12"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c13": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h13.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h13"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c14": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h14.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h14"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c15": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h15.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h15"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c16": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h16.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h16"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c17": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h17.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h17"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c18": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h18.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h18"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c19": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h19.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h19"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c20": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h20.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h20"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c21": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h21.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h21"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c22": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h22.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h22"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c23": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h23.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h23"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              }
+            }
+          },
+          {
+            "model": "typesafe/jev-1.13",
+            "state": "raw prompt for scoring",
+            "questions": {
+              "c24": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h24.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h24"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "batch_13_into_2",
+        "requests": [
+          {
+            "model": "typesafe/jev-1.13",
+            "state": "raw prompt for scoring",
+            "questions": {
+              "c0": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h0.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h0"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c1": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h1.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h1"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c2": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h2.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h2"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c3": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h3.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h3"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c4": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h4.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h4"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c5": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h5.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h5"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c6": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h6.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h6"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c7": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h7.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h7"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c8": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h8.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h8"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c9": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h9.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h9"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c10": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h10.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h10"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c11": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h11.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h11"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              }
+            }
+          },
+          {
+            "model": "typesafe/jev-1.13",
+            "state": "raw prompt for scoring",
+            "questions": {
+              "c12": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h12.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h12"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "pool_cap_48_of_50_by_rank",
+        "requests": [
+          {
+            "model": "typesafe/jev-1.13",
+            "state": "raw prompt for scoring",
+            "questions": {
+              "c0": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h49.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h49"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c1": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h48.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h48"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c2": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h47.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h47"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c3": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h46.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h46"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c4": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h45.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h45"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c5": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h44.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h44"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c6": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h43.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h43"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c7": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h42.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h42"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c8": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h41.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h41"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c9": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h40.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h40"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c10": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h39.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h39"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c11": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h38.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h38"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              }
+            }
+          },
+          {
+            "model": "typesafe/jev-1.13",
+            "state": "raw prompt for scoring",
+            "questions": {
+              "c12": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h37.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h37"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c13": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h36.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h36"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c14": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h35.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h35"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c15": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h34.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h34"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c16": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h33.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h33"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c17": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h32.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h32"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c18": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h31.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h31"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c19": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h30.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h30"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c20": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h29.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h29"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c21": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h28.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h28"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c22": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h27.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h27"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c23": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h26.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h26"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              }
+            }
+          },
+          {
+            "model": "typesafe/jev-1.13",
+            "state": "raw prompt for scoring",
+            "questions": {
+              "c24": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h25.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h25"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c25": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h24.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h24"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c26": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h23.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h23"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c27": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h22.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h22"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c28": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h21.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h21"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c29": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h20.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h20"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c30": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h19.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h19"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c31": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h18.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h18"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c32": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h17.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h17"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c33": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h16.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h16"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c34": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h15.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h15"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c35": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h14.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h14"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              }
+            }
+          },
+          {
+            "model": "typesafe/jev-1.13",
+            "state": "raw prompt for scoring",
+            "questions": {
+              "c36": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h13.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h13"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c37": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h12.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h12"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c38": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h11.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h11"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c39": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h10.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h10"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c40": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h9.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h9"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c41": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h8.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h8"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c42": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h7.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h7"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c43": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h6.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h6"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c44": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h5.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h5"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c45": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h4.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h4"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c46": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h3.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h3"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              },
+              "c47": {
+                "type": "score",
+                "instructions": {
+                  "candidate": {
+                    "path": "docs/h2.md",
+                    "kind": "memory",
+                    "excerpt": "snippet h2"
+                  },
+                  "question": "How much does `candidate` help answer or implement the user's request in the state? Rate only this candidate."
+                },
+                "criteria": [
+                  "unrelated — it does not touch the request",
+                  "related background — same area, but answers none of the request",
+                  "partially answers — covers one need, misses the rest",
+                  "directly answers — a specific need in the request is answered or implemented"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "classify": [
+      {
+        "id": "status_301",
+        "outcome": {
+          "status": "error",
+          "kind": "server",
+          "detail": "scoring endpoint failed (HTTP 301)"
+        }
+      },
+      {
+        "id": "status_302",
+        "outcome": {
+          "status": "error",
+          "kind": "server",
+          "detail": "scoring endpoint failed (HTTP 302)"
+        }
+      },
+      {
+        "id": "status_303",
+        "outcome": {
+          "status": "error",
+          "kind": "server",
+          "detail": "scoring endpoint failed (HTTP 303)"
+        }
+      },
+      {
+        "id": "status_307",
+        "outcome": {
+          "status": "error",
+          "kind": "server",
+          "detail": "scoring endpoint failed (HTTP 307)"
+        }
+      },
+      {
+        "id": "status_308",
+        "outcome": {
+          "status": "error",
+          "kind": "server",
+          "detail": "scoring endpoint failed (HTTP 308)"
+        }
+      },
+      {
+        "id": "status_400_misrouted_refusal",
+        "outcome": {
+          "status": "error",
+          "kind": "misrouted-refusal",
+          "detail": "scoring endpoint refused the request (HTTP 400); check model and endpoint"
+        }
+      },
+      {
+        "id": "status_401_auth",
+        "outcome": {
+          "status": "error",
+          "kind": "auth",
+          "detail": "scoring endpoint rejected the credentials (HTTP 401)"
+        }
+      },
+      {
+        "id": "status_402_billing",
+        "outcome": {
+          "status": "error",
+          "kind": "billing",
+          "detail": "scoring endpoint reported a billing stop (HTTP 402)"
+        }
+      },
+      {
+        "id": "status_429_rate_limited_header_5",
+        "outcome": {
+          "status": "error",
+          "kind": "rate-limited",
+          "retryAfterMs": 60000,
+          "detail": "scoring endpoint rate-limited the request (HTTP 429)"
+        }
+      },
+      {
+        "id": "status_429_rate_limited_no_header",
+        "outcome": {
+          "status": "error",
+          "kind": "rate-limited",
+          "retryAfterMs": 60000,
+          "detail": "scoring endpoint rate-limited the request (HTTP 429)"
+        }
+      },
+      {
+        "id": "status_500_server",
+        "outcome": {
+          "status": "error",
+          "kind": "server",
+          "detail": "scoring endpoint failed (HTTP 500)"
+        }
+      },
+      {
+        "id": "status_503_server",
+        "outcome": {
+          "status": "error",
+          "kind": "server",
+          "detail": "scoring endpoint failed (HTTP 503)"
+        }
+      },
+      {
+        "id": "status_200_error_envelope",
+        "outcome": {
+          "status": "error",
+          "kind": "server",
+          "detail": "scoring endpoint returned an error envelope"
+        }
+      },
+      {
+        "id": "status_200_truncated_malformed",
+        "outcome": {
+          "status": "error",
+          "kind": "malformed",
+          "detail": "score body is not valid JSON"
+        }
+      },
+      {
+        "id": "status_200_ok",
+        "outcome": {
+          "status": "ok",
+          "batch": {
+            "answers": {
+              "c0": {
+                "score": 2.5,
+                "confidence": 0.91
+              }
+            },
+            "usage": {
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "cost": 0.001
+            }
+          }
+        }
+      }
+    ],
+    "retry_after": [
+      {
+        "id": "header_5",
+        "expected_ms": 60000
+      },
+      {
+        "id": "header_120",
+        "expected_ms": 120000
+      },
+      {
+        "id": "header_7200",
+        "expected_ms": 3600000
+      },
+      {
+        "id": "header_absent",
+        "expected_ms": 60000
+      },
+      {
+        "id": "header_non_numeric",
+        "expected_ms": 60000
+      }
+    ],
+    "answer_tolerance": {
+      "status": "ok",
+      "batch": {
+        "answers": {
+          "c0": {
+            "score": 0,
+            "confidence": 1
+          },
+          "c1": {
+            "score": 3,
+            "confidence": 0
+          },
+          "c2": {
+            "score": null
+          },
+          "c3": {
+            "score": null
+          },
+          "c4": {
+            "score": null
+          },
+          "c5": {
+            "score": null
+          },
+          "c6": {
+            "score": 1.5
+          }
+        },
+        "usage": {
+          "input_tokens": 200,
+          "output_tokens": 20,
+          "cost": 0.00002
+        }
+      }
+    }
+  },
+  "merge": {
+    "merge_select": [
+      {
+        "id": "M1",
+        "mem": [
+          "d4",
+          "d2",
+          "d3",
+          "d1",
+          "d5"
+        ],
+        "code": []
+      },
+      {
+        "id": "M2",
+        "mem": [
+          "a1",
+          "b1",
+          "a2",
+          "a3"
+        ],
+        "code": []
+      },
+      {
+        "id": "M3a",
+        "mem": [
+          "a1",
+          "b1",
+          "b2",
+          "a2"
+        ],
+        "code": []
+      },
+      {
+        "id": "M3b",
+        "mem": [
+          "a1",
+          "b1",
+          "a2",
+          "b2",
+          "a3"
+        ],
+        "code": []
+      },
+      {
+        "id": "M3c",
+        "mem": [
+          "a1",
+          "b1",
+          "c1",
+          "d1",
+          "e1"
+        ],
+        "code": []
+      },
+      {
+        "id": "M4",
+        "mem": [
+          "a-high",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "code": []
+      },
+      {
+        "id": "M5",
+        "mem": [
+          "h1",
+          "h3",
+          "h2"
+        ],
+        "code": []
+      },
+      {
+        "id": "M6",
+        "mem": [
+          "high",
+          "t_c",
+          "t_b",
+          "t_a",
+          "u_b",
+          "u_a"
+        ],
+        "code": []
+      },
+      {
+        "id": "M7",
+        "mem": [
+          "a",
+          "b",
+          "c"
+        ],
+        "code": []
+      },
+      {
+        "id": "M8_empty",
+        "mem": [],
+        "code": []
+      },
+      {
+        "id": "M8_one",
+        "mem": [
+          "only"
+        ],
+        "code": []
+      },
+      {
+        "id": "M9",
+        "mem": [
+          "a1",
+          "b1",
+          "a2",
+          "a3",
+          "a4"
+        ],
+        "code": []
+      },
+      {
+        "id": "M10",
+        "mem": [
+          "d1",
+          "d2",
+          "d3",
+          "d4",
+          "d5"
+        ],
+        "code": []
+      },
+      {
+        "id": "M11",
+        "mem": [
+          "a1",
+          "b1"
+        ],
+        "code": [
+          "a2"
+        ]
+      },
+      {
+        "id": "M12",
+        "mem": [
+          "a1",
+          "b",
+          "a3",
+          "a2"
+        ],
+        "code": []
+      },
+      {
+        "id": "M13",
+        "mem": [
+          "m1",
+          "m2",
+          "m3"
+        ],
+        "code": [
+          "c1",
+          "c2"
+        ]
+      },
+      {
+        "id": "M14",
+        "mem": [
+          "a1",
+          "b1",
+          "c1",
+          "d1",
+          "e1"
+        ],
+        "code": []
+      }
+    ],
+    "doc_key": [
+      {
+        "id": "M20_1_path_wins",
+        "output": "path:docs/x.md"
+      },
+      {
+        "id": "M20_2_sourceFile_fallback",
+        "output": "path:docs/x.md"
+      },
+      {
+        "id": "M20_3_path_over_sourceFile",
+        "output": "path:docs/x.md"
+      },
+      {
+        "id": "M20_4_question_mark_falls_to_hash",
+        "output": "hash:h"
+      },
+      {
+        "id": "M20_5_blank_path_falls_to_hash",
+        "output": "hash:h"
+      },
+      {
+        "id": "M20_6_hash_trimmed",
+        "output": "hash:h"
+      }
+    ],
+    "server_rank_order": [
+      {
+        "id": "M21",
+        "order": [
+          "n",
+          "o"
+        ]
+      },
+      {
+        "id": "M22",
+        "order": [
+          "good",
+          "bad"
+        ]
+      }
+    ]
+  },
+  "runner": {
+    "scenarios": [
+      {
+        "id": "happy_two_queries_merge",
+        "status": "pipeline",
+        "reason": "ok",
+        "mem": [
+          "h1",
+          "h2"
+        ],
+        "code": [],
+        "queries": [
+          "q1",
+          "q2"
+        ],
+        "candidates": 2,
+        "scored": 2
+      },
+      {
+        "id": "planner_fallback_no_model",
+        "status": "fallback",
+        "reason": "no-model",
+        "mem": [
+          "h-raw"
+        ],
+        "code": [],
+        "queries": [],
+        "candidates": 1,
+        "scored": 0
+      },
+      {
+        "id": "planner_throws",
+        "status": "fallback",
+        "reason": "transport",
+        "mem": [
+          "h-raw"
+        ],
+        "code": [],
+        "queries": [],
+        "candidates": 1,
+        "scored": 0
+      },
+      {
+        "id": "dedupe_all_blank_invalid_shape",
+        "status": "fallback",
+        "reason": "invalid-shape",
+        "mem": [
+          "h-raw"
+        ],
+        "code": [],
+        "queries": [],
+        "candidates": 1,
+        "scored": 0
+      },
+      {
+        "id": "no_candidates_empty_search",
+        "status": "fallback",
+        "reason": "no-candidates",
+        "mem": [
+          "h-raw"
+        ],
+        "code": [],
+        "queries": [],
+        "candidates": 1,
+        "scored": 0
+      },
+      {
+        "id": "one_query_throws_other_succeeds",
+        "status": "pipeline",
+        "reason": "ok",
+        "mem": [
+          "h2"
+        ],
+        "code": [],
+        "queries": [
+          "q1",
+          "q2"
+        ],
+        "candidates": 1,
+        "scored": 1
+      },
+      {
+        "id": "all_searches_throw_search_error",
+        "status": "fallback",
+        "reason": "search-error",
+        "mem": [],
+        "code": [],
+        "queries": [],
+        "candidates": 0,
+        "scored": 0
+      },
+      {
+        "id": "score_throws_merges_by_server_rank",
+        "status": "pipeline",
+        "reason": "ok",
+        "mem": [
+          "h1",
+          "h2"
+        ],
+        "code": [],
+        "queries": [
+          "q1",
+          "q2"
+        ],
+        "candidates": 2,
+        "scored": 0
+      },
+      {
+        "id": "score_returns_all_null_merges_by_server_rank",
+        "status": "pipeline",
+        "reason": "ok",
+        "mem": [
+          "h2",
+          "h1"
+        ],
+        "code": [],
+        "queries": [
+          "q1",
+          "q2"
+        ],
+        "candidates": 2,
+        "scored": 0
+      }
+    ],
+    "reasons_observed": [
+      "invalid-shape",
+      "no-candidates",
+      "no-model",
+      "ok",
+      "search-error",
+      "transport"
+    ]
+  }
+}

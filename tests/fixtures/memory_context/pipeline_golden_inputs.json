@@ -1,0 +1,1341 @@
+{
+  "_comment": "Inputs for gen_pipeline_goldens.ts. Most are transcribed from pi's tests/query-pipeline/*.test.ts at pi_commit ee5f1c6e689b988a8924781b3acb5961ce40c326 (planner-parser.test.ts P1-P10, planner-call.test.ts P12, score-client.test.ts S2/S3/S8/S13/S13b/C4, merge.test.ts M1-M14/M20-M22); outputs in pipeline_goldens.json come from running pi's code, never retyped by hand.",
+  "planner": {
+    "build_user_prompt_queries": [
+      {
+        "id": "simple",
+        "query": "what does the delegator do"
+      },
+      {
+        "id": "multiline_tricky",
+        "query": "  explain the delegation watchdog\nand its retries  "
+      },
+      {
+        "id": "quotes_backslash_marker",
+        "query": "a \"quoted\" \\ backslash >>> marker"
+      },
+      {
+        "id": "empty",
+        "query": ""
+      }
+    ],
+    "parse_plan_corpus": [
+      {
+        "id": "p1_f4_fragment_then_object",
+        "text": "{\"concepts\":[{\"name\":\"cursor bookkeeping\",\"queries\":[\"pi message bus cursor storage location per session project and when cursor advances on list check\",\"message bus concurrent poll delivery check race causing duplicate delivery\"]\n\n{\"concepts\":[{\"name\":\"cursor bookkeeping\",\"queries\":[\"pi message bus cursor storage per session project when cursor advances on list check\",\"message bus ack reply unread count semantics across sessions sharing project id\"]},{\"name\":\"broadcast routing\",\"queries\":[\"project broadcast fan-out vs direct session send delivery duplication differences\",\"message bus delivery check polling interval concurrent poll race duplicate delivery\"]},{\"name\":\"session resume replay\",\"queries\":[\"session resume idle wait-blocked wake one-second internal check replaying already consumed mail\"]}]}\n"
+      },
+      {
+        "id": "p1_two_complete_later_wins",
+        "text": "{\"concepts\":[{\"name\":\"first\",\"queries\":[\"early-a\"]},{\"name\":\"second\",\"queries\":[\"early-b\"]}]}\n{\"concepts\":[{\"name\":\"first\",\"queries\":[\"late-a\"]},{\"name\":\"second\",\"queries\":[\"late-b\"]}]}"
+      },
+      {
+        "id": "p1_earlier_valid_wins_over_later_invalid_shape",
+        "text": "{\"concepts\":[{\"name\":\"first\",\"queries\":[\"kept-a\"]},{\"name\":\"second\",\"queries\":[\"kept-b\"]}]}\n{\"concepts\":[]}"
+      },
+      {
+        "id": "p2_trailing_prose",
+        "text": "{\"concepts\":[{\"name\":\"first\",\"queries\":[\"q1\"]},{\"name\":\"second\",\"queries\":[\"q2\"]}]}\n\nHope that helps!"
+      },
+      {
+        "id": "p3_unterminated",
+        "text": "{\"concepts\":[{\"name\":\"a\",\"queries\":[\"q1"
+      },
+      {
+        "id": "p4_empty",
+        "text": ""
+      },
+      {
+        "id": "p4_whitespace_spaces",
+        "text": "   "
+      },
+      {
+        "id": "p4_whitespace_newlines_tabs",
+        "text": "\n\t  "
+      },
+      {
+        "id": "p5_missing_concepts",
+        "text": "{}"
+      },
+      {
+        "id": "p5_concepts_not_array",
+        "text": "{\"concepts\":\"x\"}"
+      },
+      {
+        "id": "p5_concept_missing_queries",
+        "text": "{\"concepts\":[{\"name\":\"a\"}]}"
+      },
+      {
+        "id": "p5_non_string_query_dropped",
+        "text": "{\"concepts\":[{\"name\":\"a\",\"queries\":[1,\"q2\"]},{\"name\":\"b\",\"queries\":[\"q3\",\"q4\"]}]}"
+      },
+      {
+        "id": "p6_empty_concepts_invalid",
+        "text": "{\"concepts\":[]}"
+      },
+      {
+        "id": "p6_empty_queries_array_dropped",
+        "text": "{\"concepts\":[{\"name\":\"a\",\"queries\":[]},{\"name\":\"b\",\"queries\":[\"q2\",\"q3\"]}]}"
+      },
+      {
+        "id": "p7_query_exactly_300_kept",
+        "text": "{\"concepts\":[{\"name\":\"a\",\"queries\":[\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"q1\"]},{\"name\":\"b\",\"queries\":[\"q2\"]}]}"
+      },
+      {
+        "id": "p7_query_over_300_dropped",
+        "text": "{\"concepts\":[{\"name\":\"a\",\"queries\":[\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"q1\"]},{\"name\":\"b\",\"queries\":[\"q2\"]}]}"
+      },
+      {
+        "id": "p8_eight_queries_truncated_to_six",
+        "text": "{\"concepts\":[{\"name\":\"c1\",\"queries\":[\"q1a\",\"q1b\"]},{\"name\":\"c2\",\"queries\":[\"q2a\",\"q2b\"]},{\"name\":\"c3\",\"queries\":[\"q3a\",\"q3b\"]},{\"name\":\"c4\",\"queries\":[\"q4a\",\"q4b\"]}]}"
+      },
+      {
+        "id": "p8_six_queries_kept",
+        "text": "{\"concepts\":[{\"name\":\"c1\",\"queries\":[\"q1a\",\"q1b\"]},{\"name\":\"c2\",\"queries\":[\"q2a\",\"q2b\"]},{\"name\":\"c3\",\"queries\":[\"q3a\",\"q3b\"]}]}"
+      },
+      {
+        "id": "p9_trimmed_name_and_query",
+        "text": "{\"concepts\":[{\"name\":\"  a  \",\"queries\":[\"  q1  \"]},{\"name\":\"b\",\"queries\":[\"q2\"]}]}"
+      },
+      {
+        "id": "p9_whitespace_only_query_dropped",
+        "text": "{\"concepts\":[{\"name\":\"a\",\"queries\":[\"   \"]},{\"name\":\"b\",\"queries\":[\"q2\",\"q3\"]}]}"
+      },
+      {
+        "id": "p10_0_empty",
+        "text": ""
+      },
+      {
+        "id": "p10_1_whitespace",
+        "text": "   "
+      },
+      {
+        "id": "p10_2_no_json_here",
+        "text": "no json here"
+      },
+      {
+        "id": "p10_3_open_brace",
+        "text": "{"
+      },
+      {
+        "id": "p10_4_empty_object",
+        "text": "{}"
+      },
+      {
+        "id": "p10_5_array",
+        "text": "[]"
+      },
+      {
+        "id": "p10_6_null",
+        "text": "null"
+      },
+      {
+        "id": "p10_7_number",
+        "text": "42"
+      },
+      {
+        "id": "p10_8_concepts_string",
+        "text": "{\"concepts\":\"x\"}"
+      },
+      {
+        "id": "p10_9_non_string_query_only",
+        "text": "{\"concepts\":[{\"name\":\"a\",\"queries\":[1]}]}"
+      },
+      {
+        "id": "p10_10_unterminated_query",
+        "text": "{\"concepts\":[{\"name\":\"a\",\"queries\":[\"q1"
+      },
+      {
+        "id": "p10_11_unterminated_trailing_key",
+        "text": "{\"concepts\":[{\"name\":\"a\",\"queries\":[\"q1\",\"q2\"]},{\"name\":\"b\",\"queries\":[\"q3\"]}],\"unexpected\":"
+      },
+      {
+        "id": "concept_name_120_kept",
+        "text": "{\"concepts\":[{\"name\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"queries\":[\"q1\",\"q2\"]}]}"
+      },
+      {
+        "id": "concept_name_121_dropped_other_survives",
+        "text": "{\"concepts\":[{\"name\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"queries\":[\"q1\",\"q2\"]},{\"name\":\"b\",\"queries\":[\"q3\",\"q4\"]}]}"
+      },
+      {
+        "id": "concept_five_queries_capped_to_four",
+        "text": "{\"concepts\":[{\"name\":\"a\",\"queries\":[\"q1\",\"q2\",\"q3\",\"q4\",\"q5\"]}]}"
+      },
+      {
+        "id": "braces_inside_string_value_not_confused",
+        "text": "{\"concepts\":[{\"name\":\"a\",\"queries\":[\"like {this} one\",\"another {nested {brace}} query\"]}]}"
+      }
+    ],
+    "fallback_reason_source": "extensions/query-pipeline/types.ts (PlannerFallbackReason union, adjacent to PlannerResult)"
+  },
+  "jev": {
+    "wire_candidate_sets": [
+      {
+        "id": "single_candidate_path",
+        "prompt": "raw prompt for scoring",
+        "candidates": [
+          {
+            "hash": "a",
+            "path": "docs/a.md",
+            "snippet": "snippet a",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "state_and_excerpt_caps",
+        "prompt_repeat": {
+          "char": "x",
+          "count": 40000
+        },
+        "candidates": [
+          {
+            "hash": "a",
+            "path": "docs/a.md",
+            "snippet_repeat": {
+              "char": "y",
+              "count": 700
+            },
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "path_fallback_table",
+        "prompt": "raw prompt for scoring",
+        "candidates": [
+          {
+            "hash": "s1",
+            "sourceFile": "docs/source.md",
+            "snippet": "x"
+          },
+          {
+            "hash": "s2",
+            "snippet": "x"
+          },
+          {
+            "hash": "s3",
+            "path": "",
+            "sourceFile": "docs/ignored.md",
+            "snippet": "x"
+          }
+        ]
+      },
+      {
+        "id": "batch_25_into_12_12_1",
+        "prompt": "raw prompt for scoring",
+        "candidates_generated": {
+          "count": 25,
+          "hash_prefix": "h"
+        }
+      },
+      {
+        "id": "batch_13_into_2",
+        "prompt": "raw prompt for scoring",
+        "candidates_generated": {
+          "count": 13,
+          "hash_prefix": "h"
+        }
+      },
+      {
+        "id": "pool_cap_48_of_50_by_rank",
+        "prompt": "raw prompt for scoring",
+        "candidates_generated": {
+          "count": 50,
+          "hash_prefix": "h",
+          "ranking_formula": "50 - index"
+        }
+      }
+    ],
+    "classify_cases": [
+      {
+        "id": "status_301",
+        "status": 301,
+        "body": ""
+      },
+      {
+        "id": "status_302",
+        "status": 302,
+        "body": ""
+      },
+      {
+        "id": "status_303",
+        "status": 303,
+        "body": ""
+      },
+      {
+        "id": "status_307",
+        "status": 307,
+        "body": ""
+      },
+      {
+        "id": "status_308",
+        "status": 308,
+        "body": ""
+      },
+      {
+        "id": "status_400_misrouted_refusal",
+        "status": 400,
+        "body": "{\"error\":{\"message\":\"invalid model\",\"code\":400},\"marker\":\"SECRET-BODY-MARKER\"}"
+      },
+      {
+        "id": "status_401_auth",
+        "status": 401,
+        "body": "{\"error\":{\"message\":\"Invalid API key provided\",\"code\":401}}"
+      },
+      {
+        "id": "status_402_billing",
+        "status": 402,
+        "body": "{\"error\":{\"message\":\"Insufficient credits\",\"code\":402}}"
+      },
+      {
+        "id": "status_429_rate_limited_header_5",
+        "status": 429,
+        "body": "{\"error\":{\"message\":\"Rate limit exceeded, retry later\",\"code\":429}}",
+        "headers": {
+          "retry-after": "5"
+        }
+      },
+      {
+        "id": "status_429_rate_limited_no_header",
+        "status": 429,
+        "body": "{\"error\":{\"message\":\"Rate limit exceeded, retry later\",\"code\":429}}"
+      },
+      {
+        "id": "status_500_server",
+        "status": 500,
+        "body": "{\"error\":{\"message\":\"upstream scoring failed\",\"code\":500}}"
+      },
+      {
+        "id": "status_503_server",
+        "status": 503,
+        "body": ""
+      },
+      {
+        "id": "status_200_error_envelope",
+        "status": 200,
+        "body": "{\"error\":{\"message\":\"upstream scoring failed\",\"code\":500},\"id\":\"gen-dec-synth-score-err\",\"provider\":\"TypeSafe\"}"
+      },
+      {
+        "id": "status_200_truncated_malformed",
+        "status": 200,
+        "body": "{\"model\":\"typesafe/jev-1.13-20260917\",\"answers\":{\"c0\":{\"type\":\"score\",\"sco"
+      },
+      {
+        "id": "status_200_ok",
+        "status": 200,
+        "body": "{\"model\":\"typesafe/jev-1.13-20260917\",\"answers\":{\"c0\":{\"type\":\"score\",\"score\":2.5,\"confidence\":0.91}},\"usage\":{\"input_tokens\":10,\"output_tokens\":5,\"cost\":0.001}}",
+        "names": [
+          "c0"
+        ]
+      }
+    ],
+    "retry_after_headers": [
+      {
+        "id": "header_5",
+        "header": "5"
+      },
+      {
+        "id": "header_120",
+        "header": "120"
+      },
+      {
+        "id": "header_7200",
+        "header": "7200"
+      },
+      {
+        "id": "header_absent",
+        "header": null
+      },
+      {
+        "id": "header_non_numeric",
+        "header": "soon"
+      }
+    ],
+    "answer_tolerance_body": "{\"model\":\"typesafe/jev-1.13-20260917\",\"answers\":{\"c0\":{\"type\":\"score\",\"score\":-1,\"confidence\":2},\"c1\":{\"type\":\"score\",\"score\":5,\"confidence\":-1},\"c2\":{\"type\":\"score\",\"score\":1e999},\"c3\":{\"type\":\"score\",\"score\":\"2\"},\"c4\":{\"type\":\"score\",\"score\":null},\"c5\":{\"type\":\"choice\",\"choice\":\"billing\",\"confidence\":0.9},\"c6\":{\"type\":\"score\",\"score\":1.5,\"confidence\":\"high\"}},\"usage\":{\"input_tokens\":200,\"output_tokens\":20,\"cost\":0.00002},\"id\":\"gen-dec-synth-score-shapes\",\"provider\":\"TypeSafe\"}",
+    "answer_tolerance_names": [
+      "c0",
+      "c1",
+      "c2",
+      "c3",
+      "c4",
+      "c5",
+      "c6"
+    ]
+  },
+  "merge": {
+    "merge_select_cases": [
+      {
+        "id": "M1",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "d1",
+            "score": 1.5,
+            "path": "docs/d1.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "d2",
+            "score": 2.5,
+            "path": "docs/d2.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "d3",
+            "score": 2.0,
+            "path": "docs/d3.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "d4",
+            "score": 3.0,
+            "path": "docs/d4.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "d5",
+            "score": 1.0,
+            "path": "docs/d5.md",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "M2",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "a1",
+            "score": 3.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a2",
+            "score": 2.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a3",
+            "score": 1.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "b1",
+            "score": 2.5,
+            "path": "docs/b.md",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "M3a",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "a1",
+            "score": 3.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a2",
+            "score": 1.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "b1",
+            "score": 2.5,
+            "path": "docs/b.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "b2",
+            "score": 1.5,
+            "path": "docs/b.md",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "M3b",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "a1",
+            "score": 5.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a2",
+            "score": 4.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a3",
+            "score": 3.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a4",
+            "score": 2.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a5",
+            "score": 1.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "b1",
+            "score": 4.5,
+            "path": "docs/b.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "b2",
+            "score": 3.5,
+            "path": "docs/b.md",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "M3c",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "a1",
+            "score": 12.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a2",
+            "score": 11.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "b1",
+            "score": 10.0,
+            "path": "docs/b.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "b2",
+            "score": 9.0,
+            "path": "docs/b.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "c1",
+            "score": 8.0,
+            "path": "docs/c.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "c2",
+            "score": 7.0,
+            "path": "docs/c.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "d1",
+            "score": 6.0,
+            "path": "docs/d.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "d2",
+            "score": 5.0,
+            "path": "docs/d.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "e1",
+            "score": 4.0,
+            "path": "docs/e.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "e2",
+            "score": 3.0,
+            "path": "docs/e.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "f1",
+            "score": 2.0,
+            "path": "docs/f.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "f2",
+            "score": 1.0,
+            "path": "docs/f.md",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "M4",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "a-low",
+            "score": 0.88,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a-high",
+            "score": 0.9,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "b",
+            "score": 0.85,
+            "path": "docs/b.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "c",
+            "score": 0.8,
+            "path": "docs/c.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "d",
+            "score": 0.75,
+            "path": "docs/d.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "e",
+            "score": 0.7,
+            "path": "docs/e.md",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "M5",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "h1",
+            "score": 3.0,
+            "sourceFile": "docs/x.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "h2",
+            "score": 2.0,
+            "path": "docs/x.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "h3",
+            "score": 1.0,
+            "path": "docs/y.md",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "M6",
+        "slots": 6,
+        "candidates": [
+          {
+            "hash": "t_c",
+            "score": 1.0,
+            "path": "docs/tc.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "t_b",
+            "score": 1.0,
+            "path": "docs/tb.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "t_a",
+            "score": 1.0,
+            "path": "docs/ta.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "u_b",
+            "score": 1.0,
+            "path": "docs/ub.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "u_a",
+            "score": 1.0,
+            "path": "docs/ua.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "high",
+            "score": 2.0,
+            "path": "docs/high.md",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "M7",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "b",
+            "score": null,
+            "path": "docs/b.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a",
+            "score": 0.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "c",
+            "path": "docs/c.md",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "M8_empty",
+        "slots": 5,
+        "candidates": []
+      },
+      {
+        "id": "M8_one",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "only",
+            "score": 1.0,
+            "path": "docs/only.md",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "M9",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "a1",
+            "score": 6.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a2",
+            "score": 5.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a3",
+            "score": 4.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a4",
+            "score": 3.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "b1",
+            "score": 5.5,
+            "path": "docs/b.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "b2",
+            "score": 2.0,
+            "path": "docs/b.md",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "M10",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "d1",
+            "score": 6,
+            "path": "docs/d1.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "d2",
+            "score": 5,
+            "path": "docs/d2.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "d3",
+            "score": 4,
+            "path": "docs/d3.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "d4",
+            "score": 3,
+            "path": "docs/d4.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "d5",
+            "score": 2,
+            "path": "docs/d5.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "d6",
+            "score": 1,
+            "path": "docs/d6.md",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "M11",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "a1",
+            "score": 0.9,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "b1",
+            "score": 0.85,
+            "path": "docs/b.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a2",
+            "score": 0.8,
+            "path": "docs/a.md",
+            "kind": "code"
+          }
+        ]
+      },
+      {
+        "id": "M12",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "a3",
+            "score": 0.7,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a2",
+            "score": 0.7,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a1",
+            "score": 0.9,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "b",
+            "score": 0.8,
+            "path": "docs/b.md",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "M13",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "m1",
+            "score": 3.0,
+            "path": "docs/m1.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "c1",
+            "score": 2.9,
+            "path": "docs/c1.md",
+            "kind": "code"
+          },
+          {
+            "hash": "m2",
+            "score": 2.7,
+            "path": "docs/m2.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "c2",
+            "score": 2.6,
+            "path": "docs/c2.md",
+            "kind": "code"
+          },
+          {
+            "hash": "m3",
+            "score": 2.4,
+            "path": "docs/m3.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "c3",
+            "score": 2.3,
+            "path": "docs/c3.md",
+            "kind": "code"
+          },
+          {
+            "hash": "m4",
+            "score": 2.1,
+            "path": "docs/m4.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "c4",
+            "score": 2.0,
+            "path": "docs/c4.md",
+            "kind": "code"
+          }
+        ]
+      },
+      {
+        "id": "M14",
+        "slots": 5,
+        "candidates": [
+          {
+            "hash": "a1",
+            "score": 2.0,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "a2",
+            "score": 1.9,
+            "path": "docs/a.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "b1",
+            "score": 1.8,
+            "path": "docs/b.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "c1",
+            "score": 1.7,
+            "path": "docs/c.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "d1",
+            "score": 1.6,
+            "path": "docs/d.md",
+            "kind": "memory"
+          },
+          {
+            "hash": "e1",
+            "score": null,
+            "path": "docs/e.md",
+            "kind": "memory"
+          }
+        ]
+      }
+    ],
+    "doc_key_cases": [
+      {
+        "id": "M20_1_path_wins",
+        "hit": {
+          "hash": "h",
+          "path": "docs/x.md"
+        }
+      },
+      {
+        "id": "M20_2_sourceFile_fallback",
+        "hit": {
+          "hash": "h",
+          "sourceFile": "docs/x.md"
+        }
+      },
+      {
+        "id": "M20_3_path_over_sourceFile",
+        "hit": {
+          "hash": "h",
+          "path": "docs/x.md",
+          "sourceFile": "docs/y.md"
+        }
+      },
+      {
+        "id": "M20_4_question_mark_falls_to_hash",
+        "hit": {
+          "hash": "h",
+          "path": "?"
+        }
+      },
+      {
+        "id": "M20_5_blank_path_falls_to_hash",
+        "hit": {
+          "hash": "h",
+          "path": "   "
+        }
+      },
+      {
+        "id": "M20_6_hash_trimmed",
+        "hit": {
+          "hash": " h "
+        }
+      }
+    ],
+    "server_rank_cases": [
+      {
+        "id": "M21",
+        "candidates": [
+          {
+            "hash": "o",
+            "score": null,
+            "path": "docs/o.md",
+            "snippet": "s",
+            "ranking": 5,
+            "kind": "memory"
+          },
+          {
+            "hash": "n",
+            "score": null,
+            "path": "docs/n.md",
+            "snippet": "s",
+            "ranking": "2",
+            "kind": "memory"
+          }
+        ]
+      },
+      {
+        "id": "M22",
+        "candidates": [
+          {
+            "hash": "bad",
+            "score": null,
+            "path": "docs/bad.md",
+            "snippet": "s",
+            "ranking": "not-a-number",
+            "kind": "memory"
+          },
+          {
+            "hash": "good",
+            "score": null,
+            "path": "docs/good.md",
+            "snippet": "s",
+            "ranking": 9,
+            "kind": "memory"
+          }
+        ]
+      }
+    ]
+  },
+  "runner": {
+    "scenarios": [
+      {
+        "id": "happy_two_queries_merge",
+        "query": "raw query",
+        "plan": {
+          "status": "ok",
+          "concepts": [
+            {
+              "name": "c1",
+              "queries": [
+                "q1",
+                "q2"
+              ]
+            }
+          ]
+        },
+        "search": {
+          "q1": [
+            {
+              "hash": "h1",
+              "path": "docs/h1.md",
+              "ranking": 1,
+              "kind": "memory"
+            }
+          ],
+          "q2": [
+            {
+              "hash": "h2",
+              "path": "docs/h2.md",
+              "ranking": 2,
+              "kind": "memory"
+            }
+          ]
+        },
+        "score": {
+          "mode": "fixed",
+          "scores": {
+            "h1": 1.5,
+            "h2": 1.5
+          }
+        }
+      },
+      {
+        "id": "planner_fallback_no_model",
+        "query": "raw",
+        "plan": {
+          "status": "fallback",
+          "reason": "no-model"
+        },
+        "search": {
+          "raw": [
+            {
+              "hash": "h-raw",
+              "path": "docs/raw.md",
+              "ranking": 1,
+              "kind": "memory"
+            }
+          ]
+        },
+        "score": {
+          "mode": "fixed",
+          "scores": {}
+        }
+      },
+      {
+        "id": "planner_throws",
+        "query": "raw",
+        "plan": {
+          "status": "throw"
+        },
+        "search": {
+          "raw": [
+            {
+              "hash": "h-raw",
+              "path": "docs/raw.md",
+              "ranking": 1,
+              "kind": "memory"
+            }
+          ]
+        },
+        "score": {
+          "mode": "fixed",
+          "scores": {}
+        }
+      },
+      {
+        "id": "dedupe_all_blank_invalid_shape",
+        "query": "raw query",
+        "plan": {
+          "status": "ok",
+          "concepts": [
+            {
+              "name": "c1",
+              "queries": [
+                "   ",
+                "raw query"
+              ]
+            }
+          ]
+        },
+        "search": {
+          "raw query": [
+            {
+              "hash": "h-raw",
+              "path": "docs/raw.md",
+              "ranking": 1,
+              "kind": "memory"
+            }
+          ]
+        },
+        "score": {
+          "mode": "fixed",
+          "scores": {}
+        }
+      },
+      {
+        "id": "no_candidates_empty_search",
+        "query": "raw",
+        "plan": {
+          "status": "ok",
+          "concepts": [
+            {
+              "name": "c1",
+              "queries": [
+                "q1"
+              ]
+            }
+          ]
+        },
+        "search": {
+          "q1": [],
+          "raw": [
+            {
+              "hash": "h-raw",
+              "path": "docs/raw.md",
+              "ranking": 1,
+              "kind": "memory"
+            }
+          ]
+        },
+        "score": {
+          "mode": "fixed",
+          "scores": {}
+        }
+      },
+      {
+        "id": "one_query_throws_other_succeeds",
+        "query": "raw",
+        "plan": {
+          "status": "ok",
+          "concepts": [
+            {
+              "name": "c1",
+              "queries": [
+                "q1",
+                "q2"
+              ]
+            }
+          ]
+        },
+        "search": {
+          "q1": "throw",
+          "q2": [
+            {
+              "hash": "h2",
+              "path": "docs/h2.md",
+              "ranking": 1,
+              "kind": "memory"
+            }
+          ]
+        },
+        "score": {
+          "mode": "fixed",
+          "scores": {
+            "h2": 1.0
+          }
+        }
+      },
+      {
+        "id": "all_searches_throw_search_error",
+        "query": "raw",
+        "plan": {
+          "status": "ok",
+          "concepts": [
+            {
+              "name": "c1",
+              "queries": [
+                "q1",
+                "q2"
+              ]
+            }
+          ]
+        },
+        "search": {
+          "q1": "throw",
+          "q2": "throw",
+          "raw": "throw"
+        },
+        "score": {
+          "mode": "fixed",
+          "scores": {}
+        }
+      },
+      {
+        "id": "score_throws_merges_by_server_rank",
+        "query": "raw",
+        "plan": {
+          "status": "ok",
+          "concepts": [
+            {
+              "name": "c1",
+              "queries": [
+                "q1",
+                "q2"
+              ]
+            }
+          ]
+        },
+        "search": {
+          "q1": [
+            {
+              "hash": "h1",
+              "path": "docs/h1.md",
+              "ranking": 1,
+              "kind": "memory"
+            }
+          ],
+          "q2": [
+            {
+              "hash": "h2",
+              "path": "docs/h2.md",
+              "ranking": 2,
+              "kind": "memory"
+            }
+          ]
+        },
+        "score": {
+          "mode": "throw"
+        }
+      },
+      {
+        "id": "score_returns_all_null_merges_by_server_rank",
+        "query": "raw",
+        "plan": {
+          "status": "ok",
+          "concepts": [
+            {
+              "name": "c1",
+              "queries": [
+                "q1",
+                "q2"
+              ]
+            }
+          ]
+        },
+        "search": {
+          "q1": [
+            {
+              "hash": "h1",
+              "path": "docs/h1.md",
+              "ranking": 2,
+              "kind": "memory"
+            }
+          ],
+          "q2": [
+            {
+              "hash": "h2",
+              "path": "docs/h2.md",
+              "ranking": 1,
+              "kind": "memory"
+            }
+          ]
+        },
+        "score": {
+          "mode": "null"
+        }
+      }
+    ]
+  }
+}
