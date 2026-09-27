@@ -1345,3 +1345,14 @@ The five non-negotiables, again:
 | O-6 | Follow pi's source: a Jev failure leaves scores null and the merge ranks by server rank; not a single-search fallback. | §9.2, R7, B12 |
 | O-7 | The pipeline is on by default when `OPENROUTER_API_KEY` exists; `AI_BADGER_MEMORY_CONTEXT_PIPELINE=0` keeps everything but ai-raccoon local. SKILL.md and the changelog state what leaves the machine. | §1.3 pipeline decision (key required), B10, B11; §8, P4.3 wording |
 | Budget | pi parity: total 90 s, planner 15 s, search 15 s each, Jev 8 s; Claude hook `timeout` 100. | §1.2; Copilot `timeoutSec` 100 via A1 |
+
+## Orchestrator ruling before P3b (2026-09-28): the Hermes CLI signal
+
+Read in upstream NousResearch/hermes-agent at `cd3f453f`: `agent/turn_context.py:769` passes
+`platform=getattr(agent, "platform", None) or ""` to `pre_llm_call`. Hermes treats an empty
+platform as CLI (`(agent.platform or "cli") == "cli"` in `agent/agent_init.py:2095`; `platform or
+"cli"` in `run_agent.py`). Gateway sessions carry their adapter's platform name
+(`gateway/platforms/base.py`). The Hermes arm therefore gates on `(platform or "cli") == "cli"`,
+Hermes's own normalisation, not on a strict `platform == "cli"`, which would most likely never fire
+in an interactive CLI session. It still fails closed for any named non-CLI platform, and O-5 holds.
+P3b.0 re-confirms against the installed Hermes, if one exists, or against this upstream commit.
