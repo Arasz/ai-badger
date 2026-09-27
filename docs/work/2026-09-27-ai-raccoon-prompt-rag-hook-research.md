@@ -1152,3 +1152,963 @@ Side effect: every search writes a `search_quality` row (per the tool descriptio
 
 ---
 
+
+---
+
+## Addendum (same day): owner corrections after planning began
+
+Recorded rather than rewritten, because this is a dated record.
+
+- **A1: the query pipeline is in scope.** The synthesis above scoped pi's `query-pipeline` out,
+  following the delivery-tiers doc. That was wrong. `mem-based-rag` runs the pipeline by default
+  (`extensions/mem-based-rag/index.ts:806`; `PI_BADGER_QUERY_PIPELINE=0` is the single-search
+  fallback). The owner's "direct HTTP to the API, don't trigger pi" meant **OpenRouter**: the
+  planner, which pi runs through its in-process model registry (`planner-call.ts:71-100`), becomes
+  a direct `/api/v1/chat/completions` call, and Jev scoring stays a direct call to
+  `/api/alpha/decisions` (`jev-client.ts:56`). The planner model is the `medium` tier from
+  `model-groups.json`. A missing key or a stage failure falls back to a single search. Port spec:
+  Lane D below.
+- **A2: ai-raccoon goes through the proxy, not direct HTTP.** S1's direct-HTTP recommendation sends
+  the token to whatever process holds port 7721, with no identity proof. ai-raccoon closed exactly
+  that hole (F70) with a per-request ECDSA proof that only its proxy performs
+  (`ai-raccoon/docs/adr/0106-attach-or-start-with-backend-identity-proof.md`). Owner ruling: spawn
+  the proxy (one per hook run), accepting ~0.17 s and a possible serve start.
+- **A3: `scope: "project"` is required.** [MEASURED] An unknown projectId with no scope returns
+  other projects' shared memories; with `scope: "project"` it returns zero memory and zero code
+  hits. The real projectId with scope returns this repo's own hits.
+- **A4: kill only the proxy pid, never its group.** [READ] The proxy starts the serve with a plain
+  `ProcessStartInfo` (`ai-raccoon/src/AiRaccoon/Hosting/Proxy/BackendLauncher.cs:234-240`), so the
+  serve shares the proxy's process group.
+
+---
+
+## Lane report: D-query-pipeline-spec
+
+### Research D: porting pi's query-pipeline into ai-badger's per-prompt RAG hook
+
+Date: 2026-09-27. Scope: `pi-badger-integration/extensions/query-pipeline/{pipeline,planner,planner-call,jev-client,merge,types,index}.ts`
+and `tests/query-pipeline/*.test.ts`, translated to the constraints given: Python 3.10+, stdlib only,
+one-shot `UserPromptSubmit`/Hermes `pre_llm` hook process, OpenRouter chat-completions over `urllib` for
+planning (model default = model-groups.json `medium` tier preferred entry, env override), Jev scoring
+already direct HTTP (unchanged), ai-raccoon search through one proxy child per hook run, single-search
+fallback on missing `OPENROUTER_API_KEY` or planner/Jev failure/timeout.
+
+Grades: READ (seen in a cited file) / MEASURED (observed by running a command) / INFERRED (reasoned from
+cited evidence, not directly observed) / UNVERIFIED (asserted by the task framing or a design doc, not
+confirmed against running code or a merged implementation).
+
+Paths below are absolute. Line numbers are as of the read at research time (2026-09-27); pi-badger-integration
+is a live repo and lines can drift.
+
+---
+
+### 0. Orientation: nothing is ported yet
+
+- [READ] `ai-badger`'s own repo has no `mem-based-rag`/`query-pipeline` port anywhere under `features/` or
+  `.ai-badger/` on `main` (`grep -rln "UserPromptSubmit\|pre_llm"` and `grep -rln "mem-based-rag\|query-pipeline"`
+  turn up only the `pi`/`hermes` adjustment scaffolding and skill docs, never an implementation file such as
+  `memory_context.py`).
+- [READ] A sibling task worktree already exists for the *tier-2* (single-search only) version of this hook:
+  `/Users/arasz/RiderProjects/ai-badger/.ai-badger/worktrees/aib-ai-raccoon-prompt-rag-hook/` (branch
+  `task/aib-ai-raccoon-prompt-rag-hook`), with a merged research record and plan
+  (`docs/work/2026-09-27-ai-raccoon-prompt-rag-hook-research.md`, `...-plan.md`) but **no implementation file**
+  yet either (`find . -iname 'memory_context*'` is empty there too).
+- [READ] That tier-2 plan explicitly puts query-pipeline **out of scope** and pins a *different* transport
+  decision than the one given in this task's framing: `.../aib-ai-raccoon-prompt-rag-hook/docs/work/2026-09-27-ai-raccoon-prompt-rag-hook-research.md:19`
+  and `:855` describe a **direct HTTP `tools/call` to the already-running `serve` on 127.0.0.1:7721`**
+  (`X-AiRaccoon-Token` header, no child process) as the *measured* fastest path, and the plan's own decision
+  row makes it explicit: `.../plan.md:125` `"F1 | Direct HTTP only, no process spawned, no proxy fallback"`.
+  This **conflicts** with this task's stated context ("ai-raccoon searches go through one proxy child per
+  hook run"). [UNVERIFIED which transport ships] — I have treated "one proxy child per hook run" as given by
+  this task's framing throughout, per instructions, but flag the conflict for the owner: the two designs are
+  mutually exclusive and only one should ship. If "one proxy child per hook run" is chosen, it is closest to
+  pi's own `RaccoonClient` (`pi-badger-integration/extensions/mem-based-rag/index.ts:340-448`, spawn +
+  line-JSON-RPC over stdio to the child, not HTTP to `serve`), except pi keeps that child alive for the whole
+  session (see §7) while a hook process must spawn-use-teardown it within one invocation.
+
+---
+
+### 1. `pipeline.ts` flow
+
+File: `/Users/arasz/RiderProjects/pi-badger-integration/extensions/query-pipeline/pipeline.ts`.
+
+### 1.1 Stages, in order [READ]
+
+`runPipeline` (`pipeline.ts:161-392`) runs, per call:
+
+1. **planning** (`pipeline.ts:294-308`) — emit `{stage:"planning"}`; call the injected planner
+   (`deps.plan ?? createRegistryPlanner(...)`, `pipeline.ts:203`) with a cap
+   `plannerCap = min(plannerMs, max(0, totalMs - searchMs - scoreMs))` (`:298`) so the planner can never eat
+   the search/score reserve. Non-`"ok"` plan → `fallback(plan.reason)` (§ below).
+2. **query dedupe** (`pipeline.ts:118-131`, called at `:310-314`) — flatten `plan.plan.concepts[].queries`,
+   trim, drop blanks, drop exact duplicates of each other *and* of the trimmed input query (input query is
+   seeded into the `seen` set, `:122`). Empty result → `fallback("invalid-shape")` (`:314`).
+3. **searching** (`pipeline.ts:316-339`) — a **sequential `for` loop**, one query at a time (`:320`), each
+   iteration checks `remaining() <= budget.scoreMs + 500` and breaks if the reserve for scoring is gone
+   (`:322`), computes a per-call timeout `ms = min(searchMs, max(0, remaining() - scoreMs))` (`:323`), calls
+   `deps.search(query, budget.searchLimit, ms)` raced against that `ms` (`:326`). A failed/timed-out/malformed
+   search is recorded as `lastError` and the loop **continues to the next query** — one bad query never
+   cancels the rest (pinned by test `runner.test.ts:297` "one failed query does not cancel the remaining
+   queries"). Hits are annotated with `kind`/`query`/`concept` (`annotate`, `:144-151`) and pushed into
+   `memHits`/`codeHits`.
+4. **dedupe + pool cap** (`pipeline.ts:341-349`) — `dedupePool` (from `merge.ts`, per-kind dedupe, see §4),
+   then flatten mem+code, sort by server `ranking` ascending with insertion-order tiebreak
+   (`serverRank`, `:133-142`), and slice to `SCORE_POOL_MAX` (48, from `jev-client.ts:49`). Empty pool →
+   `fallback("no-candidates", lastError)` (`:343`).
+5. **scoring** (`pipeline.ts:351-367`) — emit `{stage:"scoring", candidates, batches}`; call the injected
+   scorer (`deps.score ?? createJevScorer(...)`, `:204`) with a deadline
+   `scoreDeadline = min(deadline, now() + budget.scoreMs)` (`:355`), raced against `scoreDeadline - now()`.
+   Scores are merged back onto the pool by `hash` (`scoreByHash`, `:362-367`); a candidate absent from the
+   score results or explicitly `null` stays `score: null`.
+6. **merging** (`pipeline.ts:369-370`) — emit `{stage:"merging", pool}`; call `mergeSelect(scoredPool,
+   MERGE_SLOTS)` (§4). Result mem/code arrays are returned as `status:"pipeline", reason:"ok"` (`:371-379`),
+   plus `queries` (the deduped query strings actually searched), `candidates` (pool size), `scored` (count
+   with a non-null score).
+7. **done** — `formatProgress` (`:83-98`) recognizes a `"done"` stage string but `runPipeline` itself never
+   emits it (`grep -n 'stage: "done"' pipeline.ts` finds only the switch arm at `:95-96`); it exists for a
+   caller (mem-based-rag) to signal completion on its own UI surface. [READ, `pipeline.ts:83-98`]
+
+### 1.2 Budgets — defaults, clamps, env names [READ, `types.ts:100-135`, `pipeline.ts:56-73`]
+
+`resolvePipelineBudget(env)` (`pipeline.ts:65-73`) reads five vars through `numEnv` (`types.ts:129-135`,
+floor/ceiling clamp, non-finite or unset → fallback):
+
+| Field | Env name | Default | Clamp |
+|---|---|---|---|
+| `totalMs` | `PI_BADGER_QUERY_PIPELINE_TOTAL_MS` | 90 000 | 5 000–300 000 |
+| `plannerMs` | `PI_BADGER_QUERY_PIPELINE_PLANNER_MS` | 15 000 | 1 000–60 000 |
+| `searchMs` | `PI_BADGER_QUERY_PIPELINE_SEARCH_MS` | 15 000 | 500–60 000 |
+| `scoreMs` | `PI_BADGER_QUERY_PIPELINE_SCORE_MS` | 8 000 | 1 000–60 000 |
+| `searchLimit` | `PI_BADGER_QUERY_PIPELINE_SEARCH_LIMIT` | 5 | 1–20 |
+
+Plus the kill switch `PI_BADGER_QUERY_PIPELINE` (`types.ts:101`, only the literal `"0"` disables — checked at
+the mem-based-rag call site, `mem-based-rag/index.ts:806-808`, not inside `pipeline.ts` itself) and the
+planner model ref `PI_BADGER_QUERY_PIPELINE_PLANNER_MODEL` (`types.ts:107`, consumed in `planner-call.ts:92`).
+Jev's own env names (`JEV_SCORE_TIMEOUT_ENV`, `JEV_ENDPOINT_ENV`, `JEV_MODEL_ENV`,
+`JEV_API_KEY_ENV = "OPENROUTER_API_KEY"`) are declared at `types.ts:109-113` and consumed in `jev-client.ts`
+(§3). "Total budget" is the wall-clock deadline `t0 + totalMs` computed once at `pipeline.ts:167`; every
+stage's cap is `min(stage default, remaining-budget-derived value)`, never the stage default alone — see the
+planner cap formula above and the search-loop's per-iteration `ms` formula (`pipeline.ts:323`).
+
+### 1.3 Concurrency of searches [READ + pinned by test]
+
+**Sequential, not concurrent.** The per-query loop at `pipeline.ts:320-338` is a plain `for` with an `await`
+inside; there is no `Promise.all`/fan-out. `tests/query-pipeline/runner.test.ts:116` ("R2 searches run once
+per planned query, sequentially, never for the input query") and the extension's own single-flight
+`searchCall` wrapper in `mem-based-rag/index.ts:639-653` (a promise chain, `searchFlight = searchFlight.then(...)`)
+both corroborate this: even if the pipeline tried to fan out, mem-based-rag's `search` binding would still
+serialize the calls, because two turns/searches must never interleave on the one child process
+(`mem-based-rag/index.ts:638` comment). The fallback stage's single search (`pipeline.ts:264-292`) is likewise
+one call.
+
+### 1.4 Fallback reasons vocabulary [READ]
+
+`PipelineResult.reason` (`types.ts:53-60`, comment at `:55`) is a plain string, not a closed union at the type
+level, but the values `runPipeline` actually produces are exactly:
+
+- `"ok"` — the full pipeline path succeeded (`pipeline.ts:373`).
+- Planner fallback reasons, passed through verbatim from `PlannerFallbackReason`
+  (`types.ts:36-37`: `"no-model" | "timeout" | "transport" | "empty-text" | "no-json-object" | "invalid-shape"`)
+  via `fallback(plan.reason)` at `pipeline.ts:308`. Note: when the *fallback single search itself succeeds*,
+  the returned `reason` is this **original** planner-failure reason, not `"ok"` (`pipeline.ts:286` — the
+  success branch of `fallback()` returns `finish({..., reason, ...})` where `reason` is the parameter, i.e.
+  the caller's failure reason).
+- `"invalid-shape"` — reused for the *post-plan* case of zero usable queries after dedup (`pipeline.ts:314`),
+  distinct from the planner-parser's own `"invalid-shape"` (same string, different cause).
+- `"no-candidates"` — every planned search ran but the merged pool is empty (`pipeline.ts:343`).
+- `"search-error"` — the *fallback stage's own* single search failed or returned a malformed envelope
+  (`pipeline.ts:272-282`); this is the one reason mem-based-rag re-throws as a real error rather than treating
+  as silent enrichment-skip (`mem-based-rag/index.ts:686-688`; `PipelineResult.error` carries the underlying
+  message, `types.ts:56`).
+- `"budget-exhausted"` — the whole-run race against `budget.totalMs` timed out before `runStages` resolved
+  (`pipeline.ts:388-390`), or `runStages` resolved to `undefined` (defensive fallback at `:391`).
+- `"aborted"` — the external `deps.signal` was already aborted before the run started (`pipeline.ts:382-384`);
+  there is no separate "aborted mid-run" reason — a mid-run abort surfaces through whichever stage's `race()`
+  call observes it (typically manifesting as `"budget-exhausted"` or a search's own error).
+
+### 1.5 Result shape and how `index.ts` (mem-based-rag) consumes it
+
+- [READ] `PipelineResult` (`types.ts:53-60`): `status: "pipeline"|"fallback"`, `reason`, optional `error`,
+  `mem`/`code` (`PipelineCandidate[]`), `queries: string[]`, `candidates: number`, `scored: number`,
+  `plannerMs`/`searchMs`/`scoreMs`/`latencyMs` (all `number`, wall-clock per stage, `pipeline.ts:196-200`).
+- [READ] `createQueryPipeline(deps)` (`pipeline.ts:394-399`) exposes `{retrieveResult, retrieve}`; `retrieve`
+  is `toEnvelope(await retrieveResult(input))` where `toEnvelope` (`:102-104`) is
+  `JSON.stringify({data:{results: result.mem, code: result.code}})` — **exactly** the shape a raw
+  `memory_search` MCP call returns (`{data:{results,code}}`).
+- [READ] mem-based-rag's `retrieveViaPipeline` (`mem-based-rag/index.ts:662-693`) constructs the pipeline
+  per-call (`createQueryPipeline({search: ..., registry: ctx.modelRegistry, model: ctx.model, env:
+  process.env, onProgress: ...})`, `:671-682`), calls `pipeline.retrieveResult({query})` (`:684`, the
+  **typed** surface, not the string one — mem-based-rag never calls `.retrieve()` in production), records
+  `result.reason` for `/rag status` (`:685`), **re-throws** on `status==="fallback" && reason==="search-error"`
+  (`:686-688`) so the existing "bank error" diagnostics fire, and otherwise returns `toEnvelope(result)`
+  (`:689`) — i.e. it re-derives the same JSON string `retrieve()` would have produced, just after inspecting
+  the typed result first.
+- [READ] The caller (`mem-based-rag/index.ts:790-841`) is **transport-agnostic** past that point: it
+  `JSON.parse`s the envelope string (`:816`, identical whether it came from `retrieveViaPipeline` or the
+  plain kill-switch `searchCall`, `:807-815`), runs `pruneHits` (`rag-core.ts:213-218`) then `mem.slice(0,5)` /
+  `code.slice(0,5)` (`:820-821`) — a **second**, independent 5-cap on top of the pipeline's own 5-total
+  `mergeSelect` cap (harmless since pipeline mem+code together is already ≤5) — and finally calls
+  `toMemoryContext` (`rag-core.ts:412-434`) or, in expanded mode, `toExpandedMemoryContext`
+  (`rag-core.ts:442-472`, after per-hit `memory_get`/`code_get` fan-out) exactly as the single-search path
+  does (`mem-based-rag/index.ts:827-841`).
+- **The injected block format does not change in pipeline mode.** [READ] Both paths converge on the same
+  `envelope → pruneHits → toMemoryContext/toExpandedMemoryContext` pipeline
+  (`mem-based-rag/index.ts:816-841`); nothing reads `PipelineResult.queries`/`candidates`/`scored`/`plannerMs`/
+  etc. into the injected text — those fields are consumed only for the `/rag status` command surface
+  (`lastPipeline = result.reason`, `:685`) and progress UI (`onProgress`, `formatProgress`,
+  `QP_STATUS_KEY`/`QP_WIDGET_KEY`, `pipeline.ts:83-98`, `types.ts:93-96`), which have no equivalent in a
+  one-shot hook (see §7).
+
+---
+
+### 2. `planner.ts` / `planner-call.ts` → OpenRouter chat completions
+
+### 2.1 `DELEGATOR_PERSONA` (verbatim, `planner.ts:20-115`)
+
+```
+### Delegator
+
+### First turn
+
+Read `.ai-badger/delegation.md` first — it carries this project's stacks, the
+personas available here, the routing table, the verifier commands, and the
+reachable MCP servers. If it is absent, read `.ai-badger/config.json`
+(`stacks`, `commands`, `personaRouting`), list `.ai-badger/agents/`, and say
+out loud that the delegation map is missing. Never infer a project's personas
+or commands from memory.
+
+### The contract
+
+Mine, because they need the whole task in one head: decomposition and each
+package's acceptance criterion; the brief; running build/test/lint and holding
+the verdict; integration at the seams; arbitration between packages; anything
+irreversible without a human; fixes under ~10 lines found while integrating.
+Everything else goes out: reading files to understand them, the plan (dispatch
+`architect`), code once a plan exists, version bump and changelog, PR bodies
+and commit messages, "why did CI fail", doc drift, and re-running a gate after
+a delegated fix.
+
+### Dispatch procedure
+
+1. **Is it a unit?** Under ~2,000 expected output tokens, do it here.
+2. **Can I name the verifier?** No → dispatch the investigation, re-decide.
+3. **Which persona?** Match the routing table; nearest scaffolded persona
+   otherwise; `general-purpose` only when nothing matches, and say why.
+4. **Which lane?** By the derivation the work needs, not its size — see below.
+5. **Pass `model` explicitly**, even when it equals the session model, and
+   prefix `description` with the lane (`"Sonnet: …"`). Silence inherits opus.
+6. **Fan out in one message.** Independent packages share one tool block.
+
+### Lanes
+
+Pick by required derivation. Rates live in `skills/task/extensions/claude/`.
+
+- **opus** — the answer must be *derived*: decomposition, root cause with no
+  reproduction, arbitration, adversarial verification, a security judgment.
+- **sonnet** — the answer is *determined by a spec that already exists*: the
+  code the plan describes, the test whose expected value is given, an ADR.
+- **haiku** — a *transformation with no judgment*: changelog from a diff,
+  version bump, rote rename, "does file X contain Y".
+- **fable** — only after opus failed on this exact problem, and say so in the
+  description. The most expensive lane, not a cheap one.
+
+### The floor and the fan-out
+
+- Don't dispatch under ~2,000 expected output tokens. A cold start costs tens
+  of thousands of cache-write tokens; below that floor you pay more than you
+  save. Above it the saving is large, so this rule should rarely fire.
+- Fan out independent packages in **one message** — the prompt cache window is
+  minutes wide, and serial dispatches lose the warm prefix.
+- Prefer one multi-turn subagent over N one-shots on the same material.
+- Depth-2 fan-out is allowed: let a large package's persona dispatch further
+  rather than exploding it into eight reports for you to integrate.
+
+### No dispatch without a verifier
+
+Name the check before writing the dispatch. Three tiers, in order:
+
+1. a command from the project's `commands` that must pass;
+2. a second, cheaper dispatch testing one specific property — adversarial
+   ("prove this test fails without the fix"), never "review this";
+3. reading the diff yourself — permitted only under ~100 lines.
+
+If none applies the package is not delegable yet; decompose until one does.
+**A subagent's summary is not evidence — re-run the gate.**
+
+### Ledger
+
+Keep a running table in the session, one row per dispatch: package, persona,
+lane, verifier, verdict. Append the row when the dispatch goes out; fill the
+verdict when the verifier reports. It is the audit trail for the contract — a
+reader should see that every package had a named lane and a named check
+without parsing a transcript. Report it at the end alongside what shipped.
+
+Under pi, each row also records the dispatch's token cost: from the
+`delegation-result` followUp's `details.usage` (input+output — cache tokens
+excluded for cross-source parity) `task_tracker.py subagent <taskId> --delegation
+<receipt-id> --description "<what>"` once the run settled, so the ledger
+doubles as the cost audit.
+
+### Scope boundary
+
+Never writes the plan — dispatch `architect` and integrate the blueprint.
+Never merges, tags, force-pushes or publishes. Never accepts an unverified
+claim. Keeps its own volume small: the delegator's share of the session's
+total output tokens stays under 25%. Reading full subagent outputs instead of
+reports and verdicts, or writing the code itself, is the failure — that is the
+boundary, and no tool ban can express it.
+
+### Tags
+
+`delegation` `orchestration` `cost` `model-routing` `autonomous`
+```
+
+[READ, `planner.ts:20-115`] — pinned by test `tests/query-pipeline/planner-parser.test.ts:194` against
+`pi-badger-integration/.ai-badger/agents/delegator.md`'s body (from the `# Delegator` heading, frontmatter and
+managed-header stripped). **Cross-checked**: `diff /Users/arasz/RiderProjects/ai-badger/.ai-badger/agents/delegator.md
+/Users/arasz/RiderProjects/pi-badger-integration/.ai-badger/agents/delegator.md` is empty — [MEASURED] the two
+repos' `delegator.md` are byte-identical today, so this persona text can be sourced from ai-badger's own
+`.ai-badger/agents/delegator.md` rather than hand-copied, the same way pi's test pins it to its own copy.
+
+### 2.2 `PLANNER_ADDENDUM` (verbatim, `planner.ts:118-129`)
+
+```
+### Retrieval-query planning (this call's only role)
+
+The delegation procedures above are context, not instructions for this call: you
+have no tools, you must not read files or search memory, and you must not
+dispatch anything. Your entire output is one JSON object of the shape
+{"concepts":[{"name":"<short concept name>","queries":["<query>","<query>"]}]}.
+Group retrieval queries by core concept; emit 2 to 6 queries total, each at most
+300 characters; each query must stand alone (name the actual thing, not "this"
+or "the issue"). Query the mechanism/decision content you expect in a software
+project's docs and code, not the user's complaints. Output ONLY the JSON object
+— no prose, no code fences. If you emit any fragment before the final object,
+the final object must still be complete and valid.
+```
+
+The system prompt sent to the model is `${DELEGATOR_PERSONA}\n\n${PLANNER_ADDENDUM}` (`planner-call.ts:101`,
+pinned by `planner-parser.test.ts:224-236`).
+
+### 2.3 `buildPlannerUserPrompt` [READ, `planner.ts:131-149`]
+
+```ts
+export const PLANNER_USER_PREFIX = `You are a retrieval-query planner for an ai-raccoon memory bank. Do not use any tools. Do not read files. Do not search memory. Analyze the USER REQUEST below and produce focused memory_search queries for a hybrid (keyword + embedding) bank.
+
+Constraints:
+- Group queries by core concept. One concept may need several angles; several concepts may each need a few angles.
+- 2 to 6 queries total, each at most 300 characters.
+- Each query must stand alone (name the actual thing, not "this" or "the issue") and must fit comfortably inside a 254-token embedding window.
+- Query the mechanism/decision content you expect to exist in a software project's docs and code, not the user's complaints or pleasantries.
+- Output ONLY one JSON object, no prose and no code fences, exactly this shape:
+{"concepts":[{"name":"<short concept name>","queries":["<query>","<query>"]}]}
+
+USER REQUEST:
+<<<
+`;
+
+export function buildPlannerUserPrompt(query: string): string {
+	return `${PLANNER_USER_PREFIX}${query}\n>>>`;
+}
+```
+
+No trimming/escaping of `query` — verbatim insertion between `<<<`/`>>>` (pinned by
+`planner-parser.test.ts:209-222`, including a tricky-characters row).
+
+### 2.4 `parsePlan` rules [READ, `planner.ts:163-290`]
+
+Limits (`planner.ts:165-170`): `CONCEPT_NAME_MAX=120`, `CONCEPT_QUERIES_MIN=1`, `CONCEPT_QUERIES_MAX=4`,
+`QUERY_MAX=300`, `TOTAL_QUERIES_MIN=2`, `TOTAL_QUERIES_MAX=6`.
+
+- **Extraction**: scan the whole text for every brace-balanced `{...}` span with string-state tracking so
+  braces inside quoted strings are inert (`collectObjectSpans`, `:185-219`); try spans **last → first**;
+  return the first span that both `JSON.parse`s and passes `normalizePlan` (`parsePlan`, `:271-290`). This
+  specifically handles a model that emits an incomplete fragment before a complete final object (measured
+  research F4, comment at `:14` and `:179-183`).
+- **Failure reasons** (`PlannerParseReason`, `:157`): `"empty-text"` (blank/whitespace-only input, `:272`),
+  `"no-json-object"` (no brace-balanced span at all, or none parsed as JSON, `:274`/`:289`), `"invalid-shape"`
+  (at least one span parsed as JSON but none passed `normalizePlan`, `:289`).
+- **Validation/truncation** (`normalizePlan`, `:233-262`, "MG-2 amendment" comment at `:227-231`): **not**
+  strict rejection — a model that emits more than the contract (e.g. 4 concepts / 7-9 queries, measured on
+  deepseek-v4.1-flash) is **truncated** to the limits rather than discarded, because strict rejection dropped
+  ~50% of otherwise-usable plans in testing. Concretely: concepts are walked in order; once
+  `totalQueries >= TOTAL_QUERIES_MAX` (6) the loop stops (`:240`); a concept needs a string `name` (trimmed,
+  1–120 chars) and an array `queries` (`:244-247`); each query is trimmed, kept if 1–300 chars, and dropped
+  otherwise (`:249-255`); a concept is dropped entirely if it ends with zero usable queries (`< CONCEPT_QUERIES_MIN`,
+  `:256`); concepts stop contributing queries once **either** `CONCEPT_QUERIES_MAX` (4) per concept **or**
+  the running `TOTAL_QUERIES_MAX` (6) is hit (`:250`). Final result is `null` (→ `"invalid-shape"`) unless at
+  least one concept survives **and** `totalQueries >= TOTAL_QUERIES_MIN` (2) (`:260`).
+- **Max queries** actually deliverable to the pipeline: 6 total (not "up to 24" even though 6 concepts × 4
+  queries would allow more — the running total cap binds first).
+- **Dedupe**: `parsePlan`/`normalizePlan` do **not** dedupe queries against each other or against the input
+  query — that happens one layer up, in `pipeline.ts`'s `dedupeQueries` (`pipeline.ts:118-131`, §1.1 step 2).
+
+### 2.5 `planner-call.ts`: what pi sends and how it extracts text [READ, `planner-call.ts:1-121`]
+
+- **Model resolution** (`:75-99`): explicit env ref `PI_BADGER_QUERY_PIPELINE_PLANNER_MODEL`
+  (`provider/model`, split on the **first** `/`; no slash → `"no-model"` fallback, never reaches
+  `registry.find`, `:94-96`) else the injected `options.model` (pi's current session model, no further
+  fallback). A resolved `null`/`undefined` → `"no-model"` (`:98`). **Note**: pi's planner call therefore has
+  an implicit third default — "whatever model this coding-agent session is already using" — that has **no
+  analogue** in an OpenRouter HTTP call from a hook process, which has no ambient "current model"; the
+  OpenRouter port collapses to two tiers only (explicit env override, else the model-groups `medium` pin, see
+  §6), losing pi's "inherit session model" behavior.
+- **Request shape sent to `registry.complete`** (`:100-104`):
+  ```ts
+  const context: PlannerContext = {
+      systemPrompt: `${DELEGATOR_PERSONA}\n\n${PLANNER_ADDENDUM}`,
+      messages: [{ role: "user", content: buildPlannerUserPrompt(query) }],
+  };
+  const message = await complete(resolved, context, { signal });
+  ```
+  One system prompt + one user message; **no** `max_tokens`, `temperature`, `top_p`, or reasoning-effort
+  parameter is set anywhere in this file — completion parameters are entirely the resolved model's own
+  registry defaults inside pi. [READ — absence confirmed by reading the whole file; `grep -n
+  "max_tokens\|temperature\|reasoning" planner-call.ts` finds nothing.] This means the OpenRouter port has
+  **no pi precedent to copy** for these fields and must set its own defaults (or omit them and rely on
+  OpenRouter's provider defaults) — an owner decision, not a fact to port.
+- **Text extraction** (`extractText`, `:49-60`): join every `content[]` part where `part.type === "text"`;
+  ignore anything else (thinking parts, tool calls, malformed parts). Structurally narrowed, no import of
+  `@earendil-works/pi-ai`'s real message type (purity rule stated at `:7-9`).
+- **Failure → fallback reason mapping** (`:80-118`): `signal` already aborted before dispatch → `"timeout"`
+  (`:83`); `registry.find`/`.complete` not functions → `"no-model"` (`:88`); model ref with no `/` →
+  `"no-model"` (`:95`); resolved model nullish → `"no-model"` (`:98`); `stopReason === "aborted"` →
+  `"timeout"` (`:108`); `stopReason === "error"` → `"transport"` (`:109`); any synchronous throw or rejected
+  promise → `"timeout"` if the signal is aborted, else `"transport"` (`:114-118`); otherwise the extracted
+  text goes to `parsePlan` and its own reason is passed through (`:111-113`).
+
+### 2.6 Translation to OpenRouter `/api/v1/chat/completions`
+
+This is a **design proposal grounded in the above**, not something read from a file (no such call exists
+yet in either repo) — graded INFERRED throughout:
+
+- **Request** (`urllib.request.Request`, `POST https://openrouter.ai/api/v1/chat/completions`):
+  ```json
+  {
+    "model": "<resolved OpenRouter id, e.g. deepseek/deepseek-v4.1-flash>",
+    "messages": [
+      {"role": "system", "content": "<DELEGATOR_PERSONA>\n\n<PLANNER_ADDENDUM>"},
+      {"role": "user", "content": "<buildPlannerUserPrompt(query)>"}
+    ]
+  }
+  ```
+  Headers: `Authorization: Bearer <OPENROUTER_API_KEY>`, `Content-Type: application/json` — the exact pair
+  `jev-client.ts:357` uses for its own OpenRouter-hosted call, i.e. an already-proven pattern in this same
+  codebase to copy. [INFERRED from `jev-client.ts:353-360`'s header shape + the task's stated endpoint.]
+  `max_tokens`/`temperature`/reasoning fields: **no pi precedent** (§2.5) — recommend leaving them unset
+  (OpenRouter/provider default) unless the owner wants to pin them, since pi never did.
+- **Timeout**: no `AbortController` in Python; use `urlopen(req, timeout=seconds)` where `seconds` is derived
+  the same way `plannerCap` is in `pipeline.ts:298` (`min(plannerMs, totalMs - searchMs - scoreMs)`), a direct,
+  simpler substitute for the abort-signal race in `pipeline.ts:301` / `planner-call.ts:83,106,108`.
+- **Response text extraction**: OpenRouter's chat-completions response is OpenAI-shaped
+  (`choices[0].message.content` is a plain string in the common case), unlike pi's `content: [{type,text}]`
+  array (`planner-call.ts:51`). Extraction path: `data["choices"][0]["message"]["content"]`, tolerant of a
+  missing/empty/non-string value (→ empty string, which `parsePlan` already turns into `"empty-text"`,
+  `planner.ts:272`). There is no `stopReason==="aborted"`/`"error"` equivalent from a stateless HTTP call;
+  those two `planner-call.ts` branches (`:108-109`) collapse into: non-200 HTTP status, `urllib` network
+  error, or non-JSON body → `"transport"`; a socket timeout hit before the response arrives → `"timeout"`;
+  missing/blank `OPENROUTER_API_KEY` → `"no-model"` (mirrors `jev-client.ts:431-434`'s own key check, and
+  matches the task's stated "missing OPENROUTER_API_KEY … falls back to a single search"). The extracted text
+  then goes through `parsePlan` **unchanged** — `planner.ts` is pure (zero imports, `planner.ts:1-10`) and
+  ports to Python near verbatim (string/regex/JSON logic only, no TS-specific constructs beyond types).
+
+---
+
+### 3. `jev-client.ts` scoring request/response
+
+File: `/Users/arasz/RiderProjects/pi-badger-integration/extensions/query-pipeline/jev-client.ts`.
+
+### 3.1 Request body [READ, verbatim from `:117-121`, `:180-196`]
+
+```ts
+export interface JevScoreRequest {
+	readonly model: string;
+	readonly state: string;
+	readonly questions: Record<string, JevScoreWireQuestion>;
+}
+
+export function buildScoreQuestion(candidate: PipelineCandidate): JevScoreWireQuestion {
+	return {
+		type: "score",
+		instructions: {
+			candidate: {
+				path: candidate.path ?? candidate.sourceFile ?? "",
+				kind: candidate.kind ?? "memory",
+				excerpt: (candidate.snippet ?? "").slice(0, SCORE_EXCERPT_CHAR_CAP),
+			},
+			question: SCORE_QUESTION,
+		},
+		criteria: [...SCORE_CRITERIA],
+	};
+}
+```
+
+Wire shape per candidate, keyed `c<poolIndex>` in the request's `questions` object
+(`createJevScorer`, `:451-452`): `{type:"score", instructions:{candidate:{path,kind,excerpt}, question},
+criteria:[4 strings]}`. `SCORE_QUESTION` (`:60-61`, verbatim): *"How much does `candidate` help answer or
+implement the user's request in the state? Rate only this candidate."* `SCORE_CRITERIA` (`:64-69`, verbatim,
+4 entries): `"unrelated — it does not touch the request"`, `"related background — same area, but answers none
+of the request"`, `"partially answers — covers one need, misses the rest"`, `"directly answers — a specific
+need in the request is answered or implemented"`.
+
+Top-level request: `{model, state, questions}` where `model = env[JEV_MODEL_ENV] ?? "typesafe/jev-1.13"`
+(`:436`, `SCORE_MODEL_DEFAULT` at `:57`) and `state = prompt.slice(0, SCORE_STATE_CHAR_CAP)` (`:442`, the
+**caller's raw query**, capped at 32 000 chars, `SCORE_STATE_CHAR_CAP` at `:54`). `excerpt` is capped at 500
+chars (`SCORE_EXCERPT_CHAR_CAP`, `:55`, applied at `:190`). `path` falls back `candidate.path ?? sourceFile ??
+""` (`:188`).
+
+### 3.2 The "255-option limit" — correction [READ; the premise in the task framing is imprecise]
+
+`jev-client.ts` itself has **no 255-anything**. `255` is `JEV_MAX_OPTIONS`, a constant in the **sibling**
+`decision-router-client.ts:34-35` (*"Jev choice questions accept at most 255 options (measured contract F2)"*),
+which governs a different Jev question type (`type:"choice"`, one question naming up to 255 named routing
+options) used by the unrelated `decision-router` extension. `jev-client.ts`'s own docstring
+(`jev-client.ts:1-30`) says it is "copied by contract from decision-router-client.ts" for the **transport**
+conventions only (env names, error vocabulary, injected-fetch seam) — "but its own `score` question shape,
+batching and pool rules" (`:6`). Query-pipeline's actual caps, all present in `jev-client.ts:47-56`, are:
+
+- `SCORE_BATCH_MAX = 12` — at most 12 `score` questions per HTTP request (one candidate = one question, each
+  with a fixed 4-entry `criteria` array — not 255 options).
+- `SCORE_ATTEMPTS = 3` — retry cap per batch.
+- `SCORE_POOL_MAX = 48` — total candidates considered for scoring, before batching (48 / 12 = 4 batches max).
+- `SCORE_STATE_CHAR_CAP = 32_000`, `SCORE_EXCERPT_CHAR_CAP = 500` — the byte/char budgets.
+
+If the port wants a 255-style safety check it would have to invent one (not needed: 48 ≤ 255 trivially), but
+porting "the 255-option limit" as literally stated would be porting the **wrong extension's** constant.
+
+### 3.3 Headers, retry/timeout, error vocabulary [READ, `:340-502`]
+
+- **Headers** (`:356-360`): `Authorization: Bearer <OPENROUTER_API_KEY>`, `Content-Type: application/json`.
+  `key = env[JEV_API_KEY_ENV]` (`= "OPENROUTER_API_KEY"`, `types.ts:113`); blank/missing → the whole scorer
+  returns null-scored results for every candidate **without any fetch** (`:431-434`, "S10 missing or blank
+  key fails before any fetch and arms no timer").
+- **Endpoint/model env** (`:435-436`): `PI_BADGER_JEV_ENDPOINT` default `https://openrouter.ai/api/alpha/decisions`
+  (`SCORE_ENDPOINT_DEFAULT`, `:56`), `PI_BADGER_JEV_MODEL` default `typesafe/jev-1.13` (`SCORE_MODEL_DEFAULT`, `:57`).
+- **Per-attempt timeout** (`:437-441`, `:471`): `min(env(PI_BADGER_JEV_SCORE_TIMEOUT_MS, default 15000, clamp
+  1000-120000), deadlineMs - now())`; a non-positive remaining value skips the whole batch, filling nulls,
+  without any fetch (`createJevScorer`'s attempt loop, `:459-463`, "a non-positive remaining deadline skips
+  the batch with nulls and zero fetches").
+- **Retry rule** (`:456-478`): up to `SCORE_ATTEMPTS` (3) attempts per batch, **no backoff/sleep** between
+  attempts (comment `:20`: "≤ 3 attempts per batch, no backoff"); retry only if the previous attempt's error
+  kind is in `SCORE_RETRYABLE_KINDS` (`:88-93`: `"server"`, `"transport-timeout"`, `"malformed"`,
+  `"rate-limited"`); a non-retryable kind or an `"ok"`/`"skipped"` outcome stops the loop immediately
+  (`:475-477`).
+- **Error vocabulary** (`SCORE_ERROR_KINDS`, `:76-85`, identical to `decision-router`'s `JevErrorKind`):
+  `"misrouted-refusal"` (HTTP 400), `"auth"` (401), `"billing"` (402), `"rate-limited"` (429, Retry-After
+  clamped to 60 000–3 600 000 ms and **recorded, never slept on** — `clampRetryAfterMs`, `:174-178`,
+  `classifyScoreResponse`, `:293-305`), `"server"` (any other non-200, or an HTTP-200 body carrying an
+  `error` envelope, `:250-252`/`:315-316`), `"transport-timeout"` (fetch/timeout race lost, `:376-381`, or any
+  thrown exception in the attempt, `:385-386`), `"malformed"` (body isn't valid JSON, isn't an object, or a
+  per-answer parse failed badly enough to reject the whole batch — `:242-260`), `"missing-key"` (declared in
+  the vocabulary at `:84` but the actual missing-key path short-circuits before ever calling
+  `classifyScoreResponse`, so it is a documented-but-unreachable-via-that-function code — the real short
+  circuit is at `:431-434`).
+- **Response parsing** (`parseScoreResponseBody`, `:239-260`): tolerant per-answer parse
+  (`parseScoreAnswer`, `:228-236`) — non-object, wrong `type`, non-numeric/non-finite `score` → `{score:
+  null}` (never a fabricated 0, pinned by test S11); score clamped to `[0,3]` (`clampScore`, `:163-165`);
+  `confidence` clamped to `[0,1]` if present and finite, else omitted (`clampConfidence`, `:168-171`). Extra
+  measured fields (`probabilities`, `legend`) are silently ignored — the parser only reads `type`, `score`,
+  `confidence` per answer, plus `usage.{input_tokens,output_tokens,cost}` (`parseUsage`, `:214-225`, missing/
+  non-finite fields → 0).
+
+### 3.4 What feeds into merge [READ, `pipeline.ts:362-367`]
+
+`scorer(...)` returns `{results: PipelineScore[], usage, batches}` where each `PipelineScore` is `{hash,
+score, confidence?}` — one entry **per input candidate, in input order**, `null` for out-of-pool/skipped/
+failed/missing answers (`createJevScorer`'s final map, `jev-client.ts:490-497`). `pipeline.ts` builds a
+`Map<hash, score>` from these (`:362-363`) and merges by `hash` onto the already-deduped pool (`:364-367`);
+only `score` (a number 0-3 or `null`) crosses into `merge.ts` — `confidence` and `usage` never reach
+`mergeSelect`.
+
+---
+
+### 4. `merge.ts` — document-aware merge
+
+File: `/Users/arasz/RiderProjects/pi-badger-integration/extensions/query-pipeline/merge.ts`. `MERGE_SLOTS = 5`
+(`:17`).
+
+### 4.1 Document identity [READ, `:33-38`]
+
+```ts
+export function docKey(hit: MergeCandidate): string {
+	const path = (hit.path ?? hit.sourceFile ?? "").trim();
+	if (path !== "" && path !== "?") return `path:${path}`;
+	return `hash:${(hit.hash ?? "").trim()}`;
+}
+```
+Grouping key = `path:` + trimmed `path` (falling back to `sourceFile`) when that is non-empty and not the
+literal `"?"`; otherwise `hash:` + trimmed `hash`.
+
+### 4.2 Per-kind dedupe (pre-merge prune) [READ, `:40-75`]
+
+`isDroppableHit` (`:44-49`): a hit with **both** an empty/`"?"` path **and** an empty snippet is dropped
+(either alone is kept — parity comment, `:44`). `dedupeKind` (`:51-67`): drop droppables first, then dedupe
+on a non-empty `hash` **or** an identical non-empty `snippet` — first occurrence wins either way (`:56-65`).
+`dedupePool(mem, code)` (`:69-75`) runs `dedupeKind` independently per kind — a memory hit and a code hit can
+share a hash or snippet without either being dropped (`M18`/parity test `mem and code dedupe independently`).
+
+### 4.3 Score combination — the total order comparator [READ, `:77-105`]
+
+```ts
+function scoreOf(hit): number | null // finite score in [0,3] passthrough, else null
+function serverRankOf(hit): number   // finite number, or numeric-string parsed, else +Infinity
+
+export function compareCandidates(a, b): number {
+	const aScore = scoreOf(a), bScore = scoreOf(b);
+	if (aScore !== null && bScore === null) return -1;
+	if (aScore === null && bScore !== null) return 1;
+	if (aScore !== null && bScore !== null && aScore !== bScore) return bScore - aScore;
+	const aRank = serverRankOf(a), bRank = serverRankOf(b);
+	if (aRank !== bRank) return aRank - bRank;
+	return 0; // exact tie: stable-sort preserves insertion (retrieval) order
+}
+```
+Order: **any real score beats a null score**; among two real scores, higher wins; ties (including two nulls)
+fall back to the server's own `ranking` ascending (lower rank number = better); a final tie preserves
+insertion order via a decorate-sort-undecorate stable sort (`stableSort`, `:111-116`), never engine-dependent
+sort stability.
+
+### 4.4 Caps and the two-pass slot fill [READ, `:118-150`]
+
+```ts
+export function mergeSelect(candidates, slots = MERGE_SLOTS) {
+	const ranked = stableSort(candidates.slice(), compareCandidates);
+	const chosen = []; const chosenHashes = new Set(); const seenDocs = new Set();
+	// Pass 1: best chunk per distinct document (a null-scored distinct doc still takes a slot).
+	for (const c of ranked) {
+		if (chosen.length === slots) break;
+		const key = docKey(c);
+		if (seenDocs.has(key)) continue;
+		seenDocs.add(key); chosen.push(c); chosenHashes.add(c.hash);
+	}
+	// Pass 2: backfill only from documents already admitted in pass 1, global rank order, never a repeat chunk.
+	if (chosen.length < slots) {
+		for (const c of ranked) {
+			if (chosen.length === slots) break;
+			if (chosenHashes.has(c.hash)) continue;
+			if (!seenDocs.has(docKey(c))) continue;
+			chosen.push(c); chosenHashes.add(c.hash);
+		}
+	}
+	return { mem: chosen.filter(h => h.kind === "memory"), code: chosen.filter(h => h.kind === "code") };
+}
+```
+Total budget is **5 slots shared across mem+code combined**, not 5-and-5 (`M13` test,
+`merge.test.ts:236-256`). Pass 1 admits at most one chunk per distinct document — including a null-scored
+document, because "a null is missing evidence about one chunk, not proof the document is irrelevant"
+(`merge.ts:11-12`). Pass 2 only pulls **second** chunks from documents *already* represented in pass 1
+(never introduces a brand-new document in pass 2, and never repeats an already-chosen chunk hash), walking
+the same globally-ranked list so the backfill order is cross-document rank order, not grouped by document
+(`M3a` test: with A={a1:3.0,a2:1.0}, B={b1:2.5,b2:1.5}, backfill order is `a1,b1,b2,a2` — B2 (1.5) is pulled
+before A2 (1.0) because it globally outranks it, `merge.test.ts:58-70`). If pass 1 already fills every slot
+with distinct documents, pass 2 is a pure no-op (`M3c`, `merge.test.ts:89-110`). Tie-break at equal score is
+retrieval/insertion order throughout (both within a document, `M4`, and across documents, `M6`/`M12`).
+
+---
+
+### 5. Tests — `tests/query-pipeline/*.test.ts`
+
+**Run result** [MEASURED]: `cd /Users/arasz/RiderProjects/pi-badger-integration && bun test
+tests/query-pipeline/` → `115 pass, 0 fail, 535 expect() calls. Ran 115 tests across 7 files. [92.00ms]`
+(bun 1.4.2, `bun --version` measured the same run).
+
+### 5.1 `merge.test.ts` (22 tests, `merge.ts`) [READ, full list at `merge.test.ts:29-348`]
+
+Pure, no I/O. Groups: **document-slot budget** (M1 five distinct docs fill 5 slots in score order; M2/M3a/b/c
+backfill semantics per §4.4; M4 same-path tie keeps the higher score; M5 path falls back to `sourceFile`; M6
+equal scores preserve retrieval order; M7 null/missing scores rank after every scored candidate; M8 zero
+candidates → empty, never throws; M9 backfill never repeats the best chunk; M10 slots default to 5, a 6th
+distinct doc is dropped; M11 each merged entry keeps its own score/kind; M12 tie backfill order; M13 mem+code
+share the 5-slot budget; M14 a null-scored distinct doc still takes a pass-1 slot; M15 droppable hits never
+take a slot); **`dedupePool`** (M16 identical hashes dedupe per kind, first wins; M17 identical snippets
+dedupe across different hashes; M18 mem/code dedupe independently; M19 empty path + snippet kept); **`docKey`**
+(M20 path wins over sourceFile/hash); **server-rank parsing** (M21 numeric-string ranking sorts as its number;
+M22 non-numeric ranking sorts last). **Fully portable to pytest** — no clock/IO/network, pure data-in/data-out
+functions with plain dict/list fixtures.
+
+### 5.2 `parity.test.ts` (5 tests) [READ, full file above]
+
+Cross-package drift pins: `PipelineCandidate` structurally assignable to mem-based-rag's `MemoryHit`;
+`dedupePool` output equals `pruneHits` output on the same input (byte-for-byte hash-list equality); mem/code
+independence; droppable hits never reach a merge slot; `retrieve()` output equals `toEnvelope(retrieveResult())`.
+**Portable in spirit, not literally**: a Python port has no TS structural-typing check to replicate (that
+row would just become "the port's dataclass has the same fields mem-based-rag's Python search result uses");
+the dedupe-equality and droppable/no-repeat rows port directly once both `dedupePool` and the Python hook's
+own prune function exist side by side.
+
+### 5.3 `planner-parser.test.ts` (13 tests, `planner.ts`) [READ, `:50-236`]
+
+P1 last-complete-JSON-object wins over an earlier fragment; P2 trailing prose after the object is ignored;
+P3 an unterminated object is invalid, never throws; P4 blank/whitespace → `"empty-text"`; P5 missing
+`concepts`/non-array/missing `queries`/non-string queries are invalid-or-dropped (MG-2 amendment); P6 empty
+`concepts` invalid, an empty `queries` array is dropped; P7 a >300-char query is dropped, exactly 300 is
+kept; P8 >6 queries truncate to 6; P9 queries are trimmed, whitespace-only dropped; P10 every malformed
+corpus entry returns a typed result, never throws; **P11** `DELEGATOR_PERSONA` equals
+`.ai-badger/agents/delegator.md`'s body (file-reading test, `readFileSync(join(import.meta.dir, "..", "..",
+".ai-badger", "agents", "delegator.md"))`, `:195-198`); P12 `buildPlannerUserPrompt` inserts the raw query
+verbatim between `<<<`/`>>>`; P13 `PLANNER_ADDENDUM` pins the retrieval-query role and JSON-only contract.
+**Fully portable** except P11, which needs its file-read path translated to wherever ai-badger's Python port
+sources the persona text from (its own `.ai-badger/agents/delegator.md`, confirmed byte-identical, §2.1); all
+others are pure string/JSON logic, directly re-testable in pytest against a ported `parse_plan`.
+
+### 5.4 `planner-call.test.ts` (18 tests, `planner-call.ts`) [READ, `:82-405`]
+
+Exercises `createRegistryPlanner` against a **fake registry** (`{find, complete}` stubs) — request shape
+(`complete` receives exactly `{systemPrompt, messages, signal}`); text-part-only joining (thinking parts
+ignored); every fallback-reason branch from §2.5 (`empty-text`, `invalid-shape`, `transport` on rejected/
+throwing `complete`, `transport` on `stopReason:"error"`, `no-model` on absent `complete`/`find`/unresolved
+model/no-slash ref, `timeout` on pre-aborted signal); env model-ref splitting on the first `/`; env-unset
+falls back to injected `ctx.model`; a static-analysis row (`:396-405`) asserting the file imports no
+`@earendil-works/pi-ai`. **Not portable as-is** — it is entirely pi-registry-shaped (fake `find`/`complete`,
+`AbortSignal`, pi message content-array). The **behavioral** rows (each named failure mode → each named
+fallback reason) re-derive cleanly as pytest cases against a Python OpenRouter client using a fake
+`urlopen`/HTTP-response double instead of a fake registry; the "no imports of pi-ai" static row has no
+equivalent need in the port (there is no pi-ai to avoid importing).
+
+### 5.5 `score-client.test.ts` (27 tests, `jev-client.ts`) [READ, `:207-722`]
+
+Groups: **frozen consts/vocabulary** (S1 exact numeric consts; S7 HTTP-status→error-kind map; a parity row
+against decision-router's error-kind list); **batching/wire shape** (S2 25 candidates → 12/12/1 batches; S3
+12→1 request, 13→2; S13 request body matches the frozen shape exactly; S13b state/excerpt char caps; a
+path-fallback row); **retries** (S4 one retry then success; S5 capped at 3, a 4th is never sent; S6 auth/
+billing/misrouted-refusal make exactly one call — non-retryable); **timeout/abort** (S8 Retry-After recorded,
+never slept on; S9 a never-resolving fetch settles to `transport-timeout` and aborts its own controller; S16
+a first-attempt timeout leaves no dangling armed timer when attempt 2 succeeds; per-attempt timeout =
+`min(env, deadline-now)`; a non-positive deadline skips with nulls and zero fetches); **error/tolerance**
+(S10 missing/blank key fails before any fetch, arms no timer; S11 missing answers are null, never fabricated
+zeros; S12 a 200 error-envelope and a truncated body map to `server`/`malformed` without throwing; S15 a 400
+detail never echoes the raw response body — this is the leak-prevention row referenced by the
+`SYNTH_SCORE_BAD_REQUEST_BODY` marker fixture, see §5.7); **pool/usage/clamp** (pool cap 48 by server rank
+before batching; usage sums across parsed batches, ignoring non-finite fields; score clamp `[0,3]`,
+non-finite/wrong-type → `null`); **warm preload** (`warmJevScore` issues exactly one call, 5 s cap, discards
+the result; fail-open on error or missing key). **Mostly portable**: the retry/timeout/error-classification
+logic is pure decision logic over an HTTP-response-shaped double and ports near 1:1 to pytest with a fake
+`urlopen`; the abort-controller-specific rows (S9, S16 — "leaves no armed timer", "aborts the signal") have no
+literal Python equivalent (no timers/AbortController to leave dangling) but the *intent* — "a slow/late
+response after timeout must never corrupt a later attempt's state" — re-derives as a test against whatever
+mechanism the port uses (e.g., a monotonic-deadline check plus a fresh socket per attempt makes this
+structurally true rather than something to test for).
+
+### 5.6 `runner.test.ts` (19 tests, `pipeline.ts`) [READ, `:97-421`]
+
+R1 stage order plan→search→score→merge; R2 searches run once per planned query, sequentially, never for the
+raw input query; R10 planner receives the caller query verbatim; R12 the fallback reason names the failing
+stage; R5 progress fires per stage in order; R6 a throwing progress callback never breaks the run;
+`formatProgress` pins the four stage strings; `resolvePipelineBudget` clamps every env var, stays enabled on
+the kill-switch **value** (i.e. this test is about numeric clamping, not the kill switch itself, which lives
+in mem-based-rag); R11 the whole-run deadline is armed on the **injected** scheduler, not a real timer (this
+is the seam a Python port replaces with a monotonic deadline check, no scheduler object needed); R9 per-search
+timeout is bounded by remaining budget, not the stage default; R4 a planner timeout falls back without
+searching any planned queries; "one failed query does not cancel the remaining queries"; "all searches
+failing performs at most one fallback search and never throws"; "an external aborted signal is honored
+without a throw"; R7 planner/search/score **throws** (not rejections — synchronous throws from injected
+seams) each resolve a typed result, never propagate; R8 zero candidates skip scoring, take the single-query
+fallback; `toEnvelope` is the bank envelope on every path; `retrieve` equals `toEnvelope(retrieveResult)`;
+search limit defaults to 5, configurable; counters (`plannerMs`/`searchMs`/`scoreMs`) come from the injected
+clock. Uses a **manual-fire fake scheduler** (`{setTimeout, clearTimeout}` doubles whose timers the test fires
+by hand) and an injected `now`. **Portable in behavior, not machinery**: every stage-sequencing/fallback-
+reason/budget-arithmetic assertion re-derives as a pytest case against a Python `run_pipeline` driven by a
+fake clock function and fake `search`/`plan`/`score` callables; the fake-scheduler object itself has no
+Python analogue (a one-shot, single-threaded process needs no timer-firing simulation — a fake clock plus
+raising `TimeoutError` from a fake network call covers the same ground more simply).
+
+### 5.7 `extension.test.ts` (9 tests, `index.ts` wiring) [READ, `:54-156`]
+
+E1 `session_start` issues exactly one warm call per session; E2 a `session_shutdown` resets the scope so the
+next start warms again; E3 a failing warm call is fail-open; E4 the kill switch suppresses the warm call, read
+per call; E5 a missing key suppresses the warm call; E8 env is read per call, not cached at factory load; E6
+`session_shutdown` clears the pinned status/widget keys; a throwing `ui` surface never breaks shutdown; a
+"createQueryPipeline with no plan/score overrides still plans through the registry" smoke row. **Not
+portable** — this whole file is pi's own long-lived-extension session lifecycle (`session_start`/
+`session_shutdown` hooks, a module-level `warmed` boolean surviving across many prompts in one process). A
+one-shot Claude/Hermes hook process has no session-scoped state to reset between invocations by construction
+(see §7); the closest useful test in a Python port is simply "the hook makes at most one Jev warm call per
+process, or makes none at all if the owner drops warmup entirely."
+
+### 5.8 Fixtures — `fixtures/score-fixtures.ts` [READ, `:1-143`, full file quoted below]
+
+- `MEASURED_CRITERIA` / `MEASURED_QUESTION` / `MEASURED_PROMPT` — byte-identical to the production
+  `SCORE_CRITERIA`/`SCORE_QUESTION` in `jev-client.ts:60-69` (this is the *fixture's own copy*, kept
+  independent "by contract" so a drift in either fails a test, per the parity convention used throughout this
+  extension).
+- `MEASURED_SCORE_REQUEST` — a 2-candidate example of the real wire request shape (`model:
+  "typesafe/jev-1.13"`, `state`, `questions: {c0, c1}`).
+- `MEASURED_SCORE_ANSWER` — a 3-answer example response including the extra measured fields
+  (`probabilities`, `legend`) the parser tolerates without reading.
+- `SYNTH_SCORE_BAD_REQUEST_BODY` / `..._UNAUTHORIZED_BODY` / `..._PAYMENT_REQUIRED_BODY` /
+  `..._RATE_LIMITED_BODY` / `..._SERVER_ERROR_BODY` / `..._ERROR_ENVELOPE` / `..._TRUNCATED_JSON` /
+  `..._PARTIAL_ANSWERS_BODY` / `..._WRONG_SHAPES_BODY` — explicitly labeled **SYNTH (stipulated)**, not
+  measured against a real API, "exactly like `tests/decision-router/fixtures/`" (`:12`). The 400-body fixture
+  embeds a `"marker":"SECRET-BODY-MARKER"` sentinel specifically to drive the S15 "never echoes the response
+  body" test.
+- **Reuse as JSON for a Python port**: every one of these is already a plain JSON-serializable object/string
+  literal with **no TS-specific syntax** in the *data* (only the `as const`/type-annotation wrapper is TS).
+  They can be dumped to `tests/fixtures/jev_score_fixtures.json` (or split per-fixture files) with a trivial
+  mechanical transform (strip `export const NAME = ... as const;`, keep the RHS) and loaded directly by
+  pytest — no raw non-committed data is needed here (unlike the honesty note at `:6-11` about the *numeric
+  values* being stipulated stand-ins rather than a real captured eval, which the port should keep saying, not
+  present as measured).
+
+---
+
+### 6. `model-groups.json` tier resolution → OpenRouter model id
+
+- **Registry file** [READ]: `/Users/arasz/RiderProjects/ai-badger/.ai-badger/model-groups.json` (mirrored from
+  `features/common/data/model-groups.json`, the canonical seed per `model_groups.py:284-286`). Shape:
+  `{frameworkVersion, registryVersion, measuredAt, groups:{low:[...], medium:[...], high:[...]}}`; each group
+  is an array of `{id, preferred, pricing:{inputPerM,outputPerM,currency}, evidence, ...optional}` objects,
+  **index 0 is always the preferred entry** — this is an enforced machine invariant, not just convention
+  (`_validate_group`, `features/common/skills/task/scripts/model_groups.py:117-143`: "exactly one preferred
+  member" and "must list its preferred member first").
+- **Current medium-tier preferred entry** [READ, `.ai-badger/model-groups.json:65-75`]:
+  ```json
+  "medium": [
+    {
+      "id": "openrouter/deepseek/deepseek-v4.1-flash",
+      "preferred": true,
+      "pricing": {"inputPerM": 0.15, "outputPerM": 0.6, "currency": "USD"},
+      "evidence": "Medium-tier preferred from 2026-09-21: ...",
+      "measuredAt": "2026-09-11"
+    },
+    ...
+  ]
+  ```
+  Note: `.ai-badger/model-groups.json` will drift over time (`measuredAt`/rotations); the mechanism below is
+  what matters for the port, not this specific pin.
+- **Existing ai-badger resolver code** [READ]: `/Users/arasz/RiderProjects/ai-badger/features/common/skills/task/scripts/model_groups.py`
+  (stdlib-only, no jsonschema/network/clock per its own docstring, `:1-13`) already implements exactly this
+  lookup:
+  ```python
+  def preferred(group, groups=None) -> str:
+      """The preferred (index-0) id of `group`. Unknown groups raise UnknownLevel."""
+      # groups[group][0]["id"], re-validated by ID_RE before emit (model_groups.py:320-336)
+
+  def resolve(level=None, explicit_model=None, groups=None) -> Optional[str]:
+      """explicit model wins verbatim > level's preferred pin > None (inherit)."""
+      # model_groups.py:338-359
+  ```
+  `resolve(level="medium")` (no explicit model) → `preferred("medium")` → `"openrouter/deepseek/deepseek-v4.1-flash"`
+  today. `ID_RE = r"^openrouter/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"` (`:25`) is the format every `id` must match;
+  `_emit_id` (`:311-317`) re-checks it right before returning, so `resolve`/`preferred` can only ever hand
+  back a well-formed `openrouter/<vendor>/<model>` string. **This module is the one to import/reuse for the
+  port's medium-tier lookup** — do not re-implement tier selection; call `model_groups.resolve("medium")` (or
+  `preferred("medium")`) and only add the OpenRouter-id-stripping step below.
+- **`openrouter/` prefix → OpenRouter API model id** [INFERRED, no existing code does this today]: a
+  `grep -rn 'removeprefix("openrouter\|replace("openrouter/", ""'` across `ai-badger` returns nothing — **no
+  ai-badger code currently strips this prefix for an actual OpenRouter HTTP call**. The prefix exists purely
+  to disambiguate "a pi-native OpenRouter-routed model" from a bare Claude-lane name inside pi agent
+  frontmatter (`features/pi/adjustments/adjust_agents.py:126-128`, `_is_openrouter_model(value) =
+  value.strip().startswith("openrouter/")`, used to decide whether `model:` passes through into a pi agent
+  file, `tests/test_pi_agents.py:260-316`) — a **different concern** (agent-file authoring) from calling the
+  OpenRouter HTTP API. Because `ID_RE` (`model_groups.py:25`) guarantees the shape
+  `openrouter/<vendor>/<name>`, the mapping the port needs is trivial and total: strip the fixed 11-character
+  literal prefix `"openrouter/"` from the resolved id to get the OpenRouter wire model id (e.g.
+  `openrouter/deepseek/deepseek-v4.1-flash` → `deepseek/deepseek-v4.1-flash`, which is exactly the
+  `<vendor>/<model>` shape OpenRouter's `/api/v1/chat/completions` `model` field expects). Equivalent to
+  `resolved_id.removeprefix("openrouter/")` in Python 3.9+ (or `resolved_id.split("openrouter/", 1)[-1]` for
+  older, though the task's floor is 3.10+ so `removeprefix` is available).
+- **Env override**: the task specifies "an env override" for the model default; no such env var exists yet
+  for this feature specifically. Following the `AI_BADGER_*` convention already in use elsewhere (e.g.
+  `AI_BADGER_PROJECT_ID`, `AI_BADGER_DEBUG`, `AI_BADGER_QOS` — [READ, `grep -rhoE 'AI_BADGER_[A-Z_]+'` across
+  `features/`/`tooling/`]), a name like `AI_BADGER_QUERY_PIPELINE_PLANNER_MODEL` would match house style — an
+  owner decision, not something read from any file. [INFERRED]
+
+---
+
+### 7. Pi-specific machinery to adapt, and a Python size estimate
+
+### 7.1 What is pi-specific [READ throughout §1-3, synthesized here]
+
+1. **`AbortController`/`AbortSignal` cooperative cancellation** — used for: linking a parent signal to a
+   per-stage child controller (`linkAbort`, `pipeline.ts:106-116`), racing a promise against a scheduler timer
+   (`race`, `:216-252`), per-attempt cancellation in Jev scoring (`attemptScore`,
+   `jev-client.ts:340-391`, races `fetchPromise`/`timeoutPromise`/`abortPromise`). **Adaptation**: Python has
+   no native cooperative-cancellation object; replace with (a) a single `deadline = time.monotonic() +
+   total_seconds` computed once, (b) per-stage caps derived from `deadline - time.monotonic()` exactly as
+   `pipeline.ts` already computes them arithmetically (the *arithmetic* ports 1:1; only the "await race
+   against a timer" plumbing disappears), and (c) blocking calls (`urllib.request.urlopen(req,
+   timeout=seconds)`) that raise `socket.timeout`/`urllib.error.URLError` on their own — no manual timer/abort
+   wiring needed because Python's HTTP client already has a per-call timeout parameter.
+2. **`PipelineScheduler` injection** (`{setTimeout, clearTimeout}`, `types.ts:62-65`, `pipeline.ts:49-52`) —
+   exists purely so `runner.test.ts`/`score-client.test.ts` can fire timers manually without real waits.
+   **Adaptation**: a Python port needs no scheduler object at all; tests inject a fake clock function
+   (`now: Callable[[], float]`) and fake network callables that raise `TimeoutError` synchronously — strictly
+   simpler, because there is no macrotask queue to simulate.
+3. **Clock injection** (`now: () => number`, defaulting to `Date.now`, `types.ts` / `pipeline.ts:163`) — ports
+   essentially verbatim to `now: Callable[[], float]` defaulting to `time.monotonic`.
+4. **pi's in-process `ModelRegistry`** (`registry.find`/`registry.complete`, `planner-call.ts:19-22`,
+   `:85-104`) — replaced wholesale by a direct OpenRouter HTTP POST (§2.6). This removes the structural-
+   narrowing complexity (`RegistryLike`, `AssistantMessageLike`, `extractText`'s content-array walk,
+   `planner-call.ts:17-60`) and replaces it with plain JSON dict indexing, but *adds* HTTP request/response/
+   error-mapping code that pi never needed (pi's registry already handled transport).
+5. **Live progress/status UI** (`onProgress`, `formatProgress`, `QP_STATUS_KEY`/`QP_WIDGET_KEY`,
+   `pipeline.ts:83-98`, `types.ts:93-96`, consumed by `mem-based-rag/index.ts:619-626,677-680`) — a
+   `UserPromptSubmit`/`pre_llm` hook runs to completion once and returns a result; there is no live TUI status
+   line to update mid-run the way pi's long-lived session has. **Adaptation**: either drop `onProgress`
+   entirely (simplest — a hook has nothing to show it *to*, mid-run) or repurpose it as a structured line in
+   this repo's own audit-log convention (the `call-behaviorist` skill's append-only log, per
+   `features/common/skills/call-behaviorist/`) for post-hoc debugging, never as live UI.
+6. **Extension session lifecycle** (`session_start`/`session_shutdown` hooks, a module-level `warmed` flag
+   surviving across many prompts in one long-lived pi process, `index.ts:38-81`) — has **no direct analogue**:
+   a Claude/Hermes hook is a fresh subprocess per prompt (confirmed by this task's own framing, "per-prompt
+   hook", and by the tier-2 research's "one proxy child per hook run" transport). The Jev warm-up's entire
+   *purpose* — pay a cold-start penalty once per session instead of once per call — has no clean place to live
+   unless the port adds its own cross-invocation state (e.g. a lock/marker file under a per-session tmp
+   directory keyed by session id, mirroring how `AI_BADGER_PROJECT_ID`/session-id resolution already works
+   elsewhere) — or the owner simply drops the warm-up, accepting the cold-start cost on the first pipeline
+   call of every prompt (session-level amortization is lost either way, since each hook invocation is its own
+   process; only a *cross-process* marker could restore even session-scoped amortization, and doing so is a
+   new mechanism, not a port of pi's in-memory boolean).
+7. **Single-flight `searchFlight` promise chain** (`mem-based-rag/index.ts:478-479,639-653`) — exists because
+   pi's long-lived extension can receive interleaved commands/searches within one session. A one-shot,
+   single-threaded Python hook process has no concurrent callers by construction, so this concern **disappears
+   for free** — no adaptation needed, simply don't build the machinery.
+8. **"Inherit the session's current model" planner fallback** (`planner-call.ts:77,91`, `options.model` =
+   `ctx.model`, pi's active model for this turn) — has no analogue in a standalone OpenRouter HTTP call from a
+   hook process, which has no notion of "the enclosing agent's current model" as a callable object. The port's
+   fallback chain necessarily shortens to two tiers (§2.5): explicit env ref, else the model-groups `medium`
+   pin — never "whatever model is currently running."
+9. **`fetch`-shaped `Response`** (`.headers.get(name)`, `.text()`, `JevScoreFetchResponse`,
+   `jev-client.ts:130-140`) used as the injected-fetch seam's return type — Python's `urllib`/`http.client`
+   response objects (`.status`, `.getheader(name)`, `.read()`) are a close but not identical shape; the
+   classifier logic that consumes them (`classifyScoreResponse`, `jev-client.ts:280-321`) ports by field-name
+   substitution only, no behavioral change.
+10. **TS's "zero imports" purity convention** for `types.ts`/`merge.ts`/`planner.ts` (stated explicitly in
+    each file's header comment, e.g. `merge.ts:5-8`) — the *intent* (pure, dependency-free, easily unit-tested
+    modules) carries over cleanly to Python (`merge.py`/`planner.py` importing only `typing`/`re`/`json` from
+    stdlib); the letter of "zero imports" doesn't apply the same way once `model_groups.py` needs importing
+    for §6, but the spirit (no ambient env/clock/network reads inside the pure modules) should be preserved.
+
+### 7.2 Python size estimate [INFERRED — no Python port exists yet to measure]
+
+Original TS surface: 1,703 lines across 8 files (`types.ts` 136, `merge.ts` 151, `planner.ts` 291,
+`planner-call.ts` 121, `jev-client.ts` 529, `pipeline.ts` 400, `index.ts` 82, `README.md` excluded) — this
+1,703-line figure is also independently cited by the sibling tier-2 research doc
+(`.../aib-ai-raccoon-prompt-rag-hook/docs/work/2026-09-27-ai-raccoon-prompt-rag-hook-research.md:573`,
+"`extensions/query-pipeline/*.ts` (1703 lines, 8 files, NOT ported)") [READ, corroborating `wc -l` on the
+same files, MEASURED this session: 400+291+121+529+151+136+82 = 1710, the 7-line discrepancy is immaterial
+license/blank-line counting].
+
+Estimated Python module sizes, reasoning per module:
+
+| Module | TS lines | Est. Python lines | Why it shrinks/grows |
+|---|---|---|---|
+| `merge.py` | 151 | ~130-160 | Near 1:1 — pure data-shuffling logic, no TS-specific constructs to lose or gain. |
+| `planner.py` (persona/addendum consts + `parse_plan`) | 291 | ~230-270 | Slightly smaller — the persona/addendum string constants dominate both (identical length either language); `parse_plan`'s brace-scanning logic is the same algorithm in fewer lines in Python (no `interface`/type-only lines). |
+| `planner_call.py` (OpenRouter HTTP + text extraction) | 121 | ~140-190 | Larger — loses the structural-narrowing boilerplate (`RegistryLike`/`AssistantMessageLike`, ~40 lines) but gains `urllib.request` request-building, header assembly, and HTTP-error-to-fallback-reason mapping that pi's registry used to hide. |
+| `jev_client.py` | 529 | ~380-460 | Smaller — loses the `AbortController`/scheduler race machinery (`attemptScore`'s three-way `Promise.race`, ~50 lines) in favor of a single `urlopen(timeout=...)` call per attempt; keeps almost all of the builder/parser/classifier/retry logic verbatim. |
+| `pipeline.py` (runner) | 400 | ~280-340 | Smaller — loses `linkAbort`/`race`/`RaceOutcome` generic scaffolding (~90 lines) in favor of direct deadline arithmetic and try/except around blocking calls; keeps stage sequencing, budget formulas, and fallback-reason logic verbatim. |
+| `types.py` (dataclasses/env names/`num_env`) | 136 | ~90-120 | Smaller — TS's separate `interface` declarations collapse into fewer `dataclass`/`TypedDict` blocks; env-name constants and `num_env`'s clamp logic port near verbatim. |
+| extension wiring (`index.ts` equivalent) | 82 | ~0-40 | Mostly **eliminated** per §7.1.6 — no `session_start`/`session_shutdown` hooks exist for a one-shot process; at most a small glue block inside the hook script itself if the owner keeps a warm-up. |
+| **Total (library code only, excl. tests, excl. reused `model_groups.py`)** | **1,710** | **~1,250-1,560** | |
+
+Net effect: the port is likely **modestly smaller** than the TS original (roughly 10-25% fewer lines),
+because the AbortController/scheduler/registry-narrowing machinery pi needed for its in-process,
+cooperatively-cancellable, long-lived-extension world (~180-220 lines across `pipeline.ts`/`jev-client.ts`/
+`planner-call.ts`) is replaced by strictly simpler blocking-call-with-timeout code, only partly offset by the
+new OpenRouter request/response plumbing the planner call now needs (which `jev-client.ts` already proves is
+cheap — its own OpenRouter builder/parser is ~120 lines including all error handling, `jev-client.ts:180-321`).
+This estimate excludes: the hook's own entry-point/argument-parsing glue, `model_groups.py` (360 lines,
+already exists and is reused, not rewritten), and the test suite (§5, itself roughly 2,000+ lines in TS,
+similarly reducible in Python for the same reasons).
+
