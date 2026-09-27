@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import NamedTuple, Optional
 
 import pytest
 
@@ -17,7 +18,20 @@ mc = load_module()
 
 PI_COMMIT = "ee5f1c6e689b988a8924781b3acb5961ce40c326"
 GOLDEN_INPUTS = FIXTURES / "golden_inputs.json"
-GOLDEN_FILES = {"golden_outputs.json": "gen_goldens.ts"}
+
+
+class Golden(NamedTuple):
+    """Where a committed golden came from: its bun generator and the inputs file it read."""
+
+    generator: str
+    inputs: Optional[str]
+
+
+GOLDEN_FILES = {
+    "golden_outputs.json": Golden("gen_goldens.ts", "golden_inputs.json"),
+    "pipeline_goldens.json": Golden("gen_pipeline_goldens.ts", "pipeline_golden_inputs.json"),
+    "score_fixtures.json": Golden("gen_pipeline_goldens.ts", None),
+}
 LONG_PROMPT = "why does the memory context hook stay silent on every prompt"
 
 
@@ -242,15 +256,41 @@ def test_c23_non_bmp_truncates_by_code_point_and_encodes():
 # ------------------------------------------------------------------ provenance
 
 
-@pytest.mark.parametrize("name,generator", sorted(GOLDEN_FILES.items()))
-def test_gp1_golden_provenance(name, generator):
+def nested_ids(node) -> list:
+    """Every `id` value in dicts nested anywhere under *node*."""
+    if isinstance(node, dict):
+        own = [node["id"]] if "id" in node else []
+        return own + [i for value in node.values() for i in nested_ids(value)]
+    if isinstance(node, list):
+        return [i for value in node for i in nested_ids(value)]
+    return []
+
+
+def case_ids(doc: dict) -> set:
+    """Case keys of a golden or its inputs: `cases`/`outputs` keys, else `(section, id)` pairs."""
+    for key in ("cases", "outputs"):
+        if isinstance(doc.get(key), dict):
+            return set(doc[key])
+    return {(section, case) for section, node in doc.items() for case in nested_ids(node)}
+
+
+@pytest.mark.parametrize("name,source", sorted(GOLDEN_FILES.items()))
+def test_gp1_golden_provenance(name, source):
     golden = json.loads((FIXTURES / name).read_text(encoding="utf-8"))
-    assert golden["generator"] == generator
-    assert (FIXTURES / generator).is_file()
+    assert golden["generator"] == source.generator
+    assert (FIXTURES / source.generator).is_file()
     assert isinstance(golden["bun"], str) and golden["bun"].strip()
     assert golden["pi_commit"] == PI_COMMIT
-    inputs = json.loads(GOLDEN_INPUTS.read_text(encoding="utf-8"))["cases"]
-    assert set(golden["outputs"]) == set(inputs)
+    if source.inputs is not None:
+        inputs = json.loads((FIXTURES / source.inputs).read_text(encoding="utf-8"))
+        assert case_ids(inputs)
+        assert case_ids(golden) == case_ids(inputs)
+
+
+def test_gp1_covers_every_generated_fixture():
+    generated = {path.name for path in FIXTURES.glob("*.json")
+                 if "generator" in json.loads(path.read_text(encoding="utf-8"))}
+    assert generated == set(GOLDEN_FILES)
 
 
 WRITE_CALL = re.compile(r"write_text|write_bytes|json\.dump|open\([^)]*['\"][wax]")
