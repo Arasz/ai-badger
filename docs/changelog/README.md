@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.177.3 | [AiRaccoon checklist items that go red on the defects they cover](0.177.3-raccoon-checklist-defect-items.md) |
 | 0.177.2 | [the Hermes plugin's two counters stop losing updates](0.177.2-hermes-atomic-updates.md) |
 | 0.177.1 | [five skill-script correctness fixes, and MCP content-block shapes for two hooks](0.177.1-skill-script-correctness-fixes.md) |
 | 0.177.0 | [welcome-ai-badger scaffold writes that do not clobber](0.177.0-welcome-scaffold-writes-that-do-not-clobber.md) |
