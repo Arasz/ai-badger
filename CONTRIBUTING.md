@@ -97,18 +97,18 @@ file again.
 
 ```
 features/{stack|common}/{feature}/   the catalog — skills, personas, invariants, instructions,
-                                     hooks, adjustments, templates, mcp
+                                     hooks, adjustments, templates, mcp, data, retrieval
 engine/                              the library every bootstrap shim imports: badger_lib,
-                                     framework_copies, frontmatter, unsafe_literals
-                                     (and requirements.txt)
+                                     badger_store, framework_copies, frontmatter,
+                                     unsafe_literals (and requirements.txt)
 tooling/                             maintainer catalog and release tooling: index_build,
                                      validate, version_sync, changelog_index,
                                      sync_plugin_skills, install_plugins, retrieval_eval,
                                      fixture_harvest
 gates/                               repo gates CI and the pre-push hook run: release_guard,
                                      tdd_guard, docs_guard, deps_guard, shipped_paths_guard,
-                                     scaffold_freshness_guard, skills_lint (and gate_report,
-                                     the shared finding shape)
+                                     scaffold_freshness_guard, skills_lint, workflow_lint,
+                                     consumer_journey (and gate_report, the shared finding shape)
 .github/scripts/                     CI helpers a workflow calls and nothing else:
                                      conflicting_pr_report
 schemas/                             a JSON Schema per *.json model
@@ -274,6 +274,7 @@ What each one is for:
 | `scaffold_freshness_guard.py` | Re-scaffolding this repo against itself would change something other than a version stamp — a `features/**` edit that never reached `.ai-badger/`. |
 | `tdd_guard.py` | Code changed and no test changed with it. Runs on branches, not on `main`. |
 | `workflow_lint.py` | A `uses:` in `.github/workflows/` is not pinned to a commit SHA, or a workflow runs on the repository's default token scope with no `permissions:` block. |
+| `consumer_journey.py` | Installing the plugin the way a consumer does, scaffolding a throwaway project, working in it and tearing it down leaves something behind or refuses the wrong thing. |
 | `node --test` | A `.mjs` gate script's tests fail. |
 
 **CodeQL** also runs on every pull request and is a required check before merge.
