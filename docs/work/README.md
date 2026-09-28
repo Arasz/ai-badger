@@ -168,11 +168,19 @@ the first plain-markdown record here.
 | `plan-reviews/r3-seams-intent.md` | Plan-review lane: the re-scaffold argv trap, the `steps_ready` contradiction, the host-smoke gap. |
 | `impl-reports/s2-domain-model.md` | S2 implementation report: model + schema + drift gate (6 witnesses). |
 | `impl-reports/s3-store.md` | S3 implementation report: `plans` table, CAS, re-vendoring (24 copies). |
+| `impl-reports/s4-jev.md` | S4 implementation report: Jev advisory (fail-closed parser, vendoring equivalence, fail-safe directions). Recovered from the d-13 receipt. |
+| `impl-reports/s5-ops.md` | S5 implementation report: graph ops, guards, deterministic deferral waves (no-subprocess). Recovered from the d-14 receipt. |
+| `impl-reports/s6-plan-store.md` | S6 implementation report: store-backed plan service + frozen root resolution (scheduled interleave). Recovered from the d-15 receipt. |
+| `impl-reports/s7-transports.md` | S7 implementation report: MCP server + CLI transports, 12-tool frozen contract, uv smoke MEASURED. Recovered from the d-16 receipt. |
 | `impl-reports/s8-catalog.md` | S8 implementation report: MCP catalog packet + declaration (two prerequisite fixtures). |
 | `impl-reports/s9-skill.md` | S9 implementation report: the `task-decomposition` skill source + contract test. |
 | `impl-reports/s10-pipeline.md` | S10 implementation report: the step-vocabulary rewrite + pin test. |
 | `impl-reports/s11-status.md` | S11 implementation report: status-report dual-read (`STEP_RE`, frozen keys). |
 | `impl-reports/s12-claims.md` | S12 implementation report: the dependency claims made true. |
 | `impl-reports/s13-integration.md` | S13 implementation report: the cross-module integration proof + mutation witnesses. |
+| `impl-reviews/r1-correctness.md` | Implementation review (correctness lens, d-23): byte-stdio crash MUST + 9 findings; dispositions verified. Partially recovered — opening elided in transit. |
+| `impl-reviews/r2-test-honesty-consistency.md` | Implementation review (test-honesty lens, d-24): Jev-unreachable MUST + 7 findings; dispositions verified. Partially recovered — opening elided in transit. |
 | `impl-reviews/r3-consumer-hermes.md` | Implementation review (consumer/Hermes lens): the no-shapes reference, Copilot entry loss, fallback-advice errors. |
 | `impl-reviews/r4-review-tests-qa.md` | Test-quality assessment: 15/15 behavioral mutations caught; header pin, comparator witness, timestamp gaps. |
+| `2026-09-28-jev-decision-points.md` | Measured where a Jev "system one" call earns its place (latency table, findings) — the carried exploration record. |
+| `2026-09-28-task-decomposition-architecture.json` | Archify workflow source for the task-plan pipeline diagram; showcase delivery blocked by one composition diagnostic (jev-dag/store-file corridor share) after 6 repair rounds — retry candidate, diagnostics recorded in this transcript's report. |

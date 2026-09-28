@@ -1,0 +1,94 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Task-Plan Pipeline — ai-badger 0.179.0",
+    "subtitle": "graph-backed step DAG managed by the local task-graph MCP server",
+    "animation": "none",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "output": "docs/work/2026-09-28-task-decomposition-architecture.html",
+    "views": [
+      {
+        "id": "happy-path",
+        "label": "Research to evidence",
+        "focus": ["research", "decompose", "plan_create", "dag", "dispatch", "step_run", "progress"],
+        "note": "The main path: a research record becomes a step DAG, then waves of work with acceptance evidence."
+      },
+      {
+        "id": "state-and-evidence",
+        "label": "Where state lives",
+        "focus": ["plan_create", "store", "file", "step_run", "progress"],
+        "note": "Plans persist in tracking.db with revision CAS; the markdown plan file is derived output."
+      },
+      {
+        "id": "degraded-paths",
+        "label": "Fallbacks and advisory",
+        "focus": ["decompose", "jev", "dag", "offline", "file"],
+        "note": "Jev is off by default and may only upgrade tiers or serialize; the no-server path hand-writes the plan file."
+      }
+    ]
+  },
+  "lanes": [
+    { "id": "input", "label": "Task Input & Research" },
+    { "id": "planning", "label": "Planning (task-decomposition)" },
+    { "id": "state", "label": "State & Evidence" },
+    { "id": "execution", "label": "Dispatch & Execution" },
+    { "id": "advisory", "label": "Advisory & Fallback", "variant": "exception" }
+  ],
+  "phases": [
+    { "id": "authoring", "label": "Authoring", "fromCol": 0, "toCol": 1 },
+    { "id": "plan-state", "label": "Plan + state", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "run", "label": "Run + evidence", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "side-paths", "label": "Optional and degraded", "lane": "advisory", "fromCol": 1, "toCol": 3, "variant": "dashed" }
+  ],
+  "mainPath": ["research", "decompose", "plan_create", "dag", "dispatch", "step_run", "progress"],
+  "nodes": [
+    { "id": "research", "lane": "input", "col": 0, "type": "external", "label": "Research record", "sublabel": "analyze + lanes", "width": 132 },
+    { "id": "decompose", "lane": "input", "col": 1, "type": "backend", "label": "task-decomposition", "sublabel": "five-rule method", "tag": "skill", "width": 148 },
+    { "id": "plan_create", "lane": "planning", "col": 2, "type": "backend", "label": "plan_create", "sublabel": "MCP or CLI twin", "width": 132 },
+    { "id": "dag", "lane": "planning", "col": 3, "type": "backend", "label": "Step DAG", "sublabel": "steps + dependsOn", "tag": "graphlib", "width": 132 },
+    { "id": "store", "lane": "state", "col": 2, "type": "database", "label": "tracking.db plans", "sublabel": "schema v3, CAS", "width": 148 },
+    { "id": "file", "lane": "state", "col": 3, "type": "frontend", "label": "Plan file", "sublabel": "**S<N>** headings", "width": 132 },
+    { "id": "progress", "lane": "state", "col": 5, "type": "frontend", "label": "progress_checklist", "sublabel": "AC + status-report", "width": 148 },
+    { "id": "dispatch", "lane": "execution", "col": 4, "type": "messagebus", "label": "Wave dispatch", "sublabel": "steps_ready", "width": 132 },
+    { "id": "step_run", "lane": "execution", "col": 5, "type": "backend", "label": "step lifecycle", "sublabel": "start / ac_check / done", "width": 148 },
+    { "id": "jev", "lane": "advisory", "col": 1, "type": "cloud", "label": "Jev advisory", "sublabel": "off by default", "tag": "upgrade + serialize only", "width": 148 },
+    { "id": "offline", "lane": "advisory", "col": 3, "type": "external", "label": "No-server fallback", "sublabel": "hand-written plan", "width": 148 }
+  ],
+  "edges": [
+    { "id": "research-decompose", "from": "research", "to": "decompose", "label": "record feeds", "variant": "default" },
+    { "id": "decompose-plan", "from": "decompose", "to": "plan_create", "label": "task-plan", "variant": "emphasis" },
+    { "id": "plan-dag", "from": "plan_create", "to": "dag", "label": "workflow is a DAG", "variant": "emphasis" },
+    { "id": "plan-store", "from": "plan_create", "to": "store", "label": "persist (revision CAS)", "variant": "dashed", "role": "async" },
+    { "id": "store-file", "from": "store", "to": "file", "label": "render", "variant": "dashed", "role": "async" },
+    { "id": "dag-dispatch", "from": "dag", "to": "dispatch", "label": "steps_ready", "variant": "default" },
+    { "id": "dispatch-run", "from": "dispatch", "to": "step_run", "label": "lanes", "variant": "emphasis" },
+    { "id": "run-progress", "from": "step_run", "to": "progress", "label": "state writes + AC evidence", "variant": "emphasis", "role": "return" },
+    { "id": "decompose-jev", "from": "decompose", "to": "jev", "label": "tier question (opt-in)", "variant": "dashed", "role": "branch" },
+    { "id": "jev-dag", "from": "jev", "to": "dag", "label": "upgrade-only, serialize-only", "variant": "dashed", "role": "branch", "channelX": 700 },
+    { "id": "offline-file", "from": "offline", "to": "file", "label": "no server", "variant": "dashed", "role": "branch" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Invariants",
+      "items": [
+        "Server is offline by contract — no network in the plan path",
+        "plans DDL is gated to the tracking store (ADR-0032)",
+        "Revision CAS; content-hash idempotent replays"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Fail-safe directions",
+      "items": [
+        "Jev off or failing: deterministic logic decides",
+        "skip is valid from pending / in_progress / failed (DR7)",
+        "Unready pairs default to serialize, never parallelize"
+      ]
+    }
+  ]
+}
