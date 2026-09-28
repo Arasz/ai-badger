@@ -783,5 +783,8 @@ def test_a1_real_catalog_copilot_timeouts_are_unchanged(root, load_script, tmp_p
     assert result["applied"]
     hooks = json.loads(
         (target / ".github" / "hooks" / "ai-badger-hooks.json").read_text(encoding="utf-8"))
-    timeouts = {h["timeoutSec"] for entries in hooks["hooks"].values() for h in entries}
-    assert timeouts == {10}, timeouts
+    # memory_context_hook.py is the one source command declaring `timeout: 100`, carried on purpose.
+    carried = {(_script_name(h["bash"]), h["timeoutSec"])
+               for entries in hooks["hooks"].values() for h in entries}
+    assert {t for name, t in carried if name != "memory_context_hook.py"} == {10}, carried
+    assert {t for name, t in carried if name == "memory_context_hook.py"} == {100}, carried

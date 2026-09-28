@@ -3,7 +3,7 @@ name: ai-raccoon-memory
 description: >-
   Use when a project needs a memory server — search project and shared memory first, write
   durable facts with source paths, watch a docs directory, or promote facts across projects.
-version: 0.1.0
+version: 0.2.0
 author: ai-badger
 license: MIT
 platforms: [linux, macos, windows]

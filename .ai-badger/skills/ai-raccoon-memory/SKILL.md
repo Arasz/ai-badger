@@ -3,7 +3,7 @@ name: ai-raccoon-memory
 description: >-
   Use when a project needs a memory server — search project and shared memory first, write
   durable facts with source paths, watch a docs directory, or promote facts across projects.
-version: 0.1.0
+version: 0.2.0
 author: ai-badger
 license: MIT
 platforms: [linux, macos, windows]
@@ -83,7 +83,85 @@ low-rated entries; shared entries are exempt.
 `memory_ingest_file` / `memory_ingest_directory` bulk-load files; `memory_stats` reports bank
 size; `memory_sync` exchanges snapshots with cloud storage when configured.
 
-## 8. Verification Checklist
+## 8. Per-prompt memory context (automatic)
+
+This skill ships a hook that searches memory for you before the model sees each prompt. It
+runs on Claude Code and Copilot CLI (`UserPromptSubmit` / `userPromptSubmitted`, entry
+`scripts/memory_context_hook.py`) and in Hermes CLI sessions (`pre_llm_call`). It never runs
+on pi. It is POSIX only: on Windows it stays silent and spawns nothing.
+
+**When it fires.** Every prompt that passes pi's `shouldEnrich` gate (long enough, enough
+distinct words, not a slash command or a control word like `continue`), in a project where
+`.ai-badger/project-id` resolves and the `ai-raccoon` executable is found (`PATH` first, then
+`~/.dotnet/tools/ai-raccoon`). Each run spawns the bare `ai-raccoon` binary as a proxy, once,
+and sends every search over that one session. The hook never reads the ai-raccoon token; the
+proxy does the identity proof. If no serve is running, the proxy may start one, and that serve
+outlives the hook under its own idle watchdog. When hits survive pruning, the hook injects a
+"Memory context" block identical to pi's `toMemoryContext` output. Otherwise it injects
+nothing. Every failure is silent, and the hook always exits 0.
+
+**Two modes.** Both inject the same block.
+
+- *Pipeline*: runs when `OPENROUTER_API_KEY` is set and `AI_BADGER_MEMORY_CONTEXT_PIPELINE` is
+  not `"0"`. An OpenRouter model plans 2 to 6 retrieval queries, each is searched once, the
+  Jev decisions endpoint scores the pooled hits, and pi's document-aware merge keeps the best
+  five. The whole run is capped at 90 s on Claude and Copilot and at 25 s under Hermes, which
+  abandons a `pre_llm_call` callback after 30 s. Planner, searches and Jev each get a share
+  of that cap. If the planner fails, the run falls back to one search on the prompt.
+- *Single search*: every other case. One search on the prompt, capped at 5 s. Nothing leaves
+  the machine except the call to the local proxy.
+
+**What leaves the machine.** Only in pipeline mode, and only to OpenRouter: the gated prompt
+(the planner's input, and its first 32 000 characters in each Jev request), and for up to 48
+pooled hits their file path, kind and a 500-character excerpt of memory *and source code*.
+The key is read from the environment only and is never logged or written anywhere. Set
+`AI_BADGER_MEMORY_CONTEXT_PIPELINE=0` to keep everything but the ai-raccoon search local.
+
+**Switches.** Only the literal `"0"` counts for either switch.
+
+| Variable | Effect |
+|---|---|
+| `AI_BADGER_MEMORY_CONTEXT=0` | Hook off: no spawn, no HTTP, no block |
+| `AI_BADGER_MEMORY_CONTEXT_PIPELINE=0` | Single search even with a key; no HTTP |
+| `AI_BADGER_MEMORY_CONTEXT_PLANNER_MODEL` | Planner model override (an OpenRouter model id) |
+| `OPENROUTER_API_KEY` | Turns the pipeline on |
+| `AI_BADGER_PROJECT_ID` | Overrides `.ai-badger/project-id`; exported globally, it routes every repo to one project |
+
+Without the override, the planner uses the `medium` tier's preferred model through the `task`
+skill's `model_groups.py` and the project's `model-groups.json`. A project that declined the
+`task` skill has no resolver, so the planner has no model and every run falls back to a single
+search unless the override is set. The planner model comes from project data and is billed to
+your key; the override pins it.
+
+**Search log.** Each enriched prompt, and each planned query, is a real `memory_search` and
+lands in ai-raccoon's search log like any other search.
+
+**Per agent.**
+
+- *Claude Code*: prints the `hookSpecificOutput` envelope. The hook's `timeout` is 100 s,
+  because `UserPromptSubmit` otherwise defaults to 30 s.
+- *Copilot CLI*: prints flat `{"additionalContext": ...}`, the only shape Copilot CLI 1.0.88
+  consumed when measured (the envelope was ignored). `timeoutSec` is 100. Copilot loads repo
+  hooks only for a folder listed in `trustedFolders` in `~/.copilot/config.json`; in an
+  untrusted folder the hook never runs, which looks exactly like an empty result.
+- *Hermes*: CLI sessions only. The arm runs when `(platform or "cli") == "cli"`, Hermes's own
+  normalisation, so a gateway session (Telegram, Discord and the rest) never triggers a search
+  or OpenRouter call. It also needs `.ai-badger/skills/ai-raccoon-memory/` in the project. The
+  block goes last in the injected context, followed by `(end of memory context)`, and the
+  result is memoized per session and prompt, so a tool loop searches once.
+
+Declining this skill through `config.exclude` removes the Claude wiring and turns the Hermes
+arm off. The Copilot hooks file still names the command today; with the skill's scripts absent,
+its existence guard answers each prompt with a "hook skipped" system message instead.
+
+**Parity with pi.** The block is byte-identical to pi's for any hit whose path and string rank
+hold no line-break or tab characters, whose snippets hold no U+0085, whose rank is a number,
+string, boolean or null, and whose text is not cut inside a non-BMP character. Outside that,
+this port collapses line breaks in paths and ranks to one space (pi keeps them raw), prints `?`
+for a list or object rank, and counts truncation in code points. ADR-0031 lists every
+divergence.
+
+## 9. Verification Checklist
 
 - [ ] `memory_watch_status` shows the docs dir `healthy`
 - [ ] `memory_search(projectId, sessionId, scope=all)` returns docs-derived hits
