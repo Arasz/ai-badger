@@ -34,7 +34,8 @@ COPILOT_ENTRY = {
 }
 # The prerequisite text test_mcp_prerequisites.py requires every declared server to carry.
 PREREQUISITE_SUMMARY = (
-    "uv on PATH; the server and its pydantic env are fetched on first launch (PEP 723)"
+    "uv on PATH; the server and its pydantic env are fetched on first launch (PEP 723); "
+    "the launch path is project-relative, so start it from the project root"
 )
 UV_INSTALL = "curl -LsSf https://astral.sh/uv/install.sh | sh"
 # Byte-for-byte what note_declared_prerequisites() renders for the meta.json this packet ships.
@@ -236,3 +237,19 @@ def test_without_uv_the_declaration_is_still_written_and_the_note_is_exact(
     assert any("'uv' was not found" in note for note in scaf.ctx.notes)
     prerequisite_notes = [n for n in scaf.ctx.notes if n.startswith(f"prerequisite — {SERVER} ")]
     assert prerequisite_notes == [EXPECTED_NOTE]
+
+
+def test_the_combined_claude_copilot_scaffold_keeps_both_usable_entries(
+        make_scaffolder, uv_on_path):
+    """Copilot CLI reads both files; a Claude-anchored `.mcp.json` must not hide its entry.
+
+    The Claude entry anchors the launch script with `${CLAUDE_PROJECT_DIR}/`; the Copilot
+    entry carries the same project-relative path. Both resolve to the same script, so the
+    #193 drop must not fire: the combined scaffold is the common case, and the Copilot agent
+    gets nothing otherwise.
+    """
+    scaf = _scaffold(make_scaffolder, ["claude", "copilot"])
+
+    assert _servers(make_scaffolder, ".mcp.json")[SERVER] == CLAUDE_ENTRY
+    assert _servers(make_scaffolder, ".github/mcp.json")[SERVER] == COPILOT_ENTRY
+    assert not any("declared only in" in note and SERVER in note for note in scaf.ctx.notes)

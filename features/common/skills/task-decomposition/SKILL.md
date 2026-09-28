@@ -10,7 +10,7 @@ description: >-
 version: 1.0.0
 author: ai-badger
 license: MIT
-platforms: [linux, macos]
+platforms: [linux, macos, windows]
 scope: default
 metadata:
   hermes:
@@ -45,7 +45,7 @@ another skill names a planning unit ("package", "subpackage", `WPn`), consult
 - **Before the research record exists.** A plan written over a guess is a guess with a table
   around it; gather evidence first, then decompose.
 - **To execute the plan.** This skill authors; `task` dispatches the lanes.
-- **Over an in-flight task that has no plan row.** That is the legacy plan-file path (DR12):
+- **Over an in-flight task that has no plan row.** That is the legacy plan-file path:
   read and check the existing file, never create graph state underneath it.
 - A single change with one acceptance criterion and no ordering — just do it.
 
@@ -53,7 +53,7 @@ another skill names a planning unit ("package", "subpackage", `WPn`), consult
 
 1. **The analyze/research record** — findings with source paths, and the full request. Every
    request point is an input, including the ones the task key does not name.
-2. **Optionally `create-task-spec`'s `spec.json` and its companion `.feature`** (DR13). The
+2. **Optionally `create-task-spec`'s `spec.json` and its companion `.feature`**. The
    spec stays the requirements artifact; the plan is the executable decomposition that
    consumes it. Coverage rule: every non-deferred spec scenario maps to at least one step
    acceptance criterion; a deferred decision arrives as a constraint, never as a reopened
@@ -106,7 +106,7 @@ a defect too: no "run the tests" step, and no step restating another step's AC.
 
 ## Steps and the join rule
 
-The join is a property of the workflow, not a special kind of step (DR8).
+The join is a property of the workflow, not a special kind of step.
 
 - When the workflow has more than one sink (a step nothing depends on), it carries a **join
   step** that depends on every other sink. The join step's ACs are only the cross-step checks
@@ -129,7 +129,11 @@ through the server — never write the store by hand.
    (`created:false`); different content under an existing `task_id` is refused
    (`already-exists`) — revise through `plan_replace` instead.
 2. **`steps_ready`** — the ready frontier and the waves packed around file and resource
-   conflicts; this is the dispatch order, and it changes as statuses change.
+   conflicts; this is the dispatch order, and it changes as statuses change. When the opt-in
+   Jev advisory is enabled (`AI_BADGER_JEV=1` plus its per-capability switches), it may add
+   serialization hints or tier upgrades on top of this output; it never removes a wave and
+   never demotes a tier. When you enable it, `references/decomposition-method.md` carries the
+   invocation and the fail-safe polarity.
 3. **`plan_export`** — the stored document verbatim plus its schema URL. This is the review
    artifact: hand this to plan review, not a paraphrase.
 4. **`plan_replace`** — re-author the whole plan under `expected_revision` when review
@@ -146,15 +150,14 @@ uv run --script .ai-badger/skills/task-decomposition/scripts/task_graph_cli.py <
 model accepts. Exit 0 carries the payload, exit 1 the closed error envelope, exit 2 a usage
 error.
 
-**Degraded path (DR12).** When neither the server is listed nor the CLI runs, the graph is
+**Degraded path.** When neither the server is listed nor the CLI runs, the graph is
 off. Then write the plan file by hand to
 `.ai-badger/task-tracking/plans/<YYYY-MM-DD>-<taskId>.md` in the frozen shape: one
 `**S<N> …**` heading per step, one `- [ ]` per acceptance criterion, and a note in the
 generated banner position saying `hand-written — graph off`. Say the graph is off out loud,
-and never hand-write `tracking.db`. Hand-written plans lose the enforced half: failure
-blocking, force, blocked-descendant and join enforcement are documented but not applied, and
-checkbox state is the only status. Never call `plan_create` over an in-flight task that has
-no plan row — that is the legacy plan-file path.
+and never hand-write `tracking.db`. Manual checkboxes do not enforce failed/forced/blocked or
+the join rule — those are graph-only semantics; checkbox state is the only status. Never call
+`plan_create` over an in-flight task that has no plan row — that is the legacy plan-file path.
 
 **First run is honest about `uv`.** On a cold `uv` cache the first `uv run --script` call
 fetches `pydantic>=2.12,<3` before the tool starts, so the very first plan needs network; a
