@@ -178,6 +178,8 @@ the first plain-markdown record here.
 | `impl-reports/s11-status.md` | S11 implementation report: status-report dual-read (`STEP_RE`, frozen keys). |
 | `impl-reports/s12-claims.md` | S12 implementation report: the dependency claims made true. |
 | `impl-reports/s13-integration.md` | S13 implementation report: the cross-module integration proof + mutation witnesses. |
+| `impl-reviews/r1-correctness.md` | Implementation review (correctness lens, d-23): byte-stdio crash MUST + 9 findings; dispositions verified. Partially recovered — opening elided in transit. |
+| `impl-reviews/r2-test-honesty-consistency.md` | Implementation review (test-honesty lens, d-24): Jev-unreachable MUST + 7 findings; dispositions verified. Partially recovered — opening elided in transit. |
 | `impl-reviews/r3-consumer-hermes.md` | Implementation review (consumer/Hermes lens): the no-shapes reference, Copilot entry loss, fallback-advice errors. |
 | `impl-reviews/r4-review-tests-qa.md` | Test-quality assessment: 15/15 behavioral mutations caught; header pin, comparator witness, timestamp gaps. |
 | `2026-09-28-jev-decision-points.md` | Measured where a Jev "system one" call earns its place (latency table, findings) — the carried exploration record. |
