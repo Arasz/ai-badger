@@ -1,10 +1,10 @@
 # Skills
 
-This page catalogs 48 skills — everything under `features/common/skills/` and
+This page catalogs 49 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-47 live under `features/common/skills/` and split by the `scope:` each declares in its own
+48 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**45 are `default`** and arrive in every scaffolded project without being asked for, and
+**46 are `default`** and arrive in every scaffolded project without being asked for, and
 **2 are `optIn`** — the sqlite pair, which stays out of the default set because it is specific
 to a SQLite-backed project ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)). Everything else
 moved to `default` in 0.169.0 ([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)); a
@@ -14,8 +14,8 @@ opt-in pair. The last one,
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 48 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **54** files:
-the 48 above plus 6 more that belong to a single stack and arrive only with it — the
+**These 49 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **55** files:
+the 49 above plus 6 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/`, 1 under `features/ai-raccoon/skills/` and 1 under `features/github/skills/`.
 Those 6 have no row below and are documented by their own `SKILL.md`. Derive the number rather
@@ -85,6 +85,7 @@ names it (the sqlite pair today), **claude-only** when the stack decides.
 | [humanizer](#humanizer) | Strip AI writing artifacts, apply research-grounded humanization levers, and adopt a natural voice | default | by name |
 | [archify](#archify) | Author architecture, workflow, sequence, data-flow and lifecycle diagrams as validated standalone HTML, with Mermaid as the fallback | default | by name |
 | [task](#task) | Run one backlog task end to end with model delegation | default | by name (`/task <id>`) |
+| [task-decomposition](#task-decomposition) | Turn a researched brief into the `step` DAG the task pipeline executes | default | by name (or from `task`) |
 | [quick-task](#quick-task) | Ship a one-sentence, one-surface change as a single commit on a branch merged via PR with auto-merge — minimal plan, touched-surface tests, no review wait | default | by name |
 | [status-report](#status-report) | Answer "where are we?" mid-task — current task, checklist progress, next, delegation status | default | by name |
 | [qa](#qa) | Run a grounded Q&A session against a context and save the summary to docs | default | by name (`qa {context}`) |
@@ -268,6 +269,28 @@ high-reasoning model and implementation to persona-routed agents.
 squash-merge.
 
 **When to use it.** "/task \<id\>", "start task X", "work on the next task", "finish this task".
+
+### task-decomposition
+
+[`SKILL.md`](../features/common/skills/task-decomposition/SKILL.md)
+
+**What it is.** The planning half of the `task` pipeline: turns a researched brief into one
+validated `task-plan` — a DAG of `step`s, each one lane's dispatch carrying acceptance
+criteria whose `check` can go red, real dependencies, effort and owned files. The spec from
+`create-task-spec` stays the requirements artifact; the plan is the executable decomposition
+that consumes it, and every non-deferred scenario maps to at least one step AC.
+
+**What it does.** Applies the five decomposition rules (granularity, actionability, error
+propagation, completeness, stop rules), enforces the join rule for multi-sink workflows, and
+records the result through the `task-graph` MCP server (`plan_create` → `steps_ready` →
+`plan_export` → `plan_replace`) or the CLI twin
+`uv run --script .ai-badger/skills/task-decomposition/scripts/task_graph_cli.py <tool-name> --json <args>`.
+With neither available it falls back to a hand-written plan file under
+`.ai-badger/task-tracking/plans/`, marked "hand-written — graph off", and never writes
+`tracking.db`.
+
+**When to use it.** After analyze, when planning starts: "decompose this", "split this into
+steps", "turn the research into a plan".
 
 ### quick-task
 
