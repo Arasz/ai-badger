@@ -386,15 +386,22 @@ flowchart TB
 ## Requirements
 
 The framework scripts (`index_build.py`, `validate.py`, and the `detect.py` / `scaffold.py`
-pair inside `welcome-ai-badger`) are mechanical Python 3.10+ with one required dependency:
+pair inside `welcome-ai-badger`) are mechanical Python 3.10+; `engine/requirements.txt` holds
+their runtime dependencies:
 
 ```bash
-python3 -m pip install -r engine/requirements.txt   # jsonschema
+python3 -m pip install -r engine/requirements.txt
 ```
 
-`jsonschema` is required because validation refuses rather than silently passing. `pyyaml` is
-optional and guarded, degrading to a printed note, and `semantica` is needed only by the
-optional Semantica wrapper.
+`jsonschema` is required because validation refuses rather than silently passing; `pyyaml` is
+optional and guarded, degrading to a printed note; `pydantic` is required for the task-plan
+model and its schema generator; and `semantica` is needed only by the optional Semantica
+wrapper.
+
+The `task-graph` plan server and CLI ship as PEP 723 scripts launched with
+`uv run --script …`, so the one consumer-side prerequisite is **`uv`**: it fetches
+`pydantic>=2.12,<3` into its own cache on first launch, with no `pip install` and no project-venv
+pollution. The plan DAG layer itself is stdlib `graphlib`; networkx is deliberately not used.
 
 ## Logo
 

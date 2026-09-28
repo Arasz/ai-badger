@@ -39,7 +39,7 @@ pulls generalizable improvements back out.
   `.ai-badger/` plus copies at conventional paths — a one-file demo repo produced 71 entries at
   `0.97.0`, and a real project produces more. They are meant to be committed.
 
-Requirements: **Python 3.10+** (CI floor) and the two dependencies in
+Requirements: **Python 3.10+** (CI floor) and the dependencies in
 [`engine/requirements.txt`](../engine/requirements.txt).
 
 ---
@@ -156,8 +156,14 @@ checkout or the plugin install directory.
 python3 -m pip install -r "$AI_BADGER/engine/requirements.txt"
 ```
 
-Two packages: `jsonschema` and `pyyaml`. Skipping this is the single most common failure — see
+The file installs the runtime dependencies (`jsonschema` required, `pyyaml` optional and
+guarded, `pydantic` required for the task-plan model) plus `semantica`, needed only by the
+optional Semantica wrapper. Skipping this is the single most common failure — see
 [Troubleshooting](#7-troubleshooting).
+
+The `task-graph` plan server and CLI are PEP 723 scripts launched with `uv run --script`, so
+they need **`uv`** on PATH rather than these packages; uv fetches `pydantic>=2.12,<3` into its
+cache on first launch. The plan DAG layer is stdlib `graphlib`.
 
 ### Step 1 — detect
 
@@ -575,12 +581,12 @@ completes with exit 0 on an interpreter that has no `jsonschema` at all.
 python3 -m pip install -r "$AI_BADGER/engine/requirements.txt"
 ```
 
-The other dependency, **`pyyaml`, is guarded and degrades to a note**: without it the Copilot
+The optional dependency, **`pyyaml`, is guarded and degrades to a note**: without it the Copilot
 adjustment prints `PyYAML not available — Copilot custom agents not generated; pip install
 pyyaml (engine/requirements.txt)` and the scaffold continues, and `mcp-index` prints
-`mcp-index needs PyYAML: pip install pyyaml (it is in engine/requirements.txt)`. Install both
-anyway. (The Hermes MCP adjustment used to print a note of its own here; it now builds its
-`mcp_servers:` snippet as plain text so pyyaml is never needed for it.)
+`mcp-index needs PyYAML: pip install pyyaml (it is in engine/requirements.txt)`. Install the
+whole requirements file anyway. (The Hermes MCP adjustment used to print a note of its own
+here; it now builds its `mcp_servers:` snippet as plain text so pyyaml is never needed for it.)
 
 If you are running the scripts with a system interpreter that has neither, use a virtualenv and
 call its `python3` explicitly.

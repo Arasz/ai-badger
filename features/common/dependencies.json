@@ -34,6 +34,18 @@
           "note": "Without Node.js 18+ the Archify skill cannot render and diagram requests fall back to Mermaid; install from https://nodejs.org."
         }
       ]
+    },
+    {
+      "feature": "task-decomposition",
+      "path": "features/common/skills/task-decomposition",
+      "dependencies": [
+        {
+          "name": "uv (task-graph plan server/CLI prerequisite)",
+          "ecosystem": "system",
+          "package": "uv",
+          "note": "the task-graph server/CLI run via `uv run --script` (PEP 723); uv fetches pydantic into its cache on first launch — do not pip-install pydantic for it"
+        }
+      ]
     }
   ]
 }
