@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.179.0",
-  "frameworkCommit": "b7e3571cfb0a9f992aaebb9deef682e354f4908f",
+  "frameworkCommit": "3bcf9208f6eb05040a54b8c1b07384ebec804790",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -13,7 +13,7 @@
   ],
   "skillScope": "default",
   "pluginScope": "default",
-  "configHash": "d374e1874b7c746c5650ac73092539a904883489993223ac3de0fe48df9687e8",
+  "configHash": "acb81daffeb461fdf0b515d0d632f8603d73a9e6f4baf375ab7ffedce2eaeb05",
   "generatedConfig": [
     {
       "path": ".claude/settings.json",
@@ -1412,6 +1412,27 @@
     {
       "feature": "skills",
       "stack": "common",
+      "name": "task-decomposition",
+      "source": "features/common/skills/task-decomposition",
+      "target": ".ai-badger/skills/task-decomposition",
+      "frameworkVersion": "0.179.0",
+      "hash": "964d852ed6ff49b9b4b785bcccd8c7bed5e2f3aba8156a44df6ae7d047273804",
+      "dirMeta": {
+        "file_count": 12,
+        "dir_count": 2
+      },
+      "sourceHash": "964d852ed6ff49b9b4b785bcccd8c7bed5e2f3aba8156a44df6ae7d047273804",
+      "sourceMeta": {
+        "file_count": 12,
+        "dir_count": 2
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
       "name": "test-economy",
       "source": "features/common/skills/test-economy",
       "target": ".ai-badger/skills/test-economy",
@@ -2067,6 +2088,15 @@
     {
       "feature": "adjustments",
       "stack": "claude",
+      "name": "adjustments/.claude/skills/task-decomposition",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/task-decomposition",
+      "frameworkVersion": "0.179.0",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
       "name": "adjustments/.claude/skills/test-economy",
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/test-economy",
@@ -2526,6 +2556,15 @@
       "name": "adjustments/.github/skills/task",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/task",
+      "frameworkVersion": "0.179.0",
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/task-decomposition",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/task-decomposition",
       "frameworkVersion": "0.179.0",
       "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
