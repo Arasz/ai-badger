@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# ///
 """Jev advisory for the task-decomposition skill: prompts, caps, fail-safe gates.
 
 Advisory only — the MCP server is offline by contract (plan DR9); this module post-processes
@@ -12,9 +16,11 @@ read from the process env and appears only in the Authorization header, never in
 """
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import json
 import math
+import os
 import sys
 import time
 from pathlib import Path
@@ -546,17 +552,25 @@ def request_choices(body: Mapping, names: List[str], *, env: Mapping[str, str],
 
 
 def tier_proposals(steps: Any, *, env: Mapping[str, str], post: Optional[Callable] = None,
-                   clock: Callable[[], float] = time.monotonic) -> Dict[str, TierProposal]:
-    """Advisory upgrades by question name; `{}` when off, nothing asked, or a call fails."""
+                   clock: Callable[[], float] = time.monotonic,
+                   budget: Optional[Budget] = None) -> Dict[str, TierProposal]:
+    """Advisory upgrades by question name; `{}` when off, nothing asked, or a call fails.
+
+    One `budget` bounds every step's call when the caller threads one through; without it a
+    fresh `timeout * ATTEMPTS` window is created for the whole run, never per step.
+    """
     if not tier_enabled(env):
         return {}
+    envelope = budget if budget is not None else Budget(timeout_seconds(env) * ATTEMPTS,
+                                                       clock=clock)
     proposals: Dict[str, TierProposal] = {}
     for step in steps:
         try:
             if not isinstance(step, Mapping) or step.get("level") or step.get("model"):
                 continue
             name, body = build_tier_request(step, model_id=model(env))
-            answers = request_choices(body, [name], env=env, post=post, clock=clock)
+            answers = request_choices(body, [name], env=env, post=post, clock=clock,
+                                      budget=envelope)
             proposal = propose_tier(step, answers.get(name))
             if proposal is not None:
                 proposals[name] = proposal
@@ -567,14 +581,21 @@ def tier_proposals(steps: Any, *, env: Mapping[str, str], post: Optional[Callabl
 
 def wave_hints(ready: Any, *, done: Any = (), edges: Any = (), env: Mapping[str, str],
                post: Optional[Callable] = None,
-               clock: Callable[[], float] = time.monotonic) -> Dict[str, str]:
-    """Pair name -> `share-wave`/`serialize`; off returns `{}`, anything else serializes."""
+               clock: Callable[[], float] = time.monotonic,
+               budget: Optional[Budget] = None) -> Dict[str, str]:
+    """Pair name -> `share-wave`/`serialize`; off returns `{}`, anything else serializes.
+
+    One `budget` bounds every chunk's call when the caller threads one through; without it a
+    fresh `timeout * ATTEMPTS` window is created for the whole run, never per chunk.
+    """
     if not waves_enabled(env):
         return {}
     steps = [step for step in ready if isinstance(step, Mapping)]
     names = pair_names([str(step.get("id") or "") for step in steps])
     if not names:
         return {}
+    envelope = budget if budget is not None else Budget(timeout_seconds(env) * ATTEMPTS,
+                                                       clock=clock)
     decisions = {name: SERIALIZE for name in names}
     try:
         chosen = model(env)
@@ -582,10 +603,174 @@ def wave_hints(ready: Any, *, done: Any = (), edges: Any = (), env: Mapping[str,
             chunk = steps[start:start + PAIR_CAP]
             chunk_names, body = build_wave_request(chunk, done=done, edges=edges,
                                                    model_id=chosen)
-            answers = request_choices(body, chunk_names, env=env, post=post, clock=clock)
+            answers = request_choices(body, chunk_names, env=env, post=post, clock=clock,
+                                      budget=envelope)
             for name in chunk_names:
                 if pair_decision(answers.get(name)) == SHARE_WAVE:
                     decisions[name] = SHARE_WAVE
         return decisions
     except Exception:  # pylint: disable=broad-except
         return {name: SERIALIZE for name in names}
+
+
+# ------------------------------------------------------------------ CLI (B1)
+
+
+class InputError(ValueError):
+    """A plan document the CLI cannot resolve; rendered as a clean error envelope."""
+
+
+def _plan_document(document: Any) -> Mapping:
+    """The plan inside a plan file: the document itself, or a plan/plan_export envelope."""
+    if not isinstance(document, Mapping):
+        raise InputError("the plan document must be a JSON object")
+    for key in ("document", "plan"):
+        candidate = document.get(key)
+        if isinstance(candidate, Mapping) and isinstance(candidate.get("workflow"), Mapping):
+            return candidate
+    if isinstance(document.get("workflow"), Mapping):
+        return document
+    raise InputError("the plan document has no workflow.steps")
+
+
+def _plan_steps(plan: Mapping) -> List[Mapping]:
+    """The plan's steps in document order; stored plans key them by id, drafts list them."""
+    workflow = plan.get("workflow")
+    steps = workflow.get("steps") if isinstance(workflow, Mapping) else None
+    if isinstance(steps, Mapping):
+        ordered = [step for step in steps.values() if isinstance(step, Mapping)]
+    elif isinstance(steps, list):
+        ordered = [step for step in steps if isinstance(step, Mapping)]
+    else:
+        ordered = []
+    if not ordered:
+        raise InputError("the plan document has no steps")
+    return ordered
+
+
+def _step_id(step: Any) -> str:
+    """A step's id from a mapping or a bare id string; empty when neither."""
+    if isinstance(step, Mapping):
+        return str(step.get("id") or "")
+    return str(step or "")
+
+
+def _status(step: Mapping) -> str:
+    """A step's status; a draft without one is pending."""
+    return str(step.get("status") or "pending")
+
+
+def _resolve_ready(document: Mapping, steps: List[Mapping]) -> List[Mapping]:
+    """The ready set: the caller's `ready` hint, else the `waves` union, else derived.
+
+    A hint entry naming a plan step resolves to the plan's full step (instructions and all);
+    an id the plan does not carry is kept as given. Derived readiness is pending/failed with
+    every dependency complete or skipped — the rule `steps_ready` applies.
+    """
+    by_id = {_step_id(step): step for step in steps}
+    hint = document.get("ready")
+    if not isinstance(hint, list):
+        waves = document.get("waves")
+        hint = ([item for wave in waves if isinstance(wave, list) for item in wave]
+                if isinstance(waves, list) else None)
+    if isinstance(hint, list):
+        ready = []
+        for item in hint:
+            step = by_id.get(_step_id(item))
+            if step is not None:
+                ready.append(step)
+            elif isinstance(item, Mapping):
+                ready.append(item)
+        return ready
+    done = {_step_id(step) for step in steps if _status(step) in ("complete", "skipped")}
+    return [step for step in steps
+            if _status(step) in ("pending", "failed")
+            and all(str(dependency) in done
+                    for dependency in step.get("depends_on") or [])]
+
+
+def _resolve_context(document: Mapping,
+                     steps: List[Mapping]) -> Tuple[List[str], List[List[str]]]:
+    """`(done, edges)` hints, derived from the plan when the document does not carry them."""
+    done = document.get("done")
+    if not isinstance(done, list):
+        done = [_step_id(step) for step in steps if _status(step) == "complete"]
+    edges = document.get("edges")
+    if not isinstance(edges, list):
+        edges = [[str(dependency), _step_id(step)]
+                 for step in steps for dependency in step.get("depends_on") or []]
+    return ([str(item) for item in done],
+            [[str(pair[0]), str(pair[1])] for pair in edges
+             if isinstance(pair, (list, tuple)) and len(pair) == 2])
+
+
+def run(document: Any, *, want_tier: bool, want_waves: bool, env: Mapping[str, str],
+        post: Optional[Callable] = None) -> Dict[str, Any]:
+    """The advisory envelope: `ok` with both proposal maps, `off` when nothing is enabled.
+
+    One `Budget` covers the whole invocation, so tier and wave calls share a single deadline
+    and a slow plan cannot multiply the window per chunk.
+    """
+    plan = _plan_document(document)
+    steps = _plan_steps(plan)
+    ready = _resolve_ready(document, steps)
+    done, edges = _resolve_context(document, steps)
+    tier_on = want_tier and tier_enabled(env)
+    waves_on = want_waves and waves_enabled(env)
+    if not tier_on and not waves_on:
+        reason = (f"{MASTER_ENV} is not set to 1" if env.get(MASTER_ENV) != "1"
+                  else f"requested capabilities are off: {TIER_ENV}/{WAVES_ENV} must be 1")
+        return {"status": "off", "reason": reason, "tier_proposals": {}, "wave_hints": {}}
+    budget = Budget(timeout_seconds(env) * ATTEMPTS)
+    proposals = (tier_proposals(steps, env=env, post=post, budget=budget)
+                 if tier_on else {})
+    hints = (wave_hints(ready, done=done, edges=edges, env=env, post=post, budget=budget)
+             if waves_on else {})
+    return {"status": "ok",
+            "tier_proposals": {name: {"level": proposal.level,
+                                      "confidence": proposal.confidence}
+                               for name, proposal in proposals.items()},
+            "wave_hints": dict(hints)}
+
+
+def _read_document(source: str) -> Any:
+    """The JSON document at *source*, or stdin when it is `-`."""
+    try:
+        text = sys.stdin.read() if source == "-" else Path(source).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise InputError(f"cannot read {source!r}: {exc}") from exc
+    try:
+        return json.loads(text)
+    except ValueError as exc:
+        raise InputError(f"plan document is not valid JSON: {exc}") from exc
+
+
+def main(argv=None) -> int:
+    """Run the advisory CLI; 0 for ok/off, 1 for a clean error envelope, 2 for usage."""
+    parser = argparse.ArgumentParser(
+        prog="jev_choice.py", description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("plan", help="plan JSON file (a plan_export document or the plan), "
+                                     "or - for stdin")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--tier", action="store_true", help="ask only the tier question")
+    group.add_argument("--waves", action="store_true", help="ask only the wave questions")
+    group.add_argument("--both", action="store_true", help="ask both (the default)")
+    parser.add_argument("--json", action="store_true",
+                        help="emit JSON (the only format; accepted for symmetry with the CLI twin)")
+    args = parser.parse_args(argv)
+    chosen = args.tier or args.waves or args.both
+    want_tier = args.tier or args.both or not chosen
+    want_waves = args.waves or args.both or not chosen
+    try:
+        payload = run(_read_document(args.plan), want_tier=want_tier, want_waves=want_waves,
+                      env=os.environ)
+    except Exception as exc:  # pylint: disable=broad-except  # the CLI never tracebacks
+        payload = {"status": "error", "reason": f"{type(exc).__name__}: {exc}",
+                   "tier_proposals": {}, "wave_hints": {}}
+    print(json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2))
+    return 1 if payload["status"] == "error" else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -36,7 +36,6 @@ OWNED_FILES = {
         SKILLS / "worktree-agent-isolation" / "SKILL.md",
     "worktree-agent-isolation/references/shared-worktree-collisions.md":
         SKILLS / "worktree-agent-isolation" / "references" / "shared-worktree-collisions.md",
-    "personas/delegator.md": PERSONAS / "delegator.md",
     "complete-project-scope-code-review/SKILL.md":
         SKILLS / "complete-project-scope-code-review" / "SKILL.md",
     "quick-task/SKILL.md": SKILLS / "quick-task" / "SKILL.md",
@@ -111,8 +110,6 @@ REWRITTEN_ROWS = [
      "the first full-suite run after a step lands"),
     ("worktree-agent-isolation/references/shared-worktree-collisions.md", ":3 parallel steps",
      "parallel steps can still land in the SAME worktree"),
-    ("personas/delegator.md", "boundary sentence",
-     "Dispatch packages are batches of `step`s; the task-plan unit is `step`"),
     ("complete-project-scope-code-review/SKILL.md", "handoff note",
      "A review work package becomes a `step` when the review plan is handed to `task`"),
     ("quick-task/SKILL.md", ":54-56 boundary sentence",

@@ -28,7 +28,7 @@ dead session can be resumed.
 
 **All project specifics come from `.ai-badger/config.json`** — never hardcode a build command,
 a persona name, or a repository. Tracking data lives in `.ai-badger/task-tracking/` (gitignored).
-Scripts live in this skill's `scripts/`. Before hand-writing any tracking store, read `references/file-schemas.md` for its exact shape.
+Scripts live in this skill's `scripts/`. Before hand-writing any tracking store, read `references/file-schemas.md`.
 
 ## When NOT to Use
 
@@ -64,7 +64,7 @@ Integration step: required in the high-effort variant. The plan carries a join s
 
 **analyze** — Derive `taskId` (`{repo-alias}-{key}`). Extract scope, constraints, criteria.
 
-**plan** — Run `task-decomposition` into a validated `task-plan` whose `workflow` is a DAG of
+**plan** — Run `task-decomposition` into a `task-plan` whose `workflow` is a DAG of
 `step`s. Every step has ACs; the plan AC: all steps' ACs checked+met.
 
 **plan review (MoE)** — High-effort: MoE panel (3 experts, subject-matched). At least one expert
@@ -131,18 +131,18 @@ Roles, not models. Which concrete model fills each is bound by the agent-specifi
 
 ### Model tier contract
 
-The task `loop` (low|high) chooses the orchestration loop; a step's `effort` (low|medium|high)
-drives model-tier selection. A step's `effort` resolves to a model tier through the registry's
-precedence: explicit `model` > `level` > the step's `effort` used as the level > the session
-(or parent) default model. `level` is optional; it names that step's tier directly.
-The registry lives at `.ai-badger/model-groups.json`; see `.ai-badger/delegation.md`.
+The task `loop` (low|high) chooses the orchestration loop; a step's `effort` (low|medium|high) drives model-tier selection.
+
+The `level` field is optional (`low`, `medium`, or `high`), resolved to that model tier's preferred registry entry.
+Precedence: explicit `model` > `level` > the step's `effort` used as the level > the session (or parent) default model.
+An explicit `model` always wins over `level`; with neither, the dispatch inherits the session (or parent) default model.
+Registry: `.ai-badger/model-groups.json`; see `.ai-badger/delegation.md` (reasoning-model dispatch).
 
 Subagent prompts must be self-contained: scope, ACs, files, TDD rules, report-back shape. Parallelise
 independent subagents. **Split work so it *can* run in parallel** — name shared-file steps, which
 serialise by a `depends_on` edge or a merge, versus disjoint steps, which parallelise.
 
-**Isolate every agent, at every depth: its own worktree and its own workspace id.** Disjoint files
-are not isolation — shared build output means a green run proves nothing. Two levels max.
+**Isolate every agent, at every depth: its own worktree and its own workspace id.** Two levels max.
 
 **Write the brief so the lane can improve on it.** Before dispatching an end-to-end lane, read
 `references/lane-dispatch-brief.md`.
@@ -208,11 +208,11 @@ serialised by an edge; join step present when >1 sink.
    feeding it the task body, the research record and doc excerpts.
 
    **Split the plan into steps.** Run `task-decomposition`; the result is one validated
-   `task-plan` whose `workflow` is a DAG of `step`s, each lane's dispatch with its own ACs and
-   tests. Record the plan with `plan_create`; with no server available, write the plan file by
-   hand in the frozen shape and say the graph is off. `depends_on` is the only ordering source;
-   the top-level criterion is *all steps' ACs are checked and met*. A task with no plan row keeps
-   its legacy plan file and manual checkboxes — never `plan_create` over an in-flight task.
+   `task-plan` whose `workflow` is a DAG of `step`s, one lane per step. Record the plan with
+   `plan_create`; with no server available, write the plan file by hand in the frozen shape and
+   say the graph is off. `depends_on` is the only ordering source; the top-level criterion:
+   *all steps' ACs are checked and met*. A task with no plan row keeps its legacy plan file and
+   manual checkboxes — never `plan_create` over an in-flight task.
 
    In the **low-effort** variant, a single high-reasoning agent creates the plan.
    In the **high-effort** variant, delegate to an MoE panel (default 3 experts) matching the
@@ -223,7 +223,7 @@ serialised by an edge; join step present when >1 sink.
 
    **Every step carries acceptance criteria and a quality gate** — what must be true, and the run
    that proves it. A step without them is a wish. Where a step needs a specification or design
-   first, produce one — prefer an installed skill to a bespoke document. Run `design-tests` on
+   first, produce one — prefer an installed skill. Run `design-tests` on
    the acceptance criteria before the first failing test — the test list is part of the plan,
    not of the implementation. When a step changes architecture or flow, present it with
    `archify` (Mermaid only when its runtime is missing). When status cannot match the plan,

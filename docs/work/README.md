@@ -149,3 +149,30 @@ the first plain-markdown record here.
 | `plan-reviews/2026-09-28-ai-raccoon-prompt-rag-hook-review2-security.md` | Plan review, round 2, on rev 3 of the ai-raccoon prompt RAG hook plan (security and correctness lens); folded into plan rev 4. |
 | `plan-reviews/2026-09-28-ai-raccoon-prompt-rag-hook-review2-qa.md` | Plan review, round 2, on rev 3 of the ai-raccoon prompt RAG hook plan (testability lens); folded into plan rev 4. |
 | `plan-reviews/2026-09-28-ai-raccoon-prompt-rag-hook-review2-feasibility.md` | Plan review, round 2, on rev 3 of the ai-raccoon prompt RAG hook plan (feasibility and structure lens); folded into plan rev 4. |
+
+## 2026-09-28 — aib-task-decomposition-workflow-graph-mcp (task-decomposition graph plans, 0.179.0)
+
+| `2026-09-28-task-decomposition-research.md` | Consolidated research record (four cited lanes: integration surfaces, pipeline seams, graph-library/model survey, Jev contract) with the owner-visible decision table. |
+| `2026-09-28-task-decomposition-plan.md` | The MoE-integrated plan (rev 2.1, owner gate 4/4): 13 `step`s in 5 waves, DR1–DR13, the §2 interface freeze, and the R-D incident notes. |
+| `2026-09-28-task-decomposition-owner-gate-review.html` | Owner-gate review form (quick-task exemption, Jev default, dependency posture, host-smoke ownership). |
+| `2026-09-28-task-decomposition-owner-gate-feedback.md` | The owner's returned verdicts — 4/4 APPROVE, no open items. |
+| `research-lanes/r1-integration-surface.md` | Research lane R1: the five skill-registration and four MCP-server surfaces, with the gate policing each. |
+| `research-lanes/r2-task-pipeline-seams.md` | Research lane R2: the package/subpackage census (164 hits) and the task/quick-task/status-report seam map. |
+| `research-lanes/r3-graph-lib-and-model.md` | Research lane R3: "GraphLang" disambiguation, the library comparison, and the draft TaskPlan model. |
+| `research-lanes/r4-jev-decisions.md` | Research lane R4: the TypeSafe Jev contract, the choice-parser spec, and the decision prompts. |
+| `plan-sections/p1-architecture.md` | MoE planning lane P1: server placement/launch, model invariants, persistence, transitions, effort→tier precedence. |
+| `plan-sections/p2-api-contract.md` | MoE planning lane P2: the 12-tool inventory, error envelopes, schema artifact + sync gate, transport ruling. |
+| `plan-sections/p3-skill-integration.md` | MoE planning lane P3: the skill contract, the sentence-accurate rewrite map, release choreography. |
+| `plan-reviews/r1-structure-feasibility.md` | Plan-review lane: six MUSTs (tool-I/O freeze, root precedence, unowned gates, re-vendor counts, stale names, CLI launch). |
+| `plan-reviews/r2-testability-budget.md` | Plan-review lane: gates-that-cannot-fail and push-green defects (F1–F22). |
+| `plan-reviews/r3-seams-intent.md` | Plan-review lane: the re-scaffold argv trap, the `steps_ready` contradiction, the host-smoke gap. |
+| `impl-reports/s2-domain-model.md` | S2 implementation report: model + schema + drift gate (6 witnesses). |
+| `impl-reports/s3-store.md` | S3 implementation report: `plans` table, CAS, re-vendoring (24 copies). |
+| `impl-reports/s8-catalog.md` | S8 implementation report: MCP catalog packet + declaration (two prerequisite fixtures). |
+| `impl-reports/s9-skill.md` | S9 implementation report: the `task-decomposition` skill source + contract test. |
+| `impl-reports/s10-pipeline.md` | S10 implementation report: the step-vocabulary rewrite + pin test. |
+| `impl-reports/s11-status.md` | S11 implementation report: status-report dual-read (`STEP_RE`, frozen keys). |
+| `impl-reports/s12-claims.md` | S12 implementation report: the dependency claims made true. |
+| `impl-reports/s13-integration.md` | S13 implementation report: the cross-module integration proof + mutation witnesses. |
+| `impl-reviews/r3-consumer-hermes.md` | Implementation review (consumer/Hermes lens): the no-shapes reference, Copilot entry loss, fallback-advice errors. |
+| `impl-reviews/r4-review-tests-qa.md` | Test-quality assessment: 15/15 behavioral mutations caught; header pin, comparator witness, timestamp gaps. |
