@@ -40,6 +40,10 @@ SHARED_SKILL_MODULES = (
     ("semantica-knowledge-graph", "export_semantica_graph.py"),
     ("git-work", "git_internals_guard.py"),
     ("git-work", "shell_parser.py"),  # git_internals_guard.py lexes Bash through it
+    ("ai-raccoon-memory", "memory_context.py"),
+    ("ai-raccoon-memory", "openrouter_client.py"),  # memory_context.py loads both beside it
+    ("ai-raccoon-memory", "query_pipeline.py"),
+    ("task", "model_groups.py"),  # the planner model resolver memory_context.py loads flat
 )
 
 # Modules the framework used to ship but no longer does; every adjust run must delete
@@ -67,7 +71,8 @@ description: >-
   enrichment and commit reminders (pre_llm_call / post_tool_call), the memory-first
   gate that blocks text search until memory_search is consulted (pre_tool_call), and
   message-bus delivery on the first turn (pre_llm_call consumes-and-injects; a session
-  that never turns consumes nothing) with cursor cleanup on on_session_end.
+  that never turns consumes nothing) with cursor cleanup on on_session_end, and the
+  per-prompt ai-raccoon memory context on CLI sessions (pre_llm_call).
 hooks:
   - on_session_start
   - pre_llm_call

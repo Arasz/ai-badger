@@ -18,7 +18,7 @@ must kill it):
     the message before either commits and both inject it.
  3. Parity (t4, plan item 4, Rule 7 sc.3) — a manifest arm whose event/method
     spelling its harness surface does not know wires silently nothing.
-    Mutation: drop 'sessionEnd' from the copilot event_map, 'on_session_end'
+    Mutation: drop 'sessionEnd' from badger_lib.COPILOT_TO_SOURCE_EVENT, 'on_session_end'
     from PLUGIN_YAML, or a target from the pi bridge map — each fails here.
  4. Copilot close arm (t7, plan item 7, @deferred Rule 6 sc.3) — the Copilot leg
     of cursor cleanup silently lost (P8 falsified the "no sessionEnd event"
@@ -58,7 +58,8 @@ HOOK_PATH = "features/common/hooks/message_delivery_hook.py"
 SEND_PATH = "features/common/skills/send-message/scripts/send_message.py"
 MANIFEST_PATH = "features/common/hooks/hooks-manifest.json"
 HOOKS_JSON_PATH = "features/common/hooks/hooks.json"
-COPILOT_ADJUSTER_PATH = "features/copilot/adjustments/adjust_hooks.py"
+# The adjuster translates Copilot event spellings through this shared map.
+COPILOT_EVENT_MAP_PATH = "engine/badger_lib.py"
 HERMES_ADJUSTER_PATH = "features/hermes/adjustments/adjust_hooks.py"
 PI_BRIDGE_PATH = "features/pi/adjustments/adapter/hook-bridge.ts"
 SCHEMA_PATH = "schemas/message.schema.json"
@@ -282,10 +283,10 @@ def test_two_hook_processes_race_one_unread_message_exactly_once(
 
 
 def _copilot_event_map_keys() -> set:
-    """The copilot adjuster's event_map keys — the spellings it can translate."""
-    src = (ROOT / COPILOT_ADJUSTER_PATH).read_text()
-    block = re.search(r"event_map\s*=\s*\{(.*?)\}", src, re.DOTALL)
-    assert block, "the copilot adjuster's event_map disappeared"
+    """The Copilot event spellings the adjuster can translate (badger_lib.COPILOT_TO_SOURCE_EVENT)."""
+    src = (ROOT / COPILOT_EVENT_MAP_PATH).read_text()
+    block = re.search(r"COPILOT_TO_SOURCE_EVENT[^=]*=\s*\{(.*?)\}", src, re.DOTALL)
+    assert block, "the Copilot event map disappeared from badger_lib"
     return set(re.findall(r'"([A-Za-z]+)":', block.group(1)))
 
 

@@ -17,6 +17,23 @@
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/send-message/scripts/message_delivery_hook.py\""
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/prompt-markers/scripts/user_prompt_hook.py\""
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/features/common/skills/ai-raccoon-memory/scripts/memory_context_hook.py\"",
+            "timeout": 100
+          }
+        ]
       }
     ],
     "SessionStart": [

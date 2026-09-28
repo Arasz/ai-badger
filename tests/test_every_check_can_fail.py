@@ -551,11 +551,39 @@ No environment-specific gotchas known.
 
 
 def _hooks_manifest(root: Path, agents) -> Path:
-    """One hook entry naming `agents`, in the shape hooks-manifest.schema.json requires."""
-    return _write(root / "features" / "demo" / "hooks" / "hooks-manifest.json", json.dumps({
-        "hooks": [{"name": "demo-hook", "description": "a hook", "agents": {
-            agent: {"type": "hooks-json", "entry": "hooks.json", "event": "SessionStart",
-                    "script": "demo_hook.py"} for agent in agents}}],
+    """One hook entry naming `agents`, in the shape hooks-manifest.schema.json requires.
+
+    Every arm also resolves under hooks_manifest_unresolved (F2), not only hooks_manifest_
+    agent_gaps (F1): a hermes arm gets its own stub plugin file registering the method, and
+    the hooks.json sibling actually carries demo_hook.py's command, whose script
+    exists — otherwise this "clean
+    tree" fixture would fail every validate_all control for a reason none of them test.
+    """
+    manifest_dir = root / "features" / "demo" / "hooks"
+    arms = {}
+    for agent in agents:
+        if agent == "hermes":
+            arms[agent] = {"type": "plugin", "entry": "hooks_stub.py",
+                            "method": "on_session_start"}
+        elif agent == "copilot":
+            arms[agent] = {"type": "hooks-json", "entry": "hooks.json",
+                            "event": "sessionStart", "script": "demo_hook.py"}
+        else:
+            arms[agent] = {"type": "hooks-json", "entry": "hooks.json",
+                            "event": "SessionStart", "script": "demo_hook.py"}
+    _write(manifest_dir / "hooks.json", json.dumps({"hooks": {"SessionStart": [
+        {"hooks": [{"type": "command",
+                     "command": 'python3 "${CLAUDE_PLUGIN_ROOT}/features/demo/hooks/'
+                                 'demo_hook.py"'}]},
+    ]}}))
+    _write(manifest_dir / "demo_hook.py", "")
+    if "hermes" in agents:
+        _write(manifest_dir / "hooks_stub.py",
+               "def on_session_start(ctx):\n    pass\n\n\n"
+               "def register(ctx):\n    ctx.register_hook(\"on_session_start\", "
+               "on_session_start)\n")
+    return _write(manifest_dir / "hooks-manifest.json", json.dumps({
+        "hooks": [{"name": "demo-hook", "description": "a hook", "agents": arms}],
     }))
 
 
@@ -613,6 +641,17 @@ def _validate_all_hook_agent_gap(work: Path, provoked: bool) -> Outcome:
 def _validate_all_no_hooks_manifest(work: Path, provoked: bool) -> Outcome:
     """A tree whose manifest glob matches nothing — the check ran against no input at all."""
     return _validate_all(_validate_tree(work, manifest=not provoked))
+
+
+def _validate_all_hooks_manifest_command_deleted(work: Path, provoked: bool) -> Outcome:
+    """A manifest arm naming a script no command in hooks.json actually runs (F2)."""
+    root = _validate_tree(work)
+    if provoked:
+        hooks_path = root / "features" / "demo" / "hooks" / "hooks.json"
+        hooks_data = json.loads(hooks_path.read_text(encoding="utf-8"))
+        hooks_data["hooks"]["SessionStart"] = []
+        _write(hooks_path, json.dumps(hooks_data))
+    return _validate_all(root)
 
 
 def _validate_all_skills_lint_violation(work: Path, provoked: bool) -> Outcome:
@@ -910,6 +949,9 @@ REGISTRY: Tuple[Provocation, ...] = (
     Provocation("tooling/validate.py --all", "a tree whose hooks-manifest glob matches nothing",
                 _validate_all_no_hooks_manifest,
                 Signal(exit_code=1, contains="matched no file")),
+    Provocation("tooling/validate.py --all", "a manifest arm naming a deleted hooks.json command",
+                _validate_all_hooks_manifest_command_deleted,
+                Signal(exit_code=1, contains="hooks-manifest resolution")),
     Provocation("tooling/validate.py --all", "a SKILL.md that breaks the name grammar",
                 _validate_all_skills_lint_violation, Signal(exit_code=1, contains="rule 1")),
     Provocation("gates/skills_lint.py", "a SKILL.md that breaks the name grammar",

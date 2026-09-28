@@ -177,6 +177,29 @@
       }
     },
     {
+      "name": "memory-context",
+      "description": "Search ai-raccoon memory for each gated user prompt and inject the matched excerpts as a Memory context block (pi's mem-based-rag and query pipeline, ported); Hermes runs it in CLI sessions only, and pi has no arm",
+      "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "UserPromptSubmit",
+          "script": "memory_context_hook.py"
+        },
+        "hermes": {
+          "type": "plugin",
+          "entry": "ai_badger_hooks.py",
+          "method": "pre_llm_call"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "userPromptSubmitted",
+          "script": "memory_context_hook.py"
+        }
+      }
+    },
+    {
       "name": "dispatch-gate",
       "description": "Deny a subagent dispatch that names no model and whose subagent type has no model lane, so no delegation silently inherits the session model",
       "agents": {

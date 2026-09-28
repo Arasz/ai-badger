@@ -1,0 +1,442 @@
+{
+  "cases": {
+    "empty_empty": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [],
+      "code": []
+    },
+    "mem_only": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": 1,
+          "path": "/repo/docs/note1.md",
+          "snippet": "memory snippet number 1"
+        }
+      ],
+      "code": []
+    },
+    "code_only": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [],
+      "code": [
+        {
+          "hash": "c1",
+          "ranking": 0.5,
+          "path": "/repo/src/mod1.py",
+          "snippet": "def code_1(): pass",
+          "lineStart": 1,
+          "lineEnd": 4
+        }
+      ]
+    },
+    "caps_7_7": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": 1,
+          "path": "/repo/docs/note1.md",
+          "snippet": "memory snippet number 1"
+        },
+        {
+          "hash": "h2",
+          "ranking": 1,
+          "path": "/repo/docs/note2.md",
+          "snippet": "memory snippet number 2"
+        },
+        {
+          "hash": "h3",
+          "ranking": 1,
+          "path": "/repo/docs/note3.md",
+          "snippet": "memory snippet number 3"
+        },
+        {
+          "hash": "h4",
+          "ranking": 1,
+          "path": "/repo/docs/note4.md",
+          "snippet": "memory snippet number 4"
+        },
+        {
+          "hash": "h5",
+          "ranking": 1,
+          "path": "/repo/docs/note5.md",
+          "snippet": "memory snippet number 5"
+        },
+        {
+          "hash": "h6",
+          "ranking": 1,
+          "path": "/repo/docs/note6.md",
+          "snippet": "memory snippet number 6"
+        },
+        {
+          "hash": "h7",
+          "ranking": 1,
+          "path": "/repo/docs/note7.md",
+          "snippet": "memory snippet number 7"
+        }
+      ],
+      "code": [
+        {
+          "hash": "c1",
+          "ranking": 0.5,
+          "path": "/repo/src/mod1.py",
+          "snippet": "def code_1(): pass",
+          "lineStart": 1,
+          "lineEnd": 4
+        },
+        {
+          "hash": "c2",
+          "ranking": 0.5,
+          "path": "/repo/src/mod2.py",
+          "snippet": "def code_2(): pass",
+          "lineStart": 2,
+          "lineEnd": 5
+        },
+        {
+          "hash": "c3",
+          "ranking": 0.5,
+          "path": "/repo/src/mod3.py",
+          "snippet": "def code_3(): pass",
+          "lineStart": 3,
+          "lineEnd": 6
+        },
+        {
+          "hash": "c4",
+          "ranking": 0.5,
+          "path": "/repo/src/mod4.py",
+          "snippet": "def code_4(): pass",
+          "lineStart": 4,
+          "lineEnd": 7
+        },
+        {
+          "hash": "c5",
+          "ranking": 0.5,
+          "path": "/repo/src/mod5.py",
+          "snippet": "def code_5(): pass",
+          "lineStart": 5,
+          "lineEnd": 8
+        },
+        {
+          "hash": "c6",
+          "ranking": 0.5,
+          "path": "/repo/src/mod6.py",
+          "snippet": "def code_6(): pass",
+          "lineStart": 6,
+          "lineEnd": 9
+        },
+        {
+          "hash": "c7",
+          "ranking": 0.5,
+          "path": "/repo/src/mod7.py",
+          "snippet": "def code_7(): pass",
+          "lineStart": 7,
+          "lineEnd": 10
+        }
+      ]
+    },
+    "snippet_dup": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": 1,
+          "path": "/repo/docs/note1.md",
+          "snippet": "same"
+        },
+        {
+          "hash": "h2",
+          "ranking": 1,
+          "path": "/repo/docs/note2.md",
+          "snippet": "same"
+        },
+        {
+          "hash": "h3",
+          "ranking": 1,
+          "path": "/repo/docs/note3.md",
+          "snippet": "memory snippet number 3"
+        }
+      ],
+      "code": []
+    },
+    "hash_dup": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": 1,
+          "path": "/repo/docs/note1.md",
+          "snippet": "first"
+        },
+        {
+          "hash": "h1",
+          "ranking": 1,
+          "path": "/repo/docs/note1.md",
+          "snippet": "second"
+        },
+        {
+          "hash": "h3",
+          "ranking": 1,
+          "path": "/repo/docs/note3.md",
+          "snippet": "memory snippet number 3"
+        }
+      ],
+      "code": []
+    },
+    "sourcefile_only": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "s1",
+          "ranking": 1,
+          "sourceFile": "/repo/src.md",
+          "snippet": "from source file"
+        }
+      ],
+      "code": []
+    },
+    "path_empty": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "p1",
+          "ranking": 1,
+          "path": "",
+          "sourceFile": "/repo/src.md",
+          "snippet": "empty path"
+        }
+      ],
+      "code": []
+    },
+    "rank_missing": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "r1",
+          "path": "/a.md",
+          "snippet": "no rank"
+        }
+      ],
+      "code": []
+    },
+    "rank_zero": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": 0,
+          "path": "/repo/docs/note1.md",
+          "snippet": "memory snippet number 1"
+        }
+      ],
+      "code": []
+    },
+    "rank_null": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": null,
+          "path": "/repo/docs/note1.md",
+          "snippet": "memory snippet number 1"
+        }
+      ],
+      "code": []
+    },
+    "rank_float": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": 1.0,
+          "path": "/repo/docs/note1.md",
+          "snippet": "memory snippet number 1"
+        },
+        {
+          "hash": "h2",
+          "ranking": 0.8123,
+          "path": "/repo/docs/note2.md",
+          "snippet": "memory snippet number 2"
+        },
+        {
+          "hash": "h3",
+          "ranking": 0.9662162162162163,
+          "path": "/repo/docs/note3.md",
+          "snippet": "memory snippet number 3"
+        }
+      ],
+      "code": []
+    },
+    "rank_5e_05": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": 5e-05,
+          "path": "/repo/docs/note1.md",
+          "snippet": "memory snippet number 1"
+        }
+      ],
+      "code": []
+    },
+    "rank_1e_7": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": 1e-07,
+          "path": "/repo/docs/note1.md",
+          "snippet": "memory snippet number 1"
+        }
+      ],
+      "code": []
+    },
+    "rank_1e21": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": 1e+21,
+          "path": "/repo/docs/note1.md",
+          "snippet": "memory snippet number 1"
+        }
+      ],
+      "code": []
+    },
+    "rank_high": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": "high",
+          "path": "/repo/docs/note1.md",
+          "snippet": "memory snippet number 1"
+        }
+      ],
+      "code": []
+    },
+    "rank_true": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": true,
+          "path": "/repo/docs/note1.md",
+          "snippet": "memory snippet number 1"
+        }
+      ],
+      "code": []
+    },
+    "path_double_space": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": 1,
+          "path": "docs/My  Notes.md",
+          "snippet": "memory snippet number 1"
+        }
+      ],
+      "code": []
+    },
+    "path_nbsp_bom": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": 1,
+          "path": "\ufeffdocs/a\u00a0b.md",
+          "snippet": "memory snippet number 1"
+        }
+      ],
+      "code": []
+    },
+    "snippet_controls": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": 1,
+          "path": "/repo/docs/note1.md",
+          "snippet": "before\u001cafter\u00a0nbsp"
+        }
+      ],
+      "code": []
+    },
+    "line_start_zero": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [],
+      "code": [
+        {
+          "hash": "c1",
+          "ranking": 0.5,
+          "path": "/repo/src/mod1.py",
+          "snippet": "def code_1(): pass",
+          "lineStart": 0,
+          "lineEnd": 5
+        }
+      ]
+    },
+    "line_end_null": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [],
+      "code": [
+        {
+          "hash": "c1",
+          "ranking": 0.5,
+          "path": "/repo/src/mod1.py",
+          "snippet": "def code_1(): pass",
+          "lineStart": 10,
+          "lineEnd": null
+        }
+      ]
+    },
+    "line_end_absent": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [],
+      "code": [
+        {
+          "hash": "c9",
+          "ranking": 1,
+          "path": "/x.py",
+          "snippet": "x",
+          "lineStart": 10
+        }
+      ]
+    },
+    "long_snippet": {
+      "query": "why does the memory context hook stay silent on every prompt",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": 1,
+          "path": "/repo/docs/note1.md",
+          "snippet": "line one of a long note\n\tindented line two   with spaces\r\nword word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word"
+        }
+      ],
+      "code": [
+        {
+          "hash": "c1",
+          "ranking": 0.5,
+          "path": "/repo/src/mod1.py",
+          "snippet": "line one of a long note\n\tindented line two   with spaces\r\nword word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+          "lineStart": 1,
+          "lineEnd": 4
+        }
+      ]
+    },
+    "long_query": {
+      "query": "  explain the full budget and deadline arithmetic explain the full budget and deadline arithmetic explain the full budget and deadline arithmetic \n",
+      "mem": [
+        {
+          "hash": "h1",
+          "ranking": 1,
+          "path": "/repo/docs/note1.md",
+          "snippet": "memory snippet number 1"
+        }
+      ],
+      "code": []
+    }
+  }
+}

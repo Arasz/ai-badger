@@ -20,14 +20,33 @@ def _copy_real_schemas(tmp_path, root):
 
 
 def _write_hooks_manifest(tmp_path):
-    """A complete manifest: since 0.88.4 a tree with no hooks-manifest.json fails --all."""
+    """A complete manifest: since 0.88.4 a tree with no hooks-manifest.json fails --all.
+
+    Also resolves under hooks_manifest_unresolved (F2): a hermes stub registers its method,
+    and hooks.json actually carries demo_hook.py's command (the script exists), so a validate --all run on this
+    fixture reports no gap unless the test provokes one on purpose.
+    """
     d = tmp_path / "features" / "common" / "hooks"
     d.mkdir(parents=True, exist_ok=True)
+    _test_write(d / "hooks.json", json.dumps({"hooks": {"SessionStart": [
+        {"hooks": [{"type": "command",
+                     "command": 'python3 "${CLAUDE_PLUGIN_ROOT}/features/common/hooks/'
+                                 'demo_hook.py"'}]},
+    ]}}), encoding="utf-8")
+    _test_write(d / "demo_hook.py", "", encoding="utf-8")
+    _test_write(d / "hooks_stub.py",
+                "def on_session_start(ctx):\n    pass\n\n\n"
+                "def register(ctx):\n    ctx.register_hook(\"on_session_start\", "
+                "on_session_start)\n", encoding="utf-8")
     _test_write(d / "hooks-manifest.json", json.dumps({"hooks": [
         {"name": "demo-hook", "agents": {
-            agent: {"type": "hooks-json", "entry": "hooks.json", "event": "SessionStart",
-                    "script": "demo_hook.py"}
-            for agent in ("claude", "hermes", "copilot")}},
+            "claude": {"type": "hooks-json", "entry": "hooks.json", "event": "SessionStart",
+                       "script": "demo_hook.py"},
+            "hermes": {"type": "plugin", "entry": "hooks_stub.py",
+                       "method": "on_session_start"},
+            "copilot": {"type": "hooks-json", "entry": "hooks.json", "event": "sessionStart",
+                        "script": "demo_hook.py"},
+        }},
     ]}), encoding="utf-8")
     return d
 

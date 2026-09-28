@@ -1,0 +1,379 @@
+"""openrouter_client.py against fake OpenRouter servers: proxy, redirect, TLS, deadlines, key hygiene.
+
+Every test runs under `memory_context_env` (scrubbed env, temp HOME, spawn and network guards).
+Timing rows bound at most 1.5 s against fakes whose blocking behaviour ends by a 20 s ceiling.
+"""
+from __future__ import annotations
+
+import importlib.util
+import socket
+import ssl
+import sys
+import threading
+import time
+import urllib.request
+
+import pytest
+
+import memory_context_openrouter as fakes
+from memory_context_openrouter import CHAT_PATH
+from memory_context_support import (SCRIPTS, live_openrouter_threads, load_module,
+                                    memory_context_env)  # noqa: F401
+
+mc = load_module()
+
+KEY = "sk-test-q1-secret-key"
+PRODUCTION_LOOKING_KEY = "sk-or-v1-x"
+LEAK_MARKERS = (KEY, PRODUCTION_LOOKING_KEY, "q1-secret")
+
+
+def load_client():
+    """Load `openrouter_client.py` by path once per test session."""
+    name = "ai_badger_test_openrouter_client"
+    if name in sys.modules:
+        return sys.modules[name]
+    spec = importlib.util.spec_from_file_location(name, SCRIPTS / "openrouter_client.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+oc = load_client()
+
+
+@pytest.fixture(autouse=True)
+def no_leak_no_threads(capsys, caplog):
+    """After every row: no key text in stdout, stderr or logs; no live client thread."""
+    yield
+    out, err = capsys.readouterr()
+    for text in (out, err, caplog.text):
+        for marker in LEAK_MARKERS:
+            assert marker not in text
+    assert live_openrouter_threads() == []
+
+
+@pytest.fixture(name="fake")
+def fake_server():
+    server = fakes.FakeOpenRouter()
+    yield server
+    server.stop()
+
+
+@pytest.fixture(name="capture")
+def capture_server():
+    server = fakes.FakeOpenRouter()
+    yield server
+    server.stop()
+
+
+def post(url, share=2.0, key=KEY, body=None):
+    """`post_json` that must return a `Reply` carrying no key text, never raise."""
+    budget = share if isinstance(share, mc.Budget) else mc.Budget(share)
+    try:
+        reply = oc.post_json(url, body if body is not None else {"model": "m"}, key, budget)
+    except Exception as err:  # pylint: disable=broad-except
+        for marker in LEAK_MARKERS:
+            assert marker not in str(err)
+        raise
+    assert isinstance(reply, oc.Reply)
+    for marker in LEAK_MARKERS:
+        assert marker not in repr(reply)
+    return reply
+
+
+def timed_post(url, share, key=KEY):
+    start = time.monotonic()
+    reply = post(url, share, key)
+    return reply, time.monotonic() - start
+
+
+# ------------------------------------------------------------------- O1 proxy
+
+
+def test_o1_environment_proxy_is_ignored(fake, capture, monkeypatch):
+    for name in ("http_proxy", "https_proxy", "all_proxy", "HTTP_PROXY", "HTTPS_PROXY",
+                 "ALL_PROXY"):
+        monkeypatch.setenv(name, capture.url)
+    reply = post(fake.url + CHAT_PATH)
+    assert (reply.status, reply.error) == (200, None)
+    assert len(fake.requests) == 1
+    assert capture.requests == []
+
+
+# ---------------------------------------------------------------- O2 redirect
+
+
+@pytest.mark.parametrize("code", [301, 302, 303, 307, 308])
+def test_o2_redirect_is_refused_and_never_followed(fake, capture, code):
+    fake.script(CHAT_PATH, fakes.redirect(code, capture.url + "/x"))
+    reply = post(fake.url + CHAT_PATH)
+    assert reply.status == code
+    assert len(fake.requests) == 1
+    assert capture.requests == []
+
+
+# --------------------------------------------------------------------- O3 TLS
+
+
+def test_o3_opener_is_verified_tls_with_deadline_handlers_only(monkeypatch):
+    built = []
+    real = ssl.create_default_context
+
+    def spy(*args, **kwargs):
+        context = real(*args, **kwargs)
+        built.append(context)
+        return context
+
+    monkeypatch.setattr(ssl, "create_default_context", spy)
+    call = oc.Call(mc.Budget(1.0))
+    opener = oc.make_opener(call)
+    https = [h for h in opener.handlers if isinstance(h, urllib.request.HTTPSHandler)]
+    plain = [h for h in opener.handlers if isinstance(h, urllib.request.HTTPHandler)]
+    redirects = [h for h in opener.handlers if isinstance(h, urllib.request.HTTPRedirectHandler)]
+    proxies = [h for h in opener.handlers if isinstance(h, urllib.request.ProxyHandler)]
+    assert [type(h) for h in https] == [oc.DeadlineHTTPSHandler]
+    assert [type(h) for h in plain] == [oc.DeadlineHTTPHandler]
+    assert [type(h) for h in redirects] == [oc.NoRedirect]
+    assert proxies == []
+    context = https[0].tls
+    assert built and context is built[-1]
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True
+
+
+def test_o3_authorization_is_an_unredirected_header(fake, monkeypatch):
+    seen = []
+    real_open = urllib.request.OpenerDirector.open
+
+    def spy(self, request, *args, **kwargs):
+        seen.append(request)
+        return real_open(self, request, *args, **kwargs)
+
+    monkeypatch.setattr(urllib.request.OpenerDirector, "open", spy)
+    post(fake.url + CHAT_PATH)
+    assert len(seen) == 1
+    assert seen[0].unredirected_hdrs.get("Authorization") == f"Bearer {KEY}"
+    assert "Authorization" not in seen[0].headers
+
+
+# ------------------------------------------------------------ O4 plain bounds
+
+
+@pytest.mark.parametrize("mode", ["header-drip", "body-drip", "hang"])
+def test_o4_plain_http_share_bounds_drip_and_hang(fake, mode):
+    fake.script(CHAT_PATH, fakes.behaviour(mode))
+    reply, elapsed = timed_post(fake.url + CHAT_PATH, 0.3)
+    assert reply.error == oc.TIMEOUT
+    assert elapsed < 1.5
+    assert live_openrouter_threads() == []
+
+
+def test_o4_quick_reply_releases_the_watchdog_at_once(fake):
+    for _ in range(20):
+        reply, elapsed = timed_post(fake.url + CHAT_PATH, 10.0)
+        assert (reply.status, reply.error) == (200, None)
+        assert elapsed < 1.5
+        assert live_openrouter_threads() == []
+
+
+# -------------------------------------------------------------- O4b TLS bounds
+
+
+@pytest.fixture(name="certificate", scope="session")
+def certificate_files(tmp_path_factory):
+    made = fakes.make_certificate(tmp_path_factory.mktemp("tls"))
+    if made is None:
+        pytest.skip("openssl is not installed; the throwaway certificate cannot be made")
+    return made
+
+
+@pytest.fixture(name="tls_fake")
+def tls_server(certificate, monkeypatch):
+    cert, key = certificate
+    monkeypatch.setenv("SSL_CERT_FILE", str(cert))
+    server = fakes.FakeOpenRouter(tls=fakes.server_context(cert, key))
+    yield server
+    server.stop()
+
+
+def test_o4b_tls_trust_control(tls_fake):
+    reply = post(tls_fake.url + CHAT_PATH)
+    assert (reply.status, reply.error) == (200, None)
+    assert tls_fake.requests[0]["headers"]["authorization"] == f"Bearer {KEY}"
+
+
+def test_o4b_tls_body_drip_is_bounded(tls_fake):
+    tls_fake.script(CHAT_PATH, fakes.behaviour("body-drip"))
+    reply, elapsed = timed_post(tls_fake.url + CHAT_PATH, 0.3)
+    assert reply.error == oc.TIMEOUT
+    assert elapsed < 1.5
+    assert len(tls_fake.requests) == 1
+
+
+def test_o4b_tls_handshake_drip_is_bounded(certificate, monkeypatch):
+    monkeypatch.setenv("SSL_CERT_FILE", str(certificate[0]))
+    drip = fakes.DripTcp()
+    try:
+        reply, elapsed = timed_post(f"https://127.0.0.1:{drip.port}{CHAT_PATH}", 0.3)
+    finally:
+        drip.stop()
+    assert reply.error == oc.TIMEOUT
+    assert elapsed < 1.5
+    assert drip.connections == 1
+
+
+# ---------------------------------------------------------- O6 expired budget
+
+
+def test_o6_expired_budget_makes_no_connection(fake):
+    reply = post(fake.url + CHAT_PATH, mc.Budget(0))
+    assert reply.error == oc.TIMEOUT
+    assert fake.connections == 0 and fake.requests == []
+    control = post(fake.url + CHAT_PATH)
+    assert (control.status, control.error) == (200, None)
+
+
+# ------------------------------------------------------------------ O7 oversize
+
+
+def test_o7_oversize_body_is_transport(fake):
+    fake.script(CHAT_PATH, fakes.oversize(2 * 1024 * 1024))
+    reply = post(fake.url + CHAT_PATH, 5.0)
+    assert reply.error == oc.TRANSPORT
+    fake.script(CHAT_PATH, fakes.oversize(1024 * 1024))
+    control = post(fake.url + CHAT_PATH, 5.0)
+    assert (control.status, control.error, len(control.body)) == (200, None, 1024 * 1024)
+
+
+# ------------------------------------------------------------------ O8 base URL
+
+
+def _refused_bases(port):
+    return [
+        f"http://localhost:{port}", f"http://127.0.0.2:{port}", f"http://[::1]:{port}",
+        f"https://127.0.0.1:{port}", f"http://user@127.0.0.1:{port}",
+        "http://127.0.0.1.example.com:80", "http://127.0.0.1", f"http://127.0.0.1:{port}/api",
+        f"http://127.0.0.1:{port}/", f"http://127.0.0.1:{port}?q=1", "", "not a url",
+    ]
+
+
+def test_o8_base_url_seam_accepts_only_loopback_with_test_key(fake, capture):
+    name = "AI_BADGER_MEMORY_CONTEXT_TEST_OPENROUTER_BASE"
+    assert oc.api_base({}, KEY) == "https://openrouter.ai"
+    assert oc.api_base({}, PRODUCTION_LOOKING_KEY) == "https://openrouter.ai"
+    accepted = oc.api_base({name: fake.url}, KEY)
+    assert accepted == fake.url
+    assert post(accepted + CHAT_PATH).status == 200
+    assert len(fake.requests) == 1
+    cases = [(fake.url, PRODUCTION_LOOKING_KEY)] + [(base, KEY) for base in
+                                                   _refused_bases(fake.port)]
+    for base, key in cases:
+        found = oc.api_base({name: base}, key)
+        if found is not None:
+            post(found + CHAT_PATH, key=key)
+        assert found is None, base
+    assert len(fake.requests) == 1
+    assert capture.requests == []
+
+
+# ----------------------------------------------------------------------- O9 key
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("sk-test-abc", "sk-test-abc"),
+    ("  sk-test-abc\n", "sk-test-abc"),
+    ("", None), ("   ", None), ("sk test", None), ("sk-a\nb", None), ("sk-\tx", None),
+    ("sk-café", None), ("sk-\x7f", None), ("sk-\x00", None),
+])
+def test_o9_key_comes_from_env_only_and_must_be_clean(raw, expected):
+    assert oc.api_key({"OPENROUTER_API_KEY": raw}) == expected
+
+
+def test_o9_key_files_are_ignored(memory_context_env, monkeypatch, tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / ".env").write_text(f"OPENROUTER_API_KEY={KEY}\n", encoding="utf-8")
+    (memory_context_env.home / ".openrouter").write_text(KEY, encoding="utf-8")
+    monkeypatch.chdir(work)
+    assert oc.api_key({}) is None
+    assert oc.api_key({"HOME": str(memory_context_env.home)}) is None
+
+
+def test_o9_request_headers_and_bad_key_never_sent(fake):
+    reply = post(fake.url + CHAT_PATH, body={"model": "m", "messages": []})
+    assert reply.status == 200
+    seen = fake.requests[0]
+    assert seen["headers"]["authorization"] == f"Bearer {KEY}"
+    assert seen["headers"]["content-type"] == "application/json"
+    assert seen["body"] == {"model": "m", "messages": []}
+    for bad in (KEY + "\nX-Injected: 1", "q1-secret key", ""):
+        assert post(fake.url + CHAT_PATH, key=bad).error == oc.TRANSPORT
+    assert len(fake.requests) == 1
+
+
+# -------------------------------------------------------- O10 multi-address
+
+
+def test_o10_every_connect_attempt_shares_one_deadline(fake, monkeypatch):
+    attempts = []
+
+    def getaddrinfo(host, port, *args, **kwargs):
+        del args, kwargs
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (host, port))] * 4
+
+    def connect(self, address):
+        attempts.append(address)
+        time.sleep(min(self.gettimeout() or fakes.FAKE_CEILING_SECONDS,
+                       fakes.FAKE_CEILING_SECONDS))
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo)
+    monkeypatch.setattr(socket.socket, "connect", connect)
+    reply, elapsed = timed_post(fake.url + CHAT_PATH, 0.4)
+    assert reply.error == oc.TIMEOUT
+    assert elapsed < 0.9
+    assert attempts
+
+
+# ---------------------------------------------------------------- O11 DNS
+
+
+def test_o11_dns_is_under_the_deadline_with_one_resolver_per_host(fake, monkeypatch):
+    release = threading.Event()
+    resolved_on = []
+    guarded = socket.getaddrinfo
+
+    def getaddrinfo(host, port, *args, **kwargs):
+        resolved_on.append((host, threading.current_thread().name))
+        if host == "openrouter.test":
+            release.wait(fakes.FAKE_CEILING_SECONDS)
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))]
+        return guarded(host, port, *args, **kwargs)
+
+    monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo)
+    url = f"http://openrouter.test:{fake.port}{CHAT_PATH}"
+
+    def dns_threads():
+        return [t for t in threading.enumerate()
+                if t.is_alive() and t.name == "ai-badger-openrouter-dns"]
+
+    try:
+        reply, elapsed = timed_post(url, 0.3)
+        assert reply.error == oc.TIMEOUT
+        assert elapsed < 0.8
+        again, again_elapsed = timed_post(url, 0.3)
+        assert again.error == oc.TIMEOUT
+        assert again_elapsed < 0.1
+        assert len(dns_threads()) == 1
+    finally:
+        release.set()
+    end = time.monotonic() + 1.0
+    while dns_threads() and time.monotonic() < end:
+        time.sleep(0.01)
+    assert dns_threads() == []
+    assert fake.requests == []
+    assert [host for host, _ in resolved_on] == ["openrouter.test"]
+    literal = post(fake.url + CHAT_PATH)
+    assert literal.status == 200
+    assert resolved_on[-1] == ("127.0.0.1", threading.current_thread().name)

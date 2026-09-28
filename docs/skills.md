@@ -579,6 +579,18 @@ partial hit gets one targeted external search, and a miss gets an external searc
 a `memory_write` of the finding (source path included). Durable cross-project facts are
 promoted with `memory_share`, never automatically.
 
+**The per-prompt hook (0.178.0).** The skill also ships `memory_context_hook.py`, which
+searches memory before the model sees each gated prompt and injects a "Memory context" block,
+the same one pi's `mem-based-rag` produces. It runs on Claude Code, on Copilot CLI (flat
+`additionalContext`, and only in a repo listed in `trustedFolders`) and in Hermes CLI sessions,
+never on pi. Every run spawns the `ai-raccoon` proxy once and never touches its token. With
+`OPENROUTER_API_KEY` set, an OpenRouter planner and the Jev scorer turn one search into several
+(90 s cap, 25 s under Hermes), and the gated prompt plus the matched memory and source-code
+excerpts go to OpenRouter. Without the key, or with `AI_BADGER_MEMORY_CONTEXT_PIPELINE=0`, it
+runs one local search capped at 5 s. `AI_BADGER_MEMORY_CONTEXT=0` turns the hook off. The
+skill's section 8 and [ADR-0031](adr/0031-per-prompt-memory-context-through-the-ai-raccoon-proxy.md)
+carry the details.
+
 **When to use it.** Any session in a project that has the server installed — the MCP entry is
 declared when `ai-raccoon` is on PATH. Install it with
 `dotnet tool install -g arasz.ai-raccoon`.

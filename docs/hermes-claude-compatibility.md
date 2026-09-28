@@ -13,7 +13,10 @@ and any gaps that need bridging.
 > and `post_tool_call` for observation. This sentence said "all three hooks" from 0.84.0 until
 > the 2026-08-07 documentation sweep, because the memory gate landed and nothing re-counted.
 > Drift is reported at session start, not per turn,
-> and `pre_llm_call` carries drift plus usage hints plus MCP tool-index recommendations. The
+> and `pre_llm_call` carries drift plus usage hints plus MCP tool-index recommendations, and,
+> since 0.178.0, the per-prompt memory-context block last of all. That block runs in CLI sessions
+> only (`(platform or "cli") == "cli"`) and is capped at 25 s, because Hermes abandons a
+> `pre_llm_call` callback after 30 s; Claude and Copilot give the same search 90 s. The
 > advice below to inject usage context "into every turn" was explicitly walked back in 0.18.0 —
 > repeated every turn, the hints became wallpaper, so they are now once per session.
 
@@ -28,7 +31,7 @@ Hermes has three, each more powerful in different ways.
 | `SessionStart` event | `on_session_start` (plugin hook) | Fires on both CLI and gateway session start |
 | `PostToolUse` event | `post_tool_call` (plugin hook) | Receives tool_name, args, result, duration_ms |
 | `PreToolUse` event | `pre_tool_call` (plugin hook) | Can block tool calls by returning `{"action": "block", "message": "..."}` |
-| `UserPromptSubmit` → inject context | `pre_llm_call` (plugin hook) → `{"context": "..."}` | Inject git status, drift notices, usage info into every turn |
+| `UserPromptSubmit` → inject context | `pre_llm_call` (plugin hook) → `{"context": "..."}` | Inject git status, drift notices, usage info into every turn; the memory-context block (0.178.0) joins them in CLI sessions only |
 | `Stop` event | `on_session_end` (plugin hook) | Receives completed, interrupted booleans |
 | `Notification` event | Gateway hook `agent:end` | Post to Telegram/Discord/etc. when agent finishes |
 | `$CLAUDE_PLUGIN_ROOT` variable | `__file__`-relative ancestor walk | Hermes plugins self-locate via `Path(__file__).resolve().parents` |
