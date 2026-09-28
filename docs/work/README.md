@@ -176,3 +176,5 @@ the first plain-markdown record here.
 | `impl-reports/s13-integration.md` | S13 implementation report: the cross-module integration proof + mutation witnesses. |
 | `impl-reviews/r3-consumer-hermes.md` | Implementation review (consumer/Hermes lens): the no-shapes reference, Copilot entry loss, fallback-advice errors. |
 | `impl-reviews/r4-review-tests-qa.md` | Test-quality assessment: 15/15 behavioral mutations caught; header pin, comparator witness, timestamp gaps. |
+| `2026-09-28-jev-decision-points.md` | Measured where a Jev "system one" call earns its place (latency table, findings) — the carried exploration record. |
+| `2026-09-28-task-decomposition-architecture.json` | Archify workflow source for the task-plan pipeline diagram; showcase delivery blocked by one composition diagnostic (jev-dag/store-file corridor share) after 6 repair rounds — retry candidate, diagnostics recorded in this transcript's report. |
