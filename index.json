@@ -406,6 +406,11 @@
           "scope": "default"
         },
         {
+          "name": "task-decomposition",
+          "path": "features/common/skills/task-decomposition",
+          "scope": "default"
+        },
+        {
           "name": "test-economy",
           "path": "features/common/skills/test-economy",
           "scope": "default"
