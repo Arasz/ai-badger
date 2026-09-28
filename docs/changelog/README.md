@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.179.0 | [task-decomposition plans on a graph, with the task-graph MCP server](0.179.0-task-decomposition-graph.md) |
 | 0.178.0 | [per-prompt memory context, wired through the ai-raccoon proxy](0.178.0-per-prompt-memory-context.md) |
 | 0.177.3 | [AiRaccoon checklist items that go red on the defects they cover](0.177.3-raccoon-checklist-defect-items.md) |
 | 0.177.2 | [the Hermes plugin's two counters stop losing updates](0.177.2-hermes-atomic-updates.md) |
