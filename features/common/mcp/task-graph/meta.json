@@ -1,0 +1,20 @@
+{
+  "$schema": "../../../../schemas/mcp-server.schema.json",
+  "name": "task-graph",
+  "description": "The decomposed task plan as a graph: a DAG of steps carrying status, acceptance criteria and evidence, persisted beside the task tracker in the project's tracking.db and served over MCP stdio from a PEP 723 `uv run --script` launch.",
+  "prerequisite": {
+    "summary": "uv on PATH; the server and its pydantic env are fetched on first launch (PEP 723)",
+    "check": "uv --version",
+    "install": "curl -LsSf https://astral.sh/uv/install.sh | sh",
+    "local": {
+      "summary": "uv on PATH — `uv run --script` resolves the script's PEP 723 environment per launch, so the project needs no virtualenv of its own",
+      "check": "uv --version",
+      "install": "curl -LsSf https://astral.sh/uv/install.sh | sh"
+    },
+    "global": {
+      "summary": "uv on PATH as a user-global install — the server is a standalone script, so `uv tool install` is not used",
+      "check": "uv --version",
+      "install": "curl -LsSf https://astral.sh/uv/install.sh | sh"
+    }
+  }
+}
