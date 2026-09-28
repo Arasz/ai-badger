@@ -30,6 +30,11 @@ except ImportError:  # pragma: no cover - Windows has no fcntl; locking degrades
 
 SCHEMA_VERSION = 3
 
+#: The version the non-tracking DBs (user, audit) stamp. The plans table is a tracking-only
+#: upgrade, so the machine-wide user DB must never run the 2 -> 3 hook: re-stamping it 3 made
+#: every pre-0.179 vendored copy (hooks, statusline, tracker CLIs) refuse to open it (R-D).
+NON_TRACKING_SCHEMA_VERSION = 2
+
 #: Minimum seconds between two prunes of the same log table (D9/D30): the open-time prune
 #: is throttled by the per-table ``pruned_at`` meta stamp so a burst of opens prunes once.
 _PRUNE_THROTTLE_SECONDS = 3600
@@ -457,8 +462,21 @@ def _create_schema(conn: sqlite3.Connection) -> None:
         conn.execute(statement)
 
 
-def _ensure_schema_version(conn: sqlite3.Connection, db_path: Path) -> None:
-    """Stamp SCHEMA_VERSION on a fresh DB; dispatch upgrade hooks older; fail closed newer (D27)."""
+def _target_schema_version(kind: str) -> int:
+    """The version a database of *kind* stamps: 3 for tracking, 2 for user/audit."""
+    return SCHEMA_VERSION if kind == "tracking" else NON_TRACKING_SCHEMA_VERSION
+
+
+def _ensure_schema_version(conn: sqlite3.Connection, db_path: Path,
+                           kind: str = "tracking") -> None:
+    """Stamp the kind's target on a fresh DB; dispatch upgrade hooks older; fail closed newer.
+
+    The 2 -> 3 plans hook is tracking-only (R-D): a user/audit DB targets
+    ``NON_TRACKING_SCHEMA_VERSION`` and never lands the table. A non-tracking DB already
+    stamped at ``SCHEMA_VERSION`` (leaked by pre-fix code) opens untouched rather than
+    failing closed, so the leaked state stays recoverable.
+    """
+    target = _target_schema_version(kind)
     row = conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()
     if row is None:
         # A fresh DB carries only the v1 base DDL (created just before this runs), so it is
@@ -466,7 +484,7 @@ def _ensure_schema_version(conn: sqlite3.Connection, db_path: Path) -> None:
         # transaction — the exact path a stamped-1 DB takes — then stamp it current (D1).
         conn.execute("BEGIN IMMEDIATE")
         try:
-            for version in range(1, SCHEMA_VERSION):
+            for version in range(1, target):
                 hook = UPGRADE_HOOKS.get(version)
                 if hook is not None:
                     hook(conn)
@@ -477,7 +495,7 @@ def _ensure_schema_version(conn: sqlite3.Connection, db_path: Path) -> None:
             # identical stamp is the correct resolution.
             conn.execute(
                 "INSERT OR REPLACE INTO meta(key, value) VALUES ('schema_version', ?)",
-                (str(SCHEMA_VERSION),),
+                (str(target),),
             )
             conn.commit()
         except BaseException:
@@ -493,15 +511,15 @@ def _ensure_schema_version(conn: sqlite3.Connection, db_path: Path) -> None:
             f"refusing to write in an old shape — run den-refresh to upgrade ai-badger "
             f"({db_path})"
         )
-    if stored < SCHEMA_VERSION:
+    if stored < target:
         conn.execute("BEGIN IMMEDIATE")
         try:
-            for version in range(stored, SCHEMA_VERSION):
+            for version in range(stored, target):
                 hook = UPGRADE_HOOKS.get(version)
                 if hook is not None:
                     hook(conn)
             conn.execute(
-                "UPDATE meta SET value = ? WHERE key = 'schema_version'", (str(SCHEMA_VERSION),)
+                "UPDATE meta SET value = ? WHERE key = 'schema_version'", (str(target),)
             )
             conn.commit()
         except BaseException:
@@ -2279,7 +2297,7 @@ def _open(db_path: Path, kind: str, families: Optional[dict] = None) -> Store:
                 time.sleep(0.05)
         conn.execute("PRAGMA synchronous = NORMAL")
         _create_schema(conn)
-        _ensure_schema_version(conn, db_path)
+        _ensure_schema_version(conn, db_path, kind)
         store._check_resurrections()  # pylint: disable=protected-access
     except BaseException:
         conn.close()

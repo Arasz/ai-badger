@@ -159,7 +159,7 @@ def test_default_open_user_round_trips_a_test_economy_row(tmp_path, monkeypatch)
         assert store.kv_get("test_economy", "/repo") == {"full": 2, "sessions": {}}
         stamped = store.conn.execute(
             "SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0]
-        assert stamped == "3" == str(badger_store.SCHEMA_VERSION)
+        assert stamped == "2" == str(badger_store.NON_TRACKING_SCHEMA_VERSION)
     finally:
         store.close()
 

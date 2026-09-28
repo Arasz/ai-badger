@@ -79,13 +79,23 @@ class TestTheProjectDescriptionIsTrue:
         """CLAUDE.md is generated from the summary; a stale copy re-publishes the old claim.
 
         Only the overclaim is checked here, not staleness: this lane owns config.json and the
-        orchestrator regenerates every rendered copy at the wave join.
+        orchestrator regenerates every rendered copy at the wave join. The loop must have at
+        least one subject and both mandated render paths must exist — an `is_file()` sweep
+        that finds nothing would otherwise pass while proving nothing (R4-F4).
         """
+        checked = 0
         for rel in RENDERED_COPIES:
             path = root / rel
             if path.is_file():
                 assert OVERCLAIM not in path.read_text(encoding="utf-8"), (
                     f"{rel} re-publishes the overclaim")
+                checked += 1
+
+        assert checked >= 1, (
+            "no rendered copy was checked: the sweep proved nothing about the summary")
+        for mandated in ("CLAUDE.md", ".ai-badger/CLAUDE.md"):
+            assert (root / mandated).is_file(), (
+                f"{mandated} is a mandated render target but does not exist")
 
 
 class TestTheContractIsWhatTheDocsSay:

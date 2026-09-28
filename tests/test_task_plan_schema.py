@@ -473,6 +473,7 @@ def _schema_expressible_corpus():
 
     return [
         ("valid", _plan()),
+        ("valid-boundary-step-id", _plan(steps={"a.b_c-1": _step("a.b_c-1")})),
         ("valid-runtime-state", _step_plan(**complete_step)),
         ("valid-unicode", _plan(
             task_context=UNICODE,
@@ -530,6 +531,20 @@ def test_dual_validator_verdicts_agree_over_the_corpus(load_script):
     assert not disagreements, f"schema and model disagree: {disagreements}"
     outcomes = {ok for _, ok, _ in verdicts}
     assert outcomes == {True, False}, "the corpus proves only one verdict"
+
+
+def test_boundary_step_id_round_trips_model_schema_and_wire(load_script):
+    """F10: no positive fixture exercised `.`/`_`/`-` in an id, so a coordinated model +
+    regenerated-schema tightening could ship green. Pin one valid boundary id at every layer."""
+    model = load_script(MODEL_RELPATH)
+    step_id = "a.b_c-1"
+    plan = model.TaskPlan.model_validate(_plan(steps={step_id: _step(step_id)}))
+
+    assert list(plan.workflow.steps) == [step_id]
+    assert model.TaskPlan.model_validate_json(
+        plan.model_dump_json(by_alias=True, exclude_none=True)) == plan
+    assert not list(Draft202012Validator(_schema()).iter_errors(
+        _plan(steps={step_id: _step(step_id)})))
 
 
 def test_pydantic_only_dag_invariants_pass_schema_fail_model(load_script):

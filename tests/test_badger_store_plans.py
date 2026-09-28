@@ -80,6 +80,10 @@ def _plans_columns(conn) -> dict:
     return {row[1]: row for row in conn.execute("PRAGMA table_info(plans)")}
 
 
+def _tables(conn) -> set:
+    return {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+
+
 # ---------------------------------------------------------------------------
 # 1. lifecycle: version contract, fresh DB, stamped-2 upgrade, newer stamp
 # ---------------------------------------------------------------------------
@@ -139,6 +143,46 @@ def test_stamped_two_db_runs_the_plans_hook_and_re_stamps(tmp_path, monkeypatch)
         assert calls == [1], "the 2 -> 3 hook must run for a stamped-2 DB"
         assert _schema_version(reopened.conn) == "3"
         assert _plans_columns(reopened.conn), "the hook must land the plans table"
+    finally:
+        reopened.close()
+
+
+def test_open_user_never_lands_plans_and_stays_at_the_user_version(tmp_path, monkeypatch):
+    """R-D root cause: the plans upgrade is tracking-only. The machine-wide user DB keeps
+    its v2-era stamp and gains no plans table, so pre-0.179 copies still open it."""
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+    store = badger_store.open_user()
+    try:
+        assert _schema_version(store.conn) == str(badger_store.NON_TRACKING_SCHEMA_VERSION)
+        assert _schema_version(store.conn) == "2"
+        assert "plans" not in _tables(store.conn)
+    finally:
+        store.close()
+
+
+def test_open_audit_never_lands_plans(tmp_path):
+    """The audit sink is the second non-tracking DB; it must stay plan-free too."""
+    store = badger_store.open_audit(tmp_path / "debug")
+    try:
+        assert _schema_version(store.conn) == str(badger_store.NON_TRACKING_SCHEMA_VERSION)
+        assert "plans" not in _tables(store.conn)
+    finally:
+        store.close()
+
+
+def test_a_user_db_leaked_to_stamp_three_still_opens(tmp_path, monkeypatch):
+    """Pre-fix code re-stamped the user DB 3; new code tolerates that state instead of
+    failing closed into a recovery dead end, and still never lands plans there."""
+    monkeypatch.setenv("AI_BADGER_USER_ROOT", str(tmp_path / "user-root"))
+    first = badger_store.open_user()
+    first.conn.execute("UPDATE meta SET value = '3' WHERE key = 'schema_version'")
+    first.conn.commit()
+    first.close()
+
+    reopened = badger_store.open_user()
+    try:
+        assert _schema_version(reopened.conn) == "3"
+        assert "plans" not in _tables(reopened.conn)
     finally:
         reopened.close()
 

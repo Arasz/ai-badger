@@ -26,6 +26,9 @@ replays no-ops with ``changed:false``. After every write the server renders
 Run through PEP 723: ``uv run --script task_graph_server.py``. ``--check`` validates the
 checked-in ``schemas/task-plan.schema.json`` against this runtime's pydantic model and exits
 0/1, so the prerequisite is a real check rather than a claim.
+
+The ``completion`` slot is the only record v1 keeps: a forced override note or a failure
+reason stays readable until the step advances and the next move overwrites it (no event log).
 """
 from __future__ import annotations
 
@@ -201,9 +204,10 @@ class PlanReplaceInput(PlanRef):
 
 
 class PlanGetInput(PlanRef):
-    """`plan_get`: one of four read projections."""
+    """`plan_get`: one of four read projections, optionally guarded by an expected revision."""
 
     include: Literal["summary", "full", "steps", "state"] = "summary"
+    revision: Optional[int] = Field(default=None, ge=0)
 
 
 class PlanExportInput(PlanRef):
@@ -338,7 +342,7 @@ def _map_transition(refused: graph.TransitionRefused) -> ToolRefusal:
     if refused.code == "already_complete":
         return _refuse("invalid-transition", str(refused),
                        {"step_id": details.get("step_id"), "status": "complete",
-                        "allowed_transitions": []})
+                        "allowed_transitions": list(graph.ALLOWED_TOOLS["complete"])})
     if refused.code == "dependencies-incomplete":
         details["blocking"] = details.pop("waiting_on", [])
     code = refused.code if refused.code in ERROR_STATUS else "invalid-transition"
@@ -554,12 +558,20 @@ def _terminal_replays(step, reason: Optional[str], evidence: List[Any]) -> bool:
 
 
 def _create_payload(plan, *, created: bool) -> dict:
-    """The shared create shape: identity, revision, hash, frontier."""
+    """The shared create shape: identity, revision, hash, frontier, quality findings."""
     return {"task_id": plan.task_id, "revision": plan.revision,
             "schema_version": plan.schema_version,
             "content_hash": model.content_hash(plan), "created": created,
             "steps": len(plan.workflow.steps), "ready": _ready_refs(plan),
-            "waves": graph.waves(plan)}
+            "waves": graph.waves(plan), "findings": _quality_findings(plan)}
+
+
+def _quality_findings(plan) -> List[dict]:
+    """Plan-quality findings as wire entries: `{kind, step_id}` each (zero-AC steps stay
+    legal per V6 but visible; `integration_missing` marks a multi-sink workflow with no
+    join step)."""
+    return [{"kind": finding.kind, "step_id": finding.step_id}
+            for finding in graph.plan_quality_findings(plan)]
 
 
 def _replace_payload(plan, *, replaced: bool) -> dict:
@@ -619,8 +631,10 @@ def _tool_plan_replace(args: PlanReplaceInput) -> dict:
 
 
 def _tool_plan_get(args: PlanGetInput) -> dict:
-    """One of the four read projections."""
+    """One of the four read projections, with an optional revision guard."""
     plan, _raw = _read_plan(args.task_id)
+    if args.revision is not None and plan.revision != args.revision:
+        raise _conflict(args.task_id, plan.revision, args.revision)
     summary = {"task_id": plan.task_id, "revision": plan.revision,
                "schema_version": plan.schema_version,
                "content_hash": model.content_hash(plan), "created_at": plan.created_at,
@@ -635,7 +649,8 @@ def _tool_plan_get(args: PlanGetInput) -> dict:
                                      for step_id in graph.topological_order(plan)}}
     return {"task_id": plan.task_id, "revision": plan.revision, "counts": _counts(plan),
             "criteria": _criteria_total(plan), "integration_ok": graph.integration_ok(plan),
-            "integration_sink": graph.integration_sink(plan)}
+            "integration_sink": graph.integration_sink(plan),
+            "findings": _quality_findings(plan)}
 
 
 def _tool_plan_export(args: PlanExportInput) -> dict:
@@ -684,10 +699,13 @@ def _tool_progress_checklist(args: ProgressChecklistInput) -> dict:
               "marker": row["marker"],
               "criteria": {"passed": row["acs_passed"], "total": row["acs_total"]}}
              for row in data["steps"]]
+    finding = graph.integration_finding(plan)
     payload = {"task_id": plan.task_id, "revision": plan.revision,
                "complete": data["complete"], "total": data["total"], "steps": steps,
                "next": [ready_step.step_id for ready_step in graph.ready(plan)],
-               "blocked": _blocked_refs(plan)}
+               "blocked": _blocked_refs(plan),
+               "integration_ok": graph.integration_ok(plan),
+               "integration_finding": finding.step_id if finding is not None else None}
     if args.format == "text":
         payload["text"] = _checklist_text(payload)
     return payload
@@ -819,7 +837,8 @@ def _tool_step_fail(args: StepFailInput) -> dict:
             raise _refuse(
                 "invalid-transition",
                 f"step {args.step_id!r} already failed with a different record",
-                {"step_id": args.step_id, "status": "failed", "allowed_transitions": []})
+                {"step_id": args.step_id, "status": "failed",
+                 "allowed_transitions": list(graph.ALLOWED_TOOLS["failed"])})
         try:
             failed = graph.fail(plan, args.step_id)
         except graph.TransitionRefused as refused:
@@ -930,6 +949,8 @@ def _render_markdown(plan) -> str:
         for criterion in step.acceptance_criteria:
             glyph = "x" if criterion.status.value == "passed" else " "
             lines.append(f"- [{glyph}] {criterion.id}: {criterion.statement}")
+            if criterion.check:
+                lines.append(f"  - check: {criterion.check}")
         lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -1114,7 +1135,7 @@ TOOLS: Tuple[ToolSpec, ...] = (
         "plan_get",
         "Read the plan: include=summary (ids, revision, hash, counts, frontier), full (adds "
         "the document), steps (adds the step map) or state (counts, AC tallies, "
-        "integration_ok).",
+        "integration_ok, quality findings). revision guards the read against a stale one.",
         PlanGetInput, _tool_plan_get, True, True),
     ToolSpec(
         "plan_export",
@@ -1162,8 +1183,10 @@ TOOLS: Tuple[ToolSpec, ...] = (
         StepsReadyInput, _tool_steps_ready, True, True),
     ToolSpec(
         "progress_checklist",
-        "The derived status view: per-step status, glyph and AC tally, the next ready steps "
-        "and the blocked remainder; format=text also renders the status section.",
+        "The derived status view: per-step status, glyph and AC tally, the next ready steps, "
+        "the blocked remainder, and the integration rule's verdict (integration_ok plus the "
+        "finding id when no join step spans a multi-sink workflow); format=text also renders "
+        "the status section.",
         ProgressChecklistInput, _tool_progress_checklist, True, True),
 )
 TOOL_BY_NAME: Dict[str, ToolSpec] = {spec.name: spec for spec in TOOLS}
@@ -1266,11 +1289,17 @@ def _handle_line(line: str) -> Optional[dict]:
 
 
 def serve(stdin=None, stdout=None) -> int:
-    """The NDJSON loop: one JSON object per line in, one response per request out."""
-    source = sys.stdin if stdin is None else stdin
+    """The NDJSON loop: one JSON object per line in, one response per request out.
+
+    Input is read as bytes where the stream offers them (``sys.stdin.buffer``): a line of
+    invalid UTF-8 decodes with replacement and answers a JSON-RPC parse error, instead of
+    killing the loop with the ``UnicodeDecodeError`` a text read would raise.
+    """
+    source = (getattr(sys.stdin, "buffer", sys.stdin) if stdin is None else stdin)
     sink = sys.stdout if stdout is None else stdout
     _log(f"ready ({_server_version()})")
-    for line in source:
+    for raw in source:
+        line = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
         line = line.strip()
         if not line:
             continue

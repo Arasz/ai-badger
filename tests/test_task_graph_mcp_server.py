@@ -33,10 +33,12 @@ from __future__ import annotations
 import json
 import os
 import re
+import select
 import shutil
 import sqlite3
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -44,6 +46,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVER_RELPATH = "features/common/skills/task-decomposition/scripts/task_graph_server.py"
+MODEL_RELPATH = "features/common/skills/task-decomposition/scripts/task_plan_model.py"
 TRACKING_ROOT_ENV = "AI_BADGER_TRACKING_ROOT"
 TASK_ID = "aib-demo-task"
 SERVER = ROOT / SERVER_RELPATH
@@ -87,6 +90,11 @@ def freeze(value):
 # ------------------------------------------------------------------------------- the pipe
 
 
+#: Seconds a response may take before the harness declares the server unresponsive; a
+#: regression that stops answering must fail the run, not hang it (R4-F11).
+READ_TIMEOUT = 10
+
+
 class McpServer:
     """One spawned server process, addressed in NDJSON over its real stdin/stdout pipes."""
 
@@ -126,7 +134,18 @@ class McpServer:
         return self.read()
 
     def read(self) -> dict:
-        """The next stdout line, parsed; fails with the stderr tail when the server dies."""
+        """The next stdout line, parsed; fails with the stderr tail when the server dies.
+
+        The readline has a deadline: a server that stops answering must fail the test
+        instead of hanging the run (R4-F11).
+        """
+        ready, _, _ = select.select([self._proc.stdout], [], [], READ_TIMEOUT)
+        if not ready:
+            self._proc.kill()
+            self._proc.wait(timeout=5)
+            raise AssertionError(
+                f"task-graph server did not respond within {READ_TIMEOUT}s (rc="
+                f"{self._proc.poll()}):\n{self._proc.stderr.read()}")
         line = self._proc.stdout.readline()
         if not line:
             raise AssertionError(
@@ -160,6 +179,23 @@ class McpServer:
         self.close_stdin()
         rc = self.wait()
         assert rc == 0, f"server exited {rc}:\n{self._proc.stderr.read()}"
+
+
+def test_harness_read_deadline_fails_instead_of_hanging(monkeypatch):
+    """Witness for the deadline above: a server that never answers fails the read."""
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True, encoding="utf-8")
+    server = McpServer.__new__(McpServer)
+    server._proc = proc
+    monkeypatch.setattr(sys.modules[__name__], "READ_TIMEOUT", 0.3)
+    try:
+        with pytest.raises(AssertionError, match="did not respond"):
+            server.read()
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait(timeout=5)
 
 
 @pytest.fixture(autouse=True)
@@ -340,6 +376,28 @@ def test_malformed_line_gets_a_parse_error_and_the_server_survives(mcp):
     assert server.wait() == 0
 
 
+def test_non_utf8_stdin_bytes_get_an_error_and_the_loop_survives(tmp_path):
+    """The reproduced crash: a valid ping, raw ``\\xff\\xfe``, then another ping.
+
+    Read as text, the undecodable line escapes the loop as a traceback. The bytes must
+    instead become an error response and the next request must still be served.
+    """
+    env = dict(os.environ)
+    env[TRACKING_ROOT_ENV] = str(tmp_path)
+    request = b'{"jsonrpc":"2.0","id":1,"method":"ping"}'
+    proc = subprocess.run(
+        [sys.executable, str(SERVER)],
+        input=request + b"\n\xff\xfe\n" + request.replace(b'"id":1', b'"id":2') + b"\n",
+        capture_output=True, env=env, check=False)
+
+    assert proc.returncode == 0, proc.stderr.decode("utf-8", "replace")
+    responses = [json.loads(line) for line in proc.stdout.decode("utf-8").splitlines()]
+    assert responses[0]["result"] == {}
+    assert responses[1]["id"] is None
+    assert responses[1]["error"]["code"] in (-32700, -32600)
+    assert responses[2] == {"jsonrpc": "2.0", "id": 2, "result": {}}
+
+
 def test_unknown_method_is_method_not_found_and_unknown_tool_is_invalid_params(mcp):
     server = mcp()
     response = server.call("tools/nowhere", {})
@@ -399,6 +457,7 @@ def test_plan_create_returns_the_create_shape_and_the_golden_content_hash(mcp):
                    "files": ["a.py"], "resources": [], "blocked_by": [], "skipped_deps": [],
                    "criteria": {"passed": 0, "total": 1}}],
         "waves": [["s1"]],
+        "findings": [],
     }
 
 
@@ -411,6 +470,163 @@ def test_plan_create_is_idempotent_on_identical_content(mcp):
     assert second["created"] is False
     assert second["revision"] == 0
     assert second["content_hash"] == GOLDEN_CONTENT_HASH
+
+
+def test_plan_create_surfaces_quality_findings_without_refusing(mcp):
+    """Zero-AC steps stay legal (V6) but visible: findings ride the create payload."""
+    server = mcp()
+    payload = _create(server, steps=[
+        _step("s1", acceptance_criteria=[]),
+        _step("s2", acceptance_criteria=[], files=["b.py"]),
+    ])
+
+    assert payload["findings"] == [
+        {"kind": "step_without_acs", "step_id": "s1"},
+        {"kind": "step_without_acs", "step_id": "s2"},
+        {"kind": "integration_missing", "step_id": "s1"},
+    ]
+    state = _payload(server, "plan_get", {"task_id": TASK_ID, "include": "state"})
+    assert state["findings"] == payload["findings"]
+
+
+def test_plan_replace_surfaces_quality_findings(mcp):
+    server = mcp()
+    _create(server)
+    replace = {
+        "task_id": TASK_ID, "expected_revision": 0,
+        "task_description_ref": "docs/work/plan.md", "task_context": "a demo plan",
+        "loop": "high", "source_refs": [],
+        "steps": [_step("s1", acceptance_criteria=[], files=["a.py"]),
+                  _step("s2", acceptance_criteria=[], files=["b.py"])],
+    }
+    payload = _payload(server, "plan_replace", replace)
+    assert {"kind": "integration_missing", "step_id": "s1"} in payload["findings"]
+    assert len(payload["findings"]) == 3
+
+
+def test_plan_get_revision_mismatch_is_a_conflict_carrying_the_current(mcp):
+    """A caller that read an old revision gets the conflict detail, not a stale projection."""
+    server = mcp()
+    _create(server)
+    matching = _payload(server, "plan_get", {"task_id": TASK_ID, "revision": 0})
+    assert matching["revision"] == 0
+
+    error = _error(server, "plan_get", {"task_id": TASK_ID, "revision": 3}, "conflict")
+    assert error["details"]["current_revision"] == 0
+    assert error["details"]["expected_revision"] == 3
+
+
+def test_boundary_step_id_round_trips_over_the_wire(mcp):
+    """`a.b_c-1` is inside the frozen pattern; the full wire path accepts and returns it."""
+    server = mcp()
+    step_id = "a.b_c-1"
+    payload = _create(server, steps=[_step(step_id)])
+    assert payload["ready"][0]["id"] == step_id
+
+    full = _payload(server, "plan_get", {"task_id": TASK_ID, "include": "full"})
+    assert list(full["document"]["workflow"]["steps"]) == [step_id]
+    read = _payload(server, "step_get", {"task_id": TASK_ID, "step_id": step_id})
+    assert read["step"]["id"] == step_id
+
+
+def test_plan_get_full_round_trips_unicode_bytes(mcp):
+    """Non-ASCII must survive the wire, the store and the projection byte-for-byte."""
+    server = mcp()
+    text = "Größe — naïve café 日本語 ✓ 🐍"
+    _create(server, task_context=text, steps=[_step(
+        goal=text, instructions=text,
+        acceptance_criteria=[_ac(statement=text, check=text)])])
+
+    full = _payload(server, "plan_get", {"task_id": TASK_ID, "include": "full"})
+    document = full["document"]
+    assert document["task_context"] == text
+    assert document["workflow"]["steps"]["s1"]["goal"] == text
+    assert document["workflow"]["steps"]["s1"]["acceptance_criteria"][0]["statement"] == text
+
+    exported = _payload(server, "plan_export", {"task_id": TASK_ID})
+    canonical = json.dumps(document, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    transmitted = json.dumps(exported["document"], ensure_ascii=False,
+                             sort_keys=True).encode("utf-8")
+    assert canonical == transmitted
+    assert text.encode("utf-8") in canonical, "the text must travel as raw UTF-8, not escapes"
+
+
+def test_force_and_failure_records_live_in_one_lossy_slot(mcp):
+    """v1 keeps no event log: the single completion slot is overwritten when a step advances."""
+    server = mcp()
+    _create(server, steps=_two_step_steps())
+
+    # A forced start's override note is readable until the step advances...
+    _payload(server, "step_start", {"task_id": TASK_ID, "step_id": "s2",
+                                    "expected_revision": 0, "force": True,
+                                    "reason": "owner waived the ordering"})
+    read_back = _payload(server, "step_get", {"task_id": TASK_ID, "step_id": "s2"})
+    assert read_back["step"]["completion"]["evidence"][0]["summary"] == \
+        "owner waived the ordering"
+
+    # ...unblock s2 by completing s1, then the completion record replaces the forced note.
+    _start(server, "s1", 1)
+    _payload(server, "ac_check", {"task_id": TASK_ID, "step_id": "s1", "ac_id": "ac1",
+                                  "expected_revision": 2, "status": "passed", "evidence": []})
+    _complete(server, "s1", 3)
+    _payload(server, "ac_check", {"task_id": TASK_ID, "step_id": "s2", "ac_id": "ac2",
+                                  "expected_revision": 4, "status": "passed", "evidence": []})
+    completed = _complete(server, "s2", 5, evidence=[_evidence("verified")])
+    summaries = [item["summary"] for item in completed["step"]["completion"]["evidence"]]
+    assert summaries == ["verified"]
+
+    # A failure's reason is readable until the retry start clears it.
+    other = TASK_ID + "-b"
+    _payload(server, "plan_create", {**_create_args(task_id=other), "steps": [_step()]})
+    _payload(server, "step_start", {"task_id": other, "step_id": "s1",
+                                    "expected_revision": 0})
+    failed = _payload(server, "step_fail", {
+        "task_id": other, "step_id": "s1",
+        "expected_revision": 1, "reason": "gate red",
+        "evidence": [_evidence("gate failed")]})
+    assert failed["step"]["completion"]["note"] == "gate red"
+    retried = _payload(server, "step_start", {"task_id": other, "step_id": "s1",
+                                               "expected_revision": 2})
+    assert retried["step"]["status"] == "in_progress"
+    assert "completion" not in retried["step"]
+
+
+def test_step_start_stamps_a_fresh_started_at(mcp):
+    """A frozen clock in the server would pass every normalised golden; this catches it."""
+    server = mcp()
+    _create(server)
+    before = datetime.now(timezone.utc) - timedelta(seconds=1)
+    payload = _start(server, "s1", 0)
+    after = datetime.now(timezone.utc) + timedelta(seconds=1)
+
+    started = datetime.fromisoformat(payload["step"]["started_at"].replace("Z", "+00:00"))
+    assert before <= started <= after
+
+
+def test_updated_at_advances_across_a_cas_write(mcp):
+    """`freeze()` normalises every golden; an advancing `updated_at` needs its own oracle."""
+    server = mcp()
+    _create(server)
+    started = _start(server, "s1", 0)
+    assert started["revision"] == 1
+
+    plan = _payload(server, "plan_get", {"task_id": TASK_ID})
+    created = datetime.fromisoformat(plan["created_at"].replace("Z", "+00:00"))
+    updated = datetime.fromisoformat(plan["updated_at"].replace("Z", "+00:00"))
+    assert updated > created
+
+
+def test_the_closed_error_code_set_cannot_shrink(load_script):
+    """A uniform equality: dropping a code from the map reddens this, the pins above don't."""
+    server = load_script(SERVER_RELPATH)
+
+    assert set(server.ERROR_STATUS) == FROZEN_ERROR_CODES
+    assert set(server.ERROR_TITLES) == FROZEN_ERROR_CODES
+    # Reserved with no producer path today: prerequisite-missing (uv absent) and config-error
+    # (a malformed tracking root) both need a startup check the frozen surface has not built;
+    # they stay declared so the closed set never silently narrows under a consumer.
+    assert server.ERROR_STATUS["prerequisite-missing"] == 500
+    assert server.ERROR_STATUS["config-error"] == 500
 
 
 def test_plan_create_refuses_existing_different_content(mcp):
@@ -566,13 +782,14 @@ def test_plan_get_offers_summary_full_steps_and_state(mcp):
     assert state["criteria"] == {"passed": 0, "total": 2}
     assert state["integration_ok"] is True
     assert state["integration_sink"] == "s2"
+    assert state["findings"] == []
 
     _error(server, "plan_get", {"task_id": TASK_ID, "include": "everything"},
            "invalid-arguments")
     _error(server, "plan_get", {"task_id": "nope-nope"}, "not-found")
 
 
-def test_plan_export_returns_the_stored_document_verbatim(mcp, _tracking_root):
+def test_plan_export_returns_the_stored_document_verbatim(mcp, _tracking_root, load_script):
     server = mcp()
     _create(server, steps=_two_step_steps())
     payload = _payload(server, "plan_export", {"task_id": TASK_ID})
@@ -587,7 +804,11 @@ def test_plan_export_returns_the_stored_document_verbatim(mcp, _tracking_root):
     assert payload["revision"] == 0
     assert payload["content_hash"] == P2_CONTENT_HASH
     assert payload["schema_url"].endswith("/schemas/task-plan.schema.json")
-    assert payload["document"] == json.loads(stored)
+    # Byte-honest: re-canonicalising the returned document must reproduce the row's exact
+    # bytes — a parsed-JSON comparison would pass on reordered or respaced content.
+    model = load_script(MODEL_RELPATH)
+    returned = model.TaskPlan.model_validate(payload["document"])
+    assert returned.model_dump_json(by_alias=True, exclude_none=True) == stored
 
 
 def test_step_get_reports_relations_and_readiness(mcp):
@@ -633,11 +854,23 @@ def test_progress_checklist_json_and_text(mcp):
     assert payload["steps"][0]["criteria"] == {"passed": 0, "total": 1}
     assert payload["next"] == ["s1"]
     assert payload["blocked"] == []
+    assert payload["integration_ok"] is True
+    assert payload["integration_finding"] is None
     assert "text" not in payload
 
     text = _payload(server, "progress_checklist", {"task_id": TASK_ID, "format": "text"})
     assert "aib-demo-task" in text["text"]
     assert "0/2" in text["text"]
+
+
+def test_progress_checklist_surfaces_the_integration_finding(mcp):
+    """A multi-sink workflow with no join says so in the status view (DR8/R3-F2)."""
+    server = mcp()
+    _create(server, steps=[_step("s1"), _step("s2", files=["b.py"])])
+    payload = _payload(server, "progress_checklist", {"task_id": TASK_ID})
+
+    assert payload["integration_ok"] is False
+    assert payload["integration_finding"] == "s1"
 
 
 # ---------------------------------------------------------------------------- transitions
@@ -748,7 +981,7 @@ def test_step_complete_refuses_a_pending_step(mcp):
     error = _error(server, "step_complete", {
         "task_id": TASK_ID, "step_id": "s1", "expected_revision": 0,
         "evidence": [], "criterion_results": {}}, "invalid-transition")
-    assert error["details"]["allowed_transitions"] == ["in_progress", "skipped"]
+    assert error["details"]["allowed_transitions"] == ["step_start", "step_skip"]
 
 
 def test_step_complete_reports_the_new_ready_frontier(mcp):
@@ -785,9 +1018,10 @@ def test_step_fail_records_its_reason_and_replays(mcp):
     assert replay["changed"] is False
     assert replay["revision"] == 2
 
-    _error(server, "step_fail", {
+    error = _error(server, "step_fail", {
         "task_id": TASK_ID, "step_id": "s1", "expected_revision": 2,
         "reason": "something else", "evidence": []}, "invalid-transition")
+    assert error["details"]["allowed_transitions"] == ["step_start", "step_skip"]
 
 
 def test_step_skip_is_valid_from_pending_in_progress_and_failed(mcp):
@@ -811,6 +1045,18 @@ def test_step_skip_is_valid_from_pending_in_progress_and_failed(mcp):
         "reason": "dropped mid-flight"})
     assert replay["changed"] is False
     assert replay["revision"] == 3
+
+    # The third non-terminal source: a failed step retires directly (failed -> skipped).
+    suffix = TASK_ID + "-c"
+    _payload(server, "plan_create", {**_create_args(task_id=suffix), "steps": [_step()]})
+    _payload(server, "step_start", {"task_id": suffix, "step_id": "s1",
+                                    "expected_revision": 0})
+    _payload(server, "step_fail", {"task_id": suffix, "step_id": "s1",
+                                   "expected_revision": 1, "reason": "red",
+                                   "evidence": []})
+    from_failed = _payload(server, "step_skip", {
+        "task_id": suffix, "step_id": "s1", "expected_revision": 2, "reason": "retired"})
+    assert from_failed["step"]["status"] == "skipped"
 
 
 def test_step_skip_after_failure_and_from_complete(mcp):
@@ -956,22 +1202,30 @@ def test_check_verb_accepts_the_checked_in_schema_and_refuses_drift(tmp_path):
 
 HEADING_RE = re.compile(r"^\*\*S(\d+) — (.*?) \(([a-z_]+)\)\*\*$")
 CHECKBOX_RE = re.compile(r"^- \[([ x])\] ([a-z0-9._-]+): (.*)$")
+CHECK_LINE_RE = re.compile(r"^  - check: (.*)$")
 
 
 def parse_plan_file(text: str):
-    """An independent parser of the renderer's format: headings -> (goal, status), boxes."""
+    """An independent parser of the renderer's format: headings, boxes, check lines."""
     steps = []
     current = None
+    box = None
     for line in text.splitlines():
         heading = HEADING_RE.match(line)
         if heading:
             current = {"number": int(heading.group(1)), "goal": heading.group(2),
                        "status": heading.group(3), "boxes": []}
             steps.append(current)
+            box = None
             continue
-        box = CHECKBOX_RE.match(line)
-        if box and current is not None:
-            current["boxes"].append({"checked": box.group(1) == "x", "id": box.group(2)})
+        checkbox = CHECKBOX_RE.match(line)
+        if checkbox and current is not None:
+            box = {"checked": checkbox.group(1) == "x", "id": checkbox.group(2), "check": None}
+            current["boxes"].append(box)
+            continue
+        check = CHECK_LINE_RE.match(line)
+        if check and box is not None:
+            box["check"] = check.group(1)
     return steps
 
 
@@ -998,6 +1252,7 @@ def test_rendered_plan_file_round_trips_through_an_independent_parser(mcp, _trac
         (1, "do the thing", "complete"), (2, "verify it", "skipped")]
     assert [box["id"] for step in steps for box in step["boxes"]] == ["ac1", "ac2"]
     assert [box["checked"] for step in steps for box in step["boxes"]] == [True, False]
+    assert [box["check"] for step in steps for box in step["boxes"]] == [None, "pytest -q"]
 
 
 # ------------------------------------------------------------------------------- tripwire

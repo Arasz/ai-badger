@@ -11,6 +11,9 @@ skipped}`, `failed -> in_progress` (retry), `complete`/`skipped` terminal. Refus
 Waves are DR7's deferral model, derived on every call and never stored: greedy packing in
 (topological, id) order over the remaining steps, where a `files` or `resources` intersection
 defers the later member to a later wave.
+
+The `completion` slot is the only record v1 keeps: a forced note or a failure reason stays
+readable until the step advances and the next move overwrites it (no event log).
 """
 from __future__ import annotations
 
@@ -92,6 +95,16 @@ MARKERS: Dict[str, str] = {
 
 INTEGRATION_FINDING_KIND = "integration_missing"
 """Plan-quality finding kind for a multi-sink workflow with no join step."""
+
+ALLOWED_TOOLS: Dict[str, Tuple[str, ...]] = {
+    "pending": ("step_start", "step_skip"),
+    "failed": ("step_start", "step_skip"),
+    "in_progress": ("step_complete", "step_fail", "step_skip"),
+    "complete": (),
+    "skipped": (),
+}
+"""For each status, the tool names that may move the step out of it: the wire's
+``allowed_transitions``. Terminal states allow nothing."""
 
 
 class TransitionRefused(Exception):
@@ -192,10 +205,10 @@ def _require_status(step, allowed: Set[str]) -> None:
         status = step.status.value
         raise TransitionRefused(
             "invalid-transition",
-            f"step {step.id!r} is {status!r}; allowed transitions: "
-            f"{list(TRANSITIONS[status]) or 'none (terminal)'}",
+            f"step {step.id!r} is {status!r}; allowed tools: "
+            f"{list(ALLOWED_TOOLS[status]) or 'none (terminal)'}",
             {"step_id": step.id, "status": status,
-             "allowed_transitions": list(TRANSITIONS[status])})
+             "allowed_transitions": list(ALLOWED_TOOLS[status])})
 
 
 def _waiting_on(plan, step) -> List[str]:
@@ -453,6 +466,7 @@ def progress_checklist_data(plan) -> dict:
 
 
 __all__ = [
+    "ALLOWED_TOOLS",
     "BlockedStep",
     "Completion",
     "FAILED_OR_SKIPPED",
