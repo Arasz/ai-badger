@@ -3,7 +3,7 @@
 ``engine/badger_store.py`` gains the bus families and their API — born in SQLite (D2), no
 legacy source, carried to every consumer by the vendored-copy discipline (D16):
 
-    SCHEMA_VERSION = 2                   # the bus is the first migration (D1)
+    SCHEMA_VERSION = 3                   # the bus arrived at 2 (D1); plans at 3
     UPGRADE_HOOKS[1]                     # the bus tables' DDL: idempotent, DDL-only
     USER_FAMILIES += messages, cursors   # db="user", no legacy_path (born in SQLite)
 
@@ -12,7 +12,7 @@ legacy source, carried to every consumer by the vendored-copy discipline (D16):
     Store.deliver_for_session(session_id, project_id=None) -> (list[dict], summary)
 
 Test map (plan aib-user-db-message-bus §3 P1 · spec rules in parentheses):
-  1. Bus tables + stamp 2 (fresh open) .......... test_open_user_creates_the_bus_tables_and_stamps_version_two
+  1. Bus tables + current stamp (fresh open) .... test_open_user_creates_the_bus_tables_and_stamps_current_version
   2. DDL conventions (the DDL gate, D6/D17c) .... test_bus_ddl_follows_the_store_conventions
   3. Upgrade path (Rule 9 machinery, A1) ........ test_pre_bus_user_db_runs_upgrade_hook_one_and_re_stamps,
                                                    test_failing_upgrade_hook_rolls_back_to_stamped_and_tableless
@@ -177,13 +177,13 @@ def _empty_delivery() -> tuple:
 # ---------------------------------------------------------------------------
 
 
-def test_open_user_creates_the_bus_tables_and_stamps_version_two(tmp_path, monkeypatch):
-    """A fresh user store is born with the bus tables and stamped 2 — the bus's own stamp (D1/D2)."""
+def test_open_user_creates_the_bus_tables_and_stamps_current_version(tmp_path, monkeypatch):
+    """A fresh user store is born with the bus tables and stamped current (3 since plans) (D1/D2)."""
     _user_env(tmp_path, monkeypatch)
     store = badger_store.open_user()
     try:
         assert {"messages", "cursors"} <= _tables(store.conn)
-        assert int(_schema_version(store.conn)) == 2
+        assert int(_schema_version(store.conn)) == 3
     finally:
         store.close()
 
@@ -219,7 +219,8 @@ def test_bus_ddl_follows_the_store_conventions(tmp_path, monkeypatch):
 
 def test_pre_bus_user_db_runs_upgrade_hook_one_and_re_stamps(tmp_path, monkeypatch):
     """A DB stamped 1 (pre-bus) upgrades on open: hook 1 lands the bus DDL inside its
-    BEGIN IMMEDIATE and the stamp moves to 2 — the first exercise of UPGRADE_HOOKS (A1)."""
+    BEGIN IMMEDIATE and the stamp moves to 3 (hook 2 lands plans) — UPGRADE_HOOKS[1]'s
+    first exercise (A1)."""
     root = _user_env(tmp_path, monkeypatch)
     _pre_bus_user_db(root)
     real_hook = badger_store.UPGRADE_HOOKS[1]
@@ -234,7 +235,7 @@ def test_pre_bus_user_db_runs_upgrade_hook_one_and_re_stamps(tmp_path, monkeypat
     store = badger_store.open_user()
     try:
         assert calls == [1], "the 1 -> 2 upgrade hook must run on open"
-        assert int(_schema_version(store.conn)) == 2
+        assert int(_schema_version(store.conn)) == 3
         assert {"messages", "cursors"} <= _tables(store.conn)
     finally:
         store.close()
