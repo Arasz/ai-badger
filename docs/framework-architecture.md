@@ -13,7 +13,7 @@ The framework repo is organized as **stack × feature**, rooted under `features/
 - **stack** — a technology: `dotnet`, `azure`, `cosmos`, `terraform`, `mcp`, `node`, `js`, `ts`,
   `react`, `css`, `github`, `angular`, … plus **`common`** for stack-agnostic content.
 - **feature** — a kind of framework asset: `personas`, `invariants`, `instructions`, `skills`, `hooks`, `adjustments`,
-  `mcp`, and — `common`-only — `templates`. Stack-scoped skill *extensions* also live here,
+  `mcp`, `data`, `retrieval`, and — `common`-only — `templates`. Stack-scoped skill *extensions* also live here,
   nested under a stack's `skills/` directory (§5).
 
 ```
@@ -31,8 +31,16 @@ Each feature item is a small, self-describing unit:
 | `hooks` | `hooks-manifest.json` + hook files | at most one manifest per stack |
 | `adjustments` | `adjustment.json` + scripts | per-agent, at most one descriptor |
 | `mcp` | directory | any subdir of `features/<stack>/mcp/` containing a `meta.json`; one MCP server each |
+| `data` (`common` only) | file/dir | every top-level entry. `model-groups.json` maps a persona's `model:` lane to a real model id |
+| `retrieval` (`common` only) | `*.py` | the BM25 matcher, tokenizer and eval fixtures behind the MCP tool index (ADR-0012) |
 | `templates` (`common` only) | file/dir | every top-level entry |
 | `skills` (extensions only, e.g. `github`) | directory | `<base>-extensions/<ext>/` containing a manifest, attached by directory convention (§5) |
+
+Three files sit beside the feature directories rather than inside one, because they describe
+the stack instead of belonging to it: `features/<stack>/stack-mcp.json` (which MCP servers this
+stack wants and how to launch them), `features/common/support.json` (the agent capability
+matrix) and `features/common/dependencies.json` (what a feature needs installed before it
+works).
 
 This keeps every asset generalizable at the point of authorship: a persona, invariant, or
 instruction that is genuinely stack-agnostic goes in `common`; anything that only makes sense
@@ -302,7 +310,9 @@ target-repo/
   .ai-badger/
     manifest.json            # provenance
     config.json               # project profile
+    project-id                # uuid4 minted at scaffold; the bus and the store resolve a project by it
     CLAUDE.md                # framework-managed source of the claude instructions
+    HERMES.md                # ditto, when hermes is a configured agent
     copilot-instructions.md  # framework-managed copilot source (if copilot present)
     agents/*.md              # scaffolded personas
     delegation.md            # generated map: personas + lanes, routing, verifiers, MCP servers
@@ -310,13 +320,32 @@ target-repo/
     invariants/*.md            # framework copies
     invariants/local/*.md      # project-owned (issue #313)
     skills/…                 # embedded skills — real copies of features/*/skills/, not symlinks
-    state.json               # empty task index
+    skills-data/{stack}/        # the per-stack external-skill declarations the scaffold resolved
+    stack-ignore.json        # stacks this project declined, so a refresh does not re-propose them
+    hooks/hooks.json         # the project's own Pre/PostToolUse entries, read at event time
+    retrieval/               # BM25 matcher + tokenizer, for the MCP tool index
+    mcp-tools.json           # the curated tool index the context hook searches
+    model-groups.json        # model: lane -> a real model id
+    plugins/                 # resolved external plugin installs
+    engine/                  # vendored copies of the framework modules hooks import
+    schemas/                 # the JSON Schemas config.json validates against
+    state.json               # empty task index (seed-once)
+    task-tracking/           # tracking.db, the SQLite runtime store (ADR-0024)
+    worktrees/               # one git worktree per tracked task
     agent-instructions/{schema.json, model.schema.json, model.json}
   CLAUDE.md                  # COPY of .ai-badger/CLAUDE.md, header: "source of truth: .ai-badger/CLAUDE.md"
+  HERMES.md / .hermes.md      # COPY, when hermes is a configured agent
+  AGENTS.override.md         # pi's project-instruction file, rendered from features/pi/templates/
   .github/
     copilot-instructions.md  # COPY (copilot present) — header note
     instructions/*.instructions.md   # COPY per module (copilot discovery)
 ```
+
+Runtime state is SQLite, not JSON, since the store migration (ADR-0024), which landed in phases
+across 0.155.0 and 0.157.0: `task-tracking/tracking.db` for
+project scope, `~/.ai-badger/ai-badger.db` for user scope, and the hook audit sink in its own
+file under `AI_BADGER_DEBUG_DIR` when that variable is set. `state.json` and the other
+seed-once JSON files above are the ones a re-scaffold must not rewrite.
 
 Everything the framework put in lives under `.ai-badger/` — that's the actual source of truth
 for the project's agent configuration. The files outside `.ai-badger/` exist only because agent
@@ -346,8 +375,9 @@ renders each agent's template and writes a full copy with a managed header; no p
 
 **Agent detection** (`detect.py`): an agent counts as "present" if the repo *or* the user scope
 shows its traces — `claude`: `CLAUDE.md` or `~/.claude`; `copilot`:
-`.github/copilot-instructions.md` or `~/.copilot`. Only present agents get
-files initialized; ai-badger never adds an agent a project doesn't already use.
+`.github/copilot-instructions.md` or `~/.copilot`; `hermes`: `.hermes.md`, `HERMES.md` or
+`~/.hermes`; `pi`: a `.pi/` directory in the repo or `~/.pi/` in user scope. Only present
+agents get files initialized; ai-badger never adds an agent a project doesn't already use.
 
 ## 7. Data flow, end to end
 

@@ -33,16 +33,13 @@ Everything written down about this project, grouped by what you came here to do.
 
 ## I want to understand why something is the way it is
 
-[`adr/`](adr/README.md) is the index; each entry is one decision, never edited after acceptance.
-`0001` versioning and releases · `0002` `den-refresh` · `0003` Hermes skill discovery ·
-`0004` MCP tool index · `0005` one declaration of which skills ship · `0006` one
-skill-extension mechanism · `0007` ai-badger ships as files, not a Python distribution ·
-`0008` plugin skills live at the plugin skill path · `0009` one framework root, resolved rather
-than searched · `0010` stack-local skill discovery · `0011` `engine/`, `tooling/` and `gates/` ·
-`0012` BM25 retrieval with a falsifiable eval · `0013` what the MCP tool index is for · `0014` MCP
-support is configuration, not retrieval · `0015` delegation needs a mechanism, not more prose ·
-`0016` Junie support removed · `0017` memory-first gate · `0018` one mechanism: a skill declares
-its own stack and its own scope (supersedes `0005`).
+[`adr/`](adr/README.md) is the index: every decision, numbered in order, with its status and a
+one-line summary, and each superseded entry pointing forward. The ones a newcomer meets first
+are `0001` versioning and releases · `0015` delegation needs a mechanism, not more prose ·
+`0018` one mechanism: a skill declares its own stack and its own scope (which superseded
+`0005`) · `0028` with `0029`, the whole catalog ships by default and the sqlite pair's
+exception · `0031` per-prompt memory context. Everything between and after them is in the
+index, which is the only list of all of them.
 
 ## I want to know what changed
 
@@ -63,13 +60,14 @@ The complete map. A directory missing from this table is a directory nobody will
 | [`explanation/`](explanation/README.md) | Understanding-oriented — why it is like this |
 | [`adr/`](adr/README.md) | Decisions. Immutable, never edited after acceptance |
 | [`work/`](work/README.md) | Dated records — `YYYY-MM-DD-slug`. See the scope note below |
+| [`research/`](research/README.md) | Evidence-graded studies grouped by subject, currently prompt engineering. Living references, not a record of a moment |
 | [`assets/`](assets/README.md) | Images and diagrams, belonging to no quadrant |
 | [`meta/`](meta/README.md) | Machine state about the documentation itself |
 | [`changelog/`](changelog/README.md) | One file per version, `{version}-{slug}.md`. Generated index; frozen |
 | [`brand/`](brand/README.md) | The logo, palette and usage rules. Predates `assets/`; pinned by the root README |
 | [`screenshots/`](screenshots/README.md) | Screenshots used by the pages above. Predates `assets/`; pinned by `skills.md` |
 
-The four quadrants are Diátaxis. The seven root `*.md` files listed earlier have not been
+The four quadrants are Diátaxis. The eight root `*.md` files listed earlier have not been
 re-placed into them yet — several are pinned by `README.md` and `CONTRIBUTING.md`, which makes
 that a job for the `documentation` gateway's `migrate-documentation` member, with its own PR.
 
@@ -78,7 +76,9 @@ that a job for the `documentation` gateway's `migrate-documentation` member, wit
 PR #111 trimmed this tree to product documentation and removed seven directories grouped by
 document *kind* — `plans/`, `research/`, `design/`, `reviews/`, `specs/`, `incidents/`,
 `archive/`. That decision stands, and this is not a reversal of it: kind is not a subject, and
-all seven were the same anti-pattern.
+all seven were the same anti-pattern. The [`research/`](research/README.md) on the map above is
+the other shape: one subject, prompt engineering, carrying living studies that keep absorbing
+new evidence.
 
 What #111 assumed is that a concluded record can live in git history, because what it concluded
 has already moved into a document above or into an ADR. That holds for a finished plan. It does
