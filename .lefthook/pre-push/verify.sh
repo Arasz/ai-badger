@@ -258,6 +258,7 @@ readonly AGENT_INSTRUCTION_SCRIPTS="features/common/skills/maintain-agent-instru
 lane_validate() {
     local rc=0 script
     "$PY" tooling/validate.py --all || rc=1
+    "$PY" tooling/task_plan_schema.py --check || rc=1
     for script in validate-agent-instructions.mjs check-agent-drift.mjs; do
         node "$AGENT_INSTRUCTION_SCRIPTS/$script" || rc=1
     done
