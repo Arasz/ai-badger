@@ -2238,3 +2238,33 @@ NousResearch/hermes-agent at `cd3f453f` through `gh api repos/NousResearch/herme
   budget and reaps the proxy, and the memo keeps the result. Expected pipeline latency is 10–20 s
   (§1.2 of the plan), so this is a tail risk, not the common case. Raised for the owner; not changed
   in P3b.
+
+---
+
+## Addendum (2026-09-28): P4.5 Claude live demo [MEASURED]
+
+Machine: Apple M4, macOS. Live ai-raccoon serve (1.53.6) on 7721, real OpenRouter key from the
+environment, branch head `3a3278dc`. The installed hook
+`.ai-badger/skills/ai-raccoon-memory/scripts/memory_context_hook.py` was fed a Claude
+`UserPromptSubmit` payload; prompt: "how does the context enrichment hook decide to stay silent on
+a prompt". Proxy count is measured against a baseline of the other sessions' long-lived
+`ai-raccoon` MCP servers.
+
+| Mode | Wall | Block | Proxies spawned / left |
+|---|---|---|---|
+| Pipeline (key set), run 1 | 11.38 s | 11 lines: 2 memory + 3 code, pipeline-merged | 1 / 0 |
+| Pipeline (key set), run 2 | 12.03 s | same shape | 1 / 0 |
+| Single search (key unset) | 2.80 s | 15 lines: 5 memory + 4 code | 1 / 0 |
+| `AI_BADGER_MEMORY_CONTEXT_PIPELINE=0` | 3.45 s | identical to key-unset | 1 / 0 (no orphan: no `ai-raccoon` process has ppid 1) |
+| `AI_BADGER_MEMORY_CONTEXT=0` | 0.10 s | none | 0 / 0 |
+
+- The Claude envelope shape, pi's header and trust lines, and the `[mN]`/`[cN]` lines appear as
+  specified.
+- **Fired in anger:** a real `claude -p` session in the worktree, with the hook wired from
+  `.claude/settings.json` and tools disallowed, answered "YES" and quoted
+  `[m1] …/docs/changelog/0.79.0-memory-grade-hook.md (rank 0.99…)` from the injected block. Wall
+  time 25.9 s, including the model turn.
+- **Not demonstrated:** serve stopped (stopping the shared serve would disrupt other live
+  sessions); Copilot (#533) and Hermes (#534), which the owner deferred.
+- **Observation:** v1 records no fallback reason (#531), so the pipeline and single-search paths
+  are distinguished here by the different blocks and wall times, not by a log line.
