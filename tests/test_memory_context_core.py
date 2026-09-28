@@ -253,6 +253,22 @@ def test_c23_non_bmp_truncates_by_code_point_and_encodes():
     mc.format_block("\U0001F600" * 100, [hit(snippet="\U0001F600" * 301)], []).encode("utf-8")
 
 
+
+def test_c24_path_and_rank_are_capped_in_the_block():
+    """A memory's path and rank are free strings: the block caps them like the snippet."""
+    assert mem_line(path="/" + "p" * 299, ranking="r" * 32) == (
+        "[m1] /" + "p" * 299 + " (rank " + "r" * 32 + ") :: a snippet")
+    assert mem_line(path="/" + "p" * 5000, ranking="r" * 5000) == (
+        "[m1] /" + "p" * 299 + "… (rank " + "r" * 32 + "…) :: a snippet")
+    code = {"hash": "c", "ranking": 1, "path": "/" + "\U0001F600" * 400, "snippet": "s",
+            "lineStart": 1, "lineEnd": 2}
+    line = [l for l in block_lines(code=[code]) if l.startswith("[c1]")][0]
+    assert line == "[c1] /" + "\U0001F600" * 299 + "…:1-2 (rank 1) :: s"
+    huge = [hit(hash=f"h{i}", path="/" + "p" * 200000, ranking="r" * 50000, snippet=f"s{i}")
+            for i in range(5)]
+    assert len(mc.format_block("q", huge, [])) < 5000
+
+
 # ------------------------------------------------------------------ provenance
 
 

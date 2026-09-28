@@ -153,14 +153,36 @@ def test_pl3_over_the_cap_is_refused_without_scanning():
     assert qp.parse_plan(text[:qp.PLAN_TEXT_MAX]).status == "ok"
 
 
-def test_pl3_deep_nesting_at_the_cap_returns_within_a_second():
+class CountingDecoder:
+    """Wraps the planner's decoder and counts `raw_decode` calls."""
+
+    def __init__(self, inner):
+        self.inner = inner
+        self.calls = 0
+
+    def raw_decode(self, text, start):
+        self.calls += 1
+        return self.inner.raw_decode(text, start)
+
+
+def test_pl3_deep_nesting_at_the_cap_decodes_at_most_the_depth_limit(monkeypatch):
     depth = (qp.PLAN_TEXT_MAX - 1) // 6
     text = '{"a":' * depth + "1" + "}" * depth
     assert len(text) <= qp.PLAN_TEXT_MAX
-    start = time.monotonic()
+    counter = CountingDecoder(qp._DECODER)  # pylint: disable=protected-access
+    monkeypatch.setattr(qp, "_DECODER", counter)
+
     result = qp.parse_plan(text)
-    assert time.monotonic() - start < 1.0
-    assert as_pi(result) == {"status": "fallback", "reason": "invalid-shape"}
+
+    assert counter.calls <= qp.PLAN_DEPTH_MAX
+    assert as_pi(result) == {"status": "fallback", "reason": "no-json-object"}
+
+
+def test_pl3_a_plan_nested_at_the_depth_limit_still_parses():
+    plan = '{"concepts":[{"name":"n","queries":["alpha","beta"]}]}'
+    wrap = qp.PLAN_DEPTH_MAX - 1
+    assert qp.parse_plan('{"a":' * wrap + plan + "}" * wrap).status == "ok"
+    assert qp.parse_plan('{"a":' * (wrap + 1) + plan + "}" * (wrap + 1)).status == "fallback"
 
 
 # ------------------------------------------------------------------ PL4 request shape

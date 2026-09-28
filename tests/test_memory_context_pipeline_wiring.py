@@ -537,13 +537,3 @@ def test_j6b_real_clock_retry_on_a_fresh_connection(memory_context_env, router, 
     assert router.eof_at[0] < decisions[1]["at"]
     assert block == block_of(module, [2, 1, 0], [])
     assert_clean(env)
-
-
-def test_cap_lowers_the_run_budget_and_never_raises_it():
-    """`cap` bounds build()'s own budget from above: a 25 s cap trims the 90 s pipeline total
-    and leaves the 5 s single-search budget alone."""
-    mc = support.load_module()
-    assert mc.run_seconds(None, None) == mc.SINGLE_BUDGET_SECONDS
-    assert mc.run_seconds(None, 25.0) == mc.SINGLE_BUDGET_SECONDS
-    assert mc.run_seconds(90.0, 25.0) == 25.0
-    assert mc.run_seconds(90.0, None) == 90.0

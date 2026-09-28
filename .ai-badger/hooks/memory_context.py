@@ -1,7 +1,8 @@
 """Per-prompt memory context: a port of pi's mem-based-rag over the ai-raccoon proxy.
 
 `build(prompt, cwd, session_id)` returns a "Memory context" block equal to pi's `toMemoryContext`
-output, or None. Stdlib-only; every failure is silent (None) and nothing outlives the run budget.
+output, or None. Stdlib-only; every failure returns None within the run budget plus the proxy
+reap, and only an unexpected exception is reported, through the caller's `on_error`.
 """
 from __future__ import annotations
 
@@ -33,6 +34,7 @@ PLANNER_MODEL_ENV = "AI_BADGER_MEMORY_CONTEXT_PLANNER_MODEL"
 PROJECT_ID_ENV = "AI_BADGER_PROJECT_ID"
 SIBLINGS = ("openrouter_client.py", "query_pipeline.py")
 RESOLVER = "model_groups.py"
+STORE = "badger_store.py"
 MODULE_PREFIX = "ai_badger_memory_context__"
 
 SINGLE_BUDGET_SECONDS = 5.0
@@ -46,6 +48,8 @@ SEARCH_LIMIT = 5
 MAX_HITS = 5
 SNIPPET_CHARS = 300
 QUERY_ECHO_CHARS = 80
+PATH_CHARS = 300
+RANK_CHARS = 32
 LINE_MAX_BYTES = 1024 * 1024
 READ_MAX_BYTES = 4 * 1024 * 1024
 REAP_SECONDS = 1.0
@@ -118,10 +122,14 @@ def sanitize_field(text: str) -> str:
     return _FIELD_RUN.sub(" ", text)
 
 
+def cap_chars(text: str, limit: int) -> str:
+    """*text* cut to *limit* code points with a trailing `…` when longer."""
+    return text[:limit] + "…" if len(text) > limit else text
+
+
 def one_line(text: Any, limit: int) -> str:
     """pi's `oneLine`: collapse JS whitespace (and U+0085), trim, cap at *limit* code points."""
-    flat = js_trim(_ONE_LINE_RUN.sub(" ", text if isinstance(text, str) else ""))
-    return flat[:limit] + "…" if len(flat) > limit else flat
+    return cap_chars(js_trim(_ONE_LINE_RUN.sub(" ", text if isinstance(text, str) else "")), limit)
 
 
 def js_number(value: float) -> str:
@@ -209,12 +217,12 @@ def prune_hits(hits: List[Mapping]) -> List[Mapping]:
 
 
 def _hit_line(tag: str, hit: Mapping, with_lines: bool) -> str:
-    rank = _scalar_text(hit.get("ranking"), "?")
+    rank = cap_chars(_scalar_text(hit.get("ranking"), "?"), RANK_CHARS)
     lines = ""
     if with_lines and "lineStart" in hit and "lineEnd" in hit:
         lines = (f":{_scalar_text(hit['lineStart'], 'null')}"
                  f"-{_scalar_text(hit['lineEnd'], 'null')}")
-    path = _hit_path(hit) or "?"
+    path = cap_chars(_hit_path(hit) or "?", PATH_CHARS)
     return f"{tag} {path}{lines} (rank {rank}) :: {one_line(hit.get('snippet'), SNIPPET_CHARS)}"
 
 
@@ -275,8 +283,10 @@ class SearchResult(NamedTuple):
 
 
 def find_executable(env: Mapping[str, str], home: Optional[str]) -> Optional[str]:
-    """`ai-raccoon` on env PATH, else `<home>/.dotnet/tools/ai-raccoon` if executable."""
-    search_path = env.get("PATH")
+    """`ai-raccoon` on the absolute entries of env PATH, else `<home>/.dotnet/tools/ai-raccoon`
+    if executable; a relative entry would resolve against the repo the hook runs in."""
+    search_path = os.pathsep.join(entry for entry in (env.get("PATH") or "").split(os.pathsep)
+                                  if os.path.isabs(entry))
     if search_path:
         found = shutil.which("ai-raccoon", path=search_path)
         if found:
@@ -318,6 +328,13 @@ def _line(message: Mapping) -> bytes:
     return (json.dumps(message, ensure_ascii=False) + "\n").encode("utf-8")
 
 
+def child_env(env: Mapping[str, str]) -> Dict[str, str]:
+    """*env* for the proxy child, without the OpenRouter key or any memory-context variable:
+    the proxy, and any serve it starts, needs neither."""
+    return {name: value for name, value in env.items()
+            if name != "OPENROUTER_API_KEY" and not name.startswith(KILL_SWITCH + "_")}
+
+
 class RaccoonSession:
     """One `ai-raccoon` proxy child speaking MCP over stdio; single-threaded, deadline-bound.
 
@@ -336,27 +353,31 @@ class RaccoonSession:
         self.closed = False
 
     @classmethod
-    def open(cls, exe: str, project_id: str, session_id: str,
-             budget: Budget) -> Optional["RaccoonSession"]:
-        """Spawn the proxy and complete the MCP handshake, or None (nothing left running)."""
+    def open(cls, exe: str, project_id: str, session_id: str, budget: Budget,
+             env: Optional[Mapping[str, str]] = None) -> Optional["RaccoonSession"]:
+        """Spawn the proxy with `child_env(env)` and complete the MCP handshake, or None; the
+        child is closed on every way out but success, an interrupt included."""
         if sys.platform == "win32" or budget.expired():
             return None
         try:
             process = subprocess.Popen(  # pylint: disable=consider-using-with
                 [exe], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL, shell=False, close_fds=True, bufsize=0)
+                stderr=subprocess.DEVNULL, shell=False, close_fds=True, bufsize=0,
+                env=child_env(os.environ if env is None else env))
         except (OSError, ValueError):
             return None
         session = cls(process, project_id, session_id)
+        ready = False
         try:
             os.set_blocking(process.stdin.fileno(), False)
             os.set_blocking(process.stdout.fileno(), False)
-            if session.handshake(budget):
-                return session
+            ready = session.handshake(budget)
         except Exception:  # pylint: disable=broad-exception-caught
-            pass
-        session.close(budget)
-        return None
+            ready = False
+        finally:
+            if not ready:
+                session.close(budget)
+        return session if ready else None
 
     def handshake(self, budget: Budget) -> bool:
         """`initialize`, await its reply, then `notifications/initialized`."""
@@ -507,7 +528,7 @@ def _load_sibling(stem: str) -> Optional[Any]:
 
 def load_badger_store() -> Optional[Any]:
     """The sibling `badger_store` (project-id resolution), or None."""
-    return _load_sibling("badger_store")
+    return _load_sibling(Path(STORE).stem)
 
 
 def _project_id(cwd: str, env: Mapping[str, str]) -> Optional[str]:
@@ -574,8 +595,16 @@ class Pipeline(NamedTuple):
         return result.mem, result.code
 
 
+def stage_limits(total: float) -> tuple:
+    """`(total, planner, search, score)` seconds: pi's stage limits, scaled down when *total*
+    cannot hold a full planner, two full searches and the score stage."""
+    scale = min(1.0, total / (PLANNER_SECONDS + 2 * SEARCH_SECONDS + SCORE_SECONDS))
+    return (total, PLANNER_SECONDS * scale, SEARCH_SECONDS * scale, SCORE_SECONDS * scale)
+
+
 def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any) -> Optional[Pipeline]:
-    """The pipeline when the switch is not `"0"`, the key is set and every sibling loads."""
+    """The pipeline when the switch is not `"0"`, the key is set and every sibling loads;
+    *limits* is `(total, planner, search, score)`, pi's when None."""
     if env.get(PIPELINE_SWITCH) == "0":
         return None
     try:
@@ -588,8 +617,7 @@ def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any) -> Optional[Pipe
             return None
         base = client.api_base(env, key)
         model = planner_model(env, cwd, stages)
-        limits = limits or stages.Limits(PIPELINE_TOTAL_SECONDS, PLANNER_SECONDS,
-                                         SEARCH_SECONDS, SCORE_SECONDS)
+        limits = stages.Limits(*(limits or stage_limits(PIPELINE_TOTAL_SECONDS)))
         return Pipeline(
             stages,
             functools.partial(stages.plan, post=client.post_json, base=base, key=key,
@@ -600,21 +628,33 @@ def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any) -> Optional[Pipe
         return None
 
 
-def run_seconds(pipeline_total: Optional[float], cap: Optional[float]) -> float:
-    """Seconds one run may take: the pipeline total (or the single-search budget), lowered to
-    *cap* when a host abandons its callback sooner; the single-search budget is never raised."""
-    seconds = SINGLE_BUDGET_SECONDS if pipeline_total is None else pipeline_total
-    return seconds if cap is None else min(seconds, cap)
+# Failures a working install meets (no proxy, a dead pipe, a timeout) stay silent; any other
+# exception is a defect and is reported once per process.
+EXPECTED_ERRORS = (OSError, subprocess.SubprocessError)
+_REPORTED: set = set()
+
+
+def _report(where: str, on_error: Optional[Callable[[str], None]]) -> None:
+    """Hand the exception being handled to *on_error*, once per process per *where*."""
+    if on_error is None or where in _REPORTED:
+        return
+    _REPORTED.add(where)
+    try:
+        on_error(where)
+    except Exception:  # pylint: disable=broad-exception-caught
+        pass
 
 
 def build(prompt: str, cwd: str, session_id: Optional[str], *,
           env: Optional[Mapping[str, str]] = None, home: Optional[str] = None,
           budget: Optional[Budget] = None, limits: Any = None,
-          cap: Optional[float] = None) -> Optional[str]:
-    """The memory-context block for *prompt*, or None; never raises, never outlives the budget.
+          on_error: Optional[Callable[[str], None]] = None) -> Optional[str]:
+    """The memory-context block for *prompt*, or None; never raises, and returns within the
+    budget plus the proxy reap.
 
-    With a key and the pipeline switch not `"0"`, runs the query pipeline over one proxy
-    session; otherwise one search on the prompt. The block is the same in both modes.
+    With a key and the pipeline switch not `"0"`, runs the query pipeline (stage *limits*,
+    pi's by default) over one proxy session; otherwise one search on the prompt. An exception
+    outside `EXPECTED_ERRORS` is handed to *on_error* (called inside the handler) once.
     """
     try:
         env = os.environ if env is None else env
@@ -633,9 +673,9 @@ def build(prompt: str, cwd: str, session_id: Optional[str], *,
         if budget is not None:
             run_budget = budget
         else:
-            run_budget = Budget(run_seconds(pipeline.limits.total if pipeline else None, cap))
+            run_budget = Budget(pipeline.limits.total if pipeline else SINGLE_BUDGET_SECONDS)
         open_budget = run_budget.child(pipeline.limits.search) if pipeline else run_budget
-        session = RaccoonSession.open(exe, project_id, session_id, open_budget)
+        session = RaccoonSession.open(exe, project_id, session_id, open_budget, env)
         if session is None:
             return None
         try:
@@ -650,5 +690,8 @@ def build(prompt: str, cwd: str, session_id: Optional[str], *,
         if not mem and not code:
             return None
         return format_block(decision.query, mem, code)
+    except EXPECTED_ERRORS:
+        return None
     except Exception:  # pylint: disable=broad-exception-caught
+        _report("memory_context.build", on_error)
         return None

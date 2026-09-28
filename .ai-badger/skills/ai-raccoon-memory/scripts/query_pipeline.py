@@ -145,6 +145,9 @@ PLANNER_USER_PREFIX = (
 
 CHAT_PATH = "/api/v1/chat/completions"
 PLAN_TEXT_MAX = 65536
+# A plan object sits at most this many braces deep; deeper spans are never decoded, which
+# bounds parse_plan's work on pathological text to PLAN_DEPTH_MAX decodes.
+PLAN_DEPTH_MAX = 8
 CONCEPT_NAME_MAX = 120
 CONCEPT_QUERIES_MAX = 4
 QUERY_MAX = 300
@@ -284,7 +287,8 @@ def build_user_prompt(query: str) -> str:
 
 
 def _object_spans(text: str) -> List[Tuple[int, int]]:
-    """Every brace-balanced span by start; braces inside strings are inert."""
+    """Every brace-balanced span opening at most `PLAN_DEPTH_MAX` deep, by start; braces
+    inside strings are inert."""
     stack: List[int] = []
     spans: List[Tuple[int, int]] = []
     in_string = escaped = False
@@ -301,7 +305,10 @@ def _object_spans(text: str) -> List[Tuple[int, int]]:
         elif char == "{":
             stack.append(index)
         elif char == "}" and stack:
-            spans.append((stack.pop(), index))
+            depth = len(stack)
+            start = stack.pop()
+            if depth <= PLAN_DEPTH_MAX:
+                spans.append((start, index))
     spans.sort()
     return spans
 
@@ -342,7 +349,7 @@ def _normalize_plan(value: Any) -> Optional[Dict[str, Any]]:
 
 def parse_plan(text: Any) -> PlanResult:
     """pi's `parsePlan`: the last complete JSON object that validates; text over `PLAN_TEXT_MAX`
-    is `no-json-object` without scanning."""
+    is `no-json-object` without scanning, and an object deeper than `PLAN_DEPTH_MAX` is skipped."""
     if not isinstance(text, str) or js_trim(text) == "":
         return PlanResult("fallback", "empty-text", None)
     if len(text) > PLAN_TEXT_MAX:

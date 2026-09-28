@@ -98,16 +98,21 @@ and sends every search over that one session. The hook never reads the ai-raccoo
 proxy does the identity proof. If no serve is running, the proxy may start one, and that serve
 outlives the hook under its own idle watchdog. When hits survive pruning, the hook injects a
 "Memory context" block identical to pi's `toMemoryContext` output. Otherwise it injects
-nothing. Every failure is silent, and the hook always exits 0.
+nothing, and the hook always exits 0. An expected failure (no proxy, a timeout, an error
+reply) is silent. A missing or broken `memory_context.py`, or a defect in the hook's own
+code, leaves one line in `~/.ai-badger/hook-errors.log` naming the exception type and where it
+was raised, never the prompt; under Hermes the same line goes to Hermes's log as a warning.
 
 **Two modes.** Both inject the same block.
 
 - *Pipeline*: runs when `OPENROUTER_API_KEY` is set and `AI_BADGER_MEMORY_CONTEXT_PIPELINE` is
   not `"0"`. An OpenRouter model plans 2 to 6 retrieval queries, each is searched once, the
   Jev decisions endpoint scores the pooled hits, and pi's document-aware merge keeps the best
-  five. The whole run is capped at 90 s on Claude and Copilot and at 25 s under Hermes, which
-  abandons a `pre_llm_call` callback after 30 s. Planner, searches and Jev each get a share
-  of that cap. If the planner fails, the run falls back to one search on the prompt.
+  five. The run's total is 90 s on Claude and Copilot, split into pi's stage limits
+  (planner 15 s, each search 15 s, Jev 8 s). Under Hermes the total is 25 s and the stage
+  limits shrink with it, so a planner that uses its whole share still leaves time for two
+  full searches and the Jev stage. If the planner fails, the run falls back to one search on
+  the prompt.
 - *Single search*: every other case. One search on the prompt, capped at 5 s. Nothing leaves
   the machine except the call to the local proxy.
 
@@ -147,8 +152,12 @@ lands in ai-raccoon's search log like any other search.
 - *Hermes*: CLI sessions only. The arm runs when `(platform or "cli") == "cli"`, Hermes's own
   normalisation, so a gateway session (Telegram, Discord and the rest) never triggers a search
   or OpenRouter call. It also needs `.ai-badger/skills/ai-raccoon-memory/` in the project. The
-  block goes last in the injected context, followed by `(end of memory context)`, and the
-  result is memoized per session and prompt, so a tool loop searches once.
+  block goes last in the injected context, followed by `(end of memory context)`. Hermes calls
+  `pre_llm_call` once per user turn, before its tool loop, so a tool loop searches once.
+  Hermes abandons a `pre_llm_call` callback after 30 s by default and then drops that turn's
+  whole injection, including a message-bus delivery the callback already consumed. The 25 s
+  limits exist to keep a slow run inside that window; a turn that overruns it anyway loses
+  everything the callback would have added.
 
 Declining this skill through `config.exclude` removes the Claude wiring and turns the Hermes
 arm off. The Copilot hooks file still names the command today; with the skill's scripts absent,
@@ -158,8 +167,8 @@ its existence guard answers each prompt with a "hook skipped" system message ins
 hold no line-break or tab characters, whose snippets hold no U+0085, whose rank is a number,
 string, boolean or null, and whose text is not cut inside a non-BMP character. Outside that,
 this port collapses line breaks in paths and ranks to one space (pi keeps them raw), prints `?`
-for a list or object rank, and counts truncation in code points. ADR-0031 lists every
-divergence.
+for a list or object rank, counts truncation in code points, and cuts a path at 300 and a rank
+at 32 characters. The "Parity with pi" section of ADR-0031 lists every divergence.
 
 ## 9. Verification Checklist
 

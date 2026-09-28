@@ -2268,3 +2268,19 @@ a prompt". Proxy count is measured against a baseline of the other sessions' lon
   sessions); Copilot (#533) and Hermes (#534), which the owner deferred.
 - **Observation:** v1 records no fallback reason (#531), so the pipeline and single-search paths
   are distinguished here by the different blocks and wall times, not by a log line.
+
+---
+
+## Addendum (2026-09-28): implementation-review fix wave [READ, MEASURED where marked]
+
+- **The P3b.0 open item is closed.** P3b.0 ended "Raised for the owner; not changed in P3b".
+  P3b then shipped a 25 s `cap` anyway, and the implementation review found that the cap lowered
+  only the total. The ruling after review replaces it with Hermes stage limits,
+  `stage_limits(25)` (about 7.1 s planner, 7.1 s per search, 3.8 s score). A test runs a
+  planner that uses its whole share and still sees two full searches and the score stage.
+- **The Hermes memo is gone.** P3b.0's own reading (`agent/turn_context.py:1126,1235-1247`)
+  shows Hermes collects `pre_llm_call` once per user turn, so the memo added nothing but cached
+  failures. The sentence above, "the memo keeps the result", no longer describes the code.
+- **`parse_plan` cost on 64 KiB of nested objects [MEASURED].** Before the fix, 10 922
+  `raw_decode` calls and 0.30 s of CPU on an Apple M4 (the review saw 0.55–3.5 s wall under
+  load). After capping span depth at 8, 8 calls and 0.002 s.

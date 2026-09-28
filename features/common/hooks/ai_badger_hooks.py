@@ -27,12 +27,12 @@ in the plugin dir's own .ai-badger/manifest.json is what answers (ADR-0007 shape
 # pylint: disable=too-many-lines  # registration surface: one thin callback per hook arm
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 import json
 import logging
 import os
 import sys
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -429,7 +429,6 @@ def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
     """
     reset_session_hints()
     reset_gate_state()
-    reset_memory_context_memo()
     project = _project_cwd(cwd)
     _debug("ai_badger_hooks/session_start", "start", project=project)
     isolation = _load_hermes_isolation()
@@ -635,17 +634,9 @@ def _record_tool_index_check(project, tool_name: str, index: dict[str, Any]) -> 
 
 MEMORY_CONTEXT_MODULE_NAME = "ai_badger_memory_context"
 MEMORY_CONTEXT_END = "(end of memory context)"
-# Hermes abandons a pre_llm_call callback after 30 s by default (plugins_dispatch.py), losing
-# the whole turn's injection; the search must end first, leaving room for the other arms.
+# Hermes abandons a pre_llm_call callback after 30 s by default (hermes_cli/plugins_dispatch.py),
+# losing the whole turn's injection; the pipeline's stage limits must end first.
 MEMORY_CONTEXT_SECONDS = 25.0
-
-# session id -> (sha256 of the prompt, block or None): one search per prompt, failures included.
-_memory_context_memo: Dict[str, Tuple[str, Optional[str]]] = {}
-
-
-def reset_memory_context_memo() -> None:
-    """Forget every memoized memory-context result (called at session start)."""
-    _memory_context_memo.clear()
 
 
 def _load_memory_context() -> Optional[Any]:
@@ -666,22 +657,24 @@ def _memory_context_wanted(project: str, platform: Any) -> bool:
     return False
 
 
+def _memory_context_failed(where: str) -> None:
+    """Warn about the exception being handled inside build(): its type and location only."""
+    exc_type, _, tb = sys.exc_info()
+    frames = traceback.extract_tb(tb) if tb else []
+    at = f"{Path(frames[-1].filename).name}:{frames[-1].lineno}" if frames else "unknown"
+    name = exc_type.__name__ if exc_type else "Unknown"
+    logger.warning("memory context failed in %s: %s at %s", where, name, at)
+    _debug("ai_badger_hooks/memory_context", "failed", where=where, error=name, at=at)
+
+
 def _memory_context_block(prompt: str, project: str, session_id: str) -> Optional[str]:
-    """The memory-context block for this (session, prompt), searched at most once and
-    memoized with its outcome, failures included; a new prompt replaces the session's entry."""
-    digest = hashlib.sha256(prompt.encode("utf-8", "surrogatepass")).hexdigest()
-    cached = _memory_context_memo.get(session_id)
-    if cached is not None and cached[0] == digest:
-        return cached[1]
+    """The memory-context block for this prompt under the Hermes stage limits, or None."""
     module = _load_memory_context()
     if module is None:
         return None
-    block = None
-    try:
-        block = module.build(prompt, project, session_id, cap=MEMORY_CONTEXT_SECONDS)
-    finally:
-        _memory_context_memo[session_id] = (digest, block)
-    return block
+    return module.build(prompt, project, session_id,
+                        limits=module.stage_limits(MEMORY_CONTEXT_SECONDS),
+                        on_error=_memory_context_failed)
 
 
 # ---------------------------------------------------------------------------
@@ -784,9 +777,12 @@ def pre_llm_inject_context(
 
     # Memory context — last, so the closing line (outside the pi-identical block) ends the
     # injected context that Hermes appends after the user's message.
-    if isinstance(prompt, str) and _memory_context_wanted(project, kwargs.get("platform")):
+    if isinstance(prompt, str):
         try:
-            block = _memory_context_block(prompt, project, str(kwargs.get("session_id") or ""))
+            block = None
+            if _memory_context_wanted(project, kwargs.get("platform")):
+                block = _memory_context_block(prompt, project,
+                                              str(kwargs.get("session_id") or ""))
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.warning("memory context failed: %s", type(exc).__name__)
             block = None

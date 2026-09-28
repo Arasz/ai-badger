@@ -1,7 +1,9 @@
 # ADR-0031 — Per-prompt memory context through the ai-raccoon proxy, planned by an OpenRouter pipeline
 
 **Date:** 2026-09-28
-**Status:** Accepted (2026-09-28, targeting 0.178.0 — see `docs/changelog/0.178.0-per-prompt-memory-context.md`)
+**Status:** Accepted (2026-09-28, targeting 0.178.0 — see `docs/changelog/0.178.0-per-prompt-memory-context.md`).
+Amended 2026-09-28 after the implementation review: Hermes stage limits (D1.6), the Hermes memo
+removed, failure reporting (D1.7) and the "Parity with pi" section.
 **Author:** Rafał Araszkiewicz (Arasz) with Claude (task `aib-ai-raccoon-prompt-rag-hook`, lane Q0)
 **Scope:** `features/common/skills/ai-raccoon-memory/scripts/{memory_context,openrouter_client,query_pipeline,memory_context_hook}.py`
 and their Claude/Copilot/Hermes hook wiring (`features/common/hooks/hooks.json`,
@@ -43,15 +45,16 @@ model through pi's own in-process `ModelRegistry` for the planner and Jev over O
 `/api/alpha/decisions`. ai-badger's hook has no such in-process model registry to call — it is a
 one-shot external process per prompt, with a wall-clock deadline set by the host (Claude's
 `UserPromptSubmit` hooks default to a 30 s timeout absent an explicit value; Copilot CLI's
-`userPromptSubmitted` command hooks default `timeoutSec` to 30 s; Hermes bounds nothing itself) —
+`userPromptSubmitted` command hooks default `timeoutSec` to 30 s; Hermes abandons a `pre_llm_call`
+callback after 30 s by default, `hermes_cli/plugins_dispatch.py:153`) —
 so the pipeline has to be ported as direct HTTP calls the hook makes and owns end to end, not as a
 call into a host's model registry.
 
 **Constraints from being a hook, not a long-lived session.** Every invocation spawns fresh, has no
-warm connection to reuse across prompts (Hermes's in-process memo, §1.3, is the one exception, and
-even that only spans one process's lifetime), and must exit 0 whatever happens — an expected miss
-(no project, no key, no hits) is silent, and only a genuinely unexpected exception writes one log
-line. There is no UI to report progress to, unlike pi's TUI card. These constraints, not a
+warm connection to reuse across prompts (Hermes included: it runs the hook once per user turn and
+nothing is cached between turns), and must exit 0 whatever happens. An expected miss (no project,
+no key, no hits, a dead proxy) is silent, and only a genuinely unexpected exception writes one log
+line (D1.7). There is no UI to report progress to, unlike pi's TUI card. These constraints, not a
 preference, are why this ADR's pipeline design carries no progress-reporting surface and folds pi's
 several timeout knobs into one wall-clock `Budget` (§1.2 of the implementation plan).
 
@@ -74,8 +77,9 @@ the payload it receives, not on a single hard-coded format.
    `tools/call memory_search` per planned (or single) query, over that one session — never a new
    process per query.
 2. **One wall-clock `Budget` bounds the whole run**; every stage (session open, each search, the
-   planner call, each Jev batch) draws a bounded child of it. A single-search run gets 5 s; a
-   pipeline run gets 90 s (pi's own total). At the deadline, or on any error, the child is killed
+   planner call, each Jev batch) draws a bounded child of it. A single-search run gets 5 s on
+   every host; a pipeline run gets 90 s (pi's own total) on Claude and Copilot and 25 s under
+   Hermes (D1.6). At the deadline, or on any error, the child is killed
    (`SIGKILL` the pid, then reaped — never the process group, so a serve the proxy itself started
    under `BackendLauncher` is not taken down) and the run either falls back to a single search or
    injects nothing. The hook always exits 0.
@@ -92,6 +96,24 @@ the payload it receives, not on a single hard-coded format.
    measured working. This is deliberately payload-shaped, not agent-shaped, because P0 found the two
    hosts already disagree on what they consume and a future third disagreement should not need a
    third hard-coded branch.
+6. **Hermes gets its own stage limits, derived, not copied.** Hermes abandons a `pre_llm_call`
+   callback after 30 s by default (`hermes_cli/plugins_dispatch.py:42-44,153`) and then drops
+   the whole turn's injection, the parts other arms already produced included. Its arm passes
+   `stage_limits(25)`: pi's planner, search and score limits scaled down so that a full planner,
+   two full searches and the score stage fit in 25 s (about 7.1, 7.1 and 3.8 s). Lowering only
+   the total, as the first implementation did, left a slow planner with no time to search. The
+   arm does not move ahead of the message-bus arm, which consumes its messages before the
+   memory search runs; a turn that overruns Hermes's timeout loses that delivery with the rest,
+   and the 25 s limits exist to keep that a tail case.
+7. **Failures are sorted, not all silenced.** `build()` treats `OSError` and subprocess errors
+   (no proxy, a dead pipe, a timeout) as expected and returns None without a trace. Any other
+   exception is a defect: it is still swallowed for the prompt, but handed once per process to the
+   caller's recorder, which writes the exception type and location (never the prompt or the key)
+   to `~/.ai-badger/hook-errors.log` on Claude and Copilot and to a Hermes warning under Hermes.
+   A missing or unimportable `memory_context.py` beside the entry is logged the same way. The
+   proxy child gets a copy of the environment without `OPENROUTER_API_KEY` or any
+   `AI_BADGER_MEMORY_CONTEXT_*` variable, and `PATH` entries that are not absolute are never
+   searched for the executable.
 
 ### D2 — Pipeline: port pi's planner+Jev pipeline over direct OpenRouter HTTP, single-search when there is no key
 
@@ -166,7 +188,8 @@ the payload it receives, not on a single hard-coded format.
   `ID_RE`-validated model id, but not capped in price.
 - A resolver thread per uncached DNS lookup, and a watchdog timer per HTTP call, are threads this
   hook creates and must reap; at most one resolver thread is live per host per process.
-- Hermes blocks the calling turn for up to the full budget (no async surface to hand the wait to).
+- Hermes blocks the calling turn for up to its 25 s total plus the proxy reap (no async surface to
+  hand the wait to).
 
 **Neutral**
 - Three new modules plus one thin per-agent entry, versus the six-module/two-ADR shape an earlier
@@ -174,6 +197,27 @@ the payload it receives, not on a single hard-coded format.
   because splitting further added rows, not behavior.
 - Four new rows in Hermes's `SHARED_SKILL_MODULES`/`SHARED_SKILL_FILES` tables, and one new resolver
   constant read by both the sibling loader and its own derive test.
+
+## Parity with pi
+
+The block is byte-identical to pi's `toMemoryContext` output for every hit list in which no
+`path`, `sourceFile` or string `ranking` contains a line break or tab, no snippet contains U+0085,
+every `ranking` is a number, string, boolean, `null` or absent, no path exceeds 300 characters, no
+string rank exceeds 32, and no snippet or query is cut inside a non-BMP character. The accepted
+divergences outside that:
+
+- a path or rank with a line break or tab: collapsed to one space here, raw in pi (O-2);
+- a snippet with U+0085: collapsed here, kept in pi;
+- a `ranking` of another type (list, object): `?` here, JS `String()` in pi;
+- truncation counts code points, not UTF-16 units;
+- a path is cut at 300 characters and a rank at 32, with a trailing `…`; pi caps neither, so a
+  memory written with a huge path could otherwise inflate the block without bound;
+- `server_rank` parses numeric strings with a decimal-literal regex, not JS `Number()`;
+- Jev batches the pool in runner order (pi's `capPool` re-sort differs only for numeric-string
+  ranks);
+- `parse_plan` returns `no-json-object` for planner text over 64 KiB, and never decodes an object
+  that opens more than 8 braces deep (pi parses any length and depth); this bounds the parse on
+  pathological text to 8 decodes.
 
 ## Alternatives rejected
 

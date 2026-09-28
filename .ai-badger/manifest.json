@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.178.0",
-  "frameworkCommit": "2be1a319f846936d869e12e924a99a6bfc87838f",
+  "frameworkCommit": "7bcb9d23a1c3485c8a60eeb2fd400ada994cac2b",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -485,12 +485,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.178.0",
-      "hash": "acfc867f46998fa88bf4ee6673fbe3cc9ac4c2d1dc6ead8dbfd53b0a3a0f01ef",
+      "hash": "28512dfc245d4c4564b40074b5c6e8d02742e65e33a7c05dafb60bb707cae492",
       "dirMeta": {
         "file_count": 10,
         "dir_count": 1
       },
-      "sourceHash": "acfc867f46998fa88bf4ee6673fbe3cc9ac4c2d1dc6ead8dbfd53b0a3a0f01ef",
+      "sourceHash": "28512dfc245d4c4564b40074b5c6e8d02742e65e33a7c05dafb60bb707cae492",
       "sourceMeta": {
         "file_count": 10,
         "dir_count": 1
@@ -2683,7 +2683,7 @@
       "target": ".ai-badger/hooks/ai_badger_hooks.py",
       "frameworkVersion": "0.178.0",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "303dd32b638d9f5553c38845ac279828605e61eab17eec22ff869036540a278c"
+      "outputHash": "11a212082a0b4ab6149fbcda734cdacb5ed98f5987228d257d9992b68b9af70e"
     },
     {
       "feature": "adjustments",
@@ -2813,7 +2813,7 @@
       "target": ".ai-badger/hooks/memory_context.py",
       "frameworkVersion": "0.178.0",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "db1365b2c01c5420c7a36124b9d29fe64dd4a816e5c6e4c4b72c7893d72f2023"
+      "outputHash": "6d76b51a65fd7caba8622b49aa9abf7c47c284244aa8317005cac665e868100d"
     },
     {
       "feature": "adjustments",
@@ -2833,7 +2833,7 @@
       "target": ".ai-badger/hooks/query_pipeline.py",
       "frameworkVersion": "0.178.0",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "ff0f8680d3ddf24474cbf7db84669efac31326aca29276ab14019c1b62ded160"
+      "outputHash": "d81b593a35441c78754c5aa5174d91f4fe21798143bf97fdb01863a9887ecc72"
     },
     {
       "feature": "adjustments",
@@ -2893,7 +2893,7 @@
       "target": ".ai-badger/hooks/ai_badger_hooks.py",
       "frameworkVersion": "0.178.0",
       "hash": "a306dd37c27ea55ad6d321e9b4dd05a0ca2e2fab3b4aa5e429140b5e2e2babbd",
-      "outputHash": "303dd32b638d9f5553c38845ac279828605e61eab17eec22ff869036540a278c"
+      "outputHash": "11a212082a0b4ab6149fbcda734cdacb5ed98f5987228d257d9992b68b9af70e"
     },
     {
       "feature": "adjustments",

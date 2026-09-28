@@ -1,4 +1,4 @@
-"""The Hermes memory-context arm of `pre_llm_inject_context`, its memo and its install rows.
+"""The Hermes memory-context arm of `pre_llm_inject_context` and its install rows.
 
 Every row loads `ai_badger_hooks.py` from a flat plugin-shaped dir (a scratch copy, or the one
 `adjust()` installs under a temp HERMES_HOME) with the fake `ai-raccoon` first on PATH and, for
@@ -7,7 +7,6 @@ pipeline rows, the fake OpenRouter behind the sentinel-guarded loopback base.
 # pylint: disable=redefined-outer-name  # the shared autouse fixture is requested by name
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 import json
 import logging
@@ -144,9 +143,7 @@ def _hooks(memory_context_env):
     env = memory_context_env
     env.fake.mode("perquery")
     env.fake.hits({PROMPT: HITS, OTHER_PROMPT: HITS, PLANNED_QUERY: PLANNED_HITS})
-    module = load_hooks(plugin_dir(env) / "ai_badger_hooks.py")
-    yield module
-    module.reset_memory_context_memo()
+    return load_hooks(plugin_dir(env) / "ai_badger_hooks.py")
 
 
 def runs(env):
@@ -389,95 +386,70 @@ def test_w10_installed_plugin_runs_the_pipeline_from_its_own_dir(memory_context_
     assert support.live_openrouter_threads() == []
 
 
-# ------------------------------------------------------------------------------- M1–M4
-
-
-def test_m1_same_session_and_prompt_runs_once(memory_context_env, hooks, router, monkeypatch):
-    env = memory_context_env
-    project(env, monkeypatch)
-    pipeline_on(monkeypatch, router)
-    router.script(fake_router.CHAT_PATH, reply(200, planner_body()), reply(200, planner_body()))
-
-    first = context_of(call(hooks))
-    second = context_of(call(hooks))
-
-    assert len(runs(env)) == 1
-    assert len(chat_requests(router)) == 1
-    block = expected_block(hooks, hits=PLANNED_HITS)
-    assert first.endswith(block + "\n" + END)
-    assert second.endswith(block + "\n" + END)
-
-
-def test_m2_a_new_prompt_replaces_the_session_entry(memory_context_env, hooks, monkeypatch):
-    env = memory_context_env
-    project(env, monkeypatch)
-
-    call(hooks)
-    context = context_of(call(hooks, prompt=OTHER_PROMPT))
-
-    assert len(runs(env)) == 2
-    assert context.endswith(expected_block(hooks, query=OTHER_PROMPT) + "\n" + END)
-    memo = hooks._memory_context_memo  # pylint: disable=protected-access
-    assert list(memo) == [SESSION]
-    assert memo[SESSION][0] == hashlib.sha256(OTHER_PROMPT.encode("utf-8")).hexdigest()
-
-
-def test_m3_a_failure_is_memoized_too(memory_context_env, hooks, monkeypatch):
-    env = memory_context_env
-    project(env, monkeypatch)
-    env.fake.mode("crash")
-
-    first = context_of(call(hooks))
-    second = context_of(call(hooks))
-
-    assert len(runs(env)) == 1
-    assert END not in first and END not in second
-
-
-class FakeCtx:
-    """Collects `register_hook` calls the way Hermes's plugin context receives them."""
-
-    def __init__(self):
-        self.hooks = {}
-
-    def register_hook(self, name, callback):
-        self.hooks.setdefault(name, []).append(callback)
-
-
-def test_m4_the_registered_session_start_callback_clears_the_memo(memory_context_env, hooks,
-                                                                  monkeypatch):
-    env = memory_context_env
-    project(env, monkeypatch)
-    ctx = FakeCtx()
-    hooks.register(ctx)
-    call(hooks)
-    assert hooks._memory_context_memo  # pylint: disable=protected-access
-
-    for callback in ctx.hooks["on_session_start"]:
-        callback(session_id=SESSION)
-    assert not hooks._memory_context_memo  # pylint: disable=protected-access
-    call(hooks)
-
-    assert len(runs(env)) == 2
-
-
 # ------------------------------------------------------------------------------ W11
 
 
-def test_w11_the_arm_bounds_build_under_the_hermes_callback_cap(memory_context_env, hooks,
-                                                                 monkeypatch):
+def test_w11_the_arm_hands_build_limits_that_end_before_the_hermes_callback_cap(
+        memory_context_env, hooks, monkeypatch):
     """Hermes abandons a pre_llm_call callback after 30 s (plugins_dispatch.py:153), which loses
-    the whole turn's injection; the arm must hand build() a budget that ends before that."""
+    the whole turn's injection; the arm must hand build() stage limits that end before that."""
     env = memory_context_env
     project(env, monkeypatch)
     module = hooks._load_memory_context()  # pylint: disable=protected-access
     seen = []
 
     def spy(prompt, *_args, **kwargs):
-        seen.append(kwargs.get("cap"))
+        seen.append(kwargs)
     monkeypatch.setattr(module, "build", spy)
 
     call(hooks)
 
-    assert seen == [hooks.MEMORY_CONTEXT_SECONDS]
-    assert hooks.MEMORY_CONTEXT_SECONDS < 30
+    assert len(seen) == 1
+    assert tuple(seen[0]["limits"]) == tuple(module.stage_limits(hooks.MEMORY_CONTEXT_SECONDS))
+    assert seen[0]["limits"][0] == hooks.MEMORY_CONTEXT_SECONDS < 30
+    assert callable(seen[0]["on_error"])
+
+
+# ------------------------------------------------------------------------------ W12, W13
+
+
+def test_w12_a_programming_error_inside_build_is_warned_once_by_type(memory_context_env, hooks,
+                                                                    monkeypatch, caplog):
+    env = memory_context_env
+    project(env, monkeypatch)
+    module = hooks._load_memory_context()  # pylint: disable=protected-access
+
+    def broken(_prompt):
+        raise NameError(f"never logged {PROMPT}")
+    monkeypatch.setattr(module, "should_enrich", broken)
+    monkeypatch.setattr(module, "_REPORTED", set(), raising=False)
+    caplog.set_level(logging.WARNING, logger="ai_badger_hooks")
+
+    first = context_of(call(hooks))
+    call(hooks, prompt=OTHER_PROMPT)
+
+    assert first.startswith("[Hermes] Use /usage")
+    assert END not in first
+    warnings = [r for r in caplog.records if "memory context" in r.getMessage()]
+    assert len(warnings) == 1
+    assert "memory_context.build: NameError at " in warnings[0].getMessage()
+    assert PROMPT not in caplog.text
+    assert runs(env) == []
+
+
+def test_w13_a_failing_skill_check_keeps_the_other_parts(memory_context_env, hooks, monkeypatch,
+                                                        caplog):
+    env = memory_context_env
+    project(env, monkeypatch)
+
+    def unreadable(*_args):
+        raise PermissionError("w13")
+    monkeypatch.setattr(hooks, "_memory_context_wanted", unreadable)
+    caplog.set_level(logging.WARNING, logger="ai_badger_hooks")
+
+    context = context_of(call(hooks))
+
+    assert context.startswith("[Hermes] Use /usage")
+    assert END not in context
+    assert "PermissionError" in caplog.text
+    assert runs(env) == []

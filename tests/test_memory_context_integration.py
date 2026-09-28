@@ -13,6 +13,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -103,14 +104,27 @@ def _validate(load_script):
     return load_script("tooling/validate.py")
 
 
+PLUGIN_ROOT = "${CLAUDE_PLUGIN_ROOT}/"
+
+
 def _catalog_copy(tmp_root: Path) -> Path:
-    """The hooks manifest dir and the plugin-root hooks.json, copied so a row can break them."""
+    """The hooks manifest dir, the plugin-root hooks.json and every script either hooks.json
+    runs, copied so a row can break them."""
     hooks = tmp_root / "features" / "common" / "hooks"
     hooks.mkdir(parents=True)
     for name in ("hooks-manifest.json", "hooks.json", "ai_badger_hooks.py"):
         shutil.copy(HOOKS_DIR / name, hooks / name)
     (tmp_root / "hooks").mkdir()
     shutil.copy(ROOT / "hooks" / "hooks.json", tmp_root / "hooks" / "hooks.json")
+    for hooks_json in (hooks / "hooks.json", tmp_root / "hooks" / "hooks.json"):
+        data = json.loads(hooks_json.read_text(encoding="utf-8"))
+        for entries in data["hooks"].values():
+            for hook in (h for entry in entries for h in entry["hooks"]):
+                for token in shlex.split(hook["command"]):
+                    if token.startswith(PLUGIN_ROOT):
+                        target = tmp_root / token[len(PLUGIN_ROOT):]
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy(ROOT / token[len(PLUGIN_ROOT):], target)
     return hooks
 
 
@@ -492,12 +506,9 @@ def test_i11_the_installed_hermes_plugin_injects_the_block(memory_context_env, m
     sys.modules[key] = hooks
     spec.loader.exec_module(hooks)
     monkeypatch.chdir(target)
-    try:
-        result = hooks.pre_llm_inject_context(
-            session_id="i11-session", user_message=PROMPT, conversation_history=[],
-            is_first_turn=True, model="m", platform="cli")
-    finally:
-        hooks.reset_memory_context_memo()
+    result = hooks.pre_llm_inject_context(
+        session_id="i11-session", user_message=PROMPT, conversation_history=[],
+        is_first_turn=True, model="m", platform="cli")
 
     assert plugin in Path(sys.modules[key].__file__).resolve().parents
     module = sys.modules["ai_badger_memory_context"]

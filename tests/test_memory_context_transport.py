@@ -738,3 +738,176 @@ def test_env_names_and_sibling_constants():
     assert mc.SIBLINGS == ("openrouter_client.py", "query_pipeline.py")
     assert mc.RESOLVER == "model_groups.py"
     assert Path(mc.__file__).name == "memory_context.py"
+
+
+# ------------------------------------------------------------------- env names against real use
+
+ENV_OWNED_BY_THE_FIXTURE = {"PATH", "HOME"}
+
+
+def _env_reads(path, module):
+    """Every variable name *path* reads from an `env` mapping or `os.environ`, resolved
+    through *module*'s globals when passed by constant name."""
+    def is_env(node):
+        return (isinstance(node, ast.Name) and node.id == "env") or _dotted(node) == "os.environ"
+
+    def name_of(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.Name) and isinstance(getattr(module, node.id, None), str):
+            return getattr(module, node.id)
+        return None
+
+    found = set()
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "get" and is_env(node.func.value) and node.args):
+            found.add(name_of(node.args[0]))
+        elif isinstance(node, ast.Subscript) and is_env(node.value):
+            found.add(name_of(node.slice))
+        elif (isinstance(node, ast.Compare) and len(node.ops) == 1
+              and isinstance(node.ops[0], (ast.In, ast.NotIn)) and is_env(node.comparators[0])):
+            found.add(name_of(node.left))
+    return found
+
+
+def test_env_names_are_every_variable_the_modules_read():
+    """ENV_NAMES is what the fixture scrubs: a read it does not list escapes the scrub."""
+    load = mc._load_sibling  # pylint: disable=protected-access
+    modules = {"memory_context.py": mc, "openrouter_client.py": load("openrouter_client"),
+               "query_pipeline.py": load("query_pipeline")}
+    read = set()
+    for name, module in modules.items():
+        read |= _env_reads(SCRIPTS / name, module)
+    assert None not in read, "an env read the scan cannot name"
+    assert read - ENV_OWNED_BY_THE_FIXTURE == set(mc.ENV_NAMES)
+
+
+# ------------------------------------------------------------------- failure recording
+
+
+def _build_with(env, on_error, **kwargs):
+    return mc.build(PROMPT, str(env.project()), "sess-x", env=dict(os.environ),
+                    home=str(env.home), on_error=on_error, **kwargs)
+
+
+def test_x1_a_programming_error_in_build_is_reported_once_and_returns_none(memory_context_env,
+                                                                           monkeypatch):
+    env = memory_context_env
+    monkeypatch.setattr(mc, "_REPORTED", set())
+
+    def broken(_prompt):
+        raise NameError("x1-never-logged")
+    monkeypatch.setattr(mc, "should_enrich", broken)
+    seen = []
+
+    def record(where):
+        seen.append((where, sys.exc_info()[0]))
+
+    assert _build_with(env, record) is None
+    assert _build_with(env, record) is None
+
+    assert seen == [("memory_context.build", NameError)]
+    assert env.guards.spawns == []
+
+
+@pytest.mark.parametrize("mode", FAILURE_MODES)
+def test_x1_expected_runtime_failures_stay_unreported(memory_context_env, monkeypatch, mode):
+    env = memory_context_env
+    monkeypatch.setattr(mc, "_REPORTED", set())
+    env.fake.mode(mode)
+    seen = []
+
+    assert _build_with(env, seen.append, budget=mc.Budget(0.5)) is None
+
+    assert seen == []
+
+
+def test_x1_an_os_error_is_an_expected_failure(memory_context_env, monkeypatch):
+    env = memory_context_env
+    monkeypatch.setattr(mc, "_REPORTED", set())
+
+    def unreadable(*_args, **_kwargs):
+        raise PermissionError("x1")
+    monkeypatch.setattr(mc, "find_executable", unreadable)
+    seen = []
+
+    assert _build_with(env, seen.append) is None
+
+    assert seen == []
+
+
+# ------------------------------------------------------------------- interrupted open
+
+
+def test_x3_an_interrupt_during_the_handshake_still_reaps_the_child(memory_context_env,
+                                                                    monkeypatch):
+    env = memory_context_env
+    children = []
+
+    def interrupted(self, _budget):
+        children.append(self.process)
+        raise KeyboardInterrupt
+    monkeypatch.setattr(mc.RaccoonSession, "handshake", interrupted)
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            open_session(env)
+        assert len(children) == 1
+        assert children[0].poll() is not None
+    finally:
+        for child in children:
+            if child.poll() is None:
+                child.kill()
+                child.wait()
+
+
+# ------------------------------------------------------------------- child environment
+
+
+def test_x7_the_proxy_child_gets_no_openrouter_key_or_memory_context_variables(
+        memory_context_env, monkeypatch):
+    env = memory_context_env
+    seen = []
+    spawn = subprocess.Popen
+
+    class Capture(spawn):  # type: ignore[misc, valid-type]
+        """Record the env each spawn is given."""
+
+        def __init__(self, args, *rest, **kwargs):
+            seen.append(kwargs.get("env"))
+            super().__init__(args, *rest, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", Capture)
+    outer = dict(os.environ, OPENROUTER_API_KEY="sk-test-x7",
+                 AI_BADGER_MEMORY_CONTEXT_TEST_OPENROUTER_BASE="http://127.0.0.1:1",
+                 AI_BADGER_MEMORY_CONTEXT_PIPELINE="0",
+                 AI_BADGER_MEMORY_CONTEXT_PLANNER_MODEL="vendor/model")
+
+    block = mc.build(PROMPT, str(env.project()), "sess-x7", env=outer, home=str(env.home))
+
+    assert block is not None
+    assert len(seen) == 1 and seen[0] is not None
+    assert "OPENROUTER_API_KEY" not in seen[0]
+    assert [k for k in seen[0] if k.startswith("AI_BADGER_MEMORY_CONTEXT_")] == []
+    assert seen[0]["PATH"] == outer["PATH"]
+    assert seen[0]["FAKE_RACCOON_MODE"] == outer["FAKE_RACCOON_MODE"]
+
+
+# ------------------------------------------------------------------- relative PATH entries
+
+
+def test_x9_a_relative_path_entry_is_never_searched(memory_context_env, tmp_path, monkeypatch):
+    env = memory_context_env
+    work = tmp_path / "work"
+    relbin = work / "relbin"
+    relbin.mkdir(parents=True)
+    planted = relbin / "ai-raccoon"
+    planted.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    planted.chmod(0o755)
+    monkeypatch.chdir(work)
+    nohome = str(tmp_path / "nohome")
+
+    assert mc.find_executable({"PATH": "relbin"}, nohome) is None
+    assert mc.find_executable({"PATH": os.pathsep.join([".", "relbin"])}, nohome) is None
+    assert mc.find_executable({"PATH": os.pathsep.join(["relbin", str(env.fake.bin_dir)])},
+                              nohome) == str(env.fake.path)

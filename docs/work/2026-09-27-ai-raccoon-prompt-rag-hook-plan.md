@@ -1356,3 +1356,32 @@ platform as CLI (`(agent.platform or "cli") == "cli"` in `agent/agent_init.py:20
 Hermes's own normalisation, not on a strict `platform == "cli"`, which would most likely never fire
 in an interactive CLI session. It still fails closed for any named non-CLI platform, and O-5 holds.
 P3b.0 re-confirms against the installed Hermes, if one exists, or against this upstream commit.
+
+## Orchestrator rulings after the implementation review (2026-09-28): Hermes limits, memo cut
+
+Four implementation reviews of PR #529 (architecture, security, silent failures, test quality)
+led to these rulings. They supersede the matching parts of §1.2, §1.4 and §9.2.
+
+- **Hermes stage limits replace `cap`.** The first implementation passed `cap=25` to `build()`,
+  which lowered the run total but kept pi's 15/15/8 s stage limits. A planner that used its
+  15 s share then left about 2 s per search and, after a miss, nothing for the fallback.
+  `build()` loses `cap` and `run_seconds`. The Hermes arm passes
+  `memory_context.stage_limits(25)`, which scales pi's planner, search and score limits so that
+  a full planner, two full searches and the score stage fit in the total (about 7.1, 7.1 and
+  3.8 s). `stage_limits(90)` is pi's own `LIMITS`. Single search stays at 5 s on every host. The
+  25 s figure keeps the reason it had: Hermes abandons a `pre_llm_call` callback after 30 s
+  (`hermes_cli/plugins_dispatch.py:153`).
+- **The Hermes memo is cut.** §1.4 kept a per-session memo because `pre_llm_call` frequency was
+  contradicted in-repo. P3b.0 settled it: Hermes collects the hook once per user turn, before
+  its tool loop, and reuses the result on every API pass. The memo, `reset_memory_context_memo`,
+  the session-start reset and rows M1–M4 are deleted.
+- **Arm order stays.** The memory-context arm still runs after the message-bus arm. A turn that
+  overruns Hermes's timeout loses the whole injection, bus delivery included; ADR-0031 D1.6 and
+  SKILL.md §8 say so.
+- **Failure reporting.** Expected runtime failures stay silent. Any other exception inside
+  `build()` is reported once per process through the caller's recorder (the entry's
+  `record_hook_failure`, or a Hermes warning), type and location only. A missing or broken
+  `memory_context.py` beside the entry is logged the same way.
+- **New accepted divergences (§1.5).** Paths are cut at 300 characters and ranks at 32 in the
+  block, and `parse_plan` never decodes an object opening more than 8 braces deep. The full
+  list now lives in ADR-0031's "Parity with pi" section.

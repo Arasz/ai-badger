@@ -87,6 +87,10 @@ def _router():
     server.stop()
 
 
+def _error_log(env) -> Path:
+    return env.home / ".ai-badger" / "hook-errors.log"
+
+
 def _run(hook_module, monkeypatch, payload) -> int:
     """Feed *payload* to the hook's stdin and run it exactly as `__main__` would."""
     monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
@@ -156,6 +160,7 @@ def test_h1_claude_payload_gets_the_hookspecificoutput_envelope(hook, monkeypatc
     assert inner["hookEventName"] == "UserPromptSubmit"
     assert inner["additionalContext"] == _expected_block()
     assert len(env.fake.runs()) == 1
+    assert not _error_log(env).exists()
 
 
 def test_h2_copilot_payload_gets_the_flat_shape_with_no_envelope(hook, monkeypatch, capsys,
@@ -173,6 +178,7 @@ def test_h2_copilot_payload_gets_the_flat_shape_with_no_envelope(hook, monkeypat
     assert parsed["additionalContext"] == _expected_block(payload["prompt"])
     call = env.fake.calls()[-1]
     assert call["params"]["arguments"]["sessionId"] == payload["sessionId"]
+    assert not _error_log(env).exists()
 
 
 # -------------------------------------------------------------------------------------------- H3
@@ -267,6 +273,7 @@ def test_h7_subprocess_entry_runs_the_real_pipeline(memory_context_env):
     parsed = json.loads(result.stdout.strip())
     assert parsed["hookSpecificOutput"]["additionalContext"] == _expected_block()
     assert len(env.fake.runs()) == 1
+    assert not _error_log(env).exists()
 
 
 # -------------------------------------------------------------------------------------------- H8
@@ -301,23 +308,73 @@ def test_h8_a_lowered_budget_still_exits_quickly_and_reaps_the_fake(memory_conte
 # -------------------------------------------------------------------------------------------- H9
 
 
-def test_h9_hook_copied_alone_without_its_sibling_is_silent(tmp_path, monkeypatch, capsys):
+def _lone_hook(tmp_path, sibling=None):
+    """The entry copied into its own dir, with *sibling* as its memory_context.py (none if None)."""
     lone_dir = tmp_path / "lone"
     lone_dir.mkdir()
     shutil.copy(HOOK_PATH, lone_dir / "memory_context_hook.py")
+    if sibling is not None:
+        (lone_dir / "memory_context.py").write_text(sibling, encoding="utf-8")
     spec = importlib.util.spec_from_file_location(
         "lone_memory_context_hook", lone_dir / "memory_context_hook.py")
     hook_alone = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(hook_alone)
+    return hook_alone
 
-    payload = {"hook_event_name": "UserPromptSubmit", "session_id": "sess-h9",
-              "prompt": PROMPT, "cwd": str(tmp_path)}
-    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
-    rc = hook_alone.guarded_main()
+
+def test_h9_hook_copied_alone_without_its_sibling_logs_it_and_prints_nothing(
+        tmp_path, monkeypatch, capsys, memory_context_env):
+    env = memory_context_env
+    hook_alone = _lone_hook(tmp_path)
+
+    rc = _run(hook_alone, monkeypatch, _claude_payload(tmp_path, session_id="sess-h9"))
     captured = capsys.readouterr()
+
     assert rc == 0
     assert captured.out == ""
-    assert captured.err == ""
+    text = _error_log(env).read_text(encoding="utf-8")
+    assert "memory_context_hook/missing-sibling" in text
+    assert PROMPT not in text and PROMPT not in captured.err
+
+
+def test_h9_a_broken_sibling_is_logged_by_type_and_prints_nothing(tmp_path, monkeypatch, capsys,
+                                                                  memory_context_env):
+    env = memory_context_env
+    hook_alone = _lone_hook(tmp_path, sibling="def broken(:\n")
+
+    rc = _run(hook_alone, monkeypatch, _claude_payload(tmp_path, session_id="sess-h9b"))
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert captured.out == ""
+    text = _error_log(env).read_text(encoding="utf-8")
+    assert "memory_context_hook/import SyntaxError" in text
+    assert PROMPT not in text
+
+
+# ------------------------------------------------------------------------------------------- H13
+
+
+def test_h13_a_programming_error_inside_build_is_logged_not_shown(hook, monkeypatch, capsys,
+                                                                 memory_context_env):
+    env = memory_context_env
+    project = env.project()
+    memory_context = hook._load_memory_context()  # pylint: disable=protected-access
+
+    def broken(_prompt):
+        raise NameError("h13-never-logged")
+    monkeypatch.setattr(memory_context, "should_enrich", broken)
+    monkeypatch.setattr(memory_context, "_REPORTED", set(), raising=False)
+
+    rc = _run(hook, monkeypatch, _claude_payload(project))
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert captured.out == ""
+    text = _error_log(env).read_text(encoding="utf-8")
+    assert "memory_context.build NameError at" in text
+    assert "h13-never-logged" not in text and PROMPT not in text
+    assert env.fake.runs() == []
 
 
 # ------------------------------------------------------------------------------------------- H10
@@ -401,6 +458,7 @@ def test_h12_pipeline_through_the_real_entry_in_a_scaffold_layout(memory_context
     assert "sk-test-h12" not in result.stdout
     assert "sk-test-h12" not in result.stderr
     assert not env.guards.marker.exists()
+    assert not _error_log(env).exists()
 
 
 # -------------------------------------------------------------------------------------------- W2a

@@ -6,8 +6,8 @@ stdin carries the host's hook payload; `memory_context.build()` does the work. C
 payload, including Copilot's `{sessionId, timestamp, cwd, prompt}`, gets the flat
 `{"additionalContext": ...}` shape — the only one Copilot CLI was measured to read (P0 spike:
 3/3 flat, 0/3 envelope). Silent (exit 0, no output) on every expected failure: no prompt, no
-sibling, no block, or a closed stdout. Only an unexpected exception writes one content-free
-`hook-errors.log` line.
+block, or a closed stdout. A missing or broken `memory_context.py`, and any unexpected exception
+here or inside `build()`, writes one content-free `hook-errors.log` line.
 """
 from __future__ import annotations
 
@@ -30,20 +30,23 @@ MAX_ERROR_LOG_BYTES = 1_000_000
 
 
 def _load_memory_context() -> Optional[Any]:
-    """Import the sibling `memory_context.py` lazily; None when it never scaffolded.
+    """Import the sibling `memory_context.py` lazily; None, with one log line, when it is
+    missing or fails to import.
 
     Loaded by path, never by package name: a hook copied without its sibling (an older or
-    partial scaffold) must degrade to silence, not crash on import before `guarded_main` can
-    catch anything.
+    partial scaffold) must degrade to no output, not crash on import before `guarded_main`
+    can catch anything.
     """
     cached = sys.modules.get(MEMORY_CONTEXT_MODULE_NAME)
     if cached is not None:
         return cached
     path = Path(__file__).resolve().parent / "memory_context.py"
     if not path.is_file():
+        record_hook_failure("memory_context_hook/missing-sibling")
         return None
     spec = importlib.util.spec_from_file_location(MEMORY_CONTEXT_MODULE_NAME, path)
     if spec is None or spec.loader is None:
+        record_hook_failure("memory_context_hook/import")
         return None
     module = importlib.util.module_from_spec(spec)
     sys.modules[MEMORY_CONTEXT_MODULE_NAME] = module
@@ -51,6 +54,7 @@ def _load_memory_context() -> Optional[Any]:
         spec.loader.exec_module(module)
     except Exception:  # pylint: disable=broad-exception-caught
         sys.modules.pop(MEMORY_CONTEXT_MODULE_NAME, None)
+        record_hook_failure("memory_context_hook/import")
         return None
     return module
 
@@ -92,7 +96,8 @@ def main() -> int:
     if memory_context is None:
         return 0
     session_id = payload.get("session_id") or payload.get("sessionId")
-    block = memory_context.build(prompt, _cwd(payload), session_id)
+    block = memory_context.build(prompt, _cwd(payload), session_id,
+                                 on_error=record_hook_failure)
     if not block:
         return 0
     if payload.get("hook_event_name") == "UserPromptSubmit":

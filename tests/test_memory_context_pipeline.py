@@ -206,6 +206,30 @@ def test_r5_limits_equal_memory_context_constants():
                          mc.SCORE_SECONDS)
 
 
+
+def test_r5_stage_limits_at_the_pipeline_total_are_pis():
+    assert tuple(mc.stage_limits(mc.PIPELINE_TOTAL_SECONDS)) == qp.LIMITS
+
+
+def test_r5_a_planner_using_its_whole_share_under_25_s_still_leaves_two_full_searches():
+    """Hermes's 25 s: a planner that takes all it may, then searches that each take all they
+    may, still leave two full searches and the score stage inside the total."""
+    limits = qp.Limits(*mc.stage_limits(25.0))
+    assert limits.total == 25.0
+    clock = Clock()
+    queries = [f"q{i}" for i in range(4)]
+    table = {q: ([mem_hit(q, i)], []) for i, q in enumerate(queries)}
+    fakes = Fakes(clock, ok_plan(*queries), table, lambda pool: [1.0] * len(pool),
+                  plan_cost=limits.planner, search_cost=limits.search)
+
+    result = fakes.run(seconds=25.0, limits=limits)
+
+    assert fakes.plans[0][1] == pytest.approx(limits.planner)
+    assert [share for _, share in fakes.searches] == pytest.approx([limits.search] * 2)
+    assert fakes.scored[0][2] == pytest.approx(limits.score)
+    assert (result.status, result.reason) == ("pipeline", "ok")
+    assert hashes(result.mem) == ["q0", "q1"]
+
 def test_r5_planner_share_keeps_the_search_and_score_reserve():
     fakes = Fakes(Clock(), qp.PlanResult("fallback", "no-model", None), {"raw": None})
     fakes.run()
