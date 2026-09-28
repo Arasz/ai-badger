@@ -5,6 +5,7 @@ output, or None. Stdlib-only; every failure is silent (None) and nothing outlive
 """
 from __future__ import annotations
 
+import functools
 import importlib.util
 import json
 import math
@@ -27,6 +28,8 @@ ENV_NAMES = (
     "OPENROUTER_API_KEY",
 )
 KILL_SWITCH = "AI_BADGER_MEMORY_CONTEXT"
+PIPELINE_SWITCH = "AI_BADGER_MEMORY_CONTEXT_PIPELINE"
+PLANNER_MODEL_ENV = "AI_BADGER_MEMORY_CONTEXT_PLANNER_MODEL"
 PROJECT_ID_ENV = "AI_BADGER_PROJECT_ID"
 SIBLINGS = ("openrouter_client.py", "query_pipeline.py")
 RESOLVER = "model_groups.py"
@@ -37,7 +40,6 @@ PIPELINE_TOTAL_SECONDS = 90.0
 PLANNER_SECONDS = 15.0
 SEARCH_SECONDS = 15.0
 SCORE_SECONDS = 8.0
-ATTEMPT_SECONDS = 15.0
 GRACE_SECONDS = 0.5
 
 SEARCH_LIMIT = 5
@@ -478,13 +480,11 @@ class RaccoonSession:
 # -------------------------------------------------------------- orchestration
 
 
-def _load_sibling(stem: str) -> Optional[Any]:
-    """Load `<stem>.py` beside this file under a distinctive key; None when absent or broken."""
-    key = MODULE_PREFIX + stem
+def _load_path(key: str, path: Path) -> Optional[Any]:
+    """Load the module at *path* once under *key*; None when absent or broken."""
     cached = sys.modules.get(key)
     if cached is not None:
         return cached
-    path = Path(__file__).resolve().parent / f"{stem}.py"
     if not path.is_file():
         return None
     spec = importlib.util.spec_from_file_location(key, path)
@@ -498,6 +498,11 @@ def _load_sibling(stem: str) -> Optional[Any]:
         sys.modules.pop(key, None)
         return None
     return module
+
+
+def _load_sibling(stem: str) -> Optional[Any]:
+    """Load `<stem>.py` beside this file under a distinctive key; None when absent or broken."""
+    return _load_path(MODULE_PREFIX + stem, Path(__file__).resolve().parent / f"{stem}.py")
 
 
 def load_badger_store() -> Optional[Any]:
@@ -516,11 +521,93 @@ def _project_id(cwd: str, env: Mapping[str, str]) -> Optional[str]:
     return found.strip() if isinstance(found, str) and found.strip() else None
 
 
+def resolver_path() -> Optional[Path]:
+    """The one `model_groups.py` this layout may load: the task skill's in the skill layout,
+    a flat sibling otherwise; None when it is absent or resolves elsewhere."""
+    here = Path(__file__).resolve()
+    if here.parent.name == "scripts" and here.parents[1].name == "ai-raccoon-memory":
+        skills = here.parents[2]
+        candidate = (skills / "task" / "scripts" / RESOLVER).resolve()
+        inside = skills in candidate.parents
+    else:
+        candidate = (here.parent / RESOLVER).resolve()
+        inside = candidate.parent == here.parent
+    return candidate if inside and candidate.is_file() else None
+
+
+def _badger_dir(cwd: str) -> Optional[Path]:
+    """The nearest `.ai-badger/` holding a project id: where the project-id walk stops."""
+    store = load_badger_store()
+    if store is None:
+        return None
+    # The walk that picks the project id is the one that must name its `.ai-badger` dir.
+    found = store._nearest_project_id_file(cwd)  # pylint: disable=protected-access
+    return found.parent if found is not None else None
+
+
+def planner_model(env: Mapping[str, str], cwd: str, stages: Any) -> Optional[str]:
+    """The override, else the `medium` pin through the resolver when the project has the task
+    skill; None (planner `no-model`) otherwise."""
+    override = env.get(PLANNER_MODEL_ENV)
+    if override and override.strip():
+        return stages.planner_model(override, None, None)
+    badger = _badger_dir(cwd)
+    path = resolver_path()
+    if badger is None or path is None or not (badger / "skills" / "task").is_dir():
+        return None
+    resolver = _load_path(MODULE_PREFIX + Path(RESOLVER).stem, path)
+    return stages.planner_model(None, resolver, badger / "model-groups.json")
+
+
+class Pipeline(NamedTuple):
+    """The wired query pipeline: the runner module, its planner and scorer, and stage limits."""
+
+    stages: Any
+    plan: Callable
+    score: Callable
+    limits: Any
+
+    def run(self, query: str, session: RaccoonSession, budget: Budget) -> tuple:
+        """Plan, search every planned query over *session*, score and merge; `(mem, code)`."""
+        result = self.stages.run(query, plan=self.plan, search=session.search, score=self.score,
+                                 prune=prune_hits, budget=budget, limits=self.limits)
+        return result.mem, result.code
+
+
+def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any) -> Optional[Pipeline]:
+    """The pipeline when the switch is not `"0"`, the key is set and every sibling loads."""
+    if env.get(PIPELINE_SWITCH) == "0":
+        return None
+    try:
+        loaded = {Path(name).stem: _load_sibling(Path(name).stem) for name in SIBLINGS}
+        if None in loaded.values():
+            return None
+        client, stages = loaded["openrouter_client"], loaded["query_pipeline"]
+        key = client.api_key(env)
+        if key is None:
+            return None
+        base = client.api_base(env, key)
+        model = planner_model(env, cwd, stages)
+        limits = limits or stages.Limits(PIPELINE_TOTAL_SECONDS, PLANNER_SECONDS,
+                                         SEARCH_SECONDS, SCORE_SECONDS)
+        return Pipeline(
+            stages,
+            functools.partial(stages.plan, post=client.post_json, base=base, key=key,
+                              model=model),
+            functools.partial(stages.score, post=client.post_json, base=base, key=key),
+            limits)
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
+
+
 def build(prompt: str, cwd: str, session_id: Optional[str], *,
           env: Optional[Mapping[str, str]] = None, home: Optional[str] = None,
           budget: Optional[Budget] = None, limits: Any = None) -> Optional[str]:
-    """The memory-context block for *prompt*, or None; never raises, never outlives the budget."""
-    del limits  # consumed by the pipeline branch
+    """The memory-context block for *prompt*, or None; never raises, never outlives the budget.
+
+    With a key and the pipeline switch not `"0"`, runs the query pipeline over one proxy
+    session; otherwise one search on the prompt. The block is the same in both modes.
+    """
     try:
         env = os.environ if env is None else env
         if env.get(KILL_SWITCH) == "0":
@@ -534,16 +621,24 @@ def build(prompt: str, cwd: str, session_id: Optional[str], *,
         exe = find_executable(env, home if home is not None else env.get("HOME"))
         if exe is None:
             return None
-        run_budget = budget if budget is not None else Budget(SINGLE_BUDGET_SECONDS)
-        session = RaccoonSession.open(exe, project_id, session_id, run_budget)
+        pipeline = pipeline_for(env, cwd, limits)
+        if budget is not None:
+            run_budget = budget
+        else:
+            run_budget = Budget(pipeline.limits.total if pipeline else SINGLE_BUDGET_SECONDS)
+        open_budget = run_budget.child(pipeline.limits.search) if pipeline else run_budget
+        session = RaccoonSession.open(exe, project_id, session_id, open_budget)
         if session is None:
             return None
         try:
-            found = session.search(decision.query, run_budget)
+            if pipeline:
+                mem, code = pipeline.run(decision.query, session, run_budget)
+            else:
+                found = session.search(decision.query, run_budget)
+                mem, code = found if found else ([], [])
         finally:
             session.close(run_budget)
-        mem = prune_hits(found.mem)[:MAX_HITS] if found else []
-        code = prune_hits(found.code)[:MAX_HITS] if found else []
+        mem, code = prune_hits(mem)[:MAX_HITS], prune_hits(code)[:MAX_HITS]
         if not mem and not code:
             return None
         return format_block(decision.query, mem, code)

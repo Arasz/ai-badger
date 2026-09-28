@@ -92,7 +92,6 @@ def test_j1_constants_equal_pi():
     assert qp.ATTEMPTS == pi["SCORE_ATTEMPTS"] == 3
     assert qp.POOL_MAX == pi["SCORE_POOL_MAX"] == 48
     assert qp.ATTEMPT_SECONDS * 1000 == pi["SCORE_TIMEOUT_DEFAULT_MS"]
-    assert qp.ATTEMPT_SECONDS == mc.ATTEMPT_SECONDS
     assert qp.STATE_CHAR_CAP == pi["SCORE_STATE_CHAR_CAP"] == 32000
     assert qp.EXCERPT_CHAR_CAP == pi["SCORE_EXCERPT_CHAR_CAP"] == 500
     assert qp.MODEL == pi["SCORE_MODEL_DEFAULT"] == "typesafe/jev-1.13"
