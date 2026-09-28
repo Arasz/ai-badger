@@ -171,6 +171,9 @@ SCHEMAS_WITHOUT_LOCAL_INSTANCES = {
     "message.schema.json": "instances are runtime rows: documents the store's delivery API "
                            "returns and hooks inject (P1/F4), validated at runtime — "
                            "tests/test_new_schemas.py round-trips one through the store",
+    "task-plan.schema.json": "instances are created at runtime by the task-graph MCP server "
+                            "and validated by the pydantic model (V1–V12); the fixture "
+                            "corpus lives in tests/test_task_plan_schema.py",
 }
 
 # Agents capable of every hook event family this framework wires: SessionStart/on_session_start/

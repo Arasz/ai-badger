@@ -49,6 +49,7 @@ from conftest import _test_write
 ROOT = Path(__file__).resolve().parents[1]
 BEHAVIORIST = "features/common/skills/call-behaviorist/scripts/behaviorist.py"
 DRIFT = "features/common/skills/welcome-ai-badger/scripts/drift.py"
+TASK_PLAN_MODEL = "features/common/skills/task-decomposition/scripts/task_plan_model.py"
 VERIFY = ".lefthook/pre-push/verify.sh"
 
 # Checks with no provocation yet. EVERY ENTRY IS A DEBT, not a decision: an empty-by-default
@@ -521,6 +522,29 @@ def _rules_index_check(work: Path, provoked: bool) -> Outcome:
     ])
 
 
+def _task_plan_schema_check(work: Path, provoked: bool) -> Outcome:
+    """The checked-in schema drifting from the pydantic model it is generated from.
+
+    The generator loads the model from `--root`, so the fixture is a miniature tree holding
+    the real model script; the real generator writes the clean artifact, and the provocation
+    edits that written artifact. Nothing here reads or writes the repository's own schema.
+    """
+    root = work / "tree"
+    model = root / TASK_PLAN_MODEL
+    model.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / TASK_PLAN_MODEL, model)
+    built = _run_gate("tooling/task_plan_schema.py", "--root", str(root))
+    assert built.exit_code == 0, f"fixture setup failed:\n{built.output}"
+
+    if provoked:
+        schema_path = root / "schemas" / "task-plan.schema.json"
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        schema["required"].remove("task_id")
+        _write(schema_path, json.dumps(schema, indent=2) + "\n")
+
+    return _run_gate("tooling/task_plan_schema.py", "--check", "--root", str(root))
+
+
 # ----------------------------------------------- tooling/validate.py --all (five sub-checks)
 
 # Loaded for HOOK_CAPABLE_AGENTS: spelling the agent names here would let the tuple grow
@@ -930,6 +954,9 @@ REGISTRY: Tuple[Provocation, ...] = (
                 _sync_plugin_skills_check, Signal(exit_code=1, contains="diverged")),
     Provocation("tooling/changelog_index.py --check", "an entry added after the index was built",
                 _changelog_index_check, Signal(exit_code=1, contains="stale")),
+    Provocation("tooling/task_plan_schema.py --check",
+                "the artifact dropped a required field",
+                _task_plan_schema_check, Signal(exit_code=1, contains="STALE")),
     Provocation("features/common/skills/review-tests/scripts/rules_index.py --check",
                 "walk-review.md left stale after generation",
                 _rules_index_check, Signal(exit_code=1, contains="stale")),
