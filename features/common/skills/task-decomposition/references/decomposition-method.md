@@ -98,6 +98,34 @@ traceability table, verify the DAG (non-empty, acyclic, unique ids, known depend
 verify the join rule, and verify every step's check can go red. Then stop — an extra
 revision pass after that costs more than it finds.
 
+## The optional Jev advisory (off by default)
+
+After `steps_ready` returns the frontier and its waves, an opt-in advisory can ask a classifier
+model two questions: which model tier a step really needs, and whether two ready steps may
+share a wave. It is **off unless `AI_BADGER_JEV=1`**, with per-capability switches
+`AI_BADGER_JEV_TIER=1` and `AI_BADGER_JEV_WAVES=1`.
+
+```bash
+uv run --script .ai-badger/skills/task-decomposition/scripts/jev_choice.py <plan-file|-> --both --json
+```
+
+The input is a plan document (the `document` a `plan_export` returns, or the plan itself),
+optionally carrying the `ready`, `waves`, `done` and `edges` lists copied from a `steps_ready`
+payload. The output is `{"status": ..., "tier_proposals": ..., "wave_hints": ...}`.
+
+Polarity is fail-safe, and the advisory is never authoritative:
+
+- a tier proposal is an **upgrade only** — a `high` answer at confidence 0.6 or above, with no
+declared `level` or `model` — and can never demote a step;
+- a wave hint can only **add** serialization: any failure, a `serialize` answer, or confidence
+below 0.7 serializes the pair. A pair the advisory would admit is still subject to the
+deterministic file/resource rule — the hint never removes a wave the derivation packed;
+- flags off, a missing key, or a failed call means **no proposal**, and the deterministic
+result stands. Nothing reaches the network while the flags are off.
+
+The advisory is an input to the plan review, not a substitute for it: record what it changed
+and why, or leave it off.
+
 ## The MoE handoff
 
 Both loops end at the same place: a plan validated by `plan_create`.

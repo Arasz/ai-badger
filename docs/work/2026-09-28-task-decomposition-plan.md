@@ -22,7 +22,7 @@ Q1–Q3 are answered in §6 before dispatch.
 | DR9 | **Jev advisory is skill-side** (`jev_choice.py` + vendored `openrouter_client.py` copy in the skill's `scripts/`) — **the server is offline by contract; `steps_ready` has NO advisory parameter** (frozen §2); the skill post-processes `steps_ready` output with hints. Polarity frozen: **absent or not `"1"` = off**; `AI_BADGER_JEV=1` master, `AI_BADGER_JEV_TIER/WAVES=1` per capability; loopback test seam `AI_BADGER_JEV_TEST_OPENROUTER_BASE`. Fail-safe: tier proposes **upgrade only** (`choice=="high"` ∧ conf ≥ 0.6), never demotes, never overrides `level`/`model`; wave hints can only **add** serialization (failure/`serialize`/conf < 0.7 → serialize). `Budget` port lives in `jev_choice.py`; the vendored client copy differs by exactly one line (`TEST_BASE_ENV`), test-enforced. Prompt literals live in the test fixtures (never parsed from docs at runtime). Caps (`PAIR_CAP=10`, `STATE_CHAR_CAP=32000`, chunking) owned by S4 with ACs. **[Q2 pending: default-off vs on]** | R1-F11, R2-F5/F11/F16/F19, R3-F2. |
 | DR10 | **Progress**: `progress_checklist` primary — its `format:"text"` output **is** the status section verbatim; `status_report.py` file-parsing is the fallback; `packages/checked/total` keys frozen; `STEP_RE = ^\*\*([PS]\d+[^*]*)\*\*`; renderer `mkdir -p` the plans dir on first render; render/parse round-trip tested. `task_tracker.py` never reads `plans`. | R2-F8, R3-F7, N1. |
 | DR11 | **Vocabulary blast radius: scoped rename + explicit exemptions** per P3-C2 dispositions (`query_pipeline.py` untouched — prompt bytes pinned to pi goldens; delegator persona / complete-project-scope / design-gate-audit / review-tests / scripts-tooling-refactor get boundary notes). Sections' stale tool names normalise: `plan_build→plan_create`, `plan_progress→progress_checklist`, `ac_record→ac_check`, `plan_state→progress_checklist`+`plan_get`, `plan_id` does not exist. | R1-F5. |
-| DR12 | **Compat: dual-read + explicit refusal, no migration.** In-flight `**P<N>**` plans keep reporting. **No plan row → legacy file + manual checkboxes; `task` never calls `plan_create` over an in-flight task** (pinned sentence + test row). `plan_create` refuses existing `task_id` unless content-identical (idempotent) or `plan_replace` with a note. Degraded manual semantics: checkbox states map to AC status; failed/forced/blocked/join-enforcement are documented as "not enforced without the server". | R3-F8. |
+| DR12 | **Compat: dual-read + explicit refusal, no migration.** In-flight `**P<N>**` plans keep reporting. **No plan row → legacy file + manual checkboxes; `task` never calls `plan_create` over an in-flight task** (pinned sentence + test row). `plan_create` refuses existing `task_id` unless content-identical (idempotent); revision goes through `plan_replace` — `plan-in-progress` once any step left pending/skipped, identical content answers `replaced:false`. Degraded manual semantics: checkbox states map to AC status; failed/forced/blocked/join-enforcement are documented as "not enforced without the server". | R3-F8. |
 | DR13 | **`spec.json` relationship (D8): side-by-side.** `create-task-spec`'s `spec.json` stays the requirements artifact; `task-plan` is the executable decomposition that consumes it. Coverage rule: every non-deferred spec scenario maps to ≥1 step AC. **[Q1 pending: quick-task]** | R3-F4/F11. |
 
 ## 2. Interface freeze (every lane brief quotes this)
@@ -53,6 +53,13 @@ Q1–Q3 are answered in §6 before dispatch.
   (R1-F7). `tooling/validate.py` `SCHEMAS_WITHOUT_LOCAL_INSTANCES` gains the entry + reason;
   `docs/scripts.md` gains the tooling row (R1-F3).
 - **Env:** `AI_BADGER_TRACKING_ROOT`, `AI_BADGER_JEV*`, `OPENROUTER_API_KEY` (never logged).
+- **Wire input deviations (R2):** the implemented input models are the frozen contract where
+  P2-B1's table is staler — a future lane must not "fix" the service toward it. Three known
+  deviations: `step_complete` takes `evidence` (default `[]`) and `criterion_results` (default
+  `{}`) as optional, so a step whose criteria already passed through `ac_check` completes with
+  neither; `plan_replace` takes the same content fields as `plan_create`
+  (`task_description_ref`, `steps`, `loop` required; `task_context`, `research_ref`,
+  `source_refs` optional) plus `expected_revision`.
 - **Interpreters:** every gate string uses `.venv/bin/python3` (or the verify.sh lane); tests use
   `load_script` for script modules and `sys.executable` for server spawns (R2-F9/F22).
 

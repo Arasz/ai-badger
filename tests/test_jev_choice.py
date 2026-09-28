@@ -10,6 +10,10 @@ no connection, with a positive control proving the capture would have seen one).
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 from typing import NamedTuple, Optional
 
 import pytest
@@ -537,3 +541,177 @@ def test_enabled_but_missing_key_proposes_nothing_and_serializes(mod):
     env = {MASTER: "1", TIER: "1", WAVES: "1"}
     assert mod.tier_proposals([STEP], env=env, post=poison) == {}
     assert mod.wave_hints(READY, env=env, post=poison) == {"S4_S7": "serialize"}
+
+
+# ------------------------------------------------------------------ one budget per advisory run
+
+
+def test_wave_hints_share_one_budget_across_chunks(mod):
+    """A 23-step ready set is three chunk calls; one shared deadline caps transport calls.
+
+    Without the shared budget each chunk gets a fresh `timeout * ATTEMPTS` window, so a slow
+    run can spend that window per chunk (6 calls here). With it, the whole advisory is bounded
+    by one window and later chunks fail closed without touching the transport.
+    """
+    steps = wire_steps(23)
+    clock = Clock()
+    calls = []
+
+    def post(url, body, key, budget):
+        calls.append(budget.remaining())
+        clock.now += mod.ATTEMPT_SECONDS
+        return TRANSPORT
+
+    hints = mod.wave_hints(steps, env=env_on({WAVES: "1"}), post=post, clock=clock)
+    assert len(calls) == mod.ATTEMPTS
+    assert set(hints.values()) == {"serialize"}
+
+
+def test_tier_proposals_share_one_budget_across_steps(mod):
+    """Three steps are three calls; the shared deadline stops after the first window."""
+    steps = [STEP, {**STEP, "id": "S5"}, {**STEP, "id": "S6"}]
+    clock = Clock()
+    calls = []
+
+    def post(url, body, key, budget):
+        calls.append(budget.remaining())
+        clock.now += mod.ATTEMPT_SECONDS
+        return TRANSPORT
+
+    proposals = mod.tier_proposals(steps, env=env_on({TIER: "1"}), post=post, clock=clock)
+    assert proposals == {}
+    assert len(calls) == mod.ATTEMPTS
+
+
+# ------------------------------------------------------------------ the CLI (B1)
+
+ROOT = Path(__file__).resolve().parents[1]
+JEV_CLI = ROOT / "features/common/skills/task-decomposition/scripts/jev_choice.py"
+
+CLI_PLAN = {
+    "task_id": "aib-jev-cli-probe",
+    "workflow": {"steps": {
+        "S1": {"id": "S1", "goal": "parse decisions", "instructions": "port the parser",
+               "effort": "medium", "depends_on": [], "acceptance_criteria": [],
+               "files": ["a.py"], "resources": [], "status": "pending"},
+        "S2": {"id": "S2", "goal": "serve the tools", "instructions": "add the stdio server",
+               "effort": "low", "depends_on": [], "acceptance_criteria": [],
+               "files": ["b.py"], "resources": [], "status": "pending"},
+    }},
+    "ready": [{"id": "S1", "files": ["a.py"], "resources": []},
+              {"id": "S2", "files": ["b.py"], "resources": []}],
+}
+CLI_ANSWERS = {
+    "S1_tier": {"type": "choice", "choice": "high",
+                "probabilities": {"low": 0.0, "medium": 0.1, "high": 0.9}, "confidence": 0.9},
+    "S2_tier": {"type": "choice", "choice": "medium",
+                "probabilities": {"medium": 1.0}, "confidence": 0.95},
+    "S1_S2": {"type": "choice", "choice": "share-wave",
+              "probabilities": {"share-wave": 0.95}, "confidence": 0.95},
+}
+
+
+def cli_env(**overrides):
+    """The subprocess environment with every Jev knob cleared, then the overrides applied."""
+    env = {**os.environ}
+    for key in (MASTER, TIER, WAVES, MODEL, ENDPOINT, TIMEOUT, TEST_BASE, "OPENROUTER_API_KEY"):
+        env.pop(key, None)
+    env.update(overrides)
+    return env
+
+
+def run_cli(argv, env, stdin=""):
+    """Run the real CLI with the interpreter under test; text in, text out, no shell."""
+    return subprocess.run([sys.executable, str(JEV_CLI), *argv], input=stdin,
+                          capture_output=True, text=True, encoding="utf-8", env=env,
+                          timeout=60)
+
+
+def test_cli_flags_off_is_off_and_opens_no_connection():
+    server = FakeOpenRouter()
+    try:
+        env = cli_env(**{MASTER: "0", TIER: "1", WAVES: "1", TEST_BASE: server.url,
+                         "OPENROUTER_API_KEY": "sk-test-jev-cli-off"})
+        proc = run_cli(["-", "--both", "--json"], env, stdin=json.dumps(CLI_PLAN))
+        assert proc.returncode == 0
+        payload = json.loads(proc.stdout)
+        assert payload["status"] == "off"
+        assert payload["reason"]
+        assert payload["tier_proposals"] == {}
+        assert payload["wave_hints"] == {}
+        assert server.requests == []
+        assert server.connections == 0
+    finally:
+        server.stop()
+
+
+def test_cli_flags_on_emits_proposals_from_the_loopback_stub():
+    server = FakeOpenRouter()
+    body = json.dumps({"answers": CLI_ANSWERS}).encode()
+    for _ in range(3):  # tier S1, tier S2, wave S1_S2
+        server.script(DECISIONS_PATH, reply(body=body))
+    try:
+        env = cli_env(**{MASTER: "1", TIER: "1", WAVES: "1", TEST_BASE: server.url,
+                         "OPENROUTER_API_KEY": "sk-test-jev-cli-live"})
+        proc = run_cli(["-", "--both", "--json"], env, stdin=json.dumps(CLI_PLAN))
+        assert proc.returncode == 0
+        payload = json.loads(proc.stdout)
+        assert payload["status"] == "ok"
+        assert payload["tier_proposals"] == {
+            "S1_tier": {"level": "high", "confidence": 0.9}}
+        assert payload["wave_hints"] == {"S1_S2": "share-wave"}
+        assert len(server.requests) == 3
+    finally:
+        server.stop()
+
+
+def test_cli_capability_flags_select_the_phases():
+    server = FakeOpenRouter()
+    body = json.dumps({"answers": CLI_ANSWERS}).encode()
+    for _ in range(6):  # 2 tier-only + 1 waves-only + 3 for the default run
+        server.script(DECISIONS_PATH, reply(body=body))
+    try:
+        env = cli_env(**{MASTER: "1", TIER: "1", WAVES: "1", TEST_BASE: server.url,
+                         "OPENROUTER_API_KEY": "sk-test-jev-cli-flags"})
+        tier_only = json.loads(run_cli(["-", "--tier", "--json"], env,
+                                       stdin=json.dumps(CLI_PLAN)).stdout)
+        assert tier_only["tier_proposals"]
+        assert tier_only["wave_hints"] == {}
+        waves_only = json.loads(run_cli(["-", "--waves", "--json"], env,
+                                        stdin=json.dumps(CLI_PLAN)).stdout)
+        assert waves_only["tier_proposals"] == {}
+        assert waves_only["wave_hints"]
+        default = json.loads(run_cli(["-", "--json"], env, stdin=json.dumps(CLI_PLAN)).stdout)
+        assert default["tier_proposals"] and default["wave_hints"]
+    finally:
+        server.stop()
+
+
+@pytest.mark.parametrize("stdin", ["{not json", '{"task_id": "x"}', ""])
+def test_cli_malformed_plan_is_a_clean_error_envelope_never_a_traceback(stdin):
+    proc = run_cli(["-", "--both", "--json"], cli_env(), stdin=stdin)
+    assert proc.returncode == 1
+    assert "Traceback" not in proc.stderr
+    assert "Traceback" not in proc.stdout
+    payload = json.loads(proc.stdout)
+    assert payload["status"] == "error"
+    assert payload["reason"]
+    assert payload["tier_proposals"] == {}
+    assert payload["wave_hints"] == {}
+
+
+def test_cli_unreadable_file_is_a_clean_error_envelope():
+    proc = run_cli(["no-such-plan-file.json", "--both", "--json"], cli_env())
+    assert proc.returncode == 1
+    assert "Traceback" not in proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["status"] == "error"
+
+
+def test_cli_reads_a_plan_file_not_only_stdin(tmp_path):
+    path = tmp_path / "plan.json"
+    path.write_text(json.dumps(CLI_PLAN), encoding="utf-8")
+    proc = run_cli([str(path), "--both", "--json"],
+                   cli_env(**{MASTER: "0"}), stdin="")
+    assert proc.returncode == 0
+    assert json.loads(proc.stdout)["status"] == "off"

@@ -50,6 +50,17 @@ CLI_COMMAND = ("uv run --script .ai-badger/skills/task-decomposition/scripts/"
                "task_graph_cli.py <tool-name> --json <args>")
 DEGRADED_FILE = ".ai-badger/task-tracking/plans/<YYYY-MM-DD>-<taskId>.md"
 HANDWRITTEN_BANNER = "hand-written — graph off"
+# The coverage rule in its sentence form: the check must pin the requirement, not one keyword.
+COVERAGE_RULE = ("every non-deferred spec scenario maps to at least one step acceptance "
+                 "criterion")
+# Without the server, the graph-only half of the semantics must be named out loud.
+GRAPH_ONLY_SEMANTICS = ("Manual checkboxes do not enforce failed/forced/blocked or the join "
+                        "rule — those are graph-only semantics")
+
+
+def _flat(text: str) -> str:
+    """*text* with every run of whitespace collapsed, so wrapped sentences match as written."""
+    return re.sub(r"\s+", " ", text)
 
 
 def _skill_text() -> str:
@@ -153,8 +164,22 @@ class TestTheRecordingContractIsExplicit:
 
         assert "spec.json" in text
         assert re.search(r"non-deferred", text, re.IGNORECASE), (
-            "the DR13 coverage rule (every non-deferred spec scenario maps to a step AC) "
+            "the coverage rule (every non-deferred spec scenario maps to a step AC) "
             "is not stated")
+
+    def test_the_spec_coverage_rule_is_pinned_as_a_sentence(self):
+        """The coverage rule is a requirement, so the sentence is pinned, not one keyword.
+
+        The same rule has a stop-rule form; both the skill and the method reference carry it.
+        """
+        assert COVERAGE_RULE in _flat(_skill_text())
+        assert ("every non-deferred spec scenario maps to at least one AC"
+                in _flat(_reference_text("decomposition-method.md")))
+
+    def test_the_graph_only_degraded_semantics_are_stated(self):
+        """Manual checkboxes are a status view, not enforcement — both surfaces must say so."""
+        assert GRAPH_ONLY_SEMANTICS in _flat(_skill_text())
+        assert GRAPH_ONLY_SEMANTICS in _flat(_reference_text("mcp-plan-tools.md"))
 
 
 class TestTheFrozenToolSurface:

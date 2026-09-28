@@ -4,8 +4,8 @@
 `features/common/skills/ai-raccoon-memory/scripts/openrouter_client.py` with exactly one changed
 line: the test-base env name (`AI_BADGER_MEMORY_CONTEXT_TEST_OPENROUTER_BASE` →
 `AI_BADGER_JEV_TEST_OPENROUTER_BASE`). The comparison normalizes that one line and byte-compares
-everything else; a mutation of any second line turns it red (witnessed by
-`test_comparator_flags_a_second_changed_line`).
+everything else; a mutation of any second line turns it red, and the mutation witness runs the
+mutated copy through the same `comparison_result()` the primary test uses.
 """
 from __future__ import annotations
 
@@ -27,9 +27,14 @@ def normalized_source() -> bytes:
     return raw.replace(SOURCE_LINE.encode(), VENDORED_LINE.encode())
 
 
+def comparison_result(vendored: bytes) -> bool:
+    """The vendoring rule as one function, so the witness exercises the real comparison."""
+    return vendored == normalized_source()
+
+
 def test_vendored_copy_is_byte_identical_except_the_one_sanctioned_line():
     assert VENDORED.is_file(), f"{VENDORED} does not exist — the client was never vendored"
-    assert VENDORED.read_bytes() == normalized_source()
+    assert comparison_result(VENDORED.read_bytes())
 
 
 def test_the_sanctioned_line_is_the_jev_name_and_the_rule_is_kept():
@@ -42,13 +47,14 @@ def test_the_sanctioned_line_is_the_jev_name_and_the_rule_is_kept():
     assert "never a silent switch to production" in vendored
 
 
-def test_comparator_flags_a_second_changed_line(tmp_path):
-    """Mutation proof for the comparator itself: any second line difference is caught."""
-    mutated = bytearray(VENDORED.read_bytes())
+def test_comparator_flags_a_second_changed_line():
+    """Mutation proof for the comparator itself: any second line difference is caught.
+
+    The mutated copy goes through the same `comparison_result()` the primary test uses, so a
+    comparator that could only ever answer True fails here.
+    """
     marker = b'LOOPBACK = "127.0.0.1"'
-    assert marker in mutated
-    mutated = bytes(mutated).replace(marker, b'LOOPBACK = "127.0.0.2"')
+    mutated = VENDORED.read_bytes().replace(marker, b'LOOPBACK = "127.0.0.2"')
+    assert marker in VENDORED.read_bytes()
     assert mutated != VENDORED.read_bytes()
-    target = tmp_path / "openrouter_client.py"
-    target.write_bytes(mutated)
-    assert target.read_bytes() != normalized_source()
+    assert comparison_result(mutated) is False
