@@ -23,6 +23,7 @@ import memory_context_openrouter as fake_router
 import memory_context_support as support
 from memory_context_openrouter import FakeOpenRouter, behaviour, reply
 from memory_context_support import ROOT, SCRIPTS, memory_context_env  # noqa: F401
+from memory_context_support import forget_modules_a_test_imported  # noqa: F401  (autouse)
 
 HOOKS_SOURCE = ROOT / "features" / "common" / "hooks" / "ai_badger_hooks.py"
 ADJUSTER = ROOT / "features" / "hermes" / "adjustments" / "adjust_hooks.py"

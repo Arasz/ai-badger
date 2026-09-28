@@ -26,6 +26,7 @@ import memory_context_support as support
 import scaffold_helpers
 from memory_context_openrouter import FakeOpenRouter, reply
 from memory_context_support import ROOT, memory_context_env  # noqa: F401
+from memory_context_support import forget_modules_a_test_imported  # noqa: F401  (autouse)
 
 HOOKS_DIR = ROOT / "features" / "common" / "hooks"
 MANIFEST = HOOKS_DIR / "hooks-manifest.json"

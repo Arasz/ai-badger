@@ -378,3 +378,13 @@ def memory_context_env(monkeypatch, tmp_path):
     install_network_guard(monkeypatch, guards)
     yield Env(guards, fake, root, home)
     assert_no_refusals(guards)
+
+
+@pytest.fixture(name="no_module_leaks", autouse=True)
+def forget_modules_a_test_imported():
+    """Remove every sys.modules entry a test added, so a sibling module loaded by an installed
+    hook copy cannot satisfy a later test's by-name lookup of that module."""
+    before = set(sys.modules)
+    yield
+    for key in set(sys.modules) - before:
+        del sys.modules[key]
