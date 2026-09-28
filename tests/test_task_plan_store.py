@@ -34,13 +34,19 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
+import types
+from pathlib import Path
 
 import pytest
 
 STORE_RELPATH = "features/common/skills/task-decomposition/scripts/task_plan_store.py"
+SIBLING_STORE = "features/common/skills/task-decomposition/scripts/badger_store.py"
+SIBLING_MODEL = "features/common/skills/task-decomposition/scripts/task_plan_model.py"
 TRACKER_RELPATH = "features/common/skills/task/scripts/tracker_lib.py"
 TRACKING_ROOT_ENV = "AI_BADGER_TRACKING_ROOT"
 TASK_ID = "aib-demo-task"
+ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture
@@ -525,6 +531,34 @@ def test_resolved_root_lands_the_store_under_the_resolved_project(plan_store, tm
 
 
 # --------------------------------------------------------------------------- 7. tripwire
+
+
+def test_load_sibling_rejects_a_stale_module_under_the_bare_name(plan_store, tmp_path,
+                                                                 monkeypatch):
+    """A cached module from another tree must not be served as this file's sibling."""
+    stale = types.ModuleType("task_plan_model")
+    stale.__file__ = str(tmp_path / "elsewhere" / "task_plan_model.py")
+    monkeypatch.setitem(sys.modules, "task_plan_model", stale)
+
+    loaded = plan_store._load_sibling("task_plan_model")
+
+    assert loaded is not stale
+    assert Path(loaded.__file__).resolve() == (ROOT / SIBLING_MODEL).resolve()
+
+
+def test_load_badger_store_rejects_a_stale_module_under_the_bare_name(
+        plan_store, tmp_path, monkeypatch):
+    """A stale bare-name store would silently serve another tree's schema (A11)."""
+    stale = types.ModuleType("badger_store")
+    stale.__file__ = str(tmp_path / "elsewhere" / "badger_store.py")
+    monkeypatch.setitem(sys.modules, "badger_store", stale)
+
+    loaded = plan_store._load_badger_store()
+
+    assert loaded is not stale
+    assert Path(loaded.__file__).resolve() == (ROOT / SIBLING_STORE).resolve()
+    assert sys.modules["badger_store"] is stale, (
+        "another module's bare-name binding must not be rebound under it")
 
 
 def test_the_default_root_tripwire_is_armed(plan_store, monkeypatch):

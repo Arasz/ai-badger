@@ -42,6 +42,15 @@ SCHEMA_URL = "https://github.com/Arasz/ai-badger/schemas/task-plan.schema.json"
 MEASURED_AT = "2026-09-28T10:00:00Z"
 STAMPED = frozenset({"created_at", "updated_at", "started_at", "completed_at"})
 
+#: The frozen PEP 723 block every launch path depends on; `uv run --script` reads it before
+#: Python starts. Byte-pinned so a corrupted header cannot ship silently (R4-F1).
+LAUNCH_HEADER = (
+    "# /// script\n"
+    '# requires-python = ">=3.10"\n'
+    '# dependencies = ["pydantic>=2.12,<3"]\n'
+    "# ///"
+)
+
 
 def freeze(value):
     """A payload with server-stamped timestamps replaced by a placeholder."""
@@ -151,12 +160,12 @@ GOLDEN: Dict[str, dict] = {
     "plan_create": {
         "task_id": TASK_ID, "revision": 0, "schema_version": 1,
         "content_hash": GOLDEN_CONTENT_HASH, "created": True, "steps": 1,
-        "ready": [S1_REF], "waves": [["s1"]],
+        "ready": [S1_REF], "waves": [["s1"]], "findings": [],
     },
     "plan_replace": {
         "task_id": TASK_ID, "revision": 1, "schema_version": 1,
         "content_hash": P2_CONTENT_HASH, "created": False, "replaced": True, "steps": 2,
-        "ready": [S1_REF], "waves": [["s1"], ["s2"]],
+        "ready": [S1_REF], "waves": [["s1"], ["s2"]], "findings": [],
     },
     "steps_ready": {
         "revision": 1, "ready": [S1_REF], "waves": [["s1"], ["s2"]], "blocked": [],
@@ -188,7 +197,7 @@ GOLDEN: Dict[str, dict] = {
         "counts": {"total": 2, "pending": 0, "in_progress": 0, "complete": 1, "failed": 0,
                    "skipped": 1},
         "criteria": {"passed": 1, "total": 2}, "integration_ok": True,
-        "integration_sink": "s2",
+        "integration_sink": "s2", "findings": [],
     },
     "plan_export": {
         "task_id": TASK_ID, "revision": 7, "content_hash": P2_CONTENT_HASH,
@@ -210,6 +219,7 @@ GOLDEN: Dict[str, dict] = {
              "criteria": {"passed": 0, "total": 1}},
         ],
         "next": [], "blocked": [],
+        "integration_ok": True, "integration_finding": None,
     },
 }
 
@@ -393,6 +403,46 @@ def _cli(root: Path, *argv: str):
     env[TRACKING_ROOT_ENV] = str(root)
     return subprocess.run([sys.executable, str(CLI), *argv], capture_output=True, text=True,
                           encoding="utf-8", env=env, check=False)
+
+
+@pytest.mark.parametrize("script", [CLI, SERVER], ids=["cli", "server"])
+def test_both_scripts_carry_the_pinned_pep723_launch_header(script):
+    """`uv run --script` reads these exact lines; a deleted or edited header ships broken."""
+    lines = script.read_text(encoding="utf-8").splitlines()
+
+    assert lines[0].startswith("#!")
+    assert "\n".join(lines[1:5]) == LAUNCH_HEADER
+
+
+def test_cli_exits_three_when_the_tool_cannot_start(load_script, tmp_path, monkeypatch,
+                                                    capsys):
+    """A launch failure is its own exit code (3), distinct from tool error (1) and usage (2)."""
+    cli = load_script(CLI_RELPATH)
+    broken = tmp_path / "task_graph_server.py"
+    broken.write_text("raise RuntimeError('cannot start')\n", encoding="utf-8")
+    monkeypatch.setattr(cli, "SERVER_PATH", broken)
+    sys.modules.pop("task_graph_server", None)
+
+    rc = cli.main(["plan_get", "--json", "{}"])
+
+    assert rc == 3
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    lines = captured.err.strip().splitlines()
+    assert len(lines) == 1, captured.err
+    assert "cannot start" in lines[0]
+
+
+def test_cli_survives_non_utf8_argv_bytes(tmp_path):
+    """Raw bytes in `--json` may not decode cleanly; the CLI refuses, never tracebacks."""
+    env = dict(os.environ)
+    env[TRACKING_ROOT_ENV] = str(tmp_path)
+    proc = subprocess.run(
+        [os.fsencode(sys.executable), os.fsencode(CLI), b"plan_get", b"--json",
+         b'{"task_id": "a\xffb"}'], capture_output=True, env=env, check=False)
+
+    assert proc.returncode in (1, 2), proc.stderr.decode("utf-8", "replace")
+    assert b"Traceback" not in proc.stderr, proc.stderr.decode("utf-8", "replace")
 
 
 def test_cli_reports_a_tool_error_envelope_with_a_nonzero_exit(tmp_path):

@@ -361,7 +361,8 @@ def test_scenario_1_decompose_and_create_match_the_model_hash(mcp, plan_model):
 
     assert set(payload) == {
         "task_id", "revision", "schema_version", "content_hash", "created", "steps",
-        "ready", "waves"}
+        "ready", "waves", "findings"}
+    assert payload["findings"] == []  # every fixture step carries ACs and the join spans them
     assert payload["task_id"] == TASK_ID
     assert payload["created"] is True
     assert payload["revision"] == 0

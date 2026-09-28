@@ -11,7 +11,8 @@ The CLI loads the sibling server module and calls the same handler, so its paylo
 server's payloads by construction and the tests still pin them as literals. Success prints the
 payload as JSON on stdout and exits 0. A tool-domain failure prints the same closed error
 envelope the MCP transport returns and exits 1. A usage failure (unknown verb, unparseable
-``--json``, non-object ``--json``) writes a diagnostic to stderr and exits 2.
+``--json``, non-object ``--json``) writes a diagnostic to stderr and exits 2. A launch failure
+(the server module cannot be imported) writes one stderr line and exits 3.
 """
 from __future__ import annotations
 
@@ -44,7 +45,7 @@ def _load_server():
 
 
 def main(argv=None) -> int:
-    """Dispatch one tool verb; 0 ok, 1 tool-domain error, 2 usage error."""
+    """Dispatch one tool verb; 0 ok, 1 tool-domain error, 2 usage error, 3 launch failure."""
     parser = argparse.ArgumentParser(
         prog="task_graph_cli.py", description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -53,14 +54,20 @@ def main(argv=None) -> int:
                         help="tool arguments as a JSON object")
     args = parser.parse_args(argv)
 
-    server = _load_server()
+    try:
+        server = _load_server()
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"task-graph cli cannot start: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 3
     if args.tool not in server.TOOL_BY_NAME:
         print(f"unknown tool {args.tool!r}; expected one of: "
               f"{', '.join(spec.name for spec in server.TOOLS)}", file=sys.stderr)
         return 2
     try:
-        arguments = json.loads(args.payload)
-    except json.JSONDecodeError as exc:
+        # argv can carry surrogateescape bytes for input that was never UTF-8; re-encode
+        # with replacement so the JSON parser sees a value, never a raw decode failure.
+        arguments = json.loads(args.payload.encode("utf-8", errors="replace"))
+    except (ValueError, UnicodeDecodeError) as exc:
         print(f"--json is not valid JSON: {exc}", file=sys.stderr)
         return 2
     if not isinstance(arguments, dict):

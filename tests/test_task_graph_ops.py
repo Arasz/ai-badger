@@ -114,7 +114,8 @@ def _generated_plan(model, seed, count=7):
 
     A step that is not pending only ever depends on complete/skipped steps: `start` required
     satisfied dependencies, so no guard-reachable plan leaves a started/completed/skipped step
-    hanging off an unsatisfied one. Pending steps may depend on anything.
+    hanging off an unsatisfied one. Pending steps may depend on anything. Files and resources
+    are drawn from small pools so the corpus actually exercises the deferral rule.
     """
     rng = random.Random(seed)
     ids = [f"s{index}" for index in range(count)]
@@ -128,7 +129,10 @@ def _generated_plan(model, seed, count=7):
             pool = [other for other in ids[:index]
                     if steps[other]["status"] in ("complete", "skipped")]
         data = {"depends_on": [other for other in pool if rng.random() < 0.3],
-                "status": status}
+                "status": status,
+                "files": rng.sample(("src/a.py", "src/b.py", "src/c.py"),
+                                    rng.randint(0, 2)),
+                "resources": rng.sample(("shared-db", "shared-cache"), rng.randint(0, 1))}
         if status == "in_progress":
             data["started_at"] = STARTED
         elif status == "complete":
@@ -326,15 +330,20 @@ def test_waves_cover_only_remaining_steps_and_respect_dependencies(graph, model)
                 f"{dependency!r} is not in an earlier wave than {step_id!r}")
 
 
-def test_wave_zero_is_a_ready_subset_and_ready_is_covered(graph, model):
+def test_wave_zero_admits_only_dependency_satisfied_steps_and_covers_ready(graph, model):
+    """`waves` covers every remaining step, including in_progress ones `ready` excludes — so
+    wave[0] membership means "no unsatisfied dependency", not "on the ready frontier"."""
     plan = _generated_plan(model, 3)
 
     waves = graph.waves(plan)
     ready_ids = {entry.step_id for entry in graph.ready(plan)}
     flat = {step_id for wave in waves for step_id in wave}
 
-    assert set(waves[0]) <= ready_ids
     assert ready_ids <= flat
+    for step_id in waves[0]:
+        step = plan.workflow.steps[step_id]
+        assert all(plan.workflow.steps[dependency].status.value in graph.SATISFIED_DEPS
+                   for dependency in step.depends_on), step_id
 
 
 def _assert_waves_have_no_conflicting_pair(graph, plan):
@@ -354,9 +363,15 @@ def test_no_wave_contains_a_conflicting_pair(graph, model):
 
 
 def test_no_wave_contains_a_conflicting_pair_in_generated_corpus(graph, model):
+    conflicts = 0
     for seed in range(15):
         plan = _generated_plan(model, seed)
+        for left, right in combinations(plan.workflow.steps.values(), 2):
+            if set(left.files) & set(right.files) or \
+                    set(left.resources) & set(right.resources):
+                conflicts += 1
         _assert_waves_have_no_conflicting_pair(graph, plan)
+    assert conflicts > 0, "the generated corpus must contain conflicting pairs"
 
 
 def test_conflict_predicate_is_what_defers_a_pair(graph, model, monkeypatch):
@@ -439,7 +454,7 @@ def test_start_refuses_incomplete_dependencies(graph, model):
 @pytest.mark.parametrize("status,allowed", [
     ("complete", []),
     ("skipped", []),
-    ("in_progress", ["complete", "failed", "skipped"]),
+    ("in_progress", ["step_complete", "step_fail", "step_skip"]),
 ])
 def test_start_refuses_non_startable_statuses_with_allowed_transitions(
         graph, model, status, allowed):
@@ -548,17 +563,15 @@ def test_complete_already_complete_is_its_own_code(graph, model):
 
 
 @pytest.mark.parametrize("status,allowed", [
-    ("pending", ["in_progress", "skipped"]),
-    ("failed", ["in_progress", "skipped"]),
+    ("pending", ["step_start", "step_skip"]),
+    ("failed", ["step_start", "step_skip"]),
     ("skipped", []),
 ])
 def test_complete_refuses_non_in_progress_statuses(graph, model, status, allowed):
-    step = {"pending": _step, "failed": _step, "skipped": _step}.get(status)("s1")
     overrides = {"status": status}
     if status == "failed":
         overrides["started_at"] = STARTED
     plan = _plan(model, {"s1": _step("s1", **overrides)})
-    assert step is not None
 
     with _refused(graph, "invalid-transition") as refused:
         graph.complete(plan, "s1")
@@ -587,7 +600,7 @@ def test_fail_moves_in_progress_to_failed(graph, model):
 
 
 @pytest.mark.parametrize("status,allowed", [
-    ("pending", ["in_progress", "skipped"]),
+    ("pending", ["step_start", "step_skip"]),
     ("complete", []),
     ("skipped", []),
 ])
@@ -681,13 +694,28 @@ def test_blocked_lists_failed_or_skipped_ancestors_of_remaining_steps(graph, mod
     assert "c" not in [entry.step_id for entry in blocked]
 
 
-def test_blocked_is_empty_when_no_ancestor_failed_or_skipped(graph, model):
-    plan = _generated_plan(model, 21)
+def test_blocked_is_exactly_steps_with_a_failed_or_skipped_ancestor(graph, model):
+    """The biconditional over a corpus with both empty and non-empty blocked sets.
 
-    for entry in graph.blocked(plan):
-        assert entry.blocked_by
-        assert all(plan.workflow.steps[ancestor].status.value in ("failed", "skipped")
-                   for ancestor in entry.blocked_by)
+    Seed 21 alone yields `blocked: []`, so the loop body never ran; seeds 5/7 are the
+    non-empty controls that make this comparison capable of failing.
+    """
+    non_empty = 0
+    for seed in (21, 5, 7, 3):
+        plan = _generated_plan(model, seed)
+        blocked = {entry.step_id: entry.blocked_by for entry in graph.blocked(plan)}
+        for step_id in graph.topological_order(plan):
+            step = plan.workflow.steps[step_id]
+            expected = [ancestor for ancestor in graph.ancestors(plan, step_id)
+                        if plan.workflow.steps[ancestor].status.value
+                        in graph.FAILED_OR_SKIPPED]
+            if step.status.value not in graph.REMAINING_STATUSES:
+                assert step_id not in blocked, (seed, step_id)
+            else:
+                assert blocked.get(step_id, []) == expected, (seed, step_id)
+        if blocked:
+            non_empty += 1
+    assert non_empty >= 1, "the corpus must include a non-empty blocked case"
 
 
 # --------------------------------------------------------------------------- integration

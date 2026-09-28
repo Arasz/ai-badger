@@ -26,12 +26,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 TRACKING_ROOT_ENV = "AI_BADGER_TRACKING_ROOT"
 
 
-def _load_sibling(name: str) -> Any:
-    """A module beside this file, under its plain name, cached in ``sys.modules``."""
-    cached = sys.modules.get(name)
-    if cached is not None:
-        return cached
-    path = SCRIPT_DIR / f"{name}.py"
+def _load_path(name: str, path: Path) -> Any:
+    """One module loaded from *path* under *name*, registered in ``sys.modules``."""
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:  # pragma: no cover - the files are vendored
         raise ImportError(f"cannot load {name} at {path}")
@@ -45,15 +41,39 @@ def _load_sibling(name: str) -> Any:
     return module
 
 
+def _load_sibling(name: str) -> Any:
+    """A module beside this file, under its plain name, cached in ``sys.modules``.
+
+    A cached entry is reused only when it is *this* file: a stale module someone else
+    registered under the bare name must be replaced, never served as the sibling.
+    """
+    path = SCRIPT_DIR / f"{name}.py"
+    cached = sys.modules.get(name)
+    if cached is not None and Path(getattr(cached, "__file__", "")).resolve() == path:
+        return cached
+    return _load_path(name, path)
+
+
 def _load_badger_store() -> Any:
-    """The vendored store: already-loaded singleton, plain import, then the sibling file."""
-    if "badger_store" in sys.modules:
-        return sys.modules["badger_store"]
+    """The vendored store beside this file; a stale bare-name copy is never used.
+
+    Unlike the generic sibling, the bare ``badger_store`` name is bound by other modules at
+    import time (hooks, trackers). A stale copy cached under it is therefore not displaced
+    here: rebinding it would make their patches miss the copy this service talks to, so the
+    sibling is loaded privately instead (the R4-F8 full-suite fallout).
+    """
+    path = SCRIPT_DIR / "badger_store.py"
+    cached = sys.modules.get("badger_store")
+    if cached is not None and Path(getattr(cached, "__file__", "")).resolve() == path:
+        return cached
     try:
         import badger_store  # pylint: disable=import-outside-toplevel,redefined-outer-name
-        return badger_store
+        if Path(getattr(badger_store, "__file__", "")).resolve() == path:
+            return badger_store
     except ImportError:
         pass
+    if "badger_store" in sys.modules:
+        return _load_path("task_plan_store._badger_store", path)
     return _load_sibling("badger_store")
 
 
