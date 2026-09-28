@@ -20,10 +20,10 @@ each stack's `skills-source.json`, `skills.json`, `stack.json`, `stack-mcp.json`
 cross-checks and `gates/skills_lint.py`. Both are mechanical — no LLM, no network — so there's no reason to skip
 them; a PR against ai-badger with a stale `index.json` should be treated as broken.
 
-Install the one dependency once:
+Install the dependencies once:
 
 ```bash
-python3 -m pip install -r engine/requirements.txt   # jsonschema
+python3 -m pip install -r engine/requirements.txt   # runtime dependencies
 ```
 
 ## Discovery rules (how `index_build.py` finds things)
