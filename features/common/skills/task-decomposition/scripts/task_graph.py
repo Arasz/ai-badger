@@ -69,13 +69,17 @@ FAILED_OR_SKIPPED = frozenset({"failed", "skipped"})
 """Ancestor verdicts that make a remaining descendant `blocked`."""
 
 TRANSITIONS: Dict[str, Tuple[str, ...]] = {
-    "pending": ("in_progress",),
+    "pending": ("in_progress", "skipped"),
     "in_progress": ("complete", "failed", "skipped"),
-    "failed": ("in_progress",),
+    "failed": ("in_progress", "skipped"),
     "complete": (),
     "skipped": (),
 }
-"""The five-state machine's allowed moves, keyed and valued by status value."""
+"""The five-state machine's allowed moves, keyed and valued by status value.
+
+DR7 amendment (wave-1 join ruling): `skip` is reachable from every non-terminal state —
+retiring a never-started step must not force a `start` first (P2-B1's `step_skip` row).
+"""
 
 MARKERS: Dict[str, str] = {
     "complete": "x",
@@ -361,9 +365,13 @@ def fail(plan, step_id: str) -> Step:
 
 
 def skip(plan, step_id: str) -> Step:
-    """Advance an in_progress step to skipped (terminal); DR7 keeps it out of reach of pending."""
+    """Advance a non-terminal step to skipped (terminal) — the retired-step path.
+
+    DR7 amendment (wave-1 join ruling): reachable from pending/in_progress/failed; a
+    pending step is retired directly instead of being started just to be skipped.
+    """
     step = _require_step(plan, step_id)
-    _require_status(step, {"in_progress"})
+    _require_status(step, {"pending", "in_progress", "failed"})
     return step.model_copy(update={"status": StepStatus.SKIPPED})
 
 

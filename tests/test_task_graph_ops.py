@@ -548,8 +548,8 @@ def test_complete_already_complete_is_its_own_code(graph, model):
 
 
 @pytest.mark.parametrize("status,allowed", [
-    ("pending", ["in_progress"]),
-    ("failed", ["in_progress"]),
+    ("pending", ["in_progress", "skipped"]),
+    ("failed", ["in_progress", "skipped"]),
     ("skipped", []),
 ])
 def test_complete_refuses_non_in_progress_statuses(graph, model, status, allowed):
@@ -587,7 +587,7 @@ def test_fail_moves_in_progress_to_failed(graph, model):
 
 
 @pytest.mark.parametrize("status,allowed", [
-    ("pending", ["in_progress"]),
+    ("pending", ["in_progress", "skipped"]),
     ("complete", []),
     ("skipped", []),
 ])
@@ -612,13 +612,26 @@ def test_skip_moves_in_progress_to_skipped(graph, model):
     model.Step.model_validate(skipped.model_dump())
 
 
+@pytest.mark.parametrize("status", ["pending", "failed"])
+def test_skip_moves_pending_and_failed_to_skipped(graph, model, status):
+    # DR7 amendment (join ruling): a retired step is usually never-started — skip must not
+    # force a start first (P2-B1's step_skip row: invalid only out of complete/skipped).
+    step = _step("s1", status=status)
+    plan = _plan(model, {"s1": step})
+
+    skipped = graph.skip(plan, "s1")
+
+    assert skipped.status.value == "skipped"
+    assert plan.workflow.steps["s1"].status.value == status
+
+
 @pytest.mark.parametrize("status,allowed", [
-    ("pending", ["in_progress"]),
     ("complete", []),
     ("skipped", []),
 ])
-def test_skip_refuses_non_in_progress_statuses(graph, model, status, allowed):
-    # DR7 keeps skipped reachable from in_progress only; a pending step must start first.
+def test_skip_refuses_terminal_statuses(graph, model, status, allowed):
+    # DR7 amendment (join ruling): skip is reachable from every non-terminal state
+    # (pending, in_progress, failed) and refused only from the terminal pair.
     step = _done("s1") if status == "complete" else _step("s1", status=status)
     plan = _plan(model, {"s1": step})
 
