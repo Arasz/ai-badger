@@ -25,6 +25,10 @@ SHARED_SKILL_FILES = (
     ("semantica-knowledge-graph", "export_semantica_graph.py"),
     ("git-work", "git_internals_guard.py"),
     ("git-work", "shell_parser.py"),
+    ("ai-raccoon-memory", "memory_context.py"),
+    ("ai-raccoon-memory", "openrouter_client.py"),
+    ("ai-raccoon-memory", "query_pipeline.py"),
+    ("task", "model_groups.py"),
 )
 RETRIEVAL_FILES = ("tokenizer.py", "bm25.py", "mcp_matcher.py")
 
@@ -417,6 +421,11 @@ def test_every_lazily_loaded_sibling_is_copied_beside_the_plugin(root, load_scri
 
     wanted = set(re.findall(r'_load_sibling_module\(\s*[^,]+,\s*"([^"]+\.py)"', source))
     assert wanted, "no sibling loads found — the regex stopped matching, not the code"
+    # memory_context.py loads its own siblings and the planner resolver from beside itself.
+    memory_context = load_script(
+        "features/common/skills/ai-raccoon-memory/scripts/memory_context.py")
+    assert "memory_context.py" in wanted
+    wanted |= set(memory_context.SIBLINGS) | {memory_context.RESOLVER}
 
     # Scoped to ~/.hermes/plugins/ai-badger/, the copy Hermes demonstrably loads: it is the
     # directory plugin adjust_hooks installs and the one holding a live __init__.py. NOT

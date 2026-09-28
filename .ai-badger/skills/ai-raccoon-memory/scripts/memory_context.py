@@ -600,9 +600,17 @@ def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any) -> Optional[Pipe
         return None
 
 
+def run_seconds(pipeline_total: Optional[float], cap: Optional[float]) -> float:
+    """Seconds one run may take: the pipeline total (or the single-search budget), lowered to
+    *cap* when a host abandons its callback sooner; the single-search budget is never raised."""
+    seconds = SINGLE_BUDGET_SECONDS if pipeline_total is None else pipeline_total
+    return seconds if cap is None else min(seconds, cap)
+
+
 def build(prompt: str, cwd: str, session_id: Optional[str], *,
           env: Optional[Mapping[str, str]] = None, home: Optional[str] = None,
-          budget: Optional[Budget] = None, limits: Any = None) -> Optional[str]:
+          budget: Optional[Budget] = None, limits: Any = None,
+          cap: Optional[float] = None) -> Optional[str]:
     """The memory-context block for *prompt*, or None; never raises, never outlives the budget.
 
     With a key and the pipeline switch not `"0"`, runs the query pipeline over one proxy
@@ -625,7 +633,7 @@ def build(prompt: str, cwd: str, session_id: Optional[str], *,
         if budget is not None:
             run_budget = budget
         else:
-            run_budget = Budget(pipeline.limits.total if pipeline else SINGLE_BUDGET_SECONDS)
+            run_budget = Budget(run_seconds(pipeline.limits.total if pipeline else None, cap))
         open_budget = run_budget.child(pipeline.limits.search) if pipeline else run_budget
         session = RaccoonSession.open(exe, project_id, session_id, open_budget)
         if session is None:

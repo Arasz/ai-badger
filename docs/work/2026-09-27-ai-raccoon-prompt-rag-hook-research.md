@@ -2208,3 +2208,33 @@ first answer looked incomplete.
 
 No open owner questions block Q0 itself; the `additionalContext`-vs-docs discrepancy above is
 carried forward as a live risk, not a stop condition (P0's MEASURED verdict stands).
+
+## Addendum (2026-09-28): P3b.0 Hermes grounding [READ]
+
+Hermes is not installed on this machine (`hermes` ENOENT), so these lines were read from upstream
+NousResearch/hermes-agent at `cd3f453f` through `gh api repos/NousResearch/hermes-agent/contents/<path>?ref=cd3f453f`.
+
+- **The `platform` a CLI session passes.** `agent/turn_context.py:769` passes
+  `platform=getattr(agent, "platform", None) or ""` to `pre_llm_call`. An agent with no platform, as in
+  an interactive CLI session, therefore sends `""`. Hermes treats that as the CLI:
+  `agent/agent_init.py:2095` reads `(agent.platform or "cli") == "cli"`. `agent/turn_context.py:198`
+  names a `"subagent"` platform. The arm gates on the same rule, `(platform or "cli") == "cli"`, as the
+  orchestrator ruled. A strict `platform == "cli"` would miss the CLI session that sends `""`.
+- **Where Hermes places the returned `context`.** It goes after the user's message.
+  `_collect_pre_llm_call_context` (`agent/turn_context.py:749-804`) joins every hook's `context` with
+  `"\n\n"`. `compose_user_api_content` (`:93-104`) returns `content + "\n\n" + injection`. The
+  security review's concern still holds: the memory block's trust header ends up directly before
+  whatever follows it. So the arm appends the block last, followed by `(end of memory context)`
+  outside the pi-identical block. The hook is collected once per turn, in the turn prologue
+  (`:1126`), and its result is reused on every API pass that turn (`:1235-1247`).
+- **Whether Hermes bounds a `pre_llm_call` hook's run time. It does.**
+  `hermes_cli/plugins_dispatch.py:42-44` lists `pre_llm_call` in `_HOOK_TIMEOUT_BOUNDED_HOOKS`, and
+  `:153` sets `_HOOK_CALLBACK_TIMEOUT_SECS = 30.0`. The value is configurable through
+  `plugins.hook_callback_timeout` and clamped to 600 (`hermes_cli/plugins.py:1153-1177`). When the
+  timeout fires, the worker is abandoned and never joined (`plugins_dispatch.py:26-27, 209-216`).
+  Consequence [INFERRED]: if a pipeline run goes past 30 s, Hermes drops the whole
+  `pre_llm_inject_context` result for that turn. That includes the parts it has already consumed,
+  such as the message-bus delivery. The abandoned thread still finishes `build()` within its own
+  budget and reaps the proxy, and the memo keeps the result. Expected pipeline latency is 10–20 s
+  (§1.2 of the plan), so this is a tail risk, not the common case. Raised for the owner; not changed
+  in P3b.

@@ -27,6 +27,7 @@ in the plugin dir's own .ai-badger/manifest.json is what answers (ADR-0007 shape
 # pylint: disable=too-many-lines  # registration surface: one thin callback per hook arm
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import logging
@@ -428,6 +429,7 @@ def on_session_start_drift_notice(cwd: str = "", **_kwargs: Any) -> None:
     """
     reset_session_hints()
     reset_gate_state()
+    reset_memory_context_memo()
     project = _project_cwd(cwd)
     _debug("ai_badger_hooks/session_start", "start", project=project)
     isolation = _load_hermes_isolation()
@@ -628,6 +630,61 @@ def _record_tool_index_check(project, tool_name: str, index: dict[str, Any]) -> 
 
 
 # ---------------------------------------------------------------------------
+# Memory context — the per-prompt ai-raccoon search, CLI sessions only
+# ---------------------------------------------------------------------------
+
+MEMORY_CONTEXT_MODULE_NAME = "ai_badger_memory_context"
+MEMORY_CONTEXT_END = "(end of memory context)"
+# Hermes abandons a pre_llm_call callback after 30 s by default (plugins_dispatch.py), losing
+# the whole turn's injection; the search must end first, leaving room for the other arms.
+MEMORY_CONTEXT_SECONDS = 25.0
+
+# session id -> (sha256 of the prompt, block or None): one search per prompt, failures included.
+_memory_context_memo: Dict[str, Tuple[str, Optional[str]]] = {}
+
+
+def reset_memory_context_memo() -> None:
+    """Forget every memoized memory-context result (called at session start)."""
+    _memory_context_memo.clear()
+
+
+def _load_memory_context() -> Optional[Any]:
+    """Import the sibling memory_context module lazily; None when absent or broken."""
+    return _load_sibling_module(MEMORY_CONTEXT_MODULE_NAME, "memory_context.py",
+                                "memory context")
+
+
+def _memory_context_wanted(project: str, platform: Any) -> bool:
+    """True for a CLI session (Hermes's own `platform or "cli"` rule) in a project whose
+    nearest `.ai-badger/` carries the ai-raccoon-memory skill; declining the skill turns it off."""
+    if (platform or "cli") != "cli":
+        return False
+    for directory in (Path(project), *Path(project).parents):
+        badger = directory / ".ai-badger"
+        if badger.is_dir():
+            return (badger / "skills" / "ai-raccoon-memory").is_dir()
+    return False
+
+
+def _memory_context_block(prompt: str, project: str, session_id: str) -> Optional[str]:
+    """The memory-context block for this (session, prompt), searched at most once and
+    memoized with its outcome, failures included; a new prompt replaces the session's entry."""
+    digest = hashlib.sha256(prompt.encode("utf-8", "surrogatepass")).hexdigest()
+    cached = _memory_context_memo.get(session_id)
+    if cached is not None and cached[0] == digest:
+        return cached[1]
+    module = _load_memory_context()
+    if module is None:
+        return None
+    block = None
+    try:
+        block = module.build(prompt, project, session_id, cap=MEMORY_CONTEXT_SECONDS)
+    finally:
+        _memory_context_memo[session_id] = (digest, block)
+    return block
+
+
+# ---------------------------------------------------------------------------
 # Context enrichment — equivalent to Claude's UserPromptSubmit hook
 # ---------------------------------------------------------------------------
 
@@ -646,6 +703,7 @@ def pre_llm_inject_context(
     - Hermes-specific usage hints (/usage, hermes insights, session_search)
     - MCP tool index recommendations (when .ai-badger/mcp-tools.json exists)
     - A pending commit-reminder nudge stashed by post_tool_observer, surfaced once
+    - The ai-raccoon memory context for the prompt, last, on CLI sessions only
     """
     parts: list[str] = []
     project = _project_cwd(cwd)
@@ -723,6 +781,18 @@ def pre_llm_inject_context(
                     hint = f"[ai-badger] Relevant MCP tools: {tools_str_short}"
                 parts.append(hint)
             _record_retrieval(project, prompt, index, ranked)
+
+    # Memory context — last, so the closing line (outside the pi-identical block) ends the
+    # injected context that Hermes appends after the user's message.
+    if isinstance(prompt, str) and _memory_context_wanted(project, kwargs.get("platform")):
+        try:
+            block = _memory_context_block(prompt, project, str(kwargs.get("session_id") or ""))
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.warning("memory context failed: %s", type(exc).__name__)
+            block = None
+        if block:
+            parts.append(block)
+            parts.append(MEMORY_CONTEXT_END)
 
     if not parts:
         return None
