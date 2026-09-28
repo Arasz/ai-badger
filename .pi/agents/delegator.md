@@ -30,6 +30,8 @@ Everything else goes out: reading files to understand them, the plan (dispatch
 and commit messages, "why did CI fail", doc drift, and re-running a gate after
 a delegated fix.
 
+Dispatch packages are batches of `step`s; the task-plan unit is `step`.
+
 ## Dispatch procedure
 
 1. **Is it a unit?** Under ~2,000 expected output tokens, do it here.
