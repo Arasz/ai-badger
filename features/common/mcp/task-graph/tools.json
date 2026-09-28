@@ -1,0 +1,18 @@
+{
+  "$schema": "../../../../schemas/mcp-server-tools.schema.json",
+  "server": "task-graph",
+  "tools": [
+    {"name": "plan_create", "intent": "After decomposing a task brief into steps with acceptance criteria, when the plan should become the graph execution lanes dispatch from.", "tags": ["write", "build"]},
+    {"name": "plan_replace", "intent": "Before execution starts, when review feedback changes the step set — replaces the whole plan under an expected-revision check.", "tags": ["write", "build"]},
+    {"name": "plan_get", "intent": "First read after a gap or handoff: counts, ready set, blocked steps and the current revision before any mutation.", "tags": ["read"]},
+    {"name": "plan_export", "intent": "At a review or release boundary, to get the canonical stored plan document, schema URL included, as an artifact.", "tags": ["read", "files"]},
+    {"name": "step_get", "intent": "When one step's instructions, dependencies, blockers or criteria must be seen in full — cheaper than exporting the whole plan.", "tags": ["read", "navigation"]},
+    {"name": "step_start", "intent": "Take a ready step just before dispatching a lane so in_progress and started_at are recorded; after a failure this is a retry.", "tags": ["write"]},
+    {"name": "step_complete", "intent": "When a lane's verification passed: record the evidence and per-criterion results that close the step; force is the only way past failed criteria.", "tags": ["write"]},
+    {"name": "step_fail", "intent": "When a lane could not deliver: record the reason and evidence so dependents show blocked instead of silently waiting.", "tags": ["write", "diagnostic"]},
+    {"name": "step_skip", "intent": "When a step is deliberately not done (superseded, descoped): skipped still satisfies readiness, unlike failed.", "tags": ["write"]},
+    {"name": "ac_check", "intent": "During verification, per acceptance criterion: record passed or failed with evidence while the step is in progress; completion freezes it.", "tags": ["write", "diagnostic"]},
+    {"name": "steps_ready", "intent": "Before each wave dispatch: the ready frontier, waves packed around file and resource conflicts, and steps blocked by failures.", "tags": ["read", "navigation", "diagnostic"]},
+    {"name": "progress_checklist", "intent": "For a status report or checkpoint: per-step markers, criterion tallies, next and blocked — the text format is the status section verbatim.", "tags": ["read"]}
+  ]
+}

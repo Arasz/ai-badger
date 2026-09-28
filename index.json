@@ -671,6 +671,10 @@
         {
           "name": "semantica",
           "path": "features/common/mcp/semantica"
+        },
+        {
+          "name": "task-graph",
+          "path": "features/common/mcp/task-graph"
         }
       ]
     },
