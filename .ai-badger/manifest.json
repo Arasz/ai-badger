@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.179.0",
-  "frameworkCommit": "7013bc6279c64127bca0c6c17239b4f5736eab20",
+  "frameworkCommit": "b7e3571cfb0a9f992aaebb9deef682e354f4908f",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1587,7 +1587,7 @@
       "target": ".ai-badger/delegation.md",
       "frameworkVersion": "0.179.0",
       "hash": "3376cf087b066d8bd983b60fffa18407e794a7d212be8721316f8a844292ea67",
-      "outputHash": "7a7ab84719ebfd429e7f99f453d153702bd0b324a015b1f7c934bc75f7a1d8d0",
+      "outputHash": "f58acc06c3cc030c8db52ad4cf652a039c28fc8deb380ef2d04c5bf8fb73e6b8",
       "seedOnce": false
     },
     {
@@ -1598,7 +1598,7 @@
       "target": "CLAUDE.md",
       "frameworkVersion": "0.179.0",
       "hash": "6e93b91f0280cd30e5e11ad011ee37daa1c2ceaae9cafd83359cf3d6c3f5a0c8",
-      "outputHash": "1f6b602f108b1fd07b709a26b0f926c9903cc0e80b827d082d8bbf8260226709",
+      "outputHash": "70fca37e4884e10524fedb7a4e28b0099e93653b1d6048358844d3feff0e0200",
       "seedOnce": false
     },
     {
@@ -1609,7 +1609,7 @@
       "target": ".github/copilot-instructions.md",
       "frameworkVersion": "0.179.0",
       "hash": "6e93b91f0280cd30e5e11ad011ee37daa1c2ceaae9cafd83359cf3d6c3f5a0c8",
-      "outputHash": "5fc36e2c9ef0a468006629197a0b2d5962343c4d2b50b29335c33dd2e5148755",
+      "outputHash": "bbcd380e9a927580fe2e9d55f61d01a3447c42e132226a7d15f16872568b5310",
       "seedOnce": false
     },
     {
@@ -1620,7 +1620,7 @@
       "target": "HERMES.md",
       "frameworkVersion": "0.179.0",
       "hash": "92f2f08f916c832b8e96401b2c1bda4eb0a2920fabb36a1390432a68f8d8e294",
-      "outputHash": "c9422a55b711397bb12072af22d90897a6098595cd67484fcc1c06406fffdce1",
+      "outputHash": "65d157cc03900cc4819556248aeb58c022897b17d209eaf95da8158dde3e8a34",
       "seedOnce": false
     },
     {
