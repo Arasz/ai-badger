@@ -50,6 +50,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BEHAVIORIST = "features/common/skills/call-behaviorist/scripts/behaviorist.py"
 DRIFT = "features/common/skills/welcome-ai-badger/scripts/drift.py"
 TASK_PLAN_MODEL = "features/common/skills/task-decomposition/scripts/task_plan_model.py"
+TASK_GRAPH_SERVER = "features/common/skills/task-decomposition/scripts/task_graph_server.py"
 VERIFY = ".lefthook/pre-push/verify.sh"
 
 # Checks with no provocation yet. EVERY ENTRY IS A DEBT, not a decision: an empty-by-default
@@ -545,6 +546,32 @@ def _task_plan_schema_check(work: Path, provoked: bool) -> Outcome:
     return _run_gate("tooling/task_plan_schema.py", "--check", "--root", str(root))
 
 
+def _task_graph_server_check(work: Path, provoked: bool) -> Outcome:
+    """The task-graph server's `--check` drifting from the model it loads at runtime.
+
+    The server loads the model from its own directory and the artifact from `--root`, so the
+    fixture is one schema file: the real artifact copied in, or the artifact with a required
+    field dropped. Nothing here reads or writes the repository's own schema.
+    """
+    root = work / "tree"
+    payload = json.loads(
+        (ROOT / "schemas" / "task-plan.schema.json").read_text(encoding="utf-8"))
+    if provoked:
+        payload["required"].remove("task_id")
+    _write(root / "schemas" / "task-plan.schema.json", json.dumps(payload, indent=2) + "\n")
+    return _run_gate(TASK_GRAPH_SERVER, "--check", "--root", str(root))
+
+
+def _task_graph_server_check_missing_schema(work: Path, provoked: bool) -> Outcome:
+    """The checked-in schema absent from the tree the server is pointed at."""
+    root = work / "tree"
+    if not provoked:
+        schema = root / "schemas" / "task-plan.schema.json"
+        schema.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / "schemas" / "task-plan.schema.json", schema)
+    return _run_gate(TASK_GRAPH_SERVER, "--check", "--root", str(root))
+
+
 # ----------------------------------------------- tooling/validate.py --all (five sub-checks)
 
 # Loaded for HOOK_CAPABLE_AGENTS: spelling the agent names here would let the tuple grow
@@ -957,6 +984,13 @@ REGISTRY: Tuple[Provocation, ...] = (
     Provocation("tooling/task_plan_schema.py --check",
                 "the artifact dropped a required field",
                 _task_plan_schema_check, Signal(exit_code=1, contains="STALE")),
+    Provocation(f"{TASK_GRAPH_SERVER} --check",
+                "the checked-in task-plan schema dropped a required field",
+                _task_graph_server_check, Signal(exit_code=1, contains="STALE")),
+    Provocation(f"{TASK_GRAPH_SERVER} --check",
+                "the checked-in task-plan schema is missing from the tree",
+                _task_graph_server_check_missing_schema,
+                Signal(exit_code=1, contains="missing")),
     Provocation("features/common/skills/review-tests/scripts/rules_index.py --check",
                 "walk-review.md left stale after generation",
                 _rules_index_check, Signal(exit_code=1, contains="stale")),
