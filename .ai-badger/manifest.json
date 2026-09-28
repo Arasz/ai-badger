@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.178.0",
-  "frameworkCommit": "7bcb9d23a1c3485c8a60eeb2fd400ada994cac2b",
+  "frameworkCommit": "dc6c08d34554690d435c6fe4a854fdfc656493e8",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1565,7 +1565,7 @@
       "target": ".ai-badger/state.json",
       "frameworkVersion": "0.178.0",
       "hash": "340d9da18a9e2938ff0c058d36c1558428c82c11dd1cc4b35b312d620f923438",
-      "outputHash": "eefb1987afb0b7dabeaf8b21ab2b8d04378fefe3586f1a7e9152b4bcad9208ca",
+      "outputHash": "a810b45d30ebba121ce60f856b08a8b1401da49b462ef948f0696962165027de",
       "seedOnce": true
     },
     {
@@ -1585,7 +1585,7 @@
       "name": "delegation.md.tmpl",
       "source": "features/common/templates/delegation.md.tmpl",
       "target": ".ai-badger/delegation.md",
-      "frameworkVersion": "0.177.3",
+      "frameworkVersion": "0.178.0",
       "hash": "3376cf087b066d8bd983b60fffa18407e794a7d212be8721316f8a844292ea67",
       "outputHash": "7a7ab84719ebfd429e7f99f453d153702bd0b324a015b1f7c934bc75f7a1d8d0",
       "seedOnce": false
@@ -1596,7 +1596,7 @@
       "name": "CLAUDE.md.tmpl",
       "source": "features/claude/templates/CLAUDE.md.tmpl",
       "target": "CLAUDE.md",
-      "frameworkVersion": "0.177.3",
+      "frameworkVersion": "0.178.0",
       "hash": "6e93b91f0280cd30e5e11ad011ee37daa1c2ceaae9cafd83359cf3d6c3f5a0c8",
       "outputHash": "1f6b602f108b1fd07b709a26b0f926c9903cc0e80b827d082d8bbf8260226709",
       "seedOnce": false
@@ -1607,7 +1607,7 @@
       "name": "copilot-instructions.md.tmpl",
       "source": "features/copilot/templates/copilot-instructions.md.tmpl",
       "target": ".github/copilot-instructions.md",
-      "frameworkVersion": "0.177.3",
+      "frameworkVersion": "0.178.0",
       "hash": "6e93b91f0280cd30e5e11ad011ee37daa1c2ceaae9cafd83359cf3d6c3f5a0c8",
       "outputHash": "5fc36e2c9ef0a468006629197a0b2d5962343c4d2b50b29335c33dd2e5148755",
       "seedOnce": false
@@ -1618,7 +1618,7 @@
       "name": "HERMES.md.tmpl",
       "source": "features/hermes/templates/HERMES.md.tmpl",
       "target": "HERMES.md",
-      "frameworkVersion": "0.177.3",
+      "frameworkVersion": "0.178.0",
       "hash": "92f2f08f916c832b8e96401b2c1bda4eb0a2920fabb36a1390432a68f8d8e294",
       "outputHash": "c9422a55b711397bb12072af22d90897a6098595cd67484fcc1c06406fffdce1",
       "seedOnce": false
