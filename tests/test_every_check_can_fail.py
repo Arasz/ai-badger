@@ -555,7 +555,8 @@ def _hooks_manifest(root: Path, agents) -> Path:
 
     Every arm also resolves under hooks_manifest_unresolved (F2), not only hooks_manifest_
     agent_gaps (F1): a hermes arm gets its own stub plugin file registering the method, and
-    the hooks.json sibling actually carries demo_hook.py's command — otherwise this "clean
+    the hooks.json sibling actually carries demo_hook.py's command, whose script
+    exists — otherwise this "clean
     tree" fixture would fail every validate_all control for a reason none of them test.
     """
     manifest_dir = root / "features" / "demo" / "hooks"
@@ -575,6 +576,7 @@ def _hooks_manifest(root: Path, agents) -> Path:
                      "command": 'python3 "${CLAUDE_PLUGIN_ROOT}/features/demo/hooks/'
                                  'demo_hook.py"'}]},
     ]}}))
+    _write(manifest_dir / "demo_hook.py", "")
     if "hermes" in agents:
         _write(manifest_dir / "hooks_stub.py",
                "def on_session_start(ctx):\n    pass\n\n\n"

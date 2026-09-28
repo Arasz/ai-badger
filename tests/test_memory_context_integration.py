@@ -273,7 +273,7 @@ def test_i4_a_declined_skill_is_not_wired_for_claude(load_script, tmp_path):
 @pytest.mark.xfail(strict=True, reason=(
     "features/copilot/adjustments/adjust_hooks.py ignores config.exclude: a declined skill's "
     "command is still generated, and its existence guard answers every prompt with a "
-    "'not found - hook skipped' systemMessage. Outside this package; reported for a fix."))
+    "'not found - hook skipped' systemMessage. Tracked in #535."))
 def test_i4_a_declined_skill_is_not_wired_for_copilot(memory_context_env, monkeypatch):
     target = _scaffold(memory_context_env, monkeypatch, agents=["copilot"],
                        exclude=["ai-raccoon-memory"])

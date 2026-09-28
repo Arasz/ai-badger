@@ -10,9 +10,12 @@ answers to it.
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 from pathlib import Path
 from typing import Dict, Iterable, List
+
+import pytest
 
 from conftest import ROOT, _test_write
 
@@ -33,13 +36,46 @@ def _manifest(root: Path, hooks: List[Dict], manifest_dir: str = "features/demo/
     return _write_json(root / manifest_dir / "hooks-manifest.json", {"hooks": hooks})
 
 
+PLUGIN_ROOT = "${CLAUDE_PLUGIN_ROOT}/"
+
+
+def _touch_scripts(root: Path, commands: Iterable[str]) -> None:
+    """Create each `${CLAUDE_PLUGIN_ROOT}/...` script a command names, under *root*."""
+    for command in commands:
+        for token in shlex.split(command):
+            if token.startswith(PLUGIN_ROOT):
+                _write_text(root / token[len(PLUGIN_ROOT):], "")
+
+
 def _hooks_json(root: Path, events: Dict[str, Iterable[str]],
-                 manifest_dir: str = "features/demo/hooks") -> Path:
+                 manifest_dir: str = "features/demo/hooks", *, scripts: bool = True) -> Path:
     """One hooks.json entry per command, grouped under its event — the shape the real
-    catalog's own hooks.json uses."""
+    catalog's own hooks.json uses; every script it names exists unless *scripts* is False."""
     hooks = {event: [{"hooks": [{"type": "command", "command": c}]} for c in commands]
               for event, commands in events.items()}
+    if scripts:
+        _touch_scripts(root, [c for commands in events.values() for c in commands])
     return _write_json(root / manifest_dir / "hooks.json", {"hooks": hooks})
+
+
+def _hooks_json_commands(path: Path) -> List[str]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return [h["command"] for entries in data["hooks"].values() for entry in entries
+            for h in entry["hooks"]]
+
+
+def _copy_real_hooks(root: Path, fw: Path) -> Path:
+    """The real manifest, both hooks.json files and the Hermes entry under *fw*, with an
+    empty stand-in for every script those hooks.json files name; the copied hooks dir."""
+    src = root / "features" / "common" / "hooks"
+    dst = fw / "features" / "common" / "hooks"
+    for name in ("hooks-manifest.json", "hooks.json", "ai_badger_hooks.py"):
+        _write_text(dst / name, (src / name).read_text(encoding="utf-8"))
+    _write_text(fw / "hooks" / "hooks.json", (root / "hooks" / "hooks.json")
+                .read_text(encoding="utf-8"))
+    for hooks_path in (dst / "hooks.json", fw / "hooks" / "hooks.json"):
+        _touch_scripts(fw, _hooks_json_commands(hooks_path))
+    return dst
 
 
 def _hermes_stub(root: Path, body: str, manifest_dir: str = "features/demo/hooks") -> Path:
@@ -84,14 +120,8 @@ def test_v1_deleting_a_command_from_a_tmp_copy_produces_exactly_two_gaps(root, l
                                                                           tmp_path):
     validate = _load(load_script, "tooling/validate.py")
     fw = tmp_path / "framework"
-    src = root / "features" / "common" / "hooks"
-    dst = fw / "features" / "common" / "hooks"
-    dst.mkdir(parents=True)
-    for name in ("hooks-manifest.json", "hooks.json", "ai_badger_hooks.py"):
-        dst_file = dst / name
-        _write_text(dst_file, (src / name).read_text(encoding="utf-8"))
-    _write_text(fw / "hooks" / "hooks.json", (root / "hooks" / "hooks.json")
-                .read_text(encoding="utf-8"))
+    dst = _copy_real_hooks(root, fw)
+    assert validate.hooks_manifest_unresolved(fw) == []
 
     hooks_data = json.loads((dst / "hooks.json").read_text(encoding="utf-8"))
     hooks_data["hooks"]["UserPromptSubmit"] = [
@@ -217,6 +247,7 @@ def test_v4_a_command_wired_twice_under_different_matchers_is_not_ambiguous(tmp_
         {"matcher": "memory_search", "hooks": [{"type": "command", "command": cmd}]},
         {"matcher": "Read|ReadFile", "hooks": [{"type": "command", "command": cmd}]},
     ]}})
+    _touch_scripts(tmp_path, [cmd])
 
     assert validate.hooks_manifest_unresolved(tmp_path) == []
 
@@ -250,6 +281,7 @@ def test_v5_an_unmapped_copilot_event_is_a_gap(tmp_path, load_script):
     gaps = validate.hooks_manifest_unresolved(tmp_path)
 
     assert len(gaps) == 1, gaps
+    assert "COPILOT_TO_SOURCE_EVENT" in gaps[0], gaps
 
 
 # ------------------------------------------------------------------------------------ V6
@@ -262,9 +294,10 @@ def test_v6_plugin_hooks_json_resolves_against_root_hooks_hooks_json(tmp_path, l
             "type": "plugin-hooks-json", "entry": "hooks.json",
             "event": "SessionStart", "script": "drift_notice_hook.py"}}},
     ])
+    command = 'python3 "${CLAUDE_PLUGIN_ROOT}/features/demo/skills/drift_notice_hook.py"'
     _write_json(tmp_path / "hooks" / "hooks.json", {"hooks": {"SessionStart": [
-        {"hooks": [{"type": "command",
-                     "command": 'python3 "${CLAUDE_PLUGIN_ROOT}/.../drift_notice_hook.py"'}]}]}})
+        {"hooks": [{"type": "command", "command": command}]}]}})
+    _touch_scripts(tmp_path, [command])
 
     assert validate.hooks_manifest_unresolved(tmp_path) == []
 
@@ -383,6 +416,156 @@ def test_v10_unreadable_entry_is_a_gap_not_a_crash(tmp_path, load_script):
     gaps = validate.hooks_manifest_unresolved(tmp_path)
 
     assert len(gaps) == 1, gaps
+
+
+DEMO_ARM = {"name": "demo-hook", "agents": {"claude": {
+    "type": "hooks-json", "entry": "hooks.json", "event": "SessionStart",
+    "script": "demo_hook.py"}}}
+
+
+def test_v10_a_hooks_json_that_is_not_json_is_an_unreadable_gap(tmp_path, load_script):
+    validate = _load(load_script, "tooling/validate.py")
+    _manifest(tmp_path, [DEMO_ARM])
+    _write_text(tmp_path / "features" / "demo" / "hooks" / "hooks.json", "{")
+
+    gaps = validate.hooks_manifest_unresolved(tmp_path)
+
+    assert len(gaps) == 1, gaps
+    assert "unreadable" in gaps[0], gaps
+
+
+@pytest.mark.parametrize("data", [
+    [], {"hooks": []}, {"hooks": {"SessionStart": {}}}, {"hooks": {"SessionStart": ["x"]}},
+    {"hooks": {"SessionStart": [{"hooks": "x"}]}},
+    {"hooks": {"SessionStart": [{"hooks": ["x"]}]}},
+    {"hooks": {"SessionStart": [{"hooks": [{"command": 1}]}]}},
+], ids=["array", "hooks-list", "event-dict", "entry-str", "inner-str", "hook-str",
+        "command-int"])
+def test_v10_a_hooks_json_of_the_wrong_shape_is_a_gap_not_a_crash(tmp_path, load_script, data):
+    validate = _load(load_script, "tooling/validate.py")
+    _manifest(tmp_path, [DEMO_ARM])
+    _write_json(tmp_path / "features" / "demo" / "hooks" / "hooks.json", data)
+
+    gaps = validate.hooks_manifest_unresolved(tmp_path)
+
+    assert len(gaps) == 1, gaps
+    assert "malformed" in gaps[0], gaps
+
+
+@pytest.mark.parametrize("manifest", [
+    [], {"hooks": {"a": "b"}}, {"hooks": ["x"]}, {"hooks": [{"name": "h", "agents": []}]},
+    {"hooks": [{"name": "h", "agents": {"claude": "x"}}]},
+], ids=["array", "hooks-dict", "hook-str", "agents-list", "arm-str"])
+def test_v10_a_manifest_of_the_wrong_shape_is_a_gap_not_a_crash(tmp_path, load_script,
+                                                                   manifest):
+    validate = _load(load_script, "tooling/validate.py")
+    _write_json(tmp_path / "features" / "demo" / "hooks" / "hooks-manifest.json", manifest)
+
+    gaps = validate.hooks_manifest_unresolved(tmp_path)
+
+    assert len(gaps) == 1, gaps
+    assert "malformed" in gaps[0], gaps
+
+
+def test_v10_an_unparsable_hermes_entry_is_an_unreadable_gap(tmp_path, load_script):
+    validate = _load(load_script, "tooling/validate.py")
+    _hermes_stub(tmp_path, "def (\n")
+    _manifest(tmp_path, [{"name": "demo-hook", "agents": {"hermes": {
+        "type": "plugin", "entry": "hooks_stub.py", "method": "real_event"}}}])
+
+    gaps = validate.hooks_manifest_unresolved(tmp_path)
+
+    assert len(gaps) == 1, gaps
+    assert "unreadable" in gaps[0], gaps
+
+
+# ------------------------------------------------------------------------------------ V17
+
+
+def test_v17_no_manifest_at_all_is_a_gap(tmp_path, load_script):
+    """Checking nothing and finding nothing are different answers."""
+    validate = _load(load_script, "tooling/validate.py")
+
+    gaps = validate.hooks_manifest_unresolved(tmp_path)
+
+    assert len(gaps) == 1, gaps
+    assert "matched no file" in gaps[0], gaps
+
+
+# ------------------------------------------------------------------------------------ V18
+
+
+def test_v18_a_command_whose_script_is_missing_on_disk_is_a_gap(tmp_path, load_script):
+    validate = _load(load_script, "tooling/validate.py")
+    _manifest(tmp_path, [DEMO_ARM])
+    _hooks_json(tmp_path, {"SessionStart": [
+        'python3 "${CLAUDE_PLUGIN_ROOT}/features/no-such-skill/scripts/demo_hook.py"']},
+        scripts=False)
+
+    gaps = validate.hooks_manifest_unresolved(tmp_path)
+
+    assert len(gaps) == 1, gaps
+    assert "not found" in gaps[0] and "no-such-skill" in gaps[0], gaps
+
+
+def test_v18_a_command_whose_script_sits_outside_the_tree_is_a_gap(tmp_path, load_script):
+    validate = _load(load_script, "tooling/validate.py")
+    fw = tmp_path / "fw"
+    _manifest(fw, [DEMO_ARM])
+    _hooks_json(fw, {"SessionStart": [
+        'python3 "${CLAUDE_PLUGIN_ROOT}/../outside/demo_hook.py"']}, scripts=False)
+    _write_text(tmp_path / "outside" / "demo_hook.py", "")
+
+    gaps = validate.hooks_manifest_unresolved(fw)
+
+    assert len(gaps) == 1, gaps
+    assert "not found" in gaps[0], gaps
+
+
+def test_v18_a_command_with_no_plugin_root_path_is_a_gap(tmp_path, load_script):
+    validate = _load(load_script, "tooling/validate.py")
+    _manifest(tmp_path, [DEMO_ARM])
+    _hooks_json(tmp_path, {"SessionStart": ['python3 "/opt/elsewhere/demo_hook.py"']})
+
+    gaps = validate.hooks_manifest_unresolved(tmp_path)
+
+    assert len(gaps) == 1, gaps
+    assert "CLAUDE_PLUGIN_ROOT" in gaps[0], gaps
+
+
+def test_v18_the_real_memory_context_arms_go_red_when_the_script_is_gone(root, load_script,
+                                                                         tmp_path):
+    validate = _load(load_script, "tooling/validate.py")
+    fw = tmp_path / "framework"
+    _copy_real_hooks(root, fw)
+    assert validate.hooks_manifest_unresolved(fw) == []
+    (fw / "features" / "common" / "skills" / "ai-raccoon-memory" / "scripts"
+     / "memory_context_hook.py").unlink()
+
+    gaps = validate.hooks_manifest_unresolved(fw)
+
+    assert len(gaps) == 2, gaps
+    assert all("'memory-context'" in g for g in gaps), gaps
+
+
+# ------------------------------------------------------------------------------------ V19
+
+
+def test_v19_the_hermes_memory_context_arm_goes_red_without_its_registration(root, load_script,
+                                                                            tmp_path):
+    validate = _load(load_script, "tooling/validate.py")
+    fw = tmp_path / "framework"
+    dst = _copy_real_hooks(root, fw)
+    entry = dst / "ai_badger_hooks.py"
+    line = 'ctx.register_hook("pre_llm_call", pre_llm_inject_context)'
+    text = entry.read_text(encoding="utf-8")
+    assert text.count(line) == 1
+    _write_text(entry, text.replace(line, "pass"))
+
+    gaps = validate.hooks_manifest_unresolved(fw)
+
+    assert any("'memory-context'" in g and "'hermes'" in g for g in gaps), gaps
+    assert all("pre_llm_call" in g for g in gaps), gaps
 
 
 # ------------------------------------------------------------------------------------ V11

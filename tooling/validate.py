@@ -14,6 +14,7 @@ import argparse
 import ast
 import json
 import re
+import shlex
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -453,34 +454,69 @@ def hooks_manifest_agent_gaps(root: Path) -> List[str]:
 PLUGIN_HOOKS_JSON_ROOT = ("hooks", "hooks.json")  # the drift-notice exception (§1.7)
 
 
-def _event_commands(hooks_data: Dict, event: str) -> List[str]:
-    """Every command string wired under *event*, across every matcher entry."""
-    return [h.get("command", "")
-            for entry in hooks_data.get("hooks", {}).get(event, [])
-            for h in entry.get("hooks", [])]
+PLUGIN_ROOT_PREFIX = "${CLAUDE_PLUGIN_ROOT}/"
 
 
-def _resolve_hooks_json_command(hooks_path: Path, event: str, script: str) -> Optional[str]:
+def _event_commands(hooks_data: object, event: str) -> Optional[List[str]]:
+    """Every command string wired under *event*, across every matcher entry; None when the
+    file is not shaped like a hooks.json."""
+    hooks = hooks_data.get("hooks", {}) if isinstance(hooks_data, dict) else None
+    entries = hooks.get(event, []) if isinstance(hooks, dict) else None
+    if not isinstance(entries, list):
+        return None
+    commands: List[str] = []
+    for entry in entries:
+        inner = entry.get("hooks", []) if isinstance(entry, dict) else None
+        if not isinstance(inner, list):
+            return None
+        for hook in inner:
+            command = hook.get("command", "") if isinstance(hook, dict) else None
+            if not isinstance(command, str):
+                return None
+            commands.append(command)
+    return commands
+
+
+def _script_on_disk(root: Path, command: str, script: str) -> Optional[str]:
+    """None once *command* runs a `${CLAUDE_PLUGIN_ROOT}/...` path to *script* that exists as
+    a file inside *root*; else the reason."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return f"the command {command!r} does not parse"
+    path = next((token for token in reversed(tokens) if token.endswith(script)), "")
+    if not path.startswith(PLUGIN_ROOT_PREFIX):
+        return f"the command names no {PLUGIN_ROOT_PREFIX}... path to {script!r}"
+    target = (root / path[len(PLUGIN_ROOT_PREFIX):]).resolve()
+    if root.resolve() not in target.parents or not target.is_file():
+        return f"script {path} not found on disk under the framework root"
+    return None
+
+
+def _resolve_hooks_json_command(root: Path, hooks_path: Path, event: str,
+                                script: str) -> Optional[str]:
     """None once *script* resolves to exactly one command under *event*; else the reason.
 
     A command resolves only when it both ends with *script* (the generators' own selection
     rule) and its basename equals *script* — endswith alone accepts a decoy like
-    not_memory_context_hook.py, and basename alone misses two decoys agreeing on a suffix.
-    Matcher is ignored (documented): the same literal command wired twice under different
-    matchers is one resolution, not an ambiguity.
+    not_memory_context_hook.py, and basename alone misses two decoys agreeing on a suffix —
+    and the script it runs exists on disk. Matcher is ignored (documented): the same literal
+    command wired twice under different matchers is one resolution, not an ambiguity.
     """
     try:
         hooks_data = json.loads(hooks_path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         return f"{hooks_path} unreadable ({exc})"
-    matching = sorted({c for c in _event_commands(hooks_data, event)
-                        if c.rstrip('"').endswith(script)})
+    commands = _event_commands(hooks_data, event)
+    if commands is None:
+        return f"{hooks_path} malformed: not shaped like a hooks.json"
+    matching = sorted({c for c in commands if c.rstrip('"').endswith(script)})
     if len(matching) != 1:
         return f"{len(matching)} command(s) under event {event!r} end with {script!r}"
     basename = matching[0].rstrip('"').rsplit("/", 1)[-1]
     if basename != script:
         return f"the matching command's basename {basename!r} != script {script!r}"
-    return None
+    return _script_on_disk(root, matching[0], script)
 
 
 def _hermes_registrations(entry_path: Path) -> Optional[Tuple[set, set]]:
@@ -526,7 +562,7 @@ def _hooks_json_arm_gap(root: Path, rel: str, manifest_dir: Path, name: str, age
                   else manifest_dir / entry)
     if not hooks_path.is_file():
         return f"{rel}: {tag} entry not found at {hooks_path}"
-    reason = _resolve_hooks_json_command(hooks_path, source_event, script)
+    reason = _resolve_hooks_json_command(root, hooks_path, source_event, script)
     return f"{rel}: {tag} unresolved: {reason}" if reason else None
 
 
@@ -567,21 +603,40 @@ def hooks_manifest_unresolved(root: Path) -> List[str]:
     event or callback name `ctx.register_hook` actually registers. No discovery fallback: a
     script findable only by scanning a skill's own scripts/ directory is unresolved here.
     """
+    manifests = sorted(root.glob(HOOKS_MANIFEST_GLOB))
+    if not manifests:
+        return [f"{HOOKS_MANIFEST_GLOB} matched no file: this check ran against no input"]
     gaps: List[str] = []
-    for manifest_path in sorted(root.glob(HOOKS_MANIFEST_GLOB)):
+    for manifest_path in manifests:
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             gaps.append(f"{manifest_path}: unreadable manifest ({exc})")
             continue
         rel = manifest_path.relative_to(root)
-        manifest_dir = manifest_path.parent
-        for hook in manifest.get("hooks", []):
-            name = hook.get("name", "<unnamed>")
-            for agent, arm in hook.get("agents", {}).items():
-                gap = _arm_gap(root, rel, manifest_dir, name, agent, arm)
-                if gap:
-                    gaps.append(gap)
+        hooks = manifest.get("hooks", []) if isinstance(manifest, dict) else None
+        if not isinstance(hooks, list):
+            gaps.append(f"{rel}: malformed manifest: 'hooks' is not a list")
+            continue
+        for hook in hooks:
+            gaps.extend(_hook_gaps(root, rel, manifest_path.parent, hook))
+    return gaps
+
+
+def _hook_gaps(root: Path, rel: Path, manifest_dir: Path, hook: object) -> List[str]:
+    """The unresolved reasons for every arm of one manifest hook entry."""
+    agents = hook.get("agents", {}) if isinstance(hook, dict) else None
+    if not isinstance(agents, dict):
+        return [f"{rel}: malformed hook entry {hook!r}: not an object with an 'agents' map"]
+    name = hook.get("name", "<unnamed>")
+    gaps: List[str] = []
+    for agent, arm in agents.items():
+        if not isinstance(arm, dict):
+            gaps.append(f"{rel}: malformed hook {name!r} {agent!r} arm: not an object")
+            continue
+        gap = _arm_gap(root, rel, manifest_dir, name, agent, arm)
+        if gap:
+            gaps.append(gap)
     return gaps
 
 

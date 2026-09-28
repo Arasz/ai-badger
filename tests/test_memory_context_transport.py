@@ -4,6 +4,7 @@ Every test runs under `memory_context_env` (tests/memory_context_support.py): sc
 HOME, PATH holding only the fake, the spawn and network guards. Timing rows bound at most 3 s
 against fakes whose blocking behaviour ends by a 20 s ceiling.
 """
+# pylint: disable=redefined-outer-name  # the shared autouse fixture is requested by name
 from __future__ import annotations
 
 import ast
@@ -224,7 +225,7 @@ def test_g4_network_guard(memory_context_env, tmp_path):
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(("127.0.0.1", 0))
-    server.listen(1)
+    server.listen(8)
     try:
         client = socket.create_connection(server.getsockname(), timeout=2)
         client.close()

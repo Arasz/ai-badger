@@ -18,7 +18,7 @@ def _write_hooks_manifest(tmp_path):
     """A complete manifest: since 0.88.4 a tree with no hooks-manifest.json fails --all.
 
     Also resolves under hooks_manifest_unresolved (F2): a hermes stub registers its method,
-    and hooks.json actually carries demo_hook.py's command, so a validate --all run on this
+    and hooks.json actually carries demo_hook.py's command (the script exists), so a validate --all run on this
     fixture reports no gap unless the test provokes one on purpose.
     """
     d = tmp_path / "features" / "common" / "hooks"
@@ -28,6 +28,7 @@ def _write_hooks_manifest(tmp_path):
                      "command": 'python3 "${CLAUDE_PLUGIN_ROOT}/features/common/hooks/'
                                  'demo_hook.py"'}]},
     ]}}), encoding="utf-8")
+    _test_write(d / "demo_hook.py", "", encoding="utf-8")
     _test_write(d / "hooks_stub.py",
                 "def on_session_start(ctx):\n    pass\n\n\n"
                 "def register(ctx):\n    ctx.register_hook(\"on_session_start\", "
