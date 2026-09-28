@@ -3,7 +3,8 @@
 ``engine/badger_store.py`` gains the bus families and their API — born in SQLite (D2), no
 legacy source, carried to every consumer by the vendored-copy discipline (D16):
 
-    SCHEMA_VERSION = 2                   # the bus is the first migration (D1)
+    SCHEMA_VERSION = 3                   # tracking: the bus arrived at 2 (D1); plans at 3
+    NON_TRACKING_SCHEMA_VERSION = 2      # user/audit DBs never run the tracking-only plans hook
     UPGRADE_HOOKS[1]                     # the bus tables' DDL: idempotent, DDL-only
     USER_FAMILIES += messages, cursors   # db="user", no legacy_path (born in SQLite)
 
@@ -12,7 +13,7 @@ legacy source, carried to every consumer by the vendored-copy discipline (D16):
     Store.deliver_for_session(session_id, project_id=None) -> (list[dict], summary)
 
 Test map (plan aib-user-db-message-bus §3 P1 · spec rules in parentheses):
-  1. Bus tables + stamp 2 (fresh open) .......... test_open_user_creates_the_bus_tables_and_stamps_version_two
+  1. Bus tables + current stamp (fresh open) .... test_open_user_creates_the_bus_tables_and_stamps_the_user_version
   2. DDL conventions (the DDL gate, D6/D17c) .... test_bus_ddl_follows_the_store_conventions
   3. Upgrade path (Rule 9 machinery, A1) ........ test_pre_bus_user_db_runs_upgrade_hook_one_and_re_stamps,
                                                    test_failing_upgrade_hook_rolls_back_to_stamped_and_tableless
@@ -177,13 +178,16 @@ def _empty_delivery() -> tuple:
 # ---------------------------------------------------------------------------
 
 
-def test_open_user_creates_the_bus_tables_and_stamps_version_two(tmp_path, monkeypatch):
-    """A fresh user store is born with the bus tables and stamped 2 — the bus's own stamp (D1/D2)."""
+def test_open_user_creates_the_bus_tables_and_stamps_the_user_version(tmp_path, monkeypatch):
+    """A fresh user store is born with the bus tables, stamped the user target 2 (D1/D2).
+
+    The plans hook (2 -> 3) is tracking-only (R-D); a user DB must not re-stamp to 3.
+    """
     _user_env(tmp_path, monkeypatch)
     store = badger_store.open_user()
     try:
         assert {"messages", "cursors"} <= _tables(store.conn)
-        assert int(_schema_version(store.conn)) == 2
+        assert int(_schema_version(store.conn)) == badger_store.NON_TRACKING_SCHEMA_VERSION
     finally:
         store.close()
 
@@ -219,7 +223,8 @@ def test_bus_ddl_follows_the_store_conventions(tmp_path, monkeypatch):
 
 def test_pre_bus_user_db_runs_upgrade_hook_one_and_re_stamps(tmp_path, monkeypatch):
     """A DB stamped 1 (pre-bus) upgrades on open: hook 1 lands the bus DDL inside its
-    BEGIN IMMEDIATE and the stamp moves to 2 — the first exercise of UPGRADE_HOOKS (A1)."""
+    BEGIN IMMEDIATE and the stamp moves to 2 (the user target; the tracking-only plans
+    hook 2 never runs) — UPGRADE_HOOKS[1]'s first exercise (A1)."""
     root = _user_env(tmp_path, monkeypatch)
     _pre_bus_user_db(root)
     real_hook = badger_store.UPGRADE_HOOKS[1]
@@ -234,7 +239,7 @@ def test_pre_bus_user_db_runs_upgrade_hook_one_and_re_stamps(tmp_path, monkeypat
     store = badger_store.open_user()
     try:
         assert calls == [1], "the 1 -> 2 upgrade hook must run on open"
-        assert int(_schema_version(store.conn)) == 2
+        assert int(_schema_version(store.conn)) == badger_store.NON_TRACKING_SCHEMA_VERSION
         assert {"messages", "cursors"} <= _tables(store.conn)
     finally:
         store.close()
@@ -269,6 +274,7 @@ def test_stamped2_db_refuses_old_code_naming_den_refresh(tmp_path, monkeypatch):
     badger_store.open_user().close()  # a store the bus stamped 2
 
     monkeypatch.setattr(badger_store, "SCHEMA_VERSION", 1)  # the pre-bus code's world
+    monkeypatch.setattr(badger_store, "NON_TRACKING_SCHEMA_VERSION", 1)
     with pytest.raises(sqlite3.OperationalError) as excinfo:
         badger_store.open_user()
     message = str(excinfo.value)
@@ -282,6 +288,7 @@ def test_pre_bus_db_without_bus_tables_opens_unchanged_under_old_code(tmp_path, 
     root = _user_env(tmp_path, monkeypatch)
     _pre_bus_user_db(root)
     monkeypatch.setattr(badger_store, "SCHEMA_VERSION", 1)
+    monkeypatch.setattr(badger_store, "NON_TRACKING_SCHEMA_VERSION", 1)
 
     store = badger_store.open_user()
     try:
@@ -1257,7 +1264,7 @@ class TestFreshStampConcurrency:
                     "SELECT value FROM meta WHERE key = 'schema_version'"
                 ).fetchone() is None
                 barrier.wait()
-                badger_store._ensure_schema_version(conn, db_path)
+                badger_store._ensure_schema_version(conn, db_path, kind="user")
                 conn.commit()
             except BaseException as exc:  # noqa: BLE001 - the test asserts on emptiness
                 errors.append(exc)
@@ -1278,4 +1285,4 @@ class TestFreshStampConcurrency:
             ).fetchone()
         finally:
             stamped.close()
-        assert row == (str(badger_store.SCHEMA_VERSION),)
+        assert row == (str(badger_store.NON_TRACKING_SCHEMA_VERSION),)

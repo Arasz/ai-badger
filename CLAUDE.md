@@ -2,11 +2,11 @@
 
 # ai-badger
 
-Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. Stdlib-only except two declared dependencies (engine/requirements.txt): jsonschema is required — validation refuses rather than silently passing — and pyyaml is optional, guarded, and degrades to a printed note. Two .mjs helper scripts under skills/maintain-agent-instructions/.
+Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. engine/requirements.txt declares three runtime dependencies plus one optional wrapper guard: jsonschema (required; validation refuses rather than silently passing), pyyaml (optional, guarded, and degrades to a printed note), and pydantic (required; the task-plan model and its schema generator); semantica is needed only by the optional wrapper. The task-graph plan server/CLI are PEP 723 scripts launched via `uv run --script`, so the consumer-side prerequisite is uv (it fetches pydantic>=2.12,<3 into its cache on first launch, with no pip install and no project-venv pollution). The plan DAG layer is stdlib graphlib; networkx is deliberately not used. Two .mjs helper scripts under skills/maintain-agent-instructions/.
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, pi, ts, node, changelog
-> Scaffolded by ai-badger 0.178.0. Source of truth for this file: `.ai-badger/CLAUDE.md`.
+> Scaffolded by ai-badger 0.179.0. Source of truth for this file: `.ai-badger/CLAUDE.md`.
 
 ## Commands
 
@@ -107,6 +107,22 @@ those IDs. Capture visual evidence with `browser_take_screenshot`. Monitor API c
 `browser_network_requests` and debug issues with `browser_console_messages`. For multi-step
 or complex interactions, execute custom Playwright scripts with `browser_run_code_unsafe`.
 Each tool's own description covers the rest.
+
+<!-- task-graph MCP tools -->
+## MCP Tools: task-graph
+
+`task-graph` owns the decomposed task plan — a DAG of `step`s carrying status, acceptance criteria and evidence, persisted beside the task tracker in the project's `tracking.db`.
+
+Plan time: `plan_create` validates and stores the DAG; `plan_replace` revises it before
+execution starts; `steps_ready` returns the dispatchable frontier and its waves. Execution:
+`step_start`, `step_complete` (evidence + AC results), `step_fail`, `step_skip`, `ac_check`;
+`progress_checklist` is the status view, and `plan_get`, `step_get`, `plan_export` read back.
+
+Launched as `uv run --script .ai-badger/skills/task-decomposition/scripts/task_graph_server.py`
+(`uv` on PATH; the PEP 723 env is fetched on first launch). No project `.mcp.json` (Hermes,
+worktree sessions) → use the CLI twin: `task_graph_cli.py <tool> --json`. Hermes operators:
+add the proposed `mcp_servers:` entry to `~/.hermes/config.yaml`, anchoring the script path to
+the project root — the declaration is project-relative.
 
 
 

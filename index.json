@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.178.0",
+  "frameworkVersion": "0.179.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -406,6 +406,11 @@
           "scope": "default"
         },
         {
+          "name": "task-decomposition",
+          "path": "features/common/skills/task-decomposition",
+          "scope": "default"
+        },
+        {
           "name": "test-economy",
           "path": "features/common/skills/test-economy",
           "scope": "default"
@@ -671,6 +676,10 @@
         {
           "name": "semantica",
           "path": "features/common/mcp/semantica"
+        },
+        {
+          "name": "task-graph",
+          "path": "features/common/mcp/task-graph"
         }
       ]
     },

@@ -2,11 +2,25 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import textwrap
 
 OVERCLAIM = "every third-party import is guarded and degrades to a note"
+
+# Every file the summary renders into (config.json is the source of truth). A stale copy
+# re-publishes whatever was true when it was generated, so the overclaim guard follows each
+# copy wherever it exists — the orchestrator regenerates them all at the wave join.
+RENDERED_COPIES = (
+    "CLAUDE.md",
+    ".ai-badger/CLAUDE.md",
+    ".github/copilot-instructions.md",
+    ".ai-badger/copilot-instructions.md",
+    ".hermes.md",
+    ".ai-badger/HERMES.md",
+    "HERMES.md",
+)
 
 # Refuse `import jsonschema` inside the child, whatever is installed, without touching this
 # process. `find_spec` returning None is exactly what a machine missing the wheel produces.
@@ -50,10 +64,38 @@ class TestTheProjectDescriptionIsTrue:
 
         assert "jsonschema" in summary and "required" in summary
 
+    def test_the_summary_names_pydantic_for_the_task_plan(self, root):
+        """task_plan_model.py and tooling/task_plan_schema.py import it unguarded (S2)."""
+        assert "pydantic" in _summary(root).lower()
+
+    def test_the_summary_names_uv_as_the_plan_server_prerequisite(self, root):
+        """The server/CLI are PEP 723 scripts; uv is the consumer-side prerequisite (DR2)."""
+        summary = _summary(root).lower()
+
+        assert re.search(r"\buv\b", summary), "uv must be named as the plan-server prerequisite"
+        assert "prerequisite" in summary
+
     def test_the_rendered_copies_match_the_source_of_truth(self, root):
-        """CLAUDE.md is generated from the summary; a stale copy re-publishes the old claim."""
-        assert OVERCLAIM not in (root / "CLAUDE.md").read_text(encoding="utf-8")
-        assert OVERCLAIM not in (root / ".ai-badger" / "CLAUDE.md").read_text(encoding="utf-8")
+        """CLAUDE.md is generated from the summary; a stale copy re-publishes the old claim.
+
+        Only the overclaim is checked here, not staleness: this lane owns config.json and the
+        orchestrator regenerates every rendered copy at the wave join. The loop must have at
+        least one subject and both mandated render paths must exist — an `is_file()` sweep
+        that finds nothing would otherwise pass while proving nothing (R4-F4).
+        """
+        checked = 0
+        for rel in RENDERED_COPIES:
+            path = root / rel
+            if path.is_file():
+                assert OVERCLAIM not in path.read_text(encoding="utf-8"), (
+                    f"{rel} re-publishes the overclaim")
+                checked += 1
+
+        assert checked >= 1, (
+            "no rendered copy was checked: the sweep proved nothing about the summary")
+        for mandated in ("CLAUDE.md", ".ai-badger/CLAUDE.md"):
+            assert (root / mandated).is_file(), (
+                f"{mandated} is a mandated render target but does not exist")
 
 
 class TestTheContractIsWhatTheDocsSay:
@@ -113,10 +155,12 @@ class TestTheContractIsWhatTheDocsSay:
 
         assert proc.stdout.strip() == "NOT_LOADED", proc.stdout + proc.stderr
 
-    def test_both_dependencies_are_declared_in_requirements(self, root):
+    def test_the_runtime_dependencies_are_declared_in_requirements(self, root):
         requirements = (root / "engine" / "requirements.txt").read_text(encoding="utf-8").lower()
 
-        assert "jsonschema" in requirements and "pyyaml" in requirements
+        assert "jsonschema" in requirements
+        assert "pyyaml" in requirements
+        assert "pydantic" in requirements
 
     def test_pyyaml_really_does_degrade_to_a_note(self, load_script):
         """The half of the original claim that is true must stay true."""
