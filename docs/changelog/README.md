@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.181.0 | [persona `model:` pins become optional: route by level only](0.181.0-persona-model-pins-become-optional.md) |
 | 0.180.0 | [`.mcp.json` carries the launch every configured reader can start](0.180.0-mcp-json-launches-for-pi-too.md) |
 | 0.179.0 | [task-decomposition plans on a graph, with the task-graph MCP server](0.179.0-task-decomposition-graph.md) |
 | 0.178.0 | [per-prompt memory context, wired through the ai-raccoon proxy](0.178.0-per-prompt-memory-context.md) |
