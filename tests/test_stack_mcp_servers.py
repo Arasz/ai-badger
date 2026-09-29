@@ -614,6 +614,96 @@ def test_mcp_json_applies_no_override_when_neither_reader_is_configured(tmp_path
     assert any(".mcp.json" in note for note in scaf.notes)
 
 
+# ── one shared file, one launch every reader can start (pi reads it too) ──────
+
+def _anchored_task_graph_server():
+    """The catalog's task-graph shape: project-relative base, anchored Claude override."""
+    return [{
+        "name": "task-graph",
+        "command": "uv run --script .ai-badger/skills/demo/task_graph_server.py",
+        "agentOverrides": {
+            "claude": {
+                "command": "uv",
+                "args": ["run", "--script",
+                         "${CLAUDE_PROJECT_DIR}/.ai-badger/skills/demo/task_graph_server.py"],
+            },
+        },
+    }]
+
+
+def test_mcp_json_carries_the_project_relative_launch_when_pi_is_configured(
+        tmp_path, make_scaffolder, monkeypatch, load_script):
+    """pi's reader (the pi-mcp-tools fork) drops an entry carrying an unexpanded ${VAR}
+    whole (ADR-0023), so a file pi reads carries the project-relative launch — which pi
+    resolves against the very directory that holds the file."""
+    _no_user_tool_dirs(monkeypatch, load_script)
+    target = make_scaffolder.target
+    _write_mcp_servers(tmp_path / "features" / "python", _anchored_task_graph_server())
+
+    scaf = _scaf(make_scaffolder, tmp_path, target,
+                  _config(stacks=["python"], agents=["claude", "pi"]))
+    scaf.mcp.generate_mcp_json()
+
+    entry = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))[
+        "mcpServers"]["task-graph"]
+    assert entry["command"] == "uv"
+    assert entry["args"] == ["run", "--script",
+                            ".ai-badger/skills/demo/task_graph_server.py"]
+    # the fork's converter skips any unexpanded ${VAR} outside ${HOME}; none may survive
+    assert "${" not in json.dumps(entry)
+
+
+def test_mcp_json_names_the_launch_it_dropped_for_pi(tmp_path, make_scaffolder,
+                                                      monkeypatch, load_script):
+    """The anchored rendering Claude would have gotten is dropped out loud, not silently."""
+    _no_user_tool_dirs(monkeypatch, load_script)
+    target = make_scaffolder.target
+    _write_mcp_servers(tmp_path / "features" / "python", _anchored_task_graph_server())
+
+    scaf = _scaf(make_scaffolder, tmp_path, target,
+                  _config(stacks=["python"], agents=["claude", "pi"]))
+    scaf.mcp.generate_mcp_json()
+
+    assert any(".mcp.json" in note and "pi" in note and "task-graph" in note
+               for note in scaf.notes)
+
+
+def test_mcp_json_keeps_claudes_anchor_when_pi_does_not_read_the_file(
+        tmp_path, make_scaffolder, monkeypatch, load_script):
+    """Without pi, .mcp.json resolves for Claude exactly as before (F-22)."""
+    _no_user_tool_dirs(monkeypatch, load_script)
+    target = make_scaffolder.target
+    _write_mcp_servers(tmp_path / "features" / "python", _anchored_task_graph_server())
+
+    scaf = _scaf(make_scaffolder, tmp_path, target,
+                  _config(stacks=["python"], agents=["claude"]))
+    scaf.mcp.generate_mcp_json()
+
+    entry = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))[
+        "mcpServers"]["task-graph"]
+    assert entry["args"] == ["run", "--script",
+                            "${CLAUDE_PROJECT_DIR}/.ai-badger/skills/demo/task_graph_server.py"]
+
+
+def test_mcp_json_pi_only_project_resolves_for_pi_without_the_no_reader_note(
+        tmp_path, make_scaffolder, monkeypatch, load_script):
+    """pi reads .mcp.json (ADR-0023), so a pi-only project is a configured-reader project —
+    the "names none of them" note for a file nobody reads must not fire."""
+    _no_user_tool_dirs(monkeypatch, load_script)
+    target = make_scaffolder.target
+    _write_mcp_servers(tmp_path / "features" / "python", _anchored_task_graph_server())
+
+    scaf = _scaf(make_scaffolder, tmp_path, target,
+                  _config(stacks=["python"], agents=["pi"]))
+    scaf.mcp.generate_mcp_json()
+
+    entry = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))[
+        "mcpServers"]["task-graph"]
+    assert entry["args"] == ["run", "--script",
+                            ".ai-badger/skills/demo/task_graph_server.py"]
+    assert not any("names none of them" in note for note in scaf.notes)
+
+
 def test_copilot_mcp_json_uses_copilot_overrides(tmp_path, make_scaffolder):
     """With Claude also configured, `.mcp.json` resolves for Claude and this file is skipped
     instead of contradicting it (#193) — tests/test_one_declaration_per_server.py."""
