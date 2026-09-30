@@ -291,6 +291,39 @@ file collision; correct-by-construction, parallelism sacrificed deliberately):
   match a subset; `source_refs` → `features/` source; per-test missed-mutation reporting added
   to s1 (anti-tautology).
 
+**Fold-verification (d-34, code-reviewer): verdict BLOCKED → folded.** Fold table: findings
+3–12 → 10/10 folded; nits 4/4; sibling folds 3/3; lost findings 1–2 reconstructed (H1
+`index.json` staleness across feature-touching steps — covered; H2 `test_support_json_honesty.py`
+missing from s2's files — covered). One MUST survived and is folded here:
+
+- **MUST 1 — per-lane scaffold gate unpassable.** With s1's writer (and s2/s3's features
+  edits), `gates/scaffold_freshness_guard.py` (pre-push + CI) fails the lane's tree on
+  absent/stale self-scaffold outputs: `.pi/mcp.json`, `.ai-badger/instructions/pi.instructions.md`,
+  `.ai-badger/skills/task-decomposition/references/mcp-plan-tools.md`, and `.ai-badger/manifest.json`'s
+  `generatedConfig` record — all s4-owned in the plan. **Fold:** every feature-touching step runs
+  the self-scaffold refresh the gate itself uses (env `AI_BADGER_MCP_AVAILABILITY=all`,
+  `--no-install`, contained `HERMES_HOME`) and commits the regenerated `.ai-badger/` outputs +
+  `.pi/mcp.json`; s4 re-runs it at the join.
+- Fold S1: pi-only `.mcp.json` expectation specified (base launches, `reader=None`);
+  `tests/test_one_declaration_per_server.py` + `tests/test_copilot_mcp_json.py` join s1's ac3
+  check (shared merge/`_same_launch` path).
+- Fold S2: fixture tests pin `AI_BADGER_MCP_AVAILABILITY` explicitly (host determinism).
+- Fold S3: s4 ordering — regeneration re-run AFTER the `VERSION` bump (scaffold stamps derive
+  from it; `version_sync.sync()` does not rewrite stamps).
+- Fold S4: s2's literal grep dropped from ac2 (contradicts honest retirement mentions); the
+  any-wording honesty row is the gate.
+- Fold S5: s1's ac3 grep widened (`fork reads|reads it as well`).
+
+**Process deviation (honest disclosure).** `step_start s1` ran before the fold-verification
+gate closed, so `plan_replace` now refuses with `plan-in-progress` (409, `blocking_steps:
+[s1]`) — the graph server enforced exactly the plan-review-before-execution order the skill
+prescribes, and the orchestrator violated it in sequencing. The 12-tool surface has no reset.
+Resolution: the **folded spec is the operative lane instruction** —
+`docs/work/aib-scaffold-pi-native-mcp-config-plan-folded.json` (the `plan_replace` payload,
+accepted shape, `expected_revision: 2`) — lanes execute its step texts and checks; the recorded
+plan stays at revision 1. AC evidence is recorded against the recorded ACs with the folded
+checks run as supersets, and this note is the provenance bridge between the two.
+
 - Sibling review of the record (bus #1601, folded as commits): **MUST** — base declarations
   are shell strings; the pi render must split `command`+`args` (`split_on_whitespace`), emit
   `~/`-form, and never inherit the claude `${CLAUDE_PROJECT_DIR}` anchor (F8 corrected).

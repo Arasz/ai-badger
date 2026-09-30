@@ -1,0 +1,160 @@
+{
+ "task_id": "aib-scaffold-pi-native-mcp-config",
+ "expected_revision": 2,
+ "task_description_ref": "docs/work/aib-scaffold-pi-native-mcp-config-research.md",
+ "research_ref": "docs/work/aib-scaffold-pi-native-mcp-config-research.md",
+ "loop": "low",
+ "task_context": "Scaffold pi-native .pi/mcp.json (write where pi 0.99.1 actually reads MCP config) with F10/F11/F11a merge semantics; stop claiming the retired pi-mcp-tools fork reads .mcp.json; harden mcp-plan-tools.md to pi's exact call form. Top-level criterion: all steps' ACs are checked and met. Evidence: docs/work/aib-scaffold-pi-native-mcp-config-research.md (F1-F11a); plan provenance, rationale and the review fold log: docs/work/aib-scaffold-pi-native-mcp-config-plan-record.md. Version 0.183.0 is assigned to this task (s4 owns the bump). SHARED-GENERATED-FILE DISCIPLINE (all steps): index.json and skills/ mirrors are generated artifacts — every step that touches features/** runs `python3 tooling/index_build.py` and `python3 tooling/sync_plugin_skills.py` before pushing (the pre-push index-build / plugin-skills-sync gates check them), never hand-edits them; at the join, s4 re-generates both from the merged tree — generated files merge by regeneration, never by hand. SELF-SCAFFOLD DISCIPLINE (fold-verification MUST 1): every feature-touching step ALSO runs the self-scaffold refresh that gates/scaffold_freshness_guard.py itself uses (read that gate for the exact invocation; env AI_BADGER_MCP_AVAILABILITY=all, --no-install, HERMES_HOME contained to a scratch dir) and COMMITS the regenerated .ai-badger/ outputs — plus .pi/mcp.json once s1's writer exists — so the freshness gate passes on the lane's OWN tree (it runs pre-push and in CI); s4 re-runs the refresh at the join. A lane that cannot make its own pre-push gates green stops and reports instead of pushing.",
+ "source_refs": [
+  "features/common/stack-mcp.json",
+  "features/common/skills/welcome-ai-badger/scripts/mcp_tools.py",
+  "/Users/arasz/.bun/install/global/node_modules/@earendil-works/pi-coding-agent/docs/mcp.md",
+  "docs/work/aib-scaffold-pi-native-mcp-config-research.md"
+ ],
+ "steps": [
+  {
+   "id": "s1",
+   "goal": "Scaffold pi-native .pi/mcp.json with F10/F11/F11a merge semantics, and retire the fork-era .mcp.json reader claim",
+   "instructions": "TDD end to end (failing test first, paste RED output). You own the scaffolder's MCP write path. Context you must verify before fixing: research record docs/work/aib-scaffold-pi-native-mcp-config-research.md (F1-F11a) at the repo root you were given. Also report, per test, one plausible code mutation it would NOT catch (anti-tautology discipline).\n\nWhat to build, in features/common/skills/welcome-ai-badger/scripts/mcp_tools.py + scripts/scaffold.py (call site scaffold.py:744-749):\n1. A new McpDestination writing .pi/mcp.json (label '.pi/mcp.json', readers=('pi',), requires_reader=True: written only when 'pi' is in config.agents; only project-scoped servers, exactly like generate_mcp_json splits scope). Reuse the _merge_mcp_servers_json machinery where compatible, but the pi destination's merge semantics are F10/F11/F11a (below) and override the usual section.update(entries) rewrite.\n2. New-entry template shape (F4/F8): base declarations are SHELL STRINGS ('uv run --script ...', 'code-review-graph serve', 'npx -y @playwright/mcp@latest') — pi requires a single executable + args, so split via the existing split_on_whitespace/_render_entry path (it already splits when 'args' is absent — pin this for the pi destination). Cover ALL THREE declaration shapes in tests: multiword command, single-word command, and an explicit-'args' declaration that must NOT be re-split. User-tool-dir executables render in ~/-form (~/... prefix — pi expands ~ in command/args/cwd only; ${HOME} stays literal and must never be emitted). The AI_BADGER_MCP_AVAILABILITY determinism override must gate the ~ rewrite exactly as it gates the ${HOME} one (_home_relative_command) — test BOTH override states. Drop the fork 'tools' array (all_tools=False). Add \"exposure\": \"direct\" on every NEW entry (hardcoded destination default — the schema forbids a per-server exposure key). Never carry the claude agentOverride's ${CLAUDE_PROJECT_DIR} anchor: resolve agentOverrides for the destination's own reader ('pi') so the base, unanchored declaration renders.\n3. Merge semantics (F10/F11/F11a — the acceptance contract): (a) an entry already present in .pi/mcp.json survives re-scaffold BYTE-IDENTICAL at entry level (whole entry — template shape governs new entries only; when today's template would render differently, emit a template-drift note, never rewrite); (b) new declared servers are appended with the template; (c) entries the scaffold does not recognize (user-added servers) survive untouched — merge is a union, never a drop; (d) config.mcp.decline still removes its named servers, with a declined-removal note (#186); (e) the unavailable-removal path keeps its shape gate, where shape = template identity (command/args/env/cwd as rendered) and decorations (exposure/toolExposure/enabled and any unknown key) neither shield a template-identical entry from removal nor count toward identity — a tuned-but-dead server is removed with a note; (f) a hand-edited launch (not template-identical) is a user edit: kept with a warn-and-leave note, never destroyed. Build the removal comparison template through the SAME home-rewrite path the write uses, or ~-form entries never match and linger. Fixture requirements beyond (a)-(f): one fixture pinning the sibling's REFERENCE STATE deep-equal survival — 5 servers, 3 'direct' (ai-raccoon, task-graph, semantica) + 2 'deferred' (code-review-graph, playwright) with a toolExposure map and an unknown user key, all surviving unchanged (a mutation that preserves exposure but drops toolExposure or an unknown key must fail); identity-dimension variants of (f) editing args, env, and adding cwd — each kept with the hand-edit note; and note-presence assertions for all three notes (declined-removal, template-drift, hand-edit). Entry-level identity is the ruling (writer re-serialization indent=2 is accepted); pin it with a second same-writer render leaving file bytes unchanged.\n4. Retire the fork-era claim (F2) IN mcp_tools.py: remove 'pi' from MCP_JSON.readers and the EXPANDS_HOME_ONLY fork carve-out (or leave the mechanism inert if removing it churns more than it cleans — your call, say which; if it stays inert, correct the comments at mcp_tools.py:74-81, 128-132, 397-410 to say so explicitly). Scope the honesty claim to mcp_tools.py only — adjust_mcp.py's fork claims belong to the separate H3 retirement. Consequence (documented behavior change — report its sentence for s4's changelog): with claude+pi configured, .mcp.json goes back to Claude's ${CLAUDE_PROJECT_DIR} anchor and the fork-era 'dropped for pi' note disappears. Replace the fork-era tests (test_mcp_json_carries_the_project_relative_launch_when_pi_is_configured and siblings) with test_mcp_json_keeps_claudes_anchor_with_pi_configured.\n5. Record every .pi/mcp.json write through ctx.record_generated_config (generatedConfig manifest, #194) and note the trust gate once per run (pi reads .pi/mcp.json only in trusted projects; headless with defaultProjectTrust ask|never skips it).\n\nTest list (tests/test_stack_mcp_servers.py — NAMING CONVENTION IS BINDING: pi-render tests start with pi_mcp_json_, merge/semantic tests with pi_native_, so the AC selectors cannot silently match a subset): test_pi_mcp_json_written_for_pi_agent; test_pi_mcp_json_not_created_without_pi_agent; test_pi_mcp_json_splits_shell_string_command (all three declaration shapes); test_pi_mcp_json_uses_tilde_home_form_not_dollar_home (both AI_BADGER_MCP_AVAILABILITY states); test_pi_mcp_json_carries_no_tools_array; test_pi_mcp_json_new_entries_default_to_direct_exposure; test_pi_mcp_json_inherits_no_claude_anchor; test_mcp_json_keeps_claudes_anchor_with_pi_configured; test_pi_native_existing_entry_survives_scaffold_byte_identical; test_pi_native_reference_state_survives_deep_equal (the 3-direct+2-deferred fixture); test_pi_native_new_entry_gets_template; test_pi_native_unknown_entry_survives; test_pi_native_declined_server_removed (with note); test_pi_native_unavailable_tuned_entry_removed (decorations do not shield); test_pi_native_unavailable_hand_edited_entry_kept_with_note (args/env/cwd variants); test_pi_native_second_render_leaves_file_bytes_unchanged; test_pi_native_template_drift_noted_not_applied; test_pi_mcp_json_records_generated_config. Prefer extending the existing _render_everywhere/_SPLIT_CASES parametrization so pi is covered by the existing split/cwd/env cases; if the ~ work must change USER_TOOL_DIRS or _home_relative_command's shape, tests/test_mcp_user_tool_paths.py joins your files (it monkeypatches USER_TOOL_DIRS) — otherwise leave it alone.\n\nFold-verification additions: (6) SELF-SCAFFOLD (MUST 1): after the code lands, run the self-scaffold refresh per the task-context SELF-SCAFFOLD DISCIPLINE and commit the regenerated .ai-badger/ outputs and .pi/mcp.json (this repo's config lists the pi agent, so the new writer produces it here) — gates/scaffold_freshness_guard.py must pass on your tree. (7) Fixture determinism: every fixture test pins AI_BADGER_MCP_AVAILABILITY explicitly (both states where the home rewrite is under test) — availability probing must never make a fixture host-dependent. (8) The pi-only expectation is specified (was open): with pi as the only configured agent, .mcp.json still gets base launches (reader=None resolves no agentOverrides) — replace test_mcp_json_pi_only_project_resolves_for_pi_without_the_no_reader_note by pinning exactly that, including the 'written without agent overrides' note if it fires.\n\nFiles you own: features/common/skills/welcome-ai-badger/scripts/mcp_tools.py, features/common/skills/welcome-ai-badger/scripts/scaffold.py, tests/test_stack_mcp_servers.py, (conditionally) tests/test_mcp_user_tool_paths.py, and the generated outputs index.json + skills/welcome-ai-badger/scripts/{mcp_tools.py,scaffold.py} (regenerated via tooling — never hand-edited). Do NOT touch: features/common/support.json, features/pi/instructions/, features/common/skills/task-decomposition/, VERSION, docs/changelog/, .gitignore, gates/ (other steps own these). Commit as you go (small commits); run tooling/index_build.py + tooling/sync_plugin_skills.py, then the pre-push gate set, before pushing; treat a red gate as step work. Report per-AC evidence, the pasted RED output, per-test missed-mutation notes, what you rejected and why, and the .mcp.json behavior-change sentence for the changelog.",
+   "effort": "medium",
+   "persona": "api-engineer",
+   "depends_on": [],
+   "files": [
+    "features/common/skills/welcome-ai-badger/scripts/mcp_tools.py",
+    "features/common/skills/welcome-ai-badger/scripts/scaffold.py",
+    "tests/test_stack_mcp_servers.py",
+    "tests/test_mcp_user_tool_paths.py",
+    "skills/welcome-ai-badger/scripts/mcp_tools.py",
+    "skills/welcome-ai-badger/scripts/scaffold.py",
+    "index.json",
+    ".pi/mcp.json",
+    ".ai-badger/"
+   ],
+   "acceptance_criteria": [
+    {
+     "id": "ac1",
+     "statement": "A pi-configured project gets .pi/mcp.json whose NEW entries are template-shaped: shell-string commands split into command+args (multiword, single-word and explicit-args shapes), user-tool-dir executables in ~/ form (never ${HOME}, both AI_BADGER_MCP_AVAILABILITY states), no tools array, \"exposure\":\"direct\", no ${CLAUDE_PROJECT_DIR} anchor; not written when pi is not configured",
+     "check": "python3 -m pytest -q tests/test_stack_mcp_servers.py -k 'pi_mcp_json'"
+    },
+    {
+     "id": "ac2",
+     "statement": "F11a merge fixtures pass incl. the reference-state deep-equal (3 direct + 2 deferred + toolExposure + unknown key) and the args/env/cwd hand-edit variants: existing entries survive byte-identical (entry deep-equal, second render idempotent), new entries get the template, unknown entries survive untouched, declined servers removed with note, unavailable+template-identical removed despite tuned decorations, unavailable+hand-edited-launch kept with the hand-edit note, template drift noted not applied",
+     "check": "python3 -m pytest -q tests/test_stack_mcp_servers.py -k 'pi_native'"
+    },
+    {
+     "id": "ac3",
+     "statement": "The whole test file plus the Claude adjustment tests and the shared-merge-path tests (one-declaration, copilot) are green, and no mcp_tools.py code or comment claims the retired fork reads .mcp.json in any of its current phrasings (adjust_mcp.py's claims are H3's)",
+     "check": "python3 -m pytest -q tests/test_stack_mcp_servers.py tests/test_adjust_mcp_claude.py tests/test_one_declaration_per_server.py tests/test_copilot_mcp_json.py && ! grep -qE 'fork reads|reads it as well' features/common/skills/welcome-ai-badger/scripts/mcp_tools.py"
+    },
+    {
+     "id": "ac4",
+     "statement": "Generated artifacts are fresh: plugin mirror synced from features/ and index.json regenerated — the pre-push plugin-skills-sync and index-build gates pass",
+     "check": "python3 tooling/sync_plugin_skills.py --check && python3 tooling/index_build.py --check"
+    }
+   ]
+  },
+  {
+   "id": "s2",
+   "goal": "Make the framework's pi MCP mechanism claims honest (support.json + pi instructions)",
+   "instructions": "Rewrite-first TDD: tests/test_support_json_honesty.py currently pins the RETIRED fork claims (e.g. 'session_start', '${HOME} expanded' in the pi mechanism text) — update the test expectations to the native contract first, run it, paste the RED output, then rewrite the source text. Changes: (1) features/common/support.json — the pi entry's mechanism/scaffoldedBy strings must state the native contract: config in ~/.pi/agent/mcp.json (global) and .pi/mcp.json (project, trust-gated), scaffold-written by this framework's pi destination with merge semantics (existing entries preserved byte-identical, new entries templated with \"exposure\":\"direct\", exposure/toolExposure tuning survives re-scaffold); .mcp.json is Claude Code's / Copilot CLI's and is not read by native pi; tools are named mcp__<server>__<tool> with the codemode|codemode-deferred|deferred|direct|hidden exposure model. No 'pi-mcp-tools fork reads .mcp.json' claim anywhere in support.json — a retirement mention is honest, a capability claim is not. (2) features/pi/instructions/pi.instructions.md — the MCP bullet gains one sentence: ai-badger scaffolds .pi/mcp.json (preserving existing entries and their exposure/toolExposure tuning across re-scaffold); keep the 'Measured against pi 0.99.1' provenance line accurate (do not broaden its claims). TEST GRANULARITY (review fold): add a must-not-content row to test_support_json_honesty.py covering the fork claim in ANY wording (match 'pi-mcp-tools' + capability verbs, not just the literal 'fork reads'), and pin the NEW pi.instructions.md sentence with a test — currently nothing touches that MCP bullet. Evidence source: docs/work/aib-scaffold-pi-native-mcp-config-research.md F1/F4/F10/F11. SHARED-GENERATED-FILE DISCIPLINE: pi.instructions.md is inlined into index.json (tooling/index_build.py's INLINED_BODY_GLOBS) — run `python3 tooling/index_build.py` before every push or the index-build gate fails; regenerate, never hand-edit.\n\nFiles you own: features/common/support.json, features/pi/instructions/pi.instructions.md, tests/test_support_json_honesty.py, and the generated index.json. Do NOT touch anything else (mcp_tools.py, skills/, docs/changelog, .gitignore are other steps'). Report per-AC evidence, the pasted RED output, and a one-line summary of wording changes for s4's changelog. SELF-SCAFFOLD (MUST 1): after the source edits, run the self-scaffold refresh per the task-context SELF-SCAFFOLD DISCIPLINE and commit the regenerated .ai-badger/instructions/pi.instructions.md (the freshness gate re-scaffolds and fails on stale outputs).",
+   "effort": "low",
+   "depends_on": [],
+   "files": [
+    "features/common/support.json",
+    "features/pi/instructions/pi.instructions.md",
+    "tests/test_support_json_honesty.py",
+    "index.json",
+    ".ai-badger/"
+   ],
+   "acceptance_criteria": [
+    {
+     "id": "ac1",
+     "statement": "test_support_json_honesty.py pins the NATIVE claims (any-wording fork-claim row + the new pi.instructions.md sentence) and is green (rewrite-first discipline: RED output pasted before the rewrite)",
+     "check": "python3 -m pytest -q tests/test_support_json_honesty.py tests/test_support_catalog.py"
+    },
+    {
+     "id": "ac2",
+     "statement": "No fork-era capability claim survives in ANY wording (the any-wording honesty row is the gate; a literal grep is deliberately not used — an honest retirement mention may use the same words)",
+     "check": "python3 -m pytest -q tests/test_support_json_honesty.py"
+    },
+    {
+     "id": "ac3",
+     "statement": "index.json regenerated after the inlined instructions change — the index-build gate passes",
+     "check": "python3 tooling/index_build.py --check"
+    }
+   ]
+  },
+  {
+   "id": "s3",
+   "goal": "Harden mcp-plan-tools.md's call example to pi's exact call form",
+   "instructions": "In features/common/skills/task-decomposition/references/mcp-plan-tools.md the 'A worked example, both ways' MCP block shows raw JSON-RPC tools/call lines with bare tool names ({\"name\":\"step_start\",...}) — a wire form no host exposes and the exact surface that invites invented names like mcp_task_graph_step_start. Rewrite that block to pi's exact call form: the declared tool mcp__task-graph__step_start called with the same JSON arguments, all six example calls spelled mcp__task-graph__<tool>. State the precondition in one line: tools reach the model under that name only when the server entry carries \"exposure\":\"direct\" (the codemode default leaves them undeclared — reachable from codemode scripts or via tool_search). The bare-name JSON-RPC block goes ENTIRELY — no \"{\\\"name\\\":\\\"<tool>\\\"}\" JSON-RPC lines remain (the CLI twin section already covers non-MCP invocation). Evidence: research record F9. Mirror + generated artifacts (SHARED-GENERATED-FILE DISCIPLINE): run python3 tooling/sync_plugin_skills.py and python3 tooling/index_build.py before pushing (the file ships to skills/task-decomposition/references/); regenerate, never hand-edit. Files you own: features/common/skills/task-decomposition/references/mcp-plan-tools.md, its generated mirror skills/task-decomposition/references/mcp-plan-tools.md, and index.json. Do NOT touch other files. Gates: docs_guard guards links/paths in the changed markdown — run `python3 gates/docs_guard.py` locally too. Report per-AC evidence and any wording you deliberately kept. SELF-SCAFFOLD (MUST 1): after the source edits, run the self-scaffold refresh per the task-context SELF-SCAFFOLD DISCIPLINE and commit the regenerated .ai-badger/skills/task-decomposition/references/mcp-plan-tools.md (the freshness gate re-scaffolds and fails on stale outputs).",
+   "effort": "low",
+   "depends_on": [],
+   "files": [
+    "features/common/skills/task-decomposition/references/mcp-plan-tools.md",
+    "skills/task-decomposition/references/mcp-plan-tools.md",
+    "index.json",
+    ".ai-badger/"
+   ],
+   "acceptance_criteria": [
+    {
+     "id": "ac1",
+     "statement": "All six example calls show pi's exact form mcp__task-graph__<tool> (>= 6 occurrences), zero bare-name JSON-RPC tools/call lines remain, and the \"exposure\":\"direct\" precondition is stated",
+     "check": "test $(grep -c 'mcp__task-graph__' features/common/skills/task-decomposition/references/mcp-plan-tools.md) -ge 6 && ! grep -q '\\\"name\\\":' features/common/skills/task-decomposition/references/mcp-plan-tools.md && grep -q 'exposure' features/common/skills/task-decomposition/references/mcp-plan-tools.md"
+    },
+    {
+     "id": "ac2",
+     "statement": "Generated artifacts synced and the docs/validation gates pass (mirror + index fresh; docs_guard green on the changed markdown)",
+     "check": "python3 tooling/sync_plugin_skills.py --check && python3 tooling/index_build.py --check && python3 tooling/validate.py --all && python3 gates/docs_guard.py"
+    }
+   ]
+  },
+  {
+   "id": "s4",
+   "goal": "Join: regenerate shared artifacts, track this repo's .pi/mcp.json, release 0.183.0, run the gates on the combined tree",
+   "instructions": "This is the join step — s1, s2 and s3 each ran against their own tree; the COMBINATION is untested until here (review the join, not just the parts). On the merged tree: (1) REGENERATE the shared generated artifacts from the merged features sources — python3 tooling/sync_plugin_skills.py and python3 tooling/index_build.py (generated files merge by REGENERATION, never by hand: if the branch merge left index.json or skills/ mirrors in conflict, take the merged features/ tree as truth and regenerate; do not hand-merge generated content), until sync --check and index_build --check are green (scaffold_freshness_guard must also pass — it copies untracked-unignored files and fails on strays). ORDERING (fold S3): after step (4) bumps VERSION, RE-RUN this whole regeneration once more — the self-scaffold stamps the VERSION-derived frameworkVersion into .ai-badger/manifest.json (version_sync.sync() does NOT rewrite scaffold stamps), so the final refresh must post-date the bump or version_sync --check reports stale stamps; (2) materialize this repo's .pi/mcp.json from the new destination and TRACK it (H1 decision: portable content — split commands, ~/ form, project-relative args; if you find a reason to gitignore instead, stop and report, do not decide silently); (3) add `.pi/mcp.json.bak-*` to .gitignore beside `.mcp.json.bak-*` (config_guard.write_with_backup leaves .bak-<ts> siblings on any non-identical render; the freshness guard reports untracked-unignored strays as failures — review finding); (4) release ritual: set VERSION to 0.183.0 (assigned at dispatch), write docs/changelog/0.183.0-scaffold-pi-native-mcp-config.md — it must state (i) the F10/F11/F11a merge semantics (existing .pi/mcp.json entries and their exposure/toolExposure tuning survive re-scaffold; user-added servers never dropped), (ii) that this reverses 0.180.0's pi-reader change (.mcp.json goes back to Claude's ${CLAUDE_PROJECT_DIR} anchor when pi is configured; fork-era 'dropped for pi' notes gone; the Copilot CLI reads .mcp.json too, so its visible entries carry the anchor change as well), (iii) the minimum pi for the new destination (native builtin:mcp; the framework still ships fork-migration code, so an old pi+fork consumer keeps reading the now-anchored .mcp.json — and its converter drops the anchored entries), and (iv) the sibling-reported motivation (a tuned consumer cut 55 of 106 declarations from every prompt; a flattening scaffold would have restored them all) — then run python3 tooling/changelog_index.py and python3 tooling/version_sync.py; no BREAKING_VERSIONS entry (0.180.0 set the Minor precedent for this exact content change); (5) ADR honesty: add a short amending note to docs/adr/0023-pi-project-scoped-mcp-and-skills.md stating its fork-reader Decision is superseded by pi's native .pi/mcp.json destination as of 0.183.0 (the full H3 machinery retirement stays separate) — the spec tree must not contradict shipped behavior. (6) Cross-step gate runs on the merged tree, each as evidence: full pytest, validate --all, index_build --check. Report per-AC evidence with commands and outputs, plus anything the join exposed that the per-step runs could not see.",
+   "effort": "low",
+   "persona": "api-engineer",
+   "depends_on": [
+    "s1",
+    "s2",
+    "s3"
+   ],
+   "files": [
+    "VERSION",
+    "docs/changelog/0.183.0-scaffold-pi-native-mcp-config.md",
+    "docs/changelog/README.md",
+    "docs/adr/0023-pi-project-scoped-mcp-and-skills.md",
+    ".pi/mcp.json",
+    ".gitignore",
+    "skills/",
+    ".ai-badger/",
+    "index.json",
+    ".claude-plugin/plugin.json",
+    ".claude-plugin/marketplace.json"
+   ],
+   "acceptance_criteria": [
+    {
+     "id": "ac1",
+     "statement": "Shared generated artifacts regenerated from the merged tree and fresh — mirror, index and the scaffold-freshness guard all pass together",
+     "check": "python3 tooling/sync_plugin_skills.py --check && python3 tooling/index_build.py --check && python3 gates/scaffold_freshness_guard.py"
+    },
+    {
+     "id": "ac2",
+     "statement": "Release artifacts are consistent at 0.183.0 with the changelog and the ADR amendment present",
+     "check": "test \"$(cat VERSION)\" = \"0.183.0\" && test -f docs/changelog/0.183.0-scaffold-pi-native-mcp-config.md && python3 tooling/version_sync.py --check && grep -q '0.183.0' docs/adr/0023-pi-project-scoped-mcp-and-skills.md"
+    },
+    {
+     "id": "ac3",
+     "statement": "The merged tree passes every gate — the cross-step tests (full suite), validate and the shipped-paths guard are green together, which no per-step run measured (tracking .pi/mcp.json puts it in the plugin-payload scan — the #173 machine-specific-path class)",
+     "check": "python3 -m pytest -q && python3 tooling/validate.py --all && python3 gates/shipped_paths_guard.py"
+    },
+    {
+     "id": "ac4",
+     "statement": "This repo's .pi/mcp.json exists on disk (not just in the index), is valid JSON and is tracked",
+     "check": "test -f .pi/mcp.json && git ls-files .pi/mcp.json && python3 -m json.tool .pi/mcp.json >/dev/null"
+    }
+   ]
+  }
+ ]
+}
