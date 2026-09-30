@@ -115,8 +115,21 @@ Two precision points that sharpen F10 while the design is cheap to change (bus #
    servers) are kept untouched and never dropped. Explicit removals stay explicit:
    `config.mcp.decline` (#186) still removes its named servers, and the shape-matched
    unavailable-removal keeps its shape gate — both are removals of *scaffold-declared* servers,
-   note-emitting, not template rewrites. [HYPOTHESIS: keep the shape-matched
-   `_drop_unavailable` removal for this destination too — plan to confirm.]
+   note-emitting, not template rewrites.
+
+**F11a — the shape definition, pinned (bus #1597, 2026-09-30, adopted):** the shape gate's
+"shape" is the **template identity** — `command`/`args`/`cwd`/`env` as the template renders
+them. `exposure`/`toolExposure`/`enabled` are F11-protected **decorations**: they survive
+untouched (no rewrite ever), but they do **not** shield a template-identical entry from an
+explicit removal path. Consequences, all note-emitting: a dead-but-tuned server IS removed by
+the unavailable path (no lingering broken entry in `/mcp`); a hand-edited launch
+(not template-identical) is a user edit — warn-and-leave, never destroyed (the established
+`adjust_mcp.py` precedent); template drift against an existing entry is **noted** ("kept per
+F11; today's template would write X"), never applied. Fixture assertions this pins: (a) an
+existing entry survives re-scaffold byte-identical; (b) a new entry gets the template
+(incl. `"exposure": "direct"`); (c) an unknown entry survives at all; (d) a declined server is
+removed; (e) unavailable + template-identical → removed **even when exposure-tuned**;
+(f) unavailable + hand-edited launch → left in place with a note.
 Scope note: these semantics apply to the **pi destination only**; `.mcp.json` /
 `.github/mcp.json` keep their established update-on-refresh behavior (#186/#193-entangled,
 Claude Code's `${VAR}` expansion), which is out of scope.
