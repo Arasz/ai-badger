@@ -7,7 +7,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -298,6 +298,50 @@ describe("a hook spawn is bounded: the whole process group dies on timeout or ab
     expect(elapsed).toBeLessThan(2000);
     expect(await goneWithin(Number(readFileSync(pidFile, "utf-8")), 1000)).toBe(true);
   }, 10_000);
+
+  test("a pre-aborted signal settles runGate as cancelled — no spawn, no failure", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const started = Date.now();
+    const outcome = await entry.runGate("echo not-a-decision", {}, {
+      cwd: dir,
+      signal: controller.signal,
+    });
+
+    expect(outcome).toEqual({ kind: "cancelled" });
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+
+  test("a pre-aborted turn: the gate never spawns and blocks nothing", async () => {
+    const { toolCall } = await loadAdapterFor(dir);
+    const probe = join(dir, "gate-ran.txt");
+    writeHooks(dir, "PreToolUse", "Bash", `touch ${probe}`);
+    const controller = new AbortController();
+    controller.abort();
+    const ctx = { ...fakeCtx(dir), signal: controller.signal };
+
+    const decision = await toolCall({ toolName: "Bash", input: {} }, ctx);
+
+    expect(decision).toBeUndefined();
+    expect(ctx.notices).toEqual([]);
+    expect(existsSync(probe)).toBe(false);
+  });
+
+  test("a pre-aborted turn: post hooks are a silent cancellation, never a failure notice", async () => {
+    const { toolResult } = await loadAdapterFor(dir);
+    const probe = join(dir, "post-ran.txt");
+    writeHooks(dir, "PostToolUse", "Bash", `touch ${probe}`);
+    const controller = new AbortController();
+    controller.abort();
+    const ctx = { ...fakeCtx(dir), signal: controller.signal };
+
+    const result = await toolResult({ toolName: "Bash", input: {}, content: undefined }, ctx);
+
+    expect(result).toBeUndefined();
+    expect(ctx.notices).toEqual([]);
+    expect(existsSync(probe)).toBe(false);
+  });
 
   test("a ~256 KiB decision is read whole", async () => {
     const script = join(dir, "big.py");

@@ -16,7 +16,11 @@ export interface GateDecision {
 export type GateOutcome =
   | { kind: "decision"; decision: Decision; reason?: string; systemMessage?: string }
   | { kind: "error"; reason: string }
-  | { kind: "absent"; reason: string };
+  | { kind: "absent"; reason: string }
+  /** The signal aborted before the spawn: no process ran — a cancellation, never a
+   * failure. `resolve` reports nothing for it (an interrupted turn must not surface
+   * one notice per matched hook). */
+  | { kind: "cancelled" };
 
 /** One PreToolUse/PostToolUse entry from `.ai-badger/hooks/hooks.json`: a shell command and its matcher. */
 export interface HookCommand {
@@ -56,7 +60,9 @@ export interface ClaudePostHookPayload extends ClaudeHookPayload<"PostToolUse"> 
  * block, ask, or approve a tool call. */
 export type PostOutcome =
   | { kind: "ok"; additionalContext?: string; systemMessage?: string }
-  | { kind: "error"; reason: string };
+  | { kind: "error"; reason: string }
+  /** Same contract as GateOutcome's: aborted before spawn, silent by design. */
+  | { kind: "cancelled" };
 
 export interface PostResolution {
   /** One line per post-hook failure or `systemMessage`, for the UI. */
@@ -558,6 +564,9 @@ export function resolvePost(outcomes: PostOutcome[]): PostResolution {
   const notices: string[] = [];
   const context: string[] = [];
   for (const outcome of outcomes) {
+    // Aborted before the spawn: silent by the same contract as the gate side — no
+    // "post hook failed, result unaffected" line for a hook that never started.
+    if (outcome.kind === "cancelled") continue;
     if (outcome.kind === "error") {
       notices.push(`ai-badger: post hook failed, result unaffected — ${outcome.reason}`);
       continue;
@@ -646,6 +655,25 @@ export function parsePostStdout(stdout: string): { additionalContext?: string; s
 }
 
 /**
+ * The label a hook failure is reported under: the script the command runs, never the
+ * command itself. A scaffolded command is Claude's guarded `if/elif/else` shape quoting
+ * `${CLAUDE_PROJECT_DIR}`, and every failure reason quotes its label verbatim — so a
+ * raw-command label ships `${CLAUDE_PROJECT_DIR}` into pi's notices where it reads as an
+ * unexpanded-variable leak. It is not one: the spawn env carries the variable (index.ts
+ * `runHook`) and each script resolves it from the environment; the spawn that produced the
+ * failure never even started when the signal was already aborted. What the notice owes the
+ * operator is which hook failed, so the script identity is the label, and a command with no
+ * recognizable script keeps its text minus the anchor.
+ */
+export function hookLabel(command: string): string {
+  const skill = command.match(/(\.ai-badger\/skills\/[\w./-]+\.py)/);
+  if (skill) return skill[1];
+  const vendored = command.match(/(features\/[\w./-]+\/scripts\/[\w./-]+\.py)/);
+  if (vendored) return vendored[1];
+  return command.replace(/\$\{?CLAUDE_PROJECT_DIR\}?\/?/g, "");
+}
+
+/**
  * The single action a tool call takes from every gate's outcome.
  * Deny wins; only an explicit "ask" is ever auto-approved by away mode.
  */
@@ -658,6 +686,10 @@ export function resolve(
   let question: GateDecision | undefined;
 
   for (const outcome of outcomes) {
+    // Aborted before the spawn: no process ran and the turn is dying — a cancellation,
+    // never a failure to report (an interrupted turn used to surface one "hook gate
+    // failed" notice per matched hook here).
+    if (outcome.kind === "cancelled") continue;
     if (outcome.kind === "error") {
       notices.push(`ai-badger: hook gate failed, tool call allowed — ${outcome.reason}`);
       continue;

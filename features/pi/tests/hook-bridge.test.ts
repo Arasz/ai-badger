@@ -751,3 +751,64 @@ describe("matchers follow Claude's documented semantics, judged by the shared Py
     expect(at("web-fetch", "web-fetcher")).toBe(false);
   });
 });
+
+describe("a hook failure is labeled by its script, never its command", () => {
+  const SCRIPT = ".ai-badger/skills/test-economy/scripts/suite_economy_hook.py";
+  const guarded =
+    `if [ -f "\${CLAUDE_PROJECT_DIR}/.ai-badger/skills/test-economy/scripts/suite_economy_hook.py" ]; ` +
+    `then python3 "\${CLAUDE_PROJECT_DIR}/.ai-badger/skills/test-economy/scripts/suite_economy_hook.py"; ` +
+    `elif [ -f ".ai-badger/skills/test-economy/scripts/suite_economy_hook.py" ]; ` +
+    `then python3 ".ai-badger/skills/test-economy/scripts/suite_economy_hook.py"; ` +
+    `else echo '{"systemMessage": "ai-badger: .ai-badger/skills/test-economy/scripts/suite_economy_hook.py not found - hook skipped"}'; fi`;
+
+  test("the scaffolded guarded command reports its skill script, not the command", () => {
+    const label = bridge.hookLabel(guarded);
+    expect(label).toBe(SCRIPT);
+    expect(label).not.toContain("CLAUDE_PROJECT_DIR");
+    expect(label).not.toContain("if [ -f");
+  });
+
+  test("a vendored framework path reports its script", () => {
+    expect(
+      bridge.hookLabel(
+        `python3 "features/common/skills/prompt-markers/scripts/grounded_feedback_hook.py"`,
+      ),
+    ).toBe("features/common/skills/prompt-markers/scripts/grounded_feedback_hook.py");
+  });
+
+  test("a command with no recognizable script keeps its text minus the anchor", () => {
+    const label = bridge.hookLabel(`python3 "\${CLAUDE_PROJECT_DIR}/tools/custom.py"`);
+    expect(label).toBe(`python3 "tools/custom.py"`);
+    expect(label).not.toContain("CLAUDE_PROJECT_DIR");
+  });
+});
+
+describe("an aborted-before-spawn hook is a silent cancellation", () => {
+  test("a cancelled gate allows the call with no notice", () => {
+    expect(resolve([{ kind: "cancelled" }], { armed: false, hasUI: true })).toEqual({
+      action: "allow",
+      notices: [],
+      autoApproved: false,
+    });
+  });
+
+  test("a cancelled post hook contributes no notice and no context", () => {
+    expect(resolvePost([{ kind: "cancelled" }])).toEqual({ notices: [], context: [] });
+  });
+
+  test("cancellation does not mask a real failure beside it", () => {
+    const gate = resolve(
+      [{ kind: "cancelled" }, { kind: "error", reason: "memory_gate.py exited 1" }],
+      { armed: false, hasUI: true },
+    );
+    expect(gate.notices).toHaveLength(1);
+    expect(gate.notices[0]).toContain("memory_gate.py exited 1");
+
+    const post = resolvePost([
+      { kind: "cancelled" },
+      { kind: "error", reason: "suite_economy_hook.py exited 1" },
+    ]);
+    expect(post.notices).toHaveLength(1);
+    expect(post.notices[0]).toContain("suite_economy_hook.py exited 1");
+  });
+});
