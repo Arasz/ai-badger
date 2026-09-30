@@ -41,6 +41,8 @@ mutants/
 .github/**/*.bak-*
 # mcp writer's safety copy of the ignored .mcp.json before a rewrite (mcp_tools.py)
 .mcp.json.bak-*
+# the .pi/mcp.json writer's safety copy before a rewrite (config_guard.write_with_backup)
+.pi/mcp.json.bak-*
 # local Semantica session-graph staging dir; the durable record lives in ai-raccoon memory
 .semantica/
 # red_proof.py's journal (design-tests skill); a killed run leaves this behind, and it is

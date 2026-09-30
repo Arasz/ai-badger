@@ -1005,18 +1005,44 @@ def test_pi_settings_remove_skills_path_removes_once_and_preserves_rest(load_scr
 
 
 # ---------------------------------------------------------------------------
-# M2 precondition pin — the fragile-case flip. pi trust-gates exactly
-# .pi/{settings.json,extensions,skills,prompts,themes,SYSTEM.md,APPEND_SYSTEM.md} plus
-# ancestor .agents/skills (trust-manager.js:8-17,150-166). A scaffolded project that writes
-# any of those resolves UNTRUSTED headless (no trust.json, ask→false) and its project MCP
-# servers + skills silently vanish. The scaffold must therefore write nothing into a
-# project's .pi/ except .pi/agents/ (not on the trust list).
+# M2 precondition pin — the fragile-case flip, as amended by 0.183.0. pi trust-gates
+# .pi/{settings.json,mcp.json,extensions,skills,prompts,themes,SYSTEM.md,APPEND_SYSTEM.md}
+# plus ancestor .agents/skills (dist/core/trust-manager.js,
+# TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES — "mcp.json" IS on that list; this comment
+# omitted it until the pi-native MCP destination made the difference load-bearing, verified
+# 2026-09-30). A project that carries any of those resolves UNTRUSTED headless (no trust.json,
+# ask→false) and its project resources silently vanish.
+#
+# 0.183.0 CHANGED THE CONTRACT deliberately: the scaffold writes .pi/mcp.json — pi's native
+# project MCP config, trust-gated by pi's own security model (stdio servers run commands).
+# That is the feature (research record F1/F6: without it a scaffolded pi session has zero MCP
+# declarations). The mitigation is a per-run note naming the trust gate. The invariant's
+# remaining teeth: NOTHING ELSE trust-requiring may appear in .pi/ — .pi/agents/ (not on the
+# list) and .pi/mcp.json (written + noted) are the only allowed entries.
 # ---------------------------------------------------------------------------
 
-def test_scaffold_writes_no_trust_requiring_resource_into_project_pi(make_scaffolder):
-    """Red the day the fragile case becomes common: a scaffold run must leave a project's
-    .pi/ holding only .pi/agents/ — any other resource flips pi's trust resolution and
-    silently disarms the project scope headless (plan M2)."""
+def test_scaffold_writes_pi_mcp_json_and_notes_the_trust_gate(make_scaffolder, monkeypatch):
+    """The 0.183.0 feature and its mitigation, pinned together: the native project MCP
+    config is written, and the run names the trust gate that governs reading it."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    target = make_scaffolder.target
+    scaf = make_scaffolder(config=_config(agents=["pi"]), skills=["task"])
+    scaf.run(generated_at="2026-08-30T00:00:00Z")
+
+    assert (target / ".pi" / "mcp.json").is_file(), (
+        "the pi-native project MCP config was not written — scaffolded pi sessions get zero "
+        "MCP declarations")
+    assert any("trusted project" in n for n in scaf.notes), (
+        "the run wrote .pi/mcp.json without naming the trust gate in its notes — a headless "
+        f"untrusted run would silently skip every server. notes: {scaf.notes}")
+
+
+def test_scaffold_writes_no_other_trust_requiring_resource_into_project_pi(
+        make_scaffolder, monkeypatch):
+    """The guard's teeth after the amendment: a scaffold run may leave only .pi/agents/ and
+    (since 0.183.0) the noted .pi/mcp.json in a project's .pi/ — anything else on pi's trust
+    list flips trust resolution and silently disarms project resources headless."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
     target = make_scaffolder.target
     make_scaffolder(config=_config(agents=["pi"]), skills=["task"]).run(
         generated_at="2026-08-30T00:00:00Z")
@@ -1026,15 +1052,14 @@ def test_scaffold_writes_no_trust_requiring_resource_into_project_pi(make_scaffo
     if pi_dir.is_dir():
         for path in sorted(pi_dir.rglob("*")):
             rel = path.relative_to(pi_dir)
-            if rel.parts and rel.parts[0] == "agents":
+            if rel.parts and (rel.parts[0] == "agents" or rel.parts == ("mcp.json",)):
                 continue
             offenders.append(rel.as_posix() + ("/" if path.is_dir() else ""))
 
     assert offenders == [], (
-        "scaffold wrote pi-trust-requiring resource(s) into the project's .pi/: "
-        f"{offenders} — these flip isProjectTrusted() to false headless and silently "
-        "disarm project MCP + skills (plan M2's fragile case). Only .pi/agents/ may be "
-        "written."
+        "scaffold wrote pi-trust-requiring resource(s) beyond .pi/agents/ and the noted "
+        f".pi/mcp.json into the project's .pi/: {offenders} — these flip isProjectTrusted() "
+        "to false headless and silently disarm project resources (plan M2's fragile case)."
     )
 
 

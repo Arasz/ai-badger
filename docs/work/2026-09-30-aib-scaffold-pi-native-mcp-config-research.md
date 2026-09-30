@@ -1,0 +1,175 @@
+# Research record — aib-scaffold-pi-native-mcp-config
+
+Date: 2026-09-30. Loop: **low**. Scope: the scaffolding fix (option 2) — den-refresh /
+welcome-ai-badger must write pi's real MCP config (`.pi/mcp.json`) instead of relying on
+`.mcp.json` that pi never reads; plus harden `mcp-plan-tools.md`'s raw JSON-RPC example into
+pi's exact call form.
+
+Every finding cites its source; unverified claims are labelled **[HYPOTHESIS]**.
+
+## Findings
+
+### F1 — pi native reads only `mcp.json`, at two locations [MEASURED]
+Config lives in `~/.pi/agent/mcp.json` (global) and `.pi/mcp.json` (project; read only after
+project trust — headless `-p`/json/rpc with `defaultProjectTrust` ask|never skips it). The
+settings `mcp` key is **not** read by pi.
+Sources: AiRaccoon memory entry 374749 (pi-badger-integration, verified against installed pi
+source 2026-09-30); pi docs `mcp.md` ("Add servers to `~/.pi/agent/mcp.json`, or to
+`.pi/mcp.json` in a project"); `features/pi/instructions/pi.instructions.md` (corrected at
+0.182.1).
+
+### F2 — the `pi-mcp-tools` fork is retired; the scaffolding still believes it reads `.mcp.json` [READ]
+`mcp_tools.py` declares `MCP_JSON.readers=("claude","pi","copilot")` with the rationale "The
+pi-mcp-tools fork reads it as well, from its session cwd only (ADR-0023)" and an
+`EXPANDS_HOME_ONLY={"pi"}` carve-out for that fork's converter. The fork is gone: the fork
+retirement "left `.mcp.json` in place for Claude Code and added tracked `.pi/mcp.json`" in the
+consumer, and 0.182.1's own note says "`features/pi/adjustments/adjust_mcp.py` and its
+capability-marker gating still name the `pi-mcp-tools` fork … a separate retirement".
+Sources: `skills/welcome-ai-badger/scripts/mcp_tools.py` (MCP_JSON, EXPANDS_HOME_ONLY blocks);
+memory 374744, 374749 fact 7, 374892.
+
+### F3 — the write path today [READ]
+`mcp_tools.py` writes exactly two project files — `.mcp.json` and `.github/mcp.json` — via
+`McpDestination` records (`label, readers, requires_reader, pin_cwd, expand_home, all_tools,
+consequence`) and `_merge_mcp_servers_json`; orchestration at `scaffold.py:744-749`
+(`generate_mcp_json`, `propose_claude_mcp_user`, `generate_copilot_mcp_json`). `expand_home`
+rewrites user-tool-dir executables to `${HOME}/...` form; `all_tools` adds `"tools": ["*"]`.
+Every write is recorded through `ctx.record_generated_config` (generatedConfig manifest, #194).
+Sources: `skills/welcome-ai-badger/scripts/mcp_tools.py:1-160,491-770`;
+`skills/welcome-ai-badger/scripts/generated_config.py`.
+
+### F4 — pi-native entry shape differs from the fork's in three load-bearing ways [MEASURED/READ]
+1. `command`/`args`/`cwd` get `~` expansion **only** — a `${HOME}/...` command is not expanded
+   and stays literal; `${NAME}` and `!command` resolve in `env`/`headers` values only.
+   [MEASURED — memory 374749 fact 2; corroborated pi docs mcp.md: "A leading `~/` in `command`,
+   an argument, or `cwd` names the home directory"]
+2. No 1:1 fork `tools` filter-array syntax. `toolExposure` overrides exposure per tool, and a
+   subset allowlist IS expressible as `"exposure": "hidden"` + a `toolExposure` listing (pi
+   docs: "With `hidden` as the server's exposure, only the listed tools are reachable"). For
+   today's `"tools": ["*"]` render, dropping the key is exactly right — but the pi destination
+   must not claim subsets are inexpressible. [MEASURED — memory 374749 F6-parity note;
+   corrected against pi docs hidden-server rule, bus #1601 review]
+3. Exposure: `codemode` (default) leaves tools **undeclared to the model** —
+   `"exposure": "direct"` is required for direct `mcp__<server>__<tool>` calls.
+   [READ — pi docs/mcp.md Exposure section].
+
+### F5 — the live failure this fixes [OBSERVED]
+An earlier session with an empty registry invented `mcp_task_graph_step_start` (prose partial
+identifiers + divergent naming priors, no declaration to copy); and with `exposure` left at the
+codemode default even a correctly formed `mcp__task-graph__step_start` 404s on a direct call.
+Sources: this task's incident diagnosis (session transcript), corroborated by the
+pi-badger-integration sibling (bus messages #1590/#1591, 2026-09-30).
+
+### F6 — a verified reference shape already exists [MEASURED, time-scoped]
+pi-badger-integration's hand-wired `.pi/mcp.json` carries the 5 ai-badger servers
+(code-review-graph, ai-raccoon, semantica, playwright, task-graph) with `~/`-form commands (or
+bare PATH lookups: code-review-graph, npx) and no `tools` arrays. Exposure was `"direct"` on
+all 5 **at #1591**; since **#1593** the reference state is tuned to 3 `direct` (ai-raccoon,
+task-graph, semantica — hook- and skill-driven) + 2 `deferred` (code-review-graph 30 tools,
+playwright 25 tools — loaded via `tool_search`; 55 of 106 declarations cut from every prompt).
+That tuned state is the F10/F11 fixture reference. The sibling offered to review the
+scaffold diff against that file. Source: bus messages #1590/#1591/#1593.
+
+### F7 — the mirror chain decides where edits land [READ]
+`features/common/skills/**` is the source (catalog); `tooling/sync_plugin_skills.py` copies
+SKILL.md + essential files into `skills/` (the only directory Claude Code reads, ADR-0008);
+`.ai-badger/**` is this repo's self-scaffold output (tracked). `skills/` and
+`features/common/skills/` copies are byte-identical today (sha256 equal for `mcp_tools.py` and
+`mcp-plan-tools.md`). Tests exercise the **features** copy
+(`tests/test_stack_mcp_servers.py`: `SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"`).
+Sources: `tooling/sync_plugin_skills.py` docstring; `git ls-files`; sha256 comparison 2026-09-30.
+
+### F8 — base declarations are shell strings; the pi render MUST split them (CORRECTED — bus #1601 review)
+`features/common/stack-mcp.json` declares every base command as a **shell string** —
+`"uv run --script .ai-badger/skills/task-decomposition/scripts/task_graph_server.py"`,
+`"code-review-graph serve"`, `"npx -y @playwright/mcp@latest"`. pi docs mcp.md: "`command` is
+a single executable and `args` its arguments, not one shell string" — a verbatim render is a
+dead entry looking for an executable literally named `"uv run --script …"`. The pi destination
+must therefore **split base command strings into command+args** (the existing single splitter
+`split_on_whitespace` / `_render_entry` already does this when `args` is absent — pin it in
+the pi render and test it), with `~/`-form for user-tool-dir executables (reference shape:
+`~/.local/bin/uv` + args; keep the `AI_BADGER_MCP_AVAILABILITY` determinism override applying
+to the `~` rewrite exactly as it does to the `${HOME}` one). The nested `"command": "uv"` +
+`${CLAUDE_PROJECT_DIR}`-anchored `args` is the **claude agentOverride** — pi must resolve its
+own overrides (base declaration, unanchored) and never inherit that anchor. The
+project-relative script arg resolves against the session cwd (memory 374749 fact 7).
+Sources: `features/common/stack-mcp.json`; pi docs mcp.md; `mcp_tools.py`
+`split_on_whitespace`/`_render_entry`.
+
+### F9 — `mcp-plan-tools.md` teaches a call form no host exposes [READ]
+The "worked example, both ways" shows raw JSON-RPC
+`{"method":"tools/call","params":{"name":"step_start",...}}` — bare tool names, wire protocol.
+pi's exact form is the declared tool call `mcp__task-graph__step_start` with the same JSON
+arguments (and `codemode`/`tool_search` reach undeclared tools when exposure is not `direct`).
+Source: `features/common/skills/task-decomposition/references/mcp-plan-tools.md` (MCP example
+block).
+
+### F10 — re-scaffold must preserve hand-tuned `exposure`/`toolExposure`, never flatten [REQUIREMENT, sibling-verified reference state]
+The consumer's `.pi/mcp.json` is tuned beyond the default: ai-raccoon/task-graph/semantica stay
+`"exposure":"direct"` (hook- and skill-driven, skills name exact call forms) while
+code-review-graph (30 tools) and playwright (25 tools) are `"deferred"` — 55 of 106 declarations
+cut from every prompt, loaded via `tool_search`. A render that rewrites entries wholesale back
+to `direct` would clobber that tuning on the next den-refresh. Required merge semantics: add
+missing servers, keep per-entry `exposure`/`toolExposure` (and consider `enabled`, which pi's
+`/mcp` also persists) from the existing file; defaults apply to **new** entries only.
+Precedent in the write path: `_carry_live_cwd` already preserves recorded `cwd` state across
+re-scaffolds for exactly this reason. Source: bus message #1593 (pi-badger-integration sibling,
+2026-09-30) with the reference state as MEASURED there; pi docs mcp.md confirms `exposure`
+values `codemode | codemode-deferred | deferred | direct | hidden` and per-tool `toolExposure`
+with `*` patterns, and that `/mcp` exposure changes persist to `mcp.json`.
+
+### F11 — merge semantics, sharpened: existing entries are immutable; merge is a union [REQUIREMENT, sibling-verified]
+Two precision points that sharpen F10 while the design is cheap to change (bus #1595,
+2026-09-30):
+1. **Whole-entry preservation** — for entries already present in `.pi/mcp.json`, preserve the
+   **entire entry** byte-identical (command/args/env/cwd included), not just
+   exposure/toolExposure/enabled. The `${HOME}`-vs-`~` migration bug lives exactly in a
+   template rewrite of a validated live entry. Template shape governs **new** entries only.
+   Acceptance fixture extends to: "an existing entry survives re-scaffold byte-identical, full
+   stop."
+2. **Union, never eat** — entries the scaffold does not recognize (user-added personal
+   servers) are kept untouched and never dropped. Explicit removals stay explicit:
+   `config.mcp.decline` (#186) still removes its named servers, and the shape-matched
+   unavailable-removal keeps its shape gate — both are removals of *scaffold-declared* servers,
+   note-emitting, not template rewrites.
+
+**F11a — the shape definition, pinned (bus #1597, 2026-09-30, adopted):** the shape gate's
+"shape" is the **template identity** — `command`/`args`/`cwd`/`env` as the template renders
+them. `exposure`/`toolExposure`/`enabled` are F11-protected **decorations**: they survive
+untouched (no rewrite ever), but they do **not** shield a template-identical entry from an
+explicit removal path. Consequences, all note-emitting: a dead-but-tuned server IS removed by
+the unavailable path (no lingering broken entry in `/mcp`); a hand-edited launch
+(not template-identical) is a user edit — warn-and-leave, never destroyed (the established
+`adjust_mcp.py` precedent); template drift against an existing entry is **noted** ("kept per
+F11; today's template would write X"), never applied. Fixture assertions this pins: (a) an
+existing entry survives re-scaffold byte-identical; (b) a new entry gets the template
+(incl. `"exposure": "direct"`); (c) an unknown entry survives at all; (d) a declined server is
+removed; (e) unavailable + template-identical → removed **even when exposure-tuned**;
+(f) unavailable + hand-edited launch → left in place with a note.
+Scope note: these semantics apply to the **pi destination only**; `.mcp.json` /
+`.github/mcp.json` keep their established update-on-refresh behavior (#186/#193-entangled,
+Claude Code's `${VAR}` expansion), which is out of scope.
+
+## Hypotheses (not yet verified)
+
+- **H1** — the next self-scaffold/release will materialize `.pi/mcp.json` in this repo and in
+  refreshed consumers; whether it is tracked or gitignored here follows `.mcp.json`'s treatment.
+  (Unverified: `tooling/release_paths.py` unread; gitignore rules unchecked.)
+- **H2** — `schemas/stack-mcp.schema.json` may reject unknown per-server keys, so a per-server
+  `exposure` plumbed through declarations needs a schema change; the simpler alternative is a
+  destination-hardcoded `"exposure": "direct"` on the pi render. (Unverified: schema unread.)
+- **H3** — `features/pi/adjustments/adjust_mcp.py` / `pi_settings.py` fork machinery is inert or
+  misleading under a native-only pi, but retiring it is explicitly a separate task (0.182.1
+  note). Out of scope here.
+
+## Scope in / out
+
+**In:** pi destination in `mcp_tools.py` (+ call site, tests red-first, schema if needed) with
+F10+F11 merge semantics — existing entries immutable, union merge, template shape for new
+entries only; honest pi mechanism strings (`features/common/support.json`, pi
+instructions pointer); `mcp-plan-tools.md` pi call form (features source + mirror sync);
+version/changelog for the release; gates.
+
+**Out:** retiring the fork-machinery adjustments (H3); consumer-side wiring (pi-badger-integration
+point 1, landed by the sibling); user-global `~/.pi/agent/mcp.json` writes (ADR-0014 decision 6
+— propose, never write).

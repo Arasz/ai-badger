@@ -40,7 +40,10 @@ Measured against pi 0.99.1 for the MCP bullet and pi 0.84.3 elsewhere. Re-measur
   `Authorization` header sign in with OAuth. Resource tools (`list_mcp_resources`,
   `list_mcp_resource_templates`, `read_mcp_resource`) expose server resources, and server log
   messages append to `~/.pi/agent/mcp.log`. Extensions add session-only servers with
-  `pi.registerMcpServer(name, config)`.
+  `pi.registerMcpServer(name, config)`. For a pi-configured project ai-badger itself
+  scaffolds `.pi/mcp.json` — new servers land with `"exposure": "direct"`, while an entry
+  already in the file (with its `exposure`/`toolExposure` tuning) survives re-scaffold
+  untouched.
 - Cron: pi's bin is `#!/usr/bin/env node`, so there is no `Bun` global at runtime and `Bun.cron()`
   cannot fire from inside an extension today. ai-badger's cron extension uses `Bun.cron` only when
   the process really is bun, and self-managed launchd agents otherwise. `noAgent` defaults to true —
