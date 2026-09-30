@@ -7,10 +7,10 @@ pi's own docs state that `-p`, `--mode json` and `--mode rpc` — the headless m
 scaffold and away-mode run under — ignore project resources entirely without a saved trust
 decision. A project-scope write would silently do nothing in exactly the runs this exists for.
 
-Since the pi stack gained project-scope reading (the pi-mcp-tools fork reads the project's
-.mcp.json; the adapter contributes project skills via resources_discover), the global entries
-are user-owned fallback, and the adjustments' job on re-scaffold is MIGRATION: remove what this
-project's scaffold once wrote (shape-aware, marker-gated — see the adjusters). The removal
+Since pi gained native MCP (project .pi/mcp.json and global ~/.pi/agent/mcp.json) and the
+adapter contributes project skills via resources_discover, the global entries are user-owned
+legacy fallback and the adjustments' job on re-scaffold is MIGRATION: remove what this
+project's scaffold once wrote (shape-aware, capability-gated — see the adjusters). The removal
 helpers below follow the same write contract as the merge helpers.
 
 Write contract, all load-bearing:

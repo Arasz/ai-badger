@@ -11,8 +11,8 @@ Per-extension version gate (plan M5, R8+R9): removal runs only when the installe
 ~/.pi/agent/extensions/ai-badger/ — carries the resources_discover capability marker
 (.ai-badger-capability-resources-discover). An adapter without it cannot contribute the
 project skills path, so removing the settings entry would leave the project with NO skills at
-all — skip-with-warning instead. The gate is deliberately per-extension: a project-scope-capable
-pi-mcp-tools fork says nothing about the adapter's skills capability, and vice versa.
+all — skip-with-warning instead. The gate is deliberately per-extension: pi's native project
+MCP capability says nothing about the adapter's skills capability, and vice versa.
 """
 from __future__ import annotations
 

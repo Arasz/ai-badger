@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.183.0 | [the pi MCP migration gate keys on native pi capability](0.183.0-native-capability-mcp-gate.md) |
 | 0.182.1 | [the pi MCP instruction catches up with pi's built-in MCP](0.182.1-pi-mcp-instruction-catches-native-mcp.md) |
 | 0.182.0 | [a project's keep region survives in instruction, invariant and persona files](0.182.0-instruction-keep-regions-survive.md) |
 | 0.181.0 | [persona `model:` pins become optional: route by level only](0.181.0-persona-model-pins-become-optional.md) |

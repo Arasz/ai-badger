@@ -6,34 +6,40 @@ are pinned as positive substrings (each one carries the gate — remove the clai
 test), and the phrases the plan review caught lying are pinned as full-phrase
 must-not-contain, scoped to where they would actually lie.
 
-The claims pinned here are the plan's §3 row content (rev 3): the fork reads the project
-.mcp.json at session_start with ${HOME} expansion, the trust gate with its measured
-short-circuit (scaffolded projects arm in all modes), local stdio + remote http/sse mapping,
-the global 'mcp' key demoted to user-owned fallback no longer scaffold-written, and the
-adapter's ungated resources_discover skills contribution.
+The claims pinned here are the native pi MCP contract: pi ships MCP as a built-in extension
+reading ~/.pi/agent/mcp.json (global) and .pi/mcp.json (project; only for trusted projects,
+project entries overriding global by name), tools named mcp__<server>__<tool>, local stdio
+and remote http/sse, the settings.json 'mcp' key not read by pi, the migration-only
+shape-matched removal gated on the project's .pi/mcp.json, and the adapter's ungated
+resources_discover skills contribution.
 """
 from __future__ import annotations
 
 import json
 
 MCP_REQUIRED_SUBSTRINGS = [
-    ".mcp.json",
-    "session_start",
-    "${HOME} expanded",
-    "gated by pi project trust",
-    "pi-trust-requiring resources",
-    "arm in all modes",
+    ".pi/mcp.json",
+    "~/.pi/agent/mcp.json",
+    "built-in",
+    "trusted projects",
+    "mcp__",
     "local stdio",
     "http",
     "sse",
-    "user-owned fallback",
-    "no longer scaffold-written",
+    "not read by pi",
+    # Newly added with the native gate (absent pre-change — non-vacuous): pins the gate
+    # clause itself, the claim deleting which left this suite green (s5 F2).
+    "parseable JSON object",
+    # Retained regression pins (pre-change, not evidence of new-claim coverage):
+    # local stdio, http, sse, shape-matched.
+    "shape-matched",
 ]
 
 # Full-phrase lies (plan-review R7): a literal substring anywhere in the pi row is a
 # documentation lie — there is no true sentence containing them.
 ROW_WIDE_LYING_PHRASES = [
-    # The scaffold no longer merges anything into settings.json — it removes, marker-gated.
+    # The scaffold no longer merges anything into settings.json — it removes; mcp removal
+    # is native-config-gated (.pi/mcp.json), skills removal adapter-marker-gated.
     "the scaffold merges into settings.json",
     # D5 mapped remote http/sse; the equality claim is no longer qualified away.
     "same servers as Claude Code",
@@ -58,8 +64,8 @@ def _row_text(value) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
-def test_pi_mcp_row_carries_the_project_scope_claims(root):
-    """mcpServers' mechanism must state the project-scope contract as measured (plan §3)."""
+def test_pi_mcp_row_carries_the_native_contract_claims(root):
+    """mcpServers' mechanism must state the native pi MCP contract as measured."""
     row = _pi_row(root)["capabilities"]["mcpServers"]
     mechanism = row["mechanism"]
 
@@ -71,7 +77,7 @@ def test_pi_mcp_row_carries_the_project_scope_claims(root):
 
 
 def test_pi_mcp_row_is_full_support_after_remote_mapping(root):
-    """D5 mapped claude http/sse to the fork's remote transport — the stdio-only 'partial'
+    """D5 mapped claude http/sse to pi's remote transport — the stdio-only 'partial'
     asterisk is gone, so the row no longer understates the capability either."""
     row = _pi_row(root)["capabilities"]["mcpServers"]
     assert row["supported"] is True, row["supported"]

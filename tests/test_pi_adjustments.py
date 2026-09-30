@@ -1,4 +1,9 @@
-"""Tests for pi agent adjustments: MCP, hooks, task."""
+"""Tests for pi agent adjustments: MCP, hooks, task.
+
+adjust_mcp's removal runs iff the project's native ``.pi/mcp.json`` — given as ``target`` in
+the adjustment context — is an existing file; an absent file or a missing ``target`` warns
+and leaves the global settings untouched. adjust_skills keeps its own adapter-marker gate.
+"""
 # pylint: disable=protected-access,redefined-outer-name  # module internals + fixture reuse; see pyproject.toml
 from __future__ import annotations
 
@@ -62,13 +67,14 @@ def pi_settings_modules(load_script, tmp_path, monkeypatch):
     matter which of the two files triggers the first import, so patching the attribute on
     either module's ``pi_settings`` reference redirects both.
 
-    The removal adjustments are additionally gated on per-extension capability markers under
-    ~/.pi/agent/extensions/ (plan M5, R8+R9): adjust_mcp on the pi-mcp-tools fork's
-    project-scope marker, adjust_skills on the installed adapter's resources_discover marker.
-    The fixture patches those module constants to tmp_path copies and CREATES the files, so
-    the default shape is gate-open (the removal path runs); a gate-closed case unlinks one
-    explicitly. Raising=True patches: a marker-constant rename must fail here loudly, not
-    silently leave these tests gated off (and thus vacuous).
+    The removal adjustments have separate gates. adjust_mcp gates on the project's native
+    .pi/mcp.json: the fixture creates ``project_dir/.pi/mcp.json``, so the removal path is
+    gate-open by default; a gate-closed case unlinks ``native_mcp`` explicitly. adjust_skills
+    keeps its per-extension gate on the installed adapter's resources_discover marker: the
+    fixture patches that module constant to a tmp_path copy and CREATES the file, so its
+    default is gate-open too; a gate-closed case unlinks ``adapter_marker`` explicitly.
+    Raising=True patches: a marker-constant rename must fail here loudly, not silently leave
+    these tests gated off (and thus vacuous).
 
     No test using this fixture may write to the real ``~/.pi/agent/settings.json`` or to the
     real ``~/.pi/agent/extensions/`` tree.
@@ -80,19 +86,20 @@ def pi_settings_modules(load_script, tmp_path, monkeypatch):
     monkeypatch.setattr(skills.pi_settings, "SETTINGS_PATH", settings_path)
     monkeypatch.setattr(mcp.pi_settings, "SETTINGS_PATH", settings_path)
 
-    fork_marker = (tmp_path / "pi" / "agent" / "extensions" / "pi-mcp-tools" /
-                   ".ai-badger-capability-project-scope-mcp")
     adapter_marker = (tmp_path / "pi" / "agent" / "extensions" / "ai-badger" /
                       ".ai-badger-capability-resources-discover")
-    monkeypatch.setattr(mcp, "CAPABILITY_MARKER", fork_marker)
-    monkeypatch.setattr(skills, "CAPABILITY_MARKER", adapter_marker)
-    fork_marker.parent.mkdir(parents=True, exist_ok=True)
-    fork_marker.touch()
+    monkeypatch.setattr(skills, "CAPABILITY_MARKER", adapter_marker, raising=True)
     adapter_marker.parent.mkdir(parents=True, exist_ok=True)
     adapter_marker.touch()
 
+    project_dir = tmp_path / "proj"
+    native_mcp = project_dir / ".pi" / "mcp.json"
+    native_mcp.parent.mkdir(parents=True, exist_ok=True)
+    native_mcp.write_text("{}\n", encoding="utf-8")
+
     return types.SimpleNamespace(skills=skills, mcp=mcp, settings_path=settings_path,
-                                 fork_marker=fork_marker, adapter_marker=adapter_marker)
+                                 project_dir=project_dir, native_mcp=native_mcp,
+                                 adapter_marker=adapter_marker)
 
 
 def test_adjust_mcp_no_pi_in_config(load_script):
@@ -118,7 +125,7 @@ def test_adjust_mcp_proposes_servers(load_script):
     path (install=True) has its own tests under pi_settings_modules, which monkeypatch
     pi_settings.SETTINGS_PATH so nothing here can reach the real home directory.
 
-    The fork reads the project .mcp.json directly (plan M5), so the global 'mcp' key is
+    pi reads the project's native .pi/mcp.json directly, so the global 'mcp' key is
     user-owned fallback: the proposal this adjustment prints under --no-install is what a
     subsequent install run would REMOVE from settings.json, never what it would merge in.
     """
@@ -135,7 +142,7 @@ def test_adjust_mcp_proposes_servers(load_script):
     assert result["applied"]
     assert "MCP server" in result["notes"]
     assert "remove" in result["notes"], (
-        f"--no-install must propose a removal (the fork reads .mcp.json itself); got: "
+        f"--no-install must propose a removal (pi reads the project's .pi/mcp.json); got: "
         f"{result['notes']!r}")
 
 
@@ -507,10 +514,10 @@ def test_adjust_skills_install_false_is_noop(pi_settings_modules, tmp_path):
 def test_adjust_mcp_install_true_removes_shape_matched_entries(pi_settings_modules, tmp_path):
     """install: True removes exactly this project's declared entries from settings.json's mcp.
 
-    Flipped from merge to removal (plan M5/D3): the fork reads the project .mcp.json itself,
-    so a re-scaffold migrates the global entries away. Removal is shape-aware: only entries
-    matching what this scaffold would write today are removed; a non-declared user entry and
-    unknown top-level keys are preserved, and nothing new is written.
+    Flipped from merge to removal (plan M5/D3): pi reads the project's native .pi/mcp.json
+    itself, so a re-scaffold migrates the global entries away. Removal is shape-aware: only
+    entries matching what this scaffold would write today are removed; a non-declared user
+    entry and unknown top-level keys are preserved, and nothing new is written.
     """
     mcp = pi_settings_modules.mcp
     declarations = {
@@ -531,6 +538,7 @@ def test_adjust_mcp_install_true_removes_shape_matched_entries(pi_settings_modul
 
     context = {
         "config": {"agents": ["pi"]},
+        "target": pi_settings_modules.project_dir,
         "mcp_declarations": declarations,
         "mcp_declined": [],
         "install": True,
@@ -565,6 +573,7 @@ def test_adjust_mcp_install_true_preserves_existing_settings(pi_settings_modules
 
     context = {
         "config": {"agents": ["pi"]},
+        "target": pi_settings_modules.project_dir,
         "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
         "mcp_declined": [],
         "install": True,
@@ -590,6 +599,7 @@ def test_adjust_mcp_removal_is_idempotent(pi_settings_modules):
     )
     context = {
         "config": {"agents": ["pi"]},
+        "target": pi_settings_modules.project_dir,
         "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
         "mcp_declined": [],
         "install": True,
@@ -648,6 +658,7 @@ def test_adjust_mcp_removal_shape_matched_removed_drifted_warned_and_left(
     )
     context = {
         "config": {"agents": ["pi"]},
+        "target": pi_settings_modules.project_dir,
         "mcp_declarations": {
             "filesystem": {"command": "npx -y server-fs"},
             "graph": drifted_declaration,
@@ -682,6 +693,7 @@ def test_adjust_mcp_removal_of_drifted_entry_writes_nothing(pi_settings_modules)
 
     pi_settings_modules.mcp.adjust({
         "config": {"agents": ["pi"]},
+        "target": pi_settings_modules.project_dir,
         "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
         "mcp_declined": [],
         "install": True,
@@ -696,6 +708,7 @@ def test_adjust_mcp_removal_writes_nothing_new_when_settings_absent(pi_settings_
 
     result = pi_settings_modules.mcp.adjust({
         "config": {"agents": ["pi"]},
+        "target": pi_settings_modules.project_dir,
         "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
         "mcp_declined": [],
         "install": True,
@@ -728,6 +741,7 @@ def test_adjust_mcp_removal_write_is_atomic_on_failure(pi_settings_modules, monk
     with pytest.raises(OSError):
         pi_settings_modules.mcp.adjust({
             "config": {"agents": ["pi"]},
+            "target": pi_settings_modules.project_dir,
             "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
             "mcp_declined": [],
             "install": True,
@@ -736,30 +750,58 @@ def test_adjust_mcp_removal_write_is_atomic_on_failure(pi_settings_modules, monk
     data = json.loads(pi_settings_modules.settings_path.read_text(encoding="utf-8"))
     assert "filesystem" in data["mcp"] and data["theme"] == "dark"
     # No leftover .tmp file: the finally-block cleanup ran (the fixture's extensions/ dir for
-    # the capability markers is pre-existing, so compare against the before-snapshot).
+    # the adapter marker is pre-existing, so compare against the before-snapshot).
     dir_after = {p.name for p in pi_settings_modules.settings_path.parent.iterdir()}
     assert dir_after == dir_before, dir_after - dir_before
 
 
 # ---------------------------------------------------------------------------
-# M5/R8/R9 — per-extension capability-marker gates. adjust_mcp gates on the pi-mcp-tools
-# fork's project-scope marker; adjust_skills gates on the installed adapter's
-# resources_discover marker. Marker absent ⇒ skip-with-warning, nothing removed (an old
-# fork/adapter still needs the global entries — removing them would strand the machine).
-# The gates are per-extension on purpose (R9): one shared gate would strand pre-P2 machines'
-# skills even with a project-scope-capable fork installed, and vice versa.
+# Removal gates. adjust_mcp runs its removal iff the project's native .pi/mcp.json is an
+# existing file; an absent file or a missing 'target' in the context means warn-and-leave,
+# nothing removed (an old setup still needs the global entries — removing them would strand
+# the machine). adjust_skills keeps its own gate on the installed adapter's
+# resources_discover marker. The gates stay separate on purpose (R9): one shared gate would
+# strand pre-P2 machines' skills even with an updated mcp setup, and vice versa.
 # ---------------------------------------------------------------------------
 
-def test_adjust_mcp_removal_gated_on_fork_capability_marker(pi_settings_modules):
-    """Fork marker absent ⇒ warn-and-leave: the global entries stay for the old fork."""
-    pi_settings_modules.fork_marker.unlink()
-    before = _seed_settings(
+def test_adjust_mcp_removal_gated_on_native_project_mcp_config(pi_settings_modules):
+    """Native .pi/mcp.json absent ⇒ warn-and-leave: the global entries stay for old setups."""
+    pi_settings_modules.native_mcp.unlink()
+    _seed_settings(
         pi_settings_modules.settings_path,
-        mcp={"filesystem": {
-            "enabled": True, "toolPrefix": "mcp_filesystem", "type": "local",
-            "command": ["npx", "-y", "server"],
-        }},
+        mcp={"filesystem": pi_settings_modules.mcp._server_entry(
+            "filesystem", {"command": "npx -y server"})},
     )
+    settings_before = pi_settings_modules.settings_path.read_bytes()
+
+    result = pi_settings_modules.mcp.adjust({
+        "config": {"agents": ["pi"]},
+        "target": pi_settings_modules.project_dir,
+        "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+        "mcp_declined": [],
+        "install": True,
+    })
+
+    assert result["applied"] is False
+    assert ".pi/mcp.json" in result["notes"]
+    assert "left in place" in result["notes"]
+    assert ("fo" + "rk") not in result["notes"].lower()
+    assert ("pi-mcp" + "-tools") not in result["notes"]
+    assert pi_settings_modules.settings_path.read_bytes() == settings_before
+
+
+def test_adjust_mcp_removal_gate_is_conservative_when_target_missing(pi_settings_modules):
+    """A context without 'target' cannot prove the native config exists: warn-and-leave.
+
+    The seeded shape-matched entry is deliberate — adjust_mcp writes only when something is
+    removed, so without it the no-write half of this test would be vacuous.
+    """
+    _seed_settings(
+        pi_settings_modules.settings_path,
+        mcp={"filesystem": pi_settings_modules.mcp._server_entry(
+            "filesystem", {"command": "npx -y server"})},
+    )
+    settings_before = pi_settings_modules.settings_path.read_bytes()
 
     result = pi_settings_modules.mcp.adjust({
         "config": {"agents": ["pi"]},
@@ -769,16 +811,68 @@ def test_adjust_mcp_removal_gated_on_fork_capability_marker(pi_settings_modules)
     })
 
     assert result["applied"] is False
-    assert "pi-mcp-tools" in result["notes"]
-    assert json.loads(pi_settings_modules.settings_path.read_text(encoding="utf-8")) == before
+    assert ".pi/mcp.json" in result["notes"]
+    assert pi_settings_modules.settings_path.read_bytes() == settings_before
 
 
-def test_adjust_mcp_removal_gate_is_per_extension_fork_marker_only(pi_settings_modules):
-    """The adapter's marker is irrelevant to mcp removal (R9: the gate is per-extension)."""
+def test_adjust_mcp_removal_gate_closes_on_malformed_native_config(pi_settings_modules):
+    """A .pi/mcp.json that does not parse counts as absent: warn-and-leave (s5 F1).
+
+    The parse half of the gate needs its own pin — existence alone would let a truncated
+    or hand-broken file open removal while native pi could not resolve servers from it.
+    The shape-matched seed keeps the no-write assertion non-vacuous.
+    """
+    pi_settings_modules.native_mcp.write_text("{not json", encoding="utf-8")
+    _seed_settings(
+        pi_settings_modules.settings_path,
+        mcp={"filesystem": pi_settings_modules.mcp._server_entry(
+            "filesystem", {"command": "npx -y server"})},
+    )
+    settings_before = pi_settings_modules.settings_path.read_bytes()
+
+    result = pi_settings_modules.mcp.adjust({
+        "config": {"agents": ["pi"]},
+        "target": pi_settings_modules.project_dir,
+        "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+        "mcp_declined": [],
+        "install": True,
+    })
+
+    assert result["applied"] is False
+    assert ".pi/mcp.json" in result["notes"]
+    assert pi_settings_modules.settings_path.read_bytes() == settings_before
+
+
+def test_adjust_mcp_removal_gate_closes_on_non_object_native_config(pi_settings_modules):
+    """A .pi/mcp.json parsing to a non-object ([]) counts as absent: warn-and-leave (s5 F1)."""
+    pi_settings_modules.native_mcp.write_text("[]", encoding="utf-8")
+    _seed_settings(
+        pi_settings_modules.settings_path,
+        mcp={"filesystem": pi_settings_modules.mcp._server_entry(
+            "filesystem", {"command": "npx -y server"})},
+    )
+    settings_before = pi_settings_modules.settings_path.read_bytes()
+
+    result = pi_settings_modules.mcp.adjust({
+        "config": {"agents": ["pi"]},
+        "target": pi_settings_modules.project_dir,
+        "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+        "mcp_declined": [],
+        "install": True,
+    })
+
+    assert result["applied"] is False
+    assert ".pi/mcp.json" in result["notes"]
+    assert pi_settings_modules.settings_path.read_bytes() == settings_before
+
+
+def test_adjust_mcp_removal_gate_is_project_config_only(pi_settings_modules):
+    """The adapter's marker is irrelevant to mcp removal: the gate is the native project config."""
     pi_settings_modules.adapter_marker.unlink()
 
     result = pi_settings_modules.mcp.adjust({
         "config": {"agents": ["pi"]},
+        "target": pi_settings_modules.project_dir,
         "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
         "mcp_declined": [],
         "install": True,
@@ -808,8 +902,8 @@ def test_adjust_skills_removal_gated_on_adapter_capability_marker(pi_settings_mo
 
 
 def test_adjust_skills_removal_gate_is_per_extension_adapter_marker_only(pi_settings_modules):
-    """The fork's marker is irrelevant to skills removal (R9: the gate is per-extension)."""
-    pi_settings_modules.fork_marker.unlink()
+    """The native .pi/mcp.json is irrelevant to skills removal: its gate is the adapter's."""
+    pi_settings_modules.native_mcp.unlink()
     target_dir = pi_settings_modules.settings_path.parent / "proj" / ".ai-badger"
     _seed_settings(pi_settings_modules.settings_path,
                    skills=[str(target_dir / "skills")])
@@ -1158,16 +1252,16 @@ def test_pi_settings_write_does_not_touch_real_home(pi_settings_modules):
     This suite has leaked writes into the real $HOME before (see conftest's REAL_HOME /
     REAL_WRITE_LOG machinery for the general guard); this test asserts the specific case G1/G2
     introduce — a settings.json REMOVAL pass (the flipped M5 behavior) — leaves the
-    developer's real file exactly as it was, and leaves the two real extension trees the
-    removal reads its capability markers from byte-identical too.
+    developer's real file exactly as it was, and leaves the real extension tree the skills
+    removal reads its adapter marker from byte-identical too.
     """
     real_settings = _REAL_HOME / ".pi" / "agent" / "settings.json"
     before = real_settings.read_bytes() if real_settings.exists() else None
-    before_ext = {name: _real_extension_state(name)
-                  for name in ("ai-badger", "pi-mcp-tools")}
+    before_ext = {"ai-badger": _real_extension_state("ai-badger")}
 
     context = {
         "config": {"agents": ["pi"]},
+        "target": pi_settings_modules.project_dir,
         "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
         "mcp_declined": [],
         "install": True,
@@ -1181,8 +1275,7 @@ def test_pi_settings_write_does_not_touch_real_home(pi_settings_modules):
 
     after = real_settings.read_bytes() if real_settings.exists() else None
     assert before == after
-    after_ext = {name: _real_extension_state(name)
-                 for name in ("ai-badger", "pi-mcp-tools")}
+    after_ext = {"ai-badger": _real_extension_state("ai-badger")}
     assert after_ext == before_ext
 
 
