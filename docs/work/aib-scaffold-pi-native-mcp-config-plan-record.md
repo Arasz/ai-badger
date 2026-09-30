@@ -237,7 +237,59 @@ architect validated against).
 > - H3 (`features/pi/adjustments/adjust_mcp.py` / `pi_settings.py` fork machinery) is
 >   untouched, as the record requires.
 
-## Review inputs beyond the plan
+## Plan review and folds (revision 1)
+
+**Review verdict (d-33, code-reviewer): approve-with-folds** — do not dispatch until MUST 1–2
+fold via `plan_replace`; fold SHOULDs 1–5 and 6(a)/(c) before dispatch (gate failures);
+remainder during implementation. Architecture endorsed (new reader-gated pi destination
+reusing `_render_entry`/`_merge_mcp_servers_json`, union merge, template-identity shape,
+entry-level preservation); Target-3 byte-identity pre-decision endorsed with fixture
+tightening; provenance assessment: the JSON faithfully carried the rationale's decisions.
+
+**Truncation gap (honest disclosure).** The delegation transport truncated the review
+report's head (7,338 chars: the per-target verdict table, MUST 1, MUST 2, and findings 1–2).
+The lost text is not recoverable (results cache is in-memory and display-capped; the run log
+is tee-elided). The visible findings 3–12 + nits are folded below verbatim-in-substance; the
+two missing MUSTs are re-derived at a **fold-verification review** before dispatch — if they
+survive as real blockers there, they fold then. Nothing was guessed into the plan silently.
+
+**Folded into revision 1** (`plan_replace`, accepted — waves re-derived to serial [s1][s2][s3][s4]
+because all feature-touching steps share generated `index.json`, which the packer treats as a
+file collision; correct-by-construction, parallelism sacrificed deliberately):
+
+- Shared-generated-artifact discipline (all steps): `index.json` + `skills/` mirrors are
+  generated — regenerate via tooling before push, never hand-edit; join re-generates from the
+  merged tree. (Verified: `tooling/index_build.py` docstring "Run this after ANY change to
+  framework content"; `gates/` filenames verified — finding 6's gate paths are real.)
+- Finding 3: `.pi/mcp.json.bak-*` → `.gitignore` (s4), or a no-change short-circuit — the
+  freshness guard reports untracked-unignored strays and fails the push.
+- Finding 4: reference-state fixture (3 direct + 2 deferred + `toolExposure` + unknown key)
+  deep-equal survival — a mutation preserving `exposure` but dropping `toolExposure`/unknown
+  keys must fail.
+- Finding 5: identity-dimension fixtures (`args`/`env`/`cwd` hand-edit variants kept with
+  note) + all three notes asserted (declined-removal, template-drift, hand-edit).
+- Finding 6(a)/(c)/(d): `gates/scaffold_freshness_guard.py` and `gates/shipped_paths_guard.py`
+  ACs added (s4); `test -f .pi/mcp.json` closes the index-vs-disk hole; 6(b) `docs_guard` →
+  s3 ac2.
+- Finding 7: s3 ac1 strengthened (≥6 `mcp__task-graph__` occurrences, zero bare-name
+  JSON-RPC lines, precondition stated); instruction tightened — the bare-name block goes
+  entirely.
+- Finding 8: s2 test granularity — any-wording fork-claim must-not row + a pin for the new
+  `pi.instructions.md` sentence.
+- Finding 9: ADR-0023 amending note (s4) — the spec tree must not contradict shipped
+  behavior; full H3 machinery retirement stays separate.
+- Finding 10: `tests/test_mcp_user_tool_paths.py` conditionally in s1's files (only if
+  `USER_TOOL_DIRS`/`_home_relative_command` shape changes); prefer extending the existing
+  `_render_everywhere`/`_SPLIT_CASES` parametrization.
+- Finding 11: s4 `files` corrected to `.claude-plugin/{plugin,marketplace}.json`
+  (`tooling/version_sync.py:48-49`).
+- Finding 12: changelog substance (i)–(iv) incl. "reverses 0.180.0's pi-reader change",
+  minimum-pi/fork-consumer consequence, Copilot-visible consequence; classification stays
+  Minor, no `BREAKING_VERSIONS` (0.180.0 precedent).
+- Nits: s1 ac3 claim scoped to `mcp_tools.py` + grep check (`adjust_mcp.py` is H3's); binding
+  test naming convention (`pi_mcp_json_*` / `pi_native_*`) so `-k` selectors cannot silently
+  match a subset; `source_refs` → `features/` source; per-test missed-mutation reporting added
+  to s1 (anti-tautology).
 
 - Sibling review of the record (bus #1601, folded as commits): **MUST** — base declarations
   are shell strings; the pi render must split `command`+`args` (`split_on_whitespace`), emit
