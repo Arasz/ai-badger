@@ -1,8 +1,8 @@
 """Tests for stack-declared MCP server scaffolding.
 
 Verifies that `stack-mcp.json` files in feature directories are collected, resolved into one
-declaration set, split by scope, and scaffolded into the two config files ai-badger owns
-(.mcp.json and .github/mcp.json). Every case here was written against the retired
+declaration set, split by scope, and scaffolded into the three config files ai-badger owns
+(.mcp.json, .github/mcp.json and the pi-native .pi/mcp.json). Every case here was written against the retired
 `mcp-servers.json` reader and migrated onto the catalog declaration in ADR-0014 step 8. The
 user-global destinations are proposals: ~/.claude/settings.json here, ~/.hermes/config.yaml in
 tests/test_adjust_mcp_hermes.py.
@@ -631,14 +631,15 @@ def _anchored_task_graph_server():
     }]
 
 
-def test_mcp_json_carries_the_project_relative_launch_when_pi_is_configured(
+def test_mcp_json_keeps_claudes_anchor_with_pi_configured(
         tmp_path, make_scaffolder, monkeypatch, load_script):
-    """pi's reader (the pi-mcp-tools fork) drops an entry carrying an unexpanded ${VAR}
-    whole (ADR-0023), so a file pi reads carries the project-relative launch — which pi
-    resolves against the very directory that holds the file."""
+    """Native pi reads .pi/mcp.json, never .mcp.json (F1/F2), so with pi configured this file
+    stays Claude's: the ${CLAUDE_PROJECT_DIR} anchor survives and the fork-era 'dropped for
+    pi' resolution is gone."""
     _no_user_tool_dirs(monkeypatch, load_script)
     target = make_scaffolder.target
     _write_mcp_servers(tmp_path / "features" / "python", _anchored_task_graph_server())
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
                   _config(stacks=["python"], agents=["claude", "pi"]))
@@ -646,34 +647,18 @@ def test_mcp_json_carries_the_project_relative_launch_when_pi_is_configured(
 
     entry = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))[
         "mcpServers"]["task-graph"]
-    assert entry["command"] == "uv"
     assert entry["args"] == ["run", "--script",
-                            ".ai-badger/skills/demo/task_graph_server.py"]
-    # the fork's converter skips any unexpanded ${VAR} outside ${HOME}; none may survive
-    assert "${" not in json.dumps(entry)
+                             "${CLAUDE_PROJECT_DIR}/.ai-badger/skills/demo/task_graph_server.py"]
+    assert not any("resolves its agent overrides for" in note for note in scaf.notes)
 
 
-def test_mcp_json_names_the_launch_it_dropped_for_pi(tmp_path, make_scaffolder,
-                                                      monkeypatch, load_script):
-    """The anchored rendering Claude would have gotten is dropped out loud, not silently."""
-    _no_user_tool_dirs(monkeypatch, load_script)
-    target = make_scaffolder.target
-    _write_mcp_servers(tmp_path / "features" / "python", _anchored_task_graph_server())
-
-    scaf = _scaf(make_scaffolder, tmp_path, target,
-                  _config(stacks=["python"], agents=["claude", "pi"]))
-    scaf.mcp.generate_mcp_json()
-
-    assert any(".mcp.json" in note and "pi" in note and "task-graph" in note
-               for note in scaf.notes)
-
-
-def test_mcp_json_keeps_claudes_anchor_when_pi_does_not_read_the_file(
+def test_mcp_json_keeps_claudes_anchor_for_a_claude_only_project(
         tmp_path, make_scaffolder, monkeypatch, load_script):
-    """Without pi, .mcp.json resolves for Claude exactly as before (F-22)."""
+    """A claude-only project resolves for Claude exactly as before (F-22)."""
     _no_user_tool_dirs(monkeypatch, load_script)
     target = make_scaffolder.target
     _write_mcp_servers(tmp_path / "features" / "python", _anchored_task_graph_server())
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
                   _config(stacks=["python"], agents=["claude"]))
@@ -682,16 +667,18 @@ def test_mcp_json_keeps_claudes_anchor_when_pi_does_not_read_the_file(
     entry = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))[
         "mcpServers"]["task-graph"]
     assert entry["args"] == ["run", "--script",
-                            "${CLAUDE_PROJECT_DIR}/.ai-badger/skills/demo/task_graph_server.py"]
+                             "${CLAUDE_PROJECT_DIR}/.ai-badger/skills/demo/task_graph_server.py"]
 
 
-def test_mcp_json_pi_only_project_resolves_for_pi_without_the_no_reader_note(
+def test_mcp_json_pi_only_project_gets_base_launches_with_override_note(
         tmp_path, make_scaffolder, monkeypatch, load_script):
-    """pi reads .mcp.json (ADR-0023), so a pi-only project is a configured-reader project —
-    the "names none of them" note for a file nobody reads must not fire."""
+    """pi's project reader is .pi/mcp.json, not .mcp.json: a pi-only project configures none
+    of .mcp.json's readers (claude, copilot), so the base declaration renders and the
+    'written without agent overrides' note fires."""
     _no_user_tool_dirs(monkeypatch, load_script)
     target = make_scaffolder.target
     _write_mcp_servers(tmp_path / "features" / "python", _anchored_task_graph_server())
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
                   _config(stacks=["python"], agents=["pi"]))
@@ -700,8 +687,8 @@ def test_mcp_json_pi_only_project_resolves_for_pi_without_the_no_reader_note(
     entry = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))[
         "mcpServers"]["task-graph"]
     assert entry["args"] == ["run", "--script",
-                            ".ai-badger/skills/demo/task_graph_server.py"]
-    assert not any("names none of them" in note for note in scaf.notes)
+                             ".ai-badger/skills/demo/task_graph_server.py"]
+    assert any("written without agent overrides" in note for note in scaf.notes)
 
 
 def test_copilot_mcp_json_uses_copilot_overrides(tmp_path, make_scaffolder):
@@ -727,12 +714,13 @@ def _no_user_tool_dirs(monkeypatch, load_script):
 
 
 def _render_everywhere(make_scaffolder, tmp_path, server, home):
-    """Render *server* into all three destinations; return their entries for it.
+    """Render *server* into all four destinations; return their entries for it.
 
     The Claude user destination is a proposal note rather than a file (ADR-0014 decision 6),
     so its entry is read back out of the note — the rendering it characterises is the same.
-    The `tools` allowlist is dropped from the two project files: it belongs to the hosts that
-    read them, and these cases characterise command splitting, cwd and env.
+    The `tools` allowlist is dropped from the two Claude/Copilot project files and the pi
+    `exposure` default from `.pi/mcp.json`: both belong to the hosts that read them, and these
+    cases characterise command splitting, cwd and env.
     """
     target = tmp_path / "proj"
     target.mkdir(exist_ok=True)
@@ -741,9 +729,10 @@ def _render_everywhere(make_scaffolder, tmp_path, server, home):
 
     with patch("pathlib.Path.home", return_value=home):
         scaf = _scaf(make_scaffolder, tmp_path, target,
-                     _config(stacks=["python"], agents=["claude", "copilot", "hermes"]))
+                     _config(stacks=["python"], agents=["claude", "copilot", "hermes", "pi"]))
         scaf.mcp.generate_mcp_json()
         scaf.mcp.generate_copilot_mcp_json(by_name)
+        scaf.mcp.generate_pi_mcp_json()
         scaf.mcp.propose_claude_mcp_user(by_name)
 
     name = server["name"]
@@ -755,10 +744,13 @@ def _render_everywhere(make_scaffolder, tmp_path, server, home):
     assert copilot.pop("tools") == ["*"]
     mcp_json = _json_entry(target / ".mcp.json")
     assert mcp_json.pop("tools") == ["*"]
+    pi_mcp = _json_entry(target / ".pi" / "mcp.json")
+    assert pi_mcp.pop("exposure") == "direct"
     proposal = next(n for n in scaf.notes if "~/.claude/settings.json" in n)
     return {
         "mcp_json": mcp_json,
         "copilot": copilot,
+        "pi_mcp": pi_mcp,
         "claude_user": json.loads(proposal.split("yourself: ", 1)[1])["mcpServers"][name],
     }
 
@@ -887,3 +879,365 @@ def test_env_reaches_every_destination(tmp_path, monkeypatch, load_script, make_
 
     for destination, entry in entries.items():
         assert entry["env"] == {"TOKEN": "not-a-real-token"}, destination
+
+
+# ── pi: .pi/mcp.json, the project config native pi reads (F1) ────────────────
+
+def _pi_json(target):
+    """The parsed .pi/mcp.json under *target*, or {} when the destination wrote nothing."""
+    path = target / ".pi" / "mcp.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+def _pi_scaffolder(make_scaffolder, tmp_path, declared, agents=("pi",), declined=()):
+    """Declare *declared* and build a Scaffolder with pi configured (optionally declining)."""
+    _write_mcp_servers(tmp_path / "features" / "python", declared)
+    config = _config(stacks=["python"], agents=list(agents))
+    if declined:
+        config["mcp"] = {"decline": list(declined)}
+    return _scaf(make_scaffolder, tmp_path, make_scaffolder.target, config)
+
+
+def _seed_pi(target, section):
+    """Write an existing .pi/mcp.json with *section* as its mcpServers mapping."""
+    (target / ".pi").mkdir(parents=True, exist_ok=True)
+    _test_write(target / ".pi" / "mcp.json",
+                json.dumps({"mcpServers": section}, indent=2) + "\n", encoding="utf-8")
+
+
+def test_pi_mcp_json_written_for_pi_agent(tmp_path, make_scaffolder, monkeypatch):
+    """A pi-configured project gets .pi/mcp.json; native pi never reads .mcp.json (F1)."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path,
+                          [{"name": "pyright", "command": "uvx mcp-server-pyright"}])
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert (make_scaffolder.target / ".pi" / "mcp.json").is_file()
+    entry = _pi_json(make_scaffolder.target)["mcpServers"]["pyright"]
+    assert entry["command"] == "uvx"
+    assert any("trusted project" in note for note in scaf.notes)
+
+
+def test_pi_mcp_json_not_created_without_pi_agent(tmp_path, make_scaffolder, monkeypatch):
+    """Gated on config.agents like every requires_reader destination."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path,
+                          [{"name": "pyright", "command": "uvx mcp-server-pyright"}],
+                          agents=("claude",))
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert not (make_scaffolder.target / ".pi" / "mcp.json").exists()
+
+
+def test_pi_mcp_json_splits_shell_string_command(tmp_path, make_scaffolder, monkeypatch):
+    """pi takes one executable plus args, never a shell string (F4/F8): the three shapes."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path, [
+        {"name": "task-graph",
+         "command": "uv run --script .ai-badger/skills/demo/task_graph_server.py"},
+        {"name": "graph", "command": "code-review-graph serve"},
+        {"name": "raccoon", "command": "ai-raccoon"},
+        {"name": "explicit", "command": "uv", "args": ["run", "--script", "my script.py"]},
+    ])
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    entries = _pi_json(make_scaffolder.target)["mcpServers"]
+    assert entries["task-graph"] == {
+        "command": "uv",
+        "args": ["run", "--script", ".ai-badger/skills/demo/task_graph_server.py"],
+        "exposure": "direct",
+    }
+    assert entries["graph"] == {"command": "code-review-graph", "args": ["serve"],
+                                "exposure": "direct"}
+    assert entries["raccoon"] == {"command": "ai-raccoon", "exposure": "direct"}
+    # an explicit args array is never split: its element keeps its space
+    assert entries["explicit"] == {"command": "uv", "args": ["run", "--script", "my script.py"],
+                                   "exposure": "direct"}
+
+
+@pytest.mark.parametrize("override,expected", [
+    ("", "~/.dotnet/tools/cwm-roslyn-navigator"),
+    ("all", "cwm-roslyn-navigator"),
+])
+def test_pi_mcp_json_uses_tilde_home_form_not_dollar_home(
+        override, expected, tmp_path, monkeypatch, load_script, make_scaffolder):
+    """pi expands `~` in command/args/cwd; `${HOME}` stays literal, so pi must never emit it.
+    The AI_BADGER_MCP_AVAILABILITY override gates the rewrite exactly as it gates `${HOME}`."""
+    load_script(SCAFFOLD)
+    dotnet = tmp_path / "fake-home" / ".dotnet" / "tools"
+    dotnet.mkdir(parents=True)
+    exe = dotnet / "cwm-roslyn-navigator"
+    exe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    exe.chmod(0o755)
+    monkeypatch.setattr(sys.modules["mcp_tools"], "USER_TOOL_DIRS",
+                        ((dotnet, "${HOME}/.dotnet/tools"),))
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", override)
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path,
+                          [{"name": "roslyn", "command": "cwm-roslyn-navigator"}])
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    entry = _pi_json(make_scaffolder.target)["mcpServers"]["roslyn"]
+    assert entry["command"] == expected
+    assert "${HOME}" not in json.dumps(entry)
+
+
+def test_pi_mcp_json_carries_no_tools_array(tmp_path, make_scaffolder, monkeypatch):
+    """`tools` is the fork filter pi does not read (F4)."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path,
+                          [{"name": "srv", "command": "uvx srv"}])
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert "tools" not in _pi_json(make_scaffolder.target)["mcpServers"]["srv"]
+
+
+def test_pi_mcp_json_new_entries_default_to_direct_exposure(
+        tmp_path, make_scaffolder, monkeypatch):
+    """pi's `codemode` default leaves tools undeclared; `direct` is what the model can call."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path,
+                          [{"name": "srv", "command": "uvx srv"}])
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert _pi_json(make_scaffolder.target)["mcpServers"]["srv"]["exposure"] == "direct"
+
+
+def test_pi_mcp_json_inherits_no_claude_anchor(tmp_path, make_scaffolder, monkeypatch):
+    """Resolve agentOverrides for pi's own reader, never Claude's ${CLAUDE_PROJECT_DIR} (F8)."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path, _anchored_task_graph_server())
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    entry = _pi_json(make_scaffolder.target)["mcpServers"]["task-graph"]
+    assert entry["command"] == "uv"
+    assert entry["args"] == ["run", "--script", ".ai-badger/skills/demo/task_graph_server.py"]
+    assert "${CLAUDE_PROJECT_DIR}" not in json.dumps(entry)
+
+
+def test_pi_mcp_json_records_generated_config(tmp_path, make_scaffolder, monkeypatch):
+    """Every write is recorded for the manifest's generatedConfig (#194)."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path,
+                          [{"name": "srv", "command": "uvx srv"}])
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert [r for r in scaf.generated_config.all_records([])
+            if r["path"] == ".pi/mcp.json"] == [{
+        "path": ".pi/mcp.json", "destination": ".pi/mcp.json",
+        "frameworkVersion": scaf.index["frameworkVersion"],
+    }]
+
+
+def test_pi_native_existing_entry_survives_scaffold_byte_identical(
+        tmp_path, make_scaffolder, monkeypatch):
+    """F11(a): an entry already present survives re-scaffold byte-identical, decorations and all."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    recorded = {"command": "code-review-graph", "args": ["serve"],
+                "exposure": "deferred", "toolExposure": {"get_*": "codemode"},
+                "enabled": False}
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path,
+                          [{"name": "code-review-graph", "command": "code-review-graph serve"}])
+    path = make_scaffolder.target / ".pi" / "mcp.json"
+    _seed_pi(make_scaffolder.target, {"code-review-graph": recorded})
+    before = path.read_bytes()
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert path.read_bytes() == before
+    assert _pi_json(make_scaffolder.target)["mcpServers"]["code-review-graph"] == recorded
+
+
+_PI_REFERENCE_STATE = {
+    "autoEnableCodemode": False,
+    "mcpServers": {
+        "ai-raccoon": {"command": "ai-raccoon", "exposure": "direct"},
+        "task-graph": {
+            "command": "uv",
+            "args": ["run", "--script",
+                     ".ai-badger/skills/task-decomposition/scripts/task_graph_server.py"],
+            "exposure": "direct",
+        },
+        "semantica": {
+            "command": "semantica-mcp",
+            "env": {"SEMANTICA_DISABLE_PROGRESS": "1"},
+            "exposure": "direct",
+        },
+        "code-review-graph": {
+            "command": "code-review-graph",
+            "args": ["serve"],
+            "exposure": "deferred",
+            "toolExposure": {"search_*": "codemode", "delete_*": "hidden"},
+        },
+        "playwright": {
+            "command": "npx",
+            "args": ["-y", "@playwright/mcp@latest"],
+            "exposure": "deferred",
+            "toolExposure": {"browser_*": "direct"},
+            "customField": {"kept": True},
+        },
+    },
+}
+
+_PI_REFERENCE_CATALOG = [
+    {"name": "ai-raccoon", "command": "ai-raccoon"},
+    {"name": "task-graph",
+     "command": "uv run --script .ai-badger/skills/task-decomposition/scripts/task_graph_server.py"},
+    {"name": "semantica", "command": "semantica-mcp",
+     "env": {"SEMANTICA_DISABLE_PROGRESS": "1"}},
+    {"name": "code-review-graph", "command": "code-review-graph serve"},
+    {"name": "playwright", "command": "npx -y @playwright/mcp@latest"},
+]
+
+
+def test_pi_native_reference_state_survives_deep_equal(tmp_path, make_scaffolder, monkeypatch):
+    """The sibling's tuned state — 3 direct + 2 deferred, toolExposure maps and unknown keys —
+    survives whole (F6/F10/F11). A merge that preserves exposure but drops toolExposure or an
+    unknown key fails this deep-equal."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path, _PI_REFERENCE_CATALOG)
+    target = make_scaffolder.target
+    (target / ".pi").mkdir(parents=True, exist_ok=True)
+    _test_write(target / ".pi" / "mcp.json",
+                json.dumps(_PI_REFERENCE_STATE, indent=2) + "\n", encoding="utf-8")
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert _pi_json(target) == _PI_REFERENCE_STATE
+
+
+def test_pi_native_new_entry_gets_template(tmp_path, make_scaffolder, monkeypatch):
+    """F11(b): a declared server absent from the file is appended with today's template."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    existing = {"known": {"command": "known-server", "exposure": "deferred"}}
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path, [
+        {"name": "known", "command": "known-server"},
+        {"name": "fresh", "command": "uvx fresh-server --flag"},
+    ])
+    _seed_pi(make_scaffolder.target, existing)
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    after = _pi_json(make_scaffolder.target)["mcpServers"]
+    assert after["known"] == existing["known"]
+    assert after["fresh"] == {"command": "uvx", "args": ["fresh-server", "--flag"],
+                              "exposure": "direct"}
+
+
+def test_pi_native_unknown_entry_survives(tmp_path, make_scaffolder, monkeypatch):
+    """F11(c): the merge is a union — a user-added server is never dropped or rewritten."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    personal = {"command": "my-personal-server", "args": ["--mine"], "enabled": True,
+                "unknownKey": {"nested": [1, 2]}}
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path,
+                          [{"name": "known", "command": "known-server"}])
+    _seed_pi(make_scaffolder.target, {"personal": personal})
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert _pi_json(make_scaffolder.target)["mcpServers"]["personal"] == personal
+
+
+def test_pi_native_declined_server_removed(tmp_path, make_scaffolder, monkeypatch):
+    """F11(d): config.mcp.decline still removes its named servers, with a note (#186)."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path,
+                          [{"name": "code-review-graph", "command": "code-review-graph serve"},
+                           {"name": "keep", "command": "uvx keep"}],
+                          declined=("code-review-graph",))
+    _seed_pi(make_scaffolder.target, {
+        "code-review-graph": {"command": "code-review-graph", "args": ["serve"],
+                              "exposure": "direct"},
+        "keep": {"command": "uvx", "args": ["keep"], "exposure": "direct"},
+    })
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    after = _pi_json(make_scaffolder.target)["mcpServers"]
+    assert "code-review-graph" not in after
+    assert "keep" in after
+    assert any("declined" in note and "code-review-graph" in note for note in scaf.notes)
+
+
+def test_pi_native_unavailable_tuned_entry_removed(tmp_path, make_scaffolder, monkeypatch):
+    """F11(e): a template-identical entry is removed when its executable is unavailable even
+    when exposure/toolExposure/enabled are tuned away from the template — decorations never
+    shield it, and never count toward identity."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "")
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path, [
+        {"name": "ghost", "command": "ghost-mcp serve",
+         "availability": {"command": "definitely-not-a-real-executable"}},
+    ])
+    _seed_pi(make_scaffolder.target, {
+        "ghost": {"command": "ghost-mcp", "args": ["serve"], "exposure": "deferred",
+                  "toolExposure": {"x_*": "hidden"}, "enabled": False},
+    })
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert "ghost" not in _pi_json(make_scaffolder.target)["mcpServers"]
+    assert any("unavailable" in note and "ghost" in note for note in scaf.notes)
+
+
+_HAND_EDITED_LAUNCHES = {
+    "args": {"command": "ghost-mcp", "args": ["serve", "--project", "."]},
+    "env": {"command": "ghost-mcp", "args": ["serve"], "env": {"GHOST_TOKEN": "x"}},
+    "cwd": {"command": "ghost-mcp", "args": ["serve"], "cwd": "/elsewhere"},
+}
+
+
+@pytest.mark.parametrize("dimension,edited", sorted(_HAND_EDITED_LAUNCHES.items()))
+def test_pi_native_unavailable_hand_edited_entry_kept_with_note(
+        dimension, edited, tmp_path, make_scaffolder, monkeypatch):
+    """F11(f): an unavailable entry whose launch was hand-edited is kept with a note."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "")
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path, [
+        {"name": "ghost", "command": "ghost-mcp serve",
+         "availability": {"command": "definitely-not-a-real-executable"}},
+    ])
+    _seed_pi(make_scaffolder.target, {"ghost": edited})
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert _pi_json(make_scaffolder.target)["mcpServers"]["ghost"] == edited, dimension
+    note = next(n for n in scaf.notes if "ghost" in n)
+    assert "hand edit" in note
+
+
+def test_pi_native_second_render_leaves_file_bytes_unchanged(
+        tmp_path, make_scaffolder, monkeypatch):
+    """F11 idempotence: a second render of one unchanged file changes no bytes and leaves no
+    backup sibling — the writer's re-serialization is accepted at entry level (MUST-risk 3)."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path, [{"name": "srv", "command": "uvx srv"}])
+    scaf.mcp.generate_pi_mcp_json()
+    path = make_scaffolder.target / ".pi" / "mcp.json"
+    first = path.read_bytes()
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert path.read_bytes() == first
+    assert sorted(p.name for p in path.parent.iterdir()) == ["mcp.json"]
+
+
+def test_pi_native_template_drift_noted_not_applied(tmp_path, make_scaffolder, monkeypatch):
+    """F11(a): a launch that differs from today's template is noted, never rewritten."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
+    recorded = {"command": "code-review-graph", "args": ["serve", "--watch"]}
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path,
+                          [{"name": "code-review-graph", "command": "code-review-graph serve"}])
+    _seed_pi(make_scaffolder.target, {"code-review-graph": recorded})
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert _pi_json(make_scaffolder.target)["mcpServers"]["code-review-graph"] == recorded
+    note = next(n for n in scaf.notes if "template" in n)
+    assert "code-review-graph" in note
+    assert "kept" in note
