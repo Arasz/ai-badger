@@ -1,10 +1,11 @@
-"""Adjustment: migration-only removal of this project's MCP entries from pi's settings.json.
+"""Adjustment: migration-only removal of this project's legacy MCP entries from pi's settings.json.
 
-The pi-mcp-tools fork reads the project's .mcp.json directly at session_start (claude→fork
-conversion, ${HOME} expanded, project-over-global merge), so the 'mcp' key in
-~/.pi/agent/settings.json is no longer scaffold-written — it is user-owned fallback state for
-forks that cannot read .mcp.json yet. A re-scaffold therefore MIGRATES: it removes exactly the
-entries this project's scaffold once wrote, and touches nothing else.
+pi's native MCP support reads ~/.pi/agent/mcp.json (global) and .pi/mcp.json (project,
+trust-gated) — never the 'mcp' key in ~/.pi/agent/settings.json. That key holds legacy state
+this scaffold once merged this project's servers into, and it may still be a machine's only
+configuration while a legacy reader that depends on it is installed. A re-scaffold therefore
+MIGRATES: it removes exactly the entries this project's scaffold once wrote, and touches
+nothing else.
 
 Removal is shape-aware (plan M5/R10): for each declared name the entry is regenerated exactly
 as _server_entry would write it today; the global entry is removed only when it matches that
@@ -14,12 +15,18 @@ not match is a user edit — warn-and-leave, never destroyed. Nothing new is eve
 removal pass with nothing matching leaves the file byte-identical, and no settings.json is
 created where none exists.
 
-Per-extension version gate (plan M5, R8+R9): removal runs only when the installed fork carries
-the project-scope capability marker
-~/.pi/agent/extensions/pi-mcp-tools/.ai-badger-capability-project-scope-mcp. A fork without it
-still reads only the global 'mcp' key, so removing the entries would leave the machine with no
-MCP at all — skip-with-warning instead. Under --no-install the removal proposal is printed and
-nothing is written.
+Native-config gate: removal runs only when the project's .pi/mcp.json exists. Without it a
+machine still running a legacy reader may depend on the global 'mcp' key, so removing the
+entries could leave it with no MCP configuration at all — skip-with-warning instead. The gate
+is conservative: a missing 'target', an absent file, or a file whose contents are malformed or
+parse to something other than a JSON object all count as absent. Under --no-install the
+removal proposal is printed and nothing is written.
+
+Residual worlds this file does not resolve:
+  * With a native .pi/mcp.json present and a stale legacy reader still installed, removal
+    proceeds. Cleaning up that reader belongs to the consumer's extension cleanup and is NOT
+    performed by this file.
+  * An existing but malformed .pi/mcp.json counts as absent, so the gate stays closed.
 """
 from __future__ import annotations
 
@@ -27,18 +34,18 @@ import json
 import shlex
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pi_settings  # pylint: disable=wrong-import-position
 
-FORK_EXTENSION_DIR = Path.home() / ".pi" / "agent" / "extensions" / "pi-mcp-tools"
-CAPABILITY_MARKER = FORK_EXTENSION_DIR / ".ai-badger-capability-project-scope-mcp"
+NATIVE_MCP_RELPATH = Path(".pi") / "mcp.json"
 
 REMOVED_HEADER = (
     "Removed {count} shape-matched MCP server(s) this project had merged into {path}'s "
-    "'mcp' key: the installed pi-mcp-tools fork reads the project's .mcp.json directly, so "
-    "the global entries are legacy scaffold state."
+    "'mcp' key: pi reads MCP servers from .pi/mcp.json (project, trust-gated) and "
+    "~/.pi/agent/mcp.json (global), never the settings 'mcp' key, so those global entries "
+    "are legacy scaffold state."
 )
 NOT_PRESENT_HEADER = (
     "{names}: not present in {path}'s 'mcp' key — nothing to remove."
@@ -48,28 +55,51 @@ DRIFTED_HEADER = (
     "write today (a user edit or a drifted shape). Not removed."
 )
 GATE_WARNING = (
-    "The installed pi-mcp-tools extension at {dir} predates project-scope .mcp.json reading "
-    "(capability marker .ai-badger-capability-project-scope-mcp missing), so its global "
-    "'mcp' entries are still its only configuration — they were left in place. Re-run after "
-    "updating the extension to migrate this project's entries off the global key."
+    "native pi reads {config} for MCP servers (trust-gated), and this project does not carry "
+    "it yet, so the global 'mcp' entries were left in place. A legacy reader that still "
+    "depends on the global 'mcp' key may be installed and must be updated or removed first. "
+    "Add {config} and re-run to migrate this project's entries off the global key."
 )
 PROPOSAL_HEADER = (
-    "{count} MCP server(s) are declared for this project. The pi-mcp-tools fork reads the "
-    "project's .mcp.json directly; this scaffold no longer merges into ~/.pi/agent/settings.json. "
-    "A subsequent install run would remove these shape-matched entries from the 'mcp' key "
-    "(pi-mcp-tools extension only, not pi core):"
+    "{count} MCP server(s) are declared for this project. pi reads MCP servers from "
+    ".pi/mcp.json (project, trust-gated) and ~/.pi/agent/mcp.json (global) and reads no "
+    "settings 'mcp' key; this scaffold no longer merges into ~/.pi/agent/settings.json. A "
+    "later install run would remove these shape-matched entries from the global 'mcp' key "
+    "only once this project carries .pi/mcp.json:"
 )
 DECLINE_HEADER = (
     "config.mcp.decline names {names}. These servers are excluded from the proposal."
 )
 
 
-def _server_entry(name: str, server: Dict[str, Any]) -> Dict[str, Any]:
-    """Convert an ai-badger MCP server declaration into pi-mcp-tools format.
+def _native_project_mcp_config(context: Dict[str, Any]) -> Optional[Path]:
+    """The project's native .pi/mcp.json, or None when it is not a usable config file.
 
-    Also the shape-matcher's generator: a global entry is removable iff it equals what this
-    function writes today (see module docstring). Raises ValueError on an unbalanced quote —
-    a malformed declaration to report per-adjustment, not to mangle silently.
+    That file's presence is what opens the removal gate. Conservative on purpose: a missing
+    'target', an absent file, or a file whose contents are malformed or parse to something
+    other than a JSON object all count as absent — the gate stays closed rather than raising
+    out of the adjustment.
+    """
+    target = context.get("target")
+    if not target:
+        return None
+    candidate = Path(target) / NATIVE_MCP_RELPATH
+    if not candidate.is_file():
+        return None
+    try:
+        content = json.loads(candidate.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return candidate if isinstance(content, dict) else None
+
+
+def _server_entry(name: str, server: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert an ai-badger MCP server declaration into the legacy global settings mcp entry
+    shape this scaffold once wrote — retained as the shape-matcher's generator.
+
+    A global entry is removable iff it equals what this function writes today (see module
+    docstring). Raises ValueError on an unbalanced quote — a malformed declaration to report
+    per-adjustment, not to mangle silently.
     """
     entry: Dict[str, Any] = {
         "enabled": True,
@@ -126,9 +156,14 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     if declared:
         mcp_entries = {name: _server_entry(name, declared[name]) for name in sorted(declared)}
         if context.get("install", True):
-            if not CAPABILITY_MARKER.exists():
+            native_config = _native_project_mcp_config(context)
+            if native_config is None:
+                target = context.get("target")
+                project_config = NATIVE_MCP_RELPATH
+                if target:
+                    project_config = Path(target) / NATIVE_MCP_RELPATH
                 applied = False
-                sections.append(GATE_WARNING.format(dir=FORK_EXTENSION_DIR))
+                sections.append(GATE_WARNING.format(config=project_config))
             else:
                 settings = pi_settings.load_settings(pi_settings.SETTINGS_PATH)
                 settings, removed, warned = pi_settings.remove_mcp_servers(
