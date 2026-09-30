@@ -144,5 +144,6 @@ configuration is the one that no longer depends on the legacy global `mcp` key, 
 — not the installed reader's version — is the correct gate. The adapter's skills capability
 marker (`.ai-badger-capability-resources-discover`, decision 3's other half) is unchanged.
 Implemented in task `aib-adjust-mcp-native-capability-gate` (branch
-`task/aib-adjust-mcp-native-capability-gate`); the historical decision text above is
+`task/aib-adjust-mcp-native-capability-gate`, PR
+https://github.com/Arasz/ai-badger/pull/546); the historical decision text above is
 preserved.
