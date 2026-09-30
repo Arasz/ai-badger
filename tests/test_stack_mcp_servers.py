@@ -633,9 +633,10 @@ def _anchored_task_graph_server():
 
 def test_mcp_json_carries_the_project_relative_launch_when_pi_is_configured(
         tmp_path, make_scaffolder, monkeypatch, load_script):
-    """pi's reader (the pi-mcp-tools fork) drops an entry carrying an unexpanded ${VAR}
-    whole (ADR-0023), so a file pi reads carries the project-relative launch — which pi
-    resolves against the very directory that holds the file."""
+    """pi's reader is a retained legacy conversion (ADR-0023) — native pi reads .pi/mcp.json,
+    not this file — and it drops an entry carrying an unexpanded ${VAR} whole, so a file it
+    reads carries the project-relative launch, which it resolves against the very directory
+    that holds the file."""
     _no_user_tool_dirs(monkeypatch, load_script)
     target = make_scaffolder.target
     _write_mcp_servers(tmp_path / "features" / "python", _anchored_task_graph_server())
@@ -649,7 +650,7 @@ def test_mcp_json_carries_the_project_relative_launch_when_pi_is_configured(
     assert entry["command"] == "uv"
     assert entry["args"] == ["run", "--script",
                             ".ai-badger/skills/demo/task_graph_server.py"]
-    # the fork's converter skips any unexpanded ${VAR} outside ${HOME}; none may survive
+    # the retained legacy converter skips any unexpanded ${VAR} outside ${HOME}; none may survive
     assert "${" not in json.dumps(entry)
 
 

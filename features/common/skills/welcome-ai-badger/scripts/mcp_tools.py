@@ -71,13 +71,14 @@ def only_generated_entries(data: Dict[str, Any]) -> bool:
 # or any future host's equivalent. Stripping it makes the #193 comparison see one launch.
 _PROJECT_DIR_ARG = re.compile(r"^\$\{[A-Z0-9_]*PROJECT_DIR\}/")
 
-# Readers whose config conversion expands ``${HOME}`` and nothing else — the pi-mcp-tools
-# fork's claude conversion (ADR-0023). For such a reader an anchored entry is not a
-# preference it can ignore: its converter drops the whole entry as an unexpanded ``${VAR}``.
-# Where one file is read by both kinds of reader, the file must carry the anchor-free
-# launch: an entry every configured reader can start beats one only the anchored reader
-# can use, and pi resolves the project-relative form against the very directory that holds
-# the file (it reads ``<cwd>/.mcp.json``, never a parent's).
+# Readers whose config conversion expands ``${HOME}`` and nothing else — the pi carve-out, a
+# retained legacy conversion (ADR-0023): native pi reads ``.pi/mcp.json``, not ``.mcp.json``.
+# For such a reader an anchored entry is not a preference it can ignore: its converter drops
+# the whole entry as an unexpanded ``${VAR}``. Where one file is read by both kinds of reader,
+# the file must carry the anchor-free launch: an entry every configured reader can start beats
+# one only the anchored reader can use, and the legacy reader resolves the project-relative
+# form against the very directory that holds the file (it reads ``<cwd>/.mcp.json``, never a
+# parent's).
 EXPANDS_HOME_ONLY = frozenset({"pi"})
 
 
@@ -127,9 +128,10 @@ class McpDestination(NamedTuple):
 
 # ``.mcp.json`` alone expands ``${VAR}`` (documented by Claude Code). The Copilot CLI reads it
 # too, by cwd-upward lookup, which is why it carries the ``tools`` allowlist and why its overrides
-# fall back to Copilot's when Claude is not configured (#193). The pi-mcp-tools fork reads it as
-# well, from its session cwd only (ADR-0023) — so when pi is configured the file carries the
-# project-relative launch (:data:`EXPANDS_HOME_ONLY`) rather than Claude's project-dir anchor.
+# fall back to Copilot's when Claude is not configured (#193). The pi carve-out is a retained
+# legacy conversion (ADR-0023) — native pi reads ``.pi/mcp.json``, not ``.mcp.json`` — so while
+# pi is configured the file carries the project-relative launch (:data:`EXPANDS_HOME_ONLY`)
+# rather than Claude's project-dir anchor.
 MCP_JSON = McpDestination(
     label=".mcp.json", readers=("claude", "pi", "copilot"), requires_reader=False, pin_cwd=False,
     expand_home=True, all_tools=True,
