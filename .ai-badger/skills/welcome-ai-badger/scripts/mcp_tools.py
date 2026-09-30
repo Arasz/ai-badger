@@ -674,6 +674,29 @@ class McpTools:
                 f"{dest.label}: removed MCP server(s) {', '.join(removed)} that an earlier run "
                 f"declared here as well as in {MCP_JSON.label} — one server, one declaration")
 
+    @staticmethod
+    def _template_candidates(
+        entry: Dict[str, Any], server: Dict[str, Any], dest: McpDestination
+    ) -> List[Dict[str, Any]]:
+        """*entry* plus the home form this declaration could have been written under.
+
+        Which spelling a run records depends on whether the executable was present when it
+        rendered: a run after the executable is gone renders the bare command while the file
+        still holds the ``~``/``${HOME}`` form.  Identity must count both, so every
+        :data:`USER_TOOL_DIRS` prefix contributes a candidate (F11a).
+        """
+        candidates = [entry]
+        if not dest.home_prefix:
+            return candidates
+        executable, args = split_on_whitespace(server.get("command", ""))
+        for _probe_dir, prefix in USER_TOOL_DIRS:
+            home_entry = dict(entry)
+            home_entry["command"] = prefix.replace("${HOME}", dest.home_prefix) + "/" + executable
+            if args:
+                home_entry["args"] = args
+            candidates.append(home_entry)
+        return candidates
+
     def _drop_unavailable(
         self, section: Dict[str, Any], names: Sequence[str], dest: McpDestination
     ) -> None:
@@ -685,17 +708,7 @@ class McpTools:
             if server is None or name not in section:
                 continue
             expected = self._render_entry(server, dest)
-            candidates = [expected]
-            if dest.home_prefix:
-                executable, args = split_on_whitespace(server.get("command", ""))
-                for _probe_dir, prefix in USER_TOOL_DIRS:
-                    home_entry = dict(expected)
-                    home_entry["command"] = prefix.replace(
-                        "${HOME}", dest.home_prefix) + "/" + executable
-                    if args:
-                        home_entry["args"] = args
-                    candidates.append(home_entry)
-            if section[name] in candidates:
+            if section[name] in self._template_candidates(expected, server, dest):
                 generated.append(name)
         removed = self._drop_servers(section, generated)
         if removed:
@@ -714,25 +727,33 @@ class McpTools:
 
         Identity is template identity — ``command``/``args``/``cwd``/``env`` as this
         destination renders them, through the same home-rewrite path the write uses (or a
-        ``~/``-form entry never matches and lingers). Decorations (`exposure`,
-        `toolExposure`, `enabled`, unknown keys) neither count toward identity nor shield a
-        template-identical entry from removal. A launch that differs from the template is a
-        hand edit: kept, with a warn-and-leave note (the established `adjust_mcp.py`
-        precedent) — never destroyed.
+        ``~/``-form entry never matches and lingers).  The home form is one candidate among
+        every :data:`USER_TOOL_DIRS` spelling, not one live render: after the executable is
+        gone the render is bare while the file still records the ``~/`` form, and both are
+        today's template.  Decorations (`exposure`, `toolExposure`, `enabled`, unknown keys)
+        neither count toward identity nor shield a template-identical entry from removal.  A
+        launch that differs is a hand edit: kept, with a warn-and-leave note (the established
+        `adjust_mcp.py` precedent) — never destroyed.  This destination is project-scoped, so
+        a `scope: user` declaration can never drop an entry from `.pi/mcp.json`.
         """
         catalog = {srv.get("name"): srv for srv in self.collect_catalog_mcp_servers()}
-        pending = {name: catalog[name] for name in names
-                   if name in catalog and name in section and name not in entries}
+        project_catalog, _ = self.split_servers_by_scope(catalog)
+        pending = {name: project_catalog[name] for name in names
+                   if name in project_catalog and name in section and name not in entries}
         templates = dict(entries)
         if pending:
             templates.update(self._render_without_notes(pending, dest))
+        reader = self._configured_reader(dest)
         removed, kept = [], []
         for name in names:
+            server = project_catalog.get(name)
             template = templates.get(name)
             recorded = section.get(name)
-            if template is None or not isinstance(recorded, dict):
+            if server is None or template is None or not isinstance(recorded, dict):
                 continue
-            if _launch_of(recorded) == _launch_of(template):
+            resolved = self._resolve_server_for_agent(server, reader) if reader else dict(server)
+            candidates = self._template_candidates(template, resolved, dest)
+            if any(_launch_of(recorded) == _launch_of(candidate) for candidate in candidates):
                 section.pop(name)
                 removed.append(name)
             else:

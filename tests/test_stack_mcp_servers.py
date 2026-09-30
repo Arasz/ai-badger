@@ -11,6 +11,7 @@ tests/test_adjust_mcp_hermes.py.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -1186,6 +1187,58 @@ def test_pi_native_unavailable_tuned_entry_removed(tmp_path, make_scaffolder, mo
     assert any("unavailable" in note and "ghost" in note for note in scaf.notes)
 
 
+def test_pi_native_unavailable_tilde_form_entry_removed(
+        tmp_path, make_scaffolder, monkeypatch, load_script):
+    """F11(e) two-phase: the `~/` home form a run wrote while the executable existed is still
+    today's template once the executable is gone — removed with the unavailable note, never
+    kept as a hand edit. A one-template comparison renders the bare command in phase 2, sees a
+    launch difference, and leaves the dead entry behind (MUST 1)."""
+    load_script(SCAFFOLD)
+    dotnet = tmp_path / "fake-home" / ".dotnet" / "tools"
+    dotnet.mkdir(parents=True)
+    exe = dotnet / "ghost-mcp"
+    exe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    exe.chmod(0o755)
+    monkeypatch.setattr(sys.modules["mcp_tools"], "USER_TOOL_DIRS",
+                        ((dotnet, "${HOME}/.dotnet/tools"),))
+    monkeypatch.setenv("PATH", os.pathsep.join([str(dotnet), os.environ.get("PATH", "")]))
+    monkeypatch.delenv("AI_BADGER_MCP_AVAILABILITY", raising=False)
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path, [
+        {"name": "ghost", "command": "ghost-mcp serve",
+         "availability": {"command": "ghost-mcp"}},
+    ])
+
+    # phase 1: the executable is present, so the recorded launch is the portable `~/` form
+    scaf.mcp.generate_pi_mcp_json()
+    assert _pi_json(make_scaffolder.target)["mcpServers"]["ghost"]["command"] == \
+        "~/.dotnet/tools/ghost-mcp"
+
+    # phase 2: the executable is gone — the entry is dead, not hand-edited
+    exe.unlink()
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert "ghost" not in _pi_json(make_scaffolder.target)["mcpServers"]
+    assert any("unavailable" in note and "ghost" in note for note in scaf.notes)
+
+
+def test_pi_native_user_scoped_unavailable_entry_survives(
+        tmp_path, make_scaffolder, monkeypatch):
+    """A `scope: user` declaration is outside `.pi/mcp.json`'s project-scoped contract: its
+    name must never reach the pi drop pass, so a user-placed template-identical entry — one
+    this destination never wrote — survives (SHOULD 1)."""
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "")
+    scaf = _pi_scaffolder(make_scaffolder, tmp_path, [
+        {"name": "ghost", "command": "ghost-mcp serve", "scope": "user",
+         "availability": {"command": "definitely-not-a-real-executable"}},
+    ])
+    recorded = {"command": "ghost-mcp", "args": ["serve"], "exposure": "direct"}
+    _seed_pi(make_scaffolder.target, {"ghost": recorded})
+
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert _pi_json(make_scaffolder.target)["mcpServers"]["ghost"] == recorded
+
+
 _HAND_EDITED_LAUNCHES = {
     "args": {"command": "ghost-mcp", "args": ["serve", "--project", "."]},
     "env": {"command": "ghost-mcp", "args": ["serve"], "env": {"GHOST_TOKEN": "x"}},
@@ -1214,7 +1267,8 @@ def test_pi_native_unavailable_hand_edited_entry_kept_with_note(
 def test_pi_native_second_render_leaves_file_bytes_unchanged(
         tmp_path, make_scaffolder, monkeypatch):
     """F11 idempotence: a second render of one unchanged file changes no bytes and leaves no
-    backup sibling — the writer's re-serialization is accepted at entry level (MUST-risk 3)."""
+    backup sibling — the writer's re-serialization is accepted at entry level (MUST-risk 3).
+    The trust-gate note is per-run state, not per-write: it fires once across both renders."""
     monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
     scaf = _pi_scaffolder(make_scaffolder, tmp_path, [{"name": "srv", "command": "uvx srv"}])
     scaf.mcp.generate_pi_mcp_json()
@@ -1225,6 +1279,7 @@ def test_pi_native_second_render_leaves_file_bytes_unchanged(
 
     assert path.read_bytes() == first
     assert sorted(p.name for p in path.parent.iterdir()) == ["mcp.json"]
+    assert sum("trusted project" in note for note in scaf.notes) == 1
 
 
 def test_pi_native_template_drift_noted_not_applied(tmp_path, make_scaffolder, monkeypatch):
