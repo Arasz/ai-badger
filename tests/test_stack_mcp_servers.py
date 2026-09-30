@@ -639,6 +639,7 @@ def test_mcp_json_keeps_claudes_anchor_with_pi_configured(
     _no_user_tool_dirs(monkeypatch, load_script)
     target = make_scaffolder.target
     _write_mcp_servers(tmp_path / "features" / "python", _anchored_task_graph_server())
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
                   _config(stacks=["python"], agents=["claude", "pi"]))
@@ -657,6 +658,7 @@ def test_mcp_json_keeps_claudes_anchor_for_a_claude_only_project(
     _no_user_tool_dirs(monkeypatch, load_script)
     target = make_scaffolder.target
     _write_mcp_servers(tmp_path / "features" / "python", _anchored_task_graph_server())
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
                   _config(stacks=["python"], agents=["claude"]))
@@ -676,6 +678,7 @@ def test_mcp_json_pi_only_project_gets_base_launches_with_override_note(
     _no_user_tool_dirs(monkeypatch, load_script)
     target = make_scaffolder.target
     _write_mcp_servers(tmp_path / "features" / "python", _anchored_task_graph_server())
+    monkeypatch.setenv("AI_BADGER_MCP_AVAILABILITY", "all")
 
     scaf = _scaf(make_scaffolder, tmp_path, target,
                   _config(stacks=["python"], agents=["pi"]))
