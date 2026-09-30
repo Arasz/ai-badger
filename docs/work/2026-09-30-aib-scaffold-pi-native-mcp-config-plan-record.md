@@ -18,7 +18,7 @@ architect validated against).
   "task_description_ref": "docs/work/2026-09-30-aib-scaffold-pi-native-mcp-config-research.md",
   "research_ref": "docs/work/2026-09-30-aib-scaffold-pi-native-mcp-config-research.md",
   "loop": "low",
-  "task_context": "Scaffold pi-native .pi/mcp.json (write where pi 0.99.1 actually reads MCP config) with F10/F11/F11a merge semantics; stop claiming the retired pi-mcp-tools fork reads .mcp.json; harden mcp-plan-tools.md to pi's exact call form. Top-level criterion: all steps' ACs are checked and met. Evidence: docs/work/2026-09-30-aib-scaffold-pi-native-mcp-config-research.md (F1-F11a); plan provenance and the architect's rationale: docs/work/2026-09-30-aib-scaffold-pi-native-mcp-config-plan-record.md. Version 0.183.0 is assigned to this task (s4 owns the bump). Orchestrator dispatches lanes; each lane reports per-AC evidence (command + output) and pastes TDD RED output.",
+  "task_context": "Scaffold pi-native .pi/mcp.json (write where pi 0.99.1 actually reads MCP config) with F10/F11/F11a merge semantics; stop claiming the retired pi-mcp-tools fork reads .mcp.json; harden mcp-plan-tools.md to pi's exact call form. Top-level criterion: all steps' ACs are checked and met. Evidence: docs/work/2026-09-30-aib-scaffold-pi-native-mcp-config-research.md (F1-F11a); plan provenance and the architect's rationale: docs/work/2026-09-30-aib-scaffold-pi-native-mcp-config-plan-record.md. Version 0.184.0 is assigned to this task (s4 owns the bump). Orchestrator dispatches lanes; each lane reports per-AC evidence (command + output) and pastes TDD RED output.",
   "source_refs": [
     "features/common/stack-mcp.json",
     "skills/welcome-ai-badger/scripts/mcp_tools.py",
@@ -112,14 +112,14 @@ architect validated against).
     },
     {
       "id": "s4",
-      "goal": "Join: mirrors + self-scaffold, track this repo's .pi/mcp.json, release 0.183.0, run the gates on the combined tree",
-      "instructions": "This is the join step — s1, s2 and s3 each ran against their own tree; the COMBINATION is untested until here (review the join, not just the parts). On the merged tree: (1) re-run python3 tooling/sync_plugin_skills.py and the self-scaffold refresh so skills/ and .ai-badger/ mirror the features sources (pre-push scaffold-freshness-guard and plugin-skills-sync must pass); (2) materialize this repo's .pi/mcp.json from the new destination and TRACK it (H1 decision: portable content — split commands, ~/ form, project-relative args; if you find a reason to gitignore instead, stop and report, do not decide silently); (3) release ritual: set VERSION to 0.183.0 (assigned at dispatch), write docs/changelog/0.183.0-scaffold-pi-native-mcp-config.md — it must state the F10/F11/F11a merge semantics (existing .pi/mcp.json entries and their exposure/toolExposure tuning survive re-scaffold; user-added servers never dropped), the .mcp.json behavior change (claude's ${CLAUDE_PROJECT_DIR} anchor restored when pi is configured; fork-era 'dropped for pi' notes gone), and the sibling-reported motivation (a tuned consumer cut 55 of 106 declarations from every prompt; a flattening scaffold would have restored them all) — then run python3 tooling/changelog_index.py and python3 tooling/version_sync.py; no BREAKING_VERSIONS entry (architect SHOULD-7). (4) Cross-step gate runs on the merged tree, each as evidence: full pytest, validate --all, index_build --check. Report per-AC evidence with commands and outputs, plus anything the join exposed that the per-step runs could not see.",
+      "goal": "Join: mirrors + self-scaffold, track this repo's .pi/mcp.json, release 0.184.0, run the gates on the combined tree",
+      "instructions": "This is the join step — s1, s2 and s3 each ran against their own tree; the COMBINATION is untested until here (review the join, not just the parts). On the merged tree: (1) re-run python3 tooling/sync_plugin_skills.py and the self-scaffold refresh so skills/ and .ai-badger/ mirror the features sources (pre-push scaffold-freshness-guard and plugin-skills-sync must pass); (2) materialize this repo's .pi/mcp.json from the new destination and TRACK it (H1 decision: portable content — split commands, ~/ form, project-relative args; if you find a reason to gitignore instead, stop and report, do not decide silently); (3) release ritual: set VERSION to 0.184.0 (assigned at dispatch), write docs/changelog/0.184.0-scaffold-pi-native-mcp-config.md — it must state the F10/F11/F11a merge semantics (existing .pi/mcp.json entries and their exposure/toolExposure tuning survive re-scaffold; user-added servers never dropped), the .mcp.json behavior change (claude's ${CLAUDE_PROJECT_DIR} anchor restored when pi is configured; fork-era 'dropped for pi' notes gone), and the sibling-reported motivation (a tuned consumer cut 55 of 106 declarations from every prompt; a flattening scaffold would have restored them all) — then run python3 tooling/changelog_index.py and python3 tooling/version_sync.py; no BREAKING_VERSIONS entry (architect SHOULD-7). (4) Cross-step gate runs on the merged tree, each as evidence: full pytest, validate --all, index_build --check. Report per-AC evidence with commands and outputs, plus anything the join exposed that the per-step runs could not see.",
       "effort": "low",
       "persona": "api-engineer",
       "depends_on": ["s1", "s2", "s3"],
       "files": [
         "VERSION",
-        "docs/changelog/0.183.0-scaffold-pi-native-mcp-config.md",
+        "docs/changelog/0.184.0-scaffold-pi-native-mcp-config.md",
         "docs/changelog/README.md",
         ".pi/mcp.json",
         "skills/",
@@ -135,8 +135,8 @@ architect validated against).
         },
         {
           "id": "ac2",
-          "statement": "Release artifacts are consistent at 0.183.0 with the changelog present",
-          "check": "test \"$(cat VERSION)\" = \"0.183.0\" && test -f docs/changelog/0.183.0-scaffold-pi-native-mcp-config.md && python3 tooling/version_sync.py --check"
+          "statement": "Release artifacts are consistent at 0.184.0 with the changelog present",
+          "check": "test \"$(cat VERSION)\" = \"0.184.0\" && test -f docs/changelog/0.184.0-scaffold-pi-native-mcp-config.md && python3 tooling/version_sync.py --check"
         },
         {
           "id": "ac3",
@@ -221,7 +221,7 @@ architect validated against).
 > 6. **SHOULD — default `exposure: direct` for new entries** declares every tool on first
 >    render; F11a fixture (b) pins it and F10 tuning happens in the file afterwards (which the
 >    merge then protects). Changing the default contradicts the record.
-> 7. **SHOULD — release classification.** Minor bump 0.183.0, no `BREAKING_VERSIONS` entry:
+> 7. **SHOULD — release classification.** Minor bump 0.184.0, no `BREAKING_VERSIONS` entry:
 >    existing consumers keep working, the fix reaches them on the next `den-refresh`. If the
 >    reviewer rules the `.mcp.json` content change a required re-scan, the bump/
 >    `BREAKING_VERSIONS` decision changes.
@@ -328,6 +328,22 @@ checks run as supersets, and this note is the provenance bridge between the two.
 `test_docs_tree_is_canonical[work]` flagged the undated taskId names — the map convention
 binds). The recorded plan's `task_description_ref`/`research_ref` and earlier dispatch briefs
 cite the pre-rename paths; the content is this directory's and this note is the bridge.
+
+**Version renumber (0.183.0 → 0.184.0) and cross-task coordination (bus #1610, 2026-09-30).**
+The sibling task `aib-adjust-mcp-native-capability-gate` (project 50a8bb05) is cutting 0.183.0
+first (their release is in flight); this task's release renumbers to **0.184.0** — the operative
+spec and every forward reference updated here (historical quotes amended in place, this note is
+the audit trail). If PR #545 merges before theirs, their s6 join gate renumbers instead (their
+offered rule). Other coordination items recorded as join obligations:
+- **Extend-don't-drop honesty pins:** their `support.json` pins now include `'parseable JSON
+  object'` — at rebase/merge the second PR keeps the first's native wording and extends the
+  pins (honesty pins win). Join + implementation review verify this.
+- **Merge-path ownership:** this task owns `mcp_tools.py`'s merge path
+  (`_merge_mcp_servers_json`, `_carry_live_cwd`, the pi-destination merge); their s4 is
+  comment-only above it.
+- **Shared-store contamination:** session hook-error writes landed in a shared store during
+  their pytest lane; reciprocal heads-up agreed — this session announces its one full-suite
+  burst (the join's) ~5 minutes ahead on the bus.
 
 - Sibling review of the record (bus #1601, folded as commits): **MUST** — base declarations
   are shell strings; the pi render must split `command`+`args` (`split_on_whitespace`), emit

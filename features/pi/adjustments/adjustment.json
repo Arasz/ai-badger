@@ -8,7 +8,7 @@
     },
     {
       "feature": "mcp",
-      "description": "Migration-only: remove this project's shape-matched entries from ~/.pi/agent/settings.json's 'mcp' key (gated on the installed pi-mcp-tools fork's project-scope capability marker); --no-install prints the removal proposal",
+      "description": "Migration-only: remove this project's shape-matched entries from ~/.pi/agent/settings.json's mcp key (gated on the project's native .pi/mcp.json); --no-install prints the removal proposal",
       "script": "adjust_mcp.py"
     },
     {
