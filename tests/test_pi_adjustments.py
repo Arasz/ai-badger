@@ -815,6 +815,57 @@ def test_adjust_mcp_removal_gate_is_conservative_when_target_missing(pi_settings
     assert pi_settings_modules.settings_path.read_bytes() == settings_before
 
 
+def test_adjust_mcp_removal_gate_closes_on_malformed_native_config(pi_settings_modules):
+    """A .pi/mcp.json that does not parse counts as absent: warn-and-leave (s5 F1).
+
+    The parse half of the gate needs its own pin — existence alone would let a truncated
+    or hand-broken file open removal while native pi could not resolve servers from it.
+    The shape-matched seed keeps the no-write assertion non-vacuous.
+    """
+    pi_settings_modules.native_mcp.write_text("{not json", encoding="utf-8")
+    _seed_settings(
+        pi_settings_modules.settings_path,
+        mcp={"filesystem": pi_settings_modules.mcp._server_entry(
+            "filesystem", {"command": "npx -y server"})},
+    )
+    settings_before = pi_settings_modules.settings_path.read_bytes()
+
+    result = pi_settings_modules.mcp.adjust({
+        "config": {"agents": ["pi"]},
+        "target": pi_settings_modules.project_dir,
+        "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+        "mcp_declined": [],
+        "install": True,
+    })
+
+    assert result["applied"] is False
+    assert ".pi/mcp.json" in result["notes"]
+    assert pi_settings_modules.settings_path.read_bytes() == settings_before
+
+
+def test_adjust_mcp_removal_gate_closes_on_non_object_native_config(pi_settings_modules):
+    """A .pi/mcp.json parsing to a non-object ([]) counts as absent: warn-and-leave (s5 F1)."""
+    pi_settings_modules.native_mcp.write_text("[]", encoding="utf-8")
+    _seed_settings(
+        pi_settings_modules.settings_path,
+        mcp={"filesystem": pi_settings_modules.mcp._server_entry(
+            "filesystem", {"command": "npx -y server"})},
+    )
+    settings_before = pi_settings_modules.settings_path.read_bytes()
+
+    result = pi_settings_modules.mcp.adjust({
+        "config": {"agents": ["pi"]},
+        "target": pi_settings_modules.project_dir,
+        "mcp_declarations": {"filesystem": {"command": "npx -y server"}},
+        "mcp_declined": [],
+        "install": True,
+    })
+
+    assert result["applied"] is False
+    assert ".pi/mcp.json" in result["notes"]
+    assert pi_settings_modules.settings_path.read_bytes() == settings_before
+
+
 def test_adjust_mcp_removal_gate_is_project_config_only(pi_settings_modules):
     """The adapter's marker is irrelevant to mcp removal: the gate is the native project config."""
     pi_settings_modules.adapter_marker.unlink()

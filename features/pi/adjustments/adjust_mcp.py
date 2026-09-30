@@ -27,6 +27,9 @@ Residual worlds this file does not resolve:
     proceeds. Cleaning up that reader belongs to the consumer's extension cleanup and is NOT
     performed by this file.
   * An existing but malformed .pi/mcp.json counts as absent, so the gate stays closed.
+  * An existing but empty object ({}) opens the gate while declaring no servers: presence
+    plus parseable shape IS the capability check — what servers to migrate comes from this
+    project's own declarations, not from the file.
 """
 from __future__ import annotations
 

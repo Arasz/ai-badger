@@ -27,13 +27,19 @@ MCP_REQUIRED_SUBSTRINGS = [
     "http",
     "sse",
     "not read by pi",
+    # Newly added with the native gate (absent pre-change — non-vacuous): pins the gate
+    # clause itself, the claim deleting which left this suite green (s5 F2).
+    "parseable JSON object",
+    # Retained regression pins (pre-change, not evidence of new-claim coverage):
+    # local stdio, http, sse, shape-matched.
     "shape-matched",
 ]
 
 # Full-phrase lies (plan-review R7): a literal substring anywhere in the pi row is a
 # documentation lie — there is no true sentence containing them.
 ROW_WIDE_LYING_PHRASES = [
-    # The scaffold no longer merges anything into settings.json — it removes, marker-gated.
+    # The scaffold no longer merges anything into settings.json — it removes; mcp removal
+    # is native-config-gated (.pi/mcp.json), skills removal adapter-marker-gated.
     "the scaffold merges into settings.json",
     # D5 mapped remote http/sse; the equality claim is no longer qualified away.
     "same servers as Claude Code",
