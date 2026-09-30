@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.182.1",
-  "frameworkCommit": "9650d80e1ec7566d2b6680dd106882a462d3623e",
+  "frameworkCommit": "a8892bdaa53b7c3ad9e04037b66fc2ab6a2b112c",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -33,6 +33,11 @@
     {
       "path": ".mcp.json",
       "destination": ".mcp.json",
+      "frameworkVersion": "0.182.1"
+    },
+    {
+      "path": ".pi/mcp.json",
+      "destination": ".pi/mcp.json",
       "frameworkVersion": "0.182.1"
     }
   ],
@@ -1507,12 +1512,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.182.1",
-      "hash": "d41537f079b44d587f5c0994b071ea01f1a9e5cfcdd79c3b1377ea30a4cedae0",
+      "hash": "9a0a6567f6a2c3bbfe149b7d165caae6c7fc6a3117d39d888b97e1951a6e93b1",
       "dirMeta": {
         "file_count": 26,
         "dir_count": 2
       },
-      "sourceHash": "d41537f079b44d587f5c0994b071ea01f1a9e5cfcdd79c3b1377ea30a4cedae0",
+      "sourceHash": "9a0a6567f6a2c3bbfe149b7d165caae6c7fc6a3117d39d888b97e1951a6e93b1",
       "sourceMeta": {
         "file_count": 26,
         "dir_count": 2
