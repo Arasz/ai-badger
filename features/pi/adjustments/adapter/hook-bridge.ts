@@ -646,6 +646,25 @@ export function parsePostStdout(stdout: string): { additionalContext?: string; s
 }
 
 /**
+ * The label a hook failure is reported under: the script the command runs, never the
+ * command itself. A scaffolded command is Claude's guarded `if/elif/else` shape quoting
+ * `${CLAUDE_PROJECT_DIR}`, and every failure reason quotes its label verbatim — so a
+ * raw-command label ships `${CLAUDE_PROJECT_DIR}` into pi's notices where it reads as an
+ * unexpanded-variable leak. It is not one: the spawn env carries the variable (index.ts
+ * `runHook`) and each script resolves it from the environment; the spawn that produced the
+ * failure never even started when the signal was already aborted. What the notice owes the
+ * operator is which hook failed, so the script identity is the label, and a command with no
+ * recognizable script keeps its text minus the anchor.
+ */
+export function hookLabel(command: string): string {
+  const skill = command.match(/(\.ai-badger\/skills\/[\w./-]+\.py)/);
+  if (skill) return skill[1];
+  const vendored = command.match(/(features\/[\w./-]+\/scripts\/[\w./-]+\.py)/);
+  if (vendored) return vendored[1];
+  return command.replace(/\$\{?CLAUDE_PROJECT_DIR\}?\/?/g, "");
+}
+
+/**
  * The single action a tool call takes from every gate's outcome.
  * Deny wins; only an explicit "ask" is ever auto-approved by away mode.
  */

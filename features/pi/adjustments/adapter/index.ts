@@ -23,6 +23,7 @@ import {
   commandsForTool,
   createAwayState,
   createDeliveryRouter,
+  hookLabel,
   parseDeliveryStdout,
   parseHookStdout,
   parsePostStdout,
@@ -223,19 +224,20 @@ export async function runGate(
   payload: unknown,
   opts: { cwd?: string; signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<GateOutcome> {
+  const label = hookLabel(command);
   const run = await runHook("/bin/sh", ["-c", command], payload, {
     cwd: opts.cwd ?? process.cwd(),
     signal: opts.signal,
     timeoutMs: opts.timeoutMs ?? GATE_TIMEOUT_MS,
-    label: command,
+    label,
   });
   if (run.kind === "failed") return { kind: "error", reason: run.reason };
-  if (run.code !== 0) return { kind: "error", reason: exitReason(command, run) };
+  if (run.code !== 0) return { kind: "error", reason: exitReason(label, run) };
   const decision = parseHookStdout(run.stdout);
   if (decision === null) {
     return {
       kind: "error",
-      reason: `${command} printed output that is not a hook decision: ${run.stdout.trim().slice(0, 200)}`,
+      reason: `${label} printed output that is not a hook decision: ${run.stdout.trim().slice(0, 200)}`,
     };
   }
   return { kind: "decision", ...decision };
@@ -275,13 +277,14 @@ async function runPostHook(
   payload: unknown,
   opts: { cwd: string; signal?: AbortSignal },
 ): Promise<PostOutcome> {
+  const label = hookLabel(command);
   const run = await runHook("/bin/sh", ["-c", command], payload, {
     ...opts,
     timeoutMs: GATE_TIMEOUT_MS,
-    label: command,
+    label,
   });
   if (run.kind === "failed") return { kind: "error", reason: run.reason };
-  if (run.code !== 0) return { kind: "error", reason: exitReason(command, run) };
+  if (run.code !== 0) return { kind: "error", reason: exitReason(label, run) };
   return { kind: "ok", ...parsePostStdout(run.stdout) };
 }
 

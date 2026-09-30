@@ -751,3 +751,34 @@ describe("matchers follow Claude's documented semantics, judged by the shared Py
     expect(at("web-fetch", "web-fetcher")).toBe(false);
   });
 });
+
+describe("a hook failure is labeled by its script, never its command", () => {
+  const SCRIPT = ".ai-badger/skills/test-economy/scripts/suite_economy_hook.py";
+  const guarded =
+    `if [ -f "\${CLAUDE_PROJECT_DIR}/.ai-badger/skills/test-economy/scripts/suite_economy_hook.py" ]; ` +
+    `then python3 "\${CLAUDE_PROJECT_DIR}/.ai-badger/skills/test-economy/scripts/suite_economy_hook.py"; ` +
+    `elif [ -f ".ai-badger/skills/test-economy/scripts/suite_economy_hook.py" ]; ` +
+    `then python3 ".ai-badger/skills/test-economy/scripts/suite_economy_hook.py"; ` +
+    `else echo '{"systemMessage": "ai-badger: .ai-badger/skills/test-economy/scripts/suite_economy_hook.py not found - hook skipped"}'; fi`;
+
+  test("the scaffolded guarded command reports its skill script, not the command", () => {
+    const label = bridge.hookLabel(guarded);
+    expect(label).toBe(SCRIPT);
+    expect(label).not.toContain("CLAUDE_PROJECT_DIR");
+    expect(label).not.toContain("if [ -f");
+  });
+
+  test("a vendored framework path reports its script", () => {
+    expect(
+      bridge.hookLabel(
+        `python3 "features/common/skills/prompt-markers/scripts/grounded_feedback_hook.py"`,
+      ),
+    ).toBe("features/common/skills/prompt-markers/scripts/grounded_feedback_hook.py");
+  });
+
+  test("a command with no recognizable script keeps its text minus the anchor", () => {
+    const label = bridge.hookLabel(`python3 "\${CLAUDE_PROJECT_DIR}/tools/custom.py"`);
+    expect(label).toBe(`python3 "tools/custom.py"`);
+    expect(label).not.toContain("CLAUDE_PROJECT_DIR");
+  });
+});
