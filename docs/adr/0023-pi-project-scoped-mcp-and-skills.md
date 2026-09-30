@@ -1,7 +1,9 @@
 # ADR-0023 — pi MCP and skills discovery is project-scoped runtime reading, not scaffold-written global state
 
 **Date:** 2026-08-30
-**Status:** Accepted (2026-08-30, task aib-pi-stack-mcp-skills-parity; owner gate 5/5 APPROVE)
+**Status:** Accepted (2026-08-30, task aib-pi-stack-mcp-skills-parity; owner gate 5/5 APPROVE).
+Amended 2026-09-30 (decision 3, MCP gate only): `adjust_mcp.py` keys removal on the project's
+native `.pi/mcp.json` — see the Amendment section below.
 **Author:** Rafał Araszkiewicz (Arasz), with the MoE planning panel (architect, test-engineer, code-reviewer), the plan-review panel (api-engineer, qa, hermes-agent-author) and the implementation lanes
 **Extends:** ADR-0022 (pi arms hooks dynamically), ADR-0015 (mechanisms, not prose)
 **Scope:** `pi-mcp-tools-fork/src/` (ConfigLoader, claudeMcpConfig, index, McpToolAdapter),
@@ -131,3 +133,16 @@ cutover checklist in the task's verification notes (ship-order proof, migration 
 minimal-project headless arming, fragile-case flip both directions, cross-project
 isolation + remote, skills two-sided probe, `/new` lifecycle, idempotence, marker-gate
 live proof, honesty readback).
+
+## Amendment — 2026-09-30: `adjust_mcp`'s removal gate keys on the project's native `.pi/mcp.json`
+
+Decision 3's MCP half — removal gated on the installed extension's
+`.ai-badger-capability-project-scope-mcp` marker — is superseded as of ai-badger 0.183.0.
+`adjust_mcp.py` now opens the removal gate only when the project itself carries a native
+`.pi/mcp.json` that exists and parses to a JSON object; a project with native MCP
+configuration is the one that no longer depends on the legacy global `mcp` key, so that file
+— not the installed reader's version — is the correct gate. The adapter's skills capability
+marker (`.ai-badger-capability-resources-discover`, decision 3's other half) is unchanged.
+Implemented in task `aib-adjust-mcp-native-capability-gate` (branch
+`task/aib-adjust-mcp-native-capability-gate`); the historical decision text above is
+preserved.

@@ -271,9 +271,9 @@
         },
         "mcpServers": {
           "supported": true,
-          "mechanism": "pi-mcp-tools fork reads the project's .mcp.json at session_start (claude→fork conversion; ${HOME} expanded in command/cwd); armed servers are gated by pi project trust — scaffolded projects without pi-trust-requiring resources arm in all modes including headless (pi's !hasTrustRequiringResources short-circuit); local stdio and remote http/sse (mapped to type remote); the global settings.json 'mcp' key is user-owned fallback, no longer scaffold-written — on re-scaffold this project's shape-matched entries are removed from it",
+          "mechanism": "pi ships MCP as a built-in extension (0.99.1+); config in ~/.pi/agent/mcp.json (global) and .pi/mcp.json (project; read only for trusted projects; project entries override global by name); tools named mcp__<server>__<tool>; local stdio and remote http/sse; the settings.json 'mcp' key is not read by pi — it is the retired extension's legacy state, and on re-scaffold this project's shape-matched entries are removed from it, gated on the project's .pi/mcp.json existing as a parseable JSON object",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "pi/adjustments/adjust_mcp.py — migration-only: removes this project's shape-matched entries from ~/.pi/agent/settings.json's 'mcp' key (gated on the installed fork's project-scope capability marker) or prints the removal proposal (--no-install)"
+          "scaffoldedBy": "pi/adjustments/adjust_mcp.py — migration-only: removes this project's shape-matched entries from ~/.pi/agent/settings.json's mcp key (gated on the project's native .pi/mcp.json) or prints the removal proposal (--no-install)"
         },
         "cacheAwareDispatch": {
           "supported": false,
