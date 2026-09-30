@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.182.1",
-  "frameworkCommit": "a8892bdaa53b7c3ad9e04037b66fc2ab6a2b112c",
+  "frameworkCommit": "40fec30cc1ed185bbcc4f0f20b59d8b6f0e138fb",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -169,8 +169,8 @@
       "source": "features/pi/instructions/pi.instructions.md",
       "target": ".ai-badger/instructions/pi.instructions.md",
       "frameworkVersion": "0.182.1",
-      "hash": "e8fe07bb2c43a78f5ea15939782b9cf88ccdf1b3ae3648657d673971759e5a8b",
-      "outputHash": "e8fe07bb2c43a78f5ea15939782b9cf88ccdf1b3ae3648657d673971759e5a8b"
+      "hash": "6b69c7a88dce5d1e3262af827658eb29867a3045358fc14f8f4d8c81d2989f86",
+      "outputHash": "6b69c7a88dce5d1e3262af827658eb29867a3045358fc14f8f4d8c81d2989f86"
     },
     {
       "feature": "instructions",

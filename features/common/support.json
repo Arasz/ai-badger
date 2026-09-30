@@ -1,7 +1,7 @@
 {
   "$schema": "../../schemas/support.schema.json",
   "description": "Agent capability matrix: what each agent supports and what ai-badger scaffolds for it.",
-  "lastUpdated": "2026-08-29",
+  "lastUpdated": "2026-09-30",
   "agents": {
     "claude": {
       "name": "Claude Code",
@@ -271,9 +271,9 @@
         },
         "mcpServers": {
           "supported": true,
-          "mechanism": "pi-mcp-tools fork reads the project's .mcp.json at session_start (claude→fork conversion; ${HOME} expanded in command/cwd); armed servers are gated by pi project trust — scaffolded projects without pi-trust-requiring resources arm in all modes including headless (pi's !hasTrustRequiringResources short-circuit); local stdio and remote http/sse (mapped to type remote); the global settings.json 'mcp' key is user-owned fallback, no longer scaffold-written — on re-scaffold this project's shape-matched entries are removed from it",
+          "mechanism": "pi ships MCP support built in; config lives in ~/.pi/agent/mcp.json (global) and .pi/mcp.json (project, read only in a trusted project — a headless run with defaultProjectTrust ask|never skips it); the settings.json 'mcp' key is not read, and .mcp.json — Claude Code's and the Copilot CLI's project config — is not read either. This scaffold's pi destination writes .pi/mcp.json with union-merge semantics: new entries are templated with \"exposure\": \"direct\" (one executable plus args, ~ home form), an existing entry survives re-scaffold byte-identical with its exposure/toolExposure tuning, and entries the scaffold does not recognize (user-added servers) are never dropped. Tools are named mcp__<server>__<tool>; a server's exposure is codemode (default), codemode-deferred, deferred (loaded through tool_search), direct, or hidden, with per-tool toolExposure overrides",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "pi/adjustments/adjust_mcp.py — migration-only: removes this project's shape-matched entries from ~/.pi/agent/settings.json's 'mcp' key (gated on the installed fork's project-scope capability marker) or prints the removal proposal (--no-install)"
+          "scaffoldedBy": "scaffold.py's pi destination (mcp_tools.py generate_pi_mcp_json) — writes .pi/mcp.json: new entries templated with \"exposure\": \"direct\", existing entries and their exposure/toolExposure tuning preserved byte-identical, user-added servers never dropped; pi/adjustments/adjust_mcp.py — migration-only cleanup of the retired pi-mcp-tools fork's user-global state: removes this project's shape-matched entries from ~/.pi/agent/settings.json's 'mcp' key (gated on the installed fork's project-scope capability marker) or prints the removal proposal (--no-install); never writes user-global config (ADR-0014 decision 6)"
         },
         "cacheAwareDispatch": {
           "supported": false,
