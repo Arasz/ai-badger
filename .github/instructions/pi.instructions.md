@@ -8,7 +8,7 @@ applyTo: '**/AGENTS.override.md,**/CLAUDE.md,.pi/**'
 
 # pi coding agent
 
-Measured against pi 0.84.3. Re-measure before trusting any line here after a pi upgrade.
+Measured against pi 0.99.1 for the MCP bullet and pi 0.84.3 elsewhere. Re-measure before trusting any line here after a pi upgrade.
 
 - ai-badger installs pi extensions user-scope, at `~/.pi/agent/extensions/<name>/index.ts`.
   `index.ts` is the filename pi discovers for a subdirectory extension — it is mandatory, not a
@@ -30,9 +30,17 @@ Measured against pi 0.84.3. Re-measure before trusting any line here after a pi 
   `.agents/skills/` (trust-gated), a settings `skills` array, and `--skill <path>`. It does **not**
   read `~/.claude/skills/` on its own — that directory only loads when it is listed in the settings
   `skills` array, which is how ai-badger delivers `.ai-badger/skills/`.
-- MCP: pi core has no MCP support and no consumer for the `mcp` settings key (it appears nowhere in
-  pi's docs or dist). That key is read solely by the `pi-mcp-tools` extension, which must be
-  installed for any MCP configuration to have an effect.
+- MCP: pi ships MCP support as a built-in extension. Config lives in `~/.pi/agent/mcp.json`
+  (global) and `.pi/mcp.json` (project; read only for trusted projects; project entries override
+  global entries by name) — not the settings `mcp` key, which pi does not read. Tools are named
+  `mcp__<server>__<tool>`. A server's `exposure` is `codemode` (default), `codemode-deferred`,
+  `deferred` (loaded through `tool_search`), `direct`, or `hidden`, with per-tool `toolExposure`
+  overrides. `/mcp` manages servers (sign in, tools, reconnect, exposure, enable/disable), and
+  `pi mcp add|remove|list|login|logout` does the same from a shell. HTTP servers without an
+  `Authorization` header sign in with OAuth. Resource tools (`list_mcp_resources`,
+  `list_mcp_resource_templates`, `read_mcp_resource`) expose server resources, and server log
+  messages append to `~/.pi/agent/mcp.log`. Extensions add session-only servers with
+  `pi.registerMcpServer(name, config)`.
 - Cron: pi's bin is `#!/usr/bin/env node`, so there is no `Bun` global at runtime and `Bun.cron()`
   cannot fire from inside an extension today. ai-badger's cron extension uses `Bun.cron` only when
   the process really is bun, and self-managed launchd agents otherwise. `noAgent` defaults to true —
