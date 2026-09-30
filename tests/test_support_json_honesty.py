@@ -1,4 +1,4 @@
-"""R7 honesty pins for the pi row of features/common/support.json.
+"""R7/0.183.0 honesty pins for the pi row of features/common/support.json.
 
 The capability matrix is documentation users act on, so it is pinned the way code is: the
 row is selected by JSON path (``agents.pi`` — never by line number), the load-bearing claims
@@ -6,29 +6,61 @@ are pinned as positive substrings (each one carries the gate — remove the clai
 test), and the phrases the plan review caught lying are pinned as full-phrase
 must-not-contain, scoped to where they would actually lie.
 
-The claims pinned here are the plan's §3 row content (rev 3): the fork reads the project
-.mcp.json at session_start with ${HOME} expansion, the trust gate with its measured
-short-circuit (scaffolded projects arm in all modes), local stdio + remote http/sse mapping,
-the global 'mcp' key demoted to user-owned fallback no longer scaffold-written, and the
-adapter's ungated resources_discover skills contribution.
+0.183.0 retires the pi-mcp-tools fork claims. The truth the pins carry (research record F1,
+F4, F10/F11): pi 0.99.1 reads MCP config natively from ``~/.pi/agent/mcp.json`` (global) and
+``.pi/mcp.json`` (project, read only in a trusted project), this scaffold writes the project
+file with union-merge semantics (existing entries survive byte-identical with their
+exposure/toolExposure tuning, new entries are templated with ``"exposure": "direct"``,
+user-added servers are never dropped), ``.mcp.json`` belongs to Claude Code and the Copilot
+CLI, and tools are named ``mcp__<server>__<tool>`` under the
+codemode/deferred/direct/hidden exposure model.
+
+The fork claim is pinned as an any-wording must-not: a sentence that names ``pi-mcp-tools``
+together with a capability verb is a claim, while a retirement mention — the fork named in a
+removal/proposal context with no capability verb — is honest and passes.
 """
 from __future__ import annotations
 
 import json
+import re
 
 MCP_REQUIRED_SUBSTRINGS = [
-    ".mcp.json",
-    "session_start",
-    "${HOME} expanded",
-    "gated by pi project trust",
-    "pi-trust-requiring resources",
-    "arm in all modes",
-    "local stdio",
-    "http",
-    "sse",
-    "user-owned fallback",
-    "no longer scaffold-written",
+    "~/.pi/agent/mcp.json",
+    ".pi/mcp.json",
+    "trusted project",
+    "defaultProjectTrust",
+    "ask|never",
+    "mcp__<server>__<tool>",
+    "codemode",
+    "codemode-deferred",
+    "deferred",
+    "direct",
+    "hidden",
+    "toolExposure",
+    "union",
+    "byte-identical",
+    "user-added",
+    "never dropped",
+    "not read",
 ]
+
+# A sentence that names pi-mcp-tools may retire it; it may not claim what it does. These are
+# the capability verbs the retired claim used ("the fork reads .mcp.json at session_start",
+# "claude→fork conversion", "${HOME} expanded", "armed servers") plus their inflections, so
+# a reworded reintroduction fails while the retirement mention the row is allowed to carry
+# ("... the retired pi-mcp-tools fork's user-global state: removes ...") does not.
+FORK_CLAIM_VERBS = (
+    "read", "reads", "reading",
+    "expand", "expands", "expanded", "expanding",
+    "convert", "converts", "converted", "converting", "conversion",
+    "map", "maps", "mapped", "mapping",
+    "arm", "arms", "armed", "arming",
+    "serve", "serves", "served", "serving",
+    "support", "supports", "supported",
+    "provide", "provides", "provided",
+    "inject", "injects", "injected",
+    "translate", "translates", "translated",
+)
 
 # Full-phrase lies (plan-review R7): a literal substring anywhere in the pi row is a
 # documentation lie — there is no true sentence containing them.
@@ -41,6 +73,15 @@ ROW_WIDE_LYING_PHRASES = [
     "headless-safe",
 ]
 
+# The MCP bullet's own claims — pi.instructions.md is what a pi session reads.
+INSTRUCTIONS_MCP_REQUIRED_SUBSTRINGS = [
+    ".pi/mcp.json",
+    "ai-badger",
+    "exposure",
+    "toolExposure",
+    "re-scaffold",
+]
+
 
 def _load_support(root) -> dict:
     return json.loads(
@@ -49,8 +90,7 @@ def _load_support(root) -> dict:
 
 def _pi_row(root) -> dict:
     """The pi row, selected by JSON path — the pin's scope, not a line number."""
-    support = _load_support(root)
-    return support["agents"]["pi"]
+    return _load_support(root)["agents"]["pi"]
 
 
 def _row_text(value) -> str:
@@ -58,8 +98,38 @@ def _row_text(value) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def _strings(value):
+    """Every string in the subtree, one at a time — for sentence-scoped checks."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _strings(item)
+
+
+def _sentences(text: str):
+    """Split *text* on sentence-ish boundaries; a claim sentence is judged whole."""
+    return [part for part in re.split(r"(?<=[.;])\s+", text) if part.strip()]
+
+
+def _mcp_bullet(root) -> str:
+    """The MCP bullet of pi.instructions.md, the next top-level bullet apart."""
+    lines = (root / "features" / "pi" / "instructions" / "pi.instructions.md").read_text(
+        encoding="utf-8").splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith("- MCP:"))
+    out = [lines[start]]
+    for line in lines[start + 1:]:
+        if line.startswith("- "):
+            break
+        out.append(line)
+    return "\n".join(out)
+
+
 def test_pi_mcp_row_carries_the_project_scope_claims(root):
-    """mcpServers' mechanism must state the project-scope contract as measured (plan §3)."""
+    """mcpServers' mechanism must state pi's native contract as measured (F1/F4/F10)."""
     row = _pi_row(root)["capabilities"]["mcpServers"]
     mechanism = row["mechanism"]
 
@@ -70,9 +140,31 @@ def test_pi_mcp_row_carries_the_project_scope_claims(root):
     )
 
 
+def test_pi_mcp_row_makes_no_fork_capability_claim(root):
+    """A fork-era capability claim must not survive in any wording (F2, 0.183.0).
+
+    The retired row said "the pi-mcp-tools fork reads the project's .mcp.json at
+    session_start (claude→fork conversion; ${HOME} expanded ...); armed servers are gated".
+    The gate is the name plus a capability verb, not the literal "fork reads", so a reworded
+    reclaim fails. A retirement mention with no capability verb is honest and passes.
+    """
+    offenders = []
+    for text in _strings(_pi_row(root)):
+        for sentence in _sentences(text):
+            if "pi-mcp-tools" not in sentence.lower():
+                continue
+            hits = [verb for verb in FORK_CLAIM_VERBS
+                    if re.search(rf"\b{re.escape(verb)}\b", sentence, re.IGNORECASE)]
+            if hits:
+                offenders.append((sentence.strip(), hits))
+    assert not offenders, (
+        "the agents.pi row still claims what the retired pi-mcp-tools fork does "
+        f"(name plus capability verb): {offenders!r}"
+    )
+
+
 def test_pi_mcp_row_is_full_support_after_remote_mapping(root):
-    """D5 mapped claude http/sse to the fork's remote transport — the stdio-only 'partial'
-    asterisk is gone, so the row no longer understates the capability either."""
+    """Native pi speaks stdio and remote transports both — no 'partial' asterisk remains."""
     row = _pi_row(root)["capabilities"]["mcpServers"]
     assert row["supported"] is True, row["supported"]
 
@@ -103,3 +195,19 @@ def test_pi_row_contains_no_lying_phrases(root):
         assert phrase not in text, (
             f"lying phrase {phrase!r} found in the agents.pi row of support.json"
         )
+
+
+def test_pi_instructions_mcp_bullet_names_the_scaffold_write(root):
+    """The MCP bullet must name ai-badger's .pi/mcp.json write and its preservation semantics.
+
+    support.json is not the only pi MCP documentation the framework ships: the instructions
+    bullet is what a pi session reads. It described pi's native contract but never named
+    ai-badger's own write, so nothing in the loaded instructions explained the scaffolded
+    file or why hand-tuned exposure survives a refresh.
+    """
+    bullet = _mcp_bullet(root)
+    missing = [s for s in INSTRUCTIONS_MCP_REQUIRED_SUBSTRINGS if s not in bullet]
+    assert not missing, (
+        f"pi instructions' MCP bullet is missing the scaffold-write claims {missing}; "
+        f"got: {bullet!r}"
+    )
