@@ -102,6 +102,25 @@ re-scaffolds for exactly this reason. Source: bus message #1593 (pi-badger-integ
 values `codemode | codemode-deferred | deferred | direct | hidden` and per-tool `toolExposure`
 with `*` patterns, and that `/mcp` exposure changes persist to `mcp.json`.
 
+### F11 — merge semantics, sharpened: existing entries are immutable; merge is a union [REQUIREMENT, sibling-verified]
+Two precision points that sharpen F10 while the design is cheap to change (bus #1595,
+2026-09-30):
+1. **Whole-entry preservation** — for entries already present in `.pi/mcp.json`, preserve the
+   **entire entry** byte-identical (command/args/env/cwd included), not just
+   exposure/toolExposure/enabled. The `${HOME}`-vs-`~` migration bug lives exactly in a
+   template rewrite of a validated live entry. Template shape governs **new** entries only.
+   Acceptance fixture extends to: "an existing entry survives re-scaffold byte-identical, full
+   stop."
+2. **Union, never eat** — entries the scaffold does not recognize (user-added personal
+   servers) are kept untouched and never dropped. Explicit removals stay explicit:
+   `config.mcp.decline` (#186) still removes its named servers, and the shape-matched
+   unavailable-removal keeps its shape gate — both are removals of *scaffold-declared* servers,
+   note-emitting, not template rewrites. [HYPOTHESIS: keep the shape-matched
+   `_drop_unavailable` removal for this destination too — plan to confirm.]
+Scope note: these semantics apply to the **pi destination only**; `.mcp.json` /
+`.github/mcp.json` keep their established update-on-refresh behavior (#186/#193-entangled,
+Claude Code's `${VAR}` expansion), which is out of scope.
+
 ## Hypotheses (not yet verified)
 
 - **H1** — the next self-scaffold/release will materialize `.pi/mcp.json` in this repo and in
@@ -117,8 +136,8 @@ with `*` patterns, and that `/mcp` exposure changes persist to `mcp.json`.
 ## Scope in / out
 
 **In:** pi destination in `mcp_tools.py` (+ call site, tests red-first, schema if needed) with
-F10 merge semantics — per-entry `exposure`/`toolExposure` (and `enabled`, if the plan agrees)
-preserved on re-scaffold; honest pi mechanism strings (`features/common/support.json`, pi
+F10+F11 merge semantics — existing entries immutable, union merge, template shape for new
+entries only; honest pi mechanism strings (`features/common/support.json`, pi
 instructions pointer); `mcp-plan-tools.md` pi call form (features source + mirror sync);
 version/changelog for the release; gates.
 
