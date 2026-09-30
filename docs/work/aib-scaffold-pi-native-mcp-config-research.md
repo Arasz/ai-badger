@@ -43,9 +43,12 @@ Sources: `skills/welcome-ai-badger/scripts/mcp_tools.py:1-160,491-770`;
    and stays literal; `${NAME}` and `!command` resolve in `env`/`headers` values only.
    [MEASURED — memory 374749 fact 2; corroborated pi docs mcp.md: "A leading `~/` in `command`,
    an argument, or `cwd` names the home directory"]
-2. No fork `tools` filter arrays — native `toolExposure` only overrides a tool's exposure, it
-   does not filter. A `tools` allowlist must be dropped at the pi destination.
-   [MEASURED — memory 374749 F6-parity note]
+2. No 1:1 fork `tools` filter-array syntax. `toolExposure` overrides exposure per tool, and a
+   subset allowlist IS expressible as `"exposure": "hidden"` + a `toolExposure` listing (pi
+   docs: "With `hidden` as the server's exposure, only the listed tools are reachable"). For
+   today's `"tools": ["*"]` render, dropping the key is exactly right — but the pi destination
+   must not claim subsets are inexpressible. [MEASURED — memory 374749 F6-parity note;
+   corrected against pi docs hidden-server rule, bus #1601 review]
 3. Exposure: `codemode` (default) leaves tools **undeclared to the model** —
    `"exposure": "direct"` is required for direct `mcp__<server>__<tool>` calls.
    [READ — pi docs/mcp.md Exposure section].
@@ -57,12 +60,15 @@ codemode default even a correctly formed `mcp__task-graph__step_start` 404s on a
 Sources: this task's incident diagnosis (session transcript), corroborated by the
 pi-badger-integration sibling (bus messages #1590/#1591, 2026-09-30).
 
-### F6 — a verified reference shape already exists [MEASURED]
+### F6 — a verified reference shape already exists [MEASURED, time-scoped]
 pi-badger-integration's hand-wired `.pi/mcp.json` carries the 5 ai-badger servers
-(code-review-graph, ai-raccoon, semantica, playwright, task-graph) with `"exposure": "direct"`,
-`~/`-form commands (bare PATH lookups for code-review-graph/npx), and no `tools` arrays. The
-sibling confirmed 5/5 entries match the shape this task scaffolds and offered to review the
-den-refresh diff against that file. Source: bus messages #1590/#1591.
+(code-review-graph, ai-raccoon, semantica, playwright, task-graph) with `~/`-form commands (or
+bare PATH lookups: code-review-graph, npx) and no `tools` arrays. Exposure was `"direct"` on
+all 5 **at #1591**; since **#1593** the reference state is tuned to 3 `direct` (ai-raccoon,
+task-graph, semantica — hook- and skill-driven) + 2 `deferred` (code-review-graph 30 tools,
+playwright 25 tools — loaded via `tool_search`; 55 of 106 declarations cut from every prompt).
+That tuned state is the F10/F11 fixture reference. The sibling offered to review the
+scaffold diff against that file. Source: bus messages #1590/#1591/#1593.
 
 ### F7 — the mirror chain decides where edits land [READ]
 `features/common/skills/**` is the source (catalog); `tooling/sync_plugin_skills.py` copies
@@ -73,12 +79,22 @@ SKILL.md + essential files into `skills/` (the only directory Claude Code reads,
 (`tests/test_stack_mcp_servers.py`: `SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"`).
 Sources: `tooling/sync_plugin_skills.py` docstring; `git ls-files`; sha256 comparison 2026-09-30.
 
-### F8 — the task-graph declaration is already pi-compatible [READ]
-`features/common/stack-mcp.json` declares
-`"command": "uv run --script .ai-badger/skills/task-decomposition/scripts/task_graph_server.py"`
-(project-relative; pi resolves relative against the session cwd) with a `claude` agentOverride
-anchoring `${CLAUDE_PROJECT_DIR}/...`. No `exposure` field exists in declarations today.
-Source: `features/common/stack-mcp.json`; memory 374749 fact 7.
+### F8 — base declarations are shell strings; the pi render MUST split them (CORRECTED — bus #1601 review)
+`features/common/stack-mcp.json` declares every base command as a **shell string** —
+`"uv run --script .ai-badger/skills/task-decomposition/scripts/task_graph_server.py"`,
+`"code-review-graph serve"`, `"npx -y @playwright/mcp@latest"`. pi docs mcp.md: "`command` is
+a single executable and `args` its arguments, not one shell string" — a verbatim render is a
+dead entry looking for an executable literally named `"uv run --script …"`. The pi destination
+must therefore **split base command strings into command+args** (the existing single splitter
+`split_on_whitespace` / `_render_entry` already does this when `args` is absent — pin it in
+the pi render and test it), with `~/`-form for user-tool-dir executables (reference shape:
+`~/.local/bin/uv` + args; keep the `AI_BADGER_MCP_AVAILABILITY` determinism override applying
+to the `~` rewrite exactly as it does to the `${HOME}` one). The nested `"command": "uv"` +
+`${CLAUDE_PROJECT_DIR}`-anchored `args` is the **claude agentOverride** — pi must resolve its
+own overrides (base declaration, unanchored) and never inherit that anchor. The
+project-relative script arg resolves against the session cwd (memory 374749 fact 7).
+Sources: `features/common/stack-mcp.json`; pi docs mcp.md; `mcp_tools.py`
+`split_on_whitespace`/`_render_entry`.
 
 ### F9 — `mcp-plan-tools.md` teaches a call form no host exposes [READ]
 The "worked example, both ways" shows raw JSON-RPC
