@@ -2,8 +2,9 @@
 
 **Date:** 2026-08-30
 **Status:** Accepted (2026-08-30, task aib-pi-stack-mcp-skills-parity; owner gate 5/5 APPROVE).
-Amended 2026-09-30 (decision 3, MCP gate only): `adjust_mcp.py` keys removal on the project's
-native `.pi/mcp.json` — see the Amendment section below.
+Amended 2026-09-30 (decision 3's MCP removal gate, then the fork-reader Decision): `adjust_mcp.py`
+keys removal on the project's native `.pi/mcp.json`, and the scaffold writes that file itself as
+of 0.184.0 — see the Amendment sections below.
 **Author:** Rafał Araszkiewicz (Arasz), with the MoE planning panel (architect, test-engineer, code-reviewer), the plan-review panel (api-engineer, qa, hermes-agent-author) and the implementation lanes
 **Extends:** ADR-0022 (pi arms hooks dynamically), ADR-0015 (mechanisms, not prose)
 **Scope:** `pi-mcp-tools-fork/src/` (ConfigLoader, claudeMcpConfig, index, McpToolAdapter),
@@ -147,3 +148,23 @@ Implemented in task `aib-adjust-mcp-native-capability-gate` (branch
 `task/aib-adjust-mcp-native-capability-gate`, PR
 https://github.com/Arasz/ai-badger/pull/546); the historical decision text above is
 preserved.
+
+## Amendment — fork-reader Decision superseded by native `.pi/mcp.json` as of 0.184.0
+
+The Decision's reader half — "the fork reads the project's claude-format `.mcp.json` at
+`session_start` and merges it project-over-global" — is superseded as of ai-badger 0.184.0,
+the same way decision 3's removal gate was at 0.183.0. Native pi ships MCP as a built-in
+extension (`builtin:mcp`, measured on pi 0.99.1) reading the project-scoped `.pi/mcp.json`,
+and the scaffold now writes that file itself for a pi-configured project (union merge; see the
+0.184.0 changelog). Consequently `pi` is no longer a reader of `.mcp.json`
+(`MCP_JSON.readers` is `("claude", "copilot")`) and the `EXPANDS_HOME_ONLY` carve-out is
+deleted: with Claude and pi configured, `.mcp.json` carries Claude's
+`${CLAUDE_PROJECT_DIR}` anchor again, as before 0.180.0.
+
+The fork itself still ships as migration-only machinery (its full H3 retirement is separate),
+so an old pi+fork consumer keeps reading the now-anchored `.mcp.json` and its converter drops
+the anchored entries (`skipped:unexpanded-var`). `.pi/mcp.json` is on pi's trust-requiring
+project resource list (`dist/core/trust-manager.js`,
+`TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES`) — the Context's pi-0.84.4 list above did not
+include it — so an untrusted project run headless (`defaultProjectTrust` `ask`/`never`) skips
+it until trusted or `--approve`d; the scaffold names the gate once per run.

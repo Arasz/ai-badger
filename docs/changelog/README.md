@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.184.0 | [the scaffold writes pi's native `.pi/mcp.json`, union-merged; `.mcp.json` is Claude's and Copilot's again](0.184.0-scaffold-pi-native-mcp-config.md) |
 | 0.183.0 | [the pi MCP migration gate keys on native pi capability](0.183.0-native-capability-mcp-gate.md) |
 | 0.182.1 | [the pi MCP instruction catches up with pi's built-in MCP](0.182.1-pi-mcp-instruction-catches-native-mcp.md) |
 | 0.182.0 | [a project's keep region survives in instruction, invariant and persona files](0.182.0-instruction-keep-regions-survive.md) |
