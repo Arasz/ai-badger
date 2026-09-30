@@ -119,10 +119,13 @@ function loadGates(cwd: string): Gates {
  * group still holds the pipes open. */
 const KILL_GRACE_MS = 1000;
 
-/** One hook process, settled: it exited with its full output, or it never finished. */
+/** One hook process, settled: it exited with its full output, it never finished, or it
+ * never started because the signal was already aborted (`cancelled` — no spawn, no
+ * reportable failure). */
 type HookRun =
   | { kind: "exited"; code: number | null; stdout: string; stderr: string }
-  | { kind: "failed"; reason: string };
+  | { kind: "failed"; reason: string }
+  | { kind: "cancelled" };
 
 /** Run `file args` with the JSON payload on stdin, in its own process group. Settles on
  * `close`, once every stdio stream has drained — never on `exit`, when output may still be
@@ -161,7 +164,10 @@ function runHook(
     const onAbort = () => stop(`${opts.label} was aborted`);
 
     if (opts.signal?.aborted) {
-      finish({ kind: "failed", reason: `${opts.label} was aborted before it started` });
+      // Cancelled, not failed: no process ever spawned, so there is nothing to report.
+      // An interrupted turn used to surface `label was aborted before it started` once
+      // per matched hook; callers map this to their silent skip instead.
+      finish({ kind: "cancelled" });
       return;
     }
     try {
@@ -217,7 +223,9 @@ function exitReason(label: string, run: { code: number | null; stderr: string })
   return `${label} exited ${run.code}: ${run.stderr.trim().slice(-400) || "(no stderr)"}`;
 }
 
-/** Run one gate command, converting every failure mode into a reportable error outcome.
+/** Run one gate command, converting every failure mode into a reportable error outcome —
+ * except a signal already aborted before the spawn, which is a silent `cancelled` (the
+ * turn is dying; no process ran, nothing to report).
  * `timeoutMs` defaults to the 5 s gate budget. */
 export async function runGate(
   command: string,
@@ -232,6 +240,7 @@ export async function runGate(
     label,
   });
   if (run.kind === "failed") return { kind: "error", reason: run.reason };
+  if (run.kind === "cancelled") return { kind: "cancelled" };
   if (run.code !== 0) return { kind: "error", reason: exitReason(label, run) };
   const decision = parseHookStdout(run.stdout);
   if (decision === null) {
@@ -284,6 +293,7 @@ async function runPostHook(
     label,
   });
   if (run.kind === "failed") return { kind: "error", reason: run.reason };
+  if (run.kind === "cancelled") return { kind: "cancelled" };
   if (run.code !== 0) return { kind: "error", reason: exitReason(label, run) };
   return { kind: "ok", ...parsePostStdout(run.stdout) };
 }
@@ -333,6 +343,11 @@ async function runDelivery(
     label: script,
   });
   if (run.kind === "failed") return { kind: "error", reason: run.reason };
+  // A dead turn's delivery never ran: report it as an error so the watermark stays
+  // stale and the next tick retries — never silently advance past undelivered mail.
+  if (run.kind === "cancelled") {
+    return { kind: "error", reason: `${script} was not started — the signal was already aborted` };
+  }
   if (run.code !== 0) return { kind: "error", reason: exitReason(script, run) };
   return parseDeliveryStdout(run.stdout);
 }

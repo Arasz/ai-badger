@@ -16,7 +16,11 @@ export interface GateDecision {
 export type GateOutcome =
   | { kind: "decision"; decision: Decision; reason?: string; systemMessage?: string }
   | { kind: "error"; reason: string }
-  | { kind: "absent"; reason: string };
+  | { kind: "absent"; reason: string }
+  /** The signal aborted before the spawn: no process ran — a cancellation, never a
+   * failure. `resolve` reports nothing for it (an interrupted turn must not surface
+   * one notice per matched hook). */
+  | { kind: "cancelled" };
 
 /** One PreToolUse/PostToolUse entry from `.ai-badger/hooks/hooks.json`: a shell command and its matcher. */
 export interface HookCommand {
@@ -56,7 +60,9 @@ export interface ClaudePostHookPayload extends ClaudeHookPayload<"PostToolUse"> 
  * block, ask, or approve a tool call. */
 export type PostOutcome =
   | { kind: "ok"; additionalContext?: string; systemMessage?: string }
-  | { kind: "error"; reason: string };
+  | { kind: "error"; reason: string }
+  /** Same contract as GateOutcome's: aborted before spawn, silent by design. */
+  | { kind: "cancelled" };
 
 export interface PostResolution {
   /** One line per post-hook failure or `systemMessage`, for the UI. */
@@ -558,6 +564,9 @@ export function resolvePost(outcomes: PostOutcome[]): PostResolution {
   const notices: string[] = [];
   const context: string[] = [];
   for (const outcome of outcomes) {
+    // Aborted before the spawn: silent by the same contract as the gate side — no
+    // "post hook failed, result unaffected" line for a hook that never started.
+    if (outcome.kind === "cancelled") continue;
     if (outcome.kind === "error") {
       notices.push(`ai-badger: post hook failed, result unaffected — ${outcome.reason}`);
       continue;
@@ -677,6 +686,10 @@ export function resolve(
   let question: GateDecision | undefined;
 
   for (const outcome of outcomes) {
+    // Aborted before the spawn: no process ran and the turn is dying — a cancellation,
+    // never a failure to report (an interrupted turn used to surface one "hook gate
+    // failed" notice per matched hook here).
+    if (outcome.kind === "cancelled") continue;
     if (outcome.kind === "error") {
       notices.push(`ai-badger: hook gate failed, tool call allowed — ${outcome.reason}`);
       continue;

@@ -782,3 +782,33 @@ describe("a hook failure is labeled by its script, never its command", () => {
     expect(label).not.toContain("CLAUDE_PROJECT_DIR");
   });
 });
+
+describe("an aborted-before-spawn hook is a silent cancellation", () => {
+  test("a cancelled gate allows the call with no notice", () => {
+    expect(resolve([{ kind: "cancelled" }], { armed: false, hasUI: true })).toEqual({
+      action: "allow",
+      notices: [],
+      autoApproved: false,
+    });
+  });
+
+  test("a cancelled post hook contributes no notice and no context", () => {
+    expect(resolvePost([{ kind: "cancelled" }])).toEqual({ notices: [], context: [] });
+  });
+
+  test("cancellation does not mask a real failure beside it", () => {
+    const gate = resolve(
+      [{ kind: "cancelled" }, { kind: "error", reason: "memory_gate.py exited 1" }],
+      { armed: false, hasUI: true },
+    );
+    expect(gate.notices).toHaveLength(1);
+    expect(gate.notices[0]).toContain("memory_gate.py exited 1");
+
+    const post = resolvePost([
+      { kind: "cancelled" },
+      { kind: "error", reason: "suite_economy_hook.py exited 1" },
+    ]);
+    expect(post.notices).toHaveLength(1);
+    expect(post.notices[0]).toContain("suite_economy_hook.py exited 1");
+  });
+});
