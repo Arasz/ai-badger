@@ -10,7 +10,8 @@ from scaffold_helpers import _config
 
 
 # -------------------------------------------------------------------------- manifest shape
-def test_scaffold_manifest_entries_have_expected_shape(make_scaffolder):
+def test_scaffold_manifest_entries_have_expected_shape(make_scaffolder, load_script):
+    bl = load_script("engine/badger_lib.py")
     target = make_scaffolder.target
 
     scaf = make_scaffolder(config=_config(stacks=["dotnet"]), skills=["task"])
@@ -29,9 +30,10 @@ def test_scaffold_manifest_entries_have_expected_shape(make_scaffolder):
         # scaffold rewrites from one it seeds and then leaves to the project.
         if entry["feature"] == "templates":
             allowed_keys = allowed_keys | {"seedOnce"}
-        # hashes_source entries (templates, adjustments) carry the written output's hash too
-        # (D11) — except a seed-once entry recorded before its first copy, which has none yet.
-        if entry["feature"] in ("templates", "adjustments") and "outputHash" in entry:
+        # hashes_source entries carry the written output's hash too (D11) — except a seed-once
+        # entry recorded before its first copy, which has none yet. The set comes from the
+        # registry, so a type that changes sides cannot leave this list stale.
+        if bl.feature_type(entry["feature"]).hashes_source and "outputHash" in entry:
             allowed_keys = allowed_keys | {"outputHash"}
         assert set(entry.keys()) == allowed_keys
         assert entry["source"].startswith("features/")

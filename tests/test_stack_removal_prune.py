@@ -20,9 +20,13 @@ def _manifest(entries):
     return {"frameworkVersion": "0.41.0", "agents": ["claude"], "entries": entries}
 
 
-def _entry(stack, source, target, entry_hash="deadbeef", feature="instructions", name="n"):
-    return {"feature": feature, "stack": stack, "name": name, "source": source,
-            "target": target, "frameworkVersion": "0.41.0", "hash": entry_hash}
+def _entry(stack, source, target, entry_hash="deadbeef", feature="instructions", name="n",
+           output_hash=None):
+    entry = {"feature": feature, "stack": stack, "name": name, "source": source,
+             "target": target, "frameworkVersion": "0.41.0", "hash": entry_hash}
+    if output_hash is not None:
+        entry["outputHash"] = output_hash
+    return entry
 
 
 def _scaffolded(make_scaffolder, config, skills=("task",)):
@@ -197,7 +201,8 @@ class TestTheFrameworkDroppedTheItem:
         _test_write(gone, "# Gone\n\nNo longer in the catalog.\n", encoding="utf-8")
         _inject_entry(target, _entry(
             "common", "features/common/invariants/gone.md", ".ai-badger/invariants/gone.md",
-            entry_hash=bl.sha256_file(gone), feature="invariants", name="gone"))
+            entry_hash="deadbeef", feature="invariants", name="gone",
+            output_hash=bl.content_hash_ignoring_version_stamp(gone)))
 
         _, result = _scaffolded(make_scaffolder, _config(stacks=["python"]))
 
@@ -211,7 +216,8 @@ class TestTheFrameworkDroppedTheItem:
         _test_write(gone, "# Gone\n\nNo longer in the catalog.\n", encoding="utf-8")
         _inject_entry(target, _entry(
             "common", "features/common/invariants/gone.md", ".ai-badger/invariants/gone.md",
-            entry_hash=bl.sha256_file(gone), feature="invariants", name="gone"))
+            entry_hash="deadbeef", feature="invariants", name="gone",
+            output_hash=bl.content_hash_ignoring_version_stamp(gone)))
         _test_write(gone, "# Gone\n\nEdited by the project.\n", encoding="utf-8")
 
         _, result = _scaffolded(make_scaffolder, _config(stacks=["python"]))
