@@ -107,3 +107,34 @@ class TestRescaffoldKeepsTheDataPolicyLock:
         written = _scaffold_into(make_scaffolder, _config())
 
         assert "dataPolicy" not in written
+
+
+class TestRescaffoldKeepsTheAllowlist:
+    """The object form carries an `allowHosts` list: a valid one survives a re-run verbatim."""
+
+    POLICY = {"mode": "local-only", "allowHosts": ["decider.corp.example", "Other.Corp.Example."]}
+
+    def test_a_valid_object_form_is_kept_verbatim(self, make_scaffolder):
+        _prior_config(make_scaffolder.target, {**_config(), "dataPolicy": self.POLICY})
+
+        written = _scaffold_into(make_scaffolder, _config())
+
+        assert written["dataPolicy"] == self.POLICY
+
+    @pytest.mark.parametrize("policy", [
+        {"mode": "local-only", "allowHosts": ["*.corp.example"]},
+        {"mode": "open", "allowHosts": ["decider.corp.example"]},
+        {"mode": "local-only", "allowHosts": ["decider.corp.example"], "extra": 1},
+        {"mode": "local-only", "allowHosts": "decider.corp.example"},
+    ], ids=["wildcard", "other-mode", "unknown-key", "not-a-list"])
+    def test_an_invalid_object_form_is_written_back_as_the_string_lock(self, make_scaffolder,
+                                                                       policy):
+        _prior_config(make_scaffolder.target, {**_config(), "dataPolicy": policy})
+
+        result = make_scaffolder(config=_config()).run(generated_at="2026-07-27T00:00:00Z")
+
+        written = json.loads((make_scaffolder.target / ".ai-badger" / "config.json")
+                             .read_text(encoding="utf-8"))
+        assert written["dataPolicy"] == "local-only"
+        notes = [note for note in result["notes"] if "dataPolicy" in note]
+        assert notes and "allowHosts" in notes[0] and "dropped" in notes[0]

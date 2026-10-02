@@ -354,8 +354,9 @@ def test_o11_dns_is_under_the_deadline_with_one_resolver_per_host(fake, monkeypa
         return guarded(host, port, *args, **kwargs)
 
     monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo)
-    url = f"http://openrouter.test:{fake.port}{CHAT_PATH}"
-    # A named host is third-party: only the opt-in from an unlocked cwd lets it be resolved.
+    url = f"https://openrouter.test:{fake.port}{CHAT_PATH}"
+    # A named host is third-party: only https with the opt-in from an unlocked cwd lets it be
+    # resolved. The resolve hangs past the share, so no TLS handshake is ever attempted.
     opted_in = {"env": {oc.ALLOW_ENV: "1"}, "cwd": str(tmp_path)}
     assert post(url, 0.3).error == oc.EGRESS_REFUSED
     assert resolved_on == []

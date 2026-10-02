@@ -13,7 +13,8 @@ Parser semantics are ported from pi's `decision-router-client.ts` (`clampProbabi
 become `malformed`, answers become per-question rejects, transport failures become `None`.
 The one network surface is the vendored `openrouter_client.py` beside this file. A loopback
 `AI_BADGER_JEV_ENDPOINT` (a local decider) always works; OpenRouter or any other remote host
-needs `AI_BADGER_ALLOW_THIRD_PARTY=1` outside a `dataPolicy`-locked project. A custom endpoint
+needs https and `AI_BADGER_ALLOW_THIRD_PARTY=1`, and a `dataPolicy`-locked project admits only the
+hosts its `allowHosts` lists — the client's `egress_allowed` decides. A custom endpoint
 gets only `AI_BADGER_JEV_ENDPOINT_KEY`, never the OpenRouter key; keys appear only in the
 Authorization header, never in a log.
 """
@@ -325,9 +326,9 @@ def _refused(code: str, reason: str) -> Tuple[None, Refusal]:
 
 
 def _custom_target(url: str, env: Mapping[str, str]) -> Tuple[Optional[Target], Optional[Refusal]]:
-    """`AI_BADGER_JEV_ENDPOINT` with its own key (empty is keyless): https, or http only to
-    loopback; a dirty key resolves nothing, and the OpenRouter key is never sent there."""
-    if not (url.startswith("https://") or (url.startswith("http://") and client.is_loopback(url))):
+    """`AI_BADGER_JEV_ENDPOINT` with its own key (empty is keyless): an https or http URL, which
+    egress then judges; a dirty key resolves nothing, and the OpenRouter key is never sent there."""
+    if not url.startswith(("https://", "http://")):
         return _refused("bad-endpoint", f"bad {ENDPOINT_ENV}: https, or http to loopback only")
     raw = env.get(ENDPOINT_KEY_ENV)
     if not raw:
@@ -359,15 +360,23 @@ def _resolve(env: Mapping[str, str], cwd: Optional[str]
             return _refused("no-key", f"no OpenRouter key: set OPENROUTER_API_KEY, or "
                                       f"{ENDPOINT_ENV} to a loopback decider")
         target = (ENDPOINT_DEFAULT, key)
-    if client.is_loopback(target[0]):
+    if client.egress_allowed(target[0], env, cwd or "."):
         return target, None
+    return None, _egress_refusal(target[0], env, cwd or ".")
+
+
+def _egress_refusal(url: str, env: Mapping[str, str], cwd: str) -> Refusal:
+    """Why `egress_allowed` refused *url*: plain http, a malformed host, no opt-in, or a lock."""
+    host = client.dialled_host(url)
+    if url.startswith("http://"):
+        return "plaintext", f"{ENDPOINT_ENV} is plain http to a non-loopback host: use https"
+    if host is None:
+        return "bad-endpoint", f"bad {ENDPOINT_ENV}: the host to dial is ambiguous"
     if not client.opted_in(env):
-        return _refused("not-opted-in", f"{client.ALLOW_ENV} is not 1 (or set {ENDPOINT_ENV} "
-                                        f"to a loopback decider)")
-    lock = client.lock_reason(cwd or ".")
-    if lock is not None:
-        return _refused("locked", f"locked by {lock}")
-    return target, None
+        return "not-opted-in", (f"{client.ALLOW_ENV} is not 1 (or set {ENDPOINT_ENV} "
+                                f"to a loopback decider)")
+    lock = client.lock_reason(cwd) or "a dataPolicy lock"
+    return "locked", f"locked by {lock}; {host} is not in its allowHosts"
 
 
 def endpoint_target(env: Mapping[str, str], cwd: Optional[str] = None) -> Optional[Target]:

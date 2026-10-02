@@ -644,3 +644,101 @@ def test_a_production_key_alone_serves_the_single_local_search(memory_context_en
     single_search_observations(env, router, block, module, spy_calls)
     assert env.guards.net_attempts == []
     assert_clean(env)
+
+
+# ------------------------------------------------------------------- project-id binding
+
+PROJECT_ID = "AI_BADGER_PROJECT_ID"
+MISMATCH = "memory_context.project-id-mismatch"
+
+
+def bound(env, project_id, name="open"):
+    """A scaffolded project whose `.ai-badger/project-id` holds *project_id* (none when None)."""
+    path = env.project(project_id, name=name)
+    shutil.copy(CATALOG_REGISTRY, path / ".ai-badger" / "model-groups.json")
+    return path, install(path / ".ai-badger", "skill")
+
+
+def opted(router, **extra):
+    """The loopback wiring env, opted in: only the project-id binding can refuse the pipeline."""
+    return wiring_env(router, **{ALLOW: "1", PROJECT_ID: None, **extra})
+
+
+def test_b1_an_override_naming_another_project_builds_no_pipeline(memory_context_env, router,
+                                                                 monkeypatch):
+    env = memory_context_env
+    env.fake.mode("perquery")
+    env.fake.hits(hits_table())
+    cwd, module = bound(env, "open-id")
+    assert module.pipeline_for(opted(router), str(cwd), None) is not None
+    run_env = opted(router, **{PROJECT_ID: "locked-id"})
+    assert module.pipeline_for(run_env, str(cwd), None) is None
+    spy_calls = spy_run(module, monkeypatch)
+    block = run_build(module, env, cwd, run_env)
+    single_search_observations(env, router, block, module, spy_calls)
+    assert env.fake.calls()[0]["params"]["arguments"]["projectId"] == "locked-id"
+
+
+def test_b1b_an_override_in_the_process_env_is_bound_too(memory_context_env, router,
+                                                        monkeypatch):
+    env = memory_context_env
+    env.fake.mode("perquery")
+    env.fake.hits(hits_table())
+    cwd, module = bound(env, "open-id")
+    monkeypatch.setenv(PROJECT_ID, "locked-id")
+    run_env = opted(router)
+    assert PROJECT_ID not in run_env
+    assert module.pipeline_for(run_env, str(cwd), None) is None
+    spy_calls = spy_run(module, monkeypatch)
+    block = run_build(module, env, cwd, run_env)
+    single_search_observations(env, router, block, module, spy_calls)
+    assert env.fake.calls()[0]["params"]["arguments"]["projectId"] == "locked-id"
+
+
+def test_b2_a_padded_override_equal_to_the_file_id_builds(memory_context_env, router):
+    cwd, module = bound(memory_context_env, "open-id")
+    assert module.pipeline_for(opted(router, **{PROJECT_ID: "  open-id \t"}), str(cwd),
+                               None) is not None
+
+
+def test_b3_an_override_with_no_file_id_builds_no_pipeline(memory_context_env, router):
+    cwd, module = bound(memory_context_env, None)
+    assert module.pipeline_for(opted(router), str(cwd), None) is not None
+    assert module.pipeline_for(opted(router, **{PROJECT_ID: "any-id"}), str(cwd), None) is None
+
+
+@pytest.mark.parametrize("blank", ["", "   ", "\t\n"])
+def test_b4_a_blank_override_is_unset(memory_context_env, router, blank):
+    cwd, module = bound(memory_context_env, "open-id")
+    assert module.pipeline_for(opted(router, **{PROJECT_ID: blank}), str(cwd), None) is not None
+
+
+def test_b5_a_mismatch_is_reported_once_when_opted_in(memory_context_env, router, monkeypatch):
+    cwd, module = bound(memory_context_env, "open-id")
+    monkeypatch.setattr(module, "_REPORTED", set())
+    seen, record = recorder()
+    for _ in range(2):
+        assert module.pipeline_for(opted(router, **{PROJECT_ID: "locked-id"}), str(cwd), None,
+                                   on_error=record) is None
+    assert seen == [(MISMATCH, None)]
+    assert "locked-id" not in repr(seen) and "open-id" not in repr(seen)
+
+
+def test_b5_a_mismatch_is_silent_without_the_opt_in(memory_context_env, router, monkeypatch):
+    cwd, module = bound(memory_context_env, "open-id")
+    monkeypatch.setattr(module, "_REPORTED", set())
+    seen, record = recorder()
+    run_env = wiring_env(router, **{PROJECT_ID: "locked-id"})
+    assert module.pipeline_for(run_env, str(cwd), None, on_error=record) is None
+    assert seen == []
+
+
+def test_b6_a_nested_override_naming_the_parent_id_builds_no_pipeline(memory_context_env,
+                                                                     router):
+    parent, module = bound(memory_context_env, "parent-id", name="parent")
+    child = parent / "child"
+    (child / ".ai-badger").mkdir(parents=True)
+    assert module.pipeline_for(opted(router, **{PROJECT_ID: "parent-id"}), str(parent),
+                               None) is not None
+    assert module.pipeline_for(opted(router, **{PROJECT_ID: "parent-id"}), str(child),
+                               None) is None

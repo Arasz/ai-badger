@@ -7,6 +7,7 @@
 `features/common/skills/ai-raccoon-memory/scripts/memory_context.py`,
 `features/common/skills/task-decomposition/scripts/jev_choice.py`, `schemas/config.schema.json`.
 **Supersedes:** ADR-0031 D2.2 (the pipeline runs whenever a key is present).
+**Amended by:** [ADR-0035](0035-host-allowlist-and-project-binding.md) (0.186.0): D1 gains the `allowHosts` relaxation and a plaintext refusal, D4 resolves through the predicate, and an exported project id must match the cwd's.
 
 ## Context
 

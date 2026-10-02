@@ -378,3 +378,134 @@ def test_a_dirty_key_fails_before_any_request(dirty):
         assert server.requests == []
     finally:
         server.stop()
+
+
+# ------------------------------------------------------------------ allowHosts (object form)
+
+DECIDER = "decider.corp.example"
+DECIDER_URL = "https://decider.corp.example/v1"
+
+
+def allow_lock(directory, hosts=(DECIDER,), **policy):
+    """A lock in *directory* whose object form allowlists *hosts*; extra *policy* keys merge in."""
+    return write_config(directory, {"dataPolicy": {"mode": "local-only", "allowHosts": list(hosts),
+                                                   **policy}})
+
+
+def sent(monkeypatch, url, env, cwd):
+    """`post_json` to *url* through the recording opener: the reply error and the URLs dialled."""
+    seen = recording_opener(monkeypatch)
+    reply = oc.post_json(url, {"model": "m"}, KEY, mc.Budget(2.0), env=env, cwd=str(cwd))
+    return reply.error, [request.full_url for request in seen]
+
+
+def test_a1_an_allowlisted_host_in_a_locked_project_is_sent_with_the_opt_in(monkeypatch,
+                                                                           tmp_path):
+    project = allow_lock(tmp_path / "proj")
+    assert sent(monkeypatch, DECIDER_URL, {ALLOW: "1"}, project) == (oc.TRANSPORT, [DECIDER_URL])
+
+
+def test_a2_an_allowlisted_host_still_needs_the_opt_in(memory_context_env, monkeypatch, tmp_path):
+    project = allow_lock(tmp_path / "proj")
+    assert sent(monkeypatch, DECIDER_URL, {}, project) == (oc.EGRESS_REFUSED, [])
+    assert memory_context_env.guards.net_attempts == []
+
+
+def test_a3_a_host_outside_the_allowlist_is_refused_with_the_opt_in(monkeypatch, tmp_path):
+    project = allow_lock(tmp_path / "proj")
+    assert sent(monkeypatch, REMOTE, {ALLOW: "1"}, project) == (oc.EGRESS_REFUSED, [])
+
+
+@pytest.mark.parametrize("url", ["https://evil-decider.corp.example/v1",
+                                 "https://decider.corp.example.evil.example/v1",
+                                 "https://corp.example/v1"])
+def test_a4_a_lookalike_host_is_refused(monkeypatch, tmp_path, url):
+    project = allow_lock(tmp_path / "proj")
+    assert sent(monkeypatch, url, {ALLOW: "1"}, project) == (oc.EGRESS_REFUSED, [])
+
+
+@pytest.mark.parametrize("url", ["https://decider.corp.example:/x",
+                                 "https://evil.com\t.decider.corp.example/",
+                                 "https://decider.corp.example\\@evil.com",
+                                 "https://user@decider.corp.example/x",
+                                 " https://decider.corp.example/x",
+                                 "https://decider.corp.example\x7f/x"],
+                         ids=["empty-port", "tab", "backslash", "userinfo", "leading-space",
+                              "control"])
+def test_a5_a_url_whose_dialled_host_is_ambiguous_is_refused(monkeypatch, tmp_path, url):
+    project = allow_lock(tmp_path / "proj")
+    assert sent(monkeypatch, url, {ALLOW: "1"}, project) == (oc.EGRESS_REFUSED, [])
+    assert oc.dialled_host(url) is None
+
+
+def test_a5_the_dialled_host_is_the_request_host_normalised():
+    assert oc.dialled_host("https://DECIDER.corp.example.:8443/x") == DECIDER
+    assert oc.dialled_host(DECIDER_URL) == DECIDER
+
+
+def test_a6_plain_http_off_loopback_is_refused_even_opted_in_and_unlocked(monkeypatch,
+                                                                         tmp_path):
+    plain = "http://decider.corp.example/v1"
+    assert sent(monkeypatch, plain, {ALLOW: "1"}, tmp_path) == (oc.EGRESS_REFUSED, [])
+    loop = "http://127.0.0.1:9/v1"
+    assert sent(monkeypatch, loop, {}, tmp_path) == (oc.TRANSPORT, [loop])
+
+
+def test_a7_matching_ignores_case_a_trailing_dot_and_the_port(monkeypatch, tmp_path):
+    project = allow_lock(tmp_path / "proj", hosts=["Decider.Corp.Example."])
+    url = "https://DECIDER.corp.example.:8443/x"
+    assert sent(monkeypatch, url, {ALLOW: "1"}, project) == (oc.TRANSPORT, [url])
+    assert oc.allowed_hosts(str(project)) == frozenset({DECIDER})
+
+
+VOIDING = [
+    ("wildcard", {"allowHosts": ["*.corp.example", DECIDER]}),
+    ("port", {"allowHosts": ["other.corp.example:443", DECIDER]}),
+    ("url", {"allowHosts": ["https://other.corp.example", DECIDER]}),
+    ("ipv4", {"allowHosts": ["203.0.113.7", DECIDER]}),
+    ("single-label", {"allowHosts": ["decider", DECIDER]}),
+    ("non-string", {"allowHosts": [7, DECIDER]}),
+    ("newline", {"allowHosts": ["other.corp.example\n", DECIDER]}),
+    ("duplicate", {"allowHosts": [DECIDER, DECIDER]}),
+    ("other-mode", {"mode": "open"}),
+    ("unknown-key", {"extra": True}),
+    ("not-a-list", {"allowHosts": DECIDER}),
+]
+
+
+@pytest.mark.parametrize("name,policy", VOIDING, ids=[v[0] for v in VOIDING])
+def test_a8_one_bad_part_voids_the_whole_list_and_still_locks(monkeypatch, tmp_path, name,
+                                                             policy):
+    del name
+    project = write_config(tmp_path / "proj", {"dataPolicy": {"mode": "local-only",
+                                                              "allowHosts": [DECIDER], **policy}})
+    assert oc.project_locked(str(project)) is True
+    assert oc.allowed_hosts(str(project)) == frozenset()
+    assert sent(monkeypatch, DECIDER_URL, {ALLOW: "1"}, project) == (oc.EGRESS_REFUSED, [])
+
+
+def test_a8_a_policy_without_allow_hosts_voids_the_list(tmp_path):
+    project = write_config(tmp_path / "proj", {"dataPolicy": {"mode": "local-only"}})
+    assert oc.project_locked(str(project)) is True
+    assert oc.allowed_hosts(str(project)) == frozenset()
+
+
+def test_a9_nested_allowlists_intersect(monkeypatch, tmp_path):
+    parent = allow_lock(tmp_path / "parent", hosts=["a.corp.example", "b.corp.example"])
+    child = allow_lock(parent / "child", hosts=["b.corp.example", "c.corp.example"])
+    assert oc.allowed_hosts(str(child)) == frozenset({"b.corp.example"})
+    for host, expected in (("a", oc.EGRESS_REFUSED), ("b", oc.TRANSPORT),
+                           ("c", oc.EGRESS_REFUSED)):
+        url = f"https://{host}.corp.example/v1"
+        assert sent(monkeypatch, url, {ALLOW: "1"}, child)[0] == expected, host
+
+
+def test_a9_a_string_form_parent_over_an_object_child_allows_nothing(monkeypatch, tmp_path):
+    parent = write_config(tmp_path / "parent", {"dataPolicy": "local-only"})
+    child = allow_lock(parent / "child")
+    assert oc.allowed_hosts(str(child)) == frozenset()
+    assert sent(monkeypatch, DECIDER_URL, {ALLOW: "1"}, child) == (oc.EGRESS_REFUSED, [])
+
+
+def test_a9_an_unlocked_project_does_not_consult_any_allowlist(monkeypatch, tmp_path):
+    assert sent(monkeypatch, REMOTE, {ALLOW: "1"}, tmp_path) == (oc.TRANSPORT, [REMOTE])
