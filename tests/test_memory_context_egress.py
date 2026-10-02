@@ -239,10 +239,42 @@ def config_path(project):
 
 
 @pytest.mark.parametrize("raw,cause", [({"dataPolicy": "local-only"}, "dataPolicy"),
-                                       (b"{not json", "unreadable"), ([], "not-object")])
+                                       (b"{not json", "unreadable:invalid-json"),
+                                       ([], "unreadable:not-object")])
 def test_lock_reason_names_the_config_and_its_cause(tmp_path, raw, cause):
     project = write_config(tmp_path / "proj", raw)
     assert oc.lock_reason(str(project)) == f"{config_path(project)}: {cause}"
+
+
+# (id, builder, cause): each unreadable config names a fixed sub-cause, never its content.
+UNREADABLE = [
+    ("invalid-json", _raw(b"{not json"), "unreadable:invalid-json"),
+    ("invalid-utf8", _raw(b'{"project": "\xff\xfe"}'), "unreadable:invalid-json"),
+    ("too-large", _over_one_mib, "unreadable:too-large"),
+    ("not-object", _json(["decider.corp.example"]), "unreadable:not-object"),
+    ("directory", _config_is_a_directory, "unreadable:io"),
+    ("dangling-symlink", _dangling_symlink, "unreadable:io"),
+]
+
+
+@pytest.mark.parametrize("name,build,cause", UNREADABLE, ids=[u[0] for u in UNREADABLE])
+def test_an_unreadable_config_names_a_fixed_sub_cause(tmp_path, name, build, cause):
+    del name
+    project = tmp_path / "proj"
+    build(project)
+    assert oc.lock_reason(str(project)) == f"{config_path(project)}: {cause}"
+
+
+def test_a_cwd_error_is_unresolvable_and_any_other_error_is_internal(tmp_path, monkeypatch):
+    project = write_config(tmp_path / "proj", {"project": {}})
+
+    def broken(path):
+        raise KeyError(path)
+    monkeypatch.setattr(oc, "_config_lock", broken)
+    assert oc.lock_reason(str(project)) == "internal-error"
+    assert oc.project_locked(str(project)) is True
+    assert oc.egress_allowed(REMOTE, {ALLOW: "1"}, str(project)) is False
+    assert oc.lock_reason("/tmp/bad\0cwd") == "unresolvable cwd"
 
 
 def test_lock_reason_is_none_for_an_open_project_and_names_an_unresolvable_cwd(tmp_path):
@@ -429,9 +461,10 @@ def test_a4_a_lookalike_host_is_refused(monkeypatch, tmp_path, url):
                                  "https://decider.corp.example\\@evil.com",
                                  "https://user@decider.corp.example/x",
                                  " https://decider.corp.example/x",
-                                 "https://decider.corp.example\x7f/x"],
+                                 "https://decider.corp.example\x7f/x",
+                                 "https://decider.corp.example​/x"],
                          ids=["empty-port", "tab", "backslash", "userinfo", "leading-space",
-                              "control"])
+                              "control", "format-char"])
 def test_a5_a_url_whose_dialled_host_is_ambiguous_is_refused(monkeypatch, tmp_path, url):
     project = allow_lock(tmp_path / "proj")
     assert sent(monkeypatch, url, {ALLOW: "1"}, project) == (oc.EGRESS_REFUSED, [])
@@ -488,6 +521,83 @@ def test_a8_a_policy_without_allow_hosts_voids_the_list(tmp_path):
     project = write_config(tmp_path / "proj", {"dataPolicy": {"mode": "local-only"}})
     assert oc.project_locked(str(project)) is True
     assert oc.allowed_hosts(str(project)) == frozenset()
+    assert oc.lock_reason(str(project)) == (f"{config_path(project)}: "
+                                            "dataPolicy (allowHosts missing: list ignored)")
+
+
+# (id, dataPolicy, cause): the reason is a fixed token, never the entry or the key that broke it.
+LOCK_CAUSES = [
+    ("string", "local-only", "dataPolicy"),
+    ("other-string", "Local-Only", "dataPolicy"),
+    ("valid-object", {"mode": "local-only", "allowHosts": [DECIDER]}, "dataPolicy"),
+    ("bad-entry", {"mode": "local-only", "allowHosts": [DECIDER, "*.secret.example"]},
+     "dataPolicy (allowHosts invalid at entry #1: list ignored)"),
+    ("duplicate", {"mode": "local-only", "allowHosts": ["secret.example", "secret.example"]},
+     "dataPolicy (allowHosts duplicate: list ignored)"),
+    ("missing", {"mode": "local-only"}, "dataPolicy (allowHosts missing: list ignored)"),
+    ("not-a-list", {"mode": "local-only", "allowHosts": "secret.example"},
+     "dataPolicy (allowHosts not a list: list ignored)"),
+    ("mode", {"mode": "secret", "allowHosts": [DECIDER]}, "dataPolicy (mode invalid)"),
+    ("no-mode", {"allowHosts": [DECIDER]}, "dataPolicy (mode invalid)"),
+    ("unknown-key", {"mode": "local-only", "allowHosts": [DECIDER], "secret": 1},
+     "dataPolicy (unknown key)"),
+]
+
+
+@pytest.mark.parametrize("name,policy,cause", LOCK_CAUSES, ids=[c[0] for c in LOCK_CAUSES])
+def test_each_lock_cause_is_a_fixed_token(tmp_path, name, policy, cause):
+    del name
+    project = write_config(tmp_path / "proj", {"dataPolicy": policy})
+    assert oc.lock_reason(str(project)) == f"{config_path(project)}: {cause}"
+    assert "secret" not in cause
+
+
+@pytest.mark.parametrize("entry", ["0x7f.0x1", "0xa.0x1", "decider.1corp"])
+def test_a8_a_last_label_starting_with_a_digit_voids_the_list(tmp_path, entry):
+    project = allow_lock(tmp_path / "proj", hosts=[entry, DECIDER])
+    assert oc.allowed_hosts(str(project)) == frozenset()
+
+
+def test_a9_a_non_locking_parent_does_not_narrow_a_child_allowlist(monkeypatch, tmp_path):
+    parent = write_config(tmp_path / "parent", {"project": {}})
+    child = allow_lock(parent / "child")
+    assert oc.allowed_hosts(str(child)) == frozenset({DECIDER})
+    assert sent(monkeypatch, DECIDER_URL, {ALLOW: "1"}, child) == (oc.TRANSPORT, [DECIDER_URL])
+
+
+def test_lock_reason_names_the_nearest_of_nested_locks(tmp_path):
+    parent = write_config(tmp_path / "parent", {"dataPolicy": "local-only"})
+    child = allow_lock(parent / "child")
+    assert oc.lock_reason(str(child)) == f"{config_path(child)}: dataPolicy"
+
+
+def test_denying_lock_names_the_config_that_refuses_the_host(tmp_path):
+    parent = allow_lock(tmp_path / "parent", hosts=["a.corp.example", "b.corp.example"])
+    child = allow_lock(parent / "child", hosts=["b.corp.example", "c.corp.example"])
+    lock_a = oc.denying_lock("https://a.corp.example/v1", str(child))
+    lock_c = oc.denying_lock("https://c.corp.example/v1", str(child))
+    assert (lock_a.path, lock_a.cause) == (config_path(child), "dataPolicy")
+    assert lock_a.hosts == frozenset({"b.corp.example", "c.corp.example"})
+    assert (lock_c.path, lock_c.cause) == (config_path(parent), "dataPolicy")
+    assert oc.denying_lock("https://b.corp.example/v1", str(child)) is None
+    assert oc.denying_lock(DECIDER_URL, str(tmp_path)) is None
+
+
+def test_denying_lock_reports_a_missing_or_voided_list_without_hosts(tmp_path):
+    plain = write_config(tmp_path / "plain", {"dataPolicy": "local-only"})
+    void = allow_lock(tmp_path / "void", hosts=[DECIDER, DECIDER])
+    assert oc.denying_lock(DECIDER_URL, str(plain)) == (config_path(plain), "dataPolicy", None)
+    assert oc.denying_lock(DECIDER_URL, str(void)) == (
+        config_path(void), "dataPolicy (allowHosts duplicate: list ignored)", None)
+
+
+def test_a5_an_ipv6_literal_is_dialled_without_brackets_or_port():
+    assert oc.dialled_host("https://[2001:db8::1]:8443/x") == "2001:db8::1"
+
+
+def test_a5_a_screened_character_is_refused_even_for_a_loopback_host(tmp_path):
+    assert oc.egress_allowed("http://local\thost/", {}, str(tmp_path)) is False
+    assert oc.egress_allowed("http://localhost/", {}, str(tmp_path)) is True
 
 
 def test_a9_nested_allowlists_intersect(monkeypatch, tmp_path):

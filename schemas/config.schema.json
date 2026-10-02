@@ -310,10 +310,10 @@
             "allowHosts": {
               "type": "array",
               "uniqueItems": true,
-              "description": "Exact host names (no wildcard, port, scheme or path; at least one dot; not an IP address) a session opted in with AI_BADGER_ALLOW_THIRD_PARTY=1 may reach over https from this locked project. Matching ignores case, a trailing dot and the URL's port.",
+              "description": "Exact host names (no wildcard, port, scheme or path; at least one dot; a last label that starts with a letter, so no IP address) a session opted in with AI_BADGER_ALLOW_THIRD_PARTY=1 may reach over https from this locked project. Matching ignores case, a trailing dot and the URL's port.",
               "items": {
                 "type": "string",
-                "pattern": "^(?!.*\\n)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+(?![0-9]+\\.?$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.?$"
+                "pattern": "^(?!.*\\n)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.?$"
               }
             }
           }

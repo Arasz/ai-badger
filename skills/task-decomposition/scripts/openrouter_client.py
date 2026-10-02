@@ -36,11 +36,15 @@ READ_CHUNK = 64 * 1024
 TIMEOUT = "timeout"
 TRANSPORT = "transport"
 EGRESS_REFUSED = "egress-refused"
-# An allowHosts entry: ASCII LDH labels, at least one dot, a last label that is not all digits,
-# an optional trailing dot. The schema carries the same string; the lookahead keeps `$` from
-# accepting a trailing newline under jsonschema's `re.search`.
+# An allowHosts entry: ASCII LDH labels, at least one dot, a last label that starts with a letter
+# (no dotted or `0x` IPv4 shorthand), an optional trailing dot. The schema carries the same
+# string; the lookahead keeps `$` from accepting a trailing newline under jsonschema's `re.search`.
 HOST_PATTERN = (r"^(?!.*\n)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
-                r"(?![0-9]+\.?$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.?$")
+                r"[A-Za-z](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.?$")
+POLICY = "dataPolicy"
+LIST_IGNORED = ": list ignored)"
+UNRESOLVABLE = "unresolvable cwd"
+INTERNAL_ERROR = "internal-error"
 DNS_THREAD = "ai-badger-openrouter-dns"
 WATCHDOG_THREAD = "ai-badger-openrouter-watchdog"
 
@@ -53,6 +57,19 @@ class Reply(NamedTuple):
     headers: Dict[str, str]
     body: bytes
     error: Optional[str] = None
+
+
+class Lock(NamedTuple):
+    """One locking config: its path (`None` when the cwd itself could not be walked), a fixed
+    cause token, and its valid `allowHosts` (`None` when the list is absent or void)."""
+
+    path: Optional[str]
+    cause: str
+    hosts: Optional[FrozenSet[str]]
+
+    def reason(self) -> str:
+        """`<path>: <cause>`, or the bare cause when there is no path."""
+        return self.cause if self.path is None else f"{self.path}: {self.cause}"
 
 
 def _failure(kind: str) -> Reply:
@@ -99,47 +116,60 @@ def is_loopback(url: str) -> bool:
             and parts.username is None and parts.hostname in LOOPBACK_HOSTS)
 
 
-def _config_lock(path: str) -> Tuple[Optional[str], FrozenSet[str]]:
-    """Why the config at *path* locks (`dataPolicy`, `unreadable`, `not-object`) and the hosts
-    its `allowHosts` relaxes; `(None, ∅)` when it is absent or an object without `dataPolicy`.
-    A FIFO or directory is never read."""
+def _config_lock(path: str) -> Tuple[Optional[str], Optional[FrozenSet[str]]]:
+    """The cause token when the config at *path* locks, and its valid `allowHosts` (`None` when
+    absent or void); `(None, None)` when it is absent or an object without `dataPolicy`. A config
+    that cannot be read is `unreadable:<invalid-json|too-large|io|not-object>`; a FIFO or
+    directory is never read."""
     try:
         os.lstat(path)
     except (FileNotFoundError, NotADirectoryError):
-        return None, frozenset()
+        return None, None
     except OSError:
-        return "unreadable", frozenset()
+        return "unreadable:io", None
     try:
         if not stat.S_ISREG(os.stat(path).st_mode):
-            return "unreadable", frozenset()
+            return "unreadable:io", None
         descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
         with os.fdopen(descriptor, "rb") as handle:
             if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
-                return "unreadable", frozenset()
+                return "unreadable:io", None
             raw = handle.read(CONFIG_MAX + 1)
-        if len(raw) > CONFIG_MAX:
-            return "unreadable", frozenset()
+    except OSError:
+        return "unreadable:io", None
+    if len(raw) > CONFIG_MAX:
+        return "unreadable:too-large", None
+    try:
         data = json.loads(raw.decode("utf-8"))
-    except Exception:  # pylint: disable=broad-except
-        return "unreadable", frozenset()
+    except (ValueError, RecursionError):
+        return "unreadable:invalid-json", None
     if not isinstance(data, dict):
-        return "not-object", frozenset()
-    if "dataPolicy" not in data:
-        return None, frozenset()
-    return "dataPolicy", _policy_hosts(data["dataPolicy"])
+        return "unreadable:not-object", None
+    if POLICY not in data:
+        return None, None
+    return _policy_hosts(data[POLICY])
 
 
-def _policy_hosts(policy: Any) -> FrozenSet[str]:
-    """The normalised `allowHosts` of an object-form *policy*; empty when any part is malformed."""
-    if (not isinstance(policy, dict) or set(policy) != {"mode", "allowHosts"}
-            or policy["mode"] != LOCAL_ONLY or not isinstance(policy["allowHosts"], list)):
-        return frozenset()
+def _policy_hosts(policy: Any) -> Tuple[str, Optional[FrozenSet[str]]]:
+    """The cause token for *policy* and its normalised `allowHosts`; a malformed object names
+    what voided the list (by entry index, never by entry text) and allows nothing."""
+    if not isinstance(policy, dict):
+        return POLICY, None
+    if set(policy) - {"mode", "allowHosts"}:
+        return f"{POLICY} (unknown key)", None
+    if policy.get("mode") != LOCAL_ONLY:
+        return f"{POLICY} (mode invalid)", None
+    if "allowHosts" not in policy:
+        return f"{POLICY} (allowHosts missing{LIST_IGNORED}", None
     hosts = policy["allowHosts"]
-    if not all(isinstance(host, str) and re.fullmatch(HOST_PATTERN, host) for host in hosts):
-        return frozenset()
+    if not isinstance(hosts, list):
+        return f"{POLICY} (allowHosts not a list{LIST_IGNORED}", None
+    for index, host in enumerate(hosts):
+        if not (isinstance(host, str) and re.fullmatch(HOST_PATTERN, host)):
+            return f"{POLICY} (allowHosts invalid at entry #{index}{LIST_IGNORED}", None
     if len(set(hosts)) != len(hosts):
-        return frozenset()
-    return frozenset(_normal_host(host) for host in hosts)
+        return f"{POLICY} (allowHosts duplicate{LIST_IGNORED}", None
+    return POLICY, frozenset(_normal_host(host) for host in hosts)
 
 
 def _normal_host(host: str) -> str:
@@ -156,44 +186,61 @@ def _starts(cwd: str) -> List[Path]:
     return starts
 
 
-def _lock(cwd: str) -> Tuple[Optional[str], FrozenSet[str]]:
-    """The nearest lock's `<config path>: <cause>` (or `None`) and the intersection of every
-    locking config's `allowHosts` above *cwd* (as given, resolved, or through `PWD`)."""
+def _locks(cwd: str) -> List[Lock]:
+    """Every locking config above *cwd* (as given, resolved, or through `PWD`), nearest first;
+    a cwd that cannot be resolved, or any other failure, is itself one path-less lock."""
     try:
-        reason: Optional[str] = None
-        hosts: Optional[FrozenSet[str]] = None
+        starts = _starts(cwd)
+    except (OSError, ValueError, RuntimeError):
+        return [Lock(None, UNRESOLVABLE, None)]
+    try:
+        locks: List[Lock] = []
         seen = set()
-        for start in _starts(cwd):
+        for start in starts:
             for folder in (start, *start.parents):
                 if folder in seen:
                     continue
                 seen.add(folder)
                 path = os.path.join(folder, ".ai-badger", "config.json")
-                cause, allowed = _config_lock(path)
-                if cause is None:
-                    continue
-                reason = reason or f"{path}: {cause}"
-                hosts = allowed if hosts is None else hosts & allowed
-        return reason, hosts or frozenset()
+                cause, hosts = _config_lock(path)
+                if cause is not None:
+                    locks.append(Lock(path, cause, hosts))
+        return locks
     except Exception:  # pylint: disable=broad-except
-        return "unresolvable cwd", frozenset()
+        return [Lock(None, INTERNAL_ERROR, None)]
 
 
 def lock_reason(cwd: str) -> Optional[str]:
     """`<config path>: <cause>` for the nearest `.ai-badger/config.json` above *cwd* (as given,
-    resolved, or through `PWD`) that locks the project, `unresolvable cwd`, or `None`."""
-    return _lock(cwd)[0]
+    resolved, or through `PWD`) that locks the project, `unresolvable cwd`, `internal-error`, or
+    `None`."""
+    locks = _locks(cwd)
+    return locks[0].reason() if locks else None
 
 
 def project_locked(cwd: str) -> bool:
     """True when any `.ai-badger/config.json` above *cwd* locks the project; never raises."""
-    return lock_reason(cwd) is not None
+    return bool(_locks(cwd))
 
 
 def allowed_hosts(cwd: str) -> FrozenSet[str]:
     """The hosts every locking config above *cwd* allowlists; a lock without a valid
     `allowHosts` contributes the empty set."""
-    return _lock(cwd)[1]
+    hosts: Optional[FrozenSet[str]] = None
+    for lock in _locks(cwd):
+        allowed = lock.hosts or frozenset()
+        hosts = allowed if hosts is None else hosts & allowed
+    return hosts or frozenset()
+
+
+def denying_lock(url: str, cwd: str) -> Optional[Lock]:
+    """The nearest lock above *cwd* whose `allowHosts` does not admit the host *url* dials (or
+    that has no valid list); `None` when every lock admits it."""
+    host = dialled_host(url)
+    for lock in _locks(cwd):
+        if host is None or lock.hosts is None or host not in lock.hosts:
+            return lock
+    return None
 
 
 def opted_in(env: Mapping[str, str]) -> bool:
@@ -206,10 +253,16 @@ def third_party_allowed(env: Mapping[str, str], cwd: str) -> bool:
     return opted_in(env) and not project_locked(cwd)
 
 
+def _screened(url: str) -> bool:
+    """True when *url* holds whitespace, a control or format character, or `\\`."""
+    return any(ch.isspace() or ch == "\\" or unicodedata.category(ch) in ("Cc", "Cf")
+               for ch in url)
+
+
 def dialled_host(url: str) -> Optional[str]:
     """The host a request to *url* dials, lower-cased without port or trailing dot; `None` when
     the URL holds whitespace, a control character or `\\`, or `urlsplit` would name another."""
-    if any(ch.isspace() or ch == "\\" or unicodedata.category(ch) in ("Cc", "Cf") for ch in url):
+    if _screened(url):
         return None
     try:
         host = urllib.request.Request(url).host
@@ -230,14 +283,16 @@ def dialled_host(url: str) -> Optional[str]:
 
 def egress_allowed(url: str, env: Mapping[str, str], cwd: str) -> bool:
     """Whether a POST to *url* may leave: loopback always; otherwise `https` to a well-formed
-    host on opt-in, and from a locked *cwd* only to a host every lock's `allowHosts` lists."""
+    host on opt-in, and from a locked *cwd* only to a host every lock's `allowHosts` lists. A URL
+    holding whitespace, a control or format character or `\\` is refused, loopback included."""
+    if _screened(url):
+        return False
     if is_loopback(url):
         return True
     host = dialled_host(url)
     if host is None or urllib.parse.urlsplit(url).scheme != "https" or not opted_in(env):
         return False
-    reason, hosts = _lock(cwd)
-    return reason is None or host in hosts
+    return denying_lock(url, cwd) is None
 
 
 class _Expired(TimeoutError):
@@ -474,7 +529,8 @@ def _is_timeout(err: BaseException) -> bool:
 def post_json(url: str, body: Any, key: Optional[str], budget: Any, *,
               env: Optional[Mapping[str, str]] = None, cwd: Optional[str] = None) -> Reply:
     """POST *body* as JSON inside *budget*, bearer *key* when given; never raises, never follows.
-    A non-loopback *url* is refused before any dial unless *env* opts in from an unlocked *cwd*."""
+    A non-loopback *url* is refused before any dial unless it is https and *env* opts in from a
+    *cwd* that is unlocked or whose every lock lists its host in `allowHosts`."""
     if not egress_allowed(url, env if env is not None else {}, cwd if cwd is not None else "."):
         return _failure(EGRESS_REFUSED)
     if budget.remaining() <= 0:

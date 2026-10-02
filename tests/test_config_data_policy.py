@@ -44,10 +44,6 @@ def test_local_only_is_a_valid_data_policy():
     assert errors(with_policy("local-only")) == []
 
 
-def test_the_object_form_is_a_valid_data_policy():
-    assert errors(with_policy(object_policy(["decider.corp.example"]))) == []
-
-
 @pytest.mark.parametrize("value", ["opt-in", "bogus", "Local-Only", None, 1])
 def test_any_other_data_policy_is_rejected(value):
     assert errors(with_policy(value))
@@ -60,7 +56,7 @@ def load_client():
     return client
 
 
-def test_the_schema_enum_is_the_client_local_only_value():
+def test_the_schema_data_policy_twins_the_client():
     client = load_client()
     string_form, object_form = SCHEMA["properties"]["dataPolicy"]["oneOf"]
     assert string_form == {"type": "string", "enum": [client.LOCAL_ONLY]}
@@ -91,6 +87,9 @@ ENTRIES = [
     ("user@decider.corp.example", False),
     ("203.0.113.7", False),
     ("corp.42", False),
+    ("0x7f.0x1", False),
+    ("0xa.0x1", False),
+    ("decider.1corp", False),
     ("decider.corp.example\n", False),
     ("decider.corp.example\nx.io", False),
     ("-lead.example", False),

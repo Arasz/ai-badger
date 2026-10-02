@@ -326,10 +326,14 @@ def _refused(code: str, reason: str) -> Tuple[None, Refusal]:
 
 
 def _custom_target(url: str, env: Mapping[str, str]) -> Tuple[Optional[Target], Optional[Refusal]]:
-    """`AI_BADGER_JEV_ENDPOINT` with its own key (empty is keyless): an https or http URL, which
-    egress then judges; a dirty key resolves nothing, and the OpenRouter key is never sent there."""
+    """`AI_BADGER_JEV_ENDPOINT` with its own key (empty is keyless): https, or http to loopback,
+    which egress then judges; plain http elsewhere is refused before the key is read, a dirty key
+    resolves nothing, and the OpenRouter key is never sent there."""
     if not url.startswith(("https://", "http://")):
         return _refused("bad-endpoint", f"bad {ENDPOINT_ENV}: https, or http to loopback only")
+    if url.startswith("http://") and not client.is_loopback(url):
+        return _refused("plaintext", f"{ENDPOINT_ENV} is plain http to a non-loopback host: "
+                                     f"use https")
     raw = env.get(ENDPOINT_KEY_ENV)
     if not raw:
         return (url, None), None
@@ -366,17 +370,24 @@ def _resolve(env: Mapping[str, str], cwd: Optional[str]
 
 
 def _egress_refusal(url: str, env: Mapping[str, str], cwd: str) -> Refusal:
-    """Why `egress_allowed` refused *url*: plain http, a malformed host, no opt-in, or a lock."""
+    """Why `egress_allowed` refused *url*: a malformed host, no opt-in, or the lock that denies
+    its host — one with no `allowHosts`, a voided list, or a valid list that lacks the host."""
     host = client.dialled_host(url)
-    if url.startswith("http://"):
-        return "plaintext", f"{ENDPOINT_ENV} is plain http to a non-loopback host: use https"
     if host is None:
         return "bad-endpoint", f"bad {ENDPOINT_ENV}: the host to dial is ambiguous"
     if not client.opted_in(env):
         return "not-opted-in", (f"{client.ALLOW_ENV} is not 1 (or set {ENDPOINT_ENV} "
                                 f"to a loopback decider)")
-    lock = client.lock_reason(cwd) or "a dataPolicy lock"
-    return "locked", f"locked by {lock}; {host} is not in its allowHosts"
+    lock = client.denying_lock(url, cwd)
+    if lock is None:
+        return "locked", "inconsistent lock state"
+    if lock.path is None:
+        return "locked", f"locked by {lock.cause}"
+    if lock.hosts is not None:
+        return "locked", f"{host} is not in the allowHosts of {lock.path}"
+    if lock.cause == client.POLICY:
+        return "locked", f"locked by {lock.path} (no allowHosts)"
+    return "locked", f"locked by {lock.path}: {lock.cause}"
 
 
 def endpoint_target(env: Mapping[str, str], cwd: Optional[str] = None) -> Optional[Target]:

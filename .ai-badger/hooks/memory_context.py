@@ -18,7 +18,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, NamedTuple, Optional
+from typing import Any, Callable, Dict, List, Mapping, NamedTuple, Optional, Tuple
 
 ENV_NAMES = (
     "AI_BADGER_PROJECT_ID",
@@ -552,19 +552,21 @@ def _override(env: Mapping[str, str]) -> Optional[str]:
     return None
 
 
-def _walked_id(cwd: str) -> Optional[str]:
-    """The id in the nearest `.ai-badger/project-id` above *cwd*, never the override; None when
-    the nearest `.ai-badger` holds none."""
+def _walked_id(cwd: str) -> Tuple[Optional[str], str]:
+    """The id in the nearest `.ai-badger/project-id` above *cwd* (never the override) and, when
+    there is none, why: `store-unavailable`, `no-file`, or `unreadable` (a read error or a blank
+    file); `differs` when an id was found, for the caller to report if it does not match."""
     store = load_badger_store()
     if store is None:
-        return None
+        return None, "store-unavailable"
     found = store._nearest_project_id_file(cwd)  # pylint: disable=protected-access
     if found is None:
-        return None
+        return None, "no-file"
     try:
-        return found.read_text(encoding="utf-8").strip() or None
+        walked = found.read_text(encoding="utf-8").strip()
     except (OSError, ValueError):
-        return None
+        return None, "unreadable"
+    return (walked, "differs") if walked else (None, "unreadable")
 
 
 def resolver_path() -> Optional[Path]:
@@ -632,7 +634,8 @@ def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any, *,
     """The pipeline when the switch is not `"0"`, the key is set, every sibling loads, a set
     `AI_BADGER_PROJECT_ID` names the project *cwd* walks to, and the client's egress rule admits the
     base; *limits* is `(total, planner, search, score)`. An opted-in refusal is handed to
-    *on_error* once: a lock names its config, a project-id mismatch names neither id."""
+    *on_error* once: a refusal names the config that denies the base (`bad-base` when no lock
+    does), and a project-id mismatch names why but neither id."""
     if env.get(PIPELINE_SWITCH) == "0":
         return None
     try:
@@ -647,13 +650,16 @@ def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any, *,
         if base is None:
             return None
         override = _override(env)
-        if override is not None and override != _walked_id(cwd):
-            if client.opted_in(env):
-                _report("memory_context.project-id-mismatch", on_error)
-            return None
+        if override is not None:
+            walked, why = _walked_id(cwd)
+            if override != walked:
+                if client.opted_in(env):
+                    _report(f"memory_context.project-id-mismatch: {why}", on_error)
+                return None
         if not client.egress_allowed(base, env, cwd):
-            reason = client.lock_reason(cwd) if client.opted_in(env) else None
-            if reason is not None:
+            if client.opted_in(env):
+                lock = client.denying_lock(base, cwd)
+                reason = lock.reason() if lock is not None else "bad-base"
                 _report("memory_context.egress-refused " + reason, on_error)
             return None
         model = planner_model(env, cwd, stages)

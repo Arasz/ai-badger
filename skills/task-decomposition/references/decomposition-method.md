@@ -125,8 +125,8 @@ result stands. Nothing reaches the network while the flags are off.
 
 **Where the plan text goes.** The advisory sends step goals, instructions and acceptance
 criteria to the classifier. With no `AI_BADGER_JEV_ENDPOINT` that is OpenRouter's decisions
-endpoint, which also needs `AI_BADGER_ALLOW_THIRD_PARTY=1` and a project with no `dataPolicy`
-lock. A loopback `AI_BADGER_JEV_ENDPOINT` (a local decider such as `Mapika/decider` on
+endpoint, which also needs `AI_BADGER_ALLOW_THIRD_PARTY=1` and, in a `dataPolicy`-locked
+project, `openrouter.ai` in every lock's `allowHosts`. A loopback `AI_BADGER_JEV_ENDPOINT` (a local decider such as `Mapika/decider` on
 `/v1/systemone`) works even in a locked project, keyless or with `AI_BADGER_JEV_ENDPOINT_KEY`
 (the loopback test seam, when set, still takes precedence). A non-loopback one must be `https://` and needs the same
 opt-in; in a locked project its host must also be listed in the lock's `allowHosts`

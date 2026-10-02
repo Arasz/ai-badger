@@ -17,9 +17,9 @@ the design is in [ADR-0034](../adr/0034-third-party-egress-is-opt-in-and-lockabl
 
 | Surface | What leaves | Destination | Default | Control |
 |---|---|---|---|---|
-| Per-prompt memory context, pipeline mode (`ai-raccoon-memory`) | the gated prompt; up to 48 memory **and source-code** excerpts (500 chars each) with their paths | OpenRouter chat completions (planner) and `/api/alpha/decisions` (`typesafe/jev-1.13`) | **off** | `AI_BADGER_ALLOW_THIRD_PARTY=1` + `OPENROUTER_API_KEY`, no `dataPolicy` lock |
+| Per-prompt memory context, pipeline mode (`ai-raccoon-memory`) | the gated prompt; up to 48 memory **and source-code** excerpts (500 chars each) with their paths | OpenRouter chat completions (planner) and `/api/alpha/decisions` (`typesafe/jev-1.13`) | **off** | `AI_BADGER_ALLOW_THIRD_PARTY=1` + `OPENROUTER_API_KEY`; under a `dataPolicy` lock only if every lock's `allowHosts` lists `openrouter.ai`; a set `AI_BADGER_PROJECT_ID` must match the cwd's |
 | Per-prompt memory context, single search | nothing beyond the machine (stdio to the local `ai-raccoon` proxy) | local | on | `AI_BADGER_MEMORY_CONTEXT=0` turns the hook off |
-| Jev advisory (`task-decomposition/scripts/jev_choice.py`) | plan step goals, instructions, acceptance criteria, files, verifier | OpenRouter decisions, or `AI_BADGER_JEV_ENDPOINT` | **off** | `AI_BADGER_JEV=1` + `_TIER=1`/`_WAVES=1`; a non-loopback endpoint also needs the opt-in and no lock |
+| Jev advisory (`task-decomposition/scripts/jev_choice.py`) | plan step goals, instructions, acceptance criteria, files, verifier | OpenRouter decisions, or `AI_BADGER_JEV_ENDPOINT` | **off** | `AI_BADGER_JEV=1` + `_TIER=1`/`_WAVES=1`; a non-loopback endpoint also needs the opt-in and, under a lock, an `allowHosts` entry for its host |
 | pi subagents by `level:` | the whole delegated task | the model `.ai-badger/model-groups.json` resolves (all `openrouter/*` ids) | on for pi projects | pi's own provider config; **not governed by the opt-in** |
 | archify update check | an HTTPS GET (IP and headers, no content) | `tt-a1i.github.io` | on when the skill runs it | `ARCHIFY_UPDATE_CHECK_DISABLED=1` |
 | archify brand capture | the URL the author names | that site | on demand | private addresses refused unless `ARCHIFY_BRAND_ALLOW_PRIVATE=1` |
@@ -74,9 +74,14 @@ symlinked checkout. A nested project or an in-tree worktree under a locked direc
 locked. A config without `dataPolicy` leaves the decision to `AI_BADGER_ALLOW_THIRD_PARTY`.
 
 When you opted in and a lock refuses egress, the memory hook writes one line per process to
-`~/.ai-badger/hook-errors.log` (a Hermes warning under Hermes) naming the locking config, never
-the prompt: `memory_context.egress-refused <path>: dataPolicy`. Without the opt-in a refusal is
-the normal default and is not logged.
+`~/.ai-badger/hook-errors.log` (a Hermes warning under Hermes) naming the lock that refused, never
+the prompt, a host or an allowlist entry: `memory_context.egress-refused <path>: <cause>`. The
+cause says why: `dataPolicy` (a plain lock), `dataPolicy (allowHosts invalid at entry #<i>: list
+ignored)` (0-based; also `duplicate`, `missing`, `not a list`, `mode invalid`, `unknown key`), or
+`unreadable:invalid-json|too-large|io|not-object`. An opted-in refusal with no lock behind it logs
+`memory_context.egress-refused bad-base`. Without the opt-in a refusal is the normal default and
+is not logged. The Jev advisory's `locked` reason says the same thing: no `allowHosts`, a voided
+list, or the host missing from the list of the named config.
 
 Re-running `welcome-ai-badger` keeps an existing `dataPolicy`. Scaffolders older than 0.185.0
 reject a config containing it, so upgrade ai-badger before committing it.
@@ -98,7 +103,8 @@ without the developer's opt-in.
 - Entries are exact host names: case-insensitive, with a trailing dot ignored and any URL port
   accepted. `decider.corp.example` does not admit `evil-decider.corp.example` or
   `decider.corp.example.evil.example`.
-- An entry must contain a dot and cannot be an IP address or end in an all-digit label. A
+- An entry must contain a dot, and its last label must start with a letter, which rules out
+  dotted IPv4, IPv6 and numeric shorthand such as `0x7f.0x1`. A
   wildcard, a port, a URL or a non-string entry, an unknown key, or a `mode` other than
   `"local-only"` voids the whole list; the project stays locked with nothing allowed.
 - When several ancestors lock, only hosts listed by **all** of them pass: a nested project can
@@ -114,14 +120,16 @@ When `AI_BADGER_PROJECT_ID` is set (and not blank), the memory pipeline runs onl
 the project id found by walking up from the working directory (`.ai-badger/project-id`). A
 mismatch, or no id on the walk, leaves the single local search. This stops an exported id from
 pulling a locked project's memory into a third-party request made from an unlocked directory.
-When you opted in, the refusal is logged once, without the ids or the prompt.
+When you opted in, the refusal is logged once as `memory_context.project-id-mismatch: <why>`,
+where `<why>` is `differs`, `no-file`, `unreadable` or `store-unavailable`; the ids and the
+prompt are never logged.
 
 ## Jev endpoints
 
 `jev_choice.py` picks its endpoint in three ways:
 
 - **Default.** OpenRouter's decisions endpoint, authenticated with `OPENROUTER_API_KEY`. It needs
-  the opt-in and no lock.
+  the opt-in and, under a lock, an `allowHosts` entry for `openrouter.ai` in every lock.
 - **`AI_BADGER_JEV_ENDPOINT` on loopback.** Allowed even in a locked project. This is the slot
   for a local classifier (see below).
 - **`AI_BADGER_JEV_ENDPOINT` anywhere else.** It must use `https://` and needs the opt-in. In a

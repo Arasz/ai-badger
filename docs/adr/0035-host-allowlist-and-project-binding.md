@@ -68,7 +68,7 @@ This decision amends ADR-0034 D2.
 **Entries.** Each entry is an exact host matching `HOST_PATTERN`:
 
 - LDH labels, with at least one dot;
-- the last label is not all digits, which excludes IP literals and numeric hosts;
+- the last label starts with a letter, which excludes dotted IPv4, IPv6 and numeric shorthand such as `0x7f.0x1`;
 - an optional trailing dot;
 - matched case-insensitively, ignoring the URL's port.
 

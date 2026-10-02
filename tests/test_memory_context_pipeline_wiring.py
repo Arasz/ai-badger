@@ -607,6 +607,37 @@ def test_an_opted_in_build_refused_by_a_lock_reports_the_config_once(memory_cont
     assert memory_context_env.guards.net_attempts == []
 
 
+def test_an_opted_in_refusal_names_the_lock_that_denies_not_the_nearest(memory_context_env,
+                                                                        monkeypatch):
+    parent, module = scaffold(memory_context_env)
+    lock(parent)
+    child = parent / "child"
+    (child / ".ai-badger").mkdir(parents=True)
+    policy = {"mode": "local-only", "allowHosts": ["openrouter.ai"]}
+    (child / ".ai-badger" / "config.json").write_text(json.dumps({"dataPolicy": policy}),
+                                                      encoding="utf-8")
+    monkeypatch.setattr(module, "_REPORTED", set())
+    seen, record = recorder()
+    assert module.pipeline_for(production_env(**{ALLOW: "1"}), str(child), None,
+                               on_error=record) is None
+    config = os.path.join(os.path.abspath(parent), ".ai-badger", "config.json")
+    assert seen == [(f"memory_context.egress-refused {config}: dataPolicy", None)]
+
+
+def test_an_opted_in_refusal_with_no_lock_reports_a_bad_base_once(memory_context_env,
+                                                                  monkeypatch):
+    cwd, module = scaffold(memory_context_env)
+    client = module._load_sibling("openrouter_client")  # pylint: disable=protected-access
+    monkeypatch.setattr(client, "api_base", lambda env, key: "http://decider.corp.example")
+    monkeypatch.setattr(module, "_REPORTED", set())
+    seen, record = recorder()
+    for _ in range(2):
+        assert module.pipeline_for(production_env(**{ALLOW: "1"}), str(cwd), None,
+                                   on_error=record) is None
+    assert seen == [("memory_context.egress-refused bad-base", None)]
+    assert "decider" not in repr(seen)
+
+
 @pytest.mark.parametrize("extra", [{}, {ALLOW: "true"}, {ALLOW: "1", "OPENROUTER_API_KEY": ""}],
                          ids=["not-opted-in", "not-literal-one", "no-key"])
 def test_a_lock_refusal_is_not_reported_without_the_opt_in_and_a_key(memory_context_env,
@@ -720,7 +751,50 @@ def test_b5_a_mismatch_is_reported_once_when_opted_in(memory_context_env, router
     for _ in range(2):
         assert module.pipeline_for(opted(router, **{PROJECT_ID: "locked-id"}), str(cwd), None,
                                    on_error=record) is None
-    assert seen == [(MISMATCH, None)]
+    assert seen == [(MISMATCH + ": differs", None)]
+    assert "locked-id" not in repr(seen) and "open-id" not in repr(seen)
+
+
+def _no_file(module, cwd, monkeypatch):
+    del module, monkeypatch
+    (cwd / ".ai-badger" / "project-id").unlink()
+
+
+def _unreadable_id(module, cwd, monkeypatch):
+    del module, monkeypatch
+    (cwd / ".ai-badger" / "project-id").chmod(0)
+
+
+def _blank_id(module, cwd, monkeypatch):
+    del module, monkeypatch
+    (cwd / ".ai-badger" / "project-id").write_text(" \n", encoding="utf-8")
+
+
+def _store_unavailable(module, cwd, monkeypatch):
+    del cwd
+    monkeypatch.setattr(module, "load_badger_store", lambda: None)
+
+
+@pytest.mark.parametrize("break_id,why", [(_no_file, "no-file"), (_unreadable_id, "unreadable"),
+                                          (_blank_id, "unreadable"),
+                                          (_store_unavailable, "store-unavailable")],
+                         ids=["no-file", "unreadable", "blank", "store-unavailable"])
+def test_b5_each_mismatch_names_why_and_no_id(memory_context_env, router, monkeypatch,
+                                              break_id, why):
+    if why == "unreadable" and hasattr(os, "geteuid") and os.geteuid() == 0:
+        pytest.skip("root reads a mode-000 file")
+    cwd, module = bound(memory_context_env, "open-id")
+    monkeypatch.setattr(module, "_REPORTED", set())
+    break_id(module, cwd, monkeypatch)
+    seen, record = recorder()
+    try:
+        for _ in range(2):
+            assert module.pipeline_for(opted(router, **{PROJECT_ID: "locked-id"}), str(cwd),
+                                       None, on_error=record) is None
+    finally:
+        if why == "unreadable":
+            (cwd / ".ai-badger" / "project-id").chmod(0o600)
+    assert seen == [(f"{MISMATCH}: {why}", None)]
     assert "locked-id" not in repr(seen) and "open-id" not in repr(seen)
 
 
